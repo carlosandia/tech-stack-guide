@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/providers/AuthProvider'
 import {
   LayoutDashboard,
@@ -15,12 +15,12 @@ import {
 
 /**
  * AIDEV-NOTE: Layout do Painel Super Admin
- * Conforme PRD-14 - Painel Super Admin
+ * Conforme PRD-14 + Design System (Seção 11 - Navegação Horizontal)
  *
- * Inclui:
- * - Sidebar com navegacao
- * - Header com usuario logado
- * - Outlet para paginas
+ * Estrutura:
+ * - Header fixo (56px) com navegação horizontal
+ * - Toolbar sticky (48px) com contexto da página
+ * - Content area com padding adequado
  */
 
 const menuItems = [
@@ -31,7 +31,7 @@ const menuItems = [
     exact: true,
   },
   {
-    label: 'Organizacoes',
+    label: 'Organizações',
     path: '/admin/organizacoes',
     icon: Building2,
   },
@@ -41,21 +41,65 @@ const menuItems = [
     icon: CreditCard,
   },
   {
-    label: 'Modulos',
+    label: 'Módulos',
     path: '/admin/modulos',
     icon: Puzzle,
   },
   {
-    label: 'Configuracoes',
+    label: 'Configurações',
     path: '/admin/configuracoes',
     icon: Settings,
   },
 ]
 
+// Componente de item de navegação horizontal
+function NavItem({
+  to,
+  exact,
+  children,
+  icon: Icon,
+  onClick,
+}: {
+  to: string
+  exact?: boolean
+  children: React.ReactNode
+  icon: React.ElementType
+  onClick?: () => void
+}) {
+  return (
+    <NavLink
+      to={to}
+      end={exact}
+      onClick={onClick}
+      className={({ isActive }) =>
+        `flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+          isActive
+            ? 'bg-primary text-primary-foreground'
+            : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+        }`
+      }
+    >
+      <Icon className="w-4 h-4" />
+      <span>{children}</span>
+    </NavLink>
+  )
+}
+
+// Títulos das páginas para o toolbar
+function getPageTitle(pathname: string): string {
+  if (pathname === '/admin') return 'Dashboard'
+  if (pathname.startsWith('/admin/organizacoes')) return 'Organizações'
+  if (pathname.startsWith('/admin/planos')) return 'Planos'
+  if (pathname.startsWith('/admin/modulos')) return 'Módulos'
+  if (pathname.startsWith('/admin/configuracoes')) return 'Configurações'
+  return 'Super Admin'
+}
+
 export function AdminLayout() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { user, signOut } = useAuth()
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [drawerOpen, setDrawerOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
 
   const handleLogout = async () => {
@@ -63,68 +107,62 @@ export function AdminLayout() {
       await signOut()
       navigate('/login', { replace: true })
     } catch {
-      // Mesmo com erro, redireciona
       navigate('/login', { replace: true })
     }
   }
 
+  const pageTitle = getPageTitle(location.pathname)
+
   return (
     <div className="min-h-screen bg-background">
-      {/* Mobile sidebar backdrop */}
-      {sidebarOpen && (
+      {/* Mobile drawer backdrop */}
+      {drawerOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
+          className="fixed inset-0 z-[200] bg-foreground/20 md:hidden"
+          onClick={() => setDrawerOpen(false)}
         />
       )}
 
-      {/* Sidebar */}
-      <aside
+      {/* Mobile drawer */}
+      <div
         className={`
-          fixed top-0 left-0 z-50 h-full w-64 bg-gray-900 text-white
+          fixed inset-y-0 left-0 z-[300] w-64 bg-background border-r border-border
           transform transition-transform duration-200 ease-in-out
-          lg:translate-x-0
-          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+          md:hidden
+          ${drawerOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
       >
-        {/* Logo */}
-        <div className="flex h-16 items-center justify-between px-4 border-b border-gray-800">
+        {/* Drawer header */}
+        <div className="flex h-14 items-center justify-between px-4 border-b border-border">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">R</span>
+            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+              <span className="text-primary-foreground font-bold text-sm">R</span>
             </div>
-            <span className="font-semibold text-lg">CRM Renove</span>
+            <span className="font-semibold text-lg text-foreground">CRM Renove</span>
           </div>
           <button
-            className="lg:hidden p-1 hover:bg-gray-800 rounded"
-            onClick={() => setSidebarOpen(false)}
+            className="p-1 hover:bg-muted rounded-md"
+            onClick={() => setDrawerOpen(false)}
           >
-            <X className="w-5 h-5" />
+            <X className="w-5 h-5 text-muted-foreground" />
           </button>
         </div>
 
-        {/* Badge Super Admin */}
-        <div className="px-4 py-3 border-b border-gray-800">
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-500/20 text-purple-300">
-            Super Admin
-          </span>
-        </div>
-
-        {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-1">
+        {/* Drawer navigation */}
+        <nav className="p-4 space-y-1">
           {menuItems.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
               end={item.exact}
+              onClick={() => setDrawerOpen(false)}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                `flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors ${
                   isActive
                     ? 'bg-primary text-primary-foreground'
-                    : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                 }`
               }
-              onClick={() => setSidebarOpen(false)}
             >
               <item.icon className="w-5 h-5" />
               {item.label}
@@ -132,59 +170,88 @@ export function AdminLayout() {
           ))}
         </nav>
 
-        {/* Logout */}
-        <div className="p-4 border-t border-gray-800">
+        {/* Drawer footer */}
+        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-border">
           <button
             onClick={handleLogout}
-            className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm font-medium text-gray-300 hover:bg-gray-800 hover:text-white transition-colors"
+            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-md text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
           >
             <LogOut className="w-5 h-5" />
             Sair
           </button>
         </div>
-      </aside>
+      </div>
 
-      {/* Main content */}
-      <div className="lg:pl-64">
-        {/* Header */}
-        <header className="sticky top-0 z-30 h-16 bg-card border-b border-border">
-          <div className="flex h-full items-center justify-between px-4">
+      {/* Header fixo - 56px */}
+      <header className="fixed top-0 left-0 right-0 z-[100] h-14 bg-background border-b border-border shadow-sm">
+        <div className="flex items-center justify-between h-full px-4 lg:px-6 max-w-[1920px] mx-auto">
+          {/* Left: Logo + Navigation */}
+          <div className="flex items-center gap-8">
             {/* Mobile menu button */}
             <button
-              className="lg:hidden p-2 -ml-2 hover:bg-accent rounded-lg"
-              onClick={() => setSidebarOpen(true)}
+              className="md:hidden p-2 -ml-2 hover:bg-muted rounded-md"
+              onClick={() => setDrawerOpen(true)}
             >
               <Menu className="w-5 h-5 text-foreground" />
             </button>
 
-            {/* Spacer */}
-            <div className="flex-1" />
+            {/* Logo */}
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+                <span className="text-primary-foreground font-bold text-sm">R</span>
+              </div>
+              <span className="hidden sm:block font-semibold text-lg text-foreground">
+                CRM Renove
+              </span>
+            </div>
+
+            {/* Desktop Navigation */}
+            <nav className="hidden md:flex items-center gap-1">
+              {menuItems.map((item) => (
+                <NavItem
+                  key={item.path}
+                  to={item.path}
+                  exact={item.exact}
+                  icon={item.icon}
+                >
+                  {item.label}
+                </NavItem>
+              ))}
+            </nav>
+          </div>
+
+          {/* Right: Badge + User Menu */}
+          <div className="flex items-center gap-3">
+            {/* Badge Super Admin */}
+            <span className="hidden sm:inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary">
+              Super Admin
+            </span>
 
             {/* User menu */}
             <div className="relative">
               <button
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
-                className="flex items-center gap-2 p-2 hover:bg-accent rounded-lg"
+                className="flex items-center gap-2 p-2 hover:bg-muted rounded-md"
               >
                 <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center">
                   <span className="text-sm font-medium text-muted-foreground">
                     {user?.email?.[0]?.toUpperCase() || 'U'}
                   </span>
                 </div>
-                <span className="hidden sm:block text-sm font-medium text-foreground">
+                <span className="hidden sm:block text-sm font-medium text-foreground max-w-[150px] truncate">
                   {user?.email}
                 </span>
                 <ChevronDown className="w-4 h-4 text-muted-foreground" />
               </button>
 
-              {/* Dropdown */}
+              {/* User dropdown */}
               {userMenuOpen && (
                 <>
                   <div
                     className="fixed inset-0 z-40"
                     onClick={() => setUserMenuOpen(false)}
                   />
-                  <div className="absolute right-0 mt-1 w-48 bg-card rounded-lg shadow-lg border border-border py-1 z-50">
+                  <div className="absolute right-0 mt-1 w-56 bg-card rounded-md shadow-lg border border-border py-1 z-50">
                     <div className="px-3 py-2 border-b border-border">
                       <p className="text-sm font-medium text-foreground truncate">
                         {user?.email}
@@ -193,7 +260,7 @@ export function AdminLayout() {
                     </div>
                     <button
                       onClick={handleLogout}
-                      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-foreground hover:bg-accent"
+                      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-foreground hover:bg-muted"
                     >
                       <LogOut className="w-4 h-4" />
                       Sair
@@ -203,13 +270,22 @@ export function AdminLayout() {
               )}
             </div>
           </div>
-        </header>
+        </div>
+      </header>
 
-        {/* Page content */}
-        <main className="p-4 sm:p-6 lg:p-8">
-          <Outlet />
-        </main>
+      {/* Toolbar sticky - 48px */}
+      <div className="fixed top-14 left-0 right-0 z-50 h-12 bg-muted/50 border-b border-border">
+        <div className="flex items-center justify-between h-full px-4 lg:px-6 max-w-[1920px] mx-auto">
+          <h1 className="text-base font-semibold text-foreground">{pageTitle}</h1>
+          {/* Espaço reservado para ações contextuais (botões de busca, novo, etc.) */}
+          <div id="toolbar-actions" />
+        </div>
       </div>
+
+      {/* Main content - pt-[104px] = 56px header + 48px toolbar */}
+      <main className="pt-[104px] p-4 sm:p-6 lg:p-8">
+        <Outlet />
+      </main>
     </div>
   )
 }
