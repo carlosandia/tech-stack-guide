@@ -96,7 +96,7 @@ function getPageTitle(pathname: string): string {
   return 'Super Admin'
 }
 
-export function AdminLayout() {
+function AdminLayoutInner() {
   const navigate = useNavigate()
   const location = useLocation()
   const { user, signOut } = useAuth()
@@ -301,13 +301,13 @@ function ToolbarWithActions({ pageTitle }: { pageTitle: string }) {
   )
 }
 
-// Wrapper que provê o contexto
-function AdminLayoutWrapper() {
+// Componente exportado que provê o contexto
+export function AdminLayout() {
   return (
     <ToolbarProvider>
-      <AdminLayout />
+      <AdminLayoutInner />
     </ToolbarProvider>
   )
 }
 
-export default AdminLayoutWrapper
+export default AdminLayout
