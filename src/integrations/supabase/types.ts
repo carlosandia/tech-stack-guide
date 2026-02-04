@@ -5124,6 +5124,7 @@ export type Database = {
         Args: { p_meta_id: string; p_modo?: string }
         Returns: Json
       }
+      get_user_tenant_id: { Args: never; Returns: string }
       has_app_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -5134,6 +5135,7 @@ export type Database = {
       has_role: { Args: { _role: string; _user_id: string }; Returns: boolean }
       is_super_admin: { Args: never; Returns: boolean }
       is_super_admin_v2: { Args: never; Returns: boolean }
+      is_tenant_admin: { Args: never; Returns: boolean }
       log_audit: {
         Args: {
           p_acao: string
