@@ -37,7 +37,7 @@ export function LoginForm({ onSubmit, isLoading = false, error }: LoginFormProps
   const {
     register,
     handleSubmit,
-    formState: { errors, isValid },
+    formState: { errors },
     watch,
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),

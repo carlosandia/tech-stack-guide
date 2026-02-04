@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { UUIDSchema, UserRoleSchema, TimestampsSchema } from './common'
+import { UUIDSchema, UserRoleSchema } from './common'
 
 /**
  * AIDEV-NOTE: Schema de usuarios do sistema
