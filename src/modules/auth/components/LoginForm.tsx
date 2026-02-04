@@ -88,7 +88,7 @@ export function LoginForm({ onSubmit, isLoading = false, error }: LoginFormProps
           {...register('email')}
           className={`
             w-full h-11 px-3 border rounded-md
-            focus:outline-none focus:ring-2 focus:ring-blue-500
+            focus:outline-none focus:ring-2 focus:ring-primary
             ${errors.email ? 'border-red-500' : 'border-gray-300'}
           `}
           disabled={isLoading}
@@ -112,7 +112,7 @@ export function LoginForm({ onSubmit, isLoading = false, error }: LoginFormProps
             {...register('senha')}
             className={`
               w-full h-11 px-3 pr-10 border rounded-md
-              focus:outline-none focus:ring-2 focus:ring-blue-500
+              focus:outline-none focus:ring-2 focus:ring-primary
               ${errors.senha ? 'border-red-500' : 'border-gray-300'}
             `}
             disabled={isLoading}
@@ -141,7 +141,7 @@ export function LoginForm({ onSubmit, isLoading = false, error }: LoginFormProps
           id="lembrar"
           type="checkbox"
           {...register('lembrar')}
-          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+          className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
           disabled={isLoading}
         />
         <label htmlFor="lembrar" className="ml-2 block text-sm text-gray-700">
@@ -159,7 +159,7 @@ export function LoginForm({ onSubmit, isLoading = false, error }: LoginFormProps
           ${
             isButtonDisabled
               ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              : 'bg-blue-600 text-white hover:bg-blue-700'
+              : 'bg-primary text-primary-foreground hover:bg-primary/90'
           }
         `}
       >
@@ -177,7 +177,7 @@ export function LoginForm({ onSubmit, isLoading = false, error }: LoginFormProps
       <div className="text-center">
         <Link
           to="/recuperar-senha"
-          className="text-sm text-blue-600 hover:underline"
+          className="text-sm text-primary hover:underline"
         >
           Esqueci minha senha
         </Link>

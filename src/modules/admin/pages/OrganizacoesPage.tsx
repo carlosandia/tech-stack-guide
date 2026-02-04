@@ -75,7 +75,7 @@ export function OrganizacoesPage() {
         </div>
         <button
           onClick={() => navigate('/admin/organizacoes/nova')}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
         >
           <Plus className="w-4 h-4" />
           Nova Organizacao
@@ -92,7 +92,7 @@ export function OrganizacoesPage() {
               placeholder="Buscar por nome ou email..."
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
             />
           </div>
           <select
@@ -101,7 +101,7 @@ export function OrganizacoesPage() {
               setStatusFilter(e.target.value)
               setPage(1)
             }}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
           >
             <option value="todas">Todos os status</option>
             <option value="ativa">Ativas</option>

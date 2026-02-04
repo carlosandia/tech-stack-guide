@@ -75,7 +75,7 @@ export function ForgotPasswordPage() {
             </p>
             <Link
               to="/login"
-              className="inline-flex items-center text-blue-600 hover:underline mt-4"
+              className="inline-flex items-center text-primary hover:underline mt-4"
             >
               <ArrowLeft className="h-4 w-4 mr-1" />
               Voltar para login
@@ -103,12 +103,12 @@ export function ForgotPasswordPage() {
                 type="email"
                 autoComplete="email"
                 placeholder="seu@email.com"
-                {...register('email')}
-                className={`
-                  w-full h-11 px-3 border rounded-md
-                  focus:outline-none focus:ring-2 focus:ring-blue-500
-                  ${errors.email ? 'border-red-500' : 'border-gray-300'}
-                `}
+              {...register('email')}
+              className={`
+                w-full h-11 px-3 border rounded-md
+                focus:outline-none focus:ring-2 focus:ring-primary
+                ${errors.email ? 'border-red-500' : 'border-gray-300'}
+              `}
                 disabled={isLoading}
               />
               {errors.email && (
@@ -122,7 +122,7 @@ export function ForgotPasswordPage() {
               disabled={isLoading}
               className={`
                 w-full h-11 flex items-center justify-center font-medium rounded-md
-                transition-colors bg-blue-600 text-white hover:bg-blue-700
+                transition-colors bg-primary text-primary-foreground hover:bg-primary/90
                 ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}
               `}
             >
@@ -140,7 +140,7 @@ export function ForgotPasswordPage() {
             <div className="text-center">
               <Link
                 to="/login"
-                className="inline-flex items-center text-sm text-blue-600 hover:underline"
+                className="inline-flex items-center text-sm text-primary hover:underline"
               >
                 <ArrowLeft className="h-4 w-4 mr-1" />
                 Voltar para login

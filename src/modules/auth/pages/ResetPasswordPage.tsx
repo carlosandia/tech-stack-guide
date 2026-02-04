@@ -140,12 +140,12 @@ export function ResetPasswordPage() {
                 id="nova_senha"
                 type={showPassword ? 'text' : 'password'}
                 placeholder="••••••••"
-                {...register('nova_senha')}
-                className={`
-                  w-full h-11 px-3 pr-10 border rounded-md
-                  focus:outline-none focus:ring-2 focus:ring-blue-500
-                  ${errors.nova_senha ? 'border-red-500' : 'border-gray-300'}
-                `}
+              {...register('nova_senha')}
+              className={`
+                w-full h-11 px-3 pr-10 border rounded-md
+                focus:outline-none focus:ring-2 focus:ring-primary
+                ${errors.nova_senha ? 'border-red-500' : 'border-gray-300'}
+              `}
                 disabled={isLoading || !token}
               />
               <button
@@ -186,12 +186,12 @@ export function ResetPasswordPage() {
                 id="confirmar_senha"
                 type={showConfirmPassword ? 'text' : 'password'}
                 placeholder="••••••••"
-                {...register('confirmar_senha')}
-                className={`
-                  w-full h-11 px-3 pr-10 border rounded-md
-                  focus:outline-none focus:ring-2 focus:ring-blue-500
-                  ${errors.confirmar_senha ? 'border-red-500' : 'border-gray-300'}
-                `}
+              {...register('confirmar_senha')}
+              className={`
+                w-full h-11 px-3 pr-10 border rounded-md
+                focus:outline-none focus:ring-2 focus:ring-primary
+                ${errors.confirmar_senha ? 'border-red-500' : 'border-gray-300'}
+              `}
                 disabled={isLoading || !token}
               />
               <button
@@ -232,7 +232,7 @@ export function ResetPasswordPage() {
               ${
                 isLoading || !token || !passwordChecks.every(c => c.passed) || !passwordsMatch
                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-blue-600 text-white hover:bg-blue-700'
+                  : 'bg-primary text-primary-foreground hover:bg-primary/90'
               }
             `}
           >
@@ -253,7 +253,7 @@ export function ResetPasswordPage() {
         <div className="mt-4 text-center">
           <Link
             to="/recuperar-senha"
-            className="text-sm text-blue-600 hover:underline"
+            className="text-sm text-primary hover:underline"
           >
             Solicitar novo link de recuperacao
           </Link>
