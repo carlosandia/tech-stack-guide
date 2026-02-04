@@ -31,10 +31,10 @@ export function DashboardPage() {
   if (isLoading) {
     return (
       <div className="animate-pulse space-y-6">
-        <div className="h-8 w-64 bg-gray-200 rounded" />
+        <div className="h-8 w-64 bg-muted rounded" />
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-32 bg-gray-200 rounded-lg" />
+            <div key={i} className="h-32 bg-muted rounded-lg" />
           ))}
         </div>
       </div>
@@ -43,8 +43,8 @@ export function DashboardPage() {
 
   if (error) {
     return (
-      <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-        <p className="text-red-600">Erro ao carregar metricas</p>
+      <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+        <p className="text-destructive">Erro ao carregar metricas</p>
       </div>
     )
   }
@@ -59,25 +59,25 @@ export function DashboardPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard da Plataforma</h1>
-        <p className="text-gray-500 mt-1">Visao geral dos ultimos 30 dias</p>
+        <h1 className="text-2xl font-bold text-foreground">Dashboard da Plataforma</h1>
+        <p className="text-muted-foreground mt-1">Visao geral dos ultimos 30 dias</p>
       </div>
 
       {/* Cards de metricas */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Tenants Ativos */}
-        <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+        <div className="bg-card p-6 rounded-lg border border-border shadow-sm">
           <div className="flex items-center justify-between">
-            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-              <Building2 className="w-5 h-5 text-blue-600" />
+            <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+              <Building2 className="w-5 h-5 text-primary" />
             </div>
-            <span className="text-xs text-gray-500">Ativos</span>
+            <span className="text-xs text-muted-foreground">Ativos</span>
           </div>
           <div className="mt-4">
-            <p className="text-3xl font-bold text-gray-900">
+            <p className="text-3xl font-bold text-foreground">
               {metricas?.tenants.total || 0}
             </p>
-            <p className="text-sm text-gray-500 mt-1">Organizacoes</p>
+            <p className="text-sm text-muted-foreground mt-1">Organizacoes</p>
           </div>
           <div className="mt-3 flex items-center gap-4 text-xs">
             <span className="text-green-600">{metricas?.tenants.ativos || 0} ativos</span>
@@ -86,18 +86,18 @@ export function DashboardPage() {
         </div>
 
         {/* MRR */}
-        <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+        <div className="bg-card p-6 rounded-lg border border-border shadow-sm">
           <div className="flex items-center justify-between">
             <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
               <TrendingUp className="w-5 h-5 text-green-600" />
             </div>
-            <span className="text-xs text-gray-500">Receita</span>
+            <span className="text-xs text-muted-foreground">Receita</span>
           </div>
           <div className="mt-4">
-            <p className="text-3xl font-bold text-gray-900">
+            <p className="text-3xl font-bold text-foreground">
               {formatCurrency(metricas?.financeiro.mrr || 0)}
             </p>
-            <p className="text-sm text-gray-500 mt-1">MRR</p>
+            <p className="text-sm text-muted-foreground mt-1">MRR</p>
           </div>
           <div className="mt-3 flex items-center gap-1 text-xs">
             {metricas?.financeiro.variacao_mrr && metricas.financeiro.variacao_mrr >= 0 ? (
@@ -107,48 +107,48 @@ export function DashboardPage() {
               </>
             ) : (
               <>
-                <TrendingDown className="w-3 h-3 text-red-600" />
-                <span className="text-red-600">{metricas?.financeiro.variacao_mrr || 0}% vs mes anterior</span>
+                <TrendingDown className="w-3 h-3 text-destructive" />
+                <span className="text-destructive">{metricas?.financeiro.variacao_mrr || 0}% vs mes anterior</span>
               </>
             )}
           </div>
         </div>
 
         {/* Usuarios */}
-        <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+        <div className="bg-card p-6 rounded-lg border border-border shadow-sm">
           <div className="flex items-center justify-between">
             <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
               <Users className="w-5 h-5 text-purple-600" />
             </div>
-            <span className="text-xs text-gray-500">Usuarios</span>
+            <span className="text-xs text-muted-foreground">Usuarios</span>
           </div>
           <div className="mt-4">
-            <p className="text-3xl font-bold text-gray-900">
+            <p className="text-3xl font-bold text-foreground">
               {metricas?.usuarios.total || 0}
             </p>
-            <p className="text-sm text-gray-500 mt-1">Total de usuarios</p>
+            <p className="text-sm text-muted-foreground mt-1">Total de usuarios</p>
           </div>
           <div className="mt-3 flex items-center gap-4 text-xs">
-            <span className="text-blue-600">{metricas?.usuarios.ativos_hoje || 0} hoje</span>
-            <span className="text-gray-500">{metricas?.usuarios.ativos_7d || 0} (7d)</span>
+            <span className="text-primary">{metricas?.usuarios.ativos_hoje || 0} hoje</span>
+            <span className="text-muted-foreground">{metricas?.usuarios.ativos_7d || 0} (7d)</span>
           </div>
         </div>
 
         {/* Novos Tenants */}
-        <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+        <div className="bg-card p-6 rounded-lg border border-border shadow-sm">
           <div className="flex items-center justify-between">
             <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
               <Building2 className="w-5 h-5 text-orange-600" />
             </div>
-            <span className="text-xs text-gray-500">Crescimento</span>
+            <span className="text-xs text-muted-foreground">Crescimento</span>
           </div>
           <div className="mt-4">
-            <p className="text-3xl font-bold text-gray-900">
+            <p className="text-3xl font-bold text-foreground">
               +{metricas?.tenants.novos_7d || 0}
             </p>
-            <p className="text-sm text-gray-500 mt-1">Novos (7 dias)</p>
+            <p className="text-sm text-muted-foreground mt-1">Novos (7 dias)</p>
           </div>
-          <div className="mt-3 text-xs text-gray-500">
+          <div className="mt-3 text-xs text-muted-foreground">
             +{metricas?.tenants.novos_30d || 0} nos ultimos 30 dias
           </div>
         </div>
@@ -157,8 +157,8 @@ export function DashboardPage() {
       {/* Secao inferior */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Distribuicao por Plano */}
-        <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+        <div className="bg-card p-6 rounded-lg border border-border shadow-sm">
+          <h2 className="text-lg font-semibold text-foreground mb-4">
             Distribuicao por Plano
           </h2>
           <div className="space-y-3">
@@ -166,12 +166,12 @@ export function DashboardPage() {
               <div key={item.plano} className="flex items-center gap-3">
                 <div className="flex-1">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-medium text-gray-700">{item.plano}</span>
-                    <span className="text-sm text-gray-500">
+                    <span className="text-sm font-medium text-foreground">{item.plano}</span>
+                    <span className="text-sm text-muted-foreground">
                       {item.quantidade} ({item.percentual.toFixed(0)}%)
                     </span>
                   </div>
-                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-2 bg-muted rounded-full overflow-hidden">
                     <div
                       className="h-full bg-primary rounded-full"
                       style={{ width: `${item.percentual}%` }}
@@ -181,40 +181,40 @@ export function DashboardPage() {
               </div>
             ))}
             {(!metricas?.distribuicao_planos || metricas.distribuicao_planos.length === 0) && (
-              <p className="text-sm text-gray-500">Nenhum tenant cadastrado</p>
+              <p className="text-sm text-muted-foreground">Nenhum tenant cadastrado</p>
             )}
           </div>
         </div>
 
         {/* Alertas */}
-        <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Alertas</h2>
+        <div className="bg-card p-6 rounded-lg border border-border shadow-sm">
+          <h2 className="text-lg font-semibold text-foreground mb-4">Alertas</h2>
           <div className="space-y-3">
             {metricas?.alertas.map((alerta, index) => (
               <div
                 key={index}
                 className={`flex items-start gap-3 p-3 rounded-lg ${
                   alerta.tipo === 'error'
-                    ? 'bg-red-50'
+                    ? 'bg-destructive/10'
                     : alerta.tipo === 'warning'
                     ? 'bg-yellow-50'
-                    : 'bg-blue-50'
+                    : 'bg-primary/5'
                 }`}
               >
                 {alerta.tipo === 'error' ? (
-                  <XCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                  <XCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
                 ) : alerta.tipo === 'warning' ? (
                   <AlertTriangle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
                 ) : (
-                  <Info className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
+                  <Info className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
                 )}
                 <p
                   className={`text-sm ${
                     alerta.tipo === 'error'
-                      ? 'text-red-700'
+                      ? 'text-destructive'
                       : alerta.tipo === 'warning'
                       ? 'text-yellow-700'
-                      : 'text-blue-700'
+                      : 'text-primary'
                   }`}
                 >
                   {alerta.mensagem}
@@ -222,7 +222,7 @@ export function DashboardPage() {
               </div>
             ))}
             {(!metricas?.alertas || metricas.alertas.length === 0) && (
-              <p className="text-sm text-gray-500">Nenhum alerta no momento</p>
+              <p className="text-sm text-muted-foreground">Nenhum alerta no momento</p>
             )}
           </div>
         </div>

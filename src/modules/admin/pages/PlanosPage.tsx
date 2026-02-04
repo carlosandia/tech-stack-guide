@@ -1,15 +1,15 @@
 import { useState } from 'react'
 import { Plus, Edit, CreditCard, Users, HardDrive, Puzzle } from 'lucide-react'
 import { usePlanos, useModulos } from '../hooks/usePlanos'
+import { PlanoFormModal } from '../components/PlanoFormModal'
 import type { Plano } from '../services/admin.api'
-
 /**
  * AIDEV-NOTE: Pagina de Gestao de Planos
  * Conforme PRD-14 - Gestao de Planos
  *
  * Exibe:
  * - Cards com planos disponiveis
- * - Formulario de criacao/edicao
+ * - Modal de criacao/edicao
  * - Modulos vinculados
  */
 
@@ -17,7 +17,7 @@ export function PlanosPage() {
   const { data: planos, isLoading, error } = usePlanos()
   const { data: modulos } = useModulos()
   const [planoEditando, setPlanoEditando] = useState<Plano | null>(null)
-  const [showNovoPlano, setShowNovoPlano] = useState(false)
+  const [showModal, setShowModal] = useState(false)
 
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat('pt-BR', {
@@ -55,7 +55,7 @@ export function PlanosPage() {
           <p className="text-muted-foreground mt-1">Gerencie os planos da plataforma</p>
         </div>
         <button
-          onClick={() => setShowNovoPlano(true)}
+          onClick={() => setShowModal(true)}
           className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
         >
           <Plus className="w-4 h-4" />
@@ -69,7 +69,10 @@ export function PlanosPage() {
           <PlanoCard
             key={plano.id}
             plano={plano}
-            onEdit={() => setPlanoEditando(plano)}
+            onEdit={() => {
+              setPlanoEditando(plano)
+              setShowModal(true)
+            }}
             formatCurrency={formatCurrency}
           />
         ))}
@@ -78,7 +81,7 @@ export function PlanosPage() {
             <CreditCard className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
             <p className="text-muted-foreground">Nenhum plano cadastrado</p>
             <button
-              onClick={() => setShowNovoPlano(true)}
+              onClick={() => setShowModal(true)}
               className="mt-4 text-sm text-primary hover:underline"
             >
               Criar primeiro plano
@@ -113,44 +116,15 @@ export function PlanosPage() {
         </div>
       </div>
 
-      {/* TODO: Modal de Novo Plano */}
-      {showNovoPlano && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="fixed inset-0 bg-black/50" onClick={() => setShowNovoPlano(false)} />
-          <div className="relative bg-card rounded-lg shadow-xl w-full max-w-lg mx-4 p-6">
-            <h2 className="text-lg font-semibold text-foreground mb-4">Novo Plano</h2>
-            <p className="text-muted-foreground">Formulario sera implementado em breve.</p>
-            <div className="mt-6 flex justify-end">
-              <button
-                onClick={() => setShowNovoPlano(false)}
-                className="px-4 py-2 text-sm font-medium border border-border rounded-md hover:bg-accent transition-colors"
-              >
-                Fechar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* TODO: Modal de Edicao */}
-      {planoEditando && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="fixed inset-0 bg-black/50" onClick={() => setPlanoEditando(null)} />
-          <div className="relative bg-card rounded-lg shadow-xl w-full max-w-lg mx-4 p-6">
-            <h2 className="text-lg font-semibold text-foreground mb-4">
-              Editar: {planoEditando.nome}
-            </h2>
-            <p className="text-muted-foreground">Formulario sera implementado em breve.</p>
-            <div className="mt-6 flex justify-end">
-              <button
-                onClick={() => setPlanoEditando(null)}
-                className="px-4 py-2 text-sm font-medium border border-border rounded-md hover:bg-accent transition-colors"
-              >
-                Fechar
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Modal de Criação/Edição */}
+      {showModal && (
+        <PlanoFormModal
+          plano={planoEditando}
+          onClose={() => {
+            setShowModal(false)
+            setPlanoEditando(null)
+          }}
+        />
       )}
     </div>
   )

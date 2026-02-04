@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, MoreVertical, Users, BarChart3, Settings, Pause, Play, User } from 'lucide-react'
+import { ArrowLeft, MoreVertical, Users, BarChart3, Settings, Pause, Play, ExternalLink } from 'lucide-react'
 import {
   useOrganizacao,
   useSuspenderOrganizacao,
@@ -48,11 +48,12 @@ export function OrganizacaoDetalhesPage() {
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<TabId>('usuarios')
   const [menuAberto, setMenuAberto] = useState(false)
+  const [impersonando, setImpersonando] = useState(false)
 
   const { data: org, isLoading, error } = useOrganizacao(id || '')
   const { mutate: suspender, isPending: suspendendo } = useSuspenderOrganizacao()
   const { mutate: reativar, isPending: reativando } = useReativarOrganizacao()
-  const { mutate: impersonar } = useImpersonarOrganizacao()
+  const { mutate: impersonar, isPending: impersonarPending } = useImpersonarOrganizacao()
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('pt-BR', {
@@ -81,11 +82,24 @@ export function OrganizacaoDetalhesPage() {
     if (!id) return
     const motivo = prompt('Informe o motivo da impersonacao (sera registrado no audit log):')
     if (motivo) {
+      setImpersonando(true)
       impersonar(
         { id, motivo },
         {
           onSuccess: (data) => {
-            alert(`Impersonando organizacao: ${data.organizacao_nome}`)
+            // Armazena info de impersonação no sessionStorage para exibir banner
+            sessionStorage.setItem('impersonation', JSON.stringify({
+              organizacao_id: data.organizacao_id,
+              organizacao_nome: data.organizacao_nome,
+              motivo,
+              timestamp: new Date().toISOString(),
+            }))
+            // Redireciona para dashboard da organização em nova aba
+            window.open(`/dashboard?org=${data.organizacao_id}`, '_blank')
+            setImpersonando(false)
+          },
+          onError: () => {
+            setImpersonando(false)
           },
         }
       )
@@ -171,10 +185,11 @@ export function OrganizacaoDetalhesPage() {
                 <div className="absolute right-0 mt-1 w-48 bg-card rounded-lg shadow-lg border border-border py-1 z-50">
                   <button
                     onClick={handleImpersonar}
-                    className="flex items-center gap-2 w-full px-4 py-2 text-sm text-foreground hover:bg-accent"
+                    disabled={impersonarPending || impersonando}
+                    className="flex items-center gap-2 w-full px-4 py-2 text-sm text-foreground hover:bg-accent disabled:opacity-50"
                   >
-                    <User className="w-4 h-4" />
-                    Impersonar
+                    <ExternalLink className="w-4 h-4" />
+                    {impersonando ? 'Abrindo...' : 'Impersonar'}
                   </button>
                 </div>
               </>
