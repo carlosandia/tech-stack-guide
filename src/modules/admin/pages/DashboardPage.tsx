@@ -173,7 +173,7 @@ export function DashboardPage() {
                   </div>
                   <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-primary-600 rounded-full"
+                      className="h-full bg-primary rounded-full"
                       style={{ width: `${item.percentual}%` }}
                     />
                   </div>
