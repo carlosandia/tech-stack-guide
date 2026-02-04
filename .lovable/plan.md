@@ -1,244 +1,181 @@
 
-
-# Plano de Implementacao - CRM Renove
+# Plano de Implementacao - Fase 0: Alinhamento ao Design System
 
 ## Visao Geral
 
-Este plano aborda duas etapas: **correcao imediata dos erros de build** e **implementacao sequencial do frontend** seguindo a ordem definida no PRD-00.
+Este plano foca em **corrigir e alinhar** o frontend existente ao Design System documentado (`docs/designsystem.md`). Todo o backend já está implementado e as conexões já existem - o problema atual é que os **tokens CSS não estão corretos** e alguns componentes usam cores hardcoded.
 
 ---
 
-## ETAPA 1: Correcao de Erros de Build (Prioridade Imediata)
+## Problema Identificado
 
-### 1.1 AdminLayout.tsx - Erro de metodo inexistente
+O arquivo `src/index.css` possui tokens CSS **incorretos** em relação ao Design System:
 
-| Item | Detalhe |
-|------|---------|
-| **Arquivo** | `src/modules/admin/layouts/AdminLayout.tsx` |
-| **Linha** | 57 |
-| **Problema** | Uso de `logout` que nao existe no `AuthContextType` |
-| **Solucao** | Alterar `logout` para `signOut` conforme definido no AuthProvider |
+| Token | Valor Atual (ERRADO) | Valor Correto (Design System) | Resultado Visual |
+|-------|---------------------|-------------------------------|------------------|
+| `--primary` | `222.2 47.4% 11.2%` (cinza escuro) | `221.2 83.2% 53.3%` (azul #3B82F6) | Botões e CTAs escuros |
+| `--ring` | `222.2 84% 4.9%` (preto) | `221.2 83.2% 53.3%` (azul) | Focus ring invisível |
+| `--radius` | `0.5rem` (8px) | `0.75rem` (12px) | Border radius menor |
 
-**Alteracoes:**
-- Linha 57: `const { user, logout } = useAuth()` → `const { user, signOut } = useAuth()`
-- Linhas 63-64: `await logout()` → `await signOut()`
-
-### 1.2 LoginForm.tsx - Variavel nao utilizada
-
-| Item | Detalhe |
-|------|---------|
-| **Arquivo** | `src/modules/auth/components/LoginForm.tsx` |
-| **Linha** | 40 |
-| **Problema** | `isValid` declarada mas nunca usada |
-| **Solucao** | Remover `isValid` do destructuring |
-
-**Alteracao:**
-- Linha 40: `formState: { errors, isValid },` → `formState: { errors },`
-
-### 1.3 LoginPage.tsx - Import nao utilizado
-
-| Item | Detalhe |
-|------|---------|
-| **Arquivo** | `src/modules/auth/pages/LoginPage.tsx` |
-| **Linha** | 7 |
-| **Problema** | Import `env` declarado mas nunca usado |
-| **Solucao** | Remover a linha de import |
-
-**Alteracao:**
-- Remover linha 7: `import { env } from '@/config/env'`
-
-### 1.4 organizacao.ts - Import nao utilizado
-
-| Item | Detalhe |
-|------|---------|
-| **Arquivo** | `src/shared/schemas/organizacao.ts` |
-| **Linha** | 2 |
-| **Problema** | `TimestampsSchema` importado mas nunca usado |
-| **Solucao** | Remover do import |
-
-**Alteracao:**
-- Linha 2: `import { UUIDSchema, TimestampsSchema } from './common'` → `import { UUIDSchema } from './common'`
-
-### 1.5 usuario.ts - Import nao utilizado
-
-| Item | Detalhe |
-|------|---------|
-| **Arquivo** | `src/shared/schemas/usuario.ts` |
-| **Linha** | 2 |
-| **Problema** | `TimestampsSchema` importado mas nunca usado |
-| **Solucao** | Remover do import |
-
-**Alteracao:**
-- Linha 2: `import { UUIDSchema, UserRoleSchema, TimestampsSchema } from './common'` → `import { UUIDSchema, UserRoleSchema } from './common'`
+Alem disso, varios componentes usam cores hardcoded (`blue-600`, `blue-500`) ao inves de usar as classes semanticas do Tailwind (`bg-primary`, `text-primary`).
 
 ---
 
-## ETAPA 2: Acao Manual do Usuario
+## ETAPA 1: Corrigir Tokens CSS (index.css)
 
-### 2.1 Script build:dev no package.json
+**Arquivo:** `src/index.css`
 
-O Lovable requer um script `build:dev` para compilacao em modo desenvolvimento.
+### Alteracoes
 
-**Instrucao:** Adicionar manualmente no `package.json` dentro de `"scripts"`:
-
-```json
-"build:dev": "vite build --mode development"
+```css
+:root {
+  /* Valores CORRETOS conforme Design System */
+  --primary: 221.2 83.2% 53.3%;        /* #3B82F6 - Azul */
+  --primary-foreground: 0 0% 100%;     /* #FFFFFF - Branco */
+  --ring: 221.2 83.2% 53.3%;           /* Igual ao primary */
+  --radius: 0.75rem;                   /* 12px */
+}
 ```
 
 ---
 
-## ETAPA 3: Ordem de Implementacao do Frontend
+## ETAPA 2: Refatorar LoginForm.tsx - Usar Tokens Semanticos
 
-Seguindo rigorosamente o PRD-00 (Indice Geral), a ordem e:
+**Arquivo:** `src/modules/auth/components/LoginForm.tsx`
 
-### Fase 0: Fundacao + Bootstrap (CRITICA)
+### Problemas Atuais
+- Linha 92: `focus:ring-blue-500` → deveria ser `focus:ring-primary`
+- Linha 115: `focus:ring-blue-500` → deveria ser `focus:ring-primary`
+- Linha 144: `text-blue-600` → deveria ser `text-primary`
+- Linha 162: `bg-blue-600 hover:bg-blue-700` → deveria ser `bg-primary hover:bg-primary/90`
+- Linha 179: `text-blue-600` → deveria ser `text-primary`
 
-| Prioridade | Modulo | PRD | Escopo |
-|------------|--------|-----|--------|
-| **1** | Login Aprimorado | PRD-03 | Tela completa conforme RF-021 a RF-023 |
-| **2** | Super Admin - Layout | PRD-14 | Layout `/admin` com Header conforme Design System |
-| **3** | Super Admin - Dashboard | PRD-14 | RF-001: Cards de metricas globais |
-| **4** | Super Admin - Organizacoes | PRD-14 | RF-002 a RF-011: CRUD Tenants + Wizard criacao |
-| **5** | Super Admin - Detalhes Tenant | PRD-14 | RF-012 a RF-019: 3 abas (Usuarios, Relatorios, Config) |
+### Resultado Esperado
+- Inputs com focus ring usando a cor primary correta
+- Botão principal com cor primary (azul)
+- Links com cor primary
 
-### Fase 1: Configuracoes do Tenant (Admin)
+---
 
-| Prioridade | Modulo | PRD | Escopo |
-|------------|--------|-----|--------|
-| **6** | Layout App | Design System | Header + Toolbar horizontal para `/app` |
-| **7** | Configuracoes - Campos | PRD-05 | RF-001 a RF-004: CRUD campos personalizados |
-| **8** | Configuracoes - Produtos | PRD-05 | RF-005 a RF-007: CRUD produtos |
-| **9** | Configuracoes - Etapas Funil | PRD-05 | RF-008 a RF-010: CRUD etapas com drag-drop |
-| **10** | Configuracoes - Tarefas Template | PRD-05 | RF-011: Templates de tarefas |
-| **11** | Configuracoes - Regras | PRD-05 | RF-012: Regras de automacao |
-| **12** | Configuracoes - Webhooks | PRD-05 | RF-013: CRUD webhooks |
-| **13** | Configuracoes - Equipe | PRD-05 | RF-014: Gerenciamento de membros |
-| **14** | Configuracoes - Metas | PRD-05 | RF-015 a RF-019: Sistema hierarquico de metas |
+## ETAPA 3: Refatorar ForgotPasswordPage.tsx - Usar Tokens Semanticos
 
-### Fase 2: Core CRM
+**Arquivo:** `src/modules/auth/pages/ForgotPasswordPage.tsx`
 
-| Prioridade | Modulo | PRD | Escopo |
-|------------|--------|-----|--------|
-| **15** | Contatos - Pessoas | PRD-06 | RF-001 a RF-016: Listagem, filtros, CRUD, acoes em massa |
-| **16** | Contatos - Empresas | PRD-06 | Mesma estrutura de Pessoas |
-| **17** | Contatos - Segmentacao | PRD-06 | Sistema de tags com nome + cor |
-| **18** | Contatos - Import/Export | PRD-06 | CSV/XLSX ate 5MB, 4 etapas |
-| **19** | Negocios - Kanban | PRD-07 | RF-001 a RF-011: Pipeline drag-drop |
-| **20** | Negocios - Modal Oportunidade | PRD-07 | RF-014: 5 abas (Anotacoes, Tarefas, Docs, Email, Agenda) |
-| **21** | Negocios - Pre-Oportunidades | PRD-07 | Triagem WhatsApp (Solicitacoes) |
-| **22** | Conexoes - WhatsApp | PRD-08 | Integracao WAHA Plus |
-| **23** | Conexoes - Meta Ads | PRD-08 | Lead Ads, CAPI, Audiences |
-| **24** | Conexoes - Google | PRD-08 | Calendar integration |
-| **25** | Conexoes - Email | PRD-08 | IMAP/SMTP pessoal |
+### Problemas Atuais
+- Linha 79: `text-blue-600` → `text-primary`
+- Linha 109: `focus:ring-blue-500` → `focus:ring-primary`
+- Linha 125: `bg-blue-600 hover:bg-blue-700` → `bg-primary hover:bg-primary/90`
+- Linha 145: `text-blue-600` → `text-primary`
 
-### Fase 3: Comunicacao
+---
 
-| Prioridade | Modulo | PRD | Escopo |
-|------------|--------|-----|--------|
-| **26** | Conversas - Lista | PRD-09 | RF-001 a RF-005: Lista com preview |
-| **27** | Conversas - Chat | PRD-09 | RF-006 a RF-010: Janela de mensagens |
-| **28** | Conversas - Mensagens Prontas | PRD-09 | RF-011: Comandos com `/` |
-| **29** | Conversas - Agendamento | PRD-09 | RF-014: Envio programado |
-| **30** | Tarefas - Acompanhamento | PRD-10 | RF-001 a RF-007: Visao centralizada |
+## ETAPA 4: Refatorar ResetPasswordPage.tsx - Usar Tokens Semanticos
 
-### Fase 4: Avancado
+**Arquivo:** `src/modules/auth/pages/ResetPasswordPage.tsx`
 
-| Prioridade | Modulo | PRD | Escopo |
-|------------|--------|-----|--------|
-| **31** | Feedback - Botao Flutuante | PRD-15 | RF-001 a RF-003: Popover envio |
-| **32** | Feedback - Modulo Evolucao | PRD-15 | RF-004 a RF-007: Gestao Super Admin |
+### Problemas Atuais
+- Linha 146: `focus:ring-blue-500` → `focus:ring-primary`
+- Linha 195: `focus:ring-blue-500` → `focus:ring-primary`
+- Linha 235: `bg-blue-600 hover:bg-blue-700` → `bg-primary hover:bg-primary/90`
+- Linha 256: `text-blue-600` → `text-primary`
+
+---
+
+## ETAPA 5: Refatorar OrganizacoesPage.tsx - Usar Tokens Semanticos
+
+**Arquivo:** `src/modules/admin/pages/OrganizacoesPage.tsx`
+
+### Problemas Atuais
+- Linha 78: `bg-primary-600 hover:bg-primary-700` → `bg-primary hover:bg-primary/90`
+- Linha 95: `focus:ring-primary-500 focus:border-primary-500` → `focus:ring-primary focus:border-primary`
+- Linha 104: `focus:ring-primary-500 focus:border-primary-500` → `focus:ring-primary focus:border-primary`
+
+**Nota:** As classes `primary-600`, `primary-500` nao existem por padrao no Tailwind com CSS variables. Devemos usar `primary` diretamente.
+
+---
+
+## ETAPA 6: Refatorar DashboardPage.tsx - Usar Tokens Semanticos
+
+**Arquivo:** `src/modules/admin/pages/DashboardPage.tsx`
+
+### Problemas Atuais
+- Linha 176: `bg-primary-600` → `bg-primary`
+
+---
+
+## ETAPA 7: Refatorar AdminLayout.tsx - Usar Tokens Semanticos
+
+**Arquivo:** `src/modules/admin/layouts/AdminLayout.tsx`
+
+### Problemas Atuais
+O layout usa cores hardcoded do Tailwind (`gray-900`, `gray-800`, `primary-600`) em vez de tokens semanticos.
+
+### Alteracoes
+- Sidebar background: manter `bg-gray-900` (design dark para sidebar esta ok)
+- Badge Super Admin: manter `bg-purple-500/20 text-purple-300` (intencional)
+- Navigation items ativos: `bg-primary-600` → `bg-primary`
+
+---
+
+## Resumo das Alteracoes
+
+| Arquivo | Tipo de Alteracao |
+|---------|-------------------|
+| `src/index.css` | Corrigir tokens CSS (primary, ring, radius) |
+| `src/modules/auth/components/LoginForm.tsx` | Substituir blue-* por primary |
+| `src/modules/auth/pages/ForgotPasswordPage.tsx` | Substituir blue-* por primary |
+| `src/modules/auth/pages/ResetPasswordPage.tsx` | Substituir blue-* por primary |
+| `src/modules/admin/pages/OrganizacoesPage.tsx` | Substituir primary-* por primary |
+| `src/modules/admin/pages/DashboardPage.tsx` | Substituir primary-* por primary |
+| `src/modules/admin/layouts/AdminLayout.tsx` | Substituir primary-* por primary |
 
 ---
 
 ## Secao Tecnica
 
-### Padroes do Design System (designsystem.md)
+### Padrao de Cores do Design System
 
-**Cores Primarias:**
-- Primary: `#3B82F6` (blue-500)
-- Destructive: `#EF4444` (red-500)
-- Success: `#22C55E` (green-500)
-- Warning: `#F59E0B` (amber-500)
+| Classe Tailwind | CSS Variable | Uso |
+|-----------------|--------------|-----|
+| `bg-primary` | `--primary` | Background de botões primários, CTAs |
+| `text-primary` | `--primary` | Links, texto interativo |
+| `ring-primary` | `--ring` | Focus ring em inputs |
+| `border-primary` | `--primary` | Bordas de destaque |
+| `bg-primary/90` | `--primary` com opacity | Hover state de botões |
+| `bg-destructive` | `--destructive` | Botões de exclusão, erros |
 
-**Tipografia:**
-- Fonte: Inter
-- Titulos: 24px-48px, font-semibold
-- Corpo: 14px-16px, font-normal
-- Labels: 12px-14px, font-medium
+### Classes Corretas para Componentes
 
-**Espacamento:**
-- Base: 8px
-- Sub-grid: 4px
-- Padding containers: 16px-24px
-
-**Border Radius:**
-- Inputs/Buttons: `rounded-md` (8px)
-- Cards/Modals: `rounded-lg` (12px)
-- Badges: `rounded-full`
-
-**Layout CRM:**
-- Header horizontal fixo no topo (NAO sidebar)
-- Toolbar contextual abaixo do header
-- Area de conteudo com scroll
-- Mobile-first, breakpoints: xs/sm/md/lg/xl/2xl
-
-### Estrutura de Pastas
-
-```text
-src/
-  modules/
-    auth/              # Login, ForgotPassword, ResetPassword
-    admin/             # Super Admin (/admin) - PRD-14
-    app/               # Admin/Member (/app)
-      layouts/
-      pages/
-    contatos/          # PRD-06
-    negocios/          # PRD-07
-    conexoes/          # PRD-08
-    conversas/         # PRD-09
-    tarefas/           # PRD-10
-    configuracoes/     # PRD-05
-    feedback/          # PRD-15
-  shared/
-    components/ui/     # shadcn/ui components
-    hooks/
-    schemas/
+**Botao Primario:**
+```jsx
+className="bg-primary text-primary-foreground hover:bg-primary/90"
 ```
 
-### Padrao CRUD por Modulo
-
-Cada modulo tera:
-
-1. **Services (`.api.ts`)**: Funcoes que chamam endpoints do backend
-2. **Hooks (React Query)**: Custom hooks para cache, mutations, invalidacao
-3. **Schemas (Zod)**: Validacao de formularios
-4. **Components**: Table, Modal, Form, Filters
-
-**Exemplo de conexao frontend-backend:**
-
-```typescript
-// services/contatos.api.ts
-export const contatosApi = {
-  listar: (params) => api.get('/api/v1/contatos', { params }),
-  criar: (data) => api.post('/api/v1/contatos', data),
-  atualizar: (id, data) => api.patch(`/api/v1/contatos/${id}`, data),
-  excluir: (id) => api.delete(`/api/v1/contatos/${id}`),
-}
-
-// hooks/useContatos.ts
-export function useContatos(params) {
-  return useQuery({
-    queryKey: ['contatos', params],
-    queryFn: () => contatosApi.listar(params),
-  })
-}
+**Input com Focus:**
+```jsx
+className="focus:ring-2 focus:ring-primary focus:border-primary"
 ```
+
+**Link:**
+```jsx
+className="text-primary hover:underline"
+```
+
+---
+
+## Criterios de Aceitacao
+
+- [ ] Botoes primarios exibem cor azul (#3B82F6)
+- [ ] Focus ring em inputs exibe cor azul
+- [ ] Border radius de cards e modais e 12px
+- [ ] Nenhum componente usa cores hardcoded (blue-500, blue-600, etc)
+- [ ] Todas as cores interativas usam tokens semanticos
 
 ---
 
 ## Proximos Passos Apos Aprovacao
 
-1. Corrigir os 5 erros de build (Etapa 1)
-2. Confirmar com usuario sobre script `build:dev` (Etapa 2)
-3. Iniciar implementacao do Login aprimorado (PRD-03)
-
+1. Aplicar correções nos tokens CSS
+2. Refatorar componentes para usar tokens semânticos
+3. Testar visualmente todas as páginas de auth
+4. Testar páginas do admin
