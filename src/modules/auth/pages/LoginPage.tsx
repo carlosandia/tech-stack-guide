@@ -43,8 +43,15 @@ export function LoginPage() {
       const result = await signIn(data.email, data.senha, data.lembrar)
 
       if (result.error) {
-        // Mensagem generica para nao revelar se email existe
-        setError('E-mail ou senha incorretos')
+        // Trata erros especificos do Supabase
+        const errorMessage = result.error.message
+        if (errorMessage.includes('Invalid login credentials')) {
+          setError('E-mail ou senha incorretos')
+        } else if (errorMessage.includes('Email not confirmed')) {
+          setError('Confirme seu e-mail antes de fazer login')
+        } else {
+          setError('Erro ao fazer login. Tente novamente.')
+        }
         return
       }
 
@@ -90,8 +97,8 @@ export function LoginPage() {
       <div className="w-full max-w-md bg-card rounded-lg shadow-md p-8 border border-border">
         {/* Mensagem de sucesso */}
         {successMessage && (
-          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md">
-            <p className="text-sm text-green-600">
+          <div className="mb-4 p-3 bg-primary/10 border border-primary/20 rounded-md">
+            <p className="text-sm text-primary">
               {successMessage === 'password_reset'
                 ? 'Senha alterada com sucesso! Faca login com sua nova senha.'
                 : successMessage}

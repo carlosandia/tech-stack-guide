@@ -1,11 +1,11 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react'
-import { authApi, type PerfilResponse } from '@/modules/auth/services/auth.api'
-import { getAccessToken, getRefreshToken, setAccessToken, setRefreshToken, clearTokens } from '@/lib/api'
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
+import { supabase } from '@/integrations/supabase/client'
+import type { User, Session } from '@supabase/supabase-js'
 
 /**
  * AIDEV-NOTE: Provider central de autenticacao
- * Usa JWT do backend Express (PRD-03)
- * Todas operacoes autenticadas devem usar useAuth()
+ * Usa Supabase Auth diretamente (PRD-03)
+ * Busca role da tabela usuarios (fonte da verdade)
  */
 
 export type UserRole = 'super_admin' | 'admin' | 'member'
@@ -22,6 +22,7 @@ export interface AuthUser {
 
 interface AuthContextType {
   user: AuthUser | null
+  session: Session | null
   loading: boolean
   tenantId: string | null
   role: UserRole | null
@@ -37,106 +38,118 @@ interface AuthProviderProps {
   children: ReactNode
 }
 
-// Evento customizado para sincronizar login entre componentes
-const AUTH_STATE_CHANGE_EVENT = 'auth-state-change'
-
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<AuthUser | null>(null)
+  const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
-  const [initialized, setInitialized] = useState(false)
 
   // Extrai metadados do usuario
   const tenantId = user?.organizacao_id ?? null
   const role = user?.role ?? null
 
-  // Busca perfil do usuario no backend
-  const fetchUserProfile = useCallback(async (): Promise<AuthUser | null> => {
-    const token = getAccessToken()
-    if (!token) {
-      return null
-    }
-
+  // Busca dados do usuario da tabela usuarios
+  const fetchUserData = useCallback(async (supabaseUser: User): Promise<AuthUser | null> => {
     try {
-      const response: PerfilResponse = await authApi.getPerfil()
-      
-      if (response.success && response.data) {
-        const userData: AuthUser = {
-          id: response.data.id,
-          email: response.data.email,
-          nome: response.data.nome,
-          sobrenome: response.data.sobrenome,
-          role: response.data.role,
-          organizacao_id: response.data.organizacao?.id ?? null,
-          avatar_url: response.data.foto_url,
+      const { data: usuario, error } = await supabase
+        .from('usuarios')
+        .select('id, nome, sobrenome, email, role, organizacao_id, avatar_url')
+        .eq('auth_id', supabaseUser.id)
+        .single()
+
+      if (error || !usuario) {
+        console.error('Usuario nao encontrado na tabela usuarios:', error)
+        // Fallback para metadata se usuario nao existe na tabela
+        return {
+          id: supabaseUser.id,
+          email: supabaseUser.email || '',
+          nome: supabaseUser.user_metadata?.nome || 'Usuario',
+          sobrenome: supabaseUser.user_metadata?.sobrenome,
+          role: (supabaseUser.user_metadata?.role as UserRole) || 'member',
+          organizacao_id: supabaseUser.user_metadata?.tenant_id || null,
+          avatar_url: supabaseUser.user_metadata?.avatar_url,
         }
-        return userData
       }
-      return null
-    } catch (error) {
-      // Se 401, o interceptor já tentou refresh e falhou
-      // Limpa tokens e retorna null
-      clearTokens()
+
+      return {
+        id: usuario.id,
+        email: usuario.email,
+        nome: usuario.nome,
+        sobrenome: usuario.sobrenome ?? undefined,
+        role: usuario.role as UserRole,
+        organizacao_id: usuario.organizacao_id,
+        avatar_url: usuario.avatar_url ?? undefined,
+      }
+    } catch (err) {
+      console.error('Erro ao buscar dados do usuario:', err)
       return null
     }
   }, [])
 
-  // Carrega usuario ao iniciar
-  const initializeAuth = useCallback(async () => {
-    if (initialized) return
-    
-    setLoading(true)
-    const userData = await fetchUserProfile()
-    setUser(userData)
-    setLoading(false)
-    setInitialized(true)
-  }, [initialized, fetchUserProfile])
+  // Inicializa auth listener
+  useEffect(() => {
+    // Configura listener de mudanca de estado
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (_event, currentSession) => {
+        setSession(currentSession)
+        
+        if (currentSession?.user) {
+          // Usa setTimeout para evitar deadlock
+          setTimeout(async () => {
+            const userData = await fetchUserData(currentSession.user)
+            setUser(userData)
+            setLoading(false)
+          }, 0)
+        } else {
+          setUser(null)
+          setLoading(false)
+        }
+      }
+    )
 
-  // Inicializa na primeira renderizacao
-  useState(() => {
-    initializeAuth()
-  })
+    // Verifica sessao existente
+    supabase.auth.getSession().then(({ data: { session: existingSession } }) => {
+      setSession(existingSession)
+      
+      if (existingSession?.user) {
+        fetchUserData(existingSession.user).then((userData) => {
+          setUser(userData)
+          setLoading(false)
+        })
+      } else {
+        setLoading(false)
+      }
+    })
 
-  // Escuta eventos de mudanca de auth (login/logout)
-  useState(() => {
-    const handleAuthChange = async () => {
-      const userData = await fetchUserProfile()
-      setUser(userData)
-    }
-
-    window.addEventListener(AUTH_STATE_CHANGE_EVENT, handleAuthChange)
-    return () => {
-      window.removeEventListener(AUTH_STATE_CHANGE_EVENT, handleAuthChange)
-    }
-  })
+    return () => subscription.unsubscribe()
+  }, [fetchUserData])
 
   // Login
-  const signIn = async (email: string, password: string, lembrar = false) => {
+  const signIn = async (email: string, password: string, _lembrar = false) => {
     try {
-      const response = await authApi.login({
-        email,
-        senha: password,
-        lembrar,
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.toLowerCase(),
+        password,
       })
 
-      if (response.success && response.data) {
-        // Salva tokens
-        setAccessToken(response.data.access_token)
-        setRefreshToken(response.data.refresh_token)
+      if (error) {
+        return { error: new Error(error.message) }
+      }
 
-        // Cria objeto de usuario a partir da resposta do login
-        const userData: AuthUser = {
-          id: response.data.usuario.id,
-          email: response.data.usuario.email,
-          nome: response.data.usuario.nome,
-          sobrenome: response.data.usuario.sobrenome,
-          role: response.data.usuario.role,
-          organizacao_id: response.data.usuario.organizacao_id,
-          avatar_url: response.data.usuario.avatar_url,
+      if (data.user) {
+        const userData = await fetchUserData(data.user)
+        
+        if (userData) {
+          setUser(userData)
+          setSession(data.session)
+
+          // Atualiza ultimo_login na tabela usuarios
+          await supabase
+            .from('usuarios')
+            .update({ ultimo_login: new Date().toISOString() })
+            .eq('auth_id', data.user.id)
+
+          return { error: null, user: userData }
         }
-
-        setUser(userData)
-
-        return { error: null, user: userData }
       }
 
       return { error: new Error('Falha na autenticação') }
@@ -147,35 +160,34 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Logout
   const signOut = async () => {
-    const refreshToken = getRefreshToken()
-    
     try {
-      await authApi.logout(refreshToken || undefined)
+      await supabase.auth.signOut()
     } catch {
-      // Ignora erros de logout no backend
+      // Ignora erros de logout
     } finally {
-      clearTokens()
       setUser(null)
-      // Dispara evento para outros componentes
-      window.dispatchEvent(new CustomEvent(AUTH_STATE_CHANGE_EVENT))
+      setSession(null)
     }
   }
 
   // Atualiza usuario manualmente (usado apos editar perfil)
   const refreshUser = async () => {
-    const userData = await fetchUserProfile()
-    setUser(userData)
+    if (session?.user) {
+      const userData = await fetchUserData(session.user)
+      setUser(userData)
+    }
   }
 
   const value: AuthContextType = {
     user,
+    session,
     loading,
     tenantId,
     role,
     signIn,
     signOut,
     refreshUser,
-    isAuthenticated: !!user,
+    isAuthenticated: !!user && !!session,
   }
 
   return (
@@ -191,9 +203,4 @@ export function useAuth() {
     throw new Error('useAuth deve ser usado dentro de um AuthProvider')
   }
   return context
-}
-
-// Funcao utilitaria para disparar evento de auth (usada pelo LoginPage)
-export function dispatchAuthStateChange() {
-  window.dispatchEvent(new CustomEvent(AUTH_STATE_CHANGE_EVENT))
 }
