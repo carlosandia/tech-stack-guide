@@ -1706,17 +1706,30 @@ import {
 
 ### 11.2 Header (Top Navigation)
 
-#### Especificacoes
+#### Especificacoes Visuais - Estilo Leve (Glass Effect)
 
 | Propriedade | Valor |
 |-------------|-------|
 | Altura | 56px (`h-14`) |
-| Background | `bg-background` (branco) |
-| Border | `border-b border-border` |
-| Shadow | `shadow-sm` |
+| Background | `bg-white/80` com `backdrop-blur-md` |
+| Border | `border-b border-gray-200/60` |
+| Shadow | Nenhum (omitir para visual mais leve) |
 | Position | `fixed top-0 left-0 right-0` |
 | Z-Index | 100 |
 | Padding | `px-4 lg:px-6` |
+
+> **Glass Effect**: O Header utiliza transparência (80%) com backdrop-blur para criar um efeito "glass" moderno e leve. O conteúdo abaixo é levemente visível através do header durante scroll.
+
+#### Cores de Texto
+
+| Elemento | Cor |
+|----------|-----|
+| Logo texto | `text-gray-900` |
+| Nav inativo | `text-gray-500` |
+| Nav hover | `text-gray-900` + `bg-gray-100/70` |
+| Nav ativo | `bg-primary text-primary-foreground` |
+| Nome usuário | `text-gray-700` |
+| Icones/Chevrons | `text-gray-500` |
 
 #### Anatomia Desktop
 
@@ -1750,7 +1763,7 @@ import {
 
 | Estado | Estilo |
 |--------|--------|
-| Default | `text-muted-foreground hover:text-foreground hover:bg-muted` |
+| Default | `text-gray-500 hover:text-gray-900 hover:bg-gray-100/70` |
 | Ativo | `bg-primary text-primary-foreground` |
 | Com dropdown | Icone `ChevronDown` (w-4 h-4) apos o texto |
 
@@ -1765,7 +1778,7 @@ import {
 #### Codigo de Referencia - Header
 
 ```tsx
-<header className="fixed top-0 left-0 right-0 z-[100] h-14 bg-background border-b border-border shadow-sm">
+<header className="fixed top-0 left-0 right-0 z-[100] h-14 bg-white/80 backdrop-blur-md border-b border-gray-200/60">
   <div className="flex items-center justify-between h-full px-4 lg:px-6 max-w-[1920px] mx-auto">
     {/* Logo */}
     <div className="flex items-center gap-8">
@@ -1803,24 +1816,36 @@ import {
 
 ### 11.3 Toolbar (Module Toolbar)
 
-#### Especificacoes
+#### Especificacoes Visuais - Estilo Leve (Glass Effect)
 
 | Propriedade | Valor |
 |-------------|-------|
 | Altura | 48px (`h-12`) |
-| Background | `bg-muted/50` ou `bg-gray-50` |
-| Border | `border-b border-border` |
+| Background | `bg-gray-50/50` com `backdrop-blur-sm` |
+| Border | `border-b border-gray-200/60` |
 | Position | `sticky top-[56px]` |
 | Z-Index | 50 |
 | Padding | `px-4 lg:px-6` |
+
+> **Glass Effect**: O Toolbar também utiliza transparência leve (50%) com backdrop-blur sutil para manter a consistência visual com o Header.
+
+#### Cores de Texto
+
+| Elemento | Cor |
+|----------|-----|
+| Título da página | `text-gray-800` (`font-semibold`) |
+| Subtitle/descrição | `text-gray-500` |
+| Separador (·) | `text-gray-400` |
+| Sub-nav inativo | `text-gray-500` |
+| Sub-nav ativo | `text-gray-900` + `bg-gray-100/70` |
 
 #### Anatomia
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│ [Context Info]        [Sub-Nav]        |        [Actions]              [CTA]   │
-│       ↑                  ↑                         ↑                     ↑      │
-│ Info contextual    Navegacao interna      Filtros e acoes        Acao principal │
+│ [Título · Descrição contextual]   [Sub-Nav]   |   [Actions]              [CTA]  │
+│       ↑                               ↑                ↑                   ↑     │
+│ Context Info                    Navegacao interna  Filtros/acoes    Acao principal│
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -1828,17 +1853,22 @@ import {
 
 | Zona | Conteudo | Alinhamento |
 |------|----------|-------------|
-| **Left** | Info contextual (ex: "Pipeline: tata44") + Sub-navegacao | `justify-start` |
+| **Left** | Título da página · Descrição contextual + Sub-navegação | `justify-start` |
 | **Right** | Busca, filtros, acoes secundarias, CTA principal | `justify-end` |
 
 #### Elementos da Toolbar
 
-##### Context Info
+##### Context Info (Título + Descrição)
 
 ```tsx
-<div className="flex items-center gap-2 text-sm">
-  <span className="text-muted-foreground">Pipeline:</span>
-  <span className="font-medium">tata44</span>
+<div className="flex items-center gap-2 min-w-0">
+  <h1 className="text-base font-semibold text-gray-800 whitespace-nowrap">
+    Organizações
+  </h1>
+  <span className="text-gray-400 hidden sm:inline">·</span>
+  <span className="text-sm text-gray-500 hidden sm:inline truncate max-w-[300px]">
+    Gerencie os tenants da plataforma
+  </span>
 </div>
 ```
 
@@ -1846,11 +1876,11 @@ import {
 
 ```tsx
 <div className="flex items-center gap-1 ml-6">
-  <Button variant="ghost" size="sm" className="text-muted-foreground">
+  <Button variant="ghost" size="sm" className="text-gray-500 hover:text-gray-900 hover:bg-gray-100/70">
     <Users className="w-4 h-4 mr-1.5" />
     Pessoas
   </Button>
-  <Button variant="ghost" size="sm" className="bg-muted text-foreground">
+  <Button variant="ghost" size="sm" className="bg-gray-100/70 text-gray-900">
     <Building2 className="w-4 h-4 mr-1.5" />
     Empresas
   </Button>
@@ -1879,17 +1909,23 @@ import {
 #### Codigo de Referencia - Toolbar
 
 ```tsx
-<div className="sticky top-14 z-50 h-12 bg-muted/50 border-b border-border">
+<div className="sticky top-14 z-50 h-12 bg-gray-50/50 backdrop-blur-sm border-b border-gray-200/60">
   <div className="flex items-center justify-between h-full px-4 lg:px-6 max-w-[1920px] mx-auto">
-    {/* Left: Context + Sub-nav */}
+    {/* Left: Context Info + Sub-nav */}
     <div className="flex items-center gap-6">
-      <div className="flex items-center gap-2 text-sm">
-        <span className="text-muted-foreground">Contatos</span>
+      <div className="flex items-center gap-2 min-w-0">
+        <h1 className="text-base font-semibold text-gray-800 whitespace-nowrap">
+          Contatos
+        </h1>
+        <span className="text-gray-400 hidden sm:inline">·</span>
+        <span className="text-sm text-gray-500 hidden sm:inline truncate">
+          Gerencie sua base de contatos
+        </span>
       </div>
 
       <div className="hidden sm:flex items-center gap-1">
-        <Button variant="ghost" size="sm">Pessoas</Button>
-        <Button variant="ghost" size="sm" className="bg-background">Empresas</Button>
+        <Button variant="ghost" size="sm" className="text-gray-500">Pessoas</Button>
+        <Button variant="ghost" size="sm" className="bg-gray-100/70 text-gray-900">Empresas</Button>
       </div>
     </div>
 
@@ -1933,6 +1969,19 @@ import {
   </div>
 </div>
 ```
+
+#### Drawer Mobile (Glass Effect)
+
+O drawer mobile também deve seguir o padrão Glass Effect:
+
+| Propriedade | Valor |
+|-------------|-------|
+| Background | `bg-white/95` com `backdrop-blur-md` |
+| Border | `border-r border-gray-200/60` |
+| Header border | `border-b border-gray-200/60` |
+| Footer border | `border-t border-gray-200/60` |
+| Nav inativo | `text-gray-500 hover:text-gray-900 hover:bg-gray-100/70` |
+| Nav ativo | `bg-primary text-primary-foreground` |
 
 ---
 

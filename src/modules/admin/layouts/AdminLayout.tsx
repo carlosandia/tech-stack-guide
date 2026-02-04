@@ -76,7 +76,7 @@ function NavItem({
         `flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
           isActive
             ? 'bg-primary text-primary-foreground'
-            : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+            : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100/70'
         }`
       }
     >
@@ -127,25 +127,25 @@ function AdminLayoutInner() {
       {/* Mobile drawer */}
       <div
         className={`
-          fixed inset-y-0 left-0 z-[300] w-64 bg-background border-r border-border
+          fixed inset-y-0 left-0 z-[300] w-64 bg-white/95 backdrop-blur-md border-r border-gray-200/60
           transform transition-transform duration-200 ease-in-out
           md:hidden
           ${drawerOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
       >
         {/* Drawer header */}
-        <div className="flex h-14 items-center justify-between px-4 border-b border-border">
+        <div className="flex h-14 items-center justify-between px-4 border-b border-gray-200/60">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
               <span className="text-primary-foreground font-bold text-sm">R</span>
             </div>
-            <span className="font-semibold text-lg text-foreground">CRM Renove</span>
+            <span className="font-semibold text-lg text-gray-900">CRM Renove</span>
           </div>
           <button
-            className="p-1 hover:bg-muted rounded-md"
+            className="p-1 hover:bg-gray-100/70 rounded-md"
             onClick={() => setDrawerOpen(false)}
           >
-            <X className="w-5 h-5 text-muted-foreground" />
+            <X className="w-5 h-5 text-gray-500" />
           </button>
         </div>
 
@@ -161,7 +161,7 @@ function AdminLayoutInner() {
                 `flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors ${
                   isActive
                     ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                    : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100/70'
                 }`
               }
             >
@@ -172,10 +172,10 @@ function AdminLayoutInner() {
         </nav>
 
         {/* Drawer footer */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-border">
+        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200/60">
           <button
             onClick={handleLogout}
-            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-md text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-md text-sm font-medium text-gray-500 hover:bg-gray-100/70 hover:text-gray-900 transition-colors"
           >
             <LogOut className="w-5 h-5" />
             Sair
@@ -183,17 +183,17 @@ function AdminLayoutInner() {
         </div>
       </div>
 
-      {/* Header fixo - 56px */}
-      <header className="fixed top-0 left-0 right-0 z-[100] h-14 bg-background border-b border-border shadow-sm">
+      {/* Header fixo - 56px - Glass Effect */}
+      <header className="fixed top-0 left-0 right-0 z-[100] h-14 bg-white/80 backdrop-blur-md border-b border-gray-200/60">
         <div className="flex items-center justify-between h-full px-4 lg:px-6 max-w-[1920px] mx-auto">
           {/* Left: Logo + Navigation */}
           <div className="flex items-center gap-8">
             {/* Mobile menu button */}
             <button
-              className="md:hidden p-2 -ml-2 hover:bg-muted rounded-md"
+              className="md:hidden p-2 -ml-2 hover:bg-gray-100/70 rounded-md"
               onClick={() => setDrawerOpen(true)}
             >
-              <Menu className="w-5 h-5 text-foreground" />
+              <Menu className="w-5 h-5 text-gray-700" />
             </button>
 
             {/* Logo */}
@@ -201,7 +201,7 @@ function AdminLayoutInner() {
               <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
                 <span className="text-primary-foreground font-bold text-sm">R</span>
               </div>
-              <span className="hidden sm:block font-semibold text-lg text-foreground">
+              <span className="hidden sm:block font-semibold text-lg text-gray-900">
                 CRM Renove
               </span>
             </div>
@@ -232,17 +232,17 @@ function AdminLayoutInner() {
             <div className="relative">
               <button
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
-                className="flex items-center gap-2 p-2 hover:bg-muted rounded-md"
+                className="flex items-center gap-2 p-2 hover:bg-gray-100/70 rounded-md"
               >
-                <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center">
-                  <span className="text-sm font-medium text-muted-foreground">
+                <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                  <span className="text-sm font-medium text-gray-600">
                     {user?.email?.[0]?.toUpperCase() || 'U'}
                   </span>
                 </div>
-                <span className="hidden sm:block text-sm font-medium text-foreground max-w-[150px] truncate">
+                <span className="hidden sm:block text-sm font-medium text-gray-700 max-w-[150px] truncate">
                   {user?.email}
                 </span>
-                <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                <ChevronDown className="w-4 h-4 text-gray-500" />
               </button>
 
               {/* User dropdown */}
@@ -252,16 +252,16 @@ function AdminLayoutInner() {
                     className="fixed inset-0 z-40"
                     onClick={() => setUserMenuOpen(false)}
                   />
-                  <div className="absolute right-0 mt-1 w-56 bg-card rounded-md shadow-lg border border-border py-1 z-50">
-                    <div className="px-3 py-2 border-b border-border">
-                      <p className="text-sm font-medium text-foreground truncate">
+                  <div className="absolute right-0 mt-1 w-56 bg-white/95 backdrop-blur-md rounded-md shadow-lg border border-gray-200/60 py-1 z-50">
+                    <div className="px-3 py-2 border-b border-gray-200/60">
+                      <p className="text-sm font-medium text-gray-800 truncate">
                         {user?.email}
                       </p>
-                      <p className="text-xs text-muted-foreground">Super Admin</p>
+                      <p className="text-xs text-gray-500">Super Admin</p>
                     </div>
                     <button
                       onClick={handleLogout}
-                      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-foreground hover:bg-muted"
+                      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100/70"
                     >
                       <LogOut className="w-4 h-4" />
                       Sair
@@ -290,17 +290,17 @@ function ToolbarWithActions({ pageTitle }: { pageTitle: string }) {
   const { actions, subtitle } = useToolbar()
 
   return (
-    <div className="sticky top-14 z-50 h-12 bg-muted/50 border-b border-border">
+    <div className="sticky top-14 z-50 h-12 bg-gray-50/50 backdrop-blur-sm border-b border-gray-200/60">
       <div className="flex items-center justify-between h-full px-4 lg:px-6 max-w-[1920px] mx-auto">
         {/* Left: Título + Descrição */}
         <div className="flex items-center gap-2 min-w-0">
-          <h1 className="text-base font-semibold text-foreground whitespace-nowrap">
+          <h1 className="text-base font-semibold text-gray-800 whitespace-nowrap">
             {pageTitle}
           </h1>
           {subtitle && (
             <>
-              <span className="text-muted-foreground hidden sm:inline">·</span>
-              <span className="text-sm text-muted-foreground hidden sm:inline truncate max-w-[300px]">
+              <span className="text-gray-400 hidden sm:inline">·</span>
+              <span className="text-sm text-gray-500 hidden sm:inline truncate max-w-[300px]">
                 {subtitle}
               </span>
             </>
