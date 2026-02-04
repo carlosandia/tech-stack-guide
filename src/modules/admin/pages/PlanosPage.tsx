@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, Edit, CreditCard, Users, HardDrive, Puzzle } from 'lucide-react'
 import { usePlanos, useModulos } from '../hooks/usePlanos'
+import { useToolbar } from '../contexts/ToolbarContext'
 import { PlanoFormModal } from '../components/PlanoFormModal'
 import type { Plano } from '../services/admin.api'
 /**
@@ -16,8 +17,23 @@ import type { Plano } from '../services/admin.api'
 export function PlanosPage() {
   const { data: planos, isLoading, error } = usePlanos()
   const { data: modulos } = useModulos()
+  const { setActions } = useToolbar()
   const [planoEditando, setPlanoEditando] = useState<Plano | null>(null)
   const [showModal, setShowModal] = useState(false)
+
+  // Injetar ação no toolbar
+  useEffect(() => {
+    setActions(
+      <button
+        onClick={() => setShowModal(true)}
+        className="inline-flex items-center gap-2 px-3 py-1.5 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 transition-colors"
+      >
+        <Plus className="w-4 h-4" />
+        Novo Plano
+      </button>
+    )
+    return () => setActions(null)
+  }, [setActions])
 
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat('pt-BR', {
@@ -48,20 +64,8 @@ export function PlanosPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Planos</h1>
-          <p className="text-muted-foreground mt-1">Gerencie os planos da plataforma</p>
-        </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Novo Plano
-        </button>
-      </div>
+      {/* Descrição sutil */}
+      <p className="text-sm text-muted-foreground">Gerencie os planos da plataforma</p>
 
       {/* Cards de Planos */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

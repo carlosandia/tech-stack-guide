@@ -54,15 +54,15 @@ export function OrganizacaoConfigTab({ orgId, org }: Props) {
           </div>
         </div>
         <div className="flex items-center gap-4">
-          <span className="text-lg font-bold text-primary">{org.plano?.nome || 'Sem plano'}</span>
+          <span className="text-lg font-bold text-primary">{org.plano || 'Sem plano'}</span>
           {planos && planos.length > 0 && (
             <select
-              value={org.plano_id || ''}
+              value={org.plano || ''}
               disabled
               className="px-3 py-1.5 text-sm border border-input rounded-md bg-muted text-muted-foreground"
             >
               {planos.map((plano) => (
-                <option key={plano.id} value={plano.id}>
+                <option key={plano.id} value={plano.nome}>
                   {plano.nome}
                 </option>
               ))}
@@ -97,7 +97,7 @@ export function OrganizacaoConfigTab({ orgId, org }: Props) {
               <div className="h-2 bg-muted rounded-full overflow-hidden">
                 <div
                   className={`h-full rounded-full transition-all ${getProgressColor(limites.usuarios.percentual)}`}
-                  style={{ width: `${Math.min(limites.usuarios.percentual, 100)}%` }}
+                  style={{ width: `${Math.min(limites.usuarios.percentual ?? 0, 100)}%` }}
                 />
               </div>
             </div>
@@ -135,7 +135,7 @@ export function OrganizacaoConfigTab({ orgId, org }: Props) {
               <div className="h-2 bg-muted rounded-full overflow-hidden">
                 <div
                   className={`h-full rounded-full transition-all ${getProgressColor(limites.storage.percentual)}`}
-                  style={{ width: `${Math.min(limites.storage.percentual, 100)}%` }}
+                  style={{ width: `${Math.min(limites.storage.percentual ?? 0, 100)}%` }}
                 />
               </div>
             </div>

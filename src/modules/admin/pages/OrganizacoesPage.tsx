@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { adminApi, type Organizacao } from '../services/admin.api'
+import { useToolbar } from '../contexts/ToolbarContext'
 import { NovaOrganizacaoModal } from '../components/NovaOrganizacaoModal'
 import {
   Plus,
@@ -20,7 +21,7 @@ import {
  * Exibe:
  * - Lista de tenants com filtros
  * - Acoes: Visualizar, Configurar, Impersonar
- * - Botao para criar nova organizacao (abre modal)
+ * - Botao para criar nova organizacao (injetado no toolbar)
  */
 
 const statusColors: Record<string, string> = {
@@ -39,6 +40,7 @@ const statusLabels: Record<string, string> = {
 
 export function OrganizacoesPage() {
   const navigate = useNavigate()
+  const { setActions } = useToolbar()
   const [busca, setBusca] = useState('')
   const [statusFilter, setStatusFilter] = useState('todas')
   const [page, setPage] = useState(1)
@@ -55,6 +57,20 @@ export function OrganizacoesPage() {
         limit: 10,
       }),
   })
+
+  // Injetar ação no toolbar
+  useEffect(() => {
+    setActions(
+      <button
+        onClick={() => setModalOpen(true)}
+        className="inline-flex items-center gap-2 px-3 py-1.5 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 transition-colors"
+      >
+        <Plus className="w-4 h-4" />
+        Nova Organização
+      </button>
+    )
+    return () => setActions(null)
+  }, [setActions])
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -75,20 +91,8 @@ export function OrganizacoesPage() {
         onClose={() => setModalOpen(false)}
       />
 
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Organizacoes</h1>
-          <p className="text-muted-foreground mt-1">Gerencie os tenants da plataforma</p>
-        </div>
-        <button
-          onClick={() => setModalOpen(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Nova Organizacao
-        </button>
-      </div>
+      {/* Descrição sutil */}
+      <p className="text-sm text-muted-foreground">Gerencie os tenants da plataforma</p>
 
       {/* Filtros */}
       <div className="bg-card p-4 rounded-lg border border-border shadow-sm">
@@ -275,7 +279,7 @@ function OrganizacaoRow({
         <span className="text-sm text-muted-foreground capitalize">{org.segmento}</span>
       </td>
       <td className="px-6 py-4">
-        <span className="text-sm text-muted-foreground">{org.plano?.nome || 'Sem plano'}</span>
+        <span className="text-sm text-muted-foreground">{org.plano || 'Sem plano'}</span>
       </td>
       <td className="px-6 py-4">
         <span className="text-sm text-muted-foreground">{formatDate(org.criado_em)}</span>
@@ -376,7 +380,7 @@ function OrganizacaoCard({
         </div>
         <div>
           <span className="text-muted-foreground">Plano:</span>
-          <span className="ml-1 text-foreground">{org.plano?.nome || '-'}</span>
+          <span className="ml-1 text-foreground">{org.plano || '-'}</span>
         </div>
         <div>
           <span className="text-muted-foreground">Criado:</span>

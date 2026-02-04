@@ -86,16 +86,16 @@ export function OrganizacaoDetalhesPage() {
       impersonar(
         { id, motivo },
         {
-          onSuccess: (data) => {
+          onSuccess: (result: { organizacao_id: string; organizacao_nome: string }) => {
             // Armazena info de impersonação no sessionStorage para exibir banner
             sessionStorage.setItem('impersonation', JSON.stringify({
-              organizacao_id: data.organizacao_id,
-              organizacao_nome: data.organizacao_nome,
+              organizacao_id: result.organizacao_id,
+              organizacao_nome: result.organizacao_nome,
               motivo,
               timestamp: new Date().toISOString(),
             }))
             // Redireciona para dashboard da organização em nova aba
-            window.open(`/dashboard?org=${data.organizacao_id}`, '_blank')
+            window.open(`/dashboard?org=${result.organizacao_id}`, '_blank')
             setImpersonando(false)
           },
           onError: () => {
@@ -145,7 +145,7 @@ export function OrganizacaoDetalhesPage() {
               </span>
             </div>
             <p className="text-muted-foreground mt-1">
-              {org.segmento} {org.plano && `• ${org.plano.nome}`} • Criado em {formatDate(org.criado_em)}
+              {org.segmento} {org.plano && `• ${org.plano}`} • Criado em {formatDate(org.criado_em)}
             </p>
           </div>
         </div>
