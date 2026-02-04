@@ -1,169 +1,205 @@
 
-# Plano de Correção - Botão Toolbar e Erro de Organizações
+# Plano de Correção - Erros 500 nas Consultas RLS
 
-## Problemas Identificados
+## Diagnóstico
 
-### Problema 1: Botão "Nova Organização" Sumiu do Toolbar
+Após investigação completa, identifiquei a causa raiz:
 
-**Causa Raiz:** No arquivo `src/modules/admin/index.ts` (linha 7), está exportando:
-```typescript
-export { AdminLayout } from './layouts/AdminLayout'
+| Tabela | Política Problemática | Problema |
+|--------|----------------------|----------|
+| `usuarios` | `admin_tenant_access` | Consulta `usuarios` dentro de `usuarios` → **RECURSÃO** |
+| `usuarios` | `tenant_view_own_usuarios` | Consulta `usuarios` dentro de `usuarios` → **RECURSÃO** |
+| `organizacoes_saas` | `tenant_view_own_org` | Consulta `usuarios` → **Bloqueado por RLS** |
+| `organizacoes_saas` | `tenant_isolation` | Consulta `auth.users` que pode falhar |
+
+### Dados Confirmados
+- Super Admin existe em `user_roles` (auth_id: `23a69eac-f689-4b28-b8ea-f2692227254a`, role: `super_admin`)
+- Super Admin existe em `usuarios` (email: superadmin@renovedigital.com.br)
+- Função `is_super_admin_v2()` está correta (consulta `user_roles`, não `usuarios`)
+
+### Políticas Atuais que FUNCIONAM
+- `super_admin_full_access ON organizacoes_saas USING is_super_admin_v2()` ✅
+- `super_admin_usuarios_full_access ON usuarios USING is_super_admin_v2()` ✅
+
+### Políticas Atuais que CAUSAM ERRO
+```sql
+-- RECURSÃO: Consulta usuarios dentro da própria tabela usuarios
+admin_tenant_access ON usuarios:
+  organizacao_id = (SELECT organizacao_id FROM usuarios WHERE auth_id = auth.uid() AND role = 'admin')
+
+-- RECURSÃO: Consulta usuarios dentro da própria tabela usuarios  
+tenant_view_own_usuarios ON usuarios:
+  organizacao_id IN (SELECT organizacao_id FROM usuarios WHERE auth_id = auth.uid())
+
+-- BLOQUEIO: Consulta usuarios que está protegida por RLS recursiva
+tenant_view_own_org ON organizacoes_saas:
+  id IN (SELECT organizacao_id FROM usuarios WHERE auth_id = auth.uid())
 ```
 
-Mas no arquivo `AdminLayout.tsx`, o `AdminLayout` é uma função **interna** (não exportada diretamente com o Provider). O wrapper correto com o `ToolbarProvider` é `AdminLayoutWrapper` exportado como `export default`.
+## Solução
 
-**Resultado:** 
-- O `App.tsx` importa `AdminLayout` (função interna)
-- Esta função renderiza `ToolbarWithActions` que tenta usar `useToolbar()`
-- O hook retorna o contexto padrão `{ actions: null, setActions: () => {} }` porque não há Provider
-- As páginas chamam `setActions()` mas o estado nunca é atualizado
+Remover todas as políticas que causam recursão e substituir por políticas que usam funções `SECURITY DEFINER`.
 
-### Problema 2: Erro 403 "permission denied for table users"
-
-**Causa Raiz:** Existem **políticas RLS conflitantes** na tabela `organizacoes_saas`:
-
-1. **Migração antiga** `00001_create_organizacoes_saas.sql` criou:
-   - `super_admin_all_organizacoes` (usa `auth.jwt() ->> 'role'`)
-
-2. **Migração nova** `20260204225635...sql` criou:
-   - `super_admin_full_access` (usa função `is_super_admin()`)
-
-A função `is_super_admin()` consulta `auth.users`, que pode não ter permissão SELECT para o usuário `authenticated`, causando o erro.
-
-**Evidência do JWT:**
-```json
-{
-  "user_metadata": {
-    "nome": "Super Admin",
-    "role": "super_admin"
-  }
-}
-```
-
-O role está em `user_metadata.role`, mas a função `is_super_admin()` busca em `raw_user_meta_data->>'role'`.
-
----
-
-## Correções a Implementar
-
-### Correção 1: Exportar `AdminLayoutWrapper` Corretamente
-
-**Arquivo:** `src/modules/admin/layouts/AdminLayout.tsx`
-
-Renomear e exportar corretamente:
-```typescript
-// Antes (linha 99):
-export function AdminLayout() { ... }
-
-// Depois:
-function AdminLayoutInner() { ... }
-
-// Antes (linha 305-311):
-function AdminLayoutWrapper() {
-  return (
-    <ToolbarProvider>
-      <AdminLayout />
-    </ToolbarProvider>
-  )
-}
-
-export default AdminLayoutWrapper
-
-// Depois:
-export function AdminLayout() {
-  return (
-    <ToolbarProvider>
-      <AdminLayoutInner />
-    </ToolbarProvider>
-  )
-}
-
-export default AdminLayout
-```
-
-**Arquivo:** `src/modules/admin/index.ts`
-
-Manter export named (já está correto se corrigirmos o layout).
-
-### Correção 2: Corrigir RLS com Políticas Não-Conflitantes
-
-**Nova Migração SQL:**
+### Nova Migração SQL
 
 ```sql
--- Dropar políticas antigas para evitar conflito
-DROP POLICY IF EXISTS "super_admin_all_organizacoes" ON organizacoes_saas;
-DROP POLICY IF EXISTS "super_admin_full_access" ON organizacoes_saas;
+-- =================================================
+-- FASE 1: Remover políticas problemáticas
+-- =================================================
+
+-- Tabela usuarios
+DROP POLICY IF EXISTS "admin_tenant_access" ON usuarios;
+DROP POLICY IF EXISTS "admin_tenant_usuarios" ON usuarios;
+DROP POLICY IF EXISTS "tenant_view_own_usuarios" ON usuarios;
+DROP POLICY IF EXISTS "usuarios_select_own_tenant" ON usuarios;
+DROP POLICY IF EXISTS "member_own_usuario" ON usuarios;
+DROP POLICY IF EXISTS "super_admin_all_usuarios" ON usuarios;
+
+-- Tabela organizacoes_saas
+DROP POLICY IF EXISTS "tenant_view_own_org" ON organizacoes_saas;
+DROP POLICY IF EXISTS "tenant_isolation" ON organizacoes_saas;
 DROP POLICY IF EXISTS "tenant_read_own_organizacao" ON organizacoes_saas;
+DROP POLICY IF EXISTS "super_admin_all_organizacoes" ON organizacoes_saas;
 DROP POLICY IF EXISTS "usuarios_select_own_organization" ON organizacoes_saas;
 
--- Recriar função is_super_admin usando JWT diretamente (sem consultar auth.users)
-CREATE OR REPLACE FUNCTION public.is_super_admin()
+-- =================================================
+-- FASE 2: Criar funções helper SECURITY DEFINER
+-- =================================================
+
+-- Função para obter organizacao_id do usuário atual
+CREATE OR REPLACE FUNCTION public.get_user_tenant_id()
+RETURNS uuid
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT organizacao_id 
+  FROM public.usuarios 
+  WHERE auth_id = auth.uid()
+  LIMIT 1
+$$;
+
+-- Função para verificar se usuário é admin do tenant
+CREATE OR REPLACE FUNCTION public.is_tenant_admin()
 RETURNS boolean
 LANGUAGE sql
 STABLE
-SECURITY INVOKER  -- Mudado de DEFINER para evitar problemas de permissão
+SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT COALESCE(
-    (auth.jwt() -> 'user_metadata' ->> 'role') = 'super_admin',
-    false
+  SELECT EXISTS (
+    SELECT 1 
+    FROM public.usuarios 
+    WHERE auth_id = auth.uid() 
+      AND role = 'admin'
   )
 $$;
 
--- Super admin pode ver todas organizações
+-- =================================================
+-- FASE 3: Recriar políticas LIMPAS para usuarios
+-- =================================================
+
+-- Super Admin (já existe, garantir que está correta)
+DROP POLICY IF EXISTS "super_admin_usuarios_full_access" ON usuarios;
+CREATE POLICY "super_admin_usuarios_full_access" ON usuarios
+FOR ALL TO authenticated
+USING (public.is_super_admin_v2());
+
+-- Usuário pode ler próprio perfil
+CREATE POLICY "user_read_own" ON usuarios
+FOR SELECT TO authenticated
+USING (auth_id = auth.uid());
+
+-- Usuário pode atualizar próprio perfil
+CREATE POLICY "user_update_own" ON usuarios  
+FOR UPDATE TO authenticated
+USING (auth_id = auth.uid())
+WITH CHECK (auth_id = auth.uid());
+
+-- =================================================
+-- FASE 4: Recriar políticas LIMPAS para organizacoes_saas
+-- =================================================
+
+-- Super Admin (já existe, garantir que está correta)
+DROP POLICY IF EXISTS "super_admin_full_access" ON organizacoes_saas;
 CREATE POLICY "super_admin_full_access" ON organizacoes_saas
-FOR ALL
-USING (
-  (auth.jwt() -> 'user_metadata' ->> 'role') = 'super_admin'
-);
+FOR ALL TO authenticated
+USING (public.is_super_admin_v2());
 
--- Usuarios podem ver própria organização
-CREATE POLICY "tenant_view_own_org" ON organizacoes_saas
-FOR SELECT
-USING (
-  id = (auth.jwt() -> 'user_metadata' ->> 'tenant_id')::uuid
-);
+-- Tenant pode ler própria organização (usa função helper)
+CREATE POLICY "tenant_read_own" ON organizacoes_saas
+FOR SELECT TO authenticated
+USING (id = public.get_user_tenant_id());
 ```
-
----
-
-## Checklist de Implementação
-
-### Frontend
-- [ ] Renomear `AdminLayout` para `AdminLayoutInner` 
-- [ ] Fazer `AdminLayoutWrapper` se chamar `AdminLayout` e ser exportado diretamente
-- [ ] Garantir que `ToolbarProvider` envolva o layout corretamente
-
-### Database (Migração SQL)
-- [ ] Dropar políticas RLS conflitantes em `organizacoes_saas`
-- [ ] Recriar função `is_super_admin()` usando JWT direto (sem `auth.users`)
-- [ ] Recriar políticas RLS usando `auth.jwt() -> 'user_metadata' ->> 'role'`
-- [ ] Aplicar mesma lógica para tabela `usuarios`
-
----
-
-## Arquivos a Modificar
-
-| Arquivo | Alteração |
-|---------|-----------|
-| `src/modules/admin/layouts/AdminLayout.tsx` | Renomear e exportar `AdminLayout` com Provider |
-| **Nova Migração SQL** | Corrigir RLS para usar `auth.jwt()` ao invés de `auth.users` |
-
----
 
 ## Resultado Esperado
 
-### Toolbar com Botão
+Após a migração:
+
+| Cenário | Comportamento |
+|---------|---------------|
+| Super Admin acessa `/admin/organizacoes` | Lista todas organizações |
+| Super Admin faz login | Busca usuário em `usuarios` com sucesso |
+| Admin de tenant acessa dashboard | Vê apenas própria organização |
+| Member de tenant | Lê apenas próprio perfil |
+
+## Arquivos a Modificar
+
+| Recurso | Alteração |
+|---------|-----------|
+| **Migração SQL** | Limpar políticas antigas e recriar com funções SECURITY DEFINER |
+
+## Fluxo da Solução
+
+```text
+┌────────────────────────────────────────────────────────────────────────┐
+│                        ANTES (COM ERRO)                                │
+├────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  SELECT * FROM usuarios WHERE auth_id = X                              │
+│       │                                                                 │
+│       ▼                                                                 │
+│  RLS: admin_tenant_access                                              │
+│       │                                                                 │
+│       ▼ (sub-select)                                                   │
+│  SELECT organizacao_id FROM usuarios WHERE auth_id = X                 │
+│       │                                                                 │
+│       ▼                                                                 │
+│  RLS: admin_tenant_access (novamente)                                  │
+│       │                                                                 │
+│       ▼                                                                 │
+│  ❌ RECURSÃO INFINITA → 500 ERROR                                      │
+│                                                                         │
+└────────────────────────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────────────────────┐
+│                        DEPOIS (CORRIGIDO)                              │
+├────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  SELECT * FROM usuarios WHERE auth_id = X                              │
+│       │                                                                 │
+│       ▼                                                                 │
+│  RLS: super_admin_usuarios_full_access                                 │
+│       │                                                                 │
+│       ▼                                                                 │
+│  is_super_admin_v2() [SECURITY DEFINER]                                │
+│       │                                                                 │
+│       ▼                                                                 │
+│  SELECT FROM user_roles WHERE user_id = X AND role = 'super_admin'     │
+│       │                                                                 │
+│       ▼                                                                 │
+│  ✅ TRUE → Acesso permitido                                            │
+│                                                                         │
+└────────────────────────────────────────────────────────────────────────┘
 ```
-┌──────────────────────────────────────────────────────────────────────────────────┐
-│ HEADER                                                                            │
-├──────────────────────────────────────────────────────────────────────────────────┤
-│ Organizações                                         [+ Nova Organização]         │  ← Botão visível
-├──────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                   │
-│ Gerencie os tenants da plataforma                                                 │
-│                                                                                   │
-│ [Lista de organizações carregada com sucesso]                                     │
-│                                                                                   │
-└──────────────────────────────────────────────────────────────────────────────────┘
-```
+
+## Checklist
+
+- [ ] Dropar políticas antigas que causam recursão
+- [ ] Criar função `get_user_tenant_id()` SECURITY DEFINER  
+- [ ] Criar função `is_tenant_admin()` SECURITY DEFINER
+- [ ] Recriar políticas limpas para `usuarios`
+- [ ] Recriar políticas limpas para `organizacoes_saas`
+- [ ] Testar login do Super Admin
+- [ ] Testar listagem de organizações
