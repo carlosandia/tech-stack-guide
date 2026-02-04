@@ -115,7 +115,7 @@ export function AdminLayout() {
   const pageTitle = getPageTitle(location.pathname)
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pt-14">
       {/* Mobile drawer backdrop */}
       {drawerOpen && (
         <div
@@ -278,7 +278,7 @@ export function AdminLayout() {
       <ToolbarWithActions pageTitle={pageTitle} />
 
       {/* Main content - pt-[104px] = 56px header + 48px toolbar */}
-      <main className="pt-[104px] p-4 sm:p-6 lg:p-8">
+      <main className="p-4 sm:p-6 lg:p-8">
         <Outlet />
       </main>
     </div>
@@ -290,7 +290,7 @@ function ToolbarWithActions({ pageTitle }: { pageTitle: string }) {
   const { actions } = useToolbar()
 
   return (
-    <div className="fixed top-14 left-0 right-0 z-50 h-12 bg-muted/50 border-b border-border">
+    <div className="sticky top-14 z-50 h-12 bg-muted/50 border-b border-border">
       <div className="flex items-center justify-between h-full px-4 lg:px-6 max-w-[1920px] mx-auto">
         <h1 className="text-base font-semibold text-foreground">{pageTitle}</h1>
         <div className="flex items-center gap-2">
