@@ -1,119 +1,169 @@
 
-# Plano de Correção - Layout com Sticky Toolbar
+# Plano de Correção - Botão Toolbar e Erro de Organizações
 
-## Problema Identificado
+## Problemas Identificados
 
-Analisando o código atual do `AdminLayout.tsx`:
+### Problema 1: Botão "Nova Organização" Sumiu do Toolbar
 
-```tsx
-// Linha 293 - ATUAL (INCORRETO):
-<div className="fixed top-14 left-0 right-0 z-50 h-12 bg-muted/50 border-b border-border">
-
-// Linha 281 - ATUAL:
-<main className="pt-[104px] p-4 sm:p-6 lg:p-8">
+**Causa Raiz:** No arquivo `src/modules/admin/index.ts` (linha 7), está exportando:
+```typescript
+export { AdminLayout } from './layouts/AdminLayout'
 ```
 
-**Problema:** O Toolbar está usando `fixed` quando o Design System especifica `sticky top-[56px]` (linha 1813).
+Mas no arquivo `AdminLayout.tsx`, o `AdminLayout` é uma função **interna** (não exportada diretamente com o Provider). O wrapper correto com o `ToolbarProvider` é `AdminLayoutWrapper` exportado como `export default`.
 
-Quando temos:
-- Header: `fixed top-0` → Sai do fluxo do documento
-- Toolbar: `fixed top-14` → Também sai do fluxo
-- Main: `pt-[104px]` → Tenta compensar ambos
+**Resultado:** 
+- O `App.tsx` importa `AdminLayout` (função interna)
+- Esta função renderiza `ToolbarWithActions` que tenta usar `useToolbar()`
+- O hook retorna o contexto padrão `{ actions: null, setActions: () => {} }` porque não há Provider
+- As páginas chamam `setActions()` mas o estado nunca é atualizado
 
-Isso causa problemas porque o `padding-top` do main precisa compensar exatamente 104px, mas há conflitos com outros paddings (`p-4`, `p-6`, `p-8`).
+### Problema 2: Erro 403 "permission denied for table users"
 
-## Solução Conforme Design System
+**Causa Raiz:** Existem **políticas RLS conflitantes** na tabela `organizacoes_saas`:
 
-A arquitetura correta é:
+1. **Migração antiga** `00001_create_organizacoes_saas.sql` criou:
+   - `super_admin_all_organizacoes` (usa `auth.jwt() ->> 'role'`)
 
-| Camada | Posição | Z-Index |
-|--------|---------|---------|
-| Header | `fixed top-0` | 100 |
-| Toolbar | `sticky top-[56px]` | 50 |
-| Content | `relative` (fluxo normal) | 0 |
+2. **Migração nova** `20260204225635...sql` criou:
+   - `super_admin_full_access` (usa função `is_super_admin()`)
 
-### Nova Estrutura de Layout
+A função `is_super_admin()` consulta `auth.users`, que pode não ter permissão SELECT para o usuário `authenticated`, causando o erro.
 
-```tsx
-<div className="min-h-screen bg-background pt-14"> {/* pt-14 = 56px para compensar header fixed */}
-  
-  {/* Header FIXED - 56px */}
-  <header className="fixed top-0 left-0 right-0 z-[100] h-14 ...">
-    ...
-  </header>
-
-  {/* Toolbar STICKY - 48px */}
-  <div className="sticky top-14 z-50 h-12 bg-muted/50 border-b border-border">
-    ...
-  </div>
-
-  {/* Main - sem pt extra, apenas padding normal */}
-  <main className="p-4 sm:p-6 lg:p-8">
-    <Outlet />
-  </main>
-</div>
+**Evidência do JWT:**
+```json
+{
+  "user_metadata": {
+    "nome": "Super Admin",
+    "role": "super_admin"
+  }
+}
 ```
 
-## Alterações no Arquivo
+O role está em `user_metadata.role`, mas a função `is_super_admin()` busca em `raw_user_meta_data->>'role'`.
 
-### Arquivo: `src/modules/admin/layouts/AdminLayout.tsx`
+---
 
-**1. Container raiz (linha 118):**
-```tsx
-// DE:
-<div className="min-h-screen bg-background">
+## Correções a Implementar
 
-// PARA:
-<div className="min-h-screen bg-background pt-14">
+### Correção 1: Exportar `AdminLayoutWrapper` Corretamente
+
+**Arquivo:** `src/modules/admin/layouts/AdminLayout.tsx`
+
+Renomear e exportar corretamente:
+```typescript
+// Antes (linha 99):
+export function AdminLayout() { ... }
+
+// Depois:
+function AdminLayoutInner() { ... }
+
+// Antes (linha 305-311):
+function AdminLayoutWrapper() {
+  return (
+    <ToolbarProvider>
+      <AdminLayout />
+    </ToolbarProvider>
+  )
+}
+
+export default AdminLayoutWrapper
+
+// Depois:
+export function AdminLayout() {
+  return (
+    <ToolbarProvider>
+      <AdminLayoutInner />
+    </ToolbarProvider>
+  )
+}
+
+export default AdminLayout
 ```
 
-**2. Toolbar (linha 293 no componente ToolbarWithActions):**
-```tsx
-// DE:
-<div className="fixed top-14 left-0 right-0 z-50 h-12 bg-muted/50 border-b border-border">
+**Arquivo:** `src/modules/admin/index.ts`
 
-// PARA:
-<div className="sticky top-14 z-50 h-12 bg-muted/50 border-b border-border">
+Manter export named (já está correto se corrigirmos o layout).
+
+### Correção 2: Corrigir RLS com Políticas Não-Conflitantes
+
+**Nova Migração SQL:**
+
+```sql
+-- Dropar políticas antigas para evitar conflito
+DROP POLICY IF EXISTS "super_admin_all_organizacoes" ON organizacoes_saas;
+DROP POLICY IF EXISTS "super_admin_full_access" ON organizacoes_saas;
+DROP POLICY IF EXISTS "tenant_read_own_organizacao" ON organizacoes_saas;
+DROP POLICY IF EXISTS "usuarios_select_own_organization" ON organizacoes_saas;
+
+-- Recriar função is_super_admin usando JWT diretamente (sem consultar auth.users)
+CREATE OR REPLACE FUNCTION public.is_super_admin()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY INVOKER  -- Mudado de DEFINER para evitar problemas de permissão
+SET search_path = public
+AS $$
+  SELECT COALESCE(
+    (auth.jwt() -> 'user_metadata' ->> 'role') = 'super_admin',
+    false
+  )
+$$;
+
+-- Super admin pode ver todas organizações
+CREATE POLICY "super_admin_full_access" ON organizacoes_saas
+FOR ALL
+USING (
+  (auth.jwt() -> 'user_metadata' ->> 'role') = 'super_admin'
+);
+
+-- Usuarios podem ver própria organização
+CREATE POLICY "tenant_view_own_org" ON organizacoes_saas
+FOR SELECT
+USING (
+  id = (auth.jwt() -> 'user_metadata' ->> 'tenant_id')::uuid
+);
 ```
 
-**3. Main content (linha 281):**
-```tsx
-// DE:
-<main className="pt-[104px] p-4 sm:p-6 lg:p-8">
+---
 
-// PARA:
-<main className="p-4 sm:p-6 lg:p-8">
-```
+## Checklist de Implementação
 
-## Resultado Esperado
+### Frontend
+- [ ] Renomear `AdminLayout` para `AdminLayoutInner` 
+- [ ] Fazer `AdminLayoutWrapper` se chamar `AdminLayout` e ser exportado diretamente
+- [ ] Garantir que `ToolbarProvider` envolva o layout corretamente
 
-```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│ HEADER (fixed, z-100) - 56px                                                    │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│ TOOLBAR (sticky, z-50) - 48px                                                   │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                  │
-│                              CONTENT AREA                                        │
-│                           (padding normal)                                       │
-│                                                                                  │
-└─────────────────────────────────────────────────────────────────────────────────┘
-```
+### Database (Migração SQL)
+- [ ] Dropar políticas RLS conflitantes em `organizacoes_saas`
+- [ ] Recriar função `is_super_admin()` usando JWT direto (sem `auth.users`)
+- [ ] Recriar políticas RLS usando `auth.jwt() -> 'user_metadata' ->> 'role'`
+- [ ] Aplicar mesma lógica para tabela `usuarios`
 
-Com esta estrutura:
-- O container raiz tem `pt-14` (56px) para compensar o header fixed
-- O toolbar usa `sticky top-14` para "grudar" abaixo do header ao scrollar
-- O main não precisa de padding-top extra, apenas o padding normal de conteúdo
+---
 
 ## Arquivos a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/modules/admin/layouts/AdminLayout.tsx` | Ajustar posicionamento do container, toolbar e main |
+| `src/modules/admin/layouts/AdminLayout.tsx` | Renomear e exportar `AdminLayout` com Provider |
+| **Nova Migração SQL** | Corrigir RLS para usar `auth.jwt()` ao invés de `auth.users` |
 
-## Checklist
+---
 
-- [ ] Adicionar `pt-14` ao container raiz
-- [ ] Mudar toolbar de `fixed` para `sticky`
-- [ ] Remover `pt-[104px]` do main
-- [ ] Manter apenas `p-4 sm:p-6 lg:p-8` no main
+## Resultado Esperado
+
+### Toolbar com Botão
+```
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│ HEADER                                                                            │
+├──────────────────────────────────────────────────────────────────────────────────┤
+│ Organizações                                         [+ Nova Organização]         │  ← Botão visível
+├──────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                   │
+│ Gerencie os tenants da plataforma                                                 │
+│                                                                                   │
+│ [Lista de organizações carregada com sucesso]                                     │
+│                                                                                   │
+└──────────────────────────────────────────────────────────────────────────────────┘
+```
