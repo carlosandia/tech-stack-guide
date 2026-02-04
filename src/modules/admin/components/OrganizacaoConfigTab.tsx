@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { useLimitesOrganizacao, useModulosOrganizacao } from '../hooks/useOrganizacoes'
 import { usePlanos } from '../hooks/usePlanos'
 import { HardDrive, Users, Target, FileText, Puzzle, CreditCard } from 'lucide-react'
 import type { Organizacao } from '../services/admin.api'
+import { GerenciarModulosModal } from './GerenciarModulosModal'
 
 /**
  * AIDEV-NOTE: Tab de Configuracoes da Organizacao
@@ -22,6 +24,7 @@ export function OrganizacaoConfigTab({ orgId, org }: Props) {
   const { data: limites, isLoading: loadingLimites } = useLimitesOrganizacao(orgId)
   const { data: modulos, isLoading: loadingModulos } = useModulosOrganizacao(orgId)
   const { data: planos } = usePlanos()
+  const [showModulosModal, setShowModulosModal] = useState(false)
 
   const formatPercentual = (percentual: number | null) => {
     if (percentual === null) return 'Ilimitado'
@@ -166,10 +169,7 @@ export function OrganizacaoConfigTab({ orgId, org }: Props) {
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-foreground">Modulos Ativos</h3>
           <button
-            onClick={() => {
-              // TODO: Implementar modal de gerenciamento
-              alert('Modal de gerenciamento de modulos sera implementado')
-            }}
+            onClick={() => setShowModulosModal(true)}
             className="text-sm text-primary hover:underline"
           >
             Gerenciar
@@ -209,6 +209,15 @@ export function OrganizacaoConfigTab({ orgId, org }: Props) {
           <p className="text-muted-foreground">Nenhum modulo configurado</p>
         )}
       </div>
+
+      {/* Modal de Gerenciamento de Módulos */}
+      {showModulosModal && (
+        <GerenciarModulosModal
+          orgId={orgId}
+          orgNome={org.nome}
+          onClose={() => setShowModulosModal(false)}
+        />
+      )}
     </div>
   )
 }

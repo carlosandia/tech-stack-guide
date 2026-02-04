@@ -13,10 +13,28 @@ export { OrganizacaoDetalhesPage as AdminOrganizacaoDetalhesPage } from './pages
 export { PlanosPage as AdminPlanosPage } from './pages/PlanosPage'
 export { ConfiguracoesGlobaisPage as AdminConfiguracoesGlobaisPage } from './pages/ConfiguracoesGlobaisPage'
 
+// Components
+export { NovaOrganizacaoModal } from './components/NovaOrganizacaoModal'
+export { PlanoFormModal } from './components/PlanoFormModal'
+export { GerenciarModulosModal } from './components/GerenciarModulosModal'
+export { OrganizacaoUsuariosTab } from './components/OrganizacaoUsuariosTab'
+export { OrganizacaoRelatoriosTab } from './components/OrganizacaoRelatoriosTab'
+export { OrganizacaoConfigTab } from './components/OrganizacaoConfigTab'
+
 // Hooks
-export { useOrganizacoes, useOrganizacao, useCreateOrganizacao } from './hooks/useOrganizacoes'
+export { 
+  useOrganizacoes, 
+  useOrganizacao, 
+  useCreateOrganizacao,
+  useUsuariosOrganizacao,
+  useLimitesOrganizacao,
+  useModulosOrganizacao,
+  useSuspenderOrganizacao,
+  useReativarOrganizacao,
+  useImpersonarOrganizacao,
+} from './hooks/useOrganizacoes'
 export { usePlanos, usePlano, useModulos } from './hooks/usePlanos'
-export { useConfigGlobais, useConfigGlobal } from './hooks/useConfigGlobal'
+export { useConfigGlobais, useConfigGlobal, useUpdateConfigGlobal, useTestarConfigGlobal } from './hooks/useConfigGlobal'
 
 // API
 export { adminApi } from './services/admin.api'

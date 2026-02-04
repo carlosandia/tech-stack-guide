@@ -69,7 +69,7 @@ export function AdminLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div
@@ -147,14 +147,14 @@ export function AdminLayout() {
       {/* Main content */}
       <div className="lg:pl-64">
         {/* Header */}
-        <header className="sticky top-0 z-30 h-16 bg-white border-b border-gray-200">
+        <header className="sticky top-0 z-30 h-16 bg-card border-b border-border">
           <div className="flex h-full items-center justify-between px-4">
             {/* Mobile menu button */}
             <button
-              className="lg:hidden p-2 -ml-2 hover:bg-gray-100 rounded-lg"
+              className="lg:hidden p-2 -ml-2 hover:bg-accent rounded-lg"
               onClick={() => setSidebarOpen(true)}
             >
-              <Menu className="w-5 h-5" />
+              <Menu className="w-5 h-5 text-foreground" />
             </button>
 
             {/* Spacer */}
@@ -164,17 +164,17 @@ export function AdminLayout() {
             <div className="relative">
               <button
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
-                className="flex items-center gap-2 p-2 hover:bg-gray-100 rounded-lg"
+                className="flex items-center gap-2 p-2 hover:bg-accent rounded-lg"
               >
-                <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
-                  <span className="text-sm font-medium text-gray-600">
+                <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center">
+                  <span className="text-sm font-medium text-muted-foreground">
                     {user?.email?.[0]?.toUpperCase() || 'U'}
                   </span>
                 </div>
-                <span className="hidden sm:block text-sm font-medium text-gray-700">
+                <span className="hidden sm:block text-sm font-medium text-foreground">
                   {user?.email}
                 </span>
-                <ChevronDown className="w-4 h-4 text-gray-500" />
+                <ChevronDown className="w-4 h-4 text-muted-foreground" />
               </button>
 
               {/* Dropdown */}
@@ -184,16 +184,16 @@ export function AdminLayout() {
                     className="fixed inset-0 z-40"
                     onClick={() => setUserMenuOpen(false)}
                   />
-                  <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
-                    <div className="px-3 py-2 border-b border-gray-100">
-                      <p className="text-sm font-medium text-gray-900 truncate">
+                  <div className="absolute right-0 mt-1 w-48 bg-card rounded-lg shadow-lg border border-border py-1 z-50">
+                    <div className="px-3 py-2 border-b border-border">
+                      <p className="text-sm font-medium text-foreground truncate">
                         {user?.email}
                       </p>
-                      <p className="text-xs text-gray-500">Super Admin</p>
+                      <p className="text-xs text-muted-foreground">Super Admin</p>
                     </div>
                     <button
                       onClick={handleLogout}
-                      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-foreground hover:bg-accent"
                     >
                       <LogOut className="w-4 h-4" />
                       Sair
