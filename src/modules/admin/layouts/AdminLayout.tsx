@@ -54,13 +54,13 @@ const menuItems = [
 
 export function AdminLayout() {
   const navigate = useNavigate()
-  const { user, logout } = useAuth()
+  const { user, signOut } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
 
   const handleLogout = async () => {
     try {
-      await logout()
+      await signOut()
       navigate('/login', { replace: true })
     } catch {
       // Mesmo com erro, redireciona

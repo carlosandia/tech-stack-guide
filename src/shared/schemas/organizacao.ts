@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { UUIDSchema, TimestampsSchema } from './common'
+import { UUIDSchema } from './common'
 
 /**
  * AIDEV-NOTE: Schema da tabela organizacoes_saas (Mundo SaaS)
