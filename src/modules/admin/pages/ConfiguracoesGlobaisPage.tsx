@@ -205,7 +205,7 @@ function ConfigPlataformaForm({
         <div
           className={`p-3 rounded-lg ${
             resultadoTeste.sucesso
-              ? 'bg-green-50 border border-green-200'
+              ? 'bg-green-100 border border-green-300'
               : 'bg-destructive/10 border border-destructive/20'
           }`}
         >

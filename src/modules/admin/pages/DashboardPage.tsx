@@ -197,7 +197,7 @@ export function DashboardPage() {
                   alerta.tipo === 'error'
                     ? 'bg-destructive/10'
                     : alerta.tipo === 'warning'
-                    ? 'bg-yellow-50'
+                    ? 'bg-yellow-100'
                     : 'bg-primary/5'
                 }`}
               >
