@@ -1,22 +1,12 @@
-import { createClient } from '@supabase/supabase-js'
-import { env } from '@/config/env'
+import { supabase as supabaseClient } from '@/integrations/supabase/client'
 
 /**
  * AIDEV-NOTE: Cliente Supabase singleton
+ * Reutiliza o client gerado em src/integrations/supabase/client.ts (URL/KEY já configurados)
  * Toda autenticacao e operacoes de banco passam por este cliente
  * RLS e obrigatorio em todas tabelas - nunca bypass
  */
-export const supabase = createClient(
-  env.SUPABASE_URL,
-  env.SUPABASE_ANON_KEY,
-  {
-    auth: {
-      autoRefreshToken: true,
-      persistSession: true,
-      detectSessionInUrl: true,
-    },
-  }
-)
+export const supabase = supabaseClient
 
 // Tipos de role do sistema
 export type UserRole = 'super_admin' | 'admin' | 'member'
