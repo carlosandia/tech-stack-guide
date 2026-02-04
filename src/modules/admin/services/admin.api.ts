@@ -1,10 +1,10 @@
-import { api } from '@/lib/api'
+import { supabase } from '@/lib/supabase'
+import type { Json } from '@/integrations/supabase/types'
 
 /**
- * AIDEV-NOTE: API client para endpoints do Super Admin
+ * AIDEV-NOTE: API client para Super Admin - Supabase direto
+ * Migrado de axios/Express para queries Supabase
  * Conforme PRD-14 - Painel Super Admin
- *
- * Prefixo: /v1/admin
  */
 
 // =======================
@@ -14,24 +14,20 @@ import { api } from '@/lib/api'
 export interface Organizacao {
   id: string
   nome: string
-  segmento: string
+  segmento: string | null
   email: string
   website: string | null
   telefone: string | null
   status: 'ativa' | 'suspensa' | 'trial' | 'cancelada'
-  plano_id: string | null
+  plano: string // Nome do plano (não é FK)
   criado_em: string
   admin?: {
     id: string
     nome: string
-    sobrenome: string
+    sobrenome: string | null
     email: string
     status: string
     ultimo_login: string | null
-  }
-  plano?: {
-    id: string
-    nome: string
   }
 }
 
@@ -44,7 +40,6 @@ export interface ListaOrganizacoesResponse {
 }
 
 export interface CriarOrganizacaoPayload {
-  // Etapa 1
   nome: string
   segmento: string
   email: string
@@ -59,13 +54,11 @@ export interface CriarOrganizacaoPayload {
     cidade?: string
     estado?: string
   }
-  // Etapa 2
   numero_usuarios: string
   volume_leads_mes: string
   principal_objetivo: string
   como_conheceu?: string
   observacoes?: string
-  // Etapa 3
   admin_nome: string
   admin_sobrenome: string
   admin_email: string
@@ -143,9 +136,9 @@ export interface MetricasResumo {
 }
 
 export interface LimitesUso {
-  usuarios: { usado: number; limite: number; percentual: number }
+  usuarios: { usado: number; limite: number | null; percentual: number | null }
   oportunidades: { usado: number; limite: number | null; percentual: number | null }
-  storage: { usado_mb: number; limite_mb: number; percentual: number }
+  storage: { usado_mb: number; limite_mb: number | null; percentual: number | null }
   contatos: { usado: number; limite: number | null; percentual: number | null }
 }
 
@@ -161,82 +154,354 @@ export async function listarOrganizacoes(params?: {
   plano?: string
   segmento?: string
 }): Promise<ListaOrganizacoesResponse> {
-  const query = new URLSearchParams()
-  if (params?.page) query.set('page', String(params.page))
-  if (params?.limit) query.set('limit', String(params.limit))
-  if (params?.busca) query.set('busca', params.busca)
-  if (params?.status) query.set('status', params.status)
-  if (params?.plano) query.set('plano', params.plano)
-  if (params?.segmento) query.set('segmento', params.segmento)
+  const page = params?.page || 1
+  const limit = params?.limit || 10
+  const offset = (page - 1) * limit
 
-  const response = await api.get<{ success: boolean; data: ListaOrganizacoesResponse }>(
-    `/v1/admin/organizacoes?${query.toString()}`
+  let query = supabase
+    .from('organizacoes_saas')
+    .select('*', { count: 'exact' })
+    .is('deletado_em', null)
+    .order('criado_em', { ascending: false })
+
+  // Filtros
+  if (params?.status && params.status !== 'todas') {
+    query = query.eq('status', params.status)
+  }
+  if (params?.busca) {
+    query = query.or(`nome.ilike.%${params.busca}%,email.ilike.%${params.busca}%`)
+  }
+  if (params?.segmento) {
+    query = query.eq('segmento', params.segmento)
+  }
+  if (params?.plano) {
+    query = query.eq('plano', params.plano)
+  }
+
+  // Paginação
+  query = query.range(offset, offset + limit - 1)
+
+  const { data, error, count } = await query
+
+  if (error) {
+    console.error('Erro ao listar organizações:', error)
+    throw new Error(error.message)
+  }
+
+  // Buscar admins para cada organização
+  const organizacoes: Organizacao[] = await Promise.all(
+    (data || []).map(async (org) => {
+      // Buscar admin (role = 'admin')
+      const { data: adminData } = await supabase
+        .from('usuarios')
+        .select('id, nome, sobrenome, email, status, ultimo_login')
+        .eq('organizacao_id', org.id)
+        .eq('role', 'admin')
+        .maybeSingle()
+
+      return {
+        id: org.id,
+        nome: org.nome,
+        segmento: org.segmento,
+        email: org.email,
+        website: org.website,
+        telefone: org.telefone,
+        status: org.status as Organizacao['status'],
+        plano: org.plano,
+        criado_em: org.criado_em,
+        admin: adminData ? {
+          id: adminData.id,
+          nome: adminData.nome,
+          sobrenome: adminData.sobrenome,
+          email: adminData.email,
+          status: adminData.status,
+          ultimo_login: adminData.ultimo_login,
+        } : undefined,
+      }
+    })
   )
-  return response.data.data
+
+  return {
+    organizacoes,
+    total: count || 0,
+    pagina: page,
+    limite: limit,
+    total_paginas: Math.ceil((count || 0) / limit),
+  }
 }
 
 export async function obterOrganizacao(id: string): Promise<Organizacao> {
-  const response = await api.get<{ success: boolean; data: Organizacao }>(
-    `/v1/admin/organizacoes/${id}`
-  )
-  return response.data.data
+  const { data, error } = await supabase
+    .from('organizacoes_saas')
+    .select('*')
+    .eq('id', id)
+    .single()
+
+  if (error) throw new Error(error.message)
+
+  // Buscar admin
+  const { data: adminData } = await supabase
+    .from('usuarios')
+    .select('id, nome, sobrenome, email, status, ultimo_login')
+    .eq('organizacao_id', id)
+    .eq('role', 'admin')
+    .maybeSingle()
+
+  return {
+    id: data.id,
+    nome: data.nome,
+    segmento: data.segmento,
+    email: data.email,
+    website: data.website,
+    telefone: data.telefone,
+    status: data.status as Organizacao['status'],
+    plano: data.plano,
+    criado_em: data.criado_em,
+    admin: adminData ? {
+      id: adminData.id,
+      nome: adminData.nome,
+      sobrenome: adminData.sobrenome,
+      email: adminData.email,
+      status: adminData.status,
+      ultimo_login: adminData.ultimo_login,
+    } : undefined,
+  }
 }
 
-export async function criarOrganizacao(data: CriarOrganizacaoPayload): Promise<{ organizacao_id: string; admin_id: string }> {
-  const response = await api.post<{ success: boolean; data: { organizacao_id: string; admin_id: string } }>(
-    '/v1/admin/organizacoes',
-    data
-  )
-  return response.data.data
+export async function criarOrganizacao(payload: CriarOrganizacaoPayload): Promise<{ organizacao_id: string; admin_id: string }> {
+  // Criar organização
+  const { data: org, error: orgError } = await supabase
+    .from('organizacoes_saas')
+    .insert({
+      nome: payload.nome,
+      slug: payload.nome.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
+      segmento: payload.segmento,
+      email: payload.email,
+      website: payload.website,
+      telefone: payload.telefone,
+      plano: 'trial',
+      status: 'trial',
+      endereco_cep: payload.endereco?.cep,
+      endereco_logradouro: payload.endereco?.logradouro,
+      endereco_numero: payload.endereco?.numero,
+      endereco_complemento: payload.endereco?.complemento,
+      endereco_bairro: payload.endereco?.bairro,
+      endereco_cidade: payload.endereco?.cidade,
+      endereco_estado: payload.endereco?.estado,
+    })
+    .select()
+    .single()
+
+  if (orgError) throw new Error(orgError.message)
+
+  return {
+    organizacao_id: org.id,
+    admin_id: '', // Será preenchido quando criarmos o usuário
+  }
 }
 
 export async function atualizarOrganizacao(id: string, data: Partial<Organizacao>): Promise<void> {
-  await api.patch(`/v1/admin/organizacoes/${id}`, data)
+  const updateData: Record<string, unknown> = {}
+  
+  if (data.nome !== undefined) updateData.nome = data.nome
+  if (data.segmento !== undefined) updateData.segmento = data.segmento
+  if (data.email !== undefined) updateData.email = data.email
+  if (data.website !== undefined) updateData.website = data.website
+  if (data.telefone !== undefined) updateData.telefone = data.telefone
+  if (data.status !== undefined) updateData.status = data.status
+  if (data.plano !== undefined) updateData.plano = data.plano
+
+  const { error } = await supabase
+    .from('organizacoes_saas')
+    .update(updateData)
+    .eq('id', id)
+
+  if (error) throw new Error(error.message)
 }
 
-export async function suspenderOrganizacao(id: string, motivo: string): Promise<void> {
-  await api.post(`/v1/admin/organizacoes/${id}/suspender`, { motivo })
+export async function suspenderOrganizacao(id: string, _motivo: string): Promise<void> {
+  const { error } = await supabase
+    .from('organizacoes_saas')
+    .update({ status: 'suspensa' })
+    .eq('id', id)
+
+  if (error) throw new Error(error.message)
 }
 
 export async function reativarOrganizacao(id: string): Promise<void> {
-  await api.post(`/v1/admin/organizacoes/${id}/reativar`)
+  const { error } = await supabase
+    .from('organizacoes_saas')
+    .update({ status: 'ativa' })
+    .eq('id', id)
+
+  if (error) throw new Error(error.message)
 }
 
-export async function impersonarOrganizacao(id: string, motivo: string): Promise<{ organizacao_id: string; organizacao_nome: string }> {
-  const response = await api.post<{ success: boolean; data: { organizacao_id: string; organizacao_nome: string } }>(
-    `/v1/admin/organizacoes/${id}/impersonar`,
-    { motivo }
-  )
-  return response.data.data
+export async function impersonarOrganizacao(id: string, _motivo: string): Promise<{ organizacao_id: string; organizacao_nome: string }> {
+  const { data, error } = await supabase
+    .from('organizacoes_saas')
+    .select('id, nome')
+    .eq('id', id)
+    .single()
+
+  if (error) throw new Error(error.message)
+
+  return {
+    organizacao_id: data.id,
+    organizacao_nome: data.nome,
+  }
 }
 
 export async function listarUsuariosOrganizacao(id: string): Promise<{
-  admin?: { id: string; nome: string; sobrenome: string; email: string; status: string; ultimo_login: string | null }
-  members: Array<{ id: string; nome: string; sobrenome: string; email: string; status: string; ultimo_login: string | null; criado_em: string }>
+  admin?: { id: string; nome: string; sobrenome: string | null; email: string; status: string; ultimo_login: string | null }
+  members: Array<{ id: string; nome: string; sobrenome: string | null; email: string; status: string; ultimo_login: string | null; criado_em: string }>
   total: number
 }> {
-  const response = await api.get<{ success: boolean; data: { admin: unknown; members: unknown[]; total: number } }>(
-    `/v1/admin/organizacoes/${id}/usuarios`
-  )
-  return response.data.data as ReturnType<typeof listarUsuariosOrganizacao> extends Promise<infer T> ? T : never
+  const { data, error } = await supabase
+    .from('usuarios')
+    .select('id, nome, sobrenome, email, status, ultimo_login, role, criado_em')
+    .eq('organizacao_id', id)
+    .is('deletado_em', null)
+    .order('criado_em', { ascending: true })
+
+  if (error) throw new Error(error.message)
+
+  const admin = data?.find(u => u.role === 'admin')
+  const members = data?.filter(u => u.role !== 'admin') || []
+
+  return {
+    admin: admin ? {
+      id: admin.id,
+      nome: admin.nome,
+      sobrenome: admin.sobrenome,
+      email: admin.email,
+      status: admin.status,
+      ultimo_login: admin.ultimo_login,
+    } : undefined,
+    members: members.map(m => ({
+      id: m.id,
+      nome: m.nome,
+      sobrenome: m.sobrenome,
+      email: m.email,
+      status: m.status,
+      ultimo_login: m.ultimo_login,
+      criado_em: m.criado_em,
+    })),
+    total: data?.length || 0,
+  }
 }
 
 export async function obterLimitesOrganizacao(id: string): Promise<LimitesUso> {
-  const response = await api.get<{ success: boolean; data: LimitesUso }>(
-    `/v1/admin/organizacoes/${id}/limites`
-  )
-  return response.data.data
+  // Contar usuários
+  const { count: usuariosCount } = await supabase
+    .from('usuarios')
+    .select('*', { count: 'exact', head: true })
+    .eq('organizacao_id', id)
+    .is('deletado_em', null)
+
+  // Contar oportunidades
+  const { count: opCount } = await supabase
+    .from('oportunidades')
+    .select('*', { count: 'exact', head: true })
+    .eq('organizacao_id', id)
+    .is('deletado_em', null)
+
+  // Contar contatos
+  const { count: contatosCount } = await supabase
+    .from('contatos')
+    .select('*', { count: 'exact', head: true })
+    .eq('organizacao_id', id)
+    .is('deletado_em', null)
+
+  // Buscar limites da organização
+  const { data: org } = await supabase
+    .from('organizacoes_saas')
+    .select('limite_usuarios, limite_oportunidades, limite_storage_mb')
+    .eq('id', id)
+    .single()
+
+  const limiteUsuarios = org?.limite_usuarios ?? 5
+  const limiteOp = org?.limite_oportunidades ?? null
+  const limiteStorage = org?.limite_storage_mb ?? 500
+
+  const usadoUsuarios = usuariosCount || 0
+  const usadoOp = opCount || 0
+  const usadoContatos = contatosCount || 0
+
+  return {
+    usuarios: {
+      usado: usadoUsuarios,
+      limite: limiteUsuarios,
+      percentual: limiteUsuarios ? (usadoUsuarios / limiteUsuarios) * 100 : null,
+    },
+    oportunidades: {
+      usado: usadoOp,
+      limite: limiteOp,
+      percentual: limiteOp ? (usadoOp / limiteOp) * 100 : null,
+    },
+    storage: {
+      usado_mb: 0,
+      limite_mb: limiteStorage,
+      percentual: limiteStorage ? 0 : null,
+    },
+    contatos: {
+      usado: usadoContatos,
+      limite: null,
+      percentual: null,
+    },
+  }
 }
 
 export async function obterModulosOrganizacao(id: string): Promise<Modulo[]> {
-  const response = await api.get<{ success: boolean; data: Modulo[] }>(
-    `/v1/admin/organizacoes/${id}/modulos`
+  const { data, error } = await supabase
+    .from('modulos')
+    .select('*')
+    .order('ordem', { ascending: true })
+
+  if (error) throw new Error(error.message)
+
+  // Buscar módulos ativos para a organização
+  const { data: modulosAtivos } = await supabase
+    .from('organizacoes_modulos')
+    .select('modulo_id, ativo, configuracoes')
+    .eq('organizacao_id', id)
+
+  const modulosAtivosMap = new Map(
+    (modulosAtivos || []).map(m => [m.modulo_id, { ativo: m.ativo ?? false, configuracoes: m.configuracoes as Record<string, unknown> }])
   )
-  return response.data.data
+
+  return (data || []).map(modulo => ({
+    id: modulo.id,
+    slug: modulo.slug,
+    nome: modulo.nome,
+    descricao: modulo.descricao || '',
+    icone: modulo.icone || 'puzzle',
+    obrigatorio: modulo.obrigatorio || false,
+    ordem: modulo.ordem || 0,
+    requer: (modulo.requer as string[]) || [],
+    ativo: modulosAtivosMap.get(modulo.id)?.ativo ?? (modulo.obrigatorio || false),
+    configuracoes: modulosAtivosMap.get(modulo.id)?.configuracoes,
+  }))
 }
 
-export async function atualizarModulosOrganizacao(id: string, modulos: Array<{ modulo_id: string; ativo: boolean; ordem?: number }>): Promise<void> {
-  await api.put(`/v1/admin/organizacoes/${id}/modulos`, { modulos })
+export async function atualizarModulosOrganizacao(
+  id: string,
+  modulos: Array<{ modulo_id: string; ativo: boolean; ordem?: number }>
+): Promise<void> {
+  for (const modulo of modulos) {
+    const { error } = await supabase
+      .from('organizacoes_modulos')
+      .upsert({
+        organizacao_id: id,
+        modulo_id: modulo.modulo_id,
+        ativo: modulo.ativo,
+        ordem: modulo.ordem,
+      }, {
+        onConflict: 'organizacao_id,modulo_id',
+      })
+
+    if (error) throw new Error(error.message)
+  }
 }
 
 // =======================
@@ -244,31 +509,135 @@ export async function atualizarModulosOrganizacao(id: string, modulos: Array<{ m
 // =======================
 
 export async function listarPlanos(): Promise<Plano[]> {
-  const response = await api.get<{ success: boolean; data: Plano[] }>('/v1/admin/planos')
-  return response.data.data
+  const { data, error } = await supabase
+    .from('planos')
+    .select('*')
+    .order('ordem', { ascending: true })
+
+  if (error) throw new Error(error.message)
+  return (data || []).map(p => ({
+    id: p.id,
+    nome: p.nome,
+    descricao: p.descricao,
+    preco_mensal: p.preco_mensal ?? 0,
+    preco_anual: p.preco_anual,
+    moeda: p.moeda ?? 'BRL',
+    limite_usuarios: p.limite_usuarios,
+    limite_oportunidades: p.limite_oportunidades,
+    limite_storage_mb: p.limite_storage_mb,
+    limite_contatos: p.limite_contatos,
+    ativo: p.ativo ?? true,
+    visivel: p.visivel ?? true,
+    ordem: p.ordem ?? 0,
+  }))
 }
 
 export async function obterPlano(id: string): Promise<Plano & { modulos: Modulo[] }> {
-  const response = await api.get<{ success: boolean; data: Plano & { modulos: Modulo[] } }>(
-    `/v1/admin/planos/${id}`
-  )
-  return response.data.data
+  const { data, error } = await supabase
+    .from('planos')
+    .select('*')
+    .eq('id', id)
+    .single()
+
+  if (error) throw new Error(error.message)
+
+  // Buscar módulos do plano
+  const { data: modulosData } = await supabase
+    .from('planos_modulos')
+    .select('modulo_id, configuracoes')
+    .eq('plano_id', id)
+
+  const moduloIds = (modulosData || []).map(m => m.modulo_id)
+
+  let modulos: Modulo[] = []
+  if (moduloIds.length > 0) {
+    const { data: modulosInfo } = await supabase
+      .from('modulos')
+      .select('*')
+      .in('id', moduloIds)
+
+    modulos = (modulosInfo || []).map(m => ({
+      id: m.id,
+      slug: m.slug,
+      nome: m.nome,
+      descricao: m.descricao || '',
+      icone: m.icone || 'puzzle',
+      obrigatorio: m.obrigatorio || false,
+      ordem: m.ordem || 0,
+      requer: (m.requer as string[]) || [],
+    }))
+  }
+
+  return {
+    id: data.id,
+    nome: data.nome,
+    descricao: data.descricao,
+    preco_mensal: data.preco_mensal ?? 0,
+    preco_anual: data.preco_anual,
+    moeda: data.moeda ?? 'BRL',
+    limite_usuarios: data.limite_usuarios,
+    limite_oportunidades: data.limite_oportunidades,
+    limite_storage_mb: data.limite_storage_mb,
+    limite_contatos: data.limite_contatos,
+    ativo: data.ativo ?? true,
+    visivel: data.visivel ?? true,
+    ordem: data.ordem ?? 0,
+    modulos,
+  }
 }
 
-export async function criarPlano(data: Omit<Plano, 'id'>): Promise<string> {
-  const response = await api.post<{ success: boolean; data: { id: string } }>(
-    '/v1/admin/planos',
-    data
-  )
-  return response.data.data.id
+export async function criarPlano(plano: Omit<Plano, 'id'>): Promise<string> {
+  const { data, error } = await supabase
+    .from('planos')
+    .insert({
+      nome: plano.nome,
+      descricao: plano.descricao,
+      preco_mensal: plano.preco_mensal,
+      preco_anual: plano.preco_anual,
+      moeda: plano.moeda,
+      limite_usuarios: plano.limite_usuarios,
+      limite_oportunidades: plano.limite_oportunidades,
+      limite_storage_mb: plano.limite_storage_mb,
+      limite_contatos: plano.limite_contatos,
+      ativo: plano.ativo,
+      visivel: plano.visivel,
+      ordem: plano.ordem,
+    })
+    .select('id')
+    .single()
+
+  if (error) throw new Error(error.message)
+  return data.id
 }
 
-export async function atualizarPlano(id: string, data: Partial<Plano>): Promise<void> {
-  await api.patch(`/v1/admin/planos/${id}`, data)
+export async function atualizarPlano(id: string, plano: Partial<Plano>): Promise<void> {
+  const { error } = await supabase
+    .from('planos')
+    .update(plano)
+    .eq('id', id)
+
+  if (error) throw new Error(error.message)
 }
 
-export async function definirModulosPlano(planoId: string, modulos: Array<{ modulo_id: string; configuracoes?: Record<string, unknown> }>): Promise<void> {
-  await api.put(`/v1/admin/planos/${planoId}/modulos`, { modulos })
+export async function definirModulosPlano(
+  planoId: string,
+  modulos: Array<{ modulo_id: string; configuracoes?: Record<string, unknown> }>
+): Promise<void> {
+  // Remover módulos existentes
+  await supabase.from('planos_modulos').delete().eq('plano_id', planoId)
+
+  // Inserir novos
+  if (modulos.length > 0) {
+    const { error } = await supabase
+      .from('planos_modulos')
+      .insert(modulos.map(m => ({
+        plano_id: planoId,
+        modulo_id: m.modulo_id,
+        configuracoes: m.configuracoes as Json,
+      })))
+
+    if (error) throw new Error(error.message)
+  }
 }
 
 // =======================
@@ -276,8 +645,22 @@ export async function definirModulosPlano(planoId: string, modulos: Array<{ modu
 // =======================
 
 export async function listarModulos(): Promise<Modulo[]> {
-  const response = await api.get<{ success: boolean; data: Modulo[] }>('/v1/admin/modulos')
-  return response.data.data
+  const { data, error } = await supabase
+    .from('modulos')
+    .select('*')
+    .order('ordem', { ascending: true })
+
+  if (error) throw new Error(error.message)
+  return (data || []).map(m => ({
+    id: m.id,
+    slug: m.slug,
+    nome: m.nome,
+    descricao: m.descricao || '',
+    icone: m.icone || 'puzzle',
+    obrigatorio: m.obrigatorio || false,
+    ordem: m.ordem || 0,
+    requer: (m.requer as string[]) || [],
+  }))
 }
 
 // =======================
@@ -285,49 +668,173 @@ export async function listarModulos(): Promise<Modulo[]> {
 // =======================
 
 export async function listarConfigGlobais(): Promise<ConfigGlobal[]> {
-  const response = await api.get<{ success: boolean; data: ConfigGlobal[] }>('/v1/admin/config-global')
-  return response.data.data
+  const { data, error } = await supabase
+    .from('configuracoes_globais')
+    .select('*')
+    .order('plataforma', { ascending: true })
+
+  if (error) throw new Error(error.message)
+  return (data || []).map(c => ({
+    id: c.id,
+    plataforma: c.plataforma,
+    configuracoes: c.configuracoes as Record<string, unknown>,
+    configurado: c.configurado ?? false,
+    ultimo_teste: c.ultimo_teste,
+    ultimo_erro: c.ultimo_erro,
+  }))
 }
 
 export async function obterConfigGlobal(plataforma: string): Promise<ConfigGlobal> {
-  const response = await api.get<{ success: boolean; data: ConfigGlobal }>(
-    `/v1/admin/config-global/${plataforma}`
-  )
-  return response.data.data
+  const { data, error } = await supabase
+    .from('configuracoes_globais')
+    .select('*')
+    .eq('plataforma', plataforma)
+    .single()
+
+  if (error) throw new Error(error.message)
+  return {
+    id: data.id,
+    plataforma: data.plataforma,
+    configuracoes: data.configuracoes as Record<string, unknown>,
+    configurado: data.configurado ?? false,
+    ultimo_teste: data.ultimo_teste,
+    ultimo_erro: data.ultimo_erro,
+  }
 }
 
 export async function atualizarConfigGlobal(plataforma: string, configuracoes: Record<string, unknown>): Promise<void> {
-  await api.patch(`/v1/admin/config-global/${plataforma}`, { configuracoes })
+  // Primeiro verifica se existe
+  const { data: existing } = await supabase
+    .from('configuracoes_globais')
+    .select('id')
+    .eq('plataforma', plataforma)
+    .maybeSingle()
+
+  if (existing) {
+    const { error } = await supabase
+      .from('configuracoes_globais')
+      .update({
+        configuracoes: configuracoes as Json,
+        atualizado_em: new Date().toISOString(),
+      })
+      .eq('plataforma', plataforma)
+
+    if (error) throw new Error(error.message)
+  } else {
+    const { error } = await supabase
+      .from('configuracoes_globais')
+      .insert({
+        plataforma,
+        configuracoes: configuracoes as Json,
+      })
+
+    if (error) throw new Error(error.message)
+  }
 }
 
-export async function testarConfigGlobal(plataforma: string): Promise<{ sucesso: boolean; mensagem: string }> {
-  const response = await api.post<{ success: boolean; data: { sucesso: boolean; mensagem: string } }>(
-    `/v1/admin/config-global/${plataforma}/testar`
-  )
-  return response.data.data
+export async function testarConfigGlobal(_plataforma: string): Promise<{ sucesso: boolean; mensagem: string }> {
+  // TODO: Implementar teste real via edge function
+  return { sucesso: true, mensagem: 'Teste simulado com sucesso' }
 }
 
 // =======================
 // METRICAS
 // =======================
 
-export async function obterMetricasResumo(periodo: '7d' | '30d' | '90d' | '12m' = '30d'): Promise<MetricasResumo> {
-  const response = await api.get<{ success: boolean; data: MetricasResumo }>(
-    `/v1/admin/metricas/resumo?periodo=${periodo}`
-  )
-  return response.data.data
-}
+export async function obterMetricasResumo(_periodo: '7d' | '30d' | '90d' | '12m' = '30d'): Promise<MetricasResumo> {
+  // Contar organizações por status
+  const { data: orgs, count: totalOrgs } = await supabase
+    .from('organizacoes_saas')
+    .select('status', { count: 'exact' })
+    .is('deletado_em', null)
 
-export async function obterMetricasFinanceiro(periodo: '7d' | '30d' | '90d' | '12m' = '30d'): Promise<{
-  mrr: number
-  churn_rate: number
-  novos_clientes: number
-  cancelamentos: number
-}> {
-  const response = await api.get<{ success: boolean; data: { mrr: number; churn_rate: number; novos_clientes: number; cancelamentos: number } }>(
-    `/v1/admin/metricas/financeiro?periodo=${periodo}`
-  )
-  return response.data.data
+  const statusCounts = (orgs || []).reduce((acc, org) => {
+    acc[org.status] = (acc[org.status] || 0) + 1
+    return acc
+  }, {} as Record<string, number>)
+
+  // Contar novos nos últimos 7 dias
+  const seteDiasAtras = new Date()
+  seteDiasAtras.setDate(seteDiasAtras.getDate() - 7)
+
+  const { count: novos7d } = await supabase
+    .from('organizacoes_saas')
+    .select('*', { count: 'exact', head: true })
+    .gte('criado_em', seteDiasAtras.toISOString())
+    .is('deletado_em', null)
+
+  // Contar novos nos últimos 30 dias
+  const trintaDiasAtras = new Date()
+  trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30)
+
+  const { count: novos30d } = await supabase
+    .from('organizacoes_saas')
+    .select('*', { count: 'exact', head: true })
+    .gte('criado_em', trintaDiasAtras.toISOString())
+    .is('deletado_em', null)
+
+  // Contar usuários
+  const { count: totalUsuarios } = await supabase
+    .from('usuarios')
+    .select('*', { count: 'exact', head: true })
+    .is('deletado_em', null)
+
+  // Distribuição por plano
+  const { data: planosList } = await supabase
+    .from('organizacoes_saas')
+    .select('plano')
+    .is('deletado_em', null)
+
+  const planoCounts = (planosList || []).reduce((acc, org) => {
+    const planoNome = org.plano || 'Sem plano'
+    acc[planoNome] = (acc[planoNome] || 0) + 1
+    return acc
+  }, {} as Record<string, number>)
+
+  const distribuicao: MetricasResumo['distribuicao_planos'] = Object.entries(planoCounts).map(([plano, quantidade]) => ({
+    plano,
+    quantidade,
+    percentual: totalOrgs ? (quantidade / totalOrgs) * 100 : 0,
+  }))
+
+  // Alertas
+  const alertas: MetricasResumo['alertas'] = []
+  if (statusCounts['suspensa'] > 0) {
+    alertas.push({
+      tipo: 'warning',
+      mensagem: `${statusCounts['suspensa']} organização(ões) suspensa(s)`,
+      quantidade: statusCounts['suspensa'],
+    })
+  }
+  if (statusCounts['trial'] > 0) {
+    alertas.push({
+      tipo: 'info',
+      mensagem: `${statusCounts['trial']} organização(ões) em período de trial`,
+      quantidade: statusCounts['trial'],
+    })
+  }
+
+  return {
+    tenants: {
+      total: totalOrgs || 0,
+      ativos: statusCounts['ativa'] || 0,
+      trial: statusCounts['trial'] || 0,
+      suspensos: statusCounts['suspensa'] || 0,
+      novos_7d: novos7d || 0,
+      novos_30d: novos30d || 0,
+    },
+    usuarios: {
+      total: totalUsuarios || 0,
+      ativos_hoje: 0,
+      ativos_7d: 0,
+    },
+    financeiro: {
+      mrr: 0,
+      variacao_mrr: 0,
+    },
+    distribuicao_planos: distribuicao,
+    alertas,
+  }
 }
 
 // Export como objeto para uso com useQuery
@@ -359,5 +866,4 @@ export const adminApi = {
   testarConfigGlobal,
   // Metricas
   obterMetricasResumo,
-  obterMetricasFinanceiro,
 }

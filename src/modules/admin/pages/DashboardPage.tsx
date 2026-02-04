@@ -57,11 +57,8 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Dashboard da Plataforma</h1>
-        <p className="text-muted-foreground mt-1">Visao geral dos ultimos 30 dias</p>
-      </div>
+      {/* Descrição sutil */}
+      <p className="text-sm text-muted-foreground">Visão geral dos últimos 30 dias</p>
 
       {/* Cards de metricas */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

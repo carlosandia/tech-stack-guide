@@ -5103,6 +5103,8 @@ export type Database = {
         Args: { p_meta_id: string; p_modo?: string }
         Returns: Json
       }
+      has_role: { Args: { _role: string; _user_id: string }; Returns: boolean }
+      is_super_admin: { Args: never; Returns: boolean }
       log_audit: {
         Args: {
           p_acao: string
@@ -5121,7 +5123,7 @@ export type Database = {
       set_current_tenant: { Args: { tenant_id: string }; Returns: undefined }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "super_admin" | "admin" | "member"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -5248,6 +5250,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["super_admin", "admin", "member"],
+    },
   },
 } as const
