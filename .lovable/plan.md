@@ -1,392 +1,184 @@
 
-# Plano de Implementação - PRD-14 (Super Admin) - Frontend Completo
+# Relatório de Validação - PRD-14 (Super Admin) - Frontend
 
-## Contexto
+## Resumo da Análise
 
-Conforme análise do PRD-00 (Índice Geral), o **PRD-14 (Super Admin)** é parte da **Fase 0 (CRÍTICA)** e deve ser completado ANTES de qualquer outro módulo CRM, pois é através dele que se cria o primeiro tenant e Admin do sistema.
-
-### Status Atual
-
-| Componente | Status | Conectado ao Backend |
-|------------|--------|---------------------|
-| `DashboardPage.tsx` | ✅ Implementado | ✅ Sim |
-| `OrganizacoesPage.tsx` | ⚠️ Parcial (apenas listagem) | ✅ Sim |
-| Wizard Nova Organização | ❌ Faltando | Backend pronto |
-| Detalhes da Organização | ❌ Faltando | Backend pronto |
-| Gerenciamento de Módulos | ❌ Faltando | Backend pronto |
-| Página de Planos | ❌ Placeholder | Backend pronto |
-| Página de Configurações Globais | ❌ Placeholder | Backend pronto |
-
-### Backend Disponível (admin.api.ts)
-
-Todas as funções já estão implementadas:
-- `listarOrganizacoes`, `obterOrganizacao`, `criarOrganizacao`
-- `suspenderOrganizacao`, `reativarOrganizacao`, `impersonarOrganizacao`
-- `listarUsuariosOrganizacao`, `obterLimitesOrganizacao`, `obterModulosOrganizacao`
-- `listarPlanos`, `obterPlano`, `criarPlano`, `atualizarPlano`
-- `listarConfigGlobais`, `obterConfigGlobal`, `atualizarConfigGlobal`, `testarConfigGlobal`
+Após análise detalhada do código implementado versus os requisitos do PRD-14, identifiquei que o **frontend está ~80% implementado**, com algumas pendências funcionais e de aderência ao Design System.
 
 ---
 
-## Ordem de Implementação
+## STATUS DOS REQUISITOS FUNCIONAIS
 
-| Prioridade | Tarefa | Descrição |
-|------------|--------|-----------|
-| 1 | Wizard Nova Organização | Modal 3 etapas para criar tenant + admin |
-| 2 | Detalhes da Organização | Página com tabs (Usuários, Relatórios, Configurações) |
-| 3 | Página de Planos | CRUD de planos com módulos |
-| 4 | Página de Configurações Globais | Tabs para Meta, Google, WhatsApp, Stripe, Email |
-
----
-
-## ETAPA 1: Wizard Nova Organização (3 Etapas)
-
-### Arquivos a Criar
-
-| Arquivo | Descrição |
-|---------|-----------|
-| `src/modules/admin/components/NovaOrganizacaoModal.tsx` | Container do wizard |
-| `src/modules/admin/components/wizard/Step1Empresa.tsx` | Dados da empresa |
-| `src/modules/admin/components/wizard/Step2Expectativas.tsx` | Informações de qualificação |
-| `src/modules/admin/components/wizard/Step3Admin.tsx` | Dados do primeiro admin |
-| `src/modules/admin/hooks/useOrganizacoes.ts` | React Query mutations |
-| `src/modules/admin/schemas/organizacao.schema.ts` | Validação Zod |
-
-### Estrutura do Modal (PRD-14 RF-002)
-
-```text
-┌─────────────────────────────────────────────────────────────┐
-│ [icon] Criar nova empresa                              [X]  │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│         [1 Empresa]      [2 Expectativas]      [3 Admin]    │
-│              ●                   ○                  ○        │
-│                                                             │
-│  (Conteúdo da etapa atual)                                  │
-│                                                             │
-├─────────────────────────────────────────────────────────────┤
-│  [Cancelar]                           [Voltar] [Próximo ->] │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Etapa 1: Dados da Empresa
-
-| Campo | Tipo | Obrigatório | Validação |
-|-------|------|-------------|-----------|
-| Nome da Empresa | texto | Sim | min: 2, max: 255 |
-| Segmento | select | Sim | Lista pré-definida |
-| Website | url | Não | Formato URL |
-| Telefone | telefone | Não | Formato brasileiro |
-| Email da Empresa | email | Sim | Formato email |
-| **Endereço (opcional - accordion)** |
-| CEP | texto | Não | 8 dígitos |
-| Logradouro, Número, Complemento, Bairro, Cidade/Estado | - | - | - |
-
-### Etapa 2: Expectativas
-
-| Campo | Tipo | Obrigatório |
-|-------|------|-------------|
-| Número de Usuários | select | Sim |
-| Volume de Leads/Mês | select | Sim |
-| Principal Objetivo | select | Sim |
-| Como conheceu | select | Não |
-| Observações | textarea | Não |
-
-### Etapa 3: Dados do Administrador
-
-| Campo | Tipo | Obrigatório |
-|-------|------|-------------|
-| Nome | texto | Sim |
-| Sobrenome | texto | Sim |
-| Email | email | Sim (único) |
-| Telefone | telefone | Não |
-| Enviar convite por email | checkbox | Default: true |
-| Senha inicial | senha | Condicional (se não enviar convite) |
-
-### Estilo conforme Design System
-
-| Elemento | Classes Tailwind |
-|----------|-----------------|
-| Modal Overlay | `fixed inset-0 bg-black/50 z-50` |
-| Modal Container | `bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4` |
-| Header | `px-6 py-4 border-b border-border flex items-center justify-between` |
-| Stepper | `flex items-center justify-center gap-8 py-4` |
-| Step Ativo | `text-primary font-medium` + círculo `bg-primary text-white` |
-| Step Inativo | `text-muted-foreground` + círculo `border border-border` |
-| Content | `p-6 space-y-4` |
-| Footer | `px-6 py-4 border-t border-border flex justify-between` |
-| Inputs | `h-11 rounded-md border-input focus:ring-2 focus:ring-primary` |
-| Botão Primário | `bg-primary text-primary-foreground hover:bg-primary/90 h-11` |
-| Botão Secundário | `border border-border text-foreground hover:bg-accent h-11` |
+| ID | Requisito | Status | Observação |
+|----|-----------|--------|------------|
+| RF-001 | Wizard 3 etapas para criar organização | ✅ Implementado | `NovaOrganizacaoModal.tsx` |
+| RF-002 | Listar e filtrar organizações | ✅ Implementado | `OrganizacoesPage.tsx` |
+| RF-003 | Gerenciar módulos por tenant | ⚠️ Parcial | Exibe módulos, mas falta modal de edição |
+| RF-004 | Criar e editar planos | ⚠️ Parcial | Cards de planos funcionam, mas modal de edição é placeholder |
+| RF-005 | Planos definem módulos | ✅ Implementado | Hook `useModulos` busca módulos por plano |
+| RF-006 | Integração Stripe | ⚠️ Backend apenas | Frontend não implementa checkout |
+| RF-007 | Configurações globais | ✅ Implementado | `ConfiguracoesGlobaisPage.tsx` |
+| RF-008 | Dashboard de métricas | ✅ Implementado | `DashboardPage.tsx` |
+| RF-009 | Impersonação auditada | ⚠️ Parcial | Função existe, mas apenas alerta (`alert()`) |
+| RF-010 | Alertas de trials expirando | ✅ Implementado | Seção de alertas no dashboard |
+| RF-011 | Exportar lista de tenants | ❌ Não implementado | Prioridade "Could" |
+| RF-012 | Visualizar detalhes do tenant | ✅ Implementado | `OrganizacaoDetalhesPage.tsx` |
+| RF-013 | Ver Admin e Members do tenant | ✅ Implementado | `OrganizacaoUsuariosTab.tsx` |
+| RF-014 | Rastrear último acesso | ✅ Implementado | Campo `ultimo_login` exibido |
+| RF-015 | Relatórios de vendas por tenant | ⚠️ Parcial | Tab existe, mas métricas são placeholder |
+| RF-016 | 15 métricas em 5 categorias | ⚠️ Parcial | Apenas 6 métricas implementadas |
+| RF-017 | Exportar relatórios PDF/Excel | ❌ Não implementado | Prioridade "Should" |
+| RF-018 | Limites de uso vs utilização | ✅ Implementado | `OrganizacaoConfigTab.tsx` |
+| RF-019 | Histórico de acessos | ❌ Não implementado | Prioridade "Could" |
 
 ---
 
-## ETAPA 2: Detalhes da Organização
+## CONEXÕES COM O BACKEND
 
-### Arquivos a Criar
-
-| Arquivo | Descrição |
-|---------|-----------|
-| `src/modules/admin/pages/OrganizacaoDetalhesPage.tsx` | Página de detalhes |
-| `src/modules/admin/components/OrganizacaoUsuariosTab.tsx` | Tab de usuários |
-| `src/modules/admin/components/OrganizacaoRelatoriosTab.tsx` | Tab de métricas |
-| `src/modules/admin/components/OrganizacaoConfigTab.tsx` | Tab de configurações |
-| `src/modules/admin/components/GerenciarModulosModal.tsx` | Modal de módulos |
-
-### Layout da Página (PRD-14 RF-012)
-
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│ <- Voltar    LitoralPlace                    [Suspender] [...]  │
-│              software | Pro | Criado em 14/01/2026              │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  [Usuários]    [Relatórios]    [Configurações]                  │
-│  ─────────────────────────────────────────────────────────────  │
-│                                                                  │
-│  (Conteúdo da tab ativa)                                        │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Tab Usuários
-
-- Lista Admin + Members
-- Último acesso de cada usuário
-- Status (ativo/inativo)
-- Ação: Ver perfil
-
-### Tab Relatórios
-
-- Cards com métricas do tenant:
-  - Total de Oportunidades
-  - Valor Total
-  - Taxa de Conversão
-  - Tempo Médio de Fechamento
-
-### Tab Configurações
-
-- Limites de uso vs utilização (barra de progresso)
-- Módulos ativos (gerenciar)
-- Plano atual (alterar)
+| Endpoint | Método | Conectado | Componente |
+|----------|--------|-----------|------------|
+| `/v1/admin/organizacoes` | GET | ✅ | `OrganizacoesPage.tsx` |
+| `/v1/admin/organizacoes` | POST | ✅ | `NovaOrganizacaoModal.tsx` |
+| `/v1/admin/organizacoes/:id` | GET | ✅ | `OrganizacaoDetalhesPage.tsx` |
+| `/v1/admin/organizacoes/:id/suspender` | POST | ✅ | `OrganizacaoDetalhesPage.tsx` |
+| `/v1/admin/organizacoes/:id/reativar` | POST | ✅ | `OrganizacaoDetalhesPage.tsx` |
+| `/v1/admin/organizacoes/:id/impersonar` | POST | ✅ | `OrganizacaoDetalhesPage.tsx` |
+| `/v1/admin/organizacoes/:id/usuarios` | GET | ✅ | `OrganizacaoUsuariosTab.tsx` |
+| `/v1/admin/organizacoes/:id/limites` | GET | ✅ | `OrganizacaoConfigTab.tsx` |
+| `/v1/admin/organizacoes/:id/modulos` | GET | ✅ | `OrganizacaoConfigTab.tsx` |
+| `/v1/admin/organizacoes/:id/modulos` | PUT | ❌ Falta UI | Modal não implementado |
+| `/v1/admin/planos` | GET | ✅ | `PlanosPage.tsx` |
+| `/v1/admin/planos` | POST | ❌ Placeholder | Modal exibe "será implementado" |
+| `/v1/admin/planos/:id` | PATCH | ❌ Placeholder | Modal exibe "será implementado" |
+| `/v1/admin/modulos` | GET | ✅ | `PlanosPage.tsx` |
+| `/v1/admin/config-global` | GET | ✅ | `ConfiguracoesGlobaisPage.tsx` |
+| `/v1/admin/config-global/:plataforma` | PATCH | ✅ | `ConfiguracoesGlobaisPage.tsx` |
+| `/v1/admin/config-global/:plataforma/testar` | POST | ✅ | `ConfiguracoesGlobaisPage.tsx` |
+| `/v1/admin/metricas/resumo` | GET | ✅ | `DashboardPage.tsx` |
 
 ---
 
-## ETAPA 3: Página de Planos
+## PROBLEMAS DE DESIGN SYSTEM
 
-### Arquivo a Criar
+### 1. Cores Hardcoded (Deveria usar tokens semânticos)
 
-| Arquivo | Descrição |
-|---------|-----------|
-| `src/modules/admin/pages/PlanosPage.tsx` | CRUD de planos |
-| `src/modules/admin/components/PlanoForm.tsx` | Formulário de plano |
-| `src/modules/admin/components/PlanoModulosModal.tsx` | Vincular módulos |
+**Arquivo: `DashboardPage.tsx`**
 
-### Layout
+| Linha | Problema | Correção |
+|-------|----------|----------|
+| 34-37 | `bg-gray-200` | `bg-muted` |
+| 46-47 | `bg-red-50 border-red-200 text-red-600` | `bg-destructive/10 border-destructive/20 text-destructive` |
+| 62-63 | `text-gray-900`, `text-gray-500` | `text-foreground`, `text-muted-foreground` |
+| 69, 89, 118, 138 | `bg-white border-gray-200` | `bg-card border-border` |
+| 71, 91 | `bg-blue-100`, `bg-green-100` | OK para ícones de status (cores específicas intencionais) |
+| 161, 190 | `bg-white border-gray-200` | `bg-card border-border` |
+| 198-201 | `bg-red-50`, `bg-yellow-50`, `bg-blue-50` | OK para alertas de status |
 
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│ Planos                                          [+ Novo Plano]  │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌────────────┐ │
-│  │ Trial       │ │ Starter     │ │ Pro         │ │ Enterprise │ │
-│  │ Grátis      │ │ R$ 99/mês   │ │ R$ 249/mês  │ │ R$ 599/mês │ │
-│  │ 2 usuários  │ │ 5 usuários  │ │ 15 usuários │ │ 50 usuários│ │
-│  │ [Editar]    │ │ [Editar]    │ │ [Editar]    │ │ [Editar]   │ │
-│  └─────────────┘ └─────────────┘ └─────────────┘ └────────────┘ │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
+**Arquivo: `AdminLayout.tsx`**
 
----
+| Linha | Problema | Correção |
+|-------|----------|----------|
+| 72 | `bg-gray-50` | `bg-background` ou `bg-muted` |
+| 150 | `bg-white border-gray-200` | `bg-card border-border` |
+| 154, 167 | `hover:bg-gray-100` | `hover:bg-accent` |
+| 169 | `bg-gray-200` | `bg-muted` |
+| 170, 174, 177 | `text-gray-600`, `text-gray-700`, `text-gray-500` | `text-muted-foreground` |
+| 187-196 | `bg-white border-gray-200 text-gray-*` | `bg-card border-border text-foreground text-muted-foreground` |
 
-## ETAPA 4: Página de Configurações Globais
+### 2. Componentes com tokens semânticos corretos
 
-### Arquivo a Criar
+Os seguintes arquivos **seguem corretamente o Design System**:
 
-| Arquivo | Descrição |
-|---------|-----------|
-| `src/modules/admin/pages/ConfiguracoesGlobaisPage.tsx` | Página principal |
-| `src/modules/admin/components/ConfigMetaTab.tsx` | Configuração Meta |
-| `src/modules/admin/components/ConfigGoogleTab.tsx` | Configuração Google |
-| `src/modules/admin/components/ConfigStripeTab.tsx` | Configuração Stripe |
-| `src/modules/admin/components/ConfigEmailTab.tsx` | Configuração Email |
-| `src/modules/admin/components/ConfigWahaTab.tsx` | Configuração WAHA |
-
-### Layout com Tabs
-
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│ Configurações Globais                                           │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  [Meta]  [Google]  [WhatsApp]  [Stripe]  [Email]                │
-│  ───────────────────────────────────────────────────────────────│
-│                                                                  │
-│  Meta Ads / Facebook / Instagram                                 │
-│                                                                  │
-│  App ID                                                          │
-│  [123456789012345                              ]                 │
-│                                                                  │
-│  App Secret                                                      │
-│  [********************************            ] [Mostrar]        │
-│                                                                  │
-│  Status: [●] Configurado                                         │
-│                                                                  │
-│  [Testar Conexão]                         [Salvar Alterações]   │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
+- ✅ `OrganizacoesPage.tsx` - usa `bg-card`, `border-border`, `text-foreground`, `text-muted-foreground`
+- ✅ `OrganizacaoDetalhesPage.tsx` - usa tokens semânticos
+- ✅ `ConfiguracoesGlobaisPage.tsx` - usa tokens semânticos
+- ✅ `PlanosPage.tsx` - usa tokens semânticos
+- ✅ `NovaOrganizacaoModal.tsx` - usa tokens semânticos
+- ✅ `OrganizacaoConfigTab.tsx` - usa tokens semânticos
+- ⚠️ `OrganizacaoUsuariosTab.tsx` - mistura cores (linha 73-74 usa `bg-blue-100 text-blue-600`)
 
 ---
 
-## Seção Técnica
+## PENDÊNCIAS FUNCIONAIS
 
-### Hooks React Query (useOrganizacoes.ts)
+### Prioridade ALTA (Must-Have incompletos)
 
-```typescript
-// Listar organizações
-export function useOrganizacoes(params) {
-  return useQuery({
-    queryKey: ['admin', 'organizacoes', params],
-    queryFn: () => adminApi.listarOrganizacoes(params),
-  })
-}
+1. **Modal de Edição de Plano** (RF-004)
+   - `PlanosPage.tsx` linhas 136-154: Modal exibe apenas "Formulario sera implementado em breve"
+   - Falta formulário com campos: nome, preço, limites, módulos vinculados
 
-// Criar organização
-export function useCreateOrganizacao() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: adminApi.criarOrganizacao,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin', 'organizacoes'] })
-    },
-  })
-}
+2. **Modal de Criação de Plano** (RF-004)
+   - `PlanosPage.tsx` linhas 117-133: Modal placeholder
+   - Precisa formulário completo
 
-// Obter detalhes
-export function useOrganizacao(id: string) {
-  return useQuery({
-    queryKey: ['admin', 'organizacao', id],
-    queryFn: () => adminApi.obterOrganizacao(id),
-    enabled: !!id,
-  })
-}
-```
+3. **Modal de Gerenciar Módulos do Tenant** (RF-003)
+   - `OrganizacaoConfigTab.tsx` exibe módulos, mas botão "Gerenciar Modulos" não abre modal funcional
+   - Endpoint `PUT /organizacoes/:id/modulos` existe no backend mas não há UI
 
-### Schema Zod (organizacao.schema.ts)
+4. **Tab Relatórios Incompleta** (RF-015, RF-016)
+   - `OrganizacaoRelatoriosTab.tsx` exibe apenas 4 métricas placeholder
+   - PRD especifica 15 métricas em 5 categorias
 
-```typescript
-export const Step1EmpresaSchema = z.object({
-  nome: z.string().min(2).max(255),
-  segmento: z.string().min(1),
-  email: z.string().email(),
-  website: z.string().url().optional().or(z.literal('')),
-  telefone: z.string().optional(),
-  endereco: z.object({...}).optional(),
-})
+### Prioridade MÉDIA (Should-Have incompletos)
 
-export const Step2ExpectativasSchema = z.object({
-  numero_usuarios: z.string().min(1),
-  volume_leads_mes: z.string().min(1),
-  principal_objetivo: z.string().min(1),
-  como_conheceu: z.string().optional(),
-  observacoes: z.string().optional(),
-})
+5. **Impersonação real** (RF-009)
+   - `OrganizacaoDetalhesPage.tsx` linha 80: Apenas mostra `alert()` 
+   - Deveria redirecionar com token de impersonação e banner de suporte
 
-export const Step3AdminSchema = z.object({
-  admin_nome: z.string().min(2),
-  admin_sobrenome: z.string().min(2),
-  admin_email: z.string().email(),
-  admin_telefone: z.string().optional(),
-  enviar_convite: z.boolean().default(true),
-  senha_inicial: z.string().min(8).optional(),
-})
-```
-
-### Atualização de Rotas (App.tsx)
-
-```typescript
-// Adicionar novas rotas
-<Route path="organizacoes/nova" element={<NovaOrganizacaoPage />} />
-<Route path="organizacoes/:id" element={<OrganizacaoDetalhesPage />} />
-<Route path="organizacoes/:id/modulos" element={<OrganizacaoModulosPage />} />
-<Route path="planos" element={<PlanosPage />} />
-<Route path="configuracoes" element={<ConfiguracoesGlobaisPage />} />
-```
+6. **Página de Módulos** 
+   - Rota `/admin/modulos` aponta para `PlaceholderPage`
+   - PRD menciona catálogo de módulos com drag-and-drop para ordem
 
 ---
 
-## Critérios de Aceitação
+## ROTAS CONFIGURADAS
 
-### Wizard Nova Organização
-- [ ] Modal abre ao clicar "Nova Organização"
-- [ ] Stepper visual mostra progresso
-- [ ] Validação por etapa antes de avançar
-- [ ] Todos campos obrigatórios validados (Zod)
-- [ ] Senha condicional (se não enviar convite)
-- [ ] Sucesso cria tenant + admin
-- [ ] Toast de confirmação ao finalizar
-- [ ] Lista de organizações atualiza automaticamente
-
-### Detalhes da Organização
-- [ ] Header com nome, segmento, plano, data
-- [ ] 3 tabs funcionais (Usuários, Relatórios, Config)
-- [ ] Lista de usuários com último acesso
-- [ ] Métricas do tenant carregando do backend
-- [ ] Barra de limites de uso
-
-### Planos
-- [ ] Cards com todos planos
-- [ ] Modal de edição funcionando
-- [ ] Módulos vinculados ao plano
-
-### Configurações Globais
-- [ ] Tabs para cada plataforma
-- [ ] Campos com máscaras de senha (*****)
-- [ ] Botão "Testar Conexão" funcionando
-- [ ] Status de configuração visível
+| Rota | Componente | Status |
+|------|------------|--------|
+| `/admin` | `AdminDashboardPage` | ✅ OK |
+| `/admin/organizacoes` | `AdminOrganizacoesPage` | ✅ OK |
+| `/admin/organizacoes/:id` | `AdminOrganizacaoDetalhesPage` | ✅ OK |
+| `/admin/planos` | `AdminPlanosPage` | ✅ OK |
+| `/admin/modulos` | `PlaceholderPage` | ❌ Placeholder |
+| `/admin/configuracoes` | `AdminConfiguracoesGlobaisPage` | ✅ OK |
 
 ---
 
-## Estrutura Final de Arquivos
+## PLANO DE CORREÇÃO SUGERIDO
 
-```text
-src/modules/admin/
-├── components/
-│   ├── NovaOrganizacaoModal.tsx
-│   ├── GerenciarModulosModal.tsx
-│   ├── PlanoForm.tsx
-│   ├── OrganizacaoUsuariosTab.tsx
-│   ├── OrganizacaoRelatoriosTab.tsx
-│   ├── OrganizacaoConfigTab.tsx
-│   ├── ConfigMetaTab.tsx
-│   ├── ConfigGoogleTab.tsx
-│   ├── ConfigStripeTab.tsx
-│   ├── ConfigEmailTab.tsx
-│   ├── ConfigWahaTab.tsx
-│   └── wizard/
-│       ├── Step1Empresa.tsx
-│       ├── Step2Expectativas.tsx
-│       └── Step3Admin.tsx
-├── hooks/
-│   ├── useOrganizacoes.ts
-│   ├── usePlanos.ts
-│   └── useConfigGlobal.ts
-├── schemas/
-│   ├── organizacao.schema.ts
-│   ├── plano.schema.ts
-│   └── config-global.schema.ts
-├── pages/
-│   ├── DashboardPage.tsx (existente)
-│   ├── OrganizacoesPage.tsx (existente)
-│   ├── OrganizacaoDetalhesPage.tsx (novo)
-│   ├── PlanosPage.tsx (novo)
-│   └── ConfiguracoesGlobaisPage.tsx (novo)
-├── layouts/
-│   └── AdminLayout.tsx (existente)
-├── services/
-│   └── admin.api.ts (existente)
-└── index.ts (atualizar exports)
-```
+### Fase 1: Correção Design System (Rápido)
+
+1. Refatorar `DashboardPage.tsx` - substituir cores hardcoded por tokens
+2. Refatorar `AdminLayout.tsx` - substituir cores hardcoded por tokens
+3. Corrigir `OrganizacaoUsuariosTab.tsx` - padronizar cores de ícones
+
+### Fase 2: Funcionalidades Must-Have Pendentes
+
+1. Implementar modal de criação/edição de Plano com formulário completo
+2. Implementar modal de gerenciar módulos do tenant com toggles
+3. Expandir tab Relatórios com 15 métricas conforme PRD
+
+### Fase 3: Funcionalidades Should-Have
+
+1. Implementar fluxo de impersonação real (não apenas alert)
+2. Criar página de Módulos (catálogo)
+3. Adicionar exportação de relatórios
+
+---
+
+## CONCLUSÃO
+
+O frontend do PRD-14 está **funcionalmente operacional** para as operações principais:
+- ✅ Criar organizações (wizard completo)
+- ✅ Listar e filtrar organizações
+- ✅ Ver detalhes, usuários e configurações
+- ✅ Suspender/reativar organizações
+- ✅ Dashboard com métricas
+- ✅ Configurações globais com teste de conexão
+
+**Pendências críticas:**
+1. Modais de criação/edição de plano são placeholders
+2. Modal de gerenciar módulos não existe
+3. `DashboardPage.tsx` e `AdminLayout.tsx` não seguem Design System (usam cores hardcoded)
+
+**Recomendação:** Aprovar este plano para executar as correções de Design System (Fase 1) e depois as funcionalidades pendentes (Fase 2).
