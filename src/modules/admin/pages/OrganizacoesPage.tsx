@@ -48,7 +48,7 @@ const statusOptions = [
 
 export function OrganizacoesPage() {
   const navigate = useNavigate()
-  const { setActions } = useToolbar()
+  const { setActions, setSubtitle } = useToolbar()
   const [busca, setBusca] = useState('')
   const [statusFilter, setStatusFilter] = useState('todas')
   const [page, setPage] = useState(1)
@@ -65,6 +65,12 @@ export function OrganizacoesPage() {
         limit: 10,
       }),
   })
+
+  // Injetar subtítulo no toolbar
+  useEffect(() => {
+    setSubtitle('Gerencie os tenants da plataforma')
+    return () => setSubtitle(null)
+  }, [setSubtitle])
 
   // Injetar ações no toolbar (busca + status + CTA)
   useEffect(() => {
@@ -117,9 +123,6 @@ export function OrganizacoesPage() {
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
       />
-
-      {/* Descrição sutil */}
-      <p className="text-sm text-muted-foreground">Gerencie os tenants da plataforma</p>
 
       {/* Tabela */}
       <div className="bg-card rounded-lg border border-border shadow-sm overflow-hidden">

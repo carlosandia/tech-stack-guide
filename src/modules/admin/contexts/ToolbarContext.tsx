@@ -10,22 +10,31 @@ import type { ReactNode } from 'react'
 interface ToolbarContextValue {
   actions: ReactNode
   setActions: (node: ReactNode) => void
+  subtitle: string | null
+  setSubtitle: (text: string | null) => void
 }
 
 const ToolbarContext = createContext<ToolbarContextValue>({
   actions: null,
   setActions: () => {},
+  subtitle: null,
+  setSubtitle: () => {},
 })
 
 export function ToolbarProvider({ children }: { children: ReactNode }) {
   const [actions, setActionsState] = useState<ReactNode>(null)
+  const [subtitle, setSubtitleState] = useState<string | null>(null)
 
   const setActions = useCallback((node: ReactNode) => {
     setActionsState(node)
   }, [])
 
+  const setSubtitle = useCallback((text: string | null) => {
+    setSubtitleState(text)
+  }, [])
+
   return (
-    <ToolbarContext.Provider value={{ actions, setActions }}>
+    <ToolbarContext.Provider value={{ actions, setActions, subtitle, setSubtitle }}>
       {children}
     </ToolbarContext.Provider>
   )
