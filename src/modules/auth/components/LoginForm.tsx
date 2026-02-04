@@ -63,21 +63,21 @@ export function LoginForm({ onSubmit, isLoading = false, error }: LoginFormProps
     <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
       {/* Titulo */}
       <div className="text-center">
-        <h2 className="text-xl font-semibold text-gray-900">
+        <h2 className="text-xl font-semibold text-foreground">
           Informe seus dados abaixo
         </h2>
       </div>
 
       {/* Erro global */}
       {error && (
-        <div className="p-3 bg-red-50 border border-red-200 rounded-md">
-          <p className="text-sm text-red-600">{error}</p>
+        <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
+          <p className="text-sm text-destructive">{error}</p>
         </div>
       )}
 
       {/* Campo Email */}
       <div>
-        <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="email" className="block text-sm font-medium text-foreground mb-1">
           E-mail *
         </label>
         <input
@@ -87,20 +87,20 @@ export function LoginForm({ onSubmit, isLoading = false, error }: LoginFormProps
           placeholder="seu@email.com"
           {...register('email')}
           className={`
-            w-full h-11 px-3 border rounded-md
+            w-full h-11 px-3 border rounded-md bg-background text-foreground
             focus:outline-none focus:ring-2 focus:ring-primary
-            ${errors.email ? 'border-red-500' : 'border-gray-300'}
+            ${errors.email ? 'border-destructive' : 'border-input'}
           `}
           disabled={isLoading}
         />
         {errors.email && (
-          <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
+          <p className="mt-1 text-sm text-destructive">{errors.email.message}</p>
         )}
       </div>
 
       {/* Campo Senha */}
       <div>
-        <label htmlFor="senha" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="senha" className="block text-sm font-medium text-foreground mb-1">
           Senha *
         </label>
         <div className="relative">
@@ -111,16 +111,16 @@ export function LoginForm({ onSubmit, isLoading = false, error }: LoginFormProps
             placeholder="••••••••"
             {...register('senha')}
             className={`
-              w-full h-11 px-3 pr-10 border rounded-md
+              w-full h-11 px-3 pr-10 border rounded-md bg-background text-foreground
               focus:outline-none focus:ring-2 focus:ring-primary
-              ${errors.senha ? 'border-red-500' : 'border-gray-300'}
+              ${errors.senha ? 'border-destructive' : 'border-input'}
             `}
             disabled={isLoading}
           />
           <button
             type="button"
             onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             tabIndex={-1}
           >
             {showPassword ? (
@@ -131,7 +131,7 @@ export function LoginForm({ onSubmit, isLoading = false, error }: LoginFormProps
           </button>
         </div>
         {errors.senha && (
-          <p className="mt-1 text-sm text-red-600">{errors.senha.message}</p>
+          <p className="mt-1 text-sm text-destructive">{errors.senha.message}</p>
         )}
       </div>
 
@@ -141,10 +141,10 @@ export function LoginForm({ onSubmit, isLoading = false, error }: LoginFormProps
           id="lembrar"
           type="checkbox"
           {...register('lembrar')}
-          className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
+          className="h-4 w-4 text-primary focus:ring-primary border-input rounded"
           disabled={isLoading}
         />
-        <label htmlFor="lembrar" className="ml-2 block text-sm text-gray-700">
+        <label htmlFor="lembrar" className="ml-2 block text-sm text-muted-foreground">
           Lembrar por 30 dias
         </label>
       </div>
@@ -158,7 +158,7 @@ export function LoginForm({ onSubmit, isLoading = false, error }: LoginFormProps
           transition-colors
           ${
             isButtonDisabled
-              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              ? 'bg-muted text-muted-foreground cursor-not-allowed'
               : 'bg-primary text-primary-foreground hover:bg-primary/90'
           }
         `}
