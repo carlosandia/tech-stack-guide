@@ -1,205 +1,263 @@
 
-# Plano de Correção - Erros 500 nas Consultas RLS
+# Plano: Mover Filtros de Busca para o Toolbar
 
-## Diagnóstico
+## Contexto
 
-Após investigação completa, identifiquei a causa raiz:
+Atualmente, na página `OrganizacoesPage.tsx` (e potencialmente em outras páginas com listagem), os filtros de busca e status estão em um card separado abaixo do Toolbar, ocupando espaço vertical desnecessário.
 
-| Tabela | Política Problemática | Problema |
-|--------|----------------------|----------|
-| `usuarios` | `admin_tenant_access` | Consulta `usuarios` dentro de `usuarios` → **RECURSÃO** |
-| `usuarios` | `tenant_view_own_usuarios` | Consulta `usuarios` dentro de `usuarios` → **RECURSÃO** |
-| `organizacoes_saas` | `tenant_view_own_org` | Consulta `usuarios` → **Bloqueado por RLS** |
-| `organizacoes_saas` | `tenant_isolation` | Consulta `auth.users` que pode falhar |
+**Problema identificado (imagem de referência)**:
+- O campo de busca está em um card com background branco abaixo do Toolbar
+- O select de "Todos os status" também está neste card
 
-### Dados Confirmados
-- Super Admin existe em `user_roles` (auth_id: `23a69eac-f689-4b28-b8ea-f2692227254a`, role: `super_admin`)
-- Super Admin existe em `usuarios` (email: superadmin@renovedigital.com.br)
-- Função `is_super_admin_v2()` está correta (consulta `user_roles`, não `usuarios`)
+**Solução (conforme Design System seção 11.3)**:
+- Mover os filtros para o Toolbar como ícones sutis com funcionalidade de Popover/Dropdown
+- Seguir o padrão Progressive Disclosure para responsividade
 
-### Políticas Atuais que FUNCIONAM
-- `super_admin_full_access ON organizacoes_saas USING is_super_admin_v2()` ✅
-- `super_admin_usuarios_full_access ON usuarios USING is_super_admin_v2()` ✅
+---
 
-### Políticas Atuais que CAUSAM ERRO
-```sql
--- RECURSÃO: Consulta usuarios dentro da própria tabela usuarios
-admin_tenant_access ON usuarios:
-  organizacao_id = (SELECT organizacao_id FROM usuarios WHERE auth_id = auth.uid() AND role = 'admin')
+## Estrutura Proposta - Toolbar
 
--- RECURSÃO: Consulta usuarios dentro da própria tabela usuarios  
-tenant_view_own_usuarios ON usuarios:
-  organizacao_id IN (SELECT organizacao_id FROM usuarios WHERE auth_id = auth.uid())
-
--- BLOQUEIO: Consulta usuarios que está protegida por RLS recursiva
-tenant_view_own_org ON organizacoes_saas:
-  id IN (SELECT organizacao_id FROM usuarios WHERE auth_id = auth.uid())
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│ TOOLBAR (48px altura)                                                           │
+│ "Organizações"                    🔍 Buscar | Status ▾ | [+ Nova Organização]   │
+│       ↑                               ↑          ↑               ↑              │
+│  Título da página            Popover busca  Dropdown    CTA (já injetado)       │
+└─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-## Solução
+### Comportamento Responsivo
 
-Remover todas as políticas que causam recursão e substituir por políticas que usam funções `SECURITY DEFINER`.
+| Elemento | Mobile (<768px) | Tablet (768-1024px) | Desktop (>1024px) |
+|----------|-----------------|---------------------|-------------------|
+| Busca | Ícone 🔍 + Popover | Ícone 🔍 + Popover | Input inline OU botão + Popover |
+| Status | Ícone + Dropdown | Botão "Status ▾" | Botão "Todos os status ▾" |
+| CTA | Apenas ícone (+) | Ícone + texto curto | Ícone + texto completo |
 
-### Nova Migração SQL
+---
 
-```sql
--- =================================================
--- FASE 1: Remover políticas problemáticas
--- =================================================
+## Alterações Técnicas
 
--- Tabela usuarios
-DROP POLICY IF EXISTS "admin_tenant_access" ON usuarios;
-DROP POLICY IF EXISTS "admin_tenant_usuarios" ON usuarios;
-DROP POLICY IF EXISTS "tenant_view_own_usuarios" ON usuarios;
-DROP POLICY IF EXISTS "usuarios_select_own_tenant" ON usuarios;
-DROP POLICY IF EXISTS "member_own_usuario" ON usuarios;
-DROP POLICY IF EXISTS "super_admin_all_usuarios" ON usuarios;
+### 1. Modificar `AdminLayout.tsx` - Componente `ToolbarWithActions`
 
--- Tabela organizacoes_saas
-DROP POLICY IF EXISTS "tenant_view_own_org" ON organizacoes_saas;
-DROP POLICY IF EXISTS "tenant_isolation" ON organizacoes_saas;
-DROP POLICY IF EXISTS "tenant_read_own_organizacao" ON organizacoes_saas;
-DROP POLICY IF EXISTS "super_admin_all_organizacoes" ON organizacoes_saas;
-DROP POLICY IF EXISTS "usuarios_select_own_organization" ON organizacoes_saas;
+Atualizar para aceitar **duas zonas de ações** via contexto:
+- `leftActions`: Filtros e busca (injetados pelas páginas)
+- `rightActions`: CTA principal (já existente como `actions`)
 
--- =================================================
--- FASE 2: Criar funções helper SECURITY DEFINER
--- =================================================
+**OU** manter a API atual e fazer as páginas injetarem todos os elementos (filtros + CTA) como um único ReactNode.
 
--- Função para obter organizacao_id do usuário atual
-CREATE OR REPLACE FUNCTION public.get_user_tenant_id()
-RETURNS uuid
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT organizacao_id 
-  FROM public.usuarios 
-  WHERE auth_id = auth.uid()
-  LIMIT 1
-$$;
+**Recomendação**: Manter a API simples - as páginas injetam tudo no `actions`, e o layout apenas renderiza.
 
--- Função para verificar se usuário é admin do tenant
-CREATE OR REPLACE FUNCTION public.is_tenant_admin()
-RETURNS boolean
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT EXISTS (
-    SELECT 1 
-    FROM public.usuarios 
-    WHERE auth_id = auth.uid() 
-      AND role = 'admin'
+### 2. Modificar `OrganizacoesPage.tsx`
+
+Remover o card de filtros e integrar busca + status diretamente no Toolbar:
+
+```tsx
+// Antes (card separado)
+<div className="bg-card p-4 rounded-lg border border-border shadow-sm">
+  <input ... /> 
+  <select ... />
+</div>
+
+// Depois (injetado no Toolbar)
+useEffect(() => {
+  setActions(
+    <div className="flex items-center gap-2">
+      {/* Busca - Popover */}
+      <SearchPopover value={busca} onChange={setBusca} />
+      
+      {/* Status - Dropdown */}
+      <StatusDropdown value={statusFilter} onChange={setStatusFilter} />
+      
+      {/* CTA */}
+      <button onClick={() => setModalOpen(true)} ...>
+        <Plus />
+        <span className="hidden sm:inline">Nova Organização</span>
+      </button>
+    </div>
   )
-$$;
-
--- =================================================
--- FASE 3: Recriar políticas LIMPAS para usuarios
--- =================================================
-
--- Super Admin (já existe, garantir que está correta)
-DROP POLICY IF EXISTS "super_admin_usuarios_full_access" ON usuarios;
-CREATE POLICY "super_admin_usuarios_full_access" ON usuarios
-FOR ALL TO authenticated
-USING (public.is_super_admin_v2());
-
--- Usuário pode ler próprio perfil
-CREATE POLICY "user_read_own" ON usuarios
-FOR SELECT TO authenticated
-USING (auth_id = auth.uid());
-
--- Usuário pode atualizar próprio perfil
-CREATE POLICY "user_update_own" ON usuarios  
-FOR UPDATE TO authenticated
-USING (auth_id = auth.uid())
-WITH CHECK (auth_id = auth.uid());
-
--- =================================================
--- FASE 4: Recriar políticas LIMPAS para organizacoes_saas
--- =================================================
-
--- Super Admin (já existe, garantir que está correta)
-DROP POLICY IF EXISTS "super_admin_full_access" ON organizacoes_saas;
-CREATE POLICY "super_admin_full_access" ON organizacoes_saas
-FOR ALL TO authenticated
-USING (public.is_super_admin_v2());
-
--- Tenant pode ler própria organização (usa função helper)
-CREATE POLICY "tenant_read_own" ON organizacoes_saas
-FOR SELECT TO authenticated
-USING (id = public.get_user_tenant_id());
+}, [setActions, busca, statusFilter])
 ```
 
-## Resultado Esperado
+### 3. Criar Componente `SearchPopover.tsx` (Reutilizável)
 
-Após a migração:
+Componente que exibe um ícone de busca. Ao clicar, abre um Popover com o input de texto:
 
-| Cenário | Comportamento |
-|---------|---------------|
-| Super Admin acessa `/admin/organizacoes` | Lista todas organizações |
-| Super Admin faz login | Busca usuário em `usuarios` com sucesso |
-| Admin de tenant acessa dashboard | Vê apenas própria organização |
-| Member de tenant | Lê apenas próprio perfil |
+```tsx
+interface SearchPopoverProps {
+  value: string
+  onChange: (value: string) => void
+  placeholder?: string
+}
+
+export function SearchPopover({ value, onChange, placeholder }: SearchPopoverProps) {
+  const [open, setOpen] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+  
+  // Focus no input quando abre
+  useEffect(() => {
+    if (open && inputRef.current) {
+      inputRef.current.focus()
+    }
+  }, [open])
+  
+  return (
+    <>
+      {/* Botão trigger */}
+      <button
+        onClick={() => setOpen(!open)}
+        className={cn(
+          "inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm font-medium rounded-md border transition-colors",
+          value 
+            ? "border-primary bg-primary/5 text-primary" 
+            : "border-input bg-background text-muted-foreground hover:bg-accent hover:text-foreground"
+        )}
+      >
+        <Search className="w-4 h-4" />
+        <span className="hidden md:inline">
+          {value ? `"${value}"` : 'Buscar'}
+        </span>
+      </button>
+      
+      {/* Popover */}
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute top-full right-0 mt-1 w-64 bg-popover border border-border rounded-md shadow-md p-2 z-50">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input
+                ref={inputRef}
+                type="text"
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                placeholder={placeholder}
+                className="w-full pl-9 pr-3 py-2 text-sm border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+                onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}
+              />
+            </div>
+            {value && (
+              <button
+                onClick={() => onChange('')}
+                className="w-full mt-2 px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted rounded"
+              >
+                Limpar busca
+              </button>
+            )}
+          </div>
+        </>
+      )}
+    </>
+  )
+}
+```
+
+### 4. Criar Componente `StatusDropdown.tsx` (Reutilizável)
+
+Dropdown para filtro de status:
+
+```tsx
+interface StatusDropdownProps {
+  value: string
+  onChange: (value: string) => void
+  options: Array<{ value: string; label: string }>
+  placeholder?: string
+}
+
+export function StatusDropdown({ value, onChange, options, placeholder }: StatusDropdownProps) {
+  const [open, setOpen] = useState(false)
+  const selectedLabel = options.find(o => o.value === value)?.label || placeholder
+  
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className={cn(
+          "inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm font-medium rounded-md border transition-colors",
+          value && value !== 'todas'
+            ? "border-primary bg-primary/5 text-primary"
+            : "border-input bg-background text-muted-foreground hover:bg-accent hover:text-foreground"
+        )}
+      >
+        <span className="hidden md:inline">{selectedLabel}</span>
+        <ChevronDown className="w-4 h-4" />
+      </button>
+      
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute top-full right-0 mt-1 w-44 bg-popover border border-border rounded-md shadow-md py-1 z-50">
+            {options.map((option) => (
+              <button
+                key={option.value}
+                onClick={() => { onChange(option.value); setOpen(false) }}
+                className={cn(
+                  "w-full px-3 py-2 text-sm text-left hover:bg-accent transition-colors",
+                  value === option.value && "bg-accent text-accent-foreground font-medium"
+                )}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+```
+
+---
+
+## Arquivos a Criar
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/modules/admin/components/toolbar/SearchPopover.tsx` | Componente de busca com popover |
+| `src/modules/admin/components/toolbar/StatusDropdown.tsx` | Componente de dropdown de status |
 
 ## Arquivos a Modificar
 
-| Recurso | Alteração |
+| Arquivo | Alteração |
 |---------|-----------|
-| **Migração SQL** | Limpar políticas antigas e recriar com funções SECURITY DEFINER |
+| `src/modules/admin/pages/OrganizacoesPage.tsx` | Remover card de filtros, injetar componentes no Toolbar |
+| `src/modules/admin/contexts/ToolbarContext.tsx` | (Opcional) Adicionar suporte a `leftActions` se desejado |
 
-## Fluxo da Solução
+---
 
-```text
-┌────────────────────────────────────────────────────────────────────────┐
-│                        ANTES (COM ERRO)                                │
-├────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│  SELECT * FROM usuarios WHERE auth_id = X                              │
-│       │                                                                 │
-│       ▼                                                                 │
-│  RLS: admin_tenant_access                                              │
-│       │                                                                 │
-│       ▼ (sub-select)                                                   │
-│  SELECT organizacao_id FROM usuarios WHERE auth_id = X                 │
-│       │                                                                 │
-│       ▼                                                                 │
-│  RLS: admin_tenant_access (novamente)                                  │
-│       │                                                                 │
-│       ▼                                                                 │
-│  ❌ RECURSÃO INFINITA → 500 ERROR                                      │
-│                                                                         │
-└────────────────────────────────────────────────────────────────────────┘
+## Exemplo Visual Final
 
-┌────────────────────────────────────────────────────────────────────────┐
-│                        DEPOIS (CORRIGIDO)                              │
-├────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│  SELECT * FROM usuarios WHERE auth_id = X                              │
-│       │                                                                 │
-│       ▼                                                                 │
-│  RLS: super_admin_usuarios_full_access                                 │
-│       │                                                                 │
-│       ▼                                                                 │
-│  is_super_admin_v2() [SECURITY DEFINER]                                │
-│       │                                                                 │
-│       ▼                                                                 │
-│  SELECT FROM user_roles WHERE user_id = X AND role = 'super_admin'     │
-│       │                                                                 │
-│       ▼                                                                 │
-│  ✅ TRUE → Acesso permitido                                            │
-│                                                                         │
-└────────────────────────────────────────────────────────────────────────┘
+### Desktop (>1024px)
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ Organizações              [🔍 Buscar] [Todos os status ▾] [+ Nova Organização]│
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-## Checklist
+### Tablet (768-1024px)
+```
+┌───────────────────────────────────────────────────────────┐
+│ Organizações              [🔍] [Status ▾] [+ Nova Org]    │
+└───────────────────────────────────────────────────────────┘
+```
 
-- [ ] Dropar políticas antigas que causam recursão
-- [ ] Criar função `get_user_tenant_id()` SECURITY DEFINER  
-- [ ] Criar função `is_tenant_admin()` SECURITY DEFINER
-- [ ] Recriar políticas limpas para `usuarios`
-- [ ] Recriar políticas limpas para `organizacoes_saas`
-- [ ] Testar login do Super Admin
-- [ ] Testar listagem de organizações
+### Mobile (<768px)
+```
+┌─────────────────────────────────────┐
+│ Organizações        [🔍] [▾] [+]    │
+└─────────────────────────────────────┘
+```
+
+---
+
+## Checklist de Implementação
+
+- [ ] Criar `SearchPopover.tsx` com popover de busca
+- [ ] Criar `StatusDropdown.tsx` com dropdown de status
+- [ ] Modificar `OrganizacoesPage.tsx`:
+  - [ ] Remover card de filtros
+  - [ ] Injetar busca + status + CTA no Toolbar via `setActions`
+  - [ ] Aplicar estilos responsivos (hidden/visible por breakpoint)
+- [ ] Testar em mobile, tablet e desktop
+- [ ] Garantir z-index adequado nos popovers (z-50 mínimo)
+- [ ] Garantir background opaco nos dropdowns (não transparente)
