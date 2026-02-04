@@ -9,6 +9,14 @@ export { AdminLayout } from './layouts/AdminLayout'
 // Pages
 export { DashboardPage as AdminDashboardPage } from './pages/DashboardPage'
 export { OrganizacoesPage as AdminOrganizacoesPage } from './pages/OrganizacoesPage'
+export { OrganizacaoDetalhesPage as AdminOrganizacaoDetalhesPage } from './pages/OrganizacaoDetalhesPage'
+export { PlanosPage as AdminPlanosPage } from './pages/PlanosPage'
+export { ConfiguracoesGlobaisPage as AdminConfiguracoesGlobaisPage } from './pages/ConfiguracoesGlobaisPage'
+
+// Hooks
+export { useOrganizacoes, useOrganizacao, useCreateOrganizacao } from './hooks/useOrganizacoes'
+export { usePlanos, usePlano, useModulos } from './hooks/usePlanos'
+export { useConfigGlobais, useConfigGlobal } from './hooks/useConfigGlobal'
 
 // API
 export { adminApi } from './services/admin.api'

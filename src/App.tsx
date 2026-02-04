@@ -1,7 +1,14 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from '@/providers/AuthProvider'
 import { LoginPage, ForgotPasswordPage, ResetPasswordPage } from '@/modules/auth'
-import { AdminLayout, AdminDashboardPage, AdminOrganizacoesPage } from '@/modules/admin'
+import {
+  AdminLayout,
+  AdminDashboardPage,
+  AdminOrganizacoesPage,
+  AdminOrganizacaoDetalhesPage,
+  AdminPlanosPage,
+  AdminConfiguracoesGlobaisPage,
+} from '@/modules/admin'
 
 /**
  * AIDEV-NOTE: Roteamento principal da aplicacao
@@ -89,10 +96,10 @@ function App() {
       >
         <Route index element={<AdminDashboardPage />} />
         <Route path="organizacoes" element={<AdminOrganizacoesPage />} />
-        <Route path="organizacoes/:id" element={<AdminOrganizacoesPage />} />
-        <Route path="planos" element={<PlaceholderPage title="Planos" />} />
+        <Route path="organizacoes/:id" element={<AdminOrganizacaoDetalhesPage />} />
+        <Route path="planos" element={<AdminPlanosPage />} />
         <Route path="modulos" element={<PlaceholderPage title="Modulos" />} />
-        <Route path="configuracoes" element={<PlaceholderPage title="Configuracoes Globais" />} />
+        <Route path="configuracoes" element={<AdminConfiguracoesGlobaisPage />} />
       </Route>
 
       {/* Redireciona raiz baseado no role */}
