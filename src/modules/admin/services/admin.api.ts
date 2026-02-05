@@ -377,6 +377,43 @@ export async function criarOrganizacao(payload: CriarOrganizacaoPayload): Promis
     throw new Error(`Erro ao criar assinatura: ${assinaturaError.message}`)
   }
 
+  // Se enviar_convite = true, chamar edge function para criar auth user e enviar email
+  if (payload.enviar_convite) {
+    try {
+      const session = await supabase.auth.getSession()
+      const accessToken = session.data.session?.access_token
+
+      const response = await fetch(
+        'https://ybzhlsalbnxwkfszkloa.supabase.co/functions/v1/invite-admin',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            email: payload.admin_email,
+            nome: payload.admin_nome,
+            sobrenome: payload.admin_sobrenome,
+            usuario_id: adminUser.id,
+            organizacao_id: org.id,
+          }),
+        }
+      )
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        console.warn('Erro ao enviar convite:', errorData)
+        // Não aborta a criação, apenas loga o erro
+      } else {
+        console.log('Convite enviado com sucesso para:', payload.admin_email)
+      }
+    } catch (error) {
+      console.warn('Erro ao chamar edge function de convite:', error)
+      // Não aborta a criação
+    }
+  }
+
   return {
     organizacao_id: org.id,
     admin_id: adminUser.id,

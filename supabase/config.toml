@@ -1,16 +1,19 @@
- project_id = "ybzhlsalbnxwkfszkloa"
- 
- [functions.create-checkout-session]
- verify_jwt = false
- 
- [functions.stripe-webhook]
- verify_jwt = false
- 
- [functions.iniciar-trial]
- verify_jwt = false
- 
- [functions.get-checkout-session]
- verify_jwt = false
- 
- [functions.complete-onboarding]
- verify_jwt = false
+project_id = "ybzhlsalbnxwkfszkloa"
+
+[functions.create-checkout-session]
+verify_jwt = false
+
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.iniciar-trial]
+verify_jwt = false
+
+[functions.get-checkout-session]
+verify_jwt = false
+
+[functions.complete-onboarding]
+verify_jwt = false
+
+[functions.invite-admin]
+verify_jwt = false
