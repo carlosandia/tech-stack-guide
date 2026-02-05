@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Plus, Edit, CreditCard, Users, HardDrive, Puzzle, Shield } from 'lucide-react'
 import { usePlanos, useModulos } from '../hooks/usePlanos'
+import { useConfigGlobal } from '../hooks/useConfigGlobal'
  import { useToolbar } from '../contexts/ToolbarContext'
 import { PlanoFormModal } from '../components/PlanoFormModal'
 import type { Plano } from '../services/admin.api'
@@ -26,9 +27,13 @@ function isTrialPlan(plano: Plano): boolean {
 export function PlanosPage() {
   const { data: planos, isLoading, error } = usePlanos()
   const { data: modulos } = useModulos()
+  const { data: configStripe } = useConfigGlobal('stripe')
   const { setActions, setSubtitle } = useToolbar()
   const [planoEditando, setPlanoEditando] = useState<Plano | null>(null)
   const [showModal, setShowModal] = useState(false)
+
+  // Extrair dias de trial da config do Stripe
+  const trialDias = (configStripe?.configuracoes as { trial_dias?: number })?.trial_dias ?? 14
 
   // Injetar ação no toolbar
   useEffect(() => {
@@ -84,6 +89,7 @@ export function PlanosPage() {
             key={plano.id}
             plano={plano}
             isTrial={isTrialPlan(plano)}
+            trialDias={trialDias}
             onEdit={() => {
               setPlanoEditando(plano)
               setShowModal(true)
@@ -149,11 +155,13 @@ export function PlanosPage() {
 function PlanoCard({
   plano,
   isTrial,
+  trialDias,
   onEdit,
   formatCurrency,
 }: {
   plano: Plano
   isTrial: boolean
+  trialDias: number
   onEdit: () => void
   formatCurrency: (value: number) => string
 }) {
@@ -211,9 +219,13 @@ function PlanoCard({
       </div>
 
       {/* Descricao */}
-      {plano.descricao && (
+      {isTrial ? (
+        <p className="text-sm text-muted-foreground mt-4">
+          Teste gratuito por {trialDias} dias
+        </p>
+      ) : plano.descricao ? (
         <p className="text-sm text-muted-foreground mt-4 line-clamp-2">{plano.descricao}</p>
-      )}
+      ) : null}
 
       {/* Actions */}
       <button
