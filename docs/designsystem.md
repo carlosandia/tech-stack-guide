@@ -1759,13 +1759,15 @@ import {
 | Padding item | `px-3 py-2` |
 | Font | `text-sm font-medium` |
 | Border Radius | `rounded-md` |
-| Transicao | `transition-colors duration-150` |
+| Transicao | `transition-all duration-200` |
 
 | Estado | Estilo |
 |--------|--------|
-| Default | `text-gray-500 hover:text-gray-900 hover:bg-gray-100/70` |
-| Ativo | `bg-primary text-primary-foreground` |
+| Default | `border border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100/50` |
+| Ativo | `border border-primary/40 bg-primary/5 text-primary` (Soft Outline Style) |
 | Com dropdown | Icone `ChevronDown` (w-4 h-4) apos o texto |
+
+> **Soft Outline Style**: O menu ativo utiliza borda sutil com opacidade (`border-primary/40`) e fundo quase imperceptível (`bg-primary/5`) ao invés de fundo sólido. Isso cria um visual mais leve e moderno, tipo "chip outline".
 
 ##### Actions Area
 
@@ -1887,15 +1889,19 @@ import {
 </div>
 ```
 
-##### Action Buttons
+##### Action Buttons (Ghost Style)
 
-| Tipo | Variante | Tamanho |
-|------|----------|---------|
-| Busca | `outline` ou apenas icone | `sm` |
-| Filtros | `outline` | `sm` |
-| Metricas/Toggle | `outline` | `sm` |
-| Dropdown (Periodo) | `outline` | `sm` |
-| CTA Principal | `default` (primary) | `sm` |
+Os botões de ação na toolbar (Buscar, Filtros, Status) utilizam estilo **ghost** - sem borda visível, apenas texto e ícone. O hover é muito sutil com transparência.
+
+| Tipo | Estilo | Tamanho |
+|------|--------|---------|
+| Busca | `text-gray-500 hover:text-gray-700 hover:bg-gray-100/50` (ghost) | `sm` |
+| Filtros | `text-gray-500 hover:text-gray-700 hover:bg-gray-100/50` (ghost) | `sm` |
+| Dropdown (Status) | `text-gray-500 hover:text-gray-700 hover:bg-gray-100/50` (ghost) | `sm` |
+| Com filtro ativo | `bg-primary/5 text-primary` (sem borda) | `sm` |
+| CTA Principal | `bg-primary text-primary-foreground` (sólido - destaque) | `sm` |
+
+> **Nota**: A diferença visual entre botões ghost (filtros) e o CTA sólido (ação principal) cria hierarquia clara sem poluição visual.
 
 ##### CTA Principal
 

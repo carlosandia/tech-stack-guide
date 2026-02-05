@@ -39,20 +39,20 @@ export function StatusDropdown({
 
   return (
     <div ref={containerRef} className="relative">
-      {/* Botão trigger */}
+      {/* Botão trigger - Estilo ghost */}
       <button
         type="button"
         onClick={() => setOpen(!open)}
         className={cn(
-          'inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm font-medium rounded-md border transition-colors',
+          'inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm font-medium rounded-md transition-all duration-200',
           isFiltering
-            ? 'border-primary bg-primary/10 text-primary'
-            : 'border-input bg-background text-muted-foreground hover:bg-accent hover:text-foreground'
+            ? 'bg-primary/5 text-primary'
+            : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100/50'
         )}
       >
         <Filter className="w-4 h-4 md:hidden" />
         <span className="hidden md:inline">{selectedLabel}</span>
-        <ChevronDown className={cn('w-4 h-4 transition-transform', open && 'rotate-180')} />
+        <ChevronDown className={cn('w-4 h-4 transition-transform duration-200', open && 'rotate-180')} />
       </button>
 
       {/* Dropdown menu */}
