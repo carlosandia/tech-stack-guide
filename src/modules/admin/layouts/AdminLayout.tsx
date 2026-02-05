@@ -73,10 +73,10 @@ function NavItem({
       end={exact}
       onClick={onClick}
       className={({ isActive }) =>
-        `flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+        `flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
           isActive
-            ? 'bg-primary text-primary-foreground'
-            : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100/70'
+            ? 'border border-primary/40 bg-primary/5 text-primary'
+            : 'border border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100/50'
         }`
       }
     >
@@ -158,10 +158,10 @@ function AdminLayoutInner() {
               end={item.exact}
               onClick={() => setDrawerOpen(false)}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors ${
+                `flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200 ${
                   isActive
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100/70'
+                    ? 'border border-primary/40 bg-primary/5 text-primary'
+                    : 'border border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100/50'
                 }`
               }
             >
@@ -175,7 +175,7 @@ function AdminLayoutInner() {
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200/60">
           <button
             onClick={handleLogout}
-            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-md text-sm font-medium text-gray-500 hover:bg-gray-100/70 hover:text-gray-900 transition-colors"
+            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-md text-sm font-medium text-gray-500 hover:bg-gray-100/50 hover:text-gray-700 transition-all duration-200"
           >
             <LogOut className="w-5 h-5" />
             Sair
