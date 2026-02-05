@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Edit, CreditCard, Users, HardDrive, Puzzle, Shield } from 'lucide-react'
+ import { Plus, Edit, CreditCard, Users, HardDrive, Puzzle, Shield, RefreshCw, WifiOff, AlertTriangle } from 'lucide-react'
 import { usePlanos, useModulos } from '../hooks/usePlanos'
 import { useConfigGlobal } from '../hooks/useConfigGlobal'
  import { useToolbar } from '../contexts/ToolbarContext'
@@ -25,7 +25,7 @@ function isTrialPlan(plano: Plano): boolean {
  */
 
 export function PlanosPage() {
-  const { data: planos, isLoading, error } = usePlanos()
+   const { data: planos, isLoading, error, isError, refetch, fetchStatus } = usePlanos()
   const { data: modulos } = useModulos()
   const { data: configStripe } = useConfigGlobal('stripe')
   const { setActions, setSubtitle } = useToolbar()
@@ -72,10 +72,58 @@ export function PlanosPage() {
     )
   }
 
-  if (error) {
+   // Estado: Sem conexão (paused)
+   if (fetchStatus === 'paused') {
     return (
-      <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
-        <p className="text-destructive">Erro ao carregar planos</p>
+       <div className="bg-card rounded-lg border border-border p-8">
+         <div className="flex flex-col items-center justify-center text-center">
+           <WifiOff className="w-12 h-12 text-muted-foreground mb-3" />
+           <h3 className="text-lg font-medium text-foreground mb-1">Sem conexão</h3>
+           <p className="text-sm text-muted-foreground mb-4">
+             Verifique sua internet e tente novamente.
+           </p>
+           <button
+             onClick={() => refetch()}
+             className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 transition-colors"
+           >
+             <RefreshCw className="w-4 h-4" />
+             Tentar novamente
+           </button>
+         </div>
+       </div>
+     )
+   }
+ 
+   if (isError) {
+     return (
+       <div className="bg-card rounded-lg border border-border p-8">
+         <div className="flex flex-col items-center justify-center text-center">
+           <AlertTriangle className="w-12 h-12 text-destructive mb-3" />
+           <h3 className="text-lg font-medium text-destructive mb-1">
+             Erro ao carregar planos
+           </h3>
+           <p className="text-sm text-muted-foreground mb-1">
+             Não foi possível conectar ao servidor.
+           </p>
+           <p className="text-xs text-muted-foreground mb-4 max-w-md">
+             {String((error as Error)?.message || '')}
+           </p>
+           <div className="flex gap-2">
+             <button
+               onClick={() => refetch()}
+               className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 transition-colors"
+             >
+               <RefreshCw className="w-4 h-4" />
+               Tentar novamente
+             </button>
+             <button
+               onClick={() => window.location.reload()}
+               className="inline-flex items-center gap-2 px-4 py-2 border border-border text-sm font-medium rounded-md hover:bg-accent transition-colors"
+             >
+               Recarregar página
+             </button>
+           </div>
+         </div>
       </div>
     )
   }

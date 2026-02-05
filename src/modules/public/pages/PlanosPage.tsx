@@ -1,7 +1,7 @@
  import { useState, useEffect } from 'react'
  import { useNavigate, useSearchParams, Link } from 'react-router-dom'
- import { Check, Loader2, Star, Zap } from 'lucide-react'
- import { supabase } from '@/integrations/supabase/client'
+ import { Check, Loader2, Star, Zap, RefreshCw, AlertTriangle } from 'lucide-react'
+ import { supabase } from '@/lib/supabase'
  
  /**
   * AIDEV-NOTE: Pagina publica de planos
@@ -46,6 +46,7 @@ interface TrialPlan {
   const [trialPlan, setTrialPlan] = useState<TrialPlan | null>(null)
    const [periodo, setPeriodo] = useState<'mensal' | 'anual'>('mensal')
    const [loading, setLoading] = useState(true)
+   const [loadError, setLoadError] = useState<string | null>(null)
    const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
  
    // Capturar UTMs
@@ -64,6 +65,7 @@ interface TrialPlan {
  
    const fetchPlanos = async () => {
      try {
+       setLoadError(null)
        const { data, error } = await supabase
          .from('planos')
          .select('*')
@@ -93,6 +95,7 @@ interface TrialPlan {
       setPlanos(paidPlans)
      } catch (err) {
        console.error('Error fetching planos:', err)
+       setLoadError(err instanceof Error ? err.message : 'Erro ao carregar planos')
      } finally {
        setLoading(false)
      }
@@ -173,6 +176,28 @@ interface TrialPlan {
      return (
        <div className="min-h-screen flex items-center justify-center bg-background">
          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+       </div>
+     )
+   }
+ 
+   if (loadError) {
+     return (
+       <div className="min-h-screen flex items-center justify-center bg-background px-4">
+         <div className="bg-card rounded-xl border border-border p-8 max-w-md w-full text-center">
+           <AlertTriangle className="w-12 h-12 text-destructive mx-auto mb-4" />
+           <h2 className="text-lg font-semibold text-foreground mb-2">Erro ao carregar planos</h2>
+           <p className="text-sm text-muted-foreground mb-4">{loadError}</p>
+           <button
+             onClick={() => {
+               setLoading(true)
+               fetchPlanos()
+             }}
+             className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors"
+           >
+             <RefreshCw className="w-4 h-4" />
+             Tentar novamente
+           </button>
+         </div>
        </div>
      )
    }

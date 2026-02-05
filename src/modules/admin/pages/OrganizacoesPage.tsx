@@ -13,6 +13,7 @@ import {
   MoreVertical,
   Building2,
 } from 'lucide-react'
+ import { RefreshCw, WifiOff, AlertTriangle } from 'lucide-react'
 
 /**
  * AIDEV-NOTE: Listagem de Organizacoes
@@ -55,7 +56,7 @@ export function OrganizacoesPage() {
   const [menuAberto, setMenuAberto] = useState<string | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
 
-  const { data, isLoading, error } = useQuery({
+   const { data, isLoading, error, isError, refetch, fetchStatus } = useQuery({
     queryKey: ['admin', 'organizacoes', { busca, status: statusFilter, page }],
     queryFn: () =>
       adminApi.listarOrganizacoes({
@@ -124,8 +125,29 @@ export function OrganizacoesPage() {
         onClose={() => setModalOpen(false)}
       />
 
+       {/* Estado: Sem conexão (paused) */}
+       {fetchStatus === 'paused' && (
+         <div className="bg-card rounded-lg border border-border shadow-sm p-8">
+           <div className="flex flex-col items-center justify-center text-center">
+             <WifiOff className="w-12 h-12 text-muted-foreground mb-3" />
+             <h3 className="text-lg font-medium text-foreground mb-1">Sem conexão</h3>
+             <p className="text-sm text-muted-foreground mb-4">
+               Verifique sua internet e tente novamente.
+             </p>
+             <button
+               onClick={() => refetch()}
+               className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 transition-colors"
+             >
+               <RefreshCw className="w-4 h-4" />
+               Tentar novamente
+             </button>
+           </div>
+         </div>
+       )}
+ 
       {/* Tabela */}
-      <div className="bg-card rounded-lg border border-border shadow-sm overflow-hidden">
+       {fetchStatus !== 'paused' && (
+       <div className="bg-card rounded-lg border border-border shadow-sm overflow-hidden">
         {isLoading ? (
           <div className="p-8 text-center">
             <div className="animate-pulse space-y-4">
@@ -134,9 +156,35 @@ export function OrganizacoesPage() {
               ))}
             </div>
           </div>
-        ) : error ? (
-          <div className="p-8 text-center">
-            <p className="text-destructive">Erro ao carregar organizacoes</p>
+         ) : isError ? (
+           <div className="p-8">
+             <div className="flex flex-col items-center justify-center text-center">
+               <AlertTriangle className="w-12 h-12 text-destructive mb-3" />
+               <h3 className="text-lg font-medium text-destructive mb-1">
+                 Erro ao carregar organizações
+               </h3>
+               <p className="text-sm text-muted-foreground mb-1">
+                 Não foi possível conectar ao servidor.
+               </p>
+               <p className="text-xs text-muted-foreground mb-4 max-w-md">
+                 {String((error as Error)?.message || '')}
+               </p>
+               <div className="flex gap-2">
+                 <button
+                   onClick={() => refetch()}
+                   className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 transition-colors"
+                 >
+                   <RefreshCw className="w-4 h-4" />
+                   Tentar novamente
+                 </button>
+                 <button
+                   onClick={() => window.location.reload()}
+                   className="inline-flex items-center gap-2 px-4 py-2 border border-border text-sm font-medium rounded-md hover:bg-accent transition-colors"
+                 >
+                   Recarregar página
+                 </button>
+               </div>
+             </div>
           </div>
         ) : !data?.organizacoes.length ? (
           <div className="p-8 text-center">
@@ -226,6 +274,7 @@ export function OrganizacoesPage() {
           </>
         )}
       </div>
+       )}
     </div>
   )
 }
