@@ -1,50 +1,23 @@
 
-# Plano: Corrigir Criacao de Organizacao - Erros de Validacao e Banco
+# Plano: Corrigir Criacao Completa de Organizacao
 
 ## Problemas Identificados
 
-### 1. Erro 400 - Constraint de Status Incompativel
+### 1. Campos faltantes no payload da API
+A interface `CriarOrganizacaoPayload` em `admin.api.ts` nao inclui:
+- `cortesia: boolean`
+- `cortesia_motivo: string`
 
-**Causa Raiz**: A constraint `chk_status` no banco aceita apenas:
-- `'ativo'`, `'suspenso'`, `'cancelado'`
+### 2. Modal nao envia campos de cortesia
+O `NovaOrganizacaoModal.tsx` no `onSubmit` nao passa:
+- `data.cortesia`
+- `data.cortesia_motivo`
 
-Mas o codigo em `admin.api.ts` envia:
-- `'trial'` ou `'ativa'` ← **Valores invalidos!**
+### 3. Assinatura nao e criada
+A funcao `criarOrganizacao` cria organizacao e admin, mas **NAO** cria registro na tabela `assinaturas`. Os campos de cortesia devem ser salvos nesta tabela.
 
-```typescript
-// Linha 315 de admin.api.ts
-status: isTrial ? 'trial' : 'ativa',  // ERRADO
-```
-
-**Solucao**: Corrigir para enviar `'ativo'` (singular) em vez de `'ativa'` ou `'trial'`.
-
----
-
-### 2. Validacoes Prematuras na Etapa Admin
-
-**Causa Raiz**: Quando o formulario carrega, React Hook Form valida todos os campos. Como `admin_nome`, `admin_sobrenome` e `admin_email` iniciam vazios, os erros aparecem imediatamente.
-
-**Solucao**: O modal ja usa `mode: 'onBlur'`, que deveria evitar isso. O problema e que o Zod valida campos obrigatorios mesmo sem interacao. Precisamos:
-1. Mudar para `mode: 'onChange'` ou manter `onBlur`
-2. Ajustar campos com valores default validos ou usar `criteriaMode: 'firstError'`
-
-Analise detalhada: O formulario ja tem `mode: 'onBlur'` (linha 57), entao os erros so deveriam aparecer apos blur. **O problema real** e que quando navegamos para a Etapa 3, pode haver revalidacao automatica. Vou verificar se ha `trigger()` sendo chamado incorretamente.
-
-Na verdade, revisando o codigo: nao ha trigger da etapa 3 ate clicar em "Criar Empresa". O problema pode ser causado pela montagem do componente com valores vazios + algum efeito de re-render.
-
----
-
-### 3. Constraint de Plano vs Nome Real
-
-**Constraint aceita**: `'trial'`, `'starter'`, `'pro'`, `'enterprise'`
-**Planos no banco**: `Trial`, `Starter`, `Pro`, `Enterprise` (com maiuscula)
-
-O codigo converte para lowercase na linha 301:
-```typescript
-const planoNome = plano.nome.toLowerCase()  // 'Trial' -> 'trial'
-```
-
-Isso esta correto, mas `'starter'` precisa ser verificado.
+### 4. Validacao do Step2 faltando no STEPS
+O array STEPS no modal nao inclui `cortesia` e `cortesia_motivo` nos campos da etapa 2.
 
 ---
 
@@ -52,95 +25,138 @@ Isso esta correto, mas `'starter'` precisa ser verificado.
 
 | Arquivo | Mudanca |
 |---------|---------|
-| `admin.api.ts` | Corrigir status para `'ativo'` |
-| `NovaOrganizacaoModal.tsx` | Evitar validacao prematura - usar `reValidateMode: 'onSubmit'` |
+| `src/modules/admin/services/admin.api.ts` | Adicionar campos no payload + criar assinatura |
+| `src/modules/admin/components/NovaOrganizacaoModal.tsx` | Passar cortesia no submit + adicionar campos no STEPS |
 
 ---
 
-## Mudancas Detalhadas
+## Correcoes Detalhadas
 
-### 1. `src/modules/admin/services/admin.api.ts`
+### 1. CriarOrganizacaoPayload (admin.api.ts linha 44-67)
 
-**Linha 315**: Alterar de:
+Adicionar:
 ```typescript
-status: isTrial ? 'trial' : 'ativa',
+export interface CriarOrganizacaoPayload {
+  // ... campos existentes ...
+  cortesia?: boolean           // ADICIONAR
+  cortesia_motivo?: string     // ADICIONAR
+}
 ```
 
-Para:
+### 2. Funcao criarOrganizacao (admin.api.ts)
+
+Apos criar organizacao e admin, adicionar criacao da assinatura:
+
 ```typescript
-status: 'ativo',  // Constraint aceita: ativo, suspenso, cancelado
+// Apos criar admin (linha 356)...
+
+// Criar assinatura vinculada
+const agora = new Date()
+const { error: assinaturaError } = await supabase
+  .from('assinaturas')
+  .insert([{
+    organizacao_id: org.id,
+    plano_id: payload.plano_id,
+    status: isTrial ? 'trial' : 'ativa',
+    periodo: 'mensal',
+    inicio_em: agora.toISOString(),
+    cortesia: payload.cortesia ?? false,
+    cortesia_motivo: payload.cortesia ? payload.cortesia_motivo : null,
+    trial_inicio: isTrial ? agora.toISOString() : null,
+    trial_fim: isTrial 
+      ? new Date(agora.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString() 
+      : null,
+  }])
+
+if (assinaturaError) {
+  // Rollback: deletar admin e organizacao
+  await supabase.from('usuarios').delete().eq('id', adminUser.id)
+  await supabase.from('organizacoes_saas').delete().eq('id', org.id)
+  throw new Error(`Erro ao criar assinatura: ${assinaturaError.message}`)
+}
 ```
 
-**Nota**: O status `trial` e `ativa` nao existem na constraint. Todas as organizacoes iniciam como `'ativo'`. O conceito de "trial" deve ser gerenciado pela tabela `assinaturas` ou por outra logica, nao pelo status da organizacao.
+### 3. NovaOrganizacaoModal.tsx - STEPS array (linha 30-34)
 
----
+Adicionar campos de cortesia na etapa 2:
 
-### 2. `src/modules/admin/components/NovaOrganizacaoModal.tsx`
-
-Ajustar configuracao do formulario para evitar validacao prematura:
-
-**Linha 40-58**: Alterar de:
 ```typescript
-const methods = useForm<CriarOrganizacaoData>({
-  resolver: zodResolver(CriarOrganizacaoSchema),
-  defaultValues: { ... },
-  mode: 'onBlur',
-})
+const STEPS = [
+  { id: 1, label: 'Empresa', fields: ['nome', 'segmento', 'segmento_outro', 'email', 'website', 'telefone', 'endereco'] },
+  { id: 2, label: 'Plano', fields: ['plano_id', 'cortesia', 'cortesia_motivo'] },  // ADICIONAR cortesia
+  { id: 3, label: 'Admin', fields: ['admin_nome', 'admin_sobrenome', 'admin_email', 'admin_telefone', 'enviar_convite', 'senha_inicial'] },
+] as const
 ```
 
-Para:
+### 4. NovaOrganizacaoModal.tsx - onSubmit (linha 84-109)
+
+Adicionar campos no payload:
+
 ```typescript
-const methods = useForm<CriarOrganizacaoData>({
-  resolver: zodResolver(CriarOrganizacaoSchema),
-  defaultValues: { ... },
-  mode: 'onBlur',
-  reValidateMode: 'onBlur',  // Evita revalidar ao renderizar
-  criteriaMode: 'firstError', // Mostra apenas primeiro erro
-})
+const onSubmit = (data: CriarOrganizacaoData) => {
+  criarOrganizacao(
+    {
+      nome: data.nome,
+      segmento: data.segmento,
+      segmento_outro: data.segmento_outro,
+      email: data.email,
+      website: data.website || undefined,
+      telefone: data.telefone || undefined,
+      endereco: data.endereco,
+      plano_id: data.plano_id,
+      cortesia: data.cortesia,                    // ADICIONAR
+      cortesia_motivo: data.cortesia_motivo,      // ADICIONAR
+      admin_nome: data.admin_nome,
+      admin_sobrenome: data.admin_sobrenome,
+      admin_email: data.admin_email,
+      admin_telefone: data.admin_telefone || undefined,
+      enviar_convite: data.enviar_convite,
+      senha_inicial: data.senha_inicial || undefined,
+    },
+    { ... }
+  )
+}
 ```
 
-**Alternativa mais efetiva**: Se ainda aparecer erros, usar `shouldUnregister: true` para limpar campos ao desmontar steps.
+### 5. defaultValues no useForm (linha 42-56)
 
----
+Adicionar valores default:
 
-### 3. Opcao B: Atualizar Constraint do Banco (Mais Abrangente)
-
-Se for desejavel manter os valores `'trial'` e `'ativa'` no codigo, a alternativa e atualizar a constraint:
-
-```sql
-ALTER TABLE organizacoes_saas 
-DROP CONSTRAINT chk_status;
-
-ALTER TABLE organizacoes_saas
-ADD CONSTRAINT chk_status CHECK (
-  status IN ('ativo', 'ativa', 'suspenso', 'suspensa', 'cancelado', 'cancelada', 'trial')
-);
+```typescript
+defaultValues: {
+  // ... existentes ...
+  cortesia: false,         // ADICIONAR
+  cortesia_motivo: '',     // ADICIONAR
+}
 ```
 
-**Recomendacao**: Prefiro a Opcao 1 (corrigir o codigo) pois mantem a constraint original limpa.
+---
+
+## Fluxo Corrigido
+
+```text
+Wizard Etapa 1: Empresa
+  -> nome, segmento, email, telefone, website, endereco (cep, logradouro, etc)
+
+Wizard Etapa 2: Plano
+  -> plano_id, cortesia, cortesia_motivo
+
+Wizard Etapa 3: Admin
+  -> admin_nome, admin_sobrenome, admin_email, admin_telefone, enviar_convite
+
+Submit:
+  1. Buscar dados do plano selecionado
+  2. INSERT organizacoes_saas (todos campos de endereco)
+  3. INSERT usuarios (admin com role='admin')
+  4. INSERT assinaturas (plano_id, cortesia, cortesia_motivo, status)
+  5. Retornar IDs criados
+```
 
 ---
 
-## Resumo da Correcao
+## Verificacao pos-implementacao
 
-1. **Status**: Mudar `'ativa'`/`'trial'` → `'ativo'` no insert
-2. **Validacao**: Adicionar `reValidateMode: 'onBlur'` no formulario
-3. **Testar**: Criar organizacao completa com todos os passos
-
----
-
-## Sequencia de Implementacao
-
-1. Corrigir status em `admin.api.ts`
-2. Ajustar configuracao do form em `NovaOrganizacaoModal.tsx`
-3. Testar fluxo completo de criacao
-
----
-
-## Resultado Esperado
-
-| Antes | Depois |
-|-------|--------|
-| Erro 400 ao criar | Insert bem-sucedido |
-| Validacoes aparecem ao entrar na aba Admin | Validacoes so aparecem apos interacao |
-| Status invalido `'ativa'` | Status valido `'ativo'` |
+Criar organizacao de teste e verificar no banco:
+- `organizacoes_saas`: endereco_cep, endereco_logradouro, etc preenchidos
+- `usuarios`: admin vinculado com organizacao_id
+- `assinaturas`: cortesia=true, cortesia_motivo preenchido, plano_id correto
