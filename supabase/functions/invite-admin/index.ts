@@ -44,7 +44,7 @@ const InviteAdminEmail = ({
   confirmUrl = "",
   token = "",
 }: InviteAdminEmailProps) => {
-  const previewText = `Voce foi convidado para acessar ${organizacaoNome}`;
+  const previewText = `Voce foi convidado para acessar o CRM Renove`;
 
   return React.createElement(
     Html,
@@ -53,220 +53,247 @@ const InviteAdminEmail = ({
     React.createElement(Preview, null, previewText),
     React.createElement(
       Body,
-      {
-        style: {
-          backgroundColor: "#F9FAFB",
-          fontFamily:
-            "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-        },
-      },
+      { style: styles.main },
       React.createElement(
         Container,
-        {
-          style: {
-            margin: "0 auto",
-            padding: "40px 20px",
-            maxWidth: "600px",
-          },
-        },
-        // Logo
+        { style: styles.container },
+
+        // Logo Section
         React.createElement(
           Section,
-          { style: { textAlign: "center" as const, padding: "20px 0" } },
-          React.createElement(
-            Text,
-            {
-              style: {
-                fontSize: "24px",
-                fontWeight: "700",
-                color: "#3B82F6",
-                margin: "0",
-              },
-            },
-            "CRM Renove"
-          )
+          { style: styles.logoSection },
+          React.createElement(Text, { style: styles.logoText }, "CRM Renove")
         ),
-        React.createElement(Hr, {
-          style: {
-            borderColor: "#E2E8F0",
-            borderWidth: "1px",
-            margin: "24px 0",
-          },
-        }),
-        // Content
+
+        React.createElement(Hr, { style: styles.divider }),
+
+        // Content Card
         React.createElement(
           Section,
-          {
-            style: {
-              backgroundColor: "#FFFFFF",
-              borderRadius: "12px",
-              padding: "32px",
-              border: "1px solid #E2E8F0",
-            },
-          },
+          { style: styles.contentCard },
+
+          // Greeting
           React.createElement(
             Heading,
-            {
-              style: {
-                color: "#0F172A",
-                fontSize: "24px",
-                fontWeight: "600",
-                lineHeight: "1.3",
-                margin: "0 0 16px 0",
-              },
-            },
-            `Ola, ${nome}! 👋`
+            { style: styles.heading },
+            `Olá, ${nome}! 👋`
           ),
+
+          // Intro text
           React.createElement(
             Text,
-            {
-              style: {
-                color: "#0F172A",
-                fontSize: "16px",
-                lineHeight: "1.6",
-                margin: "0 0 16px 0",
-              },
-            },
-            `Voce foi convidado para acessar o CRM como Administrador da organizacao ${organizacaoNome}.`
+            { style: styles.paragraph },
+            `Você foi convidado para acessar o `,
+            React.createElement("strong", null, "CRM Renove"),
+            ` como `,
+            React.createElement("strong", null, "Administrador"),
+            ` da organização `,
+            React.createElement("strong", { style: { color: "#3B82F6" } }, organizacaoNome),
+            `.`
           ),
+
+          // Instruction text
           React.createElement(
             Text,
-            {
-              style: {
-                color: "#0F172A",
-                fontSize: "16px",
-                lineHeight: "1.6",
-                margin: "0 0 16px 0",
-              },
-            },
-            "Para comecar, defina sua senha clicando no botao abaixo:"
+            { style: styles.paragraph },
+            "Para começar, defina sua senha clicando no botão abaixo:"
           ),
+
           // CTA Button
           React.createElement(
             Section,
-            { style: { textAlign: "center" as const, margin: "32px 0" } },
+            { style: styles.buttonContainer },
             React.createElement(
               Button,
-              {
-                style: {
-                  backgroundColor: "#3B82F6",
-                  borderRadius: "8px",
-                  color: "#FFFFFF",
-                  fontSize: "16px",
-                  fontWeight: "600",
-                  textDecoration: "none",
-                  textAlign: "center" as const,
-                  display: "inline-block",
-                  padding: "14px 32px",
-                },
-                href: confirmUrl,
-              },
+              { style: styles.button, href: confirmUrl },
               "Definir Minha Senha"
             )
           ),
+
+          React.createElement(Hr, { style: styles.innerDivider }),
+
+          // Link fallback
           React.createElement(
             Text,
-            {
-              style: {
-                color: "#0F172A",
-                fontSize: "16px",
-                lineHeight: "1.6",
-                margin: "0 0 16px 0",
-              },
-            },
+            { style: styles.smallText },
             "Ou copie e cole o link abaixo no seu navegador:"
           ),
           React.createElement(
             Text,
-            {
-              style: {
-                fontSize: "14px",
-                color: "#64748B",
-                margin: "0 0 16px 0",
-                wordBreak: "break-all" as const,
-              },
-            },
+            { style: styles.linkText },
             React.createElement(
               Link,
-              {
-                href: confirmUrl,
-                style: { color: "#3B82F6", textDecoration: "underline" },
-              },
+              { href: confirmUrl, style: styles.link },
               confirmUrl
             )
           )
         ),
-        React.createElement(Hr, {
-          style: {
-            borderColor: "#E2E8F0",
-            borderWidth: "1px",
-            margin: "24px 0",
-          },
-        }),
-        // Warning
+
+        // Warning Section
         React.createElement(
           Section,
-          {
-            style: {
-              backgroundColor: "#FEF3C7",
-              borderRadius: "8px",
-              padding: "16px",
-              border: "1px solid #FCD34D",
-            },
-          },
+          { style: styles.warningSection },
           React.createElement(
             Text,
-            {
-              style: {
-                color: "#92400E",
-                fontSize: "14px",
-                lineHeight: "1.5",
-                margin: "0",
-                textAlign: "center" as const,
-              },
-            },
-            "⏰ Este link expira em 24 horas. Caso expire, solicite um novo convite ao administrador."
+            { style: styles.warningText },
+            "⏰ Este link expira em ",
+            React.createElement("strong", null, "24 horas"),
+            ". Caso expire, solicite um novo convite ao administrador."
           )
         ),
-        React.createElement(Hr, {
-          style: {
-            borderColor: "#E2E8F0",
-            borderWidth: "1px",
-            margin: "24px 0",
-          },
-        }),
+
+        React.createElement(Hr, { style: styles.divider }),
+
         // Footer
         React.createElement(
           Section,
-          { style: { textAlign: "center" as const, padding: "16px 0" } },
+          { style: styles.footer },
           React.createElement(
             Text,
-            {
-              style: {
-                color: "#64748B",
-                fontSize: "12px",
-                lineHeight: "1.6",
-                margin: "0 0 8px 0",
-              },
-            },
+            { style: styles.footerText },
             `CRM Renove © ${new Date().getFullYear()}`
           ),
           React.createElement(
             Text,
-            {
-              style: {
-                color: "#64748B",
-                fontSize: "12px",
-                lineHeight: "1.6",
-                margin: "0 0 8px 0",
-              },
-            },
-            "Se voce nao solicitou este convite, pode ignorar este email com seguranca."
+            { style: styles.footerText },
+            "Se você não solicitou este convite, pode ignorar este email com segurança."
+          ),
+          React.createElement(
+            Text,
+            { style: styles.footerText },
+            "Precisa de ajuda? ",
+            React.createElement(
+              Link,
+              { href: "mailto:suporte@renovedigital.com.br", style: styles.footerLink },
+              "suporte@renovedigital.com.br"
+            )
           )
         )
       )
     )
   );
+};
+
+// =====================================================
+// ESTILOS (Inline CSS para compatibilidade com emails)
+// =====================================================
+
+const styles = {
+  main: {
+    backgroundColor: "#F1F5F9",
+    fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    padding: "20px 0",
+  },
+  container: {
+    margin: "0 auto",
+    padding: "0",
+    maxWidth: "600px",
+  },
+  logoSection: {
+    textAlign: "center" as const,
+    padding: "32px 0 24px 0",
+  },
+  logoText: {
+    fontSize: "28px",
+    fontWeight: "700",
+    color: "#3B82F6",
+    margin: "0",
+    letterSpacing: "-0.5px",
+  },
+  divider: {
+    borderColor: "#E2E8F0",
+    borderWidth: "1px",
+    margin: "0",
+  },
+  contentCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: "12px",
+    padding: "40px 36px",
+    margin: "24px 16px",
+    border: "1px solid #E2E8F0",
+  },
+  heading: {
+    color: "#0F172A",
+    fontSize: "26px",
+    fontWeight: "600",
+    lineHeight: "1.3",
+    margin: "0 0 24px 0",
+  },
+  paragraph: {
+    color: "#334155",
+    fontSize: "16px",
+    lineHeight: "1.75",
+    margin: "0 0 20px 0",
+  },
+  buttonContainer: {
+    textAlign: "center" as const,
+    margin: "32px 0",
+  },
+  button: {
+    backgroundColor: "#3B82F6",
+    borderRadius: "8px",
+    color: "#FFFFFF",
+    fontSize: "16px",
+    fontWeight: "600",
+    textDecoration: "none",
+    textAlign: "center" as const,
+    display: "inline-block",
+    padding: "16px 40px",
+    boxShadow: "0 2px 4px rgba(59, 130, 246, 0.3)",
+  },
+  innerDivider: {
+    borderColor: "#E2E8F0",
+    borderWidth: "1px",
+    margin: "28px 0",
+  },
+  smallText: {
+    color: "#64748B",
+    fontSize: "14px",
+    lineHeight: "1.6",
+    margin: "0 0 12px 0",
+  },
+  linkText: {
+    fontSize: "13px",
+    color: "#64748B",
+    margin: "0",
+    wordBreak: "break-all" as const,
+    backgroundColor: "#F8FAFC",
+    padding: "12px 16px",
+    borderRadius: "8px",
+    border: "1px solid #E2E8F0",
+  },
+  link: {
+    color: "#3B82F6",
+    textDecoration: "underline",
+  },
+  warningSection: {
+    backgroundColor: "#FFFBEB",
+    borderRadius: "8px",
+    padding: "16px 20px",
+    margin: "0 16px 24px 16px",
+    border: "1px solid #FDE68A",
+  },
+  warningText: {
+    color: "#92400E",
+    fontSize: "14px",
+    lineHeight: "1.6",
+    margin: "0",
+    textAlign: "center" as const,
+  },
+  footer: {
+    textAlign: "center" as const,
+    padding: "24px 16px 32px 16px",
+  },
+  footerText: {
+    color: "#94A3B8",
+    fontSize: "12px",
+    lineHeight: "1.8",
+    margin: "0 0 4px 0",
+  },
+  footerLink: {
+    color: "#3B82F6",
+    textDecoration: "underline",
+  },
 };
 
 // =====================================================
@@ -386,15 +413,14 @@ Deno.serve(async (req) => {
 
         const { data: emailData, error: emailError } =
           await resend.emails.send({
-            from: "CRM Renove <onboarding@resend.dev>",
+            from: "CRM Renove <crm@renovedigital.com.br>",
             to: [email],
-            subject: `Convite para acessar ${orgNome} - CRM`,
+            subject: "Convite para acesso ao CRM Renove",
             html,
           });
 
         if (emailError) {
           console.error("[invite-admin] Erro ao enviar email:", emailError);
-          // Nao falhar o convite por causa do email - usuario foi criado
         } else {
           console.log(
             "[invite-admin] Email enviado com sucesso:",

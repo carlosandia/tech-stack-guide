@@ -118,7 +118,7 @@ Deno.serve(async (req) => {
     const { data, error } = await resend.emails.send({
       from: 'CRM Renove <crm@renovedigital.com.br>',
       to: [user.email],
-      subject: `Convite para acessar ${organizacaoNome} - CRM`,
+      subject: 'Convite para acesso ao CRM Renove',
       html,
     })
 
