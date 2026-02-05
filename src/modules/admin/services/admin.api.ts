@@ -887,14 +887,19 @@ export async function listarConfigGlobais(): Promise<ConfigGlobal[]> {
     .order('plataforma', { ascending: true })
 
   if (error) throw new Error(error.message)
-  return (data || []).map(c => ({
-    id: c.id,
-    plataforma: c.plataforma,
-    configuracoes: c.configuracoes as Record<string, unknown>,
-    configurado: c.configurado ?? false,
-    ultimo_teste: c.ultimo_teste,
-    ultimo_erro: c.ultimo_erro,
-  }))
+  return (data || []).map(c => {
+    const configData = c.configuracoes as Record<string, unknown>
+    // Re-avaliar configurado com dados reais (corrige flags desatualizados)
+    const realmenteConfigurado = verificarConfigurado(c.plataforma, configData)
+    return {
+      id: c.id,
+      plataforma: c.plataforma,
+      configuracoes: configData,
+      configurado: realmenteConfigurado,
+      ultimo_teste: c.ultimo_teste,
+      ultimo_erro: c.ultimo_erro,
+    }
+  })
 }
 
 export async function obterConfigGlobal(plataforma: string): Promise<ConfigGlobal> {
@@ -1000,7 +1005,7 @@ export async function testarConfigGlobal(plataforma: string): Promise<{ sucesso:
     }
   }
 
-  // Para outras plataformas, validar apenas campos obrigatórios localmente
+  // Para outras plataformas, re-avaliar campos obrigatórios a partir dos dados reais
   const { data: config } = await supabase
     .from('configuracoes_globais')
     .select('configuracoes, configurado')
@@ -1011,7 +1016,19 @@ export async function testarConfigGlobal(plataforma: string): Promise<{ sucesso:
     return { sucesso: false, mensagem: 'Configurações não encontradas. Salve as configurações primeiro.' }
   }
 
-  if (!config.configurado) {
+  // Re-avaliar configurado com dados reais (não confiar no flag armazenado)
+  const configData = config.configuracoes as Record<string, unknown>
+  const realmenteConfigurado = verificarConfigurado(plataforma, configData)
+
+  // Se o flag estava errado, corrigir no banco
+  if (realmenteConfigurado !== config.configurado) {
+    await supabase
+      .from('configuracoes_globais')
+      .update({ configurado: realmenteConfigurado, atualizado_em: new Date().toISOString() })
+      .eq('plataforma', plataforma)
+  }
+
+  if (!realmenteConfigurado) {
     return { sucesso: false, mensagem: 'Campos obrigatórios não preenchidos.' }
   }
 
