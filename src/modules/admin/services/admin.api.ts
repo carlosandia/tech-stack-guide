@@ -157,9 +157,15 @@ export async function listarOrganizacoes(params?: {
   const limit = params?.limit || 10
   const offset = (page - 1) * limit
 
-  let query = supabase
+   // Query otimizada com JOIN para evitar N+1
+   let query = supabase
     .from('organizacoes_saas')
-    .select('*', { count: 'exact' })
+     .select(`
+       *,
+       admin:usuarios!organizacao_id(
+         id, nome, sobrenome, email, status, ultimo_login, role
+       )
+     `, { count: 'exact' })
     .is('deletado_em', null)
     .order('criado_em', { ascending: false })
 
@@ -187,38 +193,30 @@ export async function listarOrganizacoes(params?: {
     throw new Error(error.message)
   }
 
-  // Buscar admins para cada organização
-  const organizacoes: Organizacao[] = await Promise.all(
-    (data || []).map(async (org) => {
-      // Buscar admin (role = 'admin')
-      const { data: adminData } = await supabase
-        .from('usuarios')
-        .select('id, nome, sobrenome, email, status, ultimo_login')
-        .eq('organizacao_id', org.id)
-        .eq('role', 'admin')
-        .maybeSingle()
-
-      return {
-        id: org.id,
-        nome: org.nome,
-        segmento: org.segmento,
-        email: org.email,
-        website: org.website,
-        telefone: org.telefone,
-        status: org.status as Organizacao['status'],
-        plano: org.plano,
-        criado_em: org.criado_em,
-        admin: adminData ? {
-          id: adminData.id,
-          nome: adminData.nome,
-          sobrenome: adminData.sobrenome,
-          email: adminData.email,
-          status: adminData.status,
-          ultimo_login: adminData.ultimo_login,
-        } : undefined,
-      }
-    })
-  )
+   // Mapear dados e filtrar admin (role = 'admin') no cliente
+   const organizacoes: Organizacao[] = (data || []).map((org) => {
+     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     const adminUser = (org.admin as any[])?.find((u: any) => u.role === 'admin')
+     return {
+       id: org.id,
+       nome: org.nome,
+       segmento: org.segmento,
+       email: org.email,
+       website: org.website,
+       telefone: org.telefone,
+       status: org.status as Organizacao['status'],
+       plano: org.plano,
+       criado_em: org.criado_em,
+       admin: adminUser ? {
+         id: adminUser.id,
+         nome: adminUser.nome,
+         sobrenome: adminUser.sobrenome,
+         email: adminUser.email,
+         status: adminUser.status,
+         ultimo_login: adminUser.ultimo_login,
+       } : undefined,
+     }
+   })
 
   return {
     organizacoes,

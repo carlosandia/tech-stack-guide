@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+ import { QueryClient, QueryClientProvider, type NetworkMode } from '@tanstack/react-query'
 import { type ReactNode, useState } from 'react'
 
 /**
@@ -15,12 +15,14 @@ export function QueryProvider({ children }: QueryProviderProps) {
     () =>
       new QueryClient({
         defaultOptions: {
-          queries: {
-            staleTime: 1000 * 60, // 1 minuto
-            gcTime: 1000 * 60 * 5, // 5 minutos (antigo cacheTime)
-            retry: 1,
-            refetchOnWindowFocus: false,
-          },
+           queries: {
+             staleTime: 1000 * 60, // 1 minuto
+             gcTime: 1000 * 60 * 5, // 5 minutos
+             retry: 2, // 2 tentativas
+             retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+             refetchOnWindowFocus: false,
+             networkMode: 'always' as NetworkMode, // Sempre tentar, mesmo offline
+           },
           mutations: {
             retry: 0,
           },

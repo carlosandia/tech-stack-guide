@@ -10,8 +10,8 @@
  const SUPABASE_URL = "https://ybzhlsalbnxwkfszkloa.supabase.co"
  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inliemhsc2FsYm54d2tmc3prbG9hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMDExNzAsImV4cCI6MjA4NTc3NzE3MH0.NyxN8T0XCpnFSF_-0grGGcvhSbwOif0qxxlC_PshA9M"
  
- // Timeout em ms para requisições
- const FETCH_TIMEOUT = 15000
+ // Timeout em ms para requisições (30s para ambiente de preview)
+ const FETCH_TIMEOUT = 30000
  
  /**
   * Fetch customizado com AbortController para timeout
