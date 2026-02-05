@@ -1,136 +1,267 @@
 
 
-# Plano: Simplificar Menu do Usuário no Header
+# Plano: Correções no Modal de Nova Organização
 
-## Problema Atual
+## Resumo das Correções Solicitadas
 
-O canto direito do header tem elementos redundantes:
-
-```
-┌─────────────────────────────────────────────────────────┐
-│ [Super Admin]   [S]  superadmin@renove...  ▾           │
-│      ↑          ↑           ↑                          │
-│   Badge      Avatar      Email (redundante)            │
-└─────────────────────────────────────────────────────────┘
-```
-
-## Proposta
-
-Unificar para um formato mais limpo e menos repetitivo:
-
-```
-┌─────────────────────────────────────────────────────────┐
-│ [S]  Nome do Usuário  ▾                                │
-│  ↑         ↑                                            │
-│ Avatar   Nome (não email)                              │
-└─────────────────────────────────────────────────────────┘
-```
-
-O Badge "Super Admin" será movido para dentro do dropdown como informação contextual.
+1. **Campo "Outro" para Segmento**: Quando selecionar "Outro", exibir campo de texto para especificar
+2. **Email não obrigatório**: Remover obrigatoriedade do campo email
+3. **Máscaras de input**: Implementar máscaras para telefone e CEP
+4. **Auto-preenchimento via CEP**: Consultar API de CEP para preencher endereço automaticamente
 
 ---
 
-## Alterações no AdminLayout.tsx
+## Análise do Banco de Dados
 
-### Estrutura Atual (Linhas 224-272)
+Analisei a tabela `organizacoes_saas` no Supabase:
+
+| Coluna Existente | Tipo |
+|-----------------|------|
+| `segmento` | `string \| null` |
+| `email` | `string` (obrigatório no schema atual) |
+| `endereco_cep` | `string \| null` |
+| `endereco_logradouro` | `string \| null` |
+| `endereco_bairro` | `string \| null` |
+| `endereco_cidade` | `string \| null` |
+| `endereco_estado` | `string \| null` |
+
+**Observação sobre "Segmento Outro"**: A coluna `segmento` já suporta texto livre (é `string | null`). Podemos armazenar o valor personalizado diretamente nela (ex: "outro:Consultoria Ambiental") ou criar uma convenção para isso. **Não é necessário criar nova coluna** - podemos usar uma abordagem de prefixo ou armazenar o texto personalizado diretamente.
+
+---
+
+## Solução Técnica
+
+### 1. Campo "Outro" para Segmento
+
+**Abordagem**: Quando o usuário seleciona "Outro", exibir um campo de texto adicional. O valor será armazenado como texto livre na coluna `segmento` existente.
 
 ```tsx
-{/* Right: Badge + User Menu */}
-<div className="flex items-center gap-3">
-  {/* Badge Super Admin */}
-  <span className="hidden sm:inline-flex...">Super Admin</span>
+// Lógica no Step1Empresa.tsx
+const segmento = watch('segmento')
 
-  {/* User menu */}
-  <button>
-    <div>Avatar</div>
-    <span>{user?.email}</span>  ← Email
-    <ChevronDown />
-  </button>
-</div>
+{segmento === 'outro' && (
+  <input 
+    type="text"
+    {...register('segmento_outro')}
+    placeholder="Especifique o segmento..."
+  />
+)}
 ```
 
-### Nova Estrutura Proposta
+**Alteração no Schema**:
+```ts
+// organizacao.schema.ts
+segmento: z.string().min(1, 'Selecione um segmento'),
+segmento_outro: z.string().optional(),
+```
 
-```tsx
-{/* Right: User Menu Unificado */}
-<div className="flex items-center">
-  <button className="flex items-center gap-2 p-2 hover:bg-gray-100/70 rounded-md">
-    {/* Avatar */}
-    <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
-      <span className="text-sm font-medium text-gray-600">
-        {user?.nome?.[0]?.toUpperCase() || 'U'}
-      </span>
-    </div>
-    
-    {/* Nome + Chevron */}
-    <span className="hidden sm:block text-sm font-medium text-gray-700 max-w-[150px] truncate">
-      {user?.nome || 'Usuário'}
-    </span>
-    <ChevronDown className="w-4 h-4 text-gray-500" />
-  </button>
+**Na submissão**: Se `segmento === 'outro'` e `segmento_outro` estiver preenchido, enviar `segmento_outro` como valor do segmento.
 
-  {/* Dropdown */}
-  <div className="dropdown...">
-    <div className="px-3 py-2 border-b">
-      <p className="text-sm font-medium">{user?.nome}</p>
-      <p className="text-xs text-gray-500">{user?.email}</p>
-      <span className="badge">Super Admin</span>  ← Badge vai pro dropdown
-    </div>
-    <button>Sair</button>
-  </div>
-</div>
+---
+
+### 2. Email Não Obrigatório
+
+**Alteração no Schema**:
+```ts
+// Antes
+email: z.string().email('Email invalido'),
+
+// Depois
+email: z.string().email('Email invalido').optional().or(z.literal('')),
+```
+
+**Alteração no Componente**: Remover o asterisco `*` do label
+
+---
+
+### 3. Máscaras de Input
+
+Como não há biblioteca de máscara instalada, implementaremos máscaras customizadas usando funções de formatação:
+
+**Telefone**: `(99) 99999-9999`
+```ts
+function formatTelefone(value: string): string {
+  const numbers = value.replace(/\D/g, '').slice(0, 11)
+  if (numbers.length <= 2) return numbers
+  if (numbers.length <= 7) return `(${numbers.slice(0,2)}) ${numbers.slice(2)}`
+  return `(${numbers.slice(0,2)}) ${numbers.slice(2,7)}-${numbers.slice(7)}`
+}
+```
+
+**CEP**: `00000-000`
+```ts
+function formatCep(value: string): string {
+  const numbers = value.replace(/\D/g, '').slice(0, 8)
+  if (numbers.length <= 5) return numbers
+  return `${numbers.slice(0,5)}-${numbers.slice(5)}`
+}
 ```
 
 ---
 
-## Detalhes da Mudança
+### 4. Auto-preenchimento via CEP
 
-| Elemento | Antes | Depois |
-|----------|-------|--------|
-| **Badge "Super Admin"** | Separado no header | Dentro do dropdown |
-| **Texto do botão** | Email | Nome (`user?.nome`) |
-| **Inicial do avatar** | Primeira letra do email | Primeira letra do nome |
-| **Dropdown info** | Email + "Super Admin" | Nome + Email + Badge |
+**API Recomendada**: **ViaCEP** (gratuita, sem autenticação, brasileira)
+- URL: `https://viacep.com.br/ws/{cep}/json/`
+- Retorna: logradouro, bairro, localidade (cidade), uf (estado)
+
+**Implementação**:
+```ts
+async function buscarEnderecoPorCep(cep: string) {
+  const cepLimpo = cep.replace(/\D/g, '')
+  if (cepLimpo.length !== 8) return null
+  
+  const response = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`)
+  const data = await response.json()
+  
+  if (data.erro) return null
+  
+  return {
+    logradouro: data.logradouro,
+    bairro: data.bairro,
+    cidade: data.localidade,
+    estado: data.uf,
+  }
+}
+```
+
+**No componente**:
+- Ao digitar CEP completo (8 dígitos), chamar API
+- Mostrar loading enquanto busca
+- Preencher campos automaticamente
+- Permitir edição manual após auto-preenchimento
 
 ---
 
-## Arquivo a Modificar
+## Arquivos a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/modules/admin/layouts/AdminLayout.tsx` | Remover badge separado, trocar email por nome no botão e avatar |
+| `src/modules/admin/schemas/organizacao.schema.ts` | Adicionar `segmento_outro`, tornar `email` opcional |
+| `src/modules/admin/components/wizard/Step1Empresa.tsx` | Campo "Outro" para segmento, máscaras, busca CEP |
+| `src/modules/admin/components/NovaOrganizacaoModal.tsx` | Ajustar payload de submissão |
+| `src/modules/admin/services/admin.api.ts` | Ajustar tipo do payload |
+| `src/lib/utils.ts` | Adicionar funções de formatação (máscaras) |
 
 ---
 
-## Resultado Visual Esperado
+## Detalhes de Implementação
 
-### Header (Desktop)
-```
-┌──────────────────────────────────────────────────────────────────────────┐
-│ [R] CRM Renove  Dashboard  [Organizações]  Planos  ...    [A] Admin ▾   │
-│                                                             ↑           │
-│                                                    Avatar + Nome        │
-└──────────────────────────────────────────────────────────────────────────┘
+### Novo Hook: `useCepLookup`
+
+```ts
+// src/modules/admin/hooks/useCepLookup.ts
+export function useCepLookup() {
+  const [isLoading, setIsLoading] = useState(false)
+  
+  const buscarCep = async (cep: string) => {
+    const cepLimpo = cep.replace(/\D/g, '')
+    if (cepLimpo.length !== 8) return null
+    
+    setIsLoading(true)
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`)
+      const data = await res.json()
+      if (data.erro) return null
+      return {
+        logradouro: data.logradouro || '',
+        bairro: data.bairro || '',
+        cidade: data.localidade || '',
+        estado: data.uf || '',
+      }
+    } finally {
+      setIsLoading(false)
+    }
+  }
+  
+  return { buscarCep, isLoading }
+}
 ```
 
-### Dropdown Aberto
+### Componente CEP com Auto-Preenchimento
+
+```tsx
+// Dentro de Step1Empresa.tsx
+const { buscarCep, isLoading: buscandoCep } = useCepLookup()
+const { setValue, watch } = useFormContext()
+const cep = watch('endereco.cep')
+
+const handleCepChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const formatted = formatCep(e.target.value)
+  setValue('endereco.cep', formatted)
+  
+  // Se tem 9 caracteres (00000-000), buscar
+  if (formatted.length === 9) {
+    const endereco = await buscarCep(formatted)
+    if (endereco) {
+      setValue('endereco.logradouro', endereco.logradouro)
+      setValue('endereco.bairro', endereco.bairro)
+      setValue('endereco.cidade', endereco.cidade)
+      setValue('endereco.estado', endereco.estado)
+    }
+  }
+}
 ```
-┌────────────────────────────┐
-│ Admin                      │
-│ admin@renove.com           │
-│ [Super Admin]              │  ← Badge aqui
-├────────────────────────────┤
-│ 🚪 Sair                    │
-└────────────────────────────┘
+
+---
+
+## UX Esperada
+
+### Campo Segmento "Outro"
+```
+┌─────────────────────────────────────┐
+│ Segmento *                          │
+│ ┌─────────────────────────────────┐ │
+│ │ Outro                      ▾  │ │
+│ └─────────────────────────────────┘ │
+│                                     │
+│ Especifique o segmento *            │  ← Aparece só quando "Outro"
+│ ┌─────────────────────────────────┐ │
+│ │ Consultoria Ambiental          │ │
+│ └─────────────────────────────────┘ │
+└─────────────────────────────────────┘
+```
+
+### CEP com Auto-Preenchimento
+```
+┌─────────────────────────────────────┐
+│ CEP                                 │
+│ ┌─────────────────────────────────┐ │
+│ │ 01310-100                   ⟳  │ │ ← Loading indicator
+│ └─────────────────────────────────┘ │
+│                                     │
+│ Logradouro (preenchido)             │
+│ ┌─────────────────────────────────┐ │
+│ │ Avenida Paulista (auto)        │ │
+│ └─────────────────────────────────┘ │
+└─────────────────────────────────────┘
 ```
 
 ---
 
 ## Checklist de Implementação
 
-- [ ] Remover `<span className="hidden sm:inline-flex...">Super Admin</span>` separado
-- [ ] Trocar `user?.email` por `user?.nome` no botão
-- [ ] Trocar inicial do avatar de `user?.email?.[0]` para `user?.nome?.[0]`
-- [ ] Adicionar badge "Super Admin" dentro do dropdown
-- [ ] Manter email como info secundária no dropdown
+- [ ] Atualizar `organizacao.schema.ts`:
+  - [ ] Adicionar campo `segmento_outro`
+  - [ ] Tornar `email` opcional
+  - [ ] Validação condicional: se `segmento === 'outro'`, `segmento_outro` é obrigatório
+
+- [ ] Criar `src/lib/formatters.ts`:
+  - [ ] `formatTelefone(value: string): string`
+  - [ ] `formatCep(value: string): string`
+
+- [ ] Criar `src/modules/admin/hooks/useCepLookup.ts`
+
+- [ ] Atualizar `Step1Empresa.tsx`:
+  - [ ] Campo "Outro" condicional para segmento
+  - [ ] Máscara de telefone com `onChange` customizado
+  - [ ] Máscara de CEP com auto-preenchimento
+  - [ ] Loading indicator no campo CEP
+  - [ ] Remover asterisco do Email
+
+- [ ] Atualizar `NovaOrganizacaoModal.tsx`:
+  - [ ] Ajustar `onSubmit` para usar `segmento_outro` quando aplicável
+
+- [ ] Atualizar `admin.api.ts`:
+  - [ ] Tornar `email` opcional no tipo `CriarOrganizacaoPayload`
 
