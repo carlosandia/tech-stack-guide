@@ -226,7 +226,10 @@ const styles = {
   contentCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: "12px",
-    padding: "44px 48px",
+    paddingTop: "40px",
+    paddingBottom: "40px",
+    paddingLeft: "48px",
+    paddingRight: "48px",
     margin: "24px 16px",
     border: "1px solid #E2E8F0",
   },
