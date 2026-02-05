@@ -2,7 +2,7 @@ import { useFormContext } from 'react-hook-form'
 import { useState } from 'react'
  import { ChevronDown, ChevronUp, MapPin, Loader2 } from 'lucide-react'
 import { SEGMENTOS, type CriarOrganizacaoData } from '../../schemas/organizacao.schema'
- import { formatTelefone, formatCep } from '@/lib/formatters'
+ import { formatTelefone, formatCep, normalizeSegmento } from '@/lib/formatters'
  import { useCepLookup } from '../../hooks/useCepLookup'
 
 /**
@@ -28,22 +28,28 @@ export function Step1Empresa() {
      setValue('telefone', formatted)
    }
  
-   // Handler para CEP com máscara e auto-preenchimento
-   const handleCepChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-     const formatted = formatCep(e.target.value)
-     setValue('endereco.cep', formatted)
- 
-     // Se tem 9 caracteres (00000-000), buscar endereço
-     if (formatted.length === 9) {
-       const endereco = await buscarCep(formatted)
-       if (endereco) {
-         setValue('endereco.logradouro', endereco.logradouro)
-         setValue('endereco.bairro', endereco.bairro)
-         setValue('endereco.cidade', endereco.cidade)
-         setValue('endereco.estado', endereco.estado)
-       }
-     }
-   }
+  // Handler para CEP com máscara e auto-preenchimento
+  const handleCepChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatCep(e.target.value)
+    setValue('endereco.cep', formatted)
+
+    // Se tem 9 caracteres (00000-000), buscar endereço
+    if (formatted.length === 9) {
+      const endereco = await buscarCep(formatted)
+      if (endereco) {
+        setValue('endereco.logradouro', endereco.logradouro)
+        setValue('endereco.bairro', endereco.bairro)
+        setValue('endereco.cidade', endereco.cidade)
+        setValue('endereco.estado', endereco.estado)
+      }
+    }
+  }
+
+  // Handler para normalizar segmento customizado
+  const handleSegmentoOutroBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    const normalized = normalizeSegmento(e.target.value)
+    setValue('segmento_outro', normalized)
+  }
 
   return (
     <div className="space-y-4">
@@ -93,6 +99,7 @@ export function Step1Empresa() {
            <input
              type="text"
              {...register('segmento_outro')}
+             onBlur={handleSegmentoOutroBlur}
              placeholder="Ex: Consultoria Ambiental"
              className="w-full h-11 px-4 rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
            />
