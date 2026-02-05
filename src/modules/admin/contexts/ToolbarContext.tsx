@@ -10,8 +10,8 @@ import type { ReactNode } from 'react'
 interface ToolbarContextValue {
   actions: ReactNode
   setActions: (node: ReactNode) => void
-  subtitle: string | null
-  setSubtitle: (text: string | null) => void
+  subtitle: ReactNode
+  setSubtitle: (node: ReactNode) => void
 }
 
 const ToolbarContext = createContext<ToolbarContextValue>({
@@ -23,14 +23,14 @@ const ToolbarContext = createContext<ToolbarContextValue>({
 
 export function ToolbarProvider({ children }: { children: ReactNode }) {
   const [actions, setActionsState] = useState<ReactNode>(null)
-  const [subtitle, setSubtitleState] = useState<string | null>(null)
+  const [subtitle, setSubtitleState] = useState<ReactNode>(null)
 
   const setActions = useCallback((node: ReactNode) => {
     setActionsState(node)
   }, [])
 
-  const setSubtitle = useCallback((text: string | null) => {
-    setSubtitleState(text)
+  const setSubtitle = useCallback((node: ReactNode) => {
+    setSubtitleState(node)
   }, [])
 
   return (

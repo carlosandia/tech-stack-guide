@@ -1,5 +1,5 @@
  import { useState, useEffect } from 'react'
-import { Save, RefreshCw, CheckCircle, XCircle, Loader2, Eye, EyeOff } from 'lucide-react'
+import { Save, RefreshCw, CheckCircle, XCircle, Loader2, Eye, EyeOff, ToggleLeft, ToggleRight } from 'lucide-react'
 import { useConfigGlobais, useUpdateConfigGlobal, useTestarConfigGlobal } from '../hooks/useConfigGlobal'
 import type { ConfigGlobal } from '../services/admin.api'
  import { useToolbar } from '../contexts/ToolbarContext'
@@ -111,6 +111,10 @@ function ConfigPlataformaForm({
   const campos = getCamposPorPlataforma(plataforma)
   const plataformaInfo = PLATAFORMAS.find((p) => p.id === plataforma)
 
+  // Separar campos principais e de trial
+  const camposMain = campos.filter((c) => c.section !== 'trial')
+  const camposTrial = campos.filter((c) => c.section === 'trial')
+
   const handleSalvar = () => {
     atualizar({
       plataforma,
@@ -164,40 +168,38 @@ function ConfigPlataformaForm({
 
       {/* Campos */}
       <div className="space-y-4">
-        {campos.map((campo) => (
-          <div key={campo.name}>
-            <label className="block text-sm font-medium text-foreground mb-1.5">
-              {campo.label}
-              {campo.required && <span className="text-destructive"> *</span>}
-            </label>
-            <div className="relative">
-              <input
-                type={campo.secret && !mostrarSecrets[campo.name] ? 'password' : 'text'}
-                value={getValor(campo.name)}
-                onChange={(e) => setValores((prev) => ({ ...prev, [campo.name]: e.target.value }))}
-                placeholder={campo.placeholder}
-                className="w-full h-11 px-4 pr-12 rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-              />
-              {campo.secret && (
-                <button
-                  type="button"
-                  onClick={() => toggleMostrarSecret(campo.name)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  {mostrarSecrets[campo.name] ? (
-                    <EyeOff className="w-4 h-4" />
-                  ) : (
-                    <Eye className="w-4 h-4" />
-                  )}
-                </button>
-              )}
-            </div>
-            {campo.hint && (
-              <p className="mt-1 text-xs text-muted-foreground">{campo.hint}</p>
-            )}
-          </div>
+        {camposMain.map((campo) => (
+          <CampoFormulario
+            key={campo.name}
+            campo={campo}
+            valor={getValor(campo.name)}
+            onChange={(value) => setValores((prev) => ({ ...prev, [campo.name]: value }))}
+            mostrarSecret={mostrarSecrets[campo.name]}
+            onToggleSecret={() => toggleMostrarSecret(campo.name)}
+          />
         ))}
       </div>
+
+      {/* Seção de Trial (apenas para Stripe) */}
+      {camposTrial.length > 0 && (
+        <div className="pt-6 mt-6 border-t border-border">
+          <h3 className="text-sm font-semibold text-foreground uppercase tracking-wide mb-4">
+            Configurações de Trial
+          </h3>
+          <div className="space-y-4">
+            {camposTrial.map((campo) => (
+              <CampoFormulario
+                key={campo.name}
+                campo={campo}
+                valor={getValor(campo.name)}
+                onChange={(value) => setValores((prev) => ({ ...prev, [campo.name]: value }))}
+                mostrarSecret={mostrarSecrets[campo.name]}
+                onToggleSecret={() => toggleMostrarSecret(campo.name)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Resultado do teste */}
       {resultadoTeste && (
@@ -249,6 +251,109 @@ function ConfigPlataformaForm({
   )
 }
 
+// Componente de campo do formulário
+function CampoFormulario({
+  campo,
+  valor,
+  onChange,
+  mostrarSecret,
+  onToggleSecret,
+}: {
+  campo: CampoConfig
+  valor: string
+  onChange: (value: string) => void
+  mostrarSecret?: boolean
+  onToggleSecret?: () => void
+}) {
+  // Toggle
+  if (campo.type === 'toggle') {
+    const isEnabled = valor === 'true'
+    return (
+      <div>
+        <label className="block text-sm font-medium text-foreground mb-1.5">
+          {campo.label}
+        </label>
+        <button
+          type="button"
+          onClick={() => onChange(isEnabled ? 'false' : 'true')}
+          className="flex items-center gap-3"
+        >
+          {isEnabled ? (
+            <ToggleRight className="w-10 h-6 text-primary" />
+          ) : (
+            <ToggleLeft className="w-10 h-6 text-muted-foreground" />
+          )}
+          <span className="text-sm text-muted-foreground">
+            {isEnabled ? 'Habilitado' : 'Desabilitado'}
+          </span>
+        </button>
+        {campo.hint && (
+          <p className="mt-1.5 text-xs text-muted-foreground">{campo.hint}</p>
+        )}
+      </div>
+    )
+  }
+
+  // Number
+  if (campo.type === 'number') {
+    return (
+      <div>
+        <label className="block text-sm font-medium text-foreground mb-1.5">
+          {campo.label}
+          {campo.required && <span className="text-destructive"> *</span>}
+        </label>
+        <input
+          type="number"
+          min="1"
+          max="365"
+          value={valor}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={campo.placeholder}
+          className="w-32 h-11 px-4 rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent text-center"
+        />
+        {campo.hint && (
+          <p className="mt-1 text-xs text-muted-foreground">{campo.hint}</p>
+        )}
+      </div>
+    )
+  }
+
+  // Text (default)
+  return (
+    <div>
+      <label className="block text-sm font-medium text-foreground mb-1.5">
+        {campo.label}
+        {campo.required && <span className="text-destructive"> *</span>}
+      </label>
+      <div className="relative">
+        <input
+          type={campo.secret && !mostrarSecret ? 'password' : 'text'}
+          value={valor}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={campo.placeholder}
+          className="w-full h-11 px-4 pr-12 rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+        />
+        {campo.secret && (
+          <button
+            type="button"
+            onClick={onToggleSecret}
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {mostrarSecret ? (
+              <EyeOff className="w-4 h-4" />
+            ) : (
+              <Eye className="w-4 h-4" />
+            )}
+          </button>
+        )}
+      </div>
+      {campo.hint && (
+        <p className="mt-1 text-xs text-muted-foreground">{campo.hint}</p>
+      )}
+    </div>
+  )
+}
+
 // Definicao de campos por plataforma
 interface CampoConfig {
   name: string
@@ -257,6 +362,8 @@ interface CampoConfig {
   secret?: boolean
   required?: boolean
   hint?: string
+  type?: 'text' | 'toggle' | 'number'
+  section?: 'main' | 'trial'
 }
 
 function getCamposPorPlataforma(plataforma: PlataformaId): CampoConfig[] {
@@ -280,11 +387,11 @@ function getCamposPorPlataforma(plataforma: PlataformaId): CampoConfig[] {
       ]
      case 'stripe':
        return [
-         { name: 'publishable_key', label: 'Publishable Key', placeholder: 'pk_live_...', required: true },
-         { name: 'secret_key', label: 'Secret Key', placeholder: 'sk_live_...', secret: true, required: true, hint: 'Armazenada como secret no Supabase' },
-         { name: 'webhook_secret', label: 'Webhook Secret', placeholder: 'whsec_...', secret: true },
-         { name: 'trial_habilitado', label: 'Permitir Trial', placeholder: 'true', hint: 'Digite "true" para habilitar ou "false" para desabilitar' },
-         { name: 'trial_dias', label: 'Dias de Trial', placeholder: '14', hint: 'Duracao do periodo de trial (ex: 7, 14, 30)' },
+         { name: 'publishable_key', label: 'Publishable Key', placeholder: 'pk_live_...', required: true, section: 'main' },
+         { name: 'secret_key', label: 'Secret Key', placeholder: 'sk_live_...', secret: true, required: true, hint: 'Armazenada como secret no Supabase', section: 'main' },
+         { name: 'webhook_secret', label: 'Webhook Secret', placeholder: 'whsec_...', secret: true, section: 'main' },
+         { name: 'trial_habilitado', label: 'Permitir Trial', placeholder: '', type: 'toggle', hint: 'Novos usuários podem iniciar período de teste gratuito', section: 'trial' },
+         { name: 'trial_dias', label: 'Dias de Trial', placeholder: '14', type: 'number', hint: 'Duração do período de trial (1-365 dias)', section: 'trial' },
        ]
     case 'email':
       return [

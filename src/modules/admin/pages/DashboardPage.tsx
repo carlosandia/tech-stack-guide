@@ -10,6 +10,7 @@ import {
   AlertTriangle,
   Info,
    XCircle,
+   ChevronDown,
  } from 'lucide-react'
 
 /**
@@ -27,14 +28,14 @@ import {
  type Periodo = '7d' | '30d' | '60d' | '90d'
  
  const periodoLabels: Record<Periodo, string> = {
-   '7d': 'Últimos 7 dias',
-   '30d': 'Últimos 30 dias',
-   '60d': 'Últimos 60 dias',
-   '90d': 'Últimos 90 dias',
+   '7d': 'últimos 7 dias',
+   '30d': 'últimos 30 dias',
+   '60d': 'últimos 60 dias',
+   '90d': 'últimos 90 dias',
  }
  
  export function DashboardPage() {
-   const { setSubtitle, setActions } = useToolbar()
+   const { setSubtitle } = useToolbar()
    const [periodo, setPeriodo] = useState<Periodo>('30d')
  
    const { data: metricas, isLoading, error } = useQuery({
@@ -43,25 +44,29 @@ import {
    })
  
    useEffect(() => {
-     setSubtitle(`Visão geral dos ${periodoLabels[periodo].toLowerCase()}`)
-     setActions(
-       <select
-         value={periodo}
-         onChange={(e) => setPeriodo(e.target.value as Periodo)}
-         className="px-3 py-1.5 text-sm border border-border rounded-md bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-       >
-         {Object.entries(periodoLabels).map(([key, label]) => (
-           <option key={key} value={key}>
-             {label}
-           </option>
-         ))}
-       </select>
+     setSubtitle(
+       <span className="inline-flex items-center gap-1">
+         Visão geral dos{' '}
+         <span className="relative inline-flex items-center">
+           <select
+             value={periodo}
+             onChange={(e) => setPeriodo(e.target.value as Periodo)}
+             className="appearance-none bg-transparent border-b border-muted-foreground/40 text-foreground font-medium cursor-pointer hover:border-primary focus:outline-none focus:border-primary pr-5 py-0.5 transition-colors"
+           >
+             {Object.entries(periodoLabels).map(([key, label]) => (
+               <option key={key} value={key}>
+                 {label}
+               </option>
+             ))}
+           </select>
+           <ChevronDown className="w-3.5 h-3.5 absolute right-0 pointer-events-none text-muted-foreground" />
+         </span>
+       </span>
      )
      return () => {
        setSubtitle(null)
-       setActions(null)
      }
-   }, [setSubtitle, setActions, periodo])
+   }, [setSubtitle, periodo])
 
   if (isLoading) {
     return (
