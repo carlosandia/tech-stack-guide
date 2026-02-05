@@ -310,7 +310,7 @@ export function PlanoFormModal({ plano, onClose }: Props) {
               </div>
             )}
 
-            {/* Integração Stripe - Oculto para Trial */}
+            {/* Info Stripe - Oculto para Trial */}
             {!isTrial && (
               <div className="space-y-4">
                 <div>
@@ -318,39 +318,21 @@ export function PlanoFormModal({ plano, onClose }: Props) {
                     Integração Stripe
                   </h3>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Vincule os Price IDs do Stripe para habilitar o checkout automático
+                    Os produtos são criados automaticamente no Stripe durante o checkout.
+                    Não é necessário configurar Price IDs manualmente.
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1">
-                      Stripe Price ID (Mensal)
-                    </label>
-                    <input
-                      {...register('stripe_price_id_mensal')}
-                      placeholder="price_1ABC123..."
-                      className="w-full h-11 px-3 rounded-md border border-input bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-primary font-mono text-sm"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Copie do Stripe Dashboard → Products → Price ID
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1">
-                      Stripe Price ID (Anual)
-                    </label>
-                    <input
-                      {...register('stripe_price_id_anual')}
-                      placeholder="price_1XYZ789..."
-                      className="w-full h-11 px-3 rounded-md border border-input bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-primary font-mono text-sm"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Opcional - deixe vazio se não oferecer plano anual
-                    </p>
-                  </div>
+                <div className="rounded-md border border-border bg-muted/50 p-4">
+                  <p className="text-sm text-muted-foreground">
+                    ✅ <span className="font-medium text-foreground">Checkout dinâmico ativo</span> — 
+                    O nome do plano, valor e período são enviados automaticamente ao Stripe com base nos dados cadastrados acima.
+                  </p>
                 </div>
+
+                {/* Campos de Price ID ocultos para manter compatibilidade */}
+                <input type="hidden" {...register('stripe_price_id_mensal')} />
+                <input type="hidden" {...register('stripe_price_id_anual')} />
               </div>
             )}
 
