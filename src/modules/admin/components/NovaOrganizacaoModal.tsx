@@ -29,7 +29,7 @@ interface Props {
 
 const STEPS = [
   { id: 1, label: 'Empresa', fields: ['nome', 'segmento', 'segmento_outro', 'email', 'website', 'telefone', 'endereco'] },
-  { id: 2, label: 'Plano', fields: ['plano_id'] },
+  { id: 2, label: 'Plano', fields: ['plano_id', 'cortesia', 'cortesia_motivo'] },
   { id: 3, label: 'Admin', fields: ['admin_nome', 'admin_sobrenome', 'admin_email', 'admin_telefone', 'enviar_convite', 'senha_inicial'] },
 ] as const
 
@@ -47,6 +47,8 @@ export function NovaOrganizacaoModal({ isOpen, onClose, onSuccess }: Props) {
       website: '',
       telefone: '',
       plano_id: '',
+      cortesia: false,
+      cortesia_motivo: '',
       admin_nome: '',
       admin_sobrenome: '',
       admin_email: '',
@@ -92,6 +94,8 @@ export function NovaOrganizacaoModal({ isOpen, onClose, onSuccess }: Props) {
         telefone: data.telefone || undefined,
         endereco: data.endereco,
         plano_id: data.plano_id,
+        cortesia: data.cortesia,
+        cortesia_motivo: data.cortesia_motivo,
         admin_nome: data.admin_nome,
         admin_sobrenome: data.admin_sobrenome,
         admin_email: data.admin_email,
