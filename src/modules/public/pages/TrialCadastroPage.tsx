@@ -1,7 +1,7 @@
  import { useState } from 'react'
  import { useNavigate, useLocation, Link } from 'react-router-dom'
  import { Loader2, Zap, ArrowLeft, Check } from 'lucide-react'
- import { supabase } from '@/integrations/supabase/client'
+ import { supabase } from '@/lib/supabase'
  
  /**
   * AIDEV-NOTE: Pagina de cadastro de Trial

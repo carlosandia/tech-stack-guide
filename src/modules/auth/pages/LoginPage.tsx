@@ -12,9 +12,10 @@ import { useAuth } from '@/providers/AuthProvider'
  * - admin/member → /app
  */
 
-// URLs de politica e termos (configuraveis via env)
-const PRIVACY_URL = import.meta.env.VITE_PRIVACY_POLICY_URL || ''
-const TERMS_URL = import.meta.env.VITE_TERMS_OF_SERVICE_URL || ''
+ // URLs de politica e termos
+ // TODO: Futuramente buscar de configuracoes_globais
+ const PRIVACY_URL = ''
+ const TERMS_URL = ''
 
 export function LoginPage() {
   const navigate = useNavigate()

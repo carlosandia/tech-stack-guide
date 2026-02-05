@@ -1,5 +1,5 @@
 import { useFormContext } from 'react-hook-form'
-import { Check, Loader2 } from 'lucide-react'
+ import { Check, Loader2, RefreshCw, WifiOff, AlertTriangle } from 'lucide-react'
 import { usePlanos } from '../../hooks/usePlanos'
 import type { CriarOrganizacaoData } from '../../schemas/organizacao.schema'
 
@@ -15,7 +15,7 @@ export function Step2Expectativas() {
     formState: { errors },
   } = useFormContext<CriarOrganizacaoData>()
   
-  const { data: planos, isLoading } = usePlanos()
+   const { data: planos, isLoading, isError, error, refetch, fetchStatus } = usePlanos()
   const selectedPlanoId = watch('plano_id')
 
   const formatLimit = (value: number | null) => {
@@ -28,6 +28,49 @@ export function Step2Expectativas() {
     return `R$ ${preco.toFixed(0)}/mês`
   }
 
+   // Estado: Sem conexão (paused)
+   if (fetchStatus === 'paused') {
+     return (
+       <div className="py-8 flex flex-col items-center justify-center text-center">
+         <WifiOff className="w-10 h-10 text-muted-foreground mb-3" />
+         <p className="text-sm font-medium text-foreground mb-1">Sem conexão</p>
+         <p className="text-xs text-muted-foreground mb-4">
+           Verifique sua internet e tente novamente.
+         </p>
+         <button
+           type="button"
+           onClick={() => refetch()}
+           className="inline-flex items-center gap-2 px-3 py-1.5 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 transition-colors"
+         >
+           <RefreshCw className="w-4 h-4" />
+           Tentar novamente
+         </button>
+       </div>
+     )
+   }
+ 
+   // Estado: Erro
+   if (isError) {
+     return (
+       <div className="py-8 flex flex-col items-center justify-center text-center">
+         <AlertTriangle className="w-10 h-10 text-destructive mb-3" />
+         <p className="text-sm font-medium text-destructive mb-1">Erro ao carregar planos</p>
+         <p className="text-xs text-muted-foreground mb-4 max-w-xs">
+           {String((error as Error)?.message || 'Não foi possível conectar ao servidor.')}
+         </p>
+         <button
+           type="button"
+           onClick={() => refetch()}
+           className="inline-flex items-center gap-2 px-3 py-1.5 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 transition-colors"
+         >
+           <RefreshCw className="w-4 h-4" />
+           Tentar novamente
+         </button>
+       </div>
+     )
+   }
+ 
+   // Estado: Carregando
   if (isLoading) {
     return (
       <div className="py-8 flex items-center justify-center gap-2 text-muted-foreground">
