@@ -13,7 +13,7 @@ import {
 } from '@/modules/admin'
 import { PlanosPage, TrialCadastroPage, CheckoutSucessoPage, OnboardingPage } from '@/modules/public'
 import { BlockedPage } from '@/modules/blocked'
-import { ConfiguracoesLayout, CamposPage, ProdutosPage, MotivosPage, StubPage } from '@/modules/configuracoes'
+import { ConfiguracoesLayout, CamposPage, ProdutosPage, MotivosPage, TarefasTemplatesPage, EtapasTemplatesPage, RegrasPage, ConfigCardPage, StubPage } from '@/modules/configuracoes'
 
 /**
  * AIDEV-NOTE: Roteamento principal da aplicacao
@@ -98,10 +98,10 @@ function App() {
         <Route path="campos" element={<CamposPage />} />
         <Route path="produtos" element={<ProdutosPage />} />
         <Route path="motivos" element={<MotivosPage />} />
-        <Route path="tarefas-templates" element={<StubPage titulo="Templates de Tarefas" />} />
-        <Route path="etapas-templates" element={<StubPage titulo="Templates de Etapas" />} />
-        <Route path="regras" element={<StubPage titulo="Regras de Qualificação" />} />
-        <Route path="cards" element={<StubPage titulo="Personalização de Cards" />} />
+        <Route path="tarefas-templates" element={<TarefasTemplatesPage />} />
+        <Route path="etapas-templates" element={<EtapasTemplatesPage />} />
+        <Route path="regras" element={<RegrasPage />} />
+        <Route path="cards" element={<ConfigCardPage />} />
         <Route path="conexoes" element={<StubPage titulo="Conexões" />} />
         <Route path="webhooks-entrada" element={<StubPage titulo="Webhooks de Entrada" />} />
         <Route path="webhooks-saida" element={<StubPage titulo="Webhooks de Saída" />} />
