@@ -226,7 +226,7 @@ const styles = {
   contentCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: "12px",
-    padding: "40px 36px",
+    padding: "44px 48px",
     margin: "24px 16px",
     border: "1px solid #E2E8F0",
   },
