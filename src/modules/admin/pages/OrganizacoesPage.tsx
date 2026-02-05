@@ -119,7 +119,7 @@ export function OrganizacoesPage() {
   const getInitial = (nome: string) => nome.charAt(0).toUpperCase()
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col flex-1 min-h-0 space-y-6">
       {/* Modal Nova Organizacao */}
       <NovaOrganizacaoModal
         isOpen={modalOpen}
@@ -148,6 +148,7 @@ export function OrganizacoesPage() {
  
       {/* Tabela */}
        {fetchStatus !== 'paused' && (
+        <div className="flex-1 min-h-0">
        <div className="bg-card rounded-lg border border-border shadow-sm overflow-hidden">
         {isLoading ? (
           <div className="p-8 text-center">
@@ -275,6 +276,7 @@ export function OrganizacoesPage() {
           </>
         )}
       </div>
+        </div>
        )}
     </div>
   )
@@ -342,8 +344,8 @@ function OrganizacaoRow({
       <td className="px-6 py-4">
         <span className="text-sm text-muted-foreground">{formatDate(org.criado_em)}</span>
       </td>
-      <td className="px-6 py-4 text-right">
-        <div className="relative">
+      <td className="px-6 py-4 text-right relative">
+        <div className="relative inline-block">
           <button
             onClick={() => setMenuAberto(menuAberto === org.id ? null : org.id)}
             className="p-2 hover:bg-accent rounded-lg"
@@ -356,7 +358,7 @@ function OrganizacaoRow({
                 className="fixed inset-0 z-40"
                 onClick={() => setMenuAberto(null)}
               />
-              <div className="absolute right-0 mt-1 w-48 bg-card rounded-lg shadow-lg border border-border py-1 z-50">
+              <div className="absolute right-0 bottom-full mb-1 w-48 bg-card rounded-lg shadow-lg border border-border py-1 z-50">
                 <button
                   onClick={() => {
                     navigate(`/admin/organizacoes/${org.id}`)

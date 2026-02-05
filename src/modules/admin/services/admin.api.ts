@@ -165,7 +165,7 @@ export async function listarOrganizacoes(params?: {
     .from('organizacoes_saas')
      .select(`
        *,
-       admin:usuarios!organizacao_id(
+       admin:usuarios(
          id, nome, sobrenome, email, status, ultimo_login, role
        ),
        assinaturas(
@@ -329,9 +329,30 @@ export async function criarOrganizacao(payload: CriarOrganizacaoPayload): Promis
 
   if (orgError) throw new Error(orgError.message)
 
+  // Criar usuário admin na tabela usuarios (sem auth.users por enquanto - apenas registro local)
+  const { data: adminUser, error: adminError } = await supabase
+    .from('usuarios')
+    .insert([{
+      organizacao_id: org.id,
+      nome: payload.admin_nome,
+      sobrenome: payload.admin_sobrenome,
+      email: payload.admin_email,
+      telefone: payload.admin_telefone ?? null,
+      role: 'admin',
+      status: 'pendente', // Pendente até confirmação de email/convite
+    }])
+    .select()
+    .single()
+
+  if (adminError) {
+    // Rollback: deletar organização criada
+    await supabase.from('organizacoes_saas').delete().eq('id', org.id)
+    throw new Error(`Erro ao criar admin: ${adminError.message}`)
+  }
+
   return {
     organizacao_id: org.id,
-    admin_id: '', // Será preenchido quando criarmos o usuário
+    admin_id: adminUser.id,
   }
 }
 
