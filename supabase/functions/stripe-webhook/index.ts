@@ -194,25 +194,43 @@ import Stripe from 'npm:stripe@14.14.0'
    }
  
    // Criar assinatura
-   const subscriptionId = session.subscription as string
- 
-   const { error: assError } = await supabase
-     .from('assinaturas')
-     .insert({
-       organizacao_id: novaOrg.id,
-       plano_id: metadata.plano_id,
-       status: 'ativa',
-       periodo: metadata.periodo || 'mensal',
-       stripe_customer_id: session.customer as string,
-       stripe_subscription_id: subscriptionId,
-       inicio_em: new Date().toISOString(),
-     })
- 
-   if (assError) {
-     console.error('Error creating subscription:', assError)
-   }
- 
-   console.log('Checkout completed successfully for:', customerEmail)
+    const isTrial = metadata.is_trial === 'true'
+    const trialDias = parseInt(metadata.trial_dias || '0', 10)
+    const billingPlanoId = metadata.billing_plano_id || metadata.plano_id
+
+    const { error: assError } = await supabase
+      .from('assinaturas')
+      .insert({
+        organizacao_id: novaOrg.id,
+        plano_id: isTrial ? metadata.plano_id : billingPlanoId,
+        status: isTrial ? 'trial' : 'ativa',
+        periodo: metadata.periodo || 'mensal',
+        stripe_customer_id: session.customer as string,
+        stripe_subscription_id: subscriptionId,
+        inicio_em: new Date().toISOString(),
+        ...(isTrial ? {
+          trial_inicio: new Date().toISOString(),
+          trial_fim: new Date(Date.now() + trialDias * 24 * 60 * 60 * 1000).toISOString(),
+        } : {}),
+      })
+
+    if (assError) {
+      console.error('Error creating subscription:', assError)
+    }
+
+    // Se for trial, também atualizar org com trial_expira_em
+    if (isTrial) {
+      const trialFim = new Date(Date.now() + trialDias * 24 * 60 * 60 * 1000)
+      await supabase
+        .from('organizacoes_saas')
+        .update({
+          status: 'trial',
+          trial_expira_em: trialFim.toISOString(),
+        })
+        .eq('id', novaOrg.id)
+    }
+
+    console.log('Checkout completed successfully for:', customerEmail, isTrial ? '(TRIAL)' : '')
  }
  
  async function updateExistingSubscription(
@@ -258,16 +276,17 @@ import Stripe from 'npm:stripe@14.14.0'
      .eq('stripe_subscription_id', invoice.subscription)
  }
  
- async function handleSubscriptionUpdated(supabase: SupabaseClientAny, subscription: Stripe.Subscription) {
-   console.log('Subscription updated:', subscription.id)
-   const status = subscription.status === 'active' ? 'ativa'
-     : subscription.status === 'past_due' ? 'inadimplente'
-     : subscription.status === 'canceled' ? 'cancelada'
-     : 'suspensa'
-   await supabase
-     .from('assinaturas')
-     .update({ status })
-     .eq('stripe_subscription_id', subscription.id)
+async function handleSubscriptionUpdated(supabase: SupabaseClientAny, subscription: Stripe.Subscription) {
+    console.log('Subscription updated:', subscription.id, 'Status:', subscription.status)
+    const status = subscription.status === 'active' ? 'ativa'
+      : subscription.status === 'trialing' ? 'trial'
+      : subscription.status === 'past_due' ? 'inadimplente'
+      : subscription.status === 'canceled' ? 'cancelada'
+      : 'suspensa'
+    await supabase
+      .from('assinaturas')
+      .update({ status })
+      .eq('stripe_subscription_id', subscription.id)
  }
  
  async function handleSubscriptionDeleted(supabase: SupabaseClientAny, subscription: Stripe.Subscription) {
