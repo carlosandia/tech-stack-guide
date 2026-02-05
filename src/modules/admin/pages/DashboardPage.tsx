@@ -1,4 +1,4 @@
- import { useEffect } from 'react'
+ import { useState, useEffect } from 'react'
  import { useQuery } from '@tanstack/react-query'
 import { adminApi } from '../services/admin.api'
  import { useToolbar } from '../contexts/ToolbarContext'
@@ -24,18 +24,44 @@ import {
  * - Alertas
  */
 
-export function DashboardPage() {
-   const { setSubtitle } = useToolbar()
+ type Periodo = '7d' | '30d' | '60d' | '90d'
  
-  const { data: metricas, isLoading, error } = useQuery({
-    queryKey: ['admin', 'metricas', 'resumo'],
-    queryFn: () => adminApi.obterMetricasResumo('30d'),
-  })
+ const periodoLabels: Record<Periodo, string> = {
+   '7d': 'Últimos 7 dias',
+   '30d': 'Últimos 30 dias',
+   '60d': 'Últimos 60 dias',
+   '90d': 'Últimos 90 dias',
+ }
+ 
+ export function DashboardPage() {
+   const { setSubtitle, setActions } = useToolbar()
+   const [periodo, setPeriodo] = useState<Periodo>('30d')
+ 
+   const { data: metricas, isLoading, error } = useQuery({
+     queryKey: ['admin', 'metricas', 'resumo', periodo],
+     queryFn: () => adminApi.obterMetricasResumo(periodo),
+   })
  
    useEffect(() => {
-     setSubtitle('Visão geral dos últimos 30 dias')
-     return () => setSubtitle(null)
-   }, [setSubtitle])
+     setSubtitle(`Visão geral dos ${periodoLabels[periodo].toLowerCase()}`)
+     setActions(
+       <select
+         value={periodo}
+         onChange={(e) => setPeriodo(e.target.value as Periodo)}
+         className="px-3 py-1.5 text-sm border border-border rounded-md bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+       >
+         {Object.entries(periodoLabels).map(([key, label]) => (
+           <option key={key} value={key}>
+             {label}
+           </option>
+         ))}
+       </select>
+     )
+     return () => {
+       setSubtitle(null)
+       setActions(null)
+     }
+   }, [setSubtitle, setActions, periodo])
 
   if (isLoading) {
     return (
