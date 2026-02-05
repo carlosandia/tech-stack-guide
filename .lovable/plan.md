@@ -1,149 +1,193 @@
 
-# Plano: Padronizar Toolbar em Todas as Páginas do Admin
+# Plano: Filtro de Período no Dashboard + Unificação de Módulos
 
-## Problema Identificado
+## Resumo
 
-Analisando as screenshots e o código, identifiquei inconsistências no uso do Toolbar:
+Duas implementações:
 
-| Página | Situação Atual | Problema |
-|--------|---------------|----------|
-| **Planos** | `Planos · Gerencie os planos da plataforma` | Correto (padrão) |
-| **Organizações** | `Organizações · Gerencie os tenants...` | Correto (padrão) |
-| **Configurações** | Apenas "Configurações" no toolbar | Falta subtítulo |
-| **Dashboard** | Apenas "Dashboard" no toolbar | Falta subtítulo |
-| **Módulos** | Apenas "Módulos" no toolbar | É uma página placeholder |
+1. **Dashboard**: Adicionar dropdown de seleção de período no toolbar com opções 7, 30, 60, 90 dias e personalizado
+2. **Módulos**: Exibir os mesmos módulos que aparecem em `/planos` na página `/modulos`, pois usam a mesma fonte de dados
 
-## Padrão Correto (referência: OrganizacoesPage)
+---
 
+## Parte 1: Filtro de Período no Dashboard
+
+### 1.1 Alterar DashboardPage.tsx
+
+**Estado local para período:**
 ```tsx
-const { setActions, setSubtitle } = useToolbar()
-
-useEffect(() => {
-  setSubtitle('Descrição da página')
-  return () => setSubtitle(null)
-}, [setSubtitle])
+const [periodo, setPeriodo] = useState<string>('30d')
 ```
 
-## Alterações Necessárias
+**Atualizar query para usar período dinâmico:**
+```tsx
+const { data: metricas } = useQuery({
+  queryKey: ['admin', 'metricas', 'resumo', periodo],
+  queryFn: () => adminApi.obterMetricasResumo(periodo as '7d' | '30d' | '60d' | '90d'),
+})
+```
 
-### 1. DashboardPage.tsx
+**Atualizar subtitle dinamicamente:**
+```tsx
+const subtitleMap: Record<string, string> = {
+  '7d': 'Visão geral dos últimos 7 dias',
+  '30d': 'Visão geral dos últimos 30 dias',
+  '60d': 'Visão geral dos últimos 60 dias',
+  '90d': 'Visão geral dos últimos 90 dias',
+}
+setSubtitle(subtitleMap[periodo] || 'Visão geral')
+```
 
-**Arquivo:** `src/modules/admin/pages/DashboardPage.tsx`
-
-Adicionar integração com o Toolbar:
+**Adicionar dropdown no toolbar (via setActions):**
 
 ```text
-Antes:
-- Linha 61: <p className="text-sm text-muted-foreground">Visão geral dos últimos 30 dias</p>
-
-Depois:
-- Importar useToolbar e useEffect
-- Adicionar useEffect com setSubtitle('Visão geral dos últimos 30 dias')
-- Remover o parágrafo <p> do conteúdo
+┌──────────────────────────────────────────────────────────────────────────┐
+│ Dashboard · Visão geral dos últimos 30 dias    [▼ Últimos 30 dias]       │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Resultado no Toolbar:**
+O dropdown terá opções:
+- Últimos 7 dias
+- Últimos 30 dias (padrão)
+- Últimos 60 dias
+- Últimos 90 dias
+
+### 1.2 Atualizar obterMetricasResumo no admin.api.ts
+
+Modificar a função para realmente usar o parâmetro `periodo`:
+
+```tsx
+export async function obterMetricasResumo(
+  periodo: '7d' | '30d' | '60d' | '90d' = '30d'
+): Promise<MetricasResumo> {
+  // Calcular dias baseado no período
+  const diasMap = { '7d': 7, '30d': 30, '60d': 60, '90d': 90 }
+  const dias = diasMap[periodo]
+  
+  const dataInicio = new Date()
+  dataInicio.setDate(dataInicio.getDate() - dias)
+  
+  // Usar dataInicio nas queries...
+}
 ```
-Dashboard · Visão geral dos últimos 30 dias
+
+### 1.3 Tipo de Período Atualizado
+
+Atualizar a tipagem para incluir 60d:
+```tsx
+periodo: '7d' | '30d' | '60d' | '90d'
 ```
 
 ---
 
-### 2. ConfiguracoesGlobaisPage.tsx
+## Parte 2: Página de Módulos
 
-**Arquivo:** `src/modules/admin/pages/ConfiguracoesGlobaisPage.tsx`
+### 2.1 Situação Atual
 
-Adicionar integração com o Toolbar:
+| Local | Status |
+|-------|--------|
+| `/admin/planos` → "Módulos Disponíveis" | Mostra módulos via `useModulos()` |
+| `/admin/modulos` | Placeholder: "Esta página será implementada em breve" |
 
-```text
-Antes:
-- Linha 45-50: Header interno com h1 e p separados
+**Ambos usam a mesma fonte:** `adminApi.listarModulos()` → tabela `modulos`
 
-Depois:
-- Importar useToolbar e useEffect
-- Adicionar useEffect com setSubtitle('Configure as integrações da plataforma')
-- Remover o bloco de header interno (<div> com h1 e p)
-```
+### 2.2 Proposta
 
-**Resultado no Toolbar:**
-```
-Configurações · Configure as integrações da plataforma
-```
+**Opção escolhida:** Exibir os módulos na página `/admin/modulos` (igual ao que aparece em Planos), e manter a seção em Planos como referência informativa.
 
----
+Isso permite que:
+- A página `/admin/modulos` seja o local centralizado para ver todos os módulos
+- A seção em `/admin/planos` continue como referência rápida do que está disponível
 
-### 3. Módulos (Placeholder em App.tsx)
-
-**Arquivo:** `src/App.tsx`
-
-O Módulos usa o `PlaceholderPage` genérico que não tem integração com o Toolbar. 
-
-Duas opções:
-1. **Opção A (recomendada):** Criar uma página `ModulosPage.tsx` que usa o Toolbar corretamente
-2. **Opção B:** Modificar o PlaceholderPage para aceitar um subtitle
-
-**Implementação (Opção A):**
-
-Criar `src/modules/admin/pages/ModulosPage.tsx`:
+### 2.3 Atualizar ModulosPage.tsx
 
 ```tsx
-import { useEffect } from 'react'
-import { useToolbar } from '../contexts/ToolbarContext'
+import { useModulos } from '../hooks/usePlanos'
 import { Puzzle } from 'lucide-react'
 
 export function ModulosPage() {
+  const { data: modulos, isLoading } = useModulos()
   const { setSubtitle } = useToolbar()
 
-  useEffect(() => {
-    setSubtitle('Gerencie os módulos disponíveis')
-    return () => setSubtitle(null)
-  }, [setSubtitle])
-
+  // Renderizar grid de módulos igual ao PlanosPage
   return (
     <div className="space-y-6">
-      <div className="bg-card p-6 rounded-lg border border-border">
-        <div className="flex items-center gap-3 mb-4">
-          <Puzzle className="w-6 h-6 text-muted-foreground" />
-          <p className="text-muted-foreground">
-            Esta página será implementada em breve.
-          </p>
+      <div className="bg-card rounded-lg border border-border p-6">
+        <h2 className="text-lg font-semibold mb-4">Módulos do Sistema</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          {modulos?.map((modulo) => (
+            <div key={modulo.id} className="...">
+              {/* Card do módulo */}
+            </div>
+          ))}
         </div>
       </div>
     </div>
   )
 }
-
-export default ModulosPage
 ```
-
-Atualizar `src/modules/admin/index.ts` para exportar a nova página.
-
-Atualizar `src/App.tsx` linha 107 para usar `<AdminModulosPage />` em vez de `<PlaceholderPage title="Modulos" />`.
 
 ---
 
-## Resumo das Mudanças
+## Arquivos a Modificar
 
-| Arquivo | Ação |
-|---------|------|
-| `DashboardPage.tsx` | Adicionar useToolbar + remover parágrafo interno |
-| `ConfiguracoesGlobaisPage.tsx` | Adicionar useToolbar + remover header interno |
-| `ModulosPage.tsx` | Criar nova página com Toolbar integrado |
-| `index.ts` (admin) | Exportar nova página |
-| `App.tsx` | Usar AdminModulosPage no lugar do placeholder |
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/modules/admin/pages/DashboardPage.tsx` | Adicionar estado `periodo`, dropdown no toolbar, atualizar query |
+| `src/modules/admin/services/admin.api.ts` | Atualizar `obterMetricasResumo` para filtrar por período real |
+| `src/modules/admin/pages/ModulosPage.tsx` | Implementar listagem de módulos usando `useModulos()` |
+
+---
+
+## Detalhes Técnicos
+
+### Componente do Dropdown de Período
+
+Será um select simples estilizado conforme Design System:
+
+```tsx
+<select
+  value={periodo}
+  onChange={(e) => setPeriodo(e.target.value)}
+  className="px-3 py-1.5 text-sm border border-border rounded-md bg-card"
+>
+  <option value="7d">Últimos 7 dias</option>
+  <option value="30d">Últimos 30 dias</option>
+  <option value="60d">Últimos 60 dias</option>
+  <option value="90d">Últimos 90 dias</option>
+</select>
+```
+
+### Integração no Toolbar
+
+O dropdown será injetado via `setActions()` no useEffect, atualizando quando o período mudar.
+
+---
 
 ## Resultado Visual Esperado
 
-Todas as páginas seguirão o padrão:
+### Dashboard com Filtro
 
 ```text
 ┌────────────────────────────────────────────────────────────────────┐
-│ [Título] · [Descrição contextual]                    [Ações/Botões]│
+│ Dashboard · Visão geral dos últimos 30 dias   [▼ Últimos 30 dias]  │
 └────────────────────────────────────────────────────────────────────┘
 ```
 
-- **Dashboard** · Visão geral dos últimos 30 dias
-- **Organizações** · Gerencie os tenants da plataforma (já OK)
-- **Planos** · Gerencie os planos da plataforma (já OK)
-- **Módulos** · Gerencie os módulos disponíveis
-- **Configurações** · Configure as integrações da plataforma
+### Página de Módulos
+
+```text
+┌────────────────────────────────────────────────────────────────────┐
+│ Módulos · Gerencie os módulos disponíveis                          │
+├────────────────────────────────────────────────────────────────────┤
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐           │
+│  │ Contatos │  │ Negócios │  │ Conversas│  │Formulários│           │
+│  │ Gestão...│  │ Pipeline.│  │ Central..│  │ Form Buil.│           │
+│  │Obrigatório│ │Obrigatório│ │          │  │          │           │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘           │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐           │
+│  │ Conexões │  │Atividades│  │ Dashboard│  │Automações│           │
+│  │ WhatsApp.│  │ Lista ta.│  │ Painel d.│  │ Motor au.│           │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘           │
+└────────────────────────────────────────────────────────────────────┘
+```
