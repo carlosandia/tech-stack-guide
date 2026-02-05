@@ -33,6 +33,7 @@ const corsHeaders = {
 
 interface InviteAdminEmailProps {
   nome: string;
+  email: string;
   organizacaoNome: string;
   confirmUrl: string;
   token: string;
@@ -40,6 +41,7 @@ interface InviteAdminEmailProps {
 
 const InviteAdminEmail = ({
   nome = "Usuario",
+  email = "",
   organizacaoNome = "CRM",
   confirmUrl = "",
   token = "",
@@ -90,6 +92,22 @@ const InviteAdminEmail = ({
             ` da organização `,
             React.createElement("strong", { style: { color: "#3B82F6" } }, organizacaoNome),
             `.`
+          ),
+
+          // Login info box
+          React.createElement(
+            Section,
+            { style: styles.loginInfoBox },
+            React.createElement(
+              Text,
+              { style: styles.loginInfoLabel },
+              "📧 Seu email de acesso:"
+            ),
+            React.createElement(
+              Text,
+              { style: styles.loginInfoEmail },
+              email
+            )
           ),
 
           // Instruction text
@@ -224,6 +242,27 @@ const styles = {
     fontSize: "16px",
     lineHeight: "1.75",
     margin: "0 0 20px 0",
+  },
+  loginInfoBox: {
+    backgroundColor: "#EFF6FF",
+    borderRadius: "8px",
+    padding: "16px 20px",
+    margin: "0 0 24px 0",
+    border: "1px solid #BFDBFE",
+  },
+  loginInfoLabel: {
+    color: "#1E40AF",
+    fontSize: "14px",
+    fontWeight: "600",
+    margin: "0 0 6px 0",
+    lineHeight: "1.4",
+  },
+  loginInfoEmail: {
+    color: "#1E3A5F",
+    fontSize: "18px",
+    fontWeight: "700",
+    margin: "0",
+    lineHeight: "1.4",
   },
   buttonContainer: {
     textAlign: "center" as const,
@@ -405,6 +444,7 @@ Deno.serve(async (req) => {
         const html = await renderAsync(
           React.createElement(InviteAdminEmail, {
             nome: nome || "Usuario",
+            email,
             organizacaoNome: orgNome,
             confirmUrl,
             token: linkData.properties?.token || "",
