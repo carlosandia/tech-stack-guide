@@ -1,51 +1,149 @@
 
-# Plano: Adicionar Subtítulo no Toolbar da Página de Planos
+# Plano: Padronizar Toolbar em Todas as Páginas do Admin
 
 ## Problema Identificado
 
-A página `PlanosPage` não segue o padrão de navegação/toolbar estabelecido. Atualmente ela exibe a descrição como um parágrafo separado no conteúdo:
+Analisando as screenshots e o código, identifiquei inconsistências no uso do Toolbar:
 
-```tsx
-// Atual (incorreto)
-<p className="text-sm text-muted-foreground">Gerencie os planos da plataforma</p>
-```
+| Página | Situação Atual | Problema |
+|--------|---------------|----------|
+| **Planos** | `Planos · Gerencie os planos da plataforma` | Correto (padrão) |
+| **Organizações** | `Organizações · Gerencie os tenants...` | Correto (padrão) |
+| **Configurações** | Apenas "Configurações" no toolbar | Falta subtítulo |
+| **Dashboard** | Apenas "Dashboard" no toolbar | Falta subtítulo |
+| **Módulos** | Apenas "Módulos" no toolbar | É uma página placeholder |
 
-O correto é usar o `setSubtitle` do `ToolbarContext` para que apareça no formato:
-**Planos · Gerencie os planos da plataforma**
-
-## Padrão Correto (usado em OrganizacoesPage)
+## Padrão Correto (referência: OrganizacoesPage)
 
 ```tsx
 const { setActions, setSubtitle } = useToolbar()
 
 useEffect(() => {
-  setSubtitle('Gerencie os tenants da plataforma')
+  setSubtitle('Descrição da página')
   return () => setSubtitle(null)
 }, [setSubtitle])
 ```
 
-## Alteração Necessária
+## Alterações Necessárias
 
-**Arquivo:** `src/modules/admin/pages/PlanosPage.tsx`
+### 1. DashboardPage.tsx
 
-1. Importar `setSubtitle` do hook `useToolbar`
-2. Adicionar `useEffect` para definir o subtítulo
-3. Remover o parágrafo de descrição do conteúdo
+**Arquivo:** `src/modules/admin/pages/DashboardPage.tsx`
 
-### Código Atual vs Novo
-
-| Linha | Atual | Novo |
-|-------|-------|------|
-| 20 | `const { setActions } = useToolbar()` | `const { setActions, setSubtitle } = useToolbar()` |
-| 24-36 | apenas setActions | adicionar setSubtitle |
-| 68 | `<p className="...">Gerencie os planos...</p>` | **remover** |
-
-### Resultado Visual no Toolbar
+Adicionar integração com o Toolbar:
 
 ```text
-┌────────────────────────────────────────────────────────────────┐
-│ Planos · Gerencie os planos da plataforma        [+ Novo Plano]│
-└────────────────────────────────────────────────────────────────┘
+Antes:
+- Linha 61: <p className="text-sm text-muted-foreground">Visão geral dos últimos 30 dias</p>
+
+Depois:
+- Importar useToolbar e useEffect
+- Adicionar useEffect com setSubtitle('Visão geral dos últimos 30 dias')
+- Remover o parágrafo <p> do conteúdo
 ```
 
-Em mobile, o subtítulo será ocultado automaticamente (classe `hidden sm:inline`), mantendo apenas "Planos".
+**Resultado no Toolbar:**
+```
+Dashboard · Visão geral dos últimos 30 dias
+```
+
+---
+
+### 2. ConfiguracoesGlobaisPage.tsx
+
+**Arquivo:** `src/modules/admin/pages/ConfiguracoesGlobaisPage.tsx`
+
+Adicionar integração com o Toolbar:
+
+```text
+Antes:
+- Linha 45-50: Header interno com h1 e p separados
+
+Depois:
+- Importar useToolbar e useEffect
+- Adicionar useEffect com setSubtitle('Configure as integrações da plataforma')
+- Remover o bloco de header interno (<div> com h1 e p)
+```
+
+**Resultado no Toolbar:**
+```
+Configurações · Configure as integrações da plataforma
+```
+
+---
+
+### 3. Módulos (Placeholder em App.tsx)
+
+**Arquivo:** `src/App.tsx`
+
+O Módulos usa o `PlaceholderPage` genérico que não tem integração com o Toolbar. 
+
+Duas opções:
+1. **Opção A (recomendada):** Criar uma página `ModulosPage.tsx` que usa o Toolbar corretamente
+2. **Opção B:** Modificar o PlaceholderPage para aceitar um subtitle
+
+**Implementação (Opção A):**
+
+Criar `src/modules/admin/pages/ModulosPage.tsx`:
+
+```tsx
+import { useEffect } from 'react'
+import { useToolbar } from '../contexts/ToolbarContext'
+import { Puzzle } from 'lucide-react'
+
+export function ModulosPage() {
+  const { setSubtitle } = useToolbar()
+
+  useEffect(() => {
+    setSubtitle('Gerencie os módulos disponíveis')
+    return () => setSubtitle(null)
+  }, [setSubtitle])
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-card p-6 rounded-lg border border-border">
+        <div className="flex items-center gap-3 mb-4">
+          <Puzzle className="w-6 h-6 text-muted-foreground" />
+          <p className="text-muted-foreground">
+            Esta página será implementada em breve.
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default ModulosPage
+```
+
+Atualizar `src/modules/admin/index.ts` para exportar a nova página.
+
+Atualizar `src/App.tsx` linha 107 para usar `<AdminModulosPage />` em vez de `<PlaceholderPage title="Modulos" />`.
+
+---
+
+## Resumo das Mudanças
+
+| Arquivo | Ação |
+|---------|------|
+| `DashboardPage.tsx` | Adicionar useToolbar + remover parágrafo interno |
+| `ConfiguracoesGlobaisPage.tsx` | Adicionar useToolbar + remover header interno |
+| `ModulosPage.tsx` | Criar nova página com Toolbar integrado |
+| `index.ts` (admin) | Exportar nova página |
+| `App.tsx` | Usar AdminModulosPage no lugar do placeholder |
+
+## Resultado Visual Esperado
+
+Todas as páginas seguirão o padrão:
+
+```text
+┌────────────────────────────────────────────────────────────────────┐
+│ [Título] · [Descrição contextual]                    [Ações/Botões]│
+└────────────────────────────────────────────────────────────────────┘
+```
+
+- **Dashboard** · Visão geral dos últimos 30 dias
+- **Organizações** · Gerencie os tenants da plataforma (já OK)
+- **Planos** · Gerencie os planos da plataforma (já OK)
+- **Módulos** · Gerencie os módulos disponíveis
+- **Configurações** · Configure as integrações da plataforma
