@@ -62,7 +62,8 @@ export const Step1EmpresaSchema = z.object({
     .min(2, 'Nome deve ter no minimo 2 caracteres')
     .max(255, 'Nome deve ter no maximo 255 caracteres'),
   segmento: z.string().min(1, 'Selecione um segmento'),
-  email: z.string().email('Email invalido'),
+   segmento_outro: z.string().optional(),
+   email: z.string().email('Email invalido').optional().or(z.literal('')),
   website: z
     .string()
     .url('URL invalida')
@@ -80,7 +81,19 @@ export const Step1EmpresaSchema = z.object({
       estado: z.string().optional(),
     })
     .optional(),
-})
+ }).refine(
+   (data) => {
+     // Se segmento for "outro", segmento_outro é obrigatório
+     if (data.segmento === 'outro') {
+       return data.segmento_outro && data.segmento_outro.trim().length >= 2
+     }
+     return true
+   },
+   {
+     message: 'Especifique o segmento (mínimo 2 caracteres)',
+     path: ['segmento_outro'],
+   }
+ )
 
 export type Step1EmpresaData = z.infer<typeof Step1EmpresaSchema>
 
@@ -122,7 +135,35 @@ export const Step3AdminSchema = z
 export type Step3AdminData = z.infer<typeof Step3AdminSchema>
 
 // Schema combinado para submissao
-export const CriarOrganizacaoSchema = Step1EmpresaSchema.merge(Step2ExpectativasSchema).merge(
+ // Usando innerType para acessar o schema base antes do refine
+ const Step1EmpresaBaseSchema = z.object({
+   nome: z
+     .string()
+     .min(2, 'Nome deve ter no minimo 2 caracteres')
+     .max(255, 'Nome deve ter no maximo 255 caracteres'),
+   segmento: z.string().min(1, 'Selecione um segmento'),
+   segmento_outro: z.string().optional(),
+   email: z.string().email('Email invalido').optional().or(z.literal('')),
+   website: z
+     .string()
+     .url('URL invalida')
+     .optional()
+     .or(z.literal('')),
+   telefone: z.string().optional(),
+   endereco: z
+     .object({
+       cep: z.string().optional(),
+       logradouro: z.string().optional(),
+       numero: z.string().optional(),
+       complemento: z.string().optional(),
+       bairro: z.string().optional(),
+       cidade: z.string().optional(),
+       estado: z.string().optional(),
+     })
+     .optional(),
+ })
+ 
+ export const CriarOrganizacaoSchema = Step1EmpresaBaseSchema.merge(Step2ExpectativasSchema).merge(
   z.object({
     admin_nome: z.string().min(2),
     admin_sobrenome: z.string().min(2),
@@ -131,6 +172,18 @@ export const CriarOrganizacaoSchema = Step1EmpresaSchema.merge(Step2Expectativas
     enviar_convite: z.boolean().default(true),
     senha_inicial: z.string().optional(),
   })
-)
+ ).refine(
+   (data) => {
+     // Se segmento for "outro", segmento_outro é obrigatório
+     if (data.segmento === 'outro') {
+       return data.segmento_outro && data.segmento_outro.trim().length >= 2
+     }
+     return true
+   },
+   {
+     message: 'Especifique o segmento (mínimo 2 caracteres)',
+     path: ['segmento_outro'],
+   }
+ )
 
 export type CriarOrganizacaoData = z.infer<typeof CriarOrganizacaoSchema>
