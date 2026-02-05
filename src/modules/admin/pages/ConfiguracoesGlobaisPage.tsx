@@ -107,6 +107,9 @@ function ConfigPlataformaForm({
   const { mutate: atualizar, isPending: salvando } = useUpdateConfigGlobal()
   const { mutate: testar, isPending: testando, data: resultadoTeste } = useTestarConfigGlobal()
 
+  // Verifica se há alterações pendentes
+  const temAlteracoes = Object.keys(valores).length > 0
+
   // Campos por plataforma
   const campos = getCamposPorPlataforma(plataforma)
   const plataformaInfo = PLATAFORMAS.find((p) => p.id === plataforma)
@@ -234,18 +237,20 @@ function ConfigPlataformaForm({
           )}
           Testar Conexao
         </button>
-        <button
-          onClick={handleSalvar}
-          disabled={salvando}
-          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50"
-        >
-          {salvando ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Save className="w-4 h-4" />
-          )}
-          Salvar Alteracoes
-        </button>
+        {temAlteracoes && (
+          <button
+            onClick={handleSalvar}
+            disabled={salvando}
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50"
+          >
+            {salvando ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Save className="w-4 h-4" />
+            )}
+            Salvar Alteracoes
+          </button>
+        )}
       </div>
     </div>
   )
