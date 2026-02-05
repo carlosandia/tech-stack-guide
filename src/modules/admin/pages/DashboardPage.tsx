@@ -1,5 +1,7 @@
-import { useQuery } from '@tanstack/react-query'
+ import { useEffect } from 'react'
+ import { useQuery } from '@tanstack/react-query'
 import { adminApi } from '../services/admin.api'
+ import { useToolbar } from '../contexts/ToolbarContext'
 import {
   Building2,
   Users,
@@ -7,8 +9,8 @@ import {
   TrendingDown,
   AlertTriangle,
   Info,
-  XCircle,
-} from 'lucide-react'
+   XCircle,
+ } from 'lucide-react'
 
 /**
  * AIDEV-NOTE: Dashboard do Super Admin
@@ -23,10 +25,17 @@ import {
  */
 
 export function DashboardPage() {
+   const { setSubtitle } = useToolbar()
+ 
   const { data: metricas, isLoading, error } = useQuery({
     queryKey: ['admin', 'metricas', 'resumo'],
     queryFn: () => adminApi.obterMetricasResumo('30d'),
   })
+ 
+   useEffect(() => {
+     setSubtitle('Visão geral dos últimos 30 dias')
+     return () => setSubtitle(null)
+   }, [setSubtitle])
 
   if (isLoading) {
     return (
@@ -57,9 +66,6 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      {/* Descrição sutil */}
-      <p className="text-sm text-muted-foreground">Visão geral dos últimos 30 dias</p>
-
       {/* Cards de metricas */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Tenants Ativos */}

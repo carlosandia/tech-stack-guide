@@ -1,7 +1,8 @@
-import { useState } from 'react'
+ import { useState, useEffect } from 'react'
 import { Save, RefreshCw, CheckCircle, XCircle, Loader2, Eye, EyeOff } from 'lucide-react'
 import { useConfigGlobais, useUpdateConfigGlobal, useTestarConfigGlobal } from '../hooks/useConfigGlobal'
 import type { ConfigGlobal } from '../services/admin.api'
+ import { useToolbar } from '../contexts/ToolbarContext'
 
 /**
  * AIDEV-NOTE: Pagina de Configuracoes Globais
@@ -28,6 +29,12 @@ const PLATAFORMAS = [
 export function ConfiguracoesGlobaisPage() {
   const [activeTab, setActiveTab] = useState<PlataformaId>('meta')
   const { data: configs, isLoading, error } = useConfigGlobais()
+   const { setSubtitle } = useToolbar()
+ 
+   useEffect(() => {
+     setSubtitle('Configure as integrações da plataforma')
+     return () => setSubtitle(null)
+   }, [setSubtitle])
 
   if (isLoading) {
     return (
@@ -50,14 +57,6 @@ export function ConfiguracoesGlobaisPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Configuracoes Globais</h1>
-        <p className="text-muted-foreground mt-1">
-          Configure as integracoes da plataforma
-        </p>
-      </div>
-
       {/* Tabs */}
       <div className="border-b border-border">
         <nav className="flex gap-6 overflow-x-auto">
