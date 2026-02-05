@@ -1,7 +1,7 @@
 import { useFormContext } from 'react-hook-form'
-import { Check, Loader2, RefreshCw, WifiOff, AlertTriangle, Gift } from 'lucide-react'
+import { Check, Loader2, RefreshCw, WifiOff, AlertTriangle, Gift, Clock } from 'lucide-react'
 import { usePlanos } from '../../hooks/usePlanos'
-import type { CriarOrganizacaoData } from '../../schemas/organizacao.schema'
+import { CORTESIA_DURACOES, type CriarOrganizacaoData } from '../../schemas/organizacao.schema'
 
 /**
  * AIDEV-NOTE: Etapa 2 do Wizard - Selecao de Plano + Cortesia
@@ -19,6 +19,7 @@ export function Step2Expectativas() {
   const { data: planos, isLoading, isError, error, refetch, fetchStatus } = usePlanos()
   const selectedPlanoId = watch('plano_id')
   const cortesia = watch('cortesia')
+  const cortesiaDuracaoMeses = watch('cortesia_duracao_meses')
 
   // Encontrar plano selecionado para verificar se é pago
   const selectedPlano = planos?.find(p => p.id === selectedPlanoId)
@@ -108,6 +109,7 @@ export function Step2Expectativas() {
                   if (plano.preco_mensal === 0) {
                     setValue('cortesia', false)
                     setValue('cortesia_motivo', '')
+                    setValue('cortesia_duracao_meses', null)
                   }
                 }}
                 className={`
@@ -170,6 +172,7 @@ export function Step2Expectativas() {
                 setValue('cortesia', e.target.checked, { shouldValidate: true })
                 if (!e.target.checked) {
                   setValue('cortesia_motivo', '')
+                  setValue('cortesia_duracao_meses', null)
                 }
               }}
               className="mt-0.5 w-4 h-4 rounded border-input text-primary focus:ring-primary"
@@ -186,7 +189,7 @@ export function Step2Expectativas() {
           </label>
           
           {cortesia && (
-            <div className="mt-3">
+            <div className="mt-3 space-y-3">
               <textarea
                 placeholder="Motivo da cortesia (obrigatório)"
                 {...register('cortesia_motivo')}
@@ -196,6 +199,40 @@ export function Step2Expectativas() {
               {errors.cortesia_motivo && (
                 <p className="mt-1 text-sm text-destructive">{errors.cortesia_motivo.message}</p>
               )}
+              
+              {/* Duração da cortesia */}
+              <div>
+                <label className="flex items-center gap-1.5 text-sm font-medium text-foreground mb-1.5">
+                  <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+                  Duração da cortesia <span className="text-destructive">*</span>
+                </label>
+                <select
+                  value={cortesiaDuracaoMeses === null ? 'permanente' : String(cortesiaDuracaoMeses)}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    setValue(
+                      'cortesia_duracao_meses',
+                      val === 'permanente' ? null : Number(val),
+                      { shouldValidate: true }
+                    )
+                  }}
+                  className="w-full px-3 py-2 text-sm border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  {CORTESIA_DURACOES.map((opt) => (
+                    <option
+                      key={opt.label}
+                      value={opt.value === null ? 'permanente' : String(opt.value)}
+                    >
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {cortesiaDuracaoMeses === null
+                    ? 'A cortesia não terá prazo de expiração'
+                    : `A cortesia expirará em ${cortesiaDuracaoMeses} ${cortesiaDuracaoMeses === 1 ? 'mês' : 'meses'} após a criação`}
+                </p>
+              </div>
             </div>
           )}
         </div>

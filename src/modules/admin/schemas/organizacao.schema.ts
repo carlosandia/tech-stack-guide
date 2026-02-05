@@ -62,11 +62,22 @@ export const Step1EmpresaSchema = z.object({
 
 export type Step1EmpresaData = z.infer<typeof Step1EmpresaSchema>
 
+// Opcoes de duracao da cortesia
+export const CORTESIA_DURACOES = [
+  { value: null, label: 'Permanente' },
+  { value: 1, label: '1 mês' },
+  { value: 2, label: '2 meses' },
+  { value: 3, label: '3 meses' },
+  { value: 6, label: '6 meses' },
+  { value: 12, label: '12 meses' },
+] as const
+
 // Schema Etapa 2: Selecao de Plano + Cortesia
 export const Step2ExpectativasSchema = z.object({
   plano_id: z.string().min(1, 'Selecione um plano'),
   cortesia: z.boolean().default(false),
   cortesia_motivo: z.string().optional(),
+  cortesia_duracao_meses: z.number().int().positive().nullable().default(null),
 }).refine(
   (data) => {
     // Se cortesia ativa, motivo e obrigatorio
@@ -143,6 +154,7 @@ export const CriarOrganizacaoSchema = Step1EmpresaBaseSchema.merge(
     plano_id: z.string().min(1, 'Selecione um plano'),
     cortesia: z.boolean().default(false),
     cortesia_motivo: z.string().optional(),
+    cortesia_duracao_meses: z.number().int().positive().nullable().default(null),
   })
 ).merge(
   z.object({
