@@ -82,17 +82,36 @@ export function AuthProvider({ children }: AuthProviderProps) {
           .eq('id', usuario.organizacao_id)
           .single()
         
-        // Também verificar se assinatura está bloqueada
+        // Também verificar se assinatura está bloqueada ou cortesia expirada
         const { data: assinaturaData } = await supabase
           .from('assinaturas')
-          .select('status')
+          .select('status, cortesia, cortesia_fim')
           .eq('organizacao_id', usuario.organizacao_id)
           .order('criado_em', { ascending: false })
           .limit(1)
           .maybeSingle()
 
-        // Se assinatura estiver bloqueada, prevalece
-        if (assinaturaData?.status === 'bloqueada') {
+        // Verificar se cortesia expirou (substitui pg_cron)
+        if (
+          assinaturaData?.cortesia === true &&
+          assinaturaData?.cortesia_fim &&
+          new Date(assinaturaData.cortesia_fim) < new Date() &&
+          assinaturaData.status !== 'bloqueada'
+        ) {
+          // Cortesia expirou: bloquear assinatura e suspender org
+          await supabase
+            .from('assinaturas')
+            .update({ status: 'bloqueada', cortesia: false })
+            .eq('organizacao_id', usuario.organizacao_id)
+          
+          await supabase
+            .from('organizacoes_saas')
+            .update({ status: 'suspensa' })
+            .eq('id', usuario.organizacao_id)
+          
+          orgStatus = 'bloqueada'
+        } else if (assinaturaData?.status === 'bloqueada') {
+          // Se assinatura já estiver bloqueada, prevalece
           orgStatus = 'bloqueada'
         } else {
           orgStatus = orgData?.status as OrgStatus
