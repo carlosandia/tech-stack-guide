@@ -6,7 +6,7 @@
   * AIDEV-NOTE: Edge Function para criar sessao de checkout do Stripe
   * Conforme PRD - Pagina de Planos com Stripe Checkout
   * 
-  * Input: { plano_id, periodo, utms? }
+  * Input: { plano_id, periodo, is_trial?, email?, utms? }
   * Output: { url: string }
   */
  
@@ -46,9 +46,9 @@
      const supabase = createClient<any>(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
  
      const body = await req.json()
-     const { plano_id, periodo = 'mensal', email, nome_empresa, utms } = body
+     const { plano_id, periodo = 'mensal', email, is_trial = false, utms } = body
  
-     console.log('Creating checkout session:', { plano_id, periodo, email })
+     console.log('Creating checkout session:', { plano_id, periodo, email, is_trial })
  
      // Buscar plano
      const { data: plano, error: planoError } = await supabase
@@ -71,11 +71,27 @@
        throw new Error(`Preco ${periodo} nao configurado para o plano ${plano.nome}`)
      }
  
+     // Buscar configuração de trial se for trial
+     let trialDias = 14
+     if (is_trial) {
+       const { data: trialConfig } = await supabase
+         .from('configuracoes_globais')
+         .select('configuracoes')
+         .eq('plataforma', 'stripe')
+         .single()
+ 
+       if (trialConfig?.configuracoes) {
+         const config = trialConfig.configuracoes as Record<string, unknown>
+         trialDias = (config.trial_dias as number) || 14
+       }
+     }
+ 
      // Determinar URL base (origin)
      const origin = req.headers.get('origin') || 'https://crm.renovedigital.com.br'
  
-     // Criar sessao de checkout
-     const session = await stripe.checkout.sessions.create({
+     // Configurar sessão de checkout
+     // deno-lint-ignore no-explicit-any
+     const sessionParams: any = {
        mode: 'subscription',
        payment_method_types: ['card'],
        line_items: [
@@ -84,8 +100,8 @@
            quantity: 1,
          },
        ],
-       customer_email: email,
-       success_url: `${origin}/sucesso?session_id={CHECKOUT_SESSION_ID}`,
+       customer_email: email || undefined,
+       success_url: `${origin}/onboarding?session_id={CHECKOUT_SESSION_ID}`,
        cancel_url: `${origin}/planos`,
        allow_promotion_codes: true,
        billing_address_collection: 'required',
@@ -93,14 +109,24 @@
          plano_id: plano.id,
          plano_nome: plano.nome,
          periodo,
-         nome_empresa: nome_empresa || '',
+         is_trial: is_trial ? 'true' : 'false',
          utm_source: utms?.utm_source || '',
          utm_medium: utms?.utm_medium || '',
          utm_campaign: utms?.utm_campaign || '',
          utm_term: utms?.utm_term || '',
          utm_content: utms?.utm_content || '',
        },
-     })
+     }
+ 
+     // Se for trial, adiciona período de teste
+     if (is_trial) {
+       sessionParams.subscription_data = {
+         trial_period_days: trialDias,
+       }
+     }
+ 
+     // Criar sessão de checkout
+     const session = await stripe.checkout.sessions.create(sessionParams)
  
      console.log('Checkout session created:', session.id)
  

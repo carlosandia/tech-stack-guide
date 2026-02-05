@@ -348,6 +348,50 @@ export type Database = {
           },
         ]
       }
+      checkout_sessions_pendentes: {
+        Row: {
+          concluido_em: string | null
+          criado_em: string | null
+          customer_email: string
+          id: string
+          is_trial: boolean | null
+          metadata: Json | null
+          plano_id: string | null
+          status: string | null
+          stripe_session_id: string
+        }
+        Insert: {
+          concluido_em?: string | null
+          criado_em?: string | null
+          customer_email: string
+          id?: string
+          is_trial?: boolean | null
+          metadata?: Json | null
+          plano_id?: string | null
+          status?: string | null
+          stripe_session_id: string
+        }
+        Update: {
+          concluido_em?: string | null
+          criado_em?: string | null
+          customer_email?: string
+          id?: string
+          is_trial?: boolean | null
+          metadata?: Json | null
+          plano_id?: string | null
+          status?: string | null
+          stripe_session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checkout_sessions_pendentes_plano_id_fkey"
+            columns: ["plano_id"]
+            isOneToOne: false
+            referencedRelation: "planos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conexoes_email: {
         Row: {
           access_token_encrypted: string | null
