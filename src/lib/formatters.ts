@@ -32,9 +32,28 @@
    return value.replace(/\D/g, '')
  }
  
- /**
-  * Remove formatação do CEP, retornando apenas números
-  */
- export function unformatCep(value: string): string {
-   return value.replace(/\D/g, '')
- }
+/**
+ * Remove formatação do CEP, retornando apenas números
+ */
+export function unformatCep(value: string): string {
+  return value.replace(/\D/g, '')
+}
+
+/**
+ * Normaliza texto removendo acentos e padronizando capitalização
+ * Usado para evitar duplicatas em segmentos customizados
+ * Ex: "marketing DIGITAL" -> "Marketing Digital"
+ * Ex: "consultória" -> "Consultoria"
+ */
+export function normalizeSegmento(value: string): string {
+  if (!value) return ''
+  // Remove acentos usando normalização NFD
+  const semAcento = value.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  // Capitaliza cada palavra
+  return semAcento
+    .toLowerCase()
+    .trim()
+    .split(/\s+/)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+}

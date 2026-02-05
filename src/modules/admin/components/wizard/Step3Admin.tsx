@@ -2,6 +2,7 @@ import { useFormContext, useWatch } from 'react-hook-form'
 import { Eye, EyeOff } from 'lucide-react'
 import { useState } from 'react'
 import type { CriarOrganizacaoData } from '../../schemas/organizacao.schema'
+import { formatTelefone } from '@/lib/formatters'
 
 /**
  * AIDEV-NOTE: Etapa 3 do Wizard - Dados do Administrador
@@ -13,8 +14,14 @@ export function Step3Admin() {
   const {
     register,
     control,
+    setValue,
     formState: { errors },
   } = useFormContext<CriarOrganizacaoData>()
+
+  const handleTelefoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatTelefone(e.target.value)
+    setValue('admin_telefone', formatted)
+  }
 
   const enviarConvite = useWatch({
     control,
@@ -87,8 +94,9 @@ export function Step3Admin() {
         </label>
         <input
           type="tel"
-          {...register('admin_telefone')}
+          {...register('admin_telefone', { onChange: handleTelefoneChange })}
           placeholder="(11) 99999-9999"
+          maxLength={15}
           className="w-full h-11 px-4 rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
         />
       </div>
