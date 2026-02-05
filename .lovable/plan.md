@@ -1,146 +1,203 @@
 
-# Plano: Sistema de Cortesia/Concessao Gratuita de Planos
+# Plano: Correcao da Cortesia no Wizard + Sistema de Bloqueio
 
-## Contexto
-Quando o Super Admin cria uma organizacao pelo wizard e atribui um plano pago (ex: Starter), atualmente nao ha forma de indicar que essa organizacao esta usando o plano **sem pagar** - uma cortesia ou concessao interna.
+## Problema Identificado
 
-## Solucao Recomendada
-
-### Abordagem: Campo "Cortesia" na Tabela `assinaturas`
-
-Adicionar um campo booleano `cortesia` (ou `is_gratuito`) na tabela `assinaturas` que indica explicitamente que a organizacao nao paga por aquele plano.
+O toggle de "Cortesia" **nao foi implementado** no arquivo `Step2Expectativas.tsx`. O codigo atual nao possui os campos `cortesia` e `cortesia_motivo` - apenas a selecao de plano.
 
 ---
 
-## Mudancas Propostas
+## Parte 1: Corrigir o Wizard de Criacao
 
-### 1. Banco de Dados
-Adicionar coluna na tabela `assinaturas`:
+### Mudancas em `Step2Expectativas.tsx`
 
-```text
-ALTER TABLE assinaturas 
-ADD COLUMN cortesia BOOLEAN DEFAULT FALSE,
-ADD COLUMN cortesia_motivo TEXT;
-```
-
-- `cortesia`: Indica se e uma concessao gratuita
-- `cortesia_motivo`: Motivo/justificativa (auditoria)
-
-### 2. Wizard de Criacao (Step 2)
-Quando o Super Admin seleciona um plano **pago**, exibir um toggle:
+Adicionar abaixo da selecao de planos:
 
 ```text
++------------------------------------------+
+| [Selecao de Planos - ja existe]          |
 +------------------------------------------+
 | [x] Conceder como cortesia (sem cobranca)|
 |     Motivo: [___________________________]|
 +------------------------------------------+
 ```
 
-- Toggle aparece apenas para planos com preco > 0
-- Se marcado, o campo de motivo e obrigatorio
+**Comportamento:**
+- Toggle aparece apenas quando plano pago e selecionado (preco > 0)
+- Campo "Motivo" obrigatorio quando cortesia ativa
+- Badge visual no card do plano quando cortesia marcada
 
-### 3. Listagem de Organizacoes
-Na lista de organizacoes, exibir badge diferenciado:
+### Mudancas no Schema
 
-```text
-| Empresa ABC | Starter | [Cortesia] |
-| Empresa XYZ | Starter | [Pago]     |
-```
-
-### 4. Detalhes da Organizacao
-Na aba de configuracoes, mostrar claramente:
-
-```text
-Plano: Starter
-Tipo: Cortesia (concedido em 05/02/2026)
-Motivo: "Parceiro estrategico"
-```
-
-### 5. Cards de Plano no Wizard
-Quando cortesia estiver marcada, exibir indicacao visual:
-
-```text
-+-------------------+
-|    Starter        |
-|  R$ 99/mes        |
-|   Cortesia        | <-- badge verde
-+-------------------+
-```
+Atualizar `organizacao.schema.ts` para incluir:
+- `cortesia: z.boolean().default(false)`
+- `cortesia_motivo: z.string().optional()`
+- Validacao refinada
 
 ---
 
-## Fluxo Visual
+## Parte 2: Sistema de Bloqueio de Organizacao
+
+### Conceito
+
+O Super Admin pode **revogar a cortesia** de uma organizacao. Quando isso acontece:
+
+1. A organizacao fica com status `bloqueada`
+2. Usuarios dessa organizacao veem uma **tela de bloqueio**
+3. Para desbloquear, precisam escolher um plano e pagar
+
+### Fluxo Visual
 
 ```text
-Super Admin seleciona "Starter (R$ 99/mes)"
-           |
-           v
-    +------------------------+
-    | Plano pago detectado   |
-    +------------------------+
-           |
-           v
-    [ ] Conceder como cortesia?
-           |
-     Sim   |   Nao
-     v     v    v
-  Badge   Assinatura
-"Cortesia" normal
+Super Admin revoga cortesia
+         |
+         v
+   +-----------------------+
+   | org.status = bloqueada|
+   +-----------------------+
+         |
+         v
+Usuario tenta acessar o sistema
+         |
+         v
+   +---------------------------+
+   | Tela de Bloqueio          |
+   | "Seu acesso foi suspenso" |
+   | [Ver Planos]              |
+   +---------------------------+
+         |
+         v
+   Pagina publica de planos
+         |
+         v
+   Checkout Stripe
+         |
+         v
+   Status volta para "ativa"
 ```
 
----
+### Banco de Dados
 
-## Arquivos a Modificar
+A tabela `assinaturas` ja possui campo `status`. Adicionar valor `bloqueada`:
 
-### Backend
-1. `supabase/migrations/` - Nova coluna
-2. `backend/src/services/organizacao.service.ts` - Salvar flag cortesia
-3. `backend/src/schemas/admin.ts` - Adicionar campo no schema
+```sql
+-- Status possiveis: ativa, cancelada, trial_expirado, bloqueada
+```
 
-### Frontend
-4. `src/modules/admin/schemas/organizacao.schema.ts` - Adicionar campos
-5. `src/modules/admin/components/wizard/Step2Expectativas.tsx` - Toggle de cortesia
-6. `src/modules/admin/pages/OrganizacoesPage.tsx` - Badge na listagem
-7. `src/modules/admin/components/OrganizacaoConfigTab.tsx` - Exibir info cortesia
-8. `src/integrations/supabase/types.ts` - Atualizar tipos
+### Arquivos a Modificar
 
----
+#### Frontend
+1. **`Step2Expectativas.tsx`** - Adicionar toggle de cortesia
+2. **`organizacao.schema.ts`** - Adicionar campos cortesia ao schema
+3. **`OrganizacaoConfigTab.tsx`** - Botao "Revogar Cortesia"
+4. **`BlockedPage.tsx`** (novo) - Tela de bloqueio
+5. **`AuthProvider.tsx`** - Verificar status da organizacao
 
-## Beneficios
-- **Clareza**: Fica explicito que a organizacao usa o plano sem pagar
-- **Auditoria**: Motivo registrado para compliance
-- **Gestao**: Super Admin pode filtrar organizacoes por "Cortesia" vs "Pago"
-- **Relatorios**: Diferenciar receita real de concessoes
+#### Backend
+6. **API** - Endpoint para revogar cortesia
 
 ---
 
-## Secao Tecnica
+## Detalhamento Tecnico
 
-### Schema Zod Atualizado
+### 1. Step2Expectativas.tsx (Toggle de Cortesia)
+
 ```typescript
-export const Step2ExpectativasSchema = z.object({
-  plano_id: z.string().min(1, 'Selecione um plano'),
-  cortesia: z.boolean().default(false),
-  cortesia_motivo: z.string().optional(),
-}).refine(
-  (data) => {
-    if (data.cortesia) {
-      return data.cortesia_motivo && data.cortesia_motivo.trim().length >= 3
-    }
-    return true
-  },
-  {
-    message: 'Informe o motivo da cortesia',
-    path: ['cortesia_motivo'],
-  }
-)
+// Apos grid de planos, adicionar:
+{selectedPlano && selectedPlano.preco_mensal > 0 && (
+  <div className="mt-6 p-4 bg-muted/50 rounded-lg border">
+    <label className="flex items-center gap-3 cursor-pointer">
+      <input
+        type="checkbox"
+        checked={cortesia}
+        onChange={(e) => {
+          setValue('cortesia', e.target.checked)
+          if (!e.target.checked) setValue('cortesia_motivo', '')
+        }}
+        className="toggle"
+      />
+      <div>
+        <span className="font-medium">Conceder como cortesia</span>
+        <p className="text-xs text-muted-foreground">
+          Organizacao usara o plano sem cobranca
+        </p>
+      </div>
+    </label>
+    
+    {cortesia && (
+      <textarea
+        placeholder="Motivo da cortesia (obrigatorio)"
+        {...register('cortesia_motivo')}
+        className="mt-3 w-full input"
+      />
+    )}
+  </div>
+)}
 ```
 
-### Interface Assinatura
+### 2. OrganizacaoConfigTab.tsx (Revogar Cortesia)
+
+Adicionar botao na secao de plano quando cortesia ativa:
+
 ```typescript
-interface Assinatura {
-  // ... campos existentes
-  cortesia: boolean
-  cortesia_motivo: string | null
+{org.cortesia && (
+  <button
+    onClick={handleRevogarCortesia}
+    className="btn-destructive-outline"
+  >
+    Revogar Cortesia
+  </button>
+)}
+```
+
+### 3. BlockedPage.tsx (Nova Pagina)
+
+Tela fullscreen exibida quando organizacao bloqueada:
+
+```text
++--------------------------------+
+|         [Logo CRM]             |
+|                                |
+|   Acesso Suspenso              |
+|                                |
+|   Sua organizacao foi          |
+|   bloqueada. Para continuar,   |
+|   escolha um plano.            |
+|                                |
+|   [Ver Planos Disponiveis]     |
+|                                |
++--------------------------------+
+```
+
+### 4. AuthProvider.tsx (Verificacao)
+
+No carregamento do usuario, verificar status:
+
+```typescript
+if (organizacao.status === 'bloqueada') {
+  navigate('/bloqueado')
 }
 ```
+
+---
+
+## Sequencia de Implementacao
+
+1. Atualizar schema Zod com campos cortesia
+2. Implementar toggle no Step2Expectativas
+3. Criar pagina BlockedPage
+4. Adicionar botao "Revogar Cortesia" na aba de config
+5. Implementar verificacao no AuthProvider
+6. Endpoint de revogacao no backend (se necessario)
+
+---
+
+## Resultado Final
+
+| Cenario | Comportamento |
+|---------|---------------|
+| Criar org com cortesia | Toggle + motivo no wizard |
+| Ver org com cortesia | Badge verde + motivo na config |
+| Revogar cortesia | Status vira "bloqueada" |
+| Usuario tenta acessar org bloqueada | Ve tela de bloqueio |
+| Usuario paga | Status volta "ativa" |
