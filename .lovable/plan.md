@@ -1,120 +1,146 @@
 
-# Plano: Máscara de Telefone + Normalização de Segmento
+# Plano: Corrigir Criacao de Organizacao - Erros de Validacao e Banco
 
-## Análise do Email
+## Problemas Identificados
 
-O sistema de email do Supabase Auth está **corretamente configurado**:
-- Linha 227 do `organizacao.service.ts` usa `supabaseAdmin.auth.admin.inviteUserByEmail()`
-- O SMTP é configurado no **Supabase Dashboard** > Authentication > Email Templates
-- Nenhuma modificação é necessária
+### 1. Erro 400 - Constraint de Status Incompativel
+
+**Causa Raiz**: A constraint `chk_status` no banco aceita apenas:
+- `'ativo'`, `'suspenso'`, `'cancelado'`
+
+Mas o codigo em `admin.api.ts` envia:
+- `'trial'` ou `'ativa'` ← **Valores invalidos!**
+
+```typescript
+// Linha 315 de admin.api.ts
+status: isTrial ? 'trial' : 'ativa',  // ERRADO
+```
+
+**Solucao**: Corrigir para enviar `'ativo'` (singular) em vez de `'ativa'` ou `'trial'`.
 
 ---
 
-## Implementações Aprovadas
+### 2. Validacoes Prematuras na Etapa Admin
 
-### 1. Máscara de Telefone no Step3Admin
+**Causa Raiz**: Quando o formulario carrega, React Hook Form valida todos os campos. Como `admin_nome`, `admin_sobrenome` e `admin_email` iniciam vazios, os erros aparecem imediatamente.
 
-**Arquivo:** `src/modules/admin/components/wizard/Step3Admin.tsx`
+**Solucao**: O modal ja usa `mode: 'onBlur'`, que deveria evitar isso. O problema e que o Zod valida campos obrigatorios mesmo sem interacao. Precisamos:
+1. Mudar para `mode: 'onChange'` ou manter `onBlur`
+2. Ajustar campos com valores default validos ou usar `criteriaMode: 'firstError'`
 
-Adicionar import e handler similar ao Step1Empresa:
+Analise detalhada: O formulario ja tem `mode: 'onBlur'` (linha 57), entao os erros so deveriam aparecer apos blur. **O problema real** e que quando navegamos para a Etapa 3, pode haver revalidacao automatica. Vou verificar se ha `trigger()` sendo chamado incorretamente.
 
-```typescript
-// Adicionar import
-import { formatTelefone } from '@/lib/formatters'
-
-// Adicionar setValue no useFormContext
-const {
-  register,
-  control,
-  setValue,  // <-- adicionar
-  formState: { errors },
-} = useFormContext<CriarOrganizacaoData>()
-
-// Adicionar handler
-const handleTelefoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  const formatted = formatTelefone(e.target.value)
-  setValue('admin_telefone', formatted)
-}
-
-// No input de telefone (linha ~88-92):
-<input
-  type="tel"
-  {...register('admin_telefone', { onChange: handleTelefoneChange })}
-  placeholder="(11) 99999-9999"
-  maxLength={15}
-  className="..."
-/>
-```
+Na verdade, revisando o codigo: nao ha trigger da etapa 3 ate clicar em "Criar Empresa". O problema pode ser causado pela montagem do componente com valores vazios + algum efeito de re-render.
 
 ---
 
-### 2. Normalização de Segmento Outro
+### 3. Constraint de Plano vs Nome Real
 
-**Arquivo:** `src/lib/formatters.ts`
+**Constraint aceita**: `'trial'`, `'starter'`, `'pro'`, `'enterprise'`
+**Planos no banco**: `Trial`, `Starter`, `Pro`, `Enterprise` (com maiuscula)
 
-Adicionar nova função após `unformatCep`:
-
+O codigo converte para lowercase na linha 301:
 ```typescript
-/**
- * Normaliza texto removendo acentos e padronizando capitalização
- * Usado para evitar duplicatas em segmentos customizados
- * Ex: "marketing DIGITAL" -> "Marketing Digital"
- * Ex: "consultória" -> "Consultoria"
- */
-export function normalizeSegmento(value: string): string {
-  if (!value) return ''
-  // Remove acentos usando normalização NFD
-  const semAcento = value.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-  // Capitaliza cada palavra
-  return semAcento
-    .toLowerCase()
-    .trim()
-    .split(/\s+/)
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ')
-}
+const planoNome = plano.nome.toLowerCase()  // 'Trial' -> 'trial'
 ```
 
-**Arquivo:** `src/modules/admin/components/wizard/Step1Empresa.tsx`
-
-Aplicar normalização no `onBlur` do campo:
-
-```typescript
-// Adicionar import
-import { formatTelefone, formatCep, normalizeSegmento } from '@/lib/formatters'
-
-// Adicionar handler
-const handleSegmentoOutroBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-  const normalized = normalizeSegmento(e.target.value)
-  setValue('segmento_outro', normalized)
-}
-
-// No input de segmento_outro (linha ~93-98):
-<input
-  type="text"
-  {...register('segmento_outro')}
-  onBlur={handleSegmentoOutroBlur}  // <-- adicionar
-  placeholder="Ex: Consultoria Ambiental"
-  className="..."
-/>
-```
+Isso esta correto, mas `'starter'` precisa ser verificado.
 
 ---
 
-## Resumo de Arquivos
+## Arquivos a Modificar
 
-| Arquivo | Mudança |
+| Arquivo | Mudanca |
 |---------|---------|
-| `src/lib/formatters.ts` | Adicionar função `normalizeSegmento()` |
-| `src/modules/admin/components/wizard/Step1Empresa.tsx` | Adicionar handler `onBlur` no campo segmento_outro |
-| `src/modules/admin/components/wizard/Step3Admin.tsx` | Adicionar máscara de telefone com `formatTelefone` |
+| `admin.api.ts` | Corrigir status para `'ativo'` |
+| `NovaOrganizacaoModal.tsx` | Evitar validacao prematura - usar `reValidateMode: 'onSubmit'` |
+
+---
+
+## Mudancas Detalhadas
+
+### 1. `src/modules/admin/services/admin.api.ts`
+
+**Linha 315**: Alterar de:
+```typescript
+status: isTrial ? 'trial' : 'ativa',
+```
+
+Para:
+```typescript
+status: 'ativo',  // Constraint aceita: ativo, suspenso, cancelado
+```
+
+**Nota**: O status `trial` e `ativa` nao existem na constraint. Todas as organizacoes iniciam como `'ativo'`. O conceito de "trial" deve ser gerenciado pela tabela `assinaturas` ou por outra logica, nao pelo status da organizacao.
+
+---
+
+### 2. `src/modules/admin/components/NovaOrganizacaoModal.tsx`
+
+Ajustar configuracao do formulario para evitar validacao prematura:
+
+**Linha 40-58**: Alterar de:
+```typescript
+const methods = useForm<CriarOrganizacaoData>({
+  resolver: zodResolver(CriarOrganizacaoSchema),
+  defaultValues: { ... },
+  mode: 'onBlur',
+})
+```
+
+Para:
+```typescript
+const methods = useForm<CriarOrganizacaoData>({
+  resolver: zodResolver(CriarOrganizacaoSchema),
+  defaultValues: { ... },
+  mode: 'onBlur',
+  reValidateMode: 'onBlur',  // Evita revalidar ao renderizar
+  criteriaMode: 'firstError', // Mostra apenas primeiro erro
+})
+```
+
+**Alternativa mais efetiva**: Se ainda aparecer erros, usar `shouldUnregister: true` para limpar campos ao desmontar steps.
+
+---
+
+### 3. Opcao B: Atualizar Constraint do Banco (Mais Abrangente)
+
+Se for desejavel manter os valores `'trial'` e `'ativa'` no codigo, a alternativa e atualizar a constraint:
+
+```sql
+ALTER TABLE organizacoes_saas 
+DROP CONSTRAINT chk_status;
+
+ALTER TABLE organizacoes_saas
+ADD CONSTRAINT chk_status CHECK (
+  status IN ('ativo', 'ativa', 'suspenso', 'suspensa', 'cancelado', 'cancelada', 'trial')
+);
+```
+
+**Recomendacao**: Prefiro a Opcao 1 (corrigir o codigo) pois mantem a constraint original limpa.
+
+---
+
+## Resumo da Correcao
+
+1. **Status**: Mudar `'ativa'`/`'trial'` → `'ativo'` no insert
+2. **Validacao**: Adicionar `reValidateMode: 'onBlur'` no formulario
+3. **Testar**: Criar organizacao completa com todos os passos
+
+---
+
+## Sequencia de Implementacao
+
+1. Corrigir status em `admin.api.ts`
+2. Ajustar configuracao do form em `NovaOrganizacaoModal.tsx`
+3. Testar fluxo completo de criacao
 
 ---
 
 ## Resultado Esperado
 
-| Campo | Comportamento |
-|-------|---------------|
-| Telefone Admin | Formata automaticamente: `(11) 99999-9999` |
-| Segmento Outro | Ao sair do campo, normaliza: `"marketing digital"` → `"Marketing Digital"` |
-| Email de Convite | Continua usando Supabase Auth (já funciona) |
+| Antes | Depois |
+|-------|--------|
+| Erro 400 ao criar | Insert bem-sucedido |
+| Validacoes aparecem ao entrar na aba Admin | Validacoes so aparecem apos interacao |
+| Status invalido `'ativa'` | Status valido `'ativo'` |
