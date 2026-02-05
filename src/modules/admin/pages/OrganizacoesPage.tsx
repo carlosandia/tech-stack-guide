@@ -302,14 +302,14 @@ function OrganizacaoRow({
     <tr className="hover:bg-accent/50">
       <td className="px-6 py-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-muted rounded-lg flex items-center justify-center">
+          <div className="w-10 h-10 bg-muted rounded-lg flex items-center justify-center flex-shrink-0">
             <span className="text-lg font-semibold text-muted-foreground">
               {getInitial(org.nome)}
             </span>
           </div>
-          <div>
+          <div className="flex flex-col justify-center">
             <p className="font-medium text-foreground">{org.nome}</p>
-            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[org.status]}`}>
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium w-fit ${statusColors[org.status]}`}>
               {statusLabels[org.status]}
             </span>
           </div>
