@@ -1,160 +1,72 @@
 
-# Plano: Cortesia com Duracao Temporizada
 
-## Resumo
+## Plano: Checkout Dinâmico com price_data (sem criar produtos no Stripe)
 
-Adicionar ao sistema de cortesia a opcao de definir **duracao em meses** (ex: 2, 3, 6 meses) ou **Permanente**. Quando o tempo expirar, a organizacao sera bloqueada automaticamente, exigindo que o tenant escolha um plano pago para continuar usando o sistema.
+### Problema Atual
+Os Price IDs armazenados no banco de dados nao existem na conta Stripe conectada, causando erro `No such price`. Alem disso, o fluxo atual exige que o admin crie manualmente os produtos no Stripe Dashboard e copie os Price IDs -- um processo propenso a erros.
 
----
+### Solucao Proposta
+Modificar a Edge Function `create-checkout-session` para usar `price_data` em vez de `price` (Price ID pre-configurado). O Stripe permite criar precos dinamicamente no momento do checkout usando os dados do plano do banco de dados (nome, valor, periodo).
 
-## 1. Alteracao no Banco de Dados
+Isso elimina completamente a necessidade de:
+- Criar produtos manualmente no Stripe Dashboard
+- Copiar e colar Price IDs
+- Manter sincronia entre banco e Stripe
 
-Adicionar 3 novas colunas na tabela `assinaturas`:
+### Como Funciona
 
-| Coluna | Tipo | Default | Descricao |
-|--------|------|---------|-----------|
-| `cortesia_duracao_meses` | `integer` | `NULL` | Quantidade de meses. NULL = permanente |
-| `cortesia_inicio` | `timestamptz` | `NULL` | Data de inicio da cortesia |
-| `cortesia_fim` | `timestamptz` | `NULL` | Data calculada de expiracao. NULL = permanente |
-
-Criar uma **Database Function** `verificar_cortesias_expiradas()` que:
-- Busca assinaturas onde `cortesia = true` AND `cortesia_fim IS NOT NULL` AND `cortesia_fim < NOW()`
-- Atualiza o status da assinatura para `bloqueada`
-- Atualiza o status da organizacao correspondente para `suspensa`
-
-Criar um **pg_cron job** (ou orientar o Super Admin a configurar) para executar a funcao diariamente.
-
----
-
-## 2. Alteracao na UI - Step2Expectativas
-
-Quando o checkbox "Conceder como cortesia" estiver marcado, exibir abaixo do motivo:
-
-**Novo campo: "Duracao da cortesia"**
-- Select/dropdown com as opcoes:
-  - `1 mes`
-  - `2 meses`
-  - `3 meses`
-  - `6 meses`
-  - `12 meses`
-  - `Permanente` (valor especial = sem fim)
-- Default: `Permanente`
-- Seguindo Design System: `text-sm`, `rounded-md`, `border-input`, tokens semanticos
-
-Layout visual (dentro do bloco de cortesia existente):
-
+Em vez de:
 ```text
-+---------------------------------------------------+
-| [x] Conceder como cortesia                        |
-|     A organizacao usara o plano sem cobranca       |
-|                                                    |
-|   [ Motivo da cortesia (obrigatorio)            ]  |
-|                                                    |
-|   Duracao da cortesia *                            |
-|   [ Permanente               v ]                   |
-+---------------------------------------------------+
+line_items: [{ price: "price_1ABC123...", quantity: 1 }]
 ```
 
----
-
-## 3. Alteracao nos Schemas (Zod)
-
-Adicionar ao `Step2ExpectativasSchema` e `CriarOrganizacaoSchema`:
-- `cortesia_duracao_meses`: `z.number().int().positive().nullable().default(null)` -- null = permanente
-
-Adicionar validacao: se cortesia ativa, duracao deve ser selecionada (ou ser permanente).
-
----
-
-## 4. Alteracao na API de Criacao
-
-No `criarOrganizacao()` em `admin.api.ts`:
-- Ao inserir na tabela `assinaturas`, calcular `cortesia_inicio` e `cortesia_fim`:
-  - `cortesia_inicio` = data atual
-  - `cortesia_fim` = se `duracao_meses` for null (permanente), gravar null; caso contrario, calcular `data atual + N meses`
-
----
-
-## 5. Fluxo de Expiracao e Bloqueio
-
-O fluxo ja existente de bloqueio (`useBlockedRedirect` + `BlockedPage`) sera reutilizado:
-
-1. O pg_cron executa diariamente `verificar_cortesias_expiradas()`
-2. Assinaturas com cortesia expirada recebem status `bloqueada`
-3. Organizacao recebe status `suspensa`
-4. O hook `useBlockedRedirect` ja detecta `org_status === 'bloqueada'` e redireciona
-5. O usuario ve a `BlockedPage` com opcao de escolher plano e cartao de credito
-
----
-
-## 6. Arquivos a Modificar
-
-| Arquivo | Alteracao |
-|---------|-----------|
-| `supabase/migrations/` | Nova migration: colunas + funcao + cron |
-| `src/modules/admin/schemas/organizacao.schema.ts` | Novo campo `cortesia_duracao_meses` nos schemas |
-| `src/modules/admin/components/wizard/Step2Expectativas.tsx` | Dropdown de duracao |
-| `src/modules/admin/services/admin.api.ts` | Payload e calculo de datas na criacao |
-| `src/modules/admin/components/NovaOrganizacaoModal.tsx` | Default value do novo campo |
-
----
-
-## 7. Detalhes Tecnicos
-
-### Migration SQL
-
-```sql
--- Novas colunas
-ALTER TABLE assinaturas 
-  ADD COLUMN cortesia_duracao_meses integer,
-  ADD COLUMN cortesia_inicio timestamptz,
-  ADD COLUMN cortesia_fim timestamptz;
-
--- Funcao de verificacao
-CREATE OR REPLACE FUNCTION verificar_cortesias_expiradas()
-RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
-BEGIN
-  -- Buscar assinaturas com cortesia expirada
-  UPDATE assinaturas 
-  SET status = 'bloqueada', cortesia = false
-  WHERE cortesia = true 
-    AND cortesia_fim IS NOT NULL 
-    AND cortesia_fim < NOW()
-    AND status != 'bloqueada';
-
-  -- Atualizar organizacoes correspondentes
-  UPDATE organizacoes_saas 
-  SET status = 'suspensa'
-  WHERE id IN (
-    SELECT organizacao_id FROM assinaturas 
-    WHERE cortesia_fim IS NOT NULL 
-      AND cortesia_fim < NOW() 
-      AND status = 'bloqueada'
-  )
-  AND status != 'suspensa';
-END;
-$$;
-
--- Configurar pg_cron (executar 1x por dia a meia-noite)
-SELECT cron.schedule(
-  'verificar-cortesias-expiradas',
-  '0 0 * * *',
-  'SELECT verificar_cortesias_expiradas()'
-);
+Passamos:
+```text
+line_items: [{
+  price_data: {
+    currency: 'brl',
+    product_data: { name: 'Starter - Mensal' },
+    unit_amount: 9900,  // R$ 99,00 em centavos
+    recurring: { interval: 'month' }
+  },
+  quantity: 1
+}]
 ```
 
-### Calculo de data no frontend
+### Arquivos Alterados
 
-```typescript
-// cortesia_duracao_meses = null -> permanente
-// cortesia_duracao_meses = 3 -> 3 meses a partir de agora
-const agora = new Date()
-const cortesiaInicio = agora.toISOString()
-const cortesiaFim = payload.cortesia_duracao_meses 
-  ? new Date(agora.setMonth(agora.getMonth() + payload.cortesia_duracao_meses)).toISOString()
-  : null
-```
+**1. `supabase/functions/create-checkout-session/index.ts`**
+- Remover logica de buscar `stripe_price_id_mensal/anual`
+- Buscar dados completos do plano (nome, preco_mensal, preco_anual, moeda)
+- Construir `price_data` dinamicamente com `product_data`, `unit_amount` (em centavos) e `recurring.interval`
+- Para periodo mensal: `interval: 'month'`, `unit_amount: preco_mensal * 100`
+- Para periodo anual: `interval: 'year'`, `unit_amount: preco_anual * 100`
+- Melhorar logs para debug
 
-### Nota sobre pg_cron
+**2. `src/modules/admin/components/PlanoFormModal.tsx`**
+- Tornar os campos de Stripe Price ID opcionais/informativos
+- Adicionar nota explicando que os produtos sao criados automaticamente no Stripe
 
-O `pg_cron` precisa estar habilitado no Supabase (disponivel no plano Pro+). Se nao estiver disponivel, uma alternativa seria criar uma Edge Function agendada via Supabase Cron ou verificar a expiracao no momento do login do usuario.
+**3. Sem necessidade de alterar:**
+- `stripe-webhook/index.ts` -- ja funciona com metadata (plano_id, periodo)
+- `get-checkout-session/index.ts` -- ja funciona com metadata da sessao
+- Tabela `planos` -- campos `stripe_price_id_*` continuam existindo mas nao sao mais obrigatorios
+
+### Detalhes Tecnicos
+
+**Conversao de preco para centavos:**
+O Stripe exige `unit_amount` em centavos. `R$ 99,00` vira `9900`.
+
+**Campos do price_data:**
+- `currency`: vem da coluna `moeda` do plano (default 'brl')
+- `product_data.name`: nome do plano + periodo (ex: "Starter - Mensal")
+- `unit_amount`: preco em centavos
+- `recurring.interval`: 'month' ou 'year'
+
+**Validacoes adicionadas:**
+- Se o preco for 0 ou null para o periodo selecionado, retorna erro claro
+- Se o plano nao existir, retorna erro claro
+
+**Nota sobre produtos duplicados no Stripe:**
+Cada checkout criara um novo produto "ad-hoc" no Stripe. Isso e normal e funcional. Se no futuro quiser consolidar, pode-se adicionar logica para reusar produtos existentes pelo nome.
+
