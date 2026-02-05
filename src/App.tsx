@@ -81,9 +81,35 @@ function App() {
        <Route path="/auth/set-password" element={<SetPasswordPage />} />
 
       {/* Rotas do CRM (Admin/Member) */}
-      <Route path="/app/*" element={
+      <Route path="/app" element={
         isAuthenticated ? <DashboardPage /> : <Navigate to="/login" replace />
       } />
+
+      {/* Configuracoes - PRD-05 (Admin e Member) */}
+      <Route
+        path="/app/configuracoes"
+        element={
+          isAuthenticated && (role === 'admin' || role === 'member')
+            ? <ConfiguracoesLayout />
+            : <Navigate to="/login" replace />
+        }
+      >
+        <Route index element={<Navigate to="campos" replace />} />
+        <Route path="campos" element={<CamposPage />} />
+        <Route path="produtos" element={<StubPage titulo="Produtos e Categorias" />} />
+        <Route path="motivos" element={<StubPage titulo="Motivos de Resultado" />} />
+        <Route path="tarefas-templates" element={<StubPage titulo="Templates de Tarefas" />} />
+        <Route path="etapas-templates" element={<StubPage titulo="Templates de Etapas" />} />
+        <Route path="regras" element={<StubPage titulo="Regras de Qualificação" />} />
+        <Route path="cards" element={<StubPage titulo="Personalização de Cards" />} />
+        <Route path="conexoes" element={<StubPage titulo="Conexões" />} />
+        <Route path="webhooks-entrada" element={<StubPage titulo="Webhooks de Entrada" />} />
+        <Route path="webhooks-saida" element={<StubPage titulo="Webhooks de Saída" />} />
+        <Route path="membros" element={<StubPage titulo="Membros da Equipe" />} />
+        <Route path="perfis" element={<StubPage titulo="Perfis de Permissão" />} />
+        <Route path="metas" element={<StubPage titulo="Metas" />} />
+        <Route path="config-geral" element={<StubPage titulo="Configurações Gerais" />} />
+      </Route>
 
       {/* Rotas Super Admin */}
       <Route
