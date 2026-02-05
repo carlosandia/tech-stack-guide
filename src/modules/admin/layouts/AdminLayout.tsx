@@ -222,25 +222,20 @@ function AdminLayoutInner() {
           </div>
 
           {/* Right: Badge + User Menu */}
-          <div className="flex items-center gap-3">
-            {/* Badge Super Admin */}
-            <span className="hidden sm:inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary">
-              Super Admin
-            </span>
-
-            {/* User menu */}
+          <div className="flex items-center">
+            {/* User menu unificado */}
             <div className="relative">
               <button
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
-                className="flex items-center gap-2 p-2 hover:bg-gray-100/70 rounded-md"
+                className="flex items-center gap-2 p-2 hover:bg-gray-100/70 rounded-md transition-all duration-200"
               >
                 <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
                   <span className="text-sm font-medium text-gray-600">
-                    {user?.email?.[0]?.toUpperCase() || 'U'}
+                    {user?.nome?.[0]?.toUpperCase() || 'U'}
                   </span>
                 </div>
                 <span className="hidden sm:block text-sm font-medium text-gray-700 max-w-[150px] truncate">
-                  {user?.email}
+                  {user?.nome || 'Usuário'}
                 </span>
                 <ChevronDown className="w-4 h-4 text-gray-500" />
               </button>
@@ -254,10 +249,15 @@ function AdminLayoutInner() {
                   />
                   <div className="absolute right-0 mt-1 w-56 bg-white/95 backdrop-blur-md rounded-md shadow-lg border border-gray-200/60 py-1 z-50">
                     <div className="px-3 py-2 border-b border-gray-200/60">
-                      <p className="text-sm font-medium text-gray-800 truncate">
-                        {user?.email}
+                    <p className="text-sm font-medium text-gray-800">
+                      {user?.nome || 'Usuário'}
                       </p>
-                      <p className="text-xs text-gray-500">Super Admin</p>
+                    <p className="text-xs text-gray-500 truncate">
+                      {user?.email}
+                    </p>
+                    <span className="inline-flex items-center mt-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
+                      Super Admin
+                    </span>
                     </div>
                     <button
                       onClick={handleLogout}
