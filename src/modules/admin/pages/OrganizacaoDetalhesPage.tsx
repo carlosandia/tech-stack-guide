@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, MoreVertical, Users, BarChart3, Settings, Pause, Play, ExternalLink } from 'lucide-react'
+import { ArrowLeft, MoreVertical, Building2, Users, BarChart3, Settings, Pause, Play, ExternalLink } from 'lucide-react'
 import {
   useOrganizacao,
   useSuspenderOrganizacao,
   useReativarOrganizacao,
   useImpersonarOrganizacao,
 } from '../hooks/useOrganizacoes'
+import { OrganizacaoDadosTab } from '../components/OrganizacaoDadosTab'
 import { OrganizacaoUsuariosTab } from '../components/OrganizacaoUsuariosTab'
 import { OrganizacaoRelatoriosTab } from '../components/OrganizacaoRelatoriosTab'
 import { OrganizacaoConfigTab } from '../components/OrganizacaoConfigTab'
@@ -35,9 +36,10 @@ const statusLabels: Record<string, string> = {
   cancelada: 'Cancelada',
 }
 
-type TabId = 'usuarios' | 'relatorios' | 'configuracoes'
+type TabId = 'dados' | 'usuarios' | 'relatorios' | 'configuracoes'
 
 const TABS = [
+  { id: 'dados' as const, label: 'Dados', icon: Building2 },
   { id: 'usuarios' as const, label: 'Usuarios', icon: Users },
   { id: 'relatorios' as const, label: 'Relatorios', icon: BarChart3 },
   { id: 'configuracoes' as const, label: 'Configuracoes', icon: Settings },
@@ -46,7 +48,7 @@ const TABS = [
 export function OrganizacaoDetalhesPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState<TabId>('usuarios')
+  const [activeTab, setActiveTab] = useState<TabId>('dados')
   const [menuAberto, setMenuAberto] = useState(false)
   const [impersonando, setImpersonando] = useState(false)
 
@@ -220,6 +222,7 @@ export function OrganizacaoDetalhesPage() {
 
       {/* Tab Content */}
       <div>
+        {activeTab === 'dados' && <OrganizacaoDadosTab orgId={id || ''} org={org} />}
         {activeTab === 'usuarios' && <OrganizacaoUsuariosTab orgId={id || ''} />}
         {activeTab === 'relatorios' && <OrganizacaoRelatoriosTab orgId={id || ''} />}
         {activeTab === 'configuracoes' && <OrganizacaoConfigTab orgId={id || ''} org={org} />}
