@@ -4,17 +4,18 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Link } from 'react-router-dom'
 import { Loader2, ArrowLeft, CheckCircle } from 'lucide-react'
-import { authApi } from '../services/auth.api'
+import { supabase } from '@/lib/supabase'
 
 /**
  * AIDEV-NOTE: Pagina de Recuperacao de Senha
  * Conforme PRD-03 - Interface de Login (RF-022)
  * Rota: /recuperar-senha
+ * Chama edge function send-password-reset que envia via SMTP configurado
  * SEMPRE retorna mensagem de sucesso para nao revelar se email existe
  */
 
 const forgotPasswordSchema = z.object({
-  email: z.string().email('Informe um e-mail valido'),
+  email: z.string().email('Informe um e-mail válido'),
 })
 
 type ForgotPasswordFormData = z.infer<typeof forgotPasswordSchema>
@@ -35,9 +36,25 @@ export function ForgotPasswordPage() {
     setIsLoading(true)
 
     try {
-      await authApi.forgotPassword({ email: data.email })
+      // Chama edge function que envia email via SMTP configurado
+      const session = await supabase.auth.getSession()
+      const accessToken = session.data.session?.access_token
+
+      await fetch(
+        'https://ybzhlsalbnxwkfszkloa.supabase.co/functions/v1/send-password-reset',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {}),
+            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inliemhsc2FsYm54d2tmc3prbG9hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMDExNzAsImV4cCI6MjA4NTc3NzE3MH0.NyxN8T0XCpnFSF_-0grGGcvhSbwOif0qxxlC_PshA9M',
+          },
+          body: JSON.stringify({ email: data.email }),
+        }
+      )
     } catch (err) {
       // Ignora erro - sempre mostra sucesso
+      console.error('Erro ao solicitar recuperação:', err)
     } finally {
       setIsLoading(false)
       setIsSuccess(true)
@@ -45,33 +62,33 @@ export function ForgotPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 px-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-background to-muted px-4">
       {/* Logo */}
-      <div className="mb-8">
+      <div className="mb-8 text-center">
         <img
           src="/logo.svg"
           alt="CRM Renove"
-          className="h-14"
+          className="h-14 mx-auto"
           onError={(e) => {
             e.currentTarget.style.display = 'none'
           }}
         />
-        <h1 className="text-3xl font-bold text-gray-900 mt-2">
+        <h1 className="text-3xl font-bold text-foreground mt-2">
           CRM Renove
         </h1>
       </div>
 
       {/* Card */}
-      <div className="w-full max-w-md bg-white rounded-lg shadow-md p-8">
+      <div className="w-full max-w-md bg-card rounded-lg shadow-md border border-border p-8">
         {isSuccess ? (
           // Tela de sucesso
           <div className="text-center space-y-4">
             <CheckCircle className="h-16 w-16 text-green-500 mx-auto" />
-            <h2 className="text-xl font-semibold text-gray-900">
+            <h2 className="text-xl font-semibold text-foreground">
               Verifique seu e-mail
             </h2>
-            <p className="text-gray-600">
-              Se o e-mail existir em nosso sistema, enviaremos um link de recuperacao.
+            <p className="text-muted-foreground">
+              Se o e-mail existir em nosso sistema, enviaremos um link de recuperação.
             </p>
             <Link
               to="/login"
@@ -85,17 +102,17 @@ export function ForgotPasswordPage() {
           // Formulario
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             <div className="text-center">
-              <h2 className="text-2xl font-semibold text-gray-900">
+              <h2 className="text-2xl font-semibold text-foreground">
                 Recuperar Senha
               </h2>
-              <p className="text-sm text-gray-600 mt-2">
-                Informe seu e-mail cadastrado para receber o link de recuperacao.
+              <p className="text-sm text-muted-foreground mt-2">
+                Informe seu e-mail cadastrado para receber o link de recuperação.
               </p>
             </div>
 
             {/* Campo Email */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="email" className="block text-sm font-medium text-foreground mb-1">
                 E-mail *
               </label>
               <input
@@ -103,16 +120,17 @@ export function ForgotPasswordPage() {
                 type="email"
                 autoComplete="email"
                 placeholder="seu@email.com"
-              {...register('email')}
-              className={`
-                w-full h-11 px-3 border rounded-md
-                focus:outline-none focus:ring-2 focus:ring-primary
-                ${errors.email ? 'border-red-500' : 'border-gray-300'}
-              `}
+                {...register('email')}
+                className={`
+                  w-full h-11 px-3 border rounded-md bg-background text-foreground
+                  placeholder:text-muted-foreground
+                  focus:outline-none focus:ring-2 focus:ring-ring
+                  ${errors.email ? 'border-destructive' : 'border-input'}
+                `}
                 disabled={isLoading}
               />
               {errors.email && (
-                <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
+                <p className="mt-1 text-sm text-destructive">{errors.email.message}</p>
               )}
             </div>
 
@@ -132,7 +150,7 @@ export function ForgotPasswordPage() {
                   Enviando...
                 </>
               ) : (
-                'Enviar link de recuperacao'
+                'Enviar link de recuperação'
               )}
             </button>
 
