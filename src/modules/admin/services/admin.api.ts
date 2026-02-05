@@ -627,6 +627,31 @@ export async function atualizarPlano(id: string, plano: Partial<Plano>): Promise
   if (error) throw new Error(error.message)
 }
 
+export async function excluirPlano(id: string): Promise<void> {
+  // Verificar se há organizações usando este plano
+  const { count, error: countError } = await supabase
+    .from('organizacoes_saas')
+    .select('*', { count: 'exact', head: true })
+    .eq('plano', id)
+
+  if (countError) throw new Error(countError.message)
+
+  if (count && count > 0) {
+    throw new Error(`Não é possível excluir: ${count} organizações usam este plano`)
+  }
+
+  // Remover módulos vinculados ao plano
+  await supabase.from('planos_modulos').delete().eq('plano_id', id)
+
+  // Excluir o plano
+  const { error } = await supabase
+    .from('planos')
+    .delete()
+    .eq('id', id)
+
+  if (error) throw new Error(error.message)
+}
+
 export async function definirModulosPlano(
   planoId: string,
   modulos: Array<{ modulo_id: string; configuracoes?: Record<string, unknown> }>
@@ -860,6 +885,7 @@ export const adminApi = {
   obterPlano,
   criarPlano,
   atualizarPlano,
+  excluirPlano,
   definirModulosPlano,
   // Modulos
   listarModulos,
