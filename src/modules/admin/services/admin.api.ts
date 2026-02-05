@@ -80,6 +80,7 @@ export interface Plano {
   ativo: boolean
   visivel: boolean
   ordem: number
+  popular: boolean
 }
 
 export interface Modulo {
@@ -545,6 +546,7 @@ export async function listarPlanos(): Promise<Plano[]> {
     ativo: p.ativo ?? true,
     visivel: p.visivel ?? true,
     ordem: p.ordem ?? 0,
+    popular: p.popular ?? false,
   }))
 }
 
@@ -600,6 +602,7 @@ export async function obterPlano(id: string): Promise<Plano & { modulos: Modulo[
     ativo: data.ativo ?? true,
     visivel: data.visivel ?? true,
     ordem: data.ordem ?? 0,
+    popular: data.popular ?? false,
     modulos,
   }
 }
