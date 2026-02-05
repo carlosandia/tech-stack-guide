@@ -387,9 +387,9 @@ function getCamposPorPlataforma(plataforma: PlataformaId): CampoConfig[] {
       ]
      case 'stripe':
        return [
-         { name: 'publishable_key', label: 'Publishable Key', placeholder: 'pk_live_...', required: true, section: 'main' },
-         { name: 'secret_key', label: 'Secret Key', placeholder: 'sk_live_...', secret: true, required: true, hint: 'Armazenada como secret no Supabase', section: 'main' },
-         { name: 'webhook_secret', label: 'Webhook Secret', placeholder: 'whsec_...', secret: true, section: 'main' },
+         { name: 'public_key', label: 'Publishable Key', placeholder: 'pk_live_...', required: true, section: 'main' },
+         { name: 'secret_key_encrypted', label: 'Secret Key', placeholder: 'sk_live_...', secret: true, required: true, hint: 'Armazenada como secret no Supabase', section: 'main' },
+         { name: 'webhook_secret_encrypted', label: 'Webhook Secret', placeholder: 'whsec_...', secret: true, section: 'main' },
          { name: 'trial_habilitado', label: 'Permitir Trial', placeholder: '', type: 'toggle', hint: 'Novos usuários podem iniciar período de teste gratuito', section: 'trial' },
          { name: 'trial_dias', label: 'Dias de Trial', placeholder: '14', type: 'number', hint: 'Duração do período de trial (1-365 dias)', section: 'trial' },
        ]
