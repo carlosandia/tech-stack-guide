@@ -408,7 +408,7 @@ interface PlanoDb {
                        <span className="text-3xl font-bold text-foreground">
                          {formatPrice(price)}
                        </span>
-                       <span className="text-sm text-muted-foreground">/mes</span>
+                       <span className="text-sm text-muted-foreground">/{periodo === 'anual' ? 'ano' : 'mes'}</span>
                      </div>
                      {periodo === 'anual' && plano.preco_mensal && plano.preco_anual && plano.preco_mensal > plano.preco_anual && (
                        <p className="text-sm text-primary mt-1">
