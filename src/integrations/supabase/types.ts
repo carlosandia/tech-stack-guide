@@ -3925,6 +3925,7 @@ export type Database = {
           moeda: string | null
           nome: string
           ordem: number | null
+          popular: boolean | null
           preco_anual: number | null
           preco_mensal: number | null
           stripe_price_id_anual: string | null
@@ -3944,6 +3945,7 @@ export type Database = {
           moeda?: string | null
           nome: string
           ordem?: number | null
+          popular?: boolean | null
           preco_anual?: number | null
           preco_mensal?: number | null
           stripe_price_id_anual?: string | null
@@ -3963,6 +3965,7 @@ export type Database = {
           moeda?: string | null
           nome?: string
           ordem?: number | null
+          popular?: boolean | null
           preco_anual?: number | null
           preco_mensal?: number | null
           stripe_price_id_anual?: string | null

@@ -11,20 +11,21 @@
   * Acessivel sem autenticacao
   */
  
- interface PlanoDb {
-   id: string
-   nome: string
-   descricao: string | null
-   preco_mensal: number | null
-   preco_anual: number | null
-   limite_usuarios: number | null
-   limite_oportunidades: number | null
-   limite_storage_mb: number | null
-   stripe_price_id_mensal: string | null
-   stripe_price_id_anual: string | null
-   ativo: boolean | null
-   ordem: number | null
- }
+interface PlanoDb {
+  id: string
+  nome: string
+  descricao: string | null
+  preco_mensal: number | null
+  preco_anual: number | null
+  limite_usuarios: number | null
+  limite_oportunidades: number | null
+  limite_storage_mb: number | null
+  stripe_price_id_mensal: string | null
+  stripe_price_id_anual: string | null
+  ativo: boolean | null
+  ordem: number | null
+  popular: boolean | null
+}
  
  interface TrialConfig {
    trial_habilitado: boolean
@@ -260,30 +261,51 @@
                : 'Escolha o plano que melhor se adapta as suas necessidades.'}
            </p>
  
-           {/* Toggle Periodo */}
-           <div className="inline-flex items-center gap-3 p-1 bg-muted rounded-lg">
-             <button
-               onClick={() => setPeriodo('mensal')}
-               className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                 periodo === 'mensal'
-                   ? 'bg-background text-foreground shadow-sm'
-                   : 'text-muted-foreground hover:text-foreground'
-               }`}
-             >
-               Mensal
-             </button>
-             <button
-               onClick={() => setPeriodo('anual')}
-               className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                 periodo === 'anual'
-                   ? 'bg-background text-foreground shadow-sm'
-                   : 'text-muted-foreground hover:text-foreground'
-               }`}
-             >
-               Anual
-                 <span className="ml-1.5 text-xs font-semibold text-primary">-20%</span>
-             </button>
-           </div>
+          {/* Toggle Periodo */}
+          {(() => {
+            // Calcular desconto médio real dos planos
+            const planosComAnual = planos.filter(p => 
+              p.preco_mensal && p.preco_mensal > 0 && 
+              p.preco_anual && p.preco_anual > 0
+            )
+            const descontoMedio = planosComAnual.length > 0
+              ? Math.round(
+                  planosComAnual.reduce((acc, p) => {
+                    const mensalAnualizado = (p.preco_mensal ?? 0) * 12
+                    const anual = p.preco_anual ?? 0
+                    return acc + ((mensalAnualizado - anual) / mensalAnualizado) * 100
+                  }, 0) / planosComAnual.length
+                )
+              : null
+
+            return (
+              <div className="inline-flex items-center gap-3 p-1 bg-muted rounded-lg">
+                <button
+                  onClick={() => setPeriodo('mensal')}
+                  className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                    periodo === 'mensal'
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Mensal
+                </button>
+                <button
+                  onClick={() => setPeriodo('anual')}
+                  className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                    periodo === 'anual'
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Anual
+                  {descontoMedio && descontoMedio > 0 && (
+                    <span className="ml-1.5 text-xs font-semibold text-primary">-{descontoMedio}%</span>
+                  )}
+                </button>
+              </div>
+            )
+          })()}
          </div>
        </section>
  
@@ -352,8 +374,8 @@
              )}
  
              {/* Cards dos Planos */}
-            {planos.map((plano, index) => {
-               const isPopular = index === 1 // Segundo plano pago e o popular
+            {planos.map((plano) => {
+              const isPopular = plano.popular === true
                const price = periodo === 'anual' ? (plano.preco_anual || 0) : (plano.preco_mensal || 0)
  
                return (

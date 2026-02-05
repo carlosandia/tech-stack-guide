@@ -219,6 +219,11 @@ function PlanoCard({
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-foreground">{plano.nome}</h3>
         <div className="flex items-center gap-2">
+          {plano.popular && (
+            <span className="text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 px-2 py-0.5 rounded font-medium">
+              Popular
+            </span>
+          )}
           {isTrial && (
             <span 
               className="inline-flex items-center gap-1 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded font-medium"

@@ -28,6 +28,7 @@ const planoSchema = z.object({
   ativo: z.boolean().default(true),
   visivel: z.boolean().default(true),
   ordem: z.coerce.number().default(0),
+  popular: z.boolean().default(false),
 })
 
 type PlanoFormData = z.infer<typeof planoSchema>
@@ -77,6 +78,7 @@ export function PlanoFormModal({ plano, onClose }: Props) {
       ativo: true,
       visivel: true,
       ordem: 0,
+      popular: false,
     },
   })
 
@@ -97,6 +99,7 @@ export function PlanoFormModal({ plano, onClose }: Props) {
         ativo: plano.ativo,
         visivel: plano.visivel,
         ordem: plano.ordem,
+        popular: plano.popular,
       })
     }
   }, [plano, reset])
@@ -428,6 +431,18 @@ export function PlanoFormModal({ plano, onClose }: Props) {
                   />
                   <span className="text-sm text-foreground">Visível para Clientes</span>
                 </label>
+
+                {!isTrial && (
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      {...register('popular')}
+                      className="w-4 h-4 rounded border-input text-primary focus:ring-primary"
+                    />
+                    <span className="text-sm text-foreground">Plano Popular</span>
+                    <span className="text-xs text-muted-foreground">(destacado na landing)</span>
+                  </label>
+                )}
               </div>
             </div>
 
