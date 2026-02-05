@@ -1,267 +1,297 @@
 
+# Plano: Página de Planos com Stripe Checkout + Configuração de Trial
 
-# Plano: Correções no Modal de Nova Organização
+## Visão Geral
 
-## Resumo das Correções Solicitadas
-
-1. **Campo "Outro" para Segmento**: Quando selecionar "Outro", exibir campo de texto para especificar
-2. **Email não obrigatório**: Remover obrigatoriedade do campo email
-3. **Máscaras de input**: Implementar máscaras para telefone e CEP
-4. **Auto-preenchimento via CEP**: Consultar API de CEP para preencher endereço automaticamente
-
----
-
-## Análise do Banco de Dados
-
-Analisei a tabela `organizacoes_saas` no Supabase:
-
-| Coluna Existente | Tipo |
-|-----------------|------|
-| `segmento` | `string \| null` |
-| `email` | `string` (obrigatório no schema atual) |
-| `endereco_cep` | `string \| null` |
-| `endereco_logradouro` | `string \| null` |
-| `endereco_bairro` | `string \| null` |
-| `endereco_cidade` | `string \| null` |
-| `endereco_estado` | `string \| null` |
-
-**Observação sobre "Segmento Outro"**: A coluna `segmento` já suporta texto livre (é `string | null`). Podemos armazenar o valor personalizado diretamente nela (ex: "outro:Consultoria Ambiental") ou criar uma convenção para isso. **Não é necessário criar nova coluna** - podemos usar uma abordagem de prefixo ou armazenar o texto personalizado diretamente.
+Implementar:
+1. **Página `/planos`** - Landing page com cards de planos e checkout Stripe
+2. **Configuração Global de Trial** - Ativar/desativar + definir dias
+3. **Edge Function para Checkout** - Criar sessão do Stripe
+4. **Edge Function Webhook** - Auto-criar organização após pagamento
 
 ---
 
-## Solução Técnica
+## Parte 1: Configuração Global de Trial
 
-### 1. Campo "Outro" para Segmento
+### Alteração na Tab Stripe (ConfiguracoesGlobaisPage)
 
-**Abordagem**: Quando o usuário seleciona "Outro", exibir um campo de texto adicional. O valor será armazenado como texto livre na coluna `segmento` existente.
+Adicionar novos campos na configuração do Stripe:
 
-```tsx
-// Lógica no Step1Empresa.tsx
-const segmento = watch('segmento')
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `trial_habilitado` | boolean | Ativar/desativar trial |
+| `trial_dias` | number | Duração do trial (7, 14, 30) |
 
-{segmento === 'outro' && (
-  <input 
-    type="text"
-    {...register('segmento_outro')}
-    placeholder="Especifique o segmento..."
-  />
-)}
-```
-
-**Alteração no Schema**:
-```ts
-// organizacao.schema.ts
-segmento: z.string().min(1, 'Selecione um segmento'),
-segmento_outro: z.string().optional(),
-```
-
-**Na submissão**: Se `segmento === 'outro'` e `segmento_outro` estiver preenchido, enviar `segmento_outro` como valor do segmento.
-
----
-
-### 2. Email Não Obrigatório
-
-**Alteração no Schema**:
-```ts
-// Antes
-email: z.string().email('Email invalido'),
-
-// Depois
-email: z.string().email('Email invalido').optional().or(z.literal('')),
-```
-
-**Alteração no Componente**: Remover o asterisco `*` do label
-
----
-
-### 3. Máscaras de Input
-
-Como não há biblioteca de máscara instalada, implementaremos máscaras customizadas usando funções de formatação:
-
-**Telefone**: `(99) 99999-9999`
-```ts
-function formatTelefone(value: string): string {
-  const numbers = value.replace(/\D/g, '').slice(0, 11)
-  if (numbers.length <= 2) return numbers
-  if (numbers.length <= 7) return `(${numbers.slice(0,2)}) ${numbers.slice(2)}`
-  return `(${numbers.slice(0,2)}) ${numbers.slice(2,7)}-${numbers.slice(7)}`
-}
-```
-
-**CEP**: `00000-000`
-```ts
-function formatCep(value: string): string {
-  const numbers = value.replace(/\D/g, '').slice(0, 8)
-  if (numbers.length <= 5) return numbers
-  return `${numbers.slice(0,5)}-${numbers.slice(5)}`
-}
+```text
+┌─────────────────────────────────────────────────────────────┐
+│ STRIPE                                          Configurado │
+├─────────────────────────────────────────────────────────────┤
+│ Publishable Key *                                           │
+│ ┌─────────────────────────────────────────────────────────┐ │
+│ │ pk_live_...                                             │ │
+│ └─────────────────────────────────────────────────────────┘ │
+│                                                             │
+│ Secret Key *                                                │
+│ ┌─────────────────────────────────────────────────────────┐ │
+│ │ ●●●●●●●●●●●●●●●●●●●●                              [👁]  │ │
+│ └─────────────────────────────────────────────────────────┘ │
+│                                                             │
+│ Webhook Secret                                              │
+│ ┌─────────────────────────────────────────────────────────┐ │
+│ │ whsec_...                                               │ │
+│ └─────────────────────────────────────────────────────────┘ │
+│                                                             │
+│ ───────────────── Configurações de Trial ───────────────── │
+│                                                             │
+│ [✓] Permitir cadastro Trial                                 │
+│                                                             │
+│ Duração do Trial                                            │
+│ ┌─────────────────────────────────────────────────────────┐ │
+│ │ 14 dias                                            ▾   │ │
+│ └─────────────────────────────────────────────────────────┘ │
+│                                                             │
+│ [Testar Conexão]                          [Salvar Alterações] │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-### 4. Auto-preenchimento via CEP
+## Parte 2: Página de Planos (`/planos`)
 
-**API Recomendada**: **ViaCEP** (gratuita, sem autenticação, brasileira)
-- URL: `https://viacep.com.br/ws/{cep}/json/`
-- Retorna: logradouro, bairro, localidade (cidade), uf (estado)
+### URL Final
 
-**Implementação**:
-```ts
-async function buscarEnderecoPorCep(cep: string) {
-  const cepLimpo = cep.replace(/\D/g, '')
-  if (cepLimpo.length !== 8) return null
-  
-  const response = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`)
-  const data = await response.json()
-  
-  if (data.erro) return null
-  
-  return {
-    logradouro: data.logradouro,
-    bairro: data.bairro,
-    cidade: data.localidade,
-    estado: data.uf,
-  }
-}
+`crm.renovedigital.com.br/planos`
+
+### Estrutura da Página
+
+```text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│   [LOGO]                                              [Já tem conta? Login] │
+│                                                                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│             Escolha o plano ideal para seu negócio                          │
+│          Comece grátis por 14 dias. Cancele quando quiser.                  │
+│                                                                             │
+│   ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
+│   │   TRIAL     │  │   STARTER   │  │     PRO     │  │ ENTERPRISE  │        │
+│   │             │  │             │  │  ★ Popular  │  │             │        │
+│   │   Grátis    │  │  R$99/mês   │  │  R$249/mês  │  │  R$599/mês  │        │
+│   │   14 dias   │  │             │  │             │  │             │        │
+│   │             │  │             │  │             │  │             │        │
+│   │ ✓ 2 usuários│  │ ✓ 5 usuários│  │ ✓ 15 users  │  │ ✓ 50 users  │        │
+│   │ ✓ 100 leads │  │ ✓ 1000 leads│  │ ✓ 5000 leads│  │ ✓ Ilimitado │        │
+│   │ ✓ 100MB     │  │ ✓ 1GB       │  │ ✓ 5GB       │  │ ✓ 20GB      │        │
+│   │             │  │             │  │             │  │             │        │
+│   │ [Começar]   │  │ [Assinar]   │  │ [Assinar]   │  │ [Assinar]   │        │
+│   └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘        │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**No componente**:
-- Ao digitar CEP completo (8 dígitos), chamar API
-- Mostrar loading enquanto busca
-- Preencher campos automaticamente
-- Permitir edição manual após auto-preenchimento
+### Tracking (UTMs e Pixels)
 
----
+A página capturará automaticamente:
+- UTM parameters da URL (`?utm_source=meta&utm_campaign=...`)
+- Instalação de Meta Pixel e Google Tag para eventos de conversão
 
-## Arquivos a Modificar
+```typescript
+// Exemplo de URL de campanha
+crm.renovedigital.com.br/planos?utm_source=meta&utm_medium=cpc&utm_campaign=lancamento_crm
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `src/modules/admin/schemas/organizacao.schema.ts` | Adicionar `segmento_outro`, tornar `email` opcional |
-| `src/modules/admin/components/wizard/Step1Empresa.tsx` | Campo "Outro" para segmento, máscaras, busca CEP |
-| `src/modules/admin/components/NovaOrganizacaoModal.tsx` | Ajustar payload de submissão |
-| `src/modules/admin/services/admin.api.ts` | Ajustar tipo do payload |
-| `src/lib/utils.ts` | Adicionar funções de formatação (máscaras) |
-
----
-
-## Detalhes de Implementação
-
-### Novo Hook: `useCepLookup`
-
-```ts
-// src/modules/admin/hooks/useCepLookup.ts
-export function useCepLookup() {
-  const [isLoading, setIsLoading] = useState(false)
-  
-  const buscarCep = async (cep: string) => {
-    const cepLimpo = cep.replace(/\D/g, '')
-    if (cepLimpo.length !== 8) return null
-    
-    setIsLoading(true)
-    try {
-      const res = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`)
-      const data = await res.json()
-      if (data.erro) return null
-      return {
-        logradouro: data.logradouro || '',
-        bairro: data.bairro || '',
-        cidade: data.localidade || '',
-        estado: data.uf || '',
-      }
-    } finally {
-      setIsLoading(false)
-    }
-  }
-  
-  return { buscarCep, isLoading }
-}
-```
-
-### Componente CEP com Auto-Preenchimento
-
-```tsx
-// Dentro de Step1Empresa.tsx
-const { buscarCep, isLoading: buscandoCep } = useCepLookup()
-const { setValue, watch } = useFormContext()
-const cep = watch('endereco.cep')
-
-const handleCepChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-  const formatted = formatCep(e.target.value)
-  setValue('endereco.cep', formatted)
-  
-  // Se tem 9 caracteres (00000-000), buscar
-  if (formatted.length === 9) {
-    const endereco = await buscarCep(formatted)
-    if (endereco) {
-      setValue('endereco.logradouro', endereco.logradouro)
-      setValue('endereco.bairro', endereco.bairro)
-      setValue('endereco.cidade', endereco.cidade)
-      setValue('endereco.estado', endereco.estado)
-    }
-  }
-}
+// Evento de conversão (após checkout)
+fbq('track', 'Purchase', { value: 99.00, currency: 'BRL' });
+gtag('event', 'conversion', { transaction_id: '...', value: 99.00 });
 ```
 
 ---
 
-## UX Esperada
+## Parte 3: Fluxo de Checkout
 
-### Campo Segmento "Outro"
-```
-┌─────────────────────────────────────┐
-│ Segmento *                          │
-│ ┌─────────────────────────────────┐ │
-│ │ Outro                      ▾  │ │
-│ └─────────────────────────────────┘ │
-│                                     │
-│ Especifique o segmento *            │  ← Aparece só quando "Outro"
-│ ┌─────────────────────────────────┐ │
-│ │ Consultoria Ambiental          │ │
-│ └─────────────────────────────────┘ │
-└─────────────────────────────────────┘
+### Diagrama do Fluxo
+
+```text
+    USUÁRIO                    FRONTEND                EDGE FUNCTION              STRIPE
+       │                           │                         │                       │
+       │  Clica "Assinar Pro"      │                         │                       │
+       ├──────────────────────────>│                         │                       │
+       │                           │  POST /create-checkout  │                       │
+       │                           ├────────────────────────>│                       │
+       │                           │                         │  Create Session       │
+       │                           │                         ├──────────────────────>│
+       │                           │                         │                       │
+       │                           │                         │<─────── session_url ──┤
+       │                           │<──── { url } ───────────┤                       │
+       │                           │                         │                       │
+       │  Redirect Stripe Checkout │                         │                       │
+       │<──────────────────────────┤                         │                       │
+       │                           │                         │                       │
+       │═══════ PAGAMENTO STRIPE ════════════════════════════════════════════════════│
+       │                           │                         │                       │
+       │                           │                         │  Webhook: completed   │
+       │                           │                         │<──────────────────────┤
+       │                           │                         │                       │
+       │                           │                         │  [Criar Org + User]   │
+       │                           │                         │  [Enviar Email]       │
+       │                           │                         │                       │
+       │  Redirect /sucesso        │                         │                       │
+       │<══════════════════════════╪═════════════════════════╪═══════════════════════│
+       │                           │                         │                       │
 ```
 
-### CEP com Auto-Preenchimento
-```
-┌─────────────────────────────────────┐
-│ CEP                                 │
-│ ┌─────────────────────────────────┐ │
-│ │ 01310-100                   ⟳  │ │ ← Loading indicator
-│ └─────────────────────────────────┘ │
-│                                     │
-│ Logradouro (preenchido)             │
-│ ┌─────────────────────────────────┐ │
-│ │ Avenida Paulista (auto)        │ │
-│ └─────────────────────────────────┘ │
-└─────────────────────────────────────┘
+### Metadata no Checkout
+
+```typescript
+// Dados enviados ao Stripe
+const session = await stripe.checkout.sessions.create({
+  mode: 'subscription',
+  line_items: [{ price: plano.stripe_price_id_mensal, quantity: 1 }],
+  success_url: `${origin}/sucesso?session_id={CHECKOUT_SESSION_ID}`,
+  cancel_url: `${origin}/planos`,
+  metadata: {
+    plano_id: 'uuid-do-plano',
+    plano_nome: 'Pro',
+    utm_source: 'meta',
+    utm_medium: 'cpc',
+    utm_campaign: 'lancamento_crm',
+  },
+});
 ```
 
 ---
 
-## Checklist de Implementação
+## Parte 4: Edge Functions
 
-- [ ] Atualizar `organizacao.schema.ts`:
-  - [ ] Adicionar campo `segmento_outro`
-  - [ ] Tornar `email` opcional
-  - [ ] Validação condicional: se `segmento === 'outro'`, `segmento_outro` é obrigatório
+### 1. `create-checkout-session`
 
-- [ ] Criar `src/lib/formatters.ts`:
-  - [ ] `formatTelefone(value: string): string`
-  - [ ] `formatCep(value: string): string`
+Cria sessão de checkout do Stripe.
 
-- [ ] Criar `src/modules/admin/hooks/useCepLookup.ts`
+| Input | Output |
+|-------|--------|
+| `plano_id`, `periodo` (mensal/anual), UTMs | `{ url: string }` |
 
-- [ ] Atualizar `Step1Empresa.tsx`:
-  - [ ] Campo "Outro" condicional para segmento
-  - [ ] Máscara de telefone com `onChange` customizado
-  - [ ] Máscara de CEP com auto-preenchimento
-  - [ ] Loading indicator no campo CEP
-  - [ ] Remover asterisco do Email
+### 2. `stripe-webhook`
 
-- [ ] Atualizar `NovaOrganizacaoModal.tsx`:
-  - [ ] Ajustar `onSubmit` para usar `segmento_outro` quando aplicável
+Processa eventos do Stripe:
+- `checkout.session.completed` → Cria organização + usuário
+- `invoice.paid` → Atualiza status
+- `customer.subscription.deleted` → Cancela assinatura
 
-- [ ] Atualizar `admin.api.ts`:
-  - [ ] Tornar `email` opcional no tipo `CriarOrganizacaoPayload`
+### 3. `iniciar-trial`
 
+Para o botão "Começar Trial":
+- Coleta dados básicos (nome, email, empresa)
+- Cria organização com status `trial`
+- Define `trial_expira_em` baseado na configuração global
+
+---
+
+## Parte 5: Pré-requisitos Stripe
+
+Antes de implementar, você precisa criar no Dashboard do Stripe:
+
+| Item | Onde Criar | O que copiar |
+|------|------------|--------------|
+| **Products** | Stripe > Products | Criar 4 produtos (Trial, Starter, Pro, Enterprise) |
+| **Prices** | Stripe > Products > Add Price | Copiar `price_id` mensal e anual |
+| **Webhook** | Stripe > Developers > Webhooks | Copiar `whsec_...` |
+
+### Configurar Webhook no Stripe
+
+URL do Webhook: `https://<seu-projeto>.supabase.co/functions/v1/stripe-webhook`
+
+Eventos a escutar:
+- `checkout.session.completed`
+- `invoice.paid`
+- `invoice.payment_failed`
+- `customer.subscription.updated`
+- `customer.subscription.deleted`
+
+---
+
+## Arquivos a Criar/Modificar
+
+| Arquivo | Ação |
+|---------|------|
+| `src/modules/public/pages/PlanosPage.tsx` | **Criar** - Página de planos |
+| `src/modules/public/pages/CheckoutSucessoPage.tsx` | **Criar** - Página pós-checkout |
+| `src/modules/public/pages/TrialCadastroPage.tsx` | **Criar** - Modal/página para trial |
+| `src/modules/public/hooks/usePlanos.ts` | **Criar** - Hook para buscar planos |
+| `src/modules/public/hooks/useCheckout.ts` | **Criar** - Hook para criar checkout |
+| `supabase/functions/create-checkout-session/index.ts` | **Criar** - Edge function |
+| `supabase/functions/stripe-webhook/index.ts` | **Criar** - Edge function |
+| `supabase/functions/iniciar-trial/index.ts` | **Criar** - Edge function |
+| `src/modules/admin/pages/ConfiguracoesGlobaisPage.tsx` | **Modificar** - Adicionar config Trial |
+| `src/App.tsx` | **Modificar** - Adicionar rotas públicas |
+
+---
+
+## Banco de Dados
+
+### Colunas já existentes (não precisa migração)
+
+| Tabela | Coluna | Uso |
+|--------|--------|-----|
+| `organizacoes_saas` | `trial_expira_em` | Data de expiração do trial |
+| `organizacoes_saas` | `status` | `trial`, `ativa`, `suspensa` |
+| `planos` | `stripe_price_id_mensal` | ID do preço no Stripe |
+| `planos` | `stripe_price_id_anual` | ID do preço anual |
+| `configuracoes_globais` | `configuracoes` (JSONB) | Guardar `trial_habilitado`, `trial_dias` |
+
+### Atualização necessária na tabela `planos`
+
+Após criar os Products/Prices no Stripe, atualizar:
+
+```sql
+UPDATE planos SET 
+  stripe_price_id_mensal = 'price_xxx',
+  stripe_price_id_anual = 'price_yyy'
+WHERE nome = 'Starter';
+-- Repetir para Pro e Enterprise
+```
+
+---
+
+## Sequência de Implementação
+
+1. **Configuração Trial** - Atualizar ConfiguracoesGlobaisPage com toggle e dias
+2. **Edge Functions** - Criar as 3 functions (checkout, webhook, trial)
+3. **Página de Planos** - Criar PlanosPage com cards e botões
+4. **Página de Sucesso** - Criar CheckoutSucessoPage
+5. **Rotas** - Adicionar rotas públicas no App.tsx
+6. **Testes** - Testar fluxo completo com Stripe Test Mode
+
+---
+
+## Segurança
+
+| Aspecto | Implementação |
+|---------|---------------|
+| Stripe Secret Key | Armazenada como secret no Supabase, nunca exposta |
+| Webhook | Validação de assinatura Stripe |
+| Checkout | Sessão criada server-side, apenas URL retornada |
+| Trial | Rate limit para evitar abusos |
+
+---
+
+## Métricas e Tracking
+
+A página de planos incluirá:
+
+```typescript
+// Meta Pixel
+<script>
+  fbq('init', 'SEU_PIXEL_ID');
+  fbq('track', 'PageView');
+</script>
+
+// Google Tag
+<script>
+  gtag('config', 'G-XXXXXXXX');
+</script>
+
+// Evento de conversão (na página de sucesso)
+fbq('track', 'Purchase', { value, currency: 'BRL' });
+gtag('event', 'purchase', { transaction_id, value });
+```
