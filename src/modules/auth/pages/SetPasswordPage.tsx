@@ -221,8 +221,8 @@ export function SetPasswordPage() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-muted to-muted/50 p-4">
         <div className="w-full max-w-md bg-card rounded-lg border border-border p-8 shadow-lg">
           <div className="flex flex-col items-center gap-4 text-center">
-            <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center">
-              <CheckCircle className="w-8 h-8 text-emerald-600" />
+            <div className="w-16 h-16 rounded-full bg-success-muted flex items-center justify-center">
+              <CheckCircle className="w-8 h-8 text-success-foreground" />
             </div>
             <h1 className="text-xl font-semibold text-foreground">
               Senha Definida!
@@ -302,7 +302,7 @@ export function SetPasswordPage() {
                   <div
                     key={req.id}
                     className={`flex items-center gap-2 text-sm ${
-                      met ? 'text-green-600' : 'text-muted-foreground'
+                      met ? 'text-success-foreground' : 'text-muted-foreground'
                     }`}
                   >
                     {met ? (
@@ -348,7 +348,7 @@ export function SetPasswordPage() {
                 </p>
               )}
               {passwordsMatch && (
-                <p className="mt-1.5 text-sm text-green-600 flex items-center gap-1">
+                <p className="mt-1.5 text-sm text-success-foreground flex items-center gap-1">
                   <Check className="w-4 h-4" />
                   Senhas coincidem
                 </p>

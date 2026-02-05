@@ -24,6 +24,14 @@
     --input: 220 13% 90%;
     --ring: 221.2 83.2% 53.3%;
     --radius: 0.75rem;
+
+    /* Status Colors */
+    --success: 142 71% 45%;
+    --success-foreground: 143 64% 24%;
+    --success-muted: 138 76% 90%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 32 81% 29%;
+    --warning-muted: 48 96% 89%;
   }
 
   .dark {
