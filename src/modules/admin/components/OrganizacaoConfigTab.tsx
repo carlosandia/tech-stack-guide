@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useLimitesOrganizacao, useModulosOrganizacao } from '../hooks/useOrganizacoes'
 import { usePlanos } from '../hooks/usePlanos'
-import { HardDrive, Users, Target, FileText, Puzzle, CreditCard } from 'lucide-react'
+import { HardDrive, Users, Target, FileText, Puzzle, CreditCard, Gift } from 'lucide-react'
 import type { Organizacao } from '../services/admin.api'
 import { GerenciarModulosModal } from './GerenciarModulosModal'
 
@@ -53,8 +53,22 @@ export function OrganizacaoConfigTab({ orgId, org }: Props) {
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-4">
-          <span className="text-lg font-bold text-primary">{org.plano || 'Sem plano'}</span>
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <span className="text-lg font-bold text-primary">{org.plano || 'Sem plano'}</span>
+            {org.cortesia && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                <Gift className="w-3.5 h-3.5" />
+                Cortesia
+              </span>
+            )}
+          </div>
+          {org.cortesia && org.cortesia_motivo && (
+            <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+              <p className="text-xs font-medium text-green-700 mb-1">Motivo da cortesia:</p>
+              <p className="text-sm text-green-800">{org.cortesia_motivo}</p>
+            </div>
+          )}
           {planos && planos.length > 0 && (
             <select
               value={org.plano || ''}
