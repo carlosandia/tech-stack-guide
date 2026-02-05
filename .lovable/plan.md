@@ -1,315 +1,200 @@
 
-# Plano: Melhorias na Gestão de Planos - Trial Badge + Modal com Footer Fixo + Exclusão
+# Plano: Correções no Plano Trial
 
 ## Resumo
 
-Implementar três melhorias na página de gestão de planos:
-1. **Trial com tratamento especial** - Mostrar como plano padrão com badge visual, sem opção de exclusão
-2. **Footer fixo no modal** - Reestruturar o modal conforme Design System (seção 10.5)
-3. **Botão de excluir** - Adicionar opção para remover planos (exceto Trial)
+Corrigir a experiência do plano Trial tanto no painel Admin quanto na página pública, removendo campos irrelevantes e garantindo consistência dos dados.
 
 ---
 
-## 1. Tratamento Visual do Plano Trial
+## Problemas Identificados
 
-### Por que manter o Trial na lista?
+| Problema | Localização | Impacto |
+|----------|-------------|---------|
+| Modal mostra campos de preço para Trial | `PlanoFormModal.tsx` | UX confusa - Trial é grátis |
+| Modal mostra integração Stripe para Trial | `PlanoFormModal.tsx` | Irrelevante - Trial não tem checkout |
+| Trial na página pública usa dados hardcoded | `public/PlanosPage.tsx` | Limites inconsistentes com o cadastrado |
+| Nome do plano Trial editável | `PlanoFormModal.tsx` | Risco de quebrar identificação |
 
-O Trial na página de Planos define os **limites e features** que os usuários em teste terão acesso (usuários, storage, oportunidades). As configurações em "Configurações > Stripe" controlam apenas:
-- Se o trial está **habilitado** para novos cadastros
-- **Quantos dias** dura o período de trial
+---
 
-São responsabilidades diferentes, ambas necessárias.
+## Correções a Implementar
 
-### Como será exibido
+### 1. Modal de Edição - Ocultar Seções para Trial
+
+Quando `isTrial === true`, ocultar as seguintes seções:
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                           LISTA DE PLANOS                                    │
+│                    MODAL EDITAR PLANO TRIAL                                  │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐              │
-│  │ Trial           │  │ Starter         │  │ Pro             │  ...         │
-│  │ ┌─────────────┐ │  │                 │  │                 │              │
-│  │ │ PADRÃO      │ │  │ R$ 99,00        │  │ R$ 249,00       │              │
-│  │ └─────────────┘ │  │                 │  │                 │              │
-│  │ Gratis          │  │                 │  │                 │              │
-│  │ /mes            │  │                 │  │                 │              │
-│  │                 │  │                 │  │                 │              │
-│  │ • 2 usuarios    │  │                 │  │                 │              │
-│  │ • 100 MB        │  │                 │  │                 │              │
-│  │                 │  │                 │  │                 │              │
-│  │ [Editar]        │  │ [Editar]        │  │ [Editar]        │              │
-│  └─────────────────┘  └─────────────────┘  └─────────────────┘              │
+│  INFORMAÇÕES BÁSICAS                                                         │
+│  ┌─────────────────────────┐  ┌─────────────────────────┐                   │
+│  │ Nome do Plano *         │  │ Ordem                   │                   │
+│  │ [Trial        ] 🔒      │  │ [1                    ] │                   │
+│  └─────────────────────────┘  └─────────────────────────┘                   │
+│       ↑ Readonly/Disabled                                                    │
 │                                                                              │
-│  ⓘ O plano Trial é o padrão do sistema e não pode ser removido              │
+│  Descrição                                                                   │
+│  ┌─────────────────────────────────────────────────────────────────────────┐│
+│  │ Teste gratuito para novos usuários                                      ││
+│  └─────────────────────────────────────────────────────────────────────────┘│
 │                                                                              │
+│  ╔═══════════════════════════════════════════════════════════════════════╗  │
+│  ║  PREÇOS                            ← OCULTO PARA TRIAL                ║  │
+│  ║  INTEGRAÇÃO STRIPE                 ← OCULTO PARA TRIAL                ║  │
+│  ╚═══════════════════════════════════════════════════════════════════════╝  │
+│                                                                              │
+│  LIMITES (-1 = ilimitado)  ← VISÍVEL (configura recursos do trial)          │
+│  ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌───────────┐                 │
+│  │ Usuários  │  │ Oport.    │  │ Storage   │  │ Contatos  │                 │
+│  │ [2      ] │  │ [50     ] │  │ [100    ] │  │ [100    ] │                 │
+│  └───────────┘  └───────────┘  └───────────┘  └───────────┘                 │
+│                                                                              │
+│  STATUS                                                                      │
+│  [✓] Plano Ativo    [✓] Visível para Clientes                               │
+│                                                                              │
+│  MÓDULOS INCLUÍDOS                                                           │
+│  ...                                                                         │
+│                                                                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                        [Cancelar]  [Salvar Alterações]       │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Indicadores visuais
+### 2. Campo Nome Bloqueado para Trial
 
-| Elemento | Implementação |
-|----------|---------------|
-| Badge "PADRÃO" | Tag `bg-primary/10 text-primary` no header do card |
-| Tooltip | Explicação ao passar o mouse: "Plano padrão do sistema" |
-| Botão Editar | Mantido (pode editar limites) |
-| Botão Excluir | **Oculto** para o Trial |
+O campo "Nome do Plano" será `readOnly` quando for Trial, para evitar que a identificação seja alterada acidentalmente.
 
----
+### 3. Página Pública - Usar Dados do Banco
 
-## 2. Modal com Footer Fixo (Design System 10.5)
+Atualmente o card Trial na página pública usa valores hardcoded. Corrigir para buscar o plano Trial do banco de dados e usar seus limites reais.
 
-### Estrutura Atual (Incorreta)
-
-```text
-┌─────────────────────────────────────────┐
-│ Header                                  │
-├─────────────────────────────────────────┤
-│ <form> (overflow-y: auto)               │
-│   Content...                            │
-│   ...                                   │
-│   Footer (dentro do scroll)  ← ERRADO   │
-│ </form>                                 │
-└─────────────────────────────────────────┘
-```
-
-### Estrutura Correta (Conforme Design System)
-
-```text
-┌─────────────────────────────────────────┐
-│ HEADER (flex-shrink-0)                  │
-│ ┌─────────────────────────────────────┐ │
-│ │ [Badge] Editar Plano            [X] │ │
-│ └─────────────────────────────────────┘ │
-├─────────────────────────────────────────┤
-│ CONTENT (flex-1, overflow-y: auto)      │
-│ ┌─────────────────────────────────────┐ │
-│ │                                     │ │
-│ │ Campos do formulário...             │ │
-│ │ (área que rola)                     │ │
-│ │                                     │ │
-│ └─────────────────────────────────────┘ │
-├─────────────────────────────────────────┤
-│ FOOTER (flex-shrink-0) ← FIXO           │
-│ ┌─────────────────────────────────────┐ │
-│ │ [Excluir]      [Cancelar] [Salvar]  │ │
-│ └─────────────────────────────────────┘ │
-└─────────────────────────────────────────┘
-```
-
-### Classes CSS aplicadas
-
+**Antes (hardcoded):**
 ```tsx
-// Container do modal
-<div className="flex flex-col max-h-[90vh]">
+<li>2 usuarios</li>
+<li>100 oportunidades</li>
+<li>100MB armazenamento</li>
+```
 
-  // Header - nunca rola
-  <div className="flex-shrink-0 px-6 py-4 border-b border-border">
-    ...
-  </div>
+**Depois (dinâmico):**
+```tsx
+// Buscar plano Trial junto com os outros planos
+const trialPlan = planos.find(p => p.nome.toLowerCase() === 'trial')
 
-  // Content - única área que rola
-  <div className="flex-1 overflow-y-auto px-6 py-4 min-h-0">
-    <form className="space-y-6">
-      ...campos...
-    </form>
-  </div>
-
-  // Footer - nunca rola, sempre visível
-  <div className="flex-shrink-0 px-6 py-4 border-t border-border bg-background">
-    ...botões...
-  </div>
-</div>
+<li>{trialPlan?.limite_usuarios || 2} usuarios</li>
+<li>{trialPlan?.limite_oportunidades || 50} oportunidades</li>
+<li>{formatStorage(trialPlan?.limite_storage_mb)} armazenamento</li>
 ```
 
 ---
 
-## 3. Botão de Exclusão de Planos
+## Arquivos a Modificar
 
-### Fluxo de Exclusão
-
-```text
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         FLUXO DE EXCLUSÃO                                    │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  1. Usuário clica "Excluir"                                                  │
-│              │                                                               │
-│              ▼                                                               │
-│  2. É o plano Trial?                                                         │
-│              │                                                               │
-│      ┌───────┴───────┐                                                       │
-│      │ SIM           │ NÃO                                                   │
-│      ▼               ▼                                                       │
-│   Botão oculto    3. Modal de confirmação                                    │
-│   (não aparece)      │                                                       │
-│                      ▼                                                       │
-│                  4. Há organizações usando?                                  │
-│                      │                                                       │
-│              ┌───────┴───────┐                                               │
-│              │ SIM           │ NÃO                                           │
-│              ▼               ▼                                               │
-│           Bloquear        5. Confirmar exclusão                              │
-│           exclusão           │                                               │
-│           + mostrar          ▼                                               │
-│           contagem        6. Soft delete (ativo = false)                     │
-│                              ou hard delete                                  │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-### Layout do Footer no Modal
-
-```text
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         FOOTER DO MODAL                                      │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  Modo CRIAÇÃO:                                                               │
-│  ┌─────────────────────────────────────────────────────────────────────────┐│
-│  │                                        [Cancelar]  [Criar Plano]        ││
-│  └─────────────────────────────────────────────────────────────────────────┘│
-│                                                                              │
-│  Modo EDIÇÃO (plano normal):                                                 │
-│  ┌─────────────────────────────────────────────────────────────────────────┐│
-│  │ [🗑️ Excluir]                           [Cancelar]  [Salvar Alterações]  ││
-│  └─────────────────────────────────────────────────────────────────────────┘│
-│                                                                              │
-│  Modo EDIÇÃO (plano Trial):                                                  │
-│  ┌─────────────────────────────────────────────────────────────────────────┐│
-│  │                                        [Cancelar]  [Salvar Alterações]  ││
-│  └─────────────────────────────────────────────────────────────────────────┘│
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/modules/admin/components/PlanoFormModal.tsx` | Ocultar seções Preços e Stripe para Trial; bloquear nome |
+| `src/modules/public/pages/PlanosPage.tsx` | Usar dados do plano Trial do banco ao invés de hardcoded |
 
 ---
 
 ## Detalhes Técnicos
 
-### Arquivos a Modificar
+### PlanoFormModal.tsx
 
-| Arquivo | Alterações |
-|---------|------------|
-| `src/modules/admin/pages/PlanosPage.tsx` | Adicionar badge "PADRÃO" no card Trial |
-| `src/modules/admin/components/PlanoFormModal.tsx` | Reestruturar para footer fixo + botão excluir |
-| `src/modules/admin/services/admin.api.ts` | Adicionar função `excluirPlano()` |
-| `src/modules/admin/hooks/usePlanos.ts` | Adicionar hook `useExcluirPlano()` |
+**Mudanças no JSX:**
 
-### Identificação do Plano Trial
+```tsx
+// Campo nome - readOnly para Trial
+<input
+  {...register('nome')}
+  readOnly={isTrial}
+  className={`... ${isTrial ? 'bg-muted cursor-not-allowed' : ''}`}
+/>
+{isTrial && (
+  <p className="text-xs text-muted-foreground mt-1">
+    Nome do plano padrão não pode ser alterado
+  </p>
+)}
 
-```typescript
-// Identificar Trial pelo nome ou campo especial
-const isTrialPlan = (plano: Plano) => 
-  plano.nome.toLowerCase() === 'trial' || 
-  plano.preco_mensal === 0
+// Seções condicionais
+{!isTrial && (
+  <>
+    {/* Seção Preços */}
+    <div className="space-y-4">
+      <h3>Preços</h3>
+      ...
+    </div>
+
+    {/* Seção Integração Stripe */}
+    <div className="space-y-4">
+      <h3>Integração Stripe</h3>
+      ...
+    </div>
+  </>
+)}
 ```
 
-### Função de Exclusão (API)
+### public/PlanosPage.tsx
 
-```typescript
-// admin.api.ts
-async excluirPlano(id: string): Promise<void> {
-  // Verificar se há organizações usando o plano
-  const { count } = await supabase
-    .from('organizacoes')
-    .select('*', { count: 'exact', head: true })
-    .eq('plano_id', id)
-  
-  if (count && count > 0) {
-    throw new Error(`Não é possível excluir: ${count} organizações usam este plano`)
-  }
-  
-  // Soft delete ou hard delete
-  await supabase.from('planos').delete().eq('id', id)
-}
+**Mudanças na query:**
+
+```tsx
+// Buscar TODOS os planos (incluindo Trial)
+const { data, error } = await supabase
+  .from('planos')
+  .select('*')
+  .eq('ativo', true)
+  .order('ordem', { ascending: true })
+
+// Separar Trial dos pagos
+const trialPlan = data?.find(p => 
+  p.nome.toLowerCase() === 'trial' || p.preco_mensal === 0
+)
+const paidPlans = data?.filter(p => 
+  p.preco_mensal && p.preco_mensal > 0
+)
 ```
 
-### Hook de Exclusão
+**Mudanças no JSX do card Trial:**
 
-```typescript
-// usePlanos.ts
-export function useExcluirPlano() {
-  const queryClient = useQueryClient()
-  
-  return useMutation({
-    mutationFn: adminApi.excluirPlano,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin', 'planos'] })
-    },
-  })
-}
-```
-
----
-
-## Resultado Visual Esperado
-
-### Card do Trial na Lista
-
-```text
-┌─────────────────────────┐
-│ Trial       ┌─────────┐ │
-│             │ PADRÃO  │ │
-│             └─────────┘ │
-│                         │
-│ Gratis                  │
-│ /mes                    │
-│                         │
-│ 👥 2 usuarios           │
-│ 💾 100 MB storage       │
-│ 📋 50 oportunidades     │
-│                         │
-│ Teste gratuito por      │
-│ 14 dias                 │
-│                         │
-│ ┌─────────────────────┐ │
-│ │    📝 Editar        │ │
-│ └─────────────────────┘ │
-└─────────────────────────┘
-```
-
-### Modal de Edição com Footer Fixo
-
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│ [📋] Editar Plano                                           [X] │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  INFORMAÇÕES BÁSICAS                                            │
-│  ┌─────────────────────────┐  ┌─────────────────────────┐       │
-│  │ Nome do Plano *         │  │ Ordem                   │       │
-│  │ [Starter              ] │  │ [2                    ] │       │
-│  └─────────────────────────┘  └─────────────────────────┘       │
-│                                                                 │
-│  Descrição                                                      │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │ Para pequenas equipes                                       ││
-│  └─────────────────────────────────────────────────────────────┘│
-│                                                                 │
-│  ... (área scrollável com demais campos) ...                    │
-│                                                                 │
-├─────────────────────────────────────────────────────────────────┤
-│ [🗑️ Excluir Plano]                    [Cancelar] [💾 Salvar]    │
-└─────────────────────────────────────────────────────────────────┘
+```tsx
+{trialConfig.trial_habilitado && trialPlan && (
+  <div className="...">
+    ...
+    <ul className="space-y-3 mb-8 flex-1">
+      <li>
+        <Check className="..." />
+        {trialPlan.limite_usuarios === -1 
+          ? 'Usuários ilimitados' 
+          : `${trialPlan.limite_usuarios} usuarios`}
+      </li>
+      <li>
+        <Check className="..." />
+        {formatLimit(trialPlan.limite_oportunidades)} oportunidades
+      </li>
+      <li>
+        <Check className="..." />
+        {formatStorage(trialPlan.limite_storage_mb)} armazenamento
+      </li>
+    </ul>
+    ...
+  </div>
+)}
 ```
 
 ---
 
-## Confirmação de Exclusão
+## Validação: Trial Não Pode Ser Escolhido Após Expirar
 
-Modal de confirmação antes de excluir:
+Esta validação deve ser feita na Edge Function `iniciar-trial`, verificando se o email já foi usado em um trial anterior. Isso é uma implementação de backend e pode ser feita em uma tarefa separada.
 
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│ ⚠️ Excluir Plano                                            [X] │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Tem certeza que deseja excluir o plano "Starter"?              │
-│                                                                 │
-│  Esta ação não pode ser desfeita.                               │
-│                                                                 │
-├─────────────────────────────────────────────────────────────────┤
-│                                    [Cancelar] [Excluir Plano]   │
-└─────────────────────────────────────────────────────────────────┘
-```
+---
+
+## Resultado Esperado
+
+1. **Modal Trial**: Apenas campos relevantes (limites, status, módulos)
+2. **Card Trial na página pública**: Reflete os limites reais cadastrados no banco
+3. **Nome Trial**: Protegido contra alteração acidental
+4. **UX mais limpa**: Admin não vê campos irrelevantes para plano gratuito
