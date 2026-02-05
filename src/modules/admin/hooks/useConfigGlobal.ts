@@ -44,7 +44,12 @@ export function useUpdateConfigGlobal() {
 
 // Testar configuracao
 export function useTestarConfigGlobal() {
+  const queryClient = useQueryClient()
+
   return useMutation({
     mutationFn: (plataforma: string) => adminApi.testarConfigGlobal(plataforma),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'config-global'] })
+    },
   })
 }
