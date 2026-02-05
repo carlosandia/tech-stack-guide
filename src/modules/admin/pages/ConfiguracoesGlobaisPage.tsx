@@ -279,12 +279,14 @@ function getCamposPorPlataforma(plataforma: PlataformaId): CampoConfig[] {
         { name: 'api_url', label: 'WAHA API URL', placeholder: 'https://waha.example.com', required: true },
         { name: 'api_key', label: 'API Key', placeholder: '********************************', secret: true, required: true },
       ]
-    case 'stripe':
-      return [
-        { name: 'publishable_key', label: 'Publishable Key', placeholder: 'pk_live_...', required: true },
-        { name: 'secret_key', label: 'Secret Key', placeholder: 'sk_live_...', secret: true, required: true },
-        { name: 'webhook_secret', label: 'Webhook Secret', placeholder: 'whsec_...', secret: true },
-      ]
+     case 'stripe':
+       return [
+         { name: 'publishable_key', label: 'Publishable Key', placeholder: 'pk_live_...', required: true },
+         { name: 'secret_key', label: 'Secret Key', placeholder: 'sk_live_...', secret: true, required: true, hint: 'Armazenada como secret no Supabase' },
+         { name: 'webhook_secret', label: 'Webhook Secret', placeholder: 'whsec_...', secret: true },
+         { name: 'trial_habilitado', label: 'Permitir Trial', placeholder: 'true', hint: 'Digite "true" para habilitar ou "false" para desabilitar' },
+         { name: 'trial_dias', label: 'Dias de Trial', placeholder: '14', hint: 'Duracao do periodo de trial (ex: 7, 14, 30)' },
+       ]
     case 'email':
       return [
         { name: 'smtp_host', label: 'SMTP Host', placeholder: 'smtp.example.com', required: true },

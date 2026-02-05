@@ -1,0 +1,362 @@
+ import { useState, useEffect } from 'react'
+ import { useNavigate, useSearchParams, Link } from 'react-router-dom'
+ import { Check, Loader2, Star, Zap } from 'lucide-react'
+ import { supabase } from '@/integrations/supabase/client'
+ 
+ /**
+  * AIDEV-NOTE: Pagina publica de planos
+  * Conforme PRD - Pagina de Planos com Stripe Checkout
+  * 
+  * URL: /planos
+  * Acessivel sem autenticacao
+  */
+ 
+ interface PlanoDb {
+   id: string
+   nome: string
+   descricao: string | null
+   preco_mensal: number | null
+   preco_anual: number | null
+   limite_usuarios: number | null
+   limite_oportunidades: number | null
+   limite_storage_mb: number | null
+   stripe_price_id_mensal: string | null
+   stripe_price_id_anual: string | null
+   ativo: boolean | null
+   ordem: number | null
+ }
+ 
+ interface TrialConfig {
+   trial_habilitado: boolean
+   trial_dias: number
+ }
+ 
+ export function PlanosPage() {
+   const navigate = useNavigate()
+   const [searchParams] = useSearchParams()
+   const [planos, setPlanos] = useState<PlanoDb[]>([])
+   const [trialConfig, setTrialConfig] = useState<TrialConfig>({ trial_habilitado: true, trial_dias: 14 })
+   const [periodo, setPeriodo] = useState<'mensal' | 'anual'>('mensal')
+   const [loading, setLoading] = useState(true)
+   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
+ 
+   // Capturar UTMs
+   const utms = {
+     utm_source: searchParams.get('utm_source') || '',
+     utm_medium: searchParams.get('utm_medium') || '',
+     utm_campaign: searchParams.get('utm_campaign') || '',
+     utm_term: searchParams.get('utm_term') || '',
+     utm_content: searchParams.get('utm_content') || '',
+   }
+ 
+   useEffect(() => {
+     fetchPlanos()
+     fetchTrialConfig()
+   }, [])
+ 
+   const fetchPlanos = async () => {
+     try {
+       const { data, error } = await supabase
+         .from('planos')
+         .select('*')
+         .eq('ativo', true)
+         .order('ordem', { ascending: true })
+ 
+       if (error) throw error
+       setPlanos(data || [])
+     } catch (err) {
+       console.error('Error fetching planos:', err)
+     } finally {
+       setLoading(false)
+     }
+   }
+ 
+   const fetchTrialConfig = async () => {
+     try {
+       const { data } = await supabase
+         .from('configuracoes_globais')
+         .select('configuracoes')
+         .eq('plataforma', 'stripe')
+         .single()
+ 
+       if (data?.configuracoes) {
+         const config = data.configuracoes as Record<string, unknown>
+         setTrialConfig({
+           trial_habilitado: config.trial_habilitado !== false,
+           trial_dias: (config.trial_dias as number) || 14,
+         })
+       }
+     } catch (err) {
+       console.error('Error fetching trial config:', err)
+     }
+   }
+ 
+   const handleSelectPlan = async (plano: PlanoDb) => {
+     // Se for plano Trial/Free, vai para cadastro trial
+     if (!plano.preco_mensal || plano.preco_mensal === 0) {
+       navigate('/trial', { state: { plano, utms } })
+       return
+     }
+ 
+     // Plano pago - criar sessao de checkout
+     setCheckoutLoading(plano.id)
+ 
+     try {
+       const { data, error } = await supabase.functions.invoke('create-checkout-session', {
+         body: {
+           plano_id: plano.id,
+           periodo,
+           utms,
+         },
+       })
+ 
+       if (error) throw error
+ 
+       if (data?.url) {
+         window.location.href = data.url
+       }
+     } catch (err) {
+       console.error('Error creating checkout:', err)
+       alert('Erro ao iniciar checkout. Tente novamente.')
+     } finally {
+       setCheckoutLoading(null)
+     }
+   }
+ 
+   const formatPrice = (price: number) => {
+     return new Intl.NumberFormat('pt-BR', {
+       style: 'currency',
+       currency: 'BRL',
+       minimumFractionDigits: 0,
+     }).format(price)
+   }
+ 
+   const formatStorage = (mb: number | null) => {
+     if (!mb) return 'Ilimitado'
+     if (mb >= 1024) return `${(mb / 1024).toFixed(0)}GB`
+     return `${mb}MB`
+   }
+ 
+   const formatLimit = (limit: number | null) => {
+     if (!limit || limit >= 999999) return 'Ilimitado'
+     return limit.toLocaleString('pt-BR')
+   }
+ 
+   if (loading) {
+     return (
+       <div className="min-h-screen flex items-center justify-center bg-background">
+         <Loader2 className="w-8 h-8 animate-spin text-primary" />
+       </div>
+     )
+   }
+ 
+   return (
+     <div className="min-h-screen bg-gradient-to-b from-background to-muted/30">
+       {/* Header */}
+       <header className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+           <div className="flex items-center justify-between h-16">
+             <div className="flex items-center gap-2">
+               <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+                 <Zap className="w-5 h-5 text-primary-foreground" />
+               </div>
+               <span className="font-bold text-lg text-foreground">CRM Renove</span>
+             </div>
+             <Link
+               to="/login"
+               className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+             >
+               Ja tem conta? Entrar
+             </Link>
+           </div>
+         </div>
+       </header>
+ 
+       {/* Hero */}
+       <section className="py-16 sm:py-24 px-4">
+         <div className="max-w-4xl mx-auto text-center">
+           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground mb-4">
+             Escolha o plano ideal para seu negocio
+           </h1>
+           <p className="text-lg text-muted-foreground mb-8">
+             {trialConfig.trial_habilitado
+               ? `Comece gratis por ${trialConfig.trial_dias} dias. Cancele quando quiser.`
+               : 'Escolha o plano que melhor se adapta as suas necessidades.'}
+           </p>
+ 
+           {/* Toggle Periodo */}
+           <div className="inline-flex items-center gap-3 p-1 bg-muted rounded-lg">
+             <button
+               onClick={() => setPeriodo('mensal')}
+               className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                 periodo === 'mensal'
+                   ? 'bg-background text-foreground shadow-sm'
+                   : 'text-muted-foreground hover:text-foreground'
+               }`}
+             >
+               Mensal
+             </button>
+             <button
+               onClick={() => setPeriodo('anual')}
+               className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                 periodo === 'anual'
+                   ? 'bg-background text-foreground shadow-sm'
+                   : 'text-muted-foreground hover:text-foreground'
+               }`}
+             >
+               Anual
+                 <span className="ml-1.5 text-xs font-semibold text-primary">-20%</span>
+             </button>
+           </div>
+         </div>
+       </section>
+ 
+       {/* Planos Grid */}
+       <section className="pb-24 px-4">
+         <div className="max-w-7xl mx-auto">
+           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+             {/* Card Trial (se habilitado) */}
+             {trialConfig.trial_habilitado && (
+               <div className="relative bg-card rounded-xl border border-border p-6 flex flex-col">
+                 <div className="mb-4">
+                   <h3 className="text-lg font-semibold text-foreground">Trial</h3>
+                   <p className="text-sm text-muted-foreground mt-1">
+                     Teste gratis por {trialConfig.trial_dias} dias
+                   </p>
+                 </div>
+ 
+                 <div className="mb-6">
+                   <div className="flex items-baseline gap-1">
+                     <span className="text-3xl font-bold text-foreground">Gratis</span>
+                   </div>
+                   <p className="text-sm text-muted-foreground mt-1">
+                     {trialConfig.trial_dias} dias
+                   </p>
+                 </div>
+ 
+                 <ul className="space-y-3 mb-8 flex-1">
+                   <li className="flex items-start gap-2 text-sm">
+                     <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                     <span className="text-foreground">2 usuarios</span>
+                   </li>
+                   <li className="flex items-start gap-2 text-sm">
+                     <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                     <span className="text-foreground">100 oportunidades</span>
+                   </li>
+                   <li className="flex items-start gap-2 text-sm">
+                     <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                     <span className="text-foreground">100MB armazenamento</span>
+                   </li>
+                   <li className="flex items-start gap-2 text-sm">
+                     <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                     <span className="text-foreground">Suporte por email</span>
+                   </li>
+                 </ul>
+ 
+                 <button
+                   onClick={() => navigate('/trial', { state: { utms } })}
+                   className="w-full py-2.5 px-4 text-sm font-medium border border-border rounded-lg hover:bg-accent transition-colors"
+                 >
+                   Comecar Trial
+                 </button>
+               </div>
+             )}
+ 
+             {/* Cards dos Planos */}
+             {planos.filter(p => p.preco_mensal && p.preco_mensal > 0).map((plano, index) => {
+               const isPopular = index === 1 // Segundo plano pago e o popular
+               const price = periodo === 'anual' ? (plano.preco_anual || 0) : (plano.preco_mensal || 0)
+ 
+               return (
+                 <div
+                   key={plano.id}
+                   className={`relative bg-card rounded-xl border p-6 flex flex-col ${
+                     isPopular
+                       ? 'border-primary ring-2 ring-primary/20'
+                       : 'border-border'
+                   }`}
+                 >
+                   {isPopular && (
+                     <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                       <span className="inline-flex items-center gap-1 px-3 py-1 bg-primary text-primary-foreground text-xs font-semibold rounded-full">
+                         <Star className="w-3 h-3" />
+                         Popular
+                       </span>
+                     </div>
+                   )}
+ 
+                   <div className="mb-4">
+                     <h3 className="text-lg font-semibold text-foreground">{plano.nome}</h3>
+                     {plano.descricao && (
+                       <p className="text-sm text-muted-foreground mt-1">{plano.descricao}</p>
+                     )}
+                   </div>
+ 
+                   <div className="mb-6">
+                     <div className="flex items-baseline gap-1">
+                       <span className="text-3xl font-bold text-foreground">
+                         {formatPrice(price)}
+                       </span>
+                       <span className="text-sm text-muted-foreground">/mes</span>
+                     </div>
+                     {periodo === 'anual' && plano.preco_mensal && plano.preco_anual && plano.preco_mensal > plano.preco_anual && (
+                       <p className="text-sm text-primary mt-1">
+                         Economia de {formatPrice((plano.preco_mensal - plano.preco_anual) * 12)}/ano
+                       </p>
+                     )}
+                   </div>
+ 
+                   <ul className="space-y-3 mb-8 flex-1">
+                     <li className="flex items-start gap-2 text-sm">
+                       <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                       <span className="text-foreground">
+                         {formatLimit(plano.limite_usuarios)} usuarios
+                       </span>
+                     </li>
+                     <li className="flex items-start gap-2 text-sm">
+                       <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                       <span className="text-foreground">
+                         {formatLimit(plano.limite_oportunidades)} oportunidades
+                       </span>
+                     </li>
+                     <li className="flex items-start gap-2 text-sm">
+                       <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                       <span className="text-foreground">
+                         {formatStorage(plano.limite_storage_mb)} armazenamento
+                       </span>
+                     </li>
+                   </ul>
+ 
+                   <button
+                     onClick={() => handleSelectPlan(plano)}
+                     disabled={checkoutLoading === plano.id}
+                     className={`w-full py-2.5 px-4 text-sm font-medium rounded-lg transition-colors disabled:opacity-50 ${
+                       isPopular
+                         ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                         : 'border border-border hover:bg-accent'
+                     }`}
+                   >
+                     {checkoutLoading === plano.id ? (
+                       <Loader2 className="w-4 h-4 animate-spin mx-auto" />
+                     ) : (
+                       'Assinar'
+                     )}
+                   </button>
+                 </div>
+               )
+             })}
+           </div>
+         </div>
+       </section>
+ 
+       {/* Footer */}
+       <footer className="border-t border-border py-8 px-4">
+         <div className="max-w-7xl mx-auto text-center text-sm text-muted-foreground">
+           <p>© 2024 CRM Renove. Todos os direitos reservados.</p>
+         </div>
+       </footer>
+     </div>
+   )
+ }
+ 
+ export default PlanosPage

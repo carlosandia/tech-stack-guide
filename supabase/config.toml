@@ -1,1 +1,10 @@
-project_id = "ybzhlsalbnxwkfszkloa"
+ project_id = "ybzhlsalbnxwkfszkloa"
+ 
+ [functions.create-checkout-session]
+ verify_jwt = false
+ 
+ [functions.stripe-webhook]
+ verify_jwt = false
+ 
+ [functions.iniciar-trial]
+ verify_jwt = false
