@@ -54,11 +54,51 @@ serve(async (req) => {
 
     console.log('Creating checkout session:', { plano_id, periodo, email, is_trial })
 
+    // Buscar configuração de trial se for trial
+    let trialDias = 14
+    let billingPlanoId = plano_id
+
+    if (is_trial) {
+      const { data: trialConfig } = await supabase
+        .from('configuracoes_globais')
+        .select('configuracoes')
+        .eq('plataforma', 'stripe')
+        .single()
+
+      if (trialConfig?.configuracoes) {
+        const config = trialConfig.configuracoes as Record<string, unknown>
+        trialDias = (config.trial_dias as number) || 14
+
+        // Verificar se trial está habilitado
+        if (config.trial_habilitado === false || config.trial_habilitado === 'false') {
+          throw new Error('Trial não está disponível no momento')
+        }
+      }
+
+      // Para trial: buscar o plano pago mais barato para usar como base de cobrança
+      const { data: cheapestPlan, error: cheapError } = await supabase
+        .from('planos')
+        .select('id, nome, preco_mensal, preco_anual, moeda')
+        .eq('ativo', true)
+        .gt('preco_mensal', 0)
+        .order('preco_mensal', { ascending: true })
+        .limit(1)
+        .single()
+
+      if (cheapError || !cheapestPlan) {
+        console.error('No paid plan found for trial:', cheapError)
+        throw new Error('Nenhum plano pago encontrado para iniciar trial')
+      }
+
+      billingPlanoId = cheapestPlan.id
+      console.log('Trial: using cheapest paid plan:', cheapestPlan.nome, 'Price:', cheapestPlan.preco_mensal)
+    }
+
     // Buscar plano com dados completos (nome, precos, moeda)
     const { data: plano, error: planoError } = await supabase
       .from('planos')
       .select('id, nome, preco_mensal, preco_anual, moeda')
-      .eq('id', plano_id)
+      .eq('id', billingPlanoId)
       .single() as { data: PlanoRow | null, error: Error | null }
 
     if (planoError || !plano) {
@@ -79,24 +119,11 @@ serve(async (req) => {
     const unitAmount = Math.round(preco * 100)
     const currency = (plano.moeda || 'BRL').toLowerCase()
     const interval = periodo === 'anual' ? 'year' : 'month'
-    const productName = `${plano.nome} - ${periodo === 'anual' ? 'Anual' : 'Mensal'}`
+    const productName = is_trial 
+      ? `${plano.nome} - Trial (${trialDias} dias grátis)`
+      : `${plano.nome} - ${periodo === 'anual' ? 'Anual' : 'Mensal'}`
 
     console.log('price_data:', { productName, unitAmount, currency, interval })
-
-    // Buscar configuração de trial se for trial
-    let trialDias = 14
-    if (is_trial) {
-      const { data: trialConfig } = await supabase
-        .from('configuracoes_globais')
-        .select('configuracoes')
-        .eq('plataforma', 'stripe')
-        .single()
-
-      if (trialConfig?.configuracoes) {
-        const config = trialConfig.configuracoes as Record<string, unknown>
-        trialDias = (config.trial_dias as number) || 14
-      }
-    }
 
     // Determinar URL base (origin)
     const origin = req.headers.get('origin') || 'https://crm.renovedigital.com.br'
@@ -127,10 +154,12 @@ serve(async (req) => {
       allow_promotion_codes: true,
       billing_address_collection: 'required',
       metadata: {
-        plano_id: plano.id,
+        plano_id: is_trial ? plano_id : plano.id,  // Para trial: guardar plano_id original (Trial)
+        billing_plano_id: plano.id,  // Plano que será cobrado
         plano_nome: plano.nome,
         periodo,
         is_trial: is_trial ? 'true' : 'false',
+        trial_dias: is_trial ? String(trialDias) : '0',
         utm_source: utms?.utm_source || '',
         utm_medium: utms?.utm_medium || '',
         utm_campaign: utms?.utm_campaign || '',
