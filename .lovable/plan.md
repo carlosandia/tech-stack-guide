@@ -1,21 +1,64 @@
-# Plano: Sistema de Cortesia + Bloqueio - IMPLEMENTADO ✅
 
-## Implementação Concluída
+# Plano: Corrigir Mensagens de Erro em Português
 
-### Parte 1: Wizard com Toggle de Cortesia ✅
-- **`organizacao.schema.ts`**: Adicionados campos `cortesia` e `cortesia_motivo` com validação
-- **`Step2Expectativas.tsx`**: Toggle de cortesia visível apenas para planos pagos, com campo de motivo obrigatório
+## Problema Identificado
 
-### Parte 2: Sistema de Bloqueio ✅
-- **`admin.api.ts`**: Função `revogarCortesia()` que muda status da assinatura para 'bloqueada'
-- **`OrganizacaoConfigTab.tsx`**: Botão "Revogar Cortesia" com modal de confirmação
-- **`BlockedPage.tsx`**: Nova página para usuários bloqueados
-- **`useBlockedRedirect.tsx`**: Hook que redireciona usuários de orgs bloqueadas
-- **`AuthProvider.tsx`**: Busca status da organização e assinatura no login
+O schema combinado `CriarOrganizacaoSchema` no arquivo `organizacao.schema.ts` está usando validações do Zod **sem mensagens customizadas** nas linhas 148-155:
 
-### Fluxo Completo
-1. Super Admin cria org com cortesia → Toggle + motivo no wizard
-2. Super Admin visualiza cortesia → Badge + motivo na config
-3. Super Admin revoga cortesia → Status vira "bloqueada"
-4. Usuário tenta acessar → Redirecionado para `/bloqueado`
-5. Usuário paga → Status volta "ativa"
+```typescript
+admin_nome: z.string().min(2),        // Usa mensagem padrão do Zod em inglês
+admin_sobrenome: z.string().min(2),   // Usa mensagem padrão do Zod em inglês  
+admin_email: z.string().email(),      // Usa mensagem padrão do Zod em inglês
+```
+
+Por isso as mensagens aparecem como:
+- "String must contain at least 2 character(s)"
+- "Invalid email"
+
+## Solução
+
+Corrigir o schema combinado para usar as mesmas mensagens em português que já existem no `Step3AdminSchema`:
+
+```typescript
+admin_nome: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres'),
+admin_sobrenome: z.string().min(2, 'Sobrenome deve ter no mínimo 2 caracteres'),
+admin_email: z.string().email('Email inválido'),
+```
+
+## Arquivo a Modificar
+
+`src/modules/admin/schemas/organizacao.schema.ts`
+
+## Mudança Específica
+
+Alterar linhas 148-155 de:
+```typescript
+.merge(
+  z.object({
+    admin_nome: z.string().min(2),
+    admin_sobrenome: z.string().min(2),
+    admin_email: z.string().email(),
+    admin_telefone: z.string().optional(),
+    enviar_convite: z.boolean().default(true),
+    senha_inicial: z.string().optional(),
+  })
+)
+```
+
+Para:
+```typescript
+.merge(
+  z.object({
+    admin_nome: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres'),
+    admin_sobrenome: z.string().min(2, 'Sobrenome deve ter no mínimo 2 caracteres'),
+    admin_email: z.string().email('Email inválido'),
+    admin_telefone: z.string().optional(),
+    enviar_convite: z.boolean().default(true),
+    senha_inicial: z.string().optional(),
+  })
+)
+```
+
+## Resultado Esperado
+
+Todas as mensagens de validação aparecerão em português brasileiro, consistentes com o resto da aplicação.
