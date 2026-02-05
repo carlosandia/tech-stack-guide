@@ -82,6 +82,8 @@ export type Database = {
         Row: {
           atualizado_em: string
           cancelado_em: string | null
+          cortesia: boolean | null
+          cortesia_motivo: string | null
           criado_em: string
           expira_em: string | null
           id: string
@@ -99,6 +101,8 @@ export type Database = {
         Insert: {
           atualizado_em?: string
           cancelado_em?: string | null
+          cortesia?: boolean | null
+          cortesia_motivo?: string | null
           criado_em?: string
           expira_em?: string | null
           id?: string
@@ -116,6 +120,8 @@ export type Database = {
         Update: {
           atualizado_em?: string
           cancelado_em?: string | null
+          cortesia?: boolean | null
+          cortesia_motivo?: string | null
           criado_em?: string
           expira_em?: string | null
           id?: string
