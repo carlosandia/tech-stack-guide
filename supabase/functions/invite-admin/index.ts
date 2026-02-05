@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { createClient } from "npm:@supabase/supabase-js@2";
 import React from "npm:react@18.3.1";
 import { Resend } from "npm:resend@4.0.0";
 import { renderAsync } from "npm:@react-email/components@0.0.22";
