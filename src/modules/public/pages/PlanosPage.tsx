@@ -31,11 +31,19 @@
    trial_dias: number
  }
  
+interface TrialPlan {
+  limite_usuarios: number | null
+  limite_oportunidades: number | null
+  limite_storage_mb: number | null
+  limite_contatos: number | null
+}
+
  export function PlanosPage() {
    const navigate = useNavigate()
    const [searchParams] = useSearchParams()
    const [planos, setPlanos] = useState<PlanoDb[]>([])
    const [trialConfig, setTrialConfig] = useState<TrialConfig>({ trial_habilitado: true, trial_dias: 14 })
+  const [trialPlan, setTrialPlan] = useState<TrialPlan | null>(null)
    const [periodo, setPeriodo] = useState<'mensal' | 'anual'>('mensal')
    const [loading, setLoading] = useState(true)
    const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
@@ -63,7 +71,26 @@
          .order('ordem', { ascending: true })
  
        if (error) throw error
-       setPlanos(data || [])
+      
+      // Separar plano Trial dos pagos
+      const allPlanos = data || []
+      const trial = allPlanos.find(p => 
+        p.nome.toLowerCase() === 'trial' || (!p.preco_mensal || p.preco_mensal === 0)
+      )
+      const paidPlans = allPlanos.filter(p => 
+        p.preco_mensal && p.preco_mensal > 0
+      )
+      
+      if (trial) {
+        setTrialPlan({
+          limite_usuarios: trial.limite_usuarios,
+          limite_oportunidades: trial.limite_oportunidades,
+          limite_storage_mb: trial.limite_storage_mb,
+          limite_contatos: null, // Campo pode não existir na interface
+        })
+      }
+      
+      setPlanos(paidPlans)
      } catch (err) {
        console.error('Error fetching planos:', err)
      } finally {
@@ -216,7 +243,7 @@
          <div className="max-w-7xl mx-auto">
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
              {/* Card Trial (se habilitado) */}
-             {trialConfig.trial_habilitado && (
+            {trialConfig.trial_habilitado && trialPlan && (
                <div className="relative bg-card rounded-xl border border-border p-6 flex flex-col">
                  <div className="mb-4">
                    <h3 className="text-lg font-semibold text-foreground">Trial</h3>
@@ -237,15 +264,23 @@
                  <ul className="space-y-3 mb-8 flex-1">
                    <li className="flex items-start gap-2 text-sm">
                      <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" />
-                     <span className="text-foreground">2 usuarios</span>
+                    <span className="text-foreground">
+                      {trialPlan.limite_usuarios === -1 
+                        ? 'Usuários ilimitados' 
+                        : `${trialPlan.limite_usuarios || 2} usuários`}
+                    </span>
                    </li>
                    <li className="flex items-start gap-2 text-sm">
                      <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" />
-                     <span className="text-foreground">100 oportunidades</span>
+                    <span className="text-foreground">
+                      {formatLimit(trialPlan.limite_oportunidades)} oportunidades
+                    </span>
                    </li>
                    <li className="flex items-start gap-2 text-sm">
                      <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" />
-                     <span className="text-foreground">100MB armazenamento</span>
+                    <span className="text-foreground">
+                      {formatStorage(trialPlan.limite_storage_mb)} armazenamento
+                    </span>
                    </li>
                    <li className="flex items-start gap-2 text-sm">
                      <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" />
@@ -263,7 +298,7 @@
              )}
  
              {/* Cards dos Planos */}
-             {planos.filter(p => p.preco_mensal && p.preco_mensal > 0).map((plano, index) => {
+            {planos.map((plano, index) => {
                const isPopular = index === 1 // Segundo plano pago e o popular
                const price = periodo === 'anual' ? (plano.preco_anual || 0) : (plano.preco_mensal || 0)
  

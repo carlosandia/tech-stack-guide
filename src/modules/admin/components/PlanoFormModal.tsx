@@ -217,11 +217,17 @@ export function PlanoFormModal({ plano, onClose }: Props) {
                   </label>
                   <input
                     {...register('nome')}
-                    className="w-full h-11 px-3 rounded-md border border-input bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-primary"
+                    readOnly={isTrial}
+                    className={`w-full h-11 px-3 rounded-md border border-input bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-primary ${isTrial ? 'bg-muted cursor-not-allowed' : ''}`}
                     placeholder="Ex: Professional"
                   />
                   {errors.nome && (
                     <p className="text-sm text-destructive mt-1">{errors.nome.message}</p>
+                  )}
+                  {isTrial && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Nome do plano padrão não pode ser alterado
+                    </p>
                   )}
                 </div>
 
@@ -250,96 +256,100 @@ export function PlanoFormModal({ plano, onClose }: Props) {
               </div>
             </div>
 
-            {/* Preços */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                Preços
-              </h3>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">
-                    Preço Mensal (R$) *
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    {...register('preco_mensal')}
-                    className="w-full h-11 px-3 rounded-md border border-input bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-primary"
-                  />
-                  {errors.preco_mensal && (
-                    <p className="text-sm text-destructive mt-1">{errors.preco_mensal.message}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">
-                    Preço Anual (R$)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    {...register('preco_anual')}
-                    className="w-full h-11 px-3 rounded-md border border-input bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-primary"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">
-                    Moeda
-                  </label>
-                  <select
-                    {...register('moeda')}
-                    className="w-full h-11 px-3 rounded-md border border-input bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-primary"
-                  >
-                    <option value="BRL">BRL</option>
-                    <option value="USD">USD</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            {/* Integração Stripe */}
-            <div className="space-y-4">
-              <div>
+            {/* Preços - Oculto para Trial */}
+            {!isTrial && (
+              <div className="space-y-4">
                 <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                  Integração Stripe
+                  Preços
                 </h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Vincule os Price IDs do Stripe para habilitar o checkout automático
-                </p>
-              </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">
+                      Preço Mensal (R$) *
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      {...register('preco_mensal')}
+                      className="w-full h-11 px-3 rounded-md border border-input bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-primary"
+                    />
+                    {errors.preco_mensal && (
+                      <p className="text-sm text-destructive mt-1">{errors.preco_mensal.message}</p>
+                    )}
+                  </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">
+                      Preço Anual (R$)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      {...register('preco_anual')}
+                      className="w-full h-11 px-3 rounded-md border border-input bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-primary"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">
+                      Moeda
+                    </label>
+                    <select
+                      {...register('moeda')}
+                      className="w-full h-11 px-3 rounded-md border border-input bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-primary"
+                    >
+                      <option value="BRL">BRL</option>
+                      <option value="USD">USD</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Integração Stripe - Oculto para Trial */}
+            {!isTrial && (
+              <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">
-                    Stripe Price ID (Mensal)
-                  </label>
-                  <input
-                    {...register('stripe_price_id_mensal')}
-                    placeholder="price_1ABC123..."
-                    className="w-full h-11 px-3 rounded-md border border-input bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-primary font-mono text-sm"
-                  />
+                  <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                    Integração Stripe
+                  </h3>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Copie do Stripe Dashboard → Products → Price ID
+                    Vincule os Price IDs do Stripe para habilitar o checkout automático
                   </p>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">
-                    Stripe Price ID (Anual)
-                  </label>
-                  <input
-                    {...register('stripe_price_id_anual')}
-                    placeholder="price_1XYZ789..."
-                    className="w-full h-11 px-3 rounded-md border border-input bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-primary font-mono text-sm"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Opcional - deixe vazio se não oferecer plano anual
-                  </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">
+                      Stripe Price ID (Mensal)
+                    </label>
+                    <input
+                      {...register('stripe_price_id_mensal')}
+                      placeholder="price_1ABC123..."
+                      className="w-full h-11 px-3 rounded-md border border-input bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-primary font-mono text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Copie do Stripe Dashboard → Products → Price ID
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">
+                      Stripe Price ID (Anual)
+                    </label>
+                    <input
+                      {...register('stripe_price_id_anual')}
+                      placeholder="price_1XYZ789..."
+                      className="w-full h-11 px-3 rounded-md border border-input bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-primary font-mono text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Opcional - deixe vazio se não oferecer plano anual
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* Limites */}
             <div className="space-y-4">
