@@ -42,7 +42,7 @@ export interface ListaOrganizacoesResponse {
 export interface CriarOrganizacaoPayload {
   nome: string
   segmento: string
-  email: string
+   email?: string
   website?: string
   telefone?: string
   endereco?: {
@@ -270,25 +270,25 @@ export async function obterOrganizacao(id: string): Promise<Organizacao> {
 
 export async function criarOrganizacao(payload: CriarOrganizacaoPayload): Promise<{ organizacao_id: string; admin_id: string }> {
   // Criar organização
-  const { data: org, error: orgError } = await supabase
+   const { data: org, error: orgError } = await supabase
     .from('organizacoes_saas')
-    .insert({
-      nome: payload.nome,
-      slug: payload.nome.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
-      segmento: payload.segmento,
-      email: payload.email,
-      website: payload.website,
-      telefone: payload.telefone,
-      plano: 'trial',
-      status: 'trial',
-      endereco_cep: payload.endereco?.cep,
-      endereco_logradouro: payload.endereco?.logradouro,
-      endereco_numero: payload.endereco?.numero,
-      endereco_complemento: payload.endereco?.complemento,
-      endereco_bairro: payload.endereco?.bairro,
-      endereco_cidade: payload.endereco?.cidade,
-      endereco_estado: payload.endereco?.estado,
-    })
+     .insert([{
+       nome: payload.nome,
+       slug: payload.nome.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
+       segmento: payload.segmento,
+       email: payload.email || 'sem-email@placeholder.local',
+       website: payload.website ?? null,
+       telefone: payload.telefone ?? null,
+       plano: 'trial',
+       status: 'trial',
+       endereco_cep: payload.endereco?.cep ?? null,
+       endereco_logradouro: payload.endereco?.logradouro ?? null,
+       endereco_numero: payload.endereco?.numero ?? null,
+       endereco_complemento: payload.endereco?.complemento ?? null,
+       endereco_bairro: payload.endereco?.bairro ?? null,
+       endereco_cidade: payload.endereco?.cidade ?? null,
+       endereco_estado: payload.endereco?.estado ?? null,
+     }])
     .select()
     .single()
 

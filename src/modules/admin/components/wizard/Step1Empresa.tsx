@@ -1,7 +1,9 @@
 import { useFormContext } from 'react-hook-form'
 import { useState } from 'react'
-import { ChevronDown, ChevronUp, MapPin } from 'lucide-react'
+ import { ChevronDown, ChevronUp, MapPin, Loader2 } from 'lucide-react'
 import { SEGMENTOS, type CriarOrganizacaoData } from '../../schemas/organizacao.schema'
+ import { formatTelefone, formatCep } from '@/lib/formatters'
+ import { useCepLookup } from '../../hooks/useCepLookup'
 
 /**
  * AIDEV-NOTE: Etapa 1 do Wizard - Dados da Empresa
@@ -10,10 +12,38 @@ import { SEGMENTOS, type CriarOrganizacaoData } from '../../schemas/organizacao.
 
 export function Step1Empresa() {
   const [mostrarEndereco, setMostrarEndereco] = useState(false)
+   const { buscarCep, isLoading: buscandoCep } = useCepLookup()
   const {
     register,
     formState: { errors },
+     setValue,
+     watch,
   } = useFormContext<CriarOrganizacaoData>()
+ 
+   const segmento = watch('segmento')
+ 
+   // Handler para telefone com máscara
+   const handleTelefoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+     const formatted = formatTelefone(e.target.value)
+     setValue('telefone', formatted)
+   }
+ 
+   // Handler para CEP com máscara e auto-preenchimento
+   const handleCepChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+     const formatted = formatCep(e.target.value)
+     setValue('endereco.cep', formatted)
+ 
+     // Se tem 9 caracteres (00000-000), buscar endereço
+     if (formatted.length === 9) {
+       const endereco = await buscarCep(formatted)
+       if (endereco) {
+         setValue('endereco.logradouro', endereco.logradouro)
+         setValue('endereco.bairro', endereco.bairro)
+         setValue('endereco.cidade', endereco.cidade)
+         setValue('endereco.estado', endereco.estado)
+       }
+     }
+   }
 
   return (
     <div className="space-y-4">
@@ -54,10 +84,28 @@ export function Step1Empresa() {
         )}
       </div>
 
+       {/* Campo Outro Segmento - aparece quando "outro" é selecionado */}
+       {segmento === 'outro' && (
+         <div>
+           <label className="block text-sm font-medium text-foreground mb-1.5">
+             Especifique o segmento <span className="text-destructive">*</span>
+           </label>
+           <input
+             type="text"
+             {...register('segmento_outro')}
+             placeholder="Ex: Consultoria Ambiental"
+             className="w-full h-11 px-4 rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+           />
+           {errors.segmento_outro && (
+             <p className="mt-1 text-sm text-destructive">{errors.segmento_outro.message}</p>
+           )}
+         </div>
+       )}
+ 
       {/* Email da Empresa */}
       <div>
         <label className="block text-sm font-medium text-foreground mb-1.5">
-          Email da Empresa <span className="text-destructive">*</span>
+           Email da Empresa
         </label>
         <input
           type="email"
@@ -78,8 +126,9 @@ export function Step1Empresa() {
           </label>
           <input
             type="tel"
-            {...register('telefone')}
+             {...register('telefone', { onChange: handleTelefoneChange })}
             placeholder="(11) 99999-9999"
+             maxLength={15}
             className="w-full h-11 px-4 rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
           />
         </div>
@@ -120,17 +169,24 @@ export function Step1Empresa() {
         {mostrarEndereco && (
           <div className="p-4 space-y-4 border-t border-border">
             {/* CEP */}
-            <div className="max-w-[200px]">
+             <div className="max-w-[200px] relative">
               <label className="block text-sm font-medium text-foreground mb-1.5">
                 CEP
               </label>
-              <input
-                type="text"
-                {...register('endereco.cep')}
-                placeholder="00000-000"
-                maxLength={9}
-                className="w-full h-11 px-4 rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-              />
+               <div className="relative">
+                 <input
+                   type="text"
+                   {...register('endereco.cep', { onChange: handleCepChange })}
+                   placeholder="00000-000"
+                   maxLength={9}
+                   className="w-full h-11 px-4 pr-10 rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+                 />
+                 {buscandoCep && (
+                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                     <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                   </div>
+                 )}
+               </div>
             </div>
 
             {/* Logradouro e Numero */}

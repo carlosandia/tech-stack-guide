@@ -42,6 +42,7 @@ export function NovaOrganizacaoModal({ isOpen, onClose, onSuccess }: Props) {
     defaultValues: {
       nome: '',
       segmento: '',
+       segmento_outro: '',
       email: '',
       website: '',
       telefone: '',
