@@ -5,16 +5,17 @@ import { adminApi, type Organizacao } from '../services/admin.api'
 import { useToolbar } from '../contexts/ToolbarContext'
 import { NovaOrganizacaoModal } from '../components/NovaOrganizacaoModal'
 import { SearchPopover, StatusDropdown } from '../components/toolbar'
+import { OrganizacaoActionsMenu } from '../components/OrganizacaoActionsMenu'
 import {
   Plus,
   Eye,
-  Settings,
-  User,
-  MoreVertical,
   Building2,
   Gift,
+  RefreshCw,
+  WifiOff,
+  AlertTriangle,
 } from 'lucide-react'
- import { RefreshCw, WifiOff, AlertTriangle } from 'lucide-react'
+
 
 /**
  * AIDEV-NOTE: Listagem de Organizacoes
@@ -344,55 +345,14 @@ function OrganizacaoRow({
       <td className="px-6 py-4">
         <span className="text-sm text-muted-foreground">{formatDate(org.criado_em)}</span>
       </td>
-      <td className="px-6 py-4 text-right relative">
-        <div className="relative inline-block">
-          <button
-            onClick={() => setMenuAberto(menuAberto === org.id ? null : org.id)}
-            className="p-2 hover:bg-accent rounded-lg"
-          >
-            <MoreVertical className="w-4 h-4 text-muted-foreground" />
-          </button>
-          {menuAberto === org.id && (
-            <>
-              <div
-                className="fixed inset-0 z-40"
-                onClick={() => setMenuAberto(null)}
-              />
-              <div className="absolute right-0 bottom-full mb-1 w-48 bg-card rounded-lg shadow-lg border border-border py-1 z-50">
-                <button
-                  onClick={() => {
-                    navigate(`/admin/organizacoes/${org.id}`)
-                    setMenuAberto(null)
-                  }}
-                  className="flex items-center gap-2 w-full px-4 py-2 text-sm text-foreground hover:bg-accent"
-                >
-                  <Eye className="w-4 h-4" />
-                  Visualizar
-                </button>
-                <button
-                  onClick={() => {
-                    navigate(`/admin/organizacoes/${org.id}`)
-                    setMenuAberto(null)
-                  }}
-                  className="flex items-center gap-2 w-full px-4 py-2 text-sm text-foreground hover:bg-accent"
-                >
-                  <Settings className="w-4 h-4" />
-                  Gerenciar Modulos
-                </button>
-                <button
-                  onClick={() => {
-                    alert('Funcao de impersonacao sera implementada')
-                    setMenuAberto(null)
-                  }}
-                  className="flex items-center gap-2 w-full px-4 py-2 text-sm text-foreground hover:bg-accent"
-                >
-                  <User className="w-4 h-4" />
-                  Impersonar
-                </button>
-              </div>
-            </>
-          )}
-        </div>
+      <td className="px-6 py-4 text-right">
+        <OrganizacaoActionsMenu
+          open={menuAberto === org.id}
+          onOpenChange={(open) => setMenuAberto(open ? org.id : null)}
+          onVisualizar={() => navigate(`/admin/organizacoes/${org.id}`)}
+          onGerenciarModulos={() => navigate(`/admin/organizacoes/${org.id}`)}
+          onImpersonar={() => alert('Funcao de impersonacao sera implementada')}
+        />
       </td>
     </tr>
   )
