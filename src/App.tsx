@@ -8,6 +8,7 @@
    AdminOrganizacaoDetalhesPage,
    AdminPlanosPage,
    AdminConfiguracoesGlobaisPage,
+   AdminModulosPage,
  } from '@/modules/admin'
  import { PlanosPage, TrialCadastroPage, CheckoutSucessoPage } from '@/modules/public'
 
@@ -41,20 +42,6 @@ function DashboardPage() {
         </p>
         <p className="text-muted-foreground">
           Tenant: {tenantId || 'N/A'}
-        </p>
-      </div>
-    </div>
-  )
-}
-
-// Pagina placeholder para rotas em construcao
-function PlaceholderPage({ title }: { title: string }) {
-  return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
-      <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
-        <p className="text-gray-500">
-          Esta pagina sera implementada em breve.
         </p>
       </div>
     </div>
@@ -104,7 +91,7 @@ function App() {
         <Route path="organizacoes" element={<AdminOrganizacoesPage />} />
         <Route path="organizacoes/:id" element={<AdminOrganizacaoDetalhesPage />} />
         <Route path="planos" element={<AdminPlanosPage />} />
-        <Route path="modulos" element={<PlaceholderPage title="Modulos" />} />
+         <Route path="modulos" element={<AdminModulosPage />} />
         <Route path="configuracoes" element={<AdminConfiguracoesGlobaisPage />} />
       </Route>
 

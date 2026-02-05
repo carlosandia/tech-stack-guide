@@ -8,6 +8,7 @@ export { AdminLayout } from './layouts/AdminLayout'
 
 // Pages
 export { DashboardPage as AdminDashboardPage } from './pages/DashboardPage'
+ export { ModulosPage as AdminModulosPage } from './pages/ModulosPage'
 export { OrganizacoesPage as AdminOrganizacoesPage } from './pages/OrganizacoesPage'
 export { OrganizacaoDetalhesPage as AdminOrganizacaoDetalhesPage } from './pages/OrganizacaoDetalhesPage'
 export { PlanosPage as AdminPlanosPage } from './pages/PlanosPage'
