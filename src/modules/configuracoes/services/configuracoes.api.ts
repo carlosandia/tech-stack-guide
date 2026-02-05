@@ -490,21 +490,41 @@ export const integracoesApi = {
     return data as { integracoes: Integracao[]; total: number }
   },
 
+  buscar: async (id: string) => {
+    const { data } = await api.get(`/v1/integracoes/${id}`)
+    return data as Integracao
+  },
+
+  obterAuthUrl: async (plataforma: PlataformaIntegracao, redirect_uri: string) => {
+    const { data } = await api.get(`/v1/integracoes/${plataforma}/auth-url`, {
+      params: { redirect_uri },
+    })
+    return data as { url: string }
+  },
+
+  processarCallback: async (plataforma: PlataformaIntegracao, payload: { code: string; state: string; redirect_uri: string }) => {
+    const { data } = await api.post(`/v1/integracoes/${plataforma}/callback`, payload)
+    return data as Integracao
+  },
+
   desconectar: async (id: string) => {
     await api.delete(`/v1/integracoes/${id}`)
   },
 
   sincronizar: async (id: string) => {
     const { data } = await api.post(`/v1/integracoes/${id}/sync`)
-    return data
+    return data as { sucesso: boolean; mensagem: string }
   },
 }
 
 // =====================================================
 // API Functions - Webhooks
+// NOTA: Backend monta webhooksRoutes em /v1/webhooks-entrada e /v1/webhooks-saida
+// As sub-rotas internas sao /entrada e /saida
 // =====================================================
 
 export const webhooksApi = {
+  // Webhooks de Entrada - usa /v1/webhooks-entrada/entrada
   listarEntrada: async () => {
     const { data } = await api.get('/v1/webhooks-entrada/entrada')
     return data as { webhooks: WebhookEntrada[]; total: number }
@@ -524,29 +544,55 @@ export const webhooksApi = {
     await api.delete(`/v1/webhooks-entrada/entrada/${id}`)
   },
 
+  regenerarToken: async (id: string) => {
+    const { data } = await api.post(`/v1/webhooks-entrada/entrada/${id}/regenerar-token`)
+    return data as WebhookEntrada
+  },
+
+  // Webhooks de Saída - usa /v1/webhooks-saida/saida
   listarSaida: async () => {
-    const { data } = await api.get('/v1/webhooks-entrada/saida')
+    const { data } = await api.get('/v1/webhooks-saida/saida')
     return data as { webhooks: WebhookSaida[]; total: number }
   },
 
   criarSaida: async (payload: Record<string, unknown>) => {
-    const { data } = await api.post('/v1/webhooks-entrada/saida', payload)
+    const { data } = await api.post('/v1/webhooks-saida/saida', payload)
     return data as WebhookSaida
   },
 
   atualizarSaida: async (id: string, payload: Record<string, unknown>) => {
-    const { data } = await api.patch(`/v1/webhooks-entrada/saida/${id}`, payload)
+    const { data } = await api.patch(`/v1/webhooks-saida/saida/${id}`, payload)
     return data as WebhookSaida
   },
 
   excluirSaida: async (id: string) => {
-    await api.delete(`/v1/webhooks-entrada/saida/${id}`)
+    await api.delete(`/v1/webhooks-saida/saida/${id}`)
   },
 
   testarSaida: async (id: string) => {
-    const { data } = await api.post(`/v1/webhooks-entrada/saida/${id}/testar`)
-    return data
+    const { data } = await api.post(`/v1/webhooks-saida/saida/${id}/testar`)
+    return data as { sucesso: boolean; status_code?: number; mensagem?: string }
   },
+
+  listarLogsSaida: async (id: string, params?: { evento?: string; sucesso?: string; page?: string; limit?: string }) => {
+    const { data } = await api.get(`/v1/webhooks-saida/saida/${id}/logs`, { params })
+    return data as { logs: WebhookSaidaLog[]; total: number; page: number; total_paginas: number }
+  },
+}
+
+// Tipo de log para webhooks de saída
+export interface WebhookSaidaLog {
+  id: string
+  webhook_id: string
+  evento: string
+  payload: Record<string, unknown>
+  status_code?: number | null
+  response_body?: string | null
+  tentativa: number
+  sucesso: boolean
+  erro_mensagem?: string | null
+  duracao_ms?: number | null
+  criado_em: string
 }
 
 // =====================================================
