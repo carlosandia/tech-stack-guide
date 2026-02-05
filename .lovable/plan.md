@@ -1,92 +1,90 @@
 
-# Plano: Correções no Plano Trial
+# Plano: Substituir Etapa 2 (Expectativas) por Seleção de Plano
 
 ## Resumo
 
-Corrigir a experiência do plano Trial tanto no painel Admin quanto na página pública, removendo campos irrelevantes e garantindo consistência dos dados.
+Transformar a Etapa 2 do wizard de criação de organização para exibir apenas um seletor de plano, removendo os campos de expectativas que não são salvos no banco de dados.
 
 ---
 
-## Problemas Identificados
+## Análise da Situação Atual
 
-| Problema | Localização | Impacto |
-|----------|-------------|---------|
-| Modal mostra campos de preço para Trial | `PlanoFormModal.tsx` | UX confusa - Trial é grátis |
-| Modal mostra integração Stripe para Trial | `PlanoFormModal.tsx` | Irrelevante - Trial não tem checkout |
-| Trial na página pública usa dados hardcoded | `public/PlanosPage.tsx` | Limites inconsistentes com o cadastrado |
-| Nome do plano Trial editável | `PlanoFormModal.tsx` | Risco de quebrar identificação |
+| Item | Status | Observação |
+|------|--------|------------|
+| Campos de expectativa no frontend | ✅ Existem | 5 campos: numero_usuarios, volume_leads_mes, etc. |
+| Colunas no banco `organizacoes_saas` | ❌ NÃO existem | Tabela só tem coluna `plano` (varchar) |
+| Uso dos dados | ❌ Não são salvos | Enviados mas ignorados no insert |
+
+**Conclusão**: Os campos de expectativas nunca foram persistidos - podem ser removidos sem impacto.
 
 ---
 
-## Correções a Implementar
+## O Que Será Feito
 
-### 1. Modal de Edição - Ocultar Seções para Trial
+### 1. Modificar Step2Expectativas.tsx
 
-Quando `isTrial === true`, ocultar as seguintes seções:
+Trocar os 5 campos atuais por um único seletor de plano com cards visuais.
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                    MODAL EDITAR PLANO TRIAL                                  │
+│                    ETAPA 2 - ESCOLHA DO PLANO                                │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
-│  INFORMAÇÕES BÁSICAS                                                         │
-│  ┌─────────────────────────┐  ┌─────────────────────────┐                   │
-│  │ Nome do Plano *         │  │ Ordem                   │                   │
-│  │ [Trial        ] 🔒      │  │ [1                    ] │                   │
-│  └─────────────────────────┘  └─────────────────────────┘                   │
-│       ↑ Readonly/Disabled                                                    │
+│  Selecione o plano para esta organização:                                   │
 │                                                                              │
-│  Descrição                                                                   │
-│  ┌─────────────────────────────────────────────────────────────────────────┐│
-│  │ Teste gratuito para novos usuários                                      ││
-│  └─────────────────────────────────────────────────────────────────────────┘│
+│  ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐                │
+│  │  ○ Trial        │ │  ○ Starter      │ │  ○ Pro          │                │
+│  │  Grátis         │ │  R$ 99/mês      │ │  R$ 249/mês     │                │
+│  │  2 usuários     │ │  5 usuários     │ │  15 usuários    │                │
+│  │  100 oport.     │ │  500 oport.     │ │  Ilimitado      │                │
+│  └─────────────────┘ └─────────────────┘ └─────────────────┘                │
 │                                                                              │
-│  ╔═══════════════════════════════════════════════════════════════════════╗  │
-│  ║  PREÇOS                            ← OCULTO PARA TRIAL                ║  │
-│  ║  INTEGRAÇÃO STRIPE                 ← OCULTO PARA TRIAL                ║  │
-│  ╚═══════════════════════════════════════════════════════════════════════╝  │
+│  ┌─────────────────┐                                                         │
+│  │  ○ Enterprise   │                                                         │
+│  │  R$ 599/mês     │                                                         │
+│  │  50 usuários    │                                                         │
+│  │  Ilimitado      │                                                         │
+│  └─────────────────┘                                                         │
 │                                                                              │
-│  LIMITES (-1 = ilimitado)  ← VISÍVEL (configura recursos do trial)          │
-│  ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌───────────┐                 │
-│  │ Usuários  │  │ Oport.    │  │ Storage   │  │ Contatos  │                 │
-│  │ [2      ] │  │ [50     ] │  │ [100    ] │  │ [100    ] │                 │
-│  └───────────┘  └───────────┘  └───────────┘  └───────────┘                 │
+│  Card selecionado: borda azul + background suave                            │
 │                                                                              │
-│  STATUS                                                                      │
-│  [✓] Plano Ativo    [✓] Visível para Clientes                               │
-│                                                                              │
-│  MÓDULOS INCLUÍDOS                                                           │
-│  ...                                                                         │
-│                                                                              │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                        [Cancelar]  [Salvar Alterações]       │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 2. Campo Nome Bloqueado para Trial
+### 2. Atualizar Schema Zod
 
-O campo "Nome do Plano" será `readOnly` quando for Trial, para evitar que a identificação seja alterada acidentalmente.
+**Remover** do `Step2ExpectativasSchema`:
+- `numero_usuarios`
+- `volume_leads_mes`
+- `principal_objetivo`
+- `como_conheceu`
+- `observacoes`
 
-### 3. Página Pública - Usar Dados do Banco
+**Adicionar**:
+- `plano_id: z.string().min(1, 'Selecione um plano')`
 
-Atualmente o card Trial na página pública usa valores hardcoded. Corrigir para buscar o plano Trial do banco de dados e usar seus limites reais.
+### 3. Atualizar NovaOrganizacaoModal.tsx
 
-**Antes (hardcoded):**
-```tsx
-<li>2 usuarios</li>
-<li>100 oportunidades</li>
-<li>100MB armazenamento</li>
-```
+- Remover campos de expectativa dos `defaultValues`
+- Adicionar `plano_id: ''` aos defaults
+- Atualizar array `STEPS[1].fields` para `['plano_id']`
+- No submit, usar `plano_id` para buscar o nome do plano e salvar na organização
 
-**Depois (dinâmico):**
-```tsx
-// Buscar plano Trial junto com os outros planos
-const trialPlan = planos.find(p => p.nome.toLowerCase() === 'trial')
+### 4. Atualizar admin.api.ts
 
-<li>{trialPlan?.limite_usuarios || 2} usuarios</li>
-<li>{trialPlan?.limite_oportunidades || 50} oportunidades</li>
-<li>{formatStorage(trialPlan?.limite_storage_mb)} armazenamento</li>
-```
+- Remover campos de expectativa do `CriarOrganizacaoPayload`
+- Adicionar `plano_id: string`
+- Na função `criarOrganizacao`, buscar o plano pelo ID para obter:
+  - Nome do plano (para salvar na coluna `plano`)
+  - Limites (para copiar para a organização)
+
+### 5. Remover constantes não utilizadas
+
+Do arquivo `organizacao.schema.ts`, remover:
+- `NUMERO_USUARIOS`
+- `VOLUME_LEADS`
+- `OBJETIVOS`
+- `COMO_CONHECEU`
 
 ---
 
@@ -94,107 +92,171 @@ const trialPlan = planos.find(p => p.nome.toLowerCase() === 'trial')
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/modules/admin/components/PlanoFormModal.tsx` | Ocultar seções Preços e Stripe para Trial; bloquear nome |
-| `src/modules/public/pages/PlanosPage.tsx` | Usar dados do plano Trial do banco ao invés de hardcoded |
+| `src/modules/admin/components/wizard/Step2Expectativas.tsx` | Substituir campos por seletor de planos |
+| `src/modules/admin/schemas/organizacao.schema.ts` | Remover campos antigos, adicionar `plano_id` |
+| `src/modules/admin/components/NovaOrganizacaoModal.tsx` | Atualizar defaults e STEPS |
+| `src/modules/admin/services/admin.api.ts` | Atualizar payload e lógica de criação |
 
 ---
 
 ## Detalhes Técnicos
 
-### PlanoFormModal.tsx
-
-**Mudanças no JSX:**
+### Novo Step2Expectativas.tsx
 
 ```tsx
-// Campo nome - readOnly para Trial
-<input
-  {...register('nome')}
-  readOnly={isTrial}
-  className={`... ${isTrial ? 'bg-muted cursor-not-allowed' : ''}`}
-/>
-{isTrial && (
-  <p className="text-xs text-muted-foreground mt-1">
-    Nome do plano padrão não pode ser alterado
-  </p>
-)}
+import { useFormContext } from 'react-hook-form'
+import { usePlanos } from '../../hooks/usePlanos'
+import { Check } from 'lucide-react'
+import type { CriarOrganizacaoData } from '../../schemas/organizacao.schema'
 
-// Seções condicionais
-{!isTrial && (
-  <>
-    {/* Seção Preços */}
-    <div className="space-y-4">
-      <h3>Preços</h3>
-      ...
-    </div>
+export function Step2Expectativas() {
+  const { watch, setValue, formState: { errors } } = useFormContext<CriarOrganizacaoData>()
+  const { data: planos, isLoading } = usePlanos()
+  
+  const selectedPlanoId = watch('plano_id')
 
-    {/* Seção Integração Stripe */}
+  const formatLimit = (value: number | null) => {
+    if (value === null || value === -1) return 'Ilimitado'
+    return value.toString()
+  }
+
+  const formatPrice = (preco: number) => {
+    if (preco === 0) return 'Grátis'
+    return `R$ ${preco.toFixed(0)}/mês`
+  }
+
+  if (isLoading) {
+    return <div className="py-8 text-center text-muted-foreground">Carregando planos...</div>
+  }
+
+  return (
     <div className="space-y-4">
-      <h3>Integração Stripe</h3>
-      ...
+      <div>
+        <label className="block text-sm font-medium text-foreground mb-3">
+          Selecione o plano <span className="text-destructive">*</span>
+        </label>
+        
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {planos?.map((plano) => {
+            const isSelected = selectedPlanoId === plano.id
+            const isTrial = plano.nome.toLowerCase() === 'trial'
+            
+            return (
+              <button
+                key={plano.id}
+                type="button"
+                onClick={() => setValue('plano_id', plano.id, { shouldValidate: true })}
+                className={`
+                  relative p-4 rounded-lg border-2 text-left transition-all
+                  ${isSelected 
+                    ? 'border-primary bg-primary/5' 
+                    : 'border-border hover:border-primary/50 bg-background'
+                  }
+                `}
+              >
+                {isSelected && (
+                  <div className="absolute top-2 right-2">
+                    <Check className="w-5 h-5 text-primary" />
+                  </div>
+                )}
+                
+                <div className="font-semibold text-foreground">{plano.nome}</div>
+                <div className={`text-lg font-bold ${isTrial ? 'text-green-600' : 'text-primary'}`}>
+                  {formatPrice(plano.preco_mensal)}
+                </div>
+                
+                <div className="mt-2 text-xs text-muted-foreground space-y-1">
+                  <div>{formatLimit(plano.limite_usuarios)} usuários</div>
+                  <div>{formatLimit(plano.limite_oportunidades)} oportunidades</div>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+        
+        {errors.plano_id && (
+          <p className="mt-2 text-sm text-destructive">{errors.plano_id.message}</p>
+        )}
+      </div>
     </div>
-  </>
-)}
+  )
+}
 ```
 
-### public/PlanosPage.tsx
-
-**Mudanças na query:**
+### Novo Step2ExpectativasSchema
 
 ```tsx
-// Buscar TODOS os planos (incluindo Trial)
-const { data, error } = await supabase
-  .from('planos')
-  .select('*')
-  .eq('ativo', true)
-  .order('ordem', { ascending: true })
-
-// Separar Trial dos pagos
-const trialPlan = data?.find(p => 
-  p.nome.toLowerCase() === 'trial' || p.preco_mensal === 0
-)
-const paidPlans = data?.filter(p => 
-  p.preco_mensal && p.preco_mensal > 0
-)
+export const Step2ExpectativasSchema = z.object({
+  plano_id: z.string().min(1, 'Selecione um plano'),
+})
 ```
 
-**Mudanças no JSX do card Trial:**
+### Atualização do CriarOrganizacaoPayload
 
 ```tsx
-{trialConfig.trial_habilitado && trialPlan && (
-  <div className="...">
-    ...
-    <ul className="space-y-3 mb-8 flex-1">
-      <li>
-        <Check className="..." />
-        {trialPlan.limite_usuarios === -1 
-          ? 'Usuários ilimitados' 
-          : `${trialPlan.limite_usuarios} usuarios`}
-      </li>
-      <li>
-        <Check className="..." />
-        {formatLimit(trialPlan.limite_oportunidades)} oportunidades
-      </li>
-      <li>
-        <Check className="..." />
-        {formatStorage(trialPlan.limite_storage_mb)} armazenamento
-      </li>
-    </ul>
-    ...
-  </div>
-)}
+export interface CriarOrganizacaoPayload {
+  nome: string
+  segmento: string
+  email?: string
+  website?: string
+  telefone?: string
+  endereco?: { ... }
+  plano_id: string  // Novo campo - ID do plano selecionado
+  admin_nome: string
+  admin_sobrenome: string
+  admin_email: string
+  admin_telefone?: string
+  enviar_convite: boolean
+  senha_inicial?: string
+}
+```
+
+### Atualização da função criarOrganizacao
+
+```tsx
+export async function criarOrganizacao(payload: CriarOrganizacaoPayload): Promise<...> {
+  // Buscar dados do plano selecionado
+  const { data: plano, error: planoError } = await supabase
+    .from('planos')
+    .select('nome, limite_usuarios, limite_oportunidades, limite_storage_mb')
+    .eq('id', payload.plano_id)
+    .single()
+
+  if (planoError || !plano) throw new Error('Plano não encontrado')
+
+  // Criar organização com dados do plano
+  const { data: org, error: orgError } = await supabase
+    .from('organizacoes_saas')
+    .insert([{
+      nome: payload.nome,
+      slug: ...,
+      segmento: payload.segmento,
+      email: payload.email || 'sem-email@placeholder.local',
+      plano: plano.nome.toLowerCase(),  // Salva o nome do plano
+      status: plano.nome.toLowerCase() === 'trial' ? 'trial' : 'ativa',
+      limite_usuarios: plano.limite_usuarios,
+      limite_oportunidades: plano.limite_oportunidades,
+      limite_storage_mb: plano.limite_storage_mb,
+      // ... demais campos de endereço
+    }])
+    .select()
+    .single()
+
+  // ...
+}
 ```
 
 ---
 
-## Validação: Trial Não Pode Ser Escolhido Após Expirar
+## Impacto no Banco de Dados
 
-Esta validação deve ser feita na Edge Function `iniciar-trial`, verificando se o email já foi usado em um trial anterior. Isso é uma implementação de backend e pode ser feita em uma tarefa separada.
+**Nenhuma migração necessária** - os campos de expectativas nunca existiram no banco.
 
 ---
 
 ## Resultado Esperado
 
-1. **Modal Trial**: Apenas campos relevantes (limites, status, módulos)
-2. **Card Trial na página pública**: Reflete os limites reais cadastrados no banco
-3. **Nome Trial**: Protegido contra alteração acidental
-4. **UX mais limpa**: Admin não vê campos irrelevantes para plano gratuito
+1. **Etapa 2 simplificada**: Apenas seleção visual de plano
+2. **Dados consistentes**: Plano e limites vêm da tabela `planos`
+3. **Código mais limpo**: Removidas constantes e campos não utilizados
+4. **UX melhorada**: Cards visuais com preço e limites claros
