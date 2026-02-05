@@ -149,7 +149,7 @@ export function OrganizacoesPage() {
       {/* Tabela */}
        {fetchStatus !== 'paused' && (
         <div className="flex-1 min-h-0">
-       <div className="bg-card rounded-lg border border-border shadow-sm overflow-hidden">
+       <div className="bg-card rounded-lg border border-border shadow-sm overflow-visible">
         {isLoading ? (
           <div className="p-8 text-center">
             <div className="animate-pulse space-y-4">
