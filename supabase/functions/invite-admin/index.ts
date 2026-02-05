@@ -386,10 +386,14 @@ Deno.serve(async (req) => {
       "https://id-preview--1f239c79-4597-4aa1-ba11-8321b3203abb.lovable.app";
     const orgNome = organizacao_nome || "CRM";
 
-    // Usar generateLink em vez de inviteUserByEmail para evitar o Auth Hook
-    console.log("[invite-admin] Gerando link de convite com generateLink...");
+    // Tentar gerar link de convite - se usuario ja existe no Auth, usar magiclink
+    console.log("[invite-admin] Gerando link de convite...");
 
-    const { data: linkData, error: linkError } =
+    let linkData: any = null;
+    let userId: string | undefined;
+
+    // 1. Tentar invite (usuario novo)
+    const { data: inviteData, error: inviteError } =
       await supabaseAdmin.auth.admin.generateLink({
         type: "invite",
         email,
@@ -406,16 +410,52 @@ Deno.serve(async (req) => {
         },
       });
 
-    if (linkError) {
-      console.error("[invite-admin] generateLink error:", linkError);
-      return new Response(JSON.stringify({ error: linkError.message }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (inviteError) {
+      // Se o erro for "email_exists", o usuario ja existe no Auth
+      // Nesse caso, gerar um magiclink para redefinir a senha
+      if (inviteError.message?.includes("already been registered") || (inviteError as any).code === "email_exists") {
+        console.log("[invite-admin] Usuario ja existe no Auth, gerando magiclink...");
 
-    const userId = linkData.user?.id;
-    console.log("[invite-admin] User created:", userId);
+        const { data: magicData, error: magicError } =
+          await supabaseAdmin.auth.admin.generateLink({
+            type: "magiclink",
+            email,
+            options: {
+              data: {
+                nome,
+                sobrenome,
+                role: "admin",
+                tenant_id: organizacao_id,
+                organizacao_nome: orgNome,
+                invite_type: "admin",
+              },
+              redirectTo: `${origin}/auth/set-password`,
+            },
+          });
+
+        if (magicError) {
+          console.error("[invite-admin] magiclink error:", magicError);
+          return new Response(JSON.stringify({ error: magicError.message }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        linkData = magicData;
+        userId = magicData.user?.id;
+        console.log("[invite-admin] Magiclink gerado para usuario existente:", userId);
+      } else {
+        console.error("[invite-admin] generateLink error:", inviteError);
+        return new Response(JSON.stringify({ error: inviteError.message }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    } else {
+      linkData = inviteData;
+      userId = inviteData.user?.id;
+      console.log("[invite-admin] Novo usuario criado:", userId);
+    }
 
     // Atualizar usuario na tabela
     await supabaseAdmin
@@ -423,11 +463,11 @@ Deno.serve(async (req) => {
       .update({ auth_id: userId, status: "pendente" })
       .eq("id", usuario_id);
 
-    // Inserir role
+    // Inserir role (upsert para evitar duplicatas)
     if (userId) {
       await supabaseAdmin
         .from("user_roles")
-        .insert({ user_id: userId, role: "admin" });
+        .upsert({ user_id: userId, role: "admin" }, { onConflict: "user_id,role" });
     }
 
     // Construir URL de confirmacao
