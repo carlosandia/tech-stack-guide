@@ -1,156 +1,146 @@
 
-# Plano: Correções Landing Page Planos + Admin
+# Plano: Sistema de Cortesia/Concessao Gratuita de Planos
 
-## Resumo das Correções
+## Contexto
+Quando o Super Admin cria uma organizacao pelo wizard e atribui um plano pago (ex: Starter), atualmente nao ha forma de indicar que essa organizacao esta usando o plano **sem pagar** - uma cortesia ou concessao interna.
 
-1. **Trial refletir na Landing Page** - Já funciona parcialmente, mas vamos garantir consistência
-2. **Campo "Popular" no plano** - Adicionar toggle no admin para marcar qual plano é popular
-3. **Desconto anual dinâmico** - Calcular o percentual real baseado nos preços cadastrados
+## Solucao Recomendada
 
----
+### Abordagem: Campo "Cortesia" na Tabela `assinaturas`
 
-## Análise Atual
-
-| Item | Status Atual |
-|------|--------------|
-| Trial habilitado | Funciona - config `trial_habilitado` já é lida |
-| Plano Popular | Hardcoded `index === 1` - precisa ser dinâmico |
-| Desconto -20% | Hardcoded - precisa calcular dos preços reais |
-
-### Preços Atuais no Banco
-
-| Plano | Mensal | Anual | Desconto Real |
-|-------|--------|-------|---------------|
-| Starter | R$ 99 | R$ 990 | 16.7% |
-| Pro | R$ 249 | R$ 2.490 | 16.7% |
-| Enterprise | R$ 599 | R$ 5.990 | 16.7% |
+Adicionar um campo booleano `cortesia` (ou `is_gratuito`) na tabela `assinaturas` que indica explicitamente que a organizacao nao paga por aquele plano.
 
 ---
 
-## Alterações
+## Mudancas Propostas
 
-### 1. Migração SQL - Adicionar campo `popular`
+### 1. Banco de Dados
+Adicionar coluna na tabela `assinaturas`:
 
-```sql
-ALTER TABLE planos ADD COLUMN IF NOT EXISTS popular BOOLEAN DEFAULT false;
+```text
+ALTER TABLE assinaturas 
+ADD COLUMN cortesia BOOLEAN DEFAULT FALSE,
+ADD COLUMN cortesia_motivo TEXT;
 ```
 
-### 2. Atualizar tipos TypeScript
+- `cortesia`: Indica se e uma concessao gratuita
+- `cortesia_motivo`: Motivo/justificativa (auditoria)
 
-Adicionar `popular: boolean` em:
-- `src/integrations/supabase/types.ts` (automático pela migração)
-- `src/modules/admin/services/admin.api.ts` (interface Plano)
+### 2. Wizard de Criacao (Step 2)
+Quando o Super Admin seleciona um plano **pago**, exibir um toggle:
 
-### 3. PlanoFormModal.tsx - Toggle "Plano Popular"
-
-Adicionar na seção Status:
-```tsx
-<label className="flex items-center gap-2 cursor-pointer">
-  <input
-    type="checkbox"
-    {...register('popular')}
-    className="w-4 h-4 rounded border-input text-primary focus:ring-primary"
-  />
-  <span className="text-sm text-foreground">Plano Popular</span>
-  <span className="text-xs text-muted-foreground">(destacado na landing)</span>
-</label>
+```text
++------------------------------------------+
+| [x] Conceder como cortesia (sem cobranca)|
+|     Motivo: [___________________________]|
++------------------------------------------+
 ```
 
-### 4. PlanosPage (Admin) - Badge "Popular"
+- Toggle aparece apenas para planos com preco > 0
+- Se marcado, o campo de motivo e obrigatorio
 
-Adicionar badge visual no card quando `plano.popular === true`:
-```tsx
-{plano.popular && (
-  <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded">
-    Popular
-  </span>
-)}
+### 3. Listagem de Organizacoes
+Na lista de organizacoes, exibir badge diferenciado:
+
+```text
+| Empresa ABC | Starter | [Cortesia] |
+| Empresa XYZ | Starter | [Pago]     |
 ```
 
-### 5. PlanosPage (Landing) - Desconto Dinâmico
+### 4. Detalhes da Organizacao
+Na aba de configuracoes, mostrar claramente:
 
-Substituir `-20%` hardcoded por cálculo real:
-```tsx
-// Calcular desconto médio dos planos com preço anual
-const calcularDescontoMedio = (planos: PlanoDb[]) => {
-  const planosComAnual = planos.filter(p => 
-    p.preco_mensal && p.preco_mensal > 0 && 
-    p.preco_anual && p.preco_anual > 0
-  )
-  
-  if (planosComAnual.length === 0) return null
-  
-  const descontos = planosComAnual.map(p => {
-    const mensalAnualizado = p.preco_mensal! * 12
-    const desconto = ((mensalAnualizado - p.preco_anual!) / mensalAnualizado) * 100
-    return Math.round(desconto)
-  })
-  
-  return Math.round(descontos.reduce((a, b) => a + b, 0) / descontos.length)
-}
-
-// No toggle de período
-{descontoMedio && (
-  <span className="ml-1.5 text-xs font-semibold text-primary">
-    -{descontoMedio}%
-  </span>
-)}
+```text
+Plano: Starter
+Tipo: Cortesia (concedido em 05/02/2026)
+Motivo: "Parceiro estrategico"
 ```
 
-### 6. PlanosPage (Landing) - Popular Dinâmico
+### 5. Cards de Plano no Wizard
+Quando cortesia estiver marcada, exibir indicacao visual:
 
-Substituir `index === 1` por:
-```tsx
-const isPopular = plano.popular === true
+```text
++-------------------+
+|    Starter        |
+|  R$ 99/mes        |
+|   Cortesia        | <-- badge verde
++-------------------+
 ```
 
-### 7. PlanosPage (Landing) - Trial Visibilidade
+---
 
-Já funciona corretamente - o card Trial só aparece se `trialConfig.trial_habilitado && trialPlan`
+## Fluxo Visual
+
+```text
+Super Admin seleciona "Starter (R$ 99/mes)"
+           |
+           v
+    +------------------------+
+    | Plano pago detectado   |
+    +------------------------+
+           |
+           v
+    [ ] Conceder como cortesia?
+           |
+     Sim   |   Nao
+     v     v    v
+  Badge   Assinatura
+"Cortesia" normal
+```
 
 ---
 
 ## Arquivos a Modificar
 
-| Arquivo | Alteração |
-|---------|-----------|
-| Migração SQL | Adicionar coluna `popular` |
-| `src/modules/admin/services/admin.api.ts` | Adicionar `popular` na interface Plano |
-| `src/modules/admin/components/PlanoFormModal.tsx` | Toggle para marcar popular |
-| `src/modules/admin/pages/PlanosPage.tsx` | Badge popular no card |
-| `src/modules/public/pages/PlanosPage.tsx` | Desconto dinâmico + popular dinâmico |
+### Backend
+1. `supabase/migrations/` - Nova coluna
+2. `backend/src/services/organizacao.service.ts` - Salvar flag cortesia
+3. `backend/src/schemas/admin.ts` - Adicionar campo no schema
+
+### Frontend
+4. `src/modules/admin/schemas/organizacao.schema.ts` - Adicionar campos
+5. `src/modules/admin/components/wizard/Step2Expectativas.tsx` - Toggle de cortesia
+6. `src/modules/admin/pages/OrganizacoesPage.tsx` - Badge na listagem
+7. `src/modules/admin/components/OrganizacaoConfigTab.tsx` - Exibir info cortesia
+8. `src/integrations/supabase/types.ts` - Atualizar tipos
 
 ---
 
-## Schema atualizado
+## Beneficios
+- **Clareza**: Fica explicito que a organizacao usa o plano sem pagar
+- **Auditoria**: Motivo registrado para compliance
+- **Gestao**: Super Admin pode filtrar organizacoes por "Cortesia" vs "Pago"
+- **Relatorios**: Diferenciar receita real de concessoes
 
+---
+
+## Secao Tecnica
+
+### Schema Zod Atualizado
 ```typescript
-const planoSchema = z.object({
+export const Step2ExpectativasSchema = z.object({
+  plano_id: z.string().min(1, 'Selecione um plano'),
+  cortesia: z.boolean().default(false),
+  cortesia_motivo: z.string().optional(),
+}).refine(
+  (data) => {
+    if (data.cortesia) {
+      return data.cortesia_motivo && data.cortesia_motivo.trim().length >= 3
+    }
+    return true
+  },
+  {
+    message: 'Informe o motivo da cortesia',
+    path: ['cortesia_motivo'],
+  }
+)
+```
+
+### Interface Assinatura
+```typescript
+interface Assinatura {
   // ... campos existentes
-  popular: z.boolean().default(false), // NOVO
-})
+  cortesia: boolean
+  cortesia_motivo: string | null
+}
 ```
-
----
-
-## Interface da Landing Atualizada
-
-- **Toggle Mensal/Anual**: Mostra desconto real calculado (ex: "-17%" se for 16.7% arredondado)
-- **Badge Popular**: Aparece no plano marcado como `popular: true` no banco
-- **Card Trial**: Só aparece se trial estiver habilitado nas configurações globais
-- **Dias de Trial**: Exibe corretamente o valor de `trial_dias` da config
-
----
-
-## Lógica do Desconto
-
-```text
-Desconto % = ((Mensal x 12) - Anual) / (Mensal x 12) x 100
-
-Exemplo Starter:
-  Mensal x 12 = 99 x 12 = 1.188
-  Anual = 990
-  Desconto = (1188 - 990) / 1188 x 100 = 16.67% ≈ 17%
-```
-
-Se não houver preços anuais configurados, o toggle "Anual" não mostrará percentual de desconto.
