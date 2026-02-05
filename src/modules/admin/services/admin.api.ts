@@ -78,6 +78,8 @@ export interface Plano {
   limite_oportunidades: number | null
   limite_storage_mb: number
   limite_contatos: number | null
+  stripe_price_id_mensal: string | null
+  stripe_price_id_anual: string | null
   ativo: boolean
   visivel: boolean
   ordem: number
@@ -526,6 +528,8 @@ export async function listarPlanos(): Promise<Plano[]> {
     limite_oportunidades: p.limite_oportunidades,
     limite_storage_mb: p.limite_storage_mb,
     limite_contatos: p.limite_contatos,
+    stripe_price_id_mensal: p.stripe_price_id_mensal,
+    stripe_price_id_anual: p.stripe_price_id_anual,
     ativo: p.ativo ?? true,
     visivel: p.visivel ?? true,
     ordem: p.ordem ?? 0,
@@ -579,6 +583,8 @@ export async function obterPlano(id: string): Promise<Plano & { modulos: Modulo[
     limite_oportunidades: data.limite_oportunidades,
     limite_storage_mb: data.limite_storage_mb,
     limite_contatos: data.limite_contatos,
+    stripe_price_id_mensal: data.stripe_price_id_mensal,
+    stripe_price_id_anual: data.stripe_price_id_anual,
     ativo: data.ativo ?? true,
     visivel: data.visivel ?? true,
     ordem: data.ordem ?? 0,
@@ -599,6 +605,8 @@ export async function criarPlano(plano: Omit<Plano, 'id'>): Promise<string> {
       limite_oportunidades: plano.limite_oportunidades,
       limite_storage_mb: plano.limite_storage_mb,
       limite_contatos: plano.limite_contatos,
+      stripe_price_id_mensal: plano.stripe_price_id_mensal || null,
+      stripe_price_id_anual: plano.stripe_price_id_anual || null,
       ativo: plano.ativo,
       visivel: plano.visivel,
       ordem: plano.ordem,
