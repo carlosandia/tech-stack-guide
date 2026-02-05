@@ -7,6 +7,7 @@
 export { LoginPage } from './pages/LoginPage'
 export { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 export { ResetPasswordPage } from './pages/ResetPasswordPage'
+export { SetPasswordPage } from './pages/SetPasswordPage'
 
 // Components
 export { LoginForm } from './components/LoginForm'

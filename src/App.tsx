@@ -1,7 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from '@/providers/AuthProvider'
 import { useBlockedRedirect } from '@/hooks/useBlockedRedirect'
-import { LoginPage, ForgotPasswordPage, ResetPasswordPage } from '@/modules/auth'
+import { LoginPage, ForgotPasswordPage, ResetPasswordPage, SetPasswordPage } from '@/modules/auth'
 import {
   AdminLayout,
   AdminDashboardPage,
@@ -77,6 +77,7 @@ function App() {
        <Route path="/login" element={<LoginPage />} />
        <Route path="/recuperar-senha" element={<ForgotPasswordPage />} />
        <Route path="/redefinir-senha" element={<ResetPasswordPage />} />
+       <Route path="/auth/set-password" element={<SetPasswordPage />} />
 
       {/* Rotas do CRM (Admin/Member) */}
       <Route path="/app/*" element={

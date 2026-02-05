@@ -18,9 +18,9 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false }
     });
 
-    const { email, nome, sobrenome, usuario_id, organizacao_id } = await req.json();
+    const { email, nome, sobrenome, usuario_id, organizacao_id, organizacao_nome } = await req.json();
 
-    console.log("Invite request:", { email, usuario_id, organizacao_id });
+    console.log("Invite request:", { email, usuario_id, organizacao_id, organizacao_nome });
 
     if (!email || !usuario_id || !organizacao_id) {
       return new Response(
@@ -34,7 +34,14 @@ Deno.serve(async (req) => {
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
       email,
       {
-        data: { nome, sobrenome, role: "admin", tenant_id: organizacao_id },
+        data: { 
+          nome, 
+          sobrenome, 
+          role: "admin", 
+          tenant_id: organizacao_id,
+          organizacao_nome: organizacao_nome || 'CRM',
+          invite_type: 'admin',
+        },
         redirectTo: `${origin}/auth/set-password`,
       }
     );
