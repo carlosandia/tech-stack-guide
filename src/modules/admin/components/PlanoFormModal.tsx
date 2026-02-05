@@ -22,6 +22,8 @@ const planoSchema = z.object({
   limite_oportunidades: z.coerce.number().optional(),
   limite_storage_mb: z.coerce.number().min(1, 'Mínimo 1 MB'),
   limite_contatos: z.coerce.number().optional(),
+  stripe_price_id_mensal: z.string().optional(),
+  stripe_price_id_anual: z.string().optional(),
   ativo: z.boolean().default(true),
   visivel: z.boolean().default(true),
   ordem: z.coerce.number().default(0),
@@ -57,6 +59,8 @@ export function PlanoFormModal({ plano, onClose }: Props) {
       limite_oportunidades: -1,
       limite_storage_mb: 500,
       limite_contatos: -1,
+      stripe_price_id_mensal: '',
+      stripe_price_id_anual: '',
       ativo: true,
       visivel: true,
       ordem: 0,
@@ -75,6 +79,8 @@ export function PlanoFormModal({ plano, onClose }: Props) {
         limite_oportunidades: plano.limite_oportunidades || -1,
         limite_storage_mb: plano.limite_storage_mb,
         limite_contatos: plano.limite_contatos || -1,
+        stripe_price_id_mensal: plano.stripe_price_id_mensal || '',
+        stripe_price_id_anual: plano.stripe_price_id_anual || '',
         ativo: plano.ativo,
         visivel: plano.visivel,
         ordem: plano.ordem,
@@ -120,6 +126,8 @@ export function PlanoFormModal({ plano, onClose }: Props) {
       preco_anual: data.preco_anual || null,
       limite_oportunidades: data.limite_oportunidades === -1 ? null : data.limite_oportunidades,
       limite_contatos: data.limite_contatos === -1 ? null : data.limite_contatos,
+      stripe_price_id_mensal: data.stripe_price_id_mensal || null,
+      stripe_price_id_anual: data.stripe_price_id_anual || null,
     }
 
     if (isEditing) {
@@ -253,6 +261,48 @@ export function PlanoFormModal({ plano, onClose }: Props) {
                     <option value="BRL">BRL</option>
                     <option value="USD">USD</option>
                   </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Integração Stripe */}
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                  Integração Stripe
+                </h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Vincule os Price IDs do Stripe para habilitar o checkout automático
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">
+                    Stripe Price ID (Mensal)
+                  </label>
+                  <input
+                    {...register('stripe_price_id_mensal')}
+                    placeholder="price_1ABC123..."
+                    className="w-full h-11 px-3 rounded-md border border-input bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-primary font-mono text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Copie do Stripe Dashboard → Products → Price ID
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">
+                    Stripe Price ID (Anual)
+                  </label>
+                  <input
+                    {...register('stripe_price_id_anual')}
+                    placeholder="price_1XYZ789..."
+                    className="w-full h-11 px-3 rounded-md border border-input bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-primary font-mono text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Opcional - deixe vazio se não oferecer plano anual
+                  </p>
                 </div>
               </div>
             </div>
