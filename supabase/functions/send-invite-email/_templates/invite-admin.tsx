@@ -20,6 +20,7 @@ import * as React from 'npm:react@18.3.1'
 
 interface InviteAdminEmailProps {
   nome: string
+  email: string
   organizacaoNome: string
   confirmUrl: string
   token: string
@@ -27,6 +28,7 @@ interface InviteAdminEmailProps {
 
 export const InviteAdminEmail = ({
   nome = 'Usuario',
+  email = '',
   organizacaoNome = 'CRM',
   confirmUrl = '',
   token = '',
@@ -57,6 +59,12 @@ export const InviteAdminEmail = ({
               <strong>Administrador</strong> da organização{' '}
               <strong style={highlight}>{organizacaoNome}</strong>.
             </Text>
+
+            {/* Login info box */}
+            <Section style={loginInfoBox}>
+              <Text style={loginInfoLabel}>📧 Seu email de acesso:</Text>
+              <Text style={loginInfoEmail}>{email}</Text>
+            </Section>
 
             <Text style={paragraph}>
               Para começar, defina sua senha clicando no botão abaixo:
@@ -177,6 +185,30 @@ const heading = {
   fontWeight: '600',
   lineHeight: '1.3',
   margin: '0 0 24px 0',
+}
+
+const loginInfoBox = {
+  backgroundColor: '#EFF6FF',
+  borderRadius: '8px',
+  padding: '16px 20px',
+  margin: '0 0 24px 0',
+  border: '1px solid #BFDBFE',
+}
+
+const loginInfoLabel = {
+  color: '#1E40AF',
+  fontSize: '14px',
+  fontWeight: '600',
+  margin: '0 0 6px 0',
+  lineHeight: '1.4',
+}
+
+const loginInfoEmail = {
+  color: '#1E3A5F',
+  fontSize: '18px',
+  fontWeight: '700',
+  margin: '0',
+  lineHeight: '1.4',
 }
 
 const paragraph = {
