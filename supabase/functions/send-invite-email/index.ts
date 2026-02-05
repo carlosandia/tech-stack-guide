@@ -1,5 +1,5 @@
 import React from 'npm:react@18.3.1'
-import { Webhook } from 'https://esm.sh/standardwebhooks@1.0.0'
+import { Webhook } from 'npm:standardwebhooks@1.0.0'
 import { Resend } from 'npm:resend@4.0.0'
 import { renderAsync } from 'npm:@react-email/components@0.0.22'
 import { InviteAdminEmail } from './_templates/invite-admin.tsx'
