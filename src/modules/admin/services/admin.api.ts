@@ -23,6 +23,14 @@ export interface Organizacao {
   criado_em: string
   cortesia?: boolean
   cortesia_motivo?: string | null
+  // Endereço
+  endereco_cep?: string | null
+  endereco_logradouro?: string | null
+  endereco_numero?: string | null
+  endereco_complemento?: string | null
+  endereco_bairro?: string | null
+  endereco_cidade?: string | null
+  endereco_estado?: string | null
   admin?: {
     id: string
     nome: string
@@ -277,6 +285,14 @@ export async function obterOrganizacao(id: string): Promise<Organizacao> {
     criado_em: data.criado_em,
     cortesia: assinaturaData?.cortesia ?? false,
     cortesia_motivo: assinaturaData?.cortesia_motivo ?? null,
+    // Endereço
+    endereco_cep: data.endereco_cep,
+    endereco_logradouro: data.endereco_logradouro,
+    endereco_numero: data.endereco_numero,
+    endereco_complemento: data.endereco_complemento,
+    endereco_bairro: data.endereco_bairro,
+    endereco_cidade: data.endereco_cidade,
+    endereco_estado: data.endereco_estado,
     admin: adminData ? {
       id: adminData.id,
       nome: adminData.nome,
@@ -430,6 +446,14 @@ export async function atualizarOrganizacao(id: string, data: Partial<Organizacao
   if (data.telefone !== undefined) updateData.telefone = data.telefone
   if (data.status !== undefined) updateData.status = data.status
   if (data.plano !== undefined) updateData.plano = data.plano
+  // Endereço
+  if (data.endereco_cep !== undefined) updateData.endereco_cep = data.endereco_cep
+  if (data.endereco_logradouro !== undefined) updateData.endereco_logradouro = data.endereco_logradouro
+  if (data.endereco_numero !== undefined) updateData.endereco_numero = data.endereco_numero
+  if (data.endereco_complemento !== undefined) updateData.endereco_complemento = data.endereco_complemento
+  if (data.endereco_bairro !== undefined) updateData.endereco_bairro = data.endereco_bairro
+  if (data.endereco_cidade !== undefined) updateData.endereco_cidade = data.endereco_cidade
+  if (data.endereco_estado !== undefined) updateData.endereco_estado = data.endereco_estado
 
   const { error } = await supabase
     .from('organizacoes_saas')
