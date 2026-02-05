@@ -1,14 +1,15 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
-import { useAuth } from '@/providers/AuthProvider'
-import { LoginPage, ForgotPasswordPage, ResetPasswordPage } from '@/modules/auth'
-import {
-  AdminLayout,
-  AdminDashboardPage,
-  AdminOrganizacoesPage,
-  AdminOrganizacaoDetalhesPage,
-  AdminPlanosPage,
-  AdminConfiguracoesGlobaisPage,
-} from '@/modules/admin'
+ import { Routes, Route, Navigate } from 'react-router-dom'
+ import { useAuth } from '@/providers/AuthProvider'
+ import { LoginPage, ForgotPasswordPage, ResetPasswordPage } from '@/modules/auth'
+ import {
+   AdminLayout,
+   AdminDashboardPage,
+   AdminOrganizacoesPage,
+   AdminOrganizacaoDetalhesPage,
+   AdminPlanosPage,
+   AdminConfiguracoesGlobaisPage,
+ } from '@/modules/admin'
+ import { PlanosPage, TrialCadastroPage, CheckoutSucessoPage } from '@/modules/public'
 
 /**
  * AIDEV-NOTE: Roteamento principal da aplicacao
@@ -75,10 +76,15 @@ function App() {
 
   return (
     <Routes>
-      {/* Rotas publicas de autenticacao */}
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/recuperar-senha" element={<ForgotPasswordPage />} />
-      <Route path="/redefinir-senha" element={<ResetPasswordPage />} />
+       {/* Rotas publicas */}
+       <Route path="/planos" element={<PlanosPage />} />
+       <Route path="/trial" element={<TrialCadastroPage />} />
+       <Route path="/sucesso" element={<CheckoutSucessoPage />} />
+ 
+       {/* Rotas de autenticacao */}
+       <Route path="/login" element={<LoginPage />} />
+       <Route path="/recuperar-senha" element={<ForgotPasswordPage />} />
+       <Route path="/redefinir-senha" element={<ResetPasswordPage />} />
 
       {/* Rotas do CRM (Admin/Member) */}
       <Route path="/app/*" element={
