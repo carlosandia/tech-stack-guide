@@ -916,9 +916,6 @@ export async function obterConfigGlobal(plataforma: string): Promise<ConfigGloba
 }
 
 export async function atualizarConfigGlobal(plataforma: string, configuracoes: Record<string, unknown>): Promise<void> {
-  // Determinar se está configurado baseado nos campos obrigatórios
-  const configurado = verificarConfigurado(plataforma, configuracoes)
-
   // Primeiro verifica se existe
   const { data: existing } = await supabase
     .from('configuracoes_globais')
@@ -932,6 +929,10 @@ export async function atualizarConfigGlobal(plataforma: string, configuracoes: R
       ...(existing.configuracoes as Record<string, unknown>),
       ...configuracoes,
     }
+
+    // Verificar configurado com base no merge completo (não nos valores parciais)
+    const configurado = verificarConfigurado(plataforma, mergedConfig)
+
     const { error } = await supabase
       .from('configuracoes_globais')
       .update({
@@ -943,6 +944,7 @@ export async function atualizarConfigGlobal(plataforma: string, configuracoes: R
 
     if (error) throw new Error(error.message)
   } else {
+    const configurado = verificarConfigurado(plataforma, configuracoes)
     const { error } = await supabase
       .from('configuracoes_globais')
       .insert({
