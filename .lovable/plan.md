@@ -1,174 +1,216 @@
 
-## Diagnóstico (com base nos seus logs + imagens)
+# Plano: Otimizar Carregamento de Organizações e Planos
 
-1) **As requisições para o Supabase estão falhando no nível de rede**  
-Nos logs aparece `Error: Failed to fetch` em chamadas como:
-- `GET https://...supabase.co/rest/v1/planos?...`
-- `GET https://...supabase.co/rest/v1/usuarios?...`
+## Problema Identificado
 
-Esse tipo de erro geralmente **não é erro de permissão/RLS** (que retornaria 401/403 com resposta). É mais comum quando:
-- a conexão está instável (ex.: `ERR_NETWORK_CHANGED`),
-- o navegador “pausa” requisições (offline/intermitência),
-- alguma camada que intercepta `fetch` falha (no stack trace aparece `window.fetch` vindo de `lovable.js`),
-- DNS/Proxy/Extensão bloqueando domínios (você também tem `ERR_NAME_NOT_RESOLVED` para alguns recursos).
+O erro "Tempo limite excedido" não é cache - é uma combinação de:
 
-2) **A UI fica “presa” em loading porque não há timeout nem estado “paused/offline” tratado**  
-- No wizard (Step2) você só trata `isLoading`. Se a promise do Supabase “fica pendurada”, o React Query mantém loading indefinidamente.
-- Em outras telas, quando dá erro, a mensagem é genérica e sem botão de “tentar novamente”.
+1. **Timeout de 15 segundos muito curto** para o ambiente de preview Lovable
+2. **Problema N+1 na API** - para cada organização, faz-se uma query extra buscando o admin
+3. **React Query sem `networkMode: 'always'`** - pode pausar em redes instáveis
 
-3) **Erro 404 de `/logo.svg` é ruído (mas vamos corrigir)**  
-Não impede planos/organizações, mas polui console e passa sensação de “quebrado”.
+## O Que Será Feito
 
----
+### 1. Aumentar o timeout para 30 segundos
 
-## Objetivo
+O ambiente de preview às vezes tem latência maior. Vamos aumentar de 15s para 30s.
 
-“Corrigir tudo” no sentido prático:
-- Parar o comportamento de **loading infinito**.
-- Mostrar **mensagem clara** quando estiver **sem conexão / requisição pausada / timeout**.
-- Adicionar **botões de retry** (recarregar planos/organizações).
-- Centralizar e endurecer o acesso ao Supabase com **timeout** (AbortController).
-- Corrigir o 404 do logo.
-- (Opcional, recomendado) Remover dependência de `import.meta.env` e do “backend Express local” nas partes que podem confundir no Lovable.
+```
+src/lib/supabase.ts
+- FETCH_TIMEOUT = 15000
++ FETCH_TIMEOUT = 30000
+```
 
----
+### 2. Eliminar o problema N+1 na listagem de organizações
 
-## Estratégia de correção (sem mexer no banco)
+**Antes**: 1 query para organizações + N queries para buscar admin de cada uma
 
-### A) Criar um “Supabase client” único com timeout + abort (para evitar loading infinito)
-**O que faremos**
-- Atualizar `src/lib/supabase.ts` para **criar um client próprio** via `createClient` com:
-  - `global.fetch` customizado com **timeout** (ex.: 12–15s) usando `AbortController`.
-  - log mínimo em caso de timeout (apenas para debug).
-- Padronizar o app para importar Supabase de `@/lib/supabase` (não do auto-gerado).
+**Depois**: 1 única query usando join
 
-**Por que isso ajuda**
-- Se a rede estiver instável e o fetch “pendurar”, ele será abortado -> o React Query vai cair em `error` e a UI sai do “Carregando...”.
+```
+src/modules/admin/services/admin.api.ts
 
-**Arquivos impactados**
-- `src/lib/supabase.ts` (passa a criar client com timeout; mantém exports atuais)
-- Ajustar imports em:
-  - `src/providers/AuthProvider.tsx`
-  - `src/modules/public/pages/PlanosPage.tsx`
-  - `src/modules/public/pages/TrialCadastroPage.tsx`
-  - (qualquer outro arquivo que use `@/integrations/supabase/client`)
+// ANTES (N+1 queries)
+const { data } = await supabase.from('organizacoes_saas').select('*')
+const organizacoes = await Promise.all(
+  data.map(async (org) => {
+    const { data: adminData } = await supabase
+      .from('usuarios')
+      .select(...)
+      .eq('organizacao_id', org.id)
+    // ...
+  })
+)
 
----
+// DEPOIS (1 query apenas)
+const { data } = await supabase
+  .from('organizacoes_saas')
+  .select(`
+    *,
+    usuarios!organizacao_id(
+      id, nome, sobrenome, email, status, ultimo_login
+    )
+  `)
+// Filtrar admin no cliente
+```
 
-### B) Tratar estados do React Query: loading vs error vs paused (offline)
-**O que faremos**
-- No Step 2 (Seleção de Planos), trocar:
-  - `const { data, isLoading } = usePlanos()`
-  por algo como:
-  - `const { data, isLoading, isError, error, refetch, fetchStatus } = usePlanos()`
+### 3. Adicionar `networkMode: 'always'` no React Query
 
-**Regras de UI**
-- Se `isLoading && fetchStatus === 'fetching'`: mostrar “Carregando planos...”
-- Se `fetchStatus === 'paused'` (sem conexão): mostrar um card/alert seguindo design system:
-  - “Sem conexão. Verifique sua internet e tente novamente.”
-  - Botão “Tentar novamente” -> `refetch()`
-- Se `isError`: mostrar “Não foi possível carregar os planos.”
-  - Exibir uma linha de detalhe (ex.: `String((error as Error)?.message ?? '')`) em texto pequeno
-  - Botão “Recarregar” -> `refetch()`
+Isso força as queries a sempre tentarem, mesmo em redes instáveis.
 
-**Aplicar o mesmo padrão nas telas**
-- `src/modules/admin/pages/OrganizacoesPage.tsx`
-- `src/modules/admin/pages/PlanosPage.tsx`
-- (se necessário) outras páginas que dependem de queries.
+```
+src/providers/QueryProvider.tsx
 
-**Resultado esperado**
-- Nada mais fica “girando infinito”.
-- O usuário sempre tem ação de “tentar de novo”.
+queries: {
+  staleTime: 1000 * 60,
+  gcTime: 1000 * 60 * 5,
+  retry: 2,  // Aumentar de 1 para 2
+  refetchOnWindowFocus: false,
+  networkMode: 'always',  // NOVO
+},
+```
 
----
+### 4. Adicionar `retryDelay` exponencial
 
-### C) Melhorar UX de erro nas telas admin (mantendo o design system)
-**O que faremos**
-- Trocar mensagens genéricas (“Erro ao carregar organizacoes”) por blocos de feedback padrão:
-  - container `bg-destructive/10 border border-destructive/20 rounded-lg p-4`
-  - título `text-destructive font-medium`
-  - subtítulo `text-sm text-muted-foreground`
-  - botões:
-    - primário “Tentar novamente”
-    - secundário “Recarregar página” (opcional, com `window.location.reload()`)
+Em vez de falhar imediatamente, aguarda progressivamente mais tempo entre retries.
+
+```
+queries: {
+  // ...
+  retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+},
+```
 
 ---
 
-### D) Corrigir o 404 do logo
-Você tem referência a `/logo.svg` em:
-- `LoginPage`, `ForgotPasswordPage`, `ResetPasswordPage`
+## Arquivos a Modificar
 
-**Opção 1 (mais simples e limpa)**
-- Adicionar `public/logo.svg` (um SVG simples com o “R” em azul, coerente com seu header).
-
-**Opção 2 (sem arquivo novo)**
-- Trocar `<img src="/logo.svg" />` por um bloco inline igual ao do `AdminLayout` (quadrado azul com “R”).
-
-Vamos preferir a opção 1 para manter o `<img>` e zerar o 404.
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/lib/supabase.ts` | Aumentar timeout para 30s |
+| `src/modules/admin/services/admin.api.ts` | Usar join em vez de N+1 queries |
+| `src/providers/QueryProvider.tsx` | Adicionar networkMode e retryDelay |
 
 ---
 
-### E) (Recomendado) Remover `import.meta.env` e “API_URL localhost” para evitar confusão no Lovable
-Pelo seu próprio ambiente (Lovable), não existe backend Express rodando em `http://localhost:3001`. Isso pode gerar chamadas quebradas se alguma tela usar `authApi`/`api.ts`.
+## Resultado Esperado
 
-**O que faremos**
-- Em `src/modules/auth/pages/LoginPage.tsx`: substituir `PRIVACY_URL` e `TERMS_URL` por constantes vazias (ou, se você quiser, buscar de `configuracoes_globais` futuramente).
-- Em `src/config/env.ts` e `src/lib/api.ts`: manter, mas deixar claro por código (comentário + não usar onde não deve). Se identificarmos usos ativos do `api` em rotas reais do app, a correção vira migração para Supabase/Edge Functions.
-
-Obs.: Essa parte é para “blindar” o projeto contra comportamentos inesperados no ambiente Lovable.
+- **Carregamento mais rápido**: 1 query em vez de N+1
+- **Menos timeouts**: 30s é mais tolerante a latência
+- **Melhor resiliência**: retry automático com backoff exponencial
+- **Menos erros de rede**: `networkMode: 'always'` evita pausas desnecessárias
 
 ---
 
-## Checklist de implementação (ordem)
+## Detalhes Técnicos
 
-1) **Atualizar `src/lib/supabase.ts`** para criar client com `fetchWithTimeout`.
-2) **Trocar imports** de Supabase para `@/lib/supabase` nos arquivos citados.
-3) **Atualizar Step2Expectativas** para tratar `fetchStatus`, erro e retry.
-4) **Atualizar OrganizacoesPage / PlanosPage (admin)** para:
-   - mostrar erro com detalhe e botão “Tentar novamente”
-   - opcional: mostrar estado “sem conexão” se `fetchStatus === 'paused'`.
-5) **Adicionar `public/logo.svg`** (ou substituir uso por logo inline).
-6) (Opcional) **Remover `import.meta.env`** do LoginPage e revisar `api.ts` para reduzir ruído.
+### Nova função listarOrganizacoes
+
+```typescript
+export async function listarOrganizacoes(params?: {
+  page?: number
+  limit?: number
+  busca?: string
+  status?: string
+  plano?: string
+  segmento?: string
+}): Promise<ListaOrganizacoesResponse> {
+  const page = params?.page || 1
+  const limit = params?.limit || 10
+  const offset = (page - 1) * limit
+
+  let query = supabase
+    .from('organizacoes_saas')
+    .select(`
+      *,
+      admin:usuarios!organizacao_id(
+        id, nome, sobrenome, email, status, ultimo_login, role
+      )
+    `, { count: 'exact' })
+    .is('deletado_em', null)
+    .order('criado_em', { ascending: false })
+
+  // Filtros...
+  query = query.range(offset, offset + limit - 1)
+
+  const { data, error, count } = await query
+
+  if (error) {
+    console.error('Erro ao listar organizações:', error)
+    throw new Error(error.message)
+  }
+
+  // Mapear e filtrar admin (role = 'admin') no cliente
+  const organizacoes: Organizacao[] = (data || []).map((org) => {
+    const adminUser = org.admin?.find((u: any) => u.role === 'admin')
+    return {
+      id: org.id,
+      nome: org.nome,
+      segmento: org.segmento,
+      email: org.email,
+      website: org.website,
+      telefone: org.telefone,
+      status: org.status as Organizacao['status'],
+      plano: org.plano,
+      criado_em: org.criado_em,
+      admin: adminUser ? {
+        id: adminUser.id,
+        nome: adminUser.nome,
+        sobrenome: adminUser.sobrenome,
+        email: adminUser.email,
+        status: adminUser.status,
+        ultimo_login: adminUser.ultimo_login,
+      } : undefined,
+    }
+  })
+
+  return {
+    organizacoes,
+    total: count || 0,
+    pagina: page,
+    limite: limit,
+    total_paginas: Math.ceil((count || 0) / limit),
+  }
+}
+```
+
+### Novo QueryProvider
+
+```typescript
+export function QueryProvider({ children }: QueryProviderProps) {
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            staleTime: 1000 * 60, // 1 minuto
+            gcTime: 1000 * 60 * 5, // 5 minutos
+            retry: 2, // 2 tentativas
+            retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+            refetchOnWindowFocus: false,
+            networkMode: 'always', // Sempre tentar, mesmo offline
+          },
+          mutations: {
+            retry: 0,
+          },
+        },
+      })
+  )
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      {children}
+    </QueryClientProvider>
+  )
+}
+```
 
 ---
 
-## Testes (fim a fim)
+## Testes Recomendados
 
-1) Em `/admin/organizacoes`:
-   - Com internet ok: deve mostrar “Nenhuma organização encontrada” (já que no banco está 0) sem erro.
-   - Simular rede instável (offline no devtools):
-     - deve aparecer mensagem “Sem conexão” e botão “Tentar novamente”.
-2) Abrir modal “Nova Organização” > Etapa 2:
-   - Deve carregar cards dos planos.
-   - Se falhar/timeout: deve mostrar erro e permitir retry.
-3) `/admin/planos`:
-   - Deve listar os 4 planos existentes.
-4) Conferir console:
-   - `/logo.svg` não deve mais dar 404.
-5) Testar no mobile (largura 390px) para garantir que a UI do Step 2 não quebre.
-
----
-
-## Riscos / Observações
-
-- Se o problema for de **bloqueio de rede/DNS do seu ambiente**, o código não “faz magia”, mas vai:
-  - parar de travar em loading infinito,
-  - orientar claramente o usuário,
-  - permitir retry,
-  - registrar erros com mais contexto.
-- Se o fetch estiver sendo afetado por interceptação/instabilidade no preview, o timeout vai tornar o comportamento previsível.
-
----
-
-## Arquivos que serão alterados (estimativa)
-
-- `src/lib/supabase.ts`
-- `src/providers/AuthProvider.tsx`
-- `src/modules/admin/components/wizard/Step2Expectativas.tsx`
-- `src/modules/admin/pages/OrganizacoesPage.tsx`
-- `src/modules/admin/pages/PlanosPage.tsx`
-- `src/modules/public/pages/PlanosPage.tsx`
-- `src/modules/public/pages/TrialCadastroPage.tsx`
-- `src/modules/auth/pages/LoginPage.tsx` (opcional)
-- `public/logo.svg` (novo) ou substituir o uso do `<img>` (dependendo da opção escolhida)
-
+1. Acessar `/admin/organizacoes` - deve carregar sem erro
+2. Acessar `/admin/planos` - deve listar os 4 planos existentes
+3. Abrir DevTools > Network e verificar que há apenas 1 request para organizacoes_saas
+4. Simular rede lenta (Slow 3G) - deve mostrar loading mas eventualmente carregar
+5. Desconectar internet - deve mostrar erro de rede com botão "Tentar novamente"
