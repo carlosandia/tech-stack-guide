@@ -8,3 +8,9 @@
  
  [functions.iniciar-trial]
  verify_jwt = false
+ 
+ [functions.get-checkout-session]
+ verify_jwt = false
+ 
+ [functions.complete-onboarding]
+ verify_jwt = false

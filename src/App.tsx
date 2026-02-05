@@ -10,7 +10,7 @@
    AdminConfiguracoesGlobaisPage,
    AdminModulosPage,
  } from '@/modules/admin'
- import { PlanosPage, TrialCadastroPage, CheckoutSucessoPage } from '@/modules/public'
+ import { PlanosPage, TrialCadastroPage, CheckoutSucessoPage, OnboardingPage } from '@/modules/public'
 
 /**
  * AIDEV-NOTE: Roteamento principal da aplicacao
@@ -67,6 +67,7 @@ function App() {
        <Route path="/planos" element={<PlanosPage />} />
        <Route path="/trial" element={<TrialCadastroPage />} />
        <Route path="/sucesso" element={<CheckoutSucessoPage />} />
+        <Route path="/onboarding" element={<OnboardingPage />} />
  
        {/* Rotas de autenticacao */}
        <Route path="/login" element={<LoginPage />} />

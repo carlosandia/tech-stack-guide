@@ -1,5 +1,5 @@
  import { useState, useEffect } from 'react'
- import { useNavigate, useSearchParams, Link } from 'react-router-dom'
+ import { useSearchParams, Link } from 'react-router-dom'
  import { Check, Loader2, Star, Zap, RefreshCw, AlertTriangle } from 'lucide-react'
  import { supabase } from '@/lib/supabase'
  
@@ -31,15 +31,15 @@
    trial_dias: number
  }
  
-interface TrialPlan {
-  limite_usuarios: number | null
-  limite_oportunidades: number | null
-  limite_storage_mb: number | null
-  limite_contatos: number | null
-}
-
+  interface TrialPlan {
+    id: string
+    limite_usuarios: number | null
+    limite_oportunidades: number | null
+    limite_storage_mb: number | null
+    limite_contatos: number | null
+  }
+ 
  export function PlanosPage() {
-   const navigate = useNavigate()
    const [searchParams] = useSearchParams()
    const [planos, setPlanos] = useState<PlanoDb[]>([])
    const [trialConfig, setTrialConfig] = useState<TrialConfig>({ trial_habilitado: true, trial_dias: 14 })
@@ -85,6 +85,7 @@ interface TrialPlan {
       
       if (trial) {
         setTrialPlan({
+           id: trial.id,
           limite_usuarios: trial.limite_usuarios,
           limite_oportunidades: trial.limite_oportunidades,
           limite_storage_mb: trial.limite_storage_mb,
@@ -122,12 +123,6 @@ interface TrialPlan {
    }
  
    const handleSelectPlan = async (plano: PlanoDb) => {
-     // Se for plano Trial/Free, vai para cadastro trial
-     if (!plano.preco_mensal || plano.preco_mensal === 0) {
-       navigate('/trial', { state: { plano, utms } })
-       return
-     }
- 
      // Plano pago - criar sessao de checkout
      setCheckoutLoading(plano.id)
  
@@ -148,6 +143,35 @@ interface TrialPlan {
      } catch (err) {
        console.error('Error creating checkout:', err)
        alert('Erro ao iniciar checkout. Tente novamente.')
+     } finally {
+       setCheckoutLoading(null)
+     }
+   }
+ 
+   // Handler para iniciar trial via Stripe (com cartão)
+   const handleStartTrial = async () => {
+     if (!trialPlan) return
+ 
+     setCheckoutLoading('trial')
+ 
+     try {
+       const { data, error } = await supabase.functions.invoke('create-checkout-session', {
+         body: {
+           plano_id: trialPlan.id,
+           periodo: 'mensal',
+           is_trial: true,
+           utms,
+         },
+       })
+ 
+       if (error) throw error
+ 
+       if (data?.url) {
+         window.location.href = data.url
+       }
+     } catch (err) {
+       console.error('Error creating trial checkout:', err)
+       alert('Erro ao iniciar trial. Tente novamente.')
      } finally {
        setCheckoutLoading(null)
      }
@@ -314,10 +338,15 @@ interface TrialPlan {
                  </ul>
  
                  <button
-                   onClick={() => navigate('/trial', { state: { utms } })}
-                   className="w-full py-2.5 px-4 text-sm font-medium border border-border rounded-lg hover:bg-accent transition-colors"
+                   onClick={handleStartTrial}
+                   disabled={checkoutLoading === 'trial'}
+                   className="w-full py-2.5 px-4 text-sm font-medium border border-border rounded-lg hover:bg-accent transition-colors disabled:opacity-50"
                  >
-                   Comecar Trial
+                   {checkoutLoading === 'trial' ? (
+                     <Loader2 className="w-4 h-4 animate-spin mx-auto" />
+                   ) : (
+                     'Comecar Trial'
+                   )}
                  </button>
                </div>
              )}
