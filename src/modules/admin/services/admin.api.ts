@@ -58,6 +58,8 @@ export interface CriarOrganizacaoPayload {
     estado?: string
   }
   plano_id: string
+  cortesia?: boolean
+  cortesia_motivo?: string
   admin_nome: string
   admin_sobrenome: string
   admin_email: string
@@ -348,6 +350,31 @@ export async function criarOrganizacao(payload: CriarOrganizacaoPayload): Promis
     // Rollback: deletar organização criada
     await supabase.from('organizacoes_saas').delete().eq('id', org.id)
     throw new Error(`Erro ao criar admin: ${adminError.message}`)
+  }
+
+  // Criar assinatura vinculada
+  const agora = new Date()
+  const { error: assinaturaError } = await supabase
+    .from('assinaturas')
+    .insert([{
+      organizacao_id: org.id,
+      plano_id: payload.plano_id,
+      status: isTrial ? 'trial' : 'ativa',
+      periodo: 'mensal',
+      inicio_em: agora.toISOString(),
+      cortesia: payload.cortesia ?? false,
+      cortesia_motivo: payload.cortesia ? payload.cortesia_motivo : null,
+      trial_inicio: isTrial ? agora.toISOString() : null,
+      trial_fim: isTrial 
+        ? new Date(agora.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString() 
+        : null,
+    }])
+
+  if (assinaturaError) {
+    // Rollback: deletar admin e organização
+    await supabase.from('usuarios').delete().eq('id', adminUser.id)
+    await supabase.from('organizacoes_saas').delete().eq('id', org.id)
+    throw new Error(`Erro ao criar assinatura: ${assinaturaError.message}`)
   }
 
   return {
