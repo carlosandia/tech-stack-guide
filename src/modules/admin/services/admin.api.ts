@@ -299,6 +299,7 @@ export async function criarOrganizacao(payload: CriarOrganizacaoPayload): Promis
   }
 
   const planoNome = plano.nome.toLowerCase()
+  const isTrial = planoNome === 'trial'
 
   // Criar organização com dados do plano
   const { data: org, error: orgError } = await supabase
@@ -311,7 +312,7 @@ export async function criarOrganizacao(payload: CriarOrganizacaoPayload): Promis
       website: payload.website ?? null,
       telefone: payload.telefone ?? null,
       plano: planoNome,
-      status: 'ativo',  // Constraint aceita: ativo, suspenso, cancelado
+      status: isTrial ? 'trial' : 'ativo',
       limite_usuarios: plano.limite_usuarios,
       limite_oportunidades: plano.limite_oportunidades,
       limite_storage_mb: plano.limite_storage_mb,
