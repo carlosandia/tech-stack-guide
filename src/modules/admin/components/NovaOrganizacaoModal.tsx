@@ -55,6 +55,8 @@ export function NovaOrganizacaoModal({ isOpen, onClose, onSuccess }: Props) {
       senha_inicial: '',
     },
     mode: 'onBlur',
+    reValidateMode: 'onBlur',
+    criteriaMode: 'firstError',
   })
 
   const { handleSubmit, trigger, reset } = methods
