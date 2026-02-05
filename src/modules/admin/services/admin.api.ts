@@ -68,6 +68,7 @@ export interface CriarOrganizacaoPayload {
   plano_id: string
   cortesia?: boolean
   cortesia_motivo?: string
+  cortesia_duracao_meses?: number | null
   admin_nome: string
   admin_sobrenome: string
   admin_email: string
@@ -370,6 +371,16 @@ export async function criarOrganizacao(payload: CriarOrganizacaoPayload): Promis
 
   // Criar assinatura vinculada
   const agora = new Date()
+  
+  // Calcular datas da cortesia
+  const cortesiaInicio = payload.cortesia ? agora.toISOString() : null
+  let cortesiaFim: string | null = null
+  if (payload.cortesia && payload.cortesia_duracao_meses) {
+    const dataFim = new Date(agora)
+    dataFim.setMonth(dataFim.getMonth() + payload.cortesia_duracao_meses)
+    cortesiaFim = dataFim.toISOString()
+  }
+
   const { error: assinaturaError } = await supabase
     .from('assinaturas')
     .insert([{
@@ -380,6 +391,9 @@ export async function criarOrganizacao(payload: CriarOrganizacaoPayload): Promis
       inicio_em: agora.toISOString(),
       cortesia: payload.cortesia ?? false,
       cortesia_motivo: payload.cortesia ? payload.cortesia_motivo : null,
+      cortesia_duracao_meses: payload.cortesia ? (payload.cortesia_duracao_meses ?? null) : null,
+      cortesia_inicio: cortesiaInicio,
+      cortesia_fim: cortesiaFim,
       trial_inicio: isTrial ? agora.toISOString() : null,
       trial_fim: isTrial 
         ? new Date(agora.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString() 
