@@ -42,7 +42,8 @@ export interface ListaOrganizacoesResponse {
 export interface CriarOrganizacaoPayload {
   nome: string
   segmento: string
-   email?: string
+  segmento_outro?: string
+  email?: string
   website?: string
   telefone?: string
   endereco?: {
@@ -54,11 +55,7 @@ export interface CriarOrganizacaoPayload {
     cidade?: string
     estado?: string
   }
-  numero_usuarios: string
-  volume_leads_mes: string
-  principal_objetivo: string
-  como_conheceu?: string
-  observacoes?: string
+  plano_id: string
   admin_nome: string
   admin_sobrenome: string
   admin_email: string
@@ -271,26 +268,43 @@ export async function obterOrganizacao(id: string): Promise<Organizacao> {
 }
 
 export async function criarOrganizacao(payload: CriarOrganizacaoPayload): Promise<{ organizacao_id: string; admin_id: string }> {
-  // Criar organização
-   const { data: org, error: orgError } = await supabase
+  // Buscar dados do plano selecionado
+  const { data: plano, error: planoError } = await supabase
+    .from('planos')
+    .select('nome, limite_usuarios, limite_oportunidades, limite_storage_mb')
+    .eq('id', payload.plano_id)
+    .single()
+
+  if (planoError || !plano) {
+    throw new Error('Plano não encontrado')
+  }
+
+  const planoNome = plano.nome.toLowerCase()
+  const isTrial = planoNome === 'trial'
+
+  // Criar organização com dados do plano
+  const { data: org, error: orgError } = await supabase
     .from('organizacoes_saas')
-     .insert([{
-       nome: payload.nome,
-       slug: payload.nome.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
-       segmento: payload.segmento,
-       email: payload.email || 'sem-email@placeholder.local',
-       website: payload.website ?? null,
-       telefone: payload.telefone ?? null,
-       plano: 'trial',
-       status: 'trial',
-       endereco_cep: payload.endereco?.cep ?? null,
-       endereco_logradouro: payload.endereco?.logradouro ?? null,
-       endereco_numero: payload.endereco?.numero ?? null,
-       endereco_complemento: payload.endereco?.complemento ?? null,
-       endereco_bairro: payload.endereco?.bairro ?? null,
-       endereco_cidade: payload.endereco?.cidade ?? null,
-       endereco_estado: payload.endereco?.estado ?? null,
-     }])
+    .insert([{
+      nome: payload.nome,
+      slug: payload.nome.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
+      segmento: payload.segmento === 'outro' ? payload.segmento_outro : payload.segmento,
+      email: payload.email || 'sem-email@placeholder.local',
+      website: payload.website ?? null,
+      telefone: payload.telefone ?? null,
+      plano: planoNome,
+      status: isTrial ? 'trial' : 'ativa',
+      limite_usuarios: plano.limite_usuarios,
+      limite_oportunidades: plano.limite_oportunidades,
+      limite_storage_mb: plano.limite_storage_mb,
+      endereco_cep: payload.endereco?.cep ?? null,
+      endereco_logradouro: payload.endereco?.logradouro ?? null,
+      endereco_numero: payload.endereco?.numero ?? null,
+      endereco_complemento: payload.endereco?.complemento ?? null,
+      endereco_bairro: payload.endereco?.bairro ?? null,
+      endereco_cidade: payload.endereco?.cidade ?? null,
+      endereco_estado: payload.endereco?.estado ?? null,
+    }])
     .select()
     .single()
 
