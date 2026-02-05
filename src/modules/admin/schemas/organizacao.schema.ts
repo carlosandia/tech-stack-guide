@@ -62,10 +62,24 @@ export const Step1EmpresaSchema = z.object({
 
 export type Step1EmpresaData = z.infer<typeof Step1EmpresaSchema>
 
-// Schema Etapa 2: Selecao de Plano
+// Schema Etapa 2: Selecao de Plano + Cortesia
 export const Step2ExpectativasSchema = z.object({
   plano_id: z.string().min(1, 'Selecione um plano'),
-})
+  cortesia: z.boolean().default(false),
+  cortesia_motivo: z.string().optional(),
+}).refine(
+  (data) => {
+    // Se cortesia ativa, motivo e obrigatorio
+    if (data.cortesia) {
+      return data.cortesia_motivo && data.cortesia_motivo.trim().length >= 3
+    }
+    return true
+  },
+  {
+    message: 'Informe o motivo da cortesia (mínimo 3 caracteres)',
+    path: ['cortesia_motivo'],
+  }
+)
 
 export type Step2ExpectativasData = z.infer<typeof Step2ExpectativasSchema>
 
@@ -124,7 +138,13 @@ const Step1EmpresaBaseSchema = z.object({
     .optional(),
 })
 
-export const CriarOrganizacaoSchema = Step1EmpresaBaseSchema.merge(Step2ExpectativasSchema).merge(
+export const CriarOrganizacaoSchema = Step1EmpresaBaseSchema.merge(
+  z.object({
+    plano_id: z.string().min(1, 'Selecione um plano'),
+    cortesia: z.boolean().default(false),
+    cortesia_motivo: z.string().optional(),
+  })
+).merge(
   z.object({
     admin_nome: z.string().min(2),
     admin_sobrenome: z.string().min(2),
@@ -138,12 +158,24 @@ export const CriarOrganizacaoSchema = Step1EmpresaBaseSchema.merge(Step2Expectat
     // Se segmento for "outro", segmento_outro é obrigatório
     if (data.segmento === 'outro') {
       return data.segmento_outro && data.segmento_outro.trim().length >= 2
-   }
+    }
     return true
   },
   {
     message: 'Especifique o segmento (mínimo 2 caracteres)',
     path: ['segmento_outro'],
+  }
+).refine(
+  (data) => {
+    // Se cortesia ativa, motivo é obrigatório
+    if (data.cortesia) {
+      return data.cortesia_motivo && data.cortesia_motivo.trim().length >= 3
+    }
+    return true
+  },
+  {
+    message: 'Informe o motivo da cortesia (mínimo 3 caracteres)',
+    path: ['cortesia_motivo'],
   }
 )
 

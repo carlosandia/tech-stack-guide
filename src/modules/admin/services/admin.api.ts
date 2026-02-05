@@ -372,6 +372,28 @@ export async function reativarOrganizacao(id: string): Promise<void> {
   if (error) throw new Error(error.message)
 }
 
+export async function revogarCortesia(id: string): Promise<void> {
+  // Atualiza assinatura: remove cortesia e muda status para bloqueada
+  const { error } = await supabase
+    .from('assinaturas')
+    .update({
+      cortesia: false,
+      cortesia_motivo: null,
+      status: 'bloqueada',
+    })
+    .eq('organizacao_id', id)
+
+  if (error) throw new Error(error.message)
+
+  // Atualiza status da organização
+  const { error: orgError } = await supabase
+    .from('organizacoes_saas')
+    .update({ status: 'suspensa' })
+    .eq('id', id)
+
+  if (orgError) throw new Error(orgError.message)
+}
+
 export async function impersonarOrganizacao(id: string, _motivo: string): Promise<{ organizacao_id: string; organizacao_nome: string }> {
   const { data, error } = await supabase
     .from('organizacoes_saas')
