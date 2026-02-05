@@ -359,7 +359,7 @@ export async function criarOrganizacao(payload: CriarOrganizacaoPayload): Promis
     .insert([{
       organizacao_id: org.id,
       plano_id: payload.plano_id,
-      status: isTrial ? 'trial' : 'ativa',
+      status: isTrial ? 'trial' : 'ativo',
       periodo: 'mensal',
       inicio_em: agora.toISOString(),
       cortesia: payload.cortesia ?? false,
