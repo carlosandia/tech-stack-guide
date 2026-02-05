@@ -146,9 +146,9 @@ export const CriarOrganizacaoSchema = Step1EmpresaBaseSchema.merge(
   })
 ).merge(
   z.object({
-    admin_nome: z.string().min(2),
-    admin_sobrenome: z.string().min(2),
-    admin_email: z.string().email(),
+    admin_nome: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres'),
+    admin_sobrenome: z.string().min(2, 'Sobrenome deve ter no mínimo 2 caracteres'),
+    admin_email: z.string().email('Email inválido'),
     admin_telefone: z.string().optional(),
     enviar_convite: z.boolean().default(true),
     senha_inicial: z.string().optional(),
