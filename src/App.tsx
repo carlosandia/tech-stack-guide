@@ -13,6 +13,7 @@ import {
 } from '@/modules/admin'
 import { PlanosPage, TrialCadastroPage, CheckoutSucessoPage, OnboardingPage } from '@/modules/public'
 import { BlockedPage } from '@/modules/blocked'
+import { ConfiguracoesLayout, CamposPage, StubPage } from '@/modules/configuracoes'
 
 /**
  * AIDEV-NOTE: Roteamento principal da aplicacao
