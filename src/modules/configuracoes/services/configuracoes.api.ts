@@ -138,6 +138,41 @@ export interface EtapaTemplate {
   ordem: number
   ativo: boolean
   criado_em: string
+  tarefas?: Array<{
+    id: string
+    tarefa_template_id: string
+    titulo?: string
+    tipo?: string
+    criar_automaticamente?: boolean
+    ordem?: number
+  }>
+}
+
+// Regras de Qualificação
+export type OperadorRegra = 'igual' | 'diferente' | 'contem' | 'nao_contem' | 'maior_que' | 'menor_que' | 'maior_igual' | 'menor_igual' | 'vazio' | 'nao_vazio'
+export interface RegraQualificacao {
+  id: string
+  organizacao_id: string
+  nome: string
+  descricao?: string | null
+  campo_id?: string | null
+  operador: OperadorRegra
+  valor?: string | null
+  valores: string[]
+  ativo: boolean
+  ordem: number
+  criado_em: string
+}
+
+// Configuração de Cards
+export interface ConfiguracaoCard {
+  id: string
+  organizacao_id: string
+  funil_id?: string | null
+  campos_visiveis: string[]
+  campos_customizados_visiveis: string[]
+  criado_em: string
+  atualizado_em: string
 }
 
 // Integracoes
@@ -388,6 +423,60 @@ export const etapasTemplatesApi = {
 
   reordenar: async (ordem: Array<{ id: string; ordem: number }>) => {
     await api.patch('/v1/etapas-templates/reordenar', { ordem })
+  },
+
+  vincularTarefa: async (etapaId: string, payload: Record<string, unknown>) => {
+    const { data } = await api.post(`/v1/etapas-templates/${etapaId}/tarefas`, payload)
+    return data
+  },
+
+  desvincularTarefa: async (etapaId: string, tarefaId: string) => {
+    await api.delete(`/v1/etapas-templates/${etapaId}/tarefas/${tarefaId}`)
+  },
+}
+
+// =====================================================
+// API Functions - Regras de Qualificação
+// =====================================================
+
+export const regrasApi = {
+  listar: async (params?: { ativa?: string }) => {
+    const { data } = await api.get('/v1/regras-qualificacao', { params })
+    return data as { regras: RegraQualificacao[]; total: number }
+  },
+
+  criar: async (payload: Record<string, unknown>) => {
+    const { data } = await api.post('/v1/regras-qualificacao', payload)
+    return data as RegraQualificacao
+  },
+
+  atualizar: async (id: string, payload: Record<string, unknown>) => {
+    const { data } = await api.patch(`/v1/regras-qualificacao/${id}`, payload)
+    return data as RegraQualificacao
+  },
+
+  excluir: async (id: string) => {
+    await api.delete(`/v1/regras-qualificacao/${id}`)
+  },
+
+  reordenar: async (prioridades: Array<{ id: string; prioridade: number }>) => {
+    await api.patch('/v1/regras-qualificacao/reordenar', { prioridades })
+  },
+}
+
+// =====================================================
+// API Functions - Configuração de Cards
+// =====================================================
+
+export const configCardApi = {
+  buscar: async (funil_id?: string) => {
+    const { data } = await api.get('/v1/configuracoes-card', { params: funil_id ? { funil_id } : {} })
+    return data as ConfiguracaoCard
+  },
+
+  atualizar: async (payload: Record<string, unknown>) => {
+    const { data } = await api.put('/v1/configuracoes-card', payload)
+    return data as ConfiguracaoCard
   },
 }
 
