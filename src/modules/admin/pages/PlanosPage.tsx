@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Plus, Edit, CreditCard, Users, HardDrive, Puzzle } from 'lucide-react'
 import { usePlanos, useModulos } from '../hooks/usePlanos'
-import { useToolbar } from '../contexts/ToolbarContext'
+ import { useToolbar } from '../contexts/ToolbarContext'
 import { PlanoFormModal } from '../components/PlanoFormModal'
 import type { Plano } from '../services/admin.api'
 /**
@@ -17,12 +17,13 @@ import type { Plano } from '../services/admin.api'
 export function PlanosPage() {
   const { data: planos, isLoading, error } = usePlanos()
   const { data: modulos } = useModulos()
-  const { setActions } = useToolbar()
+  const { setActions, setSubtitle } = useToolbar()
   const [planoEditando, setPlanoEditando] = useState<Plano | null>(null)
   const [showModal, setShowModal] = useState(false)
 
   // Injetar ação no toolbar
   useEffect(() => {
+    setSubtitle('Gerencie os planos da plataforma')
     setActions(
       <button
         onClick={() => setShowModal(true)}
@@ -32,8 +33,11 @@ export function PlanosPage() {
         Novo Plano
       </button>
     )
-    return () => setActions(null)
-  }, [setActions])
+    return () => {
+      setSubtitle(null)
+      setActions(null)
+    }
+  }, [setActions, setSubtitle])
 
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat('pt-BR', {
@@ -64,9 +68,6 @@ export function PlanosPage() {
 
   return (
     <div className="space-y-6">
-      {/* Descrição sutil */}
-      <p className="text-sm text-muted-foreground">Gerencie os planos da plataforma</p>
-
       {/* Cards de Planos */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {planos?.map((plano) => (
