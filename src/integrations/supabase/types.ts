@@ -83,6 +83,9 @@ export type Database = {
           atualizado_em: string
           cancelado_em: string | null
           cortesia: boolean | null
+          cortesia_duracao_meses: number | null
+          cortesia_fim: string | null
+          cortesia_inicio: string | null
           cortesia_motivo: string | null
           criado_em: string
           expira_em: string | null
@@ -102,6 +105,9 @@ export type Database = {
           atualizado_em?: string
           cancelado_em?: string | null
           cortesia?: boolean | null
+          cortesia_duracao_meses?: number | null
+          cortesia_fim?: string | null
+          cortesia_inicio?: string | null
           cortesia_motivo?: string | null
           criado_em?: string
           expira_em?: string | null
@@ -121,6 +127,9 @@ export type Database = {
           atualizado_em?: string
           cancelado_em?: string | null
           cortesia?: boolean | null
+          cortesia_duracao_meses?: number | null
+          cortesia_fim?: string | null
+          cortesia_inicio?: string | null
           cortesia_motivo?: string | null
           criado_em?: string
           expira_em?: string | null
@@ -5205,6 +5214,7 @@ export type Database = {
         Returns: string
       }
       set_current_tenant: { Args: { tenant_id: string }; Returns: undefined }
+      verificar_cortesias_expiradas: { Args: never; Returns: undefined }
     }
     Enums: {
       app_role: "super_admin" | "admin" | "member"
