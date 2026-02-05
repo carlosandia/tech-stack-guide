@@ -916,18 +916,27 @@ export async function obterConfigGlobal(plataforma: string): Promise<ConfigGloba
 }
 
 export async function atualizarConfigGlobal(plataforma: string, configuracoes: Record<string, unknown>): Promise<void> {
+  // Determinar se está configurado baseado nos campos obrigatórios
+  const configurado = verificarConfigurado(plataforma, configuracoes)
+
   // Primeiro verifica se existe
   const { data: existing } = await supabase
     .from('configuracoes_globais')
-    .select('id')
+    .select('id, configuracoes')
     .eq('plataforma', plataforma)
     .maybeSingle()
 
   if (existing) {
+    // Merge com configurações existentes
+    const mergedConfig = {
+      ...(existing.configuracoes as Record<string, unknown>),
+      ...configuracoes,
+    }
     const { error } = await supabase
       .from('configuracoes_globais')
       .update({
-        configuracoes: configuracoes as Json,
+        configuracoes: mergedConfig as Json,
+        configurado,
         atualizado_em: new Date().toISOString(),
       })
       .eq('plataforma', plataforma)
@@ -939,15 +948,72 @@ export async function atualizarConfigGlobal(plataforma: string, configuracoes: R
       .insert({
         plataforma,
         configuracoes: configuracoes as Json,
+        configurado,
       })
 
     if (error) throw new Error(error.message)
   }
 }
 
-export async function testarConfigGlobal(_plataforma: string): Promise<{ sucesso: boolean; mensagem: string }> {
-  // TODO: Implementar teste real via edge function
-  return { sucesso: true, mensagem: 'Teste simulado com sucesso' }
+// Verificar se os campos obrigatórios estão preenchidos
+function verificarConfigurado(plataforma: string, config: Record<string, unknown>): boolean {
+  const camposObrigatorios: Record<string, string[]> = {
+    meta: ['app_id', 'app_secret'],
+    google: ['client_id', 'client_secret'],
+    waha: ['api_url', 'api_key'],
+    stripe: ['public_key', 'secret_key_encrypted'],
+    email: ['smtp_host', 'smtp_user', 'smtp_pass'],
+  }
+
+  const campos = camposObrigatorios[plataforma] || []
+  return campos.every((campo) => {
+    const valor = config[campo]
+    return typeof valor === 'string' && valor.trim().length > 0
+  })
+}
+
+export async function testarConfigGlobal(plataforma: string): Promise<{ sucesso: boolean; mensagem: string }> {
+  if (plataforma === 'email') {
+    // Teste real via edge function
+    try {
+      const session = await supabase.auth.getSession()
+      const accessToken = session.data.session?.access_token
+
+      const response = await fetch(
+        'https://ybzhlsalbnxwkfszkloa.supabase.co/functions/v1/test-smtp',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ plataforma }),
+        }
+      )
+
+      const result = await response.json()
+      return { sucesso: result.sucesso, mensagem: result.mensagem }
+    } catch (error) {
+      return { sucesso: false, mensagem: `Erro ao testar: ${(error as Error).message}` }
+    }
+  }
+
+  // Para outras plataformas, validar apenas campos obrigatórios localmente
+  const { data: config } = await supabase
+    .from('configuracoes_globais')
+    .select('configuracoes, configurado')
+    .eq('plataforma', plataforma)
+    .maybeSingle()
+
+  if (!config) {
+    return { sucesso: false, mensagem: 'Configurações não encontradas. Salve as configurações primeiro.' }
+  }
+
+  if (!config.configurado) {
+    return { sucesso: false, mensagem: 'Campos obrigatórios não preenchidos.' }
+  }
+
+  return { sucesso: true, mensagem: 'Configuração válida. Campos obrigatórios preenchidos.' }
 }
 
 // =======================
