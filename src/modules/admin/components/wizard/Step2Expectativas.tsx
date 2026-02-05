@@ -1,121 +1,90 @@
 import { useFormContext } from 'react-hook-form'
-import {
-  NUMERO_USUARIOS,
-  VOLUME_LEADS,
-  OBJETIVOS,
-  COMO_CONHECEU,
-  type CriarOrganizacaoData,
-} from '../../schemas/organizacao.schema'
+import { Check, Loader2 } from 'lucide-react'
+import { usePlanos } from '../../hooks/usePlanos'
+import type { CriarOrganizacaoData } from '../../schemas/organizacao.schema'
 
 /**
- * AIDEV-NOTE: Etapa 2 do Wizard - Expectativas e Qualificacao
+ * AIDEV-NOTE: Etapa 2 do Wizard - Selecao de Plano
  * Conforme PRD-14 - RF-002
  */
 
 export function Step2Expectativas() {
   const {
-    register,
+    watch,
+    setValue,
     formState: { errors },
   } = useFormContext<CriarOrganizacaoData>()
+  
+  const { data: planos, isLoading } = usePlanos()
+  const selectedPlanoId = watch('plano_id')
+
+  const formatLimit = (value: number | null) => {
+    if (value === null || value === -1) return 'Ilimitado'
+    return value.toString()
+  }
+
+  const formatPrice = (preco: number) => {
+    if (preco === 0) return 'Grátis'
+    return `R$ ${preco.toFixed(0)}/mês`
+  }
+
+  if (isLoading) {
+    return (
+      <div className="py-8 flex items-center justify-center gap-2 text-muted-foreground">
+        <Loader2 className="w-4 h-4 animate-spin" />
+        <span>Carregando planos...</span>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">
-      {/* Numero de Usuarios */}
       <div>
-        <label className="block text-sm font-medium text-foreground mb-1.5">
-          Numero de Usuarios <span className="text-destructive">*</span>
+        <label className="block text-sm font-medium text-foreground mb-3">
+          Selecione o plano <span className="text-destructive">*</span>
         </label>
-        <select
-          {...register('numero_usuarios')}
-          className="w-full h-11 px-4 rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-        >
-          <option value="">Selecione</option>
-          {NUMERO_USUARIOS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-        {errors.numero_usuarios && (
-          <p className="mt-1 text-sm text-destructive">{errors.numero_usuarios.message}</p>
+        
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {planos?.map((plano) => {
+            const isSelected = selectedPlanoId === plano.id
+            const isTrial = plano.nome.toLowerCase() === 'trial'
+            
+            return (
+              <button
+                key={plano.id}
+                type="button"
+                onClick={() => setValue('plano_id', plano.id, { shouldValidate: true })}
+                className={`
+                  relative p-4 rounded-lg border-2 text-left transition-all
+                  ${isSelected 
+                    ? 'border-primary bg-primary/5' 
+                    : 'border-border hover:border-primary/50 bg-background'
+                  }
+                `}
+              >
+                {isSelected && (
+                  <div className="absolute top-2 right-2">
+                    <Check className="w-5 h-5 text-primary" />
+                  </div>
+                )}
+                
+                <div className="font-semibold text-foreground">{plano.nome}</div>
+                <div className={`text-lg font-bold ${isTrial ? 'text-green-600' : 'text-primary'}`}>
+                  {formatPrice(plano.preco_mensal)}
+                </div>
+                
+                <div className="mt-2 text-xs text-muted-foreground space-y-1">
+                  <div>{formatLimit(plano.limite_usuarios)} usuários</div>
+                  <div>{formatLimit(plano.limite_oportunidades)} oportunidades</div>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+        
+        {errors.plano_id && (
+          <p className="mt-2 text-sm text-destructive">{errors.plano_id.message}</p>
         )}
-      </div>
-
-      {/* Volume de Leads */}
-      <div>
-        <label className="block text-sm font-medium text-foreground mb-1.5">
-          Volume de Leads/Mes <span className="text-destructive">*</span>
-        </label>
-        <select
-          {...register('volume_leads_mes')}
-          className="w-full h-11 px-4 rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-        >
-          <option value="">Selecione</option>
-          {VOLUME_LEADS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-        {errors.volume_leads_mes && (
-          <p className="mt-1 text-sm text-destructive">{errors.volume_leads_mes.message}</p>
-        )}
-      </div>
-
-      {/* Principal Objetivo */}
-      <div>
-        <label className="block text-sm font-medium text-foreground mb-1.5">
-          Principal Objetivo <span className="text-destructive">*</span>
-        </label>
-        <select
-          {...register('principal_objetivo')}
-          className="w-full h-11 px-4 rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-        >
-          <option value="">Selecione</option>
-          {OBJETIVOS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-        {errors.principal_objetivo && (
-          <p className="mt-1 text-sm text-destructive">{errors.principal_objetivo.message}</p>
-        )}
-      </div>
-
-      {/* Como Conheceu */}
-      <div>
-        <label className="block text-sm font-medium text-foreground mb-1.5">
-          Como conheceu a plataforma?
-        </label>
-        <select
-          {...register('como_conheceu')}
-          className="w-full h-11 px-4 rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-        >
-          <option value="">Selecione (opcional)</option>
-          {COMO_CONHECEU.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Observacoes */}
-      <div>
-        <label className="block text-sm font-medium text-foreground mb-1.5">
-          Observacoes
-        </label>
-        <textarea
-          {...register('observacoes')}
-          rows={4}
-          placeholder="Informacoes adicionais sobre o cliente..."
-          className="w-full px-4 py-3 rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent resize-none"
-        />
-        {errors.observacoes && (
-          <p className="mt-1 text-sm text-destructive">{errors.observacoes.message}</p>
-        )}
-        <p className="mt-1 text-xs text-muted-foreground">Maximo 1000 caracteres</p>
       </div>
     </div>
   )

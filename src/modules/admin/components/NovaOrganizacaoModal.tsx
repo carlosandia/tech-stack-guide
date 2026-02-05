@@ -28,8 +28,8 @@ interface Props {
 }
 
 const STEPS = [
-  { id: 1, label: 'Empresa', fields: ['nome', 'segmento', 'email', 'website', 'telefone', 'endereco'] },
-  { id: 2, label: 'Expectativas', fields: ['numero_usuarios', 'volume_leads_mes', 'principal_objetivo', 'como_conheceu', 'observacoes'] },
+  { id: 1, label: 'Empresa', fields: ['nome', 'segmento', 'segmento_outro', 'email', 'website', 'telefone', 'endereco'] },
+  { id: 2, label: 'Plano', fields: ['plano_id'] },
   { id: 3, label: 'Admin', fields: ['admin_nome', 'admin_sobrenome', 'admin_email', 'admin_telefone', 'enviar_convite', 'senha_inicial'] },
 ] as const
 
@@ -42,15 +42,11 @@ export function NovaOrganizacaoModal({ isOpen, onClose, onSuccess }: Props) {
     defaultValues: {
       nome: '',
       segmento: '',
-       segmento_outro: '',
+      segmento_outro: '',
       email: '',
       website: '',
       telefone: '',
-      numero_usuarios: '',
-      volume_leads_mes: '',
-      principal_objetivo: '',
-      como_conheceu: '',
-      observacoes: '',
+      plano_id: '',
       admin_nome: '',
       admin_sobrenome: '',
       admin_email: '',
@@ -88,15 +84,12 @@ export function NovaOrganizacaoModal({ isOpen, onClose, onSuccess }: Props) {
       {
         nome: data.nome,
         segmento: data.segmento,
+        segmento_outro: data.segmento_outro,
         email: data.email,
         website: data.website || undefined,
         telefone: data.telefone || undefined,
         endereco: data.endereco,
-        numero_usuarios: data.numero_usuarios,
-        volume_leads_mes: data.volume_leads_mes,
-        principal_objetivo: data.principal_objetivo,
-        como_conheceu: data.como_conheceu || undefined,
-        observacoes: data.observacoes || undefined,
+        plano_id: data.plano_id,
         admin_nome: data.admin_nome,
         admin_sobrenome: data.admin_sobrenome,
         admin_email: data.admin_email,
