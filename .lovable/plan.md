@@ -1,216 +1,416 @@
 
-# Plano: Otimizar Carregamento de Organizações e Planos
+# Plano: Onboarding Pós-Checkout com Formulário Completo
 
-## Problema Identificado
+## Resumo
 
-O erro "Tempo limite excedido" não é cache - é uma combinação de:
+Criar uma página `/onboarding` que recebe o usuário após o pagamento (ou trial com cartão) e coleta:
+- **Nome da empresa** (obrigatório) - será o nome da organização
+- **Segmento** (opcional)
+- **Nome do admin** (obrigatório)
+- **Sobrenome do admin** (obrigatório)
+- **Email do admin** (obrigatório - pré-preenchido do Stripe)
+- **Telefone do admin** (obrigatório)
+- **Senha** (obrigatório) - definida pelo usuário
 
-1. **Timeout de 15 segundos muito curto** para o ambiente de preview Lovable
-2. **Problema N+1 na API** - para cada organização, faz-se uma query extra buscando o admin
-3. **React Query sem `networkMode: 'always'`** - pode pausar em redes instáveis
+---
 
-## O Que Será Feito
+## Fluxo Visual
 
-### 1. Aumentar o timeout para 30 segundos
-
-O ambiente de preview às vezes tem latência maior. Vamos aumentar de 15s para 30s.
-
-```
-src/lib/supabase.ts
-- FETCH_TIMEOUT = 15000
-+ FETCH_TIMEOUT = 30000
-```
-
-### 2. Eliminar o problema N+1 na listagem de organizações
-
-**Antes**: 1 query para organizações + N queries para buscar admin de cada uma
-
-**Depois**: 1 única query usando join
-
-```
-src/modules/admin/services/admin.api.ts
-
-// ANTES (N+1 queries)
-const { data } = await supabase.from('organizacoes_saas').select('*')
-const organizacoes = await Promise.all(
-  data.map(async (org) => {
-    const { data: adminData } = await supabase
-      .from('usuarios')
-      .select(...)
-      .eq('organizacao_id', org.id)
-    // ...
-  })
-)
-
-// DEPOIS (1 query apenas)
-const { data } = await supabase
-  .from('organizacoes_saas')
-  .select(`
-    *,
-    usuarios!organizacao_id(
-      id, nome, sobrenome, email, status, ultimo_login
-    )
-  `)
-// Filtrar admin no cliente
-```
-
-### 3. Adicionar `networkMode: 'always'` no React Query
-
-Isso força as queries a sempre tentarem, mesmo em redes instáveis.
-
-```
-src/providers/QueryProvider.tsx
-
-queries: {
-  staleTime: 1000 * 60,
-  gcTime: 1000 * 60 * 5,
-  retry: 2,  // Aumentar de 1 para 2
-  refetchOnWindowFocus: false,
-  networkMode: 'always',  // NOVO
-},
-```
-
-### 4. Adicionar `retryDelay` exponencial
-
-Em vez de falhar imediatamente, aguarda progressivamente mais tempo entre retries.
-
-```
-queries: {
-  // ...
-  retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
-},
+```text
+┌─────────────┐     ┌──────────────────┐     ┌─────────────────────────────────┐
+│  /planos    │ --> │  Stripe Checkout │ --> │  /onboarding?session_id=xxx     │
+│  Escolhe    │     │  (paga ou trial) │     │                                 │
+│  plano      │     │                  │     │  ┌─────────────────────────┐    │
+└─────────────┘     └──────────────────┘     │  │ Nome da Empresa *       │    │
+                                              │  │ [________________]      │    │
+                                              │  │                         │    │
+                                              │  │ Segmento                │    │
+                                              │  │ [▼ Selecione...]        │    │
+                                              │  │                         │    │
+                                              │  │ Nome *    Sobrenome *   │    │
+                                              │  │ [_______] [__________]  │    │
+                                              │  │                         │    │
+                                              │  │ Email (preenchido)      │    │
+                                              │  │ [email@exemplo.com] 🔒  │    │
+                                              │  │                         │    │
+                                              │  │ Telefone *              │    │
+                                              │  │ [(11) 99999-9999]       │    │
+                                              │  │                         │    │
+                                              │  │ Senha *                 │    │
+                                              │  │ [••••••••] 👁           │    │
+                                              │  │ Min. 8 caracteres       │    │
+                                              │  │                         │    │
+                                              │  │ [Criar minha conta]     │    │
+                                              │  └─────────────────────────┘    │
+                                              └─────────────────────────────────┘
+                                                             │
+                                                             ▼
+                                              ┌───────────────────────────────┐
+                                              │ /app (Dashboard)              │
+                                              │ Logado automaticamente        │
+                                              │ role: admin                   │
+                                              └───────────────────────────────┘
 ```
 
 ---
 
-## Arquivos a Modificar
+## Componentes a Criar/Modificar
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `src/lib/supabase.ts` | Aumentar timeout para 30s |
-| `src/modules/admin/services/admin.api.ts` | Usar join em vez de N+1 queries |
-| `src/providers/QueryProvider.tsx` | Adicionar networkMode e retryDelay |
+### Frontend
 
----
+| Arquivo | Ação |
+|---------|------|
+| `src/modules/public/pages/OnboardingPage.tsx` | **CRIAR** - Formulário completo |
+| `src/modules/public/schemas/onboarding.schema.ts` | **CRIAR** - Schema Zod de validação |
+| `src/modules/public/index.ts` | Exportar OnboardingPage |
+| `src/App.tsx` | Adicionar rota `/onboarding` |
+| `supabase/functions/create-checkout-session/index.ts` | Mudar success_url para `/onboarding` |
+| `src/modules/public/pages/PlanosPage.tsx` | Trial também vai pro Stripe com `trial_period_days` |
 
-## Resultado Esperado
+### Edge Functions
 
-- **Carregamento mais rápido**: 1 query em vez de N+1
-- **Menos timeouts**: 30s é mais tolerante a latência
-- **Melhor resiliência**: retry automático com backoff exponencial
-- **Menos erros de rede**: `networkMode: 'always'` evita pausas desnecessárias
+| Arquivo | Ação |
+|---------|------|
+| `supabase/functions/get-checkout-session/index.ts` | **CRIAR** - Busca dados da sessão |
+| `supabase/functions/complete-onboarding/index.ts` | **CRIAR** - Finaliza cadastro completo |
+| `supabase/functions/create-checkout-session/index.ts` | Adicionar suporte a trial com cartão |
+| `supabase/config.toml` | Registrar novas functions |
 
 ---
 
 ## Detalhes Técnicos
 
-### Nova função listarOrganizacoes
+### 1. Schema de Validação (onboarding.schema.ts)
 
 ```typescript
-export async function listarOrganizacoes(params?: {
-  page?: number
-  limit?: number
-  busca?: string
-  status?: string
-  plano?: string
-  segmento?: string
-}): Promise<ListaOrganizacoesResponse> {
-  const page = params?.page || 1
-  const limit = params?.limit || 10
-  const offset = (page - 1) * limit
+import { z } from 'zod'
 
-  let query = supabase
-    .from('organizacoes_saas')
-    .select(`
-      *,
-      admin:usuarios!organizacao_id(
-        id, nome, sobrenome, email, status, ultimo_login, role
-      )
-    `, { count: 'exact' })
-    .is('deletado_em', null)
-    .order('criado_em', { ascending: false })
+export const SEGMENTOS_ONBOARDING = [
+  { value: 'software', label: 'Software/Tecnologia' },
+  { value: 'servicos', label: 'Serviços' },
+  { value: 'varejo', label: 'Varejo' },
+  { value: 'industria', label: 'Indústria' },
+  { value: 'saude', label: 'Saúde' },
+  { value: 'educacao', label: 'Educação' },
+  { value: 'financeiro', label: 'Financeiro' },
+  { value: 'imobiliario', label: 'Imobiliário' },
+  { value: 'consultoria', label: 'Consultoria' },
+  { value: 'marketing', label: 'Marketing/Agência' },
+  { value: 'outro', label: 'Outro' },
+] as const
 
-  // Filtros...
-  query = query.range(offset, offset + limit - 1)
+export const OnboardingSchema = z.object({
+  nome_empresa: z
+    .string()
+    .min(2, 'Nome da empresa deve ter no mínimo 2 caracteres')
+    .max(255, 'Nome da empresa deve ter no máximo 255 caracteres'),
+  segmento: z.string().optional(),
+  admin_nome: z
+    .string()
+    .min(2, 'Nome deve ter no mínimo 2 caracteres'),
+  admin_sobrenome: z
+    .string()
+    .min(2, 'Sobrenome deve ter no mínimo 2 caracteres'),
+  admin_email: z.string().email('Email inválido'),
+  admin_telefone: z
+    .string()
+    .min(10, 'Telefone deve ter no mínimo 10 dígitos'),
+  senha: z
+    .string()
+    .min(8, 'Senha deve ter no mínimo 8 caracteres'),
+})
 
-  const { data, error, count } = await query
+export type OnboardingData = z.infer<typeof OnboardingSchema>
+```
 
-  if (error) {
-    console.error('Erro ao listar organizações:', error)
-    throw new Error(error.message)
-  }
+### 2. Edge Function: get-checkout-session
 
-  // Mapear e filtrar admin (role = 'admin') no cliente
-  const organizacoes: Organizacao[] = (data || []).map((org) => {
-    const adminUser = org.admin?.find((u: any) => u.role === 'admin')
-    return {
-      id: org.id,
-      nome: org.nome,
-      segmento: org.segmento,
-      email: org.email,
-      website: org.website,
-      telefone: org.telefone,
-      status: org.status as Organizacao['status'],
-      plano: org.plano,
-      criado_em: org.criado_em,
-      admin: adminUser ? {
-        id: adminUser.id,
-        nome: adminUser.nome,
-        sobrenome: adminUser.sobrenome,
-        email: adminUser.email,
-        status: adminUser.status,
-        ultimo_login: adminUser.ultimo_login,
-      } : undefined,
-    }
+```typescript
+// Input: { session_id: string }
+// Output: { customer_email, plano_id, plano_nome, is_trial, periodo }
+
+const session = await stripe.checkout.sessions.retrieve(session_id)
+
+// Verificar se sessão é válida e não foi usada
+const { data: existing } = await supabase
+  .from('checkout_sessions_pendentes')
+  .select('status')
+  .eq('stripe_session_id', session_id)
+  .single()
+
+if (existing?.status === 'concluido') {
+  throw new Error('Esta sessão já foi utilizada')
+}
+
+// Registrar sessão se primeira vez
+if (!existing) {
+  await supabase.from('checkout_sessions_pendentes').insert({
+    stripe_session_id: session_id,
+    customer_email: session.customer_email,
+    plano_id: session.metadata.plano_id,
+    is_trial: session.metadata.is_trial === 'true',
+    status: 'pendente',
+    metadata: session.metadata,
   })
+}
 
-  return {
-    organizacoes,
-    total: count || 0,
-    pagina: page,
-    limite: limit,
-    total_paginas: Math.ceil((count || 0) / limit),
-  }
+return {
+  customer_email: session.customer_email,
+  plano_id: session.metadata.plano_id,
+  plano_nome: session.metadata.plano_nome,
+  is_trial: session.metadata.is_trial === 'true',
+  periodo: session.metadata.periodo,
 }
 ```
 
-### Novo QueryProvider
+### 3. Edge Function: complete-onboarding
 
 ```typescript
-export function QueryProvider({ children }: QueryProviderProps) {
-  const [queryClient] = useState(
-    () =>
-      new QueryClient({
-        defaultOptions: {
-          queries: {
-            staleTime: 1000 * 60, // 1 minuto
-            gcTime: 1000 * 60 * 5, // 5 minutos
-            retry: 2, // 2 tentativas
-            retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
-            refetchOnWindowFocus: false,
-            networkMode: 'always', // Sempre tentar, mesmo offline
-          },
-          mutations: {
-            retry: 0,
-          },
-        },
-      })
-  )
+// Input
+interface CompleteOnboardingInput {
+  session_id: string
+  nome_empresa: string
+  segmento?: string
+  admin_nome: string
+  admin_sobrenome: string
+  admin_email: string
+  admin_telefone: string
+  senha: string
+}
 
+// Processo
+1. Buscar sessão do Stripe
+2. Verificar se não foi usada (tabela checkout_sessions_pendentes)
+3. Buscar dados do plano selecionado
+4. Criar organização com:
+   - nome: nome_empresa
+   - segmento: segmento || null
+   - email: admin_email
+   - telefone: admin_telefone
+   - plano: plano.nome.toLowerCase()
+   - status: is_trial ? 'trial' : 'ativa'
+   - limite_usuarios: plano.limite_usuarios
+   - limite_oportunidades: plano.limite_oportunidades
+   - limite_storage_mb: plano.limite_storage_mb
+   - trial_expira_em: is_trial ? now + 14 dias : null
+5. Criar usuário no Supabase Auth com senha fornecida
+6. Criar registro na tabela usuarios (role: admin)
+7. Criar assinatura
+8. Marcar checkout_session como 'concluido'
+9. Fazer login e retornar tokens
+
+// Output
+{
+  success: true,
+  access_token: string,
+  refresh_token: string,
+  organizacao_id: string,
+}
+```
+
+### 4. OnboardingPage.tsx (resumido)
+
+```tsx
+export function OnboardingPage() {
+  const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
+  const sessionId = searchParams.get('session_id')
+  
+  // Estados
+  const [sessionData, setSessionData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  
+  // Form com react-hook-form + zod
+  const form = useForm<OnboardingData>({
+    resolver: zodResolver(OnboardingSchema),
+  })
+  
+  // Buscar dados da sessão
+  useEffect(() => {
+    async function fetchSession() {
+      const { data, error } = await supabase.functions.invoke('get-checkout-session', {
+        body: { session_id: sessionId }
+      })
+      if (data) {
+        setSessionData(data)
+        form.setValue('admin_email', data.customer_email)
+      }
+      setLoading(false)
+    }
+    if (sessionId) fetchSession()
+    else navigate('/planos') // Sem session_id, volta
+  }, [sessionId])
+  
+  // Submit
+  async function onSubmit(formData: OnboardingData) {
+    setSubmitting(true)
+    
+    const { data, error } = await supabase.functions.invoke('complete-onboarding', {
+      body: { session_id: sessionId, ...formData }
+    })
+    
+    if (data?.access_token) {
+      // Login automático
+      await supabase.auth.setSession({
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+      })
+      navigate('/app')
+    }
+  }
+  
+  // UI seguindo design system
   return (
-    <QueryClientProvider client={queryClient}>
-      {children}
-    </QueryClientProvider>
+    <div className="min-h-screen bg-gradient-to-b from-background to-muted/30">
+      {/* Header com logo */}
+      {/* Card centralizado com formulário */}
+      {/* Campos conforme especificado */}
+      {/* Botão "Criar minha conta" */}
+    </div>
   )
+}
+```
+
+### 5. Atualização create-checkout-session
+
+```typescript
+// Adicionar suporte a trial com cartão
+const { plano_id, periodo, email, is_trial, utms } = body
+
+// Para trial: usar trial_period_days do Stripe
+const sessionParams = {
+  mode: 'subscription',
+  payment_method_types: ['card'],
+  line_items: [{ price: priceId, quantity: 1 }],
+  customer_email: email,
+  // MUDANÇA: success_url vai para /onboarding
+  success_url: `${origin}/onboarding?session_id={CHECKOUT_SESSION_ID}`,
+  cancel_url: `${origin}/planos`,
+  // Se for trial, adiciona período de teste
+  ...(is_trial && {
+    subscription_data: {
+      trial_period_days: trialDias, // ex: 14
+    },
+  }),
+  metadata: {
+    plano_id,
+    plano_nome: plano.nome,
+    periodo,
+    is_trial: is_trial ? 'true' : 'false',
+    ...utms,
+  },
+}
+```
+
+### 6. Atualização PlanosPage
+
+```tsx
+// Botão "Começar Trial" agora vai pro Stripe também
+const handleTrial = async () => {
+  setCheckoutLoading('trial')
+  
+  // Buscar plano Trial
+  const { data: planoTrial } = await supabase
+    .from('planos')
+    .select('id')
+    .or('nome.eq.Trial,preco_mensal.eq.0')
+    .single()
+  
+  const { data, error } = await supabase.functions.invoke('create-checkout-session', {
+    body: {
+      plano_id: planoTrial?.id,
+      periodo: 'mensal',
+      is_trial: true, // Flag para trial
+      utms,
+    },
+  })
+  
+  if (data?.url) window.location.href = data.url
 }
 ```
 
 ---
 
-## Testes Recomendados
+## Migração SQL
 
-1. Acessar `/admin/organizacoes` - deve carregar sem erro
-2. Acessar `/admin/planos` - deve listar os 4 planos existentes
-3. Abrir DevTools > Network e verificar que há apenas 1 request para organizacoes_saas
-4. Simular rede lenta (Slow 3G) - deve mostrar loading mas eventualmente carregar
-5. Desconectar internet - deve mostrar erro de rede com botão "Tentar novamente"
+```sql
+-- Tabela para rastrear sessões de checkout pendentes
+CREATE TABLE IF NOT EXISTS checkout_sessions_pendentes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  stripe_session_id VARCHAR(255) UNIQUE NOT NULL,
+  customer_email VARCHAR(255) NOT NULL,
+  plano_id UUID REFERENCES planos(id),
+  is_trial BOOLEAN DEFAULT false,
+  status VARCHAR(50) DEFAULT 'pendente', -- pendente, concluido, expirado
+  metadata JSONB,
+  criado_em TIMESTAMPTZ DEFAULT now(),
+  concluido_em TIMESTAMPTZ
+);
+
+-- Index para buscas rápidas
+CREATE INDEX idx_checkout_sessions_stripe_id ON checkout_sessions_pendentes(stripe_session_id);
+
+-- RLS: apenas service_role pode acessar
+ALTER TABLE checkout_sessions_pendentes ENABLE ROW LEVEL SECURITY;
+-- Sem policies públicas - apenas edge functions com service_role
+```
+
+---
+
+## Arquivos a Criar
+
+1. `src/modules/public/schemas/onboarding.schema.ts`
+2. `src/modules/public/pages/OnboardingPage.tsx`
+3. `supabase/functions/get-checkout-session/index.ts`
+4. `supabase/functions/complete-onboarding/index.ts`
+5. Migração SQL
+
+## Arquivos a Modificar
+
+1. `supabase/functions/create-checkout-session/index.ts`
+2. `src/modules/public/pages/PlanosPage.tsx`
+3. `src/modules/public/index.ts`
+4. `src/App.tsx`
+5. `supabase/config.toml`
+
+---
+
+## Fluxos Finais
+
+### Assinatura Paga
+
+1. Usuário escolhe plano em `/planos`
+2. Clica "Assinar" → Stripe Checkout
+3. Paga com cartão
+4. Redirecionado para `/onboarding?session_id=xxx`
+5. Preenche: empresa, segmento, nome, sobrenome, telefone, senha
+6. Clica "Criar minha conta"
+7. Sistema cria org + usuário + assinatura
+8. Login automático → `/app`
+9. Status: `ativa`
+
+### Trial com Cartão
+
+1. Usuário clica "Começar Trial" em `/planos`
+2. Vai pro Stripe Checkout (trial_period_days: 14)
+3. Insere cartão (não é cobrado)
+4. Redirecionado para `/onboarding?session_id=xxx`
+5. Mesmo formulário
+6. Clica "Criar minha conta"
+7. Sistema cria org + usuário + assinatura trial
+8. Login automático → `/app`
+9. Status: `trial`, trial_expira_em: +14 dias
+10. Ao fim do trial, Stripe cobra automaticamente
+
+---
+
+## Vantagens
+
+- Senha definida pelo usuário (sem email com senha temporária)
+- Login automático após cadastro
+- Trial exige cartão (maior conversão)
+- Dados completos coletados (empresa, segmento, telefone)
+- Fluxo unificado para pago e trial
+- Webhook simplificado (não precisa criar org/user)
