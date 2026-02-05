@@ -1,204 +1,222 @@
 
-# Plano: Melhorar UX dos Campos de Trial + Select Inline no Dashboard
+# Plano: Adicionar Campos Stripe Price ID no Modal de Planos
 
 ## Resumo
 
-Duas melhorias focadas na experiência do usuário:
-
-1. **Configurações > Stripe**: Melhorar os campos de Trial com componentes apropriados
-2. **Dashboard**: Integrar o select de período inline no texto do toolbar
+Adicionar os campos `stripe_price_id_mensal` e `stripe_price_id_anual` no modal de edição de planos para permitir a conexão direta entre os planos do CRM e os produtos/preços configurados no Stripe.
 
 ---
 
-## Parte 1: Melhorar Campos de Trial em Configurações
-
-### Problema Atual
+## Contexto do Fluxo Completo
 
 ```text
-Permitir Trial: [true       ] ← Input de texto livre
-Dias de Trial:  [14         ] ← Input de texto livre
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                           FLUXO DE MONETIZAÇÃO                                   │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  1. SUPER ADMIN                 2. LANDING PAGE               3. CHECKOUT       │
+│  ┌─────────────────┐           ┌─────────────────┐          ┌──────────────┐   │
+│  │ Admin > Planos  │ ────────► │ /planos         │ ───────► │ Stripe       │   │
+│  │                 │           │                 │          │ Checkout     │   │
+│  │ • Nome          │           │ • Mostra cards  │          │              │   │
+│  │ • Preço         │           │ • Toggle Mensal/│          │ • Pagamento  │   │
+│  │ • Limites       │           │   Anual         │          │ • Captura    │   │
+│  │ • stripe_price_ │           │ • Botão Assinar │          │   dados      │   │
+│  │   id_mensal  ◄──┼───────────┼─────────────────┼──────────┤              │   │
+│  │ • stripe_price_ │           │                 │          │              │   │
+│  │   id_anual   ◄──┼───────────┼─────────────────┼──────────┤              │   │
+│  └─────────────────┘           └─────────────────┘          └──────────────┘   │
+│           │                                                         │           │
+│           │                                                         ▼           │
+│           │                                                 ┌──────────────┐   │
+│           │                                                 │ Webhook      │   │
+│           │                                                 │ Stripe       │   │
+│           │                                                 │              │   │
+│           └─────────────────────────────────────────────────│ • Cria Org   │   │
+│                   Validação: Price ID deve existir          │ • Cria Admin │   │
+│                                                             └──────────────┘   │
+│                                                                                  │
+└─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-A UX é confusa pois o usuário precisa digitar "true" ou "false" manualmente.
+---
 
-### Solução
+## O Que Será Adicionado
 
-Transformar os campos de Trial em componentes apropriados:
+### Nova Seção no Modal: "Integração Stripe"
 
 ```text
-┌─────────────────────────────────────────────────────────────┐
-│ CONFIGURAÇÕES DE TRIAL                                      │
-├─────────────────────────────────────────────────────────────┤
-│  Permitir Trial                           [●━━━━━] ← Toggle │
-│  Novos usuários podem iniciar trial                         │
-│                                                             │
-│  Dias de Trial                                              │
-│  [   14   ↕] ← Input numérico                              │
-│  Duração do período de trial (1-365 dias)                   │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Editar Plano                                                            X  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│ INFORMAÇÕES BÁSICAS                                                         │
+│ ┌─────────────────────────────┐  ┌─────────────────────────────┐           │
+│ │ Nome do Plano *             │  │ Ordem                       │           │
+│ │ [Professional            ]  │  │ [2                        ] │           │
+│ └─────────────────────────────┘  └─────────────────────────────┘           │
+│                                                                             │
+│ Descrição                                                                   │
+│ ┌─────────────────────────────────────────────────────────────────────────┐│
+│ │ Ideal para equipes em crescimento...                                   ││
+│ └─────────────────────────────────────────────────────────────────────────┘│
+│                                                                             │
+│ PREÇOS                                                                      │
+│ ┌───────────────────┐  ┌───────────────────┐  ┌───────────────────┐        │
+│ │ Preço Mensal (R$) │  │ Preço Anual (R$)  │  │ Moeda             │        │
+│ │ [97.00          ] │  │ [970.00         ] │  │ [BRL ▼          ] │        │
+│ └───────────────────┘  └───────────────────┘  └───────────────────┘        │
+│                                                                             │
+│ INTEGRAÇÃO STRIPE   ← ✨ NOVA SEÇÃO                                        │
+│ ─────────────────────────────────────────────────────────────────────────── │
+│ Vincule os Price IDs do Stripe para habilitar o checkout automático        │
+│                                                                             │
+│ ┌─────────────────────────────────────────────────────────────────────────┐│
+│ │ Stripe Price ID (Mensal)                                               ││
+│ │ [price_1ABC123def456...                                              ] ││
+│ └─────────────────────────────────────────────────────────────────────────┘│
+│ Copie do Stripe Dashboard > Products > Seu Produto > Price ID              │
+│                                                                             │
+│ ┌─────────────────────────────────────────────────────────────────────────┐│
+│ │ Stripe Price ID (Anual)                                                ││
+│ │ [price_1XYZ789ghi012...                                              ] ││
+│ └─────────────────────────────────────────────────────────────────────────┘│
+│ Opcional - deixe vazio se não oferecer plano anual                         │
+│                                                                             │
+│ LIMITES (-1 = ilimitado)                                                    │
+│ ...                                                                         │
+│                                                                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                        [Cancelar]  [Salvar Alterações]      │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Alterações
+---
 
-**Arquivo:** `src/modules/admin/pages/ConfiguracoesGlobaisPage.tsx`
+## Alterações Técnicas
 
-1. Criar tipo de campo especial `type: 'toggle' | 'number' | 'text'`
-2. Modificar a interface `CampoConfig`:
+### 1. Atualizar Schema Zod (`PlanoFormModal.tsx`)
+
+Adicionar os campos de Stripe ao schema de validação:
 
 ```tsx
-interface CampoConfig {
-  name: string
-  label: string
-  placeholder: string
-  secret?: boolean
-  required?: boolean
-  hint?: string
-  type?: 'text' | 'toggle' | 'number'  // Novo
+const planoSchema = z.object({
+  // ... campos existentes ...
+  
+  // NOVOS CAMPOS
+  stripe_price_id_mensal: z.string().optional(),
+  stripe_price_id_anual: z.string().optional(),
+})
+```
+
+### 2. Atualizar Tipo `Plano` (`admin.api.ts`)
+
+Incluir os campos no tipo exportado:
+
+```tsx
+export interface Plano {
+  id: string
+  nome: string
+  // ... campos existentes ...
+  
+  // NOVOS CAMPOS
+  stripe_price_id_mensal?: string | null
+  stripe_price_id_anual?: string | null
 }
 ```
 
-3. Atualizar os campos de Stripe:
+### 3. Atualizar `listarPlanos()` e `obterPlano()` 
+
+Incluir os novos campos nas queries:
 
 ```tsx
-case 'stripe':
-  return [
-    { name: 'publishable_key', label: 'Publishable Key', ... },
-    { name: 'secret_key', label: 'Secret Key', ... },
-    { name: 'webhook_secret', label: 'Webhook Secret', ... },
-    { 
-      name: 'trial_habilitado', 
-      label: 'Permitir Trial', 
-      type: 'toggle',  // Novo
-      hint: 'Novos usuários podem iniciar período de teste gratuito' 
-    },
-    { 
-      name: 'trial_dias', 
-      label: 'Dias de Trial', 
-      type: 'number',  // Novo
-      placeholder: '14',
-      hint: 'Duração do período de trial (1-365 dias)' 
-    },
-  ]
+return {
+  // ... campos existentes ...
+  stripe_price_id_mensal: p.stripe_price_id_mensal,
+  stripe_price_id_anual: p.stripe_price_id_anual,
+}
 ```
 
-4. No formulário, renderizar baseado no `type`:
+### 4. Atualizar `criarPlano()` e `atualizarPlano()`
+
+Enviar os campos para o banco:
 
 ```tsx
-{campo.type === 'toggle' ? (
-  <label className="flex items-center gap-3 h-11">
-    <input
-      type="checkbox"
-      checked={getValor(campo.name) === 'true'}
-      onChange={(e) => setValores(prev => ({ 
-        ...prev, 
-        [campo.name]: e.target.checked ? 'true' : 'false' 
-      }))}
-      className="w-10 h-6 rounded-full ..."
-    />
-    <span className="text-sm text-muted-foreground">
-      {getValor(campo.name) === 'true' ? 'Habilitado' : 'Desabilitado'}
-    </span>
-  </label>
-) : campo.type === 'number' ? (
-  <input
-    type="number"
-    min="1"
-    max="365"
-    value={getValor(campo.name)}
-    onChange={...}
-    className="..."
-  />
-) : (
-  // Input de texto padrão
-)}
+const { data, error } = await supabase
+  .from('planos')
+  .insert({
+    // ... campos existentes ...
+    stripe_price_id_mensal: plano.stripe_price_id_mensal || null,
+    stripe_price_id_anual: plano.stripe_price_id_anual || null,
+  })
 ```
 
-### Separar Seção de Trial
+### 5. Adicionar Campos no Formulário (`PlanoFormModal.tsx`)
 
-Agrupar os campos de Trial em uma seção visual separada:
+Nova seção após "Preços":
 
 ```tsx
-// Após campos normais, adicionar divisor
-{plataforma === 'stripe' && (
-  <div className="pt-4 mt-4 border-t border-border">
-    <h3 className="text-sm font-medium text-foreground mb-4">
-      Configurações de Trial
+{/* Integração Stripe */}
+<div className="space-y-4">
+  <div>
+    <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+      Integração Stripe
     </h3>
-    {/* Campos trial_habilitado e trial_dias aqui */}
+    <p className="text-xs text-muted-foreground mt-1">
+      Vincule os Price IDs do Stripe para habilitar o checkout automático
+    </p>
   </div>
-)}
+
+  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <div>
+      <label className="block text-sm font-medium text-foreground mb-1">
+        Stripe Price ID (Mensal)
+      </label>
+      <input
+        {...register('stripe_price_id_mensal')}
+        placeholder="price_1ABC123..."
+        className="w-full h-11 px-3 rounded-md border ..."
+      />
+      <p className="text-xs text-muted-foreground mt-1">
+        Copie do Stripe Dashboard > Products
+      </p>
+    </div>
+
+    <div>
+      <label className="block text-sm font-medium text-foreground mb-1">
+        Stripe Price ID (Anual)
+      </label>
+      <input
+        {...register('stripe_price_id_anual')}
+        placeholder="price_1XYZ789..."
+        className="w-full h-11 px-3 rounded-md border ..."
+      />
+      <p className="text-xs text-muted-foreground mt-1">
+        Opcional - deixe vazio se não oferecer
+      </p>
+    </div>
+  </div>
+</div>
 ```
 
----
+### 6. Atualizar `reset()` e `defaultValues`
 
-## Parte 2: Select Inline no Dashboard
-
-### Problema Atual
-
-```text
-Dashboard · Visão geral dos últimos 7 dias    [▼ Últimos 7 dias]
-                ↑ Texto                              ↑ Select
-                     Informação duplicada!
-```
-
-### Solução
-
-Integrar o select dentro do texto do subtitle:
-
-```text
-Dashboard · Visão geral dos [▼ últimos 30 dias]
-                             └─ Select estilizado como texto
-```
-
-### Alterações
-
-**Arquivo:** `src/modules/admin/pages/DashboardPage.tsx`
-
-1. Remover `setActions` (não haverá mais botão separado)
-
-2. Passar componente JSX para `setSubtitle`:
+Carregar valores existentes ao editar:
 
 ```tsx
-useEffect(() => {
-  setSubtitle(
-    <span className="flex items-center gap-1 text-muted-foreground">
-      Visão geral dos{' '}
-      <select
-        value={periodo}
-        onChange={(e) => setPeriodo(e.target.value as Periodo)}
-        className="
-          ml-1 px-1 py-0.5
-          bg-transparent 
-          border-b border-muted-foreground/30
-          text-foreground font-medium
-          cursor-pointer
-          hover:border-primary
-          focus:outline-none focus:border-primary
-          appearance-none
-        "
-        style={{ paddingRight: '1.5rem' }}
-      >
-        <option value="7d">últimos 7 dias</option>
-        <option value="30d">últimos 30 dias</option>
-        <option value="60d">últimos 60 dias</option>
-        <option value="90d">últimos 90 dias</option>
-      </select>
-      {/* Ícone de seta */}
-      <ChevronDown className="w-3 h-3 -ml-5 pointer-events-none" />
-    </span>
-  )
-  return () => setSubtitle(null)
-}, [periodo, setSubtitle])
+defaultValues: {
+  // ...
+  stripe_price_id_mensal: '',
+  stripe_price_id_anual: '',
+}
+
+// No useEffect
+reset({
+  // ...
+  stripe_price_id_mensal: plano.stripe_price_id_mensal || '',
+  stripe_price_id_anual: plano.stripe_price_id_anual || '',
+})
 ```
-
-### Período Personalizado (Fase 2 - Opcional)
-
-Deixar a opção "Personalizado" para implementação futura, pois requer:
-- Componentes de Calendar/DatePicker
-- Popover com seleção de intervalo
-- Maior complexidade de UX
-
-Foco atual: 7, 30, 60, 90 dias com select inline.
 
 ---
 
@@ -206,75 +224,45 @@ Foco atual: 7, 30, 60, 90 dias com select inline.
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `ConfiguracoesGlobaisPage.tsx` | Toggle para Trial + Input numérico para dias + Seção separada |
-| `DashboardPage.tsx` | Select inline no subtitle |
+| `src/modules/admin/components/PlanoFormModal.tsx` | Adicionar campos Stripe no schema e formulário |
+| `src/modules/admin/services/admin.api.ts` | Atualizar tipo `Plano` e funções de CRUD |
 
 ---
 
-## Resultado Visual Esperado
+## Resultado Final
 
-### Configurações > Stripe
+Após a implementação:
 
-```text
-┌───────────────────────────────────────────────────────────────────┐
-│ Stripe                                                  Configurado │
-│ Pagamentos                                                         │
-├───────────────────────────────────────────────────────────────────┤
-│ Publishable Key *                                                  │
-│ ┌──────────────────────────────────────────────────────────────┐  │
-│ │ pk_live_...                                                  │  │
-│ └──────────────────────────────────────────────────────────────┘  │
-│                                                                    │
-│ Secret Key *                                                       │
-│ ┌──────────────────────────────────────────────────────────────┐  │
-│ │ ••••••••••••                                              👁  │  │
-│ └──────────────────────────────────────────────────────────────┘  │
-│ Armazenada como secret no Supabase                                 │
-│                                                                    │
-│ Webhook Secret                                                     │
-│ ┌──────────────────────────────────────────────────────────────┐  │
-│ │ ••••••••••••                                              👁  │  │
-│ └──────────────────────────────────────────────────────────────┘  │
-│                                                                    │
-│─────────────────────────────────────────────────────────────────── │
-│ CONFIGURAÇÕES DE TRIAL                                             │
-│                                                                    │
-│ Permitir Trial                                                     │
-│ [●━━━━━━━━] Habilitado                                            │
-│ Novos usuários podem iniciar período de teste gratuito             │
-│                                                                    │
-│ Dias de Trial                                                      │
-│ ┌──────────┐                                                      │
-│ │    14    │                                                      │
-│ └──────────┘                                                      │
-│ Duração do período de trial (1-365 dias)                          │
-├───────────────────────────────────────────────────────────────────┤
-│ [Testar Conexão]                             [Salvar Alterações]   │
-└───────────────────────────────────────────────────────────────────┘
-```
-
-### Dashboard (Toolbar)
-
-```text
-┌──────────────────────────────────────────────────────────────────────┐
-│ Dashboard · Visão geral dos [▼ últimos 30 dias]                      │
-└──────────────────────────────────────────────────────────────────────┘
-```
+1. **Super Admin** edita um plano e cola os Price IDs do Stripe
+2. Os Price IDs são salvos no banco de dados
+3. Na **Landing Page** `/planos`, quando o usuário clica "Assinar":
+   - A Edge Function `create-checkout-session` busca o `stripe_price_id_mensal` ou `stripe_price_id_anual`
+   - Cria a sessão de checkout do Stripe com o preço correto
+   - Redireciona o usuário para o checkout do Stripe
 
 ---
 
-## Esclarecimento sobre Trial vs Planos
+## Como Obter os Price IDs no Stripe
 
-Para evitar confusão futura, o plano mostrará:
+Guia rápido para o Super Admin:
 
-| Configurações > Stripe | Planos > Trial |
-|------------------------|----------------|
-| **Quando**: Global | **O que**: Limites |
-| `trial_habilitado` | `limite_usuarios` |
-| `trial_dias` | `limite_storage_mb` |
-| | `limite_oportunidades` |
+1. Acesse [Stripe Dashboard](https://dashboard.stripe.com)
+2. Vá em **Products** > **Add Product** (ou selecione existente)
+3. Configure o preço (mensal/anual)
+4. Após salvar, copie o **Price ID** (começa com `price_`)
+5. Cole no modal de edição do plano no CRM
 
-**Configurações**: Define SE trial está habilitado e POR QUANTO TEMPO dura  
-**Planos > Trial**: Define OS RECURSOS que o usuário tem durante o trial
-
-São complementares, não duplicados.
+```text
+Stripe Dashboard
+┌─────────────────────────────────────────────────────────────┐
+│ Products > Professional Plan                                 │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  PRICING                                                     │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │ R$ 97,00 / month                                       │ │
+│  │ Price ID: price_1ABC123def456ghiJKL   [Copy]  ◄───────┼─┼─ Copie este ID
+│  └────────────────────────────────────────────────────────┘ │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
