@@ -268,7 +268,7 @@ export const camposApi = {
 // =====================================================
 
 export const produtosApi = {
-  listar: async (params?: { categoria_id?: string; busca?: string; ativo?: string }) => {
+  listar: async (params?: { categoria_id?: string; busca?: string; ativo?: string; recorrente?: string; page?: string; limit?: string }) => {
     const { data } = await api.get('/v1/produtos', { params })
     return data as { produtos: Produto[]; total: number; page: number; total_paginas: number }
   },
@@ -287,24 +287,24 @@ export const produtosApi = {
     await api.delete(`/v1/produtos/${id}`)
   },
 
-  // Categorias
+  // Categorias - URL corrigida: backend registra em /v1/categorias-produtos
   listarCategorias: async () => {
-    const { data } = await api.get('/v1/produtos/categorias')
+    const { data } = await api.get('/v1/categorias-produtos/categorias')
     return data as { categorias: Categoria[]; total: number }
   },
 
   criarCategoria: async (payload: Record<string, unknown>) => {
-    const { data } = await api.post('/v1/produtos/categorias', payload)
+    const { data } = await api.post('/v1/categorias-produtos/categorias', payload)
     return data as Categoria
   },
 
   atualizarCategoria: async (id: string, payload: Record<string, unknown>) => {
-    const { data } = await api.patch(`/v1/produtos/categorias/${id}`, payload)
+    const { data } = await api.patch(`/v1/categorias-produtos/categorias/${id}`, payload)
     return data as Categoria
   },
 
   excluirCategoria: async (id: string) => {
-    await api.delete(`/v1/produtos/categorias/${id}`)
+    await api.delete(`/v1/categorias-produtos/categorias/${id}`)
   },
 }
 
@@ -330,6 +330,10 @@ export const motivosApi = {
 
   excluir: async (id: string) => {
     await api.delete(`/v1/motivos-resultado/${id}`)
+  },
+
+  reordenar: async (tipo: TipoMotivo, ordem: Array<{ id: string; ordem: number }>) => {
+    await api.patch('/v1/motivos-resultado/reordenar', { tipo, ordem })
   },
 }
 
