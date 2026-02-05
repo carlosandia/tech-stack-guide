@@ -12,6 +12,7 @@ import {
   User,
   MoreVertical,
   Building2,
+  Gift,
 } from 'lucide-react'
  import { RefreshCw, WifiOff, AlertTriangle } from 'lucide-react'
 
@@ -328,7 +329,15 @@ function OrganizacaoRow({
         <span className="text-sm text-muted-foreground capitalize">{org.segmento}</span>
       </td>
       <td className="px-6 py-4">
-        <span className="text-sm text-muted-foreground">{org.plano || 'Sem plano'}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">{org.plano || 'Sem plano'}</span>
+          {org.cortesia && (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+              <Gift className="w-3 h-3" />
+              Cortesia
+            </span>
+          )}
+        </div>
       </td>
       <td className="px-6 py-4">
         <span className="text-sm text-muted-foreground">{formatDate(org.criado_em)}</span>
@@ -427,9 +436,14 @@ function OrganizacaoCard({
           <span className="text-muted-foreground">Segmento:</span>
           <span className="ml-1 text-foreground capitalize">{org.segmento}</span>
         </div>
-        <div>
+        <div className="flex items-center gap-1">
           <span className="text-muted-foreground">Plano:</span>
           <span className="ml-1 text-foreground">{org.plano || '-'}</span>
+          {org.cortesia && (
+            <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">
+              <Gift className="w-2.5 h-2.5" />
+            </span>
+          )}
         </div>
         <div>
           <span className="text-muted-foreground">Criado:</span>

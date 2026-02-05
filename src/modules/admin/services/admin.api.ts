@@ -21,6 +21,8 @@ export interface Organizacao {
   status: 'ativa' | 'suspensa' | 'trial' | 'cancelada'
   plano: string // Nome do plano (não é FK)
   criado_em: string
+  cortesia?: boolean
+  cortesia_motivo?: string | null
   admin?: {
     id: string
     nome: string
@@ -165,6 +167,9 @@ export async function listarOrganizacoes(params?: {
        *,
        admin:usuarios!organizacao_id(
          id, nome, sobrenome, email, status, ultimo_login, role
+       ),
+       assinaturas(
+         cortesia, cortesia_motivo, status
        )
      `, { count: 'exact' })
     .is('deletado_em', null)
@@ -198,6 +203,8 @@ export async function listarOrganizacoes(params?: {
    const organizacoes: Organizacao[] = (data || []).map((org) => {
      // eslint-disable-next-line @typescript-eslint/no-explicit-any
      const adminUser = (org.admin as any[])?.find((u: any) => u.role === 'admin')
+     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     const assinaturaAtiva = (org.assinaturas as any[])?.find((a: any) => a.status === 'ativa') || (org.assinaturas as any[])?.[0]
      return {
        id: org.id,
        nome: org.nome,
@@ -208,6 +215,8 @@ export async function listarOrganizacoes(params?: {
        status: org.status as Organizacao['status'],
        plano: org.plano,
        criado_em: org.criado_em,
+       cortesia: assinaturaAtiva?.cortesia ?? false,
+       cortesia_motivo: assinaturaAtiva?.cortesia_motivo ?? null,
        admin: adminUser ? {
          id: adminUser.id,
          nome: adminUser.nome,
@@ -237,6 +246,15 @@ export async function obterOrganizacao(id: string): Promise<Organizacao> {
 
   if (error) throw new Error(error.message)
 
+  // Buscar assinatura ativa para dados de cortesia
+  const { data: assinaturaData } = await supabase
+    .from('assinaturas')
+    .select('cortesia, cortesia_motivo, status')
+    .eq('organizacao_id', id)
+    .order('criado_em', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
   // Buscar admin
   const { data: adminData } = await supabase
     .from('usuarios')
@@ -255,6 +273,8 @@ export async function obterOrganizacao(id: string): Promise<Organizacao> {
     status: data.status as Organizacao['status'],
     plano: data.plano,
     criado_em: data.criado_em,
+    cortesia: assinaturaData?.cortesia ?? false,
+    cortesia_motivo: assinaturaData?.cortesia_motivo ?? null,
     admin: adminData ? {
       id: adminData.id,
       nome: adminData.nome,
