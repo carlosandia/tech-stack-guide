@@ -1,133 +1,166 @@
 
-# Plano: Corrigir Criacao Completa de Organizacao
+# Plano: Corrigir Envio de Email de Convite e Exibição de Usuários
 
 ## Problemas Identificados
 
-### 1. Campos faltantes no payload da API
-A interface `CriarOrganizacaoPayload` em `admin.api.ts` nao inclui:
-- `cortesia: boolean`
-- `cortesia_motivo: string`
+### Problema 1: Email de Convite Não É Enviado
+O campo `enviar_convite` é passado no payload, mas a função `criarOrganizacao` em `admin.api.ts` **NÃO implementa nenhuma lógica** para:
+1. Criar o usuário no Supabase Auth (`auth.users`)
+2. Enviar email de convite para definir senha
+3. Linkar o usuário da tabela `usuarios` com `auth.users` via `auth_id`
 
-### 2. Modal nao envia campos de cortesia
-O `NovaOrganizacaoModal.tsx` no `onSubmit` nao passa:
-- `data.cortesia`
-- `data.cortesia_motivo`
+Atualmente, apenas cria um registro na tabela `usuarios` com status "pendente", sem conexão com o sistema de autenticação.
 
-### 3. Assinatura nao e criada
-A funcao `criarOrganizacao` cria organizacao e admin, mas **NAO** cria registro na tabela `assinaturas`. Os campos de cortesia devem ser salvos nesta tabela.
-
-### 4. Validacao do Step2 faltando no STEPS
-O array STEPS no modal nao inclui `cortesia` e `cortesia_motivo` nos campos da etapa 2.
+### Problema 2: Usuários Não Aparecem na Tab
+A RLS da tabela `usuarios` exige que o super_admin seja verificado via `is_super_admin_v2()`. Porém, a query de listagem pode estar falhando devido a dependências entre políticas. No network request, vemos que a query de organizações retorna array vazio, indicando problema de permissão.
 
 ---
 
-## Arquivos a Modificar
+## Solução Proposta
 
-| Arquivo | Mudanca |
-|---------|---------|
-| `src/modules/admin/services/admin.api.ts` | Adicionar campos no payload + criar assinatura |
-| `src/modules/admin/components/NovaOrganizacaoModal.tsx` | Passar cortesia no submit + adicionar campos no STEPS |
+### Parte 1: Edge Function para Envio de Convite
+
+Criar edge function `invite-admin` que:
+1. Recebe dados do administrador
+2. Usa `supabase.auth.admin.inviteUserByEmail()` para criar usuário e enviar email
+3. Atualiza o registro em `usuarios` com o `auth_id` retornado
+
+### Parte 2: Atualizar Lógica de Criação
+
+Modificar `criarOrganizacao` para:
+1. Criar registro em `usuarios` normalmente
+2. Se `enviar_convite = true`: chamar edge function de convite
+3. Se `enviar_convite = false`: criar usuário no auth com senha fornecida
+
+### Parte 3: Corrigir RLS para Super Admin
+
+Adicionar política mais permissiva para SELECT em `usuarios` que permita super_admin ver todos os usuários.
 
 ---
 
-## Correcoes Detalhadas
+## Arquivos a Criar/Modificar
 
-### 1. CriarOrganizacaoPayload (admin.api.ts linha 44-67)
+| Arquivo | Ação |
+|---------|------|
+| `supabase/functions/invite-admin/index.ts` | CRIAR - Edge function para convite |
+| `src/modules/admin/services/admin.api.ts` | MODIFICAR - Chamar edge function |
+| Migration SQL | CRIAR - Corrigir RLS da tabela usuarios |
 
-Adicionar:
-```typescript
-export interface CriarOrganizacaoPayload {
-  // ... campos existentes ...
-  cortesia?: boolean           // ADICIONAR
-  cortesia_motivo?: string     // ADICIONAR
-}
-```
+---
 
-### 2. Funcao criarOrganizacao (admin.api.ts)
+## Detalhes Técnicos
 
-Apos criar organizacao e admin, adicionar criacao da assinatura:
+### 1. Edge Function `invite-admin`
 
 ```typescript
-// Apos criar admin (linha 356)...
+// supabase/functions/invite-admin/index.ts
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-// Criar assinatura vinculada
-const agora = new Date()
-const { error: assinaturaError } = await supabase
-  .from('assinaturas')
-  .insert([{
-    organizacao_id: org.id,
-    plano_id: payload.plano_id,
-    status: isTrial ? 'trial' : 'ativa',
-    periodo: 'mensal',
-    inicio_em: agora.toISOString(),
-    cortesia: payload.cortesia ?? false,
-    cortesia_motivo: payload.cortesia ? payload.cortesia_motivo : null,
-    trial_inicio: isTrial ? agora.toISOString() : null,
-    trial_fim: isTrial 
-      ? new Date(agora.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString() 
-      : null,
-  }])
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
 
-if (assinaturaError) {
-  // Rollback: deletar admin e organizacao
-  await supabase.from('usuarios').delete().eq('id', adminUser.id)
-  await supabase.from('organizacoes_saas').delete().eq('id', org.id)
-  throw new Error(`Erro ao criar assinatura: ${assinaturaError.message}`)
-}
-```
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
 
-### 3. NovaOrganizacaoModal.tsx - STEPS array (linha 30-34)
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  
+  const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false }
+  });
 
-Adicionar campos de cortesia na etapa 2:
+  const { email, nome, sobrenome, usuario_id, organizacao_id } = await req.json();
 
-```typescript
-const STEPS = [
-  { id: 1, label: 'Empresa', fields: ['nome', 'segmento', 'segmento_outro', 'email', 'website', 'telefone', 'endereco'] },
-  { id: 2, label: 'Plano', fields: ['plano_id', 'cortesia', 'cortesia_motivo'] },  // ADICIONAR cortesia
-  { id: 3, label: 'Admin', fields: ['admin_nome', 'admin_sobrenome', 'admin_email', 'admin_telefone', 'enviar_convite', 'senha_inicial'] },
-] as const
-```
-
-### 4. NovaOrganizacaoModal.tsx - onSubmit (linha 84-109)
-
-Adicionar campos no payload:
-
-```typescript
-const onSubmit = (data: CriarOrganizacaoData) => {
-  criarOrganizacao(
+  // Criar usuário via invite
+  const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+    email,
     {
-      nome: data.nome,
-      segmento: data.segmento,
-      segmento_outro: data.segmento_outro,
-      email: data.email,
-      website: data.website || undefined,
-      telefone: data.telefone || undefined,
-      endereco: data.endereco,
-      plano_id: data.plano_id,
-      cortesia: data.cortesia,                    // ADICIONAR
-      cortesia_motivo: data.cortesia_motivo,      // ADICIONAR
-      admin_nome: data.admin_nome,
-      admin_sobrenome: data.admin_sobrenome,
-      admin_email: data.admin_email,
-      admin_telefone: data.admin_telefone || undefined,
-      enviar_convite: data.enviar_convite,
-      senha_inicial: data.senha_inicial || undefined,
-    },
-    { ... }
-  )
+      data: {
+        nome,
+        sobrenome,
+        role: 'admin',
+        tenant_id: organizacao_id,
+      },
+      redirectTo: `${req.headers.get("origin")}/auth/set-password`
+    }
+  );
+
+  if (authError) {
+    return new Response(JSON.stringify({ error: authError.message }), {
+      status: 400,
+      headers: { ...corsHeaders, "Content-Type": "application/json" }
+    });
+  }
+
+  // Atualizar registro em usuarios com auth_id
+  await supabaseAdmin
+    .from("usuarios")
+    .update({ auth_id: authUser.user.id, status: "pendente" })
+    .eq("id", usuario_id);
+
+  return new Response(JSON.stringify({ success: true, auth_id: authUser.user.id }), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" }
+  });
+});
+```
+
+### 2. Atualizar `criarOrganizacao` (admin.api.ts)
+
+Após criar o admin na tabela `usuarios`:
+
+```typescript
+// Se enviar_convite = true, chamar edge function
+if (payload.enviar_convite) {
+  const response = await fetch(
+    `https://ybzhlsalbnxwkfszkloa.supabase.co/functions/v1/invite-admin`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+      },
+      body: JSON.stringify({
+        email: payload.admin_email,
+        nome: payload.admin_nome,
+        sobrenome: payload.admin_sobrenome,
+        usuario_id: adminUser.id,
+        organizacao_id: org.id,
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    console.warn("Erro ao enviar convite:", await response.text());
+    // Não aborta a criação, apenas loga o erro
+  }
 }
 ```
 
-### 5. defaultValues no useForm (linha 42-56)
+### 3. Migration para RLS
 
-Adicionar valores default:
+```sql
+-- Permitir super_admin ver TODOS os usuarios (SELECT)
+DROP POLICY IF EXISTS super_admin_usuarios_select ON usuarios;
 
-```typescript
-defaultValues: {
-  // ... existentes ...
-  cortesia: false,         // ADICIONAR
-  cortesia_motivo: '',     // ADICIONAR
-}
+CREATE POLICY super_admin_usuarios_select ON usuarios
+FOR SELECT TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM user_roles 
+    WHERE user_id = auth.uid() 
+    AND role = 'super_admin'
+  )
+  OR auth_id = auth.uid()
+  OR organizacao_id IN (
+    SELECT organizacao_id FROM usuarios WHERE auth_id = auth.uid()
+  )
+);
 ```
 
 ---
@@ -135,28 +168,32 @@ defaultValues: {
 ## Fluxo Corrigido
 
 ```text
-Wizard Etapa 1: Empresa
-  -> nome, segmento, email, telefone, website, endereco (cep, logradouro, etc)
-
-Wizard Etapa 2: Plano
-  -> plano_id, cortesia, cortesia_motivo
-
 Wizard Etapa 3: Admin
-  -> admin_nome, admin_sobrenome, admin_email, admin_telefone, enviar_convite
+  -> admin_nome, admin_sobrenome, admin_email, enviar_convite ✓
 
 Submit:
-  1. Buscar dados do plano selecionado
-  2. INSERT organizacoes_saas (todos campos de endereco)
-  3. INSERT usuarios (admin com role='admin')
-  4. INSERT assinaturas (plano_id, cortesia, cortesia_motivo, status)
-  5. Retornar IDs criados
+  1. INSERT organizacoes_saas
+  2. INSERT usuarios (status = pendente)
+  3. INSERT assinaturas
+  4. SE enviar_convite = true:
+     -> Chama edge function invite-admin
+     -> Supabase envia email "Definir sua senha"
+     -> Atualiza usuarios.auth_id
+  5. Retorna sucesso
+
+Admin recebe email:
+  -> Clica no link
+  -> Define senha em /auth/set-password
+  -> Login funciona
 ```
 
 ---
 
-## Verificacao pos-implementacao
+## Verificação Pós-Implementação
 
-Criar organizacao de teste e verificar no banco:
-- `organizacoes_saas`: endereco_cep, endereco_logradouro, etc preenchidos
-- `usuarios`: admin vinculado com organizacao_id
-- `assinaturas`: cortesia=true, cortesia_motivo preenchido, plano_id correto
+1. Criar organização com "Enviar convite" marcado
+2. Verificar que email foi enviado para o admin
+3. Acessar página de detalhes da organização
+4. Verificar que tab "Usuários" mostra o admin corretamente
+5. Admin define senha pelo link do email
+6. Admin consegue fazer login
