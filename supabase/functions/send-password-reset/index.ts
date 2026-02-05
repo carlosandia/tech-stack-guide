@@ -306,14 +306,23 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Buscar nome do usuário na tabela usuarios
+    // Buscar usuario na tabela usuarios - se nao existir, retorna erro
     const { data: usuario } = await supabaseAdmin
       .from("usuarios")
-      .select("nome")
-      .eq("email", email.toLowerCase())
+      .select("nome, email")
+      .eq("email", email.toLowerCase().trim())
+      .is("deletado_em", null)
       .maybeSingle();
 
-    const nomeUsuario = usuario?.nome || "Usuário";
+    if (!usuario) {
+      console.log("[send-password-reset] Email not found:", email);
+      return new Response(
+        JSON.stringify({ success: false, error: "email_not_found" }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const nomeUsuario = usuario.nome || "Usuário";
 
     // Gerar link de recovery via Supabase Auth
     const origin = req.headers.get("origin") || "https://id-preview--1f239c79-4597-4aa1-ba11-8321b3203abb.lovable.app";

@@ -32,15 +32,17 @@ export function ForgotPasswordPage() {
     resolver: zodResolver(forgotPasswordSchema),
   })
 
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+
   const onSubmit = async (data: ForgotPasswordFormData) => {
     setIsLoading(true)
+    setErrorMsg(null)
 
     try {
-      // Chama edge function que envia email via SMTP configurado
       const session = await supabase.auth.getSession()
       const accessToken = session.data.session?.access_token
 
-      await fetch(
+      const response = await fetch(
         'https://ybzhlsalbnxwkfszkloa.supabase.co/functions/v1/send-password-reset',
         {
           method: 'POST',
@@ -52,12 +54,21 @@ export function ForgotPasswordPage() {
           body: JSON.stringify({ email: data.email }),
         }
       )
+
+      const result = await response.json()
+
+      if (!response.ok || result.error === 'email_not_found') {
+        setErrorMsg('E-mail não encontrado. Verifique se o endereço está correto.')
+        setIsLoading(false)
+        return
+      }
+
+      setIsSuccess(true)
     } catch (err) {
-      // Ignora erro - sempre mostra sucesso
       console.error('Erro ao solicitar recuperação:', err)
+      setErrorMsg('Erro ao processar solicitação. Tente novamente.')
     } finally {
       setIsLoading(false)
-      setIsSuccess(true)
     }
   }
 
@@ -85,10 +96,10 @@ export function ForgotPasswordPage() {
           <div className="text-center space-y-4">
             <CheckCircle className="h-16 w-16 text-green-500 mx-auto" />
             <h2 className="text-xl font-semibold text-foreground">
-              Verifique seu e-mail
+              E-mail enviado!
             </h2>
             <p className="text-muted-foreground">
-              Se o e-mail existir em nosso sistema, enviaremos um link de recuperação.
+              Enviamos um link de recuperação para seu e-mail. Verifique sua caixa de entrada.
             </p>
             <Link
               to="/login"
@@ -109,6 +120,13 @@ export function ForgotPasswordPage() {
                 Informe seu e-mail cadastrado para receber o link de recuperação.
               </p>
             </div>
+
+            {/* Erro geral */}
+            {errorMsg && (
+              <div className="bg-destructive/10 border border-destructive/30 rounded-md p-3 text-center">
+                <p className="text-sm text-destructive">{errorMsg}</p>
+              </div>
+            )}
 
             {/* Campo Email */}
             <div>
