@@ -1,14 +1,16 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
- import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase'
 import type { User, Session } from '@supabase/supabase-js'
 
 /**
  * AIDEV-NOTE: Provider central de autenticacao
  * Usa Supabase Auth diretamente (PRD-03)
  * Busca role da tabela usuarios (fonte da verdade)
+ * Verifica status da organizacao para bloqueio
  */
 
 export type UserRole = 'super_admin' | 'admin' | 'member'
+export type OrgStatus = 'ativa' | 'suspensa' | 'trial' | 'cancelada' | 'bloqueada'
 
 export interface AuthUser {
   id: string
@@ -18,6 +20,7 @@ export interface AuthUser {
   role: UserRole
   organizacao_id: string | null
   avatar_url?: string
+  org_status?: OrgStatus
 }
 
 interface AuthContextType {
@@ -70,6 +73,32 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
       }
 
+      // Buscar status da organização se existir
+      let orgStatus: OrgStatus | undefined
+      if (usuario.organizacao_id) {
+        const { data: orgData } = await supabase
+          .from('organizacoes_saas')
+          .select('status')
+          .eq('id', usuario.organizacao_id)
+          .single()
+        
+        // Também verificar se assinatura está bloqueada
+        const { data: assinaturaData } = await supabase
+          .from('assinaturas')
+          .select('status')
+          .eq('organizacao_id', usuario.organizacao_id)
+          .order('criado_em', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        // Se assinatura estiver bloqueada, prevalece
+        if (assinaturaData?.status === 'bloqueada') {
+          orgStatus = 'bloqueada'
+        } else {
+          orgStatus = orgData?.status as OrgStatus
+        }
+      }
+
       return {
         id: usuario.id,
         email: usuario.email,
@@ -78,6 +107,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         role: usuario.role as UserRole,
         organizacao_id: usuario.organizacao_id,
         avatar_url: usuario.avatar_url ?? undefined,
+        org_status: orgStatus,
       }
     } catch (err) {
       console.error('Erro ao buscar dados do usuario:', err)

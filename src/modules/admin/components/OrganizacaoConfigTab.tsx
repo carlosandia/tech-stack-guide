@@ -1,7 +1,9 @@
 import { useState } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useLimitesOrganizacao, useModulosOrganizacao } from '../hooks/useOrganizacoes'
 import { usePlanos } from '../hooks/usePlanos'
-import { HardDrive, Users, Target, FileText, Puzzle, CreditCard, Gift } from 'lucide-react'
+import { revogarCortesia } from '../services/admin.api'
+import { HardDrive, Users, Target, FileText, Puzzle, CreditCard, Gift, XCircle, Loader2 } from 'lucide-react'
 import type { Organizacao } from '../services/admin.api'
 import { GerenciarModulosModal } from './GerenciarModulosModal'
 
@@ -13,6 +15,7 @@ import { GerenciarModulosModal } from './GerenciarModulosModal'
  * - Limites de uso vs utilizado
  * - Modulos ativos
  * - Plano atual
+ * - Opcao de revogar cortesia
  */
 
 interface Props {
@@ -25,6 +28,17 @@ export function OrganizacaoConfigTab({ orgId, org }: Props) {
   const { data: modulos, isLoading: loadingModulos } = useModulosOrganizacao(orgId)
   const { data: planos } = usePlanos()
   const [showModulosModal, setShowModulosModal] = useState(false)
+  const [showRevogarConfirm, setShowRevogarConfirm] = useState(false)
+  const queryClient = useQueryClient()
+
+  const revogarMutation = useMutation({
+    mutationFn: () => revogarCortesia(orgId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['organizacao', orgId] })
+      queryClient.invalidateQueries({ queryKey: ['organizacoes'] })
+      setShowRevogarConfirm(false)
+    },
+  })
 
   const formatPercentual = (percentual: number | null) => {
     if (percentual === null) return 'Ilimitado'
@@ -40,6 +54,47 @@ export function OrganizacaoConfigTab({ orgId, org }: Props) {
 
   return (
     <div className="space-y-6">
+      {/* Modal de Confirmação de Revogação */}
+      {showRevogarConfirm && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-card rounded-lg border border-border p-6 max-w-md w-full shadow-lg">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-destructive/10 rounded-full flex items-center justify-center">
+                <XCircle className="w-5 h-5 text-destructive" />
+              </div>
+              <h3 className="font-semibold text-foreground">Revogar Cortesia</h3>
+            </div>
+            <p className="text-sm text-muted-foreground mb-6">
+              Ao revogar a cortesia, a organização será <strong>bloqueada</strong> e os usuários precisarão escolher um plano pago para continuar usando o sistema.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                type="button"
+                onClick={() => setShowRevogarConfirm(false)}
+                className="px-4 py-2 text-sm font-medium text-foreground bg-muted rounded-md hover:bg-muted/80 transition-colors"
+                disabled={revogarMutation.isPending}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => revogarMutation.mutate()}
+                disabled={revogarMutation.isPending}
+                className="px-4 py-2 text-sm font-medium text-destructive-foreground bg-destructive rounded-md hover:bg-destructive/90 transition-colors inline-flex items-center gap-2"
+              >
+                {revogarMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                Confirmar Revogação
+              </button>
+            </div>
+            {revogarMutation.isError && (
+              <p className="mt-3 text-sm text-destructive">
+                Erro: {(revogarMutation.error as Error)?.message || 'Falha ao revogar cortesia'}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Plano Atual */}
       <div className="bg-card rounded-lg border border-border p-6">
         <div className="flex items-center justify-between mb-4">
@@ -52,21 +107,32 @@ export function OrganizacaoConfigTab({ orgId, org }: Props) {
               <p className="text-sm text-muted-foreground">Configuracoes do plano contratado</p>
             </div>
           </div>
+          {/* Botão de Revogar Cortesia */}
+          {org.cortesia && (
+            <button
+              type="button"
+              onClick={() => setShowRevogarConfirm(true)}
+              className="px-3 py-1.5 text-sm font-medium text-destructive border border-destructive/30 rounded-md hover:bg-destructive/10 transition-colors inline-flex items-center gap-1.5"
+            >
+              <XCircle className="w-4 h-4" />
+              Revogar Cortesia
+            </button>
+          )}
         </div>
         <div className="space-y-3">
           <div className="flex items-center gap-3">
             <span className="text-lg font-bold text-primary">{org.plano || 'Sem plano'}</span>
             {org.cortesia && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-accent text-accent-foreground">
                 <Gift className="w-3.5 h-3.5" />
                 Cortesia
               </span>
             )}
           </div>
           {org.cortesia && org.cortesia_motivo && (
-            <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-              <p className="text-xs font-medium text-green-700 mb-1">Motivo da cortesia:</p>
-              <p className="text-sm text-green-800">{org.cortesia_motivo}</p>
+            <div className="p-3 bg-accent/50 border border-border rounded-lg">
+              <p className="text-xs font-medium text-foreground mb-1">Motivo da cortesia:</p>
+              <p className="text-sm text-muted-foreground">{org.cortesia_motivo}</p>
             </div>
           )}
           {planos && planos.length > 0 && (
