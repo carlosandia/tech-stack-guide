@@ -741,9 +741,17 @@ export async function testarConfigGlobal(_plataforma: string): Promise<{ sucesso
 // METRICAS
 // =======================
 
-export async function obterMetricasResumo(_periodo: '7d' | '30d' | '90d' | '12m' = '30d'): Promise<MetricasResumo> {
-  // Contar organizações por status
-  const { data: orgs, count: totalOrgs } = await supabase
+ export async function obterMetricasResumo(periodo: '7d' | '30d' | '60d' | '90d' = '30d'): Promise<MetricasResumo> {
+   // Calcular data de início baseado no período
+   const diasMap: Record<string, number> = { '7d': 7, '30d': 30, '60d': 60, '90d': 90 }
+   const dias = diasMap[periodo] || 30
+   
+   const dataInicio = new Date()
+   dataInicio.setDate(dataInicio.getDate() - dias)
+   const dataInicioISO = dataInicio.toISOString()
+ 
+   // Contar organizações por status
+   const { data: orgs, count: totalOrgs } = await supabase
     .from('organizacoes_saas')
     .select('status', { count: 'exact' })
     .is('deletado_em', null)
@@ -753,37 +761,25 @@ export async function obterMetricasResumo(_periodo: '7d' | '30d' | '90d' | '12m'
     return acc
   }, {} as Record<string, number>)
 
-  // Contar novos nos últimos 7 dias
-  const seteDiasAtras = new Date()
-  seteDiasAtras.setDate(seteDiasAtras.getDate() - 7)
-
-  const { count: novos7d } = await supabase
+   // Contar novos no período selecionado
+   const { count: novosPeriodo } = await supabase
     .from('organizacoes_saas')
     .select('*', { count: 'exact', head: true })
-    .gte('criado_em', seteDiasAtras.toISOString())
+     .gte('criado_em', dataInicioISO)
     .is('deletado_em', null)
 
-  // Contar novos nos últimos 30 dias
-  const trintaDiasAtras = new Date()
-  trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30)
-
-  const { count: novos30d } = await supabase
-    .from('organizacoes_saas')
-    .select('*', { count: 'exact', head: true })
-    .gte('criado_em', trintaDiasAtras.toISOString())
-    .is('deletado_em', null)
-
-  // Contar usuários
+   // Contar usuários (total)
   const { count: totalUsuarios } = await supabase
     .from('usuarios')
     .select('*', { count: 'exact', head: true })
     .is('deletado_em', null)
 
-  // Distribuição por plano
-  const { data: planosList } = await supabase
+   // Distribuição por plano (considerando período)
+   const { data: planosList } = await supabase
     .from('organizacoes_saas')
     .select('plano')
     .is('deletado_em', null)
+     .gte('criado_em', dataInicioISO)
 
   const planoCounts = (planosList || []).reduce((acc, org) => {
     const planoNome = org.plano || 'Sem plano'
@@ -820,8 +816,8 @@ export async function obterMetricasResumo(_periodo: '7d' | '30d' | '90d' | '12m'
       ativos: statusCounts['ativa'] || 0,
       trial: statusCounts['trial'] || 0,
       suspensos: statusCounts['suspensa'] || 0,
-      novos_7d: novos7d || 0,
-      novos_30d: novos30d || 0,
+       novos_7d: novosPeriodo || 0,
+       novos_30d: novosPeriodo || 0,
     },
     usuarios: {
       total: totalUsuarios || 0,
