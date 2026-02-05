@@ -298,17 +298,22 @@ export function SetPasswordPage() {
             <div className="space-y-2">
               {PASSWORD_REQUIREMENTS.map((req) => {
                 const met = req.test(password)
+                const hasInput = password.length > 0
                 return (
                   <div
                     key={req.id}
-                    className={`flex items-center gap-2 text-sm ${
-                      met ? 'text-success-foreground' : 'text-muted-foreground'
+                    className={`flex items-center gap-2 text-sm transition-colors duration-200 ${
+                      met
+                        ? 'text-success-foreground'
+                        : hasInput
+                          ? 'text-destructive'
+                          : 'text-muted-foreground'
                     }`}
                   >
                     {met ? (
-                      <Check className="w-4 h-4" />
+                      <Check className="w-4 h-4 shrink-0" />
                     ) : (
-                      <X className="w-4 h-4" />
+                      <X className="w-4 h-4 shrink-0" />
                     )}
                     {req.label}
                   </div>
