@@ -223,7 +223,7 @@ export function OrganizacaoDetalhesPage() {
       {/* Tab Content */}
       <div>
         {activeTab === 'dados' && <OrganizacaoDadosTab orgId={id || ''} org={org} />}
-        {activeTab === 'usuarios' && <OrganizacaoUsuariosTab orgId={id || ''} />}
+        {activeTab === 'usuarios' && <OrganizacaoUsuariosTab orgId={id || ''} orgNome={org?.nome} />}
         {activeTab === 'relatorios' && <OrganizacaoRelatoriosTab orgId={id || ''} />}
         {activeTab === 'configuracoes' && <OrganizacaoConfigTab orgId={id || ''} org={org} />}
       </div>

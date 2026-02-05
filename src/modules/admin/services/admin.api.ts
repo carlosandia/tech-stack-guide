@@ -1046,6 +1046,43 @@ export async function testarConfigGlobal(_plataforma: string): Promise<{ sucesso
   }
 }
 
+// Reenviar convite para usuario pendente
+export async function reenviarConvite(params: {
+  usuario_id: string
+  email: string
+  nome: string
+  sobrenome: string | null
+  organizacao_id: string
+  organizacao_nome: string
+}): Promise<void> {
+  const session = await supabase.auth.getSession()
+  const accessToken = session.data.session?.access_token
+
+  const response = await fetch(
+    'https://ybzhlsalbnxwkfszkloa.supabase.co/functions/v1/invite-admin',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        email: params.email,
+        nome: params.nome,
+        sobrenome: params.sobrenome,
+        usuario_id: params.usuario_id,
+        organizacao_id: params.organizacao_id,
+        organizacao_nome: params.organizacao_nome,
+      }),
+    }
+  )
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error || 'Erro ao reenviar convite')
+  }
+}
+
 // Export como objeto para uso com useQuery
 export const adminApi = {
   // Organizacoes
@@ -1060,6 +1097,7 @@ export const adminApi = {
   obterLimitesOrganizacao,
   obterModulosOrganizacao,
   atualizarModulosOrganizacao,
+  reenviarConvite,
   // Planos
   listarPlanos,
   obterPlano,

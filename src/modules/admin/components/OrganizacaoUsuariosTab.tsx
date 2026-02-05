@@ -1,17 +1,25 @@
+import { useState } from 'react'
 import { useUsuariosOrganizacao } from '../hooks/useOrganizacoes'
-import { User, Shield, Clock } from 'lucide-react'
+import { reenviarConvite } from '../services/admin.api'
+import { User, Shield, Clock, Send, Loader2 } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 
 /**
  * AIDEV-NOTE: Tab de Usuarios da Organizacao
  * Conforme PRD-14 - RF-012
+ * Inclui botão de reenviar convite para usuários pendentes
  */
 
 interface Props {
   orgId: string
+  orgNome?: string
 }
 
-export function OrganizacaoUsuariosTab({ orgId }: Props) {
+export function OrganizacaoUsuariosTab({ orgId, orgNome }: Props) {
   const { data, isLoading, error } = useUsuariosOrganizacao(orgId)
+  const queryClient = useQueryClient()
+  const [reenviando, setReenviando] = useState<string | null>(null)
+  const [mensagem, setMensagem] = useState<{ tipo: 'sucesso' | 'erro'; texto: string } | null>(null)
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'Nunca'
@@ -22,6 +30,48 @@ export function OrganizacaoUsuariosTab({ orgId }: Props) {
       hour: '2-digit',
       minute: '2-digit',
     })
+  }
+
+  const handleReenviarConvite = async (usuario: {
+    id: string
+    nome: string
+    sobrenome: string | null
+    email: string
+  }) => {
+    setReenviando(usuario.id)
+    setMensagem(null)
+    try {
+      await reenviarConvite({
+        usuario_id: usuario.id,
+        email: usuario.email,
+        nome: usuario.nome,
+        sobrenome: usuario.sobrenome,
+        organizacao_id: orgId,
+        organizacao_nome: orgNome || 'CRM',
+      })
+      setMensagem({ tipo: 'sucesso', texto: `Convite reenviado para ${usuario.email}` })
+      queryClient.invalidateQueries({ queryKey: ['admin', 'organizacao', orgId, 'usuarios'] })
+    } catch (err) {
+      setMensagem({ tipo: 'erro', texto: (err as Error).message || 'Erro ao reenviar convite' })
+    } finally {
+      setReenviando(null)
+      // Limpar mensagem após 5 segundos
+      setTimeout(() => setMensagem(null), 5000)
+    }
+  }
+
+  const renderStatusBadge = (status: string) => {
+    const statusConfig: Record<string, { bg: string; text: string; label: string }> = {
+      ativo: { bg: 'bg-green-100', text: 'text-green-700', label: 'Ativo' },
+      pendente: { bg: 'bg-amber-100', text: 'text-amber-700', label: 'Pendente' },
+      inativo: { bg: 'bg-muted', text: 'text-muted-foreground', label: 'Inativo' },
+    }
+    const config = statusConfig[status] || statusConfig.inativo
+    return (
+      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${config.bg} ${config.text}`}>
+        {config.label}
+      </span>
+    )
   }
 
   if (isLoading) {
@@ -44,6 +94,19 @@ export function OrganizacaoUsuariosTab({ orgId }: Props) {
 
   return (
     <div className="space-y-6">
+      {/* Mensagem de feedback */}
+      {mensagem && (
+        <div
+          className={`p-3 rounded-lg text-sm font-medium ${
+            mensagem.tipo === 'sucesso'
+              ? 'bg-green-50 text-green-700 border border-green-200'
+              : 'bg-destructive/10 text-destructive border border-destructive/20'
+          }`}
+        >
+          {mensagem.texto}
+        </div>
+      )}
+
       {/* Estatisticas */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-card p-4 rounded-lg border border-border">
@@ -102,17 +165,27 @@ export function OrganizacaoUsuariosTab({ orgId }: Props) {
                   <p className="text-sm text-muted-foreground">{data.admin.email}</p>
                 </div>
               </div>
-              <div className="text-right">
-                <span
-                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                    data.admin.status === 'ativo' ? 'bg-green-100 text-green-700' : 'bg-muted text-muted-foreground'
-                  }`}
-                >
-                  {data.admin.status === 'ativo' ? 'Ativo' : 'Inativo'}
-                </span>
-                <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-                  <Clock className="w-3 h-3" />
-                  {formatDate(data.admin.ultimo_login)}
+              <div className="flex items-center gap-3">
+                {data.admin.status === 'pendente' && (
+                  <button
+                    onClick={() => handleReenviarConvite(data.admin!)}
+                    disabled={reenviando === data.admin.id}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {reenviando === data.admin.id ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Send className="w-3.5 h-3.5" />
+                    )}
+                    Reenviar convite
+                  </button>
+                )}
+                <div className="text-right">
+                  {renderStatusBadge(data.admin.status)}
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+                    <Clock className="w-3 h-3" />
+                    {formatDate(data.admin.ultimo_login)}
+                  </div>
                 </div>
               </div>
             </div>
@@ -142,17 +215,27 @@ export function OrganizacaoUsuariosTab({ orgId }: Props) {
                     <p className="text-sm text-muted-foreground">{member.email}</p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <span
-                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                      member.status === 'ativo' ? 'bg-green-100 text-green-700' : 'bg-muted text-muted-foreground'
-                    }`}
-                  >
-                    {member.status === 'ativo' ? 'Ativo' : 'Inativo'}
-                  </span>
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-                    <Clock className="w-3 h-3" />
-                    {formatDate(member.ultimo_login)}
+                <div className="flex items-center gap-3">
+                  {member.status === 'pendente' && (
+                    <button
+                      onClick={() => handleReenviarConvite(member)}
+                      disabled={reenviando === member.id}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {reenviando === member.id ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Send className="w-3.5 h-3.5" />
+                      )}
+                      Reenviar convite
+                    </button>
+                  )}
+                  <div className="text-right">
+                    {renderStatusBadge(member.status)}
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+                      <Clock className="w-3 h-3" />
+                      {formatDate(member.ultimo_login)}
+                    </div>
                   </div>
                 </div>
               </div>
