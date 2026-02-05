@@ -74,3 +74,15 @@ export function useModulos() {
     queryFn: () => adminApi.listarModulos(),
   })
 }
+
+// Excluir plano
+export function useExcluirPlano() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: adminApi.excluirPlano,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'planos'] })
+    },
+  })
+}

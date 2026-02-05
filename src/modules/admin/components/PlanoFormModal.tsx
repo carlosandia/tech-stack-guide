@@ -2,14 +2,15 @@ import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { X, CreditCard, Loader2 } from 'lucide-react'
+import { X, CreditCard, Loader2, Trash2, AlertTriangle } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { adminApi, type Plano, type Modulo } from '../services/admin.api'
-import { useModulos } from '../hooks/usePlanos'
+import { useModulos, useExcluirPlano } from '../hooks/usePlanos'
 
 /**
  * AIDEV-NOTE: Modal de Criação/Edição de Plano
  * Conforme PRD-14 - RF-004
+ * Reestruturado com footer fixo conforme Design System 10.5
  */
 
 const planoSchema = z.object({
@@ -36,11 +37,23 @@ interface Props {
   onClose: () => void
 }
 
+/**
+ * AIDEV-NOTE: Helper para identificar plano Trial (padrão do sistema)
+ */
+function isTrialPlan(plano?: Plano | null): boolean {
+  if (!plano) return false
+  return plano.nome.toLowerCase() === 'trial' || plano.preco_mensal === 0
+}
+
 export function PlanoFormModal({ plano, onClose }: Props) {
   const queryClient = useQueryClient()
   const { data: modulos } = useModulos()
   const [selectedModulos, setSelectedModulos] = useState<string[]>([])
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const isEditing = !!plano
+  const isTrial = isTrialPlan(plano)
+
+  const excluirMutation = useExcluirPlano()
 
   const {
     register,
@@ -118,6 +131,7 @@ export function PlanoFormModal({ plano, onClose }: Props) {
   })
 
   const isSubmitting = createMutation.isPending || updateMutation.isPending
+  const isDeleting = excluirMutation.isPending
 
   const onSubmit = (data: PlanoFormData) => {
     const payload = {
@@ -145,19 +159,39 @@ export function PlanoFormModal({ plano, onClose }: Props) {
     )
   }
 
+  const handleDelete = () => {
+    if (!plano) return
+    excluirMutation.mutate(plano.id, {
+      onSuccess: () => {
+        onClose()
+      },
+      onError: () => {
+        // O erro será exibido pelo próprio componente
+        setShowDeleteConfirm(false)
+      },
+    })
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-card rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-border flex items-center justify-between">
+      <div className="relative bg-card rounded-lg shadow-xl w-full max-w-2xl mx-4 flex flex-col max-h-[90vh]">
+        {/* Header - Fixo */}
+        <div className="flex-shrink-0 px-6 py-4 border-b border-border flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
               <CreditCard className="w-5 h-5 text-primary" />
             </div>
-            <h2 className="text-lg font-semibold text-foreground">
-              {isEditing ? 'Editar Plano' : 'Novo Plano'}
-            </h2>
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">
+                {isEditing ? 'Editar Plano' : 'Novo Plano'}
+              </h2>
+              {isTrial && (
+                <p className="text-xs text-muted-foreground">
+                  Plano padrão do sistema
+                </p>
+              )}
+            </div>
           </div>
           <button
             onClick={onClose}
@@ -167,9 +201,9 @@ export function PlanoFormModal({ plano, onClose }: Props) {
           </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit(onSubmit)} className="flex-1 overflow-y-auto">
-          <div className="p-6 space-y-6">
+        {/* Content - Área scrollável */}
+        <div className="flex-1 overflow-y-auto min-h-0">
+          <form id="plano-form" onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-6">
             {/* Informações Básicas */}
             <div className="space-y-4">
               <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
@@ -420,28 +454,75 @@ export function PlanoFormModal({ plano, onClose }: Props) {
                 ))}
               </div>
             </div>
+          </form>
+        </div>
+
+        {/* Footer - Fixo */}
+        <div className="flex-shrink-0 px-6 py-4 border-t border-border bg-background flex items-center justify-between gap-3">
+          {/* Botão Excluir (apenas em edição de planos não-Trial) */}
+          <div>
+            {isEditing && !isTrial && !showDeleteConfirm && (
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(true)}
+                disabled={isSubmitting || isDeleting}
+                className="px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 rounded-md transition-colors flex items-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                Excluir
+              </button>
+            )}
+            {showDeleteConfirm && (
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-destructive" />
+                <span className="text-sm text-destructive">Confirmar exclusão?</span>
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                  className="px-3 py-1.5 text-sm font-medium bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 transition-colors flex items-center gap-2"
+                >
+                  {isDeleting && <Loader2 className="w-3 h-3 animate-spin" />}
+                  Sim, excluir
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteConfirm(false)}
+                  disabled={isDeleting}
+                  className="px-3 py-1.5 text-sm font-medium border border-border rounded-md hover:bg-accent transition-colors"
+                >
+                  Cancelar
+                </button>
+              </div>
+            )}
+            {excluirMutation.isError && (
+              <p className="text-sm text-destructive mt-1">
+                {(excluirMutation.error as Error).message}
+              </p>
+            )}
           </div>
 
-          {/* Footer */}
-          <div className="px-6 py-4 border-t border-border flex justify-end gap-3">
+          {/* Botões de Ação */}
+          <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={onClose}
-              disabled={isSubmitting}
+              disabled={isSubmitting || isDeleting}
               className="px-4 py-2 text-sm font-medium border border-border rounded-md hover:bg-accent transition-colors"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
+              form="plano-form"
+              disabled={isSubmitting || isDeleting}
               className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors flex items-center gap-2"
             >
               {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
               {isEditing ? 'Salvar Alterações' : 'Criar Plano'}
             </button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   )

@@ -1,9 +1,18 @@
 import { useState, useEffect } from 'react'
-import { Plus, Edit, CreditCard, Users, HardDrive, Puzzle } from 'lucide-react'
+import { Plus, Edit, CreditCard, Users, HardDrive, Puzzle, Shield } from 'lucide-react'
 import { usePlanos, useModulos } from '../hooks/usePlanos'
  import { useToolbar } from '../contexts/ToolbarContext'
 import { PlanoFormModal } from '../components/PlanoFormModal'
 import type { Plano } from '../services/admin.api'
+
+/**
+ * AIDEV-NOTE: Helper para identificar plano Trial (padrão do sistema)
+ * Trial é identificado pelo nome "Trial" ou preço zero
+ */
+function isTrialPlan(plano: Plano): boolean {
+  return plano.nome.toLowerCase() === 'trial' || plano.preco_mensal === 0
+}
+
 /**
  * AIDEV-NOTE: Pagina de Gestao de Planos
  * Conforme PRD-14 - Gestao de Planos
@@ -74,6 +83,7 @@ export function PlanosPage() {
           <PlanoCard
             key={plano.id}
             plano={plano}
+            isTrial={isTrialPlan(plano)}
             onEdit={() => {
               setPlanoEditando(plano)
               setShowModal(true)
@@ -138,10 +148,12 @@ export function PlanosPage() {
 // Componente de Card do Plano
 function PlanoCard({
   plano,
+  isTrial,
   onEdit,
   formatCurrency,
 }: {
   plano: Plano
+  isTrial: boolean
   onEdit: () => void
   formatCurrency: (value: number) => string
 }) {
@@ -150,11 +162,22 @@ function PlanoCard({
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-foreground">{plano.nome}</h3>
-        {!plano.ativo && (
-          <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded">
-            Inativo
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {isTrial && (
+            <span 
+              className="inline-flex items-center gap-1 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded font-medium"
+              title="Plano padrão do sistema - não pode ser removido"
+            >
+              <Shield className="w-3 h-3" />
+              PADRÃO
+            </span>
+          )}
+          {!plano.ativo && (
+            <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded">
+              Inativo
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Preco */}
