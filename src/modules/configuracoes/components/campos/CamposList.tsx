@@ -14,7 +14,7 @@ interface Props {
   onEdit: (campo: CampoCustomizado) => void
 }
 
-function getTipoLabel(tipo: string): string {
+export function getTipoLabel(tipo: string): string {
   return tipoCampoOptions.find(t => t.value === tipo)?.label || tipo
 }
 
@@ -45,7 +45,10 @@ export function CamposList({ campos, isAdmin, onEdit }: Props) {
       {camposSistema.map(campo => (
         <div
           key={campo.id}
-          className="flex items-center justify-between px-4 py-3 rounded-lg bg-muted/30 border border-border/50"
+          onClick={() => isAdmin ? onEdit(campo) : undefined}
+          className={`flex items-center justify-between px-4 py-3 rounded-lg bg-muted/30 border border-border/50 ${
+            isAdmin ? 'cursor-pointer hover:bg-accent/30 transition-all duration-200' : ''
+          }`}
         >
           <div className="flex items-center gap-3 min-w-0">
             <Lock className="w-4 h-4 text-muted-foreground flex-shrink-0" />
