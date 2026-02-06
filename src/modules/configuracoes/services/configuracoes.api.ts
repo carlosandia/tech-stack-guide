@@ -218,34 +218,73 @@ export interface WebhookSaida {
 }
 
 // Equipe
-export interface Usuario {
+export interface UsuarioTenant {
   id: string
+  organizacao_id: string
+  auth_user_id?: string | null
   nome: string
   sobrenome?: string | null
   email: string
   telefone?: string | null
   avatar_url?: string | null
-  role: string
-  status: string
-  ultimo_login?: string | null
+  papel_id?: string | null
+  papel_nome?: string | null
+  status: 'ativo' | 'inativo' | 'pendente' | 'suspenso'
+  ultimo_acesso?: string | null
+  criado_em: string
+  atualizado_em: string
+}
+
+/** @deprecated Use UsuarioTenant instead */
+export type Usuario = UsuarioTenant
+
+export interface MembroResumo {
+  id: string
+  usuario_id: string
+  nome: string
+  sobrenome?: string | null
+  email: string
+  avatar_url?: string | null
+  papel: 'lider' | 'membro'
+  adicionado_em: string
 }
 
 export interface Equipe {
   id: string
+  organizacao_id: string
   nome: string
   descricao?: string | null
+  lider_id?: string | null
   cor?: string | null
-  ativo: boolean
+  ativa: boolean
   criado_em: string
+  criado_por?: string | null
+  atualizado_em: string
+  deletado_em?: string | null
+}
+
+export interface EquipeComMembros extends Equipe {
+  membros: MembroResumo[]
+  total_membros: number
+  lider?: MembroResumo | null
+}
+
+export interface Permissao {
+  modulo: string
+  acoes: Array<'visualizar' | 'criar' | 'editar' | 'excluir' | 'gerenciar'>
 }
 
 export interface PerfilPermissao {
   id: string
+  organizacao_id: string
   nome: string
   descricao?: string | null
-  sistema: boolean
-  permissoes: Record<string, unknown>
+  permissoes: Permissao[]
+  is_admin: boolean
+  is_sistema: boolean
   criado_em: string
+  atualizado_em: string
+  deletado_em?: string | null
 }
 
 // Metas
@@ -600,9 +639,15 @@ export interface WebhookSaidaLog {
 // =====================================================
 
 export const equipeApi = {
+  // Equipes
   listarEquipes: async (params?: { busca?: string; ativa?: string }) => {
     const { data } = await api.get('/v1/equipes', { params })
-    return data as { equipes: Equipe[]; total: number }
+    return data as { equipes: EquipeComMembros[]; total: number }
+  },
+
+  buscarEquipe: async (id: string) => {
+    const { data } = await api.get(`/v1/equipes/${id}`)
+    return data as EquipeComMembros
   },
 
   criarEquipe: async (payload: Record<string, unknown>) => {
@@ -619,24 +664,45 @@ export const equipeApi = {
     await api.delete(`/v1/equipes/${id}`)
   },
 
+  // Membros da equipe
+  adicionarMembro: async (equipeId: string, payload: { usuario_id: string; papel?: 'lider' | 'membro' }) => {
+    const { data } = await api.post(`/v1/equipes/${equipeId}/membros`, payload)
+    return data
+  },
+
+  removerMembro: async (equipeId: string, usuarioId: string) => {
+    await api.delete(`/v1/equipes/${equipeId}/membros/${usuarioId}`)
+  },
+
+  alterarPapelMembro: async (equipeId: string, usuarioId: string, papel: 'lider' | 'membro') => {
+    const { data } = await api.patch(`/v1/equipes/${equipeId}/membros/${usuarioId}/papel`, { papel })
+    return data
+  },
+
+  // Usuarios do tenant
   listarUsuarios: async (params?: Record<string, string>) => {
     const { data } = await api.get('/v1/usuarios', { params })
-    return data as { usuarios: Usuario[]; total: number }
+    return data as { usuarios: UsuarioTenant[]; total: number; page: number; total_paginas: number }
+  },
+
+  buscarUsuario: async (id: string) => {
+    const { data } = await api.get(`/v1/usuarios/${id}`)
+    return data as UsuarioTenant
   },
 
   convidarUsuario: async (payload: Record<string, unknown>) => {
     const { data } = await api.post('/v1/usuarios', payload)
-    return data as Usuario
+    return data as UsuarioTenant
   },
 
   atualizarUsuario: async (id: string, payload: Record<string, unknown>) => {
     const { data } = await api.patch(`/v1/usuarios/${id}`, payload)
-    return data as Usuario
+    return data as UsuarioTenant
   },
 
-  alterarStatusUsuario: async (id: string, payload: { status: string }) => {
+  alterarStatusUsuario: async (id: string, payload: { status: string; motivo?: string }) => {
     const { data } = await api.patch(`/v1/usuarios/${id}/status`, payload)
-    return data as Usuario
+    return data as UsuarioTenant
   },
 
   reenviarConvite: async (id: string) => {
@@ -644,9 +710,15 @@ export const equipeApi = {
     return data
   },
 
+  // Perfis de Permissão
   listarPerfis: async () => {
     const { data } = await api.get('/v1/perfis-permissao')
     return data as { perfis: PerfilPermissao[]; total: number }
+  },
+
+  buscarPerfil: async (id: string) => {
+    const { data } = await api.get(`/v1/perfis-permissao/${id}`)
+    return data as PerfilPermissao
   },
 
   criarPerfil: async (payload: Record<string, unknown>) => {
