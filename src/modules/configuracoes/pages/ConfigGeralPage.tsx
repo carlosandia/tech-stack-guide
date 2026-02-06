@@ -78,7 +78,7 @@ export function ConfigGeralPage() {
   }, [config])
 
   useEffect(() => {
-    setSubtitle('Preferências da organização')
+    setSubtitle('Configure moeda, fuso horário, notificações e automações da sua organização')
     setActions(null)
     return () => { setSubtitle(null); setActions(null) }
   }, [setActions, setSubtitle])

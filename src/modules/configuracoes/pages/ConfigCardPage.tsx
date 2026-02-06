@@ -93,7 +93,7 @@ export function ConfigCardPage() {
   }, [configCard])
 
   useEffect(() => {
-    setSubtitle('Configure quais informações aparecem nos cards do Kanban')
+    setSubtitle('Configure quais informações aparecem nos cards de oportunidades no Kanban')
     setActions(null)
     return () => { setActions(null); setSubtitle(null) }
   }, [setActions, setSubtitle])
@@ -300,6 +300,8 @@ export function ConfigCardPage() {
           <div className="lg:sticky lg:top-24">
             <KanbanCardPreview
               camposVisiveis={camposVisiveis}
+              camposCustomVisiveis={camposCustomVisiveis}
+              camposCustomizados={camposCustomizados}
               acoesRapidas={acoesRapidas}
             />
           </div>

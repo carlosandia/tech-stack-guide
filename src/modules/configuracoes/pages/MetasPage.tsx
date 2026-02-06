@@ -51,7 +51,7 @@ export function MetasPage() {
   const ranking = rankingData?.ranking || []
 
   useEffect(() => {
-    setSubtitle('Sistema hierárquico de metas')
+    setSubtitle('Defina metas para empresa, equipes e membros individuais com acompanhamento em tempo real')
     setActions(
       isAdmin ? (
         <button

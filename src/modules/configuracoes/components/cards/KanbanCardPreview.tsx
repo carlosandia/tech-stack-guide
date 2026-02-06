@@ -16,10 +16,19 @@ import {
   Tag,
   MessageCircle,
   Calendar,
+  FileText,
 } from 'lucide-react'
+
+interface CampoCustomizado {
+  id: string
+  nome: string
+  tipo: string
+}
 
 interface KanbanCardPreviewProps {
   camposVisiveis: string[]
+  camposCustomVisiveis: string[]
+  camposCustomizados: CampoCustomizado[]
   acoesRapidas: string[]
 }
 
@@ -93,7 +102,47 @@ const ACOES_ICONS: Record<string, { icon: React.ElementType; label: string }> = 
   agendar: { icon: Calendar, label: 'Agendar' },
 }
 
-export function KanbanCardPreview({ camposVisiveis, acoesRapidas }: KanbanCardPreviewProps) {
+export function KanbanCardPreview({ camposVisiveis, camposCustomVisiveis, camposCustomizados, acoesRapidas }: KanbanCardPreviewProps) {
+  // Gerar valor mock para campo customizado baseado no tipo
+  const getCustomFieldValue = (tipo: string): React.ReactNode => {
+    switch (tipo) {
+      case 'texto':
+      case 'text':
+        return <span className="text-sm text-muted-foreground">Valor exemplo</span>
+      case 'numero':
+      case 'number':
+        return <span className="text-sm text-foreground">42</span>
+      case 'moeda':
+      case 'currency':
+        return <span className="text-sm font-semibold text-foreground">R$ 1.500,00</span>
+      case 'data':
+      case 'date':
+        return <span className="text-xs text-muted-foreground">10/02/2026</span>
+      case 'select':
+      case 'dropdown':
+        return <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded">Opção A</span>
+      case 'multi_select':
+        return (
+          <div className="flex items-center gap-1">
+            <span className="text-xs bg-accent text-foreground px-1.5 py-0.5 rounded">Tag 1</span>
+            <span className="text-xs bg-accent text-foreground px-1.5 py-0.5 rounded">Tag 2</span>
+          </div>
+        )
+      case 'checkbox':
+      case 'boolean':
+        return <span className="text-xs text-success-foreground">✓ Sim</span>
+      case 'email':
+        return <span className="text-sm text-muted-foreground">contato@empresa.com</span>
+      case 'telefone':
+      case 'phone':
+        return <span className="text-sm text-muted-foreground">(11) 91234-5678</span>
+      case 'url':
+        return <span className="text-xs text-primary underline">exemplo.com.br</span>
+      default:
+        return <span className="text-sm text-muted-foreground">—</span>
+    }
+  }
+
   return (
     <div className="space-y-2">
       <h3 className="text-sm font-semibold text-foreground">Preview</h3>
@@ -119,7 +168,7 @@ export function KanbanCardPreview({ camposVisiveis, acoesRapidas }: KanbanCardPr
             </span>
           </div>
 
-          {/* Campos visíveis */}
+          {/* Campos padrão visíveis */}
           <div className="space-y-1.5">
             {camposVisiveis
               .filter((key) => CAMPO_PREVIEW_DATA[key] && key !== 'tarefas_pendentes')
@@ -134,6 +183,23 @@ export function KanbanCardPreview({ camposVisiveis, acoesRapidas }: KanbanCardPr
                 )
               })}
           </div>
+
+          {/* Campos customizados visíveis */}
+          {camposCustomVisiveis.length > 0 && (
+            <div className="mt-2 pt-2 border-t border-border/50 space-y-1.5">
+              {camposCustomVisiveis.map((campoId) => {
+                const campo = camposCustomizados.find(c => c.id === campoId)
+                if (!campo) return null
+                return (
+                  <div key={campoId} className="flex items-center gap-2">
+                    <FileText className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                    <span className="text-xs text-muted-foreground truncate">{campo.nome}:</span>
+                    {getCustomFieldValue(campo.tipo)}
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
 
         {/* Footer com ações rápidas */}
