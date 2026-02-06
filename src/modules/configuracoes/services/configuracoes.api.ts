@@ -452,7 +452,7 @@ export interface Meta {
   usuario_id?: string | null
   funil_id?: string | null
   meta_pai_id?: string | null
-  ativa: boolean
+  ativa: boolean // mapped from DB column 'ativo'
   criado_em: string
   criado_por?: string | null
   atualizado_em: string
@@ -2130,6 +2130,7 @@ function processarMetaProgresso(metaRaw: Record<string, unknown>): MetaComProgre
 
   return {
     ...(metaRaw as unknown as Meta),
+    ativa: Boolean(metaRaw.ativo ?? metaRaw.ativa ?? true),
     progresso: progressoObj ? {
       id: progressoObj.id as string,
       meta_id: progressoObj.meta_id as string,
@@ -2157,7 +2158,7 @@ export const metasApi = {
     if (params?.periodo) query = query.eq('periodo', params.periodo)
     if (params?.equipe_id) query = query.eq('equipe_id', params.equipe_id)
     if (params?.usuario_id) query = query.eq('usuario_id', params.usuario_id)
-    if (params?.ativa) query = query.eq('ativa', params.ativa === 'true')
+    if (params?.ativa) query = query.eq('ativo', params.ativa === 'true')
 
     const { data, error, count } = await query.order('criado_em', { ascending: false })
 
@@ -2232,12 +2233,12 @@ export const metasApi = {
     // Excluir metas filhas primeiro
     await supabase
       .from('metas')
-      .update({ deletado_em: new Date().toISOString(), ativa: false })
+      .update({ deletado_em: new Date().toISOString(), ativo: false })
       .eq('meta_pai_id', id)
 
     const { error } = await supabase
       .from('metas')
-      .update({ deletado_em: new Date().toISOString(), ativa: false })
+      .update({ deletado_em: new Date().toISOString(), ativo: false })
       .eq('id', id)
 
     if (error) throw new Error(`Erro ao excluir meta: ${error.message}`)
@@ -2259,7 +2260,7 @@ export const metasApi = {
       .from('metas')
       .select(`*, progresso:metas_progresso(id, valor_atual, percentual_atingido, calculado_em)`)
       .eq('tipo', 'empresa')
-      .eq('ativa', true)
+      .eq('ativo', true)
       .is('deletado_em', null)
       .order('criado_em', { ascending: false })
 
@@ -2288,7 +2289,7 @@ export const metasApi = {
       .select(`*, progresso:metas_progresso(id, valor_atual, percentual_atingido, calculado_em)`)
       .eq('equipe_id', equipeId)
       .eq('tipo', 'equipe')
-      .eq('ativa', true)
+      .eq('ativo', true)
       .is('deletado_em', null)
 
     if (error) throw new Error(`Erro ao buscar metas equipe: ${error.message}`)
@@ -2302,7 +2303,7 @@ export const metasApi = {
       .select(`*, progresso:metas_progresso(id, valor_atual, percentual_atingido, calculado_em)`, { count: 'exact' })
       .eq('usuario_id', userId)
       .eq('tipo', 'individual')
-      .eq('ativa', true)
+      .eq('ativo', true)
       .is('deletado_em', null)
 
     if (error) throw new Error(`Erro ao buscar metas individuais: ${error.message}`)
@@ -2314,7 +2315,7 @@ export const metasApi = {
     const { data, error } = await supabase
       .from('metas')
       .select(`*, progresso:metas_progresso(valor_atual, percentual_atingido)`)
-      .eq('ativa', true)
+      .eq('ativo', true)
       .is('deletado_em', null)
 
     if (error) throw new Error(`Erro ao buscar progresso: ${error.message}`)
@@ -2327,7 +2328,7 @@ export const metasApi = {
       .from('metas')
       .select(`*, progresso:metas_progresso(valor_atual, percentual_atingido), usuario:usuarios!metas_usuario_id_fkey(id, nome, sobrenome, avatar_url)`)
       .eq('tipo', 'individual')
-      .eq('ativa', true)
+      .eq('ativo', true)
       .is('deletado_em', null)
       .order('criado_em', { ascending: false })
 
@@ -2360,7 +2361,7 @@ export const metasApi = {
       .from('metas')
       .select(`*, progresso:metas_progresso(id, valor_atual, percentual_atingido, calculado_em)`)
       .eq('usuario_id', userId)
-      .eq('ativa', true)
+      .eq('ativo', true)
       .is('deletado_em', null)
       .order('criado_em', { ascending: false })
 
