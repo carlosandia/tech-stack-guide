@@ -2,13 +2,22 @@
  * AIDEV-NOTE: Página de Configurações Gerais do Tenant (Admin Only)
  * Conforme PRD-05 - Seção 4. Configurações Gerais
  * Campos: moeda, timezone, formato data, notificações, horários comerciais
+ * Inclui: banner de email desconectado + editor rico para assinatura
  */
 
 import { useState, useEffect } from 'react'
-import { Save, Loader2, Settings } from 'lucide-react'
+import { Save, Loader2, Settings, AlertTriangle, ArrowRight } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '@/providers/AuthProvider'
 import { useConfigToolbar } from '../contexts/ConfigToolbarContext'
 import { useConfigTenant, useAtualizarConfigTenant } from '../hooks/useConfigTenant'
+import { RichTextEditor } from '../components/editor/RichTextEditor'
+import { supabase } from '@/lib/supabase'
+
+// =====================================================
+// Constantes
+// =====================================================
 
 const MOEDAS = [
   { value: 'BRL', label: 'Real (R$)' },
@@ -33,6 +42,107 @@ const FORMATOS_DATA = [
   { value: 'YYYY-MM-DD', label: 'AAAA-MM-DD' },
 ]
 
+// =====================================================
+// Hook - Verificar conexão de email
+// =====================================================
+
+function useTemConexaoEmail() {
+  return useQuery({
+    queryKey: ['conexao-email-ativa'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('conexoes_email')
+        .select('id, status')
+        .is('deletado_em', null)
+        .in('status', ['connected', 'ativo'])
+        .limit(1)
+
+      if (error) throw error
+      return (data?.length ?? 0) > 0
+    },
+    staleTime: 60_000,
+  })
+}
+
+// =====================================================
+// Sub-componentes
+// =====================================================
+
+function BannerEmailDesconectado() {
+  return (
+    <div className="flex items-start gap-3 px-4 py-3 rounded-md border border-amber-200 bg-amber-50 text-amber-800 mb-4">
+      <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+      <div className="flex-1 text-sm">
+        <p className="font-medium">Conexão de email necessária</p>
+        <p className="text-amber-700 mt-0.5">
+          Para enviar notificações por email, conecte primeiro uma conta de email nas Conexões.
+        </p>
+        <Link
+          to="/app/configuracoes/conexoes"
+          className="inline-flex items-center gap-1 mt-1.5 text-sm font-medium text-amber-900 hover:text-amber-950 underline underline-offset-2 transition-colors"
+        >
+          Ir para Conexões
+          <ArrowRight className="w-3.5 h-3.5" />
+        </Link>
+      </div>
+    </div>
+  )
+}
+
+interface ToggleItemProps {
+  label: string
+  desc: string
+  checked: boolean
+  onChange: () => void
+}
+
+function ToggleItem({ label, desc, checked, onChange }: ToggleItemProps) {
+  return (
+    <div className="flex items-center justify-between py-2">
+      <div>
+        <p className="text-sm font-medium text-foreground">{label}</p>
+        <p className="text-xs text-muted-foreground">{desc}</p>
+      </div>
+      <button
+        onClick={onChange}
+        className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${
+          checked ? 'bg-primary' : 'bg-muted'
+        }`}
+      >
+        <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${
+          checked ? 'translate-x-5' : 'translate-x-0'
+        }`} />
+      </button>
+    </div>
+  )
+}
+
+interface SelectFieldProps {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  options: Array<{ value: string; label: string }>
+}
+
+function SelectField({ label, value, onChange, options }: SelectFieldProps) {
+  return (
+    <div>
+      <label className="text-sm font-medium text-foreground mb-1.5 block">{label}</label>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm text-foreground"
+      >
+        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+    </div>
+  )
+}
+
+// =====================================================
+// Componente Principal
+// =====================================================
+
 export function ConfigGeralPage() {
   const { role } = useAuth()
   const isAdmin = role === 'admin'
@@ -40,8 +150,8 @@ export function ConfigGeralPage() {
 
   const { data: config, isLoading } = useConfigTenant()
   const atualizarConfig = useAtualizarConfigTenant()
+  const { data: temEmailConectado, isLoading: loadingEmail } = useTemConexaoEmail()
 
-  // Estado local para tracking de mudanças
   const [form, setForm] = useState({
     moeda_padrao: 'BRL',
     timezone: 'America/Sao_Paulo',
@@ -57,7 +167,6 @@ export function ConfigGeralPage() {
   })
   const [temAlteracoes, setTemAlteracoes] = useState(false)
 
-  // Carregar dados do backend
   useEffect(() => {
     if (config) {
       setForm({
@@ -120,40 +229,10 @@ export function ConfigGeralPage() {
       {/* Localização */}
       <section className="bg-card rounded-lg border border-border p-6 space-y-4">
         <h2 className="text-base font-semibold text-foreground">Localização</h2>
-
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="text-sm font-medium text-foreground mb-1.5 block">Moeda Padrão</label>
-            <select
-              value={form.moeda_padrao}
-              onChange={e => updateField('moeda_padrao', e.target.value)}
-              className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm text-foreground"
-            >
-              {MOEDAS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-            </select>
-          </div>
-
-          <div>
-            <label className="text-sm font-medium text-foreground mb-1.5 block">Fuso Horário</label>
-            <select
-              value={form.timezone}
-              onChange={e => updateField('timezone', e.target.value)}
-              className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm text-foreground"
-            >
-              {TIMEZONES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-            </select>
-          </div>
-
-          <div>
-            <label className="text-sm font-medium text-foreground mb-1.5 block">Formato de Data</label>
-            <select
-              value={form.formato_data}
-              onChange={e => updateField('formato_data', e.target.value)}
-              className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm text-foreground"
-            >
-              {FORMATOS_DATA.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-            </select>
-          </div>
+          <SelectField label="Moeda Padrão" value={form.moeda_padrao} onChange={v => updateField('moeda_padrao', v)} options={MOEDAS} />
+          <SelectField label="Fuso Horário" value={form.timezone} onChange={v => updateField('timezone', v)} options={TIMEZONES} />
+          <SelectField label="Formato de Data" value={form.formato_data} onChange={v => updateField('formato_data', v)} options={FORMATOS_DATA} />
         </div>
       </section>
 
@@ -161,51 +240,38 @@ export function ConfigGeralPage() {
       <section className="bg-card rounded-lg border border-border p-6 space-y-4">
         <h2 className="text-base font-semibold text-foreground">Notificações</h2>
 
-        {[
-          { key: 'notificar_nova_oportunidade' as const, label: 'Nova Oportunidade', desc: 'Enviar email ao criar oportunidade' },
-          { key: 'notificar_tarefa_vencida' as const, label: 'Tarefa Vencida', desc: 'Enviar email quando tarefa vencer' },
-          { key: 'notificar_mudanca_etapa' as const, label: 'Mudança de Etapa', desc: 'Enviar email ao mover etapa no funil' },
-        ].map(item => (
-          <div key={item.key} className="flex items-center justify-between py-2">
-            <div>
-              <p className="text-sm font-medium text-foreground">{item.label}</p>
-              <p className="text-xs text-muted-foreground">{item.desc}</p>
-            </div>
-            <button
-              onClick={() => updateField(item.key, !form[item.key])}
-              className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${
-                form[item.key] ? 'bg-primary' : 'bg-muted'
-              }`}
-            >
-              <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${
-                form[item.key] ? 'translate-x-5' : 'translate-x-0'
-              }`} />
-            </button>
-          </div>
-        ))}
+        {/* Banner de email desconectado */}
+        {!loadingEmail && !temEmailConectado && <BannerEmailDesconectado />}
+
+        <ToggleItem
+          label="Nova Oportunidade"
+          desc="Enviar email ao criar oportunidade"
+          checked={form.notificar_nova_oportunidade}
+          onChange={() => updateField('notificar_nova_oportunidade', !form.notificar_nova_oportunidade)}
+        />
+        <ToggleItem
+          label="Tarefa Vencida"
+          desc="Enviar email quando tarefa vencer"
+          checked={form.notificar_tarefa_vencida}
+          onChange={() => updateField('notificar_tarefa_vencida', !form.notificar_tarefa_vencida)}
+        />
+        <ToggleItem
+          label="Mudança de Etapa"
+          desc="Enviar email ao mover etapa no funil"
+          checked={form.notificar_mudanca_etapa}
+          onChange={() => updateField('notificar_mudanca_etapa', !form.notificar_mudanca_etapa)}
+        />
       </section>
 
       {/* Automação */}
       <section className="bg-card rounded-lg border border-border p-6 space-y-4">
         <h2 className="text-base font-semibold text-foreground">Automação</h2>
-
-        <div className="flex items-center justify-between py-2">
-          <div>
-            <p className="text-sm font-medium text-foreground">Criar Tarefa Automática</p>
-            <p className="text-xs text-muted-foreground">Criar tarefas da etapa automaticamente ao mover oportunidade</p>
-          </div>
-          <button
-            onClick={() => updateField('criar_tarefa_automatica', !form.criar_tarefa_automatica)}
-            className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${
-              form.criar_tarefa_automatica ? 'bg-primary' : 'bg-muted'
-            }`}
-          >
-            <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${
-              form.criar_tarefa_automatica ? 'translate-x-5' : 'translate-x-0'
-            }`} />
-          </button>
-        </div>
-
+        <ToggleItem
+          label="Criar Tarefa Automática"
+          desc="Criar tarefas da etapa automaticamente ao mover oportunidade"
+          checked={form.criar_tarefa_automatica}
+          onChange={() => updateField('criar_tarefa_automatica', !form.criar_tarefa_automatica)}
+        />
         <div>
           <label className="text-sm font-medium text-foreground mb-1.5 block">
             Dias para Alerta de Inatividade
@@ -225,7 +291,6 @@ export function ConfigGeralPage() {
       {/* Horário Comercial */}
       <section className="bg-card rounded-lg border border-border p-6 space-y-4">
         <h2 className="text-base font-semibold text-foreground">Horário Comercial</h2>
-
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="text-sm font-medium text-foreground mb-1.5 block">Início</label>
@@ -249,15 +314,18 @@ export function ConfigGeralPage() {
         <p className="text-xs text-muted-foreground">Mensagens programadas serão enviadas dentro deste horário</p>
       </section>
 
-      {/* Assinatura */}
+      {/* Assinatura - Editor Rico */}
       <section className="bg-card rounded-lg border border-border p-6 space-y-4">
-        <h2 className="text-base font-semibold text-foreground">Assinatura de Mensagem</h2>
-        <textarea
+        <div>
+          <h2 className="text-base font-semibold text-foreground">Assinatura de Mensagem</h2>
+          <p className="text-xs text-muted-foreground mt-1">
+            Crie uma assinatura com formatação, imagens e tabelas para seus emails e mensagens.
+          </p>
+        </div>
+        <RichTextEditor
           value={form.assinatura_mensagem}
-          onChange={e => updateField('assinatura_mensagem', e.target.value)}
-          placeholder="Assinatura padrão para mensagens enviadas pelo CRM..."
-          rows={3}
-          className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm text-foreground placeholder:text-muted-foreground resize-none"
+          onChange={html => updateField('assinatura_mensagem', html)}
+          placeholder="Crie sua assinatura profissional..."
         />
       </section>
 

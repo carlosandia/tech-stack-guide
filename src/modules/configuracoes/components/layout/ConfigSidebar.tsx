@@ -37,6 +37,14 @@ export interface SidebarGroup {
 
 export const sidebarGroups: SidebarGroup[] = [
   {
+    key: 'geral',
+    label: 'Geral',
+    adminOnly: true,
+    items: [
+      { label: 'Config Geral', path: '/app/configuracoes/config-geral', icon: Settings, adminOnly: true },
+    ],
+  },
+  {
     key: 'equipe',
     label: 'Equipe',
     adminOnly: true,
@@ -44,7 +52,6 @@ export const sidebarGroups: SidebarGroup[] = [
       { label: 'Membros', path: '/app/configuracoes/membros', icon: Users },
       { label: 'Perfis', path: '/app/configuracoes/perfis', icon: Users },
       { label: 'Metas', path: '/app/configuracoes/metas', icon: Target },
-      { label: 'Config Geral', path: '/app/configuracoes/config-geral', icon: Settings, adminOnly: true },
     ],
   },
   {
