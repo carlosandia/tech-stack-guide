@@ -14,7 +14,7 @@ import type { EtapaTemplate } from '../services/configuracoes.api'
 
 const tipoLabelMap: Record<string, string> = {
   entrada: 'Entrada',
-  normal: 'Normal',
+  normal: 'Personalizado',
   ganho: 'Ganho',
   perda: 'Perda',
 }

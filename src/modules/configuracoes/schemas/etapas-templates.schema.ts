@@ -8,7 +8,7 @@ import { z } from 'zod'
 
 export const tipoEtapaOptions = [
   { value: 'entrada', label: 'Entrada', descricao: 'Oportunidades novas entram aqui' },
-  { value: 'normal', label: 'Normal', descricao: 'Etapa intermediária' },
+  { value: 'normal', label: 'Personalizado', descricao: 'Etapa intermediária personalizada' },
   { value: 'ganho', label: 'Ganho', descricao: 'Marca oportunidade como ganha' },
   { value: 'perda', label: 'Perda', descricao: 'Marca oportunidade como perdida' },
 ] as const
