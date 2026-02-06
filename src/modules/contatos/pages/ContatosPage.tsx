@@ -12,6 +12,7 @@ import { useAuth } from '@/providers/AuthProvider'
 import { useAppToolbar } from '@/modules/app/contexts/AppToolbarContext'
 import { useContatos, useCriarContato, useAtualizarContato, useExcluirContato, useExcluirContatosLote, useDuplicatas } from '../hooks/useContatos'
 import { useSegmentos } from '../hooks/useSegmentos'
+import { useUsuarios } from '@/modules/configuracoes/hooks/useEquipe'
 import type { Contato, TipoContato, ListarContatosParams } from '../services/contatos.api'
 import { ContatosList } from '../components/ContatosList'
 import { ContatoFormModal } from '../components/ContatoFormModal'
@@ -100,6 +101,20 @@ export function ContatosPage() {
   const atualizarContato = useAtualizarContato()
   const excluirContato = useExcluirContato()
   const excluirLote = useExcluirContatosLote()
+
+  // Buscar empresas para vincular (quando tipo=pessoa)
+  const { data: empresasData } = useContatos({ tipo: 'empresa', limit: 500 })
+  const empresasLista = useMemo(
+    () => (empresasData?.contatos || []).map(e => ({ id: e.id, nome_fantasia: e.nome_fantasia, razao_social: e.razao_social })),
+    [empresasData]
+  )
+
+  // Buscar membros da equipe (para atribuir responsável)
+  const { data: usuariosData } = useUsuarios({ status: 'ativo' })
+  const usuariosLista = useMemo(
+    () => (usuariosData?.usuarios || []).map((u: any) => ({ id: u.id, nome: u.nome, sobrenome: u.sobrenome })),
+    [usuariosData]
+  )
 
   // Buscar duplicatas para mostrar botão condicionalmente
   const { data: duplicatasData } = useDuplicatas()
@@ -470,6 +485,8 @@ export function ContatosPage() {
         contato={editingContato}
         loading={criarContato.isPending || atualizarContato.isPending}
         isAdmin={isAdmin}
+        empresas={empresasLista}
+        usuarios={usuariosLista}
       />
 
       <ContatoViewModal
