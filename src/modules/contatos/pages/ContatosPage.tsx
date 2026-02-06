@@ -64,6 +64,7 @@ export function ContatosPage() {
   const [viewingContato, setViewingContato] = useState<Contato | null>(null)
   const [deletingContato, setDeletingContato] = useState<Contato | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [openedFormFromView, setOpenedFormFromView] = useState(false)
 
   // Toggle de colunas
   const [columns, setColumns] = useState<ColumnConfig[]>(() => getInitialColumns(tipo))
@@ -316,12 +317,31 @@ export function ContatosPage() {
     if (editingContato) {
       atualizarContato.mutate(
         { id: editingContato.id, payload: formData },
-        { onSuccess: () => setFormModalOpen(false) }
+        {
+          onSuccess: () => {
+            setFormModalOpen(false)
+            if (openedFormFromView) {
+              setViewingContato(editingContato)
+              setViewModalOpen(true)
+              setOpenedFormFromView(false)
+            }
+            setEditingContato(null)
+          },
+        }
       )
     } else {
-      criarContato.mutate(formData, { onSuccess: () => setFormModalOpen(false) })
+      criarContato.mutate(formData, { onSuccess: () => { setFormModalOpen(false); setEditingContato(null) } })
     }
   }
+
+  const handleBackToView = useCallback(() => {
+    setFormModalOpen(false)
+    if (openedFormFromView && viewingContato) {
+      setViewModalOpen(true)
+    }
+    setOpenedFormFromView(false)
+    setEditingContato(null)
+  }, [openedFormFromView, viewingContato])
 
   const handleDelete = () => {
     if (!deletingContato) return
@@ -486,7 +506,7 @@ export function ContatosPage() {
       {/* Modais */}
       <ContatoFormModal
         open={formModalOpen}
-        onClose={() => { setFormModalOpen(false); setEditingContato(null) }}
+        onClose={() => { setFormModalOpen(false); setEditingContato(null); setOpenedFormFromView(false) }}
         onSubmit={handleFormSubmit}
         tipo={tipo}
         contato={editingContato}
@@ -494,6 +514,7 @@ export function ContatosPage() {
         isAdmin={isAdmin}
         empresas={empresasLista}
         usuarios={usuariosLista}
+        onBack={openedFormFromView ? handleBackToView : undefined}
       />
 
       <ContatoViewModal
@@ -503,6 +524,7 @@ export function ContatosPage() {
         onEdit={() => {
           setViewModalOpen(false)
           setEditingContato(viewingContato)
+          setOpenedFormFromView(true)
           setFormModalOpen(true)
         }}
         onDelete={() => {
