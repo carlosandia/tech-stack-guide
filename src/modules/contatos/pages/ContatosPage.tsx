@@ -10,7 +10,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { Plus, Search, Filter, Download, Upload, Users2, Building2, X, Tag, GitMerge, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useAuth } from '@/providers/AuthProvider'
 import { useAppToolbar } from '@/modules/app/contexts/AppToolbarContext'
-import { useContatos, useCriarContato, useAtualizarContato, useExcluirContato, useExcluirContatosLote } from '../hooks/useContatos'
+import { useContatos, useCriarContato, useAtualizarContato, useExcluirContato, useExcluirContatosLote, useDuplicatas } from '../hooks/useContatos'
 import { useSegmentos } from '../hooks/useSegmentos'
 import type { Contato, TipoContato, ListarContatosParams } from '../services/contatos.api'
 import { ContatosList } from '../components/ContatosList'
@@ -99,6 +99,11 @@ export function ContatosPage() {
   const atualizarContato = useAtualizarContato()
   const excluirContato = useExcluirContato()
   const excluirLote = useExcluirContatosLote()
+
+  // Buscar duplicatas para mostrar botão condicionalmente
+  const { data: duplicatasData } = useDuplicatas()
+  const temDuplicatas = (duplicatasData?.grupos?.length ?? 0) > 0
+  const totalDuplicatas = duplicatasData?.grupos?.length ?? 0
 
   // Limpar seleção e resetar página ao trocar de tab
   useEffect(() => {
@@ -214,36 +219,40 @@ export function ContatosPage() {
         {/* Colunas */}
         <ContatoColumnsToggle tipo={tipo} columns={columns} onChange={setColumns} />
 
-        {/* Exportar */}
+        {/* Separador */}
+        <div className="w-px h-5 bg-border mx-0.5" />
+
+        {/* Importar + Exportar juntos */}
         <button
           onClick={handleExportSelected}
-          className="flex items-center gap-1 px-2.5 py-1.5 text-sm rounded-md border border-transparent text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          className="flex items-center gap-1 px-2.5 py-1.5 text-sm rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
         >
           <Download className="w-3.5 h-3.5" />
           <span className="hidden lg:inline">Exportar</span>
         </button>
 
-        {/* Separador */}
-        <div className="w-px h-5 bg-border mx-0.5" />
-
-        {/* Importar (Admin) */}
         {isAdmin && (
-          <>
-            <button
-              onClick={() => setImportarModalOpen(true)}
-              className="flex items-center gap-1 px-2.5 py-1.5 text-sm font-medium rounded-md border border-border text-foreground hover:bg-accent transition-colors"
-            >
-              <Upload className="w-3.5 h-3.5" />
-              <span className="hidden lg:inline">Importar</span>
-            </button>
-            <button
-              onClick={() => setDuplicatasModalOpen(true)}
-              className="flex items-center gap-1 px-2.5 py-1.5 text-sm font-medium rounded-md border border-border text-foreground hover:bg-accent transition-colors"
-            >
-              <GitMerge className="w-3.5 h-3.5" />
-              <span className="hidden lg:inline">Duplicatas</span>
-            </button>
-          </>
+          <button
+            onClick={() => setImportarModalOpen(true)}
+            className="flex items-center gap-1 px-2.5 py-1.5 text-sm rounded-md border border-border text-foreground hover:bg-accent transition-colors"
+          >
+            <Upload className="w-3.5 h-3.5" />
+            <span className="hidden lg:inline">Importar</span>
+          </button>
+        )}
+
+        {/* Duplicatas - só aparece se existirem */}
+        {isAdmin && temDuplicatas && (
+          <button
+            onClick={() => setDuplicatasModalOpen(true)}
+            className="flex items-center gap-1 px-2.5 py-1.5 text-sm font-medium rounded-md border border-amber-300/60 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
+          >
+            <GitMerge className="w-3.5 h-3.5" />
+            <span className="hidden lg:inline">Duplicatas</span>
+            <span className="w-5 h-5 rounded-full bg-amber-500 text-white text-[10px] flex items-center justify-center font-bold">
+              {totalDuplicatas}
+            </span>
+          </button>
         )}
 
         {/* Novo Contato */}
@@ -258,7 +267,7 @@ export function ContatosPage() {
       </div>
     )
     return () => { setActions(null) }
-  }, [tipo, data, isAdmin, setActions, searchOpen, busca, showFilters, filtrosAtivos, columns])
+  }, [tipo, data, isAdmin, setActions, searchOpen, busca, showFilters, filtrosAtivos, columns, temDuplicatas, totalDuplicatas])
 
   // Handlers
   const handleToggleSelect = useCallback((id: string) => {
