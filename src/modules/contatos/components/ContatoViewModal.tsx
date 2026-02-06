@@ -1,13 +1,15 @@
 /**
  * AIDEV-NOTE: Modal de visualização de contato com abas
  * Conforme PRD-06 e Design System - Modal rounded-lg shadow-lg p-6
+ * Inclui toggle de campos visíveis com ícone de olho no header
  */
 
 import { X, Pencil, Trash2, Building2, User, Briefcase } from 'lucide-react'
 import { SegmentoBadge } from './SegmentoBadge'
+import { ContatoViewFieldsToggle, isViewFieldVisible } from './ContatoViewFieldsToggle'
 import type { Contato } from '../services/contatos.api'
 import { StatusContatoOptions, OrigemContatoOptions } from '../schemas/contatos.schema'
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 
 interface ContatoViewModalProps {
   open: boolean
@@ -19,16 +21,25 @@ interface ContatoViewModalProps {
 
 export function ContatoViewModal({ open, onClose, contato, onEdit, onDelete }: ContatoViewModalProps) {
   const [activeTab, setActiveTab] = useState<'dados' | 'historico'>('dados')
+  const [, setRefreshKey] = useState(0)
+
+  const handleVisibilityChange = useCallback(() => {
+    setRefreshKey(k => k + 1)
+  }, [])
 
   if (!open || !contato) return null
 
   const isPessoa = contato.tipo === 'pessoa'
+  const tipo = contato.tipo
   const nomeExibicao = isPessoa
     ? [contato.nome, contato.sobrenome].filter(Boolean).join(' ')
     : contato.nome_fantasia || contato.razao_social || 'Sem nome'
 
   const statusLabel = StatusContatoOptions.find(s => s.value === contato.status)?.label || contato.status
   const origemLabel = OrigemContatoOptions.find(o => o.value === contato.origem)?.label || contato.origem
+
+  // Helper para verificar visibilidade
+  const isVisible = (key: string, obrigatorio = false) => isViewFieldVisible(tipo, key, obrigatorio)
 
   return (
     <div className="fixed inset-0 z-[500] flex items-center justify-center">
@@ -45,7 +56,8 @@ export function ContatoViewModal({ open, onClose, contato, onEdit, onDelete }: C
               <p className="text-xs text-muted-foreground">{isPessoa ? 'Pessoa' : 'Empresa'} · {statusLabel}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <ContatoViewFieldsToggle tipo={tipo} onChange={handleVisibilityChange} />
             <button onClick={onEdit} className="p-2 hover:bg-accent rounded-md transition-colors" title="Editar">
               <Pencil className="w-4 h-4 text-muted-foreground" />
             </button>
@@ -85,7 +97,7 @@ export function ContatoViewModal({ open, onClose, contato, onEdit, onDelete }: C
           {activeTab === 'dados' && (
             <>
               {/* Segmentos */}
-              {contato.segmentos && contato.segmentos.length > 0 && (
+              {isVisible('segmentos') && contato.segmentos && contato.segmentos.length > 0 && (
                 <div>
                   <label className="text-sm font-medium text-muted-foreground mb-1.5 block">Segmentação</label>
                   <div className="flex flex-wrap gap-1.5">
@@ -100,32 +112,32 @@ export function ContatoViewModal({ open, onClose, contato, onEdit, onDelete }: C
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {isPessoa ? (
                   <>
-                    <Field label="Nome" value={contato.nome} />
-                    <Field label="Sobrenome" value={contato.sobrenome} />
-                    <Field label="Email" value={contato.email} />
-                    <Field label="Telefone" value={contato.telefone} />
-                    <Field label="Cargo" value={contato.cargo} />
-                    <Field label="LinkedIn" value={contato.linkedin_url} isLink />
-                    <Field label="Empresa" value={contato.empresa?.nome_fantasia || contato.empresa?.razao_social} />
-                    <Field label="Responsável" value={contato.owner ? `${contato.owner.nome} ${contato.owner.sobrenome || ''}`.trim() : undefined} />
+                    {isVisible('nome', true) && <Field label="Nome" value={contato.nome} />}
+                    {isVisible('sobrenome') && <Field label="Sobrenome" value={contato.sobrenome} />}
+                    {isVisible('email') && <Field label="Email" value={contato.email} />}
+                    {isVisible('telefone') && <Field label="Telefone" value={contato.telefone} />}
+                    {isVisible('cargo') && <Field label="Cargo" value={contato.cargo} />}
+                    {isVisible('linkedin_url') && <Field label="LinkedIn" value={contato.linkedin_url} isLink />}
+                    {isVisible('empresa') && <Field label="Empresa" value={contato.empresa?.nome_fantasia || contato.empresa?.razao_social} />}
+                    {isVisible('responsavel') && <Field label="Responsável" value={contato.owner ? `${contato.owner.nome} ${contato.owner.sobrenome || ''}`.trim() : undefined} />}
                   </>
                 ) : (
                   <>
-                    <Field label="Razão Social" value={contato.razao_social} />
-                    <Field label="Nome Fantasia" value={contato.nome_fantasia} />
-                    <Field label="CNPJ" value={contato.cnpj} />
-                    <Field label="Email" value={contato.email} />
-                    <Field label="Telefone" value={contato.telefone} />
-                    <Field label="Website" value={contato.website} isLink />
-                    <Field label="Segmento de Mercado" value={contato.segmento} />
-                    <Field label="Porte" value={contato.porte} />
+                    {isVisible('razao_social', true) && <Field label="Razão Social" value={contato.razao_social} />}
+                    {isVisible('nome_fantasia') && <Field label="Nome Fantasia" value={contato.nome_fantasia} />}
+                    {isVisible('cnpj') && <Field label="CNPJ" value={contato.cnpj} />}
+                    {isVisible('email') && <Field label="Email" value={contato.email} />}
+                    {isVisible('telefone') && <Field label="Telefone" value={contato.telefone} />}
+                    {isVisible('website') && <Field label="Website" value={contato.website} isLink />}
+                    {isVisible('segmento') && <Field label="Segmento de Mercado" value={contato.segmento} />}
+                    {isVisible('porte') && <Field label="Porte" value={contato.porte} />}
                   </>
                 )}
-                <Field label="Status" value={statusLabel} />
-                <Field label="Origem" value={origemLabel} />
+                {isVisible('status', true) && <Field label="Status" value={statusLabel} />}
+                {isVisible('origem') && <Field label="Origem" value={origemLabel} />}
               </div>
 
-              {contato.observacoes && (
+              {isVisible('observacoes') && contato.observacoes && (
                 <div>
                   <label className="text-sm font-medium text-muted-foreground mb-1 block">Observações</label>
                   <p className="text-sm text-foreground whitespace-pre-wrap">{contato.observacoes}</p>
@@ -133,7 +145,7 @@ export function ContatoViewModal({ open, onClose, contato, onEdit, onDelete }: C
               )}
 
               {/* Pessoas vinculadas (para empresas) */}
-              {!isPessoa && contato.pessoas && contato.pessoas.length > 0 && (
+              {!isPessoa && isVisible('pessoas') && contato.pessoas && contato.pessoas.length > 0 && (
                 <div>
                   <label className="text-sm font-medium text-muted-foreground mb-2 block">
                     Pessoas vinculadas ({contato.pessoas.length})
