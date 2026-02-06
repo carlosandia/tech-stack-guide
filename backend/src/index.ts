@@ -45,6 +45,10 @@ import mensagensAgendadasRoutes from './routes/mensagens-agendadas.js'
 // Rotas PRD-10 - Tarefas (Acompanhamento)
 import tarefasRoutes from './routes/tarefas.js'
 
+// Rotas PRD-06 - Contatos
+import contatosRoutes from './routes/contatos.js'
+import segmentosRoutes from './routes/segmentos.js'
+
 // Rotas PRD-15 - Feedbacks e Notificacoes
 import feedbacksRoutes from './routes/feedbacks.js'
 import notificacoesRoutes from './routes/notificacoes.js'
@@ -114,6 +118,10 @@ app.use('/api/v1/equipes', authMiddleware, requireTenant, equipesRoutes)
 app.use('/api/v1/usuarios', authMiddleware, requireTenant, usuariosRouter)
 app.use('/api/v1/perfis-permissao', authMiddleware, requireTenant, perfisRouter)
 app.use('/api/v1/metas', authMiddleware, requireTenant, metasRoutes)
+
+// Rotas PRD-06 - Contatos (requer autenticacao + tenant)
+app.use('/api/v1/contatos', authMiddleware, requireTenant, contatosRoutes)
+app.use('/api/v1/segmentos', authMiddleware, requireTenant, segmentosRoutes)
 
 // Rotas PRD-07 - Negocios (requer autenticacao + tenant)
 app.use('/api/v1/funis', authMiddleware, requireTenant, funisRoutes)
