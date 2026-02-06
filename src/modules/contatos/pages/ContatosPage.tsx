@@ -118,8 +118,8 @@ export function ContatosPage() {
 
   // Buscar duplicatas para mostrar botão condicionalmente
   const { data: duplicatasData } = useDuplicatas()
-  const temDuplicatas = (duplicatasData?.grupos?.length ?? 0) > 0
-  const totalDuplicatas = duplicatasData?.grupos?.length ?? 0
+  const temDuplicatas = (duplicatasData?.duplicatas?.length ?? 0) > 0
+  const totalDuplicatas = duplicatasData?.duplicatas?.length ?? 0
 
   // Limpar seleção e resetar página ao trocar de tab
   useEffect(() => {

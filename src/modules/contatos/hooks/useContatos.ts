@@ -31,7 +31,7 @@ export function useCriarContato() {
       toast.success('Contato criado com sucesso')
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.error || 'Erro ao criar contato')
+      toast.error(err?.message || 'Erro ao criar contato')
     },
   })
 }
@@ -46,7 +46,7 @@ export function useAtualizarContato() {
       toast.success('Contato atualizado com sucesso')
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.error || 'Erro ao atualizar contato')
+      toast.error(err?.message || 'Erro ao atualizar contato')
     },
   })
 }
@@ -60,7 +60,7 @@ export function useExcluirContato() {
       toast.success('Contato excluído com sucesso')
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.error || 'Erro ao excluir contato')
+      toast.error(err?.message || 'Erro ao excluir contato')
     },
   })
 }
