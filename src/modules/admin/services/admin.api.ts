@@ -575,7 +575,7 @@ export async function obterLimitesOrganizacao(id: string): Promise<LimitesUso> {
   // Contar usuários
   const { count: usuariosCount } = await supabase
     .from('usuarios')
-    .select('*', { count: 'exact', head: true })
+    .select('id', { count: 'exact', head: true })
     .eq('organizacao_id', id)
     .is('deletado_em', null)
 
@@ -1069,7 +1069,7 @@ export async function testarConfigGlobal(plataforma: string): Promise<{ sucesso:
    // Contar usuários (total)
   const { count: totalUsuarios } = await supabase
     .from('usuarios')
-    .select('*', { count: 'exact', head: true })
+    .select('id', { count: 'exact', head: true })
     .is('deletado_em', null)
 
    // Distribuição por plano (considerando período)
