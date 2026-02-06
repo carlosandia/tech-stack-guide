@@ -19,14 +19,15 @@ interface Props {
   equipes: EquipeComMembros[]
   usuarios: UsuarioTenant[]
   loading?: boolean
+  defaultTipo?: MetaFormValues['tipo']
 }
 
-export function MetaFormModal({ open, onClose, onSubmit, meta, equipes, usuarios, loading }: Props) {
+export function MetaFormModal({ open, onClose, onSubmit, meta, equipes, usuarios, loading, defaultTipo = 'empresa' }: Props) {
   const [categoriaAtiva, setCategoriaAtiva] = useState<string>('receita')
 
   const form = useForm<MetaFormValues>({
     resolver: zodResolver(metaFormSchema),
-    defaultValues: { tipo: 'empresa', nome: '', metrica: 'valor_vendas', valor_meta: 0, periodo: 'mensal', data_inicio: new Date().toISOString().split('T')[0], data_fim: '' },
+    defaultValues: { tipo: defaultTipo, nome: '', metrica: 'valor_vendas', valor_meta: 0, periodo: 'mensal', data_inicio: new Date().toISOString().split('T')[0], data_fim: '' },
   })
 
   const tipoSelecionado = form.watch('tipo')
@@ -60,10 +61,10 @@ export function MetaFormModal({ open, onClose, onSubmit, meta, equipes, usuarios
         if (metricas.some(m => m.value === meta.metrica)) { setCategoriaAtiva(cat); break }
       }
     } else {
-      form.reset({ tipo: 'empresa', nome: '', metrica: 'valor_vendas', valor_meta: 0, periodo: 'mensal', data_inicio: new Date().toISOString().split('T')[0], data_fim: '' })
+      form.reset({ tipo: defaultTipo, nome: '', metrica: 'valor_vendas', valor_meta: 0, periodo: 'mensal', data_inicio: new Date().toISOString().split('T')[0], data_fim: '' })
       setCategoriaAtiva('receita')
     }
-  }, [meta, form])
+  }, [meta, form, defaultTipo])
 
   if (!open) return null
 
