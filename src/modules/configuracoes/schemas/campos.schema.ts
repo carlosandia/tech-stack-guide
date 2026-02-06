@@ -6,7 +6,6 @@
 import { z } from 'zod'
 
 export const entidadeOptions = [
-  { value: 'contato', label: 'Contatos' },
   { value: 'pessoa', label: 'Pessoas' },
   { value: 'empresa', label: 'Empresas' },
   { value: 'oportunidade', label: 'Oportunidades' },
@@ -32,7 +31,7 @@ export const tipoCampoOptions = [
 export const criarCampoSchema = z.object({
   nome: z.string().min(1, 'Nome é obrigatório').max(255, 'Máximo 255 caracteres'),
   descricao: z.string().max(500, 'Máximo 500 caracteres').optional().or(z.literal('')),
-  entidade: z.enum(['contato', 'pessoa', 'empresa', 'oportunidade'], {
+  entidade: z.enum(['pessoa', 'empresa', 'oportunidade'], {
     required_error: 'Selecione uma entidade',
   }),
   tipo: z.enum([

@@ -26,7 +26,7 @@ export function RegraFormModal({ regra, onClose }: RegraFormModalProps) {
   const criar = useCriarRegra()
   const atualizar = useAtualizarRegra()
   const excluir = useExcluirRegra()
-  const { data: camposData } = useCampos('contato')
+  const { data: camposData } = useCampos('pessoa')
 
   const { register, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm<RegraFormData>({
     resolver: zodResolver(regraFormSchema),

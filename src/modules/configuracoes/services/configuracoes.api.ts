@@ -56,7 +56,7 @@ async function getUsuarioId(): Promise<string> {
 // =====================================================
 
 // Campos Personalizados
-export type Entidade = 'contato' | 'pessoa' | 'empresa' | 'oportunidade'
+export type Entidade = 'pessoa' | 'empresa' | 'oportunidade'
 export type TipoCampo =
   | 'texto' | 'texto_longo' | 'numero' | 'decimal'
   | 'data' | 'data_hora' | 'booleano' | 'select'

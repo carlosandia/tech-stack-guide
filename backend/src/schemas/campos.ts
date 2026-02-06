@@ -13,7 +13,7 @@ import { z } from 'zod'
 // Enums
 // =====================================================
 
-export const EntidadeEnum = z.enum(['contato', 'pessoa', 'empresa', 'oportunidade'])
+export const EntidadeEnum = z.enum(['pessoa', 'empresa', 'oportunidade'])
 export type Entidade = z.infer<typeof EntidadeEnum>
 
 export const TipoCampoEnum = z.enum([

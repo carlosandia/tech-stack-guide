@@ -104,8 +104,7 @@ export function CampoFormModal({ entidade, campo, onClose }: Props) {
     excluirMutation.mutate(campo.id, { onSuccess: onClose })
   }
 
-  const entidadeLabel = entidade === 'contato' ? 'Contatos' :
-    entidade === 'pessoa' ? 'Pessoas' :
+  const entidadeLabel = entidade === 'pessoa' ? 'Pessoas' :
     entidade === 'empresa' ? 'Empresas' : 'Oportunidades'
 
   const footerContent = (
