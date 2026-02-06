@@ -123,7 +123,7 @@ function AppLayoutInner() {
   }
 
   return (
-    <div className="min-h-screen bg-background pt-14">
+    <div className="h-screen flex flex-col bg-background overflow-hidden">
       {/* Mobile drawer backdrop */}
       {drawerOpen && (
         <div
@@ -187,8 +187,8 @@ function AppLayoutInner() {
         </div>
       </div>
 
-      {/* Header fixo - 56px - Glass Effect */}
-      <header className="fixed top-0 left-0 right-0 z-[100] h-14 bg-white/80 backdrop-blur-md border-b border-gray-200/60">
+      {/* Header fixo - 56px - Glass Effect - flex-shrink-0 para não comprimir */}
+      <header className="flex-shrink-0 z-[100] h-14 bg-white/80 backdrop-blur-md border-b border-gray-200/60">
         <div className="flex items-center justify-between h-full px-4 lg:px-6 max-w-[1920px] mx-auto">
           {/* Left: Logo + Navigation */}
           <div className="flex items-center gap-8">
@@ -278,8 +278,8 @@ function AppLayoutInner() {
       {/* Toolbar sticky - 48px */}
       <ToolbarWithActions pageTitle={pageTitle} />
 
-      {/* Main content */}
-      <main className="p-4 sm:p-6 lg:p-8">
+      {/* Main content - flex-1 preenche altura restante, overflow-hidden para scroll interno das páginas */}
+      <main className="flex-1 overflow-hidden">
         <Outlet />
       </main>
     </div>
@@ -290,7 +290,7 @@ function ToolbarWithActions({ pageTitle }: { pageTitle: string }) {
   const { actions, subtitle, centerContent } = useAppToolbar()
 
   return (
-    <div className="sticky top-14 z-50 min-h-[48px] bg-gray-50/50 backdrop-blur-sm border-b border-gray-200/60">
+    <div className="flex-shrink-0 z-50 min-h-[48px] bg-gray-50/50 backdrop-blur-sm border-b border-gray-200/60">
       <div className="flex items-center justify-between h-full px-4 lg:px-6 max-w-[1920px] mx-auto py-1.5">
         {/* Left: Título + Subtitle */}
         <div className="flex items-center gap-2 min-w-0 flex-shrink-0">

@@ -358,10 +358,10 @@ export function ContatosPage() {
   const totalPages = data ? Math.ceil(data.total / perPage) : 0
 
   return (
-    <div className="space-y-0">
-      {/* Painel de filtros expandido (dropdown abaixo do toolbar) */}
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Painel de filtros expandido */}
       {showFilters && (
-        <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg flex-wrap mb-4">
+        <div className="flex-shrink-0 flex items-center gap-3 p-3 bg-muted/50 border-b border-border flex-wrap">
           <select
             value={statusFilter}
             onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
@@ -408,8 +408,8 @@ export function ContatosPage() {
         </div>
       )}
 
-      {/* Lista */}
-      <div className="bg-background rounded-lg border border-border">
+      {/* Área da tabela - flex-1 para preencher todo o espaço restante */}
+      <div className="flex-1 flex flex-col overflow-hidden">
         <ContatosList
           contatos={contatos}
           tipo={tipo}
@@ -422,9 +422,9 @@ export function ContatosPage() {
           onDelete={(c) => { setDeletingContato(c); setDeleteError(null); setDeleteModalOpen(true) }}
         />
 
-        {/* Paginação */}
+        {/* Paginação fixa no rodapé */}
         {data && data.total > 0 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-border">
+          <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-t border-border bg-background">
             <span className="text-xs text-muted-foreground">
               Mostrando {((page - 1) * perPage) + 1}–{Math.min(page * perPage, data.total)} de {data.total}
             </span>
