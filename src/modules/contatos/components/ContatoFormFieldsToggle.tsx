@@ -1,13 +1,13 @@
 /**
  * AIDEV-NOTE: Popover de visibilidade dos campos do formulário de contatos
- * Permite ao usuário escolher quais campos exibir no modal de criação/edição
+ * Labels e obrigatoriedade vêm da configuração global (/configuracoes/campos)
  * Campos obrigatórios (sistema) não podem ser ocultados
  * Persiste no localStorage
  */
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { Eye } from 'lucide-react'
-import { useCampos } from '@/modules/configuracoes/hooks/useCampos'
+import { useCamposConfig } from '../hooks/useCamposConfig'
 import type { TipoContato } from '../services/contatos.api'
 
 export interface FormFieldVisibility {
@@ -16,29 +16,19 @@ export interface FormFieldVisibility {
 
 const STORAGE_KEY = 'contatos_form_fields_visibility'
 
-// Campos do sistema que sempre existem no formulário
-const CAMPOS_SISTEMA_PESSOA = [
-  { key: 'nome', label: 'Nome', obrigatorio: true },
-  { key: 'sobrenome', label: 'Sobrenome', obrigatorio: true },
-  { key: 'email', label: 'Email', obrigatorio: false },
-  { key: 'telefone', label: 'Telefone', obrigatorio: false },
-  { key: 'cargo', label: 'Cargo', obrigatorio: false },
-  { key: 'linkedin_url', label: 'LinkedIn', obrigatorio: false },
+// Keys dos campos do sistema por tipo (ordem de exibição)
+const CAMPO_KEYS_PESSOA = ['nome', 'sobrenome', 'email', 'telefone', 'cargo', 'linkedin_url']
+const CAMPO_KEYS_EMPRESA = ['razao_social', 'nome_fantasia', 'cnpj', 'email', 'telefone', 'website', 'segmento', 'porte']
+
+// Campos meta (não são campos configuráveis, são fixos do sistema)
+const META_FIELDS_PESSOA = [
   { key: 'empresa_id', label: 'Empresa Vinculada', obrigatorio: false },
   { key: 'status', label: 'Status', obrigatorio: true },
   { key: 'origem', label: 'Origem', obrigatorio: true },
   { key: 'observacoes', label: 'Observações', obrigatorio: false },
 ]
 
-const CAMPOS_SISTEMA_EMPRESA = [
-  { key: 'razao_social', label: 'Razão Social', obrigatorio: true },
-  { key: 'nome_fantasia', label: 'Nome Fantasia', obrigatorio: false },
-  { key: 'cnpj', label: 'CNPJ', obrigatorio: false },
-  { key: 'email', label: 'Email', obrigatorio: false },
-  { key: 'telefone', label: 'Telefone', obrigatorio: false },
-  { key: 'website', label: 'Website', obrigatorio: false },
-  { key: 'segmento', label: 'Segmento de Mercado', obrigatorio: false },
-  { key: 'porte', label: 'Porte', obrigatorio: false },
+const META_FIELDS_EMPRESA = [
   { key: 'status', label: 'Status', obrigatorio: true },
   { key: 'origem', label: 'Origem', obrigatorio: true },
   { key: 'observacoes', label: 'Observações', obrigatorio: false },
@@ -79,12 +69,21 @@ export function ContatoFormFieldsToggle({ tipo, onChange }: ContatoFormFieldsTog
   const [visibility, setVisibility] = useState<Record<string, FormFieldVisibility>>(getSavedVisibility)
   const ref = useRef<HTMLDivElement>(null)
 
-  // Buscar campos customizados
-  const entidade = tipo === 'pessoa' ? 'pessoa' : 'empresa'
-  const { data: camposData } = useCampos(entidade as 'pessoa' | 'empresa')
-  const camposCustomizados = camposData?.campos?.filter(c => !c.sistema && c.ativo) || []
+  // Buscar configuração global de campos
+  const { getLabel, isRequired: isCampoRequired, campos } = useCamposConfig(tipo)
+  const camposCustomizados = campos.filter(c => !c.sistema && c.ativo)
 
-  const camposSistema = tipo === 'pessoa' ? CAMPOS_SISTEMA_PESSOA : CAMPOS_SISTEMA_EMPRESA
+  // Construir lista de campos do sistema com labels e obrigatoriedade da config global
+  const camposSistema = useMemo(() => {
+    const keys = tipo === 'pessoa' ? CAMPO_KEYS_PESSOA : CAMPO_KEYS_EMPRESA
+    const campoItems = keys.map(key => ({
+      key,
+      label: getLabel(key),
+      obrigatorio: isCampoRequired(key),
+    }))
+    const metaItems = tipo === 'pessoa' ? META_FIELDS_PESSOA : META_FIELDS_EMPRESA
+    return [...campoItems, ...metaItems]
+  }, [tipo, getLabel, isCampoRequired])
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {

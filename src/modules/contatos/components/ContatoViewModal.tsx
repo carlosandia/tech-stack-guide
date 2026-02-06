@@ -10,6 +10,7 @@ import { ContatoViewFieldsToggle, isViewFieldVisible } from './ContatoViewFields
 import type { Contato } from '../services/contatos.api'
 import { StatusContatoOptions, OrigemContatoOptions } from '../schemas/contatos.schema'
 import { useState, useCallback } from 'react'
+import { useCamposConfig } from '../hooks/useCamposConfig'
 
 interface ContatoViewModalProps {
   open: boolean
@@ -22,6 +23,8 @@ interface ContatoViewModalProps {
 export function ContatoViewModal({ open, onClose, contato, onEdit, onDelete }: ContatoViewModalProps) {
   const [activeTab, setActiveTab] = useState<'dados' | 'historico'>('dados')
   const [, setRefreshKey] = useState(0)
+  const contatoTipo = contato?.tipo || 'pessoa'
+  const { getLabel } = useCamposConfig(contatoTipo as 'pessoa' | 'empresa')
 
   const handleVisibilityChange = useCallback(() => {
     setRefreshKey(k => k + 1)
@@ -110,27 +113,27 @@ export function ContatoViewModal({ open, onClose, contato, onEdit, onDelete }: C
 
               {/* Campos do contato */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {isPessoa ? (
+              {isPessoa ? (
                   <>
-                    {isVisible('nome', true) && <Field label="Nome" value={contato.nome} />}
-                    {isVisible('sobrenome') && <Field label="Sobrenome" value={contato.sobrenome} />}
-                    {isVisible('email') && <Field label="Email" value={contato.email} />}
-                    {isVisible('telefone') && <Field label="Telefone" value={contato.telefone} />}
-                    {isVisible('cargo') && <Field label="Cargo" value={contato.cargo} />}
-                    {isVisible('linkedin_url') && <Field label="LinkedIn" value={contato.linkedin_url} isLink />}
+                    {isVisible('nome', true) && <Field label={getLabel('nome', 'Nome')} value={contato.nome} />}
+                    {isVisible('sobrenome') && <Field label={getLabel('sobrenome', 'Sobrenome')} value={contato.sobrenome} />}
+                    {isVisible('email') && <Field label={getLabel('email', 'Email')} value={contato.email} />}
+                    {isVisible('telefone') && <Field label={getLabel('telefone', 'Telefone')} value={contato.telefone} />}
+                    {isVisible('cargo') && <Field label={getLabel('cargo', 'Cargo')} value={contato.cargo} />}
+                    {isVisible('linkedin_url') && <Field label={getLabel('linkedin_url', 'LinkedIn')} value={contato.linkedin_url} isLink />}
                     {isVisible('empresa') && <Field label="Empresa" value={contato.empresa?.nome_fantasia || contato.empresa?.razao_social} />}
                     {isVisible('responsavel') && <Field label="Responsável" value={contato.owner ? `${contato.owner.nome} ${contato.owner.sobrenome || ''}`.trim() : undefined} />}
                   </>
                 ) : (
                   <>
-                    {isVisible('razao_social', true) && <Field label="Razão Social" value={contato.razao_social} />}
-                    {isVisible('nome_fantasia') && <Field label="Nome Fantasia" value={contato.nome_fantasia} />}
-                    {isVisible('cnpj') && <Field label="CNPJ" value={contato.cnpj} />}
-                    {isVisible('email') && <Field label="Email" value={contato.email} />}
-                    {isVisible('telefone') && <Field label="Telefone" value={contato.telefone} />}
-                    {isVisible('website') && <Field label="Website" value={contato.website} isLink />}
-                    {isVisible('segmento') && <Field label="Segmento de Mercado" value={contato.segmento} />}
-                    {isVisible('porte') && <Field label="Porte" value={contato.porte} />}
+                    {isVisible('razao_social', true) && <Field label={getLabel('razao_social', 'Razão Social')} value={contato.razao_social} />}
+                    {isVisible('nome_fantasia') && <Field label={getLabel('nome_fantasia', 'Nome Fantasia')} value={contato.nome_fantasia} />}
+                    {isVisible('cnpj') && <Field label={getLabel('cnpj', 'CNPJ')} value={contato.cnpj} />}
+                    {isVisible('email') && <Field label={getLabel('email', 'Email')} value={contato.email} />}
+                    {isVisible('telefone') && <Field label={getLabel('telefone', 'Telefone')} value={contato.telefone} />}
+                    {isVisible('website') && <Field label={getLabel('website', 'Website')} value={contato.website} isLink />}
+                    {isVisible('segmento') && <Field label={getLabel('segmento', 'Segmento de Mercado')} value={contato.segmento} />}
+                    {isVisible('porte') && <Field label={getLabel('porte', 'Porte')} value={contato.porte} />}
                   </>
                 )}
                 {isVisible('status', true) && <Field label="Status" value={statusLabel} />}

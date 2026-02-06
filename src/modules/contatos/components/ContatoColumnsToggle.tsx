@@ -8,7 +8,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { Settings2 } from 'lucide-react'
 import type { TipoContato } from '../services/contatos.api'
-import { useCampos } from '@/modules/configuracoes/hooks/useCampos'
+import { useCamposConfig } from '../hooks/useCamposConfig'
 
 export interface ColumnConfig {
   key: string
@@ -99,12 +99,30 @@ export function ContatoColumnsToggle({ tipo, columns, onChange }: ContatoColumns
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
-  // Buscar campos customizados do tenant
-  const entidade = tipo === 'pessoa' ? 'pessoa' : 'empresa'
-  const { data: camposData } = useCampos(entidade as 'pessoa' | 'empresa')
-  const camposCustomizados = camposData?.campos?.filter(c => !c.sistema && c.ativo) || []
+  // Buscar configuração global de campos
+  const { campos, getColumnLabel } = useCamposConfig(tipo)
+  const camposCustomizados = campos.filter(c => !c.sistema && c.ativo)
 
-  // Merge columns with custom fields
+  // Sincronizar labels das colunas do sistema quando a config global carrega
+  const labelsSyncedRef = useRef(false)
+  useEffect(() => {
+    if (labelsSyncedRef.current || campos.length === 0) return
+    labelsSyncedRef.current = true
+    let hasChanges = false
+    const updated = columns.map(col => {
+      if (col.group === 'system') {
+        const label = getColumnLabel(col.key, '')
+        if (label && label !== col.label) { hasChanges = true; return { ...col, label } }
+      }
+      return col
+    })
+    if (hasChanges) {
+      onChange(updated)
+      localStorage.setItem(STORAGE_KEY_PREFIX + tipo, JSON.stringify(updated))
+    }
+  }, [campos])
+
+  // Merge columns with custom fields + update system labels
   const mergedColumns = useMemo(() => {
     const existingKeys = new Set(columns.map(c => c.key))
     const customColumns: ColumnConfig[] = camposCustomizados
@@ -117,11 +135,16 @@ export function ContatoColumnsToggle({ tipo, columns, onChange }: ContatoColumns
         group: 'custom' as const,
       }))
 
-    if (customColumns.length > 0) {
-      return [...columns, ...customColumns]
-    }
-    return columns
-  }, [columns, camposCustomizados])
+    // Atualizar labels das colunas do sistema com a config global
+    const merged = [...columns, ...customColumns].map(col => {
+      if (col.group === 'system') {
+        const label = getColumnLabel(col.key, '')
+        if (label) return { ...col, label }
+      }
+      return col
+    })
+    return merged
+  }, [columns, camposCustomizados, getColumnLabel])
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
