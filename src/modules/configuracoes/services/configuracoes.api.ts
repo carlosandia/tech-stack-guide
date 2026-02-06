@@ -275,6 +275,47 @@ export interface WhatsAppQrCodeResult {
   expires_in?: number
 }
 
+// Lead Ads
+export interface LeadAdForm {
+  id: string
+  form_id: string
+  form_name: string
+  page_id?: string
+  pipeline_id?: string
+  pipeline_nome?: string
+  etapa_id?: string
+  etapa_nome?: string
+  mapeamento_campos: Array<{ form_field: string; crm_field: string }>
+  leads_recebidos?: number
+  ultimo_lead_em?: string | null
+  ativo: boolean
+}
+
+// CAPI
+export interface CapiConfig {
+  pixel_id: string
+  eventos_habilitados: Record<string, boolean>
+  config_eventos?: Record<string, any>
+  ativo?: boolean
+  ultimo_teste?: string | null
+  ultimo_teste_sucesso?: boolean
+  total_eventos_enviados?: number
+  total_eventos_sucesso?: number
+}
+
+// Custom Audiences
+export interface CustomAudience {
+  id: string
+  audience_id?: string
+  audience_name: string
+  ad_account_id: string
+  evento_gatilho?: string | null
+  tipo_sincronizacao: string
+  total_usuarios?: number
+  ultimo_sync?: string | null
+  ativo: boolean
+}
+
 export interface WhatsAppStatusResult {
   status: string
   phone?: string
@@ -1317,6 +1358,80 @@ export const integracoesApi = {
     desconectar: async () => {
       await api.delete('/v1/conexoes/email')
     },
+  },
+}
+
+// =====================================================
+// API Functions - Meta Ads (Lead Ads, CAPI, Audiences)
+// =====================================================
+
+export const metaAdsApi = {
+  listarFormularios: async () => {
+    const { data } = await api.get('/v1/conexoes/meta/formularios')
+    return data as { formularios: LeadAdForm[] }
+  },
+  listarPaginas: async () => {
+    const { data } = await api.get('/v1/conexoes/meta/paginas')
+    return data as { paginas: Array<{ id: string; name: string }> }
+  },
+  listarFormulariosPagina: async (pageId: string) => {
+    const { data } = await api.get(`/v1/conexoes/meta/formularios/${pageId}`)
+    return data as { formularios: Array<{ id: string; name: string; fields?: Array<{ key: string }> }> }
+  },
+  criarFormulario: async (payload: Record<string, unknown>) => {
+    const { data } = await api.post('/v1/conexoes/meta/formularios', payload)
+    return data
+  },
+  atualizarFormulario: async (id: string, payload: Record<string, unknown>) => {
+    const { data } = await api.patch(`/v1/conexoes/meta/formularios/${id}`, payload)
+    return data
+  },
+  obterCapiConfig: async (): Promise<CapiConfig | null> => {
+    try {
+      const { data } = await api.get('/v1/conexoes/meta/capi')
+      return data as CapiConfig
+    } catch {
+      return null
+    }
+  },
+  salvarCapiConfig: async (payload: Record<string, unknown>) => {
+    const { data } = await api.post('/v1/conexoes/meta/capi', payload)
+    return data
+  },
+  testarCapi: async () => {
+    const { data } = await api.post('/v1/conexoes/meta/capi/testar')
+    return data as { sucesso: boolean }
+  },
+  listarAudiences: async () => {
+    const { data } = await api.get('/v1/conexoes/meta/audiences')
+    return data as { audiences: CustomAudience[] }
+  },
+  criarAudience: async (payload: Record<string, unknown>) => {
+    const { data } = await api.post('/v1/conexoes/meta/audiences', payload)
+    return data
+  },
+  atualizarAudience: async (id: string, payload: Record<string, unknown>) => {
+    const { data } = await api.patch(`/v1/conexoes/meta/audiences/${id}`, payload)
+    return data
+  },
+  sincronizarAudience: async (id: string) => {
+    const { data } = await api.post(`/v1/conexoes/meta/audiences/${id}/sync`)
+    return data
+  },
+}
+
+// =====================================================
+// API Functions - Google Calendar
+// =====================================================
+
+export const googleCalendarApi = {
+  listarCalendarios: async () => {
+    const { data } = await api.get('/v1/conexoes/google/calendarios')
+    return data as { calendarios: Array<{ id: string; summary: string; description?: string; backgroundColor?: string }> }
+  },
+  selecionarCalendario: async (payload: { calendar_id: string; criar_google_meet?: boolean; sincronizar_eventos?: boolean }) => {
+    const { data } = await api.post('/v1/conexoes/google/calendario', payload)
+    return data
   },
 }
 
