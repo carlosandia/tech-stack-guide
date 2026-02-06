@@ -32,7 +32,7 @@ export function WebhookSaidaFormModal({ open, onClose, onSubmit, webhook, isLoad
   useEffect(() => {
     if (open) {
       if (webhook) {
-        reset({ nome: webhook.nome, descricao: webhook.descricao || '', url: webhook.url, eventos: webhook.eventos, auth_tipo: webhook.tipo_autenticacao as WebhookSaidaFormData['auth_tipo'], auth_header: '', auth_valor: '', retry_ativo: webhook.retry_ativo, max_tentativas: webhook.max_tentativas })
+        reset({ nome: webhook.nome, descricao: webhook.descricao || '', url: webhook.url, eventos: webhook.eventos, auth_tipo: webhook.auth_tipo as WebhookSaidaFormData['auth_tipo'], auth_header: '', auth_valor: '', retry_ativo: webhook.retry_ativo, max_tentativas: webhook.max_tentativas })
       } else {
         reset({ nome: '', descricao: '', url: '', eventos: [], auth_tipo: 'nenhum', auth_header: '', auth_valor: '', retry_ativo: true, max_tentativas: 3 })
       }

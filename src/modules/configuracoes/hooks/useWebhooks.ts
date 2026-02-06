@@ -160,13 +160,20 @@ export function useExcluirWebhookSaida() {
 }
 
 export function useTestarWebhookSaida() {
+  const queryClient = useQueryClient()
+
   return useMutation({
     mutationFn: (id: string) => webhooksApi.testarSaida(id),
-    onSuccess: () => {
-      toast.success('Teste enviado com sucesso')
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['configuracoes', 'webhooks', 'saida'] })
+      if (result.sucesso) {
+        toast.success(`Teste enviado com sucesso (HTTP ${result.status_code}, ${result.duracao_ms}ms)`)
+      } else {
+        toast.error(`Teste falhou: ${result.erro || `HTTP ${result.status_code}`}`)
+      }
     },
-    onError: () => {
-      toast.error('Erro ao testar webhook')
+    onError: (err) => {
+      toast.error(`Erro ao testar webhook: ${(err as Error).message}`)
     },
   })
 }
