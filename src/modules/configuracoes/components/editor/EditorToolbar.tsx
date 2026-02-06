@@ -27,7 +27,10 @@ import {
   Unlink,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useState } from 'react'
+import { useState, useRef } from 'react'
+import { supabase } from '@/lib/supabase'
+import { toast } from 'sonner'
+import { Loader2 } from 'lucide-react'
 
 interface EditorToolbarProps {
   editor: Editor | null
@@ -72,8 +75,8 @@ function Divider() {
 export function EditorToolbar({ editor }: EditorToolbarProps) {
   const [showLinkInput, setShowLinkInput] = useState(false)
   const [linkUrl, setLinkUrl] = useState('')
-  const [showImageInput, setShowImageInput] = useState(false)
-  const [imageUrl, setImageUrl] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   if (!editor) return null
 
@@ -94,12 +97,50 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
     editor.chain().focus().unsetLink().run()
   }
 
-  const addImage = () => {
-    if (imageUrl) {
-      editor.chain().focus().setImage({ src: imageUrl }).run()
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Validar tipo
+    if (!file.type.startsWith('image/')) {
+      toast.error('Apenas arquivos de imagem são permitidos')
+      return
     }
-    setImageUrl('')
-    setShowImageInput(false)
+
+    // Validar tamanho (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Imagem deve ter no máximo 2MB')
+      return
+    }
+
+    setUploading(true)
+    try {
+      const ext = file.name.split('.').pop() || 'png'
+      const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+      const filePath = `assinaturas/${fileName}`
+
+      const { error: uploadError } = await supabase.storage
+        .from('assinaturas')
+        .upload(filePath, file, { contentType: file.type })
+
+      if (uploadError) throw uploadError
+
+      const { data: urlData } = supabase.storage
+        .from('assinaturas')
+        .getPublicUrl(filePath)
+
+      if (urlData?.publicUrl) {
+        editor.chain().focus().setImage({ src: urlData.publicUrl }).run()
+        toast.success('Imagem inserida com sucesso')
+      }
+    } catch (err) {
+      console.error('Erro ao fazer upload:', err)
+      toast.error('Erro ao fazer upload da imagem')
+    } finally {
+      setUploading(false)
+      // Reset file input
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
   }
 
   const insertTable = () => {
@@ -212,7 +253,6 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
               removeLink()
             } else {
               setShowLinkInput(!showLinkInput)
-              setShowImageInput(false)
             }
           }}
           isActive={editor.isActive('link')}
@@ -221,16 +261,21 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
           {editor.isActive('link') ? <Unlink size={iconSize} /> : <Link size={iconSize} />}
         </ToolbarButton>
 
-        {/* Imagem */}
+        {/* Imagem (upload) */}
         <ToolbarButton
-          onClick={() => {
-            setShowImageInput(!showImageInput)
-            setShowLinkInput(false)
-          }}
-          title="Inserir imagem por URL"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          title="Fazer upload de imagem"
         >
-          <Image size={iconSize} />
+          {uploading ? <Loader2 size={iconSize} className="animate-spin" /> : <Image size={iconSize} />}
         </ToolbarButton>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleImageUpload}
+        />
 
         {/* Tabela */}
         <ToolbarButton
@@ -339,34 +384,6 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
         </div>
       )}
 
-      {/* Input de Imagem (condicional) */}
-      {showImageInput && (
-        <div className="flex items-center gap-2 pt-1 border-t border-border/50">
-          <input
-            type="url"
-            value={imageUrl}
-            onChange={e => setImageUrl(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && addImage()}
-            placeholder="https://exemplo.com/imagem.png"
-            className="flex-1 h-7 px-2 text-xs rounded border border-input bg-background text-foreground placeholder:text-muted-foreground"
-            autoFocus
-          />
-          <button
-            type="button"
-            onClick={addImage}
-            className="text-xs px-2 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-          >
-            Inserir
-          </button>
-          <button
-            type="button"
-            onClick={() => { setShowImageInput(false); setImageUrl('') }}
-            className="text-xs px-2 py-1 rounded text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Cancelar
-          </button>
-        </div>
-      )}
     </div>
   )
 }
