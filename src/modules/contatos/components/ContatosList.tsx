@@ -18,12 +18,31 @@ import type { ColumnConfig } from './ContatoColumnsToggle'
 import { StatusContatoOptions, OrigemContatoOptions } from '../schemas/contatos.schema'
 import { format } from 'date-fns'
 
+// Mapeamento de coluna UI → coluna DB para ordenação
+const COLUMN_DB_MAP: Record<string, string> = {
+  nome: 'nome',
+  nome_empresa: 'nome_fantasia',
+  email: 'email',
+  telefone: 'telefone',
+  cargo: 'cargo',
+  status: 'status',
+  origem: 'origem',
+  criado_em: 'criado_em',
+  razao_social: 'razao_social',
+  cnpj: 'cnpj',
+  segmento_mercado: 'segmento',
+  porte: 'porte',
+  website: 'website',
+}
+
 interface ContatosListProps {
   contatos: Contato[]
   tipo: TipoContato
   loading?: boolean
   selectedIds: Set<string>
   columns: ColumnConfig[]
+  sortConfig?: { column: string; direction: 'asc' | 'desc' } | null
+  onSort?: (dbColumn: string) => void
   onToggleSelect: (id: string) => void
   onToggleSelectAll: () => void
   onView: (contato: Contato) => void
@@ -37,6 +56,8 @@ export function ContatosList({
   loading,
   selectedIds,
   columns,
+  sortConfig,
+  onSort,
   onToggleSelect,
   onToggleSelectAll,
   onView,
@@ -86,11 +107,30 @@ export function ContatosList({
                 className="rounded border-input"
               />
             </th>
-            {visibleColumns.map(col => (
-              <th key={col.key} className="px-4 py-3 text-left text-sm font-medium text-muted-foreground whitespace-nowrap">
-                {col.label}
-              </th>
-            ))}
+            {visibleColumns.map(col => {
+              const dbCol = COLUMN_DB_MAP[col.key]
+              const sortable = !!dbCol
+              const isActive = sortConfig?.column === dbCol
+
+              return (
+                <th
+                  key={col.key}
+                  className={`px-4 py-3 text-left text-sm font-medium text-muted-foreground whitespace-nowrap ${
+                    sortable ? 'cursor-pointer hover:text-foreground select-none' : ''
+                  }`}
+                  onClick={sortable && onSort ? () => onSort(dbCol) : undefined}
+                >
+                  <div className="flex items-center gap-1">
+                    {col.label}
+                    {sortable && isActive && (
+                      <span className="text-xs text-primary font-bold">
+                        {sortConfig?.direction === 'asc' ? '↑' : '↓'}
+                      </span>
+                    )}
+                  </div>
+                </th>
+              )
+            })}
             <th className="px-4 py-3 w-10" />
           </tr>
         </thead>
@@ -175,14 +215,21 @@ function CellResponsavel({ contato }: { contato: Contato }) {
 }
 
 function CellPessoaVinculada({ contato }: { contato: Contato }) {
+  const pessoas = contato.pessoas || []
+  const firstName = pessoas.length > 0
+    ? (pessoas[0].nome || '').toLowerCase()
+    : null
+
   return (
     <InlinePessoaPopover empresaId={contato.id} pessoasVinculadas={contato.pessoas}>
       <div className="flex items-center gap-1 border-b border-dashed border-muted-foreground/30 hover:border-primary hover:text-primary transition-colors">
         <Users2 className="w-3.5 h-3.5 text-muted-foreground" />
         <span className="text-sm text-foreground">
-          {contato.pessoas && contato.pessoas.length > 0
-            ? `${contato.pessoas.length} pessoa${contato.pessoas.length > 1 ? 's' : ''}`
-            : '—'}
+          {pessoas.length === 0
+            ? '—'
+            : pessoas.length === 1
+              ? firstName
+              : `${firstName} (+${pessoas.length - 1})`}
         </span>
       </div>
     </InlinePessoaPopover>
