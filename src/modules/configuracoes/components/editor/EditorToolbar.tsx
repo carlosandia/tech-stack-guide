@@ -130,7 +130,10 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
         .getPublicUrl(filePath)
 
       if (urlData?.publicUrl) {
-        editor.chain().focus().setImage({ src: urlData.publicUrl }).run()
+        editor.chain().focus().insertContent({
+          type: 'imageResize',
+          attrs: { src: urlData.publicUrl },
+        }).run()
         toast.success('Imagem inserida com sucesso')
       }
     } catch (err) {
