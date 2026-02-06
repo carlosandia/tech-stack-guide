@@ -1,9 +1,10 @@
 /**
  * AIDEV-NOTE: Popover inline para selecionar/alterar empresa vinculada
- * Usado na tabela de contatos (pessoas) — coluna Empresa
+ * Usa React Portal para renderizar fora do container com overflow
  */
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { Search, X, Building2 } from 'lucide-react'
 import { useContatos, useAtualizarContato } from '../hooks/useContatos'
 
@@ -16,22 +17,44 @@ interface InlineEmpresaPopoverProps {
 export function InlineEmpresaPopover({ contatoId, empresaAtual, children }: InlineEmpresaPopoverProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
-  const ref = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState({ top: 0, left: 0 })
+  const triggerRef = useRef<HTMLDivElement>(null)
+  const popoverRef = useRef<HTMLDivElement>(null)
   const atualizar = useAtualizarContato()
 
   const { data: empresasData } = useContatos({ tipo: 'empresa', limit: 100, busca: search || undefined })
   const empresas = empresasData?.contatos || []
 
+  const updatePosition = useCallback(() => {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect()
+      setPos({ top: rect.bottom + 4, left: rect.left })
+    }
+  }, [])
+
   useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+    if (!open) return
+    updatePosition()
+
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        popoverRef.current && !popoverRef.current.contains(e.target as Node) &&
+        triggerRef.current && !triggerRef.current.contains(e.target as Node)
+      ) {
         setOpen(false)
         setSearch('')
       }
     }
-    if (open) document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [open])
+
+    function handleScroll() { updatePosition() }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    window.addEventListener('scroll', handleScroll, true)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      window.removeEventListener('scroll', handleScroll, true)
+    }
+  }, [open, updatePosition])
 
   const handleSelect = (empresaId: string | null) => {
     atualizar.mutate({ id: contatoId, payload: { empresa_id: empresaId } })
@@ -40,16 +63,22 @@ export function InlineEmpresaPopover({ contatoId, empresaAtual, children }: Inli
   }
 
   return (
-    <div ref={ref} className="relative">
+    <>
       <div
+        ref={triggerRef}
         onClick={(e) => { e.stopPropagation(); setOpen(!open) }}
         className="cursor-pointer hover:bg-accent/50 rounded px-1 -mx-1 transition-colors"
       >
         {children}
       </div>
 
-      {open && (
-        <div className="absolute left-0 top-full mt-1 w-64 bg-background rounded-md shadow-lg border border-border py-1 z-[600]" onClick={e => e.stopPropagation()}>
+      {open && createPortal(
+        <div
+          ref={popoverRef}
+          className="fixed w-64 bg-background rounded-md shadow-lg border border-border py-1"
+          style={{ top: pos.top, left: pos.left, zIndex: 600 }}
+          onClick={e => e.stopPropagation()}
+        >
           <div className="px-2 pb-1 pt-1">
             <div className="relative">
               <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-muted-foreground" />
@@ -65,7 +94,6 @@ export function InlineEmpresaPopover({ contatoId, empresaAtual, children }: Inli
           </div>
 
           <div className="max-h-[200px] overflow-y-auto">
-            {/* Opção para remover vínculo */}
             {empresaAtual && (
               <button
                 onClick={() => handleSelect(null)}
@@ -93,8 +121,9 @@ export function InlineEmpresaPopover({ contatoId, empresaAtual, children }: Inli
               <p className="px-3 py-2 text-sm text-muted-foreground">Nenhuma empresa encontrada</p>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
-    </div>
+    </>
   )
 }

@@ -1,9 +1,10 @@
 /**
  * AIDEV-NOTE: Popover inline para gerenciar segmentos de um contato
- * Usado na tabela de contatos (pessoas) — coluna Segmentação
+ * Usa React Portal para renderizar fora do container com overflow
  */
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { Check } from 'lucide-react'
 import { useSegmentos, useVincularSegmentos } from '../hooks/useSegmentos'
 
@@ -16,20 +17,34 @@ interface InlineSegmentoPopoverProps {
 export function InlineSegmentoPopover({ contatoId, segmentosAtuais = [], children }: InlineSegmentoPopoverProps) {
   const [open, setOpen] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set(segmentosAtuais.map(s => s.id)))
-  const ref = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState({ top: 0, left: 0 })
+  const triggerRef = useRef<HTMLDivElement>(null)
+  const popoverRef = useRef<HTMLDivElement>(null)
   const { data: segmentosData } = useSegmentos()
   const vincular = useVincularSegmentos()
 
   const segmentos = segmentosData?.segmentos || []
 
-  // Sync selected when segmentosAtuais changes
   useEffect(() => {
     setSelectedIds(new Set(segmentosAtuais.map(s => s.id)))
   }, [segmentosAtuais])
 
+  const updatePosition = useCallback(() => {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect()
+      setPos({ top: rect.bottom + 4, left: rect.left })
+    }
+  }, [])
+
   useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+    if (!open) return
+    updatePosition()
+
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        popoverRef.current && !popoverRef.current.contains(e.target as Node) &&
+        triggerRef.current && !triggerRef.current.contains(e.target as Node)
+      ) {
         // Save on close
         const currentSet = new Set(segmentosAtuais.map(s => s.id))
         const newSet = selectedIds
@@ -41,9 +56,16 @@ export function InlineSegmentoPopover({ contatoId, segmentosAtuais = [], childre
         setOpen(false)
       }
     }
-    if (open) document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [open, selectedIds, segmentosAtuais, contatoId, vincular])
+
+    function handleScroll() { updatePosition() }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    window.addEventListener('scroll', handleScroll, true)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      window.removeEventListener('scroll', handleScroll, true)
+    }
+  }, [open, selectedIds, segmentosAtuais, contatoId, vincular, updatePosition])
 
   const toggleSegmento = (id: string) => {
     setSelectedIds(prev => {
@@ -55,16 +77,22 @@ export function InlineSegmentoPopover({ contatoId, segmentosAtuais = [], childre
   }
 
   return (
-    <div ref={ref} className="relative">
+    <>
       <div
+        ref={triggerRef}
         onClick={(e) => { e.stopPropagation(); setOpen(!open) }}
         className="cursor-pointer hover:bg-accent/50 rounded px-1 -mx-1 transition-colors"
       >
         {children}
       </div>
 
-      {open && (
-        <div className="absolute left-0 top-full mt-1 w-56 bg-background rounded-md shadow-lg border border-border py-1 z-[600]" onClick={e => e.stopPropagation()}>
+      {open && createPortal(
+        <div
+          ref={popoverRef}
+          className="fixed w-56 bg-background rounded-md shadow-lg border border-border py-1"
+          style={{ top: pos.top, left: pos.left, zIndex: 600 }}
+          onClick={e => e.stopPropagation()}
+        >
           <div className="px-3 py-1.5 border-b border-border">
             <p className="text-xs font-medium text-muted-foreground">Segmentos</p>
           </div>
@@ -92,8 +120,9 @@ export function InlineSegmentoPopover({ contatoId, segmentosAtuais = [], childre
               )
             })}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
-    </div>
+    </>
   )
 }

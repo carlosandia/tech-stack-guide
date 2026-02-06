@@ -4,6 +4,9 @@
  * Colunas Empresa, Segmentação e Responsável são clicáveis com popovers inline
  */
 
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
+
 import { Eye, Pencil, Trash2, MoreHorizontal, Users2 } from 'lucide-react'
 import { SegmentoBadge } from './SegmentoBadge'
 import { InlineEmpresaPopover } from './InlineEmpresaPopover'
@@ -12,7 +15,6 @@ import { InlineResponsavelPopover } from './InlineResponsavelPopover'
 import { InlinePessoaPopover } from './InlinePessoaPopover'
 import type { Contato, TipoContato } from '../services/contatos.api'
 import { StatusContatoOptions } from '../schemas/contatos.schema'
-import { useState } from 'react'
 
 interface ContatosListProps {
   contatos: Contato[]
@@ -136,6 +138,9 @@ function ContatoRow({
   onDelete: () => void
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 })
+  const menuBtnRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
   const isPessoa = tipo === 'pessoa'
   const statusLabel = StatusContatoOptions.find(s => s.value === contato.status)?.label || contato.status
 
@@ -147,6 +152,36 @@ function ContatoRow({
     cliente: 'bg-green-100 text-green-700',
     perdido: 'bg-red-100 text-red-700',
   }
+
+  const updateMenuPosition = useCallback(() => {
+    if (menuBtnRef.current) {
+      const rect = menuBtnRef.current.getBoundingClientRect()
+      setMenuPos({ top: rect.bottom + 4, left: rect.right - 144 })
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!menuOpen) return
+    updateMenuPosition()
+
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        menuRef.current && !menuRef.current.contains(e.target as Node) &&
+        menuBtnRef.current && !menuBtnRef.current.contains(e.target as Node)
+      ) {
+        setMenuOpen(false)
+      }
+    }
+
+    function handleScroll() { updateMenuPosition() }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    window.addEventListener('scroll', handleScroll, true)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      window.removeEventListener('scroll', handleScroll, true)
+    }
+  }, [menuOpen, updateMenuPosition])
 
   return (
     <tr
@@ -171,24 +206,16 @@ function ContatoRow({
             <span className="text-sm text-foreground truncate block max-w-[200px]">{contato.email || '—'}</span>
           </td>
 
-          {/* Empresa — clicável com popover */}
           <td className="px-4 py-3 hidden lg:table-cell" onClick={e => e.stopPropagation()}>
-            <InlineEmpresaPopover
-              contatoId={contato.id}
-              empresaAtual={contato.empresa}
-            >
+            <InlineEmpresaPopover contatoId={contato.id} empresaAtual={contato.empresa}>
               <span className="text-sm text-foreground truncate block max-w-[150px] border-b border-dashed border-muted-foreground/30 hover:border-primary hover:text-primary transition-colors">
                 {contato.empresa?.nome_fantasia || contato.empresa?.razao_social || '—'}
               </span>
             </InlineEmpresaPopover>
           </td>
 
-          {/* Segmentação — clicável com popover */}
           <td className="px-4 py-3 hidden lg:table-cell" onClick={e => e.stopPropagation()}>
-            <InlineSegmentoPopover
-              contatoId={contato.id}
-              segmentosAtuais={contato.segmentos}
-            >
+            <InlineSegmentoPopover contatoId={contato.id} segmentosAtuais={contato.segmentos}>
               <div className="flex flex-wrap gap-1 max-w-[200px] border-b border-dashed border-transparent hover:border-primary transition-colors">
                 {contato.segmentos && contato.segmentos.length > 0
                   ? contato.segmentos.slice(0, 2).map((s) => <SegmentoBadge key={s.id} nome={s.nome} cor={s.cor} />)
@@ -200,12 +227,8 @@ function ContatoRow({
             </InlineSegmentoPopover>
           </td>
 
-          {/* Responsável — clicável com popover */}
           <td className="px-4 py-3 hidden sm:table-cell" onClick={e => e.stopPropagation()}>
-            <InlineResponsavelPopover
-              contatoId={contato.id}
-              ownerId={contato.owner_id}
-            >
+            <InlineResponsavelPopover contatoId={contato.id} ownerId={contato.owner_id}>
               <span className="text-sm text-foreground truncate block max-w-[120px] border-b border-dashed border-muted-foreground/30 hover:border-primary hover:text-primary transition-colors">
                 {contato.owner ? `${contato.owner.nome}` : '—'}
               </span>
@@ -228,12 +251,8 @@ function ContatoRow({
             <span className="text-sm text-foreground">{contato.cnpj || '—'}</span>
           </td>
 
-          {/* Pessoas vinculadas — clicável com popover */}
           <td className="px-4 py-3 hidden lg:table-cell" onClick={e => e.stopPropagation()}>
-            <InlinePessoaPopover
-              empresaId={contato.id}
-              pessoasVinculadas={contato.pessoas}
-            >
+            <InlinePessoaPopover empresaId={contato.id} pessoasVinculadas={contato.pessoas}>
               <div className="flex items-center gap-1 border-b border-dashed border-muted-foreground/30 hover:border-primary hover:text-primary transition-colors">
                 <Users2 className="w-3.5 h-3.5 text-muted-foreground" />
                 <span className="text-sm text-foreground">
@@ -245,12 +264,8 @@ function ContatoRow({
             </InlinePessoaPopover>
           </td>
 
-          {/* Segmentação — clicável com popover */}
           <td className="px-4 py-3 hidden lg:table-cell" onClick={e => e.stopPropagation()}>
-            <InlineSegmentoPopover
-              contatoId={contato.id}
-              segmentosAtuais={contato.segmentos}
-            >
+            <InlineSegmentoPopover contatoId={contato.id} segmentosAtuais={contato.segmentos}>
               <div className="flex flex-wrap gap-1 max-w-[200px] border-b border-dashed border-transparent hover:border-primary transition-colors">
                 {contato.segmentos && contato.segmentos.length > 0
                   ? contato.segmentos.slice(0, 2).map((s) => <SegmentoBadge key={s.id} nome={s.nome} cor={s.cor} />)
@@ -262,12 +277,8 @@ function ContatoRow({
             </InlineSegmentoPopover>
           </td>
 
-          {/* Responsável — clicável com popover */}
           <td className="px-4 py-3 hidden sm:table-cell" onClick={e => e.stopPropagation()}>
-            <InlineResponsavelPopover
-              contatoId={contato.id}
-              ownerId={contato.owner_id}
-            >
+            <InlineResponsavelPopover contatoId={contato.id} ownerId={contato.owner_id}>
               <span className="text-sm text-foreground truncate block max-w-[120px] border-b border-dashed border-muted-foreground/30 hover:border-primary hover:text-primary transition-colors">
                 {contato.owner ? `${contato.owner.nome}` : '—'}
               </span>
@@ -282,28 +293,31 @@ function ContatoRow({
         </span>
       </td>
 
-      <td className="px-4 py-3 relative" onClick={(e) => e.stopPropagation()}>
+      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
         <button
+          ref={menuBtnRef}
           onClick={() => setMenuOpen(!menuOpen)}
           className="p-1.5 hover:bg-accent rounded-md transition-colors"
         >
           <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
         </button>
-        {menuOpen && (
-          <>
-            <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
-            <div className="absolute right-0 top-full mt-1 w-36 bg-background rounded-md shadow-md border border-border py-1 z-50">
-              <button onClick={() => { onView(); setMenuOpen(false) }} className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent">
-                <Eye className="w-3.5 h-3.5" /> Visualizar
-              </button>
-              <button onClick={() => { onEdit(); setMenuOpen(false) }} className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent">
-                <Pencil className="w-3.5 h-3.5" /> Editar
-              </button>
-              <button onClick={() => { onDelete(); setMenuOpen(false) }} className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10">
-                <Trash2 className="w-3.5 h-3.5" /> Excluir
-              </button>
-            </div>
-          </>
+        {menuOpen && createPortal(
+          <div
+            ref={menuRef}
+            className="fixed w-36 bg-background rounded-md shadow-md border border-border py-1"
+            style={{ top: menuPos.top, left: menuPos.left, zIndex: 600 }}
+          >
+            <button onClick={() => { onView(); setMenuOpen(false) }} className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent">
+              <Eye className="w-3.5 h-3.5" /> Visualizar
+            </button>
+            <button onClick={() => { onEdit(); setMenuOpen(false) }} className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent">
+              <Pencil className="w-3.5 h-3.5" /> Editar
+            </button>
+            <button onClick={() => { onDelete(); setMenuOpen(false) }} className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10">
+              <Trash2 className="w-3.5 h-3.5" /> Excluir
+            </button>
+          </div>,
+          document.body
         )}
       </td>
     </tr>

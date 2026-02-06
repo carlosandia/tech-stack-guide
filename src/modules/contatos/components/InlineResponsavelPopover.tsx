@@ -1,9 +1,10 @@
 /**
  * AIDEV-NOTE: Popover inline para atribuir responsável
- * Usado na tabela de contatos — coluna Responsável
+ * Usa React Portal para renderizar fora do container com overflow
  */
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { Search, X, User } from 'lucide-react'
 import { useUsuarios } from '@/modules/configuracoes/hooks/useEquipe'
 import { useAtualizarContato } from '../hooks/useContatos'
@@ -17,7 +18,9 @@ interface InlineResponsavelPopoverProps {
 export function InlineResponsavelPopover({ contatoId, ownerId, children }: InlineResponsavelPopoverProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
-  const ref = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState({ top: 0, left: 0 })
+  const triggerRef = useRef<HTMLDivElement>(null)
+  const popoverRef = useRef<HTMLDivElement>(null)
   const atualizar = useAtualizarContato()
 
   const { data: usuariosData } = useUsuarios({ status: 'ativo' })
@@ -29,16 +32,36 @@ export function InlineResponsavelPopover({ contatoId, ownerId, children }: Inlin
       )
     : usuarios
 
+  const updatePosition = useCallback(() => {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect()
+      setPos({ top: rect.bottom + 4, left: rect.left })
+    }
+  }, [])
+
   useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+    if (!open) return
+    updatePosition()
+
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        popoverRef.current && !popoverRef.current.contains(e.target as Node) &&
+        triggerRef.current && !triggerRef.current.contains(e.target as Node)
+      ) {
         setOpen(false)
         setSearch('')
       }
     }
-    if (open) document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [open])
+
+    function handleScroll() { updatePosition() }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    window.addEventListener('scroll', handleScroll, true)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      window.removeEventListener('scroll', handleScroll, true)
+    }
+  }, [open, updatePosition])
 
   const handleSelect = (userId: string | null) => {
     atualizar.mutate({ id: contatoId, payload: { owner_id: userId } })
@@ -47,16 +70,22 @@ export function InlineResponsavelPopover({ contatoId, ownerId, children }: Inlin
   }
 
   return (
-    <div ref={ref} className="relative">
+    <>
       <div
+        ref={triggerRef}
         onClick={(e) => { e.stopPropagation(); setOpen(!open) }}
         className="cursor-pointer hover:bg-accent/50 rounded px-1 -mx-1 transition-colors"
       >
         {children}
       </div>
 
-      {open && (
-        <div className="absolute left-0 top-full mt-1 w-56 bg-background rounded-md shadow-lg border border-border py-1 z-[600]" onClick={e => e.stopPropagation()}>
+      {open && createPortal(
+        <div
+          ref={popoverRef}
+          className="fixed w-56 bg-background rounded-md shadow-lg border border-border py-1"
+          style={{ top: pos.top, left: pos.left, zIndex: 600 }}
+          onClick={e => e.stopPropagation()}
+        >
           <div className="px-2 pb-1 pt-1">
             <div className="relative">
               <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-muted-foreground" />
@@ -72,7 +101,6 @@ export function InlineResponsavelPopover({ contatoId, ownerId, children }: Inlin
           </div>
 
           <div className="max-h-[200px] overflow-y-auto">
-            {/* Remover responsável */}
             {ownerId && (
               <button
                 onClick={() => handleSelect(null)}
@@ -100,8 +128,9 @@ export function InlineResponsavelPopover({ contatoId, ownerId, children }: Inlin
               <p className="px-3 py-2 text-sm text-muted-foreground">Nenhum membro encontrado</p>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
-    </div>
+    </>
   )
 }
