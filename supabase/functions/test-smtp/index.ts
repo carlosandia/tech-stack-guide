@@ -204,6 +204,98 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { plataforma, email, senha, modo } = body;
 
+    // Modo "salvar": testa + salva na tabela conexoes_email
+    if (modo === "salvar" && email && senha) {
+      console.log("[test-smtp] Modo salvar — email:", email);
+
+      const smtpConfig = detectSmtpConfig(email);
+      if (!smtpConfig) {
+        return new Response(
+          JSON.stringify({ sucesso: false, mensagem: "Não foi possível detectar o servidor SMTP para este email." }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Testar conexão primeiro
+      const testResult = await testSmtpConnection(smtpConfig.host, smtpConfig.port, email, senha);
+      if (!testResult.sucesso) {
+        return new Response(
+          JSON.stringify(testResult),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Buscar usuario_id e organizacao_id
+      const { data: usuario, error: usuarioError } = await supabaseAdmin
+        .from("usuarios")
+        .select("id, organizacao_id")
+        .eq("auth_id", requestingUserId)
+        .single();
+
+      if (usuarioError || !usuario) {
+        console.error("[test-smtp] Usuário não encontrado para salvar:", usuarioError?.message);
+        return new Response(
+          JSON.stringify({ sucesso: false, mensagem: "Usuário não encontrado" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Verificar se já existe conexão para este email nesta org
+      const { data: existente } = await supabaseAdmin
+        .from("conexoes_email")
+        .select("id")
+        .eq("organizacao_id", usuario.organizacao_id)
+        .eq("email", email)
+        .is("deletado_em", null)
+        .maybeSingle();
+
+      const conexaoData = {
+        email,
+        tipo: "smtp" as const,
+        status: "ativo",
+        smtp_host: smtpConfig.host,
+        smtp_port: smtpConfig.port,
+        smtp_user: email,
+        smtp_pass_encrypted: senha, // TODO: encrypt properly
+        smtp_tls: true,
+        smtp_auto_detected: true,
+        conectado_em: new Date().toISOString(),
+        organizacao_id: usuario.organizacao_id,
+        usuario_id: usuario.id,
+        ultimo_erro: null,
+      };
+
+      let dbError;
+      if (existente) {
+        // Atualizar existente
+        const { error } = await supabaseAdmin
+          .from("conexoes_email")
+          .update(conexaoData)
+          .eq("id", existente.id);
+        dbError = error;
+      } else {
+        // Criar nova
+        const { error } = await supabaseAdmin
+          .from("conexoes_email")
+          .insert(conexaoData);
+        dbError = error;
+      }
+
+      if (dbError) {
+        console.error("[test-smtp] Erro ao salvar conexão:", dbError);
+        return new Response(
+          JSON.stringify({ sucesso: false, mensagem: "Erro ao salvar conexão no banco de dados." }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      console.log("[test-smtp] Conexão email salva com sucesso!");
+      return new Response(
+        JSON.stringify({ sucesso: true, mensagem: "Conexão de email salva com sucesso!" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Modo "direto": recebe email + senha no body (para teste de conexão individual)
     if (modo === "direto" && email && senha) {
       console.log("[test-smtp] Modo direto — testando email:", email);
