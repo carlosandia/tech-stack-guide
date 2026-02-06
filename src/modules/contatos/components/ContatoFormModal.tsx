@@ -5,14 +5,14 @@
  * Respeita visibilidade configurada pelo ContatoFormFieldsToggle
  */
 
-import { useEffect, useMemo, forwardRef } from 'react'
+import { useEffect, useMemo, useState, forwardRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { X, User, Building2 } from 'lucide-react'
 import { StatusContatoOptions, OrigemContatoOptions, PorteOptions } from '../schemas/contatos.schema'
 import type { Contato, TipoContato } from '../services/contatos.api'
 import { useCampos } from '@/modules/configuracoes/hooks/useCampos'
 import type { CampoCustomizado } from '@/modules/configuracoes/services/configuracoes.api'
-import { getFieldVisibility } from './ContatoFormFieldsToggle'
+import { ContatoFormFieldsToggle, getFieldVisibility } from './ContatoFormFieldsToggle'
 import type { InputHTMLAttributes, SelectHTMLAttributes } from 'react'
 
 interface ContatoFormModalProps {
@@ -66,6 +66,9 @@ export function ContatoFormModal({
   const isEditing = !!contato
   const isPessoa = tipo === 'pessoa'
 
+  // Versão de visibilidade — incrementa quando o toggle muda, forçando re-render
+  const [visibilityVersion, setVisibilityVersion] = useState(0)
+
   // Buscar campos do configurações
   const entidade = isPessoa ? 'pessoa' : 'empresa'
   const { data: camposData } = useCampos(entidade as 'pessoa' | 'empresa')
@@ -74,8 +77,9 @@ export function ContatoFormModal({
   // Campos customizados (non-system active fields)
   const camposCustomizados = todosOsCampos.filter(c => !c.sistema && c.ativo)
 
-  // Visibilidade dos campos
-  const fieldVisibility = useMemo(() => getFieldVisibility(tipo), [tipo, open])
+  // Visibilidade dos campos (re-computa quando visibilityVersion muda)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const fieldVisibility = useMemo(() => getFieldVisibility(tipo), [tipo, open, visibilityVersion])
 
   const isVisible = (key: string, obrigatorio: boolean) => {
     if (obrigatorio) return true
@@ -371,9 +375,12 @@ export function ContatoFormModal({
               {isEditing ? 'Editar' : 'Nova'} {isPessoa ? 'Pessoa' : 'Empresa'}
             </h3>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-accent rounded-md transition-colors">
-            <X className="w-4 h-4 text-muted-foreground" />
-          </button>
+          <div className="flex items-center gap-1">
+            <ContatoFormFieldsToggle tipo={tipo} onChange={() => setVisibilityVersion(v => v + 1)} />
+            <button onClick={onClose} className="p-2 hover:bg-accent rounded-md transition-colors">
+              <X className="w-4 h-4 text-muted-foreground" />
+            </button>
+          </div>
         </div>
 
         {/* Form */}
