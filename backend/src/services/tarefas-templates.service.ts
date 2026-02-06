@@ -41,7 +41,7 @@ export async function listarTarefasTemplates(
     query = query.eq('ativo', ativo)
   }
 
-  const { data, error, count } = await query.order('nome', { ascending: true })
+  const { data, error, count } = await query.order('titulo', { ascending: true })
 
   if (error) {
     throw new Error(`Erro ao listar templates: ${error.message}`)

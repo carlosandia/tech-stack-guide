@@ -39,7 +39,7 @@ export async function listarEtapasTemplates(
         dias_offset,
         obrigatoria,
         ordem,
-        tarefa:tarefas_templates(id, nome, tipo, descricao)
+        tarefa:tarefas_templates(id, titulo, tipo, descricao)
       )
     `,
       { count: 'exact' }
@@ -86,7 +86,7 @@ export async function buscarEtapaTemplate(
         dias_offset,
         obrigatoria,
         ordem,
-        tarefa:tarefas_templates(id, nome, tipo, descricao)
+        tarefa:tarefas_templates(id, titulo, tipo, descricao)
       )
     `
     )
