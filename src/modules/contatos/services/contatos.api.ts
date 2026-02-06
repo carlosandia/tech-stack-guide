@@ -1,10 +1,60 @@
 /**
  * AIDEV-NOTE: Service API para Contatos e Segmentos
- * Usa axios (api) para comunicar com backend Express
+ * Usa Supabase client direto (respeita RLS)
  * Conforme PRD-06 - Modulo de Contatos
+ *
+ * Migrado de axios/Express para Supabase direto
+ * RLS filtra automaticamente pelo tenant do usuario logado
  */
 
-import api from '@/lib/api'
+import { supabase } from '@/lib/supabase'
+
+// =====================================================
+// Helper - Obter organizacao_id do usuario logado
+// =====================================================
+
+let _cachedOrgId: string | null = null
+let _cachedUserId: string | null = null
+
+async function getOrganizacaoId(): Promise<string> {
+  if (_cachedOrgId) return _cachedOrgId
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Usuário não autenticado')
+
+  const { data } = await supabase
+    .from('usuarios')
+    .select('organizacao_id')
+    .eq('auth_id', user.id)
+    .maybeSingle()
+
+  if (!data?.organizacao_id) throw new Error('Organização não encontrada')
+  _cachedOrgId = data.organizacao_id
+  return _cachedOrgId
+}
+
+async function getUsuarioId(): Promise<string> {
+  if (_cachedUserId) return _cachedUserId
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Usuário não autenticado')
+
+  const { data } = await supabase
+    .from('usuarios')
+    .select('id')
+    .eq('auth_id', user.id)
+    .maybeSingle()
+
+  if (!data?.id) throw new Error('Usuário não encontrado')
+  _cachedUserId = data.id
+  return _cachedUserId
+}
+
+// Reset cache on auth state change
+supabase.auth.onAuthStateChange(() => {
+  _cachedOrgId = null
+  _cachedUserId = null
+})
 
 // =====================================================
 // Types
@@ -95,62 +145,456 @@ export interface ListarContatosParams {
 
 export const contatosApi = {
   listar: async (params?: ListarContatosParams): Promise<ListaContatosResponse> => {
-    const { data } = await api.get('/v1/contatos', { params })
-    return data
+    const page = params?.page || 1
+    const perPage = params?.limit || 50
+    const from = (page - 1) * perPage
+    const to = from + perPage - 1
+
+    // Ordenação
+    const ordenarPor = params?.ordenar_por || 'criado_em'
+    const ordemAsc = params?.ordem === 'asc'
+
+    let query = supabase
+      .from('contatos')
+      .select('*', { count: 'exact' })
+      .is('deletado_em', null)
+      .order(ordenarPor, { ascending: ordemAsc })
+      .range(from, to)
+
+    if (params?.tipo) query = query.eq('tipo', params.tipo)
+    if (params?.status) query = query.eq('status', params.status)
+    if (params?.origem) query = query.eq('origem', params.origem)
+    if (params?.owner_id) query = query.eq('owner_id', params.owner_id)
+    if (params?.empresa_id) query = query.eq('empresa_id', params.empresa_id)
+    if (params?.data_inicio) query = query.gte('criado_em', params.data_inicio)
+    if (params?.data_fim) query = query.lte('criado_em', params.data_fim)
+
+    if (params?.busca) {
+      query = query.or(
+        `nome.ilike.%${params.busca}%,sobrenome.ilike.%${params.busca}%,email.ilike.%${params.busca}%,telefone.ilike.%${params.busca}%,razao_social.ilike.%${params.busca}%,nome_fantasia.ilike.%${params.busca}%`
+      )
+    }
+
+    const { data, error, count } = await query
+
+    if (error) throw new Error(error.message)
+
+    let contatos = (data || []) as Contato[]
+
+    // Enriquecer com segmentos
+    if (contatos.length > 0) {
+      const contatoIds = contatos.map(c => c.id)
+      const { data: vinculosData } = await supabase
+        .from('contatos_segmentos')
+        .select('contato_id, segmento_id, segmentos:segmento_id(id, nome, cor)')
+        .in('contato_id', contatoIds)
+
+      if (vinculosData) {
+        const segmentosByContato: Record<string, Array<{ id: string; nome: string; cor: string }>> = {}
+        for (const v of vinculosData as any[]) {
+          if (!segmentosByContato[v.contato_id]) segmentosByContato[v.contato_id] = []
+          if (v.segmentos) {
+            segmentosByContato[v.contato_id].push({
+              id: v.segmentos.id,
+              nome: v.segmentos.nome,
+              cor: v.segmentos.cor,
+            })
+          }
+        }
+        contatos = contatos.map(c => ({
+          ...c,
+          segmentos: segmentosByContato[c.id] || [],
+        }))
+      }
+
+      // Enriquecer com owner
+      const ownerIds = [...new Set(contatos.filter(c => c.owner_id).map(c => c.owner_id!))]
+      if (ownerIds.length > 0) {
+        const { data: ownersData } = await supabase
+          .from('usuarios')
+          .select('id, nome, sobrenome')
+          .in('id', ownerIds)
+
+        if (ownersData) {
+          const ownersMap: Record<string, { nome: string; sobrenome?: string }> = {}
+          for (const o of ownersData) {
+            ownersMap[o.id] = { nome: o.nome, sobrenome: o.sobrenome || undefined }
+          }
+          contatos = contatos.map(c => ({
+            ...c,
+            owner: c.owner_id ? ownersMap[c.owner_id] || null : null,
+          }))
+        }
+      }
+
+      // Enriquecer empresas para pessoas
+      if (params?.tipo === 'pessoa') {
+        const empresaIds = [...new Set(contatos.filter(c => c.empresa_id).map(c => c.empresa_id!))]
+        if (empresaIds.length > 0) {
+          const { data: empresasData } = await supabase
+            .from('contatos')
+            .select('id, razao_social, nome_fantasia')
+            .in('id', empresaIds)
+
+          if (empresasData) {
+            const empresasMap: Record<string, { id: string; razao_social?: string; nome_fantasia?: string }> = {}
+            for (const e of empresasData) {
+              empresasMap[e.id] = { id: e.id, razao_social: e.razao_social || undefined, nome_fantasia: e.nome_fantasia || undefined }
+            }
+            contatos = contatos.map(c => ({
+              ...c,
+              empresa: c.empresa_id ? empresasMap[c.empresa_id] || null : null,
+            }))
+          }
+        }
+      }
+
+      // Filtrar por segmento_id (pós-query se necessário)
+      if (params?.segmento_id) {
+        contatos = contatos.filter(c => c.segmentos?.some(s => s.id === params.segmento_id))
+      }
+    }
+
+    const total = count || 0
+    return {
+      contatos,
+      total,
+      page,
+      per_page: perPage,
+      total_paginas: Math.ceil(total / perPage),
+    }
   },
 
   buscar: async (id: string): Promise<Contato> => {
-    const { data } = await api.get(`/v1/contatos/${id}`)
-    return data
+    const { data, error } = await supabase
+      .from('contatos')
+      .select('*')
+      .eq('id', id)
+      .is('deletado_em', null)
+      .maybeSingle()
+
+    if (error) throw new Error(error.message)
+    if (!data) throw new Error('Contato não encontrado')
+
+    // Enriquecer com segmentos
+    const { data: vinculosData } = await supabase
+      .from('contatos_segmentos')
+      .select('segmento_id, segmentos:segmento_id(id, nome, cor)')
+      .eq('contato_id', id)
+
+    const contato = data as Contato
+    contato.segmentos = (vinculosData as any[] || [])
+      .filter(v => v.segmentos)
+      .map(v => ({ id: v.segmentos.id, nome: v.segmentos.nome, cor: v.segmentos.cor }))
+
+    // Owner
+    if (contato.owner_id) {
+      const { data: ownerData } = await supabase
+        .from('usuarios')
+        .select('nome, sobrenome')
+        .eq('id', contato.owner_id)
+        .maybeSingle()
+      contato.owner = ownerData ? { nome: ownerData.nome, sobrenome: ownerData.sobrenome || undefined } : null
+    }
+
+    // Empresa
+    if (contato.empresa_id) {
+      const { data: empresaData } = await supabase
+        .from('contatos')
+        .select('id, razao_social, nome_fantasia')
+        .eq('id', contato.empresa_id)
+        .maybeSingle()
+      contato.empresa = empresaData ? { id: empresaData.id, razao_social: empresaData.razao_social || undefined, nome_fantasia: empresaData.nome_fantasia || undefined } : null
+    }
+
+    // Pessoas vinculadas (se for empresa)
+    if (contato.tipo === 'empresa') {
+      const { data: pessoasData } = await supabase
+        .from('contatos')
+        .select('id, nome, sobrenome, email, telefone, cargo, status')
+        .eq('empresa_id', id)
+        .is('deletado_em', null)
+
+      contato.pessoas = (pessoasData || []).map(p => ({
+        id: p.id,
+        nome: p.nome || '',
+        sobrenome: p.sobrenome || undefined,
+        email: p.email || undefined,
+        telefone: p.telefone || undefined,
+        cargo: p.cargo || undefined,
+        status: p.status,
+      }))
+    }
+
+    return contato
   },
 
   criar: async (payload: Record<string, unknown>): Promise<Contato> => {
-    const { data } = await api.post('/v1/contatos', payload)
-    return data
+    const organizacaoId = await getOrganizacaoId()
+    const userId = await getUsuarioId()
+
+    const { data, error } = await supabase
+      .from('contatos')
+      .insert({
+        ...payload,
+        organizacao_id: organizacaoId,
+        criado_por: userId,
+      } as any)
+      .select()
+      .single()
+
+    if (error) throw new Error(error.message)
+    return data as Contato
   },
 
   atualizar: async (id: string, payload: Record<string, unknown>): Promise<Contato> => {
-    const { data } = await api.patch(`/v1/contatos/${id}`, payload)
-    return data
+    const { data, error } = await supabase
+      .from('contatos')
+      .update(payload as any)
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) throw new Error(error.message)
+    return data as Contato
   },
 
   excluir: async (id: string): Promise<void> => {
-    await api.delete(`/v1/contatos/${id}`)
+    // Soft delete
+    const { error } = await supabase
+      .from('contatos')
+      .update({ deletado_em: new Date().toISOString() } as any)
+      .eq('id', id)
+
+    if (error) throw new Error(error.message)
   },
 
   excluirLote: async (payload: { ids: string[]; tipo: TipoContato }): Promise<{ excluidos: number; erros: string[] }> => {
-    const { data } = await api.delete('/v1/contatos/lote', { data: payload })
-    return data
+    const erros: string[] = []
+    let excluidos = 0
+
+    for (const id of payload.ids) {
+      const { error } = await supabase
+        .from('contatos')
+        .update({ deletado_em: new Date().toISOString() } as any)
+        .eq('id', id)
+
+      if (error) {
+        erros.push(`${id}: ${error.message}`)
+      } else {
+        excluidos++
+      }
+    }
+
+    return { excluidos, erros }
   },
 
   atribuirLote: async (payload: { ids: string[]; owner_id: string | null }): Promise<void> => {
-    await api.patch('/v1/contatos/lote/atribuir', payload)
+    const { error } = await supabase
+      .from('contatos')
+      .update({ owner_id: payload.owner_id } as any)
+      .in('id', payload.ids)
+
+    if (error) throw new Error(error.message)
   },
 
   duplicatas: async () => {
-    const { data } = await api.get('/v1/contatos/duplicatas')
-    return data
+    // Buscar contatos com mesmo email ou telefone
+    const organizacaoId = await getOrganizacaoId()
+
+    const { data, error } = await supabase
+      .from('contatos')
+      .select('id, nome, sobrenome, email, telefone, tipo, status, criado_em')
+      .eq('organizacao_id', organizacaoId)
+      .is('deletado_em', null)
+      .order('email')
+
+    if (error) throw new Error(error.message)
+
+    // Agrupar por email/telefone no frontend
+    const groups: Record<string, any[]> = {}
+    for (const c of data || []) {
+      if (c.email) {
+        const key = `email:${c.email.toLowerCase()}`
+        if (!groups[key]) groups[key] = []
+        groups[key].push(c)
+      }
+      if (c.telefone) {
+        const cleanPhone = c.telefone.replace(/\D/g, '')
+        if (cleanPhone.length >= 8) {
+          const key = `tel:${cleanPhone}`
+          if (!groups[key]) groups[key] = []
+          groups[key].push(c)
+        }
+      }
+    }
+
+    // Retornar apenas duplicatas (2+ contatos)
+    const duplicatas = Object.entries(groups)
+      .filter(([, items]) => items.length > 1)
+      .map(([key, items]) => ({
+        campo: key.startsWith('email:') ? 'email' : 'telefone',
+        valor: key.split(':')[1],
+        contatos: items,
+      }))
+
+    return { duplicatas, total: duplicatas.length }
   },
 
   mesclar: async (payload: { contato_manter_id: string; contato_mesclar_id: string; campos_mesclar?: string[] }): Promise<void> => {
-    await api.post('/v1/contatos/mesclar', payload)
+    // Buscar ambos contatos
+    const [manter, mesclar] = await Promise.all([
+      contatosApi.buscar(payload.contato_manter_id),
+      contatosApi.buscar(payload.contato_mesclar_id),
+    ])
+
+    // Mesclar campos vazios do manter com os do mesclar
+    const camposMesclaveis = payload.campos_mesclar || ['email', 'telefone', 'cargo', 'linkedin_url', 'observacoes']
+    const updates: Record<string, unknown> = {}
+
+    for (const campo of camposMesclaveis) {
+      if (!(manter as any)[campo] && (mesclar as any)[campo]) {
+        updates[campo] = (mesclar as any)[campo]
+      }
+    }
+
+    if (Object.keys(updates).length > 0) {
+      await contatosApi.atualizar(payload.contato_manter_id, updates)
+    }
+
+    // Mover segmentos do mesclar para o manter
+    if (mesclar.segmentos && mesclar.segmentos.length > 0) {
+      const segmentoIds = mesclar.segmentos.map(s => s.id)
+      const manterSegIds = (manter.segmentos || []).map(s => s.id)
+      const novosSegmentos = segmentoIds.filter(id => !manterSegIds.includes(id))
+      if (novosSegmentos.length > 0) {
+        await contatosApi.vincularSegmentos(payload.contato_manter_id, novosSegmentos)
+      }
+    }
+
+    // Soft-delete o contato mesclado
+    await contatosApi.excluir(payload.contato_mesclar_id)
   },
 
   exportar: async (params?: ListarContatosParams): Promise<string> => {
-    const { data } = await api.get('/v1/contatos/exportar', { params, responseType: 'text' as any })
-    return data
+    // Buscar todos os contatos sem paginação
+    const { data, error } = await (() => {
+      let query = supabase
+        .from('contatos')
+        .select('*')
+        .is('deletado_em', null)
+        .order('criado_em', { ascending: false })
+
+      if (params?.tipo) query = query.eq('tipo', params.tipo)
+      if (params?.status) query = query.eq('status', params.status)
+      if (params?.origem) query = query.eq('origem', params.origem)
+      if (params?.busca) {
+        query = query.or(
+          `nome.ilike.%${params.busca}%,sobrenome.ilike.%${params.busca}%,email.ilike.%${params.busca}%,razao_social.ilike.%${params.busca}%`
+        )
+      }
+
+      return query
+    })()
+
+    if (error) throw new Error(error.message)
+
+    const contatos = data || []
+
+    // Gerar CSV
+    const isPessoa = params?.tipo === 'pessoa'
+    const headers = isPessoa
+      ? ['Nome', 'Sobrenome', 'Email', 'Telefone', 'Cargo', 'Status', 'Origem', 'Criado em']
+      : ['Razão Social', 'Nome Fantasia', 'CNPJ', 'Email', 'Telefone', 'Website', 'Segmento', 'Porte', 'Status', 'Origem', 'Criado em']
+
+    const rows = contatos.map(c => {
+      if (isPessoa) {
+        return [c.nome, c.sobrenome, c.email, c.telefone, c.cargo, c.status, c.origem, c.criado_em]
+      }
+      return [c.razao_social, c.nome_fantasia, c.cnpj, c.email, c.telefone, c.website, c.segmento, c.porte, c.status, c.origem, c.criado_em]
+    })
+
+    const csvRows = [headers.join(',')]
+    for (const row of rows) {
+      csvRows.push(row.map(v => `"${(v || '').toString().replace(/"/g, '""')}"`).join(','))
+    }
+
+    return csvRows.join('\n')
   },
 
   vincularSegmentos: async (contatoId: string, segmentoIds: string[]): Promise<void> => {
-    await api.post(`/v1/contatos/${contatoId}/segmentos`, { segmento_ids: segmentoIds })
+    const organizacaoId = await getOrganizacaoId()
+
+    // Remove existing
+    await supabase
+      .from('contatos_segmentos')
+      .delete()
+      .eq('contato_id', contatoId)
+
+    // Insert new
+    if (segmentoIds.length > 0) {
+      const rows = segmentoIds.map(segId => ({
+        contato_id: contatoId,
+        segmento_id: segId,
+        organizacao_id: organizacaoId,
+      }))
+
+      const { error } = await supabase
+        .from('contatos_segmentos')
+        .insert(rows)
+
+      if (error) throw new Error(error.message)
+    }
   },
 
   desvincularSegmento: async (contatoId: string, segmentoId: string): Promise<void> => {
-    await api.delete(`/v1/contatos/${contatoId}/segmentos/${segmentoId}`)
+    const { error } = await supabase
+      .from('contatos_segmentos')
+      .delete()
+      .eq('contato_id', contatoId)
+      .eq('segmento_id', segmentoId)
+
+    if (error) throw new Error(error.message)
   },
 
   segmentarLote: async (payload: { ids: string[]; adicionar: string[]; remover: string[] }): Promise<void> => {
-    await api.post('/v1/contatos/lote/segmentos', payload)
+    const organizacaoId = await getOrganizacaoId()
+
+    // Remover segmentos
+    if (payload.remover.length > 0) {
+      for (const segId of payload.remover) {
+        await supabase
+          .from('contatos_segmentos')
+          .delete()
+          .in('contato_id', payload.ids)
+          .eq('segmento_id', segId)
+      }
+    }
+
+    // Adicionar segmentos
+    if (payload.adicionar.length > 0) {
+      for (const contatoId of payload.ids) {
+        for (const segId of payload.adicionar) {
+          // Upsert para evitar duplicatas
+          const { data: existing } = await supabase
+            .from('contatos_segmentos')
+            .select('id')
+            .eq('contato_id', contatoId)
+            .eq('segmento_id', segId)
+            .maybeSingle()
+
+          if (!existing) {
+            await supabase
+              .from('contatos_segmentos')
+              .insert({
+                contato_id: contatoId,
+                segmento_id: segId,
+                organizacao_id: organizacaoId,
+              })
+          }
+        }
+      }
+    }
   },
 }
 
@@ -160,21 +604,77 @@ export const contatosApi = {
 
 export const segmentosApi = {
   listar: async (): Promise<{ segmentos: Segmento[]; total: number }> => {
-    const { data } = await api.get('/v1/segmentos')
-    return data
+    const { data, error, count } = await supabase
+      .from('segmentos')
+      .select('*', { count: 'exact' })
+      .is('deletado_em', null)
+      .order('nome')
+
+    if (error) throw new Error(error.message)
+
+    // Contar contatos por segmento
+    const segmentos = data || []
+    if (segmentos.length > 0) {
+      const segmentoIds = segmentos.map(s => s.id)
+      const { data: vinculosData } = await supabase
+        .from('contatos_segmentos')
+        .select('segmento_id')
+        .in('segmento_id', segmentoIds)
+
+      const counts: Record<string, number> = {}
+      for (const v of vinculosData || []) {
+        counts[v.segmento_id] = (counts[v.segmento_id] || 0) + 1
+      }
+
+      for (const s of segmentos) {
+        (s as any).total_contatos = counts[s.id] || 0
+      }
+    }
+
+    return { segmentos: segmentos as Segmento[], total: count || 0 }
   },
 
   criar: async (payload: { nome: string; cor: string; descricao?: string }): Promise<Segmento> => {
-    const { data } = await api.post('/v1/segmentos', payload)
-    return data
+    const organizacaoId = await getOrganizacaoId()
+
+    const { data, error } = await supabase
+      .from('segmentos')
+      .insert({
+        ...payload,
+        organizacao_id: organizacaoId,
+      })
+      .select()
+      .single()
+
+    if (error) throw new Error(error.message)
+    return data as Segmento
   },
 
   atualizar: async (id: string, payload: { nome?: string; cor?: string; descricao?: string | null }): Promise<Segmento> => {
-    const { data } = await api.patch(`/v1/segmentos/${id}`, payload)
-    return data
+    const { data, error } = await supabase
+      .from('segmentos')
+      .update(payload)
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) throw new Error(error.message)
+    return data as Segmento
   },
 
   excluir: async (id: string): Promise<void> => {
-    await api.delete(`/v1/segmentos/${id}`)
+    // Primeiro remove vínculos
+    await supabase
+      .from('contatos_segmentos')
+      .delete()
+      .eq('segmento_id', id)
+
+    // Depois exclui o segmento
+    const { error } = await supabase
+      .from('segmentos')
+      .delete()
+      .eq('id', id)
+
+    if (error) throw new Error(error.message)
   },
 }

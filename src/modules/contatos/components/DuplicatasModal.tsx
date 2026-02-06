@@ -13,7 +13,8 @@ interface DuplicatasModalProps {
 }
 
 interface DuplicataGrupo {
-  criterio: string
+  campo: string
+  valor: string
   contatos: Array<{
     id: string
     nome?: string
@@ -31,7 +32,7 @@ export function DuplicatasModal({ open, onClose }: DuplicatasModalProps) {
 
   if (!open) return null
 
-  const grupos: DuplicataGrupo[] = data?.grupos || []
+  const grupos: DuplicataGrupo[] = data?.duplicatas || []
 
   const handleMesclar = (grupoIdx: number, grupo: DuplicataGrupo) => {
     const principalId = selectedPrincipal[grupoIdx]
@@ -83,7 +84,7 @@ export function DuplicatasModal({ open, onClose }: DuplicatasModalProps) {
                 <div className="flex items-center gap-2">
                   <GitMerge className="w-4 h-4 text-muted-foreground" />
                   <span className="text-sm font-medium text-foreground">Grupo {idx + 1}</span>
-                  <span className="text-xs text-muted-foreground">— {grupo.criterio}</span>
+                  <span className="text-xs text-muted-foreground">— {grupo.campo}: {grupo.valor}</span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
