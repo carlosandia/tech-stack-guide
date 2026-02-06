@@ -22,6 +22,7 @@ import { SegmentosManager } from '../components/SegmentosManager'
 import { DuplicatasModal } from '../components/DuplicatasModal'
 import { ImportarContatosModal } from '../components/ImportarContatosModal'
 import { ContatoColumnsToggle, getInitialColumns, type ColumnConfig } from '../components/ContatoColumnsToggle'
+import { ContatoFormFieldsToggle } from '../components/ContatoFormFieldsToggle'
 import { StatusContatoOptions, OrigemContatoOptions } from '../schemas/contatos.schema'
 import { contatosApi } from '../services/contatos.api'
 
@@ -218,6 +219,9 @@ export function ContatosPage() {
 
         {/* Colunas */}
         <ContatoColumnsToggle tipo={tipo} columns={columns} onChange={setColumns} />
+
+        {/* Campos do formulário - visibilidade */}
+        <ContatoFormFieldsToggle tipo={tipo} />
 
         {/* Separador */}
         <div className="w-px h-5 bg-border mx-0.5" />
