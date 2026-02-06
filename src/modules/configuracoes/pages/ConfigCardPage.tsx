@@ -62,7 +62,7 @@ const ACOES_DISPONIVEIS = [
 
 const ACOES_DEFAULT = ['telefone', 'whatsapp', 'email', 'agendar']
 
-const MAX_CAMPOS = 6
+const MAX_CAMPOS = 10
 const MIN_CAMPOS = 1
 
 export function ConfigCardPage() {
