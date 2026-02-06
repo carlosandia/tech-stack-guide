@@ -102,12 +102,17 @@ export function ContatosPage() {
   const excluirContato = useExcluirContato()
   const excluirLote = useExcluirContatosLote()
 
-  // Buscar empresas para vincular (quando tipo=pessoa)
+  // Buscar empresas para vincular (quando tipo=pessoa) + contagem
   const { data: empresasData } = useContatos({ tipo: 'empresa', limit: 500 })
   const empresasLista = useMemo(
     () => (empresasData?.contatos || []).map(e => ({ id: e.id, nome_fantasia: e.nome_fantasia, razao_social: e.razao_social })),
     [empresasData]
   )
+
+  // Buscar contagem da outra aba para exibir no badge
+  const { data: pessoasCountData } = useContatos({ tipo: 'pessoa', limit: 1, page: 1 })
+  const totalPessoas = tipo === 'pessoa' ? (data?.total ?? null) : (pessoasCountData?.total ?? null)
+  const totalEmpresas = tipo === 'empresa' ? (data?.total ?? null) : (empresasData?.total ?? null)
 
   // Buscar membros da equipe (para atribuir responsável)
   const { data: usuariosData } = useUsuarios({ status: 'ativo' })
@@ -145,6 +150,9 @@ export function ContatosPage() {
         >
           <Users2 className="w-3.5 h-3.5" />
           Pessoas
+          {totalPessoas !== null && (
+            <span className="text-xs ml-0.5 opacity-70">{totalPessoas}</span>
+          )}
         </button>
         <button
           onClick={() => navigate('/app/contatos/empresas')}
@@ -156,16 +164,14 @@ export function ContatosPage() {
         >
           <Building2 className="w-3.5 h-3.5" />
           Empresas
+          {totalEmpresas !== null && (
+            <span className="text-xs ml-0.5 opacity-70">{totalEmpresas}</span>
+          )}
         </button>
-        {data && (
-          <span className="text-xs text-muted-foreground ml-1">
-            {data.total}
-          </span>
-        )}
       </div>
     )
     return () => { setSubtitle(null) }
-  }, [tipo, data, navigate, setSubtitle])
+  }, [tipo, totalPessoas, totalEmpresas, navigate, setSubtitle])
 
   // --- Toolbar: Actions (busca, filtros, segmentos, colunas, exportar, importar, duplicatas, novo) ---
   useEffect(() => {
