@@ -3,6 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 /**
  * AIDEV-NOTE: Edge Function para testar conexão SMTP real
  * Testa a conexão com o servidor SMTP usando as configurações salvas
+ * REQUER AUTENTICAÇÃO: apenas admin e super_admin podem testar
  */
 
 const corsHeaders = {
@@ -19,11 +20,67 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
+    // =====================================================
+    // VALIDAÇÃO DE AUTENTICAÇÃO E AUTORIZAÇÃO
+    // =====================================================
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      console.warn("[test-smtp] Requisição sem token de autenticação");
+      return new Response(
+        JSON.stringify({ sucesso: false, mensagem: "Não autorizado" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const supabaseAuth = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claimsData, error: claimsError } = await supabaseAuth.auth.getClaims(token);
+    if (claimsError || !claimsData?.claims) {
+      console.warn("[test-smtp] Token inválido:", claimsError?.message);
+      return new Response(
+        JSON.stringify({ sucesso: false, mensagem: "Token inválido ou expirado" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const requestingUserId = claimsData.claims.sub;
+    console.log("[test-smtp] Usuário autenticado:", requestingUserId);
+
+    // Verificar se o usuário é admin ou super_admin
+    const { data: requestingUser, error: userError } = await supabaseAdmin
+      .from("usuarios")
+      .select("role, organizacao_id")
+      .eq("auth_id", requestingUserId)
+      .single();
+
+    if (userError || !requestingUser) {
+      console.warn("[test-smtp] Usuário não encontrado:", userError?.message);
+      return new Response(
+        JSON.stringify({ sucesso: false, mensagem: "Acesso negado" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (requestingUser.role !== "admin" && requestingUser.role !== "super_admin") {
+      console.warn("[test-smtp] Usuário sem permissão:", requestingUser.role);
+      return new Response(
+        JSON.stringify({ sucesso: false, mensagem: "Acesso negado: permissão de administrador necessária" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // =====================================================
+    // LÓGICA DE TESTE SMTP
+    // =====================================================
     const { plataforma } = await req.json();
     console.log("[test-smtp] Testing platform:", plataforma);
 
@@ -54,8 +111,6 @@ Deno.serve(async (req) => {
     const smtpPort = parseInt(cfg.smtp_port || "587", 10);
     const smtpUser = cfg.smtp_user;
     const smtpPass = cfg.smtp_pass;
-    const fromEmail = cfg.from_email || smtpUser;
-    const fromName = cfg.from_name || "CRM Renove";
 
     if (!smtpHost || !smtpUser || !smtpPass) {
       return new Response(
@@ -72,21 +127,14 @@ Deno.serve(async (req) => {
       let conn: Deno.TcpConn | Deno.TlsConn;
 
       if (useTLS) {
-        conn = await Deno.connectTls({
-          hostname: smtpHost,
-          port: smtpPort,
-        });
+        conn = await Deno.connectTls({ hostname: smtpHost, port: smtpPort });
       } else {
-        conn = await Deno.connect({
-          hostname: smtpHost,
-          port: smtpPort,
-        });
+        conn = await Deno.connect({ hostname: smtpHost, port: smtpPort });
       }
 
       const encoder = new TextEncoder();
       const decoder = new TextDecoder();
 
-      // Helper to read response
       const readResponse = async (): Promise<string> => {
         const buf = new Uint8Array(1024);
         const n = await conn.read(buf);
@@ -94,7 +142,6 @@ Deno.serve(async (req) => {
         return decoder.decode(buf.subarray(0, n));
       };
 
-      // Helper to send command
       const sendCommand = async (cmd: string): Promise<string> => {
         await conn.write(encoder.encode(cmd + "\r\n"));
         return await readResponse();
@@ -105,11 +152,11 @@ Deno.serve(async (req) => {
       console.log("[test-smtp] Greeting:", greeting.trim());
       if (!greeting.startsWith("220")) {
         conn.close();
-        throw new Error(`Servidor rejeitou conexão: ${greeting.trim()}`);
+        throw new Error("Servidor rejeitou conexão");
       }
 
       // EHLO
-      const ehloResp = await sendCommand(`EHLO crmrenove.local`);
+      const ehloResp = await sendCommand("EHLO crmrenove.local");
       console.log("[test-smtp] EHLO response:", ehloResp.substring(0, 200));
 
       // STARTTLS if port 587
@@ -117,11 +164,8 @@ Deno.serve(async (req) => {
         const starttlsResp = await sendCommand("STARTTLS");
         console.log("[test-smtp] STARTTLS response:", starttlsResp.trim());
         if (starttlsResp.startsWith("220")) {
-          // Upgrade to TLS
           const tlsConn = await Deno.startTls(conn as Deno.TcpConn, { hostname: smtpHost });
           conn = tlsConn;
-
-          // Re-EHLO after STARTTLS
           const ehlo2 = await sendCommand("EHLO crmrenove.local");
           console.log("[test-smtp] EHLO2 response:", ehlo2.substring(0, 200));
         }
@@ -132,19 +176,15 @@ Deno.serve(async (req) => {
       console.log("[test-smtp] AUTH response:", authResp.trim());
 
       if (authResp.startsWith("334")) {
-        // Send username (base64)
         const userResp = await sendCommand(btoa(smtpUser));
         console.log("[test-smtp] User response:", userResp.trim());
 
         if (userResp.startsWith("334")) {
-          // Send password (base64)
           const passResp = await sendCommand(btoa(smtpPass));
           console.log("[test-smtp] Pass response:", passResp.trim());
 
           if (!passResp.startsWith("235")) {
             conn.close();
-
-            // Update DB with error
             await supabaseAdmin
               .from("configuracoes_globais")
               .update({
@@ -162,13 +202,11 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Send QUIT
       await sendCommand("QUIT");
       conn.close();
 
       console.log("[test-smtp] Connection test successful!");
 
-      // Update DB with success
       await supabaseAdmin
         .from("configuracoes_globais")
         .update({
@@ -186,7 +224,6 @@ Deno.serve(async (req) => {
       const errorMsg = (smtpError as Error).message;
       console.error("[test-smtp] SMTP connection error:", errorMsg);
 
-      // Update DB with error
       await supabaseAdmin
         .from("configuracoes_globais")
         .update({
@@ -197,14 +234,14 @@ Deno.serve(async (req) => {
         .eq("plataforma", "email");
 
       return new Response(
-        JSON.stringify({ sucesso: false, mensagem: `Erro na conexão SMTP: ${errorMsg}` }),
+        JSON.stringify({ sucesso: false, mensagem: "Erro na conexão SMTP. Verifique as configurações e tente novamente." }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
   } catch (error) {
     console.error("[test-smtp] Error:", error);
     return new Response(
-      JSON.stringify({ sucesso: false, mensagem: (error as Error).message }),
+      JSON.stringify({ sucesso: false, mensagem: "Erro interno ao processar a requisição" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

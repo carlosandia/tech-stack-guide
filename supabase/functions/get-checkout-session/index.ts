@@ -41,25 +41,30 @@ import Stripe from 'npm:stripe@14.14.0'
      const body = await req.json()
      const { session_id } = body
  
-     if (!session_id) {
-       throw new Error('session_id é obrigatório')
-     }
+      if (!session_id) {
+        return new Response(
+          JSON.stringify({ error: 'Campos obrigatórios não preenchidos' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        )
+      }
  
      console.log('Fetching checkout session:', session_id)
  
      // Buscar sessão do Stripe
      const session = await stripe.checkout.sessions.retrieve(session_id)
  
-     if (!session) {
-       throw new Error('Sessão não encontrada')
-     }
+      if (!session) {
+        console.error('Session not found:', session_id)
+        throw new Error('Requisição inválida')
+      }
  
      // Verificar se sessão é válida (paid ou trialing)
      if (session.payment_status !== 'paid' && session.status !== 'complete') {
        // Para trials, o payment_status pode ser 'no_payment_required'
-       if (session.payment_status !== 'no_payment_required') {
-         throw new Error('Pagamento não confirmado')
-       }
+        if (session.payment_status !== 'no_payment_required') {
+          console.error('Payment not confirmed for session:', session_id)
+          throw new Error('Requisição inválida')
+        }
      }
  
      // Verificar se sessão já foi usada
@@ -73,9 +78,10 @@ import Stripe from 'npm:stripe@14.14.0'
        console.error('Error checking session:', existingError)
      }
  
-     if (existing?.status === 'concluido') {
-       throw new Error('Esta sessão já foi utilizada para criar uma conta')
-     }
+      if (existing?.status === 'concluido') {
+        console.warn('Session already used:', session_id)
+        throw new Error('Requisição inválida')
+      }
  
      // Registrar sessão se primeira vez
      if (!existing) {
@@ -110,15 +116,14 @@ import Stripe from 'npm:stripe@14.14.0'
          status: 200,
        }
      )
-   } catch (error: unknown) {
-     console.error('Error fetching checkout session:', error)
-     const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
-     return new Response(
-       JSON.stringify({ error: errorMessage }),
-       {
-         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-         status: 400,
-       }
-     )
-   }
+    } catch (error: unknown) {
+      console.error('Error fetching checkout session:', error)
+      return new Response(
+        JSON.stringify({ error: 'Não foi possível processar a requisição' }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400,
+        }
+      )
+    }
  })

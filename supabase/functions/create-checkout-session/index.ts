@@ -103,7 +103,7 @@ serve(async (req) => {
 
     if (planoError || !plano) {
       console.error('Plano not found:', planoError)
-      throw new Error('Plano nao encontrado')
+      throw new Error('Requisição inválida')
     }
 
     console.log('Plano encontrado:', { nome: plano.nome, preco_mensal: plano.preco_mensal, preco_anual: plano.preco_anual, moeda: plano.moeda })
@@ -112,7 +112,8 @@ serve(async (req) => {
     const preco = periodo === 'anual' ? plano.preco_anual : plano.preco_mensal
 
     if (!preco || preco <= 0) {
-      throw new Error(`Preco ${periodo} nao configurado ou invalido para o plano ${plano.nome}. Valor: ${preco}`)
+      console.error(`Preco ${periodo} nao configurado para plano ${plano.nome}. Valor: ${preco}`)
+      throw new Error('Requisição inválida')
     }
 
     // Converter para centavos (Stripe exige unit_amount em centavos)
@@ -189,9 +190,8 @@ serve(async (req) => {
     )
   } catch (error: unknown) {
     console.error('Error creating checkout session:', error)
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ error: 'Não foi possível processar a requisição' }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,

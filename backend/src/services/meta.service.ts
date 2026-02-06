@@ -250,7 +250,7 @@ class MetaService {
   async obterStatus(organizacaoId: string): Promise<StatusConexaoMeta> {
     const { data: conexao } = await supabase
       .from('conexoes_meta')
-      .select('*, paginas_meta(*)')
+      .select('id, status, meta_user_name, meta_user_email, meta_user_id, conectado_em, ultimo_sync, ultimo_erro, paginas_meta(id, page_id, page_name, page_category, status, instagram_business_id)')
       .eq('organizacao_id', organizacaoId)
       .is('deletado_em', null)
       .single()

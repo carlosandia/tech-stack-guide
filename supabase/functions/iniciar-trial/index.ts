@@ -26,23 +26,39 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
      const body = await req.json()
      const { nome, email, nome_empresa, telefone, utms } = body
  
-     console.log('Starting trial for:', email)
- 
-     // Validar campos obrigatorios
-     if (!email || !nome || !nome_empresa) {
-       throw new Error('Campos obrigatorios: nome, email, nome_empresa')
-     }
- 
-     // Verificar se email ja existe
-     const { data: existingUser } = await supabase
-       .from('usuarios')
-       .select('id')
-       .eq('email', email)
-       .single()
- 
-     if (existingUser) {
-       throw new Error('Este email ja esta cadastrado')
-     }
+      console.log('Starting trial for:', email)
+
+      // Validar campos obrigatorios
+      if (!email || !nome || !nome_empresa) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Campos obrigatórios: nome, email, nome_empresa' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        )
+      }
+
+      // Validar formato de email
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(email)) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Formato de email inválido' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        )
+      }
+
+      // Verificar se email ja existe
+      const { data: existingUser } = await supabase
+        .from('usuarios')
+        .select('id')
+        .eq('email', email)
+        .single()
+
+      if (existingUser) {
+        console.warn('Email already registered:', email)
+        return new Response(
+          JSON.stringify({ success: false, error: 'Não foi possível completar o cadastro' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        )
+      }
  
      // Buscar configuracao de trial
      const { data: configStripe } = await supabase
@@ -55,9 +71,13 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
      const trialEnabled = stripeConfig.trial_habilitado !== false
      const trialDias = (stripeConfig.trial_dias as number) || 14
  
-     if (!trialEnabled) {
-       throw new Error('Trial nao esta disponivel no momento')
-     }
+      if (!trialEnabled) {
+        console.warn('Trial disabled in config')
+        return new Response(
+          JSON.stringify({ success: false, error: 'Serviço indisponível no momento' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        )
+      }
  
      // Buscar plano Trial
      const { data: planoTrial } = await supabase
@@ -92,10 +112,13 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
        .select()
        .single()
  
-     if (orgError || !novaOrg) {
-       console.error('Error creating organization:', orgError)
-       throw new Error('Erro ao criar organizacao')
-     }
+      if (orgError || !novaOrg) {
+        console.error('Error creating organization:', orgError)
+        return new Response(
+          JSON.stringify({ success: false, error: 'Não foi possível completar o cadastro' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        )
+      }
  
      console.log('Organization created:', novaOrg.id)
  
@@ -109,11 +132,14 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
        user_metadata: { nome, organizacao_id: novaOrg.id },
      })
  
-     if (authError) {
-       console.error('Error creating auth user:', authError)
-       await supabase.from('organizacoes_saas').delete().eq('id', novaOrg.id)
-       throw new Error('Erro ao criar usuario')
-     }
+      if (authError) {
+        console.error('Error creating auth user:', authError)
+        await supabase.from('organizacoes_saas').delete().eq('id', novaOrg.id)
+        return new Response(
+          JSON.stringify({ success: false, error: 'Não foi possível completar o cadastro' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        )
+      }
  
      // Criar registro na tabela usuarios
      const { error: userError } = await supabase
@@ -151,14 +177,13 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
        }),
        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
      )
-   } catch (error: unknown) {
-     console.error('Error starting trial:', error)
-     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-     return new Response(
-       JSON.stringify({ success: false, error: errorMessage }),
-       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-     )
-   }
+    } catch (error: unknown) {
+      console.error('Error starting trial:', error)
+      return new Response(
+        JSON.stringify({ success: false, error: 'Erro interno ao processar a requisição' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      )
+    }
  })
  
  function generateSlug(nome: string): string {

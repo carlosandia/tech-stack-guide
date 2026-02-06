@@ -277,7 +277,7 @@ class GoogleService {
   ): Promise<StatusGoogleResponse> {
     const { data: conexao } = await supabase
       .from('conexoes_google')
-      .select('*')
+      .select('id, status, google_user_email, google_user_name, google_user_id, calendar_id, calendar_name, criar_google_meet, sincronizar_eventos, conectado_em, ultimo_sync, ultimo_erro')
       .eq('organizacao_id', organizacaoId)
       .eq('usuario_id', usuarioId)
       .is('deletado_em', null)
