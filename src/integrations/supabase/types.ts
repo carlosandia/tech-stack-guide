@@ -800,6 +800,7 @@ export type Database = {
       }
       configuracoes_card: {
         Row: {
+          acoes_rapidas: Json | null
           atualizado_em: string
           campos_customizados_visiveis: Json | null
           campos_visiveis: Json | null
@@ -809,6 +810,7 @@ export type Database = {
           organizacao_id: string
         }
         Insert: {
+          acoes_rapidas?: Json | null
           atualizado_em?: string
           campos_customizados_visiveis?: Json | null
           campos_visiveis?: Json | null
@@ -818,6 +820,7 @@ export type Database = {
           organizacao_id: string
         }
         Update: {
+          acoes_rapidas?: Json | null
           atualizado_em?: string
           campos_customizados_visiveis?: Json | null
           campos_visiveis?: Json | null
