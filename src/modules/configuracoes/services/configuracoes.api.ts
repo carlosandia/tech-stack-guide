@@ -1345,10 +1345,11 @@ export const integracoesApi = {
     },
     testarSmtp: async (payload: SmtpTestarPayload) => {
       // Chama Edge Function test-smtp via Supabase (evita CORS com localhost)
-      const { supabase } = await import('@/lib/supabase')
+      console.log('[testarSmtp] Chamando Edge Function test-smtp...')
       const { data, error } = await supabase.functions.invoke('test-smtp', {
         body: { modo: 'direto', email: payload.email, senha: payload.senha },
       })
+      console.log('[testarSmtp] Resposta:', { data, error })
       if (error) throw error
       if (data && !data.sucesso) throw new Error(data.mensagem || 'Falha no teste SMTP')
       return data
