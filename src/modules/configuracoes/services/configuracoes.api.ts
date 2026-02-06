@@ -332,8 +332,10 @@ export interface WebhookEntrada {
   url_token: string
   url_completa?: string
   api_key?: string | null
+  secret_key?: string | null
   ativo: boolean
   criado_em: string
+  total_requests?: number
   ultimo_request_em?: string | null
 }
 
@@ -1471,6 +1473,56 @@ export const googleCalendarApi = {
 // =====================================================
 
 export const webhooksApi = {
+  /**
+   * Busca ou cria automaticamente o webhook de entrada da organização.
+   * Padrão: 1 webhook por organização, pré-configurado.
+   */
+  obterOuCriarEntrada: async (): Promise<WebhookEntrada> => {
+    const orgId = await getOrganizacaoId()
+    const userId = await getUsuarioId()
+
+    // Buscar existente
+    const { data: existente } = await supabase
+      .from('webhooks_entrada')
+      .select('*')
+      .eq('organizacao_id', orgId)
+      .is('deletado_em', null)
+      .order('criado_em', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+
+    if (existente) {
+      const wh = existente as unknown as WebhookEntrada
+      wh.url_completa = `https://ybzhlsalbnxwkfszkloa.supabase.co/functions/v1/webhook-entrada/${wh.url_token}`
+      return wh
+    }
+
+    // Criar novo automaticamente com chaves pré-geradas
+    const urlToken = crypto.randomUUID().replace(/-/g, '')
+    const apiKey = `whk_${crypto.randomUUID().replace(/-/g, '')}`
+    const secretKey = `whs_${crypto.randomUUID().replace(/-/g, '')}`
+
+    const { data, error } = await supabase
+      .from('webhooks_entrada')
+      .insert({
+        organizacao_id: orgId,
+        nome: 'Webhook Principal',
+        descricao: 'Webhook de entrada para receber leads de plataformas externas',
+        url_token: urlToken,
+        api_key: apiKey,
+        secret_key: secretKey,
+        ativo: false,
+        criado_por: userId,
+      } as any)
+      .select()
+      .single()
+
+    if (error) throw new Error(`Erro ao criar webhook: ${error.message}`)
+    const wh = data as unknown as WebhookEntrada
+    wh.url_completa = `https://ybzhlsalbnxwkfszkloa.supabase.co/functions/v1/webhook-entrada/${wh.url_token}`
+    return wh
+  },
+
   listarEntrada: async () => {
     const { data, error, count } = await supabase
       .from('webhooks_entrada')
@@ -1479,7 +1531,11 @@ export const webhooksApi = {
       .order('criado_em', { ascending: false })
 
     if (error) throw new Error(`Erro ao listar webhooks: ${error.message}`)
-    return { webhooks: (data || []) as unknown as WebhookEntrada[], total: count || 0 }
+    const webhooks = (data || []).map((d: any) => ({
+      ...d,
+      url_completa: `https://ybzhlsalbnxwkfszkloa.supabase.co/functions/v1/webhook-entrada/${d.url_token}`,
+    })) as unknown as WebhookEntrada[]
+    return { webhooks, total: count || 0 }
   },
 
   criarEntrada: async (payload: Record<string, unknown>) => {
@@ -1528,6 +1584,25 @@ export const webhooksApi = {
       .single()
 
     if (error) throw new Error(`Erro ao regenerar token: ${error.message}`)
+    return data as unknown as WebhookEntrada
+  },
+
+  regenerarChaves: async (id: string) => {
+    const novaApiKey = `whk_${crypto.randomUUID().replace(/-/g, '')}`
+    const novaSecretKey = `whs_${crypto.randomUUID().replace(/-/g, '')}`
+
+    const { data, error } = await supabase
+      .from('webhooks_entrada')
+      .update({
+        api_key: novaApiKey,
+        secret_key: novaSecretKey,
+        atualizado_em: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) throw new Error(`Erro ao regenerar chaves: ${error.message}`)
     return data as unknown as WebhookEntrada
   },
 
