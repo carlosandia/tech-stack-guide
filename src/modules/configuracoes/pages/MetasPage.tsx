@@ -199,6 +199,7 @@ export function MetasPage() {
         equipes={equipes}
         usuarios={usuarios}
         loading={criarMeta.isPending || atualizarMeta.isPending}
+        defaultTipo={tabAtiva}
       />
     </div>
   )
