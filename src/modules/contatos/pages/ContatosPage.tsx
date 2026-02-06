@@ -421,6 +421,7 @@ export function ContatosPage() {
           tipo={tipo}
           loading={isLoading}
           selectedIds={selectedIds}
+          columns={columns}
           onToggleSelect={handleToggleSelect}
           onToggleSelectAll={handleToggleSelectAll}
           onView={(c) => { setViewingContato(c); setViewModalOpen(true) }}
