@@ -1,10 +1,15 @@
 /**
  * AIDEV-NOTE: Tabela de listagem de contatos com checkbox
  * Conforme PRD-06 e Design System - Table px-4 py-3
+ * Colunas Empresa, Segmentação e Responsável são clicáveis com popovers inline
  */
 
-import { Eye, Pencil, Trash2, MoreHorizontal } from 'lucide-react'
+import { Eye, Pencil, Trash2, MoreHorizontal, Users2 } from 'lucide-react'
 import { SegmentoBadge } from './SegmentoBadge'
+import { InlineEmpresaPopover } from './InlineEmpresaPopover'
+import { InlineSegmentoPopover } from './InlineSegmentoPopover'
+import { InlineResponsavelPopover } from './InlineResponsavelPopover'
+import { InlinePessoaPopover } from './InlinePessoaPopover'
 import type { Contato, TipoContato } from '../services/contatos.api'
 import { StatusContatoOptions } from '../schemas/contatos.schema'
 import { useState } from 'react'
@@ -85,8 +90,9 @@ export function ContatosList({
               <>
                 <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Empresa</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground hidden md:table-cell">CNPJ</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground hidden lg:table-cell">Email</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground hidden sm:table-cell">Telefone</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground hidden lg:table-cell">Pessoas</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground hidden lg:table-cell">Segmentação</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground hidden sm:table-cell">Responsável</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Status</th>
               </>
             )}
@@ -164,25 +170,46 @@ function ContatoRow({
           <td className="px-4 py-3 hidden md:table-cell">
             <span className="text-sm text-foreground truncate block max-w-[200px]">{contato.email || '—'}</span>
           </td>
-          <td className="px-4 py-3 hidden lg:table-cell">
-            <span className="text-sm text-foreground truncate block max-w-[150px]">
-              {contato.empresa?.nome_fantasia || contato.empresa?.razao_social || '—'}
-            </span>
+
+          {/* Empresa — clicável com popover */}
+          <td className="px-4 py-3 hidden lg:table-cell" onClick={e => e.stopPropagation()}>
+            <InlineEmpresaPopover
+              contatoId={contato.id}
+              empresaAtual={contato.empresa}
+            >
+              <span className="text-sm text-foreground truncate block max-w-[150px] border-b border-dashed border-muted-foreground/30 hover:border-primary hover:text-primary transition-colors">
+                {contato.empresa?.nome_fantasia || contato.empresa?.razao_social || '—'}
+              </span>
+            </InlineEmpresaPopover>
           </td>
-          <td className="px-4 py-3 hidden lg:table-cell">
-            <div className="flex flex-wrap gap-1 max-w-[200px]">
-              {contato.segmentos && contato.segmentos.length > 0
-                ? contato.segmentos.slice(0, 2).map((s) => <SegmentoBadge key={s.id} nome={s.nome} cor={s.cor} />)
-                : <span className="text-sm text-muted-foreground/50">—</span>}
-              {contato.segmentos && contato.segmentos.length > 2 && (
-                <span className="text-xs text-muted-foreground">+{contato.segmentos.length - 2}</span>
-              )}
-            </div>
+
+          {/* Segmentação — clicável com popover */}
+          <td className="px-4 py-3 hidden lg:table-cell" onClick={e => e.stopPropagation()}>
+            <InlineSegmentoPopover
+              contatoId={contato.id}
+              segmentosAtuais={contato.segmentos}
+            >
+              <div className="flex flex-wrap gap-1 max-w-[200px] border-b border-dashed border-transparent hover:border-primary transition-colors">
+                {contato.segmentos && contato.segmentos.length > 0
+                  ? contato.segmentos.slice(0, 2).map((s) => <SegmentoBadge key={s.id} nome={s.nome} cor={s.cor} />)
+                  : <span className="text-sm text-muted-foreground/50">—</span>}
+                {contato.segmentos && contato.segmentos.length > 2 && (
+                  <span className="text-xs text-muted-foreground">+{contato.segmentos.length - 2}</span>
+                )}
+              </div>
+            </InlineSegmentoPopover>
           </td>
-          <td className="px-4 py-3 hidden sm:table-cell">
-            <span className="text-sm text-foreground truncate block max-w-[120px]">
-              {contato.owner ? `${contato.owner.nome}` : '—'}
-            </span>
+
+          {/* Responsável — clicável com popover */}
+          <td className="px-4 py-3 hidden sm:table-cell" onClick={e => e.stopPropagation()}>
+            <InlineResponsavelPopover
+              contatoId={contato.id}
+              ownerId={contato.owner_id}
+            >
+              <span className="text-sm text-foreground truncate block max-w-[120px] border-b border-dashed border-muted-foreground/30 hover:border-primary hover:text-primary transition-colors">
+                {contato.owner ? `${contato.owner.nome}` : '—'}
+              </span>
+            </InlineResponsavelPopover>
           </td>
         </>
       ) : (
@@ -200,11 +227,51 @@ function ContatoRow({
           <td className="px-4 py-3 hidden md:table-cell">
             <span className="text-sm text-foreground">{contato.cnpj || '—'}</span>
           </td>
-          <td className="px-4 py-3 hidden lg:table-cell">
-            <span className="text-sm text-foreground truncate block max-w-[200px]">{contato.email || '—'}</span>
+
+          {/* Pessoas vinculadas — clicável com popover */}
+          <td className="px-4 py-3 hidden lg:table-cell" onClick={e => e.stopPropagation()}>
+            <InlinePessoaPopover
+              empresaId={contato.id}
+              pessoasVinculadas={contato.pessoas}
+            >
+              <div className="flex items-center gap-1 border-b border-dashed border-muted-foreground/30 hover:border-primary hover:text-primary transition-colors">
+                <Users2 className="w-3.5 h-3.5 text-muted-foreground" />
+                <span className="text-sm text-foreground">
+                  {contato.pessoas && contato.pessoas.length > 0
+                    ? `${contato.pessoas.length} pessoa${contato.pessoas.length > 1 ? 's' : ''}`
+                    : '—'}
+                </span>
+              </div>
+            </InlinePessoaPopover>
           </td>
-          <td className="px-4 py-3 hidden sm:table-cell">
-            <span className="text-sm text-foreground">{contato.telefone || '—'}</span>
+
+          {/* Segmentação — clicável com popover */}
+          <td className="px-4 py-3 hidden lg:table-cell" onClick={e => e.stopPropagation()}>
+            <InlineSegmentoPopover
+              contatoId={contato.id}
+              segmentosAtuais={contato.segmentos}
+            >
+              <div className="flex flex-wrap gap-1 max-w-[200px] border-b border-dashed border-transparent hover:border-primary transition-colors">
+                {contato.segmentos && contato.segmentos.length > 0
+                  ? contato.segmentos.slice(0, 2).map((s) => <SegmentoBadge key={s.id} nome={s.nome} cor={s.cor} />)
+                  : <span className="text-sm text-muted-foreground/50">—</span>}
+                {contato.segmentos && contato.segmentos.length > 2 && (
+                  <span className="text-xs text-muted-foreground">+{contato.segmentos.length - 2}</span>
+                )}
+              </div>
+            </InlineSegmentoPopover>
+          </td>
+
+          {/* Responsável — clicável com popover */}
+          <td className="px-4 py-3 hidden sm:table-cell" onClick={e => e.stopPropagation()}>
+            <InlineResponsavelPopover
+              contatoId={contato.id}
+              ownerId={contato.owner_id}
+            >
+              <span className="text-sm text-foreground truncate block max-w-[120px] border-b border-dashed border-muted-foreground/30 hover:border-primary hover:text-primary transition-colors">
+                {contato.owner ? `${contato.owner.nome}` : '—'}
+              </span>
+            </InlineResponsavelPopover>
           </td>
         </>
       )}
