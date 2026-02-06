@@ -1,9 +1,10 @@
 /**
  * AIDEV-NOTE: Popover inline para vincular pessoas a uma empresa
- * Usado na tabela de contatos (empresas) — coluna Pessoas
+ * Usa React Portal para renderizar fora do container com overflow
  */
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { Search, User, Plus, X } from 'lucide-react'
 import { useContatos, useAtualizarContato } from '../hooks/useContatos'
 
@@ -16,28 +17,48 @@ interface InlinePessoaPopoverProps {
 export function InlinePessoaPopover({ empresaId, pessoasVinculadas = [], children }: InlinePessoaPopoverProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
-  const ref = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState({ top: 0, left: 0 })
+  const triggerRef = useRef<HTMLDivElement>(null)
+  const popoverRef = useRef<HTMLDivElement>(null)
   const atualizar = useAtualizarContato()
 
-  // Buscar todas as pessoas (sem empresa ou com esta empresa)
   const { data: pessoasData } = useContatos({ tipo: 'pessoa', limit: 100, busca: search || undefined })
   const todasPessoas = pessoasData?.contatos || []
 
-  // Filtrar pessoas que NÃO estão vinculadas a outra empresa
   const pessoasDisponiveis = todasPessoas.filter(p =>
     !p.empresa_id || p.empresa_id === empresaId
   )
 
+  const updatePosition = useCallback(() => {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect()
+      setPos({ top: rect.bottom + 4, left: rect.left })
+    }
+  }, [])
+
   useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+    if (!open) return
+    updatePosition()
+
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        popoverRef.current && !popoverRef.current.contains(e.target as Node) &&
+        triggerRef.current && !triggerRef.current.contains(e.target as Node)
+      ) {
         setOpen(false)
         setSearch('')
       }
     }
-    if (open) document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [open])
+
+    function handleScroll() { updatePosition() }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    window.addEventListener('scroll', handleScroll, true)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      window.removeEventListener('scroll', handleScroll, true)
+    }
+  }, [open, updatePosition])
 
   const handleVincular = (pessoaId: string) => {
     atualizar.mutate({ id: pessoaId, payload: { empresa_id: empresaId } })
@@ -50,16 +71,22 @@ export function InlinePessoaPopover({ empresaId, pessoasVinculadas = [], childre
   const vinculadosIds = new Set(pessoasVinculadas.map(p => p.id))
 
   return (
-    <div ref={ref} className="relative">
+    <>
       <div
+        ref={triggerRef}
         onClick={(e) => { e.stopPropagation(); setOpen(!open) }}
         className="cursor-pointer hover:bg-accent/50 rounded px-1 -mx-1 transition-colors"
       >
         {children}
       </div>
 
-      {open && (
-        <div className="absolute left-0 top-full mt-1 w-72 bg-background rounded-md shadow-lg border border-border py-1 z-[600]" onClick={e => e.stopPropagation()}>
+      {open && createPortal(
+        <div
+          ref={popoverRef}
+          className="fixed w-72 bg-background rounded-md shadow-lg border border-border py-1"
+          style={{ top: pos.top, left: pos.left, zIndex: 600 }}
+          onClick={e => e.stopPropagation()}
+        >
           {/* Vinculadas */}
           {pessoasVinculadas.length > 0 && (
             <div className="px-3 py-1.5 border-b border-border">
@@ -113,8 +140,9 @@ export function InlinePessoaPopover({ empresaId, pessoasVinculadas = [], childre
               </p>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
-    </div>
+    </>
   )
 }
