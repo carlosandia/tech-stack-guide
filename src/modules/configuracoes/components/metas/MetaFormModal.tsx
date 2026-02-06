@@ -7,9 +7,21 @@ import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Target, Building2, Users, User, Loader2 } from 'lucide-react'
-import { metaFormSchema, type MetaFormValues, METRICAS_POR_CATEGORIA, CATEGORIAS, PERIODOS } from '../../schemas/metas.schema'
+import { metaFormSchema, type MetaFormValues, METRICAS_POR_CATEGORIA, CATEGORIAS, PERIODOS, getMetricaUnidade } from '../../schemas/metas.schema'
 import type { MetaComProgresso, EquipeComMembros, UsuarioTenant } from '../../services/configuracoes.api'
 import { ModalBase } from '../ui/ModalBase'
+
+// =====================================================
+// Helpers de máscara monetária BRL
+// =====================================================
+function formatCurrency(value: number): string {
+  if (!value && value !== 0) return ''
+  return new Intl.NumberFormat('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value)
+}
+
 
 interface Props {
   open: boolean
@@ -24,6 +36,7 @@ interface Props {
 
 export function MetaFormModal({ open, onClose, onSubmit, meta, equipes, usuarios, loading, defaultTipo = 'empresa' }: Props) {
   const [categoriaAtiva, setCategoriaAtiva] = useState<string>('receita')
+  const [valorDisplay, setValorDisplay] = useState('')
 
   const form = useForm<MetaFormValues>({
     resolver: zodResolver(metaFormSchema),
@@ -33,6 +46,37 @@ export function MetaFormModal({ open, onClose, onSubmit, meta, equipes, usuarios
   const tipoSelecionado = form.watch('tipo')
   const periodoSelecionado = form.watch('periodo')
   const dataInicio = form.watch('data_inicio')
+  const metricaSelecionada = form.watch('metrica')
+  const formValorMeta = form.watch('valor_meta')
+  const unidadeAtual = getMetricaUnidade(metricaSelecionada)
+  const isMoeda = unidadeAtual === 'R$'
+
+  const handleValorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value
+    if (!isMoeda) {
+      const num = parseFloat(raw)
+      form.setValue('valor_meta', isNaN(num) ? 0 : num)
+      return
+    }
+    const digits = raw.replace(/\D/g, '')
+    if (!digits) {
+      setValorDisplay('')
+      form.setValue('valor_meta', 0)
+      return
+    }
+    const numValue = parseInt(digits, 10) / 100
+    form.setValue('valor_meta', numValue)
+    setValorDisplay(formatCurrency(numValue))
+  }
+
+  // Sincronizar display quando valor muda externamente (edição, reset)
+  useEffect(() => {
+    if (isMoeda && formValorMeta) {
+      setValorDisplay(formatCurrency(formValorMeta))
+    } else if (isMoeda) {
+      setValorDisplay('')
+    }
+  }, [isMoeda, formValorMeta])
 
   // Auto-calcular data_fim baseado no período
   useEffect(() => {
@@ -184,8 +228,36 @@ export function MetaFormModal({ open, onClose, onSubmit, meta, equipes, usuarios
         {/* Valor da Meta */}
         <div>
           <label htmlFor="meta-valor" className="block text-sm font-medium text-foreground mb-1">Valor da Meta <span className="text-destructive">*</span></label>
-          <input id="meta-valor" type="number" step="0.01" {...form.register('valor_meta', { valueAsNumber: true })} placeholder="0,00"
-            className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm text-foreground focus:ring-2 focus:ring-ring focus:border-ring transition-all duration-200" aria-invalid={!!form.formState.errors.valor_meta} />
+          <div className="relative">
+            {isMoeda && (
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">R$</span>
+            )}
+            {isMoeda ? (
+              <input
+                id="meta-valor"
+                type="text"
+                inputMode="numeric"
+                value={valorDisplay}
+                onChange={handleValorChange}
+                placeholder="0,00"
+                className={`w-full h-10 ${isMoeda ? 'pl-10' : 'px-3'} pr-3 rounded-md border border-input bg-background text-sm text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-ring transition-all duration-200`}
+                aria-invalid={!!form.formState.errors.valor_meta}
+              />
+            ) : (
+              <input
+                id="meta-valor"
+                type="number"
+                step={unidadeAtual === '%' ? '0.1' : '1'}
+                {...form.register('valor_meta', { valueAsNumber: true })}
+                placeholder="0"
+                className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-ring transition-all duration-200"
+                aria-invalid={!!form.formState.errors.valor_meta}
+              />
+            )}
+            {!isMoeda && unidadeAtual && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">{unidadeAtual}</span>
+            )}
+          </div>
           {form.formState.errors.valor_meta && <p className="text-xs text-destructive mt-1">{form.formState.errors.valor_meta.message}</p>}
         </div>
 
