@@ -375,7 +375,7 @@ class EmailService {
   ): Promise<StatusEmailResponse> {
     const { data: conexao } = await supabase
       .from('conexoes_email')
-      .select('*')
+      .select('id, tipo, status, email, nome_remetente, smtp_host, smtp_port, smtp_tls, smtp_user, smtp_auto_detected, conectado_em, ultimo_envio, total_emails_enviados, ultimo_erro')
       .eq('organizacao_id', organizacaoId)
       .eq('usuario_id', usuarioId)
       .is('deletado_em', null)

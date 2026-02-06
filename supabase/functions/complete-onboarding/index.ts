@@ -61,24 +61,46 @@ import Stripe from 'npm:stripe@14.14.0'
        senha,
      } = body
  
-     // Validar campos obrigatórios
-     if (!session_id || !nome_empresa || !admin_nome || !admin_sobrenome || !admin_email || !admin_telefone || !senha) {
-       throw new Error('Todos os campos obrigatórios devem ser preenchidos')
-     }
+      // Validar campos obrigatórios
+      if (!session_id || !nome_empresa || !admin_nome || !admin_sobrenome || !admin_email || !admin_telefone || !senha) {
+        return new Response(
+          JSON.stringify({ error: 'Todos os campos obrigatórios devem ser preenchidos' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        )
+      }
+
+      // Validar formato de email
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(admin_email)) {
+        return new Response(
+          JSON.stringify({ error: 'Formato de email inválido' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        )
+      }
+
+      // Validar senha mínima
+      if (senha.length < 8) {
+        return new Response(
+          JSON.stringify({ error: 'A senha deve ter no mínimo 8 caracteres' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        )
+      }
  
      console.log('Starting onboarding for session:', session_id)
  
      // 1. Buscar sessão do Stripe
      const session = await stripe.checkout.sessions.retrieve(session_id)
  
-     if (!session) {
-       throw new Error('Sessão não encontrada')
-     }
+      if (!session) {
+        console.error('Session not found:', session_id)
+        throw new Error('Requisição inválida')
+      }
  
      // Verificar pagamento
-     if (session.payment_status !== 'paid' && session.payment_status !== 'no_payment_required') {
-       throw new Error('Pagamento não confirmado')
-     }
+      if (session.payment_status !== 'paid' && session.payment_status !== 'no_payment_required') {
+        console.error('Payment not confirmed for session:', session_id, 'status:', session.payment_status)
+        throw new Error('Requisição inválida')
+      }
  
      // 2. Verificar se sessão já foi usada
      const { data: pendingSession, error: pendingError } = await supabase
@@ -91,9 +113,10 @@ import Stripe from 'npm:stripe@14.14.0'
        console.error('Error checking pending session:', pendingError)
      }
  
-     if (pendingSession?.status === 'concluido') {
-       throw new Error('Esta sessão já foi utilizada para criar uma conta')
-     }
+      if (pendingSession?.status === 'concluido') {
+        console.warn('Session already used:', session_id)
+        throw new Error('Requisição inválida')
+      }
  
      // 3. Buscar dados do plano
      const planoId = session.metadata?.plano_id
@@ -108,10 +131,10 @@ import Stripe from 'npm:stripe@14.14.0'
          .eq('id', planoId)
          .single()
  
-       if (planoError) {
-         console.error('Error fetching plan:', planoError)
-         throw new Error('Plano não encontrado')
-       }
+        if (planoError) {
+          console.error('Error fetching plan:', planoError)
+          throw new Error('Não foi possível completar o cadastro')
+        }
        plano = planoData
      }
  
@@ -123,9 +146,10 @@ import Stripe from 'npm:stripe@14.14.0'
        (u: { email?: string }) => u.email?.toLowerCase() === admin_email.toLowerCase()
      )
  
-     if (emailExists) {
-       throw new Error('Este email já está cadastrado. Por favor, faça login.')
-     }
+      if (emailExists) {
+        console.warn('Email already registered:', admin_email)
+        throw new Error('Não foi possível completar o cadastro')
+      }
  
      // 5. Criar organização
      const trialExpiraEm = isTrial
@@ -150,10 +174,10 @@ import Stripe from 'npm:stripe@14.14.0'
        .select()
        .single()
  
-     if (orgError) {
-       console.error('Error creating organization:', orgError)
-       throw new Error('Erro ao criar organização: ' + orgError.message)
-     }
+      if (orgError) {
+        console.error('Error creating organization:', orgError)
+        throw new Error('Não foi possível completar o cadastro')
+      }
  
      console.log('Organization created:', org.id)
  
@@ -169,12 +193,12 @@ import Stripe from 'npm:stripe@14.14.0'
        },
      })
  
-     if (authError) {
-       console.error('Error creating auth user:', authError)
-       // Rollback: deletar organização
-       await supabase.from('organizacoes_saas').delete().eq('id', org.id)
-       throw new Error('Erro ao criar usuário: ' + authError.message)
-     }
+      if (authError) {
+        console.error('Error creating auth user:', authError)
+        // Rollback: deletar organização
+        await supabase.from('organizacoes_saas').delete().eq('id', org.id)
+        throw new Error('Não foi possível completar o cadastro')
+      }
  
      console.log('Auth user created:', authUser.user.id)
  
@@ -192,10 +216,10 @@ import Stripe from 'npm:stripe@14.14.0'
  
      if (userError) {
        console.error('Error creating user record:', userError)
-       // Rollback
-       await supabase.auth.admin.deleteUser(authUser.user.id)
-       await supabase.from('organizacoes_saas').delete().eq('id', org.id)
-       throw new Error('Erro ao criar registro do usuário: ' + userError.message)
+        // Rollback
+        await supabase.auth.admin.deleteUser(authUser.user.id)
+        await supabase.from('organizacoes_saas').delete().eq('id', org.id)
+        throw new Error('Não foi possível completar o cadastro')
      }
  
      console.log('User record created')
@@ -282,15 +306,14 @@ import Stripe from 'npm:stripe@14.14.0'
          status: 200,
        }
      )
-   } catch (error: unknown) {
-     console.error('Error completing onboarding:', error)
-     const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
-     return new Response(
-       JSON.stringify({ error: errorMessage }),
-       {
-         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-         status: 400,
-       }
-     )
-   }
+    } catch (error: unknown) {
+      console.error('Error completing onboarding:', error)
+      return new Response(
+        JSON.stringify({ error: 'Não foi possível completar o cadastro' }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400,
+        }
+      )
+    }
  })
