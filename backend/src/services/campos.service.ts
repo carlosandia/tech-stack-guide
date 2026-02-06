@@ -14,7 +14,7 @@ import type {
 } from '../schemas/campos'
 import { EntidadeEnum } from '../schemas/campos'
 
-type EntidadeCampo = 'contato' | 'pessoa' | 'empresa' | 'oportunidade'
+type EntidadeCampo = 'pessoa' | 'empresa' | 'oportunidade'
 
 const supabase = supabaseAdmin
 
