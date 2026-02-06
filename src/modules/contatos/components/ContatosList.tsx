@@ -44,7 +44,7 @@ export function ContatosList({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
+      <div className="flex-1 flex items-center justify-center">
         <div className="animate-pulse text-muted-foreground text-sm">Carregando contatos...</div>
       </div>
     )
@@ -52,7 +52,7 @@ export function ContatosList({
 
   if (contatos.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
+      <div className="flex-1 flex flex-col items-center justify-center text-center">
         <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3">
           <span className="text-2xl text-muted-foreground/50">👤</span>
         </div>
@@ -67,9 +67,9 @@ export function ContatosList({
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full">
-        <thead>
+    <div className="flex-1 overflow-auto relative">
+      <table className="w-full border-collapse">
+        <thead className="sticky top-0 z-20 bg-background">
           <tr className="border-b border-border">
             <th className="px-4 py-3 w-10">
               <input
@@ -101,7 +101,7 @@ export function ContatosList({
             <th className="px-4 py-3 w-10" />
           </tr>
         </thead>
-        <tbody>
+        <tbody className="divide-y divide-border/50">
           {contatos.map((contato) => (
             <ContatoRow
               key={contato.id}
@@ -185,7 +185,7 @@ function ContatoRow({
 
   return (
     <tr
-      className={`border-b border-border/50 hover:bg-accent/50 cursor-pointer transition-colors ${selected ? 'bg-primary/5' : ''}`}
+      className={`hover:bg-accent/50 cursor-pointer transition-colors ${selected ? 'bg-primary/5' : ''}`}
       onClick={onView}
     >
       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
