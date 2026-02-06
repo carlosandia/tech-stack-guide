@@ -1945,6 +1945,7 @@ export const equipeApi = {
     const orgId = await getOrganizacaoId()
     const userId = await getUsuarioId()
 
+    // 1. Criar o usuário na tabela
     const { data, error } = await supabase
       .from('usuarios')
       .insert({
@@ -1960,7 +1961,38 @@ export const equipeApi = {
       .single()
 
     if (error) throw new Error(`Erro ao convidar usuario: ${error.message}`)
-    // TODO: Enviar email de convite via edge function
+
+    // 2. Buscar nome da organização e do convidador
+    const [orgResult, userResult] = await Promise.all([
+      supabase.from('organizacoes_saas').select('nome').eq('id', orgId).maybeSingle(),
+      supabase.from('usuarios').select('nome, email').eq('id', userId).maybeSingle(),
+    ])
+
+    const orgNome = orgResult.data?.nome || 'CRM'
+    const convidadoPor = userResult.data?.nome || ''
+    const convidadoPorEmail = userResult.data?.email || ''
+
+    // 3. Chamar edge function para enviar email de convite
+    try {
+      const { error: fnError } = await supabase.functions.invoke('invite-admin', {
+        body: {
+          email: payload.email,
+          nome: payload.nome,
+          sobrenome: payload.sobrenome,
+          usuario_id: data.id,
+          organizacao_id: orgId,
+          organizacao_nome: orgNome,
+          convidado_por: convidadoPor,
+          convidado_por_email: convidadoPorEmail,
+        },
+      })
+      if (fnError) {
+        console.error('Erro ao enviar email de convite:', fnError)
+      }
+    } catch (e) {
+      console.error('Erro ao chamar invite-admin:', e)
+    }
+
     return data as unknown as UsuarioTenant
   },
 
@@ -1990,9 +2022,40 @@ export const equipeApi = {
     return data as unknown as UsuarioTenant
   },
 
-  reenviarConvite: async (_id: string) => {
-    // TODO: Implementar via edge function
-    throw new Error('Reenvio de convite requer backend. Em implementação.')
+  reenviarConvite: async (id: string) => {
+    const orgId = await getOrganizacaoId()
+    const userId = await getUsuarioId()
+
+    // Buscar dados do usuário
+    const { data: usuario, error: userError } = await supabase
+      .from('usuarios')
+      .select('id, nome, sobrenome, email')
+      .eq('id', id)
+      .maybeSingle()
+
+    if (userError || !usuario) throw new Error('Usuário não encontrado')
+
+    // Buscar nome da organização e convidador
+    const [orgResult, inviterResult] = await Promise.all([
+      supabase.from('organizacoes_saas').select('nome').eq('id', orgId).maybeSingle(),
+      supabase.from('usuarios').select('nome, email').eq('id', userId).maybeSingle(),
+    ])
+
+    const { error: fnError } = await supabase.functions.invoke('invite-admin', {
+      body: {
+        email: usuario.email,
+        nome: usuario.nome,
+        sobrenome: usuario.sobrenome,
+        usuario_id: usuario.id,
+        organizacao_id: orgId,
+        organizacao_nome: orgResult.data?.nome || 'CRM',
+        convidado_por: inviterResult.data?.nome || '',
+        convidado_por_email: inviterResult.data?.email || '',
+      },
+    })
+
+    if (fnError) throw new Error(`Erro ao reenviar convite: ${fnError.message}`)
+    return { success: true }
   },
 
   listarPerfis: async () => {

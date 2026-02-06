@@ -17,8 +17,9 @@ import {
 } from "npm:@react-email/components@0.0.22";
 
 /**
- * AIDEV-NOTE: Edge Function para convidar admins
+ * AIDEV-NOTE: Edge Function para convidar membros/admins
  * Usa generateLink para evitar o Auth Hook e envia email diretamente via Resend
+ * Template moderno com informações de quem enviou o convite
  */
 
 const corsHeaders = {
@@ -28,25 +29,30 @@ const corsHeaders = {
 };
 
 // =====================================================
-// EMAIL TEMPLATE (inline para evitar imports entre functions)
+// EMAIL TEMPLATE
 // =====================================================
 
-interface InviteAdminEmailProps {
+interface InviteEmailProps {
   nome: string;
   email: string;
   organizacaoNome: string;
   confirmUrl: string;
   token: string;
+  convidadoPor?: string;
+  convidadoPorEmail?: string;
 }
 
-const InviteAdminEmail = ({
+const InviteEmail = ({
   nome = "Usuario",
   email = "",
   organizacaoNome = "CRM",
   confirmUrl = "",
-  token = "",
-}: InviteAdminEmailProps) => {
-  const previewText = `Voce foi convidado para acessar o CRM Renove`;
+  convidadoPor = "",
+  convidadoPorEmail = "",
+}: InviteEmailProps) => {
+  const previewText = convidadoPor
+    ? `${convidadoPor} convidou você para acessar o CRM Renove`
+    : `Você foi convidado para acessar o CRM Renove`;
 
   return React.createElement(
     Html,
@@ -81,14 +87,28 @@ const InviteAdminEmail = ({
             `Olá, ${nome}! 👋`
           ),
 
+          // Invite context - quem convidou
+          convidadoPor
+            ? React.createElement(
+                Section,
+                { style: styles.inviterBox },
+                React.createElement(
+                  Text,
+                  { style: styles.inviterText },
+                  `📨 `,
+                  React.createElement("strong", null, convidadoPor),
+                  convidadoPorEmail ? ` (${convidadoPorEmail})` : "",
+                  ` convidou você para fazer parte da equipe.`
+                )
+              )
+            : null,
+
           // Intro text
           React.createElement(
             Text,
             { style: styles.paragraph },
             `Você foi convidado para acessar o `,
             React.createElement("strong", null, "CRM Renove"),
-            ` como `,
-            React.createElement("strong", null, "Administrador"),
             ` da organização `,
             React.createElement("strong", { style: { color: "#3B82F6" } }, organizacaoNome),
             `.`
@@ -124,7 +144,7 @@ const InviteAdminEmail = ({
             React.createElement(
               Button,
               { style: styles.button, href: confirmUrl },
-              "Definir Minha Senha"
+              "Definir Minha Senha e Acessar"
             )
           ),
 
@@ -193,7 +213,7 @@ const InviteAdminEmail = ({
 };
 
 // =====================================================
-// ESTILOS (Inline CSS para compatibilidade com emails)
+// ESTILOS
 // =====================================================
 
 const styles = {
@@ -239,6 +259,19 @@ const styles = {
     fontWeight: "600",
     lineHeight: "1.3",
     margin: "0 0 24px 0",
+  },
+  inviterBox: {
+    backgroundColor: "#F0FDF4",
+    borderRadius: "8px",
+    padding: "14px 20px",
+    margin: "0 0 24px 0",
+    border: "1px solid #BBF7D0",
+  },
+  inviterText: {
+    color: "#166534",
+    fontSize: "15px",
+    lineHeight: "1.6",
+    margin: "0",
   },
   paragraph: {
     color: "#334155",
@@ -396,12 +429,12 @@ Deno.serve(async (req) => {
     // Verificar se o usuário requisitante é admin ou super_admin
     const { data: requestingUser, error: requestingUserError } = await supabaseAdmin
       .from("usuarios")
-      .select("role, organizacao_id")
+      .select("role, organizacao_id, nome, email")
       .eq("auth_id", requestingUserId)
       .single();
 
     if (requestingUserError || !requestingUser) {
-      console.warn("[invite-admin] Usuário não encontrado na tabela usuarios:", requestingUserError?.message);
+      console.warn("[invite-admin] Usuário não encontrado:", requestingUserError?.message);
       return new Response(
         JSON.stringify({ error: "Usuário não encontrado" }),
         {
@@ -424,7 +457,7 @@ Deno.serve(async (req) => {
     }
 
     // =====================================================
-    // PARSE DO BODY E VALIDAÇÃO DE CAMPOS
+    // PARSE DO BODY
     // =====================================================
     const {
       email,
@@ -433,6 +466,8 @@ Deno.serve(async (req) => {
       usuario_id,
       organizacao_id,
       organizacao_nome,
+      convidado_por,
+      convidado_por_email,
     } = await req.json();
 
     console.log("[invite-admin] Invite request:", {
@@ -440,13 +475,14 @@ Deno.serve(async (req) => {
       usuario_id,
       organizacao_id,
       organizacao_nome,
+      convidado_por,
       requestedBy: requestingUserId,
     });
 
     if (!email || !usuario_id || !organizacao_id) {
       return new Response(
         JSON.stringify({
-          error: "Campos obrigatorios: email, usuario_id, organizacao_id",
+          error: "Campos obrigatórios: email, usuario_id, organizacao_id",
         }),
         {
           status: 400,
@@ -456,12 +492,8 @@ Deno.serve(async (req) => {
     }
 
     // Admin só pode convidar para sua própria organização
-    // Super admin pode convidar para qualquer organização
     if (requestingUser.role !== "super_admin" && requestingUser.organizacao_id !== organizacao_id) {
-      console.warn("[invite-admin] Admin tentando convidar para outra organização:", {
-        adminOrg: requestingUser.organizacao_id,
-        targetOrg: organizacao_id,
-      });
+      console.warn("[invite-admin] Admin tentando convidar para outra organização");
       return new Response(
         JSON.stringify({ error: "Acesso negado: não é possível convidar para outra organização" }),
         {
@@ -476,7 +508,11 @@ Deno.serve(async (req) => {
       "https://id-preview--1f239c79-4597-4aa1-ba11-8321b3203abb.lovable.app";
     const orgNome = organizacao_nome || "CRM";
 
-    // Tentar gerar link de convite - se usuario ja existe no Auth, usar magiclink
+    // Usar nome do convidador do body ou do requesting user
+    const inviterName = convidado_por || requestingUser.nome || "";
+    const inviterEmail = convidado_por_email || requestingUser.email || "";
+
+    // Gerar link de convite
     console.log("[invite-admin] Gerando link de convite...");
 
     let linkData: any = null;
@@ -491,20 +527,19 @@ Deno.serve(async (req) => {
           data: {
             nome,
             sobrenome,
-            role: "admin",
+            role: "member",
             tenant_id: organizacao_id,
             organizacao_nome: orgNome,
-            invite_type: "admin",
+            invite_type: "member",
           },
           redirectTo: `${origin}/auth/set-password`,
         },
       });
 
     if (inviteError) {
-      // Se o erro for "email_exists", o usuario ja existe no Auth
-      // Nesse caso, gerar um magiclink para redefinir a senha
+      // Se usuario já existe, gerar magiclink
       if (inviteError.message?.includes("already been registered") || (inviteError as any).code === "email_exists") {
-        console.log("[invite-admin] Usuario ja existe no Auth, gerando magiclink...");
+        console.log("[invite-admin] Usuário já existe, gerando magiclink...");
 
         const { data: magicData, error: magicError } =
           await supabaseAdmin.auth.admin.generateLink({
@@ -514,10 +549,10 @@ Deno.serve(async (req) => {
               data: {
                 nome,
                 sobrenome,
-                role: "admin",
+                role: "member",
                 tenant_id: organizacao_id,
                 organizacao_nome: orgNome,
-                invite_type: "admin",
+                invite_type: "member",
               },
               redirectTo: `${origin}/auth/set-password`,
             },
@@ -533,7 +568,6 @@ Deno.serve(async (req) => {
 
         linkData = magicData;
         userId = magicData.user?.id;
-        console.log("[invite-admin] Magiclink gerado para usuario existente:", userId);
       } else {
         console.error("[invite-admin] generateLink error:", inviteError);
         return new Response(JSON.stringify({ error: inviteError.message }), {
@@ -544,7 +578,7 @@ Deno.serve(async (req) => {
     } else {
       linkData = inviteData;
       userId = inviteData.user?.id;
-      console.log("[invite-admin] Novo usuario criado:", userId);
+      console.log("[invite-admin] Novo usuário criado:", userId);
     }
 
     // Atualizar usuario na tabela
@@ -553,31 +587,26 @@ Deno.serve(async (req) => {
       .update({ auth_id: userId, status: "pendente" })
       .eq("id", usuario_id);
 
-    // Inserir role (upsert para evitar duplicatas)
-    if (userId) {
-      await supabaseAdmin
-        .from("user_roles")
-        .upsert({ user_id: userId, role: "admin" }, { onConflict: "user_id,role" });
-    }
-
-    // Construir URL de confirmacao
+    // Construir URL de confirmação
     const tokenHash = linkData.properties?.hashed_token;
     const confirmUrl = `${supabaseUrl}/auth/v1/verify?token=${tokenHash}&type=invite&redirect_to=${encodeURIComponent(`${origin}/auth/set-password`)}`;
 
-    console.log("[invite-admin] Confirm URL:", confirmUrl);
+    console.log("[invite-admin] Confirm URL gerada");
 
-    // Enviar email diretamente via Resend (bypass do Auth Hook)
+    // Enviar email via Resend
     if (resendApiKey) {
       try {
         const resend = new Resend(resendApiKey);
 
         const html = await renderAsync(
-          React.createElement(InviteAdminEmail, {
-            nome: nome || "Usuario",
+          React.createElement(InviteEmail, {
+            nome: nome || "Usuário",
             email,
             organizacaoNome: orgNome,
             confirmUrl,
             token: linkData.properties?.token || "",
+            convidadoPor: inviterName,
+            convidadoPorEmail: inviterEmail,
           })
         );
 
@@ -585,25 +614,22 @@ Deno.serve(async (req) => {
           await resend.emails.send({
             from: "CRM Renove <crm@renovedigital.com.br>",
             to: [email],
-            subject: "Convite para acesso ao CRM Renove",
+            subject: inviterName
+              ? `${inviterName} convidou você para o CRM Renove`
+              : "Convite para acesso ao CRM Renove",
             html,
           });
 
         if (emailError) {
           console.error("[invite-admin] Erro ao enviar email:", emailError);
         } else {
-          console.log(
-            "[invite-admin] Email enviado com sucesso:",
-            emailData?.id
-          );
+          console.log("[invite-admin] Email enviado:", emailData?.id);
         }
       } catch (emailErr) {
-        console.error("[invite-admin] Erro no envio de email:", emailErr);
+        console.error("[invite-admin] Erro no envio:", emailErr);
       }
     } else {
-      console.warn(
-        "[invite-admin] RESEND_API_KEY nao configurada, email nao enviado"
-      );
+      console.warn("[invite-admin] RESEND_API_KEY não configurada");
     }
 
     return new Response(
