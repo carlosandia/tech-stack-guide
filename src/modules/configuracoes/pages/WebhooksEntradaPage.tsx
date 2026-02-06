@@ -24,6 +24,7 @@ import {
   useAtualizarWebhookEntrada,
   useRegenerarChavesWebhook,
 } from '../hooks/useWebhooks'
+import { WebhookInstrucoesModal } from '../components/webhooks/WebhookInstrucoesModal'
 
 export function WebhooksEntradaPage() {
   const { setSubtitle, setActions } = useConfigToolbar()
@@ -289,65 +290,13 @@ export function WebhooksEntradaPage() {
         </div>
       )}
 
-      {/* Instruções expandíveis */}
+      {/* Modal de Instruções */}
       {showInstrucoes && (
-        <div className="bg-card border border-border rounded-lg p-6 space-y-4">
-          <h3 className="text-sm font-semibold text-foreground">Como configurar suas integrações</h3>
-
-          <div className="space-y-3">
-            <div>
-              <p className="text-sm font-medium text-foreground">1. Copie a Webhook URL</p>
-              <p className="text-xs text-muted-foreground">
-                Cole esta URL como destino de webhook no N8N, Zapier, Make.com ou outra plataforma.
-              </p>
-            </div>
-
-            <div>
-              <p className="text-sm font-medium text-foreground">2. Configure a autenticação</p>
-              <p className="text-xs text-muted-foreground">
-                Inclua a API Key no header <code className="bg-muted px-1 py-0.5 rounded text-xs">X-Api-Key</code> ou{' '}
-                <code className="bg-muted px-1 py-0.5 rounded text-xs">Authorization: Bearer {'<api_key>'}</code>
-              </p>
-            </div>
-
-            <div>
-              <p className="text-sm font-medium text-foreground">3. Envie os dados como JSON</p>
-              <p className="text-xs text-muted-foreground">
-                O body deve conter os campos do lead. Campos reconhecidos:
-              </p>
-              <pre className="mt-2 p-3 rounded-md bg-muted text-xs font-mono text-foreground overflow-x-auto">
-{`{
-  "nome": "João Silva",
-  "email": "joao@email.com",
-  "telefone": "(11) 99999-0000",
-  "empresa": "Empresa Ltda",
-  "origem": "formulario_site",
-  "observacoes": "Interessado no plano Pro"
-}`}
-              </pre>
-            </div>
-
-            <div>
-              <p className="text-sm font-medium text-foreground">4. Habilite o webhook</p>
-              <p className="text-xs text-muted-foreground">
-                Ative o toggle acima para começar a receber leads automaticamente.
-              </p>
-            </div>
-          </div>
-
-          {webhook.total_requests != null && webhook.total_requests > 0 && (
-            <div className="pt-3 border-t border-border">
-              <p className="text-xs text-muted-foreground">
-                Total de requests recebidos: <span className="font-medium text-foreground">{webhook.total_requests}</span>
-                {webhook.ultimo_request_em && (
-                  <> · Último em: <span className="font-medium text-foreground">
-                    {new Date(webhook.ultimo_request_em).toLocaleString('pt-BR')}
-                  </span></>
-                )}
-              </p>
-            </div>
-          )}
-        </div>
+        <WebhookInstrucoesModal
+          onClose={() => setShowInstrucoes(false)}
+          webhookUrl={webhookUrl}
+          apiKey={webhook.api_key || ''}
+        />
       )}
 
       <p className="text-xs text-muted-foreground">
