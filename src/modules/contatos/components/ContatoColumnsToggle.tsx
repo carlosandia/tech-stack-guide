@@ -55,16 +55,38 @@ const COLUNAS_SISTEMA_EMPRESA: ColumnConfig[] = [
 
 const STORAGE_KEY_PREFIX = 'contatos_columns_v2_'
 
-function getInitialColumns(tipo: TipoContato): ColumnConfig[] {
+function getDefaultColumns(tipo: TipoContato): ColumnConfig[] {
   const fixas = tipo === 'pessoa' ? COLUNAS_FIXAS_PESSOA : COLUNAS_FIXAS_EMPRESA
   const sistema = tipo === 'pessoa' ? COLUNAS_SISTEMA_PESSOA : COLUNAS_SISTEMA_EMPRESA
   return [...fixas, ...sistema]
 }
 
-function getDefaultColumns(tipo: TipoContato): ColumnConfig[] {
-  const fixas = tipo === 'pessoa' ? COLUNAS_FIXAS_PESSOA : COLUNAS_FIXAS_EMPRESA
-  const sistema = tipo === 'pessoa' ? COLUNAS_SISTEMA_PESSOA : COLUNAS_SISTEMA_EMPRESA
-  return [...fixas, ...sistema]
+function getInitialColumns(tipo: TipoContato): ColumnConfig[] {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_PREFIX + tipo)
+    if (saved) {
+      const parsed = JSON.parse(saved) as ColumnConfig[]
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Garantir que colunas fixas sempre estejam presentes e visíveis
+        const defaults = getDefaultColumns(tipo)
+        const savedKeys = new Set(parsed.map(c => c.key))
+        // Adicionar colunas padrão que não existem no salvo (novos campos adicionados)
+        const missing = defaults.filter(d => !savedKeys.has(d.key))
+        const merged = [...parsed, ...missing].map(c => {
+          // Forçar fixas como visíveis
+          const defaultCol = defaults.find(d => d.key === c.key)
+          if (defaultCol?.fixed) {
+            return { ...c, fixed: true, visible: true, group: 'fixed' as const }
+          }
+          return c
+        })
+        return merged
+      }
+    }
+  } catch {
+    // Fallback para defaults
+  }
+  return getDefaultColumns(tipo)
 }
 
 interface ContatoColumnsToggleProps {
