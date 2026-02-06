@@ -346,7 +346,9 @@ export interface WebhookSaida {
   descricao?: string | null
   url: string
   eventos: string[]
-  tipo_autenticacao: string
+  auth_tipo: string
+  auth_header?: string | null
+  auth_valor?: string | null
   retry_ativo: boolean
   max_tentativas: number
   ativo: boolean
@@ -1652,8 +1654,74 @@ export const webhooksApi = {
     if (error) throw new Error(`Erro ao excluir webhook: ${error.message}`)
   },
 
-  testarSaida: async (_id: string) => {
-    throw new Error('Teste de webhook requer backend. Em implementação.')
+  testarSaida: async (id: string) => {
+    // Buscar webhook
+    const { data: webhook, error: fetchError } = await supabase
+      .from('webhooks_saida')
+      .select('*')
+      .eq('id', id)
+      .single()
+
+    if (fetchError || !webhook) throw new Error('Webhook não encontrado')
+
+    const wh = webhook as unknown as WebhookSaida
+    const testPayload = {
+      evento: 'teste',
+      dados: {
+        mensagem: 'Este é um teste de webhook',
+        timestamp: new Date().toISOString(),
+        webhook_id: id,
+      },
+    }
+
+    // Montar headers
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (wh.auth_tipo === 'bearer' && wh.auth_valor) {
+      headers['Authorization'] = `Bearer ${wh.auth_valor}`
+    } else if (wh.auth_tipo === 'api_key' && wh.auth_header && wh.auth_valor) {
+      headers[wh.auth_header] = wh.auth_valor
+    } else if (wh.auth_tipo === 'basic' && wh.auth_header && wh.auth_valor) {
+      headers['Authorization'] = `Basic ${btoa(`${wh.auth_header}:${wh.auth_valor}`)}`
+    }
+
+    const startTime = Date.now()
+    let statusCode: number | null = null
+    let responseBody: string | null = null
+    let sucesso = false
+    let erroMsg: string | null = null
+
+    try {
+      const resp = await fetch(wh.url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(testPayload),
+        signal: AbortSignal.timeout(10000),
+      })
+      statusCode = resp.status
+      responseBody = await resp.text().catch(() => null)
+      sucesso = resp.ok
+    } catch (err) {
+      erroMsg = (err as Error).message
+    }
+
+    const duracao = Date.now() - startTime
+
+    // Registrar log
+    const orgId = await getOrganizacaoId()
+    await supabase.from('webhooks_saida_logs').insert({
+      organizacao_id: orgId,
+      webhook_id: id,
+      evento: 'teste',
+      payload: testPayload as any,
+      status_code: statusCode,
+      response_body: responseBody?.substring(0, 2000) || null,
+      tentativa: 1,
+      sucesso,
+      erro_mensagem: erroMsg,
+      duracao_ms: duracao,
+    } as any)
+
+    return { sucesso, status_code: statusCode, duracao_ms: duracao, erro: erroMsg }
   },
 
   listarLogsSaida: async (id: string, params?: { evento?: string; sucesso?: string; page?: string; limit?: string }) => {
