@@ -1340,7 +1340,14 @@ export const integracoesApi = {
   // Email específico
   email: {
     salvarSmtp: async (payload: SmtpTestarPayload) => {
-      const { data } = await api.post('/v1/conexoes/email/smtp', payload)
+      // Chama Edge Function test-smtp modo salvar via Supabase (evita CORS com localhost)
+      console.log('[salvarSmtp] Chamando Edge Function test-smtp modo salvar...')
+      const { data, error } = await supabase.functions.invoke('test-smtp', {
+        body: { modo: 'salvar', email: payload.email, senha: payload.senha },
+      })
+      console.log('[salvarSmtp] Resposta:', { data, error })
+      if (error) throw error
+      if (data && !data.sucesso) throw new Error(data.mensagem || 'Falha ao salvar conexão')
       return data
     },
     testarSmtp: async (payload: SmtpTestarPayload) => {
