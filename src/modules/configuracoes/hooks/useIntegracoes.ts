@@ -4,6 +4,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { integracoesApi, type PlataformaIntegracao } from '../services/configuracoes.api'
 
 export function useIntegracoes() {
@@ -20,6 +21,10 @@ export function useDesconectarIntegracao() {
     mutationFn: (id: string) => integracoesApi.desconectar(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['configuracoes', 'integracoes'] })
+      toast.success('Integração desconectada com sucesso')
+    },
+    onError: () => {
+      toast.error('Erro ao desconectar integração')
     },
   })
 }
@@ -31,6 +36,10 @@ export function useSincronizarIntegracao() {
     mutationFn: (id: string) => integracoesApi.sincronizar(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['configuracoes', 'integracoes'] })
+      toast.success('Sincronização iniciada com sucesso')
+    },
+    onError: () => {
+      toast.error('Erro ao sincronizar integração')
     },
   })
 }
@@ -39,6 +48,9 @@ export function useObterAuthUrl() {
   return useMutation({
     mutationFn: ({ plataforma, redirect_uri }: { plataforma: PlataformaIntegracao; redirect_uri: string }) =>
       integracoesApi.obterAuthUrl(plataforma, redirect_uri),
+    onError: () => {
+      toast.error('Erro ao obter URL de autenticação')
+    },
   })
 }
 
@@ -59,6 +71,10 @@ export function useProcessarCallback() {
     }) => integracoesApi.processarCallback(plataforma, { code, state, redirect_uri }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['configuracoes', 'integracoes'] })
+      toast.success('Integração conectada com sucesso')
+    },
+    onError: () => {
+      toast.error('Erro ao processar autenticação')
     },
   })
 }

@@ -4,6 +4,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { metasApi } from '../services/configuracoes.api'
 
 const KEYS = {
@@ -48,6 +49,10 @@ export function useCriarMeta() {
     mutationFn: (payload: Record<string, unknown>) => metasApi.criar(payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: KEYS.metas })
+      toast.success('Meta criada com sucesso')
+    },
+    onError: () => {
+      toast.error('Erro ao criar meta')
     },
   })
 }
@@ -59,6 +64,10 @@ export function useAtualizarMeta() {
       metasApi.atualizar(id, payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: KEYS.metas })
+      toast.success('Meta atualizada com sucesso')
+    },
+    onError: () => {
+      toast.error('Erro ao atualizar meta')
     },
   })
 }
@@ -69,6 +78,10 @@ export function useExcluirMeta() {
     mutationFn: (id: string) => metasApi.excluir(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: KEYS.metas })
+      toast.success('Meta excluída com sucesso')
+    },
+    onError: () => {
+      toast.error('Erro ao excluir meta')
     },
   })
 }
@@ -80,6 +93,10 @@ export function useDistribuirMeta() {
       metasApi.distribuir(id, payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: KEYS.metas })
+      toast.success('Meta distribuída com sucesso')
+    },
+    onError: () => {
+      toast.error('Erro ao distribuir meta')
     },
   })
 }
