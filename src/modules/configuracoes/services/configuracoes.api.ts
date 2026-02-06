@@ -1344,12 +1344,35 @@ export const integracoesApi = {
       return data
     },
     testarSmtp: async (payload: SmtpTestarPayload) => {
-      const { data } = await api.post('/v1/conexoes/email/smtp/testar', payload)
+      // Chama Edge Function test-smtp via Supabase (evita CORS com localhost)
+      const { supabase } = await import('@/lib/supabase')
+      const { data, error } = await supabase.functions.invoke('test-smtp', {
+        body: { modo: 'direto', email: payload.email, senha: payload.senha },
+      })
+      if (error) throw error
+      if (data && !data.sucesso) throw new Error(data.mensagem || 'Falha no teste SMTP')
       return data
     },
     detectarSmtp: async (emailAddr: string): Promise<SmtpDetectResult> => {
-      const { data } = await api.post('/v1/conexoes/email/smtp/detectar', { email: emailAddr })
-      return data
+      // Auto-detecta provedor SMTP localmente (sem necessidade de backend)
+      const domain = emailAddr.split('@')[1]?.toLowerCase()
+      if (!domain) return { provedor: '', host: '', port: 587, tls: true }
+      const providers: Record<string, { provedor: string; host: string; port: number }> = {
+        'gmail.com': { provedor: 'Gmail', host: 'smtp.gmail.com', port: 587 },
+        'googlemail.com': { provedor: 'Gmail', host: 'smtp.gmail.com', port: 587 },
+        'outlook.com': { provedor: 'Outlook', host: 'smtp.office365.com', port: 587 },
+        'hotmail.com': { provedor: 'Outlook', host: 'smtp.office365.com', port: 587 },
+        'live.com': { provedor: 'Outlook', host: 'smtp.office365.com', port: 587 },
+        'yahoo.com': { provedor: 'Yahoo', host: 'smtp.mail.yahoo.com', port: 587 },
+        'yahoo.com.br': { provedor: 'Yahoo', host: 'smtp.mail.yahoo.com', port: 587 },
+        'icloud.com': { provedor: 'iCloud', host: 'smtp.mail.me.com', port: 587 },
+        'zoho.com': { provedor: 'Zoho', host: 'smtp.zoho.com', port: 587 },
+        'uol.com.br': { provedor: 'UOL', host: 'smtps.uol.com.br', port: 587 },
+        'terra.com.br': { provedor: 'Terra', host: 'smtp.terra.com.br', port: 587 },
+      }
+      const match = providers[domain]
+      if (match) return { provedor: match.provedor, host: match.host, port: match.port, tls: true }
+      return { provedor: domain, host: `smtp.${domain}`, port: 587, tls: true }
     },
     obterGmailAuthUrl: async (): Promise<{ url: string }> => {
       const { data } = await api.get('/v1/conexoes/email/google/auth-url')
