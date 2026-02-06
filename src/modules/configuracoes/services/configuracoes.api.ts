@@ -1954,7 +1954,6 @@ export const equipeApi = {
         email: payload.email,
         perfil_permissao_id: payload.papel_id,
         status: 'pendente',
-        criado_por: userId,
       } as any)
       .select()
       .single()
