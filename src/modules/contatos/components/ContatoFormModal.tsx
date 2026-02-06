@@ -17,6 +17,7 @@ import { ContatoFormFieldsToggle, getFieldVisibility } from './ContatoFormFields
 import { PhoneInputField } from './PhoneInputField'
 import { formatCnpj } from '@/lib/formatters'
 import { useContatos } from '../hooks/useContatos'
+import { useSegmentos } from '../hooks/useSegmentos'
 import type { InputHTMLAttributes, SelectHTMLAttributes } from 'react'
 
 interface ContatoFormModalProps {
@@ -110,6 +111,9 @@ export function ContatoFormModal({
   useEffect(() => {
     if (!open) return
 
+    // Reset segmentos selecionados
+    setSelectedSegmentoIds(contato?.segmentos?.map(s => s.id) || [])
+
     const defaults: Record<string, any> = {
       status: 'novo',
       origem: 'manual',
@@ -185,6 +189,10 @@ export function ContatoFormModal({
     // Strip CNPJ formatting before saving
     if (cleanData.cnpj && typeof cleanData.cnpj === 'string') {
       cleanData.cnpj = cleanData.cnpj.replace(/\D/g, '')
+    }
+    // Include segmento_ids for linking after creation
+    if (selectedSegmentoIds.length > 0) {
+      cleanData.segmento_ids = selectedSegmentoIds
     }
     onSubmit(cleanData)
   }
@@ -523,6 +531,37 @@ export function ContatoFormModal({
                   <option key={u.id} value={u.id}>{u.nome} {u.sobrenome || ''}</option>
                 ))}
               </SelectField>
+            )}
+
+            {/* Segmentos */}
+            {segmentosList.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">Segmentos</label>
+                <div className="flex flex-wrap gap-2 p-3 rounded-md border border-input bg-background min-h-[42px]">
+                  {segmentosList.map(seg => {
+                    const isSelected = selectedSegmentoIds.includes(seg.id)
+                    return (
+                      <button
+                        key={seg.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedSegmentoIds(prev =>
+                            isSelected ? prev.filter(id => id !== seg.id) : [...prev, seg.id]
+                          )
+                        }}
+                        className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                          isSelected
+                            ? 'bg-primary/10 text-primary border border-primary/30'
+                            : 'bg-muted text-muted-foreground border border-transparent hover:border-border'
+                        }`}
+                      >
+                        <span className="w-2 h-2 rounded-full mr-1.5" style={{ backgroundColor: seg.cor }} />
+                        {seg.nome}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
             )}
 
             {/* Campos personalizados */}

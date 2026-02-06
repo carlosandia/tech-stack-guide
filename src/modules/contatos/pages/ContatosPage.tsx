@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Plus, Search, Filter, Download, Upload, Users2, Building2, X, Tag, GitMerge, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Plus, Search, Filter, Download, Upload, Users2, Building2, X, Tag, GitMerge, ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
 import { useAuth } from '@/providers/AuthProvider'
 import { useAppToolbar } from '@/modules/app/contexts/AppToolbarContext'
 import { useContatos, useCriarContato, useAtualizarContato, useExcluirContato, useExcluirContatosLote, useDuplicatas } from '../hooks/useContatos'
@@ -22,6 +22,7 @@ import { ConfirmarExclusaoModal } from '../components/ConfirmarExclusaoModal'
 import { SegmentosManager } from '../components/SegmentosManager'
 import { DuplicatasModal } from '../components/DuplicatasModal'
 import { ImportarContatosModal } from '../components/ImportarContatosModal'
+import { ExportarContatosModal } from '../components/ExportarContatosModal'
 import { ContatoColumnsToggle, getInitialColumns, type ColumnConfig } from '../components/ContatoColumnsToggle'
 
 import { StatusContatoOptions, OrigemContatoOptions } from '../schemas/contatos.schema'
@@ -45,10 +46,17 @@ export function ContatosPage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [origemFilter, setOrigemFilter] = useState('')
   const [segmentoFilter, setSegmentoFilter] = useState('')
+  const [responsavelFilter, setResponsavelFilter] = useState('')
+  const [dataInicioFilter, setDataInicioFilter] = useState('')
+  const [dataFimFilter, setDataFimFilter] = useState('')
   const [showFilters, setShowFilters] = useState(false)
   const [page, setPage] = useState(1)
   const perPage = 50
   const searchInputRef = useRef<HTMLInputElement>(null)
+
+  // Estado de ordenação
+  const [ordenarPor, setOrdenarPor] = useState('criado_em')
+  const [ordem, setOrdem] = useState<'asc' | 'desc'>('desc')
 
   // Estado de seleção
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -60,11 +68,16 @@ export function ContatosPage() {
   const [segmentosModalOpen, setSegmentosModalOpen] = useState(false)
   const [duplicatasModalOpen, setDuplicatasModalOpen] = useState(false)
   const [importarModalOpen, setImportarModalOpen] = useState(false)
+  const [exportModalOpen, setExportModalOpen] = useState(false)
   const [editingContato, setEditingContato] = useState<Contato | null>(null)
   const [viewingContato, setViewingContato] = useState<Contato | null>(null)
   const [deletingContato, setDeletingContato] = useState<Contato | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [openedFormFromView, setOpenedFormFromView] = useState(false)
+
+  // Estado de vínculos (exclusão)
+  const [deleteBloqueado, setDeleteBloqueado] = useState(false)
+  const [deleteVinculos, setDeleteVinculos] = useState<Array<{ tipo: string; nome: string; id: string }>>([])
 
   // Toggle de colunas
   const [columns, setColumns] = useState<ColumnConfig[]>(() => getInitialColumns(tipo))
@@ -73,10 +86,16 @@ export function ContatosPage() {
   const { data: segmentosData } = useSegmentos()
   const segmentos = segmentosData?.segmentos || []
 
-  // Debounce da busca
+  // Debounce da busca - mínimo 3 caracteres ou Enter
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedBusca(busca), 300)
-    return () => clearTimeout(timer)
+    if (busca.length === 0) {
+      setDebouncedBusca('')
+      return
+    }
+    if (busca.length >= 3) {
+      const timer = setTimeout(() => setDebouncedBusca(busca), 300)
+      return () => clearTimeout(timer)
+    }
   }, [busca])
 
   // Focus no input de busca ao abrir
@@ -93,9 +112,14 @@ export function ContatosPage() {
     status: (statusFilter || undefined) as ListarContatosParams['status'],
     origem: (origemFilter || undefined) as ListarContatosParams['origem'],
     segmento_id: segmentoFilter || undefined,
+    owner_id: responsavelFilter || undefined,
+    data_inicio: dataInicioFilter || undefined,
+    data_fim: dataFimFilter || undefined,
     page,
     limit: perPage,
-  }), [tipo, debouncedBusca, statusFilter, origemFilter, segmentoFilter, page])
+    ordenar_por: ordenarPor,
+    ordem,
+  }), [tipo, debouncedBusca, statusFilter, origemFilter, segmentoFilter, responsavelFilter, dataInicioFilter, dataFimFilter, page, ordenarPor, ordem])
 
   const { data, isLoading } = useContatos(params)
   const criarContato = useCriarContato()
@@ -132,10 +156,15 @@ export function ContatosPage() {
     setSelectedIds(new Set())
     setPage(1)
     setColumns(getInitialColumns(tipo))
+    setResponsavelFilter('')
+    setDataInicioFilter('')
+    setDataFimFilter('')
+    setOrdenarPor('criado_em')
+    setOrdem('desc')
   }, [tipo])
 
   // Contagem de filtros ativos
-  const filtrosAtivos = [statusFilter, origemFilter, segmentoFilter].filter(Boolean).length
+  const filtrosAtivos = [statusFilter, origemFilter, segmentoFilter, responsavelFilter, dataInicioFilter, dataFimFilter].filter(Boolean).length
 
   // --- Toolbar: Subtitle (Tabs Pessoas/Empresas) ---
   useEffect(() => {
@@ -188,6 +217,7 @@ export function ContatosPage() {
               placeholder={`Buscar ${tipo === 'pessoa' ? 'pessoas' : 'empresas'}...`}
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && busca.length > 0) setDebouncedBusca(busca) }}
               onBlur={() => { if (!busca) setSearchOpen(false) }}
               className="w-48 pl-8 pr-7 py-1.5 text-sm rounded-md border border-input bg-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             />
@@ -248,7 +278,7 @@ export function ContatosPage() {
 
         {/* Importar + Exportar juntos */}
         <button
-          onClick={handleExportSelected}
+          onClick={() => setExportModalOpen(true)}
           className="flex items-center gap-1 px-2.5 py-1.5 text-sm rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
         >
           <Download className="w-3.5 h-3.5" />
@@ -313,12 +343,19 @@ export function ContatosPage() {
     }
   }, [data, selectedIds])
 
-  const handleFormSubmit = (formData: Record<string, unknown>) => {
+  const handleFormSubmit = async (formData: Record<string, unknown>) => {
+    const segmentoIds = formData.segmento_ids as string[] | undefined
+    const cleanData = { ...formData }
+    delete cleanData.segmento_ids
+
     if (editingContato) {
       atualizarContato.mutate(
-        { id: editingContato.id, payload: formData },
+        { id: editingContato.id, payload: cleanData },
         {
-          onSuccess: () => {
+          onSuccess: async () => {
+            if (segmentoIds) {
+              try { await contatosApi.vincularSegmentos(editingContato.id, segmentoIds) } catch {}
+            }
             setFormModalOpen(false)
             if (openedFormFromView) {
               setViewingContato(editingContato)
@@ -330,7 +367,15 @@ export function ContatosPage() {
         }
       )
     } else {
-      criarContato.mutate(formData, { onSuccess: () => { setFormModalOpen(false); setEditingContato(null) } })
+      criarContato.mutate(cleanData, {
+        onSuccess: async (contato: any) => {
+          if (segmentoIds && segmentoIds.length > 0) {
+            try { await contatosApi.vincularSegmentos(contato.id, segmentoIds) } catch {}
+          }
+          setFormModalOpen(false)
+          setEditingContato(null)
+        }
+      })
     }
   }
 
@@ -343,8 +388,27 @@ export function ContatosPage() {
     setEditingContato(null)
   }, [openedFormFromView, viewingContato])
 
-  const handleDelete = () => {
-    if (!deletingContato) return
+  // Iniciar exclusão: verificar vínculos primeiro
+  const handleInitDelete = useCallback(async (contato: Contato) => {
+    setDeletingContato(contato)
+    setDeleteError(null)
+    setDeleteBloqueado(false)
+    setDeleteVinculos([])
+
+    try {
+      const result = await contatosApi.verificarVinculos(contato.id, contato.tipo as TipoContato)
+      if (result.temVinculos) {
+        setDeleteBloqueado(true)
+        setDeleteVinculos(result.vinculos)
+      }
+    } catch {}
+
+    setDeleteModalOpen(true)
+  }, [])
+
+  // Confirmar exclusão (quando não bloqueado)
+  const handleConfirmDelete = useCallback(() => {
+    if (!deletingContato || deleteBloqueado) return
     setDeleteError(null)
     excluirContato.mutate(deletingContato.id, {
       onSuccess: () => {
@@ -353,32 +417,45 @@ export function ContatosPage() {
         setViewModalOpen(false)
       },
       onError: (err: any) => {
-        setDeleteError(err?.response?.data?.error || 'Erro ao excluir contato')
+        setDeleteError(err?.response?.data?.error || err?.message || 'Erro ao excluir contato')
       },
     })
-  }
+  }, [deletingContato, deleteBloqueado, excluirContato])
 
-  const handleBulkDelete = () => {
+  // Exclusão em massa com verificação de vínculos
+  const handleBulkDelete = useCallback(async () => {
+    if (tipo === 'empresa') {
+      try {
+        const result = await contatosApi.verificarVinculosLote(Array.from(selectedIds), tipo)
+        if (result.temVinculos) {
+          setDeletingContato(null)
+          setDeleteBloqueado(true)
+          setDeleteVinculos(result.vinculos)
+          setDeleteError(null)
+          setDeleteModalOpen(true)
+          return
+        }
+      } catch {}
+    }
+
     excluirLote.mutate(
       { ids: Array.from(selectedIds), tipo },
       { onSuccess: () => setSelectedIds(new Set()) }
     )
-  }
+  }, [selectedIds, tipo, excluirLote])
 
-  const handleExportSelected = async () => {
-    try {
-      const csv = await contatosApi.exportar({ tipo, limit: 1000 })
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `contatos_${tipo}_${new Date().toISOString().slice(0, 10)}.csv`
-      a.click()
-      URL.revokeObjectURL(url)
-    } catch {
-      // Toast de erro já tratado pelo interceptor
-    }
-  }
+  // Handler de ordenação
+  const handleSort = useCallback((column: string) => {
+    setOrdenarPor(prev => {
+      if (prev === column) {
+        setOrdem(o => o === 'asc' ? 'desc' : 'asc')
+        return column
+      }
+      setOrdem('desc')
+      return column
+    })
+    setPage(1)
+  }, [])
 
   const contatos = data?.contatos || []
   const totalPages = data ? Math.ceil(data.total / perPage) : 0
@@ -423,9 +500,45 @@ export function ContatosPage() {
             </select>
           )}
 
+          {/* Filtro de Responsável (Admin only) */}
+          {isAdmin && (
+            <select
+              value={responsavelFilter}
+              onChange={(e) => { setResponsavelFilter(e.target.value); setPage(1) }}
+              className="text-sm rounded-md border border-input bg-background px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="">Todos os responsáveis</option>
+              {usuariosLista.map((u) => (
+                <option key={u.id} value={u.id}>{u.nome} {u.sobrenome || ''}</option>
+              ))}
+            </select>
+          )}
+
+          {/* Filtro de Período de Criação */}
+          <div className="flex items-center gap-1.5">
+            <Calendar className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+            <input
+              type="date"
+              value={dataInicioFilter}
+              onChange={(e) => { setDataInicioFilter(e.target.value); setPage(1) }}
+              className="text-sm rounded-md border border-input bg-background px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <span className="text-xs text-muted-foreground">até</span>
+            <input
+              type="date"
+              value={dataFimFilter}
+              onChange={(e) => { setDataFimFilter(e.target.value); setPage(1) }}
+              className="text-sm rounded-md border border-input bg-background px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+
           {filtrosAtivos > 0 && (
             <button
-              onClick={() => { setStatusFilter(''); setOrigemFilter(''); setSegmentoFilter(''); setPage(1) }}
+              onClick={() => {
+                setStatusFilter(''); setOrigemFilter(''); setSegmentoFilter('')
+                setResponsavelFilter(''); setDataInicioFilter(''); setDataFimFilter('')
+                setPage(1)
+              }}
               className="text-xs text-primary hover:underline"
             >
               Limpar filtros
@@ -442,11 +555,13 @@ export function ContatosPage() {
           loading={isLoading}
           selectedIds={selectedIds}
           columns={columns}
+          sortConfig={{ column: ordenarPor, direction: ordem }}
+          onSort={handleSort}
           onToggleSelect={handleToggleSelect}
           onToggleSelectAll={handleToggleSelectAll}
           onView={(c) => { setViewingContato(c); setViewModalOpen(true) }}
           onEdit={(c) => { setEditingContato(c); setFormModalOpen(true) }}
-          onDelete={(c) => { setDeletingContato(c); setDeleteError(null); setDeleteModalOpen(true) }}
+          onDelete={handleInitDelete}
         />
 
         {/* Paginação fixa no rodapé */}
@@ -499,7 +614,7 @@ export function ContatosPage() {
         tipo={tipo}
         isAdmin={isAdmin}
         onExcluir={handleBulkDelete}
-        onExportar={handleExportSelected}
+        onExportar={() => setExportModalOpen(true)}
         onClearSelection={() => setSelectedIds(new Set())}
       />
 
@@ -529,18 +644,18 @@ export function ContatosPage() {
         }}
         onDelete={() => {
           setViewModalOpen(false)
-          setDeletingContato(viewingContato)
-          setDeleteError(null)
-          setDeleteModalOpen(true)
+          if (viewingContato) handleInitDelete(viewingContato)
         }}
       />
 
       <ConfirmarExclusaoModal
         open={deleteModalOpen}
-        onClose={() => { setDeleteModalOpen(false); setDeletingContato(null); setDeleteError(null) }}
-        onConfirm={handleDelete}
+        onClose={() => { setDeleteModalOpen(false); setDeletingContato(null); setDeleteError(null); setDeleteBloqueado(false); setDeleteVinculos([]) }}
+        onConfirm={handleConfirmDelete}
         loading={excluirContato.isPending}
         erro={deleteError}
+        bloqueado={deleteBloqueado}
+        vinculos={deleteVinculos}
       />
 
       <SegmentosManager
@@ -556,6 +671,14 @@ export function ContatosPage() {
       <ImportarContatosModal
         open={importarModalOpen}
         onClose={() => setImportarModalOpen(false)}
+      />
+
+      <ExportarContatosModal
+        open={exportModalOpen}
+        onClose={() => setExportModalOpen(false)}
+        tipo={tipo}
+        filtros={params}
+        selectedIds={selectedIds.size > 0 ? Array.from(selectedIds) : undefined}
       />
     </div>
   )

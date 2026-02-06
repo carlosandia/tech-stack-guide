@@ -171,7 +171,7 @@ export const contatosApi = {
 
     if (params?.busca) {
       query = query.or(
-        `nome.ilike.%${params.busca}%,sobrenome.ilike.%${params.busca}%,email.ilike.%${params.busca}%,telefone.ilike.%${params.busca}%,razao_social.ilike.%${params.busca}%,nome_fantasia.ilike.%${params.busca}%`
+        `nome.ilike.%${params.busca}%,sobrenome.ilike.%${params.busca}%,email.ilike.%${params.busca}%,telefone.ilike.%${params.busca}%,razao_social.ilike.%${params.busca}%,nome_fantasia.ilike.%${params.busca}%,cargo.ilike.%${params.busca}%,cnpj.ilike.%${params.busca}%`
       )
     }
 

@@ -5,6 +5,7 @@
  */
 
 import { X, Pencil, Trash2, Building2, User, Briefcase } from 'lucide-react'
+import { format } from 'date-fns'
 import { SegmentoBadge } from './SegmentoBadge'
 import { ContatoViewFieldsToggle, isViewFieldVisible } from './ContatoViewFieldsToggle'
 import type { Contato } from '../services/contatos.api'
