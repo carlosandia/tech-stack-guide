@@ -76,6 +76,7 @@ export const sidebarGroups: SidebarGroup[] = [
 /** Mapeamento de títulos de página (quando diferente do label do menu) */
 const pageTitleOverrides: Record<string, string> = {
   '/app/configuracoes/regras': 'Regras de Qualificação',
+  '/app/configuracoes/cards': 'Cards da Oportunidade',
 }
 
 /** Retorna o título da página com base no pathname */

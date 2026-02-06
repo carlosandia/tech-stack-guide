@@ -27,7 +27,7 @@ export function CamposPage() {
 
   // Injetar ações no toolbar
   useEffect(() => {
-    setSubtitle('Gerencie os campos personalizados por entidade')
+    setSubtitle('Crie e gerencie campos customizados para Pessoas, Empresas e Oportunidades')
     setActions(
       isAdmin ? (
         <button

@@ -33,7 +33,7 @@ export function MembrosPage() {
   const reenviarConvite = useReenviarConvite()
 
   useEffect(() => {
-    setSubtitle('Gerencie os membros e convites da sua equipe')
+    setSubtitle('Gerencie os membros da equipe, envie convites e controle permissões de acesso')
     setActions(
       isAdmin ? (
         <button

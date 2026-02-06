@@ -30,7 +30,7 @@ export function EtapasTemplatesPage() {
   const { data, isLoading, error } = useEtapasTemplates()
 
   useEffect(() => {
-    setSubtitle('Etapas disponíveis para usar nas pipelines')
+    setSubtitle('Modelos de etapas com tarefas pré-configuradas para utilizar nos funis de vendas')
     setActions(
       isAdmin ? (
         <button

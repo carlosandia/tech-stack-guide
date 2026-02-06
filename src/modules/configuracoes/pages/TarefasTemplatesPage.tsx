@@ -42,7 +42,7 @@ export function TarefasTemplatesPage() {
   const { data, isLoading, error } = useTarefasTemplates()
 
   useEffect(() => {
-    setSubtitle('Tarefas disponíveis para vincular nas etapas da pipeline')
+    setSubtitle('Modelos de tarefas que podem ser vinculados automaticamente às etapas do funil')
     setActions(
       isAdmin ? (
         <button

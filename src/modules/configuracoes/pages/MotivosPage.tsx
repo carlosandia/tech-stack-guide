@@ -25,7 +25,7 @@ export function MotivosPage() {
 
   // Injetar ações no toolbar
   useEffect(() => {
-    setSubtitle('Gerencie motivos de ganho e perda de negócios')
+    setSubtitle('Defina os motivos que justificam o ganho ou perda de uma oportunidade')
     setActions(
       isAdmin ? (
         <button

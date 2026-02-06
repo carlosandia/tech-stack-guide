@@ -25,7 +25,7 @@ export function RegrasPage() {
   const atualizarRegra = useAtualizarRegra()
 
   useEffect(() => {
-    setSubtitle('Quando TODAS as regras forem verdadeiras...')
+    setSubtitle('Quando TODAS as regras forem verdadeiras, o contato será marcado como MQL')
     setActions(
       isAdmin ? (
         <button

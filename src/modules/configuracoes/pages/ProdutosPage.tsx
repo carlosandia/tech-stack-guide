@@ -44,7 +44,7 @@ export function ProdutosPage() {
 
   // Injetar ações no toolbar
   useEffect(() => {
-    setSubtitle('Gerencie produtos e categorias do catálogo')
+    setSubtitle('Gerencie produtos, serviços e categorias para vincular às oportunidades')
     setActions(
       isAdmin ? (
         <button
