@@ -38,9 +38,26 @@ export function MetaFormModal({ open, onClose, onSubmit, meta, equipes, usuarios
   const [categoriaAtiva, setCategoriaAtiva] = useState<string>('receita')
   const [valorDisplay, setValorDisplay] = useState('')
 
+  // Helper: calcula data_fim a partir de data_inicio + periodo
+  const calcularDataFim = (dataInicio: string, periodo: string): string => {
+    if (!dataInicio) return ''
+    const inicio = new Date(dataInicio)
+    const fim = new Date(inicio)
+    switch (periodo) {
+      case 'mensal': fim.setMonth(fim.getMonth() + 1); fim.setDate(fim.getDate() - 1); break
+      case 'trimestral': fim.setMonth(fim.getMonth() + 3); fim.setDate(fim.getDate() - 1); break
+      case 'semestral': fim.setMonth(fim.getMonth() + 6); fim.setDate(fim.getDate() - 1); break
+      case 'anual': fim.setFullYear(fim.getFullYear() + 1); fim.setDate(fim.getDate() - 1); break
+    }
+    return fim.toISOString().split('T')[0]
+  }
+
+  const hoje = new Date().toISOString().split('T')[0]
+  const dataFimInicial = calcularDataFim(hoje, 'mensal')
+
   const form = useForm<MetaFormValues>({
     resolver: zodResolver(metaFormSchema),
-    defaultValues: { tipo: defaultTipo, nome: '', metrica: 'valor_vendas', valor_meta: 0, periodo: 'mensal', data_inicio: new Date().toISOString().split('T')[0], data_fim: '' },
+    defaultValues: { tipo: defaultTipo, nome: '', metrica: 'valor_vendas', valor_meta: 0, periodo: 'mensal', data_inicio: hoje, data_fim: dataFimInicial },
   })
 
   const tipoSelecionado = form.watch('tipo')
@@ -81,15 +98,8 @@ export function MetaFormModal({ open, onClose, onSubmit, meta, equipes, usuarios
   // Auto-calcular data_fim baseado no período
   useEffect(() => {
     if (dataInicio && periodoSelecionado) {
-      const inicio = new Date(dataInicio)
-      const fim = new Date(inicio)
-      switch (periodoSelecionado) {
-        case 'mensal': fim.setMonth(fim.getMonth() + 1); fim.setDate(fim.getDate() - 1); break
-        case 'trimestral': fim.setMonth(fim.getMonth() + 3); fim.setDate(fim.getDate() - 1); break
-        case 'semestral': fim.setMonth(fim.getMonth() + 6); fim.setDate(fim.getDate() - 1); break
-        case 'anual': fim.setFullYear(fim.getFullYear() + 1); fim.setDate(fim.getDate() - 1); break
-      }
-      form.setValue('data_fim', fim.toISOString().split('T')[0])
+      const novaDataFim = calcularDataFim(dataInicio, periodoSelecionado)
+      form.setValue('data_fim', novaDataFim)
     }
   }, [dataInicio, periodoSelecionado, form])
 
@@ -105,8 +115,10 @@ export function MetaFormModal({ open, onClose, onSubmit, meta, equipes, usuarios
         if (metricas.some(m => m.value === meta.metrica)) { setCategoriaAtiva(cat); break }
       }
     } else {
-      form.reset({ tipo: defaultTipo, nome: '', metrica: 'valor_vendas', valor_meta: 0, periodo: 'mensal', data_inicio: new Date().toISOString().split('T')[0], data_fim: '' })
+      const novoHoje = new Date().toISOString().split('T')[0]
+      form.reset({ tipo: defaultTipo, nome: '', metrica: 'valor_vendas', valor_meta: 0, periodo: 'mensal', data_inicio: novoHoje, data_fim: calcularDataFim(novoHoje, 'mensal') })
       setCategoriaAtiva('receita')
+      setValorDisplay('')
     }
   }, [meta, form, defaultTipo])
 
