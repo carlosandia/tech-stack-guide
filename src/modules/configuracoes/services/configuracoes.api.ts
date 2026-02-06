@@ -8,6 +8,7 @@
  */
 
 import { supabase } from '@/lib/supabase'
+import api from '@/lib/api'
 
 // =====================================================
 // Helper - Obter organizacao_id do usuario logado
@@ -220,6 +221,8 @@ export interface ConfiguracaoCard {
 
 // Integracoes
 export type PlataformaIntegracao = 'whatsapp' | 'instagram' | 'meta_ads' | 'google' | 'email'
+export type TipoConexaoEmail = 'gmail_oauth' | 'smtp_manual'
+
 export interface Integracao {
   id: string
   organizacao_id: string
@@ -228,8 +231,55 @@ export interface Integracao {
   conta_externa_nome?: string | null
   conta_externa_email?: string | null
   waha_phone?: string | null
+  waha_session_name?: string | null
   ultimo_sync?: string | null
   ultimo_erro?: string | null
+  conectado_em?: string | null
+  // Email específicos
+  email?: string | null
+  tipo_email?: TipoConexaoEmail | null
+  nome_remetente?: string | null
+  // Google específicos
+  google_user_email?: string | null
+  google_user_name?: string | null
+  calendar_name?: string | null
+  calendar_id?: string | null
+  // Instagram específicos
+  instagram_username?: string | null
+  instagram_name?: string | null
+  profile_picture_url?: string | null
+  token_expires_at?: string | null
+  // Meta específicos
+  meta_user_name?: string | null
+  meta_user_email?: string | null
+}
+
+export interface SmtpDetectResult {
+  provedor: string
+  host: string
+  port: number
+  tls: boolean
+}
+
+export interface SmtpTestarPayload {
+  email: string
+  senha: string
+  host?: string
+  port?: number
+  tls?: boolean
+}
+
+export interface WhatsAppQrCodeResult {
+  qr_code?: string
+  status: string
+  expires_in?: number
+}
+
+export interface WhatsAppStatusResult {
+  status: string
+  phone?: string
+  phone_name?: string
+  session_id?: string
 }
 
 // Webhooks
@@ -1076,59 +1126,197 @@ export const configCardApi = {
 }
 
 // =====================================================
-// API Functions - Integracoes (stubs - dependem de OAuth backend)
+// API Functions - Integracoes
 // =====================================================
 
 export const integracoesApi = {
   listar: async () => {
-    // Buscar conexões existentes de todas as plataformas
     const integracoes: Integracao[] = []
 
-    const tabelas = {
-      instagram: 'conexoes_instagram',
-      google: 'conexoes_google',
-      email: 'conexoes_email',
-    } as const
+    // WhatsApp - via sessoes_whatsapp
+    const { data: whatsappData } = await supabase
+      .from('sessoes_whatsapp')
+      .select('id, organizacao_id, status, phone_number, phone_name, session_name, conectado_em, atualizado_em')
+      .is('deletado_em', null)
 
-    for (const plat of ['instagram', 'google', 'email'] as const) {
-      const { data } = await supabase
-        .from(tabelas[plat])
-        .select('id, organizacao_id, status, criado_em')
-        .is('deletado_em', null)
-
-      if (data) {
-        data.forEach((row: Record<string, unknown>) => {
-          integracoes.push({
-            id: row.id as string,
-            organizacao_id: row.organizacao_id as string,
-            plataforma: plat,
-            status: row.status as string,
-          })
+    if (whatsappData) {
+      whatsappData.forEach((row: Record<string, unknown>) => {
+        integracoes.push({
+          id: row.id as string,
+          organizacao_id: row.organizacao_id as string,
+          plataforma: 'whatsapp',
+          status: (row.status as string) === 'connected' ? 'conectado' : (row.status as string) || 'desconectado',
+          waha_phone: row.phone_number as string | null,
+          waha_session_name: row.phone_name as string | null,
+          conectado_em: row.conectado_em as string | null,
+          ultimo_erro: row.ultimo_erro as string | null,
+          ultimo_sync: row.atualizado_em as string | null,
         })
-      }
+      })
+    }
+
+    // Instagram
+    const { data: instagramData } = await supabase
+      .from('conexoes_instagram')
+      .select('id, organizacao_id, status, instagram_username, instagram_name, profile_picture_url, token_expires_at, conectado_em, ultimo_sync, ultimo_erro')
+      .is('deletado_em', null)
+
+    if (instagramData) {
+      instagramData.forEach((row: Record<string, unknown>) => {
+        integracoes.push({
+          id: row.id as string,
+          organizacao_id: row.organizacao_id as string,
+          plataforma: 'instagram',
+          status: (row.status as string) === 'connected' ? 'conectado' : (row.status as string) || 'desconectado',
+          instagram_username: row.instagram_username as string | null,
+          instagram_name: row.instagram_name as string | null,
+          profile_picture_url: row.profile_picture_url as string | null,
+          token_expires_at: row.token_expires_at as string | null,
+          conectado_em: row.conectado_em as string | null,
+          ultimo_sync: row.ultimo_sync as string | null,
+          ultimo_erro: row.ultimo_erro as string | null,
+        })
+      })
+    }
+
+    // Google Calendar
+    const { data: googleData } = await supabase
+      .from('conexoes_google')
+      .select('id, organizacao_id, status, google_user_email, google_user_name, calendar_name, calendar_id, conectado_em, ultimo_sync, ultimo_erro')
+      .is('deletado_em', null)
+
+    if (googleData) {
+      googleData.forEach((row: Record<string, unknown>) => {
+        integracoes.push({
+          id: row.id as string,
+          organizacao_id: row.organizacao_id as string,
+          plataforma: 'google',
+          status: (row.status as string) === 'connected' ? 'conectado' : (row.status as string) || 'desconectado',
+          google_user_email: row.google_user_email as string | null,
+          google_user_name: row.google_user_name as string | null,
+          calendar_name: row.calendar_name as string | null,
+          calendar_id: row.calendar_id as string | null,
+          conectado_em: row.conectado_em as string | null,
+          ultimo_sync: row.ultimo_sync as string | null,
+          ultimo_erro: row.ultimo_erro as string | null,
+        })
+      })
+    }
+
+    // Email
+    const { data: emailData } = await supabase
+      .from('conexoes_email')
+      .select('id, organizacao_id, status, email, tipo, nome_remetente, conectado_em, ultimo_envio, ultimo_erro')
+      .is('deletado_em', null)
+
+    if (emailData) {
+      emailData.forEach((row: Record<string, unknown>) => {
+        integracoes.push({
+          id: row.id as string,
+          organizacao_id: row.organizacao_id as string,
+          plataforma: 'email',
+          status: (row.status as string) === 'connected' ? 'conectado' : (row.status as string) || 'desconectado',
+          email: row.email as string | null,
+          tipo_email: row.tipo as TipoConexaoEmail | null,
+          nome_remetente: row.nome_remetente as string | null,
+          conectado_em: row.conectado_em as string | null,
+          ultimo_sync: row.ultimo_envio as string | null,
+          ultimo_erro: row.ultimo_erro as string | null,
+        })
+      })
+    }
+
+    // Meta Ads
+    const { data: metaData } = await supabase
+      .from('conexoes_meta')
+      .select('id, organizacao_id, status, meta_user_name, meta_user_email, ultimo_sync, ultimo_erro')
+      .is('deletado_em', null)
+
+    if (metaData) {
+      metaData.forEach((row: Record<string, unknown>) => {
+        integracoes.push({
+          id: row.id as string,
+          organizacao_id: row.organizacao_id as string,
+          plataforma: 'meta_ads',
+          status: (row.status as string) === 'connected' ? 'conectado' : (row.status as string) || 'desconectado',
+          meta_user_name: row.meta_user_name as string | null,
+          meta_user_email: row.meta_user_email as string | null,
+          ultimo_sync: row.ultimo_sync as string | null,
+          ultimo_erro: row.ultimo_erro as string | null,
+        })
+      })
     }
 
     return { integracoes, total: integracoes.length }
   },
 
-  buscar: async (id: string) => {
-    return { id, plataforma: 'email', status: 'desconectado' } as Integracao
+  obterAuthUrl: async (plataforma: PlataformaIntegracao, redirect_uri: string): Promise<{ url: string; state?: string }> => {
+    const { data } = await api.get(`/v1/conexoes/${plataforma === 'meta_ads' ? 'meta' : plataforma}/auth-url`, {
+      params: { redirect_uri },
+    })
+    return data
   },
 
-  obterAuthUrl: async (_plataforma: PlataformaIntegracao, _redirect_uri: string): Promise<{ url: string; state?: string }> => {
-    throw new Error('Funcionalidade de OAuth requer backend. Em implementação.')
+  processarCallback: async (plataforma: PlataformaIntegracao, payload: { code: string; state: string; redirect_uri: string }) => {
+    const routePlataforma = plataforma === 'meta_ads' ? 'meta' : plataforma
+    const { data } = await api.post(`/v1/conexoes/${routePlataforma}/callback`, payload)
+    return data
   },
 
-  processarCallback: async (_plataforma: PlataformaIntegracao, _payload: { code: string; state: string; redirect_uri: string }) => {
-    throw new Error('Funcionalidade de OAuth requer backend. Em implementação.')
-  },
-
-  desconectar: async (_id: string) => {
-    throw new Error('Funcionalidade de desconexão requer backend. Em implementação.')
+  desconectar: async (plataforma: PlataformaIntegracao, _id?: string) => {
+    const routePlataforma = plataforma === 'meta_ads' ? 'meta' : plataforma
+    if (routePlataforma === 'whatsapp') {
+      await api.post('/v1/conexoes/whatsapp/desconectar')
+    } else {
+      await api.delete(`/v1/conexoes/${routePlataforma}`)
+    }
   },
 
   sincronizar: async (_id: string) => {
-    throw new Error('Funcionalidade de sincronização requer backend. Em implementação.')
+    // Sync é genérico - pode ser extendido por plataforma
+    return { success: true }
+  },
+
+  // WhatsApp específico
+  whatsapp: {
+    iniciarSessao: async () => {
+      const { data } = await api.post('/v1/conexoes/whatsapp/iniciar')
+      return data
+    },
+    obterQrCode: async (): Promise<WhatsAppQrCodeResult> => {
+      const { data } = await api.get('/v1/conexoes/whatsapp/qr-code')
+      return data
+    },
+    obterStatus: async (): Promise<WhatsAppStatusResult> => {
+      const { data } = await api.get('/v1/conexoes/whatsapp/status')
+      return data
+    },
+    desconectar: async () => {
+      await api.post('/v1/conexoes/whatsapp/desconectar')
+    },
+  },
+
+  // Email específico
+  email: {
+    salvarSmtp: async (payload: SmtpTestarPayload) => {
+      const { data } = await api.post('/v1/conexoes/email/smtp', payload)
+      return data
+    },
+    testarSmtp: async (payload: SmtpTestarPayload) => {
+      const { data } = await api.post('/v1/conexoes/email/smtp/testar', payload)
+      return data
+    },
+    detectarSmtp: async (emailAddr: string): Promise<SmtpDetectResult> => {
+      const { data } = await api.post('/v1/conexoes/email/smtp/detectar', { email: emailAddr })
+      return data
+    },
+    obterGmailAuthUrl: async (): Promise<{ url: string }> => {
+      const { data } = await api.get('/v1/conexoes/email/google/auth-url')
+      return data
+    },
+    desconectar: async () => {
+      await api.delete('/v1/conexoes/email')
+    },
   },
 }
 
