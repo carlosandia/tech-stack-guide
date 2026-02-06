@@ -29,6 +29,7 @@ interface ContatoFormModalProps {
   empresas?: Array<{ id: string; nome_fantasia?: string | null; razao_social?: string | null }>
   usuarios?: Array<{ id: string; nome: string; sobrenome?: string | null }>
   isAdmin?: boolean
+  onBack?: () => void
 }
 
 // Map campo tipo to input type
@@ -66,6 +67,7 @@ export function ContatoFormModal({
   empresas = [],
   usuarios = [],
   isAdmin = false,
+  onBack,
 }: ContatoFormModalProps) {
   const isEditing = !!contato
   const isPessoa = tipo === 'pessoa'
@@ -536,13 +538,22 @@ export function ContatoFormModal({
           </div>
 
           {/* Footer */}
-          <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-border">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium rounded-md border border-border text-foreground hover:bg-accent transition-colors" disabled={loading}>
-              Cancelar
-            </button>
-            <button type="submit" disabled={loading} className="px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50">
-              {loading ? 'Salvando...' : isEditing ? 'Salvar' : 'Criar'}
-            </button>
+          <div className="flex items-center justify-between mt-6 pt-4 border-t border-border">
+            <div>
+              {onBack && (
+                <button type="button" onClick={onBack} className="px-4 py-2 text-sm font-medium rounded-md text-primary hover:bg-primary/5 transition-colors" disabled={loading}>
+                  ← Voltar para visualização
+                </button>
+              )}
+            </div>
+            <div className="flex gap-3">
+              <button type="button" onClick={onBack || onClose} className="px-4 py-2 text-sm font-medium rounded-md border border-border text-foreground hover:bg-accent transition-colors" disabled={loading}>
+                Cancelar
+              </button>
+              <button type="submit" disabled={loading} className="px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50">
+                {loading ? 'Salvando...' : isEditing ? 'Salvar' : 'Criar'}
+              </button>
+            </div>
           </div>
         </form>
       </div>
