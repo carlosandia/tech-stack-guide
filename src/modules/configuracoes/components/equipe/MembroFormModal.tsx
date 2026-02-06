@@ -26,7 +26,7 @@ export function MembroFormModal({ usuario, onClose }: Props) {
   const { register, handleSubmit, setValue, watch, formState: { errors, isSubmitting } } = useForm<ConvidarUsuarioForm>({
     resolver: zodResolver(convidarUsuarioSchema),
     defaultValues: usuario
-      ? { nome: usuario.nome, sobrenome: usuario.sobrenome || '', email: usuario.email, papel_id: usuario.papel_id || undefined }
+      ? { nome: usuario.nome, sobrenome: usuario.sobrenome || '', email: usuario.email, papel_id: usuario.perfil_permissao_id || undefined }
       : { nome: '', sobrenome: '', email: '' },
   })
 
