@@ -11,7 +11,7 @@ import { useForm, Controller } from 'react-hook-form'
 import { X, User, Building2, Search } from 'lucide-react'
 import { StatusContatoOptions, OrigemContatoOptions, PorteOptions } from '../schemas/contatos.schema'
 import type { Contato, TipoContato } from '../services/contatos.api'
-import { useCampos } from '@/modules/configuracoes/hooks/useCampos'
+import { useCamposConfig } from '../hooks/useCamposConfig'
 import type { CampoCustomizado } from '@/modules/configuracoes/services/configuracoes.api'
 import { ContatoFormFieldsToggle, getFieldVisibility } from './ContatoFormFieldsToggle'
 import { PhoneInputField } from './PhoneInputField'
@@ -75,13 +75,17 @@ export function ContatoFormModal({
   // Versão de visibilidade — incrementa quando o toggle muda, forçando re-render
   const [visibilityVersion, setVisibilityVersion] = useState(0)
 
-  // Buscar campos do configurações
-  const entidade = isPessoa ? 'pessoa' : 'empresa'
-  const { data: camposData } = useCampos(entidade as 'pessoa' | 'empresa')
-  const todosOsCampos = camposData?.campos || []
-
-  // Campos customizados (non-system active fields)
+  // Buscar campos do configurações (config global)
+  const { campos: todosOsCampos, getLabel, getPlaceholder: getCampoPlaceholder, isRequired: isCampoRequired } = useCamposConfig(tipo)
   const camposCustomizados = todosOsCampos.filter(c => !c.sistema && c.ativo)
+
+  // Helpers: label com marcador de obrigatório + regras de validação
+  const labelWithReq = (key: string, fallback: string) => {
+    const label = getLabel(key, fallback)
+    return isCampoRequired(key) ? `${label} *` : label
+  }
+  const regOpts = (key: string, fallback: string, fallbackReq?: boolean) =>
+    isCampoRequired(key, fallbackReq) ? { required: `${getLabel(key, fallback)} é obrigatório` } : {}
 
   // Buscar pessoas disponíveis (para vincular em empresa)
   const { data: pessoasData } = useContatos(
@@ -192,12 +196,12 @@ export function ContatoFormModal({
   const renderPessoaFields = () => {
     const fields: JSX.Element[] = []
 
-    // Row 1: Nome + Sobrenome (always visible - required)
+    // Row 1: Nome + Sobrenome
     fields.push(
       <div key="nome-row" className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <InputField label="Nome *" error={form.formState.errors.nome?.message as string} {...form.register('nome', { required: 'Nome é obrigatório' })} />
-        {isVisible('sobrenome', true) && (
-          <InputField label="Sobrenome" {...form.register('sobrenome')} />
+        <InputField label={labelWithReq('nome', 'Nome')} error={form.formState.errors.nome?.message as string} {...form.register('nome', regOpts('nome', 'Nome', true))} />
+        {isVisible('sobrenome', isCampoRequired('sobrenome')) && (
+          <InputField label={labelWithReq('sobrenome', 'Sobrenome')} error={form.formState.errors.sobrenome?.message as string} {...form.register('sobrenome', regOpts('sobrenome', 'Sobrenome'))} />
         )}
       </div>
     )
@@ -205,18 +209,19 @@ export function ContatoFormModal({
     // Dynamic rows for optional sistema fields
     const optionalRows: JSX.Element[] = []
 
-    if (isVisible('email', false)) {
-      optionalRows.push(<InputField key="email" label="Email" type="email" {...form.register('email')} />)
+    if (isVisible('email', isCampoRequired('email'))) {
+      optionalRows.push(<InputField key="email" label={labelWithReq('email', 'Email')} type="email" error={form.formState.errors.email?.message as string} {...form.register('email', regOpts('email', 'Email'))} />)
     }
-    if (isVisible('telefone', false)) {
+    if (isVisible('telefone', isCampoRequired('telefone'))) {
       optionalRows.push(
         <Controller
           key="telefone"
           name="telefone"
           control={form.control}
+          rules={isCampoRequired('telefone') ? { required: `${getLabel('telefone', 'Telefone')} é obrigatório` } : {}}
           render={({ field }) => (
             <PhoneInputField
-              label="Telefone"
+              label={labelWithReq('telefone', 'Telefone')}
               value={field.value}
               onChange={field.onChange}
             />
@@ -224,11 +229,11 @@ export function ContatoFormModal({
         />
       )
     }
-    if (isVisible('cargo', false)) {
-      optionalRows.push(<InputField key="cargo" label="Cargo" {...form.register('cargo')} />)
+    if (isVisible('cargo', isCampoRequired('cargo'))) {
+      optionalRows.push(<InputField key="cargo" label={labelWithReq('cargo', 'Cargo')} error={form.formState.errors.cargo?.message as string} {...form.register('cargo', regOpts('cargo', 'Cargo'))} />)
     }
-    if (isVisible('linkedin_url', false)) {
-      optionalRows.push(<InputField key="linkedin" label="LinkedIn" {...form.register('linkedin_url')} placeholder="https://linkedin.com/in/..." />)
+    if (isVisible('linkedin_url', isCampoRequired('linkedin_url'))) {
+      optionalRows.push(<InputField key="linkedin" label={labelWithReq('linkedin_url', 'LinkedIn')} placeholder={getCampoPlaceholder('linkedin_url', 'https://linkedin.com/in/...')} error={form.formState.errors.linkedin_url?.message as string} {...form.register('linkedin_url', regOpts('linkedin_url', 'LinkedIn'))} />)
     }
     if (isVisible('empresa_id', false)) {
       optionalRows.push(
@@ -258,28 +263,29 @@ export function ContatoFormModal({
   const renderEmpresaFields = () => {
     const fields: JSX.Element[] = []
 
-    // Row 1: Razão Social (always) + Nome Fantasia
+    // Row 1: Razão Social + Nome Fantasia
     fields.push(
       <div key="empresa-row-1" className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <InputField label="Razão Social *" error={form.formState.errors.razao_social?.message as string} {...form.register('razao_social', { required: 'Razão social é obrigatória' })} />
-        {isVisible('nome_fantasia', false) && (
-          <InputField label="Nome Fantasia" {...form.register('nome_fantasia')} />
+        <InputField label={labelWithReq('razao_social', 'Razão Social')} error={form.formState.errors.razao_social?.message as string} {...form.register('razao_social', regOpts('razao_social', 'Razão Social', true))} />
+        {isVisible('nome_fantasia', isCampoRequired('nome_fantasia')) && (
+          <InputField label={labelWithReq('nome_fantasia', 'Nome Fantasia')} error={form.formState.errors.nome_fantasia?.message as string} {...form.register('nome_fantasia', regOpts('nome_fantasia', 'Nome Fantasia'))} />
         )}
       </div>
     )
 
     const optionalRows: JSX.Element[] = []
 
-    if (isVisible('cnpj', false)) {
+    if (isVisible('cnpj', isCampoRequired('cnpj'))) {
       optionalRows.push(
         <Controller
           key="cnpj"
           name="cnpj"
           control={form.control}
+          rules={isCampoRequired('cnpj') ? { required: `${getLabel('cnpj', 'CNPJ')} é obrigatório` } : {}}
           render={({ field }) => (
             <InputField
-              label="CNPJ"
-              placeholder="XX.XXX.XXX/XXXX-XX"
+              label={labelWithReq('cnpj', 'CNPJ')}
+              placeholder={getCampoPlaceholder('cnpj', 'XX.XXX.XXX/XXXX-XX')}
               value={field.value || ''}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                 field.onChange(formatCnpj(e.target.value))
@@ -289,18 +295,19 @@ export function ContatoFormModal({
         />
       )
     }
-    if (isVisible('email', false)) {
-      optionalRows.push(<InputField key="email" label="Email" type="email" {...form.register('email')} />)
+    if (isVisible('email', isCampoRequired('email'))) {
+      optionalRows.push(<InputField key="email" label={labelWithReq('email', 'Email')} type="email" error={form.formState.errors.email?.message as string} {...form.register('email', regOpts('email', 'Email'))} />)
     }
-    if (isVisible('telefone', false)) {
+    if (isVisible('telefone', isCampoRequired('telefone'))) {
       optionalRows.push(
         <Controller
           key="telefone"
           name="telefone"
           control={form.control}
+          rules={isCampoRequired('telefone') ? { required: `${getLabel('telefone', 'Telefone')} é obrigatório` } : {}}
           render={({ field }) => (
             <PhoneInputField
-              label="Telefone"
+              label={labelWithReq('telefone', 'Telefone')}
               value={field.value}
               onChange={field.onChange}
             />
@@ -308,15 +315,15 @@ export function ContatoFormModal({
         />
       )
     }
-    if (isVisible('website', false)) {
-      optionalRows.push(<InputField key="website" label="Website" {...form.register('website')} placeholder="https://..." />)
+    if (isVisible('website', isCampoRequired('website'))) {
+      optionalRows.push(<InputField key="website" label={labelWithReq('website', 'Website')} placeholder={getCampoPlaceholder('website', 'https://...')} error={form.formState.errors.website?.message as string} {...form.register('website', regOpts('website', 'Website'))} />)
     }
-    if (isVisible('segmento', false)) {
-      optionalRows.push(<InputField key="segmento" label="Segmento de Mercado" {...form.register('segmento')} />)
+    if (isVisible('segmento', isCampoRequired('segmento'))) {
+      optionalRows.push(<InputField key="segmento" label={labelWithReq('segmento', 'Segmento de Mercado')} error={form.formState.errors.segmento?.message as string} {...form.register('segmento', regOpts('segmento', 'Segmento de Mercado'))} />)
     }
-    if (isVisible('porte', false)) {
+    if (isVisible('porte', isCampoRequired('porte'))) {
       optionalRows.push(
-        <SelectField key="porte" label="Porte" {...form.register('porte')}>
+        <SelectField key="porte" label={labelWithReq('porte', 'Porte')} {...form.register('porte', regOpts('porte', 'Porte'))}>
           <option value="">Selecione</option>
           {PorteOptions.map((p) => (
             <option key={p.value} value={p.value}>{p.label}</option>

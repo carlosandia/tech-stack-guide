@@ -1,12 +1,12 @@
 /**
  * AIDEV-NOTE: Toggle de visibilidade de campos no modal de visualização de contato
- * Similar ao ContatoFormFieldsToggle mas para o contexto de visualização
- * Persiste no localStorage separadamente
+ * Labels e obrigatoriedade vêm da configuração global (/configuracoes/campos)
+ * Persiste no localStorage separadamente do toggle de formulário
  */
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { Eye } from 'lucide-react'
-import { useCampos } from '@/modules/configuracoes/hooks/useCampos'
+import { useCamposConfig } from '../hooks/useCamposConfig'
 import type { TipoContato } from '../services/contatos.api'
 
 export interface ViewFieldVisibility {
@@ -15,14 +15,12 @@ export interface ViewFieldVisibility {
 
 const STORAGE_KEY = 'contatos_view_fields_visibility'
 
-// Campos do sistema para visualização de Pessoa
-const CAMPOS_VIEW_PESSOA = [
-  { key: 'nome', label: 'Nome', obrigatorio: true },
-  { key: 'sobrenome', label: 'Sobrenome', obrigatorio: false },
-  { key: 'email', label: 'Email', obrigatorio: false },
-  { key: 'telefone', label: 'Telefone', obrigatorio: false },
-  { key: 'cargo', label: 'Cargo', obrigatorio: false },
-  { key: 'linkedin_url', label: 'LinkedIn', obrigatorio: false },
+// Keys dos campos do sistema por tipo (ordem de exibição)
+const CAMPO_KEYS_PESSOA = ['nome', 'sobrenome', 'email', 'telefone', 'cargo', 'linkedin_url']
+const CAMPO_KEYS_EMPRESA = ['razao_social', 'nome_fantasia', 'cnpj', 'email', 'telefone', 'website', 'segmento', 'porte']
+
+// Campos meta (não configuráveis globalmente, fixos do sistema)
+const META_FIELDS_PESSOA = [
   { key: 'empresa', label: 'Empresa', obrigatorio: false },
   { key: 'responsavel', label: 'Responsável', obrigatorio: false },
   { key: 'status', label: 'Status', obrigatorio: true },
@@ -31,16 +29,7 @@ const CAMPOS_VIEW_PESSOA = [
   { key: 'segmentos', label: 'Segmentação', obrigatorio: false },
 ]
 
-// Campos do sistema para visualização de Empresa
-const CAMPOS_VIEW_EMPRESA = [
-  { key: 'razao_social', label: 'Razão Social', obrigatorio: true },
-  { key: 'nome_fantasia', label: 'Nome Fantasia', obrigatorio: false },
-  { key: 'cnpj', label: 'CNPJ', obrigatorio: false },
-  { key: 'email', label: 'Email', obrigatorio: false },
-  { key: 'telefone', label: 'Telefone', obrigatorio: false },
-  { key: 'website', label: 'Website', obrigatorio: false },
-  { key: 'segmento', label: 'Segmento de Mercado', obrigatorio: false },
-  { key: 'porte', label: 'Porte', obrigatorio: false },
+const META_FIELDS_EMPRESA = [
   { key: 'status', label: 'Status', obrigatorio: true },
   { key: 'origem', label: 'Origem', obrigatorio: false },
   { key: 'observacoes', label: 'Observações', obrigatorio: false },
@@ -81,11 +70,21 @@ export function ContatoViewFieldsToggle({ tipo, onChange }: ContatoViewFieldsTog
   const [visibility, setVisibility] = useState<Record<string, ViewFieldVisibility>>(getSavedVisibility)
   const ref = useRef<HTMLDivElement>(null)
 
-  const entidade = tipo === 'pessoa' ? 'pessoa' : 'empresa'
-  const { data: camposData } = useCampos(entidade as 'pessoa' | 'empresa')
-  const camposCustomizados = camposData?.campos?.filter(c => !c.sistema && c.ativo) || []
+  // Buscar configuração global de campos
+  const { getLabel, isRequired: isCampoRequired, campos } = useCamposConfig(tipo)
+  const camposCustomizados = campos.filter(c => !c.sistema && c.ativo)
 
-  const camposSistema = tipo === 'pessoa' ? CAMPOS_VIEW_PESSOA : CAMPOS_VIEW_EMPRESA
+  // Construir lista de campos do sistema com labels e obrigatoriedade da config global
+  const camposSistema = useMemo(() => {
+    const keys = tipo === 'pessoa' ? CAMPO_KEYS_PESSOA : CAMPO_KEYS_EMPRESA
+    const campoItems = keys.map(key => ({
+      key,
+      label: getLabel(key),
+      obrigatorio: isCampoRequired(key),
+    }))
+    const metaItems = tipo === 'pessoa' ? META_FIELDS_PESSOA : META_FIELDS_EMPRESA
+    return [...campoItems, ...metaItems]
+  }, [tipo, getLabel, isCampoRequired])
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
