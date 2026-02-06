@@ -21,9 +21,9 @@ import {
   Plus,
   Trash2,
   GripVertical,
-  MessageCircle,
   Calendar,
 } from 'lucide-react'
+import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import { useAuth } from '@/providers/AuthProvider'
 import { useConfigToolbar } from '../contexts/ConfigToolbarContext'
 import { useConfigCard, useAtualizarConfigCard } from '../hooks/useRegras'
@@ -55,7 +55,7 @@ const CAMPOS_DEFAULT_VISIVEIS = ['valor', 'contato', 'empresa', 'owner', 'previs
 
 const ACOES_DISPONIVEIS = [
   { key: 'telefone', label: 'Telefone', descricao: 'Botão click-to-call para ligar', icon: Phone },
-  { key: 'whatsapp', label: 'WhatsApp', descricao: 'Abrir conversa no WhatsApp', icon: MessageCircle },
+  { key: 'whatsapp', label: 'WhatsApp', descricao: 'Abrir conversa no WhatsApp', icon: WhatsAppIcon },
   { key: 'email', label: 'Email', descricao: 'Abrir composição de email', icon: Mail },
   { key: 'agendar', label: 'Agendar', descricao: 'Agendar uma atividade', icon: Calendar },
 ]
