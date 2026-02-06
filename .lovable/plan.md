@@ -1,114 +1,116 @@
 
+# Migrar Service Layer de Axios/Express para Supabase Direto
 
-# Reestruturar Configuracoes: Sub-navegacao como Sidebar Lateral
+## Problema Identificado
 
-## Visao Geral
+O arquivo `configuracoes.api.ts` faz todas as chamadas via **Axios** para um backend Express (`http://localhost:3001/api/v1/...`). Como nao existe um servidor Express rodando no ambiente Lovable, todas as paginas de Pipeline (Campos, Produtos, Motivos, Tarefas, Etapas, Regras, Cards) e demais configuracoes retornam "Network Error".
 
-Transformar a navegacao interna do modulo de Configuracoes de tabs horizontais para uma sidebar fixa na lateral esquerda, mantendo o header principal horizontal no topo.
+Alem disso, as politicas RLS de 14 tabelas usam `current_setting('app.current_tenant')`, que so funciona quando definido pelo backend. O frontend Supabase client nao define essa variavel, entao o acesso seria bloqueado mesmo com chamadas diretas.
 
-## Layout Final
+## Solucao
+
+Duas frentes paralelas:
+
+### Parte 1 - Atualizar RLS Policies (Migration SQL)
+
+Criar migration adicionando novas politicas RLS que usam `auth.uid()` via join com tabela `usuarios`, substituindo as que dependem de `app.current_tenant`.
+
+Padrao a ser usado (mesmo ja usado na tabela `configuracoes_tenant`):
 
 ```text
-+------------------------------------------------------------------+
-| HEADER (56px) - horizontal, fixo no topo                         |
-| [<- CRM]  |  Configuracoes            [Avatar Carlos v]          |
-+------------------------------------------------------------------+
-|              |                                                    |
-| SIDEBAR      | TOOLBAR (48px)                                    |
-| (240px)      | Campos . Gerencie os campos...     [+ Novo Campo] |
-|              |---------------------------------------------------|
-| EQUIPE       |                                                    |
-|  Membros     |              CONTENT AREA                         |
-|  Perfis      |                                                    |
-|  Metas       |                                                    |
-|  Config Geral|                                                    |
-|              |                                                    |
-| CONEXOES     |                                                    |
-|  Conexoes    |                                                    |
-|  WH Entrada  |                                                    |
-|  WH Saida    |                                                    |
-|              |                                                    |
-| PIPELINE     |                                                    |
-|  > Campos    |                                                    |
-|  Produtos    |                                                    |
-|  Motivos     |                                                    |
-|  Tarefas     |                                                    |
-|  Etapas      |                                                    |
-|  Regras      |                                                    |
-|  Cards       |                                                    |
-+------------------------------------------------------------------+
+organizacao_id = (
+  SELECT u.organizacao_id FROM usuarios u WHERE u.auth_id = auth.uid()
+)
 ```
 
-## Detalhes da Implementacao
+Tabelas afetadas (14 tabelas):
+- campos_customizados
+- categorias_produtos
+- configuracoes_card
+- motivos_resultado
+- produtos
+- tarefas_templates
+- etapas_templates
+- etapas_tarefas
+- regras_qualificacao
+- webhooks_entrada
+- webhooks_saida
+- equipes
+- equipes_membros
+- metas
 
-### O que muda no Header
-- Remove a navegacao de grupos (Pipeline, Integracoes, Equipe) do header
-- Header fica simplificado: botao "Voltar ao CRM" + titulo "Configuracoes" + subtitulo descritivo + menu do usuario
-- Header continua fixo, horizontal, com glass effect
+Para cada tabela:
+1. DROP da policy antiga `tenant_isolation_*` (ALL)
+2. DROP das policies de INSERT/UPDATE/DELETE que usam `app.current_tenant`
+3. CREATE novas policies usando `auth.uid()` + `usuarios` join
+4. Manter compatibilidade com super_admin via `OR EXISTS (SELECT 1 FROM usuarios u WHERE u.auth_id = auth.uid() AND u.role = 'super_admin')`
 
-### O que muda na Toolbar
-- Remove a sub-navegacao horizontal (Campos, Produtos, Motivos...)
-- Toolbar passa a ficar apenas como barra de titulo + acoes contextuais acima do conteudo
-- Posicionada acima da area de conteudo (nao mais full-width)
+### Parte 2 - Reescrever configuracoes.api.ts
 
-### Nova Sidebar (Desktop lg+)
-- Largura fixa: 240px (w-60)
-- Fixa na lateral esquerda, abaixo do header (top-14)
-- Fundo branco com borda direita sutil
-- Cabecalho interno: "Configuracoes" + "Conexoes, integracoes e pipeline"
-- Itens agrupados por secao (EQUIPE, CONEXOES, PIPELINE) com labels em caixa alta
-- Cada item com icone + label
-- Item ativo: fundo primario leve com borda (chip outline style do DS)
-- Respeita adminOnly para esconder itens do Member
+Reescrever o service layer para usar o cliente Supabase diretamente (`@/lib/supabase`), eliminando a dependencia do Axios/Express.
 
-### Mobile (abaixo de lg)
-- Sidebar escondida, usa o drawer existente (ja funciona)
-- Sem alteracao significativa no comportamento mobile
+A logica das queries sera baseada nos backend services existentes (ex: `backend/src/services/campos.service.ts`), adaptando para o frontend:
+- Substituir `supabaseAdmin` por `supabase` (respeita RLS)
+- Remover parametro `organizacaoId` (RLS filtra automaticamente pelo tenant do usuario logado)
+- Manter mesma assinatura de retorno para nao quebrar os hooks
 
-### Icones por item (baseado na referencia)
-- Membros/Perfis: Users
-- Metas: Target
-- Config Geral: Settings
-- Conexoes: Plug
-- Webhooks Entrada: Webhook (ou ArrowDownToLine)
-- Webhooks Saida: Send
-- Campos: FormInput (ou Settings2)
-- Produtos: Package
-- Motivos: Flag
-- Tarefas: ListChecks
-- Etapas: Layers
-- Regras: Scale
-- Cards: LayoutGrid
+Exemplo da transformacao para Campos:
+
+**Antes (Axios):**
+```text
+const { data } = await api.get('/v1/campos', { params: { entidade } })
+```
+
+**Depois (Supabase direto):**
+```text
+const { data, error, count } = await supabase
+  .from('campos_customizados')
+  .select('*', { count: 'exact' })
+  .eq('entidade', entidade)
+  .is('deletado_em', null)
+  .order('ordem', { ascending: true })
+```
+
+APIs a migrar:
+- `camposApi` - CRUD de campos_customizados
+- `produtosApi` - CRUD de produtos + categorias_produtos
+- `motivosApi` - CRUD de motivos_resultado + reordenacao
+- `tarefasTemplatesApi` - CRUD de tarefas_templates
+- `etapasTemplatesApi` - CRUD com join etapas_tarefas + vinculos
+- `regrasApi` - CRUD de regras_qualificacao
+- `configCardApi` - busca/atualizacao de configuracoes_card
+- `integracoesApi` - CRUD de integracoes (parcial, OAuth depende de backend)
+- `webhooksApi` - CRUD de webhooks_entrada e webhooks_saida + logs
+- `equipeApi` - Equipes, membros, usuarios, perfis
+- `metasApi` - CRUD de metas + progresso + ranking
+- `configTenantApi` - busca/atualizacao de configuracoes_tenant
+
+### O que NAO muda
+- Hooks (useCampos, useMotivos, etc.) - mantem mesma interface
+- Paginas (CamposPage, MotivosPage, etc.) - nenhuma alteracao
+- Schemas de validacao - permanecem iguais
+- AuthProvider - ja funciona via Supabase direto
 
 ## Detalhes Tecnicos
 
-### Arquivo a editar
-- `src/modules/configuracoes/layouts/ConfiguracoesLayout.tsx` - Reestruturacao completa do layout
+### Arquivo de Migration
+- `supabase/migrations/[timestamp]_update_rls_auth_uid.sql`
+- Contera DROP + CREATE de todas as policies
 
-### Mudancas estruturais no componente
-1. Remover navegacao de grupos do header (linhas 211-231)
-2. Remover sub-navegacao horizontal do ToolbarWithSubNav (linhas 300-318)
-3. Adicionar sidebar desktop com `hidden lg:flex flex-col w-60 fixed left-0 top-14 bottom-0 border-r`
-4. Ajustar main content para ter `lg:ml-60` (margem esquerda da sidebar)
-5. Toolbar continua sticky mas agora so na area de conteudo (com ml-60)
-6. Reorganizar navGroups para incluir icones individuais por sub-item
+### Arquivo do Service Layer
+- `src/modules/configuracoes/services/configuracoes.api.ts` - reescrita completa
+- Import de `supabase` de `@/lib/supabase` em vez de `api` de `@/lib/api`
 
-### Estrutura CSS da sidebar
-- Container: `fixed left-0 top-14 bottom-0 w-60 bg-white border-r border-gray-200/60 overflow-y-auto`
-- Cabecalho: titulo "Configuracoes" + descricao
-- Grupos: label uppercase `text-xs font-medium text-muted-foreground uppercase tracking-wider`
-- Items: `px-4 py-2 text-sm` com icone e label
-- Item ativo: `bg-primary/5 text-primary font-medium border-l-2 border-primary` ou o chip outline style
+### Tratamento de erros
+- Cada funcao verifica `error` do Supabase e lanca `Error` para o React Query capturar
+- Toast de erro ja esta configurado nos hooks (Prompt 2)
 
-### Nenhuma mudanca em
-- Rotas (App.tsx permanece igual)
-- Paginas individuais (CamposPage, ProdutosPage, etc.)
-- ConfigToolbarContext (continua funcionando igual)
-- Hooks e services
+### Funcionalidades com limitacao temporaria
+- `integracoesApi.obterAuthUrl` e `processarCallback` - dependem de OAuth no backend, serao mantidos como stub com mensagem informativa
+- `webhooksApi.testarSaida` - depende de chamada HTTP do backend, sera stub
+- `equipeApi.convidarUsuario` e `reenviarConvite` - dependem de envio de email via backend, serao stub
 
 ## Ordem de Execucao
-1. Atualizar navGroups para incluir icones individuais nos sub-itens
-2. Reestruturar ConfiguracoesLayout: header simplificado + sidebar desktop + content area
-3. Manter drawer mobile ja existente (com mesmos itens agrupados)
-4. Testar responsividade
-
+1. Criar migration SQL com novas politicas RLS (auth.uid)
+2. Reescrever configuracoes.api.ts usando Supabase direto
+3. Testar acesso as paginas de Pipeline (Campos, Motivos, etc.)
