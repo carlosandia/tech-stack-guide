@@ -1,116 +1,96 @@
 
-# Migrar Service Layer de Axios/Express para Supabase Direto
+# Plano: Reestruturar Campos para Pessoas, Empresas e Oportunidades (3 Tabs)
 
 ## Problema Identificado
 
-O arquivo `configuracoes.api.ts` faz todas as chamadas via **Axios** para um backend Express (`http://localhost:3001/api/v1/...`). Como nao existe um servidor Express rodando no ambiente Lovable, todas as paginas de Pipeline (Campos, Produtos, Motivos, Tarefas, Etapas, Regras, Cards) e demais configuracoes retornam "Network Error".
+A estrutura atual tem **4 entidades** nos campos personalizados (`contato`, `pessoa`, `empresa`, `oportunidade`), mas na pratica o banco de dados usa uma tabela unica `contatos` com coluna `tipo` que diferencia entre `pessoa` e `empresa`. A entidade generica `contato` gera confusao porque:
 
-Alem disso, as politicas RLS de 14 tabelas usam `current_setting('app.current_tenant')`, que so funciona quando definido pelo backend. O frontend Supabase client nao define essa variavel, entao o acesso seria bloqueado mesmo com chamadas diretas.
+1. O modulo `/contatos` (PRD-06) ja organiza tudo em **Pessoas** e **Empresas**
+2. O formulario de criacao de contato (PRD-06 RF-010) ja separa campos por tipo (Pessoa vs Empresa)
+3. Nao existe conceito de "campo geral" no padrao de mercado -- Pipedrive, HubSpot e RD Station usam apenas Pessoas + Empresas
 
-## Solucao
+## Solucao: Simplificar para 3 Tabs
 
-Duas frentes paralelas:
+Remover a entidade `contato` e redistribuir os campos nas entidades corretas:
 
-### Parte 1 - Atualizar RLS Policies (Migration SQL)
+| Tab | Campos do Sistema (bloqueados) | Campos Customizados |
+|-----|-------------------------------|---------------------|
+| **Pessoas** | Nome, Sobrenome, Email, Telefone, Cargo, LinkedIn | Admin adiciona livremente |
+| **Empresas** | Nome Fantasia, Razao Social, CNPJ, Email, Telefone, Website, Segmento, Porte | Admin adiciona livremente |
+| **Oportunidades** | (definidos no PRD-07) | Admin adiciona livremente |
 
-Criar migration adicionando novas politicas RLS que usam `auth.uid()` via join com tabela `usuarios`, substituindo as que dependem de `app.current_tenant`.
+Campos como Email e Telefone existem como campos de sistema em **ambas** as tabs, pois tanto Pessoa quanto Empresa possuem essas colunas na tabela `contatos`.
 
-Padrao a ser usado (mesmo ja usado na tabela `configuracoes_tenant`):
+## Impacto e Seguranca
 
-```text
-organizacao_id = (
-  SELECT u.organizacao_id FROM usuarios u WHERE u.auth_id = auth.uid()
-)
-```
+- A tabela `campos_customizados` esta **vazia** (zero registros), entao nao ha dados para migrar
+- A coluna `entidade` no banco e do tipo `varchar`, nao e um enum do PostgreSQL -- pode receber qualquer valor sem migration
+- A funcao SQL `criar_campos_sistema()` ja existe mas usa a entidade `contato` -- precisa ser atualizada
 
-Tabelas afetadas (14 tabelas):
-- campos_customizados
-- categorias_produtos
-- configuracoes_card
-- motivos_resultado
-- produtos
-- tarefas_templates
-- etapas_templates
-- etapas_tarefas
-- regras_qualificacao
-- webhooks_entrada
-- webhooks_saida
-- equipes
-- equipes_membros
-- metas
-
-Para cada tabela:
-1. DROP da policy antiga `tenant_isolation_*` (ALL)
-2. DROP das policies de INSERT/UPDATE/DELETE que usam `app.current_tenant`
-3. CREATE novas policies usando `auth.uid()` + `usuarios` join
-4. Manter compatibilidade com super_admin via `OR EXISTS (SELECT 1 FROM usuarios u WHERE u.auth_id = auth.uid() AND u.role = 'super_admin')`
-
-### Parte 2 - Reescrever configuracoes.api.ts
-
-Reescrever o service layer para usar o cliente Supabase diretamente (`@/lib/supabase`), eliminando a dependencia do Axios/Express.
-
-A logica das queries sera baseada nos backend services existentes (ex: `backend/src/services/campos.service.ts`), adaptando para o frontend:
-- Substituir `supabaseAdmin` por `supabase` (respeita RLS)
-- Remover parametro `organizacaoId` (RLS filtra automaticamente pelo tenant do usuario logado)
-- Manter mesma assinatura de retorno para nao quebrar os hooks
-
-Exemplo da transformacao para Campos:
-
-**Antes (Axios):**
-```text
-const { data } = await api.get('/v1/campos', { params: { entidade } })
-```
-
-**Depois (Supabase direto):**
-```text
-const { data, error, count } = await supabase
-  .from('campos_customizados')
-  .select('*', { count: 'exact' })
-  .eq('entidade', entidade)
-  .is('deletado_em', null)
-  .order('ordem', { ascending: true })
-```
-
-APIs a migrar:
-- `camposApi` - CRUD de campos_customizados
-- `produtosApi` - CRUD de produtos + categorias_produtos
-- `motivosApi` - CRUD de motivos_resultado + reordenacao
-- `tarefasTemplatesApi` - CRUD de tarefas_templates
-- `etapasTemplatesApi` - CRUD com join etapas_tarefas + vinculos
-- `regrasApi` - CRUD de regras_qualificacao
-- `configCardApi` - busca/atualizacao de configuracoes_card
-- `integracoesApi` - CRUD de integracoes (parcial, OAuth depende de backend)
-- `webhooksApi` - CRUD de webhooks_entrada e webhooks_saida + logs
-- `equipeApi` - Equipes, membros, usuarios, perfis
-- `metasApi` - CRUD de metas + progresso + ranking
-- `configTenantApi` - busca/atualizacao de configuracoes_tenant
-
-### O que NAO muda
-- Hooks (useCampos, useMotivos, etc.) - mantem mesma interface
-- Paginas (CamposPage, MotivosPage, etc.) - nenhuma alteracao
-- Schemas de validacao - permanecem iguais
-- AuthProvider - ja funciona via Supabase direto
+---
 
 ## Detalhes Tecnicos
 
-### Arquivo de Migration
-- `supabase/migrations/[timestamp]_update_rls_auth_uid.sql`
-- Contera DROP + CREATE de todas as policies
+### Arquivos a alterar
 
-### Arquivo do Service Layer
-- `src/modules/configuracoes/services/configuracoes.api.ts` - reescrita completa
-- Import de `supabase` de `@/lib/supabase` em vez de `api` de `@/lib/api`
+#### Frontend
 
-### Tratamento de erros
-- Cada funcao verifica `error` do Supabase e lanca `Error` para o React Query capturar
-- Toast de erro ja esta configurado nos hooks (Prompt 2)
+1. **`src/modules/configuracoes/schemas/campos.schema.ts`**
+   - Remover opcao `contato` do `entidadeOptions`
+   - Atualizar enum Zod para aceitar apenas `pessoa`, `empresa`, `oportunidade`
+   - Resultado: 3 tabs em vez de 4
 
-### Funcionalidades com limitacao temporaria
-- `integracoesApi.obterAuthUrl` e `processarCallback` - dependem de OAuth no backend, serao mantidos como stub com mensagem informativa
-- `webhooksApi.testarSaida` - depende de chamada HTTP do backend, sera stub
-- `equipeApi.convidarUsuario` e `reenviarConvite` - dependem de envio de email via backend, serao stub
+2. **`src/modules/configuracoes/pages/CamposPage.tsx`**
+   - Alterar estado inicial de `entidadeAtiva` de `'contato'` para `'pessoa'`
 
-## Ordem de Execucao
-1. Criar migration SQL com novas politicas RLS (auth.uid)
-2. Reescrever configuracoes.api.ts usando Supabase direto
-3. Testar acesso as paginas de Pipeline (Campos, Motivos, etc.)
+3. **`src/modules/configuracoes/components/campos/CampoFormModal.tsx`**
+   - Remover referencia ao label "Contatos" no mapeamento de `entidadeLabel`
+
+4. **`src/modules/configuracoes/services/configuracoes.api.ts`**
+   - Remover `'contato'` do tipo `Entidade`
+   - Tipo final: `'pessoa' | 'empresa' | 'oportunidade'`
+
+#### Backend
+
+5. **`backend/src/schemas/campos.ts`**
+   - Remover `'contato'` do `EntidadeEnum`
+   - Enum final: `z.enum(['pessoa', 'empresa', 'oportunidade'])`
+
+6. **Funcao SQL `criar_campos_sistema`** (migration)
+   - Reescrever para criar campos de sistema corretos:
+     - **Pessoa (6 campos):** Nome, Sobrenome, Email, Telefone, Cargo, LinkedIn
+     - **Empresa (8 campos):** Nome Fantasia, Razao Social, CNPJ, Email, Telefone, Website, Segmento de Mercado, Porte
+   - Cada campo com `sistema: true`, tipo correto e flag `obrigatorio` adequada
+
+### Campos de sistema a serem criados por tenant
+
+**Entidade `pessoa`:**
+
+| Nome | Slug | Tipo | Obrigatorio |
+|------|------|------|-------------|
+| Nome | nome | texto | Sim |
+| Sobrenome | sobrenome | texto | Nao |
+| Email | email | email | Nao |
+| Telefone | telefone | telefone | Nao |
+| Cargo | cargo | texto | Nao |
+| LinkedIn | linkedin | url | Nao |
+
+**Entidade `empresa`:**
+
+| Nome | Slug | Tipo | Obrigatorio |
+|------|------|------|-------------|
+| Nome Fantasia | nome_fantasia | texto | Sim |
+| Razao Social | razao_social | texto | Nao |
+| CNPJ | cnpj | cnpj | Nao |
+| Email | email | email | Nao |
+| Telefone | telefone | telefone | Nao |
+| Website | website | url | Nao |
+| Segmento de Mercado | segmento | texto | Nao |
+| Porte | porte | select | Nao |
+
+### Sequencia de implementacao
+
+1. Criar migration SQL que atualiza a funcao `criar_campos_sistema` com os novos campos
+2. Atualizar o backend (schema do enum)
+3. Atualizar o frontend (schema, page, modal, service types)
+4. Verificar visualmente a tela de Campos
