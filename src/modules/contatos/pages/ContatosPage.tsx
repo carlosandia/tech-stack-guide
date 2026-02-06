@@ -1,12 +1,11 @@
 /**
  * AIDEV-NOTE: Página principal do módulo de Contatos
- * Conforme PRD-06 - Tabs Pessoas/Empresas
- * Integra com AppToolbar via useAppToolbar
- * Inclui: busca, filtros completos, toggle colunas, paginação,
- * segmentos manager, duplicatas, importação
+ * Conforme PRD-06 - Tabs Pessoas/Empresas no Toolbar
+ * Toolbar: Título + Tabs + Busca + Filtros + Segmentos + Colunas + Exportar + Ações
+ * Body: Apenas a lista de contatos
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Plus, Search, Filter, Download, Upload, Users2, Building2, X, Tag, GitMerge, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useAuth } from '@/providers/AuthProvider'
@@ -40,12 +39,14 @@ export function ContatosPage() {
   // Estado de filtros
   const [busca, setBusca] = useState('')
   const [debouncedBusca, setDebouncedBusca] = useState('')
+  const [searchOpen, setSearchOpen] = useState(false)
   const [statusFilter, setStatusFilter] = useState('')
   const [origemFilter, setOrigemFilter] = useState('')
   const [segmentoFilter, setSegmentoFilter] = useState('')
   const [showFilters, setShowFilters] = useState(false)
   const [page, setPage] = useState(1)
   const perPage = 50
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
   // Estado de seleção
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -75,6 +76,13 @@ export function ContatosPage() {
     return () => clearTimeout(timer)
   }, [busca])
 
+  // Focus no input de busca ao abrir
+  useEffect(() => {
+    if (searchOpen && searchInputRef.current) {
+      searchInputRef.current.focus()
+    }
+  }, [searchOpen])
+
   // Parâmetros da query
   const params: ListarContatosParams = useMemo(() => ({
     tipo,
@@ -102,29 +110,143 @@ export function ContatosPage() {
   // Contagem de filtros ativos
   const filtrosAtivos = [statusFilter, origemFilter, segmentoFilter].filter(Boolean).length
 
-  // Toolbar actions
+  // --- Toolbar: Subtitle (Tabs Pessoas/Empresas) ---
   useEffect(() => {
-    setSubtitle(data ? `${data.total} ${tipo === 'pessoa' ? 'pessoa(s)' : 'empresa(s)'}` : '')
+    setSubtitle(
+      <div className="flex items-center gap-1 ml-2">
+        <button
+          onClick={() => navigate('/app/contatos/pessoas')}
+          className={`flex items-center gap-1.5 px-3 py-1 text-sm font-medium rounded-md transition-all duration-200 ${
+            tipo === 'pessoa'
+              ? 'border border-primary/40 bg-primary/5 text-primary'
+              : 'border border-transparent text-muted-foreground hover:text-foreground hover:bg-accent'
+          }`}
+        >
+          <Users2 className="w-3.5 h-3.5" />
+          Pessoas
+        </button>
+        <button
+          onClick={() => navigate('/app/contatos/empresas')}
+          className={`flex items-center gap-1.5 px-3 py-1 text-sm font-medium rounded-md transition-all duration-200 ${
+            tipo === 'empresa'
+              ? 'border border-primary/40 bg-primary/5 text-primary'
+              : 'border border-transparent text-muted-foreground hover:text-foreground hover:bg-accent'
+          }`}
+        >
+          <Building2 className="w-3.5 h-3.5" />
+          Empresas
+        </button>
+        {data && (
+          <span className="text-xs text-muted-foreground ml-1">
+            {data.total}
+          </span>
+        )}
+      </div>
+    )
+    return () => { setSubtitle(null) }
+  }, [tipo, data, navigate, setSubtitle])
+
+  // --- Toolbar: Actions (busca, filtros, segmentos, colunas, exportar, importar, duplicatas, novo) ---
+  useEffect(() => {
     setActions(
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5">
+        {/* Busca */}
+        {searchOpen ? (
+          <div className="relative flex items-center">
+            <Search className="absolute left-2.5 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              placeholder={`Buscar ${tipo === 'pessoa' ? 'pessoas' : 'empresas'}...`}
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              onBlur={() => { if (!busca) setSearchOpen(false) }}
+              className="w-48 pl-8 pr-7 py-1.5 text-sm rounded-md border border-input bg-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <button
+              onClick={() => { setBusca(''); setSearchOpen(false) }}
+              className="absolute right-2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setSearchOpen(true)}
+            className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            title="Buscar"
+          >
+            <Search className="w-4 h-4" />
+          </button>
+        )}
+
+        {/* Filtros */}
+        <div className="relative">
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={`flex items-center gap-1 px-2.5 py-1.5 text-sm rounded-md border transition-colors ${
+              showFilters || filtrosAtivos > 0
+                ? 'border-primary/40 bg-primary/5 text-primary'
+                : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-accent'
+            }`}
+          >
+            <Filter className="w-3.5 h-3.5" />
+            <span className="hidden lg:inline">Filtros</span>
+            {filtrosAtivos > 0 && (
+              <span className="w-4 h-4 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center">
+                {filtrosAtivos}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* Segmentos (Admin) */}
+        {isAdmin && (
+          <button
+            onClick={() => setSegmentosModalOpen(true)}
+            className="flex items-center gap-1 px-2.5 py-1.5 text-sm rounded-md border border-transparent text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          >
+            <Tag className="w-3.5 h-3.5" />
+            <span className="hidden lg:inline">Segmentos</span>
+          </button>
+        )}
+
+        {/* Colunas */}
+        <ContatoColumnsToggle tipo={tipo} columns={columns} onChange={setColumns} />
+
+        {/* Exportar */}
+        <button
+          onClick={handleExportSelected}
+          className="flex items-center gap-1 px-2.5 py-1.5 text-sm rounded-md border border-transparent text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+        >
+          <Download className="w-3.5 h-3.5" />
+          <span className="hidden lg:inline">Exportar</span>
+        </button>
+
+        {/* Separador */}
+        <div className="w-px h-5 bg-border mx-0.5" />
+
+        {/* Importar (Admin) */}
         {isAdmin && (
           <>
             <button
               onClick={() => setImportarModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md border border-border text-foreground hover:bg-accent transition-colors"
+              className="flex items-center gap-1 px-2.5 py-1.5 text-sm font-medium rounded-md border border-border text-foreground hover:bg-accent transition-colors"
             >
-              <Upload className="w-4 h-4" />
-              <span className="hidden sm:inline">Importar</span>
+              <Upload className="w-3.5 h-3.5" />
+              <span className="hidden lg:inline">Importar</span>
             </button>
             <button
               onClick={() => setDuplicatasModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md border border-border text-foreground hover:bg-accent transition-colors"
+              className="flex items-center gap-1 px-2.5 py-1.5 text-sm font-medium rounded-md border border-border text-foreground hover:bg-accent transition-colors"
             >
-              <GitMerge className="w-4 h-4" />
-              <span className="hidden sm:inline">Duplicatas</span>
+              <GitMerge className="w-3.5 h-3.5" />
+              <span className="hidden lg:inline">Duplicatas</span>
             </button>
           </>
         )}
+
+        {/* Novo Contato */}
         <button
           onClick={() => { setEditingContato(null); setFormModalOpen(true) }}
           className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
@@ -135,8 +257,8 @@ export function ContatosPage() {
         </button>
       </div>
     )
-    return () => { setActions(null); setSubtitle('') }
-  }, [tipo, data, isAdmin, setActions, setSubtitle])
+    return () => { setActions(null) }
+  }, [tipo, data, isAdmin, setActions, searchOpen, busca, showFilters, filtrosAtivos, columns])
 
   // Handlers
   const handleToggleSelect = useCallback((id: string) => {
@@ -210,92 +332,10 @@ export function ContatosPage() {
   const totalPages = data ? Math.ceil(data.total / perPage) : 0
 
   return (
-    <div className="space-y-4">
-      {/* Tabs Pessoas / Empresas */}
-      <div className="flex items-center gap-1 border-b border-border">
-        <button
-          onClick={() => navigate('/app/contatos/pessoas')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-            tipo === 'pessoa'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Users2 className="w-4 h-4" />
-          Pessoas
-        </button>
-        <button
-          onClick={() => navigate('/app/contatos/empresas')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-            tipo === 'empresa'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Building2 className="w-4 h-4" />
-          Empresas
-        </button>
-      </div>
-
-      {/* Search + Filters + Columns Toggle */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <div className="relative flex-1 min-w-[200px] max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder={`Buscar ${tipo === 'pessoa' ? 'pessoas' : 'empresas'}...`}
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-sm rounded-md border border-input bg-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-          {busca && (
-            <button onClick={() => setBusca('')} className="absolute right-2 top-1/2 -translate-y-1/2">
-              <X className="w-3.5 h-3.5 text-muted-foreground" />
-            </button>
-          )}
-        </div>
-
-        <button
-          onClick={() => setShowFilters(!showFilters)}
-          className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-md border transition-colors ${
-            showFilters || filtrosAtivos > 0
-              ? 'border-primary/40 bg-primary/5 text-primary'
-              : 'border-border text-muted-foreground hover:text-foreground hover:bg-accent'
-          }`}
-        >
-          <Filter className="w-4 h-4" />
-          Filtros
-          {filtrosAtivos > 0 && (
-            <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center">
-              {filtrosAtivos}
-            </span>
-          )}
-        </button>
-
-        {isAdmin && (
-          <button
-            onClick={() => setSegmentosModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-          >
-            <Tag className="w-4 h-4" />
-            <span className="hidden sm:inline">Segmentos</span>
-          </button>
-        )}
-
-        <ContatoColumnsToggle tipo={tipo} columns={columns} onChange={setColumns} />
-
-        <button
-          onClick={handleExportSelected}
-          className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-        >
-          <Download className="w-4 h-4" />
-          <span className="hidden sm:inline">Exportar</span>
-        </button>
-      </div>
-
-      {/* Filters panel */}
+    <div className="space-y-0">
+      {/* Painel de filtros expandido (dropdown abaixo do toolbar) */}
       {showFilters && (
-        <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg flex-wrap">
+        <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg flex-wrap mb-4">
           <select
             value={statusFilter}
             onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
