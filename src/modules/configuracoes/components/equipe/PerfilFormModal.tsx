@@ -121,7 +121,7 @@ export function PerfilFormModal({ perfil, onClose }: Props) {
   )
 
   return (
-    <ModalBase onClose={onClose} title={isEdicao ? 'Editar Perfil' : 'Novo Perfil'} description="Permissões" icon={Shield} variant={isEdicao ? 'edit' : 'create'} size="md" footer={footerContent}>
+    <ModalBase onClose={onClose} title={isEdicao ? 'Editar Perfil' : 'Novo Perfil'} description="Permissões" icon={Shield} variant={isEdicao ? 'edit' : 'create'} size="lg" footer={footerContent}>
       <form id="perfil-form" onSubmit={handleSubmit(onSubmit)} className="px-4 sm:px-6 py-4 space-y-4">
         {isSistema && (
           <div className="px-3 py-2 rounded-md bg-muted text-xs text-muted-foreground">Perfis de sistema não podem ser editados</div>
@@ -151,7 +151,7 @@ export function PerfilFormModal({ perfil, onClose }: Props) {
           <label className="block text-sm font-medium text-foreground mb-2">Permissões</label>
           {errors.permissoes && <p className="text-xs text-destructive mb-2">{errors.permissoes.message}</p>}
           <div className="border border-border rounded-lg overflow-hidden">
-            <div className="grid grid-cols-[1fr,repeat(5,40px)] gap-0 px-3 py-2 bg-muted text-xs font-medium text-muted-foreground border-b border-border">
+            <div className="grid grid-cols-[1fr,repeat(5,48px)] gap-0 px-3 py-2 bg-muted text-xs font-medium text-muted-foreground border-b border-border">
               <span>Módulo</span>
               {acoesDisponiveis.map(acao => (<span key={acao} className="text-center">{acaoLabels[acao]}</span>))}
             </div>
@@ -159,7 +159,7 @@ export function PerfilFormModal({ perfil, onClose }: Props) {
               const moduloPerms = permissoes[mod.value] || []
               const allSelected = acoesDisponiveis.every(a => moduloPerms.includes(a))
               return (
-                <div key={mod.value} className="grid grid-cols-[1fr,repeat(5,40px)] gap-0 px-3 py-2 border-b border-border last:border-b-0 hover:bg-accent/30 transition-colors">
+                <div key={mod.value} className="grid grid-cols-[1fr,repeat(5,48px)] gap-0 px-3 py-2 border-b border-border last:border-b-0 hover:bg-accent/30 transition-colors">
                   <button type="button" onClick={() => toggleModulo(mod.value)} className={`text-sm text-left ${allSelected ? 'text-primary font-medium' : 'text-foreground'}`}>{mod.label}</button>
                   {acoesDisponiveis.map(acao => (
                     <div key={acao} className="flex items-center justify-center">

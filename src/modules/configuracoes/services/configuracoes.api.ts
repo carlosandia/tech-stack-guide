@@ -2082,10 +2082,12 @@ export const equipeApi = {
 
   criarPerfil: async (payload: Record<string, unknown>) => {
     const orgId = await getOrganizacaoId()
+    // Remove campos que não existem na tabela
+    const { is_admin, is_sistema, ...dadosPerfil } = payload as { is_admin?: boolean; is_sistema?: boolean } & Record<string, unknown>
 
     const { data, error } = await supabase
       .from('perfis_permissao')
-      .insert({ organizacao_id: orgId, ...payload } as any)
+      .insert({ organizacao_id: orgId, ...dadosPerfil } as any)
       .select()
       .single()
 
@@ -2094,9 +2096,12 @@ export const equipeApi = {
   },
 
   atualizarPerfil: async (id: string, payload: Record<string, unknown>) => {
+    // Remove campos que não existem na tabela
+    const { is_admin, is_sistema, ...dadosPerfil } = payload as { is_admin?: boolean; is_sistema?: boolean } & Record<string, unknown>
+
     const { data, error } = await supabase
       .from('perfis_permissao')
-      .update({ ...payload, atualizado_em: new Date().toISOString() } as any)
+      .update({ ...dadosPerfil, atualizado_em: new Date().toISOString() } as any)
       .eq('id', id)
       .select()
       .single()
