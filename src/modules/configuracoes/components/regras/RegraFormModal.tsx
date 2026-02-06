@@ -26,7 +26,9 @@ export function RegraFormModal({ regra, onClose }: RegraFormModalProps) {
   const criar = useCriarRegra()
   const atualizar = useAtualizarRegra()
   const excluir = useExcluirRegra()
-  const { data: camposData } = useCampos('pessoa')
+  const { data: camposPessoa } = useCampos('pessoa')
+  const { data: camposEmpresa } = useCampos('empresa')
+  const { data: camposOportunidade } = useCampos('oportunidade')
 
   const { register, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm<RegraFormData>({
     resolver: zodResolver(regraFormSchema),
@@ -96,7 +98,27 @@ export function RegraFormModal({ regra, onClose }: RegraFormModalProps) {
           <label htmlFor="rg-campo" className="block text-sm font-medium text-foreground mb-1">Campo <span className="text-destructive">*</span></label>
           <select id="rg-campo" {...register('campo_id')} className="w-full h-10 px-3 rounded-md border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-ring focus:border-ring transition-all duration-200" aria-invalid={!!errors.campo_id}>
             <option value="">Selecione um campo...</option>
-            {camposData?.campos?.map(campo => (<option key={campo.id} value={campo.id}>{campo.nome} ({campo.tipo})</option>))}
+            {(camposPessoa?.campos?.length ?? 0) > 0 && (
+              <optgroup label="Pessoas">
+                {camposPessoa!.campos.map(campo => (
+                  <option key={campo.id} value={campo.id}>{campo.nome} ({campo.tipo})</option>
+                ))}
+              </optgroup>
+            )}
+            {(camposEmpresa?.campos?.length ?? 0) > 0 && (
+              <optgroup label="Empresas">
+                {camposEmpresa!.campos.map(campo => (
+                  <option key={campo.id} value={campo.id}>{campo.nome} ({campo.tipo})</option>
+                ))}
+              </optgroup>
+            )}
+            {(camposOportunidade?.campos?.length ?? 0) > 0 && (
+              <optgroup label="Oportunidades">
+                {camposOportunidade!.campos.map(campo => (
+                  <option key={campo.id} value={campo.id}>{campo.nome} ({campo.tipo})</option>
+                ))}
+              </optgroup>
+            )}
           </select>
           {errors.campo_id && <p className="text-xs text-destructive mt-1">{errors.campo_id.message}</p>}
         </div>

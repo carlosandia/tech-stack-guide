@@ -67,14 +67,20 @@ export const sidebarGroups: SidebarGroup[] = [
       { label: 'Motivos', path: '/app/configuracoes/motivos', icon: Flag },
       { label: 'Tarefas', path: '/app/configuracoes/tarefas', icon: ListChecks },
       { label: 'Etapas', path: '/app/configuracoes/etapas', icon: Layers },
-      { label: 'Regras', path: '/app/configuracoes/regras', icon: Scale },
+      { label: 'Qualificação', path: '/app/configuracoes/regras', icon: Scale },
       { label: 'Cards', path: '/app/configuracoes/cards', icon: LayoutGrid, adminOnly: true },
     ],
   },
 ]
 
+/** Mapeamento de títulos de página (quando diferente do label do menu) */
+const pageTitleOverrides: Record<string, string> = {
+  '/app/configuracoes/regras': 'Regras de Qualificação',
+}
+
 /** Retorna o título da página com base no pathname */
 export function getPageTitleFromSidebar(pathname: string): string {
+  if (pageTitleOverrides[pathname]) return pageTitleOverrides[pathname]
   for (const group of sidebarGroups) {
     for (const item of group.items) {
       if (pathname.startsWith(item.path)) return item.label
