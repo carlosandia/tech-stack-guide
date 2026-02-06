@@ -8,7 +8,7 @@ import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import UnderlineExt from '@tiptap/extension-underline'
 import TextAlign from '@tiptap/extension-text-align'
-import ImageExt from '@tiptap/extension-image'
+import ImageResize from 'tiptap-extension-resize-image'
 import { Table as TableExt } from '@tiptap/extension-table'
 import TableRow from '@tiptap/extension-table-row'
 import TableCell from '@tiptap/extension-table-cell'
@@ -35,12 +35,8 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
       TextAlign.configure({
         types: ['heading', 'paragraph'],
       }),
-      ImageExt.configure({
+      ImageResize.configure({
         inline: false,
-        allowBase64: true,
-        HTMLAttributes: {
-          style: 'max-width: 100%; height: auto;',
-        },
       }),
       TableExt.configure({
         resizable: false,
@@ -121,10 +117,28 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
           max-width: 100%;
           height: auto;
           border-radius: 4px;
+          cursor: pointer;
         }
         .ProseMirror img.ProseMirror-selectednode {
           outline: 2px solid hsl(var(--primary));
           outline-offset: 2px;
+        }
+        .ProseMirror .image-resizer {
+          display: inline-flex;
+          position: relative;
+          cursor: pointer;
+        }
+        .ProseMirror .image-resizer .resize-trigger {
+          position: absolute;
+          right: -4px;
+          bottom: -4px;
+          width: 12px;
+          height: 12px;
+          background: hsl(var(--primary));
+          border: 2px solid white;
+          border-radius: 2px;
+          cursor: nwse-resize;
+          z-index: 10;
         }
         .ProseMirror a {
           color: hsl(var(--primary));
