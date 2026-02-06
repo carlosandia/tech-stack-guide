@@ -270,12 +270,13 @@ export interface UsuarioTenant {
   email: string
   telefone?: string | null
   avatar_url?: string | null
-  papel_id?: string | null
+  perfil_permissao_id?: string | null
   papel_nome?: string | null
   status: 'ativo' | 'inativo' | 'pendente' | 'suspenso'
-  ultimo_acesso?: string | null
+  ultimo_login?: string | null
   criado_em: string
   atualizado_em: string
+  role?: string
 }
 
 /** @deprecated Use UsuarioTenant instead */
@@ -752,7 +753,7 @@ export const tarefasTemplatesApi = {
     if (params?.tipo) query = query.eq('tipo', params.tipo)
     if (params?.ativo) query = query.eq('ativo', params.ativo === 'true')
 
-    const { data, error, count } = await query.order('nome', { ascending: true })
+    const { data, error, count } = await query.order('titulo', { ascending: true })
 
     if (error) throw new Error(`Erro ao listar templates: ${error.message}`)
     return { templates: (data || []) as unknown as TarefaTemplate[], total: count || 0 }
@@ -803,7 +804,7 @@ export const etapasTemplatesApi = {
     let query = supabase
       .from('etapas_templates')
       .select(
-        `*, tarefas:etapas_tarefas(id, tarefa_template_id, criar_automaticamente, ordem, tarefa:tarefas_templates(id, nome, tipo, descricao))`,
+        `*, tarefas:etapas_tarefas(id, tarefa_template_id, criar_automaticamente, ordem, tarefa:tarefas_templates(id, titulo, tipo, descricao))`,
         { count: 'exact' }
       )
       .is('deletado_em', null)
@@ -1430,11 +1431,12 @@ export const equipeApi = {
 
     let query = supabase
       .from('usuarios')
-      .select('*, papel:perfis_permissao(id, nome)', { count: 'exact' })
+      .select('id, organizacao_id, nome, sobrenome, email, telefone, avatar_url, perfil_permissao_id, status, ultimo_login, criado_em, atualizado_em, role, deletado_em, papel:perfis_permissao(id, nome)', { count: 'exact' })
+      .is('deletado_em', null)
 
     if (params?.busca) query = query.or(`nome.ilike.%${params.busca}%,email.ilike.%${params.busca}%`)
     if (params?.status && params.status !== 'todos') query = query.eq('status', params.status)
-    if (params?.papel_id) query = query.eq('papel_id', params.papel_id)
+    if (params?.papel_id) query = query.eq('perfil_permissao_id', params.papel_id)
 
     const { data, error, count } = await query
       .order('nome', { ascending: true })
@@ -1453,7 +1455,7 @@ export const equipeApi = {
   buscarUsuario: async (id: string) => {
     const { data, error } = await supabase
       .from('usuarios')
-      .select('*, papel:perfis_permissao(id, nome)')
+      .select('id, organizacao_id, nome, sobrenome, email, telefone, avatar_url, perfil_permissao_id, status, ultimo_login, criado_em, atualizado_em, role, deletado_em, papel:perfis_permissao(id, nome)')
       .eq('id', id)
       .maybeSingle()
 
@@ -1473,7 +1475,7 @@ export const equipeApi = {
         nome: payload.nome,
         sobrenome: payload.sobrenome,
         email: payload.email,
-        papel_id: payload.papel_id,
+        perfil_permissao_id: payload.papel_id,
         status: 'pendente',
         criado_por: userId,
       } as any)
