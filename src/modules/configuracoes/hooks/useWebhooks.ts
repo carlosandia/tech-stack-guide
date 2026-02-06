@@ -11,6 +11,14 @@ import { webhooksApi } from '../services/configuracoes.api'
 // Webhooks de Entrada
 // =====================================================
 
+/** Busca ou cria automaticamente o webhook de entrada da organização */
+export function useWebhookEntrada() {
+  return useQuery({
+    queryKey: ['configuracoes', 'webhooks', 'entrada', 'principal'],
+    queryFn: () => webhooksApi.obterOuCriarEntrada(),
+  })
+}
+
 export function useWebhooksEntrada() {
   return useQuery({
     queryKey: ['configuracoes', 'webhooks', 'entrada'],
@@ -41,10 +49,10 @@ export function useAtualizarWebhookEntrada() {
       webhooksApi.atualizarEntrada(id, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['configuracoes', 'webhooks', 'entrada'] })
-      toast.success('Webhook de entrada atualizado com sucesso')
+      toast.success('Webhook atualizado com sucesso')
     },
     onError: () => {
-      toast.error('Erro ao atualizar webhook de entrada')
+      toast.error('Erro ao atualizar webhook')
     },
   })
 }
@@ -75,6 +83,21 @@ export function useRegenerarTokenWebhook() {
     },
     onError: () => {
       toast.error('Erro ao regenerar token')
+    },
+  })
+}
+
+export function useRegenerarChavesWebhook() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: string) => webhooksApi.regenerarChaves(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['configuracoes', 'webhooks', 'entrada'] })
+      toast.success('Chaves regeneradas com sucesso')
+    },
+    onError: () => {
+      toast.error('Erro ao regenerar chaves')
     },
   })
 }

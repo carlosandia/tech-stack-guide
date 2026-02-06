@@ -1,110 +1,63 @@
 /**
  * AIDEV-NOTE: Página de Webhooks de Entrada
- * Conforme PRD-05 - Webhooks de Entrada
- * Admin Only - Members bloqueados
+ * Padrão de mercado: 1 webhook por org, URL + chaves pré-geradas,
+ * toggle habilitar/desabilitar, regenerar chaves.
  */
 
 import { useEffect, useState } from 'react'
 import {
   Loader2,
-  Plus,
   Webhook,
   Copy,
   Check,
-  Pencil,
-  Trash2,
+  Eye,
+  EyeOff,
   RefreshCw,
-  Key,
-  Clock,
-  ToggleLeft,
-  ToggleRight,
+  HelpCircle,
+  CheckCircle2,
+  XCircle,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { useConfigToolbar } from '../contexts/ConfigToolbarContext'
 import {
-  useWebhooksEntrada,
-  useCriarWebhookEntrada,
+  useWebhookEntrada,
   useAtualizarWebhookEntrada,
-  useExcluirWebhookEntrada,
-  useRegenerarTokenWebhook,
+  useRegenerarChavesWebhook,
 } from '../hooks/useWebhooks'
-import { WebhookEntradaFormModal } from '../components/webhooks/WebhookEntradaFormModal'
-import type { WebhookEntrada } from '../services/configuracoes.api'
-import type { WebhookEntradaFormData } from '../schemas/webhooks.schema'
-
-function formatDate(dateStr?: string | null): string {
-  if (!dateStr) return 'Nunca'
-  return new Date(dateStr).toLocaleString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
 
 export function WebhooksEntradaPage() {
   const { setSubtitle, setActions } = useConfigToolbar()
-  const { data, isLoading } = useWebhooksEntrada()
-  const criar = useCriarWebhookEntrada()
+  const { data: webhook, isLoading } = useWebhookEntrada()
   const atualizar = useAtualizarWebhookEntrada()
-  const excluir = useExcluirWebhookEntrada()
-  const regenerar = useRegenerarTokenWebhook()
+  const regenerarChaves = useRegenerarChavesWebhook()
 
-  const [modalOpen, setModalOpen] = useState(false)
-  const [editing, setEditing] = useState<WebhookEntrada | null>(null)
-  const [copiedId, setCopiedId] = useState<string | null>(null)
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [copiedField, setCopiedField] = useState<string | null>(null)
+  const [showApiKey, setShowApiKey] = useState(false)
+  const [showInstrucoes, setShowInstrucoes] = useState(false)
+  const [confirmRegen, setConfirmRegen] = useState(false)
 
   useEffect(() => {
-    setSubtitle('URLs para receber dados de sistemas externos')
-    setActions(
-      <button
-        onClick={() => { setEditing(null); setModalOpen(true) }}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-      >
-        <Plus className="w-4 h-4" />
-        Novo Webhook
-      </button>
-    )
+    setSubtitle('Integração via webhooks personalizados')
+    setActions(null)
     return () => { setSubtitle(null); setActions(null) }
   }, [setSubtitle, setActions])
 
-  const handleSubmit = (formData: WebhookEntradaFormData) => {
-    const payload: Record<string, unknown> = {
-      nome: formData.nome,
-      descricao: formData.descricao || undefined,
-      api_key: formData.api_key || undefined,
-      secret_key: formData.secret_key || undefined,
-    }
-
-    if (editing) {
-      atualizar.mutate(
-        { id: editing.id, payload },
-        {
-          onSuccess: () => {
-            setModalOpen(false)
-            setEditing(null)
-          },
-        }
-      )
-    } else {
-      criar.mutate(payload, {
-        onSuccess: () => {
-          setModalOpen(false)
-        },
-      })
-    }
+  const handleCopy = (value: string, field: string) => {
+    navigator.clipboard.writeText(value)
+    setCopiedField(field)
+    toast.success('Copiado para a área de transferência')
+    setTimeout(() => setCopiedField(null), 2000)
   }
 
-  const handleCopyUrl = (webhook: WebhookEntrada) => {
-    const url = webhook.url_completa || webhook.url_token
-    navigator.clipboard.writeText(url)
-    setCopiedId(webhook.id)
-    setTimeout(() => setCopiedId(null), 2000)
-  }
-
-  const handleToggleAtivo = (webhook: WebhookEntrada) => {
+  const handleToggleAtivo = () => {
+    if (!webhook) return
     atualizar.mutate({ id: webhook.id, payload: { ativo: !webhook.ativo } })
+  }
+
+  const handleRegenerarChaves = () => {
+    if (!webhook) return
+    regenerarChaves.mutate(webhook.id)
+    setConfirmRegen(false)
   }
 
   if (isLoading) {
@@ -115,159 +68,291 @@ export function WebhooksEntradaPage() {
     )
   }
 
-  const webhooks = data?.webhooks || []
+  if (!webhook) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <p className="text-sm text-muted-foreground">Erro ao carregar configuração de webhook.</p>
+      </div>
+    )
+  }
+
+  const webhookUrl = webhook.url_completa || ''
+  const maskedApiKey = webhook.api_key ? '•'.repeat(40) : ''
+  const maskedSecretKey = webhook.secret_key ? '•'.repeat(40) : ''
 
   return (
-    <div className="space-y-4">
-      {webhooks.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-24 text-center">
-          <div className="w-16 h-16 bg-muted rounded-2xl flex items-center justify-center mb-6">
-            <Webhook className="w-8 h-8 text-muted-foreground" />
+    <div className="space-y-6">
+      {/* Header Card */}
+      <div className="bg-card border border-border rounded-lg p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+              <Webhook className="w-6 h-6 text-primary" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-semibold text-foreground">Webhooks</h2>
+                <button
+                  onClick={() => setShowInstrucoes(!showInstrucoes)}
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  title="Ver instruções"
+                >
+                  <HelpCircle className="w-4 h-4" />
+                </button>
+              </div>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Integração via webhooks personalizados
+              </p>
+            </div>
           </div>
-          <h2 className="text-lg font-semibold text-foreground mb-2">Nenhum webhook de entrada</h2>
-          <p className="text-sm text-muted-foreground max-w-md mb-6">
-            Crie webhooks de entrada para receber dados de formulários, integrações e sistemas externos.
-          </p>
+
+          {/* Badge de status */}
+          {webhook.ativo ? (
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full bg-[hsl(var(--success-muted))] text-[hsl(var(--success-foreground))]">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              Configurado
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full bg-muted text-muted-foreground">
+              <XCircle className="w-3.5 h-3.5" />
+              Desabilitado
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Webhook URL */}
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium text-foreground">Webhook URL</label>
+        <div className="flex items-center gap-2">
+          <div className="flex-1 h-10 px-3 flex items-center rounded-md border border-input bg-muted/50">
+            <code className="text-sm text-foreground font-mono truncate">{webhookUrl}</code>
+          </div>
           <button
-            onClick={() => { setEditing(null); setModalOpen(true) }}
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            onClick={() => handleCopy(webhookUrl, 'url')}
+            className="h-10 w-10 flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent transition-colors flex-shrink-0"
+            title="Copiar URL"
           >
-            <Plus className="w-4 h-4" />
-            Criar Primeiro Webhook
+            {copiedField === 'url' ? (
+              <Check className="w-4 h-4 text-[hsl(var(--success))]" />
+            ) : (
+              <Copy className="w-4 h-4 text-muted-foreground" />
+            )}
           </button>
         </div>
-      ) : (
-        <div className="space-y-3">
-          {webhooks.map((webhook) => (
-            <div
-              key={webhook.id}
-              className={`bg-card border rounded-lg p-5 transition-colors ${
-                webhook.ativo ? 'border-border' : 'border-border/50 opacity-60'
-              }`}
+        <p className="text-xs text-muted-foreground">
+          Use esta URL em N8N, Zapier, Make.com e outras plataformas para receber leads
+        </p>
+      </div>
+
+      {/* Toggle Habilitado */}
+      <div className="flex items-center justify-between py-3 border-b border-border">
+        <div>
+          <p className="text-sm font-medium text-foreground">Webhook Habilitado</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Receber leads via webhook de plataformas externas
+          </p>
+        </div>
+        <button
+          onClick={handleToggleAtivo}
+          disabled={atualizar.isPending}
+          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${
+            webhook.ativo ? 'bg-[hsl(var(--success))]' : 'bg-muted-foreground/30'
+          }`}
+        >
+          <span
+            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+              webhook.ativo ? 'translate-x-6' : 'translate-x-1'
+            }`}
+          />
+        </button>
+      </div>
+
+      {/* Chave Pública (API Key) */}
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium text-foreground">Chave Pública (API Key)</label>
+        <div className="flex items-center gap-2">
+          <div className="flex-1 h-10 px-3 flex items-center rounded-md border border-input bg-muted/50 font-mono">
+            <span className="text-sm text-foreground truncate">
+              {showApiKey ? (webhook.api_key || '') : maskedApiKey}
+            </span>
+          </div>
+          <button
+            onClick={() => setShowApiKey(!showApiKey)}
+            className="h-10 w-10 flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent transition-colors flex-shrink-0"
+            title={showApiKey ? 'Ocultar' : 'Mostrar'}
+          >
+            {showApiKey ? (
+              <EyeOff className="w-4 h-4 text-muted-foreground" />
+            ) : (
+              <Eye className="w-4 h-4 text-muted-foreground" />
+            )}
+          </button>
+          <button
+            onClick={() => handleCopy(webhook.api_key || '', 'apikey')}
+            className="h-10 w-10 flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent transition-colors flex-shrink-0"
+            title="Copiar"
+          >
+            {copiedField === 'apikey' ? (
+              <Check className="w-4 h-4 text-[hsl(var(--success))]" />
+            ) : (
+              <Copy className="w-4 h-4 text-muted-foreground" />
+            )}
+          </button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Chave de autenticação pública
+        </p>
+      </div>
+
+      {/* Chave Secreta (Secret Key) */}
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium text-foreground">Chave Secreta (Secret Key)</label>
+        <div className="flex items-center gap-2">
+          <div className="flex-1 h-10 px-3 flex items-center rounded-md border border-input bg-muted/50 font-mono">
+            <span className="text-sm text-foreground truncate">{maskedSecretKey}</span>
+          </div>
+          <button
+            onClick={() => handleCopy(webhook.secret_key || '', 'secret')}
+            className="h-10 w-10 flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent transition-colors flex-shrink-0"
+            title="Copiar"
+          >
+            {copiedField === 'secret' ? (
+              <Check className="w-4 h-4 text-[hsl(var(--success))]" />
+            ) : (
+              <Copy className="w-4 h-4 text-muted-foreground" />
+            )}
+          </button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Chave de autenticação secreta (não compartilhe)
+        </p>
+      </div>
+
+      {/* Ações */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <button
+          onClick={() => setShowInstrucoes(!showInstrucoes)}
+          className="flex items-center justify-center gap-2 h-10 px-4 rounded-md border border-input bg-background text-sm font-medium text-foreground hover:bg-accent transition-colors"
+        >
+          <HelpCircle className="w-4 h-4" />
+          Ver Instruções
+        </button>
+
+        {confirmRegen ? (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleRegenerarChaves}
+              disabled={regenerarChaves.isPending}
+              className="flex-1 flex items-center justify-center gap-2 h-10 px-4 rounded-md bg-destructive text-destructive-foreground text-sm font-medium hover:bg-destructive/90 transition-colors disabled:opacity-50"
             >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="text-sm font-semibold text-foreground">{webhook.nome}</h3>
-                    {webhook.ativo ? (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-[hsl(var(--success-muted))] text-[hsl(var(--success-foreground))]">
-                        Ativo
-                      </span>
-                    ) : (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-                        Inativo
-                      </span>
-                    )}
-                  </div>
+              {regenerarChaves.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirmar'}
+            </button>
+            <button
+              onClick={() => setConfirmRegen(false)}
+              className="flex-1 flex items-center justify-center gap-2 h-10 px-4 rounded-md border border-input bg-background text-sm font-medium text-foreground hover:bg-accent transition-colors"
+            >
+              Cancelar
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setConfirmRegen(true)}
+            className="flex items-center justify-center gap-2 h-10 px-4 rounded-md border border-input bg-background text-sm font-medium text-foreground hover:bg-accent transition-colors"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Regenerar Chaves
+          </button>
+        )}
+      </div>
 
-                  {webhook.descricao && (
-                    <p className="text-xs text-muted-foreground mb-2">{webhook.descricao}</p>
-                  )}
-
-                  {/* URL */}
-                  <div className="flex items-center gap-2 mb-2">
-                    <code className="text-xs bg-muted px-2 py-1 rounded text-foreground truncate max-w-md">
-                      {webhook.url_completa || webhook.url_token}
-                    </code>
-                    <button
-                      onClick={() => handleCopyUrl(webhook)}
-                      className="flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors"
-                      title="Copiar URL"
-                    >
-                      {copiedId === webhook.id ? (
-                        <Check className="w-3.5 h-3.5 text-[hsl(var(--success))]" />
-                      ) : (
-                        <Copy className="w-3.5 h-3.5" />
-                      )}
-                    </button>
-                  </div>
-
-                  {/* Meta info */}
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                    {webhook.api_key && (
-                      <span className="flex items-center gap-1">
-                        <Key className="w-3 h-3" />
-                        API Key configurada
-                      </span>
-                    )}
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      Último request: {formatDate(webhook.ultimo_request_em)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Ações */}
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  <button
-                    onClick={() => handleToggleAtivo(webhook)}
-                    className="p-2 text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted"
-                    title={webhook.ativo ? 'Desativar' : 'Ativar'}
-                  >
-                    {webhook.ativo ? (
-                      <ToggleRight className="w-4 h-4 text-[hsl(var(--success))]" />
-                    ) : (
-                      <ToggleLeft className="w-4 h-4" />
-                    )}
-                  </button>
-
-                  <button
-                    onClick={() => regenerar.mutate(webhook.id)}
-                    className="p-2 text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted"
-                    title="Regenerar Token"
-                  >
-                    <RefreshCw className="w-4 h-4" />
-                  </button>
-
-                  <button
-                    onClick={() => { setEditing(webhook); setModalOpen(true) }}
-                    className="p-2 text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted"
-                    title="Editar"
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </button>
-
-                  {confirmDelete === webhook.id ? (
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => {
-                          excluir.mutate(webhook.id)
-                          setConfirmDelete(null)
-                        }}
-                        className="px-2 py-1 text-xs font-medium rounded bg-destructive text-destructive-foreground"
-                      >
-                        Confirmar
-                      </button>
-                      <button
-                        onClick={() => setConfirmDelete(null)}
-                        className="px-2 py-1 text-xs font-medium rounded bg-secondary text-secondary-foreground"
-                      >
-                        Não
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => setConfirmDelete(webhook.id)}
-                      className="p-2 text-muted-foreground hover:text-destructive transition-colors rounded-md hover:bg-muted"
-                      title="Excluir"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
+      {/* Status do Webhook */}
+      {webhook.ativo ? (
+        <div className="flex items-start gap-3 p-4 rounded-lg bg-[hsl(var(--success-muted))]">
+          <CheckCircle2 className="w-5 h-5 text-[hsl(var(--success-foreground))] flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-[hsl(var(--success-foreground))]">Webhooks ativos</p>
+            <p className="text-xs text-[hsl(var(--success-foreground))]/80 mt-0.5">
+              Sistema pronto para receber leads de N8N, Zapier, Make.com e outras plataformas
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-start gap-3 p-4 rounded-lg bg-muted">
+          <XCircle className="w-5 h-5 text-muted-foreground flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-foreground">Webhooks desabilitados</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Habilite o webhook acima para começar a receber leads de plataformas externas
+            </p>
+          </div>
         </div>
       )}
 
-      <WebhookEntradaFormModal
-        open={modalOpen}
-        onClose={() => { setModalOpen(false); setEditing(null) }}
-        onSubmit={handleSubmit}
-        webhook={editing}
-        isLoading={criar.isPending || atualizar.isPending}
-      />
+      {/* Instruções expandíveis */}
+      {showInstrucoes && (
+        <div className="bg-card border border-border rounded-lg p-6 space-y-4">
+          <h3 className="text-sm font-semibold text-foreground">Como configurar suas integrações</h3>
+
+          <div className="space-y-3">
+            <div>
+              <p className="text-sm font-medium text-foreground">1. Copie a Webhook URL</p>
+              <p className="text-xs text-muted-foreground">
+                Cole esta URL como destino de webhook no N8N, Zapier, Make.com ou outra plataforma.
+              </p>
+            </div>
+
+            <div>
+              <p className="text-sm font-medium text-foreground">2. Configure a autenticação</p>
+              <p className="text-xs text-muted-foreground">
+                Inclua a API Key no header <code className="bg-muted px-1 py-0.5 rounded text-xs">X-Api-Key</code> ou{' '}
+                <code className="bg-muted px-1 py-0.5 rounded text-xs">Authorization: Bearer {'<api_key>'}</code>
+              </p>
+            </div>
+
+            <div>
+              <p className="text-sm font-medium text-foreground">3. Envie os dados como JSON</p>
+              <p className="text-xs text-muted-foreground">
+                O body deve conter os campos do lead. Campos reconhecidos:
+              </p>
+              <pre className="mt-2 p-3 rounded-md bg-muted text-xs font-mono text-foreground overflow-x-auto">
+{`{
+  "nome": "João Silva",
+  "email": "joao@email.com",
+  "telefone": "(11) 99999-0000",
+  "empresa": "Empresa Ltda",
+  "origem": "formulario_site",
+  "observacoes": "Interessado no plano Pro"
+}`}
+              </pre>
+            </div>
+
+            <div>
+              <p className="text-sm font-medium text-foreground">4. Habilite o webhook</p>
+              <p className="text-xs text-muted-foreground">
+                Ative o toggle acima para começar a receber leads automaticamente.
+              </p>
+            </div>
+          </div>
+
+          {webhook.total_requests != null && webhook.total_requests > 0 && (
+            <div className="pt-3 border-t border-border">
+              <p className="text-xs text-muted-foreground">
+                Total de requests recebidos: <span className="font-medium text-foreground">{webhook.total_requests}</span>
+                {webhook.ultimo_request_em && (
+                  <> · Último em: <span className="font-medium text-foreground">
+                    {new Date(webhook.ultimo_request_em).toLocaleString('pt-BR')}
+                  </span></>
+                )}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      <p className="text-xs text-muted-foreground">
+        Configure suas integrações para receber leads automaticamente
+      </p>
     </div>
   )
 }
