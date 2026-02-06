@@ -288,19 +288,85 @@ export interface PerfilPermissao {
 }
 
 // Metas
+export type TipoMeta = 'empresa' | 'equipe' | 'individual'
+export type CategoriaMetrica = 'receita' | 'quantidade' | 'atividades' | 'leads' | 'tempo'
+export type MetricaMeta =
+  | 'valor_vendas' | 'mrr' | 'ticket_medio'
+  | 'quantidade_vendas' | 'novos_negocios' | 'taxa_conversao'
+  | 'reunioes' | 'ligacoes' | 'emails' | 'tarefas'
+  | 'novos_contatos' | 'mqls' | 'sqls'
+  | 'tempo_fechamento' | 'velocidade_pipeline'
+export type PeriodoMeta = 'mensal' | 'trimestral' | 'semestral' | 'anual'
+export type TipoDistribuicao = 'igual' | 'proporcional' | 'manual'
+
 export interface Meta {
   id: string
   organizacao_id: string
-  nome: string
-  tipo: string
-  metrica: string
-  valor_alvo: number
-  valor_atual: number
-  periodo: string
-  inicio: string
-  fim: string
+  nome?: string
+  tipo: TipoMeta
+  metrica: MetricaMeta
+  valor_meta: number
+  periodo: PeriodoMeta
+  data_inicio: string
+  data_fim: string
+  equipe_id?: string | null
+  usuario_id?: string | null
+  funil_id?: string | null
+  meta_pai_id?: string | null
   ativa: boolean
   criado_em: string
+  criado_por?: string | null
+  atualizado_em: string
+  deletado_em?: string | null
+}
+
+export interface MetaProgresso {
+  id: string
+  meta_id?: string
+  valor_atual: number
+  percentual_atingido: number
+  ultima_atualizacao?: string
+}
+
+export interface MetaComProgresso extends Meta {
+  progresso?: MetaProgresso | null
+  equipe_nome?: string | null
+  usuario_nome?: string | null
+  metas_filhas_count?: number
+}
+
+export interface MetaDetalhada extends MetaComProgresso {
+  metas_filhas?: MetaComProgresso[]
+}
+
+export interface RankingItem {
+  posicao: number
+  usuario_id: string
+  usuario_nome: string
+  avatar_url?: string | null
+  equipe_nome?: string | null
+  valor_atingido: number
+  percentual_meta: number
+  variacao: number
+}
+
+// Configurações do Tenant
+export interface ConfiguracaoTenant {
+  id: string
+  organizacao_id: string
+  moeda_padrao: string
+  timezone: string
+  formato_data: string
+  notificar_nova_oportunidade: boolean
+  notificar_tarefa_vencida: boolean
+  notificar_mudanca_etapa: boolean
+  criar_tarefa_automatica: boolean
+  dias_alerta_inatividade: number
+  assinatura_mensagem?: string | null
+  horario_inicio_envio: string
+  horario_fim_envio: string
+  criado_em: string
+  atualizado_em: string
 }
 
 // =====================================================
@@ -743,7 +809,12 @@ export const equipeApi = {
 export const metasApi = {
   listar: async (params?: Record<string, string>) => {
     const { data } = await api.get('/v1/metas', { params })
-    return data as { metas: Meta[]; total: number }
+    return data as { metas: MetaComProgresso[]; total: number }
+  },
+
+  buscar: async (id: string) => {
+    const { data } = await api.get(`/v1/metas/${id}`)
+    return data as MetaDetalhada
   },
 
   criar: async (payload: Record<string, unknown>) => {
@@ -763,5 +834,51 @@ export const metasApi = {
   distribuir: async (id: string, payload: Record<string, unknown>) => {
     const { data } = await api.post(`/v1/metas/${id}/distribuir`, payload)
     return data
+  },
+
+  buscarEmpresa: async () => {
+    const { data } = await api.get('/v1/metas/empresa')
+    return data as { metas: MetaDetalhada[]; resumo: { total_metas: number; media_atingimento: number; metas_atingidas: number; metas_em_risco: number } }
+  },
+
+  buscarEquipes: async (equipeId: string) => {
+    const { data } = await api.get('/v1/metas/equipes', { params: { equipe_id: equipeId } })
+    return data
+  },
+
+  buscarIndividuais: async () => {
+    const { data } = await api.get('/v1/metas/individuais')
+    return data as { metas: MetaComProgresso[]; total: number }
+  },
+
+  buscarProgresso: async () => {
+    const { data } = await api.get('/v1/metas/progresso')
+    return data
+  },
+
+  buscarRanking: async (params?: Record<string, string>) => {
+    const { data } = await api.get('/v1/metas/ranking', { params })
+    return data as { ranking: RankingItem[]; metrica?: string; periodo?: { inicio: string; fim: string }; atualizado_em?: string }
+  },
+
+  buscarMinhas: async () => {
+    const { data } = await api.get('/v1/metas/minhas')
+    return data
+  },
+}
+
+// =====================================================
+// API Functions - Configurações do Tenant
+// =====================================================
+
+export const configTenantApi = {
+  buscar: async () => {
+    const { data } = await api.get('/v1/configuracoes-tenant')
+    return data as ConfiguracaoTenant
+  },
+
+  atualizar: async (payload: Record<string, unknown>) => {
+    const { data } = await api.patch('/v1/configuracoes-tenant', payload)
+    return data as ConfiguracaoTenant
   },
 }

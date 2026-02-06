@@ -71,7 +71,7 @@ const navGroups: NavGroup[] = [
       { label: 'Membros', path: '/app/configuracoes/membros' },
       { label: 'Perfis', path: '/app/configuracoes/perfis' },
       { label: 'Metas', path: '/app/configuracoes/metas' },
-      { label: 'Config Geral', path: '/app/configuracoes/geral' },
+      { label: 'Config Geral', path: '/app/configuracoes/config-geral', adminOnly: true },
     ],
   },
 ]
