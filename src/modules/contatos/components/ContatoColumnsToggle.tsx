@@ -1,76 +1,70 @@
 /**
  * AIDEV-NOTE: Toggle de colunas para contatos
  * Conforme PRD-06 RF-005 - Popover com checkboxes
+ * Integra campos do sistema + campos customizados de /configuracoes/campos
  * Colunas fixas não podem ser ocultadas
  */
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { Settings2 } from 'lucide-react'
 import type { TipoContato } from '../services/contatos.api'
+import { useCampos } from '@/modules/configuracoes/hooks/useCampos'
 
 export interface ColumnConfig {
   key: string
   label: string
   fixed: boolean
   visible: boolean
+  group: 'fixed' | 'system' | 'custom'
 }
 
 const COLUNAS_FIXAS_PESSOA: ColumnConfig[] = [
-  { key: 'nome', label: 'Nome', fixed: true, visible: true },
-  { key: 'empresa', label: 'Empresa Vinculada', fixed: true, visible: true },
-  { key: 'segmentacao', label: 'Segmentação', fixed: true, visible: true },
-  { key: 'responsavel', label: 'Atribuído A', fixed: true, visible: true },
-  { key: 'status', label: 'Status', fixed: true, visible: true },
-  { key: 'acoes', label: 'Ações', fixed: true, visible: true },
+  { key: 'nome', label: 'Nome', fixed: true, visible: true, group: 'fixed' },
+  { key: 'empresa', label: 'Empresa Vinculada', fixed: true, visible: true, group: 'fixed' },
+  { key: 'segmentacao', label: 'Segmentação', fixed: true, visible: true, group: 'fixed' },
+  { key: 'responsavel', label: 'Atribuído A', fixed: true, visible: true, group: 'fixed' },
+  { key: 'status', label: 'Status', fixed: true, visible: true, group: 'fixed' },
+  { key: 'acoes', label: 'Ações', fixed: true, visible: true, group: 'fixed' },
 ]
 
-const COLUNAS_DINAMICAS_PESSOA: ColumnConfig[] = [
-  { key: 'email', label: 'Email', fixed: false, visible: true },
-  { key: 'telefone', label: 'Telefone', fixed: false, visible: false },
-  { key: 'cargo', label: 'Cargo', fixed: false, visible: false },
-  { key: 'linkedin', label: 'LinkedIn', fixed: false, visible: false },
-  { key: 'origem', label: 'Origem', fixed: false, visible: false },
-  { key: 'criado_em', label: 'Data de Criação', fixed: false, visible: false },
+const COLUNAS_SISTEMA_PESSOA: ColumnConfig[] = [
+  { key: 'email', label: 'Email', fixed: false, visible: true, group: 'system' },
+  { key: 'telefone', label: 'Telefone', fixed: false, visible: false, group: 'system' },
+  { key: 'cargo', label: 'Cargo', fixed: false, visible: false, group: 'system' },
+  { key: 'linkedin', label: 'LinkedIn', fixed: false, visible: false, group: 'system' },
+  { key: 'origem', label: 'Origem', fixed: false, visible: false, group: 'system' },
+  { key: 'criado_em', label: 'Data de Criação', fixed: false, visible: false, group: 'system' },
 ]
 
 const COLUNAS_FIXAS_EMPRESA: ColumnConfig[] = [
-  { key: 'nome_empresa', label: 'Nome da Empresa', fixed: true, visible: true },
-  { key: 'pessoa_vinculada', label: 'Pessoa Vinculada', fixed: true, visible: true },
-  { key: 'status', label: 'Status', fixed: true, visible: true },
-  { key: 'acoes', label: 'Ações', fixed: true, visible: true },
+  { key: 'nome_empresa', label: 'Nome da Empresa', fixed: true, visible: true, group: 'fixed' },
+  { key: 'pessoa_vinculada', label: 'Pessoa Vinculada', fixed: true, visible: true, group: 'fixed' },
+  { key: 'status', label: 'Status', fixed: true, visible: true, group: 'fixed' },
+  { key: 'acoes', label: 'Ações', fixed: true, visible: true, group: 'fixed' },
 ]
 
-const COLUNAS_DINAMICAS_EMPRESA: ColumnConfig[] = [
-  { key: 'razao_social', label: 'Razão Social', fixed: false, visible: false },
-  { key: 'cnpj', label: 'CNPJ', fixed: false, visible: false },
-  { key: 'segmento_mercado', label: 'Segmento de Mercado', fixed: false, visible: false },
-  { key: 'porte', label: 'Porte', fixed: false, visible: false },
-  { key: 'website', label: 'Website', fixed: false, visible: false },
-  { key: 'email', label: 'Email', fixed: false, visible: false },
-  { key: 'telefone', label: 'Telefone', fixed: false, visible: false },
+const COLUNAS_SISTEMA_EMPRESA: ColumnConfig[] = [
+  { key: 'razao_social', label: 'Razão Social', fixed: false, visible: false, group: 'system' },
+  { key: 'cnpj', label: 'CNPJ', fixed: false, visible: false, group: 'system' },
+  { key: 'segmento_mercado', label: 'Segmento de Mercado', fixed: false, visible: false, group: 'system' },
+  { key: 'porte', label: 'Porte', fixed: false, visible: false, group: 'system' },
+  { key: 'website', label: 'Website', fixed: false, visible: false, group: 'system' },
+  { key: 'email', label: 'Email', fixed: false, visible: false, group: 'system' },
+  { key: 'telefone', label: 'Telefone', fixed: false, visible: false, group: 'system' },
 ]
 
-const STORAGE_KEY_PREFIX = 'contatos_columns_'
+const STORAGE_KEY_PREFIX = 'contatos_columns_v2_'
 
 function getInitialColumns(tipo: TipoContato): ColumnConfig[] {
-  const key = STORAGE_KEY_PREFIX + tipo
-  const saved = localStorage.getItem(key)
-  if (saved) {
-    try {
-      return JSON.parse(saved)
-    } catch {
-      // fallthrough
-    }
-  }
   const fixas = tipo === 'pessoa' ? COLUNAS_FIXAS_PESSOA : COLUNAS_FIXAS_EMPRESA
-  const dinamicas = tipo === 'pessoa' ? COLUNAS_DINAMICAS_PESSOA : COLUNAS_DINAMICAS_EMPRESA
-  return [...fixas, ...dinamicas]
+  const sistema = tipo === 'pessoa' ? COLUNAS_SISTEMA_PESSOA : COLUNAS_SISTEMA_EMPRESA
+  return [...fixas, ...sistema]
 }
 
 function getDefaultColumns(tipo: TipoContato): ColumnConfig[] {
   const fixas = tipo === 'pessoa' ? COLUNAS_FIXAS_PESSOA : COLUNAS_FIXAS_EMPRESA
-  const dinamicas = tipo === 'pessoa' ? COLUNAS_DINAMICAS_PESSOA : COLUNAS_DINAMICAS_EMPRESA
-  return [...fixas, ...dinamicas]
+  const sistema = tipo === 'pessoa' ? COLUNAS_SISTEMA_PESSOA : COLUNAS_SISTEMA_EMPRESA
+  return [...fixas, ...sistema]
 }
 
 interface ContatoColumnsToggleProps {
@@ -83,6 +77,30 @@ export function ContatoColumnsToggle({ tipo, columns, onChange }: ContatoColumns
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
+  // Buscar campos customizados do tenant
+  const entidade = tipo === 'pessoa' ? 'pessoa' : 'empresa'
+  const { data: camposData } = useCampos(entidade as 'pessoa' | 'empresa')
+  const camposCustomizados = camposData?.campos?.filter(c => !c.sistema && c.ativo) || []
+
+  // Merge columns with custom fields
+  const mergedColumns = useMemo(() => {
+    const existingKeys = new Set(columns.map(c => c.key))
+    const customColumns: ColumnConfig[] = camposCustomizados
+      .filter(c => !existingKeys.has(`custom_${c.slug}`))
+      .map(c => ({
+        key: `custom_${c.slug}`,
+        label: c.nome,
+        fixed: false,
+        visible: false,
+        group: 'custom' as const,
+      }))
+
+    if (customColumns.length > 0) {
+      return [...columns, ...customColumns]
+    }
+    return columns
+  }, [columns, camposCustomizados])
+
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
@@ -92,7 +110,7 @@ export function ContatoColumnsToggle({ tipo, columns, onChange }: ContatoColumns
   }, [open])
 
   const toggleColumn = (key: string) => {
-    const updated = columns.map(c =>
+    const updated = mergedColumns.map(c =>
       c.key === key && !c.fixed ? { ...c, visible: !c.visible } : c
     )
     onChange(updated)
@@ -101,33 +119,44 @@ export function ContatoColumnsToggle({ tipo, columns, onChange }: ContatoColumns
 
   const handleRestore = () => {
     const defaults = getDefaultColumns(tipo)
-    onChange(defaults)
+    // Add back custom fields as hidden
+    const customCols: ColumnConfig[] = camposCustomizados.map(c => ({
+      key: `custom_${c.slug}`,
+      label: c.nome,
+      fixed: false,
+      visible: false,
+      group: 'custom' as const,
+    }))
+    const restored = [...defaults, ...customCols]
+    onChange(restored)
     localStorage.removeItem(STORAGE_KEY_PREFIX + tipo)
   }
 
-  const fixedCols = columns.filter(c => c.fixed)
-  const dynamicCols = columns.filter(c => !c.fixed)
+  const fixedCols = mergedColumns.filter(c => c.group === 'fixed')
+  const systemCols = mergedColumns.filter(c => c.group === 'system')
+  const customCols = mergedColumns.filter(c => c.group === 'custom')
 
   return (
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-md border transition-colors ${
+        className={`flex items-center gap-1 px-2.5 py-1.5 text-sm rounded-md border transition-colors ${
           open
             ? 'border-primary/40 bg-primary/5 text-primary'
-            : 'border-border text-muted-foreground hover:text-foreground hover:bg-accent'
+            : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-accent'
         }`}
       >
-        <Settings2 className="w-4 h-4" />
-        <span className="hidden sm:inline">Colunas</span>
+        <Settings2 className="w-3.5 h-3.5" />
+        <span className="hidden lg:inline">Colunas</span>
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1 w-64 bg-background rounded-lg shadow-lg border border-border py-2 z-50">
+        <div className="absolute right-0 top-full mt-1 w-64 bg-background rounded-lg shadow-lg border border-border py-2 z-[500] max-h-[70vh] overflow-y-auto">
           <div className="px-3 pb-2 border-b border-border">
             <p className="text-sm font-medium text-foreground">Colunas Visíveis</p>
           </div>
 
+          {/* Colunas Fixas */}
           <div className="px-3 pt-2 pb-1">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Colunas Fixas</p>
             {fixedCols.map(c => (
@@ -139,15 +168,29 @@ export function ContatoColumnsToggle({ tipo, columns, onChange }: ContatoColumns
             ))}
           </div>
 
+          {/* Campos do Sistema (globais) */}
           <div className="px-3 pt-2 pb-1 border-t border-border">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Campos Globais</p>
-            {dynamicCols.map(c => (
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Campos do Sistema</p>
+            {systemCols.map(c => (
               <label key={c.key} className="flex items-center gap-2 py-1 text-sm text-foreground cursor-pointer hover:text-primary">
                 <input type="checkbox" checked={c.visible} onChange={() => toggleColumn(c.key)} className="rounded border-input" />
                 <span>{c.label}</span>
               </label>
             ))}
           </div>
+
+          {/* Campos Personalizados */}
+          {customCols.length > 0 && (
+            <div className="px-3 pt-2 pb-1 border-t border-border">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Campos Personalizados</p>
+              {customCols.map(c => (
+                <label key={c.key} className="flex items-center gap-2 py-1 text-sm text-foreground cursor-pointer hover:text-primary">
+                  <input type="checkbox" checked={c.visible} onChange={() => toggleColumn(c.key)} className="rounded border-input" />
+                  <span>{c.label}</span>
+                </label>
+              ))}
+            </div>
+          )}
 
           <div className="px-3 pt-2 border-t border-border">
             <button
