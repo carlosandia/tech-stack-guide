@@ -38,7 +38,7 @@ const CRM_FIELDS = [
 
 export function LeadAdsFormMappingModal({
   form,
-  integracaoId,
+  integracaoId: _integracaoId,
   onClose,
   onSuccess,
 }: LeadAdsFormMappingModalProps) {
