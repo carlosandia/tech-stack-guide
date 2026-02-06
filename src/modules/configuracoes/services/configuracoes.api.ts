@@ -1766,18 +1766,17 @@ function processarEquipeComMembros(equipeRaw: Record<string, unknown>): EquipeCo
       sobrenome: (usuario?.sobrenome as string) || null,
       email: (usuario?.email as string) || '',
       avatar_url: (usuario?.avatar_url as string) || null,
-      papel: m.papel as 'lider' | 'membro',
+      papel: 'membro' as const,
       adicionado_em: (m.adicionado_em || m.criado_em) as string,
     }
   })
 
-  const lider = membros.find(m => m.papel === 'lider') || null
-
   return {
     ...(equipeRaw as unknown as Equipe),
+    ativa: Boolean(equipeRaw.ativo ?? equipeRaw.ativa ?? true),
     membros,
     total_membros: membros.length,
-    lider,
+    lider: null,
   }
 }
 
@@ -1786,13 +1785,13 @@ export const equipeApi = {
     let query = supabase
       .from('equipes')
       .select(
-        `*, membros:equipes_membros(id, usuario_id, papel, criado_em, usuario:usuarios(id, nome, sobrenome, email, avatar_url))`,
+        `*, membros:equipes_membros(id, usuario_id, criado_em, usuario:usuarios!equipes_membros_usuario_id_fkey(id, nome, sobrenome, email, avatar_url))`,
         { count: 'exact' }
       )
       .is('deletado_em', null)
 
     if (params?.busca) query = query.ilike('nome', `%${params.busca}%`)
-    if (params?.ativa) query = query.eq('ativa', params.ativa === 'true')
+    if (params?.ativa) query = query.eq('ativo', params.ativa === 'true')
 
     const { data, error, count } = await query.order('nome', { ascending: true })
 
@@ -1805,7 +1804,7 @@ export const equipeApi = {
     const { data, error } = await supabase
       .from('equipes')
       .select(
-        `*, membros:equipes_membros(id, usuario_id, papel, criado_em, usuario:usuarios(id, nome, sobrenome, email, avatar_url))`
+        `*, membros:equipes_membros(id, usuario_id, criado_em, usuario:usuarios!equipes_membros_usuario_id_fkey(id, nome, sobrenome, email, avatar_url))`
       )
       .eq('id', id)
       .is('deletado_em', null)
@@ -1857,7 +1856,7 @@ export const equipeApi = {
 
     const { error } = await supabase
       .from('equipes')
-      .update({ deletado_em: new Date().toISOString(), ativa: false })
+      .update({ deletado_em: new Date().toISOString(), ativo: false })
       .eq('id', id)
 
     if (error) throw new Error(`Erro ao excluir equipe: ${error.message}`)
