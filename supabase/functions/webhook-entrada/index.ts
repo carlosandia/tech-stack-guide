@@ -106,8 +106,12 @@ Deno.serve(async (req) => {
     const email = (body.email || body.e_mail || "") as string;
     const telefone = (body.telefone || body.phone || body.tel || body.whatsapp || "") as string;
     const empresa = (body.empresa || body.company || body.company_name || "") as string;
-    const origem = (body.origem || body.source || body.utm_source || "webhook") as string;
     const observacoes = (body.observacoes || body.notes || body.message || body.mensagem || "") as string;
+
+    // Validar origem contra valores permitidos no banco
+    const origensValidas = ["manual", "importacao", "formulario", "whatsapp", "instagram", "meta_ads", "indicacao", "webhook", "outro"];
+    const origemRaw = (body.origem || body.source || body.utm_source || "webhook") as string;
+    const origem = origensValidas.includes(origemRaw) ? origemRaw : "webhook";
 
     // Criar contato
     const contatoData: Record<string, unknown> = {
@@ -119,7 +123,7 @@ Deno.serve(async (req) => {
       telefone: telefone || null,
       origem: origem,
       observacoes: observacoes || null,
-      status: "ativo",
+      status: "novo",
     };
 
     // Se tem dados de empresa, pode criar como empresa ou anotar
