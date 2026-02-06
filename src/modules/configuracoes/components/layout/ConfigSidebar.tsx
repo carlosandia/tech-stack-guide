@@ -50,6 +50,7 @@ export const sidebarGroups: SidebarGroup[] = [
     adminOnly: true,
     items: [
       { label: 'Membros', path: '/app/configuracoes/membros', icon: Users },
+      { label: 'Equipes', path: '/app/configuracoes/equipes', icon: Users },
       { label: 'Perfis', path: '/app/configuracoes/perfis', icon: Users },
       { label: 'Metas', path: '/app/configuracoes/metas', icon: Target },
     ],
