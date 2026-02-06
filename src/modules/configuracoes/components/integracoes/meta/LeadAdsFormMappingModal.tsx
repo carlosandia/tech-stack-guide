@@ -1,0 +1,321 @@
+/**
+ * AIDEV-NOTE: Modal de mapeamento de campos Lead Ads → CRM
+ * Conforme PRD-08 Seção 2.3 - Wizard de Mapeamento
+ */
+
+import { useState, useEffect } from 'react'
+import { FileText, Loader2, ArrowRight } from 'lucide-react'
+import { useQuery, useMutation } from '@tanstack/react-query'
+import { toast } from 'sonner'
+import { ModalBase } from '../../ui/ModalBase'
+import { metaAdsApi } from '../../../services/configuracoes.api'
+import type { LeadAdForm } from '../../../services/configuracoes.api'
+
+interface LeadAdsFormMappingModalProps {
+  form: LeadAdForm | null
+  integracaoId: string
+  onClose: () => void
+  onSuccess: () => void
+}
+
+interface FieldMapping {
+  form_field: string
+  crm_field: string
+}
+
+const CRM_FIELDS = [
+  { value: '', label: '— Ignorar —' },
+  { value: 'nome', label: 'Nome' },
+  { value: 'sobrenome', label: 'Sobrenome' },
+  { value: 'email', label: 'Email' },
+  { value: 'telefone', label: 'Telefone' },
+  { value: 'empresa', label: 'Empresa' },
+  { value: 'cargo', label: 'Cargo' },
+  { value: 'cidade', label: 'Cidade' },
+  { value: 'estado', label: 'Estado' },
+  { value: 'observacoes', label: 'Observações' },
+]
+
+export function LeadAdsFormMappingModal({
+  form,
+  integracaoId,
+  onClose,
+  onSuccess,
+}: LeadAdsFormMappingModalProps) {
+  const [selectedPageId, setSelectedPageId] = useState('')
+  const [selectedFormId, setSelectedFormId] = useState(form?.form_id || '')
+  const [selectedFormName, setSelectedFormName] = useState(form?.form_name || '')
+  const [selectedPipelineId, setSelectedPipelineId] = useState(form?.pipeline_id || '')
+  const [selectedEtapaId, setSelectedEtapaId] = useState(form?.etapa_id || '')
+  const [mappings, setMappings] = useState<FieldMapping[]>(form?.mapeamento_campos || [])
+
+  const isEditing = !!form
+
+  // Buscar páginas do Facebook conectadas
+  const { data: paginasData, isLoading: loadingPaginas } = useQuery({
+    queryKey: ['meta-ads', 'paginas'],
+    queryFn: () => metaAdsApi.listarPaginas(),
+    enabled: !isEditing,
+  })
+
+  // Buscar formulários da página selecionada
+  const { data: formularios, isLoading: loadingForms } = useQuery({
+    queryKey: ['meta-ads', 'formularios-pagina', selectedPageId],
+    queryFn: () => metaAdsApi.listarFormulariosPagina(selectedPageId),
+    enabled: !!selectedPageId && !isEditing,
+  })
+
+  // Buscar funis para selecionar pipeline
+  const { data: funisData } = useQuery({
+    queryKey: ['funis'],
+    queryFn: async () => {
+      const { supabase } = await import('@/lib/supabase')
+      const { data } = await supabase
+        .from('funis')
+        .select('id, nome, etapas_funil(id, nome, ordem)')
+        .is('deletado_em', null)
+        .order('ordem', { ascending: true })
+      return data || []
+    },
+  })
+
+  // Auto-preencher campos quando formulário é selecionado
+  useEffect(() => {
+    if (formularios?.formularios && selectedFormId && !isEditing) {
+      const formSelecionado = formularios.formularios.find(
+        (f: { id: string }) => f.id === selectedFormId
+      )
+      if (formSelecionado) {
+        setSelectedFormName(formSelecionado.name || '')
+        const fields = formSelecionado.fields || []
+        setMappings(
+          fields.map((f: { key: string }) => ({
+            form_field: f.key,
+            crm_field: autoMapField(f.key),
+          }))
+        )
+      }
+    }
+  }, [selectedFormId, formularios, isEditing])
+
+  const salvar = useMutation({
+    mutationFn: () => {
+      const payload = {
+        form_id: selectedFormId,
+        form_name: selectedFormName,
+        page_id: selectedPageId || form?.page_id,
+        pipeline_id: selectedPipelineId,
+        etapa_id: selectedEtapaId,
+        mapeamento_campos: mappings.filter((m) => m.crm_field),
+      }
+      if (isEditing && form) {
+        return metaAdsApi.atualizarFormulario(form.id, payload)
+      }
+      return metaAdsApi.criarFormulario(payload)
+    },
+    onSuccess: () => {
+      toast.success(isEditing ? 'Mapeamento atualizado' : 'Formulário mapeado com sucesso')
+      onSuccess()
+    },
+    onError: () => toast.error('Erro ao salvar mapeamento'),
+  })
+
+  const updateMapping = (index: number, crmField: string) => {
+    setMappings((prev) =>
+      prev.map((m, i) => (i === index ? { ...m, crm_field: crmField } : m))
+    )
+  }
+
+  // Obter etapas do funil selecionado
+  const funilSelecionado = funisData?.find((f: any) => f.id === selectedPipelineId)
+  const etapas = (funilSelecionado as any)?.etapas_funil || []
+
+  return (
+    <ModalBase
+      onClose={onClose}
+      title={isEditing ? 'Editar Mapeamento' : 'Configurar Formulário Lead Ads'}
+      description="Mapeie os campos do formulário para o CRM"
+      icon={FileText}
+      variant="create"
+      size="lg"
+      footer={
+        <div className="flex items-center justify-end gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium rounded-md bg-secondary text-secondary-foreground hover:bg-accent transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={() => salvar.mutate()}
+            disabled={salvar.isPending || !selectedFormId || !selectedPipelineId}
+            className="px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+          >
+            {salvar.isPending ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : isEditing ? (
+              'Salvar Alterações'
+            ) : (
+              'Salvar Configuração'
+            )}
+          </button>
+        </div>
+      }
+    >
+      <div className="p-4 sm:p-6 space-y-6">
+        {/* Seleção de Página e Formulário (apenas ao criar) */}
+        {!isEditing && (
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Página do Facebook</label>
+              {loadingPaginas ? (
+                <div className="flex items-center gap-2 py-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">Carregando páginas...</span>
+                </div>
+              ) : (
+                <select
+                  value={selectedPageId}
+                  onChange={(e) => {
+                    setSelectedPageId(e.target.value)
+                    setSelectedFormId('')
+                    setMappings([])
+                  }}
+                  className="w-full px-3 py-2 text-sm rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value="">Selecione uma página</option>
+                  {(paginasData?.paginas || []).map((p: any) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            {selectedPageId && (
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">Formulário Lead Ads</label>
+                {loadingForms ? (
+                  <div className="flex items-center gap-2 py-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground">Carregando formulários...</span>
+                  </div>
+                ) : (
+                  <select
+                    value={selectedFormId}
+                    onChange={(e) => setSelectedFormId(e.target.value)}
+                    className="w-full px-3 py-2 text-sm rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    <option value="">Selecione um formulário</option>
+                    {(formularios?.formularios || []).map((f: any) => (
+                      <option key={f.id} value={f.id}>
+                        {f.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Destino do Lead */}
+        <div className="space-y-4">
+          <h4 className="text-sm font-semibold text-foreground">Destino do Lead</h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Pipeline</label>
+              <select
+                value={selectedPipelineId}
+                onChange={(e) => {
+                  setSelectedPipelineId(e.target.value)
+                  setSelectedEtapaId('')
+                }}
+                className="w-full px-3 py-2 text-sm rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="">Selecione</option>
+                {(funisData || []).map((f: any) => (
+                  <option key={f.id} value={f.id}>
+                    {f.nome}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Etapa</label>
+              <select
+                value={selectedEtapaId}
+                onChange={(e) => setSelectedEtapaId(e.target.value)}
+                className="w-full px-3 py-2 text-sm rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="">Selecione</option>
+                {etapas
+                  .sort((a: any, b: any) => (a.ordem || 0) - (b.ordem || 0))
+                  .map((e: any) => (
+                    <option key={e.id} value={e.id}>
+                      {e.nome}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Mapeamento de Campos */}
+        {mappings.length > 0 && (
+          <div className="space-y-3">
+            <h4 className="text-sm font-semibold text-foreground">Mapeamento de Campos</h4>
+            <div className="border border-border rounded-lg overflow-hidden">
+              <div className="grid grid-cols-[1fr_auto_1fr] gap-2 px-3 py-2 bg-muted text-xs font-medium text-muted-foreground">
+                <span>Campo do Formulário</span>
+                <span />
+                <span>Campo do CRM</span>
+              </div>
+              {mappings.map((m, i) => (
+                <div
+                  key={i}
+                  className="grid grid-cols-[1fr_auto_1fr] gap-2 items-center px-3 py-2 border-t border-border"
+                >
+                  <span className="text-sm text-foreground truncate">{m.form_field}</span>
+                  <ArrowRight className="w-3.5 h-3.5 text-muted-foreground" />
+                  <select
+                    value={m.crm_field}
+                    onChange={(e) => updateMapping(i, e.target.value)}
+                    className="w-full px-2 py-1.5 text-sm rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    {CRM_FIELDS.map((cf) => (
+                      <option key={cf.value} value={cf.value}>
+                        {cf.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </ModalBase>
+  )
+}
+
+/** Auto-mapeia campos comuns do Lead Ads para campos do CRM */
+function autoMapField(fieldKey: string): string {
+  const map: Record<string, string> = {
+    full_name: 'nome',
+    first_name: 'nome',
+    last_name: 'sobrenome',
+    email: 'email',
+    phone_number: 'telefone',
+    phone: 'telefone',
+    company_name: 'empresa',
+    company: 'empresa',
+    job_title: 'cargo',
+    city: 'cidade',
+    state: 'estado',
+  }
+  return map[fieldKey.toLowerCase()] || ''
+}
