@@ -1,6 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from '@/providers/AuthProvider'
-import { useBlockedRedirect } from '@/hooks/useBlockedRedirect'
 import { LoginPage, ForgotPasswordPage, ResetPasswordPage, SetPasswordPage } from '@/modules/auth'
 import {
   AdminLayout,
@@ -11,6 +10,7 @@ import {
   AdminConfiguracoesGlobaisPage,
   AdminModulosPage,
 } from '@/modules/admin'
+import { AppLayout, AppDashboardPage } from '@/modules/app'
 import { PlanosPage, TrialCadastroPage, CheckoutSucessoPage, OnboardingPage } from '@/modules/public'
 import { BlockedPage } from '@/modules/blocked'
 import { ConfiguracoesLayout, CamposPage, ProdutosPage, MotivosPage, TarefasTemplatesPage, EtapasTemplatesPage, RegrasPage, ConfigCardPage, ConexoesPage, WebhooksEntradaPage, WebhooksSaidaPage, MembrosPage, EquipesPage, PerfisPermissaoPage, MetasPage, ConfigGeralPage } from '@/modules/configuracoes'
@@ -25,32 +25,9 @@ import { ConfiguracoesLayout, CamposPage, ProdutosPage, MotivosPage, TarefasTemp
  * /redefinir-senha - Redefinicao de senha
  *
  * Rotas protegidas:
- * /app/* - CRM (Admin e Member)
+ * /app/* - CRM (Admin e Member) com AppLayout
  * /admin/* - Super Admin
  */
-
-// Pagina temporaria do Dashboard (a ser implementada no PRD-14)
-function DashboardPage() {
-  const { user, role, tenantId } = useAuth()
-  useBlockedRedirect()
-
-  return (
-    <div className="min-h-screen p-8 bg-background">
-      <h1 className="text-3xl font-bold text-foreground mb-4">Dashboard</h1>
-      <div className="bg-card p-6 rounded-lg border">
-        <p className="text-card-foreground">
-          Usuario: {user?.email}
-        </p>
-        <p className="text-muted-foreground">
-          Role: {role || 'N/A'}
-        </p>
-        <p className="text-muted-foreground">
-          Tenant: {tenantId || 'N/A'}
-        </p>
-      </div>
-    </div>
-  )
-}
 
 function App() {
   const { loading, isAuthenticated, role } = useAuth()
@@ -80,12 +57,20 @@ function App() {
        <Route path="/redefinir-senha" element={<ResetPasswordPage />} />
        <Route path="/auth/set-password" element={<SetPasswordPage />} />
 
-      {/* Rotas do CRM (Admin/Member) */}
-      <Route path="/app" element={
-        isAuthenticated ? <DashboardPage /> : <Navigate to="/login" replace />
-      } />
+      {/* Rotas do CRM (Admin/Member) com AppLayout */}
+      <Route
+        path="/app"
+        element={
+          isAuthenticated && (role === 'admin' || role === 'member')
+            ? <AppLayout />
+            : <Navigate to="/login" replace />
+        }
+      >
+        <Route index element={<AppDashboardPage />} />
+        {/* Rotas futuras: contatos, negocios, conversas, tarefas */}
+      </Route>
 
-      {/* Configuracoes - PRD-05 (Admin e Member) */}
+      {/* Configuracoes - PRD-05 (layout próprio com header/toolbar) */}
       <Route
         path="/app/configuracoes"
         element={
