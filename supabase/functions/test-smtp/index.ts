@@ -77,6 +77,13 @@ async function testSmtpConnection(smtpHost: string, smtpPort: number, smtpUser: 
       return { sucesso: false, mensagem: "Servidor rejeitou conexão" };
     }
 
+    // Extrair hostname real do greeting (ex: "220 smtp-sp221-144.uni5.net ESMTP")
+    // O certificado TLS do servidor pode não corresponder ao hostname DNS usado,
+    // então usamos o hostname que o servidor anuncia no greeting para TLS.
+    const greetingParts = greeting.trim().split(/\s+/);
+    const realHostname = greetingParts.length > 1 ? greetingParts[1] : smtpHost;
+    console.log("[test-smtp] Hostname real do servidor:", realHostname);
+
     // EHLO
     const ehloResp = await sendCommand("EHLO crmrenove.local");
     console.log("[test-smtp] EHLO response:", ehloResp.substring(0, 200));
@@ -86,7 +93,8 @@ async function testSmtpConnection(smtpHost: string, smtpPort: number, smtpUser: 
       const starttlsResp = await sendCommand("STARTTLS");
       console.log("[test-smtp] STARTTLS response:", starttlsResp.trim());
       if (starttlsResp.startsWith("220")) {
-        const tlsConn = await Deno.startTls(conn as Deno.TcpConn, { hostname: smtpHost });
+        // Usa o hostname real do servidor para validação TLS
+        const tlsConn = await Deno.startTls(conn as Deno.TcpConn, { hostname: realHostname });
         conn = tlsConn;
         const ehlo2 = await sendCommand("EHLO crmrenove.local");
         console.log("[test-smtp] EHLO2 response:", ehlo2.substring(0, 200));
