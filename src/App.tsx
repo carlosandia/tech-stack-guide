@@ -84,7 +84,9 @@ function App() {
         <Route path="produtos" element={<ProdutosPage />} />
         <Route path="motivos" element={<MotivosPage />} />
         <Route path="tarefas-templates" element={<TarefasTemplatesPage />} />
+        <Route path="tarefas" element={<TarefasTemplatesPage />} />
         <Route path="etapas-templates" element={<EtapasTemplatesPage />} />
+        <Route path="etapas" element={<EtapasTemplatesPage />} />
         <Route path="regras" element={<RegrasPage />} />
         <Route path="cards" element={<ConfigCardPage />} />
         <Route path="conexoes" element={<ConexoesPage />} />
