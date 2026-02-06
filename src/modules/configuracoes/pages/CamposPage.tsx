@@ -19,7 +19,7 @@ export function CamposPage() {
   const isAdmin = role === 'admin'
   const { setActions, setSubtitle } = useConfigToolbar()
 
-  const [entidadeAtiva, setEntidadeAtiva] = useState<Entidade>('contato')
+  const [entidadeAtiva, setEntidadeAtiva] = useState<Entidade>('pessoa')
   const [modalOpen, setModalOpen] = useState(false)
   const [campoEditando, setCampoEditando] = useState<CampoCustomizado | null>(null)
 
