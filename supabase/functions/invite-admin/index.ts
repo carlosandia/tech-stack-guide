@@ -221,11 +221,13 @@ const styles = {
     backgroundColor: "#F1F5F9",
     fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
     padding: "20px 0",
+    margin: "0" as const,
   },
   container: {
     margin: "0 auto",
     padding: "0",
     maxWidth: "600px",
+    width: "100%" as const,
   },
   logoSection: {
     textAlign: "center" as const,
@@ -242,14 +244,12 @@ const styles = {
     borderColor: "#E2E8F0",
     borderWidth: "1px",
     margin: "0",
+    borderTop: "none" as const,
   },
   contentCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: "12px",
-    paddingTop: "40px",
-    paddingBottom: "40px",
-    paddingLeft: "48px",
-    paddingRight: "48px",
+    padding: "44px 48px",
     margin: "24px 16px",
     border: "1px solid #E2E8F0",
   },
@@ -258,13 +258,13 @@ const styles = {
     fontSize: "26px",
     fontWeight: "600",
     lineHeight: "1.3",
-    margin: "0 0 24px 0",
+    margin: "0 0 28px 0",
   },
   inviterBox: {
     backgroundColor: "#F0FDF4",
     borderRadius: "8px",
     padding: "14px 20px",
-    margin: "0 0 24px 0",
+    margin: "0 0 28px 0",
     border: "1px solid #BBF7D0",
   },
   inviterText: {
@@ -277,13 +277,13 @@ const styles = {
     color: "#334155",
     fontSize: "16px",
     lineHeight: "1.75",
-    margin: "0 0 20px 0",
+    margin: "0 0 24px 0",
   },
   loginInfoBox: {
     backgroundColor: "#EFF6FF",
     borderRadius: "8px",
     padding: "16px 20px",
-    margin: "0 0 24px 0",
+    margin: "0 0 28px 0",
     border: "1px solid #BFDBFE",
   },
   loginInfoLabel: {
@@ -302,7 +302,7 @@ const styles = {
   },
   buttonContainer: {
     textAlign: "center" as const,
-    margin: "32px 0",
+    padding: "32px 0",
   },
   button: {
     backgroundColor: "#3B82F6",
@@ -318,6 +318,7 @@ const styles = {
   },
   innerDivider: {
     borderColor: "#E2E8F0",
+    borderTop: "none" as const,
     borderWidth: "1px",
     margin: "28px 0",
   },
@@ -330,7 +331,7 @@ const styles = {
   linkText: {
     fontSize: "13px",
     color: "#64748B",
-    margin: "0",
+    margin: "0 0 0 0",
     wordBreak: "break-all" as const,
     backgroundColor: "#F8FAFC",
     padding: "12px 16px",
