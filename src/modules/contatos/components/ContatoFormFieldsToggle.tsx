@@ -123,8 +123,9 @@ export function ContatoFormFieldsToggle({ tipo, onChange }: ContatoFormFieldsTog
   return (
     <div ref={ref} className="relative">
       <button
+        type="button"
         onClick={() => setOpen(!open)}
-        className={`flex items-center gap-1 px-2.5 py-1.5 text-sm rounded-md border transition-colors ${
+        className={`flex items-center gap-1.5 px-2.5 py-1.5 text-sm rounded-md border transition-all duration-200 ${
           open
             ? 'border-primary/40 bg-primary/5 text-primary'
             : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-accent'
@@ -132,12 +133,12 @@ export function ContatoFormFieldsToggle({ tipo, onChange }: ContatoFormFieldsTog
         title="Campos visíveis no formulário"
       >
         <Eye className="w-3.5 h-3.5" />
-        <span className="hidden lg:inline">Campos</span>
+        <span>Campos</span>
         <span className="text-[10px] text-muted-foreground">{visibleCount}/{totalCount}</span>
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1 w-72 bg-background rounded-lg shadow-lg border border-border py-2 z-[500] max-h-[70vh] overflow-y-auto">
+        <div className="absolute right-0 top-full mt-1 w-72 bg-card rounded-lg shadow-lg border border-border py-2 z-[600] max-h-[60vh] overflow-y-auto">
           <div className="px-3 pb-2 border-b border-border">
             <p className="text-sm font-medium text-foreground">
               Campos do Formulário — {tipo === 'pessoa' ? 'Pessoa' : 'Empresa'}
@@ -149,70 +150,68 @@ export function ContatoFormFieldsToggle({ tipo, onChange }: ContatoFormFieldsTog
 
           {/* Campos do Sistema */}
           <div className="px-3 pt-2 pb-1">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Campos do Sistema</p>
-            {camposSistema.map(c => (
-              <label
-                key={c.key}
-                className={`flex items-center justify-between py-1.5 text-sm ${
-                  c.obrigatorio ? 'text-muted-foreground cursor-not-allowed' : 'text-foreground cursor-pointer hover:text-primary'
-                }`}
-              >
-                <span className="flex items-center gap-2">
-                  <span>{c.label}</span>
-                  {c.obrigatorio && <span className="text-[10px] text-destructive">*</span>}
-                </span>
-                <button
-                  onClick={(e) => { e.preventDefault(); if (!c.obrigatorio) toggleField(c.key) }}
-                  disabled={c.obrigatorio}
-                  className={`relative w-8 h-4.5 rounded-full transition-colors ${
-                    isVisible(c.key, c.obrigatorio)
-                      ? 'bg-primary'
-                      : 'bg-muted-foreground/30'
-                  } ${c.obrigatorio ? 'opacity-50' : ''}`}
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Campos do Sistema</p>
+            {camposSistema.map(c => {
+              const active = isVisible(c.key, c.obrigatorio)
+              return (
+                <div
+                  key={c.key}
+                  className={`flex items-center justify-between py-2 text-sm ${
+                    c.obrigatorio ? 'cursor-not-allowed' : 'cursor-pointer'
+                  }`}
+                  onClick={() => { if (!c.obrigatorio) toggleField(c.key) }}
                 >
-                  <span
-                    className={`absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white shadow-sm transition-transform ${
-                      isVisible(c.key, c.obrigatorio) ? 'translate-x-4' : 'translate-x-0.5'
-                    }`}
-                  />
-                </button>
-              </label>
-            ))}
+                  <span className="flex items-center gap-2">
+                    <span className={c.obrigatorio ? 'text-muted-foreground' : 'text-foreground'}>{c.label}</span>
+                    {c.obrigatorio && <span className="text-[10px] text-destructive font-medium">*</span>}
+                  </span>
+                  <div
+                    className={`relative w-9 h-5 rounded-full transition-colors duration-200 flex-shrink-0 ${
+                      active ? 'bg-primary' : 'bg-muted-foreground/25'
+                    } ${c.obrigatorio ? 'opacity-60' : ''}`}
+                  >
+                    <div
+                      className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
+                        active ? 'translate-x-4' : 'translate-x-0'
+                      }`}
+                    />
+                  </div>
+                </div>
+              )
+            })}
           </div>
 
           {/* Campos Personalizados */}
           {camposCustomizados.length > 0 && (
             <div className="px-3 pt-2 pb-1 border-t border-border">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Campos Personalizados</p>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Campos Personalizados</p>
               {camposCustomizados.map(c => {
                 const key = `custom_${c.slug}`
+                const active = isVisible(key, c.obrigatorio)
                 return (
-                  <label
+                  <div
                     key={key}
-                    className={`flex items-center justify-between py-1.5 text-sm ${
-                      c.obrigatorio ? 'text-muted-foreground cursor-not-allowed' : 'text-foreground cursor-pointer hover:text-primary'
+                    className={`flex items-center justify-between py-2 text-sm ${
+                      c.obrigatorio ? 'cursor-not-allowed' : 'cursor-pointer'
                     }`}
+                    onClick={() => { if (!c.obrigatorio) toggleField(key) }}
                   >
                     <span className="flex items-center gap-2">
-                      <span>{c.nome}</span>
-                      {c.obrigatorio && <span className="text-[10px] text-destructive">*</span>}
+                      <span className={c.obrigatorio ? 'text-muted-foreground' : 'text-foreground'}>{c.nome}</span>
+                      {c.obrigatorio && <span className="text-[10px] text-destructive font-medium">*</span>}
                     </span>
-                    <button
-                      onClick={(e) => { e.preventDefault(); if (!c.obrigatorio) toggleField(key) }}
-                      disabled={c.obrigatorio}
-                      className={`relative w-8 h-4.5 rounded-full transition-colors ${
-                        isVisible(key, c.obrigatorio)
-                          ? 'bg-primary'
-                          : 'bg-muted-foreground/30'
-                      } ${c.obrigatorio ? 'opacity-50' : ''}`}
+                    <div
+                      className={`relative w-9 h-5 rounded-full transition-colors duration-200 flex-shrink-0 ${
+                        active ? 'bg-primary' : 'bg-muted-foreground/25'
+                      } ${c.obrigatorio ? 'opacity-60' : ''}`}
                     >
-                      <span
-                        className={`absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white shadow-sm transition-transform ${
-                          isVisible(key, c.obrigatorio) ? 'translate-x-4' : 'translate-x-0.5'
+                      <div
+                        className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
+                          active ? 'translate-x-4' : 'translate-x-0'
                         }`}
                       />
-                    </button>
-                  </label>
+                    </div>
+                  </div>
                 )
               })}
             </div>
