@@ -2147,7 +2147,7 @@ export const metasApi = {
     let query = supabase
       .from('metas')
       .select(
-        `*, progresso:metas_progresso(id, valor_atual, percentual_atingido, calculado_em), equipe:equipes(id, nome), usuario:usuarios(id, nome, sobrenome)`,
+        `*, progresso:metas_progresso(id, valor_atual, percentual_atingido, calculado_em), equipe:equipes(id, nome), usuario:usuarios!metas_usuario_id_fkey(id, nome, sobrenome)`,
         { count: 'exact' }
       )
       .is('deletado_em', null)
@@ -2170,7 +2170,7 @@ export const metasApi = {
     const { data, error } = await supabase
       .from('metas')
       .select(
-        `*, progresso:metas_progresso(id, valor_atual, percentual_atingido, calculado_em), equipe:equipes(id, nome), usuario:usuarios(id, nome, sobrenome)`
+        `*, progresso:metas_progresso(id, valor_atual, percentual_atingido, calculado_em), equipe:equipes(id, nome), usuario:usuarios!metas_usuario_id_fkey(id, nome, sobrenome)`
       )
       .eq('id', id)
       .is('deletado_em', null)
@@ -2184,7 +2184,7 @@ export const metasApi = {
     // Buscar metas filhas
     const { data: filhas } = await supabase
       .from('metas')
-      .select(`*, progresso:metas_progresso(id, valor_atual, percentual_atingido, calculado_em), equipe:equipes(id, nome), usuario:usuarios(id, nome, sobrenome)`)
+      .select(`*, progresso:metas_progresso(id, valor_atual, percentual_atingido, calculado_em), equipe:equipes(id, nome), usuario:usuarios!metas_usuario_id_fkey(id, nome, sobrenome)`)
       .eq('meta_pai_id', id)
       .is('deletado_em', null)
 
@@ -2325,7 +2325,7 @@ export const metasApi = {
     // Ranking simplificado baseado em metas individuais
     const { data, error } = await supabase
       .from('metas')
-      .select(`*, progresso:metas_progresso(valor_atual, percentual_atingido), usuario:usuarios(id, nome, sobrenome, avatar_url)`)
+      .select(`*, progresso:metas_progresso(valor_atual, percentual_atingido), usuario:usuarios!metas_usuario_id_fkey(id, nome, sobrenome, avatar_url)`)
       .eq('tipo', 'individual')
       .eq('ativa', true)
       .is('deletado_em', null)
