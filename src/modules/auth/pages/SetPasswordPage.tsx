@@ -99,13 +99,21 @@ export function SetPasswordPage() {
             window.history.replaceState(null, '', window.location.pathname)
           }
         } else {
-          // Verificar parametros de erro
+          // Verificar parametros de erro (Supabase usa tanto 'error' quanto 'error_code')
+          const errorParam = hashParams.get('error')
           const errorCode = hashParams.get('error_code')
           const errorDescription = hashParams.get('error_description')
           
-          if (errorCode) {
-            console.error('[SetPassword] Erro no token:', errorCode, errorDescription)
-            setError(decodeURIComponent(errorDescription || 'Token invalido'))
+          if (errorParam || errorCode) {
+            console.error('[SetPassword] Erro no token:', errorParam || errorCode, errorDescription)
+            
+            // Mensagens amigaveis por tipo de erro
+            const isExpired = errorParam === 'access_denied' || errorDescription?.includes('expired')
+            if (isExpired) {
+              setError('O link de convite expirou. Solicite ao administrador que reenvie o convite.')
+            } else {
+              setError(decodeURIComponent(errorDescription || 'Token invalido ou expirado.'))
+            }
           } else {
             setError('Link invalido. Solicite um novo convite ao administrador.')
           }
