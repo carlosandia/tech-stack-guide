@@ -7,7 +7,7 @@
  * Para INSERTs, organizacao_id é obtido via helper getOrganizacaoId()
  */
 
-import { supabase } from '@/integrations/supabase/client'
+import { supabase } from '@/lib/supabase'
 
 // =====================================================
 // Helper - Obter organizacao_id do usuario logado
