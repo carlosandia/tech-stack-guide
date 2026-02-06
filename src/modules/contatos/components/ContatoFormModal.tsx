@@ -3,16 +3,20 @@
  * Conforme PRD-06 e Design System
  * Renderiza campos dinâmicos buscados de /configuracoes/campos
  * Respeita visibilidade configurada pelo ContatoFormFieldsToggle
+ * Inclui: PhoneInput com bandeira, vinculação empresa↔pessoa, máscaras
  */
 
-import { useEffect, useMemo, useState, forwardRef } from 'react'
-import { useForm } from 'react-hook-form'
-import { X, User, Building2 } from 'lucide-react'
+import { useEffect, useMemo, useState, forwardRef, useRef } from 'react'
+import { useForm, Controller } from 'react-hook-form'
+import { X, User, Building2, Search } from 'lucide-react'
 import { StatusContatoOptions, OrigemContatoOptions, PorteOptions } from '../schemas/contatos.schema'
 import type { Contato, TipoContato } from '../services/contatos.api'
 import { useCampos } from '@/modules/configuracoes/hooks/useCampos'
 import type { CampoCustomizado } from '@/modules/configuracoes/services/configuracoes.api'
 import { ContatoFormFieldsToggle, getFieldVisibility } from './ContatoFormFieldsToggle'
+import { PhoneInputField } from './PhoneInputField'
+import { formatCnpj } from '@/lib/formatters'
+import { useContatos } from '../hooks/useContatos'
 import type { InputHTMLAttributes, SelectHTMLAttributes } from 'react'
 
 interface ContatoFormModalProps {
@@ -76,6 +80,12 @@ export function ContatoFormModal({
 
   // Campos customizados (non-system active fields)
   const camposCustomizados = todosOsCampos.filter(c => !c.sistema && c.ativo)
+
+  // Buscar pessoas disponíveis (para vincular em empresa)
+  const { data: pessoasData } = useContatos(
+    !isPessoa ? { tipo: 'pessoa', limit: 200 } : undefined
+  )
+  const pessoasDisponiveis = pessoasData?.contatos || []
 
   // Visibilidade dos campos (re-computa quando visibilityVersion muda)
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -166,10 +176,15 @@ export function ContatoFormModal({
     for (const key of Object.keys(cleanData)) {
       if (cleanData[key] === '') cleanData[key] = undefined
     }
+    // Strip CNPJ formatting before saving
+    if (cleanData.cnpj && typeof cleanData.cnpj === 'string') {
+      cleanData.cnpj = cleanData.cnpj.replace(/\D/g, '')
+    }
     onSubmit(cleanData)
   }
 
   if (!open) return null
+
 
   // Build the visible system fields for pessoa
   const renderPessoaFields = () => {
@@ -192,7 +207,20 @@ export function ContatoFormModal({
       optionalRows.push(<InputField key="email" label="Email" type="email" {...form.register('email')} />)
     }
     if (isVisible('telefone', false)) {
-      optionalRows.push(<InputField key="telefone" label="Telefone" {...form.register('telefone')} />)
+      optionalRows.push(
+        <Controller
+          key="telefone"
+          name="telefone"
+          control={form.control}
+          render={({ field }) => (
+            <PhoneInputField
+              label="Telefone"
+              value={field.value}
+              onChange={field.onChange}
+            />
+          )}
+        />
+      )
     }
     if (isVisible('cargo', false)) {
       optionalRows.push(<InputField key="cargo" label="Cargo" {...form.register('cargo')} />)
@@ -200,14 +228,15 @@ export function ContatoFormModal({
     if (isVisible('linkedin_url', false)) {
       optionalRows.push(<InputField key="linkedin" label="LinkedIn" {...form.register('linkedin_url')} placeholder="https://linkedin.com/in/..." />)
     }
-    if (isVisible('empresa_id', false) && empresas.length > 0) {
+    if (isVisible('empresa_id', false)) {
       optionalRows.push(
-        <SelectField key="empresa" label="Empresa vinculada" {...form.register('empresa_id')}>
-          <option value="">Nenhuma</option>
-          {empresas.map((e) => (
-            <option key={e.id} value={e.id}>{e.nome_fantasia || e.razao_social}</option>
-          ))}
-        </SelectField>
+        <EmpresaSearchField
+          key="empresa"
+          label="Empresa vinculada"
+          empresas={empresas}
+          value={form.watch('empresa_id') || ''}
+          onChange={(id) => form.setValue('empresa_id', id)}
+        />
       )
     }
 
@@ -240,13 +269,42 @@ export function ContatoFormModal({
     const optionalRows: JSX.Element[] = []
 
     if (isVisible('cnpj', false)) {
-      optionalRows.push(<InputField key="cnpj" label="CNPJ" {...form.register('cnpj')} placeholder="XX.XXX.XXX/XXXX-XX" />)
+      optionalRows.push(
+        <Controller
+          key="cnpj"
+          name="cnpj"
+          control={form.control}
+          render={({ field }) => (
+            <InputField
+              label="CNPJ"
+              placeholder="XX.XXX.XXX/XXXX-XX"
+              value={field.value || ''}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                field.onChange(formatCnpj(e.target.value))
+              }}
+            />
+          )}
+        />
+      )
     }
     if (isVisible('email', false)) {
       optionalRows.push(<InputField key="email" label="Email" type="email" {...form.register('email')} />)
     }
     if (isVisible('telefone', false)) {
-      optionalRows.push(<InputField key="telefone" label="Telefone" {...form.register('telefone')} />)
+      optionalRows.push(
+        <Controller
+          key="telefone"
+          name="telefone"
+          control={form.control}
+          render={({ field }) => (
+            <PhoneInputField
+              label="Telefone"
+              value={field.value}
+              onChange={field.onChange}
+            />
+          )}
+        />
+      )
     }
     if (isVisible('website', false)) {
       optionalRows.push(<InputField key="website" label="Website" {...form.register('website')} placeholder="https://..." />)
@@ -332,6 +390,23 @@ export function ContatoFormModal({
         )
       }
 
+      if (campo.tipo === 'telefone') {
+        return (
+          <Controller
+            key={key}
+            name={key}
+            control={form.control}
+            render={({ field }) => (
+              <PhoneInputField
+                label={label}
+                value={field.value}
+                onChange={field.onChange}
+              />
+            )}
+          />
+        )
+      }
+
       return (
         <InputField
           key={key}
@@ -360,6 +435,34 @@ export function ContatoFormModal({
         </div>
         {rows}
       </>
+    )
+  }
+
+  // Render pessoas vinculadas (para empresa)
+  const renderPessoasVinculadas = () => {
+    if (isPessoa || !isEditing || !contato) return null
+
+    const pessoasVinculadas = pessoasDisponiveis.filter(p => p.empresa_id === contato.id)
+
+    return (
+      <div className="border-t border-border pt-4 mt-2">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
+          Pessoas Vinculadas ({pessoasVinculadas.length})
+        </p>
+        {pessoasVinculadas.length > 0 ? (
+          <div className="space-y-1">
+            {pessoasVinculadas.map(p => (
+              <div key={p.id} className="flex items-center gap-2 py-1.5 px-2 rounded-md bg-muted/50">
+                <User className="w-3.5 h-3.5 text-muted-foreground" />
+                <span className="text-sm text-foreground">{p.nome} {p.sobrenome || ''}</span>
+                {p.email && <span className="text-xs text-muted-foreground ml-auto">{p.email}</span>}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">Nenhuma pessoa vinculada a esta empresa</p>
+        )}
+      </div>
     )
   }
 
@@ -416,6 +519,9 @@ export function ContatoFormModal({
             {/* Campos personalizados */}
             {renderCustomFields()}
 
+            {/* Pessoas vinculadas (empresa) */}
+            {renderPessoasVinculadas()}
+
             {/* Observações */}
             {isVisible('observacoes', false) && (
               <div>
@@ -444,7 +550,113 @@ export function ContatoFormModal({
   )
 }
 
+// =====================================================
+// Componente de busca de empresa com search
+// =====================================================
+
+function EmpresaSearchField({
+  label,
+  empresas,
+  value,
+  onChange,
+}: {
+  label: string
+  empresas: Array<{ id: string; nome_fantasia?: string | null; razao_social?: string | null }>
+  value: string
+  onChange: (id: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const ref = useRef<HTMLDivElement>(null)
+
+  const selectedEmpresa = empresas.find(e => e.id === value)
+  const displayName = selectedEmpresa
+    ? (selectedEmpresa.nome_fantasia || selectedEmpresa.razao_social || '')
+    : ''
+
+  const filtered = search
+    ? empresas.filter(e =>
+        (e.nome_fantasia || e.razao_social || '').toLowerCase().includes(search.toLowerCase())
+      )
+    : empresas
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false)
+        setSearch('')
+      }
+    }
+    if (open) document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [open])
+
+  return (
+    <div ref={ref} className="relative">
+      <label className="block text-sm font-medium text-foreground mb-1.5">{label}</label>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+      >
+        <span className={displayName ? 'text-foreground' : 'text-muted-foreground'}>
+          {displayName || 'Nenhuma'}
+        </span>
+        <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-full mt-1 w-full bg-background rounded-md shadow-lg border border-border py-1 z-[650] max-h-[220px]">
+          <div className="px-2 pb-1 pt-1">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Buscar empresa..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 text-sm rounded-md border border-input bg-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                autoFocus
+              />
+            </div>
+          </div>
+          <div className="overflow-y-auto max-h-[160px]">
+            <button
+              type="button"
+              onClick={() => { onChange(''); setOpen(false); setSearch('') }}
+              className={`flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent transition-colors text-left ${
+                !value ? 'text-primary' : 'text-muted-foreground'
+              }`}
+            >
+              Nenhuma
+            </button>
+            {filtered.map(e => (
+              <button
+                key={e.id}
+                type="button"
+                onClick={() => { onChange(e.id); setOpen(false); setSearch('') }}
+                className={`flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent transition-colors text-left ${
+                  value === e.id ? 'bg-primary/5 text-primary' : 'text-foreground'
+                }`}
+              >
+                <Building2 className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground" />
+                <span className="truncate">{e.nome_fantasia || e.razao_social}</span>
+              </button>
+            ))}
+            {filtered.length === 0 && (
+              <p className="px-3 py-2 text-sm text-muted-foreground">Nenhuma empresa encontrada</p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// =====================================================
 // Componentes auxiliares de formulário
+// =====================================================
+
 const InputField = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement> & { label: string; error?: string }>(
   ({ label, error, ...props }, ref) => (
     <div>

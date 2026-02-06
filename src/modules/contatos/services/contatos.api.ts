@@ -249,6 +249,37 @@ export const contatosApi = {
         }
       }
 
+      // Enriquecer empresas com pessoas vinculadas
+      if (params?.tipo === 'empresa') {
+        const empresaIds = contatos.map(c => c.id)
+        const { data: pessoasData } = await supabase
+          .from('contatos')
+          .select('id, nome, sobrenome, email, telefone, cargo, status, empresa_id')
+          .in('empresa_id', empresaIds)
+          .is('deletado_em', null)
+
+        if (pessoasData) {
+          const pessoasByEmpresa: Record<string, Array<{ id: string; nome: string; sobrenome?: string; email?: string; telefone?: string; cargo?: string; status: string }>> = {}
+          for (const p of pessoasData) {
+            if (!p.empresa_id) continue
+            if (!pessoasByEmpresa[p.empresa_id]) pessoasByEmpresa[p.empresa_id] = []
+            pessoasByEmpresa[p.empresa_id].push({
+              id: p.id,
+              nome: p.nome || '',
+              sobrenome: p.sobrenome || undefined,
+              email: p.email || undefined,
+              telefone: p.telefone || undefined,
+              cargo: p.cargo || undefined,
+              status: p.status,
+            })
+          }
+          contatos = contatos.map(c => ({
+            ...c,
+            pessoas: pessoasByEmpresa[c.id] || [],
+          }))
+        }
+      }
+
       // Filtrar por segmento_id (pós-query se necessário)
       if (params?.segmento_id) {
         contatos = contatos.filter(c => c.segmentos?.some(s => s.id === params.segmento_id))
