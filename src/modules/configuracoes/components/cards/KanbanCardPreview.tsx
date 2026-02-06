@@ -14,10 +14,10 @@ import {
   Clock,
   CheckSquare,
   Tag,
-  MessageCircle,
   Calendar,
   FileText,
 } from 'lucide-react'
+import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 
 interface CampoCustomizado {
   id: string
@@ -97,7 +97,7 @@ const CAMPO_PREVIEW_DATA: Record<string, { icon: React.ElementType; value: React
 
 const ACOES_ICONS: Record<string, { icon: React.ElementType; label: string }> = {
   telefone: { icon: Phone, label: 'Ligar' },
-  whatsapp: { icon: MessageCircle, label: 'WhatsApp' },
+  whatsapp: { icon: WhatsAppIcon, label: 'WhatsApp' },
   email: { icon: Mail, label: 'Email' },
   agendar: { icon: Calendar, label: 'Agendar' },
 }

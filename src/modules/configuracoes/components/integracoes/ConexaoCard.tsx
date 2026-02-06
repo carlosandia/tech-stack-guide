@@ -6,7 +6,6 @@
 
 import { useState } from 'react'
 import {
-  MessageCircle,
   Instagram,
   BarChart3,
   Calendar,
@@ -22,6 +21,7 @@ import {
   AtSign,
   User,
 } from 'lucide-react'
+import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import type { Integracao, PlataformaIntegracao } from '../../services/configuracoes.api'
 
 interface ConexaoCardProps {
@@ -43,7 +43,7 @@ const plataformaConfig: Record<PlataformaIntegracao, {
   whatsapp: {
     nome: 'WhatsApp',
     descricao: 'Integração via WAHA para envio e recebimento de mensagens',
-    icon: MessageCircle,
+    icon: WhatsAppIcon,
     cor: 'text-green-600',
     bgCor: 'bg-green-50',
   },

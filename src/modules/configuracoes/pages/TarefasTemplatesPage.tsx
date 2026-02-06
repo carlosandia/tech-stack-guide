@@ -5,7 +5,8 @@
  */
 
 import { useState, useEffect } from 'react'
-import { Plus, Loader2, Pencil, Phone, Mail, Calendar, MessageCircle, MapPin, CheckSquare } from 'lucide-react'
+import { Plus, Loader2, Pencil, Phone, Mail, Calendar, MapPin, CheckSquare } from 'lucide-react'
+import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import { useAuth } from '@/providers/AuthProvider'
 import { useConfigToolbar } from '../contexts/ConfigToolbarContext'
 import { useTarefasTemplates } from '../hooks/useTarefasTemplates'
@@ -13,11 +14,11 @@ import { TarefaTemplateFormModal } from '../components/tarefas/TarefaTemplateFor
 import { prioridadeTarefaOptions } from '../schemas/tarefas-templates.schema'
 import type { TarefaTemplate } from '../services/configuracoes.api'
 
-const tipoIconMap: Record<string, typeof Phone> = {
+const tipoIconMap: Record<string, React.ElementType> = {
   ligacao: Phone,
   email: Mail,
   reuniao: Calendar,
-  whatsapp: MessageCircle,
+  whatsapp: WhatsAppIcon,
   visita: MapPin,
   outro: CheckSquare,
 }
