@@ -485,12 +485,12 @@ export const camposApi = {
         obrigatorio: payload.obrigatorio ?? false,
         valor_padrao: payload.valor_padrao || null,
         placeholder: payload.placeholder || null,
-        validacoes: payload.validacoes || null,
-        opcoes: payload.opcoes || null,
+        validacoes: (payload.validacoes || null) as any,
+        opcoes: (payload.opcoes || null) as any,
         ordem: novaOrdem,
         sistema: false,
         criado_por: userId,
-      })
+      } as any)
       .select()
       .single()
 
@@ -503,8 +503,10 @@ export const camposApi = {
       .from('campos_customizados')
       .update({
         ...payload,
+        validacoes: payload.validacoes ? (payload.validacoes as any) : undefined,
+        opcoes: payload.opcoes ? (payload.opcoes as any) : undefined,
         atualizado_em: new Date().toISOString(),
-      })
+      } as any)
       .eq('id', id)
       .select()
       .single()
@@ -575,7 +577,7 @@ export const produtosApi = {
 
     const { data, error } = await supabase
       .from('produtos')
-      .insert({ organizacao_id: orgId, ...payload, criado_por: userId })
+      .insert({ organizacao_id: orgId, ...payload, criado_por: userId } as any)
       .select('*, categoria:categorias_produtos(id, nome)')
       .single()
 
@@ -586,7 +588,7 @@ export const produtosApi = {
   atualizar: async (id: string, payload: Record<string, unknown>) => {
     const { data, error } = await supabase
       .from('produtos')
-      .update({ ...payload, atualizado_em: new Date().toISOString() })
+      .update({ ...payload, atualizado_em: new Date().toISOString() } as any)
       .eq('id', id)
       .select('*, categoria:categorias_produtos(id, nome)')
       .single()
@@ -621,7 +623,7 @@ export const produtosApi = {
 
     const { data, error } = await supabase
       .from('categorias_produtos')
-      .insert({ organizacao_id: orgId, ...payload, criado_por: userId })
+      .insert({ organizacao_id: orgId, ...payload, criado_por: userId } as any)
       .select()
       .single()
 
@@ -632,7 +634,7 @@ export const produtosApi = {
   atualizarCategoria: async (id: string, payload: Record<string, unknown>) => {
     const { data, error } = await supabase
       .from('categorias_produtos')
-      .update({ ...payload, atualizado_em: new Date().toISOString() })
+      .update({ ...payload, atualizado_em: new Date().toISOString() } as any)
       .eq('id', id)
       .select()
       .single()
@@ -694,7 +696,7 @@ export const motivosApi = {
         ordem: novaOrdem,
         padrao: false,
         criado_por: userId,
-      })
+      } as any)
       .select()
       .single()
 
@@ -705,7 +707,7 @@ export const motivosApi = {
   atualizar: async (id: string, payload: Record<string, unknown>) => {
     const { data, error } = await supabase
       .from('motivos_resultado')
-      .update({ ...payload, atualizado_em: new Date().toISOString() })
+      .update({ ...payload, atualizado_em: new Date().toISOString() } as any)
       .eq('id', id)
       .select()
       .single()
@@ -762,7 +764,7 @@ export const tarefasTemplatesApi = {
 
     const { data, error } = await supabase
       .from('tarefas_templates')
-      .insert({ organizacao_id: orgId, ...payload, criado_por: userId })
+      .insert({ organizacao_id: orgId, ...payload, criado_por: userId } as any)
       .select()
       .single()
 
@@ -773,7 +775,7 @@ export const tarefasTemplatesApi = {
   atualizar: async (id: string, payload: Record<string, unknown>) => {
     const { data, error } = await supabase
       .from('tarefas_templates')
-      .update({ ...payload, atualizado_em: new Date().toISOString() })
+      .update({ ...payload, atualizado_em: new Date().toISOString() } as any)
       .eq('id', id)
       .select()
       .single()
@@ -839,7 +841,7 @@ export const etapasTemplatesApi = {
         ordem: novaOrdem,
         sistema: false,
         criado_por: userId,
-      })
+      } as any)
       .select()
       .single()
 
@@ -855,7 +857,7 @@ export const etapasTemplatesApi = {
         criar_automaticamente: false,
       }))
 
-      const { error: tarefasError } = await supabase.from('etapas_tarefas').insert(vinculos)
+      const { error: tarefasError } = await supabase.from('etapas_tarefas').insert(vinculos as any)
       if (tarefasError) {
         await supabase.from('etapas_templates').delete().eq('id', etapa.id)
         throw new Error(`Erro ao vincular tarefas: ${tarefasError.message}`)
@@ -871,7 +873,7 @@ export const etapasTemplatesApi = {
 
     const { data, error } = await supabase
       .from('etapas_templates')
-      .update({ ...etapaData, atualizado_em: new Date().toISOString() })
+      .update({ ...etapaData, atualizado_em: new Date().toISOString() } as any)
       .eq('id', id)
       .select()
       .single()
@@ -890,7 +892,7 @@ export const etapasTemplatesApi = {
           ordem: index,
           criar_automaticamente: false,
         }))
-        await supabase.from('etapas_tarefas').insert(vinculos)
+        await supabase.from('etapas_tarefas').insert(vinculos as any)
       }
     }
 
@@ -924,7 +926,7 @@ export const etapasTemplatesApi = {
     const orgId = await getOrganizacaoId()
     const { data, error } = await supabase
       .from('etapas_tarefas')
-      .insert({ organizacao_id: orgId, etapa_template_id: etapaId, ...payload })
+      .insert({ organizacao_id: orgId, etapa_template_id: etapaId, ...payload } as any)
       .select()
       .single()
 
@@ -956,7 +958,7 @@ export const regrasApi = {
 
     if (params?.ativa) query = query.eq('ativa', params.ativa === 'true')
 
-    const { data, error, count } = await query.order('prioridade', { ascending: true })
+    const { data, error, count } = await query.order('ordem', { ascending: true })
 
     if (error) throw new Error(`Erro ao listar regras: ${error.message}`)
     return { regras: (data || []) as unknown as RegraQualificacao[], total: count || 0 }
@@ -966,25 +968,25 @@ export const regrasApi = {
     const orgId = await getOrganizacaoId()
     const userId = await getUsuarioId()
 
-    // Buscar próxima prioridade
+    // Buscar próxima ordem
     const { data: ultima } = await supabase
       .from('regras_qualificacao')
-      .select('prioridade')
+      .select('ordem')
       .is('deletado_em', null)
-      .order('prioridade', { ascending: false })
+      .order('ordem', { ascending: false })
       .limit(1)
       .maybeSingle()
 
-    const novaPrioridade = ultima ? (ultima.prioridade ?? 0) + 1 : 1
+    const novaOrdem = ultima ? (ultima.ordem ?? 0) + 1 : 1
 
     const { data, error } = await supabase
       .from('regras_qualificacao')
       .insert({
         organizacao_id: orgId,
         ...payload,
-        prioridade: novaPrioridade,
+        ordem: novaOrdem,
         criado_por: userId,
-      })
+      } as any)
       .select()
       .single()
 
@@ -995,7 +997,7 @@ export const regrasApi = {
   atualizar: async (id: string, payload: Record<string, unknown>) => {
     const { data, error } = await supabase
       .from('regras_qualificacao')
-      .update({ ...payload, atualizado_em: new Date().toISOString() })
+      .update({ ...payload, atualizado_em: new Date().toISOString() } as any)
       .eq('id', id)
       .select()
       .single()
@@ -1013,11 +1015,11 @@ export const regrasApi = {
     if (error) throw new Error(`Erro ao excluir regra: ${error.message}`)
   },
 
-  reordenar: async (prioridades: Array<{ id: string; prioridade: number }>) => {
-    const updates = prioridades.map(({ id, prioridade }) =>
+  reordenar: async (prioridades: Array<{ id: string; ordem: number }>) => {
+    const updates = prioridades.map(({ id, ordem }) =>
       supabase
         .from('regras_qualificacao')
-        .update({ prioridade, atualizado_em: new Date().toISOString() })
+        .update({ ordem, atualizado_em: new Date().toISOString() })
         .eq('id', id)
     )
     const results = await Promise.all(updates)
@@ -1052,7 +1054,7 @@ export const configCardApi = {
     if (existente) {
       const { data, error } = await supabase
         .from('configuracoes_card')
-        .update({ ...payload, atualizado_em: new Date().toISOString() })
+        .update({ ...payload, atualizado_em: new Date().toISOString() } as any)
         .eq('id', existente.id)
         .select()
         .single()
@@ -1062,7 +1064,7 @@ export const configCardApi = {
     } else {
       const { data, error } = await supabase
         .from('configuracoes_card')
-        .insert({ organizacao_id: orgId, ...payload })
+        .insert({ organizacao_id: orgId, ...payload } as any)
         .select()
         .single()
 
@@ -1081,7 +1083,6 @@ export const integracoesApi = {
     // Buscar conexões existentes de todas as plataformas
     const integracoes: Integracao[] = []
 
-    const plataformas = ['whatsapp', 'instagram', 'google', 'email'] as const
     const tabelas = {
       instagram: 'conexoes_instagram',
       google: 'conexoes_google',
@@ -1113,7 +1114,7 @@ export const integracoesApi = {
     return { id, plataforma: 'email', status: 'desconectado' } as Integracao
   },
 
-  obterAuthUrl: async (_plataforma: PlataformaIntegracao, _redirect_uri: string) => {
+  obterAuthUrl: async (_plataforma: PlataformaIntegracao, _redirect_uri: string): Promise<{ url: string; state?: string }> => {
     throw new Error('Funcionalidade de OAuth requer backend. Em implementação.')
   },
 
@@ -1153,7 +1154,7 @@ export const webhooksApi = {
 
     const { data, error } = await supabase
       .from('webhooks_entrada')
-      .insert({ organizacao_id: orgId, ...payload, url_token: urlToken, criado_por: userId })
+      .insert({ organizacao_id: orgId, ...payload, url_token: urlToken, criado_por: userId } as any)
       .select()
       .single()
 
@@ -1164,7 +1165,7 @@ export const webhooksApi = {
   atualizarEntrada: async (id: string, payload: Record<string, unknown>) => {
     const { data, error } = await supabase
       .from('webhooks_entrada')
-      .update({ ...payload, atualizado_em: new Date().toISOString() })
+      .update({ ...payload, atualizado_em: new Date().toISOString() } as any)
       .eq('id', id)
       .select()
       .single()
@@ -1212,7 +1213,7 @@ export const webhooksApi = {
 
     const { data, error } = await supabase
       .from('webhooks_saida')
-      .insert({ organizacao_id: orgId, ...payload, criado_por: userId })
+      .insert({ organizacao_id: orgId, ...payload, criado_por: userId } as any)
       .select()
       .single()
 
@@ -1223,7 +1224,7 @@ export const webhooksApi = {
   atualizarSaida: async (id: string, payload: Record<string, unknown>) => {
     const { data, error } = await supabase
       .from('webhooks_saida')
-      .update({ ...payload, atualizado_em: new Date().toISOString() })
+      .update({ ...payload, atualizado_em: new Date().toISOString() } as any)
       .eq('id', id)
       .select()
       .single()
@@ -1343,7 +1344,7 @@ export const equipeApi = {
 
     const { data, error } = await supabase
       .from('equipes')
-      .insert({ organizacao_id: orgId, ...payload, criado_por: userId })
+      .insert({ organizacao_id: orgId, ...payload, criado_por: userId } as any)
       .select()
       .single()
 
@@ -1355,7 +1356,7 @@ export const equipeApi = {
         organizacao_id: orgId,
         equipe_id: data.id,
         usuario_id: payload.lider_id as string,
-      })
+      } as any)
     }
 
     return data as unknown as Equipe
@@ -1364,7 +1365,7 @@ export const equipeApi = {
   atualizarEquipe: async (id: string, payload: Record<string, unknown>) => {
     const { data, error } = await supabase
       .from('equipes')
-      .update({ ...payload, atualizado_em: new Date().toISOString() })
+      .update({ ...payload, atualizado_em: new Date().toISOString() } as any)
       .eq('id', id)
       .select()
       .single()
@@ -1392,7 +1393,7 @@ export const equipeApi = {
         organizacao_id: orgId,
         equipe_id: equipeId,
         usuario_id: payload.usuario_id,
-      })
+      } as any)
       .select()
       .single()
 
@@ -1475,7 +1476,7 @@ export const equipeApi = {
         papel_id: payload.papel_id,
         status: 'pendente',
         criado_por: userId,
-      })
+      } as any)
       .select()
       .single()
 
@@ -1489,7 +1490,7 @@ export const equipeApi = {
 
     const { data, error } = await supabase
       .from('usuarios')
-      .update({ ...dadosUsuario, atualizado_em: new Date().toISOString() })
+      .update({ ...dadosUsuario, atualizado_em: new Date().toISOString() } as any)
       .eq('id', id)
       .select()
       .single()
@@ -1543,7 +1544,7 @@ export const equipeApi = {
 
     const { data, error } = await supabase
       .from('perfis_permissao')
-      .insert({ organizacao_id: orgId, ...payload })
+      .insert({ organizacao_id: orgId, ...payload } as any)
       .select()
       .single()
 
@@ -1554,7 +1555,7 @@ export const equipeApi = {
   atualizarPerfil: async (id: string, payload: Record<string, unknown>) => {
     const { data, error } = await supabase
       .from('perfis_permissao')
-      .update({ ...payload, atualizado_em: new Date().toISOString() })
+      .update({ ...payload, atualizado_em: new Date().toISOString() } as any)
       .eq('id', id)
       .select()
       .single()
@@ -1656,7 +1657,7 @@ export const metasApi = {
 
     const { data, error } = await supabase
       .from('metas')
-      .insert({ organizacao_id: orgId, ...payload, criado_por: userId })
+      .insert({ organizacao_id: orgId, ...payload, criado_por: userId } as any)
       .select()
       .single()
 
@@ -1668,7 +1669,7 @@ export const metasApi = {
       meta_id: data.id,
       valor_atual: 0,
       percentual_atingido: 0,
-    })
+    } as any)
 
     return data as unknown as Meta
   },
@@ -1676,7 +1677,7 @@ export const metasApi = {
   atualizar: async (id: string, payload: Record<string, unknown>) => {
     const { data, error } = await supabase
       .from('metas')
-      .update({ ...payload, atualizado_em: new Date().toISOString() })
+      .update({ ...payload, atualizado_em: new Date().toISOString() } as any)
       .eq('id', id)
       .select()
       .single()
@@ -1853,7 +1854,7 @@ export const configTenantApi = {
     if (existente) {
       const { data, error } = await supabase
         .from('configuracoes_tenant')
-        .update({ ...payload, atualizado_em: new Date().toISOString() })
+        .update({ ...payload, atualizado_em: new Date().toISOString() } as any)
         .eq('id', existente.id)
         .select()
         .single()
@@ -1863,7 +1864,7 @@ export const configTenantApi = {
     } else {
       const { data, error } = await supabase
         .from('configuracoes_tenant')
-        .insert({ organizacao_id: orgId, ...payload })
+        .insert({ organizacao_id: orgId, ...payload } as any)
         .select()
         .single()
 
