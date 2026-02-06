@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2, Trash2 } from 'lucide-react'
 import { X } from 'lucide-react'
 import { criarCampoSchema, type CriarCampoFormData, tipoCampoOptions } from '../../schemas/campos.schema'
+import { getTipoLabel } from './CamposList'
 import { useCriarCampo, useAtualizarCampo, useExcluirCampo } from '../../hooks/useCampos'
 import type { CampoCustomizado, Entidade } from '../../services/configuracoes.api'
 import { ModalBase } from '../ui/ModalBase'
@@ -23,6 +24,7 @@ const tiposComOpcoes = ['select', 'multi_select']
 
 export function CampoFormModal({ entidade, campo, onClose }: Props) {
   const isEditing = !!campo
+  const isSistema = !!campo?.sistema
   const [opcaoInput, setOpcaoInput] = useState('')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
@@ -72,6 +74,15 @@ export function CampoFormModal({ entidade, campo, onClose }: Props) {
   const isSubmitting = criarMutation.isPending || atualizarMutation.isPending
 
   const onSubmit = (data: CriarCampoFormData) => {
+    if (isSistema && campo) {
+      // Campos do sistema: só permite alterar obrigatorio
+      atualizarMutation.mutate(
+        { id: campo.id, payload: { obrigatorio: data.obrigatorio } },
+        { onSuccess: onClose }
+      )
+      return
+    }
+
     const payload = {
       ...data,
       descricao: data.descricao || undefined,
@@ -149,92 +160,120 @@ export function CampoFormModal({ entidade, campo, onClose }: Props) {
   return (
     <ModalBase
       onClose={onClose}
-      title={isEditing ? 'Editar Campo' : 'Novo Campo'}
+      title={isSistema ? 'Campo do Sistema' : (isEditing ? 'Editar Campo' : 'Novo Campo')}
       description={entidadeLabel}
       variant={isEditing ? 'edit' : 'create'}
       size="md"
       footer={footerContent}
     >
       <form id="campo-form" onSubmit={handleSubmit(onSubmit)} className="px-4 sm:px-6 py-4 space-y-4">
-        {/* Nome */}
-        <div>
-          <label htmlFor="campo-nome" className="block text-sm font-medium text-foreground mb-1">
-            Nome <span className="text-destructive">*</span>
-          </label>
-          <input id="campo-nome" {...register('nome')}
-            className="w-full h-10 px-3 rounded-md border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-ring focus:border-ring transition-all duration-200"
-            placeholder="Ex: Origem do Lead"
-            aria-invalid={!!errors.nome}
-          />
-          {errors.nome && <p className="text-xs text-destructive mt-1">{errors.nome.message}</p>}
-        </div>
-
-        {/* Tipo */}
-        <div>
-          <label htmlFor="campo-tipo" className="block text-sm font-medium text-foreground mb-1">
-            Tipo <span className="text-destructive">*</span>
-          </label>
-          <select id="campo-tipo" {...register('tipo')} disabled={isEditing}
-            className={`w-full h-10 px-3 rounded-md border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-ring focus:border-ring transition-all duration-200 ${isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}>
-            {tipoCampoOptions.map(opt => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-          {isEditing && <p className="text-xs text-muted-foreground mt-1">O tipo não pode ser alterado</p>}
-        </div>
-
-        {/* Descrição */}
-        <div>
-          <label htmlFor="campo-descricao" className="block text-sm font-medium text-foreground mb-1">Descrição</label>
-          <textarea id="campo-descricao" {...register('descricao')} rows={2}
-            className="w-full px-3 py-2 rounded-md border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-ring focus:border-ring resize-none transition-all duration-200"
-            placeholder="Descrição opcional do campo" />
-        </div>
-
-        {/* Opções (select / multi_select) */}
-        {tiposComOpcoes.includes(tipoSelecionado) && (
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1">
-              Opções <span className="text-destructive">*</span>
-            </label>
-            <div className="flex gap-2 mb-2">
-              <input value={opcaoInput} onChange={e => setOpcaoInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddOpcao() } }}
-                className="flex-1 h-10 px-3 rounded-md border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-ring focus:border-ring transition-all duration-200"
-                placeholder="Digite uma opção e pressione Enter" />
-              <button type="button" onClick={handleAddOpcao}
-                className="h-10 px-3 rounded-md bg-secondary text-secondary-foreground text-sm font-medium hover:bg-accent transition-all duration-200">
-                Adicionar
-              </button>
+        {isSistema ? (
+          <>
+            {/* Modo sistema: exibe info read-only + checkbox obrigatório */}
+            <div className="space-y-3">
+              <div>
+                <span className="block text-sm font-medium text-muted-foreground mb-1">Nome</span>
+                <p className="text-sm text-foreground">{campo?.nome}</p>
+              </div>
+              <div>
+                <span className="block text-sm font-medium text-muted-foreground mb-1">Tipo</span>
+                <p className="text-sm text-foreground">{getTipoLabel(campo?.tipo || '')}</p>
+              </div>
             </div>
-            {opcoes.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {opcoes.map((opcao, index) => (
-                  <span key={index} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-secondary text-secondary-foreground text-xs font-medium">
-                    {opcao}
-                    <button type="button" onClick={() => handleRemoveOpcao(index)} className="hover:text-destructive transition-colors">
-                      <X className="w-3 h-3" />
-                    </button>
-                  </span>
+
+            <div className="border-t border-border pt-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" {...register('obrigatorio')} className="w-4 h-4 rounded border-input text-primary focus:ring-primary" />
+                <span className="text-sm text-foreground">Campo obrigatório</span>
+              </label>
+              <p className="text-xs text-muted-foreground mt-2">
+                Campos do sistema não podem ser renomeados, excluídos ou ter seu tipo alterado.
+              </p>
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Nome */}
+            <div>
+              <label htmlFor="campo-nome" className="block text-sm font-medium text-foreground mb-1">
+                Nome <span className="text-destructive">*</span>
+              </label>
+              <input id="campo-nome" {...register('nome')}
+                className="w-full h-10 px-3 rounded-md border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-ring focus:border-ring transition-all duration-200"
+                placeholder="Ex: Origem do Lead"
+                aria-invalid={!!errors.nome}
+              />
+              {errors.nome && <p className="text-xs text-destructive mt-1">{errors.nome.message}</p>}
+            </div>
+
+            {/* Tipo */}
+            <div>
+              <label htmlFor="campo-tipo" className="block text-sm font-medium text-foreground mb-1">
+                Tipo <span className="text-destructive">*</span>
+              </label>
+              <select id="campo-tipo" {...register('tipo')} disabled={isEditing}
+                className={`w-full h-10 px-3 rounded-md border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-ring focus:border-ring transition-all duration-200 ${isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                {tipoCampoOptions.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
+              </select>
+              {isEditing && <p className="text-xs text-muted-foreground mt-1">O tipo não pode ser alterado</p>}
+            </div>
+
+            {/* Descrição */}
+            <div>
+              <label htmlFor="campo-descricao" className="block text-sm font-medium text-foreground mb-1">Descrição</label>
+              <textarea id="campo-descricao" {...register('descricao')} rows={2}
+                className="w-full px-3 py-2 rounded-md border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-ring focus:border-ring resize-none transition-all duration-200"
+                placeholder="Descrição opcional do campo" />
+            </div>
+
+            {/* Opções (select / multi_select) */}
+            {tiposComOpcoes.includes(tipoSelecionado) && (
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Opções <span className="text-destructive">*</span>
+                </label>
+                <div className="flex gap-2 mb-2">
+                  <input value={opcaoInput} onChange={e => setOpcaoInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddOpcao() } }}
+                    className="flex-1 h-10 px-3 rounded-md border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-ring focus:border-ring transition-all duration-200"
+                    placeholder="Digite uma opção e pressione Enter" />
+                  <button type="button" onClick={handleAddOpcao}
+                    className="h-10 px-3 rounded-md bg-secondary text-secondary-foreground text-sm font-medium hover:bg-accent transition-all duration-200">
+                    Adicionar
+                  </button>
+                </div>
+                {opcoes.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {opcoes.map((opcao, index) => (
+                      <span key={index} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-secondary text-secondary-foreground text-xs font-medium">
+                        {opcao}
+                        <button type="button" onClick={() => handleRemoveOpcao(index)} className="hover:text-destructive transition-colors">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
-          </div>
+
+            {/* Placeholder */}
+            <div>
+              <label htmlFor="campo-placeholder" className="block text-sm font-medium text-foreground mb-1">Placeholder</label>
+              <input id="campo-placeholder" {...register('placeholder')}
+                className="w-full h-10 px-3 rounded-md border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-ring focus:border-ring transition-all duration-200"
+                placeholder="Texto de exemplo no campo" />
+            </div>
+
+            {/* Obrigatório */}
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" {...register('obrigatorio')} className="w-4 h-4 rounded border-input text-primary focus:ring-primary" />
+              <span className="text-sm text-foreground">Campo obrigatório</span>
+            </label>
+          </>
         )}
-
-        {/* Placeholder */}
-        <div>
-          <label htmlFor="campo-placeholder" className="block text-sm font-medium text-foreground mb-1">Placeholder</label>
-          <input id="campo-placeholder" {...register('placeholder')}
-            className="w-full h-10 px-3 rounded-md border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-ring focus:border-ring transition-all duration-200"
-            placeholder="Texto de exemplo no campo" />
-        </div>
-
-        {/* Obrigatório */}
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input type="checkbox" {...register('obrigatorio')} className="w-4 h-4 rounded border-input text-primary focus:ring-primary" />
-          <span className="text-sm text-foreground">Campo obrigatório</span>
-        </label>
 
         {/* Erro de mutação */}
         {(criarMutation.error || atualizarMutation.error) && (

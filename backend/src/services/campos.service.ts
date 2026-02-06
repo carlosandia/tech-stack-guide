@@ -118,15 +118,34 @@ export async function atualizarCampo(
   campoId: string,
   payload: AtualizarCampoPayload
 ): Promise<CampoCustomizado> {
-  // Verificar se campo existe e nao e do sistema
+  // Verificar se campo existe
   const campoExistente = await buscarCampo(organizacaoId, campoId)
 
   if (!campoExistente) {
     throw new Error('Campo nao encontrado')
   }
 
+  // Campos do sistema: apenas obrigatorio pode ser alterado
   if (campoExistente.sistema) {
-    throw new Error('Campos do sistema nao podem ser alterados')
+    const payloadSistema: Record<string, unknown> = {
+      atualizado_em: new Date().toISOString(),
+    }
+    if (payload.obrigatorio !== undefined) {
+      payloadSistema.obrigatorio = payload.obrigatorio
+    }
+
+    const { data, error } = await supabase
+      .from('campos_customizados')
+      .update(payloadSistema)
+      .eq('organizacao_id', organizacaoId)
+      .eq('id', campoId)
+      .select()
+      .single()
+
+    if (error) {
+      throw new Error(`Erro ao atualizar campo: ${error.message}`)
+    }
+    return data as CampoCustomizado
   }
 
   const { data, error } = await supabase
