@@ -14,6 +14,7 @@ import { AppLayout, AppDashboardPage } from '@/modules/app'
 import { PlanosPage, TrialCadastroPage, CheckoutSucessoPage, OnboardingPage } from '@/modules/public'
 import { BlockedPage } from '@/modules/blocked'
 import { ConfiguracoesLayout, CamposPage, ProdutosPage, MotivosPage, TarefasTemplatesPage, EtapasTemplatesPage, RegrasPage, ConfigCardPage, ConexoesPage, WebhooksEntradaPage, WebhooksSaidaPage, MembrosPage, EquipesPage, PerfisPermissaoPage, MetasPage, ConfigGeralPage } from '@/modules/configuracoes'
+import { ContatosPage } from '@/modules/contatos'
 
 /**
  * AIDEV-NOTE: Roteamento principal da aplicacao
@@ -67,7 +68,8 @@ function App() {
         }
       >
         <Route index element={<AppDashboardPage />} />
-        {/* Rotas futuras: contatos, negocios, conversas, tarefas */}
+        <Route path="contatos" element={<ContatosPage />} />
+        <Route path="contatos/:tipo" element={<ContatosPage />} />
       </Route>
 
       {/* Configuracoes - PRD-05 (layout próprio com header/toolbar) */}
