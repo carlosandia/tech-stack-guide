@@ -71,9 +71,10 @@ export function isFieldVisible(tipo: TipoContato, fieldKey: string, obrigatorio:
 
 interface ContatoFormFieldsToggleProps {
   tipo: TipoContato
+  onChange?: () => void
 }
 
-export function ContatoFormFieldsToggle({ tipo }: ContatoFormFieldsToggleProps) {
+export function ContatoFormFieldsToggle({ tipo, onChange }: ContatoFormFieldsToggleProps) {
   const [open, setOpen] = useState(false)
   const [visibility, setVisibility] = useState<Record<string, FormFieldVisibility>>(getSavedVisibility)
   const ref = useRef<HTMLDivElement>(null)
@@ -105,6 +106,7 @@ export function ContatoFormFieldsToggle({ tipo }: ContatoFormFieldsToggleProps) 
     }
     setVisibility(updated)
     saveVisibility(updated)
+    onChange?.()
   }
 
   const isVisible = (key: string, obrigatorio: boolean) => {
