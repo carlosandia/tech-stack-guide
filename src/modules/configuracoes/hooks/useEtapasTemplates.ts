@@ -4,6 +4,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { etapasTemplatesApi } from '../services/configuracoes.api'
 
 export function useEtapasTemplates(params?: { tipo?: string; ativo?: string }) {
@@ -20,6 +21,10 @@ export function useCriarEtapaTemplate() {
     mutationFn: (payload: Record<string, unknown>) => etapasTemplatesApi.criar(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['configuracoes', 'etapas-templates'] })
+      toast.success('Template de etapa criado com sucesso')
+    },
+    onError: () => {
+      toast.error('Erro ao criar template de etapa')
     },
   })
 }
@@ -32,6 +37,10 @@ export function useAtualizarEtapaTemplate() {
       etapasTemplatesApi.atualizar(id, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['configuracoes', 'etapas-templates'] })
+      toast.success('Template de etapa atualizado com sucesso')
+    },
+    onError: () => {
+      toast.error('Erro ao atualizar template de etapa')
     },
   })
 }
@@ -43,6 +52,10 @@ export function useExcluirEtapaTemplate() {
     mutationFn: (id: string) => etapasTemplatesApi.excluir(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['configuracoes', 'etapas-templates'] })
+      toast.success('Template de etapa excluído com sucesso')
+    },
+    onError: () => {
+      toast.error('Erro ao excluir template de etapa')
     },
   })
 }
@@ -55,6 +68,10 @@ export function useVincularTarefaEtapa() {
       etapasTemplatesApi.vincularTarefa(etapaId, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['configuracoes', 'etapas-templates'] })
+      toast.success('Tarefa vinculada com sucesso')
+    },
+    onError: () => {
+      toast.error('Erro ao vincular tarefa')
     },
   })
 }
@@ -67,6 +84,10 @@ export function useDesvincularTarefaEtapa() {
       etapasTemplatesApi.desvincularTarefa(etapaId, tarefaId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['configuracoes', 'etapas-templates'] })
+      toast.success('Tarefa desvinculada com sucesso')
+    },
+    onError: () => {
+      toast.error('Erro ao desvincular tarefa')
     },
   })
 }

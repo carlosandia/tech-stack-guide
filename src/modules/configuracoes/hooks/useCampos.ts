@@ -4,6 +4,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { camposApi, type Entidade, type CriarCampoPayload, type AtualizarCampoPayload } from '../services/configuracoes.api'
 
 export function useCampos(entidade: Entidade) {
@@ -22,6 +23,10 @@ export function useCriarCampo() {
       queryClient.invalidateQueries({
         queryKey: ['configuracoes', 'campos', variables.entidade],
       })
+      toast.success('Campo criado com sucesso')
+    },
+    onError: () => {
+      toast.error('Erro ao criar campo')
     },
   })
 }
@@ -36,6 +41,10 @@ export function useAtualizarCampo(entidade: Entidade) {
       queryClient.invalidateQueries({
         queryKey: ['configuracoes', 'campos', entidade],
       })
+      toast.success('Campo atualizado com sucesso')
+    },
+    onError: () => {
+      toast.error('Erro ao atualizar campo')
     },
   })
 }
@@ -49,6 +58,10 @@ export function useExcluirCampo(entidade: Entidade) {
       queryClient.invalidateQueries({
         queryKey: ['configuracoes', 'campos', entidade],
       })
+      toast.success('Campo excluído com sucesso')
+    },
+    onError: () => {
+      toast.error('Erro ao excluir campo')
     },
   })
 }

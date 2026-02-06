@@ -4,6 +4,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { motivosApi, type TipoMotivo } from '../services/configuracoes.api'
 
 export function useMotivos(tipo?: TipoMotivo) {
@@ -20,6 +21,10 @@ export function useCriarMotivo() {
     mutationFn: (payload: Record<string, unknown>) => motivosApi.criar(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['configuracoes', 'motivos'] })
+      toast.success('Motivo criado com sucesso')
+    },
+    onError: () => {
+      toast.error('Erro ao criar motivo')
     },
   })
 }
@@ -32,6 +37,10 @@ export function useAtualizarMotivo() {
       motivosApi.atualizar(id, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['configuracoes', 'motivos'] })
+      toast.success('Motivo atualizado com sucesso')
+    },
+    onError: () => {
+      toast.error('Erro ao atualizar motivo')
     },
   })
 }
@@ -43,6 +52,10 @@ export function useExcluirMotivo() {
     mutationFn: (id: string) => motivosApi.excluir(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['configuracoes', 'motivos'] })
+      toast.success('Motivo excluído com sucesso')
+    },
+    onError: () => {
+      toast.error('Erro ao excluir motivo')
     },
   })
 }
@@ -55,6 +68,10 @@ export function useReordenarMotivos() {
       motivosApi.reordenar(tipo, ordem),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['configuracoes', 'motivos'] })
+      toast.success('Ordem atualizada com sucesso')
+    },
+    onError: () => {
+      toast.error('Erro ao reordenar motivos')
     },
   })
 }

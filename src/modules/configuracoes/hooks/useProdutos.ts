@@ -4,6 +4,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { produtosApi } from '../services/configuracoes.api'
 
 // =====================================================
@@ -24,6 +25,10 @@ export function useCriarProduto() {
     mutationFn: (payload: Record<string, unknown>) => produtosApi.criar(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['configuracoes', 'produtos'] })
+      toast.success('Produto criado com sucesso')
+    },
+    onError: () => {
+      toast.error('Erro ao criar produto')
     },
   })
 }
@@ -36,6 +41,10 @@ export function useAtualizarProduto() {
       produtosApi.atualizar(id, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['configuracoes', 'produtos'] })
+      toast.success('Produto atualizado com sucesso')
+    },
+    onError: () => {
+      toast.error('Erro ao atualizar produto')
     },
   })
 }
@@ -47,6 +56,10 @@ export function useExcluirProduto() {
     mutationFn: (id: string) => produtosApi.excluir(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['configuracoes', 'produtos'] })
+      toast.success('Produto excluído com sucesso')
+    },
+    onError: () => {
+      toast.error('Erro ao excluir produto')
     },
   })
 }
@@ -69,6 +82,10 @@ export function useCriarCategoria() {
     mutationFn: (payload: Record<string, unknown>) => produtosApi.criarCategoria(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['configuracoes', 'categorias'] })
+      toast.success('Categoria criada com sucesso')
+    },
+    onError: () => {
+      toast.error('Erro ao criar categoria')
     },
   })
 }
@@ -81,6 +98,10 @@ export function useAtualizarCategoria() {
       produtosApi.atualizarCategoria(id, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['configuracoes', 'categorias'] })
+      toast.success('Categoria atualizada com sucesso')
+    },
+    onError: () => {
+      toast.error('Erro ao atualizar categoria')
     },
   })
 }
@@ -92,6 +113,10 @@ export function useExcluirCategoria() {
     mutationFn: (id: string) => produtosApi.excluirCategoria(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['configuracoes', 'categorias'] })
+      toast.success('Categoria excluída com sucesso')
+    },
+    onError: () => {
+      toast.error('Erro ao excluir categoria')
     },
   })
 }

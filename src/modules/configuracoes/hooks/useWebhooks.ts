@@ -4,6 +4,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { webhooksApi } from '../services/configuracoes.api'
 
 // =====================================================
@@ -24,6 +25,10 @@ export function useCriarWebhookEntrada() {
     mutationFn: (payload: Record<string, unknown>) => webhooksApi.criarEntrada(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['configuracoes', 'webhooks', 'entrada'] })
+      toast.success('Webhook de entrada criado com sucesso')
+    },
+    onError: () => {
+      toast.error('Erro ao criar webhook de entrada')
     },
   })
 }
@@ -36,6 +41,10 @@ export function useAtualizarWebhookEntrada() {
       webhooksApi.atualizarEntrada(id, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['configuracoes', 'webhooks', 'entrada'] })
+      toast.success('Webhook de entrada atualizado com sucesso')
+    },
+    onError: () => {
+      toast.error('Erro ao atualizar webhook de entrada')
     },
   })
 }
@@ -47,6 +56,10 @@ export function useExcluirWebhookEntrada() {
     mutationFn: (id: string) => webhooksApi.excluirEntrada(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['configuracoes', 'webhooks', 'entrada'] })
+      toast.success('Webhook de entrada excluído com sucesso')
+    },
+    onError: () => {
+      toast.error('Erro ao excluir webhook de entrada')
     },
   })
 }
@@ -58,6 +71,10 @@ export function useRegenerarTokenWebhook() {
     mutationFn: (id: string) => webhooksApi.regenerarToken(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['configuracoes', 'webhooks', 'entrada'] })
+      toast.success('Token regenerado com sucesso')
+    },
+    onError: () => {
+      toast.error('Erro ao regenerar token')
     },
   })
 }
@@ -80,6 +97,10 @@ export function useCriarWebhookSaida() {
     mutationFn: (payload: Record<string, unknown>) => webhooksApi.criarSaida(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['configuracoes', 'webhooks', 'saida'] })
+      toast.success('Webhook de saída criado com sucesso')
+    },
+    onError: () => {
+      toast.error('Erro ao criar webhook de saída')
     },
   })
 }
@@ -92,6 +113,10 @@ export function useAtualizarWebhookSaida() {
       webhooksApi.atualizarSaida(id, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['configuracoes', 'webhooks', 'saida'] })
+      toast.success('Webhook de saída atualizado com sucesso')
+    },
+    onError: () => {
+      toast.error('Erro ao atualizar webhook de saída')
     },
   })
 }
@@ -103,6 +128,10 @@ export function useExcluirWebhookSaida() {
     mutationFn: (id: string) => webhooksApi.excluirSaida(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['configuracoes', 'webhooks', 'saida'] })
+      toast.success('Webhook de saída excluído com sucesso')
+    },
+    onError: () => {
+      toast.error('Erro ao excluir webhook de saída')
     },
   })
 }
@@ -110,6 +139,12 @@ export function useExcluirWebhookSaida() {
 export function useTestarWebhookSaida() {
   return useMutation({
     mutationFn: (id: string) => webhooksApi.testarSaida(id),
+    onSuccess: () => {
+      toast.success('Teste enviado com sucesso')
+    },
+    onError: () => {
+      toast.error('Erro ao testar webhook')
+    },
   })
 }
 

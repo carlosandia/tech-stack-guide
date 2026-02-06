@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
+import { Toaster } from 'sonner'
 import { QueryProvider } from '@/providers/QueryProvider'
 import { AuthProvider } from '@/providers/AuthProvider'
 import App from './App'
@@ -19,6 +20,15 @@ createRoot(document.getElementById('root')!).render(
       <QueryProvider>
         <AuthProvider>
           <App />
+          <Toaster
+            position="top-right"
+            richColors
+            closeButton
+            toastOptions={{
+              duration: 4000,
+              className: 'text-sm',
+            }}
+          />
         </AuthProvider>
       </QueryProvider>
     </BrowserRouter>

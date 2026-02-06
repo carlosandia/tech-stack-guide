@@ -4,6 +4,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { configTenantApi } from '../services/configuracoes.api'
 
 const KEY = ['config-tenant'] as const
@@ -21,6 +22,10 @@ export function useAtualizarConfigTenant() {
     mutationFn: (payload: Record<string, unknown>) => configTenantApi.atualizar(payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: KEY })
+      toast.success('Configurações atualizadas com sucesso')
+    },
+    onError: () => {
+      toast.error('Erro ao atualizar configurações')
     },
   })
 }
