@@ -21,7 +21,9 @@ interface EtapaTemplateFormModalProps {
 
 export function EtapaTemplateFormModal({ template, onClose }: EtapaTemplateFormModalProps) {
   const isEditing = !!template
-  const isSistema = template?.sistema
+  // Etapas de tipo entrada, ganho e perda são sistema (únicas por tenant, imutáveis)
+  const isTipoSistema = template?.tipo === 'entrada' || template?.tipo === 'ganho' || template?.tipo === 'perda'
+  const isProtegido = !!template?.sistema || isTipoSistema
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   const criar = useCriarEtapaTemplate()
@@ -33,7 +35,8 @@ export function EtapaTemplateFormModal({ template, onClose }: EtapaTemplateFormM
     resolver: zodResolver(etapaTemplateFormSchema),
     defaultValues: {
       nome: template?.nome || '', descricao: template?.descricao || '',
-      tipo: template?.tipo || 'normal', cor: template?.cor || '#6B7280',
+      tipo: isEditing ? (template?.tipo || 'normal') : 'normal',
+      cor: template?.cor || '#6B7280',
       probabilidade: template?.probabilidade ?? 0,
       tarefas_ids: template?.tarefas?.map(t => t.tarefa_template_id) || [],
     },
@@ -42,6 +45,11 @@ export function EtapaTemplateFormModal({ template, onClose }: EtapaTemplateFormM
   const corSelecionada = watch('cor')
   const tipoSelecionado = watch('tipo')
   const tarefasIds = watch('tarefas_ids') || []
+
+  // Na criação, apenas tipo "Normal" é permitido (entrada/ganho/perda são criados automaticamente com o tenant)
+  const tiposDisponiveis = isEditing
+    ? tipoEtapaOptions
+    : tipoEtapaOptions.filter(opt => opt.value === 'normal')
 
   const onSubmit = async (data: EtapaTemplateFormData) => {
     try {
@@ -65,7 +73,7 @@ export function EtapaTemplateFormModal({ template, onClose }: EtapaTemplateFormM
   const footerContent = (
     <div className="flex items-center justify-between w-full">
       <div>
-        {isEditing && !isSistema && !confirmDelete && (
+        {isEditing && !isProtegido && !confirmDelete && (
           <button type="button" onClick={() => setConfirmDelete(true)} className="flex items-center gap-1.5 px-3 h-9 rounded-md text-sm text-destructive hover:bg-destructive/10 transition-all duration-200">Excluir</button>
         )}
         {confirmDelete && (
@@ -77,8 +85,8 @@ export function EtapaTemplateFormModal({ template, onClose }: EtapaTemplateFormM
         )}
       </div>
       <div className="flex items-center gap-2 sm:gap-3">
-        <button type="button" onClick={onClose} className="flex-1 sm:flex-none px-4 h-9 rounded-md border border-input text-sm font-medium text-foreground hover:bg-accent transition-all duration-200">{isSistema ? 'Fechar' : 'Cancelar'}</button>
-        {!isSistema && (
+        <button type="button" onClick={onClose} className="flex-1 sm:flex-none px-4 h-9 rounded-md border border-input text-sm font-medium text-foreground hover:bg-accent transition-all duration-200">{isProtegido ? 'Fechar' : 'Cancelar'}</button>
+        {!isProtegido && (
           <button type="submit" form="etapa-tpl-form" disabled={isSubmitting || criar.isPending || atualizar.isPending}
             className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 h-9 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-all duration-200">
             {(isSubmitting || criar.isPending || atualizar.isPending) && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -90,18 +98,18 @@ export function EtapaTemplateFormModal({ template, onClose }: EtapaTemplateFormM
   )
 
   return (
-    <ModalBase onClose={onClose} title={isEditing ? (isSistema ? 'Etapa do Sistema' : 'Editar Etapa') : 'Nova Etapa'} description="Templates de Etapas" variant={isEditing ? 'edit' : 'create'} size="md" footer={footerContent}>
+    <ModalBase onClose={onClose} title={isEditing ? (isProtegido ? 'Etapa do Sistema' : 'Editar Etapa') : 'Nova Etapa'} description="Templates de Etapas" variant={isEditing ? 'edit' : 'create'} size="md" footer={footerContent}>
       <form id="etapa-tpl-form" onSubmit={handleSubmit(onSubmit)} className="px-4 sm:px-6 py-4 space-y-4">
-        {isSistema && (
+        {isProtegido && (
           <div className="px-3 py-2 rounded-md bg-muted text-xs text-muted-foreground">
-            Etapas do sistema não podem ser editadas ou excluídas.
+            Etapas do sistema (Entrada, Ganho, Perda) são únicas por organização e não podem ser editadas ou excluídas.
           </div>
         )}
 
         {/* Nome */}
         <div>
           <label htmlFor="et-nome" className="block text-sm font-medium text-foreground mb-1">Nome <span className="text-destructive">*</span></label>
-          <input id="et-nome" {...register('nome')} disabled={isSistema}
+          <input id="et-nome" {...register('nome')} disabled={isProtegido}
             className="w-full h-10 px-3 rounded-md border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-ring focus:border-ring transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             placeholder="Ex: Qualificação" aria-invalid={!!errors.nome} />
           {errors.nome && <p className="text-xs text-destructive mt-1">{errors.nome.message}</p>}
@@ -110,17 +118,17 @@ export function EtapaTemplateFormModal({ template, onClose }: EtapaTemplateFormM
         {/* Descrição */}
         <div>
           <label htmlFor="et-desc" className="block text-sm font-medium text-foreground mb-1">Descrição</label>
-          <textarea id="et-desc" {...register('descricao')} disabled={isSistema}
+          <textarea id="et-desc" {...register('descricao')} disabled={isProtegido}
             className="w-full px-3 py-2 rounded-md border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-ring focus:border-ring transition-all duration-200 resize-none disabled:opacity-50"
             rows={2} placeholder="Descrição opcional..." />
         </div>
 
-        {/* Tipo */}
+        {/* Tipo - Na criação só mostra "Normal"; na edição mostra o tipo atual (desabilitado se protegido) */}
         <div>
           <label className="block text-sm font-medium text-foreground mb-1">Tipo <span className="text-destructive">*</span></label>
-          <div className="grid grid-cols-4 gap-2">
-            {tipoEtapaOptions.map(opt => (
-              <button key={opt.value} type="button" disabled={isSistema} onClick={() => setValue('tipo', opt.value)}
+          <div className={`grid gap-2 ${tiposDisponiveis.length === 1 ? 'grid-cols-1' : 'grid-cols-4'}`}>
+            {tiposDisponiveis.map(opt => (
+              <button key={opt.value} type="button" disabled={isProtegido} onClick={() => setValue('tipo', opt.value)}
                 className={`flex items-center justify-center px-2 py-2.5 rounded-md border text-sm font-medium transition-all duration-200 disabled:opacity-50 ${
                   tipoSelecionado === opt.value ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:border-primary/50'
                 }`}>
@@ -128,6 +136,9 @@ export function EtapaTemplateFormModal({ template, onClose }: EtapaTemplateFormM
               </button>
             ))}
           </div>
+          {!isEditing && (
+            <p className="text-xs text-muted-foreground mt-1">Etapas de Entrada, Ganho e Perda são criadas automaticamente com a organização.</p>
+          )}
         </div>
 
         {/* Cor */}
@@ -135,7 +146,7 @@ export function EtapaTemplateFormModal({ template, onClose }: EtapaTemplateFormM
           <label className="block text-sm font-medium text-foreground mb-1">Cor</label>
           <div className="flex items-center gap-2 flex-wrap">
             {coresEtapaDefault.map(cor => (
-              <button key={cor} type="button" disabled={isSistema} onClick={() => setValue('cor', cor)}
+              <button key={cor} type="button" disabled={isProtegido} onClick={() => setValue('cor', cor)}
                 className={`w-7 h-7 rounded-full border-2 transition-all duration-200 disabled:opacity-50 ${
                   corSelecionada === cor ? 'border-foreground scale-110' : 'border-transparent hover:scale-105'
                 }`} style={{ backgroundColor: cor }} />
@@ -146,14 +157,14 @@ export function EtapaTemplateFormModal({ template, onClose }: EtapaTemplateFormM
         {/* Probabilidade */}
         <div>
           <label htmlFor="et-prob" className="block text-sm font-medium text-foreground mb-1">Probabilidade (%)</label>
-          <input id="et-prob" type="number" {...register('probabilidade', { valueAsNumber: true })} disabled={isSistema}
+          <input id="et-prob" type="number" {...register('probabilidade', { valueAsNumber: true })} disabled={isProtegido}
             className="w-full h-10 px-3 rounded-md border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-ring focus:border-ring transition-all duration-200 disabled:opacity-50"
             min={0} max={100} aria-invalid={!!errors.probabilidade} />
           {errors.probabilidade && <p className="text-xs text-destructive mt-1">{errors.probabilidade.message}</p>}
         </div>
 
-        {/* Tarefas vinculadas */}
-        {!isSistema && tarefasData?.templates && tarefasData.templates.length > 0 && (
+        {/* Tarefas vinculadas - apenas para etapas normais */}
+        {!isProtegido && tarefasData?.templates && tarefasData.templates.length > 0 && (
           <div>
             <label className="block text-sm font-medium text-foreground mb-1">Tarefas automáticas</label>
             <p className="text-xs text-muted-foreground mb-2">Selecione as tarefas criadas automaticamente ao entrar nesta etapa</p>
