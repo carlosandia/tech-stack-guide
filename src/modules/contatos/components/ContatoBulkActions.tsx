@@ -1,29 +1,30 @@
 /**
  * AIDEV-NOTE: Barra flutuante de ações em massa para contatos
  * Conforme PRD-06 RF-016 e Design System
+ * Integra AtribuirVendedorDropdown e SegmentarDropdown
  */
 
-import { Trash2, UserCheck, Tag, Download } from 'lucide-react'
+import { Trash2, Download } from 'lucide-react'
 import type { TipoContato } from '../services/contatos.api'
+import { AtribuirVendedorDropdown } from './AtribuirVendedorDropdown'
+import { SegmentarDropdown } from './SegmentarDropdown'
 
 interface ContatoBulkActionsProps {
   selectedCount: number
+  selectedIds: string[]
   tipo: TipoContato
   isAdmin: boolean
   onExcluir: () => void
-  onAtribuir: () => void
-  onSegmentar: () => void
   onExportar: () => void
   onClearSelection: () => void
 }
 
 export function ContatoBulkActions({
   selectedCount,
+  selectedIds,
   tipo,
   isAdmin,
   onExcluir,
-  onAtribuir,
-  onSegmentar,
   onExportar,
   onClearSelection,
 }: ContatoBulkActionsProps) {
@@ -48,23 +49,8 @@ export function ContatoBulkActions({
 
       {tipo === 'pessoa' && isAdmin && (
         <>
-          <button
-            onClick={onAtribuir}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md hover:bg-background/10 transition-colors"
-            title="Atribuir vendedor"
-          >
-            <UserCheck className="w-4 h-4" />
-            <span className="hidden sm:inline">Atribuir</span>
-          </button>
-
-          <button
-            onClick={onSegmentar}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md hover:bg-background/10 transition-colors"
-            title="Segmentar"
-          >
-            <Tag className="w-4 h-4" />
-            <span className="hidden sm:inline">Segmentar</span>
-          </button>
+          <AtribuirVendedorDropdown selectedIds={selectedIds} onComplete={onClearSelection} />
+          <SegmentarDropdown selectedIds={selectedIds} onComplete={onClearSelection} />
         </>
       )}
 
