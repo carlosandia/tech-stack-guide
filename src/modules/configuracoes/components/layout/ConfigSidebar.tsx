@@ -99,14 +99,8 @@ export function ConfigSidebar({ isAdmin }: ConfigSidebarProps) {
 
   return (
     <aside className="hidden lg:flex flex-col w-60 fixed left-0 top-14 bottom-0 bg-white border-r border-gray-200/60 overflow-y-auto z-40">
-      {/* Cabeçalho da sidebar */}
-      <div className="px-5 pt-5 pb-3">
-        <h2 className="text-sm font-semibold text-foreground">Configurações</h2>
-        <p className="text-xs text-muted-foreground mt-0.5">Conexões, integrações e pipeline</p>
-      </div>
-
       {/* Grupos de navegação */}
-      <nav className="flex-1 px-3 pb-4 space-y-5">
+      <nav className="flex-1 px-3 pt-5 pb-4 space-y-5">
         {visibleGroups.map(group => (
           <div key={group.key}>
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5 px-2">
