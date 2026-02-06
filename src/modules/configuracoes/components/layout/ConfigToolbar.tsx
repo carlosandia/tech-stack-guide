@@ -23,7 +23,7 @@ export function ConfigToolbar({ pageTitle }: ConfigToolbarProps) {
           {subtitle && (
             <>
               <span className="text-muted-foreground hidden sm:inline">·</span>
-              <span className="text-sm text-muted-foreground hidden sm:inline truncate max-w-[300px]">
+              <span className="text-sm text-muted-foreground hidden sm:inline">
                 {subtitle}
               </span>
             </>
