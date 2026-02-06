@@ -350,12 +350,82 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
 
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
+    // =====================================================
+    // VALIDAÇÃO DE AUTENTICAÇÃO E AUTORIZAÇÃO
+    // =====================================================
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      console.warn("[invite-admin] Requisição sem token de autenticação");
+      return new Response(
+        JSON.stringify({ error: "Não autorizado" }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // Validar JWT do usuário requisitante
+    const supabaseAuth = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claimsData, error: claimsError } = await supabaseAuth.auth.getClaims(token);
+    if (claimsError || !claimsData?.claims) {
+      console.warn("[invite-admin] Token inválido:", claimsError?.message);
+      return new Response(
+        JSON.stringify({ error: "Token inválido ou expirado" }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    const requestingUserId = claimsData.claims.sub;
+    console.log("[invite-admin] Usuário autenticado:", requestingUserId);
+
+    // Verificar se o usuário requisitante é admin ou super_admin
+    const { data: requestingUser, error: requestingUserError } = await supabaseAdmin
+      .from("usuarios")
+      .select("role, organizacao_id")
+      .eq("auth_id", requestingUserId)
+      .single();
+
+    if (requestingUserError || !requestingUser) {
+      console.warn("[invite-admin] Usuário não encontrado na tabela usuarios:", requestingUserError?.message);
+      return new Response(
+        JSON.stringify({ error: "Usuário não encontrado" }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // Apenas admin e super_admin podem convidar
+    if (requestingUser.role !== "admin" && requestingUser.role !== "super_admin") {
+      console.warn("[invite-admin] Usuário sem permissão:", requestingUser.role);
+      return new Response(
+        JSON.stringify({ error: "Acesso negado: permissão de administrador necessária" }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // =====================================================
+    // PARSE DO BODY E VALIDAÇÃO DE CAMPOS
+    // =====================================================
     const {
       email,
       nome,
@@ -370,6 +440,7 @@ Deno.serve(async (req) => {
       usuario_id,
       organizacao_id,
       organizacao_nome,
+      requestedBy: requestingUserId,
     });
 
     if (!email || !usuario_id || !organizacao_id) {
@@ -379,6 +450,22 @@ Deno.serve(async (req) => {
         }),
         {
           status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // Admin só pode convidar para sua própria organização
+    // Super admin pode convidar para qualquer organização
+    if (requestingUser.role !== "super_admin" && requestingUser.organizacao_id !== organizacao_id) {
+      console.warn("[invite-admin] Admin tentando convidar para outra organização:", {
+        adminOrg: requestingUser.organizacao_id,
+        targetOrg: organizacao_id,
+      });
+      return new Response(
+        JSON.stringify({ error: "Acesso negado: não é possível convidar para outra organização" }),
+        {
+          status: 403,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
