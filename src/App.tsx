@@ -13,7 +13,7 @@ import {
 } from '@/modules/admin'
 import { PlanosPage, TrialCadastroPage, CheckoutSucessoPage, OnboardingPage } from '@/modules/public'
 import { BlockedPage } from '@/modules/blocked'
-import { ConfiguracoesLayout, CamposPage, ProdutosPage, MotivosPage, TarefasTemplatesPage, EtapasTemplatesPage, RegrasPage, ConfigCardPage, ConexoesPage, WebhooksEntradaPage, WebhooksSaidaPage, StubPage } from '@/modules/configuracoes'
+import { ConfiguracoesLayout, CamposPage, ProdutosPage, MotivosPage, TarefasTemplatesPage, EtapasTemplatesPage, RegrasPage, ConfigCardPage, ConexoesPage, WebhooksEntradaPage, WebhooksSaidaPage, MembrosPage, EquipesPage, PerfisPermissaoPage, StubPage } from '@/modules/configuracoes'
 
 /**
  * AIDEV-NOTE: Roteamento principal da aplicacao
@@ -105,8 +105,9 @@ function App() {
         <Route path="conexoes" element={<ConexoesPage />} />
         <Route path="webhooks-entrada" element={<WebhooksEntradaPage />} />
         <Route path="webhooks-saida" element={<WebhooksSaidaPage />} />
-        <Route path="membros" element={<StubPage titulo="Membros da Equipe" />} />
-        <Route path="perfis" element={<StubPage titulo="Perfis de Permissão" />} />
+        <Route path="membros" element={<MembrosPage />} />
+        <Route path="equipes" element={<EquipesPage />} />
+        <Route path="perfis" element={<PerfisPermissaoPage />} />
         <Route path="metas" element={<StubPage titulo="Metas" />} />
         <Route path="config-geral" element={<StubPage titulo="Configurações Gerais" />} />
       </Route>
