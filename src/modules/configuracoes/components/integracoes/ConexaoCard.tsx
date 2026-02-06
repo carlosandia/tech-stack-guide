@@ -1,6 +1,7 @@
 /**
  * AIDEV-NOTE: Card de conexão OAuth por plataforma
- * Conforme PRD-05 - Conexões com Plataformas Externas
+ * Conforme PRD-08 - Conexões com Plataformas Externas
+ * Exibe dados específicos por plataforma quando conectado
  */
 
 import { useState } from 'react'
@@ -17,6 +18,9 @@ import {
   XCircle,
   AlertTriangle,
   Loader2,
+  Phone,
+  AtSign,
+  User,
 } from 'lucide-react'
 import type { Integracao, PlataformaIntegracao } from '../../services/configuracoes.api'
 
@@ -24,7 +28,7 @@ interface ConexaoCardProps {
   plataforma: PlataformaIntegracao
   integracao?: Integracao
   onConectar: (plataforma: PlataformaIntegracao) => void
-  onDesconectar: (id: string) => void
+  onDesconectar: (plataforma: PlataformaIntegracao, id: string) => void
   onSincronizar: (id: string) => void
   isLoading?: boolean
 }
@@ -65,7 +69,7 @@ const plataformaConfig: Record<PlataformaIntegracao, {
     bgCor: 'bg-red-50',
   },
   email: {
-    nome: 'Email SMTP',
+    nome: 'Email',
     descricao: 'Envio de emails diretamente pelo CRM',
     icon: Mail,
     cor: 'text-amber-600',
@@ -120,6 +124,114 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
+/** Renderiza detalhes específicos por plataforma */
+function PlataformaDetails({ integracao }: { integracao: Integracao }) {
+  const { plataforma } = integracao
+
+  if (plataforma === 'whatsapp') {
+    return (
+      <div className="space-y-1">
+        {integracao.waha_phone && (
+          <div className="flex items-center gap-1.5">
+            <Phone className="w-3 h-3 text-muted-foreground" />
+            <p className="text-xs text-foreground">{integracao.waha_phone}</p>
+          </div>
+        )}
+        {integracao.waha_session_name && (
+          <div className="flex items-center gap-1.5">
+            <User className="w-3 h-3 text-muted-foreground" />
+            <p className="text-xs text-foreground">{integracao.waha_session_name}</p>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  if (plataforma === 'instagram') {
+    return (
+      <div className="space-y-1">
+        {integracao.instagram_username && (
+          <div className="flex items-center gap-1.5">
+            <AtSign className="w-3 h-3 text-muted-foreground" />
+            <p className="text-xs text-foreground">@{integracao.instagram_username}</p>
+          </div>
+        )}
+        {integracao.instagram_name && (
+          <div className="flex items-center gap-1.5">
+            <User className="w-3 h-3 text-muted-foreground" />
+            <p className="text-xs text-foreground">{integracao.instagram_name}</p>
+          </div>
+        )}
+        {integracao.token_expires_at && (
+          <p className="text-xs text-muted-foreground">
+            Token expira: {formatDate(integracao.token_expires_at)}
+          </p>
+        )}
+      </div>
+    )
+  }
+
+  if (plataforma === 'google') {
+    return (
+      <div className="space-y-1">
+        {integracao.google_user_email && (
+          <div className="flex items-center gap-1.5">
+            <Mail className="w-3 h-3 text-muted-foreground" />
+            <p className="text-xs text-foreground">{integracao.google_user_email}</p>
+          </div>
+        )}
+        {integracao.calendar_name && (
+          <div className="flex items-center gap-1.5">
+            <Calendar className="w-3 h-3 text-muted-foreground" />
+            <p className="text-xs text-foreground">{integracao.calendar_name}</p>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  if (plataforma === 'email') {
+    return (
+      <div className="space-y-1">
+        {integracao.email && (
+          <div className="flex items-center gap-1.5">
+            <Mail className="w-3 h-3 text-muted-foreground" />
+            <p className="text-xs text-foreground">{integracao.email}</p>
+          </div>
+        )}
+        {integracao.tipo_email && (
+          <p className="text-xs text-muted-foreground">
+            Tipo: <span className="font-medium text-foreground">
+              {integracao.tipo_email === 'gmail_oauth' ? 'Gmail OAuth' : 'SMTP Manual'}
+            </span>
+          </p>
+        )}
+      </div>
+    )
+  }
+
+  if (plataforma === 'meta_ads') {
+    return (
+      <div className="space-y-1">
+        {integracao.meta_user_name && (
+          <div className="flex items-center gap-1.5">
+            <User className="w-3 h-3 text-muted-foreground" />
+            <p className="text-xs text-foreground">{integracao.meta_user_name}</p>
+          </div>
+        )}
+        {integracao.meta_user_email && (
+          <div className="flex items-center gap-1.5">
+            <Mail className="w-3 h-3 text-muted-foreground" />
+            <p className="text-xs text-foreground">{integracao.meta_user_email}</p>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return null
+}
+
 export function ConexaoCard({
   plataforma,
   integracao,
@@ -150,15 +262,10 @@ export function ConexaoCard({
 
           <p className="text-xs text-muted-foreground mb-3">{config.descricao}</p>
 
-          {/* Detalhes quando conectado */}
+          {/* Detalhes específicos por plataforma quando conectado */}
           {conectado && integracao && (
-            <div className="space-y-1 mb-3">
-              {(integracao.conta_externa_nome || integracao.conta_externa_email || integracao.waha_phone) && (
-                <p className="text-xs text-foreground">
-                  <span className="text-muted-foreground">Conta: </span>
-                  {integracao.conta_externa_nome || integracao.conta_externa_email || integracao.waha_phone}
-                </p>
-              )}
+            <div className="space-y-2 mb-3">
+              <PlataformaDetails integracao={integracao} />
               <p className="text-xs text-foreground">
                 <span className="text-muted-foreground">Último sync: </span>
                 {formatDate(integracao.ultimo_sync)}
@@ -193,7 +300,7 @@ export function ConexaoCard({
                   <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => {
-                        onDesconectar(integracao.id)
+                        onDesconectar(plataforma, integracao.id)
                         setConfirmDesconectar(false)
                       }}
                       className="text-xs font-medium px-3 py-1.5 rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors"

@@ -1,24 +1,32 @@
 /**
  * AIDEV-NOTE: Página de Conexões OAuth
- * Conforme PRD-05 - Conexões com Plataformas Externas
+ * Conforme PRD-08 - Conexões com Plataformas Externas
  * Admin Only - Members bloqueados
  */
 
-import { useEffect } from 'react'
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Loader2, Link2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { useConfigToolbar } from '../contexts/ConfigToolbarContext'
-import { useIntegracoes, useDesconectarIntegracao, useSincronizarIntegracao, useObterAuthUrl } from '../hooks/useIntegracoes'
+import { useIntegracoes, useDesconectarIntegracao, useSincronizarIntegracao } from '../hooks/useIntegracoes'
 import { ConexaoCard } from '../components/integracoes/ConexaoCard'
+import { WhatsAppQrCodeModal } from '../components/integracoes/WhatsAppQrCodeModal'
+import { EmailConexaoModal } from '../components/integracoes/EmailConexaoModal'
+import { InstagramConexaoModal } from '../components/integracoes/InstagramConexaoModal'
+import { MetaAdsConexaoModal } from '../components/integracoes/MetaAdsConexaoModal'
+import { GoogleCalendarConexaoModal } from '../components/integracoes/GoogleCalendarConexaoModal'
 import type { PlataformaIntegracao, Integracao } from '../services/configuracoes.api'
 
 const PLATAFORMAS: PlataformaIntegracao[] = ['whatsapp', 'instagram', 'meta_ads', 'google', 'email']
 
 export function ConexoesPage() {
   const { setSubtitle, setActions } = useConfigToolbar()
-  const { data, isLoading } = useIntegracoes()
+  const { data, isLoading, refetch } = useIntegracoes()
   const desconectar = useDesconectarIntegracao()
   const sincronizar = useSincronizarIntegracao()
-  const obterAuthUrl = useObterAuthUrl()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [modalAberto, setModalAberto] = useState<PlataformaIntegracao | null>(null)
 
   useEffect(() => {
     setSubtitle('Gerencie conexões com plataformas externas')
@@ -26,40 +34,48 @@ export function ConexoesPage() {
     return () => { setSubtitle(null); setActions(null) }
   }, [setSubtitle, setActions])
 
+  // Handle OAuth callback from URL params
+  useEffect(() => {
+    const success = searchParams.get('success')
+    const error = searchParams.get('error')
+
+    if (success) {
+      toast.success(`${success.charAt(0).toUpperCase() + success.slice(1)} conectado com sucesso!`)
+      refetch()
+      setSearchParams({}, { replace: true })
+    }
+
+    if (error) {
+      toast.error(`Erro na autenticação: ${error}`)
+      setSearchParams({}, { replace: true })
+    }
+  }, [searchParams, setSearchParams, refetch])
+
   // Criar mapa de integracoes por plataforma
   const integracoesPorPlataforma: Record<string, Integracao | undefined> = {}
   if (data?.integracoes) {
     for (const integracao of data.integracoes) {
-      // Pegar a mais recente/conectada por plataforma
       if (!integracoesPorPlataforma[integracao.plataforma] || integracao.status === 'conectado') {
         integracoesPorPlataforma[integracao.plataforma] = integracao
       }
     }
   }
 
-  const handleConectar = async (plataforma: PlataformaIntegracao) => {
-    // Para plataformas OAuth (google, meta_ads), redirecionar para URL de autenticação
-    if (plataforma === 'google' || plataforma === 'meta_ads') {
-      try {
-        const redirectUri = `${window.location.origin}/app/configuracoes/conexoes`
-        const result = await obterAuthUrl.mutateAsync({ plataforma, redirect_uri: redirectUri })
-        if (result.url) {
-          window.location.href = result.url
-        }
-      } catch (error) {
-        console.error('Erro ao obter URL de autenticação:', error)
-      }
-    }
-    // Para outras plataformas, a lógica de conexão é diferente (WAHA, SMTP)
-    // TODO: Implementar modais específicos para WhatsApp/Instagram/Email
+  const handleConectar = (plataforma: PlataformaIntegracao) => {
+    setModalAberto(plataforma)
   }
 
-  const handleDesconectar = (id: string) => {
-    desconectar.mutate(id)
+  const handleDesconectar = (plataforma: PlataformaIntegracao, id: string) => {
+    desconectar.mutate({ plataforma, id })
   }
 
   const handleSincronizar = (id: string) => {
     sincronizar.mutate(id)
+  }
+
+  const handleModalSuccess = () => {
+    setModalAberto(null)
+    refetch()
   }
 
   if (isLoading) {
@@ -98,12 +114,44 @@ export function ConexoesPage() {
             onSincronizar={handleSincronizar}
             isLoading={
               desconectar.isPending ||
-              sincronizar.isPending ||
-              obterAuthUrl.isPending
+              sincronizar.isPending
             }
           />
         ))}
       </div>
+
+      {/* Modais */}
+      {modalAberto === 'whatsapp' && (
+        <WhatsAppQrCodeModal
+          onClose={() => setModalAberto(null)}
+          onSuccess={handleModalSuccess}
+        />
+      )}
+
+      {modalAberto === 'email' && (
+        <EmailConexaoModal
+          onClose={() => setModalAberto(null)}
+          onSuccess={handleModalSuccess}
+        />
+      )}
+
+      {modalAberto === 'instagram' && (
+        <InstagramConexaoModal
+          onClose={() => setModalAberto(null)}
+        />
+      )}
+
+      {modalAberto === 'meta_ads' && (
+        <MetaAdsConexaoModal
+          onClose={() => setModalAberto(null)}
+        />
+      )}
+
+      {modalAberto === 'google' && (
+        <GoogleCalendarConexaoModal
+          onClose={() => setModalAberto(null)}
+        />
+      )}
     </div>
   )
 }
