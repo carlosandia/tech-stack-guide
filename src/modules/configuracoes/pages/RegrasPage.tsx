@@ -9,6 +9,7 @@ import { Plus, Loader2, Pencil, Shield, ToggleLeft, ToggleRight } from 'lucide-r
 import { useAuth } from '@/providers/AuthProvider'
 import { useConfigToolbar } from '../contexts/ConfigToolbarContext'
 import { useRegras, useAtualizarRegra } from '../hooks/useRegras'
+import { useTodosCampos } from '../hooks/useCampos'
 import { RegraFormModal } from '../components/regras/RegraFormModal'
 import { operadorOptions } from '../schemas/regras.schema'
 import type { RegraQualificacao } from '../services/configuracoes.api'
@@ -23,6 +24,7 @@ export function RegrasPage() {
 
   const { data, isLoading, error } = useRegras()
   const atualizarRegra = useAtualizarRegra()
+  const { mapaCampos } = useTodosCampos()
 
   useEffect(() => {
     setSubtitle('Quando TODAS as regras forem verdadeiras, o contato será marcado como MQL')
@@ -133,17 +135,22 @@ export function RegrasPage() {
                   <div className="min-w-0">
                     <span className="text-sm font-medium text-foreground truncate block">{regra.nome}</span>
                     <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                      {regra.campo_id && mapaCampos.has(regra.campo_id) && (
+                        <span className="text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+                          {mapaCampos.get(regra.campo_id)!.entidadeLabel} › {mapaCampos.get(regra.campo_id)!.nome}
+                        </span>
+                      )}
                       <span className="text-xs text-muted-foreground">
-                        Operador: {operador?.label || regra.operador}
+                        {operador?.label || regra.operador}
                       </span>
                       {regra.valor && (
-                        <span className="text-xs text-muted-foreground">
-                          Valor: {regra.valor}
+                        <span className="text-xs text-muted-foreground font-medium">
+                          &quot;{regra.valor}&quot;
                         </span>
                       )}
                       {regra.valores && regra.valores.length > 0 && (
                         <span className="text-xs text-muted-foreground">
-                          Valores: {regra.valores.join(', ')}
+                          [{regra.valores.join(', ')}]
                         </span>
                       )}
                     </div>

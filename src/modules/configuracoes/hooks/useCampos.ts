@@ -4,8 +4,41 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMemo } from 'react'
 import { toast } from 'sonner'
 import { camposApi, type Entidade, type CriarCampoPayload, type AtualizarCampoPayload } from '../services/configuracoes.api'
+
+const ENTIDADE_LABEL: Record<string, string> = {
+  pessoa: 'Pessoa',
+  empresa: 'Empresa',
+  oportunidade: 'Oportunidade',
+}
+
+/**
+ * Hook para buscar todos os campos de todas as entidades.
+ * Retorna um mapa de campo_id -> { nome, entidade, label }
+ */
+export function useTodosCampos() {
+  const query = useQuery({
+    queryKey: ['configuracoes', 'campos', '__todos'],
+    queryFn: () => camposApi.listarTodos(),
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const mapaCampos = useMemo(() => {
+    const mapa = new Map<string, { nome: string; entidade: string; entidadeLabel: string }>()
+    for (const c of query.data || []) {
+      mapa.set(c.id, {
+        nome: c.nome,
+        entidade: c.entidade,
+        entidadeLabel: ENTIDADE_LABEL[c.entidade] || c.entidade,
+      })
+    }
+    return mapa
+  }, [query.data])
+
+  return { ...query, mapaCampos }
+}
 
 export function useCampos(entidade: Entidade) {
   return useQuery({
