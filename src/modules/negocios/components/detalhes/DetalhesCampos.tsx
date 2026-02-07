@@ -1,35 +1,31 @@
 /**
  * AIDEV-NOTE: Bloco 1 - Campos da Oportunidade + Contato (RF-14.2)
  * Campos editáveis inline com seções Oportunidade e Contato
- * Engrenagem para show/hide campos (RF-14.2 + RF-15.6)
+ * Engrenagem para show/hide campos dinâmicos (sistema + custom)
  * Empresa vinculada editável (vincular/desvincular/trocar)
  * MRR editável (recorrente + período)
  */
 
-import { useState, useCallback, useRef, useEffect } from 'react'
-import { DollarSign, User, Calendar, Mail, Phone, Settings2, Check, Building2, RefreshCw, Link2, X, Search, Loader2, ChevronDown } from 'lucide-react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import { DollarSign, User, Calendar, Mail, Phone, Settings2, Check, Building2, RefreshCw, Link2, X, Search, Loader2, ChevronDown, Hash, Type, ToggleLeft, Globe, FileText } from 'lucide-react'
 import type { Oportunidade } from '../../services/negocios.api'
 import { negociosApi } from '../../services/negocios.api'
 import { useAtualizarOportunidade, useAtualizarContato } from '../../hooks/useOportunidadeDetalhes'
+import { useCamposDefinicoes, useValoresCampos, SLUG_TO_CONTATO_COLUMN, getValorExibicao } from '../../hooks/useCamposDetalhes'
+import type { CampoDefinicao } from '../../hooks/useCamposDetalhes'
 import { toast } from 'sonner'
+import { supabase } from '@/lib/supabase'
 
 interface DetalhesCamposProps {
   oportunidade: Oportunidade
   membros: Array<{ id: string; nome: string; sobrenome?: string | null }>
 }
 
-// Campos disponíveis com suas configurações
-const CAMPOS_OPORTUNIDADE = [
-  { id: 'valor', label: 'Valor', icon: DollarSign },
-  { id: 'responsavel', label: 'Responsável', icon: User },
-  { id: 'previsao', label: 'Previsão de fechamento', icon: Calendar },
-]
-
-const CAMPOS_CONTATO = [
-  { id: 'contato_nome', label: 'Nome', icon: User },
-  { id: 'contato_email', label: 'E-mail', icon: Mail },
-  { id: 'contato_telefone', label: 'Telefone', icon: Phone },
-  { id: 'contato_empresa', label: 'Empresa', icon: Building2 },
+// Campos NATIVOS da oportunidade (não vêm de campos_customizados)
+const CAMPOS_NATIVOS_OP = [
+  { id: 'valor', label: 'Valor' },
+  { id: 'responsavel', label: 'Responsável' },
+  { id: 'previsao', label: 'Previsão de fechamento' },
 ]
 
 const STORAGE_KEY_CAMPOS = 'negocios_campos_visiveis'
@@ -50,20 +46,26 @@ function formatCurrency(value: number | null | undefined): string {
   }).format(value)
 }
 
-function getContatoNome(op: Oportunidade): string {
-  if (!op.contato) return '—'
-  if (op.contato.tipo === 'empresa') {
-    return op.contato.nome_fantasia || op.contato.razao_social || '—'
-  }
-  return [op.contato.nome, op.contato.sobrenome].filter(Boolean).join(' ') || '—'
-}
-
 const PERIODOS_MRR = [
   { value: 'mensal', label: 'Mensal' },
   { value: 'trimestral', label: 'Trimestral' },
   { value: 'semestral', label: 'Semestral' },
   { value: 'anual', label: 'Anual' },
 ]
+
+/** Ícone baseado no tipo do campo */
+function getCampoIcon(tipo: string) {
+  switch (tipo) {
+    case 'email': return Mail
+    case 'telefone': return Phone
+    case 'url': return Globe
+    case 'numero': case 'decimal': return Hash
+    case 'booleano': return ToggleLeft
+    case 'data': case 'data_hora': return Calendar
+    case 'texto_longo': return FileText
+    default: return Type
+  }
+}
 
 export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
   const atualizarOp = useAtualizarOportunidade()
@@ -74,6 +76,17 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
   const [camposVisiveis, setCamposVisiveis] = useState<Record<string, boolean>>(getCamposVisiveis)
   const [showGear, setShowGear] = useState(false)
   const gearRef = useRef<HTMLDivElement>(null)
+
+  // Campos dinâmicos
+  const { data: camposData } = useCamposDefinicoes()
+  const { data: valoresOportunidade } = useValoresCampos('oportunidade', oportunidade.id)
+  const { data: valoresPessoa } = useValoresCampos('pessoa', oportunidade.contato?.id)
+
+  // Campos custom de oportunidade (exclui sistema pois oportunidade não tem campos sistema predefinidos)
+  const camposCustomOp = useMemo(() => camposData?.oportunidade || [], [camposData])
+
+  // Campos de pessoa (sistema + custom)
+  const camposPessoa = useMemo(() => camposData?.pessoa || [], [camposData])
 
   // Empresa search state
   const [showEmpresaSearch, setShowEmpresaSearch] = useState(false)
@@ -108,15 +121,19 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
   const toggleCampo = (campoId: string) => {
     const novo = { ...camposVisiveis }
     if (Object.keys(novo).length === 0) {
-      ;[...CAMPOS_OPORTUNIDADE, ...CAMPOS_CONTATO].forEach(c => {
-        novo[c.id] = c.id !== campoId
-      })
+      // Inicializa todos como true, exceto o que foi clicado
+      for (const c of CAMPOS_NATIVOS_OP) novo[c.id] = c.id !== campoId
+      for (const c of camposCustomOp) novo[`custom_op_${c.id}`] = `custom_op_${c.id}` !== campoId
+      for (const c of camposPessoa) novo[`campo_${c.id}`] = `campo_${c.id}` !== campoId
+      novo['contato_empresa'] = 'contato_empresa' !== campoId
     } else {
       novo[campoId] = !isCampoVisivel(campoId)
     }
     setCamposVisiveis(novo)
     localStorage.setItem(STORAGE_KEY_CAMPOS, JSON.stringify(novo))
   }
+
+  // --- Handlers (save, empresa, MRR) ---
 
   const handleSaveOp = useCallback(async (field: string, value: unknown) => {
     try {
@@ -143,6 +160,64 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
     }
   }, [oportunidade.contato?.id, atualizarContato])
 
+  const handleSaveCampoCustom = useCallback(async (campo: CampoDefinicao, entidadeId: string, entidadeTipo: string, value: string) => {
+    try {
+      const orgId = oportunidade.organizacao_id
+
+      // Determinar qual coluna de valor usar
+      let updateData: Record<string, any> = {
+        organizacao_id: orgId,
+        campo_id: campo.id,
+        entidade_tipo: entidadeTipo,
+        entidade_id: entidadeId,
+        atualizado_em: new Date().toISOString(),
+      }
+
+      switch (campo.tipo) {
+        case 'numero':
+        case 'decimal':
+          updateData.valor_numero = value ? parseFloat(value) : null
+          updateData.valor_texto = null
+          break
+        case 'booleano':
+          updateData.valor_booleano = value === 'true'
+          updateData.valor_texto = null
+          break
+        case 'data':
+        case 'data_hora':
+          updateData.valor_data = value || null
+          updateData.valor_texto = null
+          break
+        default:
+          updateData.valor_texto = value || null
+          break
+      }
+
+      // Upsert: try update first, then insert
+      const { data: existing } = await supabase
+        .from('valores_campos_customizados')
+        .select('id')
+        .eq('campo_id', campo.id)
+        .eq('entidade_id', entidadeId)
+        .maybeSingle()
+
+      if (existing) {
+        await supabase
+          .from('valores_campos_customizados')
+          .update(updateData)
+          .eq('id', existing.id)
+      } else {
+        await supabase
+          .from('valores_campos_customizados')
+          .insert(updateData as any)
+      }
+
+      setEditingField(null)
+    } catch {
+      toast.error('Erro ao salvar campo')
+    }
+  }, [oportunidade.organizacao_id])
+
   const handleResponsavelChange = useCallback(async (userId: string) => {
     try {
       await atualizarOp.mutateAsync({
@@ -154,7 +229,6 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
     }
   }, [oportunidade.id, atualizarOp])
 
-  // MRR toggle
   const handleToggleMrr = useCallback(async () => {
     const novoRecorrente = !oportunidade.recorrente
     try {
@@ -170,7 +244,6 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
     }
   }, [oportunidade.id, oportunidade.recorrente, oportunidade.periodo_recorrencia, atualizarOp])
 
-  // MRR period change
   const handlePeriodoChange = useCallback(async (periodo: string) => {
     try {
       await atualizarOp.mutateAsync({
@@ -207,7 +280,6 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
     }, 300)
   }, [])
 
-  // Vincular empresa
   const handleVincularEmpresa = useCallback(async (empresaId: string) => {
     if (!oportunidade.contato?.id) return
     try {
@@ -224,7 +296,6 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
     }
   }, [oportunidade.contato?.id, atualizarContato])
 
-  // Desvincular empresa
   const handleDesvincularEmpresa = useCallback(async () => {
     if (!oportunidade.contato?.id) return
     try {
@@ -238,6 +309,13 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
     }
   }, [oportunidade.contato?.id, atualizarContato])
 
+  // --- Helpers para valores de campos de pessoa (sistema) ---
+  const getContatoFieldValue = (slug: string): string => {
+    const col = SLUG_TO_CONTATO_COLUMN[slug]
+    if (!col || !oportunidade.contato) return ''
+    return (oportunidade.contato as any)[col] || ''
+  }
+
   return (
     <div className="space-y-4">
       {/* Seção Oportunidade */}
@@ -246,7 +324,7 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             Oportunidade
           </h3>
-          {/* Engrenagem show/hide (RF-14.2) */}
+          {/* Engrenagem show/hide */}
           <div className="relative" ref={gearRef}>
             <button
               onClick={() => setShowGear(!showGear)}
@@ -257,23 +335,48 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
             </button>
 
             {showGear && (
-              <div className="absolute right-0 top-full mt-1 w-52 bg-card border border-border rounded-lg shadow-lg z-[60] animate-enter">
+              <div className="absolute right-0 top-full mt-1 w-56 bg-card border border-border rounded-lg shadow-lg z-[60] animate-enter max-h-[400px] overflow-y-auto">
                 <div className="px-3 py-2 border-b border-border">
                   <span className="text-xs font-semibold text-foreground">Campos visíveis</span>
                 </div>
                 <div className="py-1">
+                  {/* Nativos oportunidade */}
                   <div className="px-3 py-1 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
                     Oportunidade
                   </div>
-                  {CAMPOS_OPORTUNIDADE.map(c => (
+                  {CAMPOS_NATIVOS_OP.map(c => (
                     <GearCheckItem key={c.id} label={c.label} checked={isCampoVisivel(c.id)} onToggle={() => toggleCampo(c.id)} />
                   ))}
+                  {/* Custom oportunidade */}
+                  {camposCustomOp.map(c => (
+                    <GearCheckItem
+                      key={`custom_op_${c.id}`}
+                      label={c.nome}
+                      checked={isCampoVisivel(`custom_op_${c.id}`)}
+                      onToggle={() => toggleCampo(`custom_op_${c.id}`)}
+                      badge={c.sistema ? undefined : 'Custom'}
+                    />
+                  ))}
+
+                  {/* Pessoa */}
                   <div className="px-3 py-1 text-[10px] font-medium text-muted-foreground uppercase tracking-wider mt-1">
                     Contato
                   </div>
-                  {CAMPOS_CONTATO.map(c => (
-                    <GearCheckItem key={c.id} label={c.label} checked={isCampoVisivel(c.id)} onToggle={() => toggleCampo(c.id)} />
+                  {camposPessoa.map(c => (
+                    <GearCheckItem
+                      key={`campo_${c.id}`}
+                      label={c.nome}
+                      checked={isCampoVisivel(`campo_${c.id}`)}
+                      onToggle={() => toggleCampo(`campo_${c.id}`)}
+                      badge={c.sistema ? undefined : 'Custom'}
+                    />
                   ))}
+                  {/* Empresa (nativo) */}
+                  <GearCheckItem
+                    label="Empresa"
+                    checked={isCampoVisivel('contato_empresa')}
+                    onToggle={() => toggleCampo('contato_empresa')}
+                  />
                 </div>
               </div>
             )}
@@ -281,7 +384,7 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
         </div>
 
         <div className="space-y-3">
-          {/* Valor */}
+          {/* Valor (nativo) */}
           {isCampoVisivel('valor') && (
             <div>
               <FieldRow
@@ -334,7 +437,7 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
             </div>
           )}
 
-          {/* Responsável */}
+          {/* Responsável (nativo) */}
           {isCampoVisivel('responsavel') && (
             <div className="flex items-start gap-2">
               <User className="w-3.5 h-3.5 text-muted-foreground mt-1 flex-shrink-0" />
@@ -356,7 +459,7 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
             </div>
           )}
 
-          {/* Previsão */}
+          {/* Previsão (nativo) */}
           {isCampoVisivel('previsao') && (
             <FieldRow
               icon={<Calendar className="w-3.5 h-3.5" />}
@@ -375,6 +478,36 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
               inputType="date"
             />
           )}
+
+          {/* Campos custom de oportunidade */}
+          {camposCustomOp.map(campo => {
+            const key = `custom_op_${campo.id}`
+            if (!isCampoVisivel(key)) return null
+            const Icon = getCampoIcon(campo.tipo)
+            const valor = valoresOportunidade?.get(campo.id)
+            const displayValue = getValorExibicao(campo, valor)
+            const editKey = `custom_op_${campo.id}`
+
+            return (
+              <FieldRow
+                key={key}
+                icon={<Icon className="w-3.5 h-3.5" />}
+                label={campo.nome}
+                value={displayValue}
+                placeholder="—"
+                isEditing={editingField === editKey}
+                onStartEdit={() => {
+                  setEditingField(editKey)
+                  setEditValue(displayValue)
+                }}
+                editValue={editValue}
+                onEditChange={setEditValue}
+                onSave={() => handleSaveCampoCustom(campo, oportunidade.id, 'oportunidade', editValue)}
+                onCancel={() => setEditingField(null)}
+                inputType={campo.tipo === 'data' || campo.tipo === 'data_hora' ? 'date' : campo.tipo === 'numero' || campo.tipo === 'decimal' ? 'number' : campo.tipo === 'email' ? 'email' : 'text'}
+              />
+            )
+          })}
         </div>
       </div>
 
@@ -387,63 +520,70 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
           {oportunidade.contato?.tipo === 'empresa' ? 'Empresa' : 'Contato'}
         </h3>
         <div className="space-y-3">
-          {isCampoVisivel('contato_nome') && (
-            <FieldRow
-              icon={<User className="w-3.5 h-3.5" />}
-              label="Nome"
-              value={getContatoNome(oportunidade)}
-              placeholder="—"
-              isEditing={editingField === 'contato_nome'}
-              onStartEdit={() => {
-                setEditingField('contato_nome')
-                setEditValue(oportunidade.contato?.nome || '')
-              }}
-              editValue={editValue}
-              onEditChange={setEditValue}
-              onSave={() => handleSaveContato('nome', editValue)}
-              onCancel={() => setEditingField(null)}
-            />
-          )}
+          {/* Campos de pessoa (sistema → mapeados para colunas nativas do contato) */}
+          {camposPessoa.map(campo => {
+            const key = `campo_${campo.id}`
+            if (!isCampoVisivel(key)) return null
+            const Icon = getCampoIcon(campo.tipo)
+            const isSystemMapped = campo.sistema && SLUG_TO_CONTATO_COLUMN[campo.slug]
+            const editKey = `campo_pessoa_${campo.id}`
 
-          {isCampoVisivel('contato_email') && (
-            <FieldRow
-              icon={<Mail className="w-3.5 h-3.5" />}
-              label="E-mail"
-              value={oportunidade.contato?.email || ''}
-              placeholder="—"
-              isEditing={editingField === 'contato_email'}
-              onStartEdit={() => {
-                setEditingField('contato_email')
-                setEditValue(oportunidade.contato?.email || '')
-              }}
-              editValue={editValue}
-              onEditChange={setEditValue}
-              onSave={() => handleSaveContato('email', editValue)}
-              onCancel={() => setEditingField(null)}
-              inputType="email"
-            />
-          )}
+            if (isSystemMapped) {
+              // Renderiza usando coluna nativa do contato
+              const nativeCol = SLUG_TO_CONTATO_COLUMN[campo.slug]!
+              const value = getContatoFieldValue(campo.slug)
 
-          {isCampoVisivel('contato_telefone') && (
-            <FieldRow
-              icon={<Phone className="w-3.5 h-3.5" />}
-              label="Telefone"
-              value={oportunidade.contato?.telefone || ''}
-              placeholder="—"
-              isEditing={editingField === 'contato_telefone'}
-              onStartEdit={() => {
-                setEditingField('contato_telefone')
-                setEditValue(oportunidade.contato?.telefone || '')
-              }}
-              editValue={editValue}
-              onEditChange={setEditValue}
-              onSave={() => handleSaveContato('telefone', editValue)}
-              onCancel={() => setEditingField(null)}
-              inputType="tel"
-            />
-          )}
+              return (
+                <FieldRow
+                  key={key}
+                  icon={<Icon className="w-3.5 h-3.5" />}
+                  label={campo.nome}
+                  value={value}
+                  placeholder="—"
+                  isEditing={editingField === editKey}
+                  onStartEdit={() => {
+                    setEditingField(editKey)
+                    setEditValue(value)
+                  }}
+                  editValue={editValue}
+                  onEditChange={setEditValue}
+                  onSave={() => handleSaveContato(nativeCol, editValue)}
+                  onCancel={() => setEditingField(null)}
+                  inputType={campo.tipo === 'email' ? 'email' : campo.tipo === 'telefone' ? 'tel' : campo.tipo === 'url' ? 'url' : 'text'}
+                />
+              )
+            }
 
-          {/* Empresa vinculada (editável: vincular/desvincular/trocar) */}
+            // Campo customizado de pessoa
+            const valor = valoresPessoa?.get(campo.id)
+            const displayValue = getValorExibicao(campo, valor)
+
+            return (
+              <FieldRow
+                key={key}
+                icon={<Icon className="w-3.5 h-3.5" />}
+                label={campo.nome}
+                value={displayValue}
+                placeholder="—"
+                isEditing={editingField === editKey}
+                onStartEdit={() => {
+                  setEditingField(editKey)
+                  setEditValue(displayValue)
+                }}
+                editValue={editValue}
+                onEditChange={setEditValue}
+                onSave={() => {
+                  if (oportunidade.contato?.id) {
+                    handleSaveCampoCustom(campo, oportunidade.contato.id, 'pessoa', editValue)
+                  }
+                }}
+                onCancel={() => setEditingField(null)}
+                inputType={campo.tipo === 'data' || campo.tipo === 'data_hora' ? 'date' : campo.tipo === 'numero' || campo.tipo === 'decimal' ? 'number' : campo.tipo === 'email' ? 'email' : 'text'}
+              />
+            )
+          })}
+
+          {/* Empresa vinculada (nativo) */}
           {isCampoVisivel('contato_empresa') && oportunidade.contato?.tipo === 'pessoa' && (
             <div className="flex items-start gap-2" ref={empresaSearchRef}>
               <Building2 className="w-3.5 h-3.5 text-muted-foreground mt-1 flex-shrink-0" />
@@ -527,7 +667,7 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
 // Sub-componente: Gear check item
 // =====================================================
 
-function GearCheckItem({ label, checked, onToggle }: { label: string; checked: boolean; onToggle: () => void }) {
+function GearCheckItem({ label, checked, onToggle, badge }: { label: string; checked: boolean; onToggle: () => void; badge?: string }) {
   return (
     <button
       onClick={onToggle}
@@ -538,7 +678,10 @@ function GearCheckItem({ label, checked, onToggle }: { label: string; checked: b
       }`}>
         {checked && <Check className="w-3 h-3" />}
       </div>
-      <span className={checked ? 'text-foreground' : 'text-muted-foreground'}>{label}</span>
+      <span className={`flex-1 text-left ${checked ? 'text-foreground' : 'text-muted-foreground'}`}>{label}</span>
+      {badge && (
+        <span className="text-[9px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{badge}</span>
+      )}
     </button>
   )
 }
