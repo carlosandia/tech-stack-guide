@@ -35,20 +35,21 @@
 | RF-07 | Aba Atividades (tarefas automaticas) | Faltando |
 | RF-08 | Aba Qualificacao (regras MQL) | Faltando |
 | RF-09 | Aba Motivos (ganho/perda) + Modal fechamento | Faltando |
-| RF-10 | Modal Nova Oportunidade (3 secoes) | Faltando |
+| RF-10 | Modal Nova Oportunidade (3 secoes) | ✅ Feito |
 | RF-11 | Solicitacoes/Pre-Oportunidades WhatsApp | Faltando (depende PRD-08) |
 | RF-12 | Barra de Acoes completa (Filtros, Periodo, Metricas toggle) | Parcial |
 | RF-13 | Painel de Metricas | Faltando |
 | RF-14 | Modal de Detalhes da Oportunidade (3 blocos, 5 abas) | Faltando |
 | RF-15.1 | PipelineSelector completo (arquivar, editar, excluir, contador) | Parcial |
-| RF-15.2 | Toggle Produtos/Manual para valor | Faltando |
+| RF-15.2 | Toggle Produtos/Manual para valor | ✅ Feito |
 | RF-15.3 | Campos UTM na criacao | Faltando |
 | RF-15.4 | Popover Filtrar Metricas | Faltando |
 | RF-15.5 | Popover de Tarefas no Card | Faltando |
 
-### Problema Critico de RLS
+### RLS Migrado ✅
 
-As tabelas `funis`, `etapas_funil`, `oportunidades` e `oportunidades_produtos` usam RLS com `current_setting('app.current_tenant')` que **NAO funciona** com o cliente Supabase do frontend. A tabela `contatos` (que funciona) usa `get_user_tenant_id()`. **As policies precisam ser migradas** para o padrao correto antes de qualquer funcionalidade funcionar.
+As 15 tabelas de negocios foram migradas de `current_setting('app.current_tenant')` para `get_user_tenant_id()`.
+Tabelas migradas: funis, etapas_funil, oportunidades, oportunidades_produtos, funis_membros, funis_campos, funis_regras_qualificacao, funis_motivos, configuracoes_distribuicao, anotacoes_oportunidades, documentos_oportunidades, emails_oportunidades, reunioes_oportunidades, motivos_noshow, preferencias_metricas.
 
 ---
 

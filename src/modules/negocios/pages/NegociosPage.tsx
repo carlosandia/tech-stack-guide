@@ -12,15 +12,18 @@ import { KanbanBoard } from '../components/kanban/KanbanBoard'
 import { KanbanEmptyState } from '../components/kanban/KanbanEmptyState'
 import { NegociosToolbar } from '../components/toolbar/NegociosToolbar'
 import { NovaPipelineModal } from '../components/modals/NovaPipelineModal'
+import { NovaOportunidadeModal } from '../components/modals/NovaOportunidadeModal'
 import type { Funil, Oportunidade } from '../services/negocios.api'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 
 const STORAGE_KEY = 'negocios_funil_ativo'
 
 export default function NegociosPage() {
   const { role } = useAuth()
   const isAdmin = role === 'admin'
+  const queryClient = useQueryClient()
 
   // State
   const [funilAtivoId, setFunilAtivoId] = useState<string | null>(() => {
@@ -28,6 +31,7 @@ export default function NegociosPage() {
   })
   const [busca, setBusca] = useState('')
   const [showNovaPipeline, setShowNovaPipeline] = useState(false)
+  const [showNovaOportunidade, setShowNovaOportunidade] = useState(false)
 
   // Queries
   const { data: funis, isLoading: funisLoading } = useFunis()
@@ -52,6 +56,11 @@ export default function NegociosPage() {
 
   const funilAtivo = funis?.find(f => f.id === funilAtivoId) || null
 
+  // Encontrar a etapa de entrada (tipo 'entrada' ou a primeira)
+  const etapaEntradaId = kanbanData?.etapas?.find(e => e.tipo === 'entrada')?.id
+    || kanbanData?.etapas?.[0]?.id
+    || ''
+
   const handleSelectFunil = useCallback((funil: Funil) => {
     setFunilAtivoId(funil.id)
     localStorage.setItem(STORAGE_KEY, funil.id)
@@ -71,13 +80,16 @@ export default function NegociosPage() {
   }, [criarFunil])
 
   const handleDropGanhoPerda = useCallback((_oportunidade: Oportunidade, _etapaId: string, tipo: 'ganho' | 'perda') => {
-    // TODO: Implementar FecharOportunidadeModal na iteração 4
+    // TODO: Implementar FecharOportunidadeModal na iteração 3
     toast.info(`Fechar como ${tipo === 'ganho' ? 'Ganho' : 'Perdido'} será implementado na próxima iteração`)
   }, [])
 
   const handleNovaOportunidade = useCallback(() => {
-    // TODO: Implementar NovaOportunidadeModal na iteração 3
-    toast.info('Nova Oportunidade será implementada na próxima iteração')
+    if (!funilAtivoId || !etapaEntradaId) {
+      toast.error('Selecione uma pipeline primeiro')
+      return
+    }
+    setShowNovaOportunidade(true)
   }, [])
 
   // Loading state
@@ -127,6 +139,18 @@ export default function NegociosPage() {
           onClose={() => setShowNovaPipeline(false)}
           onSubmit={handleCriarPipeline}
           loading={criarFunil.isPending}
+        />
+      )}
+
+      {showNovaOportunidade && funilAtivoId && etapaEntradaId && (
+        <NovaOportunidadeModal
+          funilId={funilAtivoId}
+          etapaEntradaId={etapaEntradaId}
+          onClose={() => setShowNovaOportunidade(false)}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['kanban'] })
+            toast.success('Oportunidade criada com sucesso!')
+          }}
         />
       )}
     </div>
