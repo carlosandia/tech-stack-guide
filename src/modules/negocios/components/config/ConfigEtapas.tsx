@@ -3,7 +3,7 @@
  * Conforme PRD-07 RF-04 - Etapas com drag reorder
  */
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { GripVertical, Plus, Pencil, Trash2, Lock } from 'lucide-react'
 import { useEtapasFunil, useCriarEtapa, useAtualizarEtapa, useExcluirEtapa, useReordenarEtapas } from '../../hooks/usePipelineConfig'
 import { EtapaFormModal } from './EtapaFormModal'
@@ -24,6 +24,17 @@ export function ConfigEtapas({ funilId }: Props) {
   const [editando, setEditando] = useState<EtapaFunil | null>(null)
   const [dragIndex, setDragIndex] = useState<number | null>(null)
 
+  // Ordenar: Entrada → Personalizados (por ordem) → Ganho → Perda
+  const etapasOrdenadas = useMemo(() => {
+    if (!etapas) return []
+    const entrada = etapas.filter(e => e.tipo === 'entrada')
+    const custom = etapas.filter(e => e.tipo !== 'entrada' && e.tipo !== 'ganho' && e.tipo !== 'perda')
+      .sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0))
+    const ganho = etapas.filter(e => e.tipo === 'ganho')
+    const perda = etapas.filter(e => e.tipo === 'perda')
+    return [...entrada, ...custom, ...ganho, ...perda]
+  }, [etapas])
+
   const isSistema = (etapa: EtapaFunil) =>
     etapa.tipo === 'entrada' || etapa.tipo === 'ganho' || etapa.tipo === 'perda'
 
@@ -37,23 +48,23 @@ export function ConfigEtapas({ funilId }: Props) {
   }
 
   const handleDragStart = (index: number) => {
-    const etapa = etapas?.[index]
+    const etapa = etapasOrdenadas[index]
     if (etapa && isSistema(etapa)) return
     setDragIndex(index)
   }
 
   const handleDragOver = (e: React.DragEvent, index: number) => {
     e.preventDefault()
-    const etapa = etapas?.[index]
+    const etapa = etapasOrdenadas[index]
     if (etapa && isSistema(etapa)) return
   }
 
   const handleDrop = (index: number) => {
-    if (dragIndex === null || !etapas) return
-    const target = etapas[index]
+    if (dragIndex === null || etapasOrdenadas.length === 0) return
+    const target = etapasOrdenadas[index]
     if (target && isSistema(target)) return
 
-    const newEtapas = [...etapas]
+    const newEtapas = [...etapasOrdenadas]
     const [moved] = newEtapas.splice(dragIndex, 1)
     newEtapas.splice(index, 0, moved)
 
@@ -97,7 +108,7 @@ export function ConfigEtapas({ funilId }: Props) {
 
       {/* Lista de etapas */}
       <div className="space-y-1.5">
-        {(etapas || []).map((etapa, index) => (
+        {etapasOrdenadas.map((etapa, index) => (
           <div
             key={etapa.id}
             draggable={!isSistema(etapa)}
