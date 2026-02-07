@@ -3,7 +3,7 @@
  * Conforme PRD-07 RF-06 - Manual/Rodízio
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Users, RefreshCw, Clock, Shield } from 'lucide-react'
 import { useDistribuicao, useSalvarDistribuicao } from '../../hooks/usePipelineConfig'
 
@@ -53,6 +53,30 @@ export function ConfigDistribuicao({ funilId }: Props) {
       setSlaAcaoLimite(config.sla_acao_limite || 'manter_ultimo')
     }
   }, [config])
+
+  // Detectar se há alterações pendentes
+  const temAlteracoes = useMemo(() => {
+    if (!config) {
+      // Se não existe config salva, qualquer valor diferente do default é alteração
+      return modo !== 'manual'
+    }
+    const arraysIguais = (a: number[], b: number[]) =>
+      a.length === b.length && a.every((v, i) => v === b[i])
+
+    return (
+      modo !== (config.modo || 'manual') ||
+      horarioEspecifico !== (config.horario_especifico || false) ||
+      horarioInicio !== (config.horario_inicio || '09:00') ||
+      horarioFim !== (config.horario_fim || '18:00') ||
+      !arraysIguais([...diasSemana].sort(), [...(config.dias_semana || [1, 2, 3, 4, 5])].sort()) ||
+      pularInativos !== (config.pular_inativos ?? true) ||
+      fallbackManual !== (config.fallback_manual ?? true) ||
+      slaAtivo !== (config.sla_ativo || false) ||
+      slaTempoMinutos !== (config.sla_tempo_minutos || 30) ||
+      slaMaxRedistribuicoes !== (config.sla_max_redistribuicoes || 3) ||
+      slaAcaoLimite !== (config.sla_acao_limite || 'manter_ultimo')
+    )
+  }, [config, modo, horarioEspecifico, horarioInicio, horarioFim, diasSemana, pularInativos, fallbackManual, slaAtivo, slaTempoMinutos, slaMaxRedistribuicoes, slaAcaoLimite])
 
   const handleSalvar = () => {
     salvar.mutate({
@@ -244,16 +268,18 @@ export function ConfigDistribuicao({ funilId }: Props) {
       )}
       </div>
 
-      {/* Footer fixo — fora da área scrollável */}
-      <div className="flex-shrink-0 pt-3 border-t border-border flex justify-end">
-        <button
-          onClick={handleSalvar}
-          disabled={salvar.isPending}
-          className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 transition-all duration-200"
-        >
-          {salvar.isPending ? 'Salvando...' : 'Salvar Configuração'}
-        </button>
-      </div>
+      {/* Footer fixo — aparece apenas quando há alterações */}
+      {temAlteracoes && (
+        <div className="flex-shrink-0 pt-3 border-t border-border flex justify-end">
+          <button
+            onClick={handleSalvar}
+            disabled={salvar.isPending}
+            className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 transition-all duration-200"
+          >
+            {salvar.isPending ? 'Salvando...' : 'Salvar Configuração'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
