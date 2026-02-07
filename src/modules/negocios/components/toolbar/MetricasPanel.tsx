@@ -2,26 +2,22 @@
  * AIDEV-NOTE: Painel de métricas do Kanban
  * Conforme PRD-07 RF-13 + RF-15.4 (filtro de métricas)
  * Calcula métricas a partir dos dados filtrados do Kanban
- * Toggle exibe/oculta com estado em localStorage
- * Integra FiltrarMetricasPopover para escolher métricas visíveis
+ * Visibilidade controlada via toolbar (BarChart3 icon)
+ * Se todas as métricas forem desmarcadas, o painel desaparece completamente
  */
 
 import { useMemo } from 'react'
 import {
   TrendingUp, TrendingDown, DollarSign, Target, Clock,
-  AlertTriangle, CheckCircle, XCircle, BarChart3, ChevronUp, ChevronDown,
+  AlertTriangle, CheckCircle, XCircle, BarChart3,
 } from 'lucide-react'
 import type { KanbanData } from '../../services/negocios.api'
-import { FiltrarMetricasPopover, type MetricasVisiveis, isMetricaVisivel } from './FiltrarMetricasPopover'
+import { type MetricasVisiveis, isMetricaVisivel } from './FiltrarMetricasPopover'
 import { differenceInDays } from 'date-fns'
 
 interface MetricasPanelProps {
   data: KanbanData
-  visivel: boolean
-  onToggle: () => void
-  funilId: string | null
   metricasVisiveis: MetricasVisiveis
-  onMetricasVisiveisChange: (visiveis: MetricasVisiveis) => void
 }
 
 interface Metrica {
@@ -140,7 +136,7 @@ function calcularMetricas(data: KanbanData): Metrica[] {
   ]
 }
 
-export function MetricasPanel({ data, visivel, onToggle, funilId, metricasVisiveis, onMetricasVisiveisChange }: MetricasPanelProps) {
+export function MetricasPanel({ data, metricasVisiveis }: MetricasPanelProps) {
   const metricas = useMemo(() => calcularMetricas(data), [data])
 
   const metricasFiltradas = useMemo(() => {
@@ -148,62 +144,33 @@ export function MetricasPanel({ data, visivel, onToggle, funilId, metricasVisive
     return metricas.filter(m => isMetricaVisivel(metricasVisiveis, m.id))
   }, [metricas, metricasVisiveis])
 
-  return (
-    <div className="flex-shrink-0 border-b border-border bg-card/50">
-      {/* Toggle button */}
-      <button
-        onClick={onToggle}
-        className="w-full flex items-center justify-between px-3 sm:px-4 py-2 hover:bg-accent/50 transition-all duration-200"
-      >
-        <div className="flex items-center gap-2">
-          <BarChart3 className="w-4 h-4 text-muted-foreground" />
-          <span className="text-xs font-medium text-muted-foreground">Métricas</span>
-        </div>
-        <div className="flex items-center gap-1">
-          {visivel && (
-            <div onClick={(e) => e.stopPropagation()}>
-              <FiltrarMetricasPopover
-                funilId={funilId}
-                visiveis={metricasVisiveis}
-                onChange={onMetricasVisiveisChange}
-              />
-            </div>
-          )}
-          {visivel ? (
-            <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" />
-          ) : (
-            <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-          )}
-        </div>
-      </button>
+  // Se nenhuma métrica visível, não renderiza nada
+  if (metricasFiltradas.length === 0) return null
 
-      {/* Métricas grid */}
-      {visivel && (
-        <div className="px-3 sm:px-4 pb-3 animate-enter">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-2">
-            {metricasFiltradas.map(m => (
-              <div
-                key={m.id}
-                className={`
-                  flex items-center gap-2 px-2.5 py-2 rounded-lg
-                  ${COR_CLASSES[m.cor]}
-                  transition-all duration-200
-                `}
-              >
-                <m.icon className={`w-3.5 h-3.5 flex-shrink-0 ${ICON_COR_CLASSES[m.cor]}`} />
-                <div className="min-w-0">
-                  <p className="text-[10px] text-muted-foreground leading-none truncate">
-                    {m.label}
-                  </p>
-                  <p className="text-sm font-semibold leading-tight mt-0.5 truncate">
-                    {m.valor}
-                  </p>
-                </div>
-              </div>
-            ))}
+  return (
+    <div className="flex-shrink-0 border-b border-border bg-card/50 px-3 sm:px-4 py-3 animate-enter">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-2">
+        {metricasFiltradas.map(m => (
+          <div
+            key={m.id}
+            className={`
+              flex items-center gap-2 px-2.5 py-2 rounded-lg
+              ${COR_CLASSES[m.cor]}
+              transition-all duration-200
+            `}
+          >
+            <m.icon className={`w-3.5 h-3.5 flex-shrink-0 ${ICON_COR_CLASSES[m.cor]}`} />
+            <div className="min-w-0">
+              <p className="text-[10px] text-muted-foreground leading-none truncate">
+                {m.label}
+              </p>
+              <p className="text-sm font-semibold leading-tight mt-0.5 truncate">
+                {m.valor}
+              </p>
+            </div>
           </div>
-        </div>
-      )}
+        ))}
+      </div>
     </div>
   )
 }

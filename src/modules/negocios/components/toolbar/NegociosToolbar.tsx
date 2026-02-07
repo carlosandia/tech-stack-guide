@@ -6,11 +6,12 @@
  */
 
 import { useEffect, useState, useRef } from 'react'
-import { Search, Plus, X, MoreVertical } from 'lucide-react'
+import { Search, Plus, X, MoreVertical, BarChart3 } from 'lucide-react'
 import { useAppToolbar } from '@/modules/app/contexts/AppToolbarContext'
 import { PipelineSelector } from './PipelineSelector'
 import { FiltrosPopover, type FiltrosKanban } from './FiltrosPopover'
 import { PeriodoSelector, type PeriodoFiltro } from './PeriodoSelector'
+import { FiltrarMetricasPopover, type MetricasVisiveis } from './FiltrarMetricasPopover'
 import type { Funil } from '../../services/negocios.api'
 
 interface NegociosToolbarProps {
@@ -29,6 +30,11 @@ interface NegociosToolbarProps {
   periodo: PeriodoFiltro
   onPeriodoChange: (periodo: PeriodoFiltro) => void
   isAdmin: boolean
+  metricasVisivel: boolean
+  onToggleMetricas: () => void
+  metricasVisiveis: MetricasVisiveis
+  onMetricasVisiveisChange: (v: MetricasVisiveis) => void
+  funilAtivoId: string | null
 }
 
 export function NegociosToolbar({
@@ -47,6 +53,11 @@ export function NegociosToolbar({
   periodo,
   onPeriodoChange,
   isAdmin,
+  metricasVisivel,
+  onToggleMetricas,
+  metricasVisiveis,
+  onMetricasVisiveisChange,
+  funilAtivoId,
 }: NegociosToolbarProps) {
   const { setSubtitle, setActions } = useAppToolbar()
   const [searchOpen, setSearchOpen] = useState(false)
@@ -119,6 +130,30 @@ export function NegociosToolbar({
           periodo={periodo}
           onChange={onPeriodoChange}
         />
+
+        {/* Métricas toggle + filtro */}
+        <div className="flex items-center">
+          <button
+            onClick={onToggleMetricas}
+            className={`
+              p-2 rounded-md transition-all duration-200
+              ${metricasVisivel
+                ? 'text-primary hover:bg-primary/10'
+                : 'text-muted-foreground hover:bg-accent'
+              }
+            `}
+            title={metricasVisivel ? 'Ocultar métricas' : 'Exibir métricas'}
+          >
+            <BarChart3 className="w-4 h-4" />
+          </button>
+          {metricasVisivel && (
+            <FiltrarMetricasPopover
+              funilId={funilAtivoId}
+              visiveis={metricasVisiveis}
+              onChange={onMetricasVisiveisChange}
+            />
+          )}
+        </div>
 
         {/* Busca (popover) */}
         <div className="relative" ref={searchContainerRef}>
@@ -208,7 +243,7 @@ export function NegociosToolbar({
       </div>
     )
     return () => setActions(null)
-  }, [busca, searchOpen, mobileMenuOpen, isAdmin, setActions, onNovaOportunidade, onNovaPipeline, onBuscaChange, filtros, onFiltrosChange, periodo, onPeriodoChange])
+  }, [busca, searchOpen, mobileMenuOpen, isAdmin, setActions, onNovaOportunidade, onNovaPipeline, onBuscaChange, filtros, onFiltrosChange, periodo, onPeriodoChange, metricasVisivel, onToggleMetricas, metricasVisiveis, onMetricasVisiveisChange, funilAtivoId])
 
   return null // Renderiza via context
 }
