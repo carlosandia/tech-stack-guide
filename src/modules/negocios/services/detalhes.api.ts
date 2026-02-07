@@ -463,11 +463,17 @@ export const detalhesApi = {
 
   verificarConexaoEmail: async (): Promise<{ conectado: boolean; email?: string }> => {
     try {
-      const response = await api.get('/v1/conexoes/email')
-      return {
-        conectado: response.data.conectado === true,
-        email: response.data.email || undefined,
-      }
+      const userId = await getUsuarioId()
+      const { data, error } = await supabase
+        .from('conexoes_email')
+        .select('id, email, status')
+        .eq('usuario_id', userId)
+        .is('deletado_em', null)
+        .eq('status', 'ativo')
+        .maybeSingle()
+
+      if (error || !data) return { conectado: false }
+      return { conectado: true, email: data.email }
     } catch {
       return { conectado: false }
     }
