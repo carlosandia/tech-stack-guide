@@ -290,29 +290,25 @@ function ToolbarWithActions({ pageTitle }: { pageTitle: string }) {
   const { actions, subtitle, centerContent } = useAppToolbar()
 
   return (
-    <div className="flex-shrink-0 z-50 min-h-[48px] bg-gray-50/50 backdrop-blur-sm border-b border-gray-200/60">
-      <div className="flex items-center justify-between h-full px-4 lg:px-6 max-w-[1920px] mx-auto py-1.5 gap-3">
-        {/* Left: Título + Subtitle */}
-        <div className="flex items-center gap-2 min-w-0 flex-shrink-0">
-          <h1 className="text-base font-semibold text-foreground whitespace-nowrap">
+    <div className="flex-shrink-0 z-50 min-h-[48px] bg-gray-50/50 backdrop-blur-sm border-b border-gray-200/60 overflow-hidden">
+      <div className="flex items-center justify-between h-full px-3 sm:px-4 lg:px-6 max-w-[1920px] mx-auto py-1.5 gap-2">
+        {/* Left: Título + Subtitle — pode encolher no mobile */}
+        <div className="flex items-center gap-1.5 min-w-0 overflow-hidden flex-shrink">
+          <h1 className="text-sm sm:text-base font-semibold text-foreground whitespace-nowrap flex-shrink-0">
             {pageTitle}
           </h1>
-          {subtitle && (
-            <>
-              {subtitle}
-            </>
-          )}
+          {subtitle && subtitle}
         </div>
 
-        {/* Center: Optional content (search, filters, etc.) */}
+        {/* Center: Optional content */}
         {centerContent && (
           <div className="flex items-center gap-2 flex-1 justify-center min-w-0 mx-4">
             {centerContent}
           </div>
         )}
 
-        {/* Right: Actions - com overflow scroll no mobile */}
-        <div className="flex items-center gap-2 flex-shrink min-w-0">
+        {/* Right: Actions */}
+        <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
           {actions}
         </div>
       </div>
