@@ -121,18 +121,18 @@ function calcularMetricas(data: KanbanData): Metrica[] {
 
   return [
     { id: 'total', label: 'Total', valor: String(total), icon: BarChart3, cor: 'default' },
-    { id: 'abertas', label: 'Abertas', valor: String(abertas.length), icon: Target, cor: 'primary' },
-    { id: 'ganhas', label: 'Ganhas', valor: String(ganhas.length), icon: CheckCircle, cor: 'success' },
-    { id: 'perdidas', label: 'Perdidas', valor: String(perdidas.length), icon: XCircle, cor: 'destructive' },
-    { id: 'valor_pipeline', label: 'Valor Pipeline', valor: formatCurrency(valorTotal), icon: DollarSign, cor: 'primary' },
-    { id: 'valor_ganho', label: 'Valor Ganho', valor: formatCurrency(valorGanho), icon: TrendingUp, cor: 'success' },
+    { id: 'abertas', label: 'Abertas', valor: String(abertas.length), icon: Target, cor: 'default' },
+    { id: 'ganhas', label: 'Ganhas', valor: String(ganhas.length), icon: CheckCircle, cor: 'default' },
+    { id: 'perdidas', label: 'Perdidas', valor: String(perdidas.length), icon: XCircle, cor: 'default' },
+    { id: 'valor_pipeline', label: 'Valor Pipeline', valor: formatCurrency(valorTotal), icon: DollarSign, cor: 'default' },
+    { id: 'valor_ganho', label: 'Valor Ganho', valor: formatCurrency(valorGanho), icon: TrendingUp, cor: 'default' },
     { id: 'ticket_medio', label: 'Ticket Médio', valor: formatCurrency(ticketMedio), icon: DollarSign, cor: 'default' },
-    { id: 'conversao', label: 'Conversão', valor: `${taxaConversao}%`, icon: TrendingUp, cor: taxaConversao >= 30 ? 'success' : taxaConversao >= 15 ? 'warning' : 'destructive' },
-    { id: 'forecast', label: 'Forecast', valor: formatCurrency(forecast), icon: Target, cor: 'primary' },
-    { id: 'tempo_medio', label: 'Tempo Médio', valor: `${tempoMedio}d`, icon: Clock, cor: tempoMedio <= 14 ? 'success' : tempoMedio <= 30 ? 'warning' : 'destructive' },
-    { id: 'stagnadas', label: 'Estagnadas', valor: String(stagnadas), icon: AlertTriangle, cor: stagnadas > 0 ? 'warning' : 'success' },
-    { id: 'vencendo', label: 'Vencendo 7d', valor: String(vencendo), icon: Clock, cor: vencendo > 0 ? 'warning' : 'default' },
-    { id: 'atrasadas', label: 'Atrasadas', valor: String(atrasadas), icon: TrendingDown, cor: atrasadas > 0 ? 'destructive' : 'success' },
+    { id: 'conversao', label: 'Conversão', valor: `${taxaConversao}%`, icon: TrendingUp, cor: 'default' },
+    { id: 'forecast', label: 'Forecast', valor: formatCurrency(forecast), icon: Target, cor: 'default' },
+    { id: 'tempo_medio', label: 'Tempo Médio', valor: `${tempoMedio}d`, icon: Clock, cor: 'default' },
+    { id: 'stagnadas', label: 'Estagnadas', valor: String(stagnadas), icon: AlertTriangle, cor: 'default' },
+    { id: 'vencendo', label: 'Vencendo 7d', valor: String(vencendo), icon: Clock, cor: 'default' },
+    { id: 'atrasadas', label: 'Atrasadas', valor: String(atrasadas), icon: TrendingDown, cor: 'default' },
   ]
 }
 
