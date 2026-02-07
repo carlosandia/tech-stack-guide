@@ -1075,4 +1075,171 @@ export const negociosApi = {
       console.error('Erro ao criar tarefas automáticas:', error)
     }
   },
+
+  // =====================================================
+  // Motor de Qualificação MQL (RF-08)
+  // Avalia regras vinculadas ao funil contra dados reais
+  // =====================================================
+
+  avaliarQualificacaoMQL: async (oportunidadeId: string): Promise<boolean> => {
+    // 1. Buscar oportunidade com funil_id e contato_id
+    const { data: oportunidade } = await supabase
+      .from('oportunidades')
+      .select('id, funil_id, contato_id, qualificado_mql, valor')
+      .eq('id', oportunidadeId)
+      .maybeSingle()
+
+    if (!oportunidade) return false
+
+    // 2. Buscar regras vinculadas ao funil (ativas)
+    const { data: vinculos } = await supabase
+      .from('funis_regras_qualificacao')
+      .select(`
+        id, regra_id, ativo,
+        regra:regras_qualificacao(id, nome, campo_id, operador, valor, valores, ativo)
+      `)
+      .eq('funil_id', oportunidade.funil_id)
+      .eq('ativo', true)
+
+    const regrasAtivas = (vinculos || [])
+      .filter((v: any) => v.regra?.ativo)
+      .map((v: any) => v.regra)
+
+    // Se não há regras, não qualifica
+    if (regrasAtivas.length === 0) return false
+
+    // 3. Buscar definições dos campos referenciados
+    const campoIds = [...new Set(regrasAtivas.map((r: any) => r.campo_id).filter(Boolean))]
+    
+    let camposMap: Record<string, { slug: string; entidade: string; tipo: string; sistema: boolean }> = {}
+    if (campoIds.length > 0) {
+      const { data: campos } = await supabase
+        .from('campos_customizados')
+        .select('id, slug, entidade, tipo, sistema')
+        .in('id', campoIds)
+
+      if (campos) {
+        for (const c of campos) {
+          camposMap[c.id] = { slug: c.slug, entidade: c.entidade, tipo: c.tipo, sistema: c.sistema ?? false }
+        }
+      }
+    }
+
+    // 4. Buscar valores dos campos customizados para contato e oportunidade
+    const { data: valoresContato } = await supabase
+      .from('valores_campos_customizados')
+      .select('campo_id, valor_texto, valor_numero, valor_data, valor_booleano')
+      .eq('entidade_id', oportunidade.contato_id)
+
+    const { data: valoresOportunidade } = await supabase
+      .from('valores_campos_customizados')
+      .select('campo_id, valor_texto, valor_numero, valor_data, valor_booleano')
+      .eq('entidade_id', oportunidadeId)
+
+    // 5. Buscar dados nativos do contato (para campos de sistema)
+    const { data: contato } = await supabase
+      .from('contatos')
+      .select('nome, sobrenome, email, telefone, cargo, linkedin_url, nome_fantasia, razao_social, cnpj, website, segmento, porte')
+      .eq('id', oportunidade.contato_id)
+      .maybeSingle()
+
+    // 6. Mapear valores: campo_id → valor real
+    const getValorCampo = (campoId: string): string => {
+      const campoDef = camposMap[campoId]
+      if (!campoDef) return ''
+
+      // Campo de sistema → buscar valor nativo do contato
+      if (campoDef.sistema && contato) {
+        const slugMap: Record<string, string> = {
+          nome: contato.nome || '',
+          sobrenome: contato.sobrenome || '',
+          email: contato.email || '',
+          telefone: contato.telefone || '',
+          cargo: contato.cargo || '',
+          linkedin: contato.linkedin_url || '',
+          nome_fantasia: contato.nome_fantasia || '',
+          razao_social: contato.razao_social || '',
+          cnpj: contato.cnpj || '',
+          website: contato.website || '',
+          segmento: contato.segmento || '',
+          porte: contato.porte || '',
+        }
+        return slugMap[campoDef.slug] || ''
+      }
+
+      // Campo customizado → buscar na tabela valores_campos_customizados
+      const valores = campoDef.entidade === 'oportunidade' ? valoresOportunidade : valoresContato
+      const registro = (valores || []).find((v: any) => v.campo_id === campoId)
+      if (!registro) return ''
+
+      if (registro.valor_texto) return registro.valor_texto
+      if (registro.valor_numero !== null) return String(registro.valor_numero)
+      if (registro.valor_booleano !== null) return String(registro.valor_booleano)
+      if (registro.valor_data) return registro.valor_data
+      return ''
+    }
+
+    // 7. Avaliar cada regra (lógica AND)
+    const avaliarRegra = (regra: any): boolean => {
+      const valorCampo = getValorCampo(regra.campo_id)
+      const valorRegra = regra.valor || ''
+      const operador = regra.operador
+
+      switch (operador) {
+        case 'igual':
+          return valorCampo.toLowerCase() === valorRegra.toLowerCase()
+        case 'diferente':
+          return valorCampo.toLowerCase() !== valorRegra.toLowerCase()
+        case 'contem':
+          return valorCampo.toLowerCase().includes(valorRegra.toLowerCase())
+        case 'nao_contem':
+          return !valorCampo.toLowerCase().includes(valorRegra.toLowerCase())
+        case 'comeca_com':
+          return valorCampo.toLowerCase().startsWith(valorRegra.toLowerCase())
+        case 'termina_com':
+          return valorCampo.toLowerCase().endsWith(valorRegra.toLowerCase())
+        case 'preenchido':
+          return valorCampo.trim().length > 0
+        case 'vazio':
+          return valorCampo.trim().length === 0
+        case 'maior_que': {
+          const numCampo = parseFloat(valorCampo)
+          const numRegra = parseFloat(valorRegra)
+          return !isNaN(numCampo) && !isNaN(numRegra) && numCampo > numRegra
+        }
+        case 'menor_que': {
+          const numCampo = parseFloat(valorCampo)
+          const numRegra = parseFloat(valorRegra)
+          return !isNaN(numCampo) && !isNaN(numRegra) && numCampo < numRegra
+        }
+        case 'maior_igual': {
+          const numCampo = parseFloat(valorCampo)
+          const numRegra = parseFloat(valorRegra)
+          return !isNaN(numCampo) && !isNaN(numRegra) && numCampo >= numRegra
+        }
+        case 'menor_igual': {
+          const numCampo = parseFloat(valorCampo)
+          const numRegra = parseFloat(valorRegra)
+          return !isNaN(numCampo) && !isNaN(numRegra) && numCampo <= numRegra
+        }
+        default:
+          return false
+      }
+    }
+
+    const todasPassam = regrasAtivas.every(avaliarRegra)
+
+    // 8. Atualizar qualificado_mql se mudou
+    if (todasPassam !== (oportunidade.qualificado_mql || false)) {
+      await supabase
+        .from('oportunidades')
+        .update({
+          qualificado_mql: todasPassam,
+          qualificado_mql_em: todasPassam ? new Date().toISOString() : null,
+        } as any)
+        .eq('id', oportunidadeId)
+    }
+
+    return todasPassam
+  },
 }
