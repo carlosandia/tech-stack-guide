@@ -342,11 +342,38 @@ export const negociosApi = {
       }
     }
 
+    // Buscar contagem de tarefas pendentes por oportunidade
+    const opIds = ops.map(o => o.id)
+    let tarefasPendentesMap: Record<string, number> = {}
+
+    if (opIds.length > 0) {
+      // Buscar tarefas pendentes em lotes para evitar limite
+      const batchSize = 50
+      for (let i = 0; i < opIds.length; i += batchSize) {
+        const batch = opIds.slice(i, i + batchSize)
+        const { data: tarefas } = await supabase
+          .from('tarefas')
+          .select('oportunidade_id')
+          .in('oportunidade_id', batch)
+          .eq('status', 'pendente')
+          .is('deletado_em', null)
+
+        if (tarefas) {
+          for (const t of tarefas) {
+            if (t.oportunidade_id) {
+              tarefasPendentesMap[t.oportunidade_id] = (tarefasPendentesMap[t.oportunidade_id] || 0) + 1
+            }
+          }
+        }
+      }
+    }
+
     // Enriquecer oportunidades
     const opsEnriquecidas = ops.map(o => ({
       ...o,
       contato: contatosMap[o.contato_id] || null,
       responsavel: o.usuario_responsavel_id ? responsaveisMap[o.usuario_responsavel_id] || null : null,
+      _tarefas_pendentes: tarefasPendentesMap[o.id] || 0,
     }))
 
     // Agrupar por etapa
@@ -386,24 +413,38 @@ export const negociosApi = {
     usuario_responsavel_id?: string
     previsao_fechamento?: string
     observacoes?: string
+    utm_source?: string
+    utm_campaign?: string
+    utm_medium?: string
+    utm_term?: string
+    utm_content?: string
   }): Promise<Oportunidade> => {
     const organizacaoId = await getOrganizacaoId()
     const userId = await getUsuarioId()
 
+    const insertData: Record<string, unknown> = {
+      organizacao_id: organizacaoId,
+      funil_id: payload.funil_id,
+      etapa_id: payload.etapa_id,
+      contato_id: payload.contato_id,
+      titulo: payload.titulo,
+      valor: payload.valor || null,
+      usuario_responsavel_id: payload.usuario_responsavel_id || userId,
+      previsao_fechamento: payload.previsao_fechamento || null,
+      observacoes: payload.observacoes || null,
+      criado_por: userId,
+    }
+
+    // Adicionar UTMs se presentes
+    if (payload.utm_source) insertData.utm_source = payload.utm_source
+    if (payload.utm_campaign) insertData.utm_campaign = payload.utm_campaign
+    if (payload.utm_medium) insertData.utm_medium = payload.utm_medium
+    if (payload.utm_term) insertData.utm_term = payload.utm_term
+    if (payload.utm_content) insertData.utm_content = payload.utm_content
+
     const { data, error } = await supabase
       .from('oportunidades')
-      .insert({
-        organizacao_id: organizacaoId,
-        funil_id: payload.funil_id,
-        etapa_id: payload.etapa_id,
-        contato_id: payload.contato_id,
-        titulo: payload.titulo,
-        valor: payload.valor || null,
-        usuario_responsavel_id: payload.usuario_responsavel_id || userId,
-        previsao_fechamento: payload.previsao_fechamento || null,
-        observacoes: payload.observacoes || null,
-        criado_por: userId,
-      } as any)
+      .insert(insertData as any)
       .select()
       .single()
 

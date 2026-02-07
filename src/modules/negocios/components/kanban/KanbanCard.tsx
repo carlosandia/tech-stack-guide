@@ -3,10 +3,12 @@
  * Conforme Design System 10.4 Card
  * bg-card border border-border rounded-lg shadow-sm
  * Hover: shadow-md com transition-all duration-200
+ * Inclui TarefasPopover (RF-15.5)
  */
 
 import { User, DollarSign, Clock } from 'lucide-react'
 import type { Oportunidade } from '../../services/negocios.api'
+import { TarefasPopover } from './TarefasPopover'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
@@ -49,6 +51,9 @@ export function KanbanCard({ oportunidade, onDragStart, onClick }: KanbanCardPro
     addSuffix: false,
   })
 
+  // Tarefas pendentes count (from oportunidade enrichment, fallback to 0)
+  const tarefasPendentes = (oportunidade as any)._tarefas_pendentes ?? 0
+
   return (
     <div
       draggable
@@ -82,11 +87,21 @@ export function KanbanCard({ oportunidade, onDragStart, onClick }: KanbanCardPro
           <span />
         )}
 
-        {qualificacao && (
-          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${qualificacao.className}`}>
-            {qualificacao.label}
-          </span>
-        )}
+        <div className="flex items-center gap-1.5">
+          {/* Tarefas badge + popover */}
+          {tarefasPendentes > 0 && (
+            <TarefasPopover
+              oportunidadeId={oportunidade.id}
+              totalPendentes={tarefasPendentes}
+            />
+          )}
+
+          {qualificacao && (
+            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${qualificacao.className}`}>
+              {qualificacao.label}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Footer: Responsável + Tempo */}
