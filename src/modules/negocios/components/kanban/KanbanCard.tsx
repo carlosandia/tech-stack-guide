@@ -13,6 +13,7 @@ import { ptBR } from 'date-fns/locale'
 interface KanbanCardProps {
   oportunidade: Oportunidade
   onDragStart: (e: React.DragEvent, oportunidade: Oportunidade) => void
+  onClick: (oportunidade: Oportunidade) => void
 }
 
 function getContatoNome(op: Oportunidade): string {
@@ -40,7 +41,7 @@ function formatValor(valor: number | null | undefined): string {
   }).format(valor)
 }
 
-export function KanbanCard({ oportunidade, onDragStart }: KanbanCardProps) {
+export function KanbanCard({ oportunidade, onDragStart, onClick }: KanbanCardProps) {
   const contatoNome = getContatoNome(oportunidade)
   const qualificacao = getQualificacaoLabel(oportunidade)
   const tempoNaEtapa = formatDistanceToNow(new Date(oportunidade.atualizado_em), {
@@ -52,6 +53,7 @@ export function KanbanCard({ oportunidade, onDragStart }: KanbanCardProps) {
     <div
       draggable
       onDragStart={(e) => onDragStart(e, oportunidade)}
+      onClick={() => onClick(oportunidade)}
       className="
         bg-card border border-border rounded-lg shadow-sm p-3
         hover:shadow-md cursor-grab active:cursor-grabbing

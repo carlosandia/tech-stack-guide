@@ -614,4 +614,198 @@ export const negociosApi = {
 
     if (error) throw new Error(error.message)
   },
+
+  // =====================================================
+  // Detalhes da Oportunidade (RF-14)
+  // =====================================================
+
+  // Buscar oportunidade completa com contato e responsavel
+  buscarOportunidade: async (oportunidadeId: string): Promise<Oportunidade> => {
+    const { data, error } = await supabase
+      .from('oportunidades')
+      .select('*')
+      .eq('id', oportunidadeId)
+      .is('deletado_em', null)
+      .single()
+
+    if (error) throw new Error(error.message)
+
+    const op = data as Oportunidade
+
+    // Enriquecer com contato
+    if (op.contato_id) {
+      const { data: contato } = await supabase
+        .from('contatos')
+        .select('id, nome, sobrenome, email, telefone, tipo, nome_fantasia, razao_social, cargo, cnpj, linkedin_url, website, observacoes, endereco_logradouro, endereco_numero, endereco_bairro, endereco_cidade, endereco_estado, endereco_cep')
+        .eq('id', op.contato_id)
+        .maybeSingle()
+
+      if (contato) {
+        op.contato = {
+          id: contato.id,
+          nome: contato.nome,
+          sobrenome: contato.sobrenome,
+          email: contato.email,
+          telefone: contato.telefone,
+          tipo: contato.tipo,
+          nome_fantasia: contato.nome_fantasia,
+          razao_social: contato.razao_social,
+        }
+      }
+    }
+
+    // Enriquecer com responsavel
+    if (op.usuario_responsavel_id) {
+      const { data: responsavel } = await supabase
+        .from('usuarios')
+        .select('id, nome, sobrenome')
+        .eq('id', op.usuario_responsavel_id)
+        .maybeSingle()
+
+      if (responsavel) {
+        op.responsavel = { id: responsavel.id, nome: responsavel.nome, sobrenome: responsavel.sobrenome || undefined }
+      }
+    }
+
+    return op
+  },
+
+  // Atualizar campos da oportunidade
+  atualizarOportunidade: async (oportunidadeId: string, payload: {
+    valor?: number | null
+    usuario_responsavel_id?: string | null
+    previsao_fechamento?: string | null
+    observacoes?: string | null
+  }): Promise<void> => {
+    const { error } = await supabase
+      .from('oportunidades')
+      .update(payload as any)
+      .eq('id', oportunidadeId)
+
+    if (error) throw new Error(error.message)
+  },
+
+  // Atualizar campos do contato (inline edit)
+  atualizarContato: async (contatoId: string, payload: Record<string, unknown>): Promise<void> => {
+    const { error } = await supabase
+      .from('contatos')
+      .update(payload as any)
+      .eq('id', contatoId)
+
+    if (error) throw new Error(error.message)
+  },
+
+  // =====================================================
+  // Anotações
+  // =====================================================
+
+  listarAnotacoes: async (oportunidadeId: string): Promise<Array<{
+    id: string
+    tipo: string
+    conteudo: string | null
+    audio_url: string | null
+    audio_duracao_segundos: number | null
+    criado_em: string
+    usuario_id: string
+    usuario?: { id: string; nome: string; avatar_url?: string | null }
+  }>> => {
+    const { data, error } = await supabase
+      .from('anotacoes_oportunidades')
+      .select('*')
+      .eq('oportunidade_id', oportunidadeId)
+      .is('deletado_em', null)
+      .order('criado_em', { ascending: false })
+
+    if (error) throw new Error(error.message)
+
+    const anotacoes = data || []
+
+    // Enriquecer com usuário
+    const userIds = [...new Set(anotacoes.map(a => a.usuario_id))]
+    let usersMap: Record<string, { id: string; nome: string }> = {}
+
+    if (userIds.length > 0) {
+      const { data: usuarios } = await supabase
+        .from('usuarios')
+        .select('id, nome')
+        .in('id', userIds)
+
+      if (usuarios) {
+        for (const u of usuarios) {
+          usersMap[u.id] = { id: u.id, nome: u.nome }
+        }
+      }
+    }
+
+    return anotacoes.map(a => ({
+      id: a.id,
+      tipo: a.tipo,
+      conteudo: a.conteudo,
+      audio_url: a.audio_url,
+      audio_duracao_segundos: a.audio_duracao_segundos,
+      criado_em: a.criado_em,
+      usuario_id: a.usuario_id,
+      usuario: usersMap[a.usuario_id] || undefined,
+    }))
+  },
+
+  criarAnotacaoTexto: async (oportunidadeId: string, conteudo: string): Promise<void> => {
+    const organizacaoId = await getOrganizacaoId()
+    const userId = await getUsuarioId()
+
+    const { error } = await supabase
+      .from('anotacoes_oportunidades')
+      .insert({
+        organizacao_id: organizacaoId,
+        oportunidade_id: oportunidadeId,
+        usuario_id: userId,
+        tipo: 'texto',
+        conteudo,
+      } as any)
+
+    if (error) throw new Error(error.message)
+  },
+
+  atualizarAnotacao: async (anotacaoId: string, conteudo: string): Promise<void> => {
+    const { error } = await supabase
+      .from('anotacoes_oportunidades')
+      .update({ conteudo } as any)
+      .eq('id', anotacaoId)
+
+    if (error) throw new Error(error.message)
+  },
+
+  excluirAnotacao: async (anotacaoId: string): Promise<void> => {
+    const { error } = await supabase
+      .from('anotacoes_oportunidades')
+      .update({ deletado_em: new Date().toISOString() } as any)
+      .eq('id', anotacaoId)
+
+    if (error) throw new Error(error.message)
+  },
+
+  // =====================================================
+  // Histórico (Timeline) via audit_log
+  // =====================================================
+
+  listarHistorico: async (oportunidadeId: string): Promise<Array<{
+    id: string
+    acao: string
+    entidade: string
+    detalhes: Record<string, unknown> | null
+    dados_anteriores: Record<string, unknown> | null
+    dados_novos: Record<string, unknown> | null
+    criado_em: string
+    usuario_id: string | null
+  }>> => {
+    const { data, error } = await supabase
+      .from('audit_log')
+      .select('id, acao, entidade, detalhes, dados_anteriores, dados_novos, criado_em, usuario_id')
+      .eq('entidade_id', oportunidadeId)
+      .order('criado_em', { ascending: false })
+      .limit(50)
+
+    if (error) throw new Error(error.message)
+    return (data || []) as any
+  },
 }

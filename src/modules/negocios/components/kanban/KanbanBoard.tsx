@@ -15,9 +15,10 @@ interface KanbanBoardProps {
   data: KanbanData
   isLoading: boolean
   onDropGanhoPerda: (oportunidade: Oportunidade, etapaId: string, tipo: 'ganho' | 'perda') => void
+  onCardClick: (oportunidade: Oportunidade) => void
 }
 
-export function KanbanBoard({ data, isLoading, onDropGanhoPerda }: KanbanBoardProps) {
+export function KanbanBoard({ data, isLoading, onDropGanhoPerda, onCardClick }: KanbanBoardProps) {
   const draggedOpRef = useRef<Oportunidade | null>(null)
   const moverEtapa = useMoverEtapa()
 
@@ -91,6 +92,7 @@ export function KanbanBoard({ data, isLoading, onDropGanhoPerda }: KanbanBoardPr
             onDragStart={handleDragStart}
             onDragOver={handleDragOver}
             onDrop={handleDrop}
+            onCardClick={onCardClick}
           />
         ))}
       </div>

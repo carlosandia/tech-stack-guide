@@ -17,6 +17,7 @@ interface KanbanColumnProps {
   onDragStart: (e: React.DragEvent, oportunidade: Oportunidade) => void
   onDragOver: (e: React.DragEvent) => void
   onDrop: (e: React.DragEvent, etapaId: string, tipoEtapa: string) => void
+  onCardClick: (oportunidade: Oportunidade) => void
 }
 
 function formatValorResumido(valor: number): string {
@@ -26,7 +27,7 @@ function formatValorResumido(valor: number): string {
   return `R$ ${valor.toFixed(0)}`
 }
 
-export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop }: KanbanColumnProps) {
+export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardClick }: KanbanColumnProps) {
   const [isDragOver, setIsDragOver] = useState(false)
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -90,6 +91,7 @@ export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop }: KanbanC
               key={op.id}
               oportunidade={op}
               onDragStart={onDragStart}
+              onClick={onCardClick}
             />
           ))
         )}
