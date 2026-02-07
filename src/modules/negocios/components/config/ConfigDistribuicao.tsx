@@ -91,7 +91,7 @@ export function ConfigDistribuicao({ funilId }: Props) {
       </div>
 
       {/* Modo */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <button
           onClick={() => setModo('manual')}
           className={`p-4 rounded-lg border-2 text-left transition-all duration-200 ${
