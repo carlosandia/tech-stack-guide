@@ -23,6 +23,7 @@ export function ConfigEtapas({ funilId }: Props) {
   const [showModal, setShowModal] = useState(false)
   const [editando, setEditando] = useState<EtapaFunil | null>(null)
   const [dragIndex, setDragIndex] = useState<number | null>(null)
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
 
   // Ordenar: Entrada → Personalizados (por ordem) → Ganho → Perda
   const etapasOrdenadas = useMemo(() => {
@@ -56,7 +57,11 @@ export function ConfigEtapas({ funilId }: Props) {
   const handleDragOver = (e: React.DragEvent, index: number) => {
     e.preventDefault()
     const etapa = etapasOrdenadas[index]
-    if (etapa && isSistema(etapa)) return
+    if (etapa && isSistema(etapa)) {
+      setDragOverIndex(null)
+      return
+    }
+    setDragOverIndex(index)
   }
 
   const handleDrop = (index: number) => {
@@ -71,6 +76,12 @@ export function ConfigEtapas({ funilId }: Props) {
     const ordens = newEtapas.map((e, i) => ({ id: e.id, ordem: i }))
     reordenar.mutate(ordens)
     setDragIndex(null)
+    setDragOverIndex(null)
+  }
+
+  const handleDragEnd = () => {
+    setDragIndex(null)
+    setDragOverIndex(null)
   }
 
   const handleSave = async (payload: { nome: string; cor: string; probabilidade: number }) => {
@@ -108,21 +119,32 @@ export function ConfigEtapas({ funilId }: Props) {
 
       {/* Lista de etapas */}
       <div className="space-y-1.5">
-        {etapasOrdenadas.map((etapa, index) => (
-          <div
-            key={etapa.id}
-            draggable={!isSistema(etapa)}
-            onDragStart={() => handleDragStart(index)}
-            onDragOver={(e) => handleDragOver(e, index)}
-            onDrop={() => handleDrop(index)}
-            onDragEnd={() => setDragIndex(null)}
-            className={`
-              flex items-center gap-3 p-3 rounded-lg border border-border bg-card
-              ${!isSistema(etapa) ? 'cursor-grab active:cursor-grabbing hover:border-primary/30' : ''}
-              ${dragIndex === index ? 'opacity-50' : ''}
-              transition-all duration-200
-            `}
-          >
+        {etapasOrdenadas.map((etapa, index) => {
+          const isDragging = dragIndex === index
+          const isOver = dragOverIndex === index && dragIndex !== null && dragIndex !== index && !isSistema(etapa)
+          const dropAbove = isOver && dragIndex !== null && dragIndex > index
+          const dropBelow = isOver && dragIndex !== null && dragIndex < index
+
+          return (
+            <div
+              key={etapa.id}
+              draggable={!isSistema(etapa)}
+              onDragStart={() => handleDragStart(index)}
+              onDragOver={(e) => handleDragOver(e, index)}
+              onDrop={() => handleDrop(index)}
+              onDragEnd={handleDragEnd}
+              onDragLeave={() => setDragOverIndex(null)}
+              className={`
+                flex items-center gap-3 p-3 rounded-lg border bg-card
+                ${!isSistema(etapa) ? 'cursor-grab active:cursor-grabbing hover:border-primary/30' : ''}
+                ${isDragging ? 'opacity-30 scale-95' : ''}
+                ${dropAbove ? 'border-t-2 border-t-primary mt-1' : ''}
+                ${dropBelow ? 'border-b-2 border-b-primary mb-1' : ''}
+                ${isOver ? 'bg-primary/5' : ''}
+                ${!isDragging && !isOver ? 'border-border' : ''}
+                transition-all duration-200
+              `}
+            >
             {/* Grip */}
             <div className={`flex-shrink-0 ${isSistema(etapa) ? 'opacity-20' : 'text-muted-foreground'}`}>
               {isSistema(etapa) ? (
@@ -178,8 +200,9 @@ export function ConfigEtapas({ funilId }: Props) {
                 </button>
               </div>
             )}
-          </div>
-        ))}
+            </div>
+          )
+        })}
       </div>
 
       {/* Modal */}
