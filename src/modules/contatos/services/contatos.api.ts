@@ -588,6 +588,100 @@ export const contatosApi = {
     if (error) throw new Error(error.message)
   },
 
+  verificarVinculos: async (id: string, tipo: TipoContato): Promise<{ temVinculos: boolean; vinculos: Array<{ tipo: string; nome: string; id: string }> }> => {
+    const vinculos: Array<{ tipo: string; nome: string; id: string }> = []
+
+    if (tipo === 'empresa') {
+      // Verificar pessoas vinculadas
+      const { data } = await supabase
+        .from('contatos')
+        .select('id, nome, sobrenome')
+        .eq('empresa_id', id)
+        .is('deletado_em', null)
+
+      if (data && data.length > 0) {
+        for (const p of data) {
+          vinculos.push({ tipo: 'Pessoa vinculada', nome: `${p.nome || ''} ${p.sobrenome || ''}`.trim(), id: p.id })
+        }
+      }
+    } else {
+      // Verificar oportunidades vinculadas
+      const { data } = await supabase
+        .from('oportunidades')
+        .select('id, titulo')
+        .eq('contato_id', id)
+        .is('deletado_em', null)
+
+      if (data && data.length > 0) {
+        for (const o of data) {
+          vinculos.push({ tipo: 'Oportunidade', nome: o.titulo || 'Sem título', id: o.id })
+        }
+      }
+    }
+
+    return { temVinculos: vinculos.length > 0, vinculos }
+  },
+
+  verificarVinculosLote: async (ids: string[], tipo: TipoContato): Promise<{ temVinculos: boolean; vinculos: Array<{ tipo: string; nome: string; id: string }> }> => {
+    const vinculos: Array<{ tipo: string; nome: string; id: string }> = []
+
+    if (tipo === 'empresa') {
+      const { data } = await supabase
+        .from('contatos')
+        .select('id, nome, sobrenome, empresa_id')
+        .in('empresa_id', ids)
+        .is('deletado_em', null)
+
+      if (data && data.length > 0) {
+        for (const p of data) {
+          vinculos.push({ tipo: 'Pessoa vinculada', nome: `${p.nome || ''} ${p.sobrenome || ''}`.trim(), id: p.id })
+        }
+      }
+    }
+
+    return { temVinculos: vinculos.length > 0, vinculos }
+  },
+
+  exportarComColunas: async (params: ListarContatosParams & { colunas: Array<{ key: string; label: string }>; ids?: string[] }): Promise<string> => {
+    let query = supabase
+      .from('contatos')
+      .select('*')
+      .is('deletado_em', null)
+      .order('criado_em', { ascending: false })
+
+    if (params.ids && params.ids.length > 0) {
+      query = query.in('id', params.ids)
+    } else {
+      if (params.tipo) query = query.eq('tipo', params.tipo)
+      if (params.status) query = query.eq('status', params.status)
+      if (params.origem) query = query.eq('origem', params.origem)
+      if (params.owner_id) query = query.eq('owner_id', params.owner_id)
+      if (params.data_inicio) query = query.gte('criado_em', params.data_inicio)
+      if (params.data_fim) query = query.lte('criado_em', params.data_fim)
+      if (params.busca) {
+        query = query.or(
+          `nome.ilike.%${params.busca}%,sobrenome.ilike.%${params.busca}%,email.ilike.%${params.busca}%,razao_social.ilike.%${params.busca}%`
+        )
+      }
+    }
+
+    const { data, error } = await query
+    if (error) throw new Error(error.message)
+
+    const contatos = data || []
+    const headers = params.colunas.map(c => c.label)
+    const rows = contatos.map(c =>
+      params.colunas.map(col => (c as any)[col.key] ?? '')
+    )
+
+    const csvRows = [headers.join(',')]
+    for (const row of rows) {
+      csvRows.push(row.map((v: any) => `"${(v || '').toString().replace(/"/g, '""')}"`).join(','))
+    }
+
+    return csvRows.join('\n')
+  },
+
   segmentarLote: async (payload: { ids: string[]; adicionar: string[]; remover: string[] }): Promise<void> => {
     const organizacaoId = await getOrganizacaoId()
 
