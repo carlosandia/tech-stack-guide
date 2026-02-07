@@ -16,7 +16,8 @@ import { NovaPipelineModal } from '../components/modals/NovaPipelineModal'
 import { NovaOportunidadeModal } from '../components/modals/NovaOportunidadeModal'
 import { FecharOportunidadeModal } from '../components/modals/FecharOportunidadeModal'
 import { DetalhesOportunidadeModal } from '../components/detalhes/DetalhesOportunidadeModal'
-import { getMetricasVisiveis, type MetricasVisiveis } from '../components/toolbar/FiltrarMetricasPopover'
+import { arrayToMetricasVisiveis, type MetricasVisiveis } from '../components/toolbar/FiltrarMetricasPopover'
+import { usePreferenciasMetricas } from '../hooks/usePreOportunidades'
 import type { Funil, Oportunidade } from '../services/negocios.api'
 import { negociosApi } from '../services/negocios.api'
 import type { FiltrosKanban } from '../components/toolbar/FiltrosPopover'
@@ -43,9 +44,15 @@ export default function NegociosPage() {
   const [metricasVisivel, setMetricasVisivel] = useState(() => {
     return localStorage.getItem(METRICAS_KEY) !== 'false'
   })
-  const [metricasVisiveis, setMetricasVisiveis] = useState<MetricasVisiveis>(() => {
-    return getMetricasVisiveis(localStorage.getItem(STORAGE_KEY))
-  })
+  const [metricasVisiveis, setMetricasVisiveis] = useState<MetricasVisiveis>({})
+
+  // Carregar preferências de métricas do banco
+  const { data: prefMetricas } = usePreferenciasMetricas(funilAtivoId)
+  useEffect(() => {
+    if (prefMetricas) {
+      setMetricasVisiveis(arrayToMetricasVisiveis(prefMetricas))
+    }
+  }, [prefMetricas])
   const [showNovaPipeline, setShowNovaPipeline] = useState(false)
   const [showNovaOportunidade, setShowNovaOportunidade] = useState(false)
   const [fecharOp, setFecharOp] = useState<{
@@ -99,7 +106,7 @@ export default function NegociosPage() {
     setFunilAtivoId(funil.id)
     localStorage.setItem(STORAGE_KEY, funil.id)
     setBusca('')
-    setMetricasVisiveis(getMetricasVisiveis(funil.id))
+    setMetricasVisiveis({})
   }, [])
 
   const handleCriarPipeline = useCallback(async (data: { nome: string; descricao?: string; cor?: string; membrosIds?: string[] }) => {

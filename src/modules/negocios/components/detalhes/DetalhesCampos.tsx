@@ -1,10 +1,11 @@
 /**
  * AIDEV-NOTE: Bloco 1 - Campos da Oportunidade + Contato (RF-14.2)
  * Campos editáveis inline com seções Oportunidade e Contato
+ * Engrenagem para show/hide campos (RF-14.2 + RF-15.6)
  */
 
-import { useState, useCallback } from 'react'
-import { DollarSign, User, Calendar, Mail, Phone } from 'lucide-react'
+import { useState, useCallback, useRef, useEffect } from 'react'
+import { DollarSign, User, Calendar, Mail, Phone, Settings2, Check } from 'lucide-react'
 import type { Oportunidade } from '../../services/negocios.api'
 import { useAtualizarOportunidade, useAtualizarContato } from '../../hooks/useOportunidadeDetalhes'
 import { toast } from 'sonner'
@@ -12,6 +13,28 @@ import { toast } from 'sonner'
 interface DetalhesCamposProps {
   oportunidade: Oportunidade
   membros: Array<{ id: string; nome: string; sobrenome?: string | null }>
+}
+
+// Campos disponíveis com suas configurações
+const CAMPOS_OPORTUNIDADE = [
+  { id: 'valor', label: 'Valor', icon: DollarSign },
+  { id: 'responsavel', label: 'Responsável', icon: User },
+  { id: 'previsao', label: 'Previsão de fechamento', icon: Calendar },
+]
+
+const CAMPOS_CONTATO = [
+  { id: 'contato_nome', label: 'Nome', icon: User },
+  { id: 'contato_email', label: 'E-mail', icon: Mail },
+  { id: 'contato_telefone', label: 'Telefone', icon: Phone },
+]
+
+const STORAGE_KEY_CAMPOS = 'negocios_campos_visiveis'
+
+function getCamposVisiveis(): Record<string, boolean> {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY_CAMPOS)
+    return stored ? JSON.parse(stored) : {}
+  } catch { return {} }
 }
 
 function formatCurrency(value: number | null | undefined): string {
@@ -35,9 +58,42 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
   const atualizarOp = useAtualizarOportunidade()
   const atualizarContato = useAtualizarContato()
 
-  // Inline edit state
   const [editingField, setEditingField] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
+  const [camposVisiveis, setCamposVisiveis] = useState<Record<string, boolean>>(getCamposVisiveis)
+  const [showGear, setShowGear] = useState(false)
+  const gearRef = useRef<HTMLDivElement>(null)
+
+  // Click outside para fechar gear popover
+  useEffect(() => {
+    if (!showGear) return
+    const handler = (e: MouseEvent) => {
+      if (gearRef.current && !gearRef.current.contains(e.target as Node)) {
+        setShowGear(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showGear])
+
+  const isCampoVisivel = (campoId: string): boolean => {
+    if (Object.keys(camposVisiveis).length === 0) return true
+    return camposVisiveis[campoId] !== false
+  }
+
+  const toggleCampo = (campoId: string) => {
+    const novo = { ...camposVisiveis }
+    if (Object.keys(novo).length === 0) {
+      // Inicializar: todos true exceto o selecionado
+      ;[...CAMPOS_OPORTUNIDADE, ...CAMPOS_CONTATO].forEach(c => {
+        novo[c.id] = c.id !== campoId
+      })
+    } else {
+      novo[campoId] = !isCampoVisivel(campoId)
+    }
+    setCamposVisiveis(novo)
+    localStorage.setItem(STORAGE_KEY_CAMPOS, JSON.stringify(novo))
+  }
 
   const handleSaveOp = useCallback(async (field: string, value: unknown) => {
     try {
@@ -79,64 +135,105 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
     <div className="space-y-4">
       {/* Seção Oportunidade */}
       <div>
-        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-          Oportunidade
-        </h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            Oportunidade
+          </h3>
+          {/* Engrenagem show/hide (RF-14.2) */}
+          <div className="relative" ref={gearRef}>
+            <button
+              onClick={() => setShowGear(!showGear)}
+              className="p-1 text-muted-foreground hover:text-foreground hover:bg-accent rounded transition-all duration-200"
+              title="Campos visíveis"
+            >
+              <Settings2 className="w-3.5 h-3.5" />
+            </button>
+
+            {showGear && (
+              <div className="absolute right-0 top-full mt-1 w-52 bg-card border border-border rounded-lg shadow-lg z-[60] animate-enter">
+                <div className="px-3 py-2 border-b border-border">
+                  <span className="text-xs font-semibold text-foreground">Campos visíveis</span>
+                </div>
+                <div className="py-1">
+                  <div className="px-3 py-1 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                    Oportunidade
+                  </div>
+                  {CAMPOS_OPORTUNIDADE.map(c => (
+                    <GearCheckItem key={c.id} label={c.label} checked={isCampoVisivel(c.id)} onToggle={() => toggleCampo(c.id)} />
+                  ))}
+                  <div className="px-3 py-1 text-[10px] font-medium text-muted-foreground uppercase tracking-wider mt-1">
+                    Contato
+                  </div>
+                  {CAMPOS_CONTATO.map(c => (
+                    <GearCheckItem key={c.id} label={c.label} checked={isCampoVisivel(c.id)} onToggle={() => toggleCampo(c.id)} />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
         <div className="space-y-3">
           {/* Valor */}
-          <FieldRow
-            icon={<DollarSign className="w-3.5 h-3.5" />}
-            label="Valor"
-            value={formatCurrency(oportunidade.valor)}
-            placeholder="R$ 0,00"
-            isEditing={editingField === 'valor'}
-            onStartEdit={() => {
-              setEditingField('valor')
-              setEditValue(String(oportunidade.valor || ''))
-            }}
-            editValue={editValue}
-            onEditChange={setEditValue}
-            onSave={() => handleSaveOp('valor', editValue ? parseFloat(editValue) : null)}
-            onCancel={() => setEditingField(null)}
-          />
+          {isCampoVisivel('valor') && (
+            <FieldRow
+              icon={<DollarSign className="w-3.5 h-3.5" />}
+              label="Valor"
+              value={formatCurrency(oportunidade.valor)}
+              placeholder="R$ 0,00"
+              isEditing={editingField === 'valor'}
+              onStartEdit={() => {
+                setEditingField('valor')
+                setEditValue(String(oportunidade.valor || ''))
+              }}
+              editValue={editValue}
+              onEditChange={setEditValue}
+              onSave={() => handleSaveOp('valor', editValue ? parseFloat(editValue) : null)}
+              onCancel={() => setEditingField(null)}
+            />
+          )}
 
           {/* Responsável */}
-          <div className="flex items-start gap-2">
-            <User className="w-3.5 h-3.5 text-muted-foreground mt-1 flex-shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-[11px] text-muted-foreground mb-0.5">Responsável</p>
-              <select
-                className="w-full text-sm bg-transparent border-0 border-b border-transparent hover:border-border focus:border-primary focus:ring-0 p-0 pb-0.5 text-foreground transition-colors cursor-pointer"
-                value={oportunidade.usuario_responsavel_id || ''}
-                onChange={(e) => handleResponsavelChange(e.target.value)}
-              >
-                <option value="">Sem responsável</option>
-                {membros.map(m => (
-                  <option key={m.id} value={m.id}>
-                    {[m.nome, m.sobrenome].filter(Boolean).join(' ')}
-                  </option>
-                ))}
-              </select>
+          {isCampoVisivel('responsavel') && (
+            <div className="flex items-start gap-2">
+              <User className="w-3.5 h-3.5 text-muted-foreground mt-1 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] text-muted-foreground mb-0.5">Responsável</p>
+                <select
+                  className="w-full text-sm bg-transparent border-0 border-b border-transparent hover:border-border focus:border-primary focus:ring-0 p-0 pb-0.5 text-foreground transition-colors cursor-pointer"
+                  value={oportunidade.usuario_responsavel_id || ''}
+                  onChange={(e) => handleResponsavelChange(e.target.value)}
+                >
+                  <option value="">Sem responsável</option>
+                  {membros.map(m => (
+                    <option key={m.id} value={m.id}>
+                      {[m.nome, m.sobrenome].filter(Boolean).join(' ')}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Previsão */}
-          <FieldRow
-            icon={<Calendar className="w-3.5 h-3.5" />}
-            label="Previsão de fechamento"
-            value={oportunidade.previsao_fechamento ? new Date(oportunidade.previsao_fechamento).toLocaleDateString('pt-BR') : ''}
-            placeholder="Sem data"
-            isEditing={editingField === 'previsao'}
-            onStartEdit={() => {
-              setEditingField('previsao')
-              setEditValue(oportunidade.previsao_fechamento?.slice(0, 10) || '')
-            }}
-            editValue={editValue}
-            onEditChange={setEditValue}
-            onSave={() => handleSaveOp('previsao_fechamento', editValue || null)}
-            onCancel={() => setEditingField(null)}
-            inputType="date"
-          />
+          {isCampoVisivel('previsao') && (
+            <FieldRow
+              icon={<Calendar className="w-3.5 h-3.5" />}
+              label="Previsão de fechamento"
+              value={oportunidade.previsao_fechamento ? new Date(oportunidade.previsao_fechamento).toLocaleDateString('pt-BR') : ''}
+              placeholder="Sem data"
+              isEditing={editingField === 'previsao'}
+              onStartEdit={() => {
+                setEditingField('previsao')
+                setEditValue(oportunidade.previsao_fechamento?.slice(0, 10) || '')
+              }}
+              editValue={editValue}
+              onEditChange={setEditValue}
+              onSave={() => handleSaveOp('previsao_fechamento', editValue || null)}
+              onCancel={() => setEditingField(null)}
+              inputType="date"
+            />
+          )}
         </div>
       </div>
 
@@ -149,58 +246,84 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
           {oportunidade.contato?.tipo === 'empresa' ? 'Empresa' : 'Contato'}
         </h3>
         <div className="space-y-3">
-          <FieldRow
-            icon={<User className="w-3.5 h-3.5" />}
-            label="Nome"
-            value={getContatoNome(oportunidade)}
-            placeholder="—"
-            isEditing={editingField === 'contato_nome'}
-            onStartEdit={() => {
-              setEditingField('contato_nome')
-              setEditValue(oportunidade.contato?.nome || '')
-            }}
-            editValue={editValue}
-            onEditChange={setEditValue}
-            onSave={() => handleSaveContato('nome', editValue)}
-            onCancel={() => setEditingField(null)}
-          />
+          {isCampoVisivel('contato_nome') && (
+            <FieldRow
+              icon={<User className="w-3.5 h-3.5" />}
+              label="Nome"
+              value={getContatoNome(oportunidade)}
+              placeholder="—"
+              isEditing={editingField === 'contato_nome'}
+              onStartEdit={() => {
+                setEditingField('contato_nome')
+                setEditValue(oportunidade.contato?.nome || '')
+              }}
+              editValue={editValue}
+              onEditChange={setEditValue}
+              onSave={() => handleSaveContato('nome', editValue)}
+              onCancel={() => setEditingField(null)}
+            />
+          )}
 
-          <FieldRow
-            icon={<Mail className="w-3.5 h-3.5" />}
-            label="E-mail"
-            value={oportunidade.contato?.email || ''}
-            placeholder="—"
-            isEditing={editingField === 'contato_email'}
-            onStartEdit={() => {
-              setEditingField('contato_email')
-              setEditValue(oportunidade.contato?.email || '')
-            }}
-            editValue={editValue}
-            onEditChange={setEditValue}
-            onSave={() => handleSaveContato('email', editValue)}
-            onCancel={() => setEditingField(null)}
-            inputType="email"
-          />
+          {isCampoVisivel('contato_email') && (
+            <FieldRow
+              icon={<Mail className="w-3.5 h-3.5" />}
+              label="E-mail"
+              value={oportunidade.contato?.email || ''}
+              placeholder="—"
+              isEditing={editingField === 'contato_email'}
+              onStartEdit={() => {
+                setEditingField('contato_email')
+                setEditValue(oportunidade.contato?.email || '')
+              }}
+              editValue={editValue}
+              onEditChange={setEditValue}
+              onSave={() => handleSaveContato('email', editValue)}
+              onCancel={() => setEditingField(null)}
+              inputType="email"
+            />
+          )}
 
-          <FieldRow
-            icon={<Phone className="w-3.5 h-3.5" />}
-            label="Telefone"
-            value={oportunidade.contato?.telefone || ''}
-            placeholder="—"
-            isEditing={editingField === 'contato_telefone'}
-            onStartEdit={() => {
-              setEditingField('contato_telefone')
-              setEditValue(oportunidade.contato?.telefone || '')
-            }}
-            editValue={editValue}
-            onEditChange={setEditValue}
-            onSave={() => handleSaveContato('telefone', editValue)}
-            onCancel={() => setEditingField(null)}
-            inputType="tel"
-          />
+          {isCampoVisivel('contato_telefone') && (
+            <FieldRow
+              icon={<Phone className="w-3.5 h-3.5" />}
+              label="Telefone"
+              value={oportunidade.contato?.telefone || ''}
+              placeholder="—"
+              isEditing={editingField === 'contato_telefone'}
+              onStartEdit={() => {
+                setEditingField('contato_telefone')
+                setEditValue(oportunidade.contato?.telefone || '')
+              }}
+              editValue={editValue}
+              onEditChange={setEditValue}
+              onSave={() => handleSaveContato('telefone', editValue)}
+              onCancel={() => setEditingField(null)}
+              inputType="tel"
+            />
+          )}
         </div>
       </div>
     </div>
+  )
+}
+
+// =====================================================
+// Sub-componente: Gear check item
+// =====================================================
+
+function GearCheckItem({ label, checked, onToggle }: { label: string; checked: boolean; onToggle: () => void }) {
+  return (
+    <button
+      onClick={onToggle}
+      className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-accent transition-all duration-200"
+    >
+      <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
+        checked ? 'bg-primary border-primary text-primary-foreground' : 'border-input'
+      }`}>
+        {checked && <Check className="w-3 h-3" />}
+      </div>
+      <span className={checked ? 'text-foreground' : 'text-muted-foreground'}>{label}</span>
+    </button>
   )
 }
 
