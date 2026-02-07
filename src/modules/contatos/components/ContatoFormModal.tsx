@@ -223,7 +223,16 @@ export function ContatoFormModal({
   const handleSubmit = (data: Record<string, any>) => {
     const cleanData: Record<string, unknown> = { ...data, tipo }
     for (const key of Object.keys(cleanData)) {
-      if (cleanData[key] === '') cleanData[key] = undefined
+      if (cleanData[key] === '') cleanData[key] = null
+    }
+    // DB constraints: empresa requer razao_social, pessoa requer nome
+    if (isPessoa && !cleanData.nome) {
+      form.setError('nome', { message: 'Nome é obrigatório' })
+      return
+    }
+    if (!isPessoa && !cleanData.razao_social) {
+      form.setError('razao_social', { message: 'Razão Social é obrigatória' })
+      return
     }
     if (cleanData.cnpj && typeof cleanData.cnpj === 'string') {
       cleanData.cnpj = cleanData.cnpj.replace(/\D/g, '')
@@ -243,7 +252,7 @@ export function ContatoFormModal({
 
     fields.push(
       <div key="nome-row" className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <InputField label={labelWithReq('nome', 'Nome')} error={form.formState.errors.nome?.message as string} {...form.register('nome', regOpts('nome', 'Nome', true))} />
+        <InputField label="Nome *" error={form.formState.errors.nome?.message as string} {...form.register('nome', { required: 'Nome é obrigatório' })} />
         {isVisible('sobrenome', isCampoRequired('sobrenome')) && (
           <InputField label={labelWithReq('sobrenome', 'Sobrenome')} error={form.formState.errors.sobrenome?.message as string} {...form.register('sobrenome', regOpts('sobrenome', 'Sobrenome'))} />
         )}
@@ -290,7 +299,7 @@ export function ContatoFormModal({
 
     fields.push(
       <div key="empresa-row-1" className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <InputField label={labelWithReq('razao_social', 'Razão Social')} error={form.formState.errors.razao_social?.message as string} {...form.register('razao_social', regOpts('razao_social', 'Razão Social', true))} />
+        <InputField label="Razão Social *" error={form.formState.errors.razao_social?.message as string} {...form.register('razao_social', { required: 'Razão Social é obrigatória' })} />
         {isVisible('nome_fantasia', isCampoRequired('nome_fantasia')) && (
           <InputField label={labelWithReq('nome_fantasia', 'Nome Fantasia')} error={form.formState.errors.nome_fantasia?.message as string} {...form.register('nome_fantasia', regOpts('nome_fantasia', 'Nome Fantasia'))} />
         )}
@@ -460,8 +469,8 @@ export function ContatoFormModal({
             pointer-events-auto
             bg-card border border-border rounded-lg shadow-lg
             flex flex-col
-            w-[calc(100%-32px)] sm:max-w-2xl
-            max-h-[calc(100dvh-32px)] sm:max-h-[85vh]
+            w-[calc(100%-16px)] sm:w-[calc(100%-32px)] sm:max-w-2xl
+            max-h-[calc(100dvh-16px)] sm:max-h-[85vh]
           "
         >
           {/* Header - fixo */}
@@ -483,8 +492,8 @@ export function ContatoFormModal({
           </div>
 
           {/* Content - scrollable */}
-          <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 min-h-0 overscroll-contain">
-            <div className="space-y-4">
+          <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 min-h-0 overscroll-contain">
+            <div className="space-y-5">
               {isPessoa ? renderPessoaFields() : renderEmpresaFields()}
 
               {/* Status + Origem */}
@@ -550,23 +559,14 @@ export function ContatoFormModal({
           </div>
 
           {/* Footer - fixo, FORA do scroll */}
-          <div className="flex-shrink-0 px-4 sm:px-6 py-4 border-t border-border bg-card">
-            <div className="flex items-center justify-between">
-              <div>
-                {onBack && (
-                  <button type="button" onClick={onBack} className="px-4 py-2 text-sm font-medium rounded-md text-primary hover:bg-primary/5 transition-all duration-200" disabled={loading}>
-                    ← Voltar
-                  </button>
-                )}
-              </div>
-              <div className="flex gap-2 sm:gap-3">
-                <button type="button" onClick={onBack || onClose} className="px-4 py-2 text-sm font-medium rounded-md border border-border text-foreground hover:bg-accent transition-all duration-200" disabled={loading}>
-                  Cancelar
-                </button>
-                <button type="submit" disabled={loading} className="px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-200 disabled:opacity-50">
-                  {loading ? 'Salvando...' : isEditing ? 'Salvar' : 'Criar'}
-                </button>
-              </div>
+          <div className="flex-shrink-0 px-4 sm:px-6 py-4 border-t border-border bg-card rounded-b-lg">
+            <div className="flex items-center justify-end gap-2 sm:gap-3">
+              <button type="button" onClick={onBack || onClose} className="px-4 h-9 text-sm font-medium rounded-md border border-border text-foreground hover:bg-accent transition-all duration-200" disabled={loading}>
+                Cancelar
+              </button>
+              <button type="submit" disabled={loading} className="px-4 h-9 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-200 disabled:opacity-50">
+                {loading ? 'Salvando...' : isEditing ? 'Salvar' : 'Criar'}
+              </button>
             </div>
           </div>
         </form>
@@ -616,7 +616,7 @@ function EmpresaSearchField({
     <div ref={ref} className="relative">
       <label className="block text-sm font-medium text-foreground mb-1.5">{label}</label>
       <button type="button" onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+        className="w-full flex items-center justify-between rounded-md border border-input bg-background px-3 h-10 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
       >
         <span className={displayName ? 'text-foreground' : 'text-muted-foreground'}>{displayName || 'Nenhuma'}</span>
         <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
@@ -660,11 +660,11 @@ function EmpresaSearchField({
 // =====================================================
 
 const InputField = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement> & { label: string; error?: string }>(
-  ({ label, error, ...props }, ref) => (
+  ({ label, error, className, ...props }, ref) => (
     <div>
       <label className="block text-sm font-medium text-foreground mb-1.5">{label}</label>
       <input ref={ref} {...props}
-        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+        className={`w-full h-10 rounded-md border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring ${error ? 'border-destructive' : ''} ${className || ''}`}
       />
       {error && <p className="text-xs text-destructive mt-1">{error}</p>}
     </div>
@@ -673,11 +673,11 @@ const InputField = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputEle
 InputField.displayName = 'InputField'
 
 const SelectField = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement> & { label: string; children: React.ReactNode }>(
-  ({ label, children, ...props }, ref) => (
+  ({ label, children, className, ...props }, ref) => (
     <div>
       <label className="block text-sm font-medium text-foreground mb-1.5">{label}</label>
       <select ref={ref} {...props}
-        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+        className={`w-full h-10 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring ${className || ''}`}
       >
         {children}
       </select>
