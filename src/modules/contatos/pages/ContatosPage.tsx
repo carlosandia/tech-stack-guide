@@ -54,6 +54,7 @@ export function ContatosPage() {
   const [page, setPage] = useState(1)
   const perPage = 50
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const searchContainerRef = useRef<HTMLDivElement>(null)
 
   // Estado de ordenação
   const [ordenarPor, setOrdenarPor] = useState('criado_em')
@@ -105,6 +106,18 @@ export function ContatosPage() {
       searchInputRef.current.focus()
     }
   }, [searchOpen])
+
+  // Fechar popover de busca ao clicar fora
+  useEffect(() => {
+    if (!searchOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        if (!busca) setSearchOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [searchOpen, busca])
 
   // Parâmetros da query
   const params: ListarContatosParams = useMemo(() => ({
@@ -208,36 +221,54 @@ export function ContatosPage() {
   useEffect(() => {
     setActions(
       <div className="flex items-center gap-1.5">
-        {/* Busca */}
-        {searchOpen ? (
-          <div className="relative flex items-center">
-            <Search className="absolute left-2.5 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-            <input
-              ref={searchInputRef}
-              type="text"
-              placeholder={`Buscar ${tipo === 'pessoa' ? 'pessoas' : 'empresas'}...`}
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && busca.length > 0) setDebouncedBusca(busca) }}
-              onBlur={() => { if (!busca) setSearchOpen(false) }}
-              className="w-40 sm:w-48 pl-8 pr-7 py-1.5 text-sm rounded-md border border-input bg-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-            <button
-              onClick={() => { setBusca(''); setSearchOpen(false) }}
-              className="absolute right-2 text-muted-foreground hover:text-foreground"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        ) : (
+        {/* Busca - Popover dropdown */}
+        <div className="relative" ref={searchContainerRef}>
           <button
-            onClick={() => setSearchOpen(true)}
-            className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            onClick={() => setSearchOpen(!searchOpen)}
+            className={`p-2 rounded-md transition-colors ${
+              searchOpen || busca
+                ? 'bg-accent text-foreground'
+                : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+            }`}
             title="Buscar"
           >
             <Search className="w-4 h-4" />
+            {busca && !searchOpen && (
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-primary" />
+            )}
           </button>
-        )}
+
+          {searchOpen && (
+            <div className="absolute right-0 top-full mt-1.5 w-72 sm:w-80 bg-card border border-border rounded-lg shadow-lg z-[60] p-3">
+              <div className="relative flex items-center">
+                <Search className="absolute left-2.5 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder={`Buscar ${tipo === 'pessoa' ? 'pessoas' : 'empresas'}...`}
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && busca.length > 0) setDebouncedBusca(busca)
+                    if (e.key === 'Escape') { if (!busca) setSearchOpen(false) }
+                  }}
+                  className="w-full pl-8 pr-8 py-2 text-sm rounded-md border border-input bg-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+                {busca && (
+                  <button
+                    onClick={() => { setBusca(''); setDebouncedBusca(''); searchInputRef.current?.focus() }}
+                    className="absolute right-2.5 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-1.5 px-0.5">
+                Mín. 3 caracteres ou Enter para buscar
+              </p>
+            </div>
+          )}
+        </div>
 
         {/* ---- Desktop: ações inline (lg+) ---- */}
         <div className="hidden lg:flex items-center gap-1.5">
