@@ -291,7 +291,7 @@ function ToolbarWithActions({ pageTitle }: { pageTitle: string }) {
 
   return (
     <div className="flex-shrink-0 z-50 min-h-[48px] bg-gray-50/50 backdrop-blur-sm border-b border-gray-200/60">
-      <div className="flex items-center justify-between h-full px-4 lg:px-6 max-w-[1920px] mx-auto py-1.5">
+      <div className="flex items-center justify-between h-full px-4 lg:px-6 max-w-[1920px] mx-auto py-1.5 gap-3">
         {/* Left: Título + Subtitle */}
         <div className="flex items-center gap-2 min-w-0 flex-shrink-0">
           <h1 className="text-base font-semibold text-foreground whitespace-nowrap">
@@ -311,8 +311,8 @@ function ToolbarWithActions({ pageTitle }: { pageTitle: string }) {
           </div>
         )}
 
-        {/* Right: Actions */}
-        <div className="flex items-center gap-2 flex-shrink-0">
+        {/* Right: Actions - com overflow scroll no mobile */}
+        <div className="flex items-center gap-2 flex-shrink min-w-0">
           {actions}
         </div>
       </div>

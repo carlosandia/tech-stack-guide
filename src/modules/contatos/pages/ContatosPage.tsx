@@ -24,6 +24,7 @@ import { DuplicatasModal } from '../components/DuplicatasModal'
 import { ImportarContatosModal } from '../components/ImportarContatosModal'
 import { ExportarContatosModal } from '../components/ExportarContatosModal'
 import { ContatoColumnsToggle, getInitialColumns, type ColumnConfig } from '../components/ContatoColumnsToggle'
+import { MobileOverflowMenu } from '../components/MobileOverflowMenu'
 
 import { StatusContatoOptions, OrigemContatoOptions } from '../schemas/contatos.schema'
 import { contatosApi } from '../services/contatos.api'
@@ -219,7 +220,7 @@ export function ContatosPage() {
               onChange={(e) => setBusca(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && busca.length > 0) setDebouncedBusca(busca) }}
               onBlur={() => { if (!busca) setSearchOpen(false) }}
-              className="w-48 pl-8 pr-7 py-1.5 text-sm rounded-md border border-input bg-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-40 sm:w-48 pl-8 pr-7 py-1.5 text-sm rounded-md border border-input bg-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             />
             <button
               onClick={() => { setBusca(''); setSearchOpen(false) }}
@@ -238,8 +239,9 @@ export function ContatosPage() {
           </button>
         )}
 
-        {/* Filtros */}
-        <div className="relative">
+        {/* ---- Desktop: ações inline (lg+) ---- */}
+        <div className="hidden lg:flex items-center gap-1.5">
+          {/* Filtros */}
           <button
             onClick={() => setShowFilters(!showFilters)}
             className={`flex items-center gap-1 px-2.5 py-1.5 text-sm rounded-md border transition-colors ${
@@ -249,67 +251,84 @@ export function ContatosPage() {
             }`}
           >
             <Filter className="w-3.5 h-3.5" />
-            <span className="hidden lg:inline">Filtros</span>
+            Filtros
             {filtrosAtivos > 0 && (
               <span className="w-4 h-4 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center">
                 {filtrosAtivos}
               </span>
             )}
           </button>
+
+          {/* Segmentos (Admin) */}
+          {isAdmin && (
+            <button
+              onClick={() => setSegmentosModalOpen(true)}
+              className="flex items-center gap-1 px-2.5 py-1.5 text-sm rounded-md border border-transparent text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            >
+              <Tag className="w-3.5 h-3.5" />
+              Segmentos
+            </button>
+          )}
+
+          {/* Colunas */}
+          <ContatoColumnsToggle tipo={tipo} columns={columns} onChange={setColumns} />
+
+          {/* Separador */}
+          <div className="w-px h-5 bg-border mx-0.5" />
+
+          {/* Exportar */}
+          <button
+            onClick={() => setExportModalOpen(true)}
+            className="flex items-center gap-1 px-2.5 py-1.5 text-sm rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Exportar
+          </button>
+
+          {/* Importar (Admin) */}
+          {isAdmin && (
+            <button
+              onClick={() => setImportarModalOpen(true)}
+              className="flex items-center gap-1 px-2.5 py-1.5 text-sm rounded-md border border-border text-foreground hover:bg-accent transition-colors"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              Importar
+            </button>
+          )}
+
+          {/* Duplicatas - só aparece se existirem */}
+          {isAdmin && temDuplicatas && (
+            <button
+              onClick={() => setDuplicatasModalOpen(true)}
+              className="flex items-center gap-1 px-2.5 py-1.5 text-sm font-medium rounded-md border border-warning/60 bg-warning-muted text-warning-foreground hover:bg-warning-muted/80 transition-colors"
+            >
+              <GitMerge className="w-3.5 h-3.5" />
+              Duplicatas
+              <span className="w-5 h-5 rounded-full bg-warning text-warning-foreground text-[10px] flex items-center justify-center font-bold">
+                {totalDuplicatas}
+              </span>
+            </button>
+          )}
         </div>
 
-        {/* Segmentos (Admin) */}
-        {isAdmin && (
-          <button
-            onClick={() => setSegmentosModalOpen(true)}
-            className="flex items-center gap-1 px-2.5 py-1.5 text-sm rounded-md border border-transparent text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-          >
-            <Tag className="w-3.5 h-3.5" />
-            <span className="hidden lg:inline">Segmentos</span>
-          </button>
-        )}
+        {/* ---- Mobile/Tablet: menu overflow (<lg) ---- */}
+        <MobileOverflowMenu
+          showFilters={showFilters}
+          setShowFilters={setShowFilters}
+          filtrosAtivos={filtrosAtivos}
+          isAdmin={isAdmin}
+          temDuplicatas={temDuplicatas}
+          totalDuplicatas={totalDuplicatas}
+          onSegmentos={() => setSegmentosModalOpen(true)}
+          onExportar={() => setExportModalOpen(true)}
+          onImportar={() => setImportarModalOpen(true)}
+          onDuplicatas={() => setDuplicatasModalOpen(true)}
+          tipo={tipo}
+          columns={columns}
+          onColumnsChange={setColumns}
+        />
 
-        {/* Colunas */}
-        <ContatoColumnsToggle tipo={tipo} columns={columns} onChange={setColumns} />
-
-
-        {/* Separador */}
-        <div className="w-px h-5 bg-border mx-0.5" />
-
-        {/* Importar + Exportar juntos */}
-        <button
-          onClick={() => setExportModalOpen(true)}
-          className="flex items-center gap-1 px-2.5 py-1.5 text-sm rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-        >
-          <Download className="w-3.5 h-3.5" />
-          <span className="hidden lg:inline">Exportar</span>
-        </button>
-
-        {isAdmin && (
-          <button
-            onClick={() => setImportarModalOpen(true)}
-            className="flex items-center gap-1 px-2.5 py-1.5 text-sm rounded-md border border-border text-foreground hover:bg-accent transition-colors"
-          >
-            <Upload className="w-3.5 h-3.5" />
-            <span className="hidden lg:inline">Importar</span>
-          </button>
-        )}
-
-        {/* Duplicatas - só aparece se existirem */}
-        {isAdmin && temDuplicatas && (
-          <button
-            onClick={() => setDuplicatasModalOpen(true)}
-            className="flex items-center gap-1 px-2.5 py-1.5 text-sm font-medium rounded-md border border-amber-300/60 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
-          >
-            <GitMerge className="w-3.5 h-3.5" />
-            <span className="hidden lg:inline">Duplicatas</span>
-            <span className="w-5 h-5 rounded-full bg-amber-500 text-white text-[10px] flex items-center justify-center font-bold">
-              {totalDuplicatas}
-            </span>
-          </button>
-        )}
-
-        {/* Novo Contato */}
+        {/* Novo Contato - sempre visível */}
         <button
           onClick={() => { setEditingContato(null); setFormModalOpen(true) }}
           className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
