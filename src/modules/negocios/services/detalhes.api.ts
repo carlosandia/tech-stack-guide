@@ -5,6 +5,7 @@
  */
 
 import { supabase } from '@/lib/supabase'
+import { api } from '@/lib/api'
 
 // =====================================================
 // Helpers reutilizáveis
@@ -391,11 +392,12 @@ export const detalhesApi = {
     destinatario: string
     assunto: string
     corpo: string
-  }): Promise<void> => {
+  }, enviar: boolean = false): Promise<{ emailId?: string }> => {
     const organizacaoId = await getOrganizacaoId()
     const userId = await getUsuarioId()
 
-    const { error } = await supabase
+    // Salvar no banco como rascunho ou pendente
+    const { data, error } = await supabase
       .from('emails_oportunidades')
       .insert({
         organizacao_id: organizacaoId,
@@ -404,10 +406,71 @@ export const detalhesApi = {
         destinatario: payload.destinatario,
         assunto: payload.assunto,
         corpo: payload.corpo,
-        status: 'rascunho',
+        status: enviar ? 'pendente' : 'rascunho',
       } as any)
+      .select('id')
+      .single()
 
     if (error) throw new Error(error.message)
+
+    // Se deve enviar, chamar backend API
+    if (enviar && data?.id) {
+      try {
+        const response = await api.post('/v1/conexoes/email/enviar', {
+          to: payload.destinatario,
+          subject: payload.assunto,
+          body: payload.corpo,
+          body_type: 'html',
+          oportunidade_id: oportunidadeId,
+        })
+
+        const result = response.data
+        if (result.success) {
+          // Atualizar status para enviado
+          await supabase
+            .from('emails_oportunidades')
+            .update({
+              status: 'enviado',
+              enviado_em: new Date().toISOString(),
+            } as any)
+            .eq('id', data.id)
+        } else {
+          // Marcar como falhou
+          await supabase
+            .from('emails_oportunidades')
+            .update({
+              status: 'falhou',
+              erro_mensagem: result.error || 'Erro desconhecido',
+            } as any)
+            .eq('id', data.id)
+          throw new Error(result.error || 'Erro ao enviar email')
+        }
+      } catch (err: any) {
+        // Atualizar com erro
+        await supabase
+          .from('emails_oportunidades')
+          .update({
+            status: 'falhou',
+            erro_mensagem: err.message || 'Erro ao enviar email',
+          } as any)
+          .eq('id', data.id)
+        throw err
+      }
+    }
+
+    return { emailId: data?.id }
+  },
+
+  verificarConexaoEmail: async (): Promise<{ conectado: boolean; email?: string }> => {
+    try {
+      const response = await api.get('/v1/conexoes/email')
+      return {
+        conectado: response.data.conectado === true,
+        email: response.data.email || undefined,
+      }
+    } catch {
+      return { conectado: false }
+    }
   },
 
   // ---------- REUNIÕES ----------
