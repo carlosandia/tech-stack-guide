@@ -276,8 +276,8 @@ export function KanbanCard({ oportunidade, onDragStart, onClick, config }: Kanba
             </span>
           </div>
 
-          {/* Tarefas badge no header */}
-          {camposVisiveis.includes('tarefas_pendentes') && tarefasTotal > 0 && (
+          {/* Tarefas badge no header — sempre visível quando configurado */}
+          {camposVisiveis.includes('tarefas_pendentes') && (
             <div className="flex-shrink-0 ml-1.5">
               <TarefasPopover
                 oportunidadeId={oportunidade.id}
