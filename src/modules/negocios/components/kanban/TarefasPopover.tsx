@@ -10,6 +10,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { CheckSquare, Square, Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { useQueryClient } from '@tanstack/react-query'
 
 interface Tarefa {
   id: string
@@ -29,6 +30,7 @@ interface TarefasPopoverProps {
 }
 
 export function TarefasPopover({ oportunidadeId, totalPendentes, totalTarefas, totalConcluidas }: TarefasPopoverProps) {
+  const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
   const [tarefas, setTarefas] = useState<Tarefa[]>([])
   const [loading, setLoading] = useState(false)
@@ -157,6 +159,8 @@ export function TarefasPopover({ oportunidadeId, totalPendentes, totalTarefas, t
         setTarefas(prev => prev.map(t =>
           t.id === tarefa.id ? { ...t, status: novoStatus } : t
         ))
+        // Invalidar kanban para atualizar badge imediatamente
+        queryClient.invalidateQueries({ queryKey: ['kanban'] })
       }
     } catch (err) {
       console.error('Erro ao concluir tarefa:', err)
