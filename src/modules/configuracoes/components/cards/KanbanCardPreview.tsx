@@ -151,21 +151,20 @@ export function KanbanCardPreview({ camposVisiveis, camposCustomVisiveis, campos
         {/* Header do card */}
         <div className="px-3 pt-3 pb-2">
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-sm font-semibold text-foreground truncate">
-              Negócio Exemplo
-            </span>
+            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+              <span className="text-sm font-semibold text-foreground truncate">
+                Negócio Exemplo
+              </span>
+              {/* Badge qualificação na mesma linha */}
+              <span className="text-[10px] font-medium bg-success-muted text-success-foreground px-1.5 py-0.5 rounded-sm flex-shrink-0 whitespace-nowrap">
+                ✓ MQL
+              </span>
+            </div>
             {camposVisiveis.includes('tarefas_pendentes') && (
               <span className="text-xs text-muted-foreground flex items-center gap-0.5 flex-shrink-0 ml-2">
                 ☑ 0/1
               </span>
             )}
-          </div>
-
-          {/* Badge MQL */}
-          <div className="flex items-center gap-1.5 mb-2">
-            <span className="text-[10px] font-medium bg-success-muted text-success-foreground px-1.5 py-0.5 rounded-sm">
-              ✓ MQL
-            </span>
           </div>
 
           {/* Campos padrão visíveis */}
