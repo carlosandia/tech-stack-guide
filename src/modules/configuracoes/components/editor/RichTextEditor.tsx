@@ -6,14 +6,12 @@
 
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
-import UnderlineExt from '@tiptap/extension-underline'
 import TextAlign from '@tiptap/extension-text-align'
 import ImageResize from 'tiptap-extension-resize-image'
 import { Table as TableExt } from '@tiptap/extension-table'
 import TableRow from '@tiptap/extension-table-row'
 import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
-import LinkExt from '@tiptap/extension-link'
 import { useEffect, useRef } from 'react'
 import { EditorToolbar } from './EditorToolbar'
 
@@ -30,8 +28,13 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
     extensions: [
       StarterKit.configure({
         heading: { levels: [2, 3] },
+        link: {
+          openOnClick: false,
+          HTMLAttributes: {
+            class: 'text-primary underline',
+          },
+        },
       }),
-      UnderlineExt,
       TextAlign.configure({
         types: ['heading', 'paragraph'],
       }),
@@ -44,12 +47,6 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
       TableRow,
       TableCell,
       TableHeader,
-      LinkExt.configure({
-        openOnClick: false,
-        HTMLAttributes: {
-          class: 'text-primary underline',
-        },
-      }),
     ],
     content: value || '',
     editorProps: {
