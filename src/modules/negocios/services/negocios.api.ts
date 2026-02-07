@@ -123,6 +123,12 @@ export interface Oportunidade {
     tipo: string
     nome_fantasia?: string | null
     razao_social?: string | null
+    empresa_id?: string | null
+    empresa?: {
+      id: string
+      nome_fantasia?: string | null
+      razao_social?: string | null
+    } | null
   } | null
   responsavel?: {
     id: string
@@ -751,11 +757,30 @@ export const negociosApi = {
     if (op.contato_id) {
       const { data: contato } = await supabase
         .from('contatos')
-        .select('id, nome, sobrenome, email, telefone, tipo, nome_fantasia, razao_social, cargo, cnpj, linkedin_url, website, observacoes, endereco_logradouro, endereco_numero, endereco_bairro, endereco_cidade, endereco_estado, endereco_cep')
+        .select('id, nome, sobrenome, email, telefone, tipo, nome_fantasia, razao_social, cargo, cnpj, linkedin_url, website, observacoes, endereco_logradouro, endereco_numero, endereco_bairro, endereco_cidade, endereco_estado, endereco_cep, empresa_id')
         .eq('id', op.contato_id)
         .maybeSingle()
 
       if (contato) {
+        let empresa: { id: string; nome_fantasia?: string | null; razao_social?: string | null } | null = null
+
+        // Se é pessoa e tem empresa vinculada, buscar dados da empresa
+        if (contato.tipo === 'pessoa' && contato.empresa_id) {
+          const { data: empresaData } = await supabase
+            .from('contatos')
+            .select('id, nome_fantasia, razao_social')
+            .eq('id', contato.empresa_id)
+            .maybeSingle()
+
+          if (empresaData) {
+            empresa = {
+              id: empresaData.id,
+              nome_fantasia: empresaData.nome_fantasia,
+              razao_social: empresaData.razao_social,
+            }
+          }
+        }
+
         op.contato = {
           id: contato.id,
           nome: contato.nome,
@@ -765,6 +790,8 @@ export const negociosApi = {
           tipo: contato.tipo,
           nome_fantasia: contato.nome_fantasia,
           razao_social: contato.razao_social,
+          empresa_id: contato.empresa_id,
+          empresa,
         }
       }
     }
