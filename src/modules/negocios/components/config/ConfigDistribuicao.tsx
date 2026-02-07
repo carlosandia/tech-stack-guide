@@ -81,7 +81,8 @@ export function ConfigDistribuicao({ funilId }: Props) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="h-full flex flex-col">
+      <div className="flex-1 overflow-y-auto space-y-6">
       {/* Header */}
       <div>
         <h3 className="text-sm font-semibold text-foreground">Distribuição de Leads</h3>
@@ -241,9 +242,10 @@ export function ConfigDistribuicao({ funilId }: Props) {
           </div>
         </div>
       )}
+      </div>
 
-      {/* Salvar — sticky no bottom */}
-      <div className="sticky bottom-0 pt-3 pb-1 bg-background flex justify-end">
+      {/* Footer fixo — fora da área scrollável */}
+      <div className="flex-shrink-0 pt-3 border-t border-border flex justify-end">
         <button
           onClick={handleSalvar}
           disabled={salvar.isPending}
