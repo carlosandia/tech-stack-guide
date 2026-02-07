@@ -87,7 +87,7 @@ export default function PipelineConfigPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="h-screen bg-background flex flex-col overflow-hidden">
       {/* Header */}
       <header className="h-14 border-b border-border bg-card flex items-center px-4 gap-3 flex-shrink-0">
         <button
