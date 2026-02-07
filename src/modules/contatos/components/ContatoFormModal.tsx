@@ -1,12 +1,15 @@
 /**
  * AIDEV-NOTE: Modal de criação/edição de contato
- * Conforme PRD-06 e Design System
- * Renderiza campos dinâmicos buscados de /configuracoes/campos
- * Respeita visibilidade configurada pelo ContatoFormFieldsToggle
- * Inclui: PhoneInput com bandeira, vinculação empresa↔pessoa, máscaras
+ * Conforme PRD-06 e Design System 10.5 - Modal/Dialog
+ * - z-index: overlay 400, content 401
+ * - Overlay: bg-black/80 backdrop-blur-sm
+ * - Estrutura flex-col: header fixo, content scrollable, footer fixo
+ * - Footer FORA da área de scroll
+ * - Responsividade: w-[calc(100%-32px)] mobile, max-w-2xl desktop
+ * - ARIA, ESC to close, focus trap
  */
 
-import { useEffect, useMemo, useState, forwardRef, useRef } from 'react'
+import { useEffect, useMemo, useState, forwardRef, useRef, useId } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { X, User, Building2, Search } from 'lucide-react'
 import { StatusContatoOptions, OrigemContatoOptions, PorteOptions } from '../schemas/contatos.schema'
@@ -34,7 +37,6 @@ interface ContatoFormModalProps {
   onBack?: () => void
 }
 
-// Map campo tipo to input type
 function getInputType(tipoCampo: string): string {
   switch (tipoCampo) {
     case 'email': return 'email'
@@ -47,7 +49,7 @@ function getInputType(tipoCampo: string): string {
   }
 }
 
-function getPlaceholder(campo: CampoCustomizado): string {
+function getCampoPlaceholderText(campo: CampoCustomizado): string {
   if (campo.placeholder) return campo.placeholder
   switch (campo.tipo) {
     case 'email': return 'email@exemplo.com'
@@ -73,8 +75,9 @@ export function ContatoFormModal({
 }: ContatoFormModalProps) {
   const isEditing = !!contato
   const isPessoa = tipo === 'pessoa'
+  const modalRef = useRef<HTMLDivElement>(null)
+  const titleId = useId()
 
-  // Versão de visibilidade — incrementa quando o toggle muda, forçando re-render
   const [visibilityVersion, setVisibilityVersion] = useState(0)
 
   // Segmentos
@@ -82,11 +85,10 @@ export function ContatoFormModal({
   const segmentosList: Segmento[] = segmentosData?.segmentos || []
   const [selectedSegmentoIds, setSelectedSegmentoIds] = useState<string[]>([])
 
-  // Buscar campos do configurações (config global)
+  // Campos config
   const { campos: todosOsCampos, getLabel, getPlaceholder: getCampoPlaceholder, isRequired: isCampoRequired } = useCamposConfig(tipo)
   const camposCustomizados = todosOsCampos.filter(c => !c.sistema && c.ativo)
 
-  // Helpers: label com marcador de obrigatório + regras de validação
   const labelWithReq = (key: string, fallback: string) => {
     const label = getLabel(key, fallback)
     return isCampoRequired(key) ? `${label} *` : label
@@ -94,13 +96,12 @@ export function ContatoFormModal({
   const regOpts = (key: string, fallback: string, fallbackReq?: boolean) =>
     isCampoRequired(key, fallbackReq) ? { required: `${getLabel(key, fallback)} é obrigatório` } : {}
 
-  // Buscar pessoas disponíveis (para vincular em empresa)
+  // Pessoas para empresa
   const { data: pessoasData } = useContatos(
     !isPessoa ? { tipo: 'pessoa', limit: 200 } : undefined
   )
   const pessoasDisponiveis = pessoasData?.contatos || []
 
-  // Visibilidade dos campos (re-computa quando visibilityVersion muda)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const fieldVisibility = useMemo(() => getFieldVisibility(tipo), [tipo, open, visibilityVersion])
 
@@ -109,15 +110,51 @@ export function ContatoFormModal({
     return fieldVisibility[key] !== false
   }
 
-  const form = useForm<Record<string, any>>({
-    defaultValues: {},
-  })
+  const form = useForm<Record<string, any>>({ defaultValues: {} })
+
+  // ESC to close + focus trap
+  useEffect(() => {
+    if (!open) return
+
+    const prev = document.activeElement as HTMLElement
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose()
+        return
+      }
+      if (e.key === 'Tab' && modalRef.current) {
+        const focusable = modalRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+        if (!focusable.length) return
+        const first = focusable[0]
+        const last = focusable[focusable.length - 1]
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault()
+          last.focus()
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault()
+          first.focus()
+        }
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = originalOverflow
+      prev?.focus()
+    }
+  }, [open, onClose])
 
   // Reset form when opening
   useEffect(() => {
     if (!open) return
 
-    // Reset segmentos selecionados
     setSelectedSegmentoIds(contato?.segmentos?.map(s => s.id) || [])
 
     const defaults: Record<string, any> = {
@@ -126,7 +163,6 @@ export function ContatoFormModal({
     }
 
     if (contato) {
-      // Populate from existing contato
       if (isPessoa) {
         defaults.nome = contato.nome || ''
         defaults.sobrenome = contato.sobrenome || ''
@@ -150,13 +186,11 @@ export function ContatoFormModal({
       defaults.owner_id = contato.owner_id || ''
       defaults.observacoes = contato.observacoes || ''
 
-      // Custom fields from contato (if stored)
       camposCustomizados.forEach(c => {
         const key = `custom_${c.slug}`
         defaults[key] = (contato as any)?.[key] || (contato as any)?.campos_customizados?.[c.slug] || ''
       })
     } else {
-      // New contato defaults
       if (isPessoa) {
         defaults.nome = ''
         defaults.sobrenome = ''
@@ -188,15 +222,12 @@ export function ContatoFormModal({
 
   const handleSubmit = (data: Record<string, any>) => {
     const cleanData: Record<string, unknown> = { ...data, tipo }
-    // Clean empty strings to undefined
     for (const key of Object.keys(cleanData)) {
       if (cleanData[key] === '') cleanData[key] = undefined
     }
-    // Strip CNPJ formatting before saving
     if (cleanData.cnpj && typeof cleanData.cnpj === 'string') {
       cleanData.cnpj = cleanData.cnpj.replace(/\D/g, '')
     }
-    // Include segmento_ids for linking after creation
     if (selectedSegmentoIds.length > 0) {
       cleanData.segmento_ids = selectedSegmentoIds
     }
@@ -205,12 +236,11 @@ export function ContatoFormModal({
 
   if (!open) return null
 
+  // ========= Render helpers =========
 
-  // Build the visible system fields for pessoa
   const renderPessoaFields = () => {
     const fields: JSX.Element[] = []
 
-    // Row 1: Nome + Sobrenome
     fields.push(
       <div key="nome-row" className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <InputField label={labelWithReq('nome', 'Nome')} error={form.formState.errors.nome?.message as string} {...form.register('nome', regOpts('nome', 'Nome', true))} />
@@ -220,7 +250,6 @@ export function ContatoFormModal({
       </div>
     )
 
-    // Dynamic rows for optional sistema fields
     const optionalRows: JSX.Element[] = []
 
     if (isVisible('email', isCampoRequired('email'))) {
@@ -228,17 +257,10 @@ export function ContatoFormModal({
     }
     if (isVisible('telefone', isCampoRequired('telefone'))) {
       optionalRows.push(
-        <Controller
-          key="telefone"
-          name="telefone"
-          control={form.control}
+        <Controller key="telefone" name="telefone" control={form.control}
           rules={isCampoRequired('telefone') ? { required: `${getLabel('telefone', 'Telefone')} é obrigatório` } : {}}
           render={({ field }) => (
-            <PhoneInputField
-              label={labelWithReq('telefone', 'Telefone')}
-              value={field.value}
-              onChange={field.onChange}
-            />
+            <PhoneInputField label={labelWithReq('telefone', 'Telefone')} value={field.value} onChange={field.onChange} />
           )}
         />
       )
@@ -251,24 +273,13 @@ export function ContatoFormModal({
     }
     if (isVisible('empresa_id', false)) {
       optionalRows.push(
-        <EmpresaSearchField
-          key="empresa"
-          label="Empresa vinculada"
-          empresas={empresas}
-          value={form.watch('empresa_id') || ''}
-          onChange={(id) => form.setValue('empresa_id', id)}
-        />
+        <EmpresaSearchField key="empresa" label="Empresa vinculada" empresas={empresas} value={form.watch('empresa_id') || ''} onChange={(id) => form.setValue('empresa_id', id)} />
       )
     }
 
-    // Group in pairs
     for (let i = 0; i < optionalRows.length; i += 2) {
       const pair = optionalRows.slice(i, i + 2)
-      fields.push(
-        <div key={`opt-row-${i}`} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {pair}
-        </div>
-      )
+      fields.push(<div key={`opt-row-${i}`} className="grid grid-cols-1 sm:grid-cols-2 gap-4">{pair}</div>)
     }
 
     return fields
@@ -277,7 +288,6 @@ export function ContatoFormModal({
   const renderEmpresaFields = () => {
     const fields: JSX.Element[] = []
 
-    // Row 1: Razão Social + Nome Fantasia
     fields.push(
       <div key="empresa-row-1" className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <InputField label={labelWithReq('razao_social', 'Razão Social')} error={form.formState.errors.razao_social?.message as string} {...form.register('razao_social', regOpts('razao_social', 'Razão Social', true))} />
@@ -291,19 +301,11 @@ export function ContatoFormModal({
 
     if (isVisible('cnpj', isCampoRequired('cnpj'))) {
       optionalRows.push(
-        <Controller
-          key="cnpj"
-          name="cnpj"
-          control={form.control}
+        <Controller key="cnpj" name="cnpj" control={form.control}
           rules={isCampoRequired('cnpj') ? { required: `${getLabel('cnpj', 'CNPJ')} é obrigatório` } : {}}
           render={({ field }) => (
-            <InputField
-              label={labelWithReq('cnpj', 'CNPJ')}
-              placeholder={getCampoPlaceholder('cnpj', 'XX.XXX.XXX/XXXX-XX')}
-              value={field.value || ''}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                field.onChange(formatCnpj(e.target.value))
-              }}
+            <InputField label={labelWithReq('cnpj', 'CNPJ')} placeholder={getCampoPlaceholder('cnpj', 'XX.XXX.XXX/XXXX-XX')}
+              value={field.value || ''} onChange={(e: React.ChangeEvent<HTMLInputElement>) => { field.onChange(formatCnpj(e.target.value)) }}
             />
           )}
         />
@@ -314,17 +316,10 @@ export function ContatoFormModal({
     }
     if (isVisible('telefone', isCampoRequired('telefone'))) {
       optionalRows.push(
-        <Controller
-          key="telefone"
-          name="telefone"
-          control={form.control}
+        <Controller key="telefone" name="telefone" control={form.control}
           rules={isCampoRequired('telefone') ? { required: `${getLabel('telefone', 'Telefone')} é obrigatório` } : {}}
           render={({ field }) => (
-            <PhoneInputField
-              label={labelWithReq('telefone', 'Telefone')}
-              value={field.value}
-              onChange={field.onChange}
-            />
+            <PhoneInputField label={labelWithReq('telefone', 'Telefone')} value={field.value} onChange={field.onChange} />
           )}
         />
       )
@@ -339,26 +334,19 @@ export function ContatoFormModal({
       optionalRows.push(
         <SelectField key="porte" label={labelWithReq('porte', 'Porte')} {...form.register('porte', regOpts('porte', 'Porte'))}>
           <option value="">Selecione</option>
-          {PorteOptions.map((p) => (
-            <option key={p.value} value={p.value}>{p.label}</option>
-          ))}
+          {PorteOptions.map((p) => (<option key={p.value} value={p.value}>{p.label}</option>))}
         </SelectField>
       )
     }
 
     for (let i = 0; i < optionalRows.length; i += 2) {
       const pair = optionalRows.slice(i, i + 2)
-      fields.push(
-        <div key={`opt-row-${i}`} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {pair}
-        </div>
-      )
+      fields.push(<div key={`opt-row-${i}`} className="grid grid-cols-1 sm:grid-cols-2 gap-4">{pair}</div>)
     }
 
     return fields
   }
 
-  // Render custom fields
   const renderCustomFields = () => {
     const visibleCustom = camposCustomizados.filter(c => isVisible(`custom_${c.slug}`, c.obrigatorio))
     if (visibleCustom.length === 0) return null
@@ -368,24 +356,11 @@ export function ContatoFormModal({
       const key = `custom_${campo.slug}`
       const label = campo.nome + (campo.obrigatorio ? ' *' : '')
 
-      if (campo.tipo === 'select' && campo.opcoes?.length) {
+      if ((campo.tipo === 'select' || campo.tipo === 'multi_select') && campo.opcoes?.length) {
         return (
           <SelectField key={key} label={label} {...form.register(key)}>
             <option value="">Selecione</option>
-            {campo.opcoes.map((opt) => (
-              <option key={opt} value={opt}>{opt}</option>
-            ))}
-          </SelectField>
-        )
-      }
-
-      if (campo.tipo === 'multi_select' && campo.opcoes?.length) {
-        return (
-          <SelectField key={key} label={label} {...form.register(key)}>
-            <option value="">Selecione</option>
-            {campo.opcoes.map((opt) => (
-              <option key={opt} value={opt}>{opt}</option>
-            ))}
+            {campo.opcoes.map((opt) => (<option key={opt} value={opt}>{opt}</option>))}
           </SelectField>
         )
       }
@@ -394,10 +369,7 @@ export function ContatoFormModal({
         return (
           <div key={key}>
             <label className="block text-sm font-medium text-foreground mb-1.5">{label}</label>
-            <textarea
-              {...form.register(key)}
-              rows={2}
-              placeholder={getPlaceholder(campo)}
+            <textarea {...form.register(key)} rows={2} placeholder={getCampoPlaceholderText(campo)}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
             />
           </div>
@@ -415,40 +387,20 @@ export function ContatoFormModal({
 
       if (campo.tipo === 'telefone') {
         return (
-          <Controller
-            key={key}
-            name={key}
-            control={form.control}
-            render={({ field }) => (
-              <PhoneInputField
-                label={label}
-                value={field.value}
-                onChange={field.onChange}
-              />
-            )}
+          <Controller key={key} name={key} control={form.control}
+            render={({ field }) => (<PhoneInputField label={label} value={field.value} onChange={field.onChange} />)}
           />
         )
       }
 
       return (
-        <InputField
-          key={key}
-          label={label}
-          type={getInputType(campo.tipo)}
-          placeholder={getPlaceholder(campo)}
-          {...form.register(key)}
-        />
+        <InputField key={key} label={label} type={getInputType(campo.tipo)} placeholder={getCampoPlaceholderText(campo)} {...form.register(key)} />
       )
     })
 
-    // Group in pairs
     for (let i = 0; i < fields.length; i += 2) {
       const pair = fields.slice(i, i + 2)
-      rows.push(
-        <div key={`custom-row-${i}`} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {pair}
-        </div>
-      )
+      rows.push(<div key={`custom-row-${i}`} className="grid grid-cols-1 sm:grid-cols-2 gap-4">{pair}</div>)
     }
 
     return (
@@ -461,10 +413,8 @@ export function ContatoFormModal({
     )
   }
 
-  // Render pessoas vinculadas (para empresa)
   const renderPessoasVinculadas = () => {
     if (isPessoa || !isEditing || !contato) return null
-
     const pessoasVinculadas = pessoasDisponiveis.filter(p => p.empresa_id === contato.id)
 
     return (
@@ -490,131 +440,143 @@ export function ContatoFormModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[500] flex items-center justify-center">
-      <div className="fixed inset-0 bg-foreground/20 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-background rounded-lg shadow-lg w-full max-w-2xl max-h-[85vh] flex flex-col z-10">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-          <div className="flex items-center gap-2">
-            {isPessoa ? <User className="w-5 h-5 text-primary" /> : <Building2 className="w-5 h-5 text-primary" />}
-            <h3 className="text-lg font-semibold text-foreground">
-              {isEditing ? 'Editar' : 'Nova'} {isPessoa ? 'Pessoa' : 'Empresa'}
-            </h3>
-          </div>
-          <div className="flex items-center gap-1">
-            <ContatoFormFieldsToggle tipo={tipo} onChange={() => setVisibilityVersion(v => v + 1)} />
-            <button onClick={onClose} className="p-2 hover:bg-accent rounded-md transition-colors">
-              <X className="w-4 h-4 text-muted-foreground" />
-            </button>
-          </div>
-        </div>
+    <>
+      {/* Overlay - z-400 */}
+      <div
+        className="fixed inset-0 z-[400] bg-black/80 backdrop-blur-sm"
+        onClick={onClose}
+        aria-hidden="true"
+      />
 
-        {/* Form */}
-        <form onSubmit={form.handleSubmit(handleSubmit)} className="flex-1 overflow-y-auto p-6">
-          <div className="space-y-4">
-            {/* Sistema fields */}
-            {isPessoa ? renderPessoaFields() : renderEmpresaFields()}
-
-            {/* Status + Origem (always visible) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <SelectField label="Status" {...form.register('status')}>
-                {StatusContatoOptions.map((s) => (
-                  <option key={s.value} value={s.value}>{s.label}</option>
-                ))}
-              </SelectField>
-              <SelectField label="Origem" {...form.register('origem')}>
-                {OrigemContatoOptions.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </SelectField>
+      {/* Dialog container - z-401 */}
+      <div className="fixed inset-0 z-[401] flex items-center justify-center pointer-events-none">
+        <form
+          ref={modalRef as any}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          onSubmit={form.handleSubmit(handleSubmit)}
+          className="
+            pointer-events-auto
+            bg-card border border-border rounded-lg shadow-lg
+            flex flex-col
+            w-[calc(100%-32px)] sm:max-w-2xl
+            max-h-[calc(100dvh-32px)] sm:max-h-[85vh]
+          "
+        >
+          {/* Header - fixo */}
+          <div className="flex-shrink-0 px-4 sm:px-6 py-4 border-b border-border flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                {isPessoa ? <User className="w-5 h-5 text-primary" /> : <Building2 className="w-5 h-5 text-primary" />}
+              </div>
+              <h2 id={titleId} className="text-lg font-semibold text-foreground">
+                {isEditing ? 'Editar' : isPessoa ? 'Nova Pessoa' : 'Nova Empresa'}
+              </h2>
             </div>
-
-            {/* Responsável (Admin only) */}
-            {isAdmin && usuarios.length > 0 && (
-              <SelectField label="Responsável" {...form.register('owner_id')}>
-                <option value="">Sem responsável</option>
-                {usuarios.map((u) => (
-                  <option key={u.id} value={u.id}>{u.nome} {u.sobrenome || ''}</option>
-                ))}
-              </SelectField>
-            )}
-
-            {/* Segmentos */}
-            {segmentosList.length > 0 && (
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">Segmentos</label>
-                <div className="flex flex-wrap gap-2 p-3 rounded-md border border-input bg-background min-h-[42px]">
-                  {segmentosList.map(seg => {
-                    const isSelected = selectedSegmentoIds.includes(seg.id)
-                    return (
-                      <button
-                        key={seg.id}
-                        type="button"
-                        onClick={() => {
-                          setSelectedSegmentoIds(prev =>
-                            isSelected ? prev.filter(id => id !== seg.id) : [...prev, seg.id]
-                          )
-                        }}
-                        className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
-                          isSelected
-                            ? 'bg-primary/10 text-primary border border-primary/30'
-                            : 'bg-muted text-muted-foreground border border-transparent hover:border-border'
-                        }`}
-                      >
-                        <span className="w-2 h-2 rounded-full mr-1.5" style={{ backgroundColor: seg.cor }} />
-                        {seg.nome}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Campos personalizados */}
-            {renderCustomFields()}
-
-            {/* Pessoas vinculadas (empresa) */}
-            {renderPessoasVinculadas()}
-
-            {/* Observações */}
-            {isVisible('observacoes', false) && (
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">Observações</label>
-                <textarea
-                  {...form.register('observacoes')}
-                  rows={3}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
-                />
-              </div>
-            )}
+            <div className="flex items-center gap-1">
+              <ContatoFormFieldsToggle tipo={tipo} onChange={() => setVisibilityVersion(v => v + 1)} />
+              <button type="button" onClick={onClose} className="p-2 hover:bg-accent rounded-md transition-all duration-200" aria-label="Fechar">
+                <X className="w-4 h-4 text-muted-foreground" />
+              </button>
+            </div>
           </div>
 
-          {/* Footer */}
-          <div className="flex items-center justify-between mt-6 pt-4 border-t border-border">
-            <div>
-              {onBack && (
-                <button type="button" onClick={onBack} className="px-4 py-2 text-sm font-medium rounded-md text-primary hover:bg-primary/5 transition-colors" disabled={loading}>
-                  ← Voltar para visualização
-                </button>
+          {/* Content - scrollable */}
+          <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 min-h-0 overscroll-contain">
+            <div className="space-y-4">
+              {isPessoa ? renderPessoaFields() : renderEmpresaFields()}
+
+              {/* Status + Origem */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <SelectField label="Status" {...form.register('status')}>
+                  {StatusContatoOptions.map((s) => (<option key={s.value} value={s.value}>{s.label}</option>))}
+                </SelectField>
+                <SelectField label="Origem" {...form.register('origem')}>
+                  {OrigemContatoOptions.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+                </SelectField>
+              </div>
+
+              {/* Responsável (Admin only) */}
+              {isAdmin && usuarios.length > 0 && (
+                <SelectField label="Responsável" {...form.register('owner_id')}>
+                  <option value="">Sem responsável</option>
+                  {usuarios.map((u) => (<option key={u.id} value={u.id}>{u.nome} {u.sobrenome || ''}</option>))}
+                </SelectField>
+              )}
+
+              {/* Segmentos */}
+              {segmentosList.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1.5">Segmentos</label>
+                  <div className="flex flex-wrap gap-2 p-3 rounded-md border border-input bg-background min-h-[42px]">
+                    {segmentosList.map(seg => {
+                      const isSelected = selectedSegmentoIds.includes(seg.id)
+                      return (
+                        <button key={seg.id} type="button"
+                          onClick={() => {
+                            setSelectedSegmentoIds(prev =>
+                              isSelected ? prev.filter(id => id !== seg.id) : [...prev, seg.id]
+                            )
+                          }}
+                          className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium transition-all duration-200 ${
+                            isSelected
+                              ? 'bg-primary/10 text-primary border border-primary/30'
+                              : 'bg-muted text-muted-foreground border border-transparent hover:border-border'
+                          }`}
+                        >
+                          <span className="w-2 h-2 rounded-full mr-1.5" style={{ backgroundColor: seg.cor }} />
+                          {seg.nome}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {renderCustomFields()}
+              {renderPessoasVinculadas()}
+
+              {/* Observações */}
+              {isVisible('observacoes', false) && (
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1.5">Observações</label>
+                  <textarea {...form.register('observacoes')} rows={3}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+                  />
+                </div>
               )}
             </div>
-            <div className="flex gap-3">
-              <button type="button" onClick={onBack || onClose} className="px-4 py-2 text-sm font-medium rounded-md border border-border text-foreground hover:bg-accent transition-colors" disabled={loading}>
-                Cancelar
-              </button>
-              <button type="submit" disabled={loading} className="px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50">
-                {loading ? 'Salvando...' : isEditing ? 'Salvar' : 'Criar'}
-              </button>
+          </div>
+
+          {/* Footer - fixo, FORA do scroll */}
+          <div className="flex-shrink-0 px-4 sm:px-6 py-4 border-t border-border bg-card">
+            <div className="flex items-center justify-between">
+              <div>
+                {onBack && (
+                  <button type="button" onClick={onBack} className="px-4 py-2 text-sm font-medium rounded-md text-primary hover:bg-primary/5 transition-all duration-200" disabled={loading}>
+                    ← Voltar
+                  </button>
+                )}
+              </div>
+              <div className="flex gap-2 sm:gap-3">
+                <button type="button" onClick={onBack || onClose} className="px-4 py-2 text-sm font-medium rounded-md border border-border text-foreground hover:bg-accent transition-all duration-200" disabled={loading}>
+                  Cancelar
+                </button>
+                <button type="submit" disabled={loading} className="px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-200 disabled:opacity-50">
+                  {loading ? 'Salvando...' : isEditing ? 'Salvar' : 'Criar'}
+                </button>
+              </div>
             </div>
           </div>
         </form>
       </div>
-    </div>
+    </>
   )
 }
 
 // =====================================================
-// Componente de busca de empresa com search
+// Empresa search field
 // =====================================================
 
 function EmpresaSearchField({
@@ -633,14 +595,10 @@ function EmpresaSearchField({
   const ref = useRef<HTMLDivElement>(null)
 
   const selectedEmpresa = empresas.find(e => e.id === value)
-  const displayName = selectedEmpresa
-    ? (selectedEmpresa.nome_fantasia || selectedEmpresa.razao_social || '')
-    : ''
+  const displayName = selectedEmpresa ? (selectedEmpresa.nome_fantasia || selectedEmpresa.razao_social || '') : ''
 
   const filtered = search
-    ? empresas.filter(e =>
-        (e.nome_fantasia || e.razao_social || '').toLowerCase().includes(search.toLowerCase())
-      )
+    ? empresas.filter(e => (e.nome_fantasia || e.razao_social || '').toLowerCase().includes(search.toLowerCase()))
     : empresas
 
   useEffect(() => {
@@ -657,50 +615,31 @@ function EmpresaSearchField({
   return (
     <div ref={ref} className="relative">
       <label className="block text-sm font-medium text-foreground mb-1.5">{label}</label>
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
+      <button type="button" onClick={() => setOpen(!open)}
         className="w-full flex items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
       >
-        <span className={displayName ? 'text-foreground' : 'text-muted-foreground'}>
-          {displayName || 'Nenhuma'}
-        </span>
+        <span className={displayName ? 'text-foreground' : 'text-muted-foreground'}>{displayName || 'Nenhuma'}</span>
         <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full mt-1 w-full bg-background rounded-md shadow-lg border border-border py-1 z-[650] max-h-[220px]">
+        <div className="absolute left-0 top-full mt-1 w-full bg-background rounded-md shadow-lg border border-border py-1 z-[600] max-h-[220px]">
           <div className="px-2 pb-1 pt-1">
             <div className="relative">
               <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Buscar empresa..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
+              <input type="text" placeholder="Buscar empresa..." value={search} onChange={e => setSearch(e.target.value)}
                 className="w-full pl-8 pr-3 py-1.5 text-sm rounded-md border border-input bg-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                 autoFocus
               />
             </div>
           </div>
           <div className="overflow-y-auto max-h-[160px]">
-            <button
-              type="button"
-              onClick={() => { onChange(''); setOpen(false); setSearch('') }}
-              className={`flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent transition-colors text-left ${
-                !value ? 'text-primary' : 'text-muted-foreground'
-              }`}
-            >
-              Nenhuma
-            </button>
+            <button type="button" onClick={() => { onChange(''); setOpen(false); setSearch('') }}
+              className={`flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent transition-colors text-left ${!value ? 'text-primary' : 'text-muted-foreground'}`}
+            >Nenhuma</button>
             {filtered.map(e => (
-              <button
-                key={e.id}
-                type="button"
-                onClick={() => { onChange(e.id); setOpen(false); setSearch('') }}
-                className={`flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent transition-colors text-left ${
-                  value === e.id ? 'bg-primary/5 text-primary' : 'text-foreground'
-                }`}
+              <button key={e.id} type="button" onClick={() => { onChange(e.id); setOpen(false); setSearch('') }}
+                className={`flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent transition-colors text-left ${value === e.id ? 'bg-primary/5 text-primary' : 'text-foreground'}`}
               >
                 <Building2 className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground" />
                 <span className="truncate">{e.nome_fantasia || e.razao_social}</span>
@@ -717,16 +656,14 @@ function EmpresaSearchField({
 }
 
 // =====================================================
-// Componentes auxiliares de formulário
+// Form field components
 // =====================================================
 
 const InputField = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement> & { label: string; error?: string }>(
   ({ label, error, ...props }, ref) => (
     <div>
       <label className="block text-sm font-medium text-foreground mb-1.5">{label}</label>
-      <input
-        ref={ref}
-        {...props}
+      <input ref={ref} {...props}
         className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
       />
       {error && <p className="text-xs text-destructive mt-1">{error}</p>}
@@ -739,9 +676,7 @@ const SelectField = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelec
   ({ label, children, ...props }, ref) => (
     <div>
       <label className="block text-sm font-medium text-foreground mb-1.5">{label}</label>
-      <select
-        ref={ref}
-        {...props}
+      <select ref={ref} {...props}
         className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
       >
         {children}
