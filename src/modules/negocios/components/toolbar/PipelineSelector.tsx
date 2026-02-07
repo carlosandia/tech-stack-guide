@@ -5,9 +5,9 @@
  */
 
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { ChevronDown, Plus, Layers, Search, Archive, ArchiveRestore, Trash2, ChevronRight } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { ChevronDown, Plus, Layers, Search, Archive, ArchiveRestore, Trash2, ChevronRight, Settings } from 'lucide-react'
 import type { Funil } from '../../services/negocios.api'
-
 
 interface PipelineSelectorProps {
   funis: Funil[]
@@ -30,6 +30,7 @@ export function PipelineSelector({
   onExcluir,
   isAdmin,
 }: PipelineSelectorProps) {
+  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [busca, setBusca] = useState('')
   const [showArquivadas, setShowArquivadas] = useState(false)
@@ -142,6 +143,12 @@ export function PipelineSelector({
                   }}
                   onArquivar={(e) => handleArquivar(e, funil.id)}
                   onExcluir={(e) => handleExcluir(e, funil.id, funil.nome)}
+                  onConfigurar={(e) => {
+                    e.stopPropagation()
+                    setOpen(false)
+                    setBusca('')
+                    navigate(`/app/negocios/pipeline/${funil.id}`)
+                  }}
                 />
               ))}
             </div>
@@ -215,6 +222,7 @@ function FunilItem({
   onArquivar,
   onDesarquivar,
   onExcluir,
+  onConfigurar,
 }: {
   funil: Funil
   isSelected: boolean
@@ -224,6 +232,7 @@ function FunilItem({
   onArquivar?: (e: React.MouseEvent) => void
   onDesarquivar?: (e: React.MouseEvent) => void
   onExcluir?: (e: React.MouseEvent) => void
+  onConfigurar?: (e: React.MouseEvent) => void
 }) {
   const [showActions, setShowActions] = useState(false)
 
@@ -258,6 +267,15 @@ function FunilItem({
       {/* Ações de admin no hover */}
       {isAdmin && showActions && (
         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5 bg-card border border-border rounded-md shadow-sm px-0.5 py-0.5">
+          {!isArquivada && onConfigurar && (
+            <button
+              onClick={onConfigurar}
+              title="Configurar"
+              className="p-1 hover:bg-accent rounded transition-all duration-200"
+            >
+              <Settings className="w-3.5 h-3.5 text-muted-foreground" />
+            </button>
+          )}
           {isArquivada ? (
             <button
               onClick={onDesarquivar}
