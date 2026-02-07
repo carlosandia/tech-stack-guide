@@ -535,16 +535,16 @@ export const negociosApi = {
   },
 
   // Criar contato rápido (inline no modal)
-  criarContatoRapido: async (payload: {
-    tipo: 'pessoa' | 'empresa'
-    nome?: string
-    sobrenome?: string
-    email?: string
-    telefone?: string
-    nome_fantasia?: string
-  }): Promise<{ id: string }> => {
+  criarContatoRapido: async (payload: Record<string, any> & { tipo: 'pessoa' | 'empresa' }): Promise<{ id: string }> => {
     const organizacaoId = await getOrganizacaoId()
     const userId = await getUsuarioId()
+
+    // Whitelist de colunas válidas na tabela contatos
+    const VALID_COLUMNS = new Set([
+      'tipo', 'nome', 'sobrenome', 'email', 'telefone', 'nome_fantasia',
+      'razao_social', 'cnpj', 'cargo', 'linkedin_url', 'website',
+      'segmento', 'porte', 'observacoes',
+    ])
 
     const insertData: Record<string, unknown> = {
       organizacao_id: organizacaoId,
@@ -553,11 +553,13 @@ export const negociosApi = {
       origem: 'manual',
     }
 
-    if (payload.nome) insertData.nome = payload.nome
-    if (payload.sobrenome) insertData.sobrenome = payload.sobrenome
-    if (payload.email) insertData.email = payload.email
-    if (payload.telefone) insertData.telefone = payload.telefone
-    if (payload.nome_fantasia) insertData.nome_fantasia = payload.nome_fantasia
+    for (const [key, val] of Object.entries(payload)) {
+      if (key === 'tipo') continue
+      if (key.startsWith('custom_')) continue // custom fields handled separately
+      if (VALID_COLUMNS.has(key) && val) {
+        insertData[key] = val
+      }
+    }
 
     const { data, error } = await supabase
       .from('contatos')

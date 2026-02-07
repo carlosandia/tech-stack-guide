@@ -8,7 +8,9 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { Loader2, Target, Search, X, User, Building2, Plus, Trash2, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react'
 import { ModalBase } from '@/modules/configuracoes/components/ui/ModalBase'
 import { negociosApi } from '../../services/negocios.api'
-import { formatTelefone, unformatTelefone, formatCurrency, unformatCurrency } from '@/lib/formatters'
+import { formatCurrency, unformatCurrency } from '@/lib/formatters'
+import { ContatoInlineForm, validarContatoInline } from './ContatoInlineForm'
+import { useCamposConfig } from '@/modules/contatos/hooks/useCamposConfig'
 
 // =====================================================
 // Types
@@ -80,11 +82,10 @@ export function NovaOportunidadeModal({
   const [buscandoContato, setBuscandoContato] = useState(false)
   const [showResultados, setShowResultados] = useState(false)
   const [criarNovo, setCriarNovo] = useState(false)
-  const [novoNome, setNovoNome] = useState('')
-  const [novoSobrenome, setNovoSobrenome] = useState('')
-  const [novoEmail, setNovoEmail] = useState('')
-  const [novoTelefone, setNovoTelefone] = useState('')
-  const [novoNomeFantasia, setNovoNomeFantasia] = useState('')
+  const [contatoFields, setContatoFields] = useState<Record<string, string>>({})
+
+  // Config global para validação
+  const { isRequired: isCampoRequired } = useCamposConfig(tipoContato)
 
   // Opportunity state
   const [tipoValor, setTipoValor] = useState<'manual' | 'produtos'>('manual')
@@ -151,11 +152,11 @@ export function NovaOportunidadeModal({
       return [contatoSelecionado.nome, contatoSelecionado.sobrenome].filter(Boolean).join(' ')
     }
     if (criarNovo) {
-      if (tipoContato === 'empresa') return novoNomeFantasia
-      return [novoNome, novoSobrenome].filter(Boolean).join(' ')
+      if (tipoContato === 'empresa') return contatoFields.nome_fantasia || ''
+      return [contatoFields.nome, contatoFields.sobrenome].filter(Boolean).join(' ')
     }
     return ''
-  }, [contatoSelecionado, criarNovo, novoNome, novoSobrenome, novoNomeFantasia, tipoContato])
+  }, [contatoSelecionado, criarNovo, contatoFields, tipoContato])
 
   // Search contatos with debounce
   const handleBuscaContato = useCallback((value: string) => {
@@ -245,9 +246,7 @@ export function NovaOportunidadeModal({
   const valorFinal = tipoValor === 'produtos' ? totalProdutos : unformatCurrency(valorManualFormatado)
 
   // Validation - título é auto-gerado, basta ter contato válido
-  const contatoValido = contatoSelecionado || (criarNovo && (
-    tipoContato === 'pessoa' ? novoNome.trim().length >= 2 : novoNomeFantasia.trim().length >= 2
-  ))
+  const contatoValido = contatoSelecionado || (criarNovo && validarContatoInline(tipoContato, contatoFields, isCampoRequired))
   const formularioValido = !!contatoValido
 
   // Submit
@@ -260,14 +259,15 @@ export function NovaOportunidadeModal({
 
       // Create contato if needed
       if (!contatoId && criarNovo) {
-        const novoContato = await negociosApi.criarContatoRapido({
-          tipo: tipoContato,
-          nome: tipoContato === 'pessoa' ? novoNome.trim() : undefined,
-          sobrenome: tipoContato === 'pessoa' ? novoSobrenome.trim() || undefined : undefined,
-          email: novoEmail.trim() || undefined,
-          telefone: novoTelefone ? unformatTelefone(novoTelefone) : undefined,
-          nome_fantasia: tipoContato === 'empresa' ? novoNomeFantasia.trim() : undefined,
-        })
+        // Build payload from dynamic fields
+        const payload: Record<string, any> = { tipo: tipoContato }
+        for (const [key, val] of Object.entries(contatoFields)) {
+          if (val?.trim()) {
+            // Strip custom_ prefix for custom fields
+            payload[key.startsWith('custom_') ? key : key] = val.trim()
+          }
+        }
+        const novoContato = await negociosApi.criarContatoRapido(payload as Record<string, any> & { tipo: 'pessoa' | 'empresa' })
         contatoId = novoContato.id
       }
 
@@ -373,6 +373,7 @@ export function NovaOportunidadeModal({
                 setContatoSelecionado(null)
                 setCriarNovo(false)
                 setBuscaContato('')
+                setContatoFields({})
               }}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded transition-all duration-200 ${
                 tipoContato === 'pessoa'
@@ -389,6 +390,7 @@ export function NovaOportunidadeModal({
                 setContatoSelecionado(null)
                 setCriarNovo(false)
                 setBuscaContato('')
+                setContatoFields({})
               }}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded transition-all duration-200 ${
                 tipoContato === 'empresa'
@@ -515,101 +517,12 @@ export function NovaOportunidadeModal({
             </div>
           ) : (
             /* Formulário inline para novo contato */
-            <div className="space-y-3 p-3 bg-muted/30 rounded-lg border border-border">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-muted-foreground">
-                  {tipoContato === 'pessoa' ? 'Nova Pessoa' : 'Nova Empresa'}
-                </span>
-                <button
-                  onClick={() => setCriarNovo(false)}
-                  className="text-xs text-primary hover:underline"
-                >
-                  Buscar existente
-                </button>
-              </div>
-
-              {tipoContato === 'pessoa' ? (
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-foreground mb-1">
-                      Nome <span className="text-destructive">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={novoNome}
-                      onChange={(e) => setNovoNome(e.target.value)}
-                      placeholder="Nome"
-                      className="w-full h-9 px-3 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-foreground mb-1">Sobrenome</label>
-                    <input
-                      type="text"
-                      value={novoSobrenome}
-                      onChange={(e) => setNovoSobrenome(e.target.value)}
-                      placeholder="Sobrenome"
-                      className="w-full h-9 px-3 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-foreground mb-1">Email</label>
-                    <input
-                      type="email"
-                      value={novoEmail}
-                      onChange={(e) => setNovoEmail(e.target.value)}
-                      placeholder="email@exemplo.com"
-                      className="w-full h-9 px-3 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-foreground mb-1">Telefone</label>
-                    <input
-                      type="tel"
-                      value={novoTelefone}
-                      onChange={(e) => setNovoTelefone(formatTelefone(e.target.value))}
-                      placeholder="(00) 00000-0000"
-                      className="w-full h-9 px-3 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground"
-                    />
-                  </div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="col-span-2">
-                    <label className="block text-xs font-medium text-foreground mb-1">
-                      Nome Fantasia <span className="text-destructive">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={novoNomeFantasia}
-                      onChange={(e) => setNovoNomeFantasia(e.target.value)}
-                      placeholder="Nome da empresa"
-                      className="w-full h-9 px-3 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-foreground mb-1">Email</label>
-                    <input
-                      type="email"
-                      value={novoEmail}
-                      onChange={(e) => setNovoEmail(e.target.value)}
-                      placeholder="email@empresa.com"
-                      className="w-full h-9 px-3 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-foreground mb-1">Telefone</label>
-                    <input
-                      type="tel"
-                      value={novoTelefone}
-                      onChange={(e) => setNovoTelefone(formatTelefone(e.target.value))}
-                      placeholder="(00) 00000-0000"
-                      className="w-full h-9 px-3 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
+            <ContatoInlineForm
+              tipo={tipoContato}
+              fields={contatoFields}
+              onChange={setContatoFields}
+              onCancel={() => setCriarNovo(false)}
+            />
           )}
 
           {/* Preview do título auto-gerado */}
