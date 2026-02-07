@@ -35,7 +35,7 @@ export function ConfigDistribuicao({ funilId }: Props) {
   const [slaAtivo, setSlaAtivo] = useState(false)
   const [slaTempoMinutos, setSlaTempoMinutos] = useState(30)
   const [slaMaxRedistribuicoes, setSlaMaxRedistribuicoes] = useState(3)
-  const [slaAcaoLimite, setSlaAcaoLimite] = useState('manter')
+  const [slaAcaoLimite, setSlaAcaoLimite] = useState('manter_ultimo')
 
   // Load config
   useEffect(() => {
@@ -50,7 +50,7 @@ export function ConfigDistribuicao({ funilId }: Props) {
       setSlaAtivo(config.sla_ativo || false)
       setSlaTempoMinutos(config.sla_tempo_minutos || 30)
       setSlaMaxRedistribuicoes(config.sla_max_redistribuicoes || 3)
-      setSlaAcaoLimite(config.sla_acao_limite || 'manter')
+      setSlaAcaoLimite(config.sla_acao_limite || 'manter_ultimo')
     }
   }, [config])
 
@@ -232,9 +232,9 @@ export function ConfigDistribuicao({ funilId }: Props) {
                     onChange={e => setSlaAcaoLimite(e.target.value)}
                     className="w-full px-3 py-1.5 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30"
                   >
-                    <option value="manter">Manter com último vendedor</option>
-                    <option value="admin">Retornar para Admin</option>
-                    <option value="fila">Manter em fila</option>
+                    <option value="manter_ultimo">Manter com último vendedor</option>
+                    <option value="retornar_admin">Retornar para Admin</option>
+                    <option value="desatribuir">Desatribuir (sem responsável)</option>
                   </select>
                 </div>
               </div>
