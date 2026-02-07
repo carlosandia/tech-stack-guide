@@ -162,7 +162,8 @@ export function KanbanCardPreview({ camposVisiveis, camposCustomVisiveis, campos
             </div>
             {camposVisiveis.includes('tarefas_pendentes') && (
               <span className="text-xs text-muted-foreground flex items-center gap-0.5 flex-shrink-0 ml-2">
-                ☑ 0/1
+                <CheckSquare className="w-3 h-3" />
+                <span className="text-[10px] font-medium">0/1</span>
               </span>
             )}
           </div>

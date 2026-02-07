@@ -374,26 +374,28 @@ export const negociosApi = {
       }
     }
 
-    // Buscar contagem de tarefas pendentes por oportunidade
+    // Buscar contagem de tarefas por oportunidade (pendentes E total)
     const opIds = ops.map(o => o.id)
     let tarefasPendentesMap: Record<string, number> = {}
+    let tarefasTotalMap: Record<string, number> = {}
 
     if (opIds.length > 0) {
-      // Buscar tarefas pendentes em lotes para evitar limite
       const batchSize = 50
       for (let i = 0; i < opIds.length; i += batchSize) {
         const batch = opIds.slice(i, i + batchSize)
         const { data: tarefas } = await supabase
           .from('tarefas')
-          .select('oportunidade_id')
+          .select('oportunidade_id, status')
           .in('oportunidade_id', batch)
-          .eq('status', 'pendente')
           .is('deletado_em', null)
 
         if (tarefas) {
           for (const t of tarefas) {
             if (t.oportunidade_id) {
-              tarefasPendentesMap[t.oportunidade_id] = (tarefasPendentesMap[t.oportunidade_id] || 0) + 1
+              tarefasTotalMap[t.oportunidade_id] = (tarefasTotalMap[t.oportunidade_id] || 0) + 1
+              if (t.status === 'pendente') {
+                tarefasPendentesMap[t.oportunidade_id] = (tarefasPendentesMap[t.oportunidade_id] || 0) + 1
+              }
             }
           }
         }
@@ -406,6 +408,7 @@ export const negociosApi = {
       contato: contatosMap[o.contato_id] || null,
       responsavel: o.usuario_responsavel_id ? responsaveisMap[o.usuario_responsavel_id] || null : null,
       _tarefas_pendentes: tarefasPendentesMap[o.id] || 0,
+      _tarefas_total: tarefasTotalMap[o.id] || 0,
     }))
 
     // Agrupar por etapa
@@ -427,12 +430,36 @@ export const negociosApi = {
 
   // Mover oportunidade para outra etapa
   moverEtapa: async (oportunidadeId: string, etapaDestinoId: string): Promise<void> => {
+    // Buscar dados da oportunidade para criar tarefas automáticas
+    const { data: opData } = await supabase
+      .from('oportunidades')
+      .select('contato_id, organizacao_id, usuario_responsavel_id, criado_por')
+      .eq('id', oportunidadeId)
+      .single()
+
     const { error } = await supabase
       .from('oportunidades')
       .update({ etapa_id: etapaDestinoId } as any)
       .eq('id', oportunidadeId)
 
     if (error) throw new Error(error.message)
+
+    // Criar tarefas automáticas da nova etapa
+    if (opData) {
+      try {
+        const userId = await getUsuarioId()
+        await negociosApi.criarTarefasAutomaticas(
+          oportunidadeId,
+          etapaDestinoId,
+          opData.contato_id,
+          opData.organizacao_id,
+          opData.usuario_responsavel_id || userId,
+          userId,
+        )
+      } catch (err) {
+        console.error('Erro ao criar tarefas automáticas ao mover etapa:', err)
+      }
+    }
   },
 
   // Criar oportunidade
@@ -485,7 +512,24 @@ export const negociosApi = {
       .single()
 
     if (error) throw new Error(error.message)
-    return data as Oportunidade
+
+    const oportunidade = data as Oportunidade
+
+    // Auto-criar tarefas vinculadas à etapa (RF-07)
+    try {
+      await negociosApi.criarTarefasAutomaticas(
+        oportunidade.id,
+        payload.etapa_id,
+        oportunidade.contato_id,
+        organizacaoId,
+        payload.usuario_responsavel_id || userId,
+        userId,
+      )
+    } catch (err) {
+      console.error('Erro ao criar tarefas automáticas:', err)
+    }
+
+    return oportunidade
   },
 
   // Fechar oportunidade (ganho/perda)
@@ -949,5 +993,76 @@ export const negociosApi = {
 
     if (error) throw new Error(error.message)
     return (data || []) as any
+  },
+
+  // =====================================================
+  // Tarefas Automáticas (RF-07)
+  // =====================================================
+
+  /**
+   * Cria tarefas automaticamente baseado nos templates vinculados à etapa.
+   * Chamado ao criar oportunidade ou mover para nova etapa.
+   */
+  criarTarefasAutomaticas: async (
+    oportunidadeId: string,
+    etapaId: string,
+    contatoId: string,
+    organizacaoId: string,
+    responsavelId: string,
+    criadoPorId: string,
+  ): Promise<void> => {
+    // Buscar templates vinculados à etapa
+    const { data: vinculos, error: vinculosError } = await supabase
+      .from('funis_etapas_tarefas')
+      .select(`
+        id, tarefa_template_id, ativo,
+        tarefa:tarefas_templates(id, titulo, tipo, descricao, canal, prioridade, dias_prazo)
+      `)
+      .eq('etapa_funil_id', etapaId)
+      .neq('ativo', false)
+
+    if (vinculosError) {
+      console.error('Erro ao buscar templates de tarefas:', vinculosError)
+      return
+    }
+
+    if (!vinculos || vinculos.length === 0) return
+
+    // Criar tarefas a partir dos templates
+    const tarefasInsert = vinculos
+      .filter((v: any) => v.tarefa)
+      .map((v: any) => {
+        const template = v.tarefa
+        const dataVencimento = template.dias_prazo
+          ? new Date(Date.now() + template.dias_prazo * 24 * 60 * 60 * 1000).toISOString()
+          : null
+
+        return {
+          organizacao_id: organizacaoId,
+          oportunidade_id: oportunidadeId,
+          contato_id: contatoId,
+          titulo: template.titulo,
+          descricao: template.descricao || null,
+          tipo: template.tipo || 'tarefa',
+          canal: template.canal || null,
+          prioridade: template.prioridade || 'media',
+          owner_id: responsavelId,
+          criado_por_id: criadoPorId,
+          status: 'pendente',
+          data_vencimento: dataVencimento,
+          tarefa_template_id: template.id,
+          etapa_origem_id: etapaId,
+        }
+      })
+
+    if (tarefasInsert.length === 0) return
+
+    const { error } = await supabase
+      .from('tarefas')
+      .insert(tarefasInsert as any)
+
+    if (error) {
+      console.error('Erro ao criar tarefas automáticas:', error)
+    }
   },
 }
