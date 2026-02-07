@@ -11,6 +11,7 @@ import { negociosApi } from '../../services/negocios.api'
 import { formatCurrency, unformatCurrency } from '@/lib/formatters'
 import { ContatoInlineForm, validarContatoInline } from './ContatoInlineForm'
 import { useCamposConfig } from '@/modules/contatos/hooks/useCamposConfig'
+import { supabase } from '@/lib/supabase'
 
 // =====================================================
 // Types
@@ -93,9 +94,9 @@ export function NovaOportunidadeModal({
   const [criarNovaEmpresa, setCriarNovaEmpresa] = useState(false)
   const [empresaFields, setEmpresaFields] = useState<Record<string, string>>({})
 
-  // Config global para validação
-  const { isRequired: isPessoaCampoRequired } = useCamposConfig('pessoa')
-  const { isRequired: isEmpresaCampoRequired } = useCamposConfig('empresa')
+  // Config global para validação e campos custom
+  const { isRequired: isPessoaCampoRequired, customFields: pessoaCustomFields } = useCamposConfig('pessoa')
+  const { isRequired: isEmpresaCampoRequired, customFields: empresaCustomFields } = useCamposConfig('empresa')
 
   // Opportunity state
   const [tipoValor, setTipoValor] = useState<'manual' | 'produtos'>('manual')
@@ -275,6 +276,62 @@ export function NovaOportunidadeModal({
   const empresaValida = !showEmpresa || !criarNovaEmpresa || validarContatoInline('empresa', empresaFields, isEmpresaCampoRequired)
   const formularioValido = !!pessoaValida && empresaValida
 
+  // Helper: salvar campos customizados de um contato
+  const salvarCamposCustom = useCallback(async (
+    fields: Record<string, string>,
+    entidadeId: string,
+    entidadeTipo: 'pessoa' | 'empresa',
+    customFieldsDefs: typeof pessoaCustomFields,
+  ) => {
+    const customEntries = Object.entries(fields).filter(
+      ([key, val]) => key.startsWith('custom_') && val?.trim()
+    )
+    if (customEntries.length === 0) return
+
+    // Obter organizacao_id
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const { data: usr } = await supabase
+      .from('usuarios')
+      .select('organizacao_id')
+      .eq('auth_id', user.id)
+      .maybeSingle()
+    if (!usr?.organizacao_id) return
+
+    for (const [key, val] of customEntries) {
+      const slug = key.replace('custom_', '')
+      const campoDef = customFieldsDefs.find(c => c.slug === slug)
+      if (!campoDef) continue
+
+      const campoId = campoDef.campo.id
+      let insertData: Record<string, any> = {
+        organizacao_id: usr.organizacao_id,
+        campo_id: campoId,
+        entidade_tipo: entidadeTipo,
+        entidade_id: entidadeId,
+      }
+
+      switch (campoDef.tipo) {
+        case 'numero':
+        case 'decimal':
+          insertData.valor_numero = val ? parseFloat(val) : null
+          break
+        case 'booleano':
+          insertData.valor_booleano = val === 'true'
+          break
+        case 'data':
+        case 'data_hora':
+          insertData.valor_data = val || null
+          break
+        default:
+          insertData.valor_texto = val.trim()
+          break
+      }
+
+      await supabase.from('valores_campos_customizados').insert(insertData as any)
+    }
+  }, [pessoaCustomFields, empresaCustomFields])
+
   // Submit
   const handleSubmit = async () => {
     if (!formularioValido) return
@@ -296,6 +353,9 @@ export function NovaOportunidadeModal({
           }
           const novaEmpresa = await negociosApi.criarContatoRapido(payload as Record<string, any> & { tipo: 'pessoa' | 'empresa' })
           empresaId = novaEmpresa.id
+
+          // Salvar campos customizados da empresa
+          await salvarCamposCustom(empresaFields, empresaId, 'empresa', empresaCustomFields)
         }
       }
 
@@ -315,6 +375,9 @@ export function NovaOportunidadeModal({
         }
         const novaPessoa = await negociosApi.criarContatoRapido(payload as Record<string, any> & { tipo: 'pessoa' | 'empresa' })
         pessoaId = novaPessoa.id
+
+        // Salvar campos customizados da pessoa
+        await salvarCamposCustom(pessoaFields, pessoaId, 'pessoa', pessoaCustomFields)
       } else if (pessoaId && empresaId) {
         // Atualizar pessoa existente com empresa_id
         await negociosApi.atualizarContato(pessoaId, { empresa_id: empresaId })
