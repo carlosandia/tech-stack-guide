@@ -1,14 +1,15 @@
 /**
  * AIDEV-NOTE: Aba E-mail (RF-14.3 Tab 4) - Implementação completa
- * Compor e-mail com editor rich text (RichTextEditor), histórico de e-mails
+ * Compor e-mail com editor rich text (RichTextEditor)
+ * Integrado com conexão SMTP de /configuracoes/conexoes para envio real
  */
 
 import { useState, useCallback } from 'react'
-import { Mail, Send, ChevronDown, ChevronUp, Loader2, AlertCircle, CheckCircle2, Clock } from 'lucide-react'
+import { Mail, Send, ChevronDown, ChevronUp, Loader2, AlertCircle, CheckCircle2, Clock, Save } from 'lucide-react'
 import { toast } from 'sonner'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { useEmailsOportunidade, useCriarEmail } from '../../hooks/useDetalhes'
+import { useEmailsOportunidade, useCriarEmail, useConexaoEmail } from '../../hooks/useDetalhes'
 import { RichTextEditor } from '@/modules/configuracoes/components/editor/RichTextEditor'
 import type { EmailOportunidade } from '../../services/detalhes.api'
 
@@ -18,8 +19,8 @@ interface AbaEmailProps {
 }
 
 const STATUS_MAP: Record<string, { label: string; icon: typeof CheckCircle2; class: string }> = {
-  enviado: { label: 'Enviado', icon: CheckCircle2, class: 'text-emerald-600' },
-  rascunho: { label: 'Rascunho', icon: Clock, class: 'text-amber-600' },
+  enviado: { label: 'Enviado', icon: CheckCircle2, class: 'text-success' },
+  rascunho: { label: 'Rascunho', icon: Clock, class: 'text-warning-foreground' },
   falhou: { label: 'Falhou', icon: AlertCircle, class: 'text-destructive' },
   pendente: { label: 'Pendente', icon: Clock, class: 'text-muted-foreground' },
 }
@@ -27,13 +28,17 @@ const STATUS_MAP: Record<string, { label: string; icon: typeof CheckCircle2; cla
 export function AbaEmail({ oportunidadeId, emailContato }: AbaEmailProps) {
   const { data: emails, isLoading } = useEmailsOportunidade(oportunidadeId)
   const criarEmail = useCriarEmail()
+  const { data: conexaoEmail } = useConexaoEmail()
 
   const [showForm, setShowForm] = useState(false)
   const [destinatario, setDestinatario] = useState(emailContato || '')
   const [assunto, setAssunto] = useState('')
   const [corpo, setCorpo] = useState('')
 
-  const handleEnviar = useCallback(async () => {
+  const smtpConectado = conexaoEmail?.conectado === true
+  const emailRemetente = conexaoEmail?.email
+
+  const handleEnviar = useCallback(async (enviar: boolean) => {
     if (!destinatario.trim() || !assunto.trim()) {
       toast.error('Preencha destinatário e assunto')
       return
@@ -47,14 +52,15 @@ export function AbaEmail({ oportunidadeId, emailContato }: AbaEmailProps) {
           assunto: assunto.trim(),
           corpo: corpo.trim(),
         },
+        enviar,
       })
       setDestinatario(emailContato || '')
       setAssunto('')
       setCorpo('')
       setShowForm(false)
-      toast.success('E-mail salvo como rascunho')
-    } catch {
-      toast.error('Erro ao salvar e-mail')
+      toast.success(enviar ? 'E-mail enviado com sucesso' : 'E-mail salvo como rascunho')
+    } catch (err: any) {
+      toast.error(enviar ? `Erro ao enviar: ${err.message}` : 'Erro ao salvar e-mail')
     }
   }, [destinatario, assunto, corpo, oportunidadeId, emailContato, criarEmail])
 
@@ -101,11 +107,23 @@ export function AbaEmail({ oportunidadeId, emailContato }: AbaEmailProps) {
             onChange={setCorpo}
             placeholder="Mensagem..."
           />
-          <div className="flex justify-between items-center">
-            <p className="text-[10px] text-muted-foreground">
-              E-mail será salvo como rascunho. Envio requer conexão SMTP configurada.
-            </p>
-            <div className="flex gap-2">
+
+          {/* Info de conexão + ações */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+            <div className="text-[10px] text-muted-foreground">
+              {smtpConectado ? (
+                <span className="flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-success" />
+                  Remetente: {emailRemetente}
+                </span>
+              ) : (
+                <span className="flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3 text-warning-foreground" />
+                  Nenhuma conexão SMTP configurada. Configure em Configurações → Conexões.
+                </span>
+              )}
+            </div>
+            <div className="flex gap-2 flex-shrink-0">
               <button
                 type="button"
                 onClick={() => setShowForm(false)}
@@ -115,12 +133,28 @@ export function AbaEmail({ oportunidadeId, emailContato }: AbaEmailProps) {
               </button>
               <button
                 type="button"
-                onClick={handleEnviar}
+                onClick={() => handleEnviar(false)}
                 disabled={!destinatario.trim() || !assunto.trim() || criarEmail.isPending}
-                className="text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                className="inline-flex items-center gap-1 text-xs px-3 py-1.5 border border-border text-foreground rounded-md hover:bg-accent disabled:opacity-50 transition-colors"
               >
-                {criarEmail.isPending ? 'Salvando...' : 'Salvar rascunho'}
+                <Save className="w-3 h-3" />
+                Rascunho
               </button>
+              {smtpConectado && (
+                <button
+                  type="button"
+                  onClick={() => handleEnviar(true)}
+                  disabled={!destinatario.trim() || !assunto.trim() || criarEmail.isPending}
+                  className="inline-flex items-center gap-1 text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                >
+                  {criarEmail.isPending ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Send className="w-3 h-3" />
+                  )}
+                  Enviar
+                </button>
+              )}
             </div>
           </div>
         </div>

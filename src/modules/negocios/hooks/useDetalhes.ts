@@ -114,13 +114,22 @@ export function useEmailsOportunidade(oportunidadeId: string | null) {
 export function useCriarEmail() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ oportunidadeId, payload }: {
+    mutationFn: ({ oportunidadeId, payload, enviar }: {
       oportunidadeId: string
       payload: { destinatario: string; assunto: string; corpo: string }
-    }) => detalhesApi.criarEmail(oportunidadeId, payload),
+      enviar?: boolean
+    }) => detalhesApi.criarEmail(oportunidadeId, payload, enviar),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['emails_oportunidade', variables.oportunidadeId] })
     },
+  })
+}
+
+export function useConexaoEmail() {
+  return useQuery({
+    queryKey: ['conexao_email_status'],
+    queryFn: () => detalhesApi.verificarConexaoEmail(),
+    staleTime: 60 * 1000,
   })
 }
 
