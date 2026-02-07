@@ -112,6 +112,8 @@ export function KanbanCard({ oportunidade, onDragStart, onClick, config }: Kanba
   const { camposVisiveis, acoesRapidas } = config || DEFAULT_CONFIG
   const qualificacao = getQualificacaoLabel(oportunidade)
   const tarefasPendentes = (oportunidade as any)._tarefas_pendentes ?? 0
+  const tarefasTotal = (oportunidade as any)._tarefas_total ?? 0
+  const tarefasConcluidas = tarefasTotal - tarefasPendentes
 
   const tempoNaEtapa = formatDistanceToNow(new Date(oportunidade.atualizado_em), {
     locale: ptBR,
@@ -275,11 +277,13 @@ export function KanbanCard({ oportunidade, onDragStart, onClick, config }: Kanba
           </div>
 
           {/* Tarefas badge no header */}
-          {camposVisiveis.includes('tarefas_pendentes') && tarefasPendentes > 0 && (
+          {camposVisiveis.includes('tarefas_pendentes') && tarefasTotal > 0 && (
             <div className="flex-shrink-0 ml-1.5">
               <TarefasPopover
                 oportunidadeId={oportunidade.id}
                 totalPendentes={tarefasPendentes}
+                totalTarefas={tarefasTotal}
+                totalConcluidas={tarefasConcluidas}
               />
             </div>
           )}

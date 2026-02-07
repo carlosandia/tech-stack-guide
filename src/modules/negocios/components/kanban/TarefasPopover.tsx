@@ -20,9 +20,11 @@ interface Tarefa {
 interface TarefasPopoverProps {
   oportunidadeId: string
   totalPendentes: number
+  totalTarefas: number
+  totalConcluidas: number
 }
 
-export function TarefasPopover({ oportunidadeId, totalPendentes }: TarefasPopoverProps) {
+export function TarefasPopover({ oportunidadeId, totalPendentes, totalTarefas, totalConcluidas }: TarefasPopoverProps) {
   const [open, setOpen] = useState(false)
   const [tarefas, setTarefas] = useState<Tarefa[]>([])
   const [loading, setLoading] = useState(false)
@@ -104,18 +106,24 @@ export function TarefasPopover({ oportunidadeId, totalPendentes }: TarefasPopove
     setOpen(!open)
   }
 
-  if (totalPendentes === 0) return null
+  if (totalTarefas === 0) return null
+
+  const allDone = totalPendentes === 0
 
   return (
     <div className="relative" ref={containerRef}>
       {/* Badge trigger */}
       <button
         onClick={handleClick}
-        className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-warning/10 text-warning-foreground hover:bg-warning/20 transition-all duration-200"
-        title={`${totalPendentes} tarefa(s) pendente(s)`}
+        className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-all duration-200 ${
+          allDone
+            ? 'bg-success-muted text-success-foreground hover:bg-success-muted/80'
+            : 'bg-warning/10 text-warning-foreground hover:bg-warning/20'
+        }`}
+        title={`${totalConcluidas}/${totalTarefas} tarefa(s) concluída(s)`}
       >
         <CheckSquare className="w-3 h-3" />
-        <span>{totalPendentes}</span>
+        <span>{totalConcluidas}/{totalTarefas}</span>
       </button>
 
       {/* Popover */}
