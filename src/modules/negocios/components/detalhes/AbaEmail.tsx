@@ -1,6 +1,6 @@
 /**
  * AIDEV-NOTE: Aba E-mail (RF-14.3 Tab 4) - Implementação completa
- * Compor e-mail (salvar como rascunho), histórico de e-mails
+ * Compor e-mail com editor rich text (RichTextEditor), histórico de e-mails
  */
 
 import { useState, useCallback } from 'react'
@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useEmailsOportunidade, useCriarEmail } from '../../hooks/useDetalhes'
+import { RichTextEditor } from '@/modules/configuracoes/components/editor/RichTextEditor'
 import type { EmailOportunidade } from '../../services/detalhes.api'
 
 interface AbaEmailProps {
@@ -95,12 +96,10 @@ export function AbaEmail({ oportunidadeId, emailContato }: AbaEmailProps) {
             placeholder="Assunto"
             className="w-full text-sm bg-background border border-input rounded-md px-3 py-2 placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           />
-          <textarea
+          <RichTextEditor
             value={corpo}
-            onChange={e => setCorpo(e.target.value)}
+            onChange={setCorpo}
             placeholder="Mensagem..."
-            rows={4}
-            className="w-full text-sm bg-background border border-input rounded-md px-3 py-2 placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
           />
           <div className="flex justify-between items-center">
             <p className="text-[10px] text-muted-foreground">
@@ -172,9 +171,10 @@ function EmailItem({ email }: { email: EmailOportunidade }) {
 
       {expanded && (
         <div className="px-3 pb-3 border-t border-border">
-          <div className="mt-2 text-sm text-foreground whitespace-pre-wrap">
-            {email.corpo || '(Sem conteúdo)'}
-          </div>
+          <div
+            className="mt-2 text-sm text-foreground prose prose-sm max-w-none"
+            dangerouslySetInnerHTML={{ __html: email.corpo || '<p>(Sem conteúdo)</p>' }}
+          />
           {email.erro_mensagem && (
             <p className="mt-2 text-xs text-destructive">
               Erro: {email.erro_mensagem}
