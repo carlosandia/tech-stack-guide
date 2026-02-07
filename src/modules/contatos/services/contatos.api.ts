@@ -158,6 +158,18 @@ function sanitizeContatoPayload(payload: Record<string, unknown>): Record<string
       clean[key] = value
     }
   }
+
+  // DB constraint chk_empresa_razao: empresa exige razao_social NOT NULL
+  // Apenas preenche se o usuário NÃO informou nada (não duplica se já existe)
+  if (clean.tipo === 'empresa' && !clean.razao_social) {
+    clean.razao_social = clean.nome_fantasia || 'Sem razão social'
+  }
+
+  // DB constraint chk_pessoa_nome: pessoa exige nome NOT NULL
+  if (clean.tipo === 'pessoa' && !clean.nome) {
+    clean.nome = 'Sem nome'
+  }
+
   return clean
 }
 

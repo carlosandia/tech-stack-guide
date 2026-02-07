@@ -229,11 +229,7 @@ export function ContatoFormModal({
     if (isPessoa && !cleanData.nome) {
       cleanData.nome = 'Sem nome'
     }
-    // DB constraint chk_empresa_razao: empresa requer razao_social NOT NULL
-    // Auto-preenche com nome_fantasia se não informado (respeita config global)
-    if (!isPessoa && !cleanData.razao_social) {
-      cleanData.razao_social = cleanData.nome_fantasia || 'Sem razão social'
-    }
+    // Nota: razao_social é auto-preenchida na camada de serviço se necessário (constraint chk_empresa_razao)
     if (cleanData.cnpj && typeof cleanData.cnpj === 'string') {
       cleanData.cnpj = cleanData.cnpj.replace(/\D/g, '')
     }
