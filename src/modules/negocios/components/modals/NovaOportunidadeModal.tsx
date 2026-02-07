@@ -1,15 +1,14 @@
 /**
  * AIDEV-NOTE: Modal para criar nova oportunidade
  * Conforme PRD-07 RF-10 e Design System 10.5
- * 3 seções: Contato, Oportunidade, Produtos
- * Usa ModalBase (size="lg")
+ * Melhorias: título auto-gerado, máscara BRL, MRR, produtos inline
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { Loader2, Target, Search, X, User, Building2, Plus, Trash2, ChevronDown, ChevronRight } from 'lucide-react'
+import { Loader2, Target, Search, X, User, Building2, Plus, Trash2, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react'
 import { ModalBase } from '@/modules/configuracoes/components/ui/ModalBase'
 import { negociosApi } from '../../services/negocios.api'
-
+import { formatTelefone, unformatTelefone, formatCurrency, unformatCurrency } from '@/lib/formatters'
 
 // =====================================================
 // Types
@@ -37,6 +36,12 @@ interface Produto {
   nome: string
   preco: number
   sku?: string | null
+  recorrente?: boolean | null
+  periodo_recorrencia?: string | null
+  moeda?: string | null
+  unidade?: string | null
+  categoria_id?: string | null
+  categoria_nome?: string | null
 }
 
 interface ProdutoSelecionado {
@@ -46,6 +51,8 @@ interface ProdutoSelecionado {
   quantidade: number
   desconto_percentual: number
   subtotal: number
+  recorrente?: boolean | null
+  periodo_recorrencia?: string | null
 }
 
 interface NovaOportunidadeModalProps {
@@ -80,12 +87,14 @@ export function NovaOportunidadeModal({
   const [novoNomeFantasia, setNovoNomeFantasia] = useState('')
 
   // Opportunity state
-  const [titulo, setTitulo] = useState('')
-  const [tituloManual, setTituloManual] = useState(false)
   const [tipoValor, setTipoValor] = useState<'manual' | 'produtos'>('manual')
-  const [valorManual, setValorManual] = useState('')
+  const [valorManualFormatado, setValorManualFormatado] = useState('')
   const [responsavelId, setResponsavelId] = useState<string>('')
   const [previsaoFechamento, setPrevisaoFechamento] = useState('')
+
+  // MRR state
+  const [recorrente, setRecorrente] = useState(false)
+  const [periodoRecorrencia, setPeriodoRecorrencia] = useState<string>('mensal')
 
   // UTM state
   const [showUtm, setShowUtm] = useState(false)
@@ -98,8 +107,10 @@ export function NovaOportunidadeModal({
   // Products state
   const [produtosSelecionados, setProdutosSelecionados] = useState<ProdutoSelecionado[]>([])
   const [buscaProduto, setBuscaProduto] = useState('')
-  const [resultadosProduto, setResultadosProduto] = useState<Produto[]>([])
+  const [catalogoProdutos, setCatalogoProdutos] = useState<Produto[]>([])
+  const [produtosFiltrados, setProdutosFiltrados] = useState<Produto[]>([])
   const [showProdutosDropdown, setShowProdutosDropdown] = useState(false)
+  const [carregandoProdutos, setCarregandoProdutos] = useState(false)
 
   // Data
   const [membros, setMembros] = useState<Membro[]>([])
@@ -109,32 +120,42 @@ export function NovaOportunidadeModal({
   const buscaProdutoRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>()
 
-  // Load membros on mount
+  // Load membros + catálogo de produtos on mount
   useEffect(() => {
     negociosApi.listarMembros().then(setMembros).catch(() => {})
+    setCarregandoProdutos(true)
+    negociosApi.listarProdutos().then(prods => {
+      setCatalogoProdutos(prods)
+      setProdutosFiltrados(prods)
+    }).catch(() => {}).finally(() => setCarregandoProdutos(false))
   }, [])
 
-  // Auto-generate título
+  // Filtrar produtos localmente
   useEffect(() => {
-    if (tituloManual) return
-    let nomeContato = ''
+    const selectedIds = new Set(produtosSelecionados.map(p => p.produto_id))
+    const term = buscaProduto.toLowerCase().trim()
+    const filtered = catalogoProdutos.filter(p => {
+      if (selectedIds.has(p.id)) return false
+      if (!term) return true
+      return p.nome.toLowerCase().includes(term) || (p.sku && p.sku.toLowerCase().includes(term))
+    })
+    setProdutosFiltrados(filtered)
+  }, [buscaProduto, catalogoProdutos, produtosSelecionados])
+
+  // Derivar nome do contato
+  const getNomeContato = useCallback(() => {
     if (contatoSelecionado) {
       if (contatoSelecionado.tipo === 'empresa') {
-        nomeContato = contatoSelecionado.nome_fantasia || contatoSelecionado.razao_social || ''
-      } else {
-        nomeContato = [contatoSelecionado.nome, contatoSelecionado.sobrenome].filter(Boolean).join(' ')
+        return contatoSelecionado.nome_fantasia || contatoSelecionado.razao_social || ''
       }
-    } else if (criarNovo) {
-      if (tipoContato === 'empresa') {
-        nomeContato = novoNomeFantasia
-      } else {
-        nomeContato = [novoNome, novoSobrenome].filter(Boolean).join(' ')
-      }
+      return [contatoSelecionado.nome, contatoSelecionado.sobrenome].filter(Boolean).join(' ')
     }
-    if (nomeContato) {
-      setTitulo(`${nomeContato} - Nova Oportunidade`)
+    if (criarNovo) {
+      if (tipoContato === 'empresa') return novoNomeFantasia
+      return [novoNome, novoSobrenome].filter(Boolean).join(' ')
     }
-  }, [contatoSelecionado, criarNovo, novoNome, novoSobrenome, novoNomeFantasia, tipoContato, tituloManual])
+    return ''
+  }, [contatoSelecionado, criarNovo, novoNome, novoSobrenome, novoNomeFantasia, tipoContato])
 
   // Search contatos with debounce
   const handleBuscaContato = useCallback((value: string) => {
@@ -162,28 +183,15 @@ export function NovaOportunidadeModal({
     }, 300)
   }, [tipoContato])
 
-  // Search produtos
-  const handleBuscaProduto = useCallback((value: string) => {
-    setBuscaProduto(value)
-    if (value.length < 1) {
-      setResultadosProduto([])
-      setShowProdutosDropdown(false)
+  // Handle currency input
+  const handleValorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value.replace(/\D/g, '')
+    if (raw === '') {
+      setValorManualFormatado('')
       return
     }
-
-    setShowProdutosDropdown(true)
-    const timer = setTimeout(async () => {
-      try {
-        const results = await negociosApi.listarProdutos(value)
-        // Filter out already selected
-        const selectedIds = new Set(produtosSelecionados.map(p => p.produto_id))
-        setResultadosProduto(results.filter(p => !selectedIds.has(p.id)))
-      } catch {
-        setResultadosProduto([])
-      }
-    }, 200)
-    return () => clearTimeout(timer)
-  }, [produtosSelecionados])
+    setValorManualFormatado(formatCurrency(raw))
+  }
 
   // Select contato
   const handleSelectContato = (contato: ContatoResult) => {
@@ -202,9 +210,19 @@ export function NovaOportunidadeModal({
       quantidade: 1,
       desconto_percentual: 0,
       subtotal: produto.preco,
+      recorrente: produto.recorrente,
+      periodo_recorrencia: produto.periodo_recorrencia,
     }])
     setBuscaProduto('')
     setShowProdutosDropdown(false)
+
+    // Se produto é MRR, herdar recorrência automaticamente
+    if (produto.recorrente) {
+      setRecorrente(true)
+      if (produto.periodo_recorrencia) {
+        setPeriodoRecorrencia(produto.periodo_recorrencia)
+      }
+    }
   }
 
   // Update produto quantidade/desconto
@@ -224,13 +242,13 @@ export function NovaOportunidadeModal({
 
   // Calculate total
   const totalProdutos = produtosSelecionados.reduce((sum, p) => sum + p.subtotal, 0)
-  const valorFinal = tipoValor === 'produtos' ? totalProdutos : (parseFloat(valorManual) || 0)
+  const valorFinal = tipoValor === 'produtos' ? totalProdutos : unformatCurrency(valorManualFormatado)
 
-  // Validation
+  // Validation - título é auto-gerado, basta ter contato válido
   const contatoValido = contatoSelecionado || (criarNovo && (
     tipoContato === 'pessoa' ? novoNome.trim().length >= 2 : novoNomeFantasia.trim().length >= 2
   ))
-  const formularioValido = contatoValido && titulo.trim().length >= 3
+  const formularioValido = !!contatoValido
 
   // Submit
   const handleSubmit = async () => {
@@ -247,7 +265,7 @@ export function NovaOportunidadeModal({
           nome: tipoContato === 'pessoa' ? novoNome.trim() : undefined,
           sobrenome: tipoContato === 'pessoa' ? novoSobrenome.trim() || undefined : undefined,
           email: novoEmail.trim() || undefined,
-          telefone: novoTelefone.trim() || undefined,
+          telefone: novoTelefone ? unformatTelefone(novoTelefone) : undefined,
           nome_fantasia: tipoContato === 'empresa' ? novoNomeFantasia.trim() : undefined,
         })
         contatoId = novoContato.id
@@ -255,13 +273,20 @@ export function NovaOportunidadeModal({
 
       if (!contatoId) throw new Error('Contato não selecionado')
 
+      // Gerar título automático: [Nome] - #[N]
+      const nomeContato = getNomeContato()
+      const count = await negociosApi.contarOportunidadesContato(contatoId)
+      const tituloAuto = `${nomeContato} - #${count + 1}`
+
       // Create oportunidade
       const oportunidade = await negociosApi.criarOportunidade({
         funil_id: funilId,
         etapa_id: etapaEntradaId,
         contato_id: contatoId,
-        titulo: titulo.trim(),
+        titulo: tituloAuto,
         valor: valorFinal || undefined,
+        recorrente: recorrente || undefined,
+        periodo_recorrencia: recorrente ? periodoRecorrencia : undefined,
         usuario_responsavel_id: responsavelId || undefined,
         previsao_fechamento: previsaoFechamento || undefined,
         utm_source: utmSource.trim() || undefined,
@@ -279,7 +304,6 @@ export function NovaOportunidadeModal({
       onSuccess()
       onClose()
     } catch (err: any) {
-      // Error is shown via toast in the hook
       console.error('Erro ao criar oportunidade:', err)
     } finally {
       setLoading(false)
@@ -299,6 +323,9 @@ export function NovaOportunidadeModal({
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [])
+
+  // Formato de moeda p/ exibição
+  const fmtBRL = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
 
   return (
     <ModalBase
@@ -540,7 +567,7 @@ export function NovaOportunidadeModal({
                     <input
                       type="tel"
                       value={novoTelefone}
-                      onChange={(e) => setNovoTelefone(e.target.value)}
+                      onChange={(e) => setNovoTelefone(formatTelefone(e.target.value))}
                       placeholder="(00) 00000-0000"
                       className="w-full h-9 px-3 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground"
                     />
@@ -575,13 +602,21 @@ export function NovaOportunidadeModal({
                     <input
                       type="tel"
                       value={novoTelefone}
-                      onChange={(e) => setNovoTelefone(e.target.value)}
+                      onChange={(e) => setNovoTelefone(formatTelefone(e.target.value))}
                       placeholder="(00) 00000-0000"
                       className="w-full h-9 px-3 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground"
                     />
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Preview do título auto-gerado */}
+          {getNomeContato() && (
+            <div className="mt-2 px-3 py-1.5 bg-muted/40 rounded-md">
+              <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Título automático: </span>
+              <span className="text-xs font-medium text-foreground">{getNomeContato()} - #...</span>
             </div>
           )}
         </section>
@@ -599,26 +634,6 @@ export function NovaOportunidadeModal({
           </div>
 
           <div className="space-y-3">
-            {/* Título */}
-            <div>
-              <label className="block text-xs font-medium text-foreground mb-1">
-                Título <span className="text-destructive">*</span>
-              </label>
-              <input
-                type="text"
-                value={titulo}
-                onChange={(e) => {
-                  setTitulo(e.target.value)
-                  setTituloManual(true)
-                }}
-                placeholder="Título da oportunidade"
-                className="w-full h-10 px-3 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground"
-              />
-              {tituloManual && titulo.length > 0 && titulo.trim().length < 3 && (
-                <p className="text-xs text-destructive mt-1">Mínimo 3 caracteres</p>
-              )}
-            </div>
-
             {/* Valor: toggle manual/produtos */}
             <div>
               <div className="flex items-center justify-between mb-1">
@@ -647,24 +662,202 @@ export function NovaOportunidadeModal({
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">R$</span>
                   <input
-                    type="number"
-                    value={valorManual}
-                    onChange={(e) => setValorManual(e.target.value)}
+                    type="text"
+                    inputMode="numeric"
+                    value={valorManualFormatado}
+                    onChange={handleValorChange}
                     placeholder="0,00"
-                    min="0"
-                    step="0.01"
                     className="w-full h-10 pl-10 pr-3 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground"
                   />
                 </div>
               ) : (
                 <div className="bg-muted/30 rounded-md px-3 py-2 text-sm">
                   <span className="text-muted-foreground">Total de produtos: </span>
-                  <span className="font-semibold text-foreground">
-                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalProdutos)}
-                  </span>
+                  <span className="font-semibold text-foreground">{fmtBRL(totalProdutos)}</span>
                 </div>
               )}
             </div>
+
+            {/* Toggle MRR */}
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={recorrente}
+                  onChange={(e) => setRecorrente(e.target.checked)}
+                  className="w-4 h-4 rounded border-input text-primary focus:ring-ring/30"
+                />
+                <span className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                  <RefreshCw className="w-3 h-3 text-muted-foreground" />
+                  Recorrente (MRR)
+                </span>
+              </label>
+
+              {recorrente && (
+                <div className="relative flex-1 max-w-[160px]">
+                  <select
+                    value={periodoRecorrencia}
+                    onChange={(e) => setPeriodoRecorrencia(e.target.value)}
+                    className="w-full h-8 px-2 pr-7 text-xs bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30 appearance-none"
+                  >
+                    <option value="mensal">Mensal</option>
+                    <option value="trimestral">Trimestral</option>
+                    <option value="semestral">Semestral</option>
+                    <option value="anual">Anual</option>
+                  </select>
+                  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
+                </div>
+              )}
+            </div>
+
+            {/* Produtos inline (quando tipo = produtos) */}
+            {tipoValor === 'produtos' && (
+              <div className="space-y-2">
+                {/* Buscar e adicionar produto */}
+                <div className="relative" ref={buscaProdutoRef}>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                    <input
+                      type="text"
+                      value={buscaProduto}
+                      onChange={(e) => {
+                        setBuscaProduto(e.target.value)
+                        setShowProdutosDropdown(true)
+                      }}
+                      onFocus={() => setShowProdutosDropdown(true)}
+                      placeholder="Buscar produto por nome ou SKU..."
+                      className="w-full h-9 pl-9 pr-3 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground"
+                    />
+                    {carregandoProdutos && (
+                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />
+                    )}
+                  </div>
+
+                  {showProdutosDropdown && (
+                    <div className="absolute left-0 right-0 top-full mt-1 bg-card border border-border rounded-lg shadow-lg z-[60] max-h-[200px] overflow-y-auto">
+                      {produtosFiltrados.length > 0 ? (
+                        produtosFiltrados.map(prod => (
+                          <button
+                            key={prod.id}
+                            onClick={() => handleAddProduto(prod)}
+                            className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-accent transition-all duration-200"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-foreground truncate">{prod.nome}</span>
+                                {prod.recorrente && (
+                                  <span className="flex-shrink-0 px-1.5 py-0.5 text-[9px] font-bold rounded bg-primary/10 text-primary uppercase">
+                                    MRR
+                                  </span>
+                                )}
+                              </div>
+                              {(prod.categoria_nome || prod.periodo_recorrencia) && (
+                                <p className="text-[10px] text-muted-foreground truncate">
+                                  {[prod.categoria_nome, prod.periodo_recorrencia].filter(Boolean).join(' · ')}
+                                </p>
+                              )}
+                            </div>
+                            <span className="text-xs text-muted-foreground flex-shrink-0 ml-2">
+                              {fmtBRL(prod.preco)}
+                              {prod.unidade ? `/${prod.unidade}` : ''}
+                            </span>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-3 py-4 text-center text-xs text-muted-foreground">
+                          {carregandoProdutos ? 'Carregando...' : 'Nenhum produto encontrado'}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Tabela de produtos selecionados */}
+                {produtosSelecionados.length > 0 && (
+                  <div className="border border-border rounded-lg overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-muted/50">
+                          <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">Produto</th>
+                          <th className="text-center px-2 py-2 text-xs font-medium text-muted-foreground w-16">Qtd</th>
+                          <th className="text-center px-2 py-2 text-xs font-medium text-muted-foreground w-16">Desc%</th>
+                          <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground w-24">Subtotal</th>
+                          <th className="w-10" />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {produtosSelecionados.map((prod, i) => (
+                          <tr key={i} className="border-t border-border">
+                            <td className="px-3 py-2">
+                              <div>
+                                <div className="flex items-center gap-1.5">
+                                  <p className="text-foreground truncate">{prod.nome}</p>
+                                  {prod.recorrente && (
+                                    <span className="flex-shrink-0 px-1 py-0.5 text-[8px] font-bold rounded bg-primary/10 text-primary uppercase">
+                                      MRR
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                  {fmtBRL(prod.preco_unitario)}/un
+                                </p>
+                              </div>
+                            </td>
+                            <td className="px-2 py-2">
+                              <input
+                                type="number"
+                                value={prod.quantidade}
+                                onChange={(e) => handleUpdateProduto(i, 'quantidade', Math.max(1, parseInt(e.target.value) || 1))}
+                                min="1"
+                                className="w-14 h-8 px-2 text-xs text-center bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30"
+                              />
+                            </td>
+                            <td className="px-2 py-2">
+                              <input
+                                type="number"
+                                value={prod.desconto_percentual}
+                                onChange={(e) => handleUpdateProduto(i, 'desconto_percentual', Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))}
+                                min="0"
+                                max="100"
+                                className="w-14 h-8 px-2 text-xs text-center bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30"
+                              />
+                            </td>
+                            <td className="px-3 py-2 text-right text-foreground font-medium">
+                              {fmtBRL(prod.subtotal)}
+                            </td>
+                            <td className="px-2 py-2">
+                              <button
+                                onClick={() => handleRemoveProduto(i)}
+                                className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all duration-200"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t border-border bg-muted/30">
+                          <td colSpan={3} className="px-3 py-2 text-right text-xs font-semibold text-muted-foreground uppercase">
+                            Total
+                          </td>
+                          <td className="px-3 py-2 text-right text-sm font-bold text-foreground">
+                            {fmtBRL(totalProdutos)}
+                          </td>
+                          <td />
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
+
+                {produtosSelecionados.length === 0 && (
+                  <div className="text-center py-4 text-xs text-muted-foreground bg-muted/20 rounded-lg border border-dashed border-border">
+                    Busque e adicione produtos acima
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               {/* Responsável */}
@@ -743,133 +936,6 @@ export function NovaOportunidadeModal({
             </div>
           )}
         </section>
-
-        {/* Separador - só mostra seção de produtos se tipoValor === 'produtos' */}
-        {tipoValor === 'produtos' && (
-          <>
-            <div className="border-t border-border" />
-
-            {/* ===== SEÇÃO 3: PRODUTOS ===== */}
-            <section>
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Plus className="w-3.5 h-3.5 text-primary" />
-                </div>
-                <h3 className="text-sm font-semibold text-foreground uppercase tracking-wide">Produtos</h3>
-              </div>
-
-              {/* Buscar e adicionar produto */}
-              <div className="relative mb-3" ref={buscaProdutoRef}>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-                  <input
-                    type="text"
-                    value={buscaProduto}
-                    onChange={(e) => handleBuscaProduto(e.target.value)}
-                    onFocus={() => buscaProduto.length >= 1 && setShowProdutosDropdown(true)}
-                    placeholder="Buscar produto por nome ou SKU..."
-                    className="w-full h-9 pl-9 pr-3 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground"
-                  />
-                </div>
-
-                {showProdutosDropdown && resultadosProduto.length > 0 && (
-                  <div className="absolute left-0 right-0 top-full mt-1 bg-card border border-border rounded-lg shadow-lg z-[60] max-h-[160px] overflow-y-auto">
-                    {resultadosProduto.map(prod => (
-                      <button
-                        key={prod.id}
-                        onClick={() => handleAddProduto(prod)}
-                        className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-accent transition-all duration-200"
-                      >
-                        <span className="text-foreground truncate">{prod.nome}</span>
-                        <span className="text-xs text-muted-foreground flex-shrink-0 ml-2">
-                          {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(prod.preco)}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Tabela de produtos */}
-              {produtosSelecionados.length > 0 && (
-                <div className="border border-border rounded-lg overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-muted/50">
-                        <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">Produto</th>
-                        <th className="text-center px-2 py-2 text-xs font-medium text-muted-foreground w-16">Qtd</th>
-                        <th className="text-center px-2 py-2 text-xs font-medium text-muted-foreground w-16">Desc%</th>
-                        <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground w-24">Subtotal</th>
-                        <th className="w-10" />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {produtosSelecionados.map((prod, i) => (
-                        <tr key={i} className="border-t border-border">
-                          <td className="px-3 py-2">
-                            <div>
-                              <p className="text-foreground truncate">{prod.nome}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(prod.preco_unitario)}/un
-                              </p>
-                            </div>
-                          </td>
-                          <td className="px-2 py-2">
-                            <input
-                              type="number"
-                              value={prod.quantidade}
-                              onChange={(e) => handleUpdateProduto(i, 'quantidade', Math.max(1, parseInt(e.target.value) || 1))}
-                              min="1"
-                              className="w-14 h-8 px-2 text-xs text-center bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30"
-                            />
-                          </td>
-                          <td className="px-2 py-2">
-                            <input
-                              type="number"
-                              value={prod.desconto_percentual}
-                              onChange={(e) => handleUpdateProduto(i, 'desconto_percentual', Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))}
-                              min="0"
-                              max="100"
-                              className="w-14 h-8 px-2 text-xs text-center bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30"
-                            />
-                          </td>
-                          <td className="px-3 py-2 text-right text-foreground font-medium">
-                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(prod.subtotal)}
-                          </td>
-                          <td className="px-2 py-2">
-                            <button
-                              onClick={() => handleRemoveProduto(i)}
-                              className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all duration-200"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr className="border-t border-border bg-muted/30">
-                        <td colSpan={3} className="px-3 py-2 text-right text-xs font-semibold text-muted-foreground uppercase">
-                          Total
-                        </td>
-                        <td className="px-3 py-2 text-right text-sm font-bold text-foreground">
-                          {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalProdutos)}
-                        </td>
-                        <td />
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              )}
-
-              {produtosSelecionados.length === 0 && (
-                <div className="text-center py-4 text-xs text-muted-foreground bg-muted/20 rounded-lg border border-dashed border-border">
-                  Busque e adicione produtos acima
-                </div>
-              )}
-            </section>
-          </>
-        )}
       </div>
     </ModalBase>
   )
