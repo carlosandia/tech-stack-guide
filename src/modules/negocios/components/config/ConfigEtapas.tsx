@@ -103,6 +103,11 @@ export function ConfigEtapas({ funilId }: Props) {
   const handleDragStart = (e: React.DragEvent, etapa: EtapaFunil) => {
     if (isSistema(etapa)) { e.preventDefault(); return }
     e.dataTransfer.effectAllowed = 'move'
+    // Criar imagem de drag transparente (1x1) para esconder o "fantasma" padrão do browser
+    const emptyImg = document.createElement('canvas')
+    emptyImg.width = 1
+    emptyImg.height = 1
+    e.dataTransfer.setDragImage(emptyImg, 0, 0)
     dragIdRef.current = etapa.id
     overIdRef.current = etapa.id
     setDragId(etapa.id)
