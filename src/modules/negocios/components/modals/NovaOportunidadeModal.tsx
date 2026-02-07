@@ -1,11 +1,11 @@
 /**
  * AIDEV-NOTE: Modal para criar nova oportunidade
  * Conforme PRD-07 RF-10 e Design System 10.5
- * Melhorias: título auto-gerado, máscara BRL, MRR, produtos inline
+ * Fluxo: Pessoa (obrigatória) + Empresa (opcional vinculada) + Oportunidade + Produtos
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { Loader2, Target, Search, X, User, Building2, Plus, Trash2, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react'
+import { Loader2, Target, Search, X, User, Building2, Plus, Trash2, ChevronDown, ChevronRight, RefreshCw, Link2 } from 'lucide-react'
 import { ModalBase } from '@/modules/configuracoes/components/ui/ModalBase'
 import { negociosApi } from '../../services/negocios.api'
 import { formatCurrency, unformatCurrency } from '@/lib/formatters'
@@ -74,18 +74,28 @@ export function NovaOportunidadeModal({
   onClose,
   onSuccess,
 }: NovaOportunidadeModalProps) {
-  // Contact state
-  const [tipoContato, setTipoContato] = useState<'pessoa' | 'empresa'>('pessoa')
-  const [contatoSelecionado, setContatoSelecionado] = useState<ContatoResult | null>(null)
-  const [buscaContato, setBuscaContato] = useState('')
-  const [resultadosBusca, setResultadosBusca] = useState<ContatoResult[]>([])
-  const [buscandoContato, setBuscandoContato] = useState(false)
-  const [showResultados, setShowResultados] = useState(false)
-  const [criarNovo, setCriarNovo] = useState(false)
-  const [contatoFields, setContatoFields] = useState<Record<string, string>>({})
+  // === PESSOA state (obrigatória) ===
+  const [pessoaSelecionada, setPessoaSelecionada] = useState<ContatoResult | null>(null)
+  const [buscaPessoa, setBuscaPessoa] = useState('')
+  const [resultadosPessoa, setResultadosPessoa] = useState<ContatoResult[]>([])
+  const [buscandoPessoa, setBuscandoPessoa] = useState(false)
+  const [showResultadosPessoa, setShowResultadosPessoa] = useState(false)
+  const [criarNovaPessoa, setCriarNovaPessoa] = useState(false)
+  const [pessoaFields, setPessoaFields] = useState<Record<string, string>>({})
+
+  // === EMPRESA state (opcional, vinculada) ===
+  const [showEmpresa, setShowEmpresa] = useState(false)
+  const [empresaSelecionada, setEmpresaSelecionada] = useState<ContatoResult | null>(null)
+  const [buscaEmpresa, setBuscaEmpresa] = useState('')
+  const [resultadosEmpresa, setResultadosEmpresa] = useState<ContatoResult[]>([])
+  const [buscandoEmpresa, setBuscandoEmpresa] = useState(false)
+  const [showResultadosEmpresa, setShowResultadosEmpresa] = useState(false)
+  const [criarNovaEmpresa, setCriarNovaEmpresa] = useState(false)
+  const [empresaFields, setEmpresaFields] = useState<Record<string, string>>({})
 
   // Config global para validação
-  const { isRequired: isCampoRequired } = useCamposConfig(tipoContato)
+  const { isRequired: isPessoaCampoRequired } = useCamposConfig('pessoa')
+  const { isRequired: isEmpresaCampoRequired } = useCamposConfig('empresa')
 
   // Opportunity state
   const [tipoValor, setTipoValor] = useState<'manual' | 'produtos'>('manual')
@@ -117,9 +127,11 @@ export function NovaOportunidadeModal({
   const [membros, setMembros] = useState<Membro[]>([])
   const [loading, setLoading] = useState(false)
 
-  const buscaContatoRef = useRef<HTMLDivElement>(null)
+  const buscaPessoaRef = useRef<HTMLDivElement>(null)
+  const buscaEmpresaRef = useRef<HTMLDivElement>(null)
   const buscaProdutoRef = useRef<HTMLDivElement>(null)
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>()
+  const debouncePessoaRef = useRef<ReturnType<typeof setTimeout>>()
+  const debounceEmpresaRef = useRef<ReturnType<typeof setTimeout>>()
 
   // Load membros + catálogo de produtos on mount
   useEffect(() => {
@@ -143,46 +155,68 @@ export function NovaOportunidadeModal({
     setProdutosFiltrados(filtered)
   }, [buscaProduto, catalogoProdutos, produtosSelecionados])
 
-  // Derivar nome do contato
+  // Derivar nome da pessoa para título
   const getNomeContato = useCallback(() => {
-    if (contatoSelecionado) {
-      if (contatoSelecionado.tipo === 'empresa') {
-        return contatoSelecionado.nome_fantasia || contatoSelecionado.razao_social || ''
-      }
-      return [contatoSelecionado.nome, contatoSelecionado.sobrenome].filter(Boolean).join(' ')
+    if (pessoaSelecionada) {
+      return [pessoaSelecionada.nome, pessoaSelecionada.sobrenome].filter(Boolean).join(' ')
     }
-    if (criarNovo) {
-      if (tipoContato === 'empresa') return contatoFields.nome_fantasia || ''
-      return [contatoFields.nome, contatoFields.sobrenome].filter(Boolean).join(' ')
+    if (criarNovaPessoa) {
+      return [pessoaFields.nome, pessoaFields.sobrenome].filter(Boolean).join(' ')
     }
     return ''
-  }, [contatoSelecionado, criarNovo, contatoFields, tipoContato])
+  }, [pessoaSelecionada, criarNovaPessoa, pessoaFields])
 
-  // Search contatos with debounce
-  const handleBuscaContato = useCallback((value: string) => {
-    setBuscaContato(value)
-    if (debounceRef.current) clearTimeout(debounceRef.current)
+  // Search pessoas with debounce
+  const handleBuscaPessoa = useCallback((value: string) => {
+    setBuscaPessoa(value)
+    if (debouncePessoaRef.current) clearTimeout(debouncePessoaRef.current)
 
     if (value.length < 2) {
-      setResultadosBusca([])
-      setShowResultados(false)
+      setResultadosPessoa([])
+      setShowResultadosPessoa(false)
       return
     }
 
-    setBuscandoContato(true)
-    setShowResultados(true)
+    setBuscandoPessoa(true)
+    setShowResultadosPessoa(true)
 
-    debounceRef.current = setTimeout(async () => {
+    debouncePessoaRef.current = setTimeout(async () => {
       try {
-        const results = await negociosApi.buscarContatosAutocomplete(value, tipoContato)
-        setResultadosBusca(results)
+        const results = await negociosApi.buscarContatosAutocomplete(value, 'pessoa')
+        setResultadosPessoa(results)
       } catch {
-        setResultadosBusca([])
+        setResultadosPessoa([])
       } finally {
-        setBuscandoContato(false)
+        setBuscandoPessoa(false)
       }
     }, 300)
-  }, [tipoContato])
+  }, [])
+
+  // Search empresas with debounce
+  const handleBuscaEmpresa = useCallback((value: string) => {
+    setBuscaEmpresa(value)
+    if (debounceEmpresaRef.current) clearTimeout(debounceEmpresaRef.current)
+
+    if (value.length < 2) {
+      setResultadosEmpresa([])
+      setShowResultadosEmpresa(false)
+      return
+    }
+
+    setBuscandoEmpresa(true)
+    setShowResultadosEmpresa(true)
+
+    debounceEmpresaRef.current = setTimeout(async () => {
+      try {
+        const results = await negociosApi.buscarContatosAutocomplete(value, 'empresa')
+        setResultadosEmpresa(results)
+      } catch {
+        setResultadosEmpresa([])
+      } finally {
+        setBuscandoEmpresa(false)
+      }
+    }, 300)
+  }, [])
 
   // Handle currency input
   const handleValorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -192,14 +226,6 @@ export function NovaOportunidadeModal({
       return
     }
     setValorManualFormatado(formatCurrency(raw))
-  }
-
-  // Select contato
-  const handleSelectContato = (contato: ContatoResult) => {
-    setContatoSelecionado(contato)
-    setBuscaContato('')
-    setShowResultados(false)
-    setCriarNovo(false)
   }
 
   // Add produto
@@ -217,7 +243,6 @@ export function NovaOportunidadeModal({
     setBuscaProduto('')
     setShowProdutosDropdown(false)
 
-    // Se produto é MRR, herdar recorrência automaticamente
     if (produto.recorrente) {
       setRecorrente(true)
       if (produto.periodo_recorrencia) {
@@ -245,9 +270,10 @@ export function NovaOportunidadeModal({
   const totalProdutos = produtosSelecionados.reduce((sum, p) => sum + p.subtotal, 0)
   const valorFinal = tipoValor === 'produtos' ? totalProdutos : unformatCurrency(valorManualFormatado)
 
-  // Validation - título é auto-gerado, basta ter contato válido
-  const contatoValido = contatoSelecionado || (criarNovo && validarContatoInline(tipoContato, contatoFields, isCampoRequired))
-  const formularioValido = !!contatoValido
+  // Validation
+  const pessoaValida = pessoaSelecionada || (criarNovaPessoa && validarContatoInline('pessoa', pessoaFields, isPessoaCampoRequired))
+  const empresaValida = !showEmpresa || !criarNovaEmpresa || validarContatoInline('empresa', empresaFields, isEmpresaCampoRequired)
+  const formularioValido = !!pessoaValida && empresaValida
 
   // Submit
   const handleSubmit = async () => {
@@ -255,34 +281,57 @@ export function NovaOportunidadeModal({
     setLoading(true)
 
     try {
-      let contatoId = contatoSelecionado?.id
+      let empresaId: string | undefined
 
-      // Create contato if needed
-      if (!contatoId && criarNovo) {
-        // Build payload from dynamic fields
-        const payload: Record<string, any> = { tipo: tipoContato }
-        for (const [key, val] of Object.entries(contatoFields)) {
-          if (val?.trim()) {
-            // Strip custom_ prefix for custom fields
-            payload[key.startsWith('custom_') ? key : key] = val.trim()
+      // 1. Criar/obter empresa primeiro (se vinculada)
+      if (showEmpresa) {
+        if (empresaSelecionada) {
+          empresaId = empresaSelecionada.id
+        } else if (criarNovaEmpresa) {
+          const payload: Record<string, any> = { tipo: 'empresa' }
+          for (const [key, val] of Object.entries(empresaFields)) {
+            if (val?.trim() && !key.startsWith('custom_')) {
+              payload[key] = val.trim()
+            }
           }
+          const novaEmpresa = await negociosApi.criarContatoRapido(payload as Record<string, any> & { tipo: 'pessoa' | 'empresa' })
+          empresaId = novaEmpresa.id
         }
-        const novoContato = await negociosApi.criarContatoRapido(payload as Record<string, any> & { tipo: 'pessoa' | 'empresa' })
-        contatoId = novoContato.id
       }
 
-      if (!contatoId) throw new Error('Contato não selecionado')
+      // 2. Criar/obter pessoa
+      let pessoaId = pessoaSelecionada?.id
 
-      // Gerar título automático: [Nome] - #[N]
+      if (!pessoaId && criarNovaPessoa) {
+        const payload: Record<string, any> = { tipo: 'pessoa' }
+        for (const [key, val] of Object.entries(pessoaFields)) {
+          if (val?.trim() && !key.startsWith('custom_')) {
+            payload[key] = val.trim()
+          }
+        }
+        // Vincular empresa se existir
+        if (empresaId) {
+          payload.empresa_id = empresaId
+        }
+        const novaPessoa = await negociosApi.criarContatoRapido(payload as Record<string, any> & { tipo: 'pessoa' | 'empresa' })
+        pessoaId = novaPessoa.id
+      } else if (pessoaId && empresaId) {
+        // Atualizar pessoa existente com empresa_id
+        await negociosApi.atualizarContato(pessoaId, { empresa_id: empresaId })
+      }
+
+      if (!pessoaId) throw new Error('Pessoa não selecionada')
+
+      // 3. Gerar título automático: [Nome] - #[N]
       const nomeContato = getNomeContato()
-      const count = await negociosApi.contarOportunidadesContato(contatoId)
+      const count = await negociosApi.contarOportunidadesContato(pessoaId)
       const tituloAuto = `${nomeContato} - #${count + 1}`
 
-      // Create oportunidade
+      // 4. Create oportunidade
       const oportunidade = await negociosApi.criarOportunidade({
         funil_id: funilId,
         etapa_id: etapaEntradaId,
-        contato_id: contatoId,
+        contato_id: pessoaId,
         titulo: tituloAuto,
         valor: valorFinal || undefined,
         recorrente: recorrente || undefined,
@@ -296,7 +345,7 @@ export function NovaOportunidadeModal({
         utm_content: utmContent.trim() || undefined,
       })
 
-      // Add produtos if any
+      // 5. Add produtos if any
       if (tipoValor === 'produtos' && produtosSelecionados.length > 0) {
         await negociosApi.adicionarProdutosOportunidade(oportunidade.id, produtosSelecionados)
       }
@@ -313,8 +362,11 @@ export function NovaOportunidadeModal({
   // Click outside handlers
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (buscaContatoRef.current && !buscaContatoRef.current.contains(e.target as Node)) {
-        setShowResultados(false)
+      if (buscaPessoaRef.current && !buscaPessoaRef.current.contains(e.target as Node)) {
+        setShowResultadosPessoa(false)
+      }
+      if (buscaEmpresaRef.current && !buscaEmpresaRef.current.contains(e.target as Node)) {
+        setShowResultadosEmpresa(false)
       }
       if (buscaProdutoRef.current && !buscaProdutoRef.current.contains(e.target as Node)) {
         setShowProdutosDropdown(false)
@@ -356,125 +408,82 @@ export function NovaOportunidadeModal({
       }
     >
       <div className="p-4 sm:p-6 space-y-6">
-        {/* ===== SEÇÃO 1: CONTATO ===== */}
+        {/* ===== SEÇÃO 1: PESSOA (obrigatória) ===== */}
         <section>
           <div className="flex items-center gap-2 mb-3">
             <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center">
               <User className="w-3.5 h-3.5 text-primary" />
             </div>
-            <h3 className="text-sm font-semibold text-foreground uppercase tracking-wide">Contato</h3>
+            <h3 className="text-sm font-semibold text-foreground uppercase tracking-wide">
+              Pessoa <span className="text-destructive">*</span>
+            </h3>
           </div>
 
-          {/* Toggle Pessoa/Empresa */}
-          <div className="flex gap-1 p-0.5 bg-muted rounded-md mb-3 w-fit">
-            <button
-              onClick={() => {
-                setTipoContato('pessoa')
-                setContatoSelecionado(null)
-                setCriarNovo(false)
-                setBuscaContato('')
-                setContatoFields({})
-              }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded transition-all duration-200 ${
-                tipoContato === 'pessoa'
-                  ? 'bg-card text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <User className="w-3.5 h-3.5" />
-              Pessoa
-            </button>
-            <button
-              onClick={() => {
-                setTipoContato('empresa')
-                setContatoSelecionado(null)
-                setCriarNovo(false)
-                setBuscaContato('')
-                setContatoFields({})
-              }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded transition-all duration-200 ${
-                tipoContato === 'empresa'
-                  ? 'bg-card text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <Building2 className="w-3.5 h-3.5" />
-              Empresa
-            </button>
-          </div>
-
-          {/* Contato selecionado */}
-          {contatoSelecionado ? (
+          {/* Pessoa selecionada */}
+          {pessoaSelecionada ? (
             <div className="flex items-center gap-3 p-3 bg-primary/5 border border-primary/20 rounded-lg">
               <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
-                {tipoContato === 'empresa' ? (
-                  <Building2 className="w-4 h-4 text-primary" />
-                ) : (
-                  <User className="w-4 h-4 text-primary" />
-                )}
+                <User className="w-4 h-4 text-primary" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-foreground truncate">
-                  {tipoContato === 'empresa'
-                    ? contatoSelecionado.nome_fantasia || contatoSelecionado.razao_social
-                    : [contatoSelecionado.nome, contatoSelecionado.sobrenome].filter(Boolean).join(' ')}
+                  {[pessoaSelecionada.nome, pessoaSelecionada.sobrenome].filter(Boolean).join(' ')}
                 </p>
                 <p className="text-xs text-muted-foreground truncate">
-                  {contatoSelecionado.email || contatoSelecionado.telefone || ''}
+                  {pessoaSelecionada.email || pessoaSelecionada.telefone || ''}
                 </p>
               </div>
               <button
                 onClick={() => {
-                  setContatoSelecionado(null)
-                  setBuscaContato('')
+                  setPessoaSelecionada(null)
+                  setBuscaPessoa('')
                 }}
                 className="p-1.5 rounded-md hover:bg-accent transition-all duration-200"
               >
                 <X className="w-4 h-4 text-muted-foreground" />
               </button>
             </div>
-          ) : !criarNovo ? (
-            /* Busca de contato */
-            <div className="relative" ref={buscaContatoRef}>
+          ) : !criarNovaPessoa ? (
+            /* Busca de pessoa */
+            <div className="relative" ref={buscaPessoaRef}>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                 <input
                   type="text"
-                  value={buscaContato}
-                  onChange={(e) => handleBuscaContato(e.target.value)}
-                  onFocus={() => buscaContato.length >= 2 && setShowResultados(true)}
-                  placeholder={tipoContato === 'pessoa' ? 'Buscar pessoa por nome, email...' : 'Buscar empresa por nome, CNPJ...'}
+                  value={buscaPessoa}
+                  onChange={(e) => handleBuscaPessoa(e.target.value)}
+                  onFocus={() => buscaPessoa.length >= 2 && setShowResultadosPessoa(true)}
+                  placeholder="Buscar pessoa por nome, email..."
                   className="w-full h-10 pl-9 pr-3 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground"
                 />
-                {buscandoContato && (
+                {buscandoPessoa && (
                   <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />
                 )}
               </div>
 
               {/* Resultados dropdown */}
-              {showResultados && (
+              {showResultadosPessoa && (
                 <div className="absolute left-0 right-0 top-full mt-1 bg-card border border-border rounded-lg shadow-lg z-[60] max-h-[200px] overflow-y-auto">
-                  {resultadosBusca.length > 0 ? (
-                    resultadosBusca.map(contato => (
+                  {resultadosPessoa.length > 0 ? (
+                    resultadosPessoa.map(contato => (
                       <button
                         key={contato.id}
-                        onClick={() => handleSelectContato(contato)}
+                        onClick={() => {
+                          setPessoaSelecionada(contato)
+                          setBuscaPessoa('')
+                          setShowResultadosPessoa(false)
+                          setCriarNovaPessoa(false)
+                        }}
                         className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-accent transition-all duration-200"
                       >
                         <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-                          {contato.tipo === 'empresa' ? (
-                            <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
-                          ) : (
-                            <span className="text-xs font-medium text-muted-foreground">
-                              {(contato.nome || '?')[0]?.toUpperCase()}
-                            </span>
-                          )}
+                          <span className="text-xs font-medium text-muted-foreground">
+                            {(contato.nome || '?')[0]?.toUpperCase()}
+                          </span>
                         </div>
                         <div className="min-w-0">
                           <p className="text-sm font-medium text-foreground truncate">
-                            {contato.tipo === 'empresa'
-                              ? contato.nome_fantasia || contato.razao_social
-                              : [contato.nome, contato.sobrenome].filter(Boolean).join(' ')}
+                            {[contato.nome, contato.sobrenome].filter(Boolean).join(' ')}
                           </p>
                           <p className="text-xs text-muted-foreground truncate">
                             {contato.email || contato.telefone || ''}
@@ -482,57 +491,208 @@ export function NovaOportunidadeModal({
                         </div>
                       </button>
                     ))
-                  ) : !buscandoContato ? (
+                  ) : !buscandoPessoa ? (
                     <div className="px-3 py-4 text-center text-xs text-muted-foreground">
-                      Nenhum contato encontrado
+                      Nenhuma pessoa encontrada
                     </div>
                   ) : null}
 
-                  {/* Botão criar novo */}
+                  {/* Botão criar nova pessoa */}
                   <div className="border-t border-border">
                     <button
                       onClick={() => {
-                        setCriarNovo(true)
-                        setShowResultados(false)
-                        setBuscaContato('')
+                        setCriarNovaPessoa(true)
+                        setShowResultadosPessoa(false)
+                        setBuscaPessoa('')
                       }}
                       className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-primary hover:bg-accent transition-all duration-200"
                     >
                       <Plus className="w-4 h-4" />
-                      Criar {tipoContato === 'pessoa' ? 'nova pessoa' : 'nova empresa'}
+                      Criar nova pessoa
                     </button>
                   </div>
                 </div>
               )}
 
-              {/* Quick action: criar novo */}
-              {!showResultados && buscaContato.length === 0 && (
+              {/* Quick action: criar nova */}
+              {!showResultadosPessoa && buscaPessoa.length === 0 && (
                 <button
-                  onClick={() => setCriarNovo(true)}
+                  onClick={() => setCriarNovaPessoa(true)}
                   className="mt-2 text-xs text-primary hover:underline"
                 >
-                  + Criar {tipoContato === 'pessoa' ? 'nova pessoa' : 'nova empresa'}
+                  + Criar nova pessoa
                 </button>
               )}
             </div>
           ) : (
-            /* Formulário inline para novo contato */
+            /* Formulário inline para nova pessoa */
             <ContatoInlineForm
-              tipo={tipoContato}
-              fields={contatoFields}
-              onChange={setContatoFields}
-              onCancel={() => setCriarNovo(false)}
+              tipo="pessoa"
+              fields={pessoaFields}
+              onChange={setPessoaFields}
+              onCancel={() => setCriarNovaPessoa(false)}
             />
           )}
-
-          {/* Preview do título auto-gerado */}
-          {getNomeContato() && (
-            <div className="mt-2 px-3 py-1.5 bg-muted/40 rounded-md">
-              <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Título automático: </span>
-              <span className="text-xs font-medium text-foreground">{getNomeContato()} - #...</span>
-            </div>
-          )}
         </section>
+
+        {/* ===== SEÇÃO 1.5: EMPRESA (opcional, vinculada à pessoa) ===== */}
+        {!showEmpresa ? (
+          <button
+            onClick={() => setShowEmpresa(true)}
+            className="flex items-center gap-2 text-xs text-primary hover:text-primary/80 transition-all duration-200"
+          >
+            <Link2 className="w-3.5 h-3.5" />
+            <span className="font-medium">+ Vincular empresa (opcional)</span>
+          </button>
+        ) : (
+          <section>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center">
+                  <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
+                </div>
+                <h3 className="text-sm font-semibold text-foreground uppercase tracking-wide">
+                  Empresa
+                </h3>
+                <span className="text-[10px] text-muted-foreground font-normal normal-case">(opcional)</span>
+              </div>
+              <button
+                onClick={() => {
+                  setShowEmpresa(false)
+                  setEmpresaSelecionada(null)
+                  setCriarNovaEmpresa(false)
+                  setEmpresaFields({})
+                  setBuscaEmpresa('')
+                }}
+                className="p-1 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-all duration-200"
+                title="Remover vínculo"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Empresa selecionada */}
+            {empresaSelecionada ? (
+              <div className="flex items-center gap-3 p-3 bg-muted/30 border border-border rounded-lg">
+                <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center">
+                  <Building2 className="w-4 h-4 text-muted-foreground" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">
+                    {empresaSelecionada.nome_fantasia || empresaSelecionada.razao_social}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {empresaSelecionada.email || empresaSelecionada.telefone || ''}
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setEmpresaSelecionada(null)
+                    setBuscaEmpresa('')
+                  }}
+                  className="p-1.5 rounded-md hover:bg-accent transition-all duration-200"
+                >
+                  <X className="w-4 h-4 text-muted-foreground" />
+                </button>
+              </div>
+            ) : !criarNovaEmpresa ? (
+              /* Busca de empresa */
+              <div className="relative" ref={buscaEmpresaRef}>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                  <input
+                    type="text"
+                    value={buscaEmpresa}
+                    onChange={(e) => handleBuscaEmpresa(e.target.value)}
+                    onFocus={() => buscaEmpresa.length >= 2 && setShowResultadosEmpresa(true)}
+                    placeholder="Buscar empresa por nome, CNPJ..."
+                    className="w-full h-10 pl-9 pr-3 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground"
+                  />
+                  {buscandoEmpresa && (
+                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />
+                  )}
+                </div>
+
+                {/* Resultados dropdown */}
+                {showResultadosEmpresa && (
+                  <div className="absolute left-0 right-0 top-full mt-1 bg-card border border-border rounded-lg shadow-lg z-[60] max-h-[200px] overflow-y-auto">
+                    {resultadosEmpresa.length > 0 ? (
+                      resultadosEmpresa.map(contato => (
+                        <button
+                          key={contato.id}
+                          onClick={() => {
+                            setEmpresaSelecionada(contato)
+                            setBuscaEmpresa('')
+                            setShowResultadosEmpresa(false)
+                            setCriarNovaEmpresa(false)
+                          }}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-accent transition-all duration-200"
+                        >
+                          <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                            <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-foreground truncate">
+                              {contato.nome_fantasia || contato.razao_social}
+                            </p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {contato.email || contato.telefone || ''}
+                            </p>
+                          </div>
+                        </button>
+                      ))
+                    ) : !buscandoEmpresa ? (
+                      <div className="px-3 py-4 text-center text-xs text-muted-foreground">
+                        Nenhuma empresa encontrada
+                      </div>
+                    ) : null}
+
+                    {/* Botão criar nova empresa */}
+                    <div className="border-t border-border">
+                      <button
+                        onClick={() => {
+                          setCriarNovaEmpresa(true)
+                          setShowResultadosEmpresa(false)
+                          setBuscaEmpresa('')
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-primary hover:bg-accent transition-all duration-200"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Criar nova empresa
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Quick action: criar nova */}
+                {!showResultadosEmpresa && buscaEmpresa.length === 0 && (
+                  <button
+                    onClick={() => setCriarNovaEmpresa(true)}
+                    className="mt-2 text-xs text-primary hover:underline"
+                  >
+                    + Criar nova empresa
+                  </button>
+                )}
+              </div>
+            ) : (
+              /* Formulário inline para nova empresa */
+              <ContatoInlineForm
+                tipo="empresa"
+                fields={empresaFields}
+                onChange={setEmpresaFields}
+                onCancel={() => setCriarNovaEmpresa(false)}
+              />
+            )}
+          </section>
+        )}
+
+        {/* Preview do título auto-gerado */}
+        {getNomeContato() && (
+          <div className="px-3 py-1.5 bg-muted/40 rounded-md">
+            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Título automático: </span>
+            <span className="text-xs font-medium text-foreground">{getNomeContato()} - #...</span>
+          </div>
+        )}
 
         {/* Separador */}
         <div className="border-t border-border" />

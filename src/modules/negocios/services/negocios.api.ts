@@ -593,7 +593,7 @@ export const negociosApi = {
     const VALID_COLUMNS = new Set([
       'tipo', 'nome', 'sobrenome', 'email', 'telefone', 'nome_fantasia',
       'razao_social', 'cnpj', 'cargo', 'linkedin_url', 'website',
-      'segmento', 'porte', 'observacoes',
+      'segmento', 'porte', 'observacoes', 'empresa_id',
     ])
 
     const insertData: Record<string, unknown> = {
