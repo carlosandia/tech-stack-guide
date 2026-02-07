@@ -328,7 +328,8 @@ export function NovaOportunidadeModal({
           break
       }
 
-      await supabase.from('valores_campos_customizados').insert(insertData as any)
+      const { error } = await supabase.from('valores_campos_customizados').insert(insertData as any)
+      if (error) console.error('Erro ao salvar campo customizado:', slug, error.message)
     }
   }, [pessoaCustomFields, empresaCustomFields])
 
