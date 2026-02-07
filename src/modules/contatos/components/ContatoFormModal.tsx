@@ -18,6 +18,7 @@ import { PhoneInputField } from './PhoneInputField'
 import { formatCnpj } from '@/lib/formatters'
 import { useContatos } from '../hooks/useContatos'
 import { useSegmentos } from '../hooks/useSegmentos'
+import type { Segmento } from '../services/contatos.api'
 import type { InputHTMLAttributes, SelectHTMLAttributes } from 'react'
 
 interface ContatoFormModalProps {
@@ -75,6 +76,11 @@ export function ContatoFormModal({
 
   // Versão de visibilidade — incrementa quando o toggle muda, forçando re-render
   const [visibilityVersion, setVisibilityVersion] = useState(0)
+
+  // Segmentos
+  const { data: segmentosData } = useSegmentos()
+  const segmentosList: Segmento[] = segmentosData?.segmentos || []
+  const [selectedSegmentoIds, setSelectedSegmentoIds] = useState<string[]>([])
 
   // Buscar campos do configurações (config global)
   const { campos: todosOsCampos, getLabel, getPlaceholder: getCampoPlaceholder, isRequired: isCampoRequired } = useCamposConfig(tipo)
