@@ -133,6 +133,7 @@ export function DetalhesOportunidadeModal({
                   <DetalhesAbas
                     oportunidadeId={oportunidade.id}
                     usuarioAtualId={undefined}
+                    emailContato={oportunidade.contato?.email}
                   />
                 </div>
 

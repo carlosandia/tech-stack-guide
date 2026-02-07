@@ -231,6 +231,8 @@ export const negociosApi = {
   },
 
   // Carregar dados do Kanban (etapas + oportunidades)
+  // AIDEV-NOTE: Aplica isolamento Member/Admin (RF-PRD-07)
+  // Members só veem suas próprias oportunidades
   carregarKanban: async (funilId: string, filtros?: {
     busca?: string
     responsavelId?: string
@@ -262,6 +264,23 @@ export const negociosApi = {
 
     if (etapasError) throw new Error(etapasError.message)
 
+    // Buscar role e userId do usuário atual para isolamento
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    let currentUserId: string | null = null
+    let currentUserRole: string = 'member'
+
+    if (authUser) {
+      const { data: userData } = await supabase
+        .from('usuarios')
+        .select('id, role')
+        .eq('auth_id', authUser.id)
+        .maybeSingle()
+      if (userData) {
+        currentUserId = userData.id
+        currentUserRole = userData.role || 'member'
+      }
+    }
+
     // Buscar oportunidades
     let oportunidadesQuery = supabase
       .from('oportunidades')
@@ -269,6 +288,11 @@ export const negociosApi = {
       .eq('funil_id', funilId)
       .is('deletado_em', null)
       .order('criado_em', { ascending: false })
+
+    // ISOLAMENTO: Members só veem suas próprias oportunidades
+    if (currentUserRole === 'member' && currentUserId) {
+      oportunidadesQuery = oportunidadesQuery.eq('usuario_responsavel_id', currentUserId)
+    }
 
     if (filtros?.responsavelId) {
       oportunidadesQuery = oportunidadesQuery.eq('usuario_responsavel_id', filtros.responsavelId)
