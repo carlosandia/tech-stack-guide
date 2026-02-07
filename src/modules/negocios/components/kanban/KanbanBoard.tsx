@@ -2,6 +2,7 @@
  * AIDEV-NOTE: Board principal do Kanban
  * Scroll horizontal com colunas, responsivo com snap no mobile
  * Inclui coluna "Solicitações" (RF-11) antes das etapas
+ * Busca config de cards de /configuracoes/cards e repassa aos cards
  * Conforme PRD-07 e Design System
  */
 
@@ -12,6 +13,8 @@ import { KanbanColumn } from './KanbanColumn'
 import { SolicitacoesColumn } from './SolicitacoesColumn'
 import { toast } from 'sonner'
 import { useMoverEtapa } from '../../hooks/useKanban'
+import { useConfigCard } from '@/modules/configuracoes/hooks/useRegras'
+import type { CardConfig } from './KanbanCard'
 
 interface KanbanBoardProps {
   data: KanbanData
@@ -23,6 +26,13 @@ interface KanbanBoardProps {
 export function KanbanBoard({ data, isLoading, onDropGanhoPerda, onCardClick }: KanbanBoardProps) {
   const draggedOpRef = useRef<Oportunidade | null>(null)
   const moverEtapa = useMoverEtapa()
+
+  // Buscar configuração de cards
+  const { data: configCard } = useConfigCard()
+  const cardConfig: CardConfig | undefined = configCard ? {
+    camposVisiveis: Array.isArray(configCard.campos_visiveis) ? configCard.campos_visiveis : undefined as any,
+    acoesRapidas: Array.isArray((configCard as any).acoes_rapidas) ? (configCard as any).acoes_rapidas : undefined as any,
+  } : undefined
 
   const handleDragStart = useCallback((e: React.DragEvent, oportunidade: Oportunidade) => {
     draggedOpRef.current = oportunidade
@@ -93,6 +103,7 @@ export function KanbanBoard({ data, isLoading, onDropGanhoPerda, onCardClick }: 
             onDragOver={handleDragOver}
             onDrop={handleDrop}
             onCardClick={onCardClick}
+            cardConfig={cardConfig}
           />
         ))}
       </div>

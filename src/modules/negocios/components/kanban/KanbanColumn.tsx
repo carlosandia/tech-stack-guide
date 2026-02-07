@@ -7,6 +7,7 @@
 import { useState } from 'react'
 import type { EtapaFunil, Oportunidade } from '../../services/negocios.api'
 import { KanbanCard } from './KanbanCard'
+import type { CardConfig } from './KanbanCard'
 
 interface KanbanColumnProps {
   etapa: EtapaFunil & {
@@ -18,6 +19,7 @@ interface KanbanColumnProps {
   onDragOver: (e: React.DragEvent) => void
   onDrop: (e: React.DragEvent, etapaId: string, tipoEtapa: string) => void
   onCardClick: (oportunidade: Oportunidade) => void
+  cardConfig?: CardConfig
 }
 
 function formatValorResumido(valor: number): string {
@@ -27,7 +29,7 @@ function formatValorResumido(valor: number): string {
   return `R$ ${valor.toFixed(0)}`
 }
 
-export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardClick }: KanbanColumnProps) {
+export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardClick, cardConfig }: KanbanColumnProps) {
   const [isDragOver, setIsDragOver] = useState(false)
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -92,6 +94,7 @@ export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardCli
               oportunidade={op}
               onDragStart={onDragStart}
               onClick={onCardClick}
+              config={cardConfig}
             />
           ))
         )}
