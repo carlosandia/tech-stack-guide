@@ -6,7 +6,7 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { Loader2, Target, Search, X, User, Building2, Plus, Trash2, ChevronDown } from 'lucide-react'
+import { Loader2, Target, Search, X, User, Building2, Plus, Trash2, ChevronDown, ChevronRight } from 'lucide-react'
 import { ModalBase } from '@/modules/configuracoes/components/ui/ModalBase'
 import { negociosApi } from '../../services/negocios.api'
 
@@ -86,6 +86,14 @@ export function NovaOportunidadeModal({
   const [valorManual, setValorManual] = useState('')
   const [responsavelId, setResponsavelId] = useState<string>('')
   const [previsaoFechamento, setPrevisaoFechamento] = useState('')
+
+  // UTM state
+  const [showUtm, setShowUtm] = useState(false)
+  const [utmSource, setUtmSource] = useState('')
+  const [utmCampaign, setUtmCampaign] = useState('')
+  const [utmMedium, setUtmMedium] = useState('')
+  const [utmTerm, setUtmTerm] = useState('')
+  const [utmContent, setUtmContent] = useState('')
 
   // Products state
   const [produtosSelecionados, setProdutosSelecionados] = useState<ProdutoSelecionado[]>([])
@@ -256,6 +264,11 @@ export function NovaOportunidadeModal({
         valor: valorFinal || undefined,
         usuario_responsavel_id: responsavelId || undefined,
         previsao_fechamento: previsaoFechamento || undefined,
+        utm_source: utmSource.trim() || undefined,
+        utm_campaign: utmCampaign.trim() || undefined,
+        utm_medium: utmMedium.trim() || undefined,
+        utm_term: utmTerm.trim() || undefined,
+        utm_content: utmContent.trim() || undefined,
       })
 
       // Add produtos if any
@@ -686,6 +699,49 @@ export function NovaOportunidadeModal({
               </div>
             </div>
           </div>
+        </section>
+
+        {/* ===== SEÇÃO UTM (Colapsável) ===== */}
+        <div className="border-t border-border" />
+        <section>
+          <button
+            type="button"
+            onClick={() => setShowUtm(!showUtm)}
+            className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-all duration-200"
+          >
+            <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-200 ${showUtm ? 'rotate-90' : ''}`} />
+            <span className="font-medium">Rastreamento UTM (opcional)</span>
+          </button>
+
+          {showUtm && (
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-foreground mb-1">Source</label>
+                <input type="text" value={utmSource} onChange={(e) => setUtmSource(e.target.value)} placeholder="google, facebook..."
+                  className="w-full h-9 px-3 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-foreground mb-1">Campaign</label>
+                <input type="text" value={utmCampaign} onChange={(e) => setUtmCampaign(e.target.value)} placeholder="Nome da campanha"
+                  className="w-full h-9 px-3 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-foreground mb-1">Medium</label>
+                <input type="text" value={utmMedium} onChange={(e) => setUtmMedium(e.target.value)} placeholder="cpc, email, social..."
+                  className="w-full h-9 px-3 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-foreground mb-1">Term</label>
+                <input type="text" value={utmTerm} onChange={(e) => setUtmTerm(e.target.value)} placeholder="Palavra-chave"
+                  className="w-full h-9 px-3 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground" />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-foreground mb-1">Content</label>
+                <input type="text" value={utmContent} onChange={(e) => setUtmContent(e.target.value)} placeholder="Variação do anúncio"
+                  className="w-full h-9 px-3 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground" />
+              </div>
+            </div>
+          )}
         </section>
 
         {/* Separador - só mostra seção de produtos se tipoValor === 'produtos' */}

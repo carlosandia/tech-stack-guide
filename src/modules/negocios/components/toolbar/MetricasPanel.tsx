@@ -1,8 +1,9 @@
 /**
  * AIDEV-NOTE: Painel de métricas do Kanban
- * Conforme PRD-07 RF-13
+ * Conforme PRD-07 RF-13 + RF-15.4 (filtro de métricas)
  * Calcula métricas a partir dos dados filtrados do Kanban
  * Toggle exibe/oculta com estado em localStorage
+ * Integra FiltrarMetricasPopover para escolher métricas visíveis
  */
 
 import { useMemo } from 'react'
@@ -11,12 +12,16 @@ import {
   AlertTriangle, CheckCircle, XCircle, BarChart3, ChevronUp, ChevronDown,
 } from 'lucide-react'
 import type { KanbanData } from '../../services/negocios.api'
+import { FiltrarMetricasPopover, type MetricasVisiveis, isMetricaVisivel } from './FiltrarMetricasPopover'
 import { differenceInDays } from 'date-fns'
 
 interface MetricasPanelProps {
   data: KanbanData
   visivel: boolean
   onToggle: () => void
+  funilId: string | null
+  metricasVisiveis: MetricasVisiveis
+  onMetricasVisiveisChange: (visiveis: MetricasVisiveis) => void
 }
 
 interface Metrica {
@@ -135,8 +140,13 @@ function calcularMetricas(data: KanbanData): Metrica[] {
   ]
 }
 
-export function MetricasPanel({ data, visivel, onToggle }: MetricasPanelProps) {
+export function MetricasPanel({ data, visivel, onToggle, funilId, metricasVisiveis, onMetricasVisiveisChange }: MetricasPanelProps) {
   const metricas = useMemo(() => calcularMetricas(data), [data])
+
+  const metricasFiltradas = useMemo(() => {
+    if (Object.keys(metricasVisiveis).length === 0) return metricas
+    return metricas.filter(m => isMetricaVisivel(metricasVisiveis, m.id))
+  }, [metricas, metricasVisiveis])
 
   return (
     <div className="flex-shrink-0 border-b border-border bg-card/50">
@@ -149,18 +159,29 @@ export function MetricasPanel({ data, visivel, onToggle }: MetricasPanelProps) {
           <BarChart3 className="w-4 h-4 text-muted-foreground" />
           <span className="text-xs font-medium text-muted-foreground">Métricas</span>
         </div>
-        {visivel ? (
-          <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" />
-        ) : (
-          <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-        )}
+        <div className="flex items-center gap-1">
+          {visivel && (
+            <div onClick={(e) => e.stopPropagation()}>
+              <FiltrarMetricasPopover
+                funilId={funilId}
+                visiveis={metricasVisiveis}
+                onChange={onMetricasVisiveisChange}
+              />
+            </div>
+          )}
+          {visivel ? (
+            <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+          )}
+        </div>
       </button>
 
       {/* Métricas grid */}
       {visivel && (
         <div className="px-3 sm:px-4 pb-3 animate-enter">
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-2">
-            {metricas.map(m => (
+            {metricasFiltradas.map(m => (
               <div
                 key={m.id}
                 className={`
