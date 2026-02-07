@@ -1,10 +1,12 @@
 /**
- * AIDEV-NOTE: Hook para dados do Kanban com TanStack Query
+ * AIDEV-NOTE: Hook para dados do Kanban com TanStack Query + Supabase Realtime
  * Conforme PRD-07 - Módulo de Negócios
  */
 
+import { useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { negociosApi } from '../services/negocios.api'
+import { supabase } from '@/lib/supabase'
 
 interface KanbanFiltros {
   busca?: string
@@ -18,11 +20,38 @@ interface KanbanFiltros {
 }
 
 export function useKanban(funilId: string | null, filtros?: KanbanFiltros) {
+  const queryClient = useQueryClient()
+
+  // Supabase Realtime: invalidar kanban quando oportunidades mudam
+  useEffect(() => {
+    if (!funilId) return
+
+    const channel = supabase
+      .channel(`kanban_${funilId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'oportunidades',
+          filter: `funil_id=eq.${funilId}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['kanban', funilId] })
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [funilId, queryClient])
+
   return useQuery({
     queryKey: ['kanban', funilId, filtros],
     queryFn: () => negociosApi.carregarKanban(funilId!, filtros),
     enabled: !!funilId,
-    staleTime: 30 * 1000, // 30s para dados mais frescos
+    staleTime: 30 * 1000,
     refetchOnWindowFocus: true,
   })
 }

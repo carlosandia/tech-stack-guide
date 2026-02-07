@@ -1,11 +1,12 @@
 /**
  * AIDEV-NOTE: Popover para escolher quais métricas exibir no painel
  * Conforme PRD-07 RF-15.4
- * Persistência em localStorage por pipeline
+ * Persistência em banco (tabela preferencias_metricas) com fallback localStorage
  */
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { SlidersHorizontal, Check } from 'lucide-react'
+import { useSalvarPreferenciasMetricas } from '../../hooks/usePreOportunidades'
 
 export interface MetricasVisiveis {
   [metricaId: string]: boolean
@@ -29,24 +30,32 @@ const TODAS_METRICAS = [
 
 const GRUPOS = ['Contagem', 'Financeiro', 'Performance', 'Alertas']
 
-const STORAGE_PREFIX = 'negocios_metricas_visiveis_'
+/**
+ * Converte array de IDs visíveis (do banco) → MetricasVisiveis map
+ */
+export function arrayToMetricasVisiveis(arr: string[] | null): MetricasVisiveis {
+  if (!arr || arr.length === 0) return {}
+  const result: MetricasVisiveis = {}
+  TODAS_METRICAS.forEach(m => {
+    result[m.id] = arr.includes(m.id)
+  })
+  return result
+}
 
-export function getMetricasVisiveis(funilId: string | null): MetricasVisiveis {
-  if (!funilId) return {}
-  const stored = localStorage.getItem(`${STORAGE_PREFIX}${funilId}`)
-  if (stored) {
-    try {
-      return JSON.parse(stored)
-    } catch {
-      return {}
-    }
-  }
-  // Default: todas visíveis
+/**
+ * Converte MetricasVisiveis map → array de IDs visíveis (para o banco)
+ */
+function metricasVisiveisToArray(visiveis: MetricasVisiveis): string[] {
+  if (Object.keys(visiveis).length === 0) return TODAS_METRICAS.map(m => m.id)
+  return TODAS_METRICAS.filter(m => visiveis[m.id] !== false).map(m => m.id)
+}
+
+export function getMetricasVisiveis(_funilId: string | null): MetricasVisiveis {
+  // Retorna vazio como default; o componente pai buscará do banco
   return {}
 }
 
 export function isMetricaVisivel(visiveis: MetricasVisiveis, metricaId: string): boolean {
-  // Se não há preferência salva, mostra todas
   if (Object.keys(visiveis).length === 0) return true
   return visiveis[metricaId] !== false
 }
@@ -60,6 +69,7 @@ interface FiltrarMetricasPopoverProps {
 export function FiltrarMetricasPopover({ funilId, visiveis, onChange }: FiltrarMetricasPopoverProps) {
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  const salvarPreferencias = useSalvarPreferenciasMetricas()
 
   // Click outside
   useEffect(() => {
@@ -73,9 +83,17 @@ export function FiltrarMetricasPopover({ funilId, visiveis, onChange }: FiltrarM
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
 
+  const persistir = useCallback((novoEstado: MetricasVisiveis) => {
+    if (funilId) {
+      salvarPreferencias.mutate({
+        funilId,
+        metricas: metricasVisiveisToArray(novoEstado),
+      })
+    }
+  }, [funilId, salvarPreferencias])
+
   const handleToggle = (metricaId: string) => {
     const novoEstado = { ...visiveis }
-    // Se está vazio, inicializar com tudo true exceto este
     if (Object.keys(novoEstado).length === 0) {
       TODAS_METRICAS.forEach(m => {
         novoEstado[m.id] = m.id !== metricaId
@@ -84,19 +102,14 @@ export function FiltrarMetricasPopover({ funilId, visiveis, onChange }: FiltrarM
       novoEstado[metricaId] = !isMetricaVisivel(visiveis, metricaId)
     }
 
-    // Salvar em localStorage
-    if (funilId) {
-      localStorage.setItem(`${STORAGE_PREFIX}${funilId}`, JSON.stringify(novoEstado))
-    }
     onChange(novoEstado)
+    persistir(novoEstado)
   }
 
   const handleMostrarTodas = () => {
     const novoEstado: MetricasVisiveis = {}
-    if (funilId) {
-      localStorage.removeItem(`${STORAGE_PREFIX}${funilId}`)
-    }
     onChange(novoEstado)
+    persistir(novoEstado)
   }
 
   const totalVisiveis = TODAS_METRICAS.filter(m => isMetricaVisivel(visiveis, m.id)).length
