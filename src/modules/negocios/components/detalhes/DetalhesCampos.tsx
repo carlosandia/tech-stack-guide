@@ -10,7 +10,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { DollarSign, User, Calendar, Mail, Phone, Settings2, Check, Building2, RefreshCw, Link2, X, Search, Loader2, ChevronDown, Hash, Type, ToggleLeft, Globe, FileText } from 'lucide-react'
 import type { Oportunidade } from '../../services/negocios.api'
 import { negociosApi } from '../../services/negocios.api'
-import { useAtualizarOportunidade, useAtualizarContato } from '../../hooks/useOportunidadeDetalhes'
+import { useAtualizarOportunidade, useAtualizarContato, useAvaliarQualificacao } from '../../hooks/useOportunidadeDetalhes'
 import { useCamposDefinicoes, useValoresCampos, SLUG_TO_CONTATO_COLUMN, getValorExibicao } from '../../hooks/useCamposDetalhes'
 import type { CampoDefinicao } from '../../hooks/useCamposDetalhes'
 import { toast } from 'sonner'
@@ -70,6 +70,7 @@ function getCampoIcon(tipo: string) {
 export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
   const atualizarOp = useAtualizarOportunidade()
   const atualizarContato = useAtualizarContato()
+  const avaliarQualificacao = useAvaliarQualificacao()
 
   const [editingField, setEditingField] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
@@ -213,10 +214,13 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
       }
 
       setEditingField(null)
+
+      // Reavaliar qualificação MQL após salvar campo customizado
+      avaliarQualificacao.mutate(oportunidade.id)
     } catch {
       toast.error('Erro ao salvar campo')
     }
-  }, [oportunidade.organizacao_id])
+  }, [oportunidade.organizacao_id, oportunidade.id, avaliarQualificacao])
 
   const handleResponsavelChange = useCallback(async (userId: string) => {
     try {

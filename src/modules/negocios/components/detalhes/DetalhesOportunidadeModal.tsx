@@ -7,7 +7,7 @@
 
 import { useEffect, useRef, useCallback } from 'react'
 import { Loader2 } from 'lucide-react'
-import { useOportunidade, useExcluirOportunidade } from '../../hooks/useOportunidadeDetalhes'
+import { useOportunidade, useExcluirOportunidade, useAvaliarQualificacao } from '../../hooks/useOportunidadeDetalhes'
 import { negociosApi, type EtapaFunil, type Oportunidade } from '../../services/negocios.api'
 import { DetalhesHeader } from './DetalhesHeader'
 import { DetalhesCampos } from './DetalhesCampos'
@@ -37,6 +37,15 @@ export function DetalhesOportunidadeModal({
   const { data: oportunidade, isLoading } = useOportunidade(oportunidadeId)
   const moverEtapa = useMoverEtapa()
   const excluirOportunidade = useExcluirOportunidade()
+  const avaliarQualificacao = useAvaliarQualificacao()
+
+  // Avaliar qualificação MQL ao abrir o modal
+  useEffect(() => {
+    if (oportunidadeId) {
+      avaliarQualificacao.mutate(oportunidadeId)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [oportunidadeId])
 
   // Buscar membros para dropdown de responsável
   const { data: membros } = useQuery({

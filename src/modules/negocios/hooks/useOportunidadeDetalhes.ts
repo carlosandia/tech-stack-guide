@@ -114,3 +114,19 @@ export function useHistorico(oportunidadeId: string | null) {
     staleTime: 30 * 1000,
   })
 }
+
+/**
+ * Hook para avaliar qualificação MQL de uma oportunidade.
+ * Avalia as regras vinculadas ao funil e atualiza qualificado_mql.
+ */
+export function useAvaliarQualificacao() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (oportunidadeId: string) => negociosApi.avaliarQualificacaoMQL(oportunidadeId),
+    onSuccess: (_data, oportunidadeId) => {
+      queryClient.invalidateQueries({ queryKey: ['oportunidade', oportunidadeId] })
+      queryClient.invalidateQueries({ queryKey: ['kanban'] })
+    },
+  })
+}

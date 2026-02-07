@@ -414,6 +414,13 @@ export function NovaOportunidadeModal({
         await negociosApi.adicionarProdutosOportunidade(oportunidade.id, produtosSelecionados)
       }
 
+      // 6. Avaliar qualificação MQL (após campos custom serem salvos)
+      try {
+        await negociosApi.avaliarQualificacaoMQL(oportunidade.id)
+      } catch (e) {
+        console.error('Erro ao avaliar qualificação:', e)
+      }
+
       onSuccess()
       onClose()
     } catch (err: any) {
