@@ -409,4 +409,140 @@ export const negociosApi = {
 
     if (error) throw new Error(error.message)
   },
+
+  // Buscar contatos para autocomplete
+  buscarContatosAutocomplete: async (
+    busca: string,
+    tipo: 'pessoa' | 'empresa'
+  ): Promise<Array<{
+    id: string
+    tipo: string
+    nome?: string | null
+    sobrenome?: string | null
+    email?: string | null
+    telefone?: string | null
+    nome_fantasia?: string | null
+    razao_social?: string | null
+  }>> => {
+    const searchFields = tipo === 'pessoa'
+      ? `nome.ilike.%${busca}%,sobrenome.ilike.%${busca}%,email.ilike.%${busca}%,telefone.ilike.%${busca}%`
+      : `nome_fantasia.ilike.%${busca}%,razao_social.ilike.%${busca}%,cnpj.ilike.%${busca}%,email.ilike.%${busca}%`
+
+    const { data, error } = await supabase
+      .from('contatos')
+      .select('id, tipo, nome, sobrenome, email, telefone, nome_fantasia, razao_social')
+      .eq('tipo', tipo)
+      .is('deletado_em', null)
+      .or(searchFields)
+      .order('nome', { ascending: true })
+      .limit(10)
+
+    if (error) throw new Error(error.message)
+    return data || []
+  },
+
+  // Criar contato rápido (inline no modal)
+  criarContatoRapido: async (payload: {
+    tipo: 'pessoa' | 'empresa'
+    nome?: string
+    sobrenome?: string
+    email?: string
+    telefone?: string
+    nome_fantasia?: string
+  }): Promise<{ id: string }> => {
+    const organizacaoId = await getOrganizacaoId()
+    const userId = await getUsuarioId()
+
+    const insertData: Record<string, unknown> = {
+      organizacao_id: organizacaoId,
+      tipo: payload.tipo,
+      criado_por: userId,
+      origem: 'manual',
+    }
+
+    if (payload.nome) insertData.nome = payload.nome
+    if (payload.sobrenome) insertData.sobrenome = payload.sobrenome
+    if (payload.email) insertData.email = payload.email
+    if (payload.telefone) insertData.telefone = payload.telefone
+    if (payload.nome_fantasia) insertData.nome_fantasia = payload.nome_fantasia
+
+    const { data, error } = await supabase
+      .from('contatos')
+      .insert(insertData as any)
+      .select('id')
+      .single()
+
+    if (error) throw new Error(error.message)
+    return { id: data.id }
+  },
+
+  // Listar produtos do tenant
+  listarProdutos: async (busca?: string): Promise<Array<{
+    id: string
+    nome: string
+    preco: number
+    sku?: string | null
+  }>> => {
+    let query = supabase
+      .from('produtos')
+      .select('id, nome, preco, sku')
+      .eq('ativo', true)
+      .is('deletado_em', null)
+      .order('nome', { ascending: true })
+      .limit(20)
+
+    if (busca) {
+      query = query.or(`nome.ilike.%${busca}%,sku.ilike.%${busca}%`)
+    }
+
+    const { data, error } = await query
+    if (error) throw new Error(error.message)
+    return data || []
+  },
+
+  // Listar membros do tenant
+  listarMembros: async (): Promise<Array<{
+    id: string
+    nome: string
+    sobrenome?: string | null
+  }>> => {
+    const { data, error } = await supabase
+      .from('usuarios')
+      .select('id, nome, sobrenome')
+      .eq('status', 'ativo')
+      .order('nome', { ascending: true })
+
+    if (error) throw new Error(error.message)
+    return data || []
+  },
+
+  // Adicionar produtos a uma oportunidade
+  adicionarProdutosOportunidade: async (
+    oportunidadeId: string,
+    produtos: Array<{
+      produto_id: string
+      preco_unitario: number
+      quantidade: number
+      desconto_percentual: number
+      subtotal: number
+    }>
+  ): Promise<void> => {
+    const organizacaoId = await getOrganizacaoId()
+
+    const inserts = produtos.map(p => ({
+      organizacao_id: organizacaoId,
+      oportunidade_id: oportunidadeId,
+      produto_id: p.produto_id,
+      preco_unitario: p.preco_unitario,
+      quantidade: p.quantidade,
+      desconto_percentual: p.desconto_percentual,
+      subtotal: p.subtotal,
+    }))
+
+    const { error } = await supabase
+      .from('oportunidades_produtos')
+      .insert(inserts as any)
+
+    if (error) throw new Error(error.message)
+  },
 }
