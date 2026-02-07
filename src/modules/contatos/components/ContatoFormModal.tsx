@@ -225,11 +225,7 @@ export function ContatoFormModal({
     for (const key of Object.keys(cleanData)) {
       if (cleanData[key] === '') cleanData[key] = null
     }
-    // DB constraint chk_pessoa_nome: pessoa requer nome NOT NULL
-    if (isPessoa && !cleanData.nome) {
-      cleanData.nome = 'Sem nome'
-    }
-    // Nota: razao_social é auto-preenchida na camada de serviço se necessário (constraint chk_empresa_razao)
+    // Nota: obrigatoriedade controlada pela config global de campos
     if (cleanData.cnpj && typeof cleanData.cnpj === 'string') {
       cleanData.cnpj = cleanData.cnpj.replace(/\D/g, '')
     }

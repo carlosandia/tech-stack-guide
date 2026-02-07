@@ -561,15 +561,7 @@ export const negociosApi = {
       }
     }
 
-    // Constraint chk_empresa_razao: empresa exige razao_social NOT NULL
-    if (payload.tipo === 'empresa' && !insertData.razao_social) {
-      insertData.razao_social = insertData.nome_fantasia || 'Sem razão social'
-    }
-
-    // Constraint chk_pessoa_nome: pessoa exige nome NOT NULL
-    if (payload.tipo === 'pessoa' && !insertData.nome) {
-      insertData.nome = 'Sem nome'
-    }
+    // Nota: obrigatoriedade de campos controlada pela config global
 
     const { data, error } = await supabase
       .from('contatos')
