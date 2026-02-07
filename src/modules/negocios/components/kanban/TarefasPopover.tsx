@@ -1,11 +1,13 @@
 /**
  * AIDEV-NOTE: Popover de tarefas pendentes no card do Kanban
  * Conforme PRD-07 RF-15.5
+ * Usa React Portal para renderizar fora do card (evita corte por overflow)
  * Exibe tarefas pendentes com checkbox para concluir inline
- * Tabela tarefas usa: status ('pendente'|'concluida'|'cancelada'), data_vencimento, data_conclusao
+ * Sempre visível quando configurado, mesmo sem tarefas
  */
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { CheckSquare, Square, Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
@@ -29,19 +31,56 @@ export function TarefasPopover({ oportunidadeId, totalPendentes, totalTarefas, t
   const [tarefas, setTarefas] = useState<Tarefa[]>([])
   const [loading, setLoading] = useState(false)
   const [concluindo, setConcluindo] = useState<string | null>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
+  const [popoverPos, setPopoverPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
+  const triggerRef = useRef<HTMLButtonElement>(null)
+
+  // Calcula posição do popover relativa ao trigger
+  const updatePosition = useCallback(() => {
+    if (!triggerRef.current) return
+    const rect = triggerRef.current.getBoundingClientRect()
+    const popoverWidth = 260
+    const popoverHeight = 280
+
+    let top = rect.top - popoverHeight - 6
+    let left = rect.left
+
+    // Se sair pela esquerda, alinhar à direita do trigger
+    if (left + popoverWidth > window.innerWidth) {
+      left = rect.right - popoverWidth
+    }
+    // Se sair por cima, abrir para baixo
+    if (top < 8) {
+      top = rect.bottom + 6
+    }
+
+    setPopoverPos({ top, left })
+  }, [])
 
   // Click outside
   useEffect(() => {
     if (!open) return
     const handler = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false)
-      }
+      if (triggerRef.current?.contains(e.target as Node)) return
+      // Check if click is inside the portal popover
+      const popover = document.getElementById(`tarefas-popover-${oportunidadeId}`)
+      if (popover?.contains(e.target as Node)) return
+      setOpen(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
-  }, [open])
+  }, [open, oportunidadeId])
+
+  // Update position on scroll/resize
+  useEffect(() => {
+    if (!open) return
+    updatePosition()
+    window.addEventListener('scroll', updatePosition, true)
+    window.addEventListener('resize', updatePosition)
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true)
+      window.removeEventListener('resize', updatePosition)
+    }
+  }, [open, updatePosition])
 
   // Load tarefas on open
   useEffect(() => {
@@ -109,9 +148,10 @@ export function TarefasPopover({ oportunidadeId, totalPendentes, totalTarefas, t
   const allDone = totalTarefas === 0 || totalPendentes === 0
 
   return (
-    <div className="relative" ref={containerRef}>
+    <>
       {/* Badge trigger */}
       <button
+        ref={triggerRef}
         onClick={handleClick}
         className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-all duration-200 ${
           allDone
@@ -124,10 +164,17 @@ export function TarefasPopover({ oportunidadeId, totalPendentes, totalTarefas, t
         <span>{totalConcluidas}/{totalTarefas}</span>
       </button>
 
-      {/* Popover */}
-      {open && (
+      {/* Popover via Portal */}
+      {open && createPortal(
         <div
-          className="absolute left-0 bottom-full mb-1.5 w-64 bg-card border border-border rounded-lg shadow-lg z-[60] animate-enter"
+          id={`tarefas-popover-${oportunidadeId}`}
+          className="w-[260px] bg-card border border-border rounded-lg shadow-lg animate-enter"
+          style={{
+            position: 'fixed',
+            top: popoverPos.top,
+            left: popoverPos.left,
+            zIndex: 600,
+          }}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
@@ -207,8 +254,9 @@ export function TarefasPopover({ oportunidadeId, totalPendentes, totalTarefas, t
               )}
             </div>
           )}
-        </div>
+        </div>,
+        document.body
       )}
-    </div>
+    </>
   )
 }
