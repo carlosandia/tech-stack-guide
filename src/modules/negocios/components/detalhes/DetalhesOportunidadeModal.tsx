@@ -7,7 +7,7 @@
 
 import { useEffect, useRef, useCallback } from 'react'
 import { Loader2 } from 'lucide-react'
-import { useOportunidade } from '../../hooks/useOportunidadeDetalhes'
+import { useOportunidade, useExcluirOportunidade } from '../../hooks/useOportunidadeDetalhes'
 import { negociosApi, type EtapaFunil, type Oportunidade } from '../../services/negocios.api'
 import { DetalhesHeader } from './DetalhesHeader'
 import { DetalhesCampos } from './DetalhesCampos'
@@ -36,6 +36,7 @@ export function DetalhesOportunidadeModal({
   const modalRef = useRef<HTMLDivElement>(null)
   const { data: oportunidade, isLoading } = useOportunidade(oportunidadeId)
   const moverEtapa = useMoverEtapa()
+  const excluirOportunidade = useExcluirOportunidade()
 
   // Buscar membros para dropdown de responsável
   const { data: membros } = useQuery({
@@ -80,6 +81,17 @@ export function DetalhesOportunidadeModal({
     )
   }, [oportunidade, moverEtapa, onDropGanhoPerda])
 
+  const handleExcluir = useCallback(() => {
+    if (!oportunidade) return
+    excluirOportunidade.mutate(oportunidade.id, {
+      onSuccess: () => {
+        toast.success('Oportunidade excluída')
+        onClose()
+      },
+      onError: () => toast.error('Erro ao excluir oportunidade'),
+    })
+  }, [oportunidade, excluirOportunidade, onClose])
+
   return (
     <>
       {/* Overlay */}
@@ -116,6 +128,8 @@ export function DetalhesOportunidadeModal({
                 etapas={etapas}
                 onMoverEtapa={handleMoverEtapa}
                 onClose={onClose}
+                onExcluir={handleExcluir}
+                excluindo={excluirOportunidade.isPending}
               />
 
               {/* Body: 3 colunas desktop, stack mobile */}

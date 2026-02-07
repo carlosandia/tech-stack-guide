@@ -1,9 +1,10 @@
 /**
  * AIDEV-NOTE: Header do Modal de Detalhes (RF-14.1)
- * Título + Badge qualificação + Stepper de etapas clicáveis
+ * Título + Badge qualificação + Stepper de etapas clicáveis + Excluir
  */
 
-import { Check, ChevronRight, X } from 'lucide-react'
+import { useState } from 'react'
+import { Check, ChevronRight, MoreVertical, Trash2, X } from 'lucide-react'
 import type { Oportunidade, EtapaFunil } from '../../services/negocios.api'
 
 interface DetalhesHeaderProps {
@@ -11,6 +12,8 @@ interface DetalhesHeaderProps {
   etapas: EtapaFunil[]
   onMoverEtapa: (etapaId: string, tipoEtapa: string) => void
   onClose: () => void
+  onExcluir?: () => void
+  excluindo?: boolean
 }
 
 function getQualificacaoLabel(op: Oportunidade): { label: string; className: string } | null {
@@ -19,13 +22,15 @@ function getQualificacaoLabel(op: Oportunidade): { label: string; className: str
   return { label: 'Lead', className: 'bg-muted text-muted-foreground' }
 }
 
-export function DetalhesHeader({ oportunidade, etapas, onMoverEtapa, onClose }: DetalhesHeaderProps) {
+export function DetalhesHeader({ oportunidade, etapas, onMoverEtapa, onClose, onExcluir, excluindo }: DetalhesHeaderProps) {
   const qualificacao = getQualificacaoLabel(oportunidade)
   const etapaAtualIdx = etapas.findIndex(e => e.id === oportunidade.etapa_id)
+  const [menuAberto, setMenuAberto] = useState(false)
+  const [confirmarExclusao, setConfirmarExclusao] = useState(false)
 
   return (
     <div className="flex-shrink-0 border-b border-border">
-      {/* Título + Badge + Stepper + Close — tudo na mesma linha */}
+      {/* Título + Badge + Stepper + Actions — tudo na mesma linha */}
       <div className="px-4 sm:px-6 py-3 flex items-center gap-3">
         {/* Título + Badge */}
         <div className="flex items-center gap-2 flex-shrink-0 min-w-0">
@@ -90,15 +95,78 @@ export function DetalhesHeader({ oportunidade, etapas, onMoverEtapa, onClose }: 
           </div>
         </div>
 
-        {/* Close */}
-        <button
-          type="button"
-          onClick={onClose}
-          className="p-2 hover:bg-accent rounded-lg transition-all duration-200 flex-shrink-0"
-          aria-label="Fechar"
-        >
-          <X className="w-5 h-5 text-muted-foreground" />
-        </button>
+        {/* Actions: menu + close */}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {/* Menu de ações */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setMenuAberto(prev => !prev)}
+              className="p-2 hover:bg-accent rounded-lg transition-all duration-200"
+              aria-label="Ações"
+            >
+              <MoreVertical className="w-4 h-4 text-muted-foreground" />
+            </button>
+
+            {menuAberto && (
+              <>
+                <div
+                  className="fixed inset-0 z-[500]"
+                  onClick={() => { setMenuAberto(false); setConfirmarExclusao(false) }}
+                />
+                <div className="absolute right-0 top-full mt-1 z-[501] bg-popover border border-border rounded-lg shadow-lg min-w-[180px] py-1">
+                  {!confirmarExclusao ? (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmarExclusao(true)}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Excluir oportunidade
+                    </button>
+                  ) : (
+                    <div className="px-3 py-2 space-y-2">
+                      <p className="text-xs text-muted-foreground">
+                        Tem certeza? Esta ação não pode ser desfeita.
+                      </p>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => { setConfirmarExclusao(false); setMenuAberto(false) }}
+                          className="flex-1 px-2 py-1.5 text-xs rounded-md border border-border hover:bg-accent transition-colors"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="button"
+                          disabled={excluindo}
+                          onClick={() => {
+                            onExcluir?.()
+                            setMenuAberto(false)
+                            setConfirmarExclusao(false)
+                          }}
+                          className="flex-1 px-2 py-1.5 text-xs rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors disabled:opacity-50"
+                        >
+                          {excluindo ? 'Excluindo…' : 'Confirmar'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Close */}
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-2 hover:bg-accent rounded-lg transition-all duration-200"
+            aria-label="Fechar"
+          >
+            <X className="w-5 h-5 text-muted-foreground" />
+          </button>
+        </div>
       </div>
     </div>
   )
