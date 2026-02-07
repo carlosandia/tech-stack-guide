@@ -117,8 +117,8 @@ export function ContatoViewModal({ open, onClose, contato, onEdit, onDelete }: C
             pointer-events-auto
             bg-card border border-border rounded-lg shadow-lg
             flex flex-col
-            w-[calc(100%-32px)] sm:max-w-2xl
-            max-h-[calc(100dvh-32px)] sm:max-h-[85vh]
+            w-[calc(100%-16px)] sm:w-[calc(100%-32px)] sm:max-w-2xl
+            max-h-[calc(100dvh-16px)] sm:max-h-[85vh]
           "
         >
           {/* Header - fixo */}
@@ -169,9 +169,9 @@ export function ContatoViewModal({ open, onClose, contato, onEdit, onDelete }: C
           </div>
 
           {/* Content - scrollable */}
-          <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 min-h-0 overscroll-contain">
+          <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 min-h-0 overscroll-contain">
             {activeTab === 'dados' && (
-              <div className="space-y-4">
+              <div className="space-y-5">
                 {/* Segmentos */}
                 {isVisible('segmentos') && contato.segmentos && contato.segmentos.length > 0 && (
                   <div>
@@ -262,8 +262,8 @@ export function ContatoViewModal({ open, onClose, contato, onEdit, onDelete }: C
           </div>
 
           {/* Footer - fixo com datas */}
-          <div className="flex-shrink-0 px-4 sm:px-6 py-3 border-t border-border bg-card">
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <div className="flex-shrink-0 px-4 sm:px-6 py-3 border-t border-border bg-card rounded-b-lg">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 text-xs text-muted-foreground">
               <span>{criadoEm ? `Criado em ${criadoEm}` : ''}</span>
               <span>{atualizadoEm ? `Atualizado em ${atualizadoEm}` : ''}</span>
             </div>
