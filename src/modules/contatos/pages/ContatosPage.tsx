@@ -170,10 +170,10 @@ export function ContatosPage() {
   // --- Toolbar: Subtitle (Tabs Pessoas/Empresas) ---
   useEffect(() => {
     setSubtitle(
-      <div className="flex items-center gap-0.5 sm:gap-1 ml-1 sm:ml-2">
+      <div className="flex items-center gap-1">
         <button
           onClick={() => navigate('/app/contatos/pessoas')}
-          className={`flex items-center gap-1 px-2 sm:px-3 py-1 text-xs sm:text-sm font-medium rounded-md transition-all duration-200 whitespace-nowrap ${
+          className={`flex items-center gap-1.5 px-2.5 py-1 text-sm font-medium rounded-md transition-all duration-200 whitespace-nowrap ${
             tipo === 'pessoa'
               ? 'border border-primary/40 bg-primary/5 text-primary'
               : 'border border-transparent text-muted-foreground hover:text-foreground hover:bg-accent'
@@ -187,7 +187,7 @@ export function ContatosPage() {
         </button>
         <button
           onClick={() => navigate('/app/contatos/empresas')}
-          className={`flex items-center gap-1 px-2 sm:px-3 py-1 text-xs sm:text-sm font-medium rounded-md transition-all duration-200 whitespace-nowrap ${
+          className={`flex items-center gap-1.5 px-2.5 py-1 text-sm font-medium rounded-md transition-all duration-200 whitespace-nowrap ${
             tipo === 'empresa'
               ? 'border border-primary/40 bg-primary/5 text-primary'
               : 'border border-transparent text-muted-foreground hover:text-foreground hover:bg-accent'
