@@ -34,3 +34,36 @@ export function useCriarFunil() {
     },
   })
 }
+
+export function useArquivarFunil() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (funilId: string) => negociosApi.arquivarFunil(funilId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['funis'] })
+    },
+  })
+}
+
+export function useDesarquivarFunil() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (funilId: string) => negociosApi.desarquivarFunil(funilId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['funis'] })
+    },
+  })
+}
+
+export function useExcluirFunil() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (funilId: string) => negociosApi.excluirFunil(funilId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['funis'] })
+    },
+  })
+}

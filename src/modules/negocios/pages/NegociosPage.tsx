@@ -6,14 +6,16 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { useAuth } from '@/providers/AuthProvider'
-import { useFunis, useCriarFunil } from '../hooks/useFunis'
+import { useFunis, useCriarFunil, useArquivarFunil, useDesarquivarFunil, useExcluirFunil } from '../hooks/useFunis'
 import { useKanban } from '../hooks/useKanban'
 import { KanbanBoard } from '../components/kanban/KanbanBoard'
 import { KanbanEmptyState } from '../components/kanban/KanbanEmptyState'
 import { NegociosToolbar } from '../components/toolbar/NegociosToolbar'
 import { NovaPipelineModal } from '../components/modals/NovaPipelineModal'
 import { NovaOportunidadeModal } from '../components/modals/NovaOportunidadeModal'
+import { FecharOportunidadeModal } from '../components/modals/FecharOportunidadeModal'
 import type { Funil, Oportunidade } from '../services/negocios.api'
+import { negociosApi } from '../services/negocios.api'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -32,10 +34,18 @@ export default function NegociosPage() {
   const [busca, setBusca] = useState('')
   const [showNovaPipeline, setShowNovaPipeline] = useState(false)
   const [showNovaOportunidade, setShowNovaOportunidade] = useState(false)
+  const [fecharOp, setFecharOp] = useState<{
+    oportunidade: Oportunidade
+    etapaId: string
+    tipo: 'ganho' | 'perda'
+  } | null>(null)
 
   // Queries
   const { data: funis, isLoading: funisLoading } = useFunis()
   const criarFunil = useCriarFunil()
+  const arquivarFunil = useArquivarFunil()
+  const desarquivarFunil = useDesarquivarFunil()
+  const excluirFunil = useExcluirFunil()
 
   // Auto-selecionar primeiro funil
   useEffect(() => {
@@ -56,7 +66,7 @@ export default function NegociosPage() {
 
   const funilAtivo = funis?.find(f => f.id === funilAtivoId) || null
 
-  // Encontrar a etapa de entrada (tipo 'entrada' ou a primeira)
+  // Encontrar a etapa de entrada
   const etapaEntradaId = kanbanData?.etapas?.find(e => e.tipo === 'entrada')?.id
     || kanbanData?.etapas?.[0]?.id
     || ''
@@ -67,9 +77,20 @@ export default function NegociosPage() {
     setBusca('')
   }, [])
 
-  const handleCriarPipeline = useCallback(async (data: { nome: string; descricao?: string; cor?: string }) => {
+  const handleCriarPipeline = useCallback(async (data: { nome: string; descricao?: string; cor?: string; membrosIds?: string[] }) => {
     try {
-      const novoFunil = await criarFunil.mutateAsync(data)
+      const { membrosIds, ...funilData } = data
+      const novoFunil = await criarFunil.mutateAsync(funilData)
+
+      // Adicionar membros se selecionados
+      if (membrosIds && membrosIds.length > 0) {
+        try {
+          await negociosApi.adicionarMembrosFunil(novoFunil.id, membrosIds)
+        } catch (err) {
+          console.error('Erro ao adicionar membros:', err)
+        }
+      }
+
       setFunilAtivoId(novoFunil.id)
       localStorage.setItem(STORAGE_KEY, novoFunil.id)
       setShowNovaPipeline(false)
@@ -79,9 +100,56 @@ export default function NegociosPage() {
     }
   }, [criarFunil])
 
-  const handleDropGanhoPerda = useCallback((_oportunidade: Oportunidade, _etapaId: string, tipo: 'ganho' | 'perda') => {
-    // TODO: Implementar FecharOportunidadeModal na iteração 3
-    toast.info(`Fechar como ${tipo === 'ganho' ? 'Ganho' : 'Perdido'} será implementado na próxima iteração`)
+  const handleArquivar = useCallback(async (funilId: string) => {
+    try {
+      await arquivarFunil.mutateAsync(funilId)
+      // Se a pipeline arquivada era a ativa, selecionar outra
+      if (funilId === funilAtivoId) {
+        const ativas = (funis || []).filter(f => f.id !== funilId && f.ativo !== false && !f.arquivado)
+        if (ativas.length > 0) {
+          setFunilAtivoId(ativas[0].id)
+          localStorage.setItem(STORAGE_KEY, ativas[0].id)
+        } else {
+          setFunilAtivoId(null)
+          localStorage.removeItem(STORAGE_KEY)
+        }
+      }
+      toast.success('Pipeline arquivada')
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao arquivar')
+    }
+  }, [arquivarFunil, funilAtivoId, funis])
+
+  const handleDesarquivar = useCallback(async (funilId: string) => {
+    try {
+      await desarquivarFunil.mutateAsync(funilId)
+      toast.success('Pipeline desarquivada')
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao desarquivar')
+    }
+  }, [desarquivarFunil])
+
+  const handleExcluir = useCallback(async (funilId: string) => {
+    try {
+      await excluirFunil.mutateAsync(funilId)
+      if (funilId === funilAtivoId) {
+        const restantes = (funis || []).filter(f => f.id !== funilId && !f.deletado_em)
+        if (restantes.length > 0) {
+          setFunilAtivoId(restantes[0].id)
+          localStorage.setItem(STORAGE_KEY, restantes[0].id)
+        } else {
+          setFunilAtivoId(null)
+          localStorage.removeItem(STORAGE_KEY)
+        }
+      }
+      toast.success('Pipeline excluída')
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao excluir')
+    }
+  }, [excluirFunil, funilAtivoId, funis])
+
+  const handleDropGanhoPerda = useCallback((oportunidade: Oportunidade, etapaId: string, tipo: 'ganho' | 'perda') => {
+    setFecharOp({ oportunidade, etapaId, tipo })
   }, [])
 
   const handleNovaOportunidade = useCallback(() => {
@@ -90,7 +158,7 @@ export default function NegociosPage() {
       return
     }
     setShowNovaOportunidade(true)
-  }, [])
+  }, [funilAtivoId, etapaEntradaId])
 
   // Loading state
   if (funisLoading) {
@@ -113,6 +181,9 @@ export default function NegociosPage() {
         onSelectFunil={handleSelectFunil}
         onNovaPipeline={() => setShowNovaPipeline(true)}
         onNovaOportunidade={handleNovaOportunidade}
+        onArquivar={handleArquivar}
+        onDesarquivar={handleDesarquivar}
+        onExcluir={handleExcluir}
         busca={busca}
         onBuscaChange={setBusca}
         isAdmin={isAdmin}
@@ -150,6 +221,21 @@ export default function NegociosPage() {
           onSuccess={() => {
             queryClient.invalidateQueries({ queryKey: ['kanban'] })
             toast.success('Oportunidade criada com sucesso!')
+          }}
+        />
+      )}
+
+      {fecharOp && funilAtivoId && (
+        <FecharOportunidadeModal
+          oportunidade={fecharOp.oportunidade}
+          etapaDestinoId={fecharOp.etapaId}
+          tipo={fecharOp.tipo}
+          funilId={funilAtivoId}
+          onClose={() => setFecharOp(null)}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['kanban'] })
+            toast.success(fecharOp.tipo === 'ganho' ? 'Oportunidade ganha! 🎉' : 'Oportunidade marcada como perdida')
+            setFecharOp(null)
           }}
         />
       )}

@@ -1,15 +1,23 @@
 /**
- * AIDEV-NOTE: Modal para criar nova pipeline
+ * AIDEV-NOTE: Modal para criar nova pipeline com seleção de membros
+ * Conforme PRD-07 RF-02
  * Usa ModalBase (size="sm")
  */
 
-import { useState } from 'react'
-import { Loader2, Layers } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Loader2, Layers, Check } from 'lucide-react'
 import { ModalBase } from '@/modules/configuracoes/components/ui/ModalBase'
+import { negociosApi } from '../../services/negocios.api'
+
+interface Membro {
+  id: string
+  nome: string
+  sobrenome?: string | null
+}
 
 interface NovaPipelineModalProps {
   onClose: () => void
-  onSubmit: (data: { nome: string; descricao?: string; cor?: string }) => Promise<void>
+  onSubmit: (data: { nome: string; descricao?: string; cor?: string; membrosIds?: string[] }) => Promise<void>
   loading: boolean
 }
 
@@ -22,10 +30,39 @@ export function NovaPipelineModal({ onClose, onSubmit, loading }: NovaPipelineMo
   const [nome, setNome] = useState('')
   const [descricao, setDescricao] = useState('')
   const [cor, setCor] = useState('#3B82F6')
+  const [membros, setMembros] = useState<Membro[]>([])
+  const [membrosSelecionados, setMembrosSelecionados] = useState<string[]>([])
+  const [carregandoMembros, setCarregandoMembros] = useState(true)
+
+  // Carregar membros do tenant
+  useEffect(() => {
+    async function carregarMembros() {
+      try {
+        const data = await negociosApi.listarMembros()
+        setMembros(data as Membro[])
+      } catch (err) {
+        console.error('Erro ao carregar membros:', err)
+      } finally {
+        setCarregandoMembros(false)
+      }
+    }
+    carregarMembros()
+  }, [])
+
+  const toggleMembro = (id: string) => {
+    setMembrosSelecionados(prev =>
+      prev.includes(id) ? prev.filter(m => m !== id) : [...prev, id]
+    )
+  }
 
   const handleSubmit = async () => {
     if (!nome.trim() || nome.trim().length < 3) return
-    await onSubmit({ nome: nome.trim(), descricao: descricao.trim() || undefined, cor })
+    await onSubmit({
+      nome: nome.trim(),
+      descricao: descricao.trim() || undefined,
+      cor,
+      membrosIds: membrosSelecionados.length > 0 ? membrosSelecionados : undefined,
+    })
   }
 
   return (
@@ -107,6 +144,61 @@ export function NovaPipelineModal({ onClose, onSubmit, loading }: NovaPipelineMo
               />
             ))}
           </div>
+        </div>
+
+        {/* Membros */}
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1.5">
+            Membros
+            {membrosSelecionados.length > 0 && (
+              <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                ({membrosSelecionados.length} selecionado{membrosSelecionados.length > 1 ? 's' : ''})
+              </span>
+            )}
+          </label>
+
+          {carregandoMembros ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+            </div>
+          ) : membros.length === 0 ? (
+            <p className="text-xs text-muted-foreground bg-muted/50 rounded-md p-3">
+              Nenhum membro disponível no momento.
+            </p>
+          ) : (
+            <div className="max-h-[160px] overflow-y-auto border border-input rounded-md divide-y divide-border">
+              {membros.map(m => {
+                const selecionado = membrosSelecionados.includes(m.id)
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => toggleMembro(m.id)}
+                    className={`
+                      w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left
+                      transition-all duration-200
+                      ${selecionado ? 'bg-primary/5' : 'hover:bg-accent'}
+                    `}
+                  >
+                    <div className={`
+                      w-4 h-4 rounded border flex items-center justify-center flex-shrink-0
+                      transition-all duration-200
+                      ${selecionado ? 'bg-primary border-primary' : 'border-muted-foreground/40'}
+                    `}>
+                      {selecionado && <Check className="w-3 h-3 text-primary-foreground" />}
+                    </div>
+                    <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                      <span className="text-[10px] font-medium text-muted-foreground">
+                        {m.nome[0]?.toUpperCase()}
+                      </span>
+                    </div>
+                    <span className="truncate text-foreground">
+                      {m.nome}{m.sobrenome ? ` ${m.sobrenome}` : ''}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </div>
 
         {/* Info: etapas padrão */}
