@@ -3,7 +3,7 @@
  * Conforme PRD-07 RF-04 - Etapas com drag reorder
  */
 
-import { useState, useMemo, useCallback, useRef } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { GripVertical, Plus, Pencil, Trash2, Lock } from 'lucide-react'
 import { useEtapasFunil, useCriarEtapa, useAtualizarEtapa, useExcluirEtapa, useReordenarEtapas } from '../../hooks/usePipelineConfig'
 import { EtapaFormModal } from './EtapaFormModal'
@@ -22,9 +22,11 @@ export function ConfigEtapas({ funilId }: Props) {
 
   const [showModal, setShowModal] = useState(false)
   const [editando, setEditando] = useState<EtapaFunil | null>(null)
-  const [dragIndex, setDragIndex] = useState<number | null>(null)
-  const [overIndex, setOverIndex] = useState<number | null>(null)
-  const dragCounterRef = useRef(0)
+
+  // Drag state — tracked by ID to avoid index confusion
+  const dragIdRef = useRef<string | null>(null)
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [overId, setOverId] = useState<string | null>(null)
 
   // Ordenar: Entrada → Personalizados (por ordem) → Ganho → Perda
   const etapasOrdenadas = useMemo(() => {
@@ -37,14 +39,17 @@ export function ConfigEtapas({ funilId }: Props) {
     return [...entrada, ...custom, ...ganho, ...perda]
   }, [etapas])
 
-  // Lista visual reordenada durante o drag (estilo Trello)
+  // Lista visual: reordena em tempo real durante o drag
   const etapasVisuais = useMemo(() => {
-    if (dragIndex === null || overIndex === null || dragIndex === overIndex) return etapasOrdenadas
+    if (!dragId || !overId || dragId === overId) return etapasOrdenadas
+    const fromIdx = etapasOrdenadas.findIndex(e => e.id === dragId)
+    const toIdx = etapasOrdenadas.findIndex(e => e.id === overId)
+    if (fromIdx === -1 || toIdx === -1) return etapasOrdenadas
     const result = [...etapasOrdenadas]
-    const [moved] = result.splice(dragIndex, 1)
-    result.splice(overIndex, 0, moved)
+    const [moved] = result.splice(fromIdx, 1)
+    result.splice(toIdx, 0, moved)
     return result
-  }, [etapasOrdenadas, dragIndex, overIndex])
+  }, [etapasOrdenadas, dragId, overId])
 
   const isSistema = (etapa: EtapaFunil) =>
     etapa.tipo === 'entrada' || etapa.tipo === 'ganho' || etapa.tipo === 'perda'
@@ -58,48 +63,49 @@ export function ConfigEtapas({ funilId }: Props) {
     }
   }
 
-  const handleDragStart = useCallback((e: React.DragEvent, index: number) => {
-    const etapa = etapasOrdenadas[index]
-    if (etapa && isSistema(etapa)) { e.preventDefault(); return }
+  const handleDragStart = (e: React.DragEvent, etapa: EtapaFunil) => {
+    if (isSistema(etapa)) { e.preventDefault(); return }
     e.dataTransfer.effectAllowed = 'move'
-    setDragIndex(index)
-    setOverIndex(index)
-    dragCounterRef.current = 0
-  }, [etapasOrdenadas])
+    dragIdRef.current = etapa.id
+    setDragId(etapa.id)
+    setOverId(etapa.id)
+  }
 
-  const handleDragEnter = useCallback((index: number) => {
-    if (dragIndex === null) return
-    const etapa = etapasOrdenadas[index]
-    if (etapa && isSistema(etapa)) return
-    setOverIndex(index)
-  }, [dragIndex, etapasOrdenadas])
+  const handleDragEnter = (etapa: EtapaFunil) => {
+    if (!dragIdRef.current || isSistema(etapa)) return
+    setOverId(etapa.id)
+  }
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
+  const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
-  }, [])
+  }
 
-  const handleDrop = useCallback(() => {
-    if (dragIndex === null || overIndex === null || dragIndex === overIndex) {
-      setDragIndex(null)
-      setOverIndex(null)
+  const handleDrop = () => {
+    const currentDragId = dragIdRef.current
+    if (!currentDragId || !overId || currentDragId === overId) {
+      resetDrag()
       return
     }
 
+    // Reordenar usando a lista visual final
+    const fromIdx = etapasOrdenadas.findIndex(e => e.id === currentDragId)
+    const toIdx = etapasOrdenadas.findIndex(e => e.id === overId)
+    if (fromIdx === -1 || toIdx === -1) { resetDrag(); return }
+
     const newEtapas = [...etapasOrdenadas]
-    const [moved] = newEtapas.splice(dragIndex, 1)
-    newEtapas.splice(overIndex, 0, moved)
+    const [moved] = newEtapas.splice(fromIdx, 1)
+    newEtapas.splice(toIdx, 0, moved)
 
-    const ordens = newEtapas.map((e, i) => ({ id: e.id, ordem: i }))
-    reordenar.mutate(ordens)
-    setDragIndex(null)
-    setOverIndex(null)
-  }, [dragIndex, overIndex, etapasOrdenadas, reordenar])
+    reordenar.mutate(newEtapas.map((e, i) => ({ id: e.id, ordem: i })))
+    resetDrag()
+  }
 
-  const handleDragEnd = useCallback(() => {
-    setDragIndex(null)
-    setOverIndex(null)
-  }, [])
+  const resetDrag = () => {
+    dragIdRef.current = null
+    setDragId(null)
+    setOverId(null)
+  }
 
   const handleSave = async (payload: { nome: string; cor: string; probabilidade: number }) => {
     if (editando) {
@@ -134,26 +140,25 @@ export function ConfigEtapas({ funilId }: Props) {
         </button>
       </div>
 
-      {/* Lista de etapas - reordena visualmente durante drag */}
+      {/* Lista de etapas */}
       <div className="space-y-1.5">
         {etapasVisuais.map((etapa) => {
-          const originalIndex = etapasOrdenadas.findIndex(e => e.id === etapa.id)
-          const isDragging = dragIndex !== null && etapasOrdenadas[dragIndex]?.id === etapa.id
+          const isDragging = dragId === etapa.id
 
           return (
             <div
               key={etapa.id}
               draggable={!isSistema(etapa)}
-              onDragStart={(e) => handleDragStart(e, originalIndex)}
-              onDragEnter={() => handleDragEnter(originalIndex)}
+              onDragStart={(e) => handleDragStart(e, etapa)}
+              onDragEnter={() => handleDragEnter(etapa)}
               onDragOver={handleDragOver}
               onDrop={handleDrop}
-              onDragEnd={handleDragEnd}
+              onDragEnd={resetDrag}
               className={`
                 flex items-center gap-3 p-3 rounded-lg border border-border bg-card
                 ${!isSistema(etapa) ? 'cursor-grab active:cursor-grabbing hover:border-primary/30' : ''}
-                ${isDragging ? 'opacity-30 scale-[0.98]' : ''}
-                transition-all duration-200
+                ${isDragging ? 'opacity-30' : ''}
+                transition-all duration-150
               `}
             >
               {/* Grip */}
