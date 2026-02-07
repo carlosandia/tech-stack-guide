@@ -52,8 +52,8 @@ const FALLBACK_PESSOA: Record<string, { label: string; obrigatorio: boolean }> =
 }
 
 const FALLBACK_EMPRESA: Record<string, { label: string; obrigatorio: boolean }> = {
-  razao_social: { label: 'Razão Social', obrigatorio: true },
-  nome_fantasia: { label: 'Nome Fantasia', obrigatorio: false },
+  nome_fantasia: { label: 'Nome Fantasia', obrigatorio: true },
+  razao_social: { label: 'Razão Social', obrigatorio: false },
   cnpj: { label: 'CNPJ', obrigatorio: false },
   email: { label: 'Email', obrigatorio: false },
   telefone: { label: 'Telefone', obrigatorio: false },
