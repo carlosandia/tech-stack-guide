@@ -5,6 +5,7 @@
  */
 
 import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/providers/AuthProvider'
 import { useFunis, useCriarFunil, useArquivarFunil, useDesarquivarFunil, useExcluirFunil } from '../hooks/useFunis'
 import { useKanban } from '../hooks/useKanban'
@@ -32,6 +33,7 @@ const METRICAS_KEY = 'negocios_metricas_visivel'
 export default function NegociosPage() {
   const { role } = useAuth()
   const isAdmin = role === 'admin'
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
 
   // State
@@ -126,10 +128,11 @@ export default function NegociosPage() {
       localStorage.setItem(STORAGE_KEY, novoFunil.id)
       setShowNovaPipeline(false)
       toast.success('Pipeline criado com sucesso!')
+      navigate(`/app/negocios/pipeline/${novoFunil.id}`)
     } catch (err: any) {
       toast.error(err.message || 'Erro ao criar pipeline')
     }
-  }, [criarFunil])
+  }, [criarFunil, navigate])
 
   const handleArquivar = useCallback(async (funilId: string) => {
     try {
