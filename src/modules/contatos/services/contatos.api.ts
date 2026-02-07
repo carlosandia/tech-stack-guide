@@ -140,6 +140,28 @@ export interface ListarContatosParams {
 }
 
 // =====================================================
+// Helper - Colunas válidas da tabela contatos
+// =====================================================
+
+const CONTATOS_VALID_COLUMNS = new Set([
+  'tipo', 'status', 'origem', 'nome', 'sobrenome', 'email', 'telefone',
+  'cargo', 'empresa_id', 'linkedin_url', 'razao_social', 'nome_fantasia',
+  'cnpj', 'website', 'segmento', 'porte', 'endereco_cep', 'endereco_logradouro',
+  'endereco_numero', 'endereco_complemento', 'endereco_bairro', 'endereco_cidade',
+  'endereco_estado', 'observacoes', 'owner_id', 'organizacao_id', 'criado_por',
+])
+
+function sanitizeContatoPayload(payload: Record<string, unknown>): Record<string, unknown> {
+  const clean: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(payload)) {
+    if (CONTATOS_VALID_COLUMNS.has(key) && value !== undefined) {
+      clean[key] = value
+    }
+  }
+  return clean
+}
+
+// =====================================================
 // API Contatos
 // =====================================================
 
@@ -364,10 +386,13 @@ export const contatosApi = {
     const organizacaoId = await getOrganizacaoId()
     const userId = await getUsuarioId()
 
+    // Filtrar apenas colunas válidas da tabela contatos
+    const cleanPayload = sanitizeContatoPayload(payload)
+
     const { data, error } = await supabase
       .from('contatos')
       .insert({
-        ...payload,
+        ...cleanPayload,
         organizacao_id: organizacaoId,
         criado_por: userId,
       } as any)
@@ -379,9 +404,11 @@ export const contatosApi = {
   },
 
   atualizar: async (id: string, payload: Record<string, unknown>): Promise<Contato> => {
+    const cleanPayload = sanitizeContatoPayload(payload)
+
     const { data, error } = await supabase
       .from('contatos')
-      .update(payload as any)
+      .update(cleanPayload as any)
       .eq('id', id)
       .select()
       .single()
