@@ -5,7 +5,6 @@
  */
 
 import { supabase } from '@/lib/supabase'
-import { api } from '@/lib/api'
 
 // =====================================================
 // Helpers reutilizáveis
@@ -413,20 +412,21 @@ export const detalhesApi = {
 
     if (error) throw new Error(error.message)
 
-    // Se deve enviar, chamar backend API
+    // Se deve enviar, chamar Edge Function send-email
     if (enviar && data?.id) {
       try {
-        const response = await api.post('/v1/conexoes/email/enviar', {
-          to: payload.destinatario,
-          subject: payload.assunto,
-          body: payload.corpo,
-          body_type: 'html',
-          oportunidade_id: oportunidadeId,
+        const { data: result, error: fnError } = await supabase.functions.invoke('send-email', {
+          body: {
+            to: payload.destinatario,
+            subject: payload.assunto,
+            body: payload.corpo,
+            body_type: 'html',
+          },
         })
 
-        const result = response.data
-        if (result.success) {
-          // Atualizar status para enviado
+        if (fnError) throw new Error(fnError.message || 'Erro ao enviar email')
+
+        if (result?.sucesso) {
           await supabase
             .from('emails_oportunidades')
             .update({
@@ -435,18 +435,17 @@ export const detalhesApi = {
             } as any)
             .eq('id', data.id)
         } else {
-          // Marcar como falhou
+          const erroMsg = result?.mensagem || 'Erro desconhecido'
           await supabase
             .from('emails_oportunidades')
             .update({
               status: 'falhou',
-              erro_mensagem: result.error || 'Erro desconhecido',
+              erro_mensagem: erroMsg,
             } as any)
             .eq('id', data.id)
-          throw new Error(result.error || 'Erro ao enviar email')
+          throw new Error(erroMsg)
         }
       } catch (err: any) {
-        // Atualizar com erro
         await supabase
           .from('emails_oportunidades')
           .update({
