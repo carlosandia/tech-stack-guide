@@ -1,45 +1,84 @@
 
+# Corrigir botao "Salvar Configuracao" que desaparece na aba Distribuicao
 
-# Correção do Flickering no Drag and Drop de Etapas
+## Problema
 
-## Problema Identificado
+O botao "Salvar Configuracao" some quando o conteudo da aba Distribuicao ultrapassa a altura da tela. A tentativa anterior de usar `sticky bottom-0` nao funciona de forma confiavel porque:
 
-O componente `ConfigEtapas.tsx` usa `etapasVisuais` para reordenar os elementos do DOM durante o drag. Quando o React re-renderiza a lista em uma nova ordem, os elementos mudam de posição no DOM, o que faz o browser disparar novos eventos `dragEnter` no elemento que agora está sob o cursor. Isso atualiza `overId`, que recalcula `etapasVisuais`, que re-renderiza, que dispara outro `dragEnter`... criando o loop de flickering.
+1. O scroll acontece no elemento `<main>` do `PipelineConfigPage.tsx`
+2. O botao sticky esta dentro de um `<div className="space-y-6">` que nao tem altura definida
+3. Em contextos de flexbox aninhado, o `sticky` pode falhar silenciosamente
 
 ## Solucao
 
-Em vez de reordenar o array e mover elementos no DOM, vamos:
+Reestruturar o layout para que o botao de salvar fique **fora** da area scrollavel, usando flex column com scroll interno.
 
-1. **Sempre renderizar `etapasOrdenadas`** (ordem estável, DOM nunca muda)
-2. **Usar CSS `transform: translateY()`** para deslocar itens visualmente com animacao suave
-3. **Calcular o deslocamento** baseado na posicao do `dragId` e `overId`
+### Alteracoes
 
-Assim o DOM fica estático durante o drag, eliminando o feedback loop.
+**Arquivo 1: `src/modules/negocios/pages/PipelineConfigPage.tsx`**
 
-## Detalhes Técnicos
+Alterar o `<main>` para ser um flex container que passa a altura completa para os filhos:
 
-### Mudancas no `ConfigEtapas.tsx`
+```text
+Antes:  <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+Depois: <main className="flex-1 overflow-hidden p-4 sm:p-6 flex flex-col">
+           <div className="flex-1 min-h-0">
+             {renderTab()}
+           </div>
+         </main>
+```
 
-**1. Remover `etapasVisuais`** - nao sera mais necessário
+- `overflow-hidden` em vez de `overflow-y-auto`: o scroll passa a ser responsabilidade de cada aba individualmente
+- `flex flex-col` + `min-h-0`: permite que o filho ocupe exatamente a altura disponivel
 
-**2. Renderizar sempre `etapasOrdenadas`** - a lista base que nao muda durante drag
+**Arquivo 2: `src/modules/negocios/components/config/ConfigDistribuicao.tsx`**
 
-**3. Criar funcao `getItemStyle()`** que calcula o `transform` de cada item:
-- O item sendo arrastado: `opacity: 0.4, pointer-events: none`
-- Se arrastando para baixo (dragIdx menor que overIdx): itens entre drag+1 e over recebem `translateY(-itemHeight)` (sobem)
-- Se arrastando para cima (dragIdx maior que overIdx): itens entre over e drag-1 recebem `translateY(+itemHeight)` (descem)
-- Todos os itens ganham `transition: transform 150ms ease` para animacao suave
+Reestruturar o componente para usar flex column com scroll interno + footer fixo:
 
-**4. Usar ref para a altura do item** - medir a altura real de um item no DOM para calcular o `translateY` com precisao, ou usar valor fixo (~52px que e a altura padrao de cada linha)
+```text
+Antes:
+  <div className="space-y-6">
+    {conteudo...}
+    <div className="sticky bottom-0 ...">  <-- botao some
+      <button>Salvar</button>
+    </div>
+  </div>
 
-**5. Adicionar `pointer-events: none` nos filhos durante drag** - evitar que elementos internos (botoes, icones) interceptem eventos de drag
+Depois:
+  <div className="h-full flex flex-col">
+    <div className="flex-1 overflow-y-auto space-y-6">
+      {conteudo...}         <-- area scrollavel
+    </div>
+    <div className="flex-shrink-0 pt-3 border-t border-border flex justify-end">
+      <button>Salvar</button>   <-- sempre visivel, fora do scroll
+    </div>
+  </div>
+```
 
-**6. Estabilizar `onDragEnter`** - usar ref para comparar o overId anterior e so atualizar state se realmente mudou
+- `h-full flex flex-col`: ocupa toda a altura disponivel do parent
+- `flex-1 overflow-y-auto`: conteudo rola internamente
+- `flex-shrink-0`: footer do botao nunca encolhe nem some
 
-### Resultado esperado
+## Por que esta solucao e definitiva
 
-- Ao arrastar "Contatado" sobre "Agendado", o Agendado desliza suavemente para a posicao de Contatado
-- Sem flickering porque o DOM nao muda de ordem
-- A animacao e fluida (150ms ease) como no Trello
-- Ao soltar, a lista persiste a nova ordem no banco
+Em vez de depender do comportamento do `sticky` (que tem varias condicoes de falha em layouts flexbox), o botao fica em um container completamente separado da area de scroll. Independente de quanto conteudo exista, o botao estara sempre ancorado no rodape da area de conteudo.
 
+## Secao tecnica
+
+### Hierarquia de layout resultante
+
+```text
+PipelineConfigPage (h-screen, flex col)
+  +-- header (h-14, flex-shrink-0)
+  +-- body (flex-1, flex row)
+       +-- sidebar (w-56)
+       +-- main (flex-1, overflow-hidden, flex col, padding)
+            +-- div (flex-1, min-h-0)
+                 +-- ConfigDistribuicao (h-full, flex col)
+                      +-- div.scrollable (flex-1, overflow-y-auto)
+                      +-- div.footer (flex-shrink-0) -- botao Salvar
+```
+
+### Impacto nas outras abas
+
+As demais abas (Etapas, Campos, Atividades, Qualificacao, Motivos) continuarao funcionando normalmente. Se alguma delas precisar de scroll, basta adicionar `overflow-y-auto` no proprio componente. Nenhuma quebra de compatibilidade.
