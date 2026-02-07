@@ -532,6 +532,16 @@ export const negociosApi = {
     return oportunidade
   },
 
+  // Excluir oportunidade (soft delete)
+  excluirOportunidade: async (oportunidadeId: string): Promise<void> => {
+    const { error } = await supabase
+      .from('oportunidades')
+      .update({ deletado_em: new Date().toISOString() } as any)
+      .eq('id', oportunidadeId)
+
+    if (error) throw new Error(error.message)
+  },
+
   // Fechar oportunidade (ganho/perda)
   fecharOportunidade: async (
     oportunidadeId: string,

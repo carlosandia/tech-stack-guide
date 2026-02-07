@@ -15,6 +15,18 @@ export function useOportunidade(oportunidadeId: string | null) {
   })
 }
 
+export function useExcluirOportunidade() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (oportunidadeId: string) => negociosApi.excluirOportunidade(oportunidadeId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['kanban'] })
+      queryClient.invalidateQueries({ queryKey: ['oportunidade'] })
+    },
+  })
+}
+
 export function useAtualizarOportunidade() {
   const queryClient = useQueryClient()
 
