@@ -1038,9 +1038,31 @@ export const negociosApi = {
 
     if (!vinculos || vinculos.length === 0) return
 
-    // Criar tarefas a partir dos templates
-    const tarefasInsert = vinculos
+    // Deduplicação: buscar tarefas já criadas para esta oportunidade + etapa + template
+    const templateIds = vinculos
       .filter((v: any) => v.tarefa)
+      .map((v: any) => v.tarefa.id)
+
+    const { data: tarefasExistentes } = await supabase
+      .from('tarefas')
+      .select('tarefa_template_id, etapa_origem_id')
+      .eq('oportunidade_id', oportunidadeId)
+      .eq('etapa_origem_id', etapaId)
+      .in('tarefa_template_id', templateIds)
+      .is('deletado_em', null)
+
+    const jaExistem = new Set(
+      (tarefasExistentes || []).map(t => `${t.tarefa_template_id}_${t.etapa_origem_id}`)
+    )
+
+    // Criar tarefas a partir dos templates (ignorando duplicatas)
+    const tarefasInsert = vinculos
+      .filter((v: any) => {
+        if (!v.tarefa) return false
+        // Deduplicação: pular se já existe tarefa com mesmo template + etapa
+        const chave = `${v.tarefa.id}_${etapaId}`
+        return !jaExistem.has(chave)
+      })
       .map((v: any) => {
         const template = v.tarefa
         const dataVencimento = template.dias_prazo
