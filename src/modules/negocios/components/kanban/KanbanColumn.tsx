@@ -29,6 +29,22 @@ function formatValorResumido(valor: number): string {
   return `R$ ${valor.toFixed(0)}`
 }
 
+function getColumnBg(tipo: string): string {
+  switch (tipo) {
+    case 'ganho': return 'bg-success/5'
+    case 'perda': return 'bg-destructive/5'
+    default: return 'bg-muted/30'
+  }
+}
+
+function getColumnBorderColor(tipo: string): string {
+  switch (tipo) {
+    case 'ganho': return 'border-success/20'
+    case 'perda': return 'border-destructive/20'
+    default: return 'border-border'
+  }
+}
+
 export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardClick, cardConfig }: KanbanColumnProps) {
   const [isDragOver, setIsDragOver] = useState(false)
 
@@ -48,10 +64,13 @@ export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardCli
     onDrop(e, etapa.id, etapa.tipo)
   }
 
+  const bgClass = getColumnBg(etapa.tipo)
+  const borderClass = getColumnBorderColor(etapa.tipo)
+
   return (
     <div
       className={`
-        flex flex-col min-w-[272px] w-[272px] bg-muted/30 rounded-lg border border-border
+        flex flex-col min-w-[272px] w-[272px] ${bgClass} rounded-lg border ${borderClass}
         transition-all duration-200
         ${isDragOver ? 'ring-2 ring-primary/40 bg-primary/5' : ''}
       `}
