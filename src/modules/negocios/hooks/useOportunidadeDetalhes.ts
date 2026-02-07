@@ -26,6 +26,8 @@ export function useAtualizarOportunidade() {
         usuario_responsavel_id?: string | null
         previsao_fechamento?: string | null
         observacoes?: string | null
+        recorrente?: boolean | null
+        periodo_recorrencia?: string | null
       }
     }) => negociosApi.atualizarOportunidade(id, payload),
     onSuccess: (_data, variables) => {

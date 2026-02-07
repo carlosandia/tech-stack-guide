@@ -686,14 +686,6 @@ export function NovaOportunidadeModal({
           </section>
         )}
 
-        {/* Preview do título auto-gerado */}
-        {getNomeContato() && (
-          <div className="px-3 py-1.5 bg-muted/40 rounded-md">
-            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Título automático: </span>
-            <span className="text-xs font-medium text-foreground">{getNomeContato()} - #...</span>
-          </div>
-        )}
-
         {/* Separador */}
         <div className="border-t border-border" />
 
@@ -705,6 +697,14 @@ export function NovaOportunidadeModal({
             </div>
             <h3 className="text-sm font-semibold text-foreground uppercase tracking-wide">Oportunidade</h3>
           </div>
+
+          {/* Preview do título auto-gerado */}
+          {getNomeContato() && (
+            <div className="px-3 py-1.5 bg-muted/40 rounded-md mb-3">
+              <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Título: </span>
+              <span className="text-xs font-medium text-foreground">{getNomeContato()} - #...</span>
+            </div>
+          )}
 
           <div className="space-y-3">
             {/* Valor: toggle manual/produtos */}

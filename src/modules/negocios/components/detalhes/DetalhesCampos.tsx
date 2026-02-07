@@ -2,11 +2,14 @@
  * AIDEV-NOTE: Bloco 1 - Campos da Oportunidade + Contato (RF-14.2)
  * Campos editáveis inline com seções Oportunidade e Contato
  * Engrenagem para show/hide campos (RF-14.2 + RF-15.6)
+ * Empresa vinculada editável (vincular/desvincular/trocar)
+ * MRR editável (recorrente + período)
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { DollarSign, User, Calendar, Mail, Phone, Settings2, Check, Building2, RefreshCw } from 'lucide-react'
+import { DollarSign, User, Calendar, Mail, Phone, Settings2, Check, Building2, RefreshCw, Link2, X, Search, Loader2, ChevronDown } from 'lucide-react'
 import type { Oportunidade } from '../../services/negocios.api'
+import { negociosApi } from '../../services/negocios.api'
 import { useAtualizarOportunidade, useAtualizarContato } from '../../hooks/useOportunidadeDetalhes'
 import { toast } from 'sonner'
 
@@ -26,6 +29,7 @@ const CAMPOS_CONTATO = [
   { id: 'contato_nome', label: 'Nome', icon: User },
   { id: 'contato_email', label: 'E-mail', icon: Mail },
   { id: 'contato_telefone', label: 'Telefone', icon: Phone },
+  { id: 'contato_empresa', label: 'Empresa', icon: Building2 },
 ]
 
 const STORAGE_KEY_CAMPOS = 'negocios_campos_visiveis'
@@ -54,6 +58,13 @@ function getContatoNome(op: Oportunidade): string {
   return [op.contato.nome, op.contato.sobrenome].filter(Boolean).join(' ') || '—'
 }
 
+const PERIODOS_MRR = [
+  { value: 'mensal', label: 'Mensal' },
+  { value: 'trimestral', label: 'Trimestral' },
+  { value: 'semestral', label: 'Semestral' },
+  { value: 'anual', label: 'Anual' },
+]
+
 export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
   const atualizarOp = useAtualizarOportunidade()
   const atualizarContato = useAtualizarContato()
@@ -64,17 +75,30 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
   const [showGear, setShowGear] = useState(false)
   const gearRef = useRef<HTMLDivElement>(null)
 
-  // Click outside para fechar gear popover
+  // Empresa search state
+  const [showEmpresaSearch, setShowEmpresaSearch] = useState(false)
+  const [buscaEmpresa, setBuscaEmpresa] = useState('')
+  const [resultadosEmpresa, setResultadosEmpresa] = useState<Array<{ id: string; nome_fantasia?: string | null; razao_social?: string | null }>>([])
+  const [buscandoEmpresa, setBuscandoEmpresa] = useState(false)
+  const empresaSearchRef = useRef<HTMLDivElement>(null)
+  const debounceEmpresaRef = useRef<ReturnType<typeof setTimeout>>()
+
+  // Click outside para fechar gear popover e empresa search
   useEffect(() => {
-    if (!showGear) return
+    if (!showGear && !showEmpresaSearch) return
     const handler = (e: MouseEvent) => {
       if (gearRef.current && !gearRef.current.contains(e.target as Node)) {
         setShowGear(false)
       }
+      if (empresaSearchRef.current && !empresaSearchRef.current.contains(e.target as Node)) {
+        setShowEmpresaSearch(false)
+        setBuscaEmpresa('')
+        setResultadosEmpresa([])
+      }
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
-  }, [showGear])
+  }, [showGear, showEmpresaSearch])
 
   const isCampoVisivel = (campoId: string): boolean => {
     if (Object.keys(camposVisiveis).length === 0) return true
@@ -84,7 +108,6 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
   const toggleCampo = (campoId: string) => {
     const novo = { ...camposVisiveis }
     if (Object.keys(novo).length === 0) {
-      // Inicializar: todos true exceto o selecionado
       ;[...CAMPOS_OPORTUNIDADE, ...CAMPOS_CONTATO].forEach(c => {
         novo[c.id] = c.id !== campoId
       })
@@ -130,6 +153,90 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
       toast.error('Erro ao alterar responsável')
     }
   }, [oportunidade.id, atualizarOp])
+
+  // MRR toggle
+  const handleToggleMrr = useCallback(async () => {
+    const novoRecorrente = !oportunidade.recorrente
+    try {
+      await atualizarOp.mutateAsync({
+        id: oportunidade.id,
+        payload: {
+          recorrente: novoRecorrente,
+          periodo_recorrencia: novoRecorrente ? (oportunidade.periodo_recorrencia || 'mensal') : null,
+        },
+      })
+    } catch {
+      toast.error('Erro ao alterar recorrência')
+    }
+  }, [oportunidade.id, oportunidade.recorrente, oportunidade.periodo_recorrencia, atualizarOp])
+
+  // MRR period change
+  const handlePeriodoChange = useCallback(async (periodo: string) => {
+    try {
+      await atualizarOp.mutateAsync({
+        id: oportunidade.id,
+        payload: { periodo_recorrencia: periodo },
+      })
+    } catch {
+      toast.error('Erro ao alterar período')
+    }
+  }, [oportunidade.id, atualizarOp])
+
+  // Empresa search
+  const handleBuscaEmpresa = useCallback((value: string) => {
+    setBuscaEmpresa(value)
+    if (debounceEmpresaRef.current) clearTimeout(debounceEmpresaRef.current)
+    if (value.length < 2) {
+      setResultadosEmpresa([])
+      return
+    }
+    setBuscandoEmpresa(true)
+    debounceEmpresaRef.current = setTimeout(async () => {
+      try {
+        const results = await negociosApi.buscarContatosAutocomplete(value, 'empresa')
+        setResultadosEmpresa(results.map(r => ({
+          id: r.id,
+          nome_fantasia: r.nome_fantasia,
+          razao_social: r.razao_social,
+        })))
+      } catch {
+        setResultadosEmpresa([])
+      } finally {
+        setBuscandoEmpresa(false)
+      }
+    }, 300)
+  }, [])
+
+  // Vincular empresa
+  const handleVincularEmpresa = useCallback(async (empresaId: string) => {
+    if (!oportunidade.contato?.id) return
+    try {
+      await atualizarContato.mutateAsync({
+        id: oportunidade.contato.id,
+        payload: { empresa_id: empresaId },
+      })
+      setShowEmpresaSearch(false)
+      setBuscaEmpresa('')
+      setResultadosEmpresa([])
+      toast.success('Empresa vinculada')
+    } catch {
+      toast.error('Erro ao vincular empresa')
+    }
+  }, [oportunidade.contato?.id, atualizarContato])
+
+  // Desvincular empresa
+  const handleDesvincularEmpresa = useCallback(async () => {
+    if (!oportunidade.contato?.id) return
+    try {
+      await atualizarContato.mutateAsync({
+        id: oportunidade.contato.id,
+        payload: { empresa_id: null },
+      })
+      toast.success('Empresa desvinculada')
+    } catch {
+      toast.error('Erro ao desvincular empresa')
+    }
+  }, [oportunidade.contato?.id, atualizarContato])
 
   return (
     <div className="space-y-4">
@@ -192,19 +299,38 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
                 onSave={() => handleSaveOp('valor', editValue ? parseFloat(editValue) : null)}
                 onCancel={() => setEditingField(null)}
               />
-              {/* Tipo de valor: Normal ou MRR */}
-              {oportunidade.valor && (
-                <div className="ml-5.5 mt-0.5 flex items-center gap-1">
-                  {oportunidade.recorrente ? (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded">
-                      <RefreshCw className="w-2.5 h-2.5" />
-                      MRR {oportunidade.periodo_recorrencia ? `· ${oportunidade.periodo_recorrencia}` : ''}
-                    </span>
-                  ) : (
-                    <span className="text-[10px] text-muted-foreground">Valor único</span>
-                  )}
-                </div>
-              )}
+              {/* MRR editável */}
+              <div className="ml-5.5 mt-1 flex items-center gap-1.5">
+                <label className="flex items-center gap-1 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={!!oportunidade.recorrente}
+                    onChange={handleToggleMrr}
+                    className="w-3 h-3 rounded border-input text-primary focus:ring-ring/30"
+                  />
+                  <span className="text-[10px] font-medium text-muted-foreground flex items-center gap-0.5">
+                    <RefreshCw className="w-2.5 h-2.5" />
+                    MRR
+                  </span>
+                </label>
+                {oportunidade.recorrente && (
+                  <div className="relative">
+                    <select
+                      value={oportunidade.periodo_recorrencia || 'mensal'}
+                      onChange={(e) => handlePeriodoChange(e.target.value)}
+                      className="h-5 pl-1 pr-4 text-[10px] font-semibold text-primary bg-primary/10 border-0 rounded focus:ring-0 appearance-none cursor-pointer"
+                    >
+                      {PERIODOS_MRR.map(p => (
+                        <option key={p.value} value={p.value}>{p.label}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-0.5 top-1/2 -translate-y-1/2 w-2.5 h-2.5 text-primary pointer-events-none" />
+                  </div>
+                )}
+                {!oportunidade.recorrente && oportunidade.valor && (
+                  <span className="text-[10px] text-muted-foreground">Valor único</span>
+                )}
+              </div>
             </div>
           )}
 
@@ -317,15 +443,77 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
             />
           )}
 
-          {/* Empresa vinculada (quando contato é pessoa) */}
-          {oportunidade.contato?.tipo === 'pessoa' && oportunidade.contato?.empresa && (
-            <div className="flex items-start gap-2">
+          {/* Empresa vinculada (editável: vincular/desvincular/trocar) */}
+          {isCampoVisivel('contato_empresa') && oportunidade.contato?.tipo === 'pessoa' && (
+            <div className="flex items-start gap-2" ref={empresaSearchRef}>
               <Building2 className="w-3.5 h-3.5 text-muted-foreground mt-1 flex-shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-[11px] text-muted-foreground mb-0.5">Empresa</p>
-                <p className="text-sm text-foreground truncate">
-                  {oportunidade.contato.empresa.nome_fantasia || oportunidade.contato.empresa.razao_social || '—'}
-                </p>
+
+                {oportunidade.contato?.empresa ? (
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm text-foreground truncate flex-1">
+                      {oportunidade.contato.empresa.nome_fantasia || oportunidade.contato.empresa.razao_social || '—'}
+                    </p>
+                    <button
+                      onClick={() => setShowEmpresaSearch(true)}
+                      className="p-0.5 text-muted-foreground hover:text-primary transition-colors"
+                      title="Trocar empresa"
+                    >
+                      <Link2 className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={handleDesvincularEmpresa}
+                      className="p-0.5 text-muted-foreground hover:text-destructive transition-colors"
+                      title="Desvincular empresa"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowEmpresaSearch(true)}
+                    className="text-sm text-primary hover:underline flex items-center gap-1"
+                  >
+                    <Link2 className="w-3 h-3" />
+                    Vincular empresa
+                  </button>
+                )}
+
+                {/* Search dropdown empresa */}
+                {showEmpresaSearch && (
+                  <div className="mt-1.5 relative">
+                    <div className="relative">
+                      <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
+                      <input
+                        type="text"
+                        value={buscaEmpresa}
+                        onChange={(e) => handleBuscaEmpresa(e.target.value)}
+                        placeholder="Buscar empresa..."
+                        className="w-full h-7 pl-6 pr-2 text-xs bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring/30 placeholder:text-muted-foreground"
+                        autoFocus
+                      />
+                      {buscandoEmpresa && (
+                        <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 animate-spin text-muted-foreground" />
+                      )}
+                    </div>
+
+                    {resultadosEmpresa.length > 0 && (
+                      <div className="absolute left-0 right-0 top-full mt-0.5 bg-card border border-border rounded-md shadow-lg z-[60] max-h-[150px] overflow-y-auto">
+                        {resultadosEmpresa.map(emp => (
+                          <button
+                            key={emp.id}
+                            onClick={() => handleVincularEmpresa(emp.id)}
+                            className="w-full text-left px-2 py-1.5 text-xs hover:bg-accent transition-all duration-200 flex items-center gap-2"
+                          >
+                            <Building2 className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                            <span className="truncate">{emp.nome_fantasia || emp.razao_social}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}
