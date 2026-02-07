@@ -51,7 +51,7 @@ export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardCli
   return (
     <div
       className={`
-        flex flex-col min-w-[272px] w-[272px] bg-muted/30 rounded-lg
+        flex flex-col min-w-[272px] w-[272px] bg-muted/30 rounded-lg border border-border
         transition-all duration-200
         ${isDragOver ? 'ring-2 ring-primary/40 bg-primary/5' : ''}
       `}
@@ -59,11 +59,8 @@ export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardCli
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {/* Header com cor da etapa */}
-      <div
-        className="flex-shrink-0 px-3 py-2.5 rounded-t-lg border-t-[3px]"
-        style={{ borderTopColor: etapa.cor || '#6B7280' }}
-      >
+      {/* Header da etapa */}
+      <div className="flex-shrink-0 px-3 py-2.5 rounded-t-lg">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 min-w-0">
             <h3 className="text-sm font-semibold text-foreground truncate">
