@@ -79,7 +79,7 @@ export function ConfigCampos({ funilId }: Props) {
             >
               {/* Ícone entidade */}
               <span className="text-base flex-shrink-0">
-                {vinculo.campo?.entidade === 'empresa' ? '🏢' : '👤'}
+                {vinculo.campo?.entidade === 'empresa' ? '🏢' : vinculo.campo?.entidade === 'oportunidade' ? '💼' : '👤'}
               </span>
 
               {/* Nome */}
@@ -166,7 +166,7 @@ export function ConfigCampos({ funilId }: Props) {
               />
             </div>
             <div className="flex gap-1">
-              {['todos', 'contato', 'empresa'].map(f => (
+              {['todos', 'pessoa', 'empresa', 'oportunidade'].map(f => (
                 <button
                   key={f}
                   onClick={() => setFiltroEntidade(f)}
@@ -176,7 +176,7 @@ export function ConfigCampos({ funilId }: Props) {
                       : 'bg-muted text-muted-foreground hover:bg-accent'
                   }`}
                 >
-                  {f === 'todos' ? 'Todos' : f === 'contato' ? '👤 Contato' : '🏢 Empresa'}
+                  {f === 'todos' ? 'Todos' : f === 'pessoa' ? '👤 Pessoa' : f === 'empresa' ? '🏢 Empresa' : '💼 Oportunidade'}
                 </button>
               ))}
             </div>
@@ -196,7 +196,7 @@ export function ConfigCampos({ funilId }: Props) {
                   className="w-full flex items-center gap-3 p-2.5 rounded-md hover:bg-accent text-left transition-all duration-200"
                 >
                   <span className="text-base">
-                    {campo.entidade === 'empresa' ? '🏢' : '👤'}
+                    {campo.entidade === 'empresa' ? '🏢' : campo.entidade === 'oportunidade' ? '💼' : '👤'}
                   </span>
                   <span className="text-sm text-foreground flex-1">{campo.nome}</span>
                   <span className="text-xs text-muted-foreground">{campo.tipo}</span>
