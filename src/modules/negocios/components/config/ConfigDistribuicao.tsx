@@ -242,8 +242,8 @@ export function ConfigDistribuicao({ funilId }: Props) {
         </div>
       )}
 
-      {/* Salvar */}
-      <div className="flex justify-end">
+      {/* Salvar — sticky no bottom */}
+      <div className="sticky bottom-0 pt-3 pb-1 bg-background flex justify-end">
         <button
           onClick={handleSalvar}
           disabled={salvar.isPending}
