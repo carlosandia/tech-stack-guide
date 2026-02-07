@@ -9,6 +9,12 @@ import { negociosApi } from '../services/negocios.api'
 interface KanbanFiltros {
   busca?: string
   responsavelId?: string
+  qualificacao?: ('lead' | 'mql' | 'sql')[]
+  valorMin?: number
+  valorMax?: number
+  origem?: string
+  periodoInicio?: string
+  periodoFim?: string
 }
 
 export function useKanban(funilId: string | null, filtros?: KanbanFiltros) {

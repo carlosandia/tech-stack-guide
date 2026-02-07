@@ -2,12 +2,15 @@
  * AIDEV-NOTE: Toolbar de ações do módulo Negócios
  * Injeta conteúdo no AppToolbar via context
  * Progressive Disclosure mobile: Busca + CTA visíveis, resto em overflow
+ * Inclui FiltrosPopover e PeriodoSelector
  */
 
 import { useEffect, useState, useRef } from 'react'
 import { Search, Plus, X, MoreVertical } from 'lucide-react'
 import { useAppToolbar } from '@/modules/app/contexts/AppToolbarContext'
 import { PipelineSelector } from './PipelineSelector'
+import { FiltrosPopover, type FiltrosKanban } from './FiltrosPopover'
+import { PeriodoSelector, type PeriodoFiltro } from './PeriodoSelector'
 import type { Funil } from '../../services/negocios.api'
 
 interface NegociosToolbarProps {
@@ -21,6 +24,10 @@ interface NegociosToolbarProps {
   onExcluir?: (funilId: string) => void
   busca: string
   onBuscaChange: (value: string) => void
+  filtros: FiltrosKanban
+  onFiltrosChange: (filtros: FiltrosKanban) => void
+  periodo: PeriodoFiltro
+  onPeriodoChange: (periodo: PeriodoFiltro) => void
   isAdmin: boolean
 }
 
@@ -35,6 +42,10 @@ export function NegociosToolbar({
   onExcluir,
   busca,
   onBuscaChange,
+  filtros,
+  onFiltrosChange,
+  periodo,
+  onPeriodoChange,
   isAdmin,
 }: NegociosToolbarProps) {
   const { setSubtitle, setActions } = useAppToolbar()
@@ -96,6 +107,19 @@ export function NegociosToolbar({
   useEffect(() => {
     setActions(
       <div className="flex items-center gap-1 sm:gap-1.5">
+        {/* Filtros */}
+        <FiltrosPopover
+          filtros={filtros}
+          onChange={onFiltrosChange}
+          isAdmin={isAdmin}
+        />
+
+        {/* Período */}
+        <PeriodoSelector
+          periodo={periodo}
+          onChange={onPeriodoChange}
+        />
+
         {/* Busca (popover) */}
         <div className="relative" ref={searchContainerRef}>
           <button
@@ -184,7 +208,7 @@ export function NegociosToolbar({
       </div>
     )
     return () => setActions(null)
-  }, [busca, searchOpen, mobileMenuOpen, isAdmin, setActions, onNovaOportunidade, onNovaPipeline, onBuscaChange])
+  }, [busca, searchOpen, mobileMenuOpen, isAdmin, setActions, onNovaOportunidade, onNovaPipeline, onBuscaChange, filtros, onFiltrosChange, periodo, onPeriodoChange])
 
   return null // Renderiza via context
 }
