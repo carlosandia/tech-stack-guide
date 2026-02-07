@@ -239,7 +239,7 @@ export function ContatosPage() {
           </button>
 
           {searchOpen && (
-            <div className="absolute right-0 top-full mt-1.5 w-72 sm:w-80 bg-card border border-border rounded-lg shadow-lg z-[60] p-3">
+            <div className="fixed left-3 right-3 sm:absolute sm:left-auto sm:right-0 top-[calc(100%+6px)] sm:top-full sm:mt-1.5 sm:w-80 bg-card border border-border rounded-lg shadow-lg z-[60] p-3">
               <div className="relative flex items-center">
                 <Search className="absolute left-2.5 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
                 <input
