@@ -236,17 +236,18 @@ export default function NegociosPage() {
         periodo={periodo}
         onPeriodoChange={setPeriodo}
         isAdmin={isAdmin}
+        metricasVisivel={metricasVisivel}
+        onToggleMetricas={handleToggleMetricas}
+        metricasVisiveis={metricasVisiveis}
+        onMetricasVisiveisChange={setMetricasVisiveis}
+        funilAtivoId={funilAtivoId}
       />
 
       {/* Métricas */}
-      {kanbanData && !semPipelines && (
+      {kanbanData && !semPipelines && metricasVisivel && (
         <MetricasPanel
           data={kanbanData}
-          visivel={metricasVisivel}
-          onToggle={handleToggleMetricas}
-          funilId={funilAtivoId}
           metricasVisiveis={metricasVisiveis}
-          onMetricasVisiveisChange={setMetricasVisiveis}
         />
       )}
 
