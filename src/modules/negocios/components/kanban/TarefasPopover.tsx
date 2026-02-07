@@ -17,6 +17,8 @@ interface Tarefa {
   status: string
   tipo: string
   data_vencimento?: string | null
+  etapa_origem_id?: string | null
+  etapa_nome?: string | null
 }
 
 interface TarefasPopoverProps {
@@ -91,7 +93,7 @@ export function TarefasPopover({ oportunidadeId, totalPendentes, totalTarefas, t
       try {
         const { data, error } = await supabase
           .from('tarefas')
-          .select('id, titulo, status, tipo, data_vencimento')
+          .select('id, titulo, status, tipo, data_vencimento, etapa_origem_id')
           .eq('oportunidade_id', oportunidadeId)
           .is('deletado_em', null)
           .order('criado_em', { ascending: true })
@@ -100,9 +102,35 @@ export function TarefasPopover({ oportunidadeId, totalPendentes, totalTarefas, t
         if (error) {
           console.error('Erro ao carregar tarefas:', error)
           setTarefas([])
-        } else {
-          setTarefas((data || []) as Tarefa[])
+          return
         }
+
+        const tarefasRaw = (data || []) as Tarefa[]
+
+        // Buscar nomes das etapas de origem
+        const etapaIds = [...new Set(tarefasRaw.filter(t => t.etapa_origem_id).map(t => t.etapa_origem_id!))]
+        let etapasMap: Record<string, string> = {}
+
+        if (etapaIds.length > 0) {
+          const { data: etapas } = await supabase
+            .from('etapas_funil')
+            .select('id, nome')
+            .in('id', etapaIds)
+
+          if (etapas) {
+            for (const e of etapas) {
+              etapasMap[e.id] = e.nome
+            }
+          }
+        }
+
+        // Enriquecer tarefas com nome da etapa
+        const tarefasEnriquecidas = tarefasRaw.map(t => ({
+          ...t,
+          etapa_nome: t.etapa_origem_id ? etapasMap[t.etapa_origem_id] || null : null,
+        }))
+
+        setTarefas(tarefasEnriquecidas)
       } finally {
         setLoading(false)
       }
@@ -139,6 +167,16 @@ export function TarefasPopover({ oportunidadeId, totalPendentes, totalTarefas, t
 
   const pendentes = tarefas.filter(t => t.status !== 'concluida' && t.status !== 'cancelada')
   const concluidas = tarefas.filter(t => t.status === 'concluida')
+
+  // Agrupar pendentes por etapa de origem
+  const pendentesAgrupados = pendentes.reduce<Record<string, { nome: string; tarefas: Tarefa[] }>>((acc, t) => {
+    const key = t.etapa_origem_id || '_sem_etapa'
+    const nome = t.etapa_nome || 'Sem etapa'
+    if (!acc[key]) acc[key] = { nome, tarefas: [] }
+    acc[key].tarefas.push(t)
+    return acc
+  }, {})
+  const gruposEtapa = Object.entries(pendentesAgrupados)
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -194,32 +232,40 @@ export function TarefasPopover({ oportunidadeId, totalPendentes, totalTarefas, t
               Nenhuma tarefa cadastrada
             </div>
           ) : (
-            <div className="max-h-[240px] overflow-y-auto">
-              {/* Pendentes */}
-              {pendentes.map(tarefa => (
-                <div
-                  key={tarefa.id}
-                  className="flex items-start gap-2 px-3 py-2 hover:bg-accent/50 transition-all duration-200"
-                >
-                  <button
-                    onClick={(e) => handleToggleConcluir(e, tarefa)}
-                    disabled={concluindo === tarefa.id}
-                    className="mt-0.5 flex-shrink-0 text-muted-foreground hover:text-primary transition-all duration-200"
-                  >
-                    {concluindo === tarefa.id ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Square className="w-4 h-4" />
-                    )}
-                  </button>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs text-foreground leading-tight">{tarefa.titulo}</p>
-                    {tarefa.data_vencimento && (
-                      <p className="text-[10px] text-muted-foreground mt-0.5">
-                        Prazo: {new Date(tarefa.data_vencimento).toLocaleDateString('pt-BR')}
-                      </p>
-                    )}
+            <div className="max-h-[300px] overflow-y-auto">
+              {/* Pendentes agrupados por etapa */}
+              {gruposEtapa.map(([etapaKey, grupo], idx) => (
+                <div key={etapaKey}>
+                  {/* Separador de etapa */}
+                  <div className={`px-3 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider bg-muted/50 ${idx > 0 ? 'border-t border-border' : ''}`}>
+                    📋 {grupo.nome}
                   </div>
+                  {grupo.tarefas.map(tarefa => (
+                    <div
+                      key={tarefa.id}
+                      className="flex items-start gap-2 px-3 py-2 hover:bg-accent/50 transition-all duration-200"
+                    >
+                      <button
+                        onClick={(e) => handleToggleConcluir(e, tarefa)}
+                        disabled={concluindo === tarefa.id}
+                        className="mt-0.5 flex-shrink-0 text-muted-foreground hover:text-primary transition-all duration-200"
+                      >
+                        {concluindo === tarefa.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Square className="w-4 h-4" />
+                        )}
+                      </button>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs text-foreground leading-tight">{tarefa.titulo}</p>
+                        {tarefa.data_vencimento && (
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            Prazo: {new Date(tarefa.data_vencimento).toLocaleDateString('pt-BR')}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ))}
 
