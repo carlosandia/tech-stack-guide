@@ -34,23 +34,23 @@ export function TarefasPopover({ oportunidadeId, totalPendentes, totalTarefas, t
   const [popoverPos, setPopoverPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
   const triggerRef = useRef<HTMLButtonElement>(null)
 
-  // Calcula posição do popover relativa ao trigger
+  // Calcula posição do popover relativa ao trigger — sempre abaixo do badge
   const updatePosition = useCallback(() => {
     if (!triggerRef.current) return
     const rect = triggerRef.current.getBoundingClientRect()
     const popoverWidth = 260
-    const popoverHeight = 280
 
-    let top = rect.top - popoverHeight - 6
-    let left = rect.left
+    // Abrir abaixo do badge
+    let top = rect.bottom + 6
+    let left = rect.right - popoverWidth
 
-    // Se sair pela esquerda, alinhar à direita do trigger
-    if (left + popoverWidth > window.innerWidth) {
-      left = rect.right - popoverWidth
+    // Se sair pela esquerda, alinhar ao left do trigger
+    if (left < 8) {
+      left = rect.left
     }
-    // Se sair por cima, abrir para baixo
-    if (top < 8) {
-      top = rect.bottom + 6
+    // Se sair pela direita
+    if (left + popoverWidth > window.innerWidth - 8) {
+      left = window.innerWidth - popoverWidth - 8
     }
 
     setPopoverPos({ top, left })
