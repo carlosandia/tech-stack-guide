@@ -1,370 +1,191 @@
 
+# Auditoria Criteriosa: PRD-07 Modulo de Negocios
 
-# Plano de Implementacao Completa - PRD-07: Modulo de Negocios
+## Resumo da Analise
 
-## Analise do Estado Atual vs PRD
-
-### O que JA esta implementado (Iteracao 1 concluida)
-
-| Item | Status |
-|------|--------|
-| Estrutura de pastas do modulo | Feito |
-| Rota `/app/negocios` no App.tsx | Feito |
-| Service layer (`negocios.api.ts`) - CRUD basico | Feito |
-| Hooks TanStack Query (`useFunis`, `useKanban`) | Feito |
-| KanbanBoard com scroll horizontal | Feito |
-| KanbanColumn com header/cor/contador | Feito |
-| KanbanCard com titulo, contato, valor, qualificacao, tempo | Feito |
-| KanbanEmptyState | Feito |
-| NegociosToolbar com busca popover e progressive disclosure | Feito |
-| PipelineSelector dropdown basico | Feito |
-| NovaPipelineModal (nome, descricao, cor) | Feito |
-| Drag & Drop basico entre colunas (HTML5 nativo) | Feito |
-| Mover etapa via API | Feito |
-
-### O que FALTA implementar (por RF do PRD)
-
-| RF | Feature | Status |
-|----|---------|--------|
-| RF-01 | Kanban click no card abre detalhes | Faltando |
-| RF-02 | Criacao de Pipeline com membros | Parcial (falta multi-select membros) |
-| RF-03 | Configuracao de Pipeline (6 Abas) | Faltando completamente |
-| RF-04 | Aba Etapas (gerenciar etapas do funil) | Faltando |
-| RF-05 | Aba Campos (campos personalizados) | Faltando |
-| RF-06 | Aba Distribuicao (manual/rodizio) | Faltando |
-| RF-07 | Aba Atividades (tarefas automaticas) | Faltando |
-| RF-08 | Aba Qualificacao (regras MQL) | Faltando |
-| RF-09 | Aba Motivos (ganho/perda) + Modal fechamento | Faltando |
-| RF-10 | Modal Nova Oportunidade (3 secoes) | ✅ Feito |
-| RF-11 | Solicitacoes/Pre-Oportunidades WhatsApp | Faltando (depende PRD-08) |
-| RF-12 | Barra de Acoes completa (Filtros, Periodo, Metricas toggle) | Parcial |
-| RF-13 | Painel de Metricas | Faltando |
-| RF-14 | Modal de Detalhes da Oportunidade (3 blocos, 5 abas) | Faltando |
-| RF-15.1 | PipelineSelector completo (arquivar, editar, excluir, contador) | Parcial |
-| RF-15.2 | Toggle Produtos/Manual para valor | ✅ Feito |
-| RF-15.3 | Campos UTM na criacao | Faltando |
-| RF-15.4 | Popover Filtrar Metricas | Faltando |
-| RF-15.5 | Popover de Tarefas no Card | Faltando |
-
-### RLS Migrado ✅
-
-As 15 tabelas de negocios foram migradas de `current_setting('app.current_tenant')` para `get_user_tenant_id()`.
-Tabelas migradas: funis, etapas_funil, oportunidades, oportunidades_produtos, funis_membros, funis_campos, funis_regras_qualificacao, funis_motivos, configuracoes_distribuicao, anotacoes_oportunidades, documentos_oportunidades, emails_oportunidades, reunioes_oportunidades, motivos_noshow, preferencias_metricas.
+Apos leitura integral do PRD-07 (2.799 linhas) e verificacao de cada arquivo de implementacao, identifiquei que o modulo esta **parcialmente implementado**. A estrutura principal do Kanban esta funcional, mas existem **lacunas significativas** em funcionalidades criticas que foram declaradas como "completas" mas na verdade sao placeholders ou estao totalmente ausentes.
 
 ---
 
-## Plano de Implementacao por Iteracoes
+## Status Detalhado por Requisito Funcional
 
-### Iteracao 2: Corrigir RLS + Modal Nova Oportunidade
-**Prioridade: CRITICA**
+### IMPLEMENTADOS CORRETAMENTE
 
-**2.1 Migrar RLS das tabelas de negocios**
+| RF | Descricao | Status | Observacoes |
+|----|-----------|--------|-------------|
+| RF-01 | Interface Kanban (drag and drop, colunas, cards) | Implementado | Cards com titulo, contato, valor, responsavel, tempo, badges |
+| RF-02 | Criacao de Pipeline (modal com nome e membros) | Implementado | NovaPipelineModal funcional |
+| RF-03 | Configuracao de Pipeline (6 abas) | Implementado | PipelineConfigPage com sidebar + tabs |
+| RF-04 | Aba Etapas (crud, drag reorder, tipos fixos) | Implementado | ConfigEtapas com protecao de sistema |
+| RF-09 | Aba Motivos (ganho/perda com modal) | Implementado | FecharOportunidadeModal com motivos do funil |
+| RF-10 | Criacao de Oportunidade (3 secoes) | Implementado | Contato, Oportunidade, Produtos |
+| RF-12 | Barra de acoes (busca, filtros, periodo) | Implementado | NegociosToolbar com Progressive Disclosure |
+| RF-13 | Painel de Metricas (13 KPIs) | Implementado | Calculo correto, toggle, localStorage |
+| RF-14.1 | Header do modal (stepper clicavel) | Implementado | Etapas clicaveis com cor semantica |
+| RF-14.2 | Bloco Campos (edicao inline) | Parcial | Ver lacunas abaixo |
+| RF-14.4 | Historico/Timeline | Parcial | Funcional mas depende de audit_log |
+| RF-15.1 | Dropdown Pipeline (editar/arquivar/excluir) | Implementado | PipelineSelector completo |
+| RF-15.2 | Toggle Produtos vs Manual | Implementado | No modal de criacao |
+| RF-15.3 | Campos UTM | Implementado | Secao colapsavel no modal |
+| RF-15.4 | Filtrar Metricas Visiveis | Implementado | FiltrarMetricasPopover + localStorage |
+| RF-15.5 | Popover Tarefas no card | Implementado | TarefasPopover |
 
-Alterar as policies das tabelas `funis`, `etapas_funil`, `oportunidades`, `oportunidades_produtos`, `funis_membros`, `funis_campos`, `funis_regras_qualificacao`, `funis_motivos`, `etapas_tarefas`, `configuracoes_distribuicao`, `anotacoes_oportunidades`, `documentos_oportunidades`, `emails_oportunidades`, `reunioes_oportunidades`, `motivos_noshow`, `preferencias_metricas` para usar `get_user_tenant_id()` em vez de `current_setting('app.current_tenant')`.
+### NAO IMPLEMENTADOS OU APENAS PLACEHOLDERS
 
-Padrao a seguir (mesmo da tabela `contatos`):
-- DROP policy `tenant_isolation`
-- CREATE policy `tenant_select` com `organizacao_id = get_user_tenant_id()`
-- Manter policies de INSERT, UPDATE, DELETE com `get_user_tenant_id()`
-
-**2.2 Modal Nova Oportunidade (RF-10)**
-
-Criar `NovaOportunidadeModal.tsx` usando ModalBase (size="lg") com 3 secoes:
-
-- **Secao 1 - CONTATO**: Toggle Pessoa/Empresa, busca de contato existente (autocomplete no Supabase), campos nome/email/telefone para criar novo inline
-- **Secao 2 - OPORTUNIDADE**: Valor (toggle manual/produtos conforme RF-15.2), responsavel (dropdown de membros do tenant), previsao de fechamento (date picker)
-- **Secao 3 - PRODUTOS**: Tabela com busca de produtos cadastrados, quantidade, calculo automatico do total
-
-Titulo automatico: `[Nome do Contato] - #[Sequencia]`
-
-**2.3 Conectar o botao "Nova Oportunidade" ao modal**
-
-Substituir o `toast.info` por abertura real do modal no `NegociosPage.tsx`.
-
----
-
-### Iteracao 3: Modal Fechar Oportunidade + PipelineSelector Completo
-**Prioridade: ALTA**
-
-**3.1 FecharOportunidadeModal (RF-09)**
-
-Criar `FecharOportunidadeModal.tsx` usando ModalBase (size="sm"):
-
-- Variante Ganho: icone Check verde, titulo "Fechar como Ganho"
-- Variante Perda: icone X vermelho, titulo "Fechar como Perdido"
-- Buscar motivos da tabela `motivos_resultado` filtrados por tipo e vinculados a pipeline via `funis_motivos`
-- Radio buttons para selecao de motivo
-- Textarea para observacoes (opcional)
-- Botao de confirmacao com cor semantica
-
-Integrar com o drag & drop existente: ao dropar em coluna Ganho/Perdido, interceptar e abrir modal antes de confirmar movimentacao.
-
-**3.2 PipelineSelector completo (RF-15.1)**
-
-Expandir o PipelineSelector existente com:
-
-- Busca por nome de pipeline
-- Separacao Ativas/Arquivadas (com secao colapsavel)
-- Icones de acao: Editar (abre config), Arquivar/Desarquivar, Excluir
-- Contador no rodape (Ativas: N, Arquivadas: N)
-- API para arquivar/desarquivar pipeline no `negocios.api.ts`
-
-**3.3 NovaPipelineModal com membros (RF-02)**
-
-Adicionar campo multi-select de membros (buscar usuarios do tenant) ao modal existente.
+| RF | Descricao | Status | Impacto |
+|----|-----------|--------|---------|
+| **RF-11** | Pre-Oportunidades (WhatsApp) | **NAO IMPLEMENTADO** | Critico - Feature 3 inteira ausente |
+| **RF-14.3 Tab 2** | Aba Tarefas (CRUD) | **PLACEHOLDER** | Alto - Apenas texto estatico, sem funcionalidade |
+| **RF-14.3 Tab 3** | Aba Documentos (upload) | **PLACEHOLDER** | Alto - Apenas texto estatico, sem upload |
+| **RF-14.3 Tab 4** | Aba E-mail (envio) | **PLACEHOLDER** | Medio - Apenas link para configuracoes |
+| **RF-14.3 Tab 5** | Aba Agenda (reunioes) | **PLACEHOLDER** | Medio - Apenas link para configuracoes |
+| **RF-15.6** | Engrenagem na secao Contato (modal criacao) | **NAO IMPLEMENTADO** | Baixo |
+| **RF-14.2** | Popover show/hide campos (engrenagem) | **NAO IMPLEMENTADO** | Medio - Sem icone de engrenagem no modal de detalhes |
 
 ---
 
-### Iteracao 4: Filtros, Periodo e Metricas
-**Prioridade: ALTA**
+## Lacunas Criticas de Arquitetura e Seguranca
 
-**4.1 Popover de Filtros (RF-12)**
+### 1. Isolamento Member vs Admin -- NAO IMPLEMENTADO
 
-Criar `FiltrosPopover.tsx`:
+O PRD define como **CRITICO** que Members so vejam suas proprias oportunidades. A implementacao atual:
 
-- Responsavel (dropdown de usuarios)
-- Qualificacao (checkboxes Lead/MQL/SQL)
-- Valor (range min/max com inputs)
-- Origem (dropdown)
-- Badge no botao indicando filtros ativos
-- Persistir filtros em localStorage
+- `carregarKanban()` busca TODAS oportunidades do funil sem filtrar por `usuario_responsavel_id`
+- Nenhuma verificacao de role (admin/member) no frontend para restringir dados
+- O filtro de responsavel so funciona manualmente via FiltrosPopover (admin escolhe quem ver)
+- **Members veem TODOS os cards de todos os vendedores** -- violacao direta do PRD
 
-**4.2 Dropdown de Periodo (RF-12)**
+O PRD especifica:
+- "Member NAO pode ver oportunidades de outros Members"
+- "Member NAO pode ver contatos de outros Members"
+- "Member NAO pode ver metricas globais (apenas proprias)"
 
-Criar `PeriodoSelector.tsx`:
+### 2. Supabase Realtime -- NAO IMPLEMENTADO
 
-- Presets: Hoje, 7 dias, Este mes, Mes passado, Personalizado
-- Date range picker para personalizado
-- Filtrar por data de criacao ou previsao de fechamento
+O PRD especifica como criterio de aceite:
+- "Atualizacao em tempo real via Supabase Realtime"
+- "Mover card atualiza banco e notifica outros usuarios"
+- "Metricas atualizam automaticamente ao mover card"
 
-**4.3 Painel de Metricas (RF-13)**
+Nenhum canal Realtime foi implementado. As atualizacoes dependem de `refetchOnWindowFocus` e invalidacao manual de queries.
 
-Criar `MetricasPanel.tsx`:
+### 3. Paginacao/Virtualizacao -- NAO IMPLEMENTADO
 
-- Toggle exibe/oculta (estado em localStorage)
-- Calcular metricas a partir dos dados filtrados do Kanban:
-  - Total, Abertas, Ganhas, Perdidas, Em Novos Negocios
-  - Valor Total, Ticket Medio, Taxa Conversao, Tempo Medio, Forecast
-  - Stagnadas (>7d), Vencendo (7d), Atrasadas
-- Grid responsivo: 2 colunas mobile, 5 desktop
-- Cores semanticas: verde (positivo), vermelho (negativo), amarelo (alerta)
+O PRD menciona:
+- "Paginacao de cards por etapa"
+- "Virtualizacao para pipelines com 500+ cards"
+- "Renderizacao de 100+ cards < 2s"
 
-**4.4 Popover Filtrar Metricas (RF-15.4)**
+O `carregarKanban()` busca todos os cards sem paginacao, o que pode causar problemas de performance com muitos dados (e atingir o limite de 1000 rows do Supabase).
 
-Criar `FiltrarMetricasPopover.tsx`:
+### 4. Preferencias de Metricas via Banco -- IMPLEMENTADO PARCIALMENTE
 
-- Checkboxes para escolher quais metricas exibir
-- Persistir preferencia por usuario+pipeline
+O PRD define a tabela `preferencias_metricas` para persistir no banco. A implementacao usa `localStorage` ao inves do banco, o que significa que as preferencias se perdem ao trocar de navegador/dispositivo.
 
 ---
 
-### Iteracao 5: Modal de Detalhes da Oportunidade
-**Prioridade: ALTA**
+## Detalhamento das 4 Abas Placeholder
 
-**5.1 Estrutura do Modal (RF-14)**
+### Aba Tarefas (AbaTarefas.tsx)
+**PRD exige:**
+- Listar tarefas automaticas da etapa atual
+- Listar tarefas manuais criadas pelo usuario
+- Criar nova tarefa manual
+- Marcar tarefa como concluida
+- Separacao visual "Pendentes" / "Concluidas"
 
-Criar `DetalhesOportunidadeModal.tsx` usando ModalBase (size="xl"):
+**Implementado:** Apenas um texto estatico dizendo "As tarefas automaticas serao habilitadas apos configurar as atividades da pipeline."
 
-- **Header**: Titulo + Badge qualificacao + Stepper horizontal de etapas clicaveis
-  - Etapa atual com circulo preenchido, demais vazios
-  - Click em etapa move a oportunidade (com modal de motivo se Ganho/Perdido)
+### Aba Documentos (AbaDocumentos.tsx)
+**PRD exige:**
+- Upload drag and drop para Supabase Storage
+- Preview de imagens/PDFs
+- Download de documentos
+- Exclusao (soft delete)
+- Lista com nome, tamanho, data, autor
 
-- **Body desktop**: Layout flex 3 colunas (25% / 50% / 25%)
-- **Body mobile**: Stack vertical com accordion
+**Implementado:** Apenas um texto estatico dizendo "Upload de documentos sera disponibilizado em breve."
 
-**5.2 Bloco 1 - Campos (RF-14.2)**
+### Aba E-mail (AbaEmail.tsx)
+**PRD exige:**
+- Verificar se conexao de email esta configurada
+- Formulario de envio (destinatario, assunto, corpo, anexos)
+- Historico de emails enviados
+- Status: enviado/falhou/rascunho
 
-- Secao OPORTUNIDADE: valor, valor produtos (readonly), responsavel, previsao
-- Secao CONTATO: campos do contato vinculado, editaveis inline
-- Engrenagem para show/hide campos (popover)
+**Implementado:** Apenas um botao "Ir para Configuracoes" sem nenhuma funcionalidade de email.
 
-**5.3 Bloco 2 - Abas (RF-14.3)**
+### Aba Agenda (AbaAgenda.tsx)
+**PRD exige:**
+- Criar reuniao (titulo, data, horario, local, descricao)
+- Listar reunioes agendadas/realizadas
+- Marcar como Realizada / No-Show / Cancelada / Reagendada
+- Modal de No-Show com motivos e opcao de reagendar
+- Integracao Google Calendar (se configurado)
 
-5 abas usando o padrao Tabs do Design System:
-
-1. **Anotacoes**: Rich text editor (TipTap ja instalado) + listagem + botao gravar audio (placeholder para V1.1)
-2. **Tarefas**: Lista de tarefas (automaticas da etapa + manuais), checkbox para concluir, criar nova tarefa
-3. **Documentos**: Upload drag & drop para Supabase Storage, listagem com preview, download
-4. **E-mail**: Estado vazio com orientacao ("Configure em Configuracoes > Conexoes")
-5. **Agenda**: Estado vazio com orientacao ("Configure em Configuracoes > Conexoes")
-
-**5.4 Bloco 3 - Historico/Timeline (RF-14.4)**
-
-- Buscar eventos do `audit_log` para a oportunidade
-- Timeline vertical agrupada por dia
-- Tipos de evento: criacao, movimentacao, alteracao, anotacao, tarefa, documento
-
----
-
-### Iteracao 6: Configuracao de Pipeline (6 Abas)
-**Prioridade: MEDIA**
-
-**6.1 Rota e Layout**
-
-Adicionar rota `/app/configuracoes/pipeline/:id` ou modal/drawer de configuracao.
-
-**6.2 Aba Etapas (RF-04)**
-
-- Listar etapas ordenadas com drag & drop para reordenar
-- Etapas fixas (entrada, ganho, perda) nao podem ser movidas/removidas
-- Modal para criar/editar etapa: nome, cor, probabilidade (%), dias meta
-- Vincular etapas_templates existentes ou criar novas
-
-**6.3 Aba Campos (RF-05)**
-
-- Listar campos vinculados a pipeline via `funis_campos`
-- Filtro por entidade (Contato/Empresa)
-- Modal para vincular campo existente ou criar novo campo global
-- Badges: Sistema, Padrao, Obrigatorio, Personalizado
-- Toggle "Exibir no Card"
-
-**6.4 Aba Distribuicao (RF-06)**
-
-- Toggle Manual/Rodizio
-- Se rodizio: configuracoes avancadas (horario, dias, pular inativos, fallback)
-- SLA de resposta (tempo limite, max redistribuicoes, acao apos limite)
-
-**6.5 Aba Atividades (RF-07)**
-
-- Listar etapas com templates de tarefa vinculados
-- Clicar em etapa abre modal para vincular tarefa_template ou criar novo
-- Tarefas sao criadas automaticamente ao mover card para a etapa
-
-**6.6 Aba Qualificacao (RF-08)**
-
-- Listar regras vinculadas via `funis_regras_qualificacao`
-- Modal para vincular regra existente ou criar nova
-- Logica AND (todas devem ser verdadeiras para MQL)
-
-**6.7 Aba Motivos (RF-09)**
-
-- Toggle exigir motivo ao fechar
-- Listas separadas: Motivos de Ganho / Motivos de Perda
-- Vincular motivos existentes via `funis_motivos`
+**Implementado:** Apenas um botao "Ir para Configuracoes" sem nenhuma funcionalidade de agenda.
 
 ---
 
-### Iteracao 7: Refinamentos Finais
-**Prioridade: BAIXA**
+## Tabelas do Banco de Dados
 
-**7.1 Popover de Tarefas no Card (RF-15.5)**
+Todas as 17 tabelas previstas no PRD existem no banco:
 
-- Ao clicar no badge de tarefas do card, abrir popover
-- Listar tarefas pendentes com checkbox para concluir inline
-- Marcar concluida direto do popover
-
-**7.2 Campos UTM (RF-15.3)**
-
-- Secao colapsavel "Rastreamento (opcional)" no modal de criacao
-- 5 campos: Source, Campaign, Medium, Term, Content
-
-**7.3 Responsividade final**
-
-- Testar todos modais e popovers em mobile
-- Garantir progressive disclosure em todos breakpoints
-- KanbanBoard com scroll snap no mobile
-
-**7.4 Pre-Oportunidades (RF-11) - Placeholder**
-
-- Criar componente `PreOportunidadeCard.tsx` com layout visual
-- Logica dependente da implementacao de WhatsApp/WAHA (PRD-08)
-- Coluna "Solicitacoes" aparece apenas quando conexao WhatsApp ativa
+| Tabela | Existe | Sendo usada no frontend |
+|--------|--------|------------------------|
+| funis | Sim | Sim |
+| etapas_funil | Sim | Sim |
+| oportunidades | Sim | Sim |
+| oportunidades_produtos | Sim | Sim |
+| funis_membros | Sim | Sim (criacao de pipeline) |
+| funis_campos | Sim | Parcial (config apenas) |
+| funis_regras_qualificacao | Sim | Parcial (config apenas) |
+| funis_motivos | Sim | Sim (FecharModal) |
+| etapas_tarefas | Sim | Nao (aba tarefas e placeholder) |
+| configuracoes_distribuicao | Sim | Parcial (config apenas) |
+| pre_oportunidades | Sim | Nao (feature ausente) |
+| anotacoes_oportunidades | Sim | Sim |
+| documentos_oportunidades | Sim | Nao (aba placeholder) |
+| emails_oportunidades | Sim | Nao (aba placeholder) |
+| reunioes_oportunidades | Sim | Nao (aba placeholder) |
+| motivos_noshow | Sim | Nao (aba placeholder) |
+| preferencias_metricas | Sim | Nao (usa localStorage) |
 
 ---
 
-## Detalhes Tecnicos
+## Plano de Implementacao Proposto
 
-### Migracao de RLS (Critica)
+### Prioridade 1 -- Seguranca (Urgente)
+1. **Isolamento Member/Admin no Kanban**: Filtrar oportunidades por `usuario_responsavel_id` quando role === 'member'
+2. **Filtro de metricas por role**: Members devem ver apenas suas proprias metricas
 
-As tabelas core de negocios usam `current_setting('app.current_tenant')` que nao funciona com o cliente Supabase frontend. Precisam ser migradas para `get_user_tenant_id()`, seguindo o padrao da tabela `contatos`.
+### Prioridade 2 -- Abas Funcionais (Alto Impacto)
+3. **Aba Tarefas**: CRUD completo com listagem de tarefas automaticas + manuais, marcar concluida
+4. **Aba Documentos**: Upload para Supabase Storage, preview, download, exclusao
+5. **Aba E-mail**: Envio de email via conexao configurada, historico
+6. **Aba Agenda**: CRUD reunioes, status management, modal No-Show
 
-Tabelas afetadas (16 tabelas):
-- funis, etapas_funil, oportunidades, oportunidades_produtos
-- funis_membros, funis_campos, funis_regras_qualificacao, funis_motivos
-- etapas_tarefas, configuracoes_distribuicao
-- anotacoes_oportunidades, documentos_oportunidades
-- emails_oportunidades, reunioes_oportunidades
-- motivos_noshow, preferencias_metricas
+### Prioridade 3 -- Features Ausentes (Medio Impacto)
+7. **Pre-Oportunidades (RF-11)**: Tela/aba de solicitacoes WhatsApp com aceitar/rejeitar
+8. **Engrenagem show/hide campos** no modal de detalhes (RF-14.2)
+9. **Engrenagem contato** no modal de criacao (RF-15.6)
+10. **Persistencia de preferencias no banco** ao inves de localStorage
 
-### Tabelas do banco - Todas ja existem
+### Prioridade 4 -- Otimizacoes (Desejavel)
+11. **Supabase Realtime** para atualizacoes em tempo real do Kanban
+12. **Paginacao por etapa** para evitar limite de 1000 rows
+13. **Virtualizacao** para pipelines com muitos cards
 
-Todas as 20 tabelas necessarias ja foram criadas no banco. Nenhuma migracao de schema e necessaria, apenas correcao de RLS policies.
+---
 
-### Service Layer - Funcoes a adicionar
+## Conclusao
 
-```text
-negocios.api.ts (expandir):
-  - buscarOportunidade(id)
-  - atualizarOportunidade(id, payload)
-  - listarMotivos(funilId, tipo)
-  - arquivarFunil(id)
-  - desarquivarFunil(id)
-  - listarMembros(funilId)
-  - criarAnotacao(oportunidadeId, payload)
-  - listarAnotacoes(oportunidadeId)
-  - uploadDocumento(oportunidadeId, file)
-  - listarDocumentos(oportunidadeId)
-  - listarHistorico(oportunidadeId)
-  - criarTarefa(oportunidadeId, payload)
-  - listarTarefas(oportunidadeId)
-  - concluirTarefa(tarefaId)
-```
+O modulo de Negocios esta **aproximadamente 55-60% implementado** em relacao ao PRD-07 completo. A estrutura principal (Kanban, pipelines, cards, filtros, metricas, modal de detalhes com anotacoes) esta funcional, mas:
 
-### Novos Componentes (total: ~20 arquivos)
+- **4 das 5 abas do modal de detalhes sao placeholders** (apenas Anotacoes funciona)
+- **O isolamento de dados Member/Admin esta ausente** (vulnerabilidade de seguranca)
+- **Pre-Oportunidades (Feature 3 inteira) nao foi implementada**
+- **Supabase Realtime nao foi implementado**
+- **Nenhuma das integrações avancadas** (Google Calendar, Email SMTP) esta funcional
 
-```text
-modals/
-  NovaOportunidadeModal.tsx
-  FecharOportunidadeModal.tsx
-  DetalhesOportunidadeModal.tsx
-
-detalhes/
-  DetalhesHeader.tsx
-  DetalhesStepperEtapas.tsx
-  DetalhesCampos.tsx
-  DetalhesAbas.tsx
-  DetalhesHistorico.tsx
-  AbaAnotacoes.tsx
-  AbaTarefas.tsx
-  AbaDocumentos.tsx
-  AbaEmail.tsx (placeholder)
-  AbaAgenda.tsx (placeholder)
-
-toolbar/
-  FiltrosPopover.tsx
-  PeriodoSelector.tsx
-  MetricasPanel.tsx
-  FiltrarMetricasPopover.tsx
-
-config/
-  PipelineConfigPage.tsx (6 abas)
-```
-
-### Design System - Regras a seguir
-
-| Elemento | Classe Tailwind |
-|----------|-----------------|
-| Cards Kanban | `bg-card border border-border rounded-lg shadow-sm`, hover `shadow-md` |
-| Modal Nova Opp | ModalBase `size="lg"`, 3 secoes com `space-y-6` |
-| Modal Detalhes | ModalBase `size="xl"`, layout flex 3 blocos |
-| Modal Fechar | ModalBase `size="sm"`, cor semantica verde/vermelha |
-| Badges | `rounded-full text-xs font-semibold px-2.5 py-0.5` |
-| Inputs | `h-10 rounded-md border-input text-sm` |
-| Tabs | Padrao DS 10.9 com underline |
-| Popovers | `z-[60]`, `bg-card border border-border rounded-lg shadow-lg` |
-| Botoes | Primary para CTA, ghost para filtros, destructive para exclusao |
-| Z-Index | Modais z-400/401, popovers z-600, tooltips z-700 |
-| Transicoes | `transition-all duration-200` em todas interacoes |
-| Responsividade | Progressive Disclosure: CTA + Busca visiveis, resto em overflow |
-
-### Ordem de Execucao Recomendada
-
-1. **Iteracao 2** (Critica): Fix RLS + Nova Oportunidade modal
-2. **Iteracao 3**: Fechar Oportunidade + PipelineSelector completo
-3. **Iteracao 4**: Filtros + Periodo + Metricas
-4. **Iteracao 5**: Modal de Detalhes (3 blocos + 5 abas)
-5. **Iteracao 6**: Configuracao de Pipeline (6 abas)
-6. **Iteracao 7**: Refinamentos + UTM + Tarefas popover
-
-Cada iteracao entrega valor funcional testavel pelo usuario.
-
+Recomendo priorizar o **isolamento de seguranca** antes de qualquer outra feature, e depois implementar as abas funcionais em ordem de impacto.
