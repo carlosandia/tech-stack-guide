@@ -119,6 +119,9 @@ export interface TarefaTemplate {
   titulo: string
   tipo?: string | null
   descricao?: string | null
+  canal?: string | null
+  prioridade?: string | null
+  dias_prazo?: number | null
 }
 
 export interface EtapaTarefaVinculo {
@@ -389,7 +392,7 @@ export const pipelineConfigApi = {
         .from('funis_etapas_tarefas')
         .select(`
           id, etapa_funil_id, tarefa_template_id, ativo, ordem,
-          tarefa:tarefas_templates(id, titulo, tipo, descricao)
+          tarefa:tarefas_templates(id, titulo, tipo, descricao, canal, prioridade, dias_prazo)
         `)
         .in('etapa_funil_id', etapaIds)
 
@@ -406,7 +409,7 @@ export const pipelineConfigApi = {
   listarTarefasTemplates: async (): Promise<TarefaTemplate[]> => {
     const { data, error } = await supabase
       .from('tarefas_templates')
-      .select('id, titulo, tipo, descricao')
+      .select('id, titulo, tipo, descricao, canal, prioridade, dias_prazo')
       .eq('ativo', true)
       .is('deletado_em', null)
       .order('titulo', { ascending: true })
