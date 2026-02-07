@@ -106,9 +106,7 @@ export function TarefasPopover({ oportunidadeId, totalPendentes, totalTarefas, t
     setOpen(!open)
   }
 
-  if (totalTarefas === 0) return null
-
-  const allDone = totalPendentes === 0
+  const allDone = totalTarefas === 0 || totalPendentes === 0
 
   return (
     <div className="relative" ref={containerRef}>
