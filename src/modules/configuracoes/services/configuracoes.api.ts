@@ -528,6 +528,18 @@ export interface WebhookSaidaLog {
 // =====================================================
 
 export const camposApi = {
+  listarTodos: async () => {
+    const { data, error } = await supabase
+      .from('campos_customizados')
+      .select('id, nome, entidade')
+      .is('deletado_em', null)
+      .order('entidade')
+      .order('ordem', { ascending: true })
+
+    if (error) throw new Error(`Erro ao listar campos: ${error.message}`)
+    return (data || []) as Array<{ id: string; nome: string; entidade: Entidade }>
+  },
+
   listar: async (entidade: Entidade) => {
     const { data, error, count } = await supabase
       .from('campos_customizados')

@@ -6,6 +6,7 @@
 import { useState } from 'react'
 import { Plus, Trash2, Search, ShieldCheck, Info } from 'lucide-react'
 import { useRegrasVinculadas, useRegrasDisponiveis, useVincularRegra, useDesvincularRegra } from '../../hooks/usePipelineConfig'
+import { useTodosCampos } from '@/modules/configuracoes/hooks/useCampos'
 
 interface Props {
   funilId: string
@@ -29,6 +30,8 @@ export function ConfigQualificacao({ funilId }: Props) {
   const { data: disponiveis } = useRegrasDisponiveis()
   const vincular = useVincularRegra(funilId)
   const desvincular = useDesvincularRegra(funilId)
+
+  const { mapaCampos } = useTodosCampos()
 
   const [showAdd, setShowAdd] = useState(false)
   const [busca, setBusca] = useState('')
@@ -84,11 +87,16 @@ export function ConfigQualificacao({ funilId }: Props) {
                   {vinculo.regra?.nome || 'Regra'}
                 </div>
                 {vinculo.regra && (
-                  <div className="text-xs text-muted-foreground mt-0.5">
+                  <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5 flex-wrap">
                     {vinculo.regra.descricao || (
                       <>
-                        [{vinculo.regra.campo_id ? 'Campo' : '—'}] {OPERADOR_LABEL[vinculo.regra.operador] || vinculo.regra.operador}
-                        {vinculo.regra.valor ? ` "${vinculo.regra.valor}"` : ''}
+                        {vinculo.regra.campo_id && mapaCampos.has(vinculo.regra.campo_id) && (
+                          <span className="bg-muted px-1.5 py-0.5 rounded">
+                            {mapaCampos.get(vinculo.regra.campo_id)!.entidadeLabel} › {mapaCampos.get(vinculo.regra.campo_id)!.nome}
+                          </span>
+                        )}
+                        <span>{OPERADOR_LABEL[vinculo.regra.operador] || vinculo.regra.operador}</span>
+                        {vinculo.regra.valor ? <span className="font-medium">&quot;{vinculo.regra.valor}&quot;</span> : null}
                       </>
                     )}
                   </div>
@@ -151,9 +159,14 @@ export function ConfigQualificacao({ funilId }: Props) {
                   <ShieldCheck className="w-3.5 h-3.5 text-muted-foreground" />
                   <div className="flex-1 min-w-0">
                     <div className="text-sm text-foreground">{regra.nome}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {OPERADOR_LABEL[regra.operador] || regra.operador}
-                      {regra.valor ? ` "${regra.valor}"` : ''}
+                    <div className="text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
+                      {regra.campo_id && mapaCampos.has(regra.campo_id) && (
+                        <span className="bg-muted px-1.5 py-0.5 rounded">
+                          {mapaCampos.get(regra.campo_id)!.entidadeLabel} › {mapaCampos.get(regra.campo_id)!.nome}
+                        </span>
+                      )}
+                      <span>{OPERADOR_LABEL[regra.operador] || regra.operador}</span>
+                      {regra.valor ? <span className="font-medium">&quot;{regra.valor}&quot;</span> : null}
                     </div>
                   </div>
                   <Plus className="w-3.5 h-3.5 text-primary flex-shrink-0" />
