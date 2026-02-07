@@ -4,3 +4,4 @@
  */
 
 export { default as NegociosPage } from './pages/NegociosPage'
+export { default as PipelineConfigPage } from './pages/PipelineConfigPage'
