@@ -545,4 +545,51 @@ export const negociosApi = {
 
     if (error) throw new Error(error.message)
   },
+
+  // Arquivar pipeline
+  arquivarFunil: async (funilId: string): Promise<void> => {
+    const { error } = await supabase
+      .from('funis')
+      .update({ arquivado: true, arquivado_em: new Date().toISOString() } as any)
+      .eq('id', funilId)
+
+    if (error) throw new Error(error.message)
+  },
+
+  // Desarquivar pipeline
+  desarquivarFunil: async (funilId: string): Promise<void> => {
+    const { error } = await supabase
+      .from('funis')
+      .update({ arquivado: false, arquivado_em: null } as any)
+      .eq('id', funilId)
+
+    if (error) throw new Error(error.message)
+  },
+
+  // Excluir pipeline (soft delete)
+  excluirFunil: async (funilId: string): Promise<void> => {
+    const { error } = await supabase
+      .from('funis')
+      .update({ deletado_em: new Date().toISOString() } as any)
+      .eq('id', funilId)
+
+    if (error) throw new Error(error.message)
+  },
+
+  // Adicionar membros a uma pipeline
+  adicionarMembrosFunil: async (funilId: string, usuarioIds: string[]): Promise<void> => {
+    const organizacaoId = await getOrganizacaoId()
+
+    const inserts = usuarioIds.map(uid => ({
+      organizacao_id: organizacaoId,
+      funil_id: funilId,
+      usuario_id: uid,
+    }))
+
+    const { error } = await supabase
+      .from('funis_membros')
+      .insert(inserts as any)
+
+    if (error) throw new Error(error.message)
+  },
 }

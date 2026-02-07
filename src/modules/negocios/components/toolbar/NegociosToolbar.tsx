@@ -16,6 +16,9 @@ interface NegociosToolbarProps {
   onSelectFunil: (funil: Funil) => void
   onNovaPipeline: () => void
   onNovaOportunidade: () => void
+  onArquivar?: (funilId: string) => void
+  onDesarquivar?: (funilId: string) => void
+  onExcluir?: (funilId: string) => void
   busca: string
   onBuscaChange: (value: string) => void
   isAdmin: boolean
@@ -27,6 +30,9 @@ export function NegociosToolbar({
   onSelectFunil,
   onNovaPipeline,
   onNovaOportunidade,
+  onArquivar,
+  onDesarquivar,
+  onExcluir,
   busca,
   onBuscaChange,
   isAdmin,
@@ -77,11 +83,14 @@ export function NegociosToolbar({
         funilAtivo={funilAtivo}
         onSelect={onSelectFunil}
         onNovaPipeline={onNovaPipeline}
+        onArquivar={onArquivar}
+        onDesarquivar={onDesarquivar}
+        onExcluir={onExcluir}
         isAdmin={isAdmin}
       />
     )
     return () => setSubtitle(null)
-  }, [funis, funilAtivo, onSelectFunil, onNovaPipeline, isAdmin, setSubtitle])
+  }, [funis, funilAtivo, onSelectFunil, onNovaPipeline, onArquivar, onDesarquivar, onExcluir, isAdmin, setSubtitle])
 
   // Inject actions
   useEffect(() => {
