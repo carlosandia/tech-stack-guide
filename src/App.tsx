@@ -15,7 +15,7 @@ import { PlanosPage, TrialCadastroPage, CheckoutSucessoPage, OnboardingPage } fr
 import { BlockedPage } from '@/modules/blocked'
 import { ConfiguracoesLayout, CamposPage, ProdutosPage, MotivosPage, TarefasTemplatesPage, EtapasTemplatesPage, RegrasPage, ConfigCardPage, ConexoesPage, WebhooksEntradaPage, WebhooksSaidaPage, MembrosPage, EquipesPage, PerfisPermissaoPage, MetasPage, ConfigGeralPage } from '@/modules/configuracoes'
 import { ContatosPage } from '@/modules/contatos'
-import { NegociosPage } from '@/modules/negocios'
+import { NegociosPage, PipelineConfigPage } from '@/modules/negocios'
 
 /**
  * AIDEV-NOTE: Roteamento principal da aplicacao
@@ -72,6 +72,7 @@ function App() {
         <Route path="contatos" element={<ContatosPage />} />
         <Route path="contatos/:tipo" element={<ContatosPage />} />
         <Route path="negocios" element={<NegociosPage />} />
+        <Route path="negocios/pipeline/:id" element={<PipelineConfigPage />} />
       </Route>
 
       {/* Configuracoes - PRD-05 (layout próprio com header/toolbar) */}
