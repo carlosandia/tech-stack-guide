@@ -15,6 +15,7 @@ import { MetricasPanel } from '../components/toolbar/MetricasPanel'
 import { NovaPipelineModal } from '../components/modals/NovaPipelineModal'
 import { NovaOportunidadeModal } from '../components/modals/NovaOportunidadeModal'
 import { FecharOportunidadeModal } from '../components/modals/FecharOportunidadeModal'
+import { DetalhesOportunidadeModal } from '../components/detalhes/DetalhesOportunidadeModal'
 import type { Funil, Oportunidade } from '../services/negocios.api'
 import { negociosApi } from '../services/negocios.api'
 import type { FiltrosKanban } from '../components/toolbar/FiltrosPopover'
@@ -48,6 +49,7 @@ export default function NegociosPage() {
     etapaId: string
     tipo: 'ganho' | 'perda'
   } | null>(null)
+  const [detalhesOpId, setDetalhesOpId] = useState<string | null>(null)
 
   // Queries
   const { data: funis, isLoading: funisLoading } = useFunis()
@@ -168,6 +170,10 @@ export default function NegociosPage() {
     setFecharOp({ oportunidade, etapaId, tipo })
   }, [])
 
+  const handleCardClick = useCallback((oportunidade: Oportunidade) => {
+    setDetalhesOpId(oportunidade.id)
+  }, [])
+
   const handleNovaOportunidade = useCallback(() => {
     if (!funilAtivoId || !etapaEntradaId) {
       toast.error('Selecione uma pipeline primeiro')
@@ -234,6 +240,7 @@ export default function NegociosPage() {
           data={kanbanData}
           isLoading={kanbanLoading}
           onDropGanhoPerda={handleDropGanhoPerda}
+          onCardClick={handleCardClick}
         />
       ) : kanbanLoading ? (
         <div className="flex-1 flex items-center justify-center">
@@ -273,6 +280,19 @@ export default function NegociosPage() {
             queryClient.invalidateQueries({ queryKey: ['kanban'] })
             toast.success(fecharOp.tipo === 'ganho' ? 'Oportunidade ganha! 🎉' : 'Oportunidade marcada como perdida')
             setFecharOp(null)
+          }}
+        />
+      )}
+
+      {detalhesOpId && funilAtivoId && kanbanData && (
+        <DetalhesOportunidadeModal
+          oportunidadeId={detalhesOpId}
+          funilId={funilAtivoId}
+          etapas={kanbanData.etapas}
+          onClose={() => setDetalhesOpId(null)}
+          onDropGanhoPerda={(op, etapaId, tipo) => {
+            setDetalhesOpId(null)
+            handleDropGanhoPerda(op, etapaId, tipo)
           }}
         />
       )}
