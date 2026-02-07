@@ -3,7 +3,7 @@
  * Conforme PRD-07 RF-04 - Etapas com drag reorder
  */
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback, useRef } from 'react'
 import { GripVertical, Plus, Pencil, Trash2, Lock } from 'lucide-react'
 import { useEtapasFunil, useCriarEtapa, useAtualizarEtapa, useExcluirEtapa, useReordenarEtapas } from '../../hooks/usePipelineConfig'
 import { EtapaFormModal } from './EtapaFormModal'
@@ -23,7 +23,8 @@ export function ConfigEtapas({ funilId }: Props) {
   const [showModal, setShowModal] = useState(false)
   const [editando, setEditando] = useState<EtapaFunil | null>(null)
   const [dragIndex, setDragIndex] = useState<number | null>(null)
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+  const [overIndex, setOverIndex] = useState<number | null>(null)
+  const dragCounterRef = useRef(0)
 
   // Ordenar: Entrada → Personalizados (por ordem) → Ganho → Perda
   const etapasOrdenadas = useMemo(() => {
@@ -35,6 +36,15 @@ export function ConfigEtapas({ funilId }: Props) {
     const perda = etapas.filter(e => e.tipo === 'perda')
     return [...entrada, ...custom, ...ganho, ...perda]
   }, [etapas])
+
+  // Lista visual reordenada durante o drag (estilo Trello)
+  const etapasVisuais = useMemo(() => {
+    if (dragIndex === null || overIndex === null || dragIndex === overIndex) return etapasOrdenadas
+    const result = [...etapasOrdenadas]
+    const [moved] = result.splice(dragIndex, 1)
+    result.splice(overIndex, 0, moved)
+    return result
+  }, [etapasOrdenadas, dragIndex, overIndex])
 
   const isSistema = (etapa: EtapaFunil) =>
     etapa.tipo === 'entrada' || etapa.tipo === 'ganho' || etapa.tipo === 'perda'
@@ -48,41 +58,48 @@ export function ConfigEtapas({ funilId }: Props) {
     }
   }
 
-  const handleDragStart = (index: number) => {
+  const handleDragStart = useCallback((e: React.DragEvent, index: number) => {
+    const etapa = etapasOrdenadas[index]
+    if (etapa && isSistema(etapa)) { e.preventDefault(); return }
+    e.dataTransfer.effectAllowed = 'move'
+    setDragIndex(index)
+    setOverIndex(index)
+    dragCounterRef.current = 0
+  }, [etapasOrdenadas])
+
+  const handleDragEnter = useCallback((index: number) => {
+    if (dragIndex === null) return
     const etapa = etapasOrdenadas[index]
     if (etapa && isSistema(etapa)) return
-    setDragIndex(index)
-  }
+    setOverIndex(index)
+  }, [dragIndex, etapasOrdenadas])
 
-  const handleDragOver = (e: React.DragEvent, index: number) => {
+  const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
-    const etapa = etapasOrdenadas[index]
-    if (etapa && isSistema(etapa)) {
-      setDragOverIndex(null)
+    e.dataTransfer.dropEffect = 'move'
+  }, [])
+
+  const handleDrop = useCallback(() => {
+    if (dragIndex === null || overIndex === null || dragIndex === overIndex) {
+      setDragIndex(null)
+      setOverIndex(null)
       return
     }
-    setDragOverIndex(index)
-  }
-
-  const handleDrop = (index: number) => {
-    if (dragIndex === null || etapasOrdenadas.length === 0) return
-    const target = etapasOrdenadas[index]
-    if (target && isSistema(target)) return
 
     const newEtapas = [...etapasOrdenadas]
     const [moved] = newEtapas.splice(dragIndex, 1)
-    newEtapas.splice(index, 0, moved)
+    newEtapas.splice(overIndex, 0, moved)
 
     const ordens = newEtapas.map((e, i) => ({ id: e.id, ordem: i }))
     reordenar.mutate(ordens)
     setDragIndex(null)
-    setDragOverIndex(null)
-  }
+    setOverIndex(null)
+  }, [dragIndex, overIndex, etapasOrdenadas, reordenar])
 
-  const handleDragEnd = () => {
+  const handleDragEnd = useCallback(() => {
     setDragIndex(null)
-    setDragOverIndex(null)
-  }
+    setOverIndex(null)
+  }, [])
 
   const handleSave = async (payload: { nome: string; cor: string; probabilidade: number }) => {
     if (editando) {
@@ -117,89 +134,83 @@ export function ConfigEtapas({ funilId }: Props) {
         </button>
       </div>
 
-      {/* Lista de etapas */}
+      {/* Lista de etapas - reordena visualmente durante drag */}
       <div className="space-y-1.5">
-        {etapasOrdenadas.map((etapa, index) => {
-          const isDragging = dragIndex === index
-          const isOver = dragOverIndex === index && dragIndex !== null && dragIndex !== index && !isSistema(etapa)
-          const dropAbove = isOver && dragIndex !== null && dragIndex > index
-          const dropBelow = isOver && dragIndex !== null && dragIndex < index
+        {etapasVisuais.map((etapa) => {
+          const originalIndex = etapasOrdenadas.findIndex(e => e.id === etapa.id)
+          const isDragging = dragIndex !== null && etapasOrdenadas[dragIndex]?.id === etapa.id
 
           return (
             <div
               key={etapa.id}
               draggable={!isSistema(etapa)}
-              onDragStart={() => handleDragStart(index)}
-              onDragOver={(e) => handleDragOver(e, index)}
-              onDrop={() => handleDrop(index)}
+              onDragStart={(e) => handleDragStart(e, originalIndex)}
+              onDragEnter={() => handleDragEnter(originalIndex)}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
               onDragEnd={handleDragEnd}
-              onDragLeave={() => setDragOverIndex(null)}
               className={`
-                flex items-center gap-3 p-3 rounded-lg border bg-card
+                flex items-center gap-3 p-3 rounded-lg border border-border bg-card
                 ${!isSistema(etapa) ? 'cursor-grab active:cursor-grabbing hover:border-primary/30' : ''}
-                ${isDragging ? 'opacity-30 scale-95' : ''}
-                ${dropAbove ? 'border-t-2 border-t-primary mt-1' : ''}
-                ${dropBelow ? 'border-b-2 border-b-primary mb-1' : ''}
-                ${isOver ? 'bg-primary/5' : ''}
-                ${!isDragging && !isOver ? 'border-border' : ''}
+                ${isDragging ? 'opacity-30 scale-[0.98]' : ''}
                 transition-all duration-200
               `}
             >
-            {/* Grip */}
-            <div className={`flex-shrink-0 ${isSistema(etapa) ? 'opacity-20' : 'text-muted-foreground'}`}>
-              {isSistema(etapa) ? (
-                <Lock className="w-4 h-4" />
-              ) : (
-                <GripVertical className="w-4 h-4" />
-              )}
-            </div>
-
-            {/* Color dot */}
-            <div
-              className="w-3 h-3 rounded-full flex-shrink-0"
-              style={{ backgroundColor: etapa.cor || '#6B7280' }}
-            />
-
-            {/* Name */}
-            <div className="flex-1 min-w-0">
-              <span className="text-sm font-medium text-foreground">{etapa.nome}</span>
-            </div>
-
-            {/* Badge */}
-            <span className={`
-              px-2 py-0.5 rounded text-xs font-medium flex-shrink-0
-              ${isSistema(etapa)
-                ? 'bg-muted text-muted-foreground'
-                : 'bg-primary/10 text-primary'
-              }
-            `}>
-              {tipoLabel(etapa.tipo)}
-            </span>
-
-            {/* Probabilidade */}
-            <span className="text-xs text-muted-foreground flex-shrink-0 w-10 text-right">
-              {etapa.probabilidade ?? 0}%
-            </span>
-
-            {/* Actions */}
-            {!isSistema(etapa) && (
-              <div className="flex items-center gap-1 flex-shrink-0">
-                <button
-                  onClick={() => { setEditando(etapa); setShowModal(true) }}
-                  className="p-1.5 rounded-md hover:bg-accent text-muted-foreground transition-all duration-200"
-                  title="Editar"
-                >
-                  <Pencil className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={() => excluirEtapa.mutate(etapa.id)}
-                  className="p-1.5 rounded-md hover:bg-destructive/10 text-destructive transition-all duration-200"
-                  title="Excluir"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+              {/* Grip */}
+              <div className={`flex-shrink-0 ${isSistema(etapa) ? 'opacity-20' : 'text-muted-foreground'}`}>
+                {isSistema(etapa) ? (
+                  <Lock className="w-4 h-4" />
+                ) : (
+                  <GripVertical className="w-4 h-4" />
+                )}
               </div>
-            )}
+
+              {/* Color dot */}
+              <div
+                className="w-3 h-3 rounded-full flex-shrink-0"
+                style={{ backgroundColor: etapa.cor || '#6B7280' }}
+              />
+
+              {/* Name */}
+              <div className="flex-1 min-w-0">
+                <span className="text-sm font-medium text-foreground">{etapa.nome}</span>
+              </div>
+
+              {/* Badge */}
+              <span className={`
+                px-2 py-0.5 rounded text-xs font-medium flex-shrink-0
+                ${isSistema(etapa)
+                  ? 'bg-muted text-muted-foreground'
+                  : 'bg-primary/10 text-primary'
+                }
+              `}>
+                {tipoLabel(etapa.tipo)}
+              </span>
+
+              {/* Probabilidade */}
+              <span className="text-xs text-muted-foreground flex-shrink-0 w-10 text-right">
+                {etapa.probabilidade ?? 0}%
+              </span>
+
+              {/* Actions */}
+              {!isSistema(etapa) && (
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <button
+                    onClick={() => { setEditando(etapa); setShowModal(true) }}
+                    className="p-1.5 rounded-md hover:bg-accent text-muted-foreground transition-all duration-200"
+                    title="Editar"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => excluirEtapa.mutate(etapa.id)}
+                    className="p-1.5 rounded-md hover:bg-destructive/10 text-destructive transition-all duration-200"
+                    title="Excluir"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
             </div>
           )
         })}
