@@ -234,6 +234,12 @@ export const negociosApi = {
   carregarKanban: async (funilId: string, filtros?: {
     busca?: string
     responsavelId?: string
+    qualificacao?: ('lead' | 'mql' | 'sql')[]
+    valorMin?: number
+    valorMax?: number
+    origem?: string
+    periodoInicio?: string
+    periodoFim?: string
   }): Promise<KanbanData> => {
     // Buscar funil
     const { data: funil, error: funilError } = await supabase
@@ -270,6 +276,22 @@ export const negociosApi = {
 
     if (filtros?.busca) {
       oportunidadesQuery = oportunidadesQuery.ilike('titulo', `%${filtros.busca}%`)
+    }
+
+    if (filtros?.valorMin !== undefined) {
+      oportunidadesQuery = oportunidadesQuery.gte('valor', filtros.valorMin)
+    }
+
+    if (filtros?.valorMax !== undefined) {
+      oportunidadesQuery = oportunidadesQuery.lte('valor', filtros.valorMax)
+    }
+
+    if (filtros?.periodoInicio) {
+      oportunidadesQuery = oportunidadesQuery.gte('criado_em', filtros.periodoInicio)
+    }
+
+    if (filtros?.periodoFim) {
+      oportunidadesQuery = oportunidadesQuery.lte('criado_em', filtros.periodoFim)
     }
 
     const { data: oportunidades, error: opError } = await oportunidadesQuery

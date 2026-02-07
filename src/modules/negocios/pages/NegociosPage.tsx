@@ -1,26 +1,30 @@
 /**
  * AIDEV-NOTE: Página principal do módulo de Negócios (Kanban)
  * Conforme PRD-07 - Módulo de Negócios
- * Layout: Toolbar (via context) + KanbanBoard com scroll
+ * Layout: Toolbar (via context) + MetricasPanel + KanbanBoard
  */
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useAuth } from '@/providers/AuthProvider'
 import { useFunis, useCriarFunil, useArquivarFunil, useDesarquivarFunil, useExcluirFunil } from '../hooks/useFunis'
 import { useKanban } from '../hooks/useKanban'
 import { KanbanBoard } from '../components/kanban/KanbanBoard'
 import { KanbanEmptyState } from '../components/kanban/KanbanEmptyState'
 import { NegociosToolbar } from '../components/toolbar/NegociosToolbar'
+import { MetricasPanel } from '../components/toolbar/MetricasPanel'
 import { NovaPipelineModal } from '../components/modals/NovaPipelineModal'
 import { NovaOportunidadeModal } from '../components/modals/NovaOportunidadeModal'
 import { FecharOportunidadeModal } from '../components/modals/FecharOportunidadeModal'
 import type { Funil, Oportunidade } from '../services/negocios.api'
 import { negociosApi } from '../services/negocios.api'
+import type { FiltrosKanban } from '../components/toolbar/FiltrosPopover'
+import type { PeriodoFiltro } from '../components/toolbar/PeriodoSelector'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 
 const STORAGE_KEY = 'negocios_funil_ativo'
+const METRICAS_KEY = 'negocios_metricas_visivel'
 
 export default function NegociosPage() {
   const { role } = useAuth()
@@ -32,6 +36,11 @@ export default function NegociosPage() {
     return localStorage.getItem(STORAGE_KEY) || null
   })
   const [busca, setBusca] = useState('')
+  const [filtros, setFiltros] = useState<FiltrosKanban>({})
+  const [periodo, setPeriodo] = useState<PeriodoFiltro>({ preset: 'todos' })
+  const [metricasVisivel, setMetricasVisivel] = useState(() => {
+    return localStorage.getItem(METRICAS_KEY) !== 'false'
+  })
   const [showNovaPipeline, setShowNovaPipeline] = useState(false)
   const [showNovaOportunidade, setShowNovaOportunidade] = useState(false)
   const [fecharOp, setFecharOp] = useState<{
@@ -58,11 +67,20 @@ export default function NegociosPage() {
     }
   }, [funis, funilAtivoId])
 
+  // Memoize kanban filters
+  const kanbanFiltros = useMemo(() => ({
+    busca: busca.length >= 3 ? busca : undefined,
+    responsavelId: filtros.responsavelId,
+    qualificacao: filtros.qualificacao,
+    valorMin: filtros.valorMin,
+    valorMax: filtros.valorMax,
+    origem: filtros.origem,
+    periodoInicio: periodo.inicio,
+    periodoFim: periodo.fim,
+  }), [busca, filtros, periodo])
+
   // Kanban data
-  const { data: kanbanData, isLoading: kanbanLoading } = useKanban(
-    funilAtivoId,
-    { busca: busca.length >= 3 ? busca : undefined }
-  )
+  const { data: kanbanData, isLoading: kanbanLoading } = useKanban(funilAtivoId, kanbanFiltros)
 
   const funilAtivo = funis?.find(f => f.id === funilAtivoId) || null
 
@@ -82,7 +100,6 @@ export default function NegociosPage() {
       const { membrosIds, ...funilData } = data
       const novoFunil = await criarFunil.mutateAsync(funilData)
 
-      // Adicionar membros se selecionados
       if (membrosIds && membrosIds.length > 0) {
         try {
           await negociosApi.adicionarMembrosFunil(novoFunil.id, membrosIds)
@@ -103,7 +120,6 @@ export default function NegociosPage() {
   const handleArquivar = useCallback(async (funilId: string) => {
     try {
       await arquivarFunil.mutateAsync(funilId)
-      // Se a pipeline arquivada era a ativa, selecionar outra
       if (funilId === funilAtivoId) {
         const ativas = (funis || []).filter(f => f.id !== funilId && f.ativo !== false && !f.arquivado)
         if (ativas.length > 0) {
@@ -160,6 +176,14 @@ export default function NegociosPage() {
     setShowNovaOportunidade(true)
   }, [funilAtivoId, etapaEntradaId])
 
+  const handleToggleMetricas = useCallback(() => {
+    setMetricasVisivel(prev => {
+      const next = !prev
+      localStorage.setItem(METRICAS_KEY, String(next))
+      return next
+    })
+  }, [])
+
   // Loading state
   if (funisLoading) {
     return (
@@ -186,8 +210,21 @@ export default function NegociosPage() {
         onExcluir={handleExcluir}
         busca={busca}
         onBuscaChange={setBusca}
+        filtros={filtros}
+        onFiltrosChange={setFiltros}
+        periodo={periodo}
+        onPeriodoChange={setPeriodo}
         isAdmin={isAdmin}
       />
+
+      {/* Métricas */}
+      {kanbanData && !semPipelines && (
+        <MetricasPanel
+          data={kanbanData}
+          visivel={metricasVisivel}
+          onToggle={handleToggleMetricas}
+        />
+      )}
 
       {/* Content */}
       {semPipelines ? (
