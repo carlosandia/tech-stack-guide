@@ -33,6 +33,8 @@ export const OportunidadeSchema = z.object({
   valor: z.number().nonnegative().default(0),
   tipo_valor: TipoValorEnum.default('manual'),
   moeda: MoedaEnum.default('BRL'),
+  recorrente: z.boolean().default(false),
+  periodo_recorrencia: z.enum(['mensal', 'trimestral', 'semestral', 'anual']).nullable().optional(),
   previsao_fechamento: z.string().date().nullable().optional(),
 
   usuario_responsavel_id: z.string().uuid().nullable().optional(),
@@ -74,6 +76,8 @@ export const CriarOportunidadeSchema = z.object({
   valor: z.number().nonnegative().optional(),
   tipo_valor: TipoValorEnum.optional(),
   moeda: MoedaEnum.optional(),
+  recorrente: z.boolean().optional(),
+  periodo_recorrencia: z.enum(['mensal', 'trimestral', 'semestral', 'anual']).optional(),
   previsao_fechamento: z.string().date().optional(),
   usuario_responsavel_id: z.string().uuid().optional(),
   observacoes: z.string().optional(),

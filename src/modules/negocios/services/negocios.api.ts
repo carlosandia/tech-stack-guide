@@ -98,6 +98,8 @@ export interface Oportunidade {
   valor?: number | null
   moeda?: string | null
   tipo_valor?: string | null
+  recorrente?: boolean | null
+  periodo_recorrencia?: string | null
   usuario_responsavel_id?: string | null
   previsao_fechamento?: string | null
   fechado_em?: string | null
@@ -434,6 +436,8 @@ export const negociosApi = {
     contato_id: string
     titulo: string
     valor?: number
+    recorrente?: boolean
+    periodo_recorrencia?: string
     usuario_responsavel_id?: string
     previsao_fechamento?: string
     observacoes?: string
@@ -453,6 +457,8 @@ export const negociosApi = {
       contato_id: payload.contato_id,
       titulo: payload.titulo,
       valor: payload.valor || null,
+      recorrente: payload.recorrente || false,
+      periodo_recorrencia: payload.periodo_recorrencia || null,
       usuario_responsavel_id: payload.usuario_responsavel_id || userId,
       previsao_fechamento: payload.previsao_fechamento || null,
       observacoes: payload.observacoes || null,
@@ -563,28 +569,68 @@ export const negociosApi = {
     return { id: data.id }
   },
 
-  // Listar produtos do tenant
+  // Listar produtos do tenant (com dados MRR e categoria)
   listarProdutos: async (busca?: string): Promise<Array<{
     id: string
     nome: string
     preco: number
     sku?: string | null
+    recorrente?: boolean | null
+    periodo_recorrencia?: string | null
+    moeda?: string | null
+    unidade?: string | null
+    categoria_id?: string | null
+    categoria_nome?: string | null
   }>> => {
     let query = supabase
       .from('produtos')
-      .select('id, nome, preco, sku')
+      .select('id, nome, preco, sku, recorrente, periodo_recorrencia, moeda, unidade, categoria_id')
       .eq('ativo', true)
       .is('deletado_em', null)
       .order('nome', { ascending: true })
-      .limit(20)
+      .limit(50)
 
-    if (busca) {
+    if (busca && busca.trim().length > 0) {
       query = query.or(`nome.ilike.%${busca}%,sku.ilike.%${busca}%`)
     }
 
     const { data, error } = await query
     if (error) throw new Error(error.message)
-    return data || []
+
+    const produtos = data || []
+
+    // Enriquecer com nome da categoria
+    const categoriaIds = [...new Set(produtos.filter(p => p.categoria_id).map(p => p.categoria_id!))]
+    let categoriasMap: Record<string, string> = {}
+
+    if (categoriaIds.length > 0) {
+      const { data: categorias } = await supabase
+        .from('categorias_produtos')
+        .select('id, nome')
+        .in('id', categoriaIds)
+
+      if (categorias) {
+        for (const c of categorias) {
+          categoriasMap[c.id] = c.nome
+        }
+      }
+    }
+
+    return produtos.map(p => ({
+      ...p,
+      categoria_nome: p.categoria_id ? categoriasMap[p.categoria_id] || null : null,
+    }))
+  },
+
+  // Contar oportunidades de um contato (para gerar título automático)
+  contarOportunidadesContato: async (contatoId: string): Promise<number> => {
+    const { count, error } = await supabase
+      .from('oportunidades')
+      .select('id', { count: 'exact', head: true })
+      .eq('contato_id', contatoId)
+
+    if (error) throw new Error(error.message)
+    return count || 0
   },
 
   // Listar membros do tenant

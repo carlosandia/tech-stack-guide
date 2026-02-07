@@ -70,3 +70,37 @@ export function normalizeSegmento(value: string): string {
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ')
 }
+
+/**
+ * Formata valor monetário em BRL: R$ 1.234,56
+ * Aceita número ou string numérica
+ */
+export function formatCurrency(value: string | number): string {
+  // Se for número, converte direto
+  if (typeof value === 'number') {
+    return value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  }
+
+  // Remove tudo que não é dígito
+  const numbers = value.replace(/\D/g, '')
+  if (numbers.length === 0) return ''
+
+  // Converte centavos para reais
+  const cents = parseInt(numbers, 10)
+  const reais = cents / 100
+
+  return reais.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+/**
+ * Remove formatação de moeda, retornando o valor numérico
+ * "1.234,56" → 1234.56
+ * "" → 0
+ */
+export function unformatCurrency(value: string): number {
+  if (!value) return 0
+  // Remove pontos de milhar, troca vírgula por ponto
+  const clean = value.replace(/\./g, '').replace(',', '.')
+  const num = parseFloat(clean)
+  return isNaN(num) ? 0 : num
+}

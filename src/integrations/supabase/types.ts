@@ -3451,11 +3451,13 @@ export type Database = {
           motivo_resultado_id: string | null
           observacoes: string | null
           organizacao_id: string
+          periodo_recorrencia: string | null
           previsao_fechamento: string | null
           qualificado_mql: boolean | null
           qualificado_mql_em: string | null
           qualificado_sql: boolean | null
           qualificado_sql_em: string | null
+          recorrente: boolean | null
           tipo_valor: string | null
           titulo: string
           usuario_responsavel_id: string | null
@@ -3480,11 +3482,13 @@ export type Database = {
           motivo_resultado_id?: string | null
           observacoes?: string | null
           organizacao_id: string
+          periodo_recorrencia?: string | null
           previsao_fechamento?: string | null
           qualificado_mql?: boolean | null
           qualificado_mql_em?: string | null
           qualificado_sql?: boolean | null
           qualificado_sql_em?: string | null
+          recorrente?: boolean | null
           tipo_valor?: string | null
           titulo: string
           usuario_responsavel_id?: string | null
@@ -3509,11 +3513,13 @@ export type Database = {
           motivo_resultado_id?: string | null
           observacoes?: string | null
           organizacao_id?: string
+          periodo_recorrencia?: string | null
           previsao_fechamento?: string | null
           qualificado_mql?: boolean | null
           qualificado_mql_em?: string | null
           qualificado_sql?: boolean | null
           qualificado_sql_em?: string | null
+          recorrente?: boolean | null
           tipo_valor?: string | null
           titulo?: string
           usuario_responsavel_id?: string | null
