@@ -225,14 +225,14 @@ export function ContatoFormModal({
     for (const key of Object.keys(cleanData)) {
       if (cleanData[key] === '') cleanData[key] = null
     }
-    // DB constraints: empresa requer razao_social, pessoa requer nome
+    // DB constraint chk_pessoa_nome: pessoa requer nome NOT NULL
     if (isPessoa && !cleanData.nome) {
-      form.setError('nome', { message: 'Nome é obrigatório' })
-      return
+      cleanData.nome = 'Sem nome'
     }
+    // DB constraint chk_empresa_razao: empresa requer razao_social NOT NULL
+    // Auto-preenche com nome_fantasia se não informado (respeita config global)
     if (!isPessoa && !cleanData.razao_social) {
-      form.setError('razao_social', { message: 'Razão Social é obrigatória' })
-      return
+      cleanData.razao_social = cleanData.nome_fantasia || 'Sem razão social'
     }
     if (cleanData.cnpj && typeof cleanData.cnpj === 'string') {
       cleanData.cnpj = cleanData.cnpj.replace(/\D/g, '')
@@ -252,7 +252,7 @@ export function ContatoFormModal({
 
     fields.push(
       <div key="nome-row" className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <InputField label="Nome *" error={form.formState.errors.nome?.message as string} {...form.register('nome', { required: 'Nome é obrigatório' })} />
+        <InputField label={labelWithReq('nome', 'Nome')} error={form.formState.errors.nome?.message as string} {...form.register('nome', regOpts('nome', 'Nome', true))} />
         {isVisible('sobrenome', isCampoRequired('sobrenome')) && (
           <InputField label={labelWithReq('sobrenome', 'Sobrenome')} error={form.formState.errors.sobrenome?.message as string} {...form.register('sobrenome', regOpts('sobrenome', 'Sobrenome'))} />
         )}
@@ -297,14 +297,23 @@ export function ContatoFormModal({
   const renderEmpresaFields = () => {
     const fields: JSX.Element[] = []
 
-    fields.push(
-      <div key="empresa-row-1" className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <InputField label="Razão Social *" error={form.formState.errors.razao_social?.message as string} {...form.register('razao_social', { required: 'Razão Social é obrigatória' })} />
-        {isVisible('nome_fantasia', isCampoRequired('nome_fantasia')) && (
-          <InputField label={labelWithReq('nome_fantasia', 'Nome Fantasia')} error={form.formState.errors.nome_fantasia?.message as string} {...form.register('nome_fantasia', regOpts('nome_fantasia', 'Nome Fantasia'))} />
-        )}
-      </div>
-    )
+    // Primeiro row: respeita config global para labels e obrigatoriedade
+    const firstRow: JSX.Element[] = []
+    // Nome Fantasia é o campo principal (config global define como obrigatório)
+    if (isVisible('nome_fantasia', isCampoRequired('nome_fantasia', true))) {
+      firstRow.push(
+        <InputField key="nome_fantasia" label={labelWithReq('nome_fantasia', 'Nome Fantasia')} error={form.formState.errors.nome_fantasia?.message as string} {...form.register('nome_fantasia', regOpts('nome_fantasia', 'Nome Fantasia', true))} />
+      )
+    }
+    // Razão Social respeita config global (pode não ser obrigatório)
+    if (isVisible('razao_social', isCampoRequired('razao_social'))) {
+      firstRow.push(
+        <InputField key="razao_social" label={labelWithReq('razao_social', 'Razão Social')} error={form.formState.errors.razao_social?.message as string} {...form.register('razao_social', regOpts('razao_social', 'Razão Social'))} />
+      )
+    }
+    if (firstRow.length > 0) {
+      fields.push(<div key="empresa-row-1" className="grid grid-cols-1 sm:grid-cols-2 gap-4">{firstRow}</div>)
+    }
 
     const optionalRows: JSX.Element[] = []
 
