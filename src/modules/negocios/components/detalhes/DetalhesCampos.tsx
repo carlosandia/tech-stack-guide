@@ -5,7 +5,7 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { DollarSign, User, Calendar, Mail, Phone, Settings2, Check } from 'lucide-react'
+import { DollarSign, User, Calendar, Mail, Phone, Settings2, Check, Building2, RefreshCw } from 'lucide-react'
 import type { Oportunidade } from '../../services/negocios.api'
 import { useAtualizarOportunidade, useAtualizarContato } from '../../hooks/useOportunidadeDetalhes'
 import { toast } from 'sonner'
@@ -176,21 +176,36 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
         <div className="space-y-3">
           {/* Valor */}
           {isCampoVisivel('valor') && (
-            <FieldRow
-              icon={<DollarSign className="w-3.5 h-3.5" />}
-              label="Valor"
-              value={formatCurrency(oportunidade.valor)}
-              placeholder="R$ 0,00"
-              isEditing={editingField === 'valor'}
-              onStartEdit={() => {
-                setEditingField('valor')
-                setEditValue(String(oportunidade.valor || ''))
-              }}
-              editValue={editValue}
-              onEditChange={setEditValue}
-              onSave={() => handleSaveOp('valor', editValue ? parseFloat(editValue) : null)}
-              onCancel={() => setEditingField(null)}
-            />
+            <div>
+              <FieldRow
+                icon={<DollarSign className="w-3.5 h-3.5" />}
+                label="Valor"
+                value={formatCurrency(oportunidade.valor)}
+                placeholder="R$ 0,00"
+                isEditing={editingField === 'valor'}
+                onStartEdit={() => {
+                  setEditingField('valor')
+                  setEditValue(String(oportunidade.valor || ''))
+                }}
+                editValue={editValue}
+                onEditChange={setEditValue}
+                onSave={() => handleSaveOp('valor', editValue ? parseFloat(editValue) : null)}
+                onCancel={() => setEditingField(null)}
+              />
+              {/* Tipo de valor: Normal ou MRR */}
+              {oportunidade.valor && (
+                <div className="ml-5.5 mt-0.5 flex items-center gap-1">
+                  {oportunidade.recorrente ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+                      <RefreshCw className="w-2.5 h-2.5" />
+                      MRR {oportunidade.periodo_recorrencia ? `· ${oportunidade.periodo_recorrencia}` : ''}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-muted-foreground">Valor único</span>
+                  )}
+                </div>
+              )}
+            </div>
           )}
 
           {/* Responsável */}
@@ -300,6 +315,19 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
               onCancel={() => setEditingField(null)}
               inputType="tel"
             />
+          )}
+
+          {/* Empresa vinculada (quando contato é pessoa) */}
+          {oportunidade.contato?.tipo === 'pessoa' && oportunidade.contato?.empresa && (
+            <div className="flex items-start gap-2">
+              <Building2 className="w-3.5 h-3.5 text-muted-foreground mt-1 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] text-muted-foreground mb-0.5">Empresa</p>
+                <p className="text-sm text-foreground truncate">
+                  {oportunidade.contato.empresa.nome_fantasia || oportunidade.contato.empresa.razao_social || '—'}
+                </p>
+              </div>
+            </div>
           )}
         </div>
       </div>
