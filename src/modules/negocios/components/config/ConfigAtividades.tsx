@@ -79,20 +79,36 @@ export function ConfigAtividades({ funilId }: Props) {
                     {tarefas.map(vinculo => (
                       <div
                         key={vinculo.id}
-                        className="flex items-center gap-2 p-2 rounded-md bg-muted/50"
+                        className="flex items-center gap-2 p-2.5 rounded-md bg-muted/50"
                       >
-                        <ClipboardList className="w-3.5 h-3.5 text-muted-foreground" />
-                        <span className="text-sm text-foreground flex-1">
-                          {vinculo.tarefa?.titulo || 'Tarefa'}
-                        </span>
-                        {vinculo.tarefa?.tipo && (
-                          <span className="text-xs text-muted-foreground">
-                            {vinculo.tarefa.tipo}
+                        <ClipboardList className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-medium text-foreground block truncate">
+                            {vinculo.tarefa?.titulo || 'Tarefa'}
                           </span>
-                        )}
+                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                            {vinculo.tarefa?.canal && (
+                              <span className="text-xs text-muted-foreground">{vinculo.tarefa.canal}</span>
+                            )}
+                            {vinculo.tarefa?.prioridade && (
+                              <span className={`text-xs font-medium ${
+                                vinculo.tarefa.prioridade === 'alta' ? 'text-orange-500' :
+                                vinculo.tarefa.prioridade === 'urgente' ? 'text-destructive' :
+                                'text-primary'
+                              }`}>
+                                {vinculo.tarefa.prioridade.charAt(0).toUpperCase() + vinculo.tarefa.prioridade.slice(1)}
+                              </span>
+                            )}
+                            {vinculo.tarefa?.dias_prazo != null && (
+                              <span className="text-xs text-muted-foreground">
+                                Prazo: {vinculo.tarefa.dias_prazo} {vinculo.tarefa.dias_prazo === 1 ? 'dia' : 'dias'}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                         <button
                           onClick={() => desvincular.mutate(vinculo.id)}
-                          className="p-1 rounded hover:bg-destructive/10 text-destructive transition-all duration-200"
+                          className="p-1 rounded hover:bg-destructive/10 text-destructive transition-all duration-200 flex-shrink-0"
                           title="Remover"
                         >
                           <X className="w-3.5 h-3.5" />
@@ -134,9 +150,30 @@ export function ConfigAtividades({ funilId }: Props) {
                             }}
                             className="w-full flex items-center gap-2 p-2 rounded-md hover:bg-accent text-left text-sm transition-all duration-200"
                           >
-                            <Zap className="w-3.5 h-3.5 text-primary" />
-                            <span className="flex-1 text-foreground">{template.titulo}</span>
-                            <Plus className="w-3.5 h-3.5 text-primary" />
+                            <Zap className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <span className="text-foreground block truncate">{template.titulo}</span>
+                              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                {template.canal && (
+                                  <span className="text-xs text-muted-foreground">{template.canal}</span>
+                                )}
+                                {template.prioridade && (
+                                  <span className={`text-xs font-medium ${
+                                    template.prioridade === 'alta' ? 'text-orange-500' :
+                                    template.prioridade === 'urgente' ? 'text-destructive' :
+                                    'text-primary'
+                                  }`}>
+                                    {template.prioridade.charAt(0).toUpperCase() + template.prioridade.slice(1)}
+                                  </span>
+                                )}
+                                {template.dias_prazo != null && (
+                                  <span className="text-xs text-muted-foreground">
+                                    Prazo: {template.dias_prazo} {template.dias_prazo === 1 ? 'dia' : 'dias'}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <Plus className="w-3.5 h-3.5 text-primary flex-shrink-0" />
                           </button>
                         ))
                     )}
