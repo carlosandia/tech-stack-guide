@@ -1,172 +1,216 @@
 
-# Plano: Compressao de Documentos + Produtos Vinculados na Oportunidade
+# Plano: Anotacoes com Audio + Agenda de Reunioes Completa
 
 ## Resumo
 
-Duas funcionalidades serao implementadas:
+Tres grandes melhorias serao implementadas:
 
-1. **Compressao de imagens no upload de documentos** - Quando o usuario subir uma imagem (JPG, PNG, WebP), ela sera comprimida no navegador antes do envio ao Supabase Storage, economizando espaco.
-
-2. **Produtos vinculados na oportunidade** - Na lateral esquerda do modal de detalhes, abaixo dos campos da oportunidade, sera adicionado um bloco para vincular produtos cadastrados, com alternancia entre modo "Manual" (valor digitado) e "Produtos" (soma automatica dos itens).
+1. **Anotacoes com audio** - O usuario pode gravar audio (via microfone) e envia-lo junto com texto. Audios sao comprimidos antes do upload.
+2. **Agenda de Reunioes completa** - Formulario inspirado no Google Calendar com titulo, datas, horarios, local/link, participantes/convidados, geracao de link Google Meet (quando conectado), e descricao.
+3. **Pos-reuniao** - Marcar como Realizada, No-Show (com motivo), Cancelar (com motivo) e Reagendar (cria nova reuniao vinculada).
 
 ---
 
-## Parte 1: Compressao de Documentos/Imagens
+## Parte 1: Anotacoes com Audio
 
-### Comportamento
+### O que muda
 
-- Ao fazer upload de uma imagem (JPEG, PNG, WebP, GIF), o sistema comprime no client-side antes de enviar ao Storage.
-- Imagens serao redimensionadas para max 1920px de largura/altura e comprimidas com qualidade 0.8.
-- PDFs, DOCs, XLS e outros arquivos nao-imagem serao enviados sem alteracao.
-- O tamanho registrado no banco sera o tamanho **apos** compressao.
+O campo de anotacao atual (textarea puro) sera expandido para incluir:
 
-### Arquivos a alterar
+- Botao de gravacao de audio (icone de microfone) ao lado do textarea
+- Gravacao via `MediaRecorder API` do navegador
+- Indicador visual de gravacao (duracao em tempo real, botao parar)
+- Player de audio inline na anotacao apos gravada
+- Compressao do audio antes do upload (converter para WebM/Opus com bitrate baixo)
+- O usuario pode enviar texto + audio juntos, ou apenas um dos dois
+
+### Banco de dados
+
+A tabela `anotacoes_oportunidades` ja possui as colunas necessarias:
+- `tipo` (varchar) - `'texto'`, `'audio'`, `'texto_audio'`
+- `audio_url` (text) - URL do audio no Storage
+- `audio_duracao_segundos` (integer) - Duracao em segundos
+
+### Storage
+
+Sera criado um novo bucket `anotacoes-audio` via migracao SQL para armazenar os arquivos de audio.
+
+### Arquivos a alterar/criar
 
 | Arquivo | Acao |
 |---------|------|
-| `src/modules/negocios/services/detalhes.api.ts` | Adicionar funcao `compressImage()` usando Canvas API. Chamar antes do upload no `uploadDocumento`. |
-| `src/modules/negocios/components/detalhes/AbaDocumentos.tsx` | Nenhuma mudanca - a compressao e transparente na camada de service. |
+| `supabase/migrations/xxx.sql` | Criar bucket `anotacoes-audio` |
+| `src/modules/negocios/components/detalhes/AbaAnotacoes.tsx` | Adicionar gravacao de audio, player inline, suporte a tipos mixtos |
+| `src/modules/negocios/services/negocios.api.ts` | Adicionar `criarAnotacaoComAudio()` - upload do audio + insert no banco |
+| `src/modules/negocios/hooks/useOportunidadeDetalhes.ts` | Adicionar hook `useCriarAnotacaoAudio` |
 
-### Logica de compressao
+### Fluxo de gravacao
 
-A funcao `compressImage(file: File)` usara a Canvas API nativa do browser:
-1. Verificar se o MIME type e imagem (jpeg, png, webp, gif)
-2. Criar um `Image` element e carregar via `URL.createObjectURL`
-3. Calcular dimensoes proporcionais (max 1920px)
-4. Desenhar no Canvas e exportar como JPEG com qualidade 0.8
-5. Retornar novo `File` com tamanho reduzido
+1. Usuario clica no icone de microfone
+2. Solicita permissao do navegador (`navigator.mediaDevices.getUserMedia`)
+3. Inicia gravacao com `MediaRecorder` (codec: `audio/webm;codecs=opus`)
+4. Mostra timer e botao "Parar"
+5. Ao parar, gera Blob de audio
+6. Se Blob > 100KB, ja esta comprimido pelo codec Opus
+7. Ao clicar "Salvar", faz upload do audio para `anotacoes-audio/{org_id}/{uuid}.webm`
+8. Salva no banco com `tipo = 'audio'` ou `'texto_audio'` (se texto tambem preenchido)
+
+### Exibicao na listagem
+
+- Anotacoes do tipo `audio` ou `texto_audio` mostram um mini player (botao play/pause + barra de progresso + duracao)
+- Anotacoes com texto continuam exibindo o conteudo de texto normalmente
+- Anotacoes mistas mostram texto + player
 
 ---
 
-## Parte 2: Produtos Vinculados na Oportunidade
+## Parte 2: Agenda de Reunioes Completa
 
-### Schema do banco (ja existente)
+### O que muda no formulario
 
-A tabela `oportunidades_produtos` ja existe com as colunas: `id`, `organizacao_id`, `oportunidade_id`, `produto_id`, `quantidade`, `preco_unitario`, `desconto_percentual`, `subtotal`, `criado_em`. RLS ja esta habilitado com politicas corretas.
+O formulario atual de nova reuniao sera expandido para incluir campos inspirados no Google Calendar:
 
-### Migracao necessaria
+- **Titulo** (obrigatorio)
+- **Data inicio + Hora inicio** (obrigatorio)
+- **Data fim + Hora fim** (obrigatorio)
+- **Tipo** - Presencial / Video / Telefone (select)
+- **Participantes/Convidados** - Campo para adicionar emails de participantes
+- **Google Meet** - Botao "Adicionar videoconferencia do Google Meet" (se Google Calendar conectado)
+- **Local/Link** - Endereco fisico ou link de video personalizado
+- **Notificacao** - Lembrete (15min, 30min, 1h antes)
+- **Descricao** - Textarea para notas da reuniao
 
-Adicionar coluna `modo_valor` na tabela `oportunidades` para controlar se o valor e manual ou calculado pelos produtos:
+### Integracao Google Calendar
+
+Quando o usuario tiver conexao com Google Calendar ativa (`conexoes_google` com status `active`):
+- Aparece botao "Adicionar videoconferencia do Google Meet"
+- Ao agendar, o sistema chama a API do backend (`/v1/conexoes/google/eventos`) para criar o evento no Google Calendar
+- O link do Meet retornado pela API e salvo no campo `local` da reuniao
+- O `google_event_id` e salvo para referencia
+
+Quando nao tiver conexao:
+- Botao do Meet nao aparece
+- Campo local continua editavel manualmente
+
+### Migracao SQL
+
+Adicionar colunas faltantes na tabela `reunioes_oportunidades`:
 
 ```sql
-ALTER TABLE oportunidades 
-ADD COLUMN modo_valor varchar DEFAULT 'manual' 
-CHECK (modo_valor IN ('manual', 'produtos'));
+ALTER TABLE reunioes_oportunidades
+ADD COLUMN IF NOT EXISTS tipo varchar DEFAULT 'video',
+ADD COLUMN IF NOT EXISTS participantes jsonb DEFAULT '[]',
+ADD COLUMN IF NOT EXISTS google_meet_link text,
+ADD COLUMN IF NOT EXISTS notificacao_minutos integer DEFAULT 30,
+ADD COLUMN IF NOT EXISTS motivo_cancelamento text,
+ADD COLUMN IF NOT EXISTS realizada_em timestamptz,
+ADD COLUMN IF NOT EXISTS cancelada_em timestamptz;
 ```
 
-### UI - Bloco de Produtos na Lateral
-
-No componente `DetalhesCampos.tsx`, abaixo da secao "Oportunidade" (campo Valor), sera adicionado:
-
-1. **Toggle Manual/Produtos** - Dois botoes compactos lado a lado para alternar o modo.
-2. **Modo Manual** (padrao atual) - Funciona como hoje: campo Valor editavel inline, MRR checkbox.
-3. **Modo Produtos** - Mostra:
-   - Total calculado (soma dos subtotais dos produtos vinculados)
-   - Campo de busca compacto para adicionar produtos
-   - Lista de produtos vinculados com quantidade, preco, desconto e subtotal
-   - Botao para remover produto
-
-### Comportamento do Modo Produtos
-
-- Ao adicionar/remover/editar um produto, o valor da oportunidade e recalculado automaticamente.
-- A busca de produtos usa a tabela `produtos` ja existente (via `produtosApi.listar`).
-- Cada item vinculado permite editar: quantidade, preco unitario e desconto percentual.
-- O subtotal de cada item = `(preco_unitario * quantidade) * (1 - desconto_percentual / 100)`.
-- O valor total da oportunidade = soma de todos os subtotais.
-
-### Arquivos a criar/alterar
+### Arquivos a alterar/criar
 
 | Arquivo | Acao |
 |---------|------|
-| `src/modules/negocios/components/detalhes/ProdutosOportunidade.tsx` | **Novo** - Componente compacto com busca, lista de produtos vinculados, edicao inline de quantidade/preco/desconto |
-| `src/modules/negocios/components/detalhes/DetalhesCampos.tsx` | Integrar toggle Manual/Produtos e renderizar `ProdutosOportunidade` quando modo = 'produtos' |
-| `src/modules/negocios/services/detalhes.api.ts` | Adicionar CRUD de `oportunidades_produtos`: listar, adicionar, atualizar, remover |
-| `src/modules/negocios/hooks/useDetalhes.ts` | Adicionar hooks: `useProdutosOportunidade`, `useAdicionarProduto`, `useAtualizarProdutoOp`, `useRemoverProdutoOp` |
-| `src/modules/negocios/services/negocios.api.ts` | Adicionar `modo_valor` ao type `Oportunidade` |
+| `supabase/migrations/xxx.sql` | Adicionar colunas e bucket de audio |
+| `src/modules/negocios/components/detalhes/AbaAgenda.tsx` | Reescrever formulario completo, exibicao de reunioes, acoes pos-reuniao |
+| `src/modules/negocios/services/detalhes.api.ts` | Expandir `criarReuniao`, `atualizarReuniao`, `reagendarReuniao`, verificar conexao Google |
+| `src/modules/negocios/hooks/useDetalhes.ts` | Adicionar `useConexaoGoogle`, `useReagendarReuniao` |
 
-### Layout do componente ProdutosOportunidade (compacto)
+### Card de Reuniao (apos criada)
 
-```
-OPORTUNIDADE
-Valor                   [Manual] [Produtos]
------------------------------------------------
-(Modo Produtos ativo)
-Total: R$ 1.500,00
+Cada reuniao listada mostrara:
 
-[Q Buscar produto...]  
+- Icone de status (colorido: azul=agendada, verde=realizada, amber=noshow, red=cancelada, roxo=reagendada)
+- Titulo
+- Data e hora (inicio - fim)
+- Tipo (Presencial/Video/Telefone)
+- Local ou Link do Meet (clicavel)
+- Participantes (avatars/emails)
+- Botoes de acao (Realizada / No-Show / Cancelar / Reagendar)
 
-  Produto A    2x R$500  = R$1.000   [x]
-  Produto B    1x R$500  = R$500     [x]
-```
+### Acoes Pos-Reuniao
 
-- Design compacto seguindo o design system: textos `text-xs` e `text-sm`, espacamento `gap-2`, botoes com `rounded-md`.
-- Busca com debounce de 300ms, dropdown com resultados.
-- Cada linha de produto com edicao inline ao clicar.
+**Marcar como Realizada:**
+- Muda status para `realizada`
+- Campo opcional de observacoes
+- Salva `realizada_em`
+
+**No-Show:**
+- Modal com motivos pre-cadastrados (ja existe `motivos_noshow`)
+- Campo texto alternativo
+- Registra motivo
+
+**Cancelar:**
+- Modal pedindo motivo do cancelamento (obrigatorio)
+- Salva `motivo_cancelamento` e `cancelada_em`
+
+**Reagendar:**
+- Muda status da reuniao atual para `reagendada`
+- Abre formulario pre-preenchido com dados da reuniao original
+- Nova reuniao criada com referencia a anterior (`reuniao_reagendada_id`)
 
 ---
 
-## Secao Tecnica - Detalhes de Implementacao
+## Secao Tecnica
 
-### 1. Compressao de Imagens (`detalhes.api.ts`)
+### 1. Gravacao de Audio (AbaAnotacoes.tsx)
 
 ```typescript
-async function compressImage(file: File, maxDim = 1920, quality = 0.8): Promise<File> {
-  const COMPRESSIBLE = ['image/jpeg', 'image/png', 'image/webp']
-  if (!COMPRESSIBLE.includes(file.type)) return file
-  
-  return new Promise((resolve) => {
-    const img = new Image()
-    img.onload = () => {
-      let { width, height } = img
-      if (width > maxDim || height > maxDim) {
-        const ratio = Math.min(maxDim / width, maxDim / height)
-        width = Math.round(width * ratio)
-        height = Math.round(height * ratio)
-      }
-      const canvas = document.createElement('canvas')
-      canvas.width = width
-      canvas.height = height
-      canvas.getContext('2d')!.drawImage(img, 0, 0, width, height)
-      canvas.toBlob((blob) => {
-        if (!blob || blob.size >= file.size) { resolve(file); return }
-        resolve(new File([blob], file.name, { type: 'image/jpeg' }))
-      }, 'image/jpeg', quality)
-    }
-    img.onerror = () => resolve(file) // fallback
-    img.src = URL.createObjectURL(file)
-  })
+// Logica simplificada
+const mediaRecorder = new MediaRecorder(stream, {
+  mimeType: 'audio/webm;codecs=opus',
+  audioBitsPerSecond: 32000, // 32kbps - boa qualidade, arquivo pequeno
+})
+```
+
+O codec Opus ja comprime nativamente. Nao precisa de compressao adicional.
+
+### 2. Upload de Audio (negocios.api.ts)
+
+Nova funcao `criarAnotacaoComAudio`:
+1. Upload do blob para `anotacoes-audio/{org_id}/{uuid}.webm`
+2. Gera signed URL
+3. Insert no banco com `tipo`, `audio_url`, `audio_duracao_segundos`
+
+### 3. Verificacao Google Calendar (detalhes.api.ts)
+
+Nova funcao `verificarConexaoGoogle`:
+```typescript
+const { data } = await supabase
+  .from('conexoes_google')
+  .select('id, status, calendar_id, criar_google_meet')
+  .eq('status', 'active')
+  .maybeSingle()
+```
+
+### 4. Criar Reuniao Expandida (detalhes.api.ts)
+
+O payload de `criarReuniao` sera expandido para incluir `tipo`, `participantes`, `google_meet_link`, `notificacao_minutos`, e flag `sincronizar_google`.
+
+Se `sincronizar_google = true` e Google Calendar conectado:
+- Chama backend via `api.post('/v1/conexoes/google/eventos', ...)` para criar evento no Google
+- Salva `google_event_id` e `google_meet_link` retornados
+
+### 5. Reagendar Reuniao (detalhes.api.ts)
+
+Nova funcao `reagendarReuniao`:
+1. Atualiza status da reuniao original para `reagendada`
+2. Cria nova reuniao com `reuniao_reagendada_id` apontando para a original
+3. Retorna o ID da nova reuniao
+
+### 6. Cancelar Reuniao (detalhes.api.ts)
+
+Expandir `atualizarStatusReuniao` para aceitar `motivo_cancelamento` nos extras:
+```typescript
+if (status === 'cancelada') {
+  updateData.cancelada_em = new Date().toISOString()
+  updateData.motivo_cancelamento = extras.motivo_cancelamento
 }
 ```
 
-### 2. API Produtos da Oportunidade (`detalhes.api.ts`)
+### 7. Ordem de implementacao
 
-Novas funcoes no `detalhesApi`:
-- `listarProdutosOportunidade(oportunidadeId)` - SELECT com JOIN no `produtos` para nome
-- `adicionarProdutoOportunidade(oportunidadeId, produtoId, quantidade, precoUnitario, desconto)`
-- `atualizarProdutoOportunidade(id, payload)` 
-- `removerProdutoOportunidade(id)`
-- `recalcularValorOportunidade(oportunidadeId)` - soma subtotais e atualiza `oportunidades.valor`
-
-### 3. Migracao SQL
-
-```sql
-ALTER TABLE oportunidades 
-ADD COLUMN IF NOT EXISTS modo_valor varchar DEFAULT 'manual';
-```
-
-### 4. Fluxo de dados
-
-1. Usuario clica "Produtos" no toggle
-2. `modo_valor` e atualizado para 'produtos' na oportunidade
-3. Campo de busca aparece, usuario busca e seleciona produto
-4. Registro e criado em `oportunidades_produtos` com preco do catalogo
-5. `recalcularValorOportunidade` soma subtotais e atualiza `oportunidades.valor`
-6. UI invalida queries e reflete o novo valor
-
-### 5. Ordem de implementacao
-
-1. Migracao SQL (adicionar `modo_valor`)
-2. Compressao de imagens no upload
-3. API + hooks de produtos da oportunidade
-4. Componente `ProdutosOportunidade`
-5. Integracao no `DetalhesCampos` com toggle Manual/Produtos
+1. Migracao SQL (novas colunas + bucket audio)
+2. Audio nas anotacoes (API + hook + componente)
+3. Formulario de reuniao expandido (API + componente)
+4. Integracao Google Calendar na reuniao
+5. Acoes pos-reuniao (Cancelar com motivo, Reagendar)
