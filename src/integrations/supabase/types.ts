@@ -4399,61 +4399,88 @@ export type Database = {
       reunioes_oportunidades: {
         Row: {
           atualizado_em: string
+          cancelada_em: string | null
           criado_em: string
           data_fim: string
           data_inicio: string
           deletado_em: string | null
           descricao: string | null
           google_event_id: string | null
+          google_meet_link: string | null
           id: string
           local: string | null
+          motivo_cancelamento: string | null
           motivo_noshow: string | null
           motivo_noshow_id: string | null
+          notificacao_minutos: number | null
+          observacoes_noshow: string | null
+          observacoes_realizacao: string | null
           oportunidade_id: string
           organizacao_id: string
+          participantes: Json | null
+          realizada_em: string | null
           reuniao_reagendada_id: string | null
           sincronizado_google: boolean | null
           status: string
+          tipo: string | null
           titulo: string
           usuario_id: string
         }
         Insert: {
           atualizado_em?: string
+          cancelada_em?: string | null
           criado_em?: string
           data_fim: string
           data_inicio: string
           deletado_em?: string | null
           descricao?: string | null
           google_event_id?: string | null
+          google_meet_link?: string | null
           id?: string
           local?: string | null
+          motivo_cancelamento?: string | null
           motivo_noshow?: string | null
           motivo_noshow_id?: string | null
+          notificacao_minutos?: number | null
+          observacoes_noshow?: string | null
+          observacoes_realizacao?: string | null
           oportunidade_id: string
           organizacao_id: string
+          participantes?: Json | null
+          realizada_em?: string | null
           reuniao_reagendada_id?: string | null
           sincronizado_google?: boolean | null
           status?: string
+          tipo?: string | null
           titulo: string
           usuario_id: string
         }
         Update: {
           atualizado_em?: string
+          cancelada_em?: string | null
           criado_em?: string
           data_fim?: string
           data_inicio?: string
           deletado_em?: string | null
           descricao?: string | null
           google_event_id?: string | null
+          google_meet_link?: string | null
           id?: string
           local?: string | null
+          motivo_cancelamento?: string | null
           motivo_noshow?: string | null
           motivo_noshow_id?: string | null
+          notificacao_minutos?: number | null
+          observacoes_noshow?: string | null
+          observacoes_realizacao?: string | null
           oportunidade_id?: string
           organizacao_id?: string
+          participantes?: Json | null
+          realizada_em?: string | null
           reuniao_reagendada_id?: string | null
           sincronizado_google?: boolean | null
           status?: string
+          tipo?: string | null
           titulo?: string
           usuario_id?: string
         }

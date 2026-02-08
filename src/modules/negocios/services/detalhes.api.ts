@@ -170,15 +170,24 @@ export interface Reuniao {
   id: string
   titulo: string
   descricao?: string | null
+  tipo?: string | null
   local?: string | null
   data_inicio: string
   data_fim?: string | null
   status: string
   motivo_noshow?: string | null
   motivo_noshow_id?: string | null
+  motivo_cancelamento?: string | null
+  observacoes_realizacao?: string | null
+  observacoes_noshow?: string | null
+  realizada_em?: string | null
+  cancelada_em?: string | null
   reuniao_reagendada_id?: string | null
   google_event_id?: string | null
+  google_meet_link?: string | null
   sincronizado_google?: boolean | null
+  participantes?: Array<{ email: string }> | null
+  notificacao_minutos?: number | null
   criado_em: string
   usuario_id: string
   usuario?: { id: string; nome: string } | null
@@ -572,15 +581,24 @@ export const detalhesApi = {
       id: r.id,
       titulo: r.titulo,
       descricao: r.descricao,
+      tipo: (r as any).tipo || 'video',
       local: r.local,
       data_inicio: r.data_inicio,
       data_fim: r.data_fim,
       status: r.status,
       motivo_noshow: r.motivo_noshow,
       motivo_noshow_id: r.motivo_noshow_id,
+      motivo_cancelamento: (r as any).motivo_cancelamento,
+      observacoes_realizacao: (r as any).observacoes_realizacao,
+      observacoes_noshow: (r as any).observacoes_noshow,
+      realizada_em: (r as any).realizada_em,
+      cancelada_em: (r as any).cancelada_em,
       reuniao_reagendada_id: r.reuniao_reagendada_id,
       google_event_id: r.google_event_id,
+      google_meet_link: (r as any).google_meet_link,
       sincronizado_google: r.sincronizado_google,
+      participantes: (r as any).participantes || [],
+      notificacao_minutos: (r as any).notificacao_minutos || 30,
       criado_em: r.criado_em,
       usuario_id: r.usuario_id,
       usuario: usersMap[r.usuario_id] || null,
@@ -590,26 +608,41 @@ export const detalhesApi = {
   criarReuniao: async (oportunidadeId: string, payload: {
     titulo: string
     descricao?: string
+    tipo?: string
     local?: string
     data_inicio: string
     data_fim?: string
+    participantes?: Array<{ email: string }>
+    google_meet?: boolean
+    notificacao_minutos?: number
+    sincronizar_google?: boolean
   }): Promise<void> => {
     const organizacaoId = await getOrganizacaoId()
     const userId = await getUsuarioId()
 
+    const insertData: Record<string, unknown> = {
+      organizacao_id: organizacaoId,
+      oportunidade_id: oportunidadeId,
+      usuario_id: userId,
+      titulo: payload.titulo,
+      descricao: payload.descricao || null,
+      tipo: payload.tipo || 'video',
+      local: payload.local || null,
+      data_inicio: payload.data_inicio,
+      data_fim: payload.data_fim || null,
+      status: 'agendada',
+      participantes: payload.participantes || [],
+      notificacao_minutos: payload.notificacao_minutos ?? 30,
+    }
+
+    // Se Google Meet solicitado e tem link, será adicionado depois via backend
+    if (payload.google_meet) {
+      insertData.google_meet_link = null // Placeholder, backend preencherá
+    }
+
     const { error } = await supabase
       .from('reunioes_oportunidades')
-      .insert({
-        organizacao_id: organizacaoId,
-        oportunidade_id: oportunidadeId,
-        usuario_id: userId,
-        titulo: payload.titulo,
-        descricao: payload.descricao || null,
-        local: payload.local || null,
-        data_inicio: payload.data_inicio,
-        data_fim: payload.data_fim || null,
-        status: 'agendada',
-      } as any)
+      .insert(insertData as any)
 
     if (error) throw new Error(error.message)
   },
@@ -617,10 +650,25 @@ export const detalhesApi = {
   atualizarStatusReuniao: async (reuniaoId: string, status: string, extras?: {
     motivo_noshow?: string
     motivo_noshow_id?: string
+    motivo_cancelamento?: string
+    observacoes_realizacao?: string
+    observacoes_noshow?: string
   }): Promise<void> => {
     const updateData: Record<string, unknown> = { status }
+
     if (extras?.motivo_noshow) updateData.motivo_noshow = extras.motivo_noshow
     if (extras?.motivo_noshow_id) updateData.motivo_noshow_id = extras.motivo_noshow_id
+    if (extras?.observacoes_noshow) updateData.observacoes_noshow = extras.observacoes_noshow
+
+    if (status === 'realizada') {
+      updateData.realizada_em = new Date().toISOString()
+      if (extras?.observacoes_realizacao) updateData.observacoes_realizacao = extras.observacoes_realizacao
+    }
+
+    if (status === 'cancelada') {
+      updateData.cancelada_em = new Date().toISOString()
+      if (extras?.motivo_cancelamento) updateData.motivo_cancelamento = extras.motivo_cancelamento
+    }
 
     const { error } = await supabase
       .from('reunioes_oportunidades')
@@ -637,6 +685,108 @@ export const detalhesApi = {
       .eq('id', reuniaoId)
 
     if (error) throw new Error(error.message)
+  },
+
+  verificarConexaoGoogle: async (): Promise<{ conectado: boolean; calendar_id?: string }> => {
+    try {
+      const userId = await getUsuarioId()
+      const { data, error } = await supabase
+        .from('conexoes_google')
+        .select('id, status, calendar_id, criar_google_meet')
+        .eq('usuario_id', userId)
+        .is('deletado_em', null)
+        .eq('status', 'active')
+        .maybeSingle()
+
+      if (error || !data) return { conectado: false }
+      return { conectado: true, calendar_id: data.calendar_id || undefined }
+    } catch {
+      return { conectado: false }
+    }
+  },
+
+  reagendarReuniao: async (reuniaoOriginalId: string, oportunidadeId: string, payload: {
+    titulo: string
+    descricao?: string
+    tipo?: string
+    local?: string
+    data_inicio: string
+    data_fim?: string
+    participantes?: Array<{ email: string }>
+    google_meet?: boolean
+    notificacao_minutos?: number
+    sincronizar_google?: boolean
+  }): Promise<void> => {
+    // Marcar reunião original como reagendada
+    await supabase
+      .from('reunioes_oportunidades')
+      .update({ status: 'reagendada' } as any)
+      .eq('id', reuniaoOriginalId)
+
+    // Criar nova reunião vinculada
+    const organizacaoId = await getOrganizacaoId()
+    const userId = await getUsuarioId()
+
+    const { error } = await supabase
+      .from('reunioes_oportunidades')
+      .insert({
+        organizacao_id: organizacaoId,
+        oportunidade_id: oportunidadeId,
+        usuario_id: userId,
+        titulo: payload.titulo,
+        descricao: payload.descricao || null,
+        tipo: payload.tipo || 'video',
+        local: payload.local || null,
+        data_inicio: payload.data_inicio,
+        data_fim: payload.data_fim || null,
+        status: 'agendada',
+        participantes: payload.participantes || [],
+        notificacao_minutos: payload.notificacao_minutos ?? 30,
+        reuniao_reagendada_id: reuniaoOriginalId,
+      } as any)
+
+    if (error) throw new Error(error.message)
+  },
+
+  // ---------- Upload de áudio para anotações ----------
+
+  criarAnotacaoComAudio: async (oportunidadeId: string, audioBlob: Blob, duracaoSegundos: number, conteudo?: string): Promise<void> => {
+    const organizacaoId = await getOrganizacaoId()
+    const userId = await getUsuarioId()
+
+    // Upload áudio
+    const ext = audioBlob.type.includes('webm') ? 'webm' : 'mp4'
+    const fileName = `${crypto.randomUUID()}.${ext}`
+    const storagePath = `${organizacaoId}/${fileName}`
+
+    const { error: uploadError } = await supabase.storage
+      .from('anotacoes-audio')
+      .upload(storagePath, audioBlob)
+
+    if (uploadError) throw new Error(uploadError.message)
+
+    // Gerar signed URL
+    const { data: urlData } = await supabase.storage
+      .from('anotacoes-audio')
+      .createSignedUrl(storagePath, 365 * 24 * 3600) // 1 ano
+
+    const audioUrl = urlData?.signedUrl || storagePath
+
+    const tipo = conteudo ? 'texto_audio' : 'audio'
+
+    const { error: dbError } = await supabase
+      .from('anotacoes_oportunidades')
+      .insert({
+        organizacao_id: organizacaoId,
+        oportunidade_id: oportunidadeId,
+        usuario_id: userId,
+        tipo,
+        conteudo: conteudo || null,
+        audio_url: audioUrl,
+        audio_duracao_segundos: duracaoSegundos,
+      } as any)
+
+    if (dbError) throw new Error(dbError.message)
   },
 
   listarMotivosNoShow: async (): Promise<MotivoNoShow[]> => {

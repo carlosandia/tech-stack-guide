@@ -5,6 +5,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { negociosApi } from '../services/negocios.api'
+import { detalhesApi } from '../services/detalhes.api'
 
 export function useOportunidade(oportunidadeId: string | null) {
   return useQuery({
@@ -77,6 +78,22 @@ export function useCriarAnotacao() {
   return useMutation({
     mutationFn: ({ oportunidadeId, conteudo }: { oportunidadeId: string; conteudo: string }) =>
       negociosApi.criarAnotacaoTexto(oportunidadeId, conteudo),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['anotacoes', variables.oportunidadeId] })
+    },
+  })
+}
+
+export function useCriarAnotacaoAudio() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ oportunidadeId, audioBlob, duracaoSegundos, conteudo }: {
+      oportunidadeId: string
+      audioBlob: Blob
+      duracaoSegundos: number
+      conteudo?: string
+    }) => detalhesApi.criarAnotacaoComAudio(oportunidadeId, audioBlob, duracaoSegundos, conteudo),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['anotacoes', variables.oportunidadeId] })
     },
