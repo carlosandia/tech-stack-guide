@@ -1,7 +1,8 @@
 /**
  * AIDEV-NOTE: Item individual da lista de tarefas (PRD-10)
- * Exibe: checkbox, ícone tipo, título, badge atrasada, subtítulo com
- * oportunidade/pipeline/etapa, data, prioridade, responsável, badge automática
+ * Exibe: checkbox, ícone tipo, título (clicável → abre oportunidade), badge atrasada,
+ * subtítulo com oportunidade/pipeline/etapa, data, prioridade, responsável,
+ * badge automática, botão Concluir explícito (PRD-10 RF-004/RF-005)
  */
 
 import {
@@ -13,6 +14,7 @@ import {
   AlertTriangle,
   Zap,
   User,
+  CheckCircle,
 } from 'lucide-react'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import { format, isPast, isToday, isTomorrow, parseISO } from 'date-fns'
@@ -129,11 +131,22 @@ export function TarefaItem({ tarefa, onConcluir, onClickOportunidade }: TarefaIt
       {/* Conteúdo principal */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <span
-            className={`text-sm font-medium ${isConcluida ? 'line-through text-muted-foreground' : 'text-foreground'}`}
-          >
-            {tarefa.titulo}
-          </span>
+          {/* Título clicável - abre modal da oportunidade (PRD-10 RF-004) */}
+          {oportunidade?.id && !isDisabled ? (
+            <button
+              type="button"
+              onClick={() => onClickOportunidade(oportunidade.id)}
+              className={`text-sm font-medium text-left hover:underline ${isConcluida ? 'line-through text-muted-foreground' : 'text-foreground'}`}
+            >
+              {tarefa.titulo}
+            </button>
+          ) : (
+            <span
+              className={`text-sm font-medium ${isConcluida ? 'line-through text-muted-foreground' : 'text-foreground'}`}
+            >
+              {tarefa.titulo}
+            </span>
+          )}
 
           {/* Badge atrasada */}
           {isAtrasada && (
@@ -186,8 +199,8 @@ export function TarefaItem({ tarefa, onConcluir, onClickOportunidade }: TarefaIt
         </div>
       </div>
 
-      {/* Direita: data + responsável */}
-      <div className="flex flex-col items-end gap-1 flex-shrink-0">
+      {/* Direita: data + responsável + botão Concluir */}
+      <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
         <span className={`text-xs ${dataInfo.className}`}>
           {dataInfo.texto}
         </span>
@@ -196,6 +209,17 @@ export function TarefaItem({ tarefa, onConcluir, onClickOportunidade }: TarefaIt
             <User className="w-3 h-3" />
             <span className="truncate max-w-[80px]">{tarefa.owner.nome}</span>
           </span>
+        )}
+        {/* Botão Concluir explícito (PRD-10 RF-005) */}
+        {!isDisabled && (
+          <button
+            type="button"
+            onClick={() => onConcluir(tarefa)}
+            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-primary bg-primary/10 rounded-md hover:bg-primary/20 transition-all duration-200"
+          >
+            <CheckCircle className="w-3 h-3" />
+            Concluir
+          </button>
         )}
       </div>
     </div>
