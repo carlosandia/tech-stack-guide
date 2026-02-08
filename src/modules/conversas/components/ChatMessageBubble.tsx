@@ -262,22 +262,6 @@ export function ChatMessageBubble({ mensagem }: ChatMessageBubbleProps) {
           }
         `}
       >
-        {/* Bubble tail */}
-        <div
-          className={`
-            absolute top-0 w-3 h-3
-            ${isMe
-              ? '-right-1.5 border-t border-r border-primary/15 bg-primary/10 rounded-tr-sm'
-              : '-left-1.5 border-t border-l border-border/30 bg-muted rounded-tl-sm'
-            }
-          `}
-          style={{
-            clipPath: isMe
-              ? 'polygon(0 0, 100% 0, 100% 100%)'
-              : 'polygon(0 0, 100% 0, 0 100%)',
-          }}
-        />
-
         {renderContent(mensagem)}
 
         {/* Timestamp + ACK */}
