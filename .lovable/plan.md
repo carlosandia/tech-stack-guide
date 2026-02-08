@@ -1,121 +1,172 @@
 
+# Plano: Compressao de Documentos + Produtos Vinculados na Oportunidade
 
-# Plano: PhoneInputField + Campos Globais no Modal "Nova Oportunidade"
+## Resumo
 
-## Contexto
+Duas funcionalidades serao implementadas:
 
-O formulario inline de criacao de contato dentro do modal "Nova Oportunidade" possui dois problemas:
+1. **Compressao de imagens no upload de documentos** - Quando o usuario subir uma imagem (JPG, PNG, WebP), ela sera comprimida no navegador antes do envio ao Supabase Storage, economizando espaco.
 
-1. **Telefone sem seletor de pais** - Usa mascara simples `formatTelefone()` em vez do componente `PhoneInputField` com bandeira, DDI e busca de pais (que ja existe e funciona em `/contatos/pessoas`)
-2. **Campos estaticos (hardcoded)** - Labels, obrigatoriedade e campos visiveis sao fixos no codigo, sem respeitar a configuracao global de `/configuracoes/campos`
-
-## O que ja existe e sera reutilizado
-
-- `PhoneInputField` (`src/modules/contatos/components/PhoneInputField.tsx`) - Componente completo com bandeira, DDI, busca de pais e mascara automatica
-- `useCamposConfig` (`src/modules/contatos/hooks/useCamposConfig.ts`) - Hook que mapeia configuracoes globais para campos do modulo contatos (labels, obrigatoriedade, placeholders)
-- `ContatoFormFieldsToggle` (`src/modules/contatos/components/ContatoFormFieldsToggle.tsx`) - Popover com icone de olho para controlar visibilidade dos campos, com persistencia no localStorage
-- `getFieldVisibility` - Funcao que retorna o mapa de visibilidade salvo localmente
-
-## Etapas de Implementacao
-
-### Etapa 1: Integrar `useCamposConfig` no modal
-
-Importar e usar o hook `useCamposConfig(tipoContato)` dentro do `NovaOportunidadeModal` para obter:
-- `getLabel(fieldKey)` - Label dinamica do campo
-- `isRequired(fieldKey)` - Obrigatoriedade global
-- `getPlaceholder(fieldKey)` - Placeholder configurado
-- `campos` - Lista completa de campos ativos
-
-Isso permitira que todos os campos do formulario inline reflitam automaticamente as configuracoes definidas em `/configuracoes/campos`.
-
-### Etapa 2: Substituir campo de telefone pelo `PhoneInputField`
-
-Trocar o `<input type="tel">` atual com mascara `formatTelefone` pelo componente `PhoneInputField` que ja inclui:
-- Seletor de bandeira (Brasil padrao)
-- DDI do pais selecionado (+55, +1, etc.)
-- Mascara automatica por pais
-- Dropdown pesquisavel de paises
-- Armazenamento no formato `+55XXXXXXXXXXX`
-
-Aplicar tanto para o formulario de **Pessoa** quanto para o de **Empresa**.
-
-### Etapa 3: Adicionar botao de visibilidade de campos (icone de olho)
-
-Integrar o componente `ContatoFormFieldsToggle` no header do formulario inline, ao lado de "Nova Pessoa" / "Nova Empresa" e do link "Buscar existente". O botao exibira:
-- Icone de olho
-- Contagem "Campos X/Y"
-- Popover com toggles para cada campo
-
-Usar `getFieldVisibility(tipoContato)` para controlar quais campos sao exibidos. Campos obrigatorios (pela config global) nao podem ser ocultados.
-
-### Etapa 4: Renderizar campos dinamicamente baseado na config global
-
-Substituir o grid de campos hardcoded por uma renderizacao dinamica que:
-1. Consulta a lista de campos do sistema ativos via `useCamposConfig`
-2. Verifica visibilidade via `getFieldVisibility`
-3. Aplica labels da config global (em vez de strings fixas)
-4. Marca campos obrigatorios com asterisco vermelho conforme config global
-5. Usa placeholders da config global
-6. Renderiza campos customizados (nao-sistema) quando existirem e estiverem visiveis
-
-Mapeamento de campos para o formulario inline:
-- **Pessoa**: nome (sempre visivel), sobrenome, email, telefone, cargo, linkedin_url + campos customizados
-- **Empresa**: razao_social (sempre visivel, porem o campo principal exibido sera nome_fantasia por ser o que ja existe no fluxo), nome_fantasia, cnpj, email, telefone, website, segmento, porte + campos customizados
-
-### Etapa 5: Ajustar validacao no submit
-
-Atualizar a validacao `contatoValido` para respeitar campos obrigatorios da config global (usando `isRequired()`). Se um campo marcado como obrigatorio globalmente estiver vazio, o formulario nao permite submit.
-
-Atualizar `criarContatoRapido` para enviar todos os campos preenchidos (incluindo novos campos que antes nao existiam no formulario inline).
+2. **Produtos vinculados na oportunidade** - Na lateral esquerda do modal de detalhes, abaixo dos campos da oportunidade, sera adicionado um bloco para vincular produtos cadastrados, com alternancia entre modo "Manual" (valor digitado) e "Produtos" (soma automatica dos itens).
 
 ---
 
-## Detalhamento Tecnico
+## Parte 1: Compressao de Documentos/Imagens
 
-### Arquivo a Modificar
+### Comportamento
 
-| Arquivo | Alteracao |
-|---------|-----------|
-| `src/modules/negocios/components/modals/NovaOportunidadeModal.tsx` | Importar `useCamposConfig`, `PhoneInputField`, `ContatoFormFieldsToggle`, `getFieldVisibility`. Refatorar secao de contato inline. |
+- Ao fazer upload de uma imagem (JPEG, PNG, WebP, GIF), o sistema comprime no client-side antes de enviar ao Storage.
+- Imagens serao redimensionadas para max 1920px de largura/altura e comprimidas com qualidade 0.8.
+- PDFs, DOCs, XLS e outros arquivos nao-imagem serao enviados sem alteracao.
+- O tamanho registrado no banco sera o tamanho **apos** compressao.
 
-### Nenhuma migracao de banco necessaria
+### Arquivos a alterar
 
-Todas as funcionalidades dependem de componentes e hooks ja existentes no modulo de contatos.
+| Arquivo | Acao |
+|---------|------|
+| `src/modules/negocios/services/detalhes.api.ts` | Adicionar funcao `compressImage()` usando Canvas API. Chamar antes do upload no `uploadDocumento`. |
+| `src/modules/negocios/components/detalhes/AbaDocumentos.tsx` | Nenhuma mudanca - a compressao e transparente na camada de service. |
 
-### Novos imports no modal
+### Logica de compressao
+
+A funcao `compressImage(file: File)` usara a Canvas API nativa do browser:
+1. Verificar se o MIME type e imagem (jpeg, png, webp, gif)
+2. Criar um `Image` element e carregar via `URL.createObjectURL`
+3. Calcular dimensoes proporcionais (max 1920px)
+4. Desenhar no Canvas e exportar como JPEG com qualidade 0.8
+5. Retornar novo `File` com tamanho reduzido
+
+---
+
+## Parte 2: Produtos Vinculados na Oportunidade
+
+### Schema do banco (ja existente)
+
+A tabela `oportunidades_produtos` ja existe com as colunas: `id`, `organizacao_id`, `oportunidade_id`, `produto_id`, `quantidade`, `preco_unitario`, `desconto_percentual`, `subtotal`, `criado_em`. RLS ja esta habilitado com politicas corretas.
+
+### Migracao necessaria
+
+Adicionar coluna `modo_valor` na tabela `oportunidades` para controlar se o valor e manual ou calculado pelos produtos:
+
+```sql
+ALTER TABLE oportunidades 
+ADD COLUMN modo_valor varchar DEFAULT 'manual' 
+CHECK (modo_valor IN ('manual', 'produtos'));
+```
+
+### UI - Bloco de Produtos na Lateral
+
+No componente `DetalhesCampos.tsx`, abaixo da secao "Oportunidade" (campo Valor), sera adicionado:
+
+1. **Toggle Manual/Produtos** - Dois botoes compactos lado a lado para alternar o modo.
+2. **Modo Manual** (padrao atual) - Funciona como hoje: campo Valor editavel inline, MRR checkbox.
+3. **Modo Produtos** - Mostra:
+   - Total calculado (soma dos subtotais dos produtos vinculados)
+   - Campo de busca compacto para adicionar produtos
+   - Lista de produtos vinculados com quantidade, preco, desconto e subtotal
+   - Botao para remover produto
+
+### Comportamento do Modo Produtos
+
+- Ao adicionar/remover/editar um produto, o valor da oportunidade e recalculado automaticamente.
+- A busca de produtos usa a tabela `produtos` ja existente (via `produtosApi.listar`).
+- Cada item vinculado permite editar: quantidade, preco unitario e desconto percentual.
+- O subtotal de cada item = `(preco_unitario * quantidade) * (1 - desconto_percentual / 100)`.
+- O valor total da oportunidade = soma de todos os subtotais.
+
+### Arquivos a criar/alterar
+
+| Arquivo | Acao |
+|---------|------|
+| `src/modules/negocios/components/detalhes/ProdutosOportunidade.tsx` | **Novo** - Componente compacto com busca, lista de produtos vinculados, edicao inline de quantidade/preco/desconto |
+| `src/modules/negocios/components/detalhes/DetalhesCampos.tsx` | Integrar toggle Manual/Produtos e renderizar `ProdutosOportunidade` quando modo = 'produtos' |
+| `src/modules/negocios/services/detalhes.api.ts` | Adicionar CRUD de `oportunidades_produtos`: listar, adicionar, atualizar, remover |
+| `src/modules/negocios/hooks/useDetalhes.ts` | Adicionar hooks: `useProdutosOportunidade`, `useAdicionarProduto`, `useAtualizarProdutoOp`, `useRemoverProdutoOp` |
+| `src/modules/negocios/services/negocios.api.ts` | Adicionar `modo_valor` ao type `Oportunidade` |
+
+### Layout do componente ProdutosOportunidade (compacto)
 
 ```
-import { useCamposConfig } from '@/modules/contatos/hooks/useCamposConfig'
-import { PhoneInputField } from '@/modules/contatos/components/PhoneInputField'
-import { ContatoFormFieldsToggle, getFieldVisibility } from '@/modules/contatos/components/ContatoFormFieldsToggle'
+OPORTUNIDADE
+Valor                   [Manual] [Produtos]
+-----------------------------------------------
+(Modo Produtos ativo)
+Total: R$ 1.500,00
+
+[Q Buscar produto...]  
+
+  Produto A    2x R$500  = R$1.000   [x]
+  Produto B    1x R$500  = R$500     [x]
 ```
 
-### Mudancas no state do componente
+- Design compacto seguindo o design system: textos `text-xs` e `text-sm`, espacamento `gap-2`, botoes com `rounded-md`.
+- Busca com debounce de 300ms, dropdown com resultados.
+- Cada linha de produto com edicao inline ao clicar.
 
-- Adicionar states para novos campos que podem aparecer dinamicamente (cargo, linkedin_url, website, segmento, porte, cnpj, razao_social, campos customizados)
-- Ou usar um `Record<string, string>` generico para campos adicionais
+---
 
-### Layout do formulario inline (apos mudancas)
+## Secao Tecnica - Detalhes de Implementacao
 
+### 1. Compressao de Imagens (`detalhes.api.ts`)
+
+```typescript
+async function compressImage(file: File, maxDim = 1920, quality = 0.8): Promise<File> {
+  const COMPRESSIBLE = ['image/jpeg', 'image/png', 'image/webp']
+  if (!COMPRESSIBLE.includes(file.type)) return file
+  
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      let { width, height } = img
+      if (width > maxDim || height > maxDim) {
+        const ratio = Math.min(maxDim / width, maxDim / height)
+        width = Math.round(width * ratio)
+        height = Math.round(height * ratio)
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      canvas.getContext('2d')!.drawImage(img, 0, 0, width, height)
+      canvas.toBlob((blob) => {
+        if (!blob || blob.size >= file.size) { resolve(file); return }
+        resolve(new File([blob], file.name, { type: 'image/jpeg' }))
+      }, 'image/jpeg', quality)
+    }
+    img.onerror = () => resolve(file) // fallback
+    img.src = URL.createObjectURL(file)
+  })
+}
 ```
-+---------------------------------------------+
-| Nova Pessoa   [Campos 4/6]  Buscar existente|
-+---------------------------------------------+
-| Nome *              | Sobrenome *           |  <- labels da config global
-| [_______________]   | [_______________]     |
-| Email               | Telefone              |
-| [_______________]   | [BR +55 v] [(00)...]  |  <- PhoneInputField
-| Cargo               | LinkedIn              |  <- se visivel
-| [_______________]   | [_______________]     |
-+---------------------------------------------+
+
+### 2. API Produtos da Oportunidade (`detalhes.api.ts`)
+
+Novas funcoes no `detalhesApi`:
+- `listarProdutosOportunidade(oportunidadeId)` - SELECT com JOIN no `produtos` para nome
+- `adicionarProdutoOportunidade(oportunidadeId, produtoId, quantidade, precoUnitario, desconto)`
+- `atualizarProdutoOportunidade(id, payload)` 
+- `removerProdutoOportunidade(id)`
+- `recalcularValorOportunidade(oportunidadeId)` - soma subtotais e atualiza `oportunidades.valor`
+
+### 3. Migracao SQL
+
+```sql
+ALTER TABLE oportunidades 
+ADD COLUMN IF NOT EXISTS modo_valor varchar DEFAULT 'manual';
 ```
 
-### Fluxo de dados
+### 4. Fluxo de dados
 
-1. Modal monta -> `useCamposConfig('pessoa')` busca config global
-2. `getFieldVisibility('pessoa')` retorna mapa de visibilidade (localStorage)
-3. Campos sao renderizados dinamicamente com labels/obrigatoriedade da config
-4. Usuario clica no icone de olho -> `ContatoFormFieldsToggle` altera visibilidade
-5. Ao trocar tipo (Pessoa/Empresa), `useCamposConfig` recarrega para a nova entidade
-6. No submit, campos preenchidos sao enviados para `criarContatoRapido`
+1. Usuario clica "Produtos" no toggle
+2. `modo_valor` e atualizado para 'produtos' na oportunidade
+3. Campo de busca aparece, usuario busca e seleciona produto
+4. Registro e criado em `oportunidades_produtos` com preco do catalogo
+5. `recalcularValorOportunidade` soma subtotais e atualiza `oportunidades.valor`
+6. UI invalida queries e reflete o novo valor
 
+### 5. Ordem de implementacao
+
+1. Migracao SQL (adicionar `modo_valor`)
+2. Compressao de imagens no upload
+3. API + hooks de produtos da oportunidade
+4. Componente `ProdutosOportunidade`
+5. Integracao no `DetalhesCampos` com toggle Manual/Produtos
