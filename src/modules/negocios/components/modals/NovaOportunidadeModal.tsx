@@ -58,9 +58,19 @@ interface ProdutoSelecionado {
   periodo_recorrencia?: string | null
 }
 
+interface ContatoPreSelecionado {
+  id: string
+  tipo: 'pessoa' | 'empresa'
+  nome?: string | null
+  sobrenome?: string | null
+  email?: string | null
+  telefone?: string | null
+}
+
 interface NovaOportunidadeModalProps {
   funilId: string
   etapaEntradaId: string
+  contatoPreSelecionado?: ContatoPreSelecionado
   onClose: () => void
   onSuccess: () => void
 }
@@ -72,6 +82,7 @@ interface NovaOportunidadeModalProps {
 export function NovaOportunidadeModal({
   funilId,
   etapaEntradaId,
+  contatoPreSelecionado,
   onClose,
   onSuccess,
 }: NovaOportunidadeModalProps) {
@@ -142,6 +153,21 @@ export function NovaOportunidadeModal({
       setCatalogoProdutos(prods)
       setProdutosFiltrados(prods)
     }).catch(() => {}).finally(() => setCarregandoProdutos(false))
+  }, [])
+
+  // Auto-preencher contato pré-selecionado (ex: vindo de Conversas)
+  useEffect(() => {
+    if (contatoPreSelecionado?.id) {
+      setPessoaSelecionada({
+        id: contatoPreSelecionado.id,
+        tipo: contatoPreSelecionado.tipo || 'pessoa',
+        nome: contatoPreSelecionado.nome,
+        sobrenome: contatoPreSelecionado.sobrenome,
+        email: contatoPreSelecionado.email,
+        telefone: contatoPreSelecionado.telefone,
+      })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Filtrar produtos localmente
