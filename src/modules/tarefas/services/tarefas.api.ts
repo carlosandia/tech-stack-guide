@@ -184,7 +184,7 @@ export const tarefasApi = {
       .from('tarefas')
       .select(`
         *,
-        oportunidades(id, codigo, titulo, funil_id, etapa_id, funis(id, nome), etapas_funil(id, nome)),
+        oportunidades!tarefas_oportunidade_id_fkey(id, codigo, titulo, funil_id, etapa_id, funis!oportunidades_funil_id_fkey(id, nome), etapas_funil!oportunidades_etapa_id_fkey(id, nome)),
         owner:usuarios!tarefas_owner_id_fkey(id, nome),
         etapa_origem:etapas_funil!tarefas_etapa_origem_id_fkey(id, nome)
       `, { count: 'exact' })
