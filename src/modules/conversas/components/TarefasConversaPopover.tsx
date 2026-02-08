@@ -120,8 +120,8 @@ export function TarefasConversaPopover({ contatoId }: TarefasConversaPopoverProp
 
       {open && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 mt-1 w-80 bg-card border border-border rounded-lg shadow-lg z-50 overflow-hidden">
+          <div className="fixed inset-0 z-[590]" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 mt-1 w-80 bg-card border border-border rounded-lg shadow-lg z-[600] overflow-hidden">
             {/* Header */}
             <div className="px-3 py-2.5 border-b border-border bg-muted/30">
               <p className="text-sm font-semibold text-foreground">Tarefas do Contato</p>
