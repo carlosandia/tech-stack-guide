@@ -42,6 +42,10 @@ export function ConversasPage() {
     }
   }, [setActions, setSubtitle, setCenterContent])
 
+  const handleInsertQuickReply = (_conteudo: string) => {
+    // Drawer quick reply - could be passed to ChatWindow to insert into textarea
+  }
+
   return (
     <div className="h-full flex overflow-hidden">
       {/* Painel esquerdo - Lista de conversas */}
@@ -95,6 +99,7 @@ export function ConversasPage() {
               conversa={conversaAtiva}
               isOpen={drawerAberto}
               onClose={() => setDrawerAberto(false)}
+              onInsertQuickReply={handleInsertQuickReply}
             />
           </>
         ) : (

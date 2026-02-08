@@ -2,7 +2,7 @@
  * AIDEV-NOTE: Janela de chat completa (header + mensagens + input)
  */
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { ChatHeader } from './ChatHeader'
 import { ChatMessages } from './ChatMessages'
 import { ChatInput } from './ChatInput'
@@ -21,7 +21,6 @@ interface ChatWindowProps {
 
 export function ChatWindow({ conversa, onBack, onOpenDrawer }: ChatWindowProps) {
   const [quickRepliesOpen, setQuickRepliesOpen] = useState(false)
-  const [quickReplyText, setQuickReplyText] = useState('')
 
   const {
     data: mensagensData,
@@ -41,26 +40,17 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer }: ChatWindowProps) 
     return mensagensData.pages.flatMap((page) => page.mensagens)
   }, [mensagensData])
 
-  // Mark as read when opening
-  const handleMarkRead = useCallback(() => {
+  // Auto-mark as read when opening conversation
+  useEffect(() => {
     if (conversa.mensagens_nao_lidas > 0) {
       marcarLida.mutate(conversa.id)
     }
-  }, [conversa.id, conversa.mensagens_nao_lidas])
-
-  // Auto-mark as read
-  useState(() => {
-    handleMarkRead()
-  })
+  }, [conversa.id]) // Only on conversation change
 
   const handleSendMessage = (texto: string) => {
-    // If quickReplyText was set, use it instead
-    const msgText = quickReplyText || texto
-    setQuickReplyText('')
-
     enviarTexto.mutate({
       conversaId: conversa.id,
-      texto: msgText,
+      texto,
     })
   }
 
@@ -74,7 +64,6 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer }: ChatWindowProps) 
   }
 
   const handleQuickReplySelect = (conteudo: string) => {
-    setQuickReplyText(conteudo)
     // Auto-send the quick reply
     enviarTexto.mutate({
       conversaId: conversa.id,
@@ -86,6 +75,11 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer }: ChatWindowProps) 
     alterarStatus.mutate({ id: conversa.id, status })
   }
 
+  const handleCriarOportunidade = () => {
+    // TODO: Abrir modal de nova oportunidade com contato pré-selecionado (PRD-07 RF-10)
+    toast.info('Funcionalidade de criação de oportunidade será integrada em breve')
+  }
+
   return (
     <div className="flex-1 flex flex-col min-w-0 bg-background">
       <ChatHeader
@@ -93,6 +87,7 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer }: ChatWindowProps) 
         onBack={onBack}
         onOpenDrawer={onOpenDrawer}
         onAlterarStatus={handleAlterarStatus}
+        onCriarOportunidade={handleCriarOportunidade}
       />
 
       <ChatMessages

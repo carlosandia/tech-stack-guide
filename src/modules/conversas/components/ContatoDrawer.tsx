@@ -1,11 +1,13 @@
 /**
- * AIDEV-NOTE: Drawer lateral com informações do contato
+ * AIDEV-NOTE: Drawer lateral com informações do contato (PRD-09 RF-004)
+ * Seções: Contato, Notas, Mensagens Prontas, Info da Conversa
  */
 
 import { useState } from 'react'
-import { X, Phone, Mail, ChevronDown, ChevronRight, Loader2, MessageSquare } from 'lucide-react'
+import { X, Phone, Mail, ChevronDown, ChevronRight, Loader2, MessageSquare, Zap } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { conversasApi, type Conversa, type NotaContato } from '../services/conversas.api'
+import { conversasApi, type Conversa, type NotaContato, type MensagemPronta } from '../services/conversas.api'
+import { useMensagensProntas } from '../hooks/useMensagensProntas'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
@@ -14,6 +16,7 @@ interface ContatoDrawerProps {
   conversa: Conversa
   isOpen: boolean
   onClose: () => void
+  onInsertQuickReply?: (conteudo: string) => void
 }
 
 function getInitials(nome?: string | null): string {
@@ -21,7 +24,7 @@ function getInitials(nome?: string | null): string {
   return nome.split(' ').filter(Boolean).slice(0, 2).map(p => p[0].toUpperCase()).join('')
 }
 
-function SectionCollapsible({ title, children, defaultOpen = false }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
+function SectionCollapsible({ title, icon, children, defaultOpen = false }: { title: string; icon?: React.ReactNode; children: React.ReactNode; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen)
 
   return (
@@ -30,7 +33,10 @@ function SectionCollapsible({ title, children, defaultOpen = false }: { title: s
         onClick={() => setOpen(!open)}
         className="flex items-center justify-between w-full px-4 py-3 text-sm font-medium text-foreground hover:bg-accent/50 transition-all duration-200"
       >
-        {title}
+        <div className="flex items-center gap-2">
+          {icon}
+          {title}
+        </div>
         {open ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
       </button>
       {open && <div className="px-4 pb-3">{children}</div>}
@@ -38,13 +44,14 @@ function SectionCollapsible({ title, children, defaultOpen = false }: { title: s
   )
 }
 
-export function ContatoDrawer({ conversa, isOpen, onClose }: ContatoDrawerProps) {
+export function ContatoDrawer({ conversa, isOpen, onClose, onInsertQuickReply }: ContatoDrawerProps) {
   const [novaNota, setNovaNota] = useState('')
   const queryClient = useQueryClient()
 
   const contato = conversa.contato
   const nome = contato?.nome || conversa.nome || 'Sem nome'
 
+  // Notas do contato
   const { data: notasData, isLoading: notasLoading } = useQuery({
     queryKey: ['notas-contato', conversa.contato_id],
     queryFn: () => conversasApi.listarNotas(conversa.contato_id),
@@ -63,7 +70,14 @@ export function ContatoDrawer({ conversa, isOpen, onClose }: ContatoDrawerProps)
     },
   })
 
+  // Mensagens prontas
+  const { data: prontasData, isLoading: prontasLoading } = useMensagensProntas()
+
   if (!isOpen) return null
+
+  const prontas = prontasData?.mensagens_prontas || []
+  const pessoais = prontas.filter((m: MensagemPronta) => m.tipo === 'pessoal')
+  const globais = prontas.filter((m: MensagemPronta) => m.tipo === 'global')
 
   return (
     <>
@@ -125,9 +139,12 @@ export function ContatoDrawer({ conversa, isOpen, onClose }: ContatoDrawerProps)
                 <span className="text-foreground truncate">{contato.email}</span>
               </div>
             )}
+            {!contato?.telefone && !contato?.email && (
+              <p className="text-xs text-muted-foreground">Nenhuma informação de contato</p>
+            )}
           </div>
 
-          {/* Notas */}
+          {/* Notas do Contato */}
           <SectionCollapsible title="Notas do Contato" defaultOpen>
             {notasLoading ? (
               <div className="flex justify-center py-3">
@@ -135,12 +152,22 @@ export function ContatoDrawer({ conversa, isOpen, onClose }: ContatoDrawerProps)
               </div>
             ) : (
               <div className="space-y-2">
+                {(notasData?.notas || []).length === 0 && (
+                  <p className="text-xs text-muted-foreground">Nenhuma nota adicionada</p>
+                )}
                 {(notasData?.notas || []).map((nota: NotaContato) => (
                   <div key={nota.id} className="p-2 rounded-md bg-warning-muted/20 border border-warning/20">
                     <p className="text-xs text-foreground whitespace-pre-wrap">{nota.conteudo}</p>
-                    <p className="text-[10px] text-muted-foreground mt-1">
-                      {format(new Date(nota.criado_em), 'dd/MM/yyyy HH:mm')}
-                    </p>
+                    <div className="flex items-center gap-1 mt-1">
+                      <p className="text-[10px] text-muted-foreground">
+                        {format(new Date(nota.criado_em), 'dd/MM/yyyy HH:mm')}
+                      </p>
+                      {nota.usuario?.nome && (
+                        <p className="text-[10px] text-muted-foreground">
+                          por {nota.usuario.nome}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 ))}
 
@@ -158,9 +185,60 @@ export function ContatoDrawer({ conversa, isOpen, onClose }: ContatoDrawerProps)
                     disabled={!novaNota.trim() || criarNota.isPending}
                     className="w-full py-1.5 text-xs font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 transition-all duration-200"
                   >
-                    {criarNota.isPending ? 'Salvando...' : 'Salvar Nota'}
+                    {criarNota.isPending ? 'Salvando...' : '+ Adicionar nota'}
                   </button>
                 </div>
+              </div>
+            )}
+          </SectionCollapsible>
+
+          {/* Mensagens Prontas */}
+          <SectionCollapsible title="Mensagens Prontas" icon={<Zap className="w-3.5 h-3.5 text-primary" />}>
+            {prontasLoading ? (
+              <div className="flex justify-center py-3">
+                <Loader2 className="w-5 h-5 text-muted-foreground animate-spin" />
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {prontas.length === 0 && (
+                  <p className="text-xs text-muted-foreground">Nenhuma mensagem pronta</p>
+                )}
+
+                {pessoais.length > 0 && (
+                  <>
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase mt-1">Minhas</p>
+                    {pessoais.map((mp: MensagemPronta) => (
+                      <button
+                        key={mp.id}
+                        onClick={() => onInsertQuickReply?.(mp.conteudo)}
+                        className="w-full p-2 rounded-md text-left hover:bg-accent/50 transition-all duration-200 border border-border/30"
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-medium text-primary">/{mp.atalho}</span>
+                          <span className="text-[11px] text-muted-foreground">— {mp.titulo}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </>
+                )}
+
+                {globais.length > 0 && (
+                  <>
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase mt-2">Equipe</p>
+                    {globais.map((mp: MensagemPronta) => (
+                      <button
+                        key={mp.id}
+                        onClick={() => onInsertQuickReply?.(mp.conteudo)}
+                        className="w-full p-2 rounded-md text-left hover:bg-accent/50 transition-all duration-200 border border-border/30"
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-medium text-primary">/{mp.atalho}</span>
+                          <span className="text-[11px] text-muted-foreground">— {mp.titulo}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </>
+                )}
               </div>
             )}
           </SectionCollapsible>
@@ -171,6 +249,10 @@ export function ContatoDrawer({ conversa, isOpen, onClose }: ContatoDrawerProps)
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Canal</span>
                 <span className="text-foreground capitalize">{conversa.canal}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Tipo</span>
+                <span className="text-foreground capitalize">{conversa.tipo}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Status</span>

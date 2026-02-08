@@ -1,6 +1,6 @@
 /**
  * AIDEV-NOTE: Item individual na lista de conversas
- * Estilo WhatsApp Web: avatar, nome, preview, horário, badge
+ * Estilo WhatsApp Web: avatar, nome, preview, horário, badge canal, badge status, badge grupo/canal
  */
 
 import { format, isToday, isYesterday } from 'date-fns'
@@ -79,11 +79,25 @@ function getAvatarColor(id: string): string {
   return avatarColors[hash % avatarColors.length]
 }
 
+const statusConfig: Record<string, { label: string; className: string }> = {
+  aberta: { label: 'Aberta', className: 'bg-success-muted text-success-foreground' },
+  pendente: { label: 'Pendente', className: 'bg-warning-muted text-warning-foreground' },
+  fechada: { label: 'Fechada', className: 'bg-muted text-muted-foreground' },
+}
+
+function getTipoBadge(tipo: string): { label: string; className: string } | null {
+  if (tipo === 'grupo') return { label: 'Grupo', className: 'bg-blue-100 text-blue-700' }
+  if (tipo === 'canal') return { label: 'Canal', className: 'bg-purple-100 text-purple-700' }
+  return null
+}
+
 export function ConversaItem({ conversa, isActive, onClick }: ConversaItemProps) {
   const nome = conversa.contato?.nome || conversa.nome || 'Sem nome'
   const fotoUrl = conversa.contato?.foto_url || conversa.foto_url
   const hasUnread = conversa.mensagens_nao_lidas > 0
   const preview = getMessagePreview(conversa)
+  const status = statusConfig[conversa.status] || statusConfig.aberta
+  const tipoBadge = getTipoBadge(conversa.tipo)
 
   return (
     <button
@@ -129,9 +143,16 @@ export function ConversaItem({ conversa, isActive, onClick }: ConversaItemProps)
       {/* Content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
-          <span className={`text-sm truncate ${hasUnread ? 'font-semibold text-foreground' : 'font-medium text-foreground'}`}>
-            {nome}
-          </span>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className={`text-sm truncate ${hasUnread ? 'font-semibold text-foreground' : 'font-medium text-foreground'}`}>
+              {nome}
+            </span>
+            {tipoBadge && (
+              <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium flex-shrink-0 ${tipoBadge.className}`}>
+                {tipoBadge.label}
+              </span>
+            )}
+          </div>
           <span className="text-[11px] text-muted-foreground flex-shrink-0">
             {formatTimestamp(conversa.ultima_mensagem_em)}
           </span>
@@ -144,6 +165,11 @@ export function ConversaItem({ conversa, isActive, onClick }: ConversaItemProps)
           </div>
 
           <div className="flex items-center gap-1.5 flex-shrink-0">
+            {/* Status badge */}
+            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${status.className}`}>
+              {status.label}
+            </span>
+            {/* Unread badge */}
             {hasUnread && (
               <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-primary text-primary-foreground text-[11px] font-semibold flex items-center justify-center">
                 {conversa.mensagens_nao_lidas > 99 ? '99+' : conversa.mensagens_nao_lidas}
