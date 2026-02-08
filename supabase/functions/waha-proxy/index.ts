@@ -2,6 +2,7 @@
  * AIDEV-NOTE: Edge Function proxy para WAHA API (WhatsApp)
  * Lê credenciais de configuracoes_globais e faz proxy para WAHA
  * Suporta: iniciar sessão, obter QR code, verificar status, desconectar
+ * Salva/atualiza sessoes_whatsapp no banco ao detectar conexão
  */
 
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -42,8 +43,32 @@ Deno.serve(async (req) => {
       );
     }
 
-    const userId = claims.claims.sub as string;
-    console.log(`[waha-proxy] User: ${userId}`);
+    const authUserId = claims.claims.sub as string;
+    console.log(`[waha-proxy] Auth user: ${authUserId}`);
+
+    // Service role client for DB operations
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
+    // Get user's organizacao_id and usuario_id from usuarios table
+    const { data: userData, error: userError } = await supabaseAdmin
+      .from("usuarios")
+      .select("id, organizacao_id")
+      .eq("auth_id", authUserId)
+      .maybeSingle();
+
+    if (userError || !userData) {
+      console.error("[waha-proxy] User not found:", userError?.message);
+      return new Response(
+        JSON.stringify({ error: "Usuário não encontrado" }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const usuarioId = userData.id;
+    const organizacaoId = userData.organizacao_id;
 
     // Parse request body
     const body = await req.json().catch(() => ({}));
@@ -56,12 +81,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get WAHA config from configuracoes_globais using service role
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
-
+    // Get WAHA config from configuracoes_globais
     const { data: wahaConfig, error: configError } = await supabaseAdmin
       .from("configuracoes_globais")
       .select("configuracoes, configurado")
@@ -89,9 +109,43 @@ Deno.serve(async (req) => {
 
     // Normalize base URL (remove trailing slash)
     const baseUrl = apiUrl.replace(/\/+$/, "");
-    const sessionId = session_name || `crm_${userId.substring(0, 8)}`;
+    const sessionId = session_name || `crm_${authUserId.substring(0, 8)}`;
 
     console.log(`[waha-proxy] Action: ${action}, Session: ${sessionId}, WAHA URL: ${baseUrl}`);
+
+    // Helper: upsert sessoes_whatsapp record
+    async function upsertSessao(data: Record<string, unknown>) {
+      // Check if exists
+      const { data: existing } = await supabaseAdmin
+        .from("sessoes_whatsapp")
+        .select("id")
+        .eq("session_name", sessionId)
+        .eq("organizacao_id", organizacaoId)
+        .is("deletado_em", null)
+        .maybeSingle();
+
+      if (existing) {
+        await supabaseAdmin
+          .from("sessoes_whatsapp")
+          .update({ ...data, atualizado_em: new Date().toISOString() })
+          .eq("id", existing.id);
+        console.log(`[waha-proxy] Updated sessao ${existing.id}`);
+      } else {
+        const { error: insertError } = await supabaseAdmin
+          .from("sessoes_whatsapp")
+          .insert({
+            organizacao_id: organizacaoId,
+            usuario_id: usuarioId,
+            session_name: sessionId,
+            ...data,
+          });
+        if (insertError) {
+          console.error(`[waha-proxy] Error inserting sessao:`, insertError.message);
+        } else {
+          console.log(`[waha-proxy] Created new sessao for ${sessionId}`);
+        }
+      }
+    }
 
     // Route actions to WAHA API
     let wahaResponse: Response;
@@ -118,10 +172,19 @@ Deno.serve(async (req) => {
         if (wahaResponse.status === 422) {
           const errBody = await wahaResponse.json().catch(() => ({}));
           console.log(`[waha-proxy] Session already exists, treating as success:`, errBody.message);
+
+          // Ensure DB record exists
+          await upsertSessao({ status: "scanning" });
+
           return new Response(
             JSON.stringify({ name: sessionId, status: "SCAN_QR_CODE", already_started: true }),
             { headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
+        }
+
+        if (wahaResponse.ok) {
+          // Create/update DB record
+          await upsertSessao({ status: "scanning", ultimo_qr_gerado: new Date().toISOString() });
         }
         break;
       }
@@ -168,7 +231,6 @@ Deno.serve(async (req) => {
         
         // Check if already connected
         if (wahaResponse.status === 404 || wahaResponse.status === 422) {
-          // Try checking status instead
           const statusResp = await fetch(`${baseUrl}/api/sessions/${sessionId}`, {
             headers: { "X-Api-Key": apiKey },
           });
@@ -176,11 +238,22 @@ Deno.serve(async (req) => {
           if (statusResp.ok) {
             const statusData = await statusResp.json();
             if (statusData.status === "WORKING") {
+              // Save connected status to DB
+              const me = statusData.me || {};
+              await upsertSessao({
+                status: "connected",
+                phone_number: me.id?.replace("@c.us", "") || null,
+                phone_name: me.pushName || statusData.name || null,
+                conectado_em: new Date().toISOString(),
+              });
+
               return new Response(
                 JSON.stringify({ qr_code: null, status: "connected" }),
                 { headers: { ...corsHeaders, "Content-Type": "application/json" } }
               );
             }
+          } else {
+            await statusResp.text(); // consume body
           }
         }
 
@@ -202,13 +275,24 @@ Deno.serve(async (req) => {
         if (wahaResponse.ok) {
           const statusData = await wahaResponse.json();
           const isConnected = statusData.status === "WORKING";
+          const me = statusData.me || {};
+
+          // If connected, save/update the DB record
+          if (isConnected) {
+            await upsertSessao({
+              status: "connected",
+              phone_number: me.id?.replace("@c.us", "") || null,
+              phone_name: me.pushName || statusData.name || null,
+              conectado_em: new Date().toISOString(),
+            });
+          }
           
           return new Response(
             JSON.stringify({
               status: isConnected ? "connected" : "disconnected",
               raw_status: statusData.status,
               name: statusData.name,
-              me: statusData.me || null,
+              me: me || null,
             }),
             { headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
@@ -229,6 +313,12 @@ Deno.serve(async (req) => {
             "X-Api-Key": apiKey,
           },
           body: JSON.stringify({ name: sessionId }),
+        });
+
+        // Update DB record
+        await upsertSessao({
+          status: "disconnected",
+          desconectado_em: new Date().toISOString(),
         });
         break;
       }
