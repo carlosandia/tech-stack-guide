@@ -487,7 +487,7 @@ export const tarefasApi = {
       .select('id, nome')
       .eq('funil_id', funilId)
       .is('deletado_em', null)
-      .order('posicao')
+      .order('ordem')
 
     if (error) throw new Error(error.message)
     return data || []
