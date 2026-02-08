@@ -7,6 +7,63 @@
 import { supabase } from '@/lib/supabase'
 
 // =====================================================
+// Compressão de imagens (client-side)
+// =====================================================
+
+const COMPRESSIBLE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const MAX_DIMENSION = 1920
+const COMPRESS_QUALITY = 0.8
+
+async function compressImage(file: File): Promise<File> {
+  if (!COMPRESSIBLE_TYPES.includes(file.type)) return file
+
+  return new Promise((resolve) => {
+    const img = new Image()
+    const objectUrl = URL.createObjectURL(file)
+
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl)
+      let { width, height } = img
+
+      if (width <= MAX_DIMENSION && height <= MAX_DIMENSION && file.size < 500 * 1024) {
+        resolve(file)
+        return
+      }
+
+      if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
+        const ratio = Math.min(MAX_DIMENSION / width, MAX_DIMENSION / height)
+        width = Math.round(width * ratio)
+        height = Math.round(height * ratio)
+      }
+
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')
+      if (!ctx) { resolve(file); return }
+      ctx.drawImage(img, 0, 0, width, height)
+
+      canvas.toBlob(
+        (blob) => {
+          if (!blob || blob.size >= file.size) { resolve(file); return }
+          const ext = file.name.replace(/\.[^.]+$/, '')
+          resolve(new File([blob], `${ext}.jpg`, { type: 'image/jpeg' }))
+        },
+        'image/jpeg',
+        COMPRESS_QUALITY,
+      )
+    }
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl)
+      resolve(file)
+    }
+
+    img.src = objectUrl
+  })
+}
+
+// =====================================================
 // Helpers reutilizáveis
 // =====================================================
 
@@ -292,27 +349,30 @@ export const detalhesApi = {
     const organizacaoId = await getOrganizacaoId()
     const userId = await getUsuarioId()
 
-    const fileExt = file.name.split('.').pop()
+    // Comprimir imagem antes do upload (transparente para não-imagens)
+    const processedFile = await compressImage(file)
+
+    const fileExt = processedFile.name.split('.').pop()
     const fileName = `${crypto.randomUUID()}.${fileExt}`
     const storagePath = `${organizacaoId}/${oportunidadeId}/${fileName}`
 
     // Upload para Supabase Storage
     const { error: uploadError } = await supabase.storage
       .from('documentos-oportunidades')
-      .upload(storagePath, file)
+      .upload(storagePath, processedFile)
 
     if (uploadError) throw new Error(uploadError.message)
 
-    // Salvar registro no banco
+    // Salvar registro no banco (tamanho após compressão)
     const { error: dbError } = await supabase
       .from('documentos_oportunidades')
       .insert({
         organizacao_id: organizacaoId,
         oportunidade_id: oportunidadeId,
         usuario_id: userId,
-        nome_arquivo: file.name,
-        tipo_arquivo: file.type || 'application/octet-stream',
-        tamanho_bytes: file.size,
+        nome_arquivo: file.name, // nome original do usuário
+        tipo_arquivo: processedFile.type || 'application/octet-stream',
+        tamanho_bytes: processedFile.size, // tamanho comprimido
         storage_path: storagePath,
       } as any)
 
@@ -589,6 +649,150 @@ export const detalhesApi = {
 
     if (error) throw new Error(error.message)
     return (data || []) as MotivoNoShow[]
+  },
+
+  // ---------- PRODUTOS DA OPORTUNIDADE ----------
+
+  listarProdutosOportunidade: async (oportunidadeId: string) => {
+    const { data, error } = await supabase
+      .from('oportunidades_produtos')
+      .select('*')
+      .eq('oportunidade_id', oportunidadeId)
+      .order('criado_em', { ascending: true })
+
+    if (error) throw new Error(error.message)
+
+    const produtos = data || []
+    const produtoIds = [...new Set(produtos.map(p => p.produto_id))]
+
+    let produtosMap: Record<string, { nome: string; sku?: string | null }> = {}
+    if (produtoIds.length > 0) {
+      const { data: prods } = await supabase
+        .from('produtos')
+        .select('id, nome, sku')
+        .in('id', produtoIds)
+
+      if (prods) {
+        for (const p of prods) {
+          produtosMap[p.id] = { nome: p.nome, sku: p.sku }
+        }
+      }
+    }
+
+    return produtos.map(p => ({
+      id: p.id,
+      produto_id: p.produto_id,
+      quantidade: Number(p.quantidade),
+      preco_unitario: Number(p.preco_unitario),
+      desconto_percentual: Number(p.desconto_percentual || 0),
+      subtotal: Number(p.subtotal),
+      criado_em: p.criado_em,
+      produto_nome: produtosMap[p.produto_id]?.nome || 'Produto removido',
+      produto_sku: produtosMap[p.produto_id]?.sku || null,
+    }))
+  },
+
+  adicionarProdutoOportunidade: async (
+    oportunidadeId: string,
+    produtoId: string,
+    quantidade: number,
+    precoUnitario: number,
+    descontoPercentual: number = 0,
+  ) => {
+    const organizacaoId = await getOrganizacaoId()
+    const subtotal = precoUnitario * quantidade * (1 - descontoPercentual / 100)
+
+    const { error } = await supabase
+      .from('oportunidades_produtos')
+      .insert({
+        organizacao_id: organizacaoId,
+        oportunidade_id: oportunidadeId,
+        produto_id: produtoId,
+        quantidade,
+        preco_unitario: precoUnitario,
+        desconto_percentual: descontoPercentual,
+        subtotal,
+      } as any)
+
+    if (error) throw new Error(error.message)
+
+    // Recalcular valor total da oportunidade
+    await detalhesApi.recalcularValorOportunidade(oportunidadeId)
+  },
+
+  atualizarProdutoOportunidade: async (
+    id: string,
+    payload: { quantidade?: number; preco_unitario?: number; desconto_percentual?: number },
+    oportunidadeId: string,
+  ) => {
+    // Buscar dados atuais para recalcular subtotal
+    const { data: atual } = await supabase
+      .from('oportunidades_produtos')
+      .select('quantidade, preco_unitario, desconto_percentual')
+      .eq('id', id)
+      .single()
+
+    if (!atual) throw new Error('Produto não encontrado')
+
+    const qtd = payload.quantidade ?? Number(atual.quantidade)
+    const preco = payload.preco_unitario ?? Number(atual.preco_unitario)
+    const desc = payload.desconto_percentual ?? Number(atual.desconto_percentual)
+    const subtotal = preco * qtd * (1 - desc / 100)
+
+    const { error } = await supabase
+      .from('oportunidades_produtos')
+      .update({ ...payload, subtotal } as any)
+      .eq('id', id)
+
+    if (error) throw new Error(error.message)
+
+    await detalhesApi.recalcularValorOportunidade(oportunidadeId)
+  },
+
+  removerProdutoOportunidade: async (id: string, oportunidadeId: string) => {
+    const { error } = await supabase
+      .from('oportunidades_produtos')
+      .delete()
+      .eq('id', id)
+
+    if (error) throw new Error(error.message)
+
+    await detalhesApi.recalcularValorOportunidade(oportunidadeId)
+  },
+
+  recalcularValorOportunidade: async (oportunidadeId: string) => {
+    const { data: produtos } = await supabase
+      .from('oportunidades_produtos')
+      .select('subtotal')
+      .eq('oportunidade_id', oportunidadeId)
+
+    const total = (produtos || []).reduce((sum, p) => sum + Number(p.subtotal), 0)
+
+    await supabase
+      .from('oportunidades')
+      .update({ valor: total } as any)
+      .eq('id', oportunidadeId)
+  },
+
+  buscarProdutosCatalogo: async (busca: string) => {
+    const { data, error } = await supabase
+      .from('produtos')
+      .select('id, nome, sku, preco, moeda, unidade')
+      .eq('ativo', true)
+      .is('deletado_em', null)
+      .ilike('nome', `%${busca}%`)
+      .limit(10)
+      .order('nome', { ascending: true })
+
+    if (error) throw new Error(error.message)
+    return (data || []) as Array<{
+      id: string
+      nome: string
+      sku: string | null
+      preco: number
+      moeda: string
+      unidade: string | null
+    }>
   },
 
   // ---------- ROLE CHECK (para isolamento member/admin) ----------

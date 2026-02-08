@@ -196,3 +196,69 @@ export function useMotivosNoShow() {
     staleTime: 60 * 1000,
   })
 }
+
+// =====================================================
+// PRODUTOS DA OPORTUNIDADE
+// =====================================================
+
+export function useProdutosOportunidade(oportunidadeId: string | null) {
+  return useQuery({
+    queryKey: ['produtos_oportunidade', oportunidadeId],
+    queryFn: () => detalhesApi.listarProdutosOportunidade(oportunidadeId!),
+    enabled: !!oportunidadeId,
+    staleTime: 15 * 1000,
+  })
+}
+
+export function useAdicionarProdutoOp() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ oportunidadeId, produtoId, quantidade, precoUnitario, desconto }: {
+      oportunidadeId: string
+      produtoId: string
+      quantidade: number
+      precoUnitario: number
+      desconto?: number
+    }) => detalhesApi.adicionarProdutoOportunidade(oportunidadeId, produtoId, quantidade, precoUnitario, desconto || 0),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['produtos_oportunidade', variables.oportunidadeId] })
+      queryClient.invalidateQueries({ queryKey: ['oportunidade_detalhe'] })
+      queryClient.invalidateQueries({ queryKey: ['kanban'] })
+    },
+  })
+}
+
+export function useAtualizarProdutoOp() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, payload, oportunidadeId }: {
+      id: string
+      payload: { quantidade?: number; preco_unitario?: number; desconto_percentual?: number }
+      oportunidadeId: string
+    }) => detalhesApi.atualizarProdutoOportunidade(id, payload, oportunidadeId),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['produtos_oportunidade', variables.oportunidadeId] })
+      queryClient.invalidateQueries({ queryKey: ['oportunidade_detalhe'] })
+      queryClient.invalidateQueries({ queryKey: ['kanban'] })
+    },
+  })
+}
+
+export function useRemoverProdutoOp() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, oportunidadeId }: { id: string; oportunidadeId: string }) =>
+      detalhesApi.removerProdutoOportunidade(id, oportunidadeId),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['produtos_oportunidade', variables.oportunidadeId] })
+      queryClient.invalidateQueries({ queryKey: ['oportunidade_detalhe'] })
+      queryClient.invalidateQueries({ queryKey: ['kanban'] })
+    },
+  })
+}
+
+export function useBuscarProdutosCatalogo() {
+  return useMutation({
+    mutationFn: (busca: string) => detalhesApi.buscarProdutosCatalogo(busca),
+  })
+}
