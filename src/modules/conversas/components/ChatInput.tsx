@@ -1,10 +1,11 @@
 /**
  * AIDEV-NOTE: Barra de entrada de mensagem com tabs (Responder/Nota Privada)
  * Estilo WhatsApp: textarea expansível, Enter=enviar, Shift+Enter=nova linha
+ * Ícones: raio (quick replies), clip (anexos), mic (áudio)
  */
 
 import { useState, useRef, useCallback, type KeyboardEvent } from 'react'
-import { Send, Zap, StickyNote, MessageSquare } from 'lucide-react'
+import { Send, Zap, StickyNote, MessageSquare, Paperclip, Mic } from 'lucide-react'
 
 interface ChatInputProps {
   onSendMessage: (texto: string) => void
@@ -65,6 +66,7 @@ export function ChatInput({ onSendMessage, onSendNote, onOpenQuickReplies, isSen
 
   const currentText = tab === 'responder' ? texto : notaTexto
   const isNota = tab === 'nota'
+  const hasText = currentText.trim().length > 0
 
   return (
     <div className="flex-shrink-0 border-t border-border">
@@ -106,14 +108,21 @@ export function ChatInput({ onSendMessage, onSendNote, onOpenQuickReplies, isSen
         <div className="flex items-end gap-2">
           {/* Action buttons (only for reply mode) */}
           {!isNota && (
-            <div className="flex items-center gap-1 pb-1">
+            <div className="flex items-center gap-0.5 pb-1">
               <button
                 type="button"
                 onClick={onOpenQuickReplies}
                 className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200"
-                title="Mensagens prontas"
+                title="Mensagens prontas (/)"
               >
-                <Zap className="w-4.5 h-4.5" />
+                <Zap className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200"
+                title="Anexar arquivo"
+              >
+                <Paperclip className="w-4 h-4" />
               </button>
             </div>
           )}
@@ -128,7 +137,7 @@ export function ChatInput({ onSendMessage, onSendNote, onOpenQuickReplies, isSen
                 autoResize(e.target)
               }}
               onKeyDown={handleKeyDown}
-              placeholder={isNota ? 'Escreva uma nota privada...' : 'Digite uma mensagem...'}
+              placeholder={isNota ? 'Escreva uma nota privada...' : 'Shift + Enter para nova linha...'}
               disabled={disabled}
               rows={1}
               className={`
@@ -145,23 +154,33 @@ export function ChatInput({ onSendMessage, onSendNote, onOpenQuickReplies, isSen
             />
           </div>
 
-          {/* Send button */}
-          <button
-            onClick={handleSend}
-            disabled={!currentText.trim() || isSending || disabled}
-            className={`
-              p-2 rounded-md transition-all duration-200 flex-shrink-0 mb-0.5
-              ${currentText.trim()
-                ? isNota
-                  ? 'bg-warning text-white hover:bg-warning/90'
-                  : 'bg-primary text-primary-foreground hover:bg-primary/90'
-                : 'bg-muted text-muted-foreground cursor-not-allowed'
-              }
-            `}
-            title={isNota ? 'Salvar nota' : 'Enviar mensagem'}
-          >
-            <Send className="w-4 h-4" />
-          </button>
+          {/* Send / Mic button */}
+          {!isNota && !hasText ? (
+            <button
+              className="p-2 rounded-md bg-muted text-muted-foreground hover:bg-accent transition-all duration-200 flex-shrink-0 mb-0.5"
+              title="Gravar áudio (em breve)"
+              disabled
+            >
+              <Mic className="w-4 h-4" />
+            </button>
+          ) : (
+            <button
+              onClick={handleSend}
+              disabled={!currentText.trim() || isSending || disabled}
+              className={`
+                p-2 rounded-md transition-all duration-200 flex-shrink-0 mb-0.5
+                ${currentText.trim()
+                  ? isNota
+                    ? 'bg-warning text-white hover:bg-warning/90'
+                    : 'bg-primary text-primary-foreground hover:bg-primary/90'
+                  : 'bg-muted text-muted-foreground cursor-not-allowed'
+                }
+              `}
+              title={isNota ? 'Salvar nota' : 'Enviar mensagem'}
+            >
+              <Send className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
     </div>

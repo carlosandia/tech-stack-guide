@@ -1,12 +1,22 @@
 /**
- * AIDEV-NOTE: Modal para iniciar nova conversa (WhatsApp)
+ * AIDEV-NOTE: Modal para iniciar nova conversa (WhatsApp/Instagram)
+ * PRD-09 RF-005: Suporta número direto OU busca de contato existente
  */
 
-import { useState } from 'react'
-import { MessageSquare } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { MessageSquare, Search, User, Loader2 } from 'lucide-react'
 import { ModalBase } from '@/modules/configuracoes/components/ui/ModalBase'
 import { useCriarConversa } from '../hooks/useConversas'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
+import api from '@/lib/api'
+
+interface ContatoBusca {
+  id: string
+  nome: string
+  email?: string | null
+  telefone?: string | null
+  foto_url?: string | null
+}
 
 interface NovaConversaModalProps {
   isOpen: boolean
@@ -18,28 +28,86 @@ export function NovaConversaModal({ isOpen, onClose, onConversaCriada }: NovaCon
   const [telefone, setTelefone] = useState('')
   const [mensagem, setMensagem] = useState('')
   const [canal, setCanal] = useState<'whatsapp' | 'instagram'>('whatsapp')
+  const [buscaContato, setBuscaContato] = useState('')
+  const [contatoSelecionado, setContatoSelecionado] = useState<ContatoBusca | null>(null)
+  const [contatosResultado, setContatosResultado] = useState<ContatoBusca[]>([])
+  const [buscando, setBuscando] = useState(false)
+  const [modo, setModo] = useState<'telefone' | 'contato'>('telefone')
 
   const criarConversa = useCriarConversa()
 
-  const handleSubmit = () => {
-    if (!telefone.trim() || !mensagem.trim()) return
+  // Reset state when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setTelefone('')
+      setMensagem('')
+      setCanal('whatsapp')
+      setBuscaContato('')
+      setContatoSelecionado(null)
+      setContatosResultado([])
+      setModo('telefone')
+    }
+  }, [isOpen])
 
-    criarConversa.mutate(
-      {
-        telefone: telefone.trim(),
-        canal,
-        mensagem_inicial: mensagem.trim(),
-      },
-      {
-        onSuccess: (data) => {
-          onConversaCriada(data.id)
-          onClose()
-          setTelefone('')
-          setMensagem('')
-        },
+  // Debounced contact search
+  useEffect(() => {
+    if (!buscaContato.trim() || buscaContato.trim().length < 2) {
+      setContatosResultado([])
+      return
+    }
+
+    const timer = setTimeout(async () => {
+      setBuscando(true)
+      try {
+        const { data } = await api.get('/v1/contatos', {
+          params: { busca: buscaContato.trim(), limit: 10 },
+        })
+        setContatosResultado(data.contatos || [])
+      } catch {
+        setContatosResultado([])
+      } finally {
+        setBuscando(false)
       }
-    )
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [buscaContato])
+
+  const handleSelectContato = (contato: ContatoBusca) => {
+    setContatoSelecionado(contato)
+    setBuscaContato('')
+    setContatosResultado([])
+    // Pre-fill phone if available
+    if (contato.telefone) {
+      setTelefone(contato.telefone)
+    }
   }
+
+  const handleSubmit = () => {
+    if (!mensagem.trim()) return
+
+    const dados: any = {
+      canal,
+      mensagem_inicial: mensagem.trim(),
+    }
+
+    if (contatoSelecionado) {
+      dados.contato_id = contatoSelecionado.id
+    } else if (telefone.trim()) {
+      dados.telefone = telefone.trim()
+    } else {
+      return
+    }
+
+    criarConversa.mutate(dados, {
+      onSuccess: (data) => {
+        onConversaCriada(data.id)
+        onClose()
+      },
+    })
+  }
+
+  const canSubmit = mensagem.trim() && (contatoSelecionado || telefone.trim())
 
   if (!isOpen) return null
 
@@ -61,7 +129,7 @@ export function NovaConversaModal({ isOpen, onClose, onConversaCriada }: NovaCon
           </button>
           <button
             onClick={handleSubmit}
-            disabled={!telefone.trim() || !mensagem.trim() || criarConversa.isPending}
+            disabled={!canSubmit || criarConversa.isPending}
             className="px-4 py-2 text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90 rounded-md disabled:opacity-50 transition-all duration-200"
           >
             {criarConversa.isPending ? 'Iniciando...' : 'Iniciar Conversa'}
@@ -101,23 +169,135 @@ export function NovaConversaModal({ isOpen, onClose, onConversaCriada }: NovaCon
           </div>
         </div>
 
-        {/* Phone */}
-        <div>
-          <label className="text-sm font-medium text-foreground mb-1.5 block">
-            {canal === 'whatsapp' ? 'Telefone (com DDD)' : 'Usuário do Instagram'}
-          </label>
-          <input
-            type="text"
-            value={telefone}
-            onChange={(e) => setTelefone(e.target.value)}
-            placeholder={canal === 'whatsapp' ? '+5511999999999' : '@usuario'}
-            className="w-full px-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
-          />
-        </div>
+        {/* Contato selecionado */}
+        {contatoSelecionado && (
+          <div className="flex items-center gap-3 p-3 rounded-md bg-primary/5 border border-primary/20">
+            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+              {contatoSelecionado.foto_url ? (
+                <img src={contatoSelecionado.foto_url} alt={contatoSelecionado.nome} className="w-10 h-10 rounded-full object-cover" />
+              ) : (
+                <User className="w-5 h-5 text-primary" />
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-foreground truncate">{contatoSelecionado.nome}</p>
+              {contatoSelecionado.telefone && (
+                <p className="text-xs text-muted-foreground">{contatoSelecionado.telefone}</p>
+              )}
+            </div>
+            <button
+              onClick={() => {
+                setContatoSelecionado(null)
+                setTelefone('')
+              }}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              Alterar
+            </button>
+          </div>
+        )}
+
+        {/* Modo: telefone ou contato */}
+        {!contatoSelecionado && (
+          <>
+            {/* Toggle */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setModo('telefone')}
+                className={`flex-1 py-2 text-xs font-medium rounded-md border transition-all duration-200 ${
+                  modo === 'telefone'
+                    ? 'bg-primary/10 border-primary/30 text-primary'
+                    : 'border-border text-muted-foreground hover:bg-accent'
+                }`}
+              >
+                Por número
+              </button>
+              <button
+                onClick={() => setModo('contato')}
+                className={`flex-1 py-2 text-xs font-medium rounded-md border transition-all duration-200 ${
+                  modo === 'contato'
+                    ? 'bg-primary/10 border-primary/30 text-primary'
+                    : 'border-border text-muted-foreground hover:bg-accent'
+                }`}
+              >
+                Buscar contato
+              </button>
+            </div>
+
+            {modo === 'telefone' ? (
+              <div>
+                <label className="text-sm font-medium text-foreground mb-1.5 block">
+                  {canal === 'whatsapp' ? 'Telefone (com DDD)' : 'Usuário do Instagram'}
+                </label>
+                <input
+                  type="text"
+                  value={telefone}
+                  onChange={(e) => setTelefone(e.target.value)}
+                  placeholder={canal === 'whatsapp' ? '+5511999999999' : '@usuario'}
+                  className="w-full px-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
+                />
+                {canal === 'whatsapp' && (
+                  <p className="text-[11px] text-muted-foreground mt-1">Informe o número com código do país e DDD</p>
+                )}
+              </div>
+            ) : (
+              <div>
+                <label className="text-sm font-medium text-foreground mb-1.5 block">
+                  Buscar contato existente
+                </label>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <input
+                    type="text"
+                    value={buscaContato}
+                    onChange={(e) => setBuscaContato(e.target.value)}
+                    placeholder="Buscar por nome, email ou telefone..."
+                    className="w-full pl-9 pr-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
+                  />
+                </div>
+
+                {/* Results */}
+                {buscando && (
+                  <div className="flex justify-center py-3">
+                    <Loader2 className="w-5 h-5 text-muted-foreground animate-spin" />
+                  </div>
+                )}
+                {!buscando && contatosResultado.length > 0 && (
+                  <div className="mt-2 border border-border rounded-md max-h-[180px] overflow-y-auto">
+                    {contatosResultado.map((c) => (
+                      <button
+                        key={c.id}
+                        onClick={() => handleSelectContato(c)}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-accent/50 transition-all duration-200 border-b border-border/30 last:border-b-0"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                          {c.foto_url ? (
+                            <img src={c.foto_url} alt={c.nome} className="w-8 h-8 rounded-full object-cover" />
+                          ) : (
+                            <User className="w-4 h-4 text-muted-foreground" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate">{c.nome}</p>
+                          <p className="text-[11px] text-muted-foreground truncate">
+                            {c.telefone || c.email || ''}
+                          </p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {!buscando && buscaContato.trim().length >= 2 && contatosResultado.length === 0 && (
+                  <p className="text-xs text-muted-foreground mt-2 text-center">Nenhum contato encontrado</p>
+                )}
+              </div>
+            )}
+          </>
+        )}
 
         {/* Message */}
         <div>
-          <label className="text-sm font-medium text-foreground mb-1.5 block">Mensagem inicial</label>
+          <label className="text-sm font-medium text-foreground mb-1.5 block">Mensagem inicial *</label>
           <textarea
             value={mensagem}
             onChange={(e) => setMensagem(e.target.value)}
