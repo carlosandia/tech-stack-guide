@@ -1,179 +1,266 @@
 
-# Plano de Correcao: Gaps do PRD-15 - Modulo de Feedback
+# Plano de Correcao: Responsividade e Progressive Disclosure - Modulo /conversas
 
 ## Resumo da Analise
 
-Apos verificacao detalhada do PRD-15-FEEDBACK.md (1165 linhas) versus a implementacao atual, identifiquei **7 gaps** - sendo **2 criticos (bloqueantes)** relacionados a RLS no banco de dados que impedem funcionalidades core de funcionar.
+Analisei o documento `designsystem.md` (Secoes 7, 7.7, 11) e todos os 12 componentes do modulo `/conversas`. Encontrei **8 gaps** de conformidade com o Design System, sendo 2 criticos que afetam a experiencia em todas as viewports.
 
 ---
 
-## Gaps Identificados (por prioridade)
+## Gaps Identificados
 
-### GAP 1 - CRITICO: Falta policy de UPDATE na tabela `feedbacks`
+### GAP 1 - CRITICO: Breakpoints Tailwind nao correspondem ao Design System
 
-**Problema:** A tabela `feedbacks` possui apenas policies de SELECT e INSERT. Nao existe policy para UPDATE. Quando o Super Admin tenta "Marcar como Resolvido", a operacao `supabase.from('feedbacks').update(...)` falha silenciosamente por falta de permissao RLS.
+**Problema:** O `tailwind.config.ts` usa os breakpoints DEFAULT do Tailwind (`sm: 640px`), mas o Design System define `sm: 480px`. Isso significa que todas as classes `sm:` no projeto inteiro quebram em dispositivos entre 480-640px.
 
-**Impacto:** A funcionalidade de resolver feedback (RF-006) esta 100% quebrada.
+**Impacto:** Todo o sistema de Progressive Disclosure esta desalinhado. Elementos que deveriam aparecer a partir de 480px so aparecem em 640px, desperdicando espaco em mobiles grandes.
 
-**Correcao:** Criar migration SQL com policy de UPDATE para Super Admin:
-```text
-CREATE POLICY "super_admin_update_feedback" ON feedbacks
-  FOR UPDATE
-  USING (
-    EXISTS (
-      SELECT 1 FROM usuarios u
-      WHERE u.auth_id = auth.uid()
-      AND u.role = 'super_admin'
-    )
-  );
-```
+**Evidencia no Design System:**
+- Secao 7.1: `sm = 480px` (Mobile grande)
+- Secao 7.2: Configuracao Tailwind recomendada
 
-### GAP 2 - CRITICO: Policy de notificacoes impede INSERT pelo Super Admin
+**Correcao:** Atualizar `tailwind.config.ts` para adicionar os breakpoints `xs`, `sm: 480px` e `3xl: 1920px` conforme Design System.
 
-**Problema:** A tabela `notificacoes` tem uma policy `FOR ALL` que valida `usuario_id = auth.uid()`. Quando o Super Admin resolve um feedback, tenta inserir uma notificacao onde `usuario_id = feedback.usuario_id` (o usuario original), mas o RLS bloqueia porque o `usuario_id` da notificacao nao corresponde ao Super Admin logado.
+### GAP 2 - CRITICO: Toolbar vazia e header duplicado
 
-**Impacto:** Notificacoes de resolucao nunca sao criadas. O usuario original nunca sabe que seu feedback foi resolvido.
+**Problema (visivel no screenshot):** O modulo Conversas renderiza DOIS headers:
+1. Toolbar do AppLayout mostrando "Conversas" (48px, vazio)
+2. Header interno do painel esquerdo mostrando "Conversas" + "+ Nova" (mais 44px)
 
-**Correcao:** Adicionar policy especifica de INSERT que permite Super Admin criar notificacoes para qualquer usuario:
-```text
-CREATE POLICY "super_admin_insert_notificacao" ON notificacoes
-  FOR INSERT
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM usuarios u
-      WHERE u.auth_id = auth.uid()
-      AND u.role = 'super_admin'
-    )
-  );
-```
-E ajustar a policy existente para ser apenas SELECT/UPDATE (o usuario le e marca como lida suas proprias notificacoes).
+O Design System (Secao 11.4) define que o Toolbar de Conversas deve conter:
+- Esquerda: "Conversas" + Filtro (Todas | Abertas | Pendentes)
+- Direita: Buscar + Filtros avancados + [+ Nova Conversa]
 
-### GAP 3 - MEDIO: Filtro de Empresa faltante na EvolucaoPage
+**Impacto:** ~92px de espaco vertical desperdicado com informacao redundante. Em viewports de 800px de altura, isso representa ~11% da area util perdida.
 
-**Problema:** O PRD (RF-004) especifica 4 filtros: Empresa, Tipo, Status, Busca. A implementacao atual da `EvolucaoPage` tem apenas 3 filtros (Tipo, Status, Busca). O filtro de Empresa (select com lista de tenants) esta faltando.
+**Correcao:** 
+- Mover os controles do header interno do painel esquerdo para o Toolbar do AppLayout via `setActions` e `setCenterContent`
+- Remover o header interno duplicado do painel esquerdo
+- No mobile, quando uma conversa esta ativa, ocultar a toolbar (o ChatHeader ja faz esse papel)
 
-**Impacto:** Super Admin nao consegue filtrar feedbacks por empresa/organizacao, dificultando a gestao quando ha muitos tenants.
+### GAP 3 - MEDIO: Touch targets abaixo do minimo (48x48px)
 
-**Correcao:** Adicionar select de Empresa na barra de filtros da `EvolucaoPage.tsx`. Buscar lista de organizacoes com `supabase.from('organizacoes_saas').select('id, nome')` e passar `empresa_id` para o hook `useFeedbacksAdmin`.
+**Problema:** Varios botoes interativos nao atendem ao tamanho minimo de 48x48px definido na Secao 7.7.3:
 
-### GAP 4 - MEDIO: Popover nao tem dropdown de tipo conforme PRD
+| Componente | Elemento | Tamanho atual | Minimo |
+|------------|----------|---------------|--------|
+| ChatHeader | Botao Buscar | ~28px (p-1.5) | 48px |
+| ChatHeader | Botao + Oportunidade | ~28px (p-1.5) | 48px |
+| ChatHeader | Botao Menu (tres pontos) | ~28px (p-1.5) | 48px |
+| ChatInput | Botoes Zap/Clip/MapPin/AtSign | ~28px (p-1.5) | 48px |
+| FiltrosConversas | Tabs de canal | ~24px (py-1) | 44px |
+| ConversaItem | Botao da conversa | py-3 (~46px) | 48px |
 
-**Problema:** O PRD (RF-002) especifica um dropdown select para escolha do tipo com icones coloridos. A implementacao usa botoes lado a lado (toggle buttons). Embora funcional, diverge do layout especificado e do padrao do Design System para selects.
+**Correcao:** Aumentar padding dos botoes para p-2.5 (minimo 40px com icone de 16px) ou usar classes min-w/min-h de 44px.
 
-**Impacto:** Divergencia visual do PRD. Funcionalidade ok, mas UX nao segue o design especificado.
+### GAP 4 - MEDIO: Progressive Disclosure ausente no ChatInput
 
-**Correcao:** Manter os toggle buttons (a UX e melhor que um dropdown para apenas 3 opcoes), mas ajustar para que o icone do tipo Bug use `Settings2` (conforme PRD especifica "Settings2" e nao "Bug") e garantir que as cores correspondam exatamente ao PRD (vermelho #EF4444, roxo #7C3AED, azul #3B82F6).
+**Problema:** O ChatInput mostra 4 botoes de acao inline (Zap, Paperclip, MapPin, AtSign) em TODOS os viewports. No mobile, isso comprime a area de texto e viola a Secao 7.7.1:
+- MapPin e AtSign estao disabled ("em breve") - nao deveriam aparecer no mobile
+- A Secao 7.7.2 diz: "Acoes em linha" no mobile devem usar "Menu (tres pontos)"
 
-### GAP 5 - BAIXO: Modal de detalhes nao atualiza apos resolucao
+**Correcao:** 
+- Mobile: mostrar apenas Zap + Paperclip. Esconder MapPin e AtSign (disabled)
+- Tablet+: mostrar todos
 
-**Problema:** Quando o Super Admin clica "Marcar como Resolvido", o modal fecha imediatamente (`onClose()`). O PRD (RF-005) especifica que o modal deve permanecer aberto e atualizar para exibir as informacoes de resolucao (quem resolveu, quando).
+### GAP 5 - MEDIO: ContatoDrawer sem suporte mobile adequado
 
-**Impacto:** Super Admin nao ve confirmacao visual dentro do modal de que a resolucao foi salva. Precisa reabrir o item na tabela para confirmar.
+**Problema:** O drawer usa `fixed w-[320px]` em todas as viewports. No mobile:
+- Deveria ser fullscreen (w-full) conforme Secao 10.5 (Sheet)
+- Falta `padding-bottom: env(safe-area-inset-bottom)` para iOS
+- O z-index 301 esta correto per Design System (z-drawer: 300)
 
-**Correcao:** No `FeedbackDetalhesModal`, apos resolver com sucesso, atualizar o estado local do feedback para refletir o novo status ao inves de fechar o modal. Invalidar a query e recarregar os dados do feedback.
+**Correcao:** No mobile, drawer ocupa 100% da largura. Adicionar safe-area-inset-bottom.
 
-### GAP 6 - BAIXO: Falta "Marcar todas como lidas" fechar o dropdown
+### GAP 6 - BAIXO: AnexosMenu pode ficar cortado no mobile
 
-**Problema:** O PRD (RF-007) especifica que ao clicar "Marcar todas como lidas", o dropdown deve fechar. Atualmente o dropdown permanece aberto.
+**Problema:** O AnexosMenu usa `position: absolute bottom-full left-0` que pode sair da tela em mobiles pequenos. Design System Secao 10.6 recomenda `side offset: 4px` e posicionamento inteligente.
 
-**Correcao:** No `NotificacoesSino.tsx`, adicionar `setOpen(false)` apos chamar `marcarTodasLidas.mutate()`.
+**Correcao:** Adicionar `right-0` no mobile e verificar limites da tela. Alternativamente, usar fullscreen bottom-sheet no mobile.
 
-### GAP 7 - BAIXO: Falta Supabase Realtime para notificacoes
+### GAP 7 - BAIXO: MensagensProntasPopover sem responsividade
 
-**Problema:** O PRD (RF-007) especifica que o badge de notificacoes deve atualizar em tempo real via Supabase Realtime. A implementacao atual usa apenas polling a cada 30 segundos.
+**Problema:** O popover usa `absolute bottom-full left-0 right-0` com `max-h-[360px]`. No mobile, deveria ser um drawer/bottom sheet conforme Design System Secao 10.5 (Drawer Mobile).
 
-**Impacto:** Atraso de ate 30 segundos para o usuario ver que tem uma nova notificacao.
+**Correcao:** Em viewports < 768px, converter para overlay fullscreen com close no header.
 
-**Correcao:** Adicionar subscription Realtime no hook `useContagemNaoLidas` para a tabela `notificacoes` com filtro `usuario_id=eq.{userId}`. Ao receber evento INSERT, invalidar a query de contagem.
+### GAP 8 - BAIXO: ChatMessageBubble max-width nao usa breakpoints corretos
+
+**Problema:** Usa `max-w-[75%] lg:max-w-[60%]`. O Design System indica que em mobile as bolhas devem ocupar mais espaco (ate 85%) para leitura confortavel.
+
+**Correcao:** Usar `max-w-[85%] sm:max-w-[75%] lg:max-w-[60%]` para melhor aproveitamento em telas pequenas.
 
 ---
 
 ## Secao Tecnica
 
-### Migration SQL (GAP 1 + GAP 2)
+### 1. tailwind.config.ts (GAP 1)
 
-Criar migration unica com as seguintes operacoes:
+Adicionar no objeto `theme.extend`:
 
 ```text
--- GAP 1: Policy de UPDATE para feedbacks (Super Admin resolver)
-CREATE POLICY "super_admin_update_feedback" ON public.feedbacks
-  FOR UPDATE
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.usuarios u
-      WHERE u.auth_id = auth.uid()
-      AND u.role = 'super_admin'
-    )
-  );
-
--- GAP 2: Ajustar policies de notificacoes
--- Dropar a policy existente (FOR ALL) que bloqueia INSERT do Super Admin
-DROP POLICY IF EXISTS "usuario_proprias_notificacoes" ON public.notificacoes;
-
--- Recriar como SELECT + UPDATE apenas para o usuario dono
-CREATE POLICY "usuario_ler_notificacoes" ON public.notificacoes
-  FOR SELECT
-  USING (
-    usuario_id = (
-      SELECT u.id FROM public.usuarios u WHERE u.auth_id = auth.uid()
-    )
-  );
-
-CREATE POLICY "usuario_atualizar_notificacoes" ON public.notificacoes
-  FOR UPDATE
-  USING (
-    usuario_id = (
-      SELECT u.id FROM public.usuarios u WHERE u.auth_id = auth.uid()
-    )
-  );
-
--- INSERT: usuario pode criar para si mesmo OU super_admin pode criar para qualquer um
-CREATE POLICY "inserir_notificacao" ON public.notificacoes
-  FOR INSERT
-  WITH CHECK (
-    usuario_id = (
-      SELECT u.id FROM public.usuarios u WHERE u.auth_id = auth.uid()
-    )
-    OR
-    EXISTS (
-      SELECT 1 FROM public.usuarios u
-      WHERE u.auth_id = auth.uid()
-      AND u.role = 'super_admin'
-    )
-  );
+screens: {
+  'xs': '0px',
+  'sm': '480px',
+  'md': '768px',
+  'lg': '1024px',
+  'xl': '1280px',
+  '2xl': '1536px',
+  '3xl': '1920px',
+},
 ```
 
-### Alteracoes em Arquivos
+ATENCAO: Mudar `sm` de 640px para 480px afeta TODOS os `sm:` classes no projeto. Sera necessario revisar componentes que usam `sm:` para garantir que nao quebram. Os principais afetados sao:
+- AppLayout.tsx (nome usuario `hidden sm:block`, titulo toolbar `hidden sm:block`)
+- NovaConversaModal.tsx (padding `p-4 sm:p-6`)
+- ChatHeader.tsx (buscar `hidden sm:flex`)
 
-**1. `src/modules/admin/pages/EvolucaoPage.tsx` (GAP 3)**
-- Adicionar estado `empresa` para filtro de empresa
-- Adicionar query para buscar lista de organizacoes (`organizacoes_saas`)
-- Adicionar select de Empresa na barra de filtros
-- Passar `empresa_id` ao hook `useFeedbacksAdmin`
+### 2. ConversasPage.tsx + Toolbar Integration (GAP 2)
 
-**2. `src/modules/feedback/components/FeedbackPopover.tsx` (GAP 4)**
-- Trocar icone `Bug` por `Settings2` no tipo "bug" (conforme PRD)
-- Ajustar cores dos icones para corresponder exatamente ao PRD
+Refatorar o `useEffect` para popular o toolbar:
 
-**3. `src/modules/admin/components/FeedbackDetalhesModal.tsx` (GAP 5)**
-- Remover `onClose()` do handler de sucesso
-- Adicionar estado local mutavel para o feedback
-- Apos `resolver.mutateAsync`, atualizar estado local com novo status/data/resolvido_por
-- Adicionar prop `onResolved` para notificar o parent que a lista precisa ser atualizada
+```text
+// ConversasPage.tsx
+useEffect(() => {
+  // Toolbar: lado esquerdo vazio (titulo vem do AppLayout)
+  // Toolbar: lado direito = botao + Nova Conversa
+  setActions(
+    <button onClick={() => setNovaConversaAberta(true)}
+      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary-foreground bg-primary hover:bg-primary/90 rounded-md">
+      <Plus className="w-3.5 h-3.5" />
+      <span className="hidden sm:inline">Nova Conversa</span>
+    </button>
+  )
 
-**4. `src/modules/feedback/components/NotificacoesSino.tsx` (GAP 6)**
-- Adicionar `setOpen(false)` no onClick de "Marcar todas como lidas"
+  return () => { setActions(null); setSubtitle(null); setCenterContent(null) }
+}, [setActions, setSubtitle, setCenterContent])
+```
 
-**5. `src/modules/feedback/hooks/useNotificacoes.ts` (GAP 7)**
-- Adicionar `useEffect` com `supabase.channel('notificacoes-realtime')` para ouvir INSERTs na tabela `notificacoes`
-- Ao receber evento, chamar `queryClient.invalidateQueries(['notificacoes'])`
-- Cleanup do channel no return do useEffect
+Remover o header interno do painel esquerdo (linhas 70-80 do ConversasPage.tsx).
+
+No mobile com conversa ativa, ocultar toolbar condicionalmente.
+
+### 3. ChatHeader.tsx - Touch Targets (GAP 3)
+
+Aumentar padding dos botoes de acao de `p-1.5` para `p-2` com min-w/min-h:
+
+```text
+// De:
+className="p-1.5 rounded-md hover:bg-accent"
+
+// Para:
+className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md hover:bg-accent"
+```
+
+### 4. ChatInput.tsx - Progressive Disclosure (GAP 4)
+
+Esconder botoes disabled no mobile:
+
+```text
+// MapPin e AtSign - esconder em mobile
+<button className="p-1.5 ... hidden sm:flex" disabled>
+  <MapPin className="w-4 h-4" />
+</button>
+<button className="p-1.5 ... hidden sm:flex" disabled>
+  <AtSign className="w-4 h-4" />
+</button>
+```
+
+Aumentar touch targets dos botoes visiveis (Zap, Paperclip) para 44px.
+
+### 5. ContatoDrawer.tsx - Mobile Fullscreen (GAP 5)
+
+Ajustar largura responsiva e safe areas:
+
+```text
+// De:
+className="fixed right-0 top-0 bottom-0 z-[301] w-[320px] bg-white ..."
+
+// Para:
+className="fixed right-0 top-0 bottom-0 z-[301] w-full sm:w-[320px] bg-white ..."
+```
+
+Adicionar no container scrollable:
+
+```text
+className="flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom)]"
+```
+
+### 6. AnexosMenu.tsx - Posicionamento Mobile (GAP 6)
+
+Adicionar responsividade:
+
+```text
+// De:
+className="absolute bottom-full left-0 mb-1 z-[301] ..."
+
+// Para (mobile: centralizado, desktop: alinhado):
+className="absolute bottom-full left-0 right-0 sm:right-auto mb-1 z-[301] w-full sm:w-52 ..."
+```
+
+### 7. MensagensProntasPopover.tsx - Mobile Overlay (GAP 7)
+
+No mobile, usar overlay mais amigavel:
+
+```text
+// Adicionar classes responsivas
+className="absolute bottom-full left-0 right-0 mb-1 z-[301] ...
+  sm:max-h-[360px]
+  max-h-[70vh]
+"
+```
+
+### 8. ChatMessageBubble.tsx - Max Width (GAP 8)
+
+```text
+// De:
+className="max-w-[75%] lg:max-w-[60%]"
+
+// Para:
+className="max-w-[85%] sm:max-w-[75%] lg:max-w-[60%]"
+```
+
+### 9. FiltrosConversas.tsx - Touch Targets (GAP 3)
+
+Aumentar height dos tabs de canal:
+
+```text
+// De:
+className="px-2 py-1 text-xs ..."
+
+// Para:
+className="px-2.5 py-1.5 text-xs min-h-[36px] ..."
+```
+
+### Arquivos a Modificar
+
+| Arquivo | GAP(s) | Tipo |
+|---------|--------|------|
+| `tailwind.config.ts` | 1 | Configuracao |
+| `src/modules/conversas/pages/ConversasPage.tsx` | 2 | Refatoracao |
+| `src/modules/conversas/components/ChatHeader.tsx` | 3 | CSS |
+| `src/modules/conversas/components/ChatInput.tsx` | 3, 4 | CSS + Logica |
+| `src/modules/conversas/components/ContatoDrawer.tsx` | 5 | CSS |
+| `src/modules/conversas/components/AnexosMenu.tsx` | 6 | CSS |
+| `src/modules/conversas/components/MensagensProntasPopover.tsx` | 7 | CSS |
+| `src/modules/conversas/components/ChatMessageBubble.tsx` | 8 | CSS |
+| `src/modules/conversas/components/FiltrosConversas.tsx` | 3 | CSS |
+| `src/modules/conversas/components/ConversaItem.tsx` | 3 | CSS |
 
 ### Sequencia de Implementacao
 
-1. Migration SQL (GAP 1 + GAP 2) - sem isso nada funciona
-2. `FeedbackDetalhesModal.tsx` (GAP 5) - comportamento pos-resolucao
-3. `EvolucaoPage.tsx` (GAP 3) - filtro de empresa
-4. `FeedbackPopover.tsx` (GAP 4) - icones corretos
-5. `NotificacoesSino.tsx` (GAP 6) - fechar dropdown
-6. `useNotificacoes.ts` (GAP 7) - Supabase Realtime
+1. `tailwind.config.ts` (GAP 1) - Breakpoints corretos, impacta tudo
+2. `ConversasPage.tsx` (GAP 2) - Toolbar integration, remover header duplicado
+3. `ChatHeader.tsx` (GAP 3) - Touch targets
+4. `ChatInput.tsx` (GAP 3+4) - Touch targets + progressive disclosure
+5. `ContatoDrawer.tsx` (GAP 5) - Mobile fullscreen
+6. `FiltrosConversas.tsx` + `ConversaItem.tsx` (GAP 3) - Touch targets
+7. `AnexosMenu.tsx` (GAP 6) - Posicionamento mobile
+8. `MensagensProntasPopover.tsx` (GAP 7) - Mobile overlay
+9. `ChatMessageBubble.tsx` (GAP 8) - Max width responsivo
+
+### Riscos e Cuidados
+
+- **GAP 1 (Breakpoints)**: Alterar `sm` de 640px para 480px pode afetar outros modulos que usam `sm:`. Revisao necessaria em AppLayout, ContatosPage, NegociosPage apos a mudanca.
+- **GAP 2 (Toolbar)**: A remocao do header interno do painel esquerdo muda o layout visual. O botao "+ Nova" precisa ficar acessivel no mobile (via toolbar ou FAB).
+- Testes obrigatorios nos viewports: 360x800, 390x844, 768x1024, 1024x768, 1280x800, 1920x1080 (Secao 7.6).
