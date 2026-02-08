@@ -85,8 +85,7 @@ export function WhatsAppPipelineConfig({ sessaoId, onUpdate }: WhatsAppPipelineC
         .update({
           auto_criar_pre_oportunidade: newConfig.auto_criar_pre_oportunidade,
           funil_destino_id: newConfig.funil_destino_id,
-          atualizado_em: new Date().toISOString(),
-        } as any)
+        })
         .eq('id', sessaoId)
 
       if (error) throw error
@@ -110,8 +109,7 @@ export function WhatsAppPipelineConfig({ sessaoId, onUpdate }: WhatsAppPipelineC
         .from('sessoes_whatsapp')
         .update({
           funil_destino_id: funilId,
-          atualizado_em: new Date().toISOString(),
-        } as any)
+        })
         .eq('id', sessaoId)
 
       if (error) throw error
