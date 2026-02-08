@@ -3,12 +3,14 @@
  * Mesmo padrão dos hooks de conversas/contatos
  */
 
+import { useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { emailsApi } from '../services/emails.api'
 import type {
   ListarEmailsParams,
   AtualizarEmailPayload,
   AcaoLotePayload,
+  EnviarEmailPayload,
   SalvarRascunhoPayload,
 } from '../types/email.types'
 import { toast } from 'sonner'
@@ -68,6 +70,21 @@ export function useDeletarEmail() {
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Erro ao excluir email')
+    },
+  })
+}
+
+export function useEnviarEmail() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (payload: EnviarEmailPayload) => emailsApi.enviarEmail(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['emails'] })
+      toast.success('Email enviado com sucesso!')
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Erro ao enviar email')
     },
   })
 }
@@ -165,4 +182,25 @@ export function useConexoesEmail() {
     queryKey: ['emails', 'conexoes'],
     queryFn: () => emailsApi.listarConexoes(),
   })
+}
+
+// =====================================================
+// Notificação de novos emails
+// =====================================================
+
+export function useNewEmailNotification() {
+  const prevCount = useRef<number | null>(null)
+  const { data } = useContadorNaoLidos()
+
+  useEffect(() => {
+    if (data && prevCount.current !== null && data.inbox > prevCount.current) {
+      const newCount = data.inbox - prevCount.current
+      toast.info(`${newCount} novo${newCount > 1 ? 's' : ''} email${newCount > 1 ? 's' : ''}`, {
+        description: 'na caixa de entrada',
+      })
+    }
+    if (data) {
+      prevCount.current = data.inbox
+    }
+  }, [data?.inbox]) // eslint-disable-line react-hooks/exhaustive-deps
 }

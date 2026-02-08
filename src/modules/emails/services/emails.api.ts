@@ -14,6 +14,7 @@ import type {
   AtualizarEmailPayload,
   AcaoLotePayload,
   SalvarRascunhoPayload,
+  EnviarEmailPayload,
   ConexaoEmail,
 } from '../types/email.types'
 
@@ -210,6 +211,32 @@ export const emailsApi = {
 
     if (error) throw new Error(error.message)
     return { total: payload.ids.length }
+  },
+
+  /**
+   * Enviar email via Edge Function (SMTP)
+   */
+  enviarEmail: async (payload: EnviarEmailPayload): Promise<{ sucesso: boolean; mensagem: string }> => {
+    const { data, error } = await supabase.functions.invoke('send-email', {
+      body: {
+        to: payload.para_email,
+        subject: payload.assunto,
+        body: payload.corpo_html,
+        body_type: 'html',
+      },
+    })
+
+    if (error) throw new Error(error.message || 'Erro ao enviar email')
+    if (data && !data.sucesso) throw new Error(data.mensagem || 'Falha ao enviar email')
+
+    return data || { sucesso: true, mensagem: 'Email enviado' }
+  },
+
+  /**
+   * Download de anexo (TODO: implementar via edge function com Gmail API)
+   */
+  downloadAnexo: async (_emailId: string, _anexoId: string): Promise<Blob> => {
+    throw new Error('Download de anexos será disponibilizado em breve')
   },
 
   /**
