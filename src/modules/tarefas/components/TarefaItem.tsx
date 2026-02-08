@@ -84,7 +84,7 @@ export function TarefaItem({ tarefa, onConcluir, onClickOportunidade }: TarefaIt
 
   const oportunidade = tarefa.oportunidades
   const opLabel = oportunidade
-    ? `${oportunidade.titulo || 'Sem título'}${oportunidade.codigo ? ` #${oportunidade.codigo}` : ''}`
+    ? oportunidade.titulo || 'Sem título'
     : null
 
   const pipelineLabel = tarefa.funil_nome

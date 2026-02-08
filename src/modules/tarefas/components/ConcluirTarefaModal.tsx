@@ -24,7 +24,7 @@ export function ConcluirTarefaModal({
   const [observacao, setObservacao] = useState('')
 
   const opLabel = tarefa.oportunidades
-    ? `${tarefa.oportunidades.titulo || 'Sem título'}${tarefa.oportunidades.codigo ? ` #${tarefa.oportunidades.codigo}` : ''}`
+    ? tarefa.oportunidades.titulo || 'Sem título'
     : null
 
   return (

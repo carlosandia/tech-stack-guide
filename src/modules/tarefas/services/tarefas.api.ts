@@ -109,7 +109,6 @@ export interface TarefaComDetalhes {
   // Joins
   oportunidades?: {
     id: string
-    codigo: string | null
     titulo: string | null
     funil_id: string | null
     etapa_id: string | null
@@ -185,7 +184,7 @@ export const tarefasApi = {
       .from('tarefas')
       .select(`
         *,
-        oportunidades!tarefas_oportunidade_id_fkey(id, codigo, titulo, funil_id, etapa_id),
+        oportunidades!tarefas_oportunidade_id_fkey(id, titulo, funil_id, etapa_id),
         owner:usuarios!tarefas_owner_id_fkey(id, nome)
       `, { count: 'exact' })
       .eq('organizacao_id', organizacaoId)
