@@ -1,193 +1,342 @@
 
-# Plano: Modulo de Tarefas (PRD-10) - Frontend Completo
+
+# Plano: Modulo de Conversas (PRD-09) - Frontend Completo
 
 ## Visao Geral
 
-Criar o modulo de Tarefas como pagina centralizada de acompanhamento (`/app/tarefas`), conectando diretamente ao Supabase via RLS (mesmo padrao usado em Contatos e Negocios). O backend Express ja existe mas o frontend usara acesso direto ao Supabase, seguindo a arquitetura padrao do projeto.
+Implementar o frontend do modulo de Conversas como uma interface de chat estilo WhatsApp Web, acessivel em `/app/conversas`. O modulo se conecta ao backend Express existente via API REST (`api.ts` com Axios) e usa Supabase Realtime para atualizacoes em tempo real. A UX deve ser familiar para usuarios de WhatsApp, com split-view (lista a esquerda + chat a direita).
 
-## Arquitetura de Dados
+## Arquitetura
 
-O modulo usara a tabela `tarefas` que ja possui RLS com `get_user_tenant_id()`. A filtragem por role (Admin ve tudo, Member ve apenas suas) sera feita no frontend na camada de servico (`tarefas.api.ts`), verificando o role do usuario logado via tabela `usuarios`.
+O modulo de Conversas e diferente dos demais (Contatos, Negocios, Tarefas) pois comunica com o **backend Express** (nao acesso direto ao Supabase), utilizando o cliente Axios configurado em `src/lib/api.ts`. Isso porque as operacoes de envio de mensagem dependem de integracao com WAHA/Instagram que roda no backend.
 
-Tabelas consultadas:
-- `tarefas` - Dados principais (com filtro `oportunidade_id IS NOT NULL`)
-- `oportunidades` - Titulo, codigo, funil_id, etapa_id
-- `funis` - Nome do pipeline
-- `etapas_funil` - Nome da etapa
-- `usuarios` - Nome do responsavel (owner)
+```text
+Frontend (React) --> api.ts (Axios) --> Backend Express --> Supabase + WAHA
+                                                       --> Instagram API
+```
+
+Para atualizacoes em tempo real, usaremos **Supabase Realtime** para escutar inserts na tabela `mensagens` e updates na tabela `conversas`.
 
 ## Estrutura de Arquivos
 
 ```text
-src/modules/tarefas/
-  index.ts                          -- Barrel export
+src/modules/conversas/
+  index.ts                              -- Barrel export
   pages/
-    TarefasPage.tsx                 -- Pagina principal com metricas + filtros + lista
+    ConversasPage.tsx                   -- Pagina principal (split-view)
   components/
-    TarefasToolbar.tsx              -- Injeta acoes no AppToolbar via context
-    TarefasMetricasCards.tsx         -- 4 cards de metricas (Em Aberto, Atrasadas, Concluidas, Tempo Medio)
-    TarefasFiltros.tsx              -- Barra de filtros (Pipeline, Etapa, Status, Prioridade, Responsavel, Periodo, Busca)
-    TarefaItem.tsx                  -- Item individual da lista de tarefas
-    TarefasList.tsx                 -- Lista paginada de tarefas
-    ConcluirTarefaModal.tsx         -- Modal de confirmacao de conclusao
+    ConversasList.tsx                   -- Painel esquerdo: lista de conversas
+    ConversaItem.tsx                    -- Item individual na lista
+    ConversaEmpty.tsx                   -- Estado vazio (nenhuma conversa selecionada)
+    ChatWindow.tsx                      -- Painel direito: janela de chat
+    ChatHeader.tsx                      -- Header da conversa (foto, nome, acoes)
+    ChatMessages.tsx                    -- Area de mensagens com scroll
+    ChatMessageBubble.tsx              -- Bolha individual de mensagem
+    ChatInput.tsx                       -- Barra de entrada (textarea + acoes)
+    ContatoDrawer.tsx                   -- Drawer lateral com info do contato
+    NovaConversaModal.tsx              -- Modal para iniciar nova conversa
+    FiltrosConversas.tsx               -- Filtros (canal, status, busca)
+    MensagensProntasPopover.tsx        -- Popover de quick replies (/)
+    NotaPrivadaInput.tsx               -- Aba de nota privada no input
   hooks/
-    useTarefas.ts                   -- TanStack Query hooks (listar, metricas, concluir)
+    useConversas.ts                     -- TanStack Query hooks para conversas
+    useMensagens.ts                     -- TanStack Query hooks para mensagens
+    useMensagensProntas.ts             -- Hook para quick replies
+    useConversasRealtime.ts            -- Hook para Supabase Realtime
   services/
-    tarefas.api.ts                  -- Servico Supabase direto (queries, metricas, concluir)
+    conversas.api.ts                    -- Chamadas API REST via Axios
 ```
 
 ## Secao Tecnica
 
-### 1. Service Layer (`tarefas.api.ts`)
+### 1. Service Layer (`conversas.api.ts`)
 
-Seguindo o padrao de `negocios.api.ts` e `contatos.api.ts`:
-- Helpers `getOrganizacaoId()`, `getUsuarioId()`, `getUserRole()` para identificar usuario
-- Cache de IDs com reset no `onAuthStateChange`
-
-Funcoes principais:
-
-**`listarTarefas(filtros)`** - Query com joins:
-```text
-SELECT tarefas.*, 
-  oportunidades(id, codigo, titulo, funil_id, etapa_id, funis(id, nome), etapas_funil(id, nome)),
-  owner:usuarios!owner_id(id, nome)
-FROM tarefas
-WHERE organizacao_id = tenant
-  AND oportunidade_id IS NOT NULL
-  AND deletado_em IS NULL
-  [+ filtros dinamicos]
-```
-- Se role = 'member': adiciona `owner_id = usuario_id`
-- Se role = 'admin' e filtro responsavel: adiciona `owner_id = filtro`
-- Paginacao com `range(from, to)` e `count: 'exact'`
-- Ordenacao padrao: `data_vencimento ASC`
-
-**`obterMetricas(filtros)`** - 4 queries separadas (head: true, count: 'exact'):
-- Em aberto: `status IN ('pendente', 'em_andamento')`
-- Atrasadas: `status = 'pendente' AND data_vencimento < now()`
-- Concluidas: `status = 'concluida'` (no periodo)
-- Tempo medio: calculo manual com `data_conclusao - criado_em`
-
-**`concluirTarefa(tarefaId, observacao?)`** - Update:
-- Busca tarefa, valida permissao (Member so pode concluir suas)
-- Update `status = 'concluida'`, `data_conclusao = now()`
-- Append observacao na descricao se fornecida
-
-**`listarMembros()`** - Para o filtro de responsavel (apenas Admin):
-- Query `usuarios` onde `role = 'member'` OR `role = 'admin'`
-
-### 2. Hooks TanStack Query (`useTarefas.ts`)
+Todas as chamadas passam pelo `api` (Axios) configurado em `src/lib/api.ts`:
 
 ```text
-useTarefas(filtros)          -> queryKey: ['tarefas', filtros]
-useTarefasMetricas(filtros)  -> queryKey: ['tarefas-metricas', filtros]
-useConcluirTarefa()          -> mutation, invalida ['tarefas'] e ['tarefas-metricas']
+conversasApi = {
+  // Conversas
+  listar(filtros) --> GET /v1/conversas?canal=...&status=...&busca=...&page=...
+  buscarPorId(id) --> GET /v1/conversas/:id
+  criar(dados) --> POST /v1/conversas
+  alterarStatus(id, status) --> PATCH /v1/conversas/:id/status
+  marcarComoLida(id) --> POST /v1/conversas/:id/marcar-lida
+
+  // Mensagens
+  listarMensagens(conversaId, filtros) --> GET /v1/conversas/:id/mensagens
+  enviarTexto(conversaId, texto, replyTo?) --> POST /v1/conversas/:id/mensagens/texto
+  enviarMedia(conversaId, dados) --> POST /v1/conversas/:id/mensagens/media
+  enviarLocalizacao(conversaId, dados) --> POST /v1/conversas/:id/mensagens/localizacao
+  enviarContato(conversaId, vcard) --> POST /v1/conversas/:id/mensagens/contato
+  enviarEnquete(conversaId, dados) --> POST /v1/conversas/:id/mensagens/enquete
+
+  // Mensagens Prontas
+  listarProntas(filtros?) --> GET /v1/mensagens-prontas
+  criarPronta(dados) --> POST /v1/mensagens-prontas
+  atualizarPronta(id, dados) --> PATCH /v1/mensagens-prontas/:id
+  excluirPronta(id) --> DELETE /v1/mensagens-prontas/:id
+
+  // Notas do Contato
+  listarNotas(contatoId) --> GET /v1/contatos/:contatoId/notas
+  criarNota(contatoId, dados) --> POST /v1/contatos/:contatoId/notas
+}
 ```
 
-### 3. Pagina Principal (`TarefasPage.tsx`)
+### 2. Hooks TanStack Query
 
-Layout conforme Design System e PRD-10:
-- Toolbar (via `useAppToolbar`): Titulo "Acompanhamento" + Busca + Filtros
-- Body: Cards de metricas + Filtros expandidos + Lista paginada
+```text
+useConversas(filtros)          --> queryKey: ['conversas', filtros]
+useConversa(id)                --> queryKey: ['conversa', id]
+useMensagens(conversaId)       --> queryKey: ['mensagens', conversaId], infinite query (scroll up)
+useEnviarTexto()               --> mutation, invalida ['mensagens'] e ['conversas']
+useEnviarMedia()               --> mutation
+useMensagensProntas()          --> queryKey: ['mensagens-prontas']
+useNotasContato(contatoId)     --> queryKey: ['notas-contato', contatoId]
+```
+
+### 3. Supabase Realtime (`useConversasRealtime.ts`)
+
+```text
+Hook que escuta:
+1. INSERT na tabela "mensagens" filtrado por organizacao_id
+   --> Quando nova mensagem chega, invalida ['mensagens', conversaId]
+   --> Invalida ['conversas'] para atualizar preview/contadores
+
+2. UPDATE na tabela "conversas" filtrado por organizacao_id
+   --> Atualiza status, contadores de nao-lidas
+```
+
+### 4. Pagina Principal (`ConversasPage.tsx`)
+
+Layout split-view com 3 partes, sem toolbar do AppLayout (a pagina ocupa toda a area de conteudo):
+
+```text
++------------------------------------------+------------------------------------------+
+| PAINEL ESQUERDO (320px fixo no desktop)  | PAINEL DIREITO (flex-1)                  |
+|                                          |                                          |
+| [+ Nova Conversa]                        | ChatHeader (foto, nome, acoes)           |
+| [Buscar conversas...]                    | ChatMessages (scroll infinito)           |
+| [Filtros: Canal | Status]                | ChatInput (textarea + acoes)             |
+|                                          |                                          |
+| ConversaItem 1                           | -- OU --                                 |
+| ConversaItem 2                           |                                          |
+| ConversaItem 3                           | ConversaEmpty (estado sem selecao)       |
+| ...                                      |                                          |
++------------------------------------------+------------------------------------------+
+```
+
+**Responsividade:**
+- Desktop (>=1024px): Split-view com painel fixo 320px + chat flex
+- Tablet (768-1023px): Split-view com painel 280px
+- Mobile (<768px): Apenas lista visivel. Ao selecionar conversa, chat ocupa tela inteira com botao voltar
 
 **Estados gerenciados:**
-- Filtros: pipeline_id, etapa_id, status[], prioridade[], owner_id, data_inicio, data_fim, busca
-- Paginacao: page, limit (20)
-- Card ativo: filtro rapido ao clicar em um card de metrica
-- Modal de conclusao: tarefa selecionada
+- `conversaAtiva: string | null` -- ID da conversa selecionada
+- `filtros: { canal, status, busca }` -- Filtros da lista
+- `drawerAberto: boolean` -- Drawer de info do contato
+- `novaConversaAberta: boolean` -- Modal de nova conversa
 
-### 4. Cards de Metricas (`TarefasMetricasCards.tsx`)
+O componente limpa a toolbar via `useAppToolbar` pois tem sua propria interface.
 
-4 cards em grid responsivo:
-- **Em Aberto** (icone Clock, cor azul) - Clique filtra status=['pendente','em_andamento']
-- **Atrasadas** (icone AlertTriangle, cor vermelha, borda vermelha) - Clique filtra atrasadas
-- **Concluidas** (icone CheckCircle, cor verde) - Clique filtra status=['concluida']
-- **Tempo Medio** (icone Timer, cor cinza) - Apenas informativo
+### 5. Lista de Conversas (`ConversasList.tsx` + `ConversaItem.tsx`)
 
-Responsividade: `grid-cols-2 md:grid-cols-4`
+**ConversaItem exibe:**
+- Avatar do contato (foto ou inicial do nome em circulo colorido)
+- Nome do contato
+- Preview da ultima mensagem (truncado 50 chars) com icones por tipo:
+  - Texto: texto puro
+  - Imagem: "[icone Camera] Foto"
+  - Video: "[icone Video] Video"
+  - Audio: "[icone Mic] Audio 0:32"
+  - Documento: "[icone File] nome_arquivo.pdf"
+  - Localizacao: "[icone MapPin] Localizacao"
+  - Contato: "[icone User] Nome"
+  - Enquete: "[icone BarChart] Pergunta..."
+  - Sticker: "[icone Smile] Sticker"
+- Badge de canal: WhatsApp (icone verde) ou Instagram (icone gradiente roxo/rosa)
+- Horario relativo (Agora, 5 min, 14:30, Ontem, 25/01) usando date-fns
+- Badge de status colorido (Aberta=verde, Pendente=amarelo, Fechada=cinza)
+- Indicador de nao lidas (badge numerico azul)
+- Nome em negrito se nao lida
 
-### 5. Filtros (`TarefasFiltros.tsx`)
+**Scroll infinito:** Paginacao de 20 itens, carrega mais ao rolar para baixo.
 
-Conforme PRD-10 RF-003:
-- **Pipeline**: Select populado com `listarFunis()` (reusa hook existente `useFunis`)
-- **Etapa**: Select dependente da pipeline selecionada (carrega etapas dinamicamente)
-- **Status**: Multi-select (Pendente, Em Andamento, Concluida, Cancelada)
-- **Prioridade**: Multi-select (Baixa, Media, Alta, Urgente) com badges coloridos
-- **Responsavel**: Select visivel **apenas para Admin** - lista membros do tenant
-- **Periodo**: Date range (Hoje, Esta Semana, Este Mes, Personalizado)
-- **Busca**: Input de texto com debounce (300ms)
-- **Limpar Filtros**: Botao ghost para resetar
+**Ordenacao:** Ultima mensagem DESC (mais recente primeiro).
 
-Layout: Inline no desktop, drawer/modal no mobile conforme Design System 7.7
+### 6. Filtros (`FiltrosConversas.tsx`)
 
-### 6. Lista de Tarefas (`TarefasList.tsx` + `TarefaItem.tsx`)
+Barra compacta acima da lista:
+- **Busca:** Input com icone de lupa e debounce 300ms
+- **Canal:** Tabs compactas (Todas | WhatsApp | Instagram)
+- **Status:** Dropdown ou tabs (Todas | Abertas | Pendentes | Fechadas)
 
-Cada item exibe:
-- Checkbox para concluir (esquerda)
-- Icone por tipo (Phone, Mail, Calendar, MessageCircle/WhatsApp, MapPin, ClipboardList)
-- Titulo da tarefa (clicavel - abre modal de oportunidade)
-- Badge [ATRASADA] se `data_vencimento < now() AND status = 'pendente'`
-- Subtitulo: `Oportunidade: Titulo - #codigo  |  Pipeline: Nome  |  Etapa: Nome`
-- Data de vencimento (vermelho se atrasada, formatada com date-fns)
-- Badge de prioridade (cores conforme `prioridadeTarefaOptions`)
-- Nome do responsavel
-- Badge [Automatica] ou [Manual] baseado em `tarefa_template_id`
-- Botao "Concluir" (direita)
+### 7. Janela de Chat (`ChatWindow.tsx`)
 
-Paginacao: 20 itens por pagina com controles (Anterior/Proximo + indicador de pagina)
+Composicao de 3 partes: Header + Messages + Input
 
-Empty state: Icone grande CheckSquare + texto "Nenhuma tarefa encontrada" + descricao contextual
+**ChatHeader:**
+- Avatar + Nome do contato (clicavel para abrir drawer)
+- Subtitulo "Clique para info. do contato"
+- Acoes na direita: Buscar [Search], Nova Oportunidade [Plus], Menu [...] (alterar status)
 
-Loading state: Skeleton com 3-4 items placeholder
+**ChatMessages:**
+- Bolhas de mensagem alinhadas:
+  - Enviadas (from_me=true): direita, fundo `bg-primary/10` com borda `border-primary/20`
+  - Recebidas (from_me=false): esquerda, fundo `bg-muted`
+- Ticks de status por ACK:
+  - 1 (PENDING): 1 check cinza
+  - 2 (SENT): 2 checks cinza
+  - 3 (DELIVERED): 2 checks cinza
+  - 4 (READ): 2 checks azuis
+  - 5 (PLAYED): 2 checks azuis + icone play
+- Horario formatado em cada bolha
+- Separadores de data ("Hoje", "Ontem", "15/01/2026")
+- Scroll infinito para cima (mensagens mais antigas)
+- Auto-scroll para baixo ao abrir ou receber nova mensagem
 
-### 7. Modal de Conclusao (`ConcluirTarefaModal.tsx`)
+**ChatMessageBubble:** Renderiza por tipo:
+- `text`: Texto com suporte a formatacao (*negrito*, _italico_)
+- `image`: Thumbnail clicavel (lightbox)
+- `video`: Player inline com controles
+- `audio`: Player customizado com waveform e duracao
+- `document`: Card com icone do tipo + nome + tamanho + botao download
+- `location`: Preview estilizado com nome/endereco + link para Google Maps
+- `contact`: Card com dados do vCard
+- `poll`: Enquete com opcoes e votos
+- `reaction`: Emoji sobre mensagem referenciada
+- `sticker`: Imagem de sticker (tamanho fixo 150x150)
 
-Usa o padrao `ModalBase` existente:
-- Icone CheckCircle verde
-- Titulo: "Concluir Tarefa"
-- Exibe titulo da tarefa + nome da oportunidade
-- Campo textarea opcional para observacao (max 1000 chars)
-- Botoes: Cancelar (outline) + Concluir Tarefa (primary)
-- Toast de sucesso ao concluir
+**ChatInput:**
+- Tabs: [Responder] [Nota Privada]
+- Na aba Responder:
+  - Icones: Emoji (futuro), Raio (mensagens prontas), Clip (anexos), Mic (gravacao)
+  - Textarea auto-expansivel (max 6 linhas)
+  - Shift+Enter = nova linha, Enter = enviar
+  - Botao Enviar (icone Send) aparece quando tem texto
+  - Icone de Mic aparece quando textarea vazio (para gravacao de audio)
+- Na aba Nota Privada:
+  - Fundo amarelo claro (`bg-yellow-50`)
+  - Aviso "Esta nota e interna e nao sera enviada ao contato"
+  - Textarea + botao "Salvar Nota"
+  - Salva via API de notas do contato
 
-### 8. Integracao com Modal de Oportunidade
+### 8. Drawer Lateral (`ContatoDrawer.tsx`)
 
-Ao clicar no titulo da tarefa ou no nome da oportunidade, abre o `DetalhesOportunidadeModal` existente. Sera necessario importar o modal e passar os dados necessarios (oportunidadeId, funilId, etapas).
+Desliza da direita ao clicar no header do chat:
+- Foto grande do contato (80x80px)
+- Nome, email, telefone, empresa
+- Botoes de acao: Nova mensagem, Nova tarefa, Nova oportunidade
+- Secao expansivel: Notas do Contato (lista + adicionar)
+- Secao expansivel: Mensagens Prontas (lista + adicionar)
+- Secao expansivel: Informacoes da Conversa (status, canal, total, datas)
 
-### 9. Roteamento
+### 9. Nova Conversa (`NovaConversaModal.tsx`)
 
-Adicionar rota `/app/tarefas` no `App.tsx`:
+Modal usando ModalBase:
+- Campo de telefone com mascara brasileira (+55)
+- OU busca de contato existente (debounce 300ms)
+- Textarea para mensagem inicial (obrigatorio)
+- Botoes: Cancelar + Iniciar Conversa
+- Ao criar, seleciona a conversa e abre o chat
+
+### 10. Mensagens Prontas (`MensagensProntasPopover.tsx`)
+
+Acionado de 2 formas:
+1. Digitar "/" no textarea
+2. Clicar no icone de raio
+
+Popover com:
+- Busca com debounce 200ms
+- Secao "Minhas Mensagens" (pessoais)
+- Secao "Mensagens da Equipe" (globais)
+- Click insere conteudo no textarea
+- Botao [+ Nova mensagem pronta] abre sub-modal de criacao
+
+### 11. Roteamento
+
+Adicionar rota `/app/conversas` no `App.tsx` (dentro do bloco `<Route path="/app">`):
+
 ```text
-<Route path="tarefas" element={<TarefasPage />} />
+<Route path="conversas" element={<ConversasPage />} />
 ```
 
-O menu "Tarefas" ja existe no `AppLayout.tsx` (item com icone CheckSquare, path `/app/tarefas`). Apenas precisa da pagina.
+O menu "Conversas" ja existe no `AppLayout.tsx`.
 
-### 10. Barrel Export (`index.ts`)
+### 12. Barrel Export (`index.ts`)
 
 ```text
-export { default as TarefasPage } from './pages/TarefasPage'
+export { default as ConversasPage } from './pages/ConversasPage'
 ```
 
 ## Design System - Conformidade
 
-Todos os componentes seguirao:
-- **Tipografia**: Inter, `text-sm` para corpo, `text-xs` para captions/badges
-- **Espacamento**: Base 8px, `gap-4` entre cards, `space-y-3` entre items
-- **Border Radius**: `rounded-lg` para cards, `rounded-md` para inputs/botoes, `rounded-full` para badges
-- **Glass Effect**: Toolbar com `bg-gray-50/50 backdrop-blur-sm`
-- **Transicoes**: `transition-all duration-200`
-- **Cores semanticas**: Usar variaveis CSS (--primary, --destructive, etc.)
-- **Hover states**: `hover:bg-muted/50` em items de lista
-- **Z-index**: Conforme escala padronizada
-- **Responsividade**: Mobile-first, cards empilhados no mobile, filtros em drawer
+O modulo segue rigorosamente o `docs/designsystem.md`:
+
+- **Layout:** Split-view sem toolbar adicional (o chat e full-height)
+- **Tipografia:** Inter, `text-sm` para mensagens, `text-xs` para horarios e badges
+- **Espacamento:** Base 8px, `gap-3` entre bolhas, `p-3` em itens da lista
+- **Border Radius:** `rounded-lg` para bolhas de mensagem, `rounded-full` para avatares e badges, `rounded-md` para inputs
+- **Glass Effect:** Header do chat e painel esquerdo com `bg-white/80 backdrop-blur-md`
+- **Cores semanticas:**
+  - WhatsApp: `#25D366` (verde oficial)
+  - Instagram: gradiente `from-purple-500 to-pink-500`
+  - Bolha enviada: `bg-primary/10`
+  - Bolha recebida: `bg-muted`
+  - Status Aberta: `bg-green-100 text-green-700`
+  - Status Pendente: `bg-yellow-100 text-yellow-700`
+  - Status Fechada: `bg-gray-100 text-gray-500`
+- **Transicoes:** `transition-all duration-200`
+- **Z-index:** Drawer z-300, modal z-400/401 (padrao ModalBase)
+- **Responsividade:** Mobile-first, split-view colapsa para tela unica no mobile
+
+## Diferencial UX (estilo WhatsApp Web)
+
+Para o usuario se sentir a vontade:
+- Background sutil com padrao de fundo na area de mensagens (similar ao WhatsApp)
+- Bolhas com "cauda" (triangle pointer) na lateral
+- Avatar circular com fallback de iniciais coloridas
+- Preview de imagens/videos inline
+- Player de audio customizado com barra de progresso
+- Indicador "digitando..." (futuro, via Realtime)
+- Animacao suave ao receber nova mensagem (slide-in)
+- Som de notificacao ao receber mensagem (configuravel, futuro)
 
 ## Sequencia de Implementacao
 
-1. Criar `tarefas.api.ts` (service layer com Supabase direto)
-2. Criar `useTarefas.ts` (hooks TanStack Query)
-3. Criar componentes UI (MetricasCards, Filtros, TarefaItem, TarefasList, ConcluirModal)
-4. Criar `TarefasToolbar.tsx` (injeta no AppToolbar)
-5. Criar `TarefasPage.tsx` (composicao de tudo)
-6. Criar `index.ts` (barrel export)
-7. Registrar rota no `App.tsx`
+1. `conversas.api.ts` -- Service layer com todas chamadas Axios
+2. `useConversas.ts` + `useMensagens.ts` + `useMensagensProntas.ts` -- Hooks TanStack Query
+3. `useConversasRealtime.ts` -- Hook Supabase Realtime
+4. `ConversaItem.tsx` + `ConversasList.tsx` -- Lista de conversas
+5. `FiltrosConversas.tsx` -- Filtros da lista
+6. `ChatMessageBubble.tsx` -- Bolha de mensagem (todos os tipos)
+7. `ChatMessages.tsx` -- Area de mensagens com scroll
+8. `ChatInput.tsx` + `NotaPrivadaInput.tsx` -- Barra de entrada
+9. `MensagensProntasPopover.tsx` -- Quick replies
+10. `ChatHeader.tsx` -- Header do chat
+11. `ChatWindow.tsx` -- Composicao do chat
+12. `ConversaEmpty.tsx` -- Estado vazio
+13. `ContatoDrawer.tsx` -- Drawer de info do contato
+14. `NovaConversaModal.tsx` -- Modal de nova conversa
+15. `ConversasPage.tsx` -- Pagina principal (composicao)
+16. `index.ts` -- Barrel export
+17. `App.tsx` -- Registro da rota
+
+## Escopo MVP (primeira entrega)
+
+Para manter a entrega focada e funcional:
+- Lista de conversas com filtros
+- Chat com envio/recebimento de texto
+- Renderizacao basica de todos tipos de mensagem
+- Mensagens prontas (listar e usar)
+- Notas privadas (criar)
+- Status de atendimento (alterar)
+- Drawer com info do contato
+- Nova conversa (via WhatsApp)
+- Realtime para novas mensagens
+
+**Nao incluido no MVP** (sera implementado em fases futuras):
+- Gravacao de audio nativo (RF-009)
+- Agendamento de mensagens (RF-011)
+- Upload de arquivos/fotos via drag-and-drop (RF-006 parcial)
+- Enquetes (RF-007 parcial, apenas visualizacao)
+
