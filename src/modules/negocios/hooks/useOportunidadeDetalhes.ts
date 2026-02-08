@@ -24,6 +24,7 @@ export function useExcluirOportunidade() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['kanban'] })
       queryClient.invalidateQueries({ queryKey: ['oportunidade'] })
+      queryClient.invalidateQueries({ queryKey: ['historico'] })
     },
   })
 }
@@ -46,6 +47,7 @@ export function useAtualizarOportunidade() {
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['oportunidade', variables.id] })
       queryClient.invalidateQueries({ queryKey: ['kanban'] })
+      queryClient.invalidateQueries({ queryKey: ['historico', variables.id] })
     },
   })
 }
@@ -59,6 +61,7 @@ export function useAtualizarContato() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['oportunidade'] })
       queryClient.invalidateQueries({ queryKey: ['kanban'] })
+      queryClient.invalidateQueries({ queryKey: ['historico'] })
     },
   })
 }
@@ -80,6 +83,7 @@ export function useCriarAnotacao() {
       negociosApi.criarAnotacaoTexto(oportunidadeId, conteudo),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['anotacoes', variables.oportunidadeId] })
+      queryClient.invalidateQueries({ queryKey: ['historico', variables.oportunidadeId] })
     },
   })
 }
@@ -96,6 +100,7 @@ export function useCriarAnotacaoAudio() {
     }) => detalhesApi.criarAnotacaoComAudio(oportunidadeId, audioBlob, duracaoSegundos, conteudo),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['anotacoes', variables.oportunidadeId] })
+      queryClient.invalidateQueries({ queryKey: ['historico', variables.oportunidadeId] })
     },
   })
 }
@@ -108,6 +113,7 @@ export function useAtualizarAnotacao() {
       negociosApi.atualizarAnotacao(anotacaoId, conteudo),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['anotacoes'] })
+      queryClient.invalidateQueries({ queryKey: ['historico'] })
     },
   })
 }
@@ -119,6 +125,7 @@ export function useExcluirAnotacao() {
     mutationFn: (anotacaoId: string) => negociosApi.excluirAnotacao(anotacaoId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['anotacoes'] })
+      queryClient.invalidateQueries({ queryKey: ['historico'] })
     },
   })
 }

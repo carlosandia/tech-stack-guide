@@ -65,6 +65,7 @@ export function useMoverEtapa() {
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['kanban'] })
       queryClient.invalidateQueries({ queryKey: ['oportunidade', variables.oportunidadeId] })
+      queryClient.invalidateQueries({ queryKey: ['historico', variables.oportunidadeId] })
     },
   })
 }
@@ -76,6 +77,7 @@ export function useCriarOportunidade() {
     mutationFn: negociosApi.criarOportunidade,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['kanban'] })
+      queryClient.invalidateQueries({ queryKey: ['historico'] })
     },
   })
 }
@@ -99,6 +101,7 @@ export function useFecharOportunidade() {
     }) => negociosApi.fecharOportunidade(oportunidadeId, tipo, etapaDestinoId, motivoId, observacoes),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['kanban'] })
+      queryClient.invalidateQueries({ queryKey: ['historico'] })
     },
   })
 }

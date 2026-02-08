@@ -36,6 +36,7 @@ export function useCriarTarefa() {
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['tarefas_oportunidade', variables.oportunidadeId] })
       queryClient.invalidateQueries({ queryKey: ['kanban'] })
+      queryClient.invalidateQueries({ queryKey: ['historico'] })
     },
   })
 }
@@ -48,6 +49,7 @@ export function useAtualizarStatusTarefa() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tarefas_oportunidade'] })
       queryClient.invalidateQueries({ queryKey: ['kanban'] })
+      queryClient.invalidateQueries({ queryKey: ['historico'] })
     },
   })
 }
@@ -59,6 +61,7 @@ export function useExcluirTarefa() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tarefas_oportunidade'] })
       queryClient.invalidateQueries({ queryKey: ['kanban'] })
+      queryClient.invalidateQueries({ queryKey: ['historico'] })
     },
   })
 }
@@ -83,6 +86,7 @@ export function useUploadDocumento() {
       detalhesApi.uploadDocumento(oportunidadeId, file),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['documentos_oportunidade'] })
+      queryClient.invalidateQueries({ queryKey: ['historico'] })
     },
   })
 }
@@ -94,6 +98,7 @@ export function useExcluirDocumento() {
       detalhesApi.excluirDocumento(documentoId, storagePath),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['documentos_oportunidade'] })
+      queryClient.invalidateQueries({ queryKey: ['historico'] })
     },
   })
 }
@@ -121,6 +126,7 @@ export function useCriarEmail() {
     }) => detalhesApi.criarEmail(oportunidadeId, payload, enviar),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['emails_oportunidade', variables.oportunidadeId] })
+      queryClient.invalidateQueries({ queryKey: ['historico'] })
     },
   })
 }
@@ -166,6 +172,7 @@ export function useCriarReuniao() {
     }) => detalhesApi.criarReuniao(oportunidadeId, payload),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['reunioes_oportunidade', variables.oportunidadeId] })
+      queryClient.invalidateQueries({ queryKey: ['historico'] })
     },
   })
 }
@@ -186,6 +193,7 @@ export function useAtualizarStatusReuniao() {
     }) => detalhesApi.atualizarStatusReuniao(reuniaoId, status, extras),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reunioes_oportunidade'] })
+      queryClient.invalidateQueries({ queryKey: ['historico'] })
     },
   })
 }
@@ -196,6 +204,7 @@ export function useExcluirReuniao() {
     mutationFn: (reuniaoId: string) => detalhesApi.excluirReuniao(reuniaoId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reunioes_oportunidade'] })
+      queryClient.invalidateQueries({ queryKey: ['historico'] })
     },
   })
 }
@@ -237,6 +246,7 @@ export function useReagendarReuniao() {
     }) => detalhesApi.reagendarReuniao(reuniaoOriginalId, oportunidadeId, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reunioes_oportunidade'] })
+      queryClient.invalidateQueries({ queryKey: ['historico'] })
     },
   })
 }
