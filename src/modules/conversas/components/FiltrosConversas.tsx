@@ -1,11 +1,11 @@
 /**
  * AIDEV-NOTE: Filtros de conversas (busca, canal, status)
- * Usa tabs estilizadas para canal e status (sem select nativo)
+ * Canal: tabs inline | Status: select estilizado (compacto, uma linha)
  * Ícone Instagram incluído
  */
 
-import { useState, useEffect } from 'react'
-import { Search, X } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Search, X, ChevronDown } from 'lucide-react'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import { InstagramIcon } from '@/shared/components/InstagramIcon'
 
@@ -40,6 +40,8 @@ export function FiltrosConversas({
   onBuscaChange,
 }: FiltrosConversasProps) {
   const [buscaLocal, setBuscaLocal] = useState(busca || '')
+  const [statusOpen, setStatusOpen] = useState(false)
+  const statusRef = useRef<HTMLDivElement>(null)
 
   // Debounce busca
   useEffect(() => {
@@ -49,8 +51,21 @@ export function FiltrosConversas({
     return () => clearTimeout(timer)
   }, [buscaLocal])
 
+  // Fechar dropdown ao clicar fora
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (statusRef.current && !statusRef.current.contains(e.target as Node)) {
+        setStatusOpen(false)
+      }
+    }
+    if (statusOpen) document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [statusOpen])
+
+  const statusLabel = statuses.find(s => s.value === status)?.label || 'Todas'
+
   return (
-    <div className="flex-shrink-0 px-3 py-2 space-y-2 border-b border-border/50 overflow-hidden">
+    <div className="flex-shrink-0 px-3 py-2 space-y-2 border-b border-border/50">
       {/* Busca */}
       <div className="relative">
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -71,14 +86,14 @@ export function FiltrosConversas({
         )}
       </div>
 
-      {/* Canal tabs + Status tabs — tudo em uma linha */}
-      <div className="flex items-center gap-1 overflow-hidden">
+      {/* Canal tabs + Status select — uma única linha */}
+      <div className="flex items-center gap-1">
         {canais.map((c) => (
           <button
             key={c.label}
             onClick={() => onCanalChange(c.value)}
             className={`
-              flex items-center gap-1 px-2 py-1 text-xs rounded-md font-medium transition-all duration-200 whitespace-nowrap
+              flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md font-medium transition-all duration-200 whitespace-nowrap
               ${canal === c.value
                 ? 'bg-primary/10 text-primary'
                 : 'text-muted-foreground hover:text-foreground hover:bg-accent'
@@ -90,23 +105,47 @@ export function FiltrosConversas({
           </button>
         ))}
 
-        <div className="w-px h-4 bg-border mx-0.5 flex-shrink-0" />
+        <div className="w-px h-4 bg-border mx-1 flex-shrink-0" />
 
-        {statuses.map((s) => (
+        {/* Status — custom select dropdown */}
+        <div ref={statusRef} className="relative">
           <button
-            key={s.label}
-            onClick={() => onStatusChange(s.value)}
+            onClick={() => setStatusOpen(!statusOpen)}
             className={`
-              px-2 py-1 text-xs rounded-md font-medium transition-all duration-200 whitespace-nowrap
-              ${status === s.value
+              flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md font-medium transition-all duration-200 whitespace-nowrap
+              ${status
                 ? 'bg-primary/10 text-primary'
                 : 'text-muted-foreground hover:text-foreground hover:bg-accent'
               }
             `}
           >
-            {s.label}
+            {statusLabel}
+            <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${statusOpen ? 'rotate-180' : ''}`} />
           </button>
-        ))}
+
+          {statusOpen && (
+            <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-border rounded-lg shadow-lg py-1 min-w-[120px]">
+              {statuses.map((s) => (
+                <button
+                  key={s.label}
+                  onClick={() => {
+                    onStatusChange(s.value)
+                    setStatusOpen(false)
+                  }}
+                  className={`
+                    block w-full text-left px-3 py-1.5 text-xs transition-colors duration-150
+                    ${status === s.value
+                      ? 'bg-primary/10 text-primary font-medium'
+                      : 'text-foreground hover:bg-accent'
+                    }
+                  `}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
