@@ -1323,7 +1323,9 @@ export const integracoesApi = {
   desconectar: async (plataforma: PlataformaIntegracao, _id?: string) => {
     const routePlataforma = plataforma === 'meta_ads' ? 'meta' : plataforma
     if (routePlataforma === 'whatsapp') {
-      await api.post('/v1/conexoes/whatsapp/desconectar')
+      await supabase.functions.invoke('waha-proxy', {
+        body: { action: 'desconectar' },
+      })
     } else {
       await api.delete(`/v1/conexoes/${routePlataforma}`)
     }
@@ -1334,22 +1336,34 @@ export const integracoesApi = {
     return { success: true }
   },
 
-  // WhatsApp específico
+  // WhatsApp específico - via Edge Function waha-proxy
   whatsapp: {
     iniciarSessao: async () => {
-      const { data } = await api.post('/v1/conexoes/whatsapp/iniciar')
+      const { data, error } = await supabase.functions.invoke('waha-proxy', {
+        body: { action: 'iniciar' },
+      })
+      if (error) throw new Error(error.message || 'Erro ao iniciar sessão WAHA')
       return data
     },
     obterQrCode: async (): Promise<WhatsAppQrCodeResult> => {
-      const { data } = await api.get('/v1/conexoes/whatsapp/qr-code')
-      return data
+      const { data, error } = await supabase.functions.invoke('waha-proxy', {
+        body: { action: 'qr_code' },
+      })
+      if (error) throw new Error(error.message || 'Erro ao obter QR Code')
+      return data as WhatsAppQrCodeResult
     },
     obterStatus: async (): Promise<WhatsAppStatusResult> => {
-      const { data } = await api.get('/v1/conexoes/whatsapp/status')
-      return data
+      const { data, error } = await supabase.functions.invoke('waha-proxy', {
+        body: { action: 'status' },
+      })
+      if (error) throw new Error(error.message || 'Erro ao obter status')
+      return data as WhatsAppStatusResult
     },
     desconectar: async () => {
-      await api.post('/v1/conexoes/whatsapp/desconectar')
+      const { error } = await supabase.functions.invoke('waha-proxy', {
+        body: { action: 'desconectar' },
+      })
+      if (error) throw new Error(error.message || 'Erro ao desconectar')
     },
   },
 
