@@ -44,8 +44,9 @@ export function WhatsAppPipelineConfig({ sessaoId, onUpdate }: WhatsAppPipelineC
             .from('funis')
             .select('id, nome')
             .eq('ativo', true)
+            .eq('arquivado', false)
             .is('deletado_em', null)
-            .order('ordem', { ascending: true }),
+            .order('nome', { ascending: true }),
         ])
 
         if (sessaoRes.data) {
