@@ -5,7 +5,7 @@
  */
 
 import { useState } from 'react'
-import { X, Phone, Mail, ChevronDown, ChevronRight, Loader2, MessageSquare, Zap, ListTodo, TrendingUp, Trash2, ExternalLink } from 'lucide-react'
+import { X, Phone, Mail, ChevronDown, ChevronRight, Loader2, MessageSquare, Zap, ListTodo, TrendingUp, Trash2, ExternalLink, Check, Clock, AlertTriangle } from 'lucide-react'
 import { InstagramIcon } from '@/shared/components/InstagramIcon'
 import { CriarTarefaConversaModal } from './CriarTarefaConversaModal'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -13,7 +13,8 @@ import { conversasApi, type Conversa, type NotaContato, type MensagemPronta } fr
 import { useMensagensProntas } from '../hooks/useMensagensProntas'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import { supabase } from '@/lib/supabase'
-import { format } from 'date-fns'
+import { format, isPast } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 import { toast } from 'sonner'
 import { useNavigate } from 'react-router-dom'
 
@@ -69,6 +70,99 @@ function ActionButton({ icon: Icon, label, onClick, variant = 'default' }: {
       <Icon className="w-4 h-4" />
       <span className="text-[10px] font-medium">{label}</span>
     </button>
+  )
+}
+
+// Seção de histórico de tarefas (pendentes + concluídas)
+function TarefasHistorico({ contatoId }: { contatoId: string }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['tarefas-historico', contatoId],
+    queryFn: async () => {
+      const { data: tarefas, error } = await supabase
+        .from('tarefas')
+        .select('id, titulo, tipo, prioridade, status, data_vencimento, data_conclusao, criado_em')
+        .eq('contato_id', contatoId)
+        .is('deletado_em', null)
+        .order('criado_em', { ascending: false })
+        .limit(30)
+      if (error) throw error
+      return tarefas || []
+    },
+    enabled: !!contatoId,
+  })
+
+  const tarefas = data || []
+  const pendentes = tarefas.filter((t: any) => t.status !== 'concluida')
+  const concluidas = tarefas.filter((t: any) => t.status === 'concluida')
+
+  const prioridadeCor: Record<string, string> = {
+    urgente: 'text-destructive',
+    alta: 'text-warning-foreground',
+    media: 'text-foreground',
+    baixa: 'text-muted-foreground',
+  }
+
+  return (
+    <SectionCollapsible title="Tarefas" icon={<ListTodo className="w-3.5 h-3.5 text-primary" />} defaultOpen>
+      {isLoading ? (
+        <div className="flex justify-center py-3">
+          <Loader2 className="w-5 h-5 text-muted-foreground animate-spin" />
+        </div>
+      ) : tarefas.length === 0 ? (
+        <p className="text-xs text-muted-foreground">Nenhuma tarefa registrada</p>
+      ) : (
+        <div className="space-y-1">
+          {/* Pendentes */}
+          {pendentes.length > 0 && (
+            <>
+              <p className="text-[10px] font-medium text-muted-foreground uppercase">Pendentes ({pendentes.length})</p>
+              {pendentes.map((t: any) => {
+                const vencida = t.data_vencimento && isPast(new Date(t.data_vencimento))
+                return (
+                  <div key={t.id} className="p-2 rounded-md border border-border/30 hover:bg-accent/30 transition-colors">
+                    <p className={`text-xs font-medium truncate ${prioridadeCor[t.prioridade] || 'text-foreground'}`}>
+                      {t.titulo}
+                    </p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-[10px] text-muted-foreground capitalize">{t.tipo}</span>
+                      {t.data_vencimento && (
+                        <span className={`flex items-center gap-0.5 text-[10px] ${vencida ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+                          {vencida ? <AlertTriangle className="w-2.5 h-2.5" /> : <Clock className="w-2.5 h-2.5" />}
+                          {format(new Date(t.data_vencimento), "dd/MM 'às' HH:mm", { locale: ptBR })}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </>
+          )}
+
+          {/* Concluídas */}
+          {concluidas.length > 0 && (
+            <>
+              <p className="text-[10px] font-medium text-muted-foreground uppercase mt-2">Concluídas ({concluidas.length})</p>
+              {concluidas.map((t: any) => (
+                <div key={t.id} className="p-2 rounded-md border border-border/20 opacity-70">
+                  <div className="flex items-center gap-1.5">
+                    <Check className="w-3 h-3 text-success flex-shrink-0" />
+                    <p className="text-xs text-muted-foreground line-through truncate">{t.titulo}</p>
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5 ml-[18px]">
+                    <span className="text-[10px] text-muted-foreground capitalize">{t.tipo}</span>
+                    {t.data_conclusao && (
+                      <span className="text-[10px] text-muted-foreground">
+                        Concluída em {format(new Date(t.data_conclusao), "dd/MM/yyyy", { locale: ptBR })}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+    </SectionCollapsible>
   )
 }
 
@@ -383,6 +477,9 @@ export function ContatoDrawer({ conversa, isOpen, onClose, onInsertQuickReply, o
               </div>
             )}
           </SectionCollapsible>
+
+          {/* Tarefas do Contato (histórico completo) */}
+          <TarefasHistorico contatoId={conversa.contato_id} />
 
           {/* Oportunidades do Contato */}
           <OportunidadesContato contatoId={conversa.contato_id} navigate={navigate} />

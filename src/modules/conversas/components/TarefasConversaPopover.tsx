@@ -1,17 +1,18 @@
 /**
  * AIDEV-NOTE: Popover de tarefas do contato no header do chat
  * Lista tarefas pendentes vinculadas ao contato da conversa
- * Permite concluir tarefas diretamente
+ * Permite concluir tarefas e criar novas diretamente
  * Usa React Portal para evitar problemas de z-index
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { ListTodo, Check, Loader2, Clock, AlertTriangle } from 'lucide-react'
+import { ListTodo, Check, Loader2, Clock, AlertTriangle, Plus } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import { format, isPast } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { CriarTarefaConversaModal } from './CriarTarefaConversaModal'
 
 interface Tarefa {
   id: string
@@ -25,6 +26,8 @@ interface Tarefa {
 
 interface TarefasConversaPopoverProps {
   contatoId: string
+  contatoNome?: string
+  canal?: 'whatsapp' | 'instagram'
 }
 
 const prioridadeCor: Record<string, string> = {
@@ -34,11 +37,12 @@ const prioridadeCor: Record<string, string> = {
   baixa: 'text-muted-foreground',
 }
 
-export function TarefasConversaPopover({ contatoId }: TarefasConversaPopoverProps) {
+export function TarefasConversaPopover({ contatoId, contatoNome, canal }: TarefasConversaPopoverProps) {
   const [open, setOpen] = useState(false)
   const [tarefas, setTarefas] = useState<Tarefa[]>([])
   const [loading, setLoading] = useState(false)
   const [concluindo, setConcluindo] = useState<string | null>(null)
+  const [criarModalOpen, setCriarModalOpen] = useState(false)
   const [pos, setPos] = useState({ top: 0, right: 0 })
   const btnRef = useRef<HTMLButtonElement>(null)
 
@@ -113,6 +117,17 @@ export function TarefasConversaPopover({ contatoId }: TarefasConversaPopoverProp
     }
   }
 
+  const handleCriarTarefa = () => {
+    setOpen(false)
+    setCriarModalOpen(true)
+  }
+
+  const handleModalClose = () => {
+    setCriarModalOpen(false)
+    // Recarregar tarefas ao fechar modal
+    carregarTarefas()
+  }
+
   const totalPendentes = tarefas.length
 
   return (
@@ -144,11 +159,21 @@ export function TarefasConversaPopover({ contatoId }: TarefasConversaPopoverProp
             }}
           >
             {/* Header */}
-            <div className="px-3 py-2.5 border-b border-border" style={{ backgroundColor: 'hsl(var(--muted))' }}>
-              <p className="text-sm font-semibold text-foreground">Tarefas do Contato</p>
-              <p className="text-[11px] text-muted-foreground">
-                {totalPendentes} pendente{totalPendentes !== 1 ? 's' : ''}
-              </p>
+            <div className="flex items-center justify-between px-3 py-2.5 border-b border-border" style={{ backgroundColor: 'hsl(var(--muted))' }}>
+              <div>
+                <p className="text-sm font-semibold text-foreground">Tarefas do Contato</p>
+                <p className="text-[11px] text-muted-foreground">
+                  {totalPendentes} pendente{totalPendentes !== 1 ? 's' : ''}
+                </p>
+              </div>
+              <button
+                onClick={handleCriarTarefa}
+                className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/10 rounded-md transition-all duration-200"
+                title="Nova tarefa"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Nova
+              </button>
             </div>
 
             {/* Lista */}
@@ -161,6 +186,12 @@ export function TarefasConversaPopover({ contatoId }: TarefasConversaPopoverProp
                 <div className="py-8 text-center">
                   <ListTodo className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
                   <p className="text-sm text-muted-foreground">Nenhuma tarefa pendente</p>
+                  <button
+                    onClick={handleCriarTarefa}
+                    className="mt-2 text-xs text-primary hover:underline"
+                  >
+                    + Criar primeira tarefa
+                  </button>
                 </div>
               ) : (
                 tarefas.map((tarefa) => {
@@ -211,6 +242,16 @@ export function TarefasConversaPopover({ contatoId }: TarefasConversaPopoverProp
           </div>
         </>,
         document.body
+      )}
+
+      {/* Modal de criar tarefa */}
+      {criarModalOpen && contatoNome && canal && (
+        <CriarTarefaConversaModal
+          contatoId={contatoId}
+          contatoNome={contatoNome}
+          canal={canal}
+          onClose={handleModalClose}
+        />
       )}
     </>
   )
