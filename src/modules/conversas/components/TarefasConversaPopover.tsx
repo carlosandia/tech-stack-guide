@@ -2,9 +2,11 @@
  * AIDEV-NOTE: Popover de tarefas do contato no header do chat
  * Lista tarefas pendentes vinculadas ao contato da conversa
  * Permite concluir tarefas diretamente
+ * Usa React Portal para evitar problemas de z-index
  */
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { ListTodo, Check, Loader2, Clock, AlertTriangle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
@@ -37,7 +39,17 @@ export function TarefasConversaPopover({ contatoId }: TarefasConversaPopoverProp
   const [tarefas, setTarefas] = useState<Tarefa[]>([])
   const [loading, setLoading] = useState(false)
   const [concluindo, setConcluindo] = useState<string | null>(null)
-  const ref = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState({ top: 0, right: 0 })
+  const btnRef = useRef<HTMLButtonElement>(null)
+
+  const calcPos = useCallback(() => {
+    if (!btnRef.current) return
+    const rect = btnRef.current.getBoundingClientRect()
+    setPos({
+      top: rect.bottom + 4,
+      right: window.innerWidth - rect.right,
+    })
+  }, [])
 
   const carregarTarefas = async () => {
     setLoading(true)
@@ -63,21 +75,22 @@ export function TarefasConversaPopover({ contatoId }: TarefasConversaPopoverProp
   useEffect(() => {
     if (open) {
       carregarTarefas()
+      calcPos()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, contatoId])
 
-  // Click outside
+  // Recalcular posição ao redimensionar
   useEffect(() => {
     if (!open) return
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false)
-      }
+    const handler = () => calcPos()
+    window.addEventListener('resize', handler)
+    window.addEventListener('scroll', handler, true)
+    return () => {
+      window.removeEventListener('resize', handler)
+      window.removeEventListener('scroll', handler, true)
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [open])
+  }, [open, calcPos])
 
   const concluirTarefa = async (tarefaId: string) => {
     setConcluindo(tarefaId)
@@ -104,8 +117,9 @@ export function TarefasConversaPopover({ contatoId }: TarefasConversaPopoverProp
   const totalPendentes = tarefas.length
 
   return (
-    <div className="relative" ref={ref}>
+    <>
       <button
+        ref={btnRef}
         onClick={() => setOpen(!open)}
         className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md hover:bg-accent transition-all duration-200 relative"
         title="Tarefas do contato"
@@ -118,12 +132,20 @@ export function TarefasConversaPopover({ contatoId }: TarefasConversaPopoverProp
         )}
       </button>
 
-      {open && (
+      {open && createPortal(
         <>
-          <div className="fixed inset-0 z-[590]" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 mt-1 w-80 rounded-lg shadow-lg z-[600] overflow-hidden border border-border" style={{ backgroundColor: 'hsl(var(--card))' }}>
+          <div className="fixed inset-0" style={{ zIndex: 590 }} onClick={() => setOpen(false)} />
+          <div
+            className="fixed w-80 rounded-lg shadow-lg overflow-hidden border border-border"
+            style={{
+              zIndex: 600,
+              top: pos.top,
+              right: pos.right,
+              backgroundColor: 'hsl(var(--card))',
+            }}
+          >
             {/* Header */}
-            <div className="px-3 py-2.5 border-b border-border" style={{ backgroundColor: 'hsl(var(--muted) / 0.5)' }}>
+            <div className="px-3 py-2.5 border-b border-border" style={{ backgroundColor: 'hsl(var(--muted))' }}>
               <p className="text-sm font-semibold text-foreground">Tarefas do Contato</p>
               <p className="text-[11px] text-muted-foreground">
                 {totalPendentes} pendente{totalPendentes !== 1 ? 's' : ''}
@@ -188,8 +210,9 @@ export function TarefasConversaPopover({ contatoId }: TarefasConversaPopoverProp
               )}
             </div>
           </div>
-        </>
+        </>,
+        document.body
       )}
-    </div>
+    </>
   )
 }
