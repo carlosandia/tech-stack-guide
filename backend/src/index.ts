@@ -38,6 +38,9 @@ import conexoesRoutes, {
 
 // Rotas PRD-09 - Conversas
 import conversasRoutes from './routes/conversas.js'
+
+// Rotas PRD-11 - Caixa de Entrada de Email
+import emailsRoutes from './routes/emails.js'
 import mensagensProntasRoutes from './routes/mensagens-prontas.js'
 import notasContatoRoutes from './routes/notas-contato.js'
 import mensagensAgendadasRoutes from './routes/mensagens-agendadas.js'
@@ -140,6 +143,11 @@ app.use('/api/v1/mensagens-agendadas', mensagensAgendadasRoutes)
 
 // Rotas PRD-10 - Tarefas (Acompanhamento)
 // AIDEV-NOTE: Auth e requireTenant ja estao no router de tarefas
+app.use('/api/v1/tarefas', tarefasRoutes)
+
+// Rotas PRD-11 - Caixa de Entrada de Email
+// AIDEV-NOTE: Auth, requireTenant e requireRole ja estao no router de emails
+app.use('/api/v1/emails', emailsRoutes)
 app.use('/api/v1/tarefas', tarefasRoutes)
 
 // Rotas PRD-15 - Feedbacks e Notificacoes
