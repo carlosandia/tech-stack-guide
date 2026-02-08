@@ -1,7 +1,7 @@
 /**
  * AIDEV-NOTE: Service layer para módulo de Conversas (PRD-09)
  * Usa Supabase client direto (respeita RLS via get_user_tenant_id)
- * Mesmo padrão arquitetural de contatos, negocios e tarefas
+ * Mesmo padrão arquitetural de contatos, negocios e tarefas.
  */
 
 import { supabase } from '@/lib/supabase'

@@ -1,6 +1,6 @@
 /**
  * AIDEV-NOTE: Service API para Tarefas (PRD-10)
- * Usa Supabase client direto (respeita RLS)
+ * Usa Supabase client direto (respeita RLS via get_user_tenant_id)
  * Conforme PRD-10 - Módulo de Tarefas (Acompanhamento)
  *
  * Acesso:
