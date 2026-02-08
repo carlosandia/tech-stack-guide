@@ -1,5 +1,6 @@
- import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Save, RefreshCw, CheckCircle, XCircle, Loader2, Eye, EyeOff, ToggleLeft, ToggleRight } from 'lucide-react'
+import { toast } from 'sonner'
 import { useConfigGlobais, useUpdateConfigGlobal, useTestarConfigGlobal } from '../hooks/useConfigGlobal'
 import type { ConfigGlobal } from '../services/admin.api'
  import { useToolbar } from '../contexts/ToolbarContext'
@@ -104,8 +105,8 @@ function ConfigPlataformaForm({
   const [valores, setValores] = useState<Record<string, string>>({})
   const [mostrarSecrets, setMostrarSecrets] = useState<Record<string, boolean>>({})
 
-  const { mutate: atualizar, isPending: salvando } = useUpdateConfigGlobal()
-  const { mutate: testar, isPending: testando, data: resultadoTeste } = useTestarConfigGlobal()
+  const updateMutation = useUpdateConfigGlobal()
+  const testMutation = useTestarConfigGlobal()
 
   // Verifica se há alterações pendentes
   const temAlteracoes = Object.keys(valores).length > 0
@@ -118,16 +119,64 @@ function ConfigPlataformaForm({
   const camposMain = campos.filter((c) => c.section !== 'trial')
   const camposTrial = campos.filter((c) => c.section === 'trial')
 
-  const handleSalvar = () => {
-    atualizar({
-      plataforma,
-      configuracoes: valores,
-    })
-  }
+  const handleSalvar = useCallback(() => {
+    updateMutation.mutate(
+      { plataforma, configuracoes: valores },
+      {
+        onSuccess: () => {
+          toast.success('Configurações salvas com sucesso!')
+          setValores({})
+        },
+        onError: (err) => {
+          toast.error(`Erro ao salvar: ${err.message}`)
+        },
+      }
+    )
+  }, [plataforma, valores, updateMutation])
 
-  const handleTestar = () => {
-    testar(plataforma)
-  }
+  const handleTestar = useCallback(() => {
+    // Se há alterações pendentes, salva primeiro e depois testa
+    if (temAlteracoes) {
+      updateMutation.mutate(
+        { plataforma, configuracoes: valores },
+        {
+          onSuccess: () => {
+            setValores({})
+            toast.success('Configurações salvas!')
+            // Agora sim, testa
+            testMutation.mutate(plataforma, {
+              onSuccess: (resultado) => {
+                if (resultado.sucesso) {
+                  toast.success(resultado.mensagem)
+                } else {
+                  toast.error(resultado.mensagem)
+                }
+              },
+              onError: (err) => {
+                toast.error(`Erro ao testar: ${err.message}`)
+              },
+            })
+          },
+          onError: (err) => {
+            toast.error(`Erro ao salvar antes de testar: ${err.message}`)
+          },
+        }
+      )
+    } else {
+      testMutation.mutate(plataforma, {
+        onSuccess: (resultado) => {
+          if (resultado.sucesso) {
+            toast.success(resultado.mensagem)
+          } else {
+            toast.error(resultado.mensagem)
+          }
+        },
+        onError: (err) => {
+          toast.error(`Erro ao testar: ${err.message}`)
+        },
+      })
+    }
+  }, [temAlteracoes, plataforma, valores, updateMutation, testMutation])
 
   const toggleMostrarSecret = (campo: string) => {
     setMostrarSecrets((prev) => ({ ...prev, [campo]: !prev[campo] }))
@@ -139,8 +188,10 @@ function ConfigPlataformaForm({
     return typeof configValue === 'string' ? configValue : ''
   }
 
+  const isBusy = updateMutation.isPending || testMutation.isPending
+
   return (
-    <div className="space-y-6">
+    <form onSubmit={(e) => { e.preventDefault(); handleSalvar() }} className="space-y-6">
       {/* Header da Plataforma */}
       <div className="flex items-center justify-between">
         <div>
@@ -204,55 +255,35 @@ function ConfigPlataformaForm({
         </div>
       )}
 
-      {/* Resultado do teste */}
-      {resultadoTeste && (
-        <div
-          className={`p-3 rounded-lg ${
-            resultadoTeste.sucesso
-              ? 'bg-green-100 border border-green-300'
-              : 'bg-destructive/10 border border-destructive/20'
-          }`}
-        >
-          <p
-            className={`text-sm ${
-              resultadoTeste.sucesso ? 'text-green-700' : 'text-destructive'
-            }`}
-          >
-            {resultadoTeste.mensagem}
-          </p>
-        </div>
-      )}
-
       {/* Actions */}
       <div className="flex items-center justify-between pt-4 border-t border-border">
         <button
+          type="button"
           onClick={handleTestar}
-          disabled={testando}
+          disabled={isBusy}
           className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border border-border rounded-md hover:bg-accent transition-colors disabled:opacity-50"
         >
-          {testando ? (
+          {testMutation.isPending || (temAlteracoes && updateMutation.isPending) ? (
             <Loader2 className="w-4 h-4 animate-spin" />
           ) : (
             <RefreshCw className="w-4 h-4" />
           )}
-          Testar Conexao
+          {temAlteracoes ? 'Salvar e Testar' : 'Testar Conexao'}
         </button>
-        {temAlteracoes && (
-          <button
-            onClick={handleSalvar}
-            disabled={salvando}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50"
-          >
-            {salvando ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Save className="w-4 h-4" />
-            )}
-            Salvar Alteracoes
-          </button>
-        )}
+        <button
+          type="submit"
+          disabled={!temAlteracoes || isBusy}
+          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50"
+        >
+          {updateMutation.isPending && !testMutation.isPending ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Save className="w-4 h-4" />
+          )}
+          Salvar Alteracoes
+        </button>
       </div>
-    </div>
+    </form>
   )
 }
 
