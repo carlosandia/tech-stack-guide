@@ -1,11 +1,12 @@
 /**
  * AIDEV-NOTE: Header da janela de chat
- * Avatar, nome do contato, ações (status, drawer, criar oportunidade, buscar)
+ * Avatar, nome do contato, ações (status, drawer, tarefas, criar oportunidade, buscar)
  */
 
 import { ArrowLeft, MoreVertical, CircleDot, Search, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
+import { TarefasConversaPopover } from './TarefasConversaPopover'
 import type { Conversa } from '../services/conversas.api'
 
 interface ChatHeaderProps {
@@ -88,7 +89,7 @@ export function ChatHeader({ conversa, onBack, onOpenDrawer, onAlterarStatus, on
 
       {/* Right: Actions + Status + Menu */}
       <div className="flex items-center gap-1">
-        {/* Buscar mensagens - touch target 44px (GAP 3) */}
+        {/* Buscar mensagens */}
         <button
           onClick={onToggleBusca}
           className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md hover:bg-accent transition-all duration-200"
@@ -97,7 +98,10 @@ export function ChatHeader({ conversa, onBack, onOpenDrawer, onAlterarStatus, on
           <Search className="w-4 h-4 text-muted-foreground" />
         </button>
 
-        {/* Criar oportunidade - touch target 44px (GAP 3) */}
+        {/* Tarefas do contato */}
+        <TarefasConversaPopover contatoId={conversa.contato_id} />
+
+        {/* Criar oportunidade */}
         {onCriarOportunidade && (
           <button
             onClick={onCriarOportunidade}

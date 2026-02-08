@@ -161,7 +161,7 @@ export function ModalBase({
           </div>
 
           {/* Footer - sticky, nunca scrolla */}
-          <div className="flex-shrink-0 px-4 sm:px-6 py-4 border-t border-border bg-card">
+          <div className="flex-shrink-0 px-4 sm:px-6 py-4 border-t border-border bg-card rounded-b-lg">
             {footer}
           </div>
         </div>

@@ -5,7 +5,7 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { Loader2, Target, Search, X, User, Building2, Plus, Trash2, ChevronDown, ChevronRight, RefreshCw, Link2 } from 'lucide-react'
+import { Loader2, Target, Search, X, User, Building2, Plus, Trash2, ChevronDown, ChevronRight, RefreshCw, Link2, Pencil } from 'lucide-react'
 import { ModalBase } from '@/modules/configuracoes/components/ui/ModalBase'
 import { negociosApi } from '../../services/negocios.api'
 import { formatCurrency, unformatCurrency } from '@/lib/formatters'
@@ -88,6 +88,7 @@ export function NovaOportunidadeModal({
 }: NovaOportunidadeModalProps) {
   // === PESSOA state (obrigatória) ===
   const [pessoaSelecionada, setPessoaSelecionada] = useState<ContatoResult | null>(null)
+  const [editandoPessoa, setEditandoPessoa] = useState(false)
   const [buscaPessoa, setBuscaPessoa] = useState('')
   const [resultadosPessoa, setResultadosPessoa] = useState<ContatoResult[]>([])
   const [buscandoPessoa, setBuscandoPessoa] = useState(false)
@@ -389,7 +390,16 @@ export function NovaOportunidadeModal({
       // 2. Criar/obter pessoa
       let pessoaId = pessoaSelecionada?.id
 
-      if (!pessoaId && criarNovaPessoa) {
+      if (pessoaId && editandoPessoa) {
+        // Atualizar dados editados do contato existente
+        const updatePayload: Record<string, any> = {}
+        if (pessoaSelecionada?.nome !== undefined) updatePayload.nome = pessoaSelecionada.nome?.trim() || null
+        if (pessoaSelecionada?.sobrenome !== undefined) updatePayload.sobrenome = pessoaSelecionada.sobrenome?.trim() || null
+        if (pessoaSelecionada?.email !== undefined) updatePayload.email = pessoaSelecionada.email?.trim() || null
+        if (pessoaSelecionada?.telefone !== undefined) updatePayload.telefone = pessoaSelecionada.telefone?.trim() || null
+        if (empresaId) updatePayload.empresa_id = empresaId
+        await negociosApi.atualizarContato(pessoaId, updatePayload)
+      } else if (!pessoaId && criarNovaPessoa) {
         const payload: Record<string, any> = { tipo: 'pessoa' }
         for (const [key, val] of Object.entries(pessoaFields)) {
           if (val?.trim() && !key.startsWith('custom_')) {
@@ -518,27 +528,83 @@ export function NovaOportunidadeModal({
 
           {/* Pessoa selecionada */}
           {pessoaSelecionada ? (
-            <div className="flex items-center gap-3 p-3 bg-primary/5 border border-primary/20 rounded-lg">
-              <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
-                <User className="w-4 h-4 text-primary" />
+            <div className="bg-primary/5 border border-primary/20 rounded-lg overflow-hidden">
+              <div className="flex items-center gap-3 p-3">
+                <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
+                  <User className="w-4 h-4 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">
+                    {[pessoaSelecionada.nome, pessoaSelecionada.sobrenome].filter(Boolean).join(' ')}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {pessoaSelecionada.email || pessoaSelecionada.telefone || ''}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setEditandoPessoa(!editandoPessoa)}
+                  className="p-1.5 rounded-md hover:bg-accent transition-all duration-200"
+                  title="Editar dados"
+                >
+                  <Pencil className="w-4 h-4 text-muted-foreground" />
+                </button>
+                <button
+                  onClick={() => {
+                    setPessoaSelecionada(null)
+                    setEditandoPessoa(false)
+                    setBuscaPessoa('')
+                  }}
+                  className="p-1.5 rounded-md hover:bg-accent transition-all duration-200"
+                >
+                  <X className="w-4 h-4 text-muted-foreground" />
+                </button>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground truncate">
-                  {[pessoaSelecionada.nome, pessoaSelecionada.sobrenome].filter(Boolean).join(' ')}
-                </p>
-                <p className="text-xs text-muted-foreground truncate">
-                  {pessoaSelecionada.email || pessoaSelecionada.telefone || ''}
-                </p>
-              </div>
-              <button
-                onClick={() => {
-                  setPessoaSelecionada(null)
-                  setBuscaPessoa('')
-                }}
-                className="p-1.5 rounded-md hover:bg-accent transition-all duration-200"
-              >
-                <X className="w-4 h-4 text-muted-foreground" />
-              </button>
+
+              {/* Campos editáveis inline */}
+              {editandoPessoa && (
+                <div className="px-3 pb-3 space-y-2 border-t border-primary/10 pt-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-medium text-muted-foreground">Nome</label>
+                      <input
+                        type="text"
+                        value={pessoaSelecionada.nome || ''}
+                        onChange={(e) => setPessoaSelecionada({ ...pessoaSelecionada, nome: e.target.value })}
+                        className="w-full px-2.5 py-1.5 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-medium text-muted-foreground">Sobrenome</label>
+                      <input
+                        type="text"
+                        value={pessoaSelecionada.sobrenome || ''}
+                        onChange={(e) => setPessoaSelecionada({ ...pessoaSelecionada, sobrenome: e.target.value })}
+                        className="w-full px-2.5 py-1.5 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-medium text-muted-foreground">E-mail</label>
+                    <input
+                      type="email"
+                      value={pessoaSelecionada.email || ''}
+                      onChange={(e) => setPessoaSelecionada({ ...pessoaSelecionada, email: e.target.value })}
+                      placeholder="email@exemplo.com"
+                      className="w-full px-2.5 py-1.5 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-medium text-muted-foreground">Telefone</label>
+                    <input
+                      type="tel"
+                      value={pessoaSelecionada.telefone || ''}
+                      onChange={(e) => setPessoaSelecionada({ ...pessoaSelecionada, telefone: e.target.value })}
+                      placeholder="+5511999999999"
+                      className="w-full px-2.5 py-1.5 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           ) : !criarNovaPessoa ? (
             /* Busca de pessoa */
