@@ -1570,6 +1570,54 @@ export type Database = {
           },
         ]
       }
+      emails_assinaturas: {
+        Row: {
+          assinatura_html: string | null
+          atualizado_em: string
+          criado_em: string
+          id: string
+          incluir_em_novos: boolean
+          incluir_em_respostas: boolean
+          organizacao_id: string
+          usuario_id: string
+        }
+        Insert: {
+          assinatura_html?: string | null
+          atualizado_em?: string
+          criado_em?: string
+          id?: string
+          incluir_em_novos?: boolean
+          incluir_em_respostas?: boolean
+          organizacao_id: string
+          usuario_id: string
+        }
+        Update: {
+          assinatura_html?: string | null
+          atualizado_em?: string
+          criado_em?: string
+          id?: string
+          incluir_em_novos?: boolean
+          incluir_em_respostas?: boolean
+          organizacao_id?: string
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "emails_assinaturas_organizacao_id_fkey"
+            columns: ["organizacao_id"]
+            isOneToOne: false
+            referencedRelation: "organizacoes_saas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emails_assinaturas_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       emails_oportunidades: {
         Row: {
           anexos: Json | null
@@ -1633,6 +1681,332 @@ export type Database = {
             columns: ["usuario_id"]
             isOneToOne: false
             referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      emails_rascunhos: {
+        Row: {
+          anexos_temp: Json | null
+          assunto: string | null
+          atualizado_em: string
+          bcc_email: string | null
+          cc_email: string | null
+          corpo_html: string | null
+          criado_em: string
+          deletado_em: string | null
+          email_original_id: string | null
+          id: string
+          organizacao_id: string
+          para_email: string | null
+          tipo: string
+          usuario_id: string
+        }
+        Insert: {
+          anexos_temp?: Json | null
+          assunto?: string | null
+          atualizado_em?: string
+          bcc_email?: string | null
+          cc_email?: string | null
+          corpo_html?: string | null
+          criado_em?: string
+          deletado_em?: string | null
+          email_original_id?: string | null
+          id?: string
+          organizacao_id: string
+          para_email?: string | null
+          tipo?: string
+          usuario_id: string
+        }
+        Update: {
+          anexos_temp?: Json | null
+          assunto?: string | null
+          atualizado_em?: string
+          bcc_email?: string | null
+          cc_email?: string | null
+          corpo_html?: string | null
+          criado_em?: string
+          deletado_em?: string | null
+          email_original_id?: string | null
+          id?: string
+          organizacao_id?: string
+          para_email?: string | null
+          tipo?: string
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "emails_rascunhos_email_original_id_fkey"
+            columns: ["email_original_id"]
+            isOneToOne: false
+            referencedRelation: "emails_recebidos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emails_rascunhos_organizacao_id_fkey"
+            columns: ["organizacao_id"]
+            isOneToOne: false
+            referencedRelation: "organizacoes_saas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emails_rascunhos_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      emails_recebidos: {
+        Row: {
+          anexos_info: Json | null
+          assunto: string | null
+          atualizado_em: string
+          bcc_email: string | null
+          cc_email: string | null
+          conexao_email_id: string | null
+          contato_id: string | null
+          corpo_html: string | null
+          corpo_texto: string | null
+          criado_em: string
+          data_email: string
+          de_email: string
+          de_nome: string | null
+          deletado_em: string | null
+          favorito: boolean
+          id: string
+          lido: boolean
+          message_id: string
+          oportunidade_id: string | null
+          organizacao_id: string
+          para_email: string
+          pasta: string
+          preview: string | null
+          provider_id: string | null
+          sincronizado_em: string | null
+          tem_anexos: boolean
+          thread_id: string | null
+          usuario_id: string
+        }
+        Insert: {
+          anexos_info?: Json | null
+          assunto?: string | null
+          atualizado_em?: string
+          bcc_email?: string | null
+          cc_email?: string | null
+          conexao_email_id?: string | null
+          contato_id?: string | null
+          corpo_html?: string | null
+          corpo_texto?: string | null
+          criado_em?: string
+          data_email?: string
+          de_email: string
+          de_nome?: string | null
+          deletado_em?: string | null
+          favorito?: boolean
+          id?: string
+          lido?: boolean
+          message_id: string
+          oportunidade_id?: string | null
+          organizacao_id: string
+          para_email: string
+          pasta?: string
+          preview?: string | null
+          provider_id?: string | null
+          sincronizado_em?: string | null
+          tem_anexos?: boolean
+          thread_id?: string | null
+          usuario_id: string
+        }
+        Update: {
+          anexos_info?: Json | null
+          assunto?: string | null
+          atualizado_em?: string
+          bcc_email?: string | null
+          cc_email?: string | null
+          conexao_email_id?: string | null
+          contato_id?: string | null
+          corpo_html?: string | null
+          corpo_texto?: string | null
+          criado_em?: string
+          data_email?: string
+          de_email?: string
+          de_nome?: string | null
+          deletado_em?: string | null
+          favorito?: boolean
+          id?: string
+          lido?: boolean
+          message_id?: string
+          oportunidade_id?: string | null
+          organizacao_id?: string
+          para_email?: string
+          pasta?: string
+          preview?: string | null
+          provider_id?: string | null
+          sincronizado_em?: string | null
+          tem_anexos?: boolean
+          thread_id?: string | null
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "emails_recebidos_conexao_email_id_fkey"
+            columns: ["conexao_email_id"]
+            isOneToOne: false
+            referencedRelation: "conexoes_email"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emails_recebidos_contato_id_fkey"
+            columns: ["contato_id"]
+            isOneToOne: false
+            referencedRelation: "contatos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emails_recebidos_oportunidade_id_fkey"
+            columns: ["oportunidade_id"]
+            isOneToOne: false
+            referencedRelation: "oportunidades"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emails_recebidos_organizacao_id_fkey"
+            columns: ["organizacao_id"]
+            isOneToOne: false
+            referencedRelation: "organizacoes_saas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emails_recebidos_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      emails_sync_estado: {
+        Row: {
+          atualizado_em: string
+          conexao_email_id: string | null
+          criado_em: string
+          erro_mensagem: string | null
+          id: string
+          organizacao_id: string
+          status: string
+          tentativas_erro: number
+          ultimo_history_id: string | null
+          ultimo_sync: string | null
+          ultimo_uid: number | null
+          ultimo_uid_validity: number | null
+          usuario_id: string
+        }
+        Insert: {
+          atualizado_em?: string
+          conexao_email_id?: string | null
+          criado_em?: string
+          erro_mensagem?: string | null
+          id?: string
+          organizacao_id: string
+          status?: string
+          tentativas_erro?: number
+          ultimo_history_id?: string | null
+          ultimo_sync?: string | null
+          ultimo_uid?: number | null
+          ultimo_uid_validity?: number | null
+          usuario_id: string
+        }
+        Update: {
+          atualizado_em?: string
+          conexao_email_id?: string | null
+          criado_em?: string
+          erro_mensagem?: string | null
+          id?: string
+          organizacao_id?: string
+          status?: string
+          tentativas_erro?: number
+          ultimo_history_id?: string | null
+          ultimo_sync?: string | null
+          ultimo_uid?: number | null
+          ultimo_uid_validity?: number | null
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "emails_sync_estado_conexao_email_id_fkey"
+            columns: ["conexao_email_id"]
+            isOneToOne: false
+            referencedRelation: "conexoes_email"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emails_sync_estado_organizacao_id_fkey"
+            columns: ["organizacao_id"]
+            isOneToOne: false
+            referencedRelation: "organizacoes_saas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emails_sync_estado_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      emails_tracking: {
+        Row: {
+          contador: number
+          email_id: string | null
+          id: string
+          ip: unknown
+          message_id: string | null
+          organizacao_id: string
+          primeira_vez: string
+          tipo: string
+          ultima_vez: string
+          user_agent: string | null
+        }
+        Insert: {
+          contador?: number
+          email_id?: string | null
+          id?: string
+          ip?: unknown
+          message_id?: string | null
+          organizacao_id: string
+          primeira_vez?: string
+          tipo: string
+          ultima_vez?: string
+          user_agent?: string | null
+        }
+        Update: {
+          contador?: number
+          email_id?: string | null
+          id?: string
+          ip?: unknown
+          message_id?: string | null
+          organizacao_id?: string
+          primeira_vez?: string
+          tipo?: string
+          ultima_vez?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "emails_tracking_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "emails_recebidos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emails_tracking_organizacao_id_fkey"
+            columns: ["organizacao_id"]
+            isOneToOne: false
+            referencedRelation: "organizacoes_saas"
             referencedColumns: ["id"]
           },
         ]
