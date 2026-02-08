@@ -1,11 +1,13 @@
 /**
- * AIDEV-NOTE: Modal de composição de email (novo, responder, encaminhar)
+ * AIDEV-NOTE: Modal de composição de email com editor TipTap (RF-005, RF-006)
+ * Suporta: novo, responder, responder todos, encaminhar
  */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, Send, Loader2 } from 'lucide-react'
+import { EmailRichEditor } from './EmailRichEditor'
 
-export type ComposerMode = 'novo' | 'responder' | 'encaminhar'
+export type ComposerMode = 'novo' | 'responder' | 'responder_todos' | 'encaminhar'
 
 interface ComposeEmailModalProps {
   mode: ComposerMode
@@ -14,15 +16,18 @@ interface ComposeEmailModalProps {
   onSend: (data: {
     para_email: string
     cc_email?: string
+    bcc_email?: string
     assunto: string
     corpo_html: string
   }) => void
   isSending: boolean
   defaults?: {
     para_email?: string
+    cc_email?: string
     assunto?: string
     corpo_html?: string
   }
+  resetKey?: number
 }
 
 export function ComposeEmailModal({
@@ -32,17 +37,37 @@ export function ComposeEmailModal({
   onSend,
   isSending,
   defaults,
+  resetKey = 0,
 }: ComposeEmailModalProps) {
-  const [para, setPara] = useState(defaults?.para_email || '')
+  const [para, setPara] = useState('')
   const [cc, setCc] = useState('')
-  const [assunto, setAssunto] = useState(defaults?.assunto || '')
-  const [corpo, setCorpo] = useState(defaults?.corpo_html || '')
+  const [bcc, setBcc] = useState('')
+  const [assunto, setAssunto] = useState('')
+  const [corpo, setCorpo] = useState('')
   const [showCc, setShowCc] = useState(false)
+  const [showBcc, setShowBcc] = useState(false)
+  const [editorKey, setEditorKey] = useState(0)
+
+  // Reset form quando resetKey muda (nova composição)
+  useEffect(() => {
+    setPara(defaults?.para_email || '')
+    setCc(defaults?.cc_email || '')
+    setBcc('')
+    setAssunto(defaults?.assunto || '')
+    setCorpo(defaults?.corpo_html || '')
+    setShowCc(!!defaults?.cc_email)
+    setShowBcc(false)
+    setEditorKey((k) => k + 1)
+  }, [resetKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!isOpen) return null
 
-  const titulo =
-    mode === 'responder' ? 'Responder' : mode === 'encaminhar' ? 'Encaminhar' : 'Novo Email'
+  const titulos: Record<ComposerMode, string> = {
+    novo: 'Novo Email',
+    responder: 'Responder',
+    responder_todos: 'Responder Todos',
+    encaminhar: 'Encaminhar',
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -50,6 +75,7 @@ export function ComposeEmailModal({
     onSend({
       para_email: para,
       cc_email: cc || undefined,
+      bcc_email: bcc || undefined,
       assunto,
       corpo_html: corpo,
     })
@@ -57,18 +83,12 @@ export function ComposeEmailModal({
 
   return (
     <>
-      {/* Overlay */}
       <div className="fixed inset-0 z-[400] bg-foreground/20" onClick={onClose} />
-
-      {/* Modal */}
-      <div className="fixed bottom-4 right-4 z-[401] w-[520px] max-w-[calc(100vw-2rem)] bg-background border border-border rounded-lg shadow-xl flex flex-col max-h-[80vh]">
+      <div className="fixed bottom-4 right-4 z-[401] w-[560px] max-w-[calc(100vw-2rem)] bg-background border border-border rounded-lg shadow-xl flex flex-col max-h-[80vh]">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-          <h3 className="text-sm font-semibold text-foreground">{titulo}</h3>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-md hover:bg-accent transition-colors"
-          >
+          <h3 className="text-sm font-semibold text-foreground">{titulos[mode]}</h3>
+          <button onClick={onClose} className="p-1.5 rounded-md hover:bg-accent transition-colors">
             <X className="w-4 h-4 text-muted-foreground" />
           </button>
         </div>
@@ -76,6 +96,7 @@ export function ComposeEmailModal({
         {/* Form */}
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
           <div className="space-y-3 px-4 py-3 border-b border-border/60">
+            {/* Para */}
             <div className="flex items-center gap-2">
               <label className="w-10 text-xs text-muted-foreground font-medium">Para</label>
               <input
@@ -86,17 +107,21 @@ export function ComposeEmailModal({
                 type="email"
                 required
               />
-              {!showCc && (
-                <button
-                  type="button"
-                  onClick={() => setShowCc(true)}
-                  className="text-xs text-muted-foreground hover:text-primary"
-                >
-                  Cc
-                </button>
-              )}
+              <div className="flex gap-1">
+                {!showCc && (
+                  <button type="button" onClick={() => setShowCc(true)} className="text-xs text-muted-foreground hover:text-primary">
+                    Cc
+                  </button>
+                )}
+                {!showBcc && (
+                  <button type="button" onClick={() => setShowBcc(true)} className="text-xs text-muted-foreground hover:text-primary">
+                    Bcc
+                  </button>
+                )}
+              </div>
             </div>
 
+            {/* Cc */}
             {showCc && (
               <div className="flex items-center gap-2">
                 <label className="w-10 text-xs text-muted-foreground font-medium">Cc</label>
@@ -110,6 +135,21 @@ export function ComposeEmailModal({
               </div>
             )}
 
+            {/* Bcc */}
+            {showBcc && (
+              <div className="flex items-center gap-2">
+                <label className="w-10 text-xs text-muted-foreground font-medium">Bcc</label>
+                <input
+                  value={bcc}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBcc(e.target.value)}
+                  placeholder="bcc@exemplo.com"
+                  className="flex-1 h-8 px-3 text-sm rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  type="email"
+                />
+              </div>
+            )}
+
+            {/* Assunto */}
             <div className="flex items-center gap-2">
               <label className="w-10 text-xs text-muted-foreground font-medium">Assunto</label>
               <input
@@ -122,14 +162,9 @@ export function ComposeEmailModal({
             </div>
           </div>
 
-          {/* Corpo */}
+          {/* Editor TipTap */}
           <div className="flex-1 overflow-y-auto px-4 py-3">
-            <textarea
-              value={corpo}
-              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setCorpo(e.target.value)}
-              placeholder="Escreva sua mensagem..."
-              className="w-full min-h-[200px] text-sm resize-none bg-transparent text-foreground placeholder:text-muted-foreground focus:outline-none"
-            />
+            <EmailRichEditor key={editorKey} content={corpo} onChange={setCorpo} minHeight="180px" />
           </div>
 
           {/* Footer */}

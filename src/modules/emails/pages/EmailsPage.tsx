@@ -5,11 +5,14 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
-import { Plus } from 'lucide-react'
+import { Plus, Settings2 } from 'lucide-react'
 import { useAppToolbar } from '@/modules/app/contexts/AppToolbarContext'
 import { EmailList } from '../components/EmailList'
 import { EmailViewer } from '../components/EmailViewer'
 import { ComposeEmailModal, type ComposerMode } from '../components/ComposeEmailModal'
+import { AssinaturaModal } from '../components/AssinaturaModal'
+import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
+import type { EmailFiltros } from '../components/EmailFilters'
 import {
   useEmails,
   useEmail,
@@ -17,45 +20,67 @@ import {
   useAtualizarEmail,
   useDeletarEmail,
   useAcaoLote,
+  useEnviarEmail,
+  useNewEmailNotification,
 } from '../hooks/useEmails'
 import type { PastaEmail, AcaoLote } from '../types/email.types'
-import { toast } from 'sonner'
 
 export function EmailsPage() {
   const [pasta, setPasta] = useState<PastaEmail>('inbox')
   const [busca, setBusca] = useState('')
   const [page, setPage] = useState(1)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [filtros, setFiltros] = useState<EmailFiltros>({})
+
+  // Composer state
   const [composerOpen, setComposerOpen] = useState(false)
   const [composerMode, setComposerMode] = useState<ComposerMode>('novo')
+  const [composerResetKey, setComposerResetKey] = useState(0)
   const [composerDefaults, setComposerDefaults] = useState<{
     para_email?: string
+    cc_email?: string
     assunto?: string
     corpo_html?: string
   }>()
+
+  // Modais
+  const [assinaturaOpen, setAssinaturaOpen] = useState(false)
+  const [pendingDelete, setPendingDelete] = useState<{ ids: string[] } | null>(null)
 
   // Toolbar actions
   const { setActions } = useAppToolbar()
 
   useEffect(() => {
     setActions(
-      <button
-        onClick={() => {
-          setComposerMode('novo')
-          setComposerDefaults(undefined)
-          setComposerOpen(true)
-        }}
-        className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
-      >
-        <Plus className="w-4 h-4" />
-        <span className="hidden sm:inline">Novo Email</span>
-      </button>
+      <div className="flex items-center gap-1.5">
+        <button
+          onClick={() => setAssinaturaOpen(true)}
+          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-border text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+          title="Assinatura"
+        >
+          <Settings2 className="w-4 h-4" />
+          <span className="hidden sm:inline">Assinatura</span>
+        </button>
+        <button
+          onClick={() => openComposer('novo')}
+          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          <span className="hidden sm:inline">Novo Email</span>
+        </button>
+      </div>
     )
     return () => setActions(null)
-  }, [setActions])
+  }, [setActions]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Queries
-  const { data: emailsData, isLoading, refetch } = useEmails({ pasta, busca, page, per_page: 20 })
+  const { data: emailsData, isLoading, refetch } = useEmails({
+    pasta,
+    busca,
+    page,
+    per_page: 20,
+    ...filtros,
+  })
   const { data: selectedEmail, isLoading: loadingEmail } = useEmail(selectedId)
   const { data: naoLidos } = useContadorNaoLidos()
 
@@ -63,6 +88,10 @@ export function EmailsPage() {
   const atualizarEmail = useAtualizarEmail()
   const deletarEmail = useDeletarEmail()
   const acaoLote = useAcaoLote()
+  const enviarEmail = useEnviarEmail()
+
+  // Notificação de novos emails
+  useNewEmailNotification()
 
   // Auto-marcar como lido ao selecionar
   useEffect(() => {
@@ -71,11 +100,25 @@ export function EmailsPage() {
     }
   }, [selectedEmail?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Reset page ao mudar pasta/busca
+  // Reset page ao mudar pasta/busca/filtros
   useEffect(() => {
     setPage(1)
     setSelectedId(null)
-  }, [pasta, busca])
+  }, [pasta, busca, filtros])
+
+  // =====================================================
+  // Handlers
+  // =====================================================
+
+  const openComposer = useCallback(
+    (mode: ComposerMode, defaults?: typeof composerDefaults) => {
+      setComposerMode(mode)
+      setComposerDefaults(defaults)
+      setComposerOpen(true)
+      setComposerResetKey((k) => k + 1)
+    },
+    []
+  )
 
   const handleSelect = useCallback((id: string) => {
     setSelectedId(id)
@@ -103,16 +146,17 @@ export function EmailsPage() {
     [atualizarEmail]
   )
 
-  const handleDeletar = useCallback(
-    (id: string) => {
-      deletarEmail.mutate(id)
-      setSelectedId(null)
-    },
-    [deletarEmail]
-  )
+  // Abre dialog de confirmação ao invés de deletar direto
+  const handleDeletar = useCallback((id: string) => {
+    setPendingDelete({ ids: [id] })
+  }, [])
 
   const handleAcaoLote = useCallback(
     (acao: AcaoLote, ids: string[]) => {
+      if (acao === 'mover_lixeira') {
+        setPendingDelete({ ids })
+        return
+      }
       acaoLote.mutate({ ids, acao })
       if (selectedId && ids.includes(selectedId)) {
         setSelectedId(null)
@@ -121,42 +165,72 @@ export function EmailsPage() {
     [acaoLote, selectedId]
   )
 
+  const confirmDelete = useCallback(() => {
+    if (!pendingDelete) return
+    if (pendingDelete.ids.length === 1) {
+      deletarEmail.mutate(pendingDelete.ids[0])
+    } else {
+      acaoLote.mutate({ ids: pendingDelete.ids, acao: 'mover_lixeira' })
+    }
+    if (selectedId && pendingDelete.ids.includes(selectedId)) {
+      setSelectedId(null)
+    }
+    setPendingDelete(null)
+  }, [pendingDelete, deletarEmail, acaoLote, selectedId])
+
+  const getEmailData = useCallback(
+    (id: string) => {
+      return emailsData?.data.find((e) => e.id === id) || selectedEmail
+    },
+    [emailsData, selectedEmail]
+  )
+
   const handleResponder = useCallback(
     (id: string) => {
-      const email = emailsData?.data.find((e) => e.id === id) || selectedEmail
+      const email = getEmailData(id)
       if (!email) return
-      setComposerMode('responder')
-      setComposerDefaults({
+      openComposer('responder', {
         para_email: email.de_email,
         assunto: `Re: ${email.assunto || ''}`,
         corpo_html: `<br/><br/><hr/><p>Em ${new Date(email.data_email).toLocaleDateString('pt-BR')}, ${email.de_nome || email.de_email} escreveu:</p><blockquote>${email.corpo_html || email.corpo_texto || ''}</blockquote>`,
       })
-      setComposerOpen(true)
     },
-    [emailsData, selectedEmail]
+    [getEmailData, openComposer]
+  )
+
+  const handleResponderTodos = useCallback(
+    (id: string) => {
+      const email = getEmailData(id)
+      if (!email) return
+      openComposer('responder_todos', {
+        para_email: email.de_email,
+        cc_email: email.cc_email || undefined,
+        assunto: `Re: ${email.assunto || ''}`,
+        corpo_html: `<br/><br/><hr/><p>Em ${new Date(email.data_email).toLocaleDateString('pt-BR')}, ${email.de_nome || email.de_email} escreveu:</p><blockquote>${email.corpo_html || email.corpo_texto || ''}</blockquote>`,
+      })
+    },
+    [getEmailData, openComposer]
   )
 
   const handleEncaminhar = useCallback(
     (id: string) => {
-      const email = emailsData?.data.find((e) => e.id === id) || selectedEmail
+      const email = getEmailData(id)
       if (!email) return
-      setComposerMode('encaminhar')
-      setComposerDefaults({
+      openComposer('encaminhar', {
         assunto: `Fwd: ${email.assunto || ''}`,
         corpo_html: `<br/><br/><hr/><p>---------- Mensagem encaminhada ----------</p><p>De: ${email.de_nome || email.de_email}<br/>Assunto: ${email.assunto || ''}</p><hr/>${email.corpo_html || email.corpo_texto || ''}`,
       })
-      setComposerOpen(true)
     },
-    [emailsData, selectedEmail]
+    [getEmailData, openComposer]
   )
 
   const handleSend = useCallback(
-    (_data: { para_email: string; assunto: string; corpo_html: string }) => {
-      // TODO: Integrar com backend de envio quando endpoint estiver disponível
-      toast.info('Funcionalidade de envio será integrada com o backend em breve')
-      setComposerOpen(false)
+    (data: { para_email: string; cc_email?: string; bcc_email?: string; assunto: string; corpo_html: string }) => {
+      enviarEmail.mutate(data, {
+        onSuccess: () => setComposerOpen(false),
+      })
     },
-    []
+    [enviarEmail]
   )
 
   const emails = emailsData?.data || []
@@ -165,7 +239,7 @@ export function EmailsPage() {
 
   return (
     <div className="flex h-full">
-      {/* Lista de emails - 380px fixo no desktop, full no mobile */}
+      {/* Lista de emails */}
       <div
         className={`
           w-full md:w-[380px] md:min-w-[380px] md:max-w-[380px] flex-shrink-0
@@ -189,6 +263,8 @@ export function EmailsPage() {
           page={page}
           totalPages={totalPages}
           onPageChange={setPage}
+          filtros={filtros}
+          setFiltros={setFiltros}
         />
       </div>
 
@@ -208,6 +284,7 @@ export function EmailsPage() {
           onArquivar={handleArquivar}
           onDeletar={handleDeletar}
           onResponder={handleResponder}
+          onResponderTodos={handleResponderTodos}
           onEncaminhar={handleEncaminhar}
         />
       </div>
@@ -218,8 +295,21 @@ export function EmailsPage() {
         isOpen={composerOpen}
         onClose={() => setComposerOpen(false)}
         onSend={handleSend}
-        isSending={false}
+        isSending={enviarEmail.isPending}
         defaults={composerDefaults}
+        resetKey={composerResetKey}
+      />
+
+      {/* Assinatura Modal */}
+      <AssinaturaModal isOpen={assinaturaOpen} onClose={() => setAssinaturaOpen(false)} />
+
+      {/* Confirmação de exclusão */}
+      <ConfirmDeleteDialog
+        isOpen={!!pendingDelete}
+        onClose={() => setPendingDelete(null)}
+        onConfirm={confirmDelete}
+        isLoading={deletarEmail.isPending || acaoLote.isPending}
+        count={pendingDelete?.ids.length}
       />
     </div>
   )

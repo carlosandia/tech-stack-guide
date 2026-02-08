@@ -1,9 +1,8 @@
 /**
- * AIDEV-NOTE: Lista de emails com sidebar de pastas e filtros
- * Painel esquerdo do layout split-view
+ * AIDEV-NOTE: Lista de emails com sidebar de pastas, filtros e busca com debounce
  */
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import {
   Inbox,
   Send,
@@ -20,6 +19,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { EmailItem } from './EmailItem'
+import { EmailFilters, type EmailFiltros } from './EmailFilters'
 import type { EmailRecebido, PastaEmail, AcaoLote } from '../types/email.types'
 
 interface EmailListProps {
@@ -39,6 +39,8 @@ interface EmailListProps {
   page: number
   totalPages: number
   onPageChange: (page: number) => void
+  filtros: EmailFiltros
+  setFiltros: (filtros: EmailFiltros) => void
 }
 
 const pastas = [
@@ -66,9 +68,23 @@ export function EmailList({
   page,
   totalPages,
   onPageChange,
+  filtros,
+  setFiltros,
 }: EmailListProps) {
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set())
   const [buscaAberta, setBuscaAberta] = useState(!!busca)
+
+  // Debounce de busca (300ms)
+  const [buscaLocal, setBuscaLocal] = useState(busca)
+  useEffect(() => {
+    const t = setTimeout(() => setBusca(buscaLocal), 300)
+    return () => clearTimeout(t)
+  }, [buscaLocal, setBusca])
+
+  // Sync externo (quando pasta muda e busca é resetada)
+  useEffect(() => {
+    setBuscaLocal(busca)
+  }, [busca])
 
   const toggleCheck = useCallback((id: string) => {
     setCheckedIds((prev) => {
@@ -98,7 +114,8 @@ export function EmailList({
 
   const hasChecked = checkedIds.size > 0
 
-  const iconBtnClass = 'p-1.5 rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-foreground'
+  const iconBtnClass =
+    'p-1.5 rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-foreground'
 
   return (
     <div className="flex flex-col h-full border-r border-border/60">
@@ -129,10 +146,12 @@ export function EmailList({
         ))}
       </div>
 
+      {/* Filtros rápidos */}
+      <EmailFilters filtros={filtros} onChange={setFiltros} />
+
       {/* Toolbar: Busca + Ações */}
       <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-border/60">
         {hasChecked ? (
-          // Modo seleção
           <>
             <button onClick={toggleAll} className={cn(iconBtnClass, 'text-xs flex items-center gap-1')}>
               <CheckSquare className="w-3.5 h-3.5" />
@@ -151,7 +170,11 @@ export function EmailList({
             <button onClick={() => executarAcao('favoritar')} className={iconBtnClass} title="Favoritar">
               <Star className="w-3.5 h-3.5" />
             </button>
-            <button onClick={() => executarAcao('mover_lixeira')} className={cn(iconBtnClass, 'text-destructive hover:text-destructive')} title="Excluir">
+            <button
+              onClick={() => executarAcao('mover_lixeira')}
+              className={cn(iconBtnClass, 'text-destructive hover:text-destructive')}
+              title="Excluir"
+            >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
             <div className="flex-1" />
@@ -160,20 +183,20 @@ export function EmailList({
             </button>
           </>
         ) : (
-          // Modo normal
           <>
             {buscaAberta ? (
               <div className="flex items-center gap-1 flex-1">
                 <input
                   placeholder="Buscar emails..."
-                  value={busca}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBusca(e.target.value)}
+                  value={buscaLocal}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBuscaLocal(e.target.value)}
                   className="flex-1 h-7 px-2 text-xs rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                   autoFocus
                 />
                 <button
                   onClick={() => {
                     setBuscaAberta(false)
+                    setBuscaLocal('')
                     setBusca('')
                   }}
                   className={iconBtnClass}
