@@ -113,11 +113,12 @@ export interface TarefaComDetalhes {
     titulo: string | null
     funil_id: string | null
     etapa_id: string | null
-    funis: { id: string; nome: string } | null
-    etapas_funil: { id: string; nome: string } | null
   } | null
   owner?: { id: string; nome: string } | null
-  etapa_origem?: { id: string; nome: string } | null
+  // Enriched post-query
+  funil_nome?: string | null
+  etapa_nome?: string | null
+  etapa_origem_nome?: string | null
 }
 
 export interface ListarTarefasParams {
@@ -184,9 +185,8 @@ export const tarefasApi = {
       .from('tarefas')
       .select(`
         *,
-        oportunidades!tarefas_oportunidade_id_fkey(id, codigo, titulo, funil_id, etapa_id, funis!oportunidades_funil_id_fkey(id, nome), etapas_funil!oportunidades_etapa_id_fkey(id, nome)),
-        owner:usuarios!tarefas_owner_id_fkey(id, nome),
-        etapa_origem:etapas_funil!tarefas_etapa_origem_id_fkey(id, nome)
+        oportunidades!tarefas_oportunidade_id_fkey(id, codigo, titulo, funil_id, etapa_id),
+        owner:usuarios!tarefas_owner_id_fkey(id, nome)
       `, { count: 'exact' })
       .eq('organizacao_id', organizacaoId)
       .not('oportunidade_id', 'is', null)
@@ -238,6 +238,34 @@ export const tarefasApi = {
     if (error) throw new Error(error.message)
 
     let tarefas = (data || []) as TarefaComDetalhes[]
+
+    // Enrich with funil/etapa names (separate queries to avoid PostgREST ambiguity)
+    if (tarefas.length > 0) {
+      const funilIds = [...new Set(tarefas.map(t => t.oportunidades?.funil_id).filter(Boolean))] as string[]
+      const etapaIds = [...new Set([
+        ...tarefas.map(t => t.oportunidades?.etapa_id).filter(Boolean),
+        ...tarefas.map(t => t.etapa_origem_id).filter(Boolean),
+      ])] as string[]
+
+      const [funisRes, etapasRes] = await Promise.all([
+        funilIds.length > 0
+          ? supabase.from('funis').select('id, nome').in('id', funilIds)
+          : Promise.resolve({ data: [] }),
+        etapaIds.length > 0
+          ? supabase.from('etapas_funil').select('id, nome').in('id', etapaIds)
+          : Promise.resolve({ data: [] }),
+      ])
+
+      const funisMap = new Map((funisRes.data || []).map(f => [f.id, f.nome]))
+      const etapasMap = new Map((etapasRes.data || []).map(e => [e.id, e.nome]))
+
+      tarefas = tarefas.map(t => ({
+        ...t,
+        funil_nome: t.oportunidades?.funil_id ? funisMap.get(t.oportunidades.funil_id) || null : null,
+        etapa_nome: t.oportunidades?.etapa_id ? etapasMap.get(t.oportunidades.etapa_id) || null : null,
+        etapa_origem_nome: t.etapa_origem_id ? etapasMap.get(t.etapa_origem_id) || null : null,
+      }))
+    }
 
     // Filtro por pipeline_id (post-query via oportunidade)
     if (params?.pipeline_id) {
