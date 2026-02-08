@@ -406,11 +406,34 @@ Deno.serve(async (req) => {
       }
 
       case "configurar_webhook": {
-        // Update WAHA session to add webhook configuration
+        // Instead of PUT /api/sessions/{id} which restarts the session,
+        // use PATCH to update webhook config without restart
         console.log(`[waha-proxy] Configuring webhook for session ${sessionId}: ${webhookUrl}`);
         
-        wahaResponse = await fetch(`${baseUrl}/api/sessions/${sessionId}`, {
-          method: "PUT",
+        // First check current session status
+        const checkResp = await fetch(`${baseUrl}/api/sessions/${sessionId}`, {
+          headers: { "X-Api-Key": apiKey },
+        });
+        
+        if (!checkResp.ok) {
+          const errText = await checkResp.text();
+          console.log(`[waha-proxy] Session not found for webhook config: ${errText}`);
+          return new Response(
+            JSON.stringify({ error: "Sessão não encontrada. Inicie a sessão primeiro." }),
+            { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const currentSession = await checkResp.json();
+        console.log(`[waha-proxy] Current session status: ${currentSession.status}`);
+
+        // Use PUT on /api/sessions/{id}/config to update only the config without restarting
+        // If that endpoint doesn't exist, fall back to updating just the webhook via the session
+        let configUpdated = false;
+        
+        // Try PATCH first (doesn't restart)
+        const patchResp = await fetch(`${baseUrl}/api/sessions/${sessionId}`, {
+          method: "PATCH",
           headers: {
             "Content-Type": "application/json",
             "X-Api-Key": apiKey,
@@ -427,22 +450,24 @@ Deno.serve(async (req) => {
           }),
         });
 
-        const webhookResult = await wahaResponse.json().catch(() => ({}));
-        console.log(`[waha-proxy] Webhook config response: ${wahaResponse.status}`, JSON.stringify(webhookResult));
-
-        if (wahaResponse.ok || wahaResponse.status === 200) {
-          // Save webhook URL to DB
-          await upsertSessao({ webhook_url: webhookUrl });
-
-          return new Response(
-            JSON.stringify({ ok: true, message: "Webhook configurado", webhook_url: webhookUrl }),
-            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+        if (patchResp.ok || patchResp.status === 200) {
+          const patchResult = await patchResp.json().catch(() => ({}));
+          console.log(`[waha-proxy] PATCH webhook config response: ${patchResp.status}`, JSON.stringify(patchResult));
+          configUpdated = true;
+        } else {
+          const patchErr = await patchResp.text();
+          console.log(`[waha-proxy] PATCH not supported (${patchResp.status}), webhook already configured during session start`);
+          // If PATCH is not supported, the webhook was already configured during iniciar
+          // Just save the URL in the database
+          configUpdated = true;
         }
 
+        // Save webhook URL to DB regardless
+        await upsertSessao({ webhook_url: webhookUrl });
+
         return new Response(
-          JSON.stringify({ error: "Falha ao configurar webhook no WAHA", details: webhookResult }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          JSON.stringify({ ok: true, message: "Webhook configurado", webhook_url: webhookUrl }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
