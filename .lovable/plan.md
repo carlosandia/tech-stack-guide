@@ -1,135 +1,96 @@
 
-# Plano: Pré-Oportunidades Automáticas via WhatsApp
 
-## Resumo
+## Diagnostico Completo
 
-Implementar o fluxo completo para que, ao receber uma nova mensagem no WhatsApp, o sistema crie automaticamente uma pré-oportunidade (solicitação) na coluna "Solicitações" do Kanban. O usuário poderá escolher qual pipeline receberá as solicitações, e decidir aceitar ou recusar cada uma.
+Encontrei **2 problemas criticos** que impedem o funcionamento:
 
-## Situação Atual
+### Problema 1: Sessao WhatsApp desconectada pelo `configurar_webhook`
 
-O sistema já possui:
-- Tabela `pre_oportunidades` no banco (com todos os campos necessários)
-- Tabela `sessoes_whatsapp` (porém sem campo de pipeline destino)
-- Coluna "Solicitações" no Kanban (`SolicitacoesColumn`) e seus cards
-- Modais de Aceitar e Rejeitar pré-oportunidades
-- Service API completa (`pre-oportunidades.api.ts`) com lógica de aceitar/rejeitar
-- Edge Function `waha-proxy` para gerenciar sessões WAHA
+O action `configurar_webhook` usa `PUT /api/sessions/{sessionId}` na API do WAHA. Esse endpoint **substitui** a configuracao inteira da sessao, causando um **restart** (o log mostra `"status":"STARTING"`). Isso desconectou o WhatsApp e por isso a mensagem "Tata" **nunca chegou** ao webhook.
 
-O que falta:
-- Campo `funil_destino_id` na tabela `sessoes_whatsapp`
-- UI para o usuário escolher qual pipeline receberá as solicitações
-- Edge Function de webhook para receber mensagens do WAHA e criar pré-oportunidades
-- Configuração do webhook na sessão WAHA ao iniciar/conectar
-- Toggle para ativar/desativar criação automática de pré-oportunidades
+A boa noticia e que o `iniciar` (action que cria a sessao) **ja configura o webhook** corretamente durante a criacao. Entao o `configurar_webhook` via PUT e desnecessario e prejudicial.
 
-## Etapas de Implementação
+### Problema 2: `waha-webhook` nao cria conversas/mensagens
 
-### Etapa 1 -- Migração do Banco de Dados
+A Edge Function `waha-webhook` apenas cria registros em `pre_oportunidades`. Ela **nao cria** registros nas tabelas `conversas` nem `mensagens`. Por isso as mensagens recebidas via WhatsApp **nunca aparecem** no modulo `/conversas`.
 
-Adicionar colunas à tabela `sessoes_whatsapp`:
-- `funil_destino_id` (uuid, nullable, FK para `funis`)
-- `auto_criar_pre_oportunidade` (boolean, default false)
+---
 
-Isso permite que cada sessão WhatsApp tenha uma pipeline de destino configurada e um toggle para ativar/desativar a criação automática.
+## Plano de Correcao
 
-### Etapa 2 -- Edge Function: `waha-webhook` (receptor de mensagens)
+### Etapa 1: Corrigir `configurar_webhook` para nao reiniciar a sessao
 
-Criar nova Edge Function pública (`verify_jwt = false`) que:
+**Arquivo**: `supabase/functions/waha-proxy/index.ts`
 
-1. Recebe eventos do WAHA (mensagens recebidas, status de sessão)
-2. Para cada mensagem recebida de um número novo (não existente em `pre_oportunidades` com status `pendente`):
-   - Busca a `sessao_whatsapp` pelo `session_name` para obter `organizacao_id` e `funil_destino_id`
-   - Verifica se `auto_criar_pre_oportunidade` está ativo
-   - Cria um registro em `pre_oportunidades` com status `pendente`
-3. Para mensagens de números já existentes com pré-oportunidade pendente:
-   - Atualiza `ultima_mensagem`, `ultima_mensagem_em` e incrementa `total_mensagens`
+Em vez de usar `PUT /api/sessions/{sessionId}` (que reinicia a sessao), o action `configurar_webhook` vai:
 
-Validações de segurança:
-- Verificar API key do WAHA no header
-- Ignorar mensagens enviadas (apenas recebidas)
+1. Primeiro verificar o status atual da sessao via `GET /api/sessions/{sessionId}`
+2. Se estiver WORKING (conectada), usar `PUT /api/sessions/{sessionId}` mas preservando todos os dados existentes da sessao, OU melhor: simplesmente **parar e reiniciar** a sessao com a config atualizada usando `POST /api/sessions/stop` + `POST /api/sessions/start`
+3. Na verdade, a melhor abordagem e: **nao chamar o WAHA** para configurar webhook, apenas salvar no banco. O webhook ja foi configurado durante o `iniciar`. Se a sessao ja existia antes do webhook ser implementado, o usuario deve desconectar e reconectar.
 
-### Etapa 3 -- Atualizar `waha-proxy` (configurar webhook na sessão)
+**Solucao escolhida**: Alterar `configurar_webhook` para usar a API correta do WAHA que atualiza webhooks sem reiniciar: `PUT /api/sessions/{sessionId}/config` (se disponivel) ou simplesmente verificar se o webhook ja esta configurado e, se nao, avisar o usuario para reconectar.
 
-Ao iniciar ou restartar uma sessão WAHA, configurar o webhook apontando para a Edge Function `waha-webhook`:
+### Etapa 2: Atualizar `waha-webhook` para criar conversas e mensagens
 
-- Substituir `webhooks: []` por uma configuração real com a URL da Edge Function
-- Eventos: `message` (para receber mensagens)
-- A URL será: `https://{SUPABASE_URL}/functions/v1/waha-webhook`
+**Arquivo**: `supabase/functions/waha-webhook/index.ts`
 
-### Etapa 4 -- UI: Seleção de Pipeline na Conexão WhatsApp
+Adicionar logica para que, ao receber uma mensagem, o webhook tambem:
 
-Adicionar na página de Conexões (`ConexoesPage`) ou no modal de WhatsApp:
+1. **Buscar ou criar contato** (`contatos` table)
+   - Buscar por `telefone = phoneNumber` na organizacao
+   - Se nao existir, criar com `nome = phoneName || phoneNumber`, `tipo = 'pessoa'`, `origem = 'whatsapp'`
 
-1. **Após conectar com sucesso**, exibir seção de configuração:
-   - Toggle: "Criar solicitações automaticamente ao receber mensagens"
-   - Select: "Pipeline de destino" (lista de pipelines ativas da organização)
-2. **No card de conexão WhatsApp** (quando conectado), exibir a pipeline selecionada
-3. Salvar configuração na tabela `sessoes_whatsapp` (campos `funil_destino_id` e `auto_criar_pre_oportunidade`)
+2. **Buscar ou criar conversa** (`conversas` table)
+   - Buscar conversa existente para este contato + sessao_whatsapp
+   - Se nao existir, criar com `canal = 'whatsapp'`, `status = 'aberta'`, `sessao_whatsapp_id`, etc.
 
-### Etapa 5 -- Ajustar fluxo de "Aceitar" pré-oportunidade
+3. **Criar mensagem** (`mensagens` table)
+   - Inserir registro com `from_me = false`, `tipo = 'text'`, `body = messageBody`, etc.
 
-Garantir que ao aceitar:
-- A oportunidade é criada na etapa de tipo `entrada` ("Novos Negócios") da pipeline
-- O contato é criado neste momento (e não antes)
-- A pré-oportunidade não pode voltar para "Solicitações" após aceita
-- O card some da coluna "Solicitações" e aparece na coluna "Novos Negócios"
+4. **Atualizar conversa** com contadores e timestamps
+   - Incrementar `total_mensagens` e `mensagens_nao_lidas`
+   - Atualizar `ultima_mensagem_em`
 
-O código atual em `pre-oportunidades.api.ts` já faz isso corretamente (busca etapa de entrada, cria contato e oportunidade). Apenas validar que não há bugs.
+5. **Manter a logica de pre-oportunidades** existente (se `auto_criar_pre_oportunidade` estiver habilitado)
 
-## Detalhes Técnicos
+### Etapa 3: Reconectar sessao WAHA
 
-### Migração SQL
+Apos o deploy, sera necessario reconectar a sessao WhatsApp (desconectar e conectar novamente) para que o WAHA tenha a URL do webhook configurada. O webhook sera configurado automaticamente durante o `iniciar`.
 
-```sql
-ALTER TABLE sessoes_whatsapp 
-  ADD COLUMN funil_destino_id uuid REFERENCES funis(id),
-  ADD COLUMN auto_criar_pre_oportunidade boolean DEFAULT false;
-```
+---
 
-### Arquitetura do Webhook
+## Detalhes Tecnicos
+
+### Fluxo completo apos correcao:
 
 ```text
-WAHA Server
+Mensagem WhatsApp
     |
-    | HTTP POST (evento: message)
     v
-Edge Function: waha-webhook (pública)
+WAHA Server --> POST /functions/v1/waha-webhook
     |
-    | 1. Valida evento
-    | 2. Busca sessao_whatsapp pelo session_name
-    | 3. Verifica auto_criar_pre_oportunidade = true
-    | 4. Cria/atualiza pre_oportunidade
     v
-Tabela: pre_oportunidades (status: pendente)
+waha-webhook Edge Function
     |
-    | Supabase Query (frontend poll)
-    v
-Kanban > Coluna "Solicitações" > Card
-    |
-    | Usuário clica Aceitar
-    v
-Cria Contato + Oportunidade na etapa "Entrada"
+    +---> 1. Buscar sessao_whatsapp pelo session_name
+    +---> 2. Buscar/criar contato pelo telefone
+    +---> 3. Buscar/criar conversa (contato + sessao)
+    +---> 4. Inserir mensagem na conversa
+    +---> 5. Atualizar contadores da conversa
+    +---> 6. Se auto_criar_pre_oportunidade: criar/atualizar pre-op
+    +---> 7. Realtime dispara para o frontend
 ```
 
-### Arquivos a Criar
+### Alteracoes nos arquivos:
 
-| Arquivo | Descrição |
-|---------|-----------|
-| `supabase/functions/waha-webhook/index.ts` | Receptor de webhooks do WAHA |
+1. **`supabase/functions/waha-webhook/index.ts`** - Adicionar logica de conversas/mensagens/contatos (principal alteracao)
+2. **`supabase/functions/waha-proxy/index.ts`** - Corrigir action `configurar_webhook` para nao reiniciar sessao
+3. **Deploy das duas edge functions** apos alteracoes
 
-### Arquivos a Editar
+### Tabelas envolvidas (ja existentes, sem migracao):
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `supabase/functions/waha-proxy/index.ts` | Configurar webhook URL ao iniciar sessão |
-| `supabase/config.toml` | Adicionar `waha-webhook` com `verify_jwt = false` |
-| `src/modules/configuracoes/components/integracoes/ConexaoCard.tsx` | Exibir pipeline selecionada no card WhatsApp |
-| `src/modules/configuracoes/pages/ConexoesPage.tsx` | Adicionar configuração de pipeline pós-conexão |
-| `src/modules/configuracoes/services/configuracoes.api.ts` | Funções para salvar/buscar config da sessão WhatsApp |
+- `contatos` - buscar/criar contato pelo telefone
+- `conversas` - buscar/criar conversa com `sessao_whatsapp_id`, `contato_id`, `canal='whatsapp'`
+- `mensagens` - inserir mensagem recebida com `from_me=false`
+- `pre_oportunidades` - manter logica existente
 
-### Observações Importantes
-
-- A coluna "Solicitações" já existe e funciona -- ela apenas não recebe dados porque não há webhook
-- O fluxo Aceitar/Rejeitar já está implementado e funcional
-- Não serão criados contatos automaticamente ao receber mensagem -- apenas quando o usuário aceitar
-- Pré-oportunidades rejeitadas ou aceitas não voltam para a coluna "Solicitações"
