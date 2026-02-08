@@ -154,9 +154,14 @@ export function useCriarReuniao() {
       payload: {
         titulo: string
         descricao?: string
+        tipo?: string
         local?: string
         data_inicio: string
         data_fim?: string
+        participantes?: Array<{ email: string }>
+        google_meet?: boolean
+        notificacao_minutos?: number
+        sincronizar_google?: boolean
       }
     }) => detalhesApi.criarReuniao(oportunidadeId, payload),
     onSuccess: (_data, variables) => {
@@ -171,7 +176,13 @@ export function useAtualizarStatusReuniao() {
     mutationFn: ({ reuniaoId, status, extras }: {
       reuniaoId: string
       status: string
-      extras?: { motivo_noshow?: string; motivo_noshow_id?: string }
+      extras?: {
+        motivo_noshow?: string
+        motivo_noshow_id?: string
+        motivo_cancelamento?: string
+        observacoes_realizacao?: string
+        observacoes_noshow?: string
+      }
     }) => detalhesApi.atualizarStatusReuniao(reuniaoId, status, extras),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reunioes_oportunidade'] })
@@ -194,6 +205,39 @@ export function useMotivosNoShow() {
     queryKey: ['motivos_noshow'],
     queryFn: () => detalhesApi.listarMotivosNoShow(),
     staleTime: 60 * 1000,
+  })
+}
+
+export function useConexaoGoogle() {
+  return useQuery({
+    queryKey: ['conexao_google_status'],
+    queryFn: () => detalhesApi.verificarConexaoGoogle(),
+    staleTime: 60 * 1000,
+  })
+}
+
+export function useReagendarReuniao() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ reuniaoOriginalId, oportunidadeId, payload }: {
+      reuniaoOriginalId: string
+      oportunidadeId: string
+      payload: {
+        titulo: string
+        descricao?: string
+        tipo?: string
+        local?: string
+        data_inicio: string
+        data_fim?: string
+        participantes?: Array<{ email: string }>
+        google_meet?: boolean
+        notificacao_minutos?: number
+        sincronizar_google?: boolean
+      }
+    }) => detalhesApi.reagendarReuniao(reuniaoOriginalId, oportunidadeId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reunioes_oportunidade'] })
+    },
   })
 }
 
