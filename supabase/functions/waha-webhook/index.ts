@@ -146,7 +146,6 @@ Deno.serve(async (req) => {
         .from("pre_oportunidades")
         .insert({
           organizacao_id: sessao.organizacao_id,
-          integracao_id: sessao.id,
           phone_number: phoneNumber,
           phone_name: phoneName,
           funil_destino_id: sessao.funil_destino_id,
