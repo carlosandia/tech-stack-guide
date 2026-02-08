@@ -1,16 +1,19 @@
 /**
  * AIDEV-NOTE: Hooks TanStack Query para Conversas (PRD-09)
- * Usa Supabase direto via conversas.api.ts
+ * useConversas usa useInfiniteQuery para scroll infinito (20 por vez)
  */
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { conversasApi, type ListarConversasParams } from '../services/conversas.api'
 import { toast } from 'sonner'
 
 export function useConversas(params?: ListarConversasParams) {
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: ['conversas', params],
-    queryFn: () => conversasApi.listar(params),
+    queryFn: ({ pageParam }) => conversasApi.listar({ ...params, page: pageParam }),
+    getNextPageParam: (lastPage) =>
+      lastPage.page < lastPage.total_pages ? lastPage.page + 1 : undefined,
+    initialPageParam: 1,
     refetchInterval: 30000,
   })
 }
