@@ -8,6 +8,7 @@ import {
   CreditCard,
   Puzzle,
   Settings,
+  Lightbulb,
   LogOut,
   Menu,
   X,
@@ -45,6 +46,11 @@ const menuItems = [
     label: 'Módulos',
     path: '/admin/modulos',
     icon: Puzzle,
+  },
+  {
+    label: 'Evolução',
+    path: '/admin/evolucao',
+    icon: Lightbulb,
   },
   {
     label: 'Configurações',
@@ -92,6 +98,7 @@ function getPageTitle(pathname: string): string {
   if (pathname.startsWith('/admin/organizacoes')) return 'Organizações'
   if (pathname.startsWith('/admin/planos')) return 'Planos'
   if (pathname.startsWith('/admin/modulos')) return 'Módulos'
+  if (pathname.startsWith('/admin/evolucao')) return 'Evolução do Produto'
   if (pathname.startsWith('/admin/configuracoes')) return 'Configurações'
   return 'Super Admin'
 }
