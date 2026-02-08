@@ -4940,10 +4940,12 @@ export type Database = {
       sessoes_whatsapp: {
         Row: {
           atualizado_em: string
+          auto_criar_pre_oportunidade: boolean | null
           conectado_em: string | null
           criado_em: string
           deletado_em: string | null
           desconectado_em: string | null
+          funil_destino_id: string | null
           id: string
           organizacao_id: string
           phone_name: string | null
@@ -4960,10 +4962,12 @@ export type Database = {
         }
         Insert: {
           atualizado_em?: string
+          auto_criar_pre_oportunidade?: boolean | null
           conectado_em?: string | null
           criado_em?: string
           deletado_em?: string | null
           desconectado_em?: string | null
+          funil_destino_id?: string | null
           id?: string
           organizacao_id: string
           phone_name?: string | null
@@ -4980,10 +4984,12 @@ export type Database = {
         }
         Update: {
           atualizado_em?: string
+          auto_criar_pre_oportunidade?: boolean | null
           conectado_em?: string | null
           criado_em?: string
           deletado_em?: string | null
           desconectado_em?: string | null
+          funil_destino_id?: string | null
           id?: string
           organizacao_id?: string
           phone_name?: string | null
@@ -4999,6 +5005,13 @@ export type Database = {
           webhook_url?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "sessoes_whatsapp_funil_destino_id_fkey"
+            columns: ["funil_destino_id"]
+            isOneToOne: false
+            referencedRelation: "funis"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "sessoes_whatsapp_organizacao_id_fkey"
             columns: ["organizacao_id"]

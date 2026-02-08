@@ -2,6 +2,7 @@
  * AIDEV-NOTE: Card de conexão OAuth por plataforma
  * Conforme PRD-08 - Conexões com Plataformas Externas
  * Exibe dados específicos por plataforma quando conectado
+ * WhatsApp: inclui config de pipeline para pré-oportunidades
  */
 
 import { useState } from 'react'
@@ -22,6 +23,7 @@ import {
   User,
 } from 'lucide-react'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
+import { WhatsAppPipelineConfig } from './WhatsAppPipelineConfig'
 import type { Integracao, PlataformaIntegracao } from '../../services/configuracoes.api'
 
 interface ConexaoCardProps {
@@ -275,6 +277,11 @@ export function ConexaoCard({
                   <span className="text-muted-foreground">Erro: </span>
                   {integracao.ultimo_erro}
                 </p>
+              )}
+
+              {/* WhatsApp: Configuração de pipeline para pré-oportunidades */}
+              {plataforma === 'whatsapp' && integracao.waha_session_id && (
+                <WhatsAppPipelineConfig sessaoId={integracao.waha_session_id} />
               )}
             </div>
           )}

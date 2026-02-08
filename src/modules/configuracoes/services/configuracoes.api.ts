@@ -232,6 +232,7 @@ export interface Integracao {
   conta_externa_email?: string | null
   waha_phone?: string | null
   waha_session_name?: string | null
+  waha_session_id?: string | null
   ultimo_sync?: string | null
   ultimo_erro?: string | null
   conectado_em?: string | null
@@ -1205,6 +1206,7 @@ export const integracoesApi = {
           status: ['connected', 'ativo'].includes(row.status as string) ? 'conectado' : (row.status as string) || 'desconectado',
           waha_phone: row.phone_number as string | null,
           waha_session_name: row.phone_name as string | null,
+          waha_session_id: row.id as string,
           conectado_em: row.conectado_em as string | null,
           ultimo_erro: row.ultimo_erro as string | null,
           ultimo_sync: row.atualizado_em as string | null,
