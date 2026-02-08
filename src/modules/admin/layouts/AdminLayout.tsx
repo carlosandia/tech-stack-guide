@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/providers/AuthProvider'
 import { ToolbarProvider, useToolbar } from '../contexts/ToolbarContext'
+import { NotificacoesSino } from '@/modules/feedback/components/NotificacoesSino'
 import {
   LayoutDashboard,
   Building2,
@@ -228,9 +229,12 @@ function AdminLayoutInner() {
             </nav>
           </div>
 
-          {/* Right: Badge + User Menu */}
-          <div className="flex items-center">
-            {/* User menu unificado */}
+          {/* Right: Notificações + User Menu */}
+          <div className="flex items-center gap-1">
+            {/* Sino de Notificações */}
+            <NotificacoesSino />
+
+            {/* User menu */}
             <div className="relative">
               <button
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
