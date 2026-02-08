@@ -71,15 +71,14 @@ export function FiltrosConversas({
         )}
       </div>
 
-      {/* Canal + Status tabs */}
-      <div className="flex items-center gap-1 flex-wrap overflow-hidden">
-        {/* Canal tabs */}
+      {/* Canal tabs + Status tabs — tudo em uma linha */}
+      <div className="flex items-center gap-1 overflow-hidden">
         {canais.map((c) => (
           <button
             key={c.label}
             onClick={() => onCanalChange(c.value)}
             className={`
-              flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md font-medium transition-all duration-200 min-h-[36px]
+              flex items-center gap-1 px-2 py-1 text-xs rounded-md font-medium transition-all duration-200 whitespace-nowrap
               ${canal === c.value
                 ? 'bg-primary/10 text-primary'
                 : 'text-muted-foreground hover:text-foreground hover:bg-accent'
@@ -91,15 +90,14 @@ export function FiltrosConversas({
           </button>
         ))}
 
-        <div className="w-px h-4 bg-border mx-1 flex-shrink-0" />
+        <div className="w-px h-4 bg-border mx-0.5 flex-shrink-0" />
 
-        {/* Status tabs (mesmo padrão visual dos canais) */}
         {statuses.map((s) => (
           <button
             key={s.label}
             onClick={() => onStatusChange(s.value)}
             className={`
-              flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md font-medium transition-all duration-200 min-h-[36px]
+              px-2 py-1 text-xs rounded-md font-medium transition-all duration-200 whitespace-nowrap
               ${status === s.value
                 ? 'bg-primary/10 text-primary'
                 : 'text-muted-foreground hover:text-foreground hover:bg-accent'
