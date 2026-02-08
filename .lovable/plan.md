@@ -1,242 +1,179 @@
 
-# Plano: Implementacao Frontend do Modulo de Feedback (PRD-15)
+# Plano de Correcao: Gaps do PRD-15 - Modulo de Feedback
 
-## Resumo
+## Resumo da Analise
 
-O backend do modulo de Feedback ja esta totalmente implementado (rotas Express, service, schemas Zod). As tabelas `feedbacks` e `notificacoes` existem no banco com RLS configurado. O frontend precisa ser construido do zero com 3 partes principais:
-
-1. **Botao Flutuante + Popover** (Admin/Member) - visible em todas as paginas do CRM
-2. **Pagina /admin/evolucao** (Super Admin) - lista, filtros, detalhes e resolucao
-3. **Sino de Notificacoes** (Admin/Member) - badge no header + dropdown
-
-## Arquitetura de Acesso ao Dados
-
-O frontend usara **Supabase direto** (mesmo padrao do `admin.api.ts` e `conversas.api.ts`), sem depender do backend Express. As RLS policies ja suportam isso:
-- `feedbacks`: INSERT via `organizacao_id = get_user_tenant_id()`, SELECT via `usuario_id` ou `role = super_admin`
-- `notificacoes`: ALL via `usuario_id` com `auth.uid()`
+Apos verificacao detalhada do PRD-15-FEEDBACK.md (1165 linhas) versus a implementacao atual, identifiquei **7 gaps** - sendo **2 criticos (bloqueantes)** relacionados a RLS no banco de dados que impedem funcionalidades core de funcionar.
 
 ---
 
-## Componentes a Criar
+## Gaps Identificados (por prioridade)
 
-### Parte 1: Botao Flutuante + Popover (Admin/Member)
+### GAP 1 - CRITICO: Falta policy de UPDATE na tabela `feedbacks`
 
-**Arquivo:** `src/modules/feedback/components/FeedbackButton.tsx`
-- Botao circular fixo, 56x56px, canto inferior direito (24px margem)
-- Background: gradiente `linear-gradient(135deg, #7C3AED, #3B82F6)`
-- Icone: `Lightbulb` (Lucide), branco, 24px
-- Z-index: 9999 (conforme PRD)
-- Estados: hover (scale 1.1), active (scale 0.95), focus (ring azul)
-- Visivel apenas para `admin` e `member` (verificacao via `useAuth`)
-- Ao clicar, abre/fecha o popover
+**Problema:** A tabela `feedbacks` possui apenas policies de SELECT e INSERT. Nao existe policy para UPDATE. Quando o Super Admin tenta "Marcar como Resolvido", a operacao `supabase.from('feedbacks').update(...)` falha silenciosamente por falta de permissao RLS.
 
-**Arquivo:** `src/modules/feedback/components/FeedbackPopover.tsx`
-- Largura: 400px, border-radius 12px
-- Header com gradiente roxo/azul, icone lampada, titulo "Nos ajude a melhorar"
-- Dropdown de tipo com 3 opcoes: Bug (vermelho), Sugestao (roxo), Duvida (azul)
-- Textarea com contador de caracteres (min 10, max 10.000)
-- Botoes Cancelar (outline) e Enviar Feedback (primary, desabilitado se invalido)
-- Loading spinner durante envio
-- Toast de sucesso/erro via sonner
-- Fecha e limpa apos envio
+**Impacto:** A funcionalidade de resolver feedback (RF-006) esta 100% quebrada.
 
-**Integracao:** Adicionado no `AppLayout.tsx` (antes do fechamento de `</div>` do container principal), renderizado condicionalmente para `admin` e `member`
+**Correcao:** Criar migration SQL com policy de UPDATE para Super Admin:
+```text
+CREATE POLICY "super_admin_update_feedback" ON feedbacks
+  FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM usuarios u
+      WHERE u.auth_id = auth.uid()
+      AND u.role = 'super_admin'
+    )
+  );
+```
 
-### Parte 2: Pagina /admin/evolucao (Super Admin)
+### GAP 2 - CRITICO: Policy de notificacoes impede INSERT pelo Super Admin
 
-**Arquivo:** `src/modules/admin/pages/EvolucaoPage.tsx`
-- Titulo: "Evolucao do Produto"
-- Barra de filtros: Empresa (select), Tipo (select), Status (select), Busca (input com debounce 300ms)
-- Tabela com colunas: Empresa, Usuario, Tipo (badge colorido), Data (DD/MM HH:mm), Status (badge)
-- Paginacao com 10 itens por pagina
-- Click na linha abre modal de detalhes
+**Problema:** A tabela `notificacoes` tem uma policy `FOR ALL` que valida `usuario_id = auth.uid()`. Quando o Super Admin resolve um feedback, tenta inserir uma notificacao onde `usuario_id = feedback.usuario_id` (o usuario original), mas o RLS bloqueia porque o `usuario_id` da notificacao nao corresponde ao Super Admin logado.
 
-**Arquivo:** `src/modules/admin/components/FeedbackDetalhesModal.tsx`
-- Modal com campos readonly: Empresa, Usuario (nome + email + role), Tipo (badge), Data, Descricao (scrollable)
-- Se aberto: botao "Marcar como Resolvido"
-- Se resolvido: exibe info de resolucao (quem, quando)
-- Ao resolver: toast de sucesso, invalida query
+**Impacto:** Notificacoes de resolucao nunca sao criadas. O usuario original nunca sabe que seu feedback foi resolvido.
 
-### Parte 3: Sino de Notificacoes (Admin/Member)
+**Correcao:** Adicionar policy especifica de INSERT que permite Super Admin criar notificacoes para qualquer usuario:
+```text
+CREATE POLICY "super_admin_insert_notificacao" ON notificacoes
+  FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM usuarios u
+      WHERE u.auth_id = auth.uid()
+      AND u.role = 'super_admin'
+    )
+  );
+```
+E ajustar a policy existente para ser apenas SELECT/UPDATE (o usuario le e marca como lida suas proprias notificacoes).
 
-**Arquivo:** `src/modules/feedback/components/NotificacoesSino.tsx`
-- Icone Bell no header, badge vermelho com contagem (9+ se > 9)
-- Dropdown com ultimas 5 notificacoes
-- Cada item: icone (CheckCircle verde para feedback_resolvido), titulo, mensagem truncada, data relativa
-- Indicador de nao lida (bolinha azul)
-- Botao "Marcar todas como lidas"
-- Click em notificacao marca como lida
+### GAP 3 - MEDIO: Filtro de Empresa faltante na EvolucaoPage
 
-**Integracao:** Adicionado no header do `AppLayout.tsx`, entre a navegacao e o menu de usuario
+**Problema:** O PRD (RF-004) especifica 4 filtros: Empresa, Tipo, Status, Busca. A implementacao atual da `EvolucaoPage` tem apenas 3 filtros (Tipo, Status, Busca). O filtro de Empresa (select com lista de tenants) esta faltando.
 
----
+**Impacto:** Super Admin nao consegue filtrar feedbacks por empresa/organizacao, dificultando a gestao quando ha muitos tenants.
 
-## Servicos e Hooks
+**Correcao:** Adicionar select de Empresa na barra de filtros da `EvolucaoPage.tsx`. Buscar lista de organizacoes com `supabase.from('organizacoes_saas').select('id, nome')` e passar `empresa_id` para o hook `useFeedbacksAdmin`.
 
-### Servico de Feedback
-**Arquivo:** `src/modules/feedback/services/feedback.api.ts`
-- `criarFeedback(tipo, descricao)` - Insert no Supabase com org do usuario logado
-- `listarFeedbacksAdmin(filtros)` - Query com joins para organizacao e usuario (Super Admin)
-- `resolverFeedback(id)` - Update status + criar notificacao + audit_log
+### GAP 4 - MEDIO: Popover nao tem dropdown de tipo conforme PRD
 
-### Servico de Notificacoes
-**Arquivo:** `src/modules/feedback/services/notificacoes.api.ts`
-- `listarNotificacoes(limit)` - Select com order by criado_em DESC
-- `contarNaoLidas()` - Count com lida = false
-- `marcarComoLida(id)` - Update lida = true, lida_em = now
-- `marcarTodasComoLidas()` - Update all do usuario
+**Problema:** O PRD (RF-002) especifica um dropdown select para escolha do tipo com icones coloridos. A implementacao usa botoes lado a lado (toggle buttons). Embora funcional, diverge do layout especificado e do padrao do Design System para selects.
 
-### Hooks
-**Arquivo:** `src/modules/feedback/hooks/useFeedback.ts`
-- `useCriarFeedback()` - mutation com toast
-- `useFeedbacksAdmin(filtros)` - useQuery para lista
-- `useResolverFeedback()` - mutation com invalidacao
+**Impacto:** Divergencia visual do PRD. Funcionalidade ok, mas UX nao segue o design especificado.
 
-**Arquivo:** `src/modules/feedback/hooks/useNotificacoes.ts`
-- `useNotificacoes(limit)` - useQuery
-- `useContagemNaoLidas()` - useQuery com refetch interval (30s)
-- `useMarcarLida()` - mutation
-- `useMarcarTodasLidas()` - mutation
+**Correcao:** Manter os toggle buttons (a UX e melhor que um dropdown para apenas 3 opcoes), mas ajustar para que o icone do tipo Bug use `Settings2` (conforme PRD especifica "Settings2" e nao "Bug") e garantir que as cores correspondam exatamente ao PRD (vermelho #EF4444, roxo #7C3AED, azul #3B82F6).
+
+### GAP 5 - BAIXO: Modal de detalhes nao atualiza apos resolucao
+
+**Problema:** Quando o Super Admin clica "Marcar como Resolvido", o modal fecha imediatamente (`onClose()`). O PRD (RF-005) especifica que o modal deve permanecer aberto e atualizar para exibir as informacoes de resolucao (quem resolveu, quando).
+
+**Impacto:** Super Admin nao ve confirmacao visual dentro do modal de que a resolucao foi salva. Precisa reabrir o item na tabela para confirmar.
+
+**Correcao:** No `FeedbackDetalhesModal`, apos resolver com sucesso, atualizar o estado local do feedback para refletir o novo status ao inves de fechar o modal. Invalidar a query e recarregar os dados do feedback.
+
+### GAP 6 - BAIXO: Falta "Marcar todas como lidas" fechar o dropdown
+
+**Problema:** O PRD (RF-007) especifica que ao clicar "Marcar todas como lidas", o dropdown deve fechar. Atualmente o dropdown permanece aberto.
+
+**Correcao:** No `NotificacoesSino.tsx`, adicionar `setOpen(false)` apos chamar `marcarTodasLidas.mutate()`.
+
+### GAP 7 - BAIXO: Falta Supabase Realtime para notificacoes
+
+**Problema:** O PRD (RF-007) especifica que o badge de notificacoes deve atualizar em tempo real via Supabase Realtime. A implementacao atual usa apenas polling a cada 30 segundos.
+
+**Impacto:** Atraso de ate 30 segundos para o usuario ver que tem uma nova notificacao.
+
+**Correcao:** Adicionar subscription Realtime no hook `useContagemNaoLidas` para a tabela `notificacoes` com filtro `usuario_id=eq.{userId}`. Ao receber evento INSERT, invalidar a query de contagem.
 
 ---
 
 ## Secao Tecnica
 
-### Estrutura de Arquivos
+### Migration SQL (GAP 1 + GAP 2)
+
+Criar migration unica com as seguintes operacoes:
 
 ```text
-src/modules/feedback/
-  components/
-    FeedbackButton.tsx       -- Botao flutuante (FAB)
-    FeedbackPopover.tsx      -- Formulario de envio
-    NotificacoesSino.tsx     -- Sino + dropdown no header
-  hooks/
-    useFeedback.ts           -- Hooks de feedback
-    useNotificacoes.ts       -- Hooks de notificacoes
-  services/
-    feedback.api.ts          -- API Supabase (feedbacks)
-    notificacoes.api.ts      -- API Supabase (notificacoes)
-  index.ts                   -- Barrel exports
+-- GAP 1: Policy de UPDATE para feedbacks (Super Admin resolver)
+CREATE POLICY "super_admin_update_feedback" ON public.feedbacks
+  FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.usuarios u
+      WHERE u.auth_id = auth.uid()
+      AND u.role = 'super_admin'
+    )
+  );
 
-src/modules/admin/
-  pages/
-    EvolucaoPage.tsx         -- Pagina /admin/evolucao (nova)
-  components/
-    FeedbackDetalhesModal.tsx -- Modal de detalhes (novo)
+-- GAP 2: Ajustar policies de notificacoes
+-- Dropar a policy existente (FOR ALL) que bloqueia INSERT do Super Admin
+DROP POLICY IF EXISTS "usuario_proprias_notificacoes" ON public.notificacoes;
+
+-- Recriar como SELECT + UPDATE apenas para o usuario dono
+CREATE POLICY "usuario_ler_notificacoes" ON public.notificacoes
+  FOR SELECT
+  USING (
+    usuario_id = (
+      SELECT u.id FROM public.usuarios u WHERE u.auth_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "usuario_atualizar_notificacoes" ON public.notificacoes
+  FOR UPDATE
+  USING (
+    usuario_id = (
+      SELECT u.id FROM public.usuarios u WHERE u.auth_id = auth.uid()
+    )
+  );
+
+-- INSERT: usuario pode criar para si mesmo OU super_admin pode criar para qualquer um
+CREATE POLICY "inserir_notificacao" ON public.notificacoes
+  FOR INSERT
+  WITH CHECK (
+    usuario_id = (
+      SELECT u.id FROM public.usuarios u WHERE u.auth_id = auth.uid()
+    )
+    OR
+    EXISTS (
+      SELECT 1 FROM public.usuarios u
+      WHERE u.auth_id = auth.uid()
+      AND u.role = 'super_admin'
+    )
+  );
 ```
 
-### Queries Supabase (feedback.api.ts)
+### Alteracoes em Arquivos
 
-**Criar Feedback (Admin/Member):**
-```text
-supabase.from('feedbacks').insert({
-  organizacao_id,  // vem do user.organizacao_id
-  usuario_id,      // vem do user.id
-  tipo,
-  descricao,
-  status: 'aberto'
-}).select('id, tipo, descricao, status, criado_em').single()
-```
+**1. `src/modules/admin/pages/EvolucaoPage.tsx` (GAP 3)**
+- Adicionar estado `empresa` para filtro de empresa
+- Adicionar query para buscar lista de organizacoes (`organizacoes_saas`)
+- Adicionar select de Empresa na barra de filtros
+- Passar `empresa_id` ao hook `useFeedbacksAdmin`
 
-**Listar Feedbacks (Super Admin):**
-```text
-supabase.from('feedbacks').select(`
-  *,
-  organizacao:organizacoes_saas!feedbacks_organizacao_id_fkey(id, nome),
-  usuario:usuarios!feedbacks_usuario_id_fkey(id, nome, email, role),
-  resolvido_por_usuario:usuarios!feedbacks_resolvido_por_fkey(id, nome)
-`, { count: 'exact' })
-.is('deletado_em', null)
-.order('criado_em', { ascending: false })
-// + filtros dinamicos
-.range(offset, offset + limit - 1)
-```
+**2. `src/modules/feedback/components/FeedbackPopover.tsx` (GAP 4)**
+- Trocar icone `Bug` por `Settings2` no tipo "bug" (conforme PRD)
+- Ajustar cores dos icones para corresponder exatamente ao PRD
 
-**Resolver Feedback (Super Admin):**
-```text
-// 1. Update status
-supabase.from('feedbacks').update({
-  status: 'resolvido',
-  resolvido_em: new Date().toISOString(),
-  resolvido_por: userId,
-  atualizado_em: new Date().toISOString()
-}).eq('id', feedbackId)
+**3. `src/modules/admin/components/FeedbackDetalhesModal.tsx` (GAP 5)**
+- Remover `onClose()` do handler de sucesso
+- Adicionar estado local mutavel para o feedback
+- Apos `resolver.mutateAsync`, atualizar estado local com novo status/data/resolvido_por
+- Adicionar prop `onResolved` para notificar o parent que a lista precisa ser atualizada
 
-// 2. Criar notificacao para usuario original
-supabase.from('notificacoes').insert({
-  usuario_id: feedback.usuario_id,
-  tipo: 'feedback_resolvido',
-  titulo: 'Seu feedback foi resolvido',
-  mensagem: descricaoResumida,
-  referencia_tipo: 'feedback',
-  referencia_id: feedbackId
-})
-```
+**4. `src/modules/feedback/components/NotificacoesSino.tsx` (GAP 6)**
+- Adicionar `setOpen(false)` no onClick de "Marcar todas como lidas"
 
-### Queries Supabase (notificacoes.api.ts)
-
-**Listar:**
-```text
-supabase.from('notificacoes')
-  .select('*')
-  .eq('usuario_id', userId)
-  .order('criado_em', { ascending: false })
-  .limit(5)
-```
-
-**Contar nao lidas:**
-```text
-supabase.from('notificacoes')
-  .select('id', { count: 'exact', head: true })
-  .eq('usuario_id', userId)
-  .eq('lida', false)
-```
-
-**Marcar como lida:**
-```text
-supabase.from('notificacoes')
-  .update({ lida: true, lida_em: new Date().toISOString() })
-  .eq('id', notificacaoId)
-```
-
-### Alteracoes em Arquivos Existentes
-
-1. **`src/App.tsx`** - Adicionar rota `/admin/evolucao` com `<EvolucaoPage />`
-2. **`src/modules/admin/index.ts`** - Exportar `EvolucaoPage`
-3. **`src/modules/admin/layouts/AdminLayout.tsx`** - Adicionar item "Evolucao" no menu (icone Lightbulb)
-4. **`src/modules/app/layouts/AppLayout.tsx`** - Adicionar `<NotificacoesSino />` no header + `<FeedbackButton />` no body
-5. **`src/modules/admin/layouts/AdminLayout.tsx`** - Atualizar `getPageTitle` para incluir "Evolucao"
-
-### Especificacoes de Cores (Design System)
-
-**Badges de Tipo (PRD-15):**
-| Tipo | Background | Text |
-|------|------------|------|
-| bug | #FEE2E2 | #991B1B |
-| sugestao | #EDE9FE | #5B21B6 |
-| duvida | #DBEAFE | #1E40AF |
-
-**Badges de Status:**
-| Status | Background | Text |
-|--------|------------|------|
-| aberto | #FEF3C7 | #92400E |
-| resolvido | #D1FAE5 | #065F46 |
-
-**Botao Flutuante:**
-| Propriedade | Valor |
-|-------------|-------|
-| Tamanho | 56x56px (w-14 h-14) |
-| Background | gradient roxo-azul |
-| Shadow | shadow-lg (0 4px 12px) |
-| Hover | scale-110, shadow-xl |
-| Z-index | z-[9999] |
+**5. `src/modules/feedback/hooks/useNotificacoes.ts` (GAP 7)**
+- Adicionar `useEffect` com `supabase.channel('notificacoes-realtime')` para ouvir INSERTs na tabela `notificacoes`
+- Ao receber evento, chamar `queryClient.invalidateQueries(['notificacoes'])`
+- Cleanup do channel no return do useEffect
 
 ### Sequencia de Implementacao
 
-1. Servicos: `feedback.api.ts` + `notificacoes.api.ts`
-2. Hooks: `useFeedback.ts` + `useNotificacoes.ts`
-3. Componentes Admin: `EvolucaoPage.tsx` + `FeedbackDetalhesModal.tsx`
-4. Integracao Admin: rota + menu + exports
-5. Componentes CRM: `FeedbackButton.tsx` + `FeedbackPopover.tsx`
-6. Componente Notificacoes: `NotificacoesSino.tsx`
-7. Integracao CRM: AppLayout (botao + sino)
+1. Migration SQL (GAP 1 + GAP 2) - sem isso nada funciona
+2. `FeedbackDetalhesModal.tsx` (GAP 5) - comportamento pos-resolucao
+3. `EvolucaoPage.tsx` (GAP 3) - filtro de empresa
+4. `FeedbackPopover.tsx` (GAP 4) - icones corretos
+5. `NotificacoesSino.tsx` (GAP 6) - fechar dropdown
+6. `useNotificacoes.ts` (GAP 7) - Supabase Realtime
