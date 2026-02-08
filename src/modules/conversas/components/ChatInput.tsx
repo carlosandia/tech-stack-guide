@@ -167,12 +167,13 @@ export function ChatInput({ onSendMessage, onSendNote, onOpenQuickReplies, onFil
               onKeyDown={handleKeyDown}
               placeholder={isNota ? 'Escreva uma nota privada...' : 'Shift + Enter para nova linha...'}
               disabled={disabled}
-              rows={1}
+              rows={2}
               className={`
                 w-full resize-none rounded-md border px-3 py-2 text-sm
                 focus:outline-none focus:ring-1
                 placeholder:text-muted-foreground
                 disabled:opacity-50
+                overflow-hidden
                 ${isNota
                   ? 'bg-warning-muted/20 border-warning/30 focus:ring-warning/50'
                   : 'bg-background border-border focus:ring-ring'
