@@ -405,6 +405,47 @@ Deno.serve(async (req) => {
         break;
       }
 
+      case "configurar_webhook": {
+        // Update WAHA session to add webhook configuration
+        console.log(`[waha-proxy] Configuring webhook for session ${sessionId}: ${webhookUrl}`);
+        
+        wahaResponse = await fetch(`${baseUrl}/api/sessions/${sessionId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Api-Key": apiKey,
+          },
+          body: JSON.stringify({
+            config: {
+              webhooks: [
+                {
+                  url: webhookUrl,
+                  events: ["message"],
+                },
+              ],
+            },
+          }),
+        });
+
+        const webhookResult = await wahaResponse.json().catch(() => ({}));
+        console.log(`[waha-proxy] Webhook config response: ${wahaResponse.status}`, JSON.stringify(webhookResult));
+
+        if (wahaResponse.ok || wahaResponse.status === 200) {
+          // Save webhook URL to DB
+          await upsertSessao({ webhook_url: webhookUrl });
+
+          return new Response(
+            JSON.stringify({ ok: true, message: "Webhook configurado", webhook_url: webhookUrl }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        return new Response(
+          JSON.stringify({ error: "Falha ao configurar webhook no WAHA", details: webhookResult }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       default:
         return new Response(
           JSON.stringify({ error: `Action '${action}' não reconhecida` }),

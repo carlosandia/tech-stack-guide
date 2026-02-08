@@ -1,6 +1,7 @@
 /**
  * AIDEV-NOTE: Configuração de pipeline para pré-oportunidades WhatsApp
  * Permite toggle de criação automática e seleção de pipeline destino
+ * Ao ativar, configura webhook no WAHA para receber mensagens
  */
 
 import { useState, useEffect } from 'react'
@@ -10,6 +11,7 @@ import { supabase } from '@/lib/supabase'
 
 interface WhatsAppPipelineConfigProps {
   sessaoId: string
+  sessionName?: string
   onUpdate?: () => void
 }
 
@@ -21,9 +23,11 @@ interface Funil {
 interface SessaoConfig {
   auto_criar_pre_oportunidade: boolean
   funil_destino_id: string | null
+  session_name: string
+  webhook_url: string | null
 }
 
-export function WhatsAppPipelineConfig({ sessaoId, onUpdate }: WhatsAppPipelineConfigProps) {
+export function WhatsAppPipelineConfig({ sessaoId, sessionName, onUpdate }: WhatsAppPipelineConfigProps) {
   const [config, setConfig] = useState<SessaoConfig | null>(null)
   const [funis, setFunis] = useState<Funil[]>([])
   const [loading, setLoading] = useState(true)
@@ -33,11 +37,10 @@ export function WhatsAppPipelineConfig({ sessaoId, onUpdate }: WhatsAppPipelineC
     async function load() {
       setLoading(true)
       try {
-        // Load session config and pipelines in parallel
         const [sessaoRes, funisRes] = await Promise.all([
           supabase
             .from('sessoes_whatsapp')
-            .select('auto_criar_pre_oportunidade, funil_destino_id')
+            .select('auto_criar_pre_oportunidade, funil_destino_id, session_name, webhook_url')
             .eq('id', sessaoId)
             .single(),
           supabase
@@ -53,6 +56,8 @@ export function WhatsAppPipelineConfig({ sessaoId, onUpdate }: WhatsAppPipelineC
           setConfig({
             auto_criar_pre_oportunidade: sessaoRes.data.auto_criar_pre_oportunidade ?? false,
             funil_destino_id: sessaoRes.data.funil_destino_id ?? null,
+            session_name: sessaoRes.data.session_name,
+            webhook_url: sessaoRes.data.webhook_url ?? null,
           })
         }
 
@@ -68,6 +73,27 @@ export function WhatsAppPipelineConfig({ sessaoId, onUpdate }: WhatsAppPipelineC
 
     load()
   }, [sessaoId])
+
+  /** Configure webhook on WAHA server via waha-proxy */
+  const configureWebhook = async (sName: string) => {
+    try {
+      console.log('[WhatsAppPipelineConfig] Configuring webhook for session:', sName)
+      const { data, error } = await supabase.functions.invoke('waha-proxy', {
+        body: { action: 'configurar_webhook', session_name: sName },
+      })
+
+      if (error) {
+        console.error('[WhatsAppPipelineConfig] Webhook config error:', error)
+        return false
+      }
+
+      console.log('[WhatsAppPipelineConfig] Webhook configured:', data)
+      return true
+    } catch (err) {
+      console.error('[WhatsAppPipelineConfig] Webhook config failed:', err)
+      return false
+    }
+  }
 
   const handleToggle = async (enabled: boolean) => {
     if (!config) return
@@ -89,6 +115,15 @@ export function WhatsAppPipelineConfig({ sessaoId, onUpdate }: WhatsAppPipelineC
         .eq('id', sessaoId)
 
       if (error) throw error
+
+      // If enabling, also configure the webhook on WAHA
+      if (enabled) {
+        const sName = sessionName || config.session_name
+        const webhookOk = await configureWebhook(sName)
+        if (!webhookOk) {
+          toast.warning('Configuração salva, mas houve erro ao configurar webhook no WAHA')
+        }
+      }
 
       setConfig(newConfig)
       toast.success(enabled ? 'Solicitações automáticas ativadas' : 'Solicitações automáticas desativadas')
