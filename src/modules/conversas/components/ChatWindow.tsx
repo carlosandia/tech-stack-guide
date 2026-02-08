@@ -1,5 +1,6 @@
 /**
  * AIDEV-NOTE: Janela de chat completa (header + mensagens + input)
+ * Usa Supabase direto via conversas.api.ts
  */
 
 import { useState, useMemo, useEffect } from 'react'
@@ -59,12 +60,11 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer }: ChatWindowProps) 
       await conversasApi.criarNota(conversa.contato_id, conteudo)
       toast.success('Nota salva')
     } catch (error: any) {
-      toast.error(error?.response?.data?.error || 'Erro ao salvar nota')
+      toast.error(error?.message || 'Erro ao salvar nota')
     }
   }
 
   const handleQuickReplySelect = (conteudo: string) => {
-    // Auto-send the quick reply
     enviarTexto.mutate({
       conversaId: conversa.id,
       texto: conteudo,
@@ -76,7 +76,6 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer }: ChatWindowProps) 
   }
 
   const handleCriarOportunidade = () => {
-    // TODO: Abrir modal de nova oportunidade com contato pré-selecionado (PRD-07 RF-10)
     toast.info('Funcionalidade de criação de oportunidade será integrada em breve')
   }
 

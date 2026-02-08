@@ -1,6 +1,7 @@
 /**
  * AIDEV-NOTE: Drawer lateral com informações do contato (PRD-09 RF-004)
  * Seções: Contato, Notas, Mensagens Prontas, Info da Conversa
+ * Usa Supabase direto via conversas.api.ts
  */
 
 import { useState } from 'react'
@@ -49,7 +50,7 @@ export function ContatoDrawer({ conversa, isOpen, onClose, onInsertQuickReply }:
   const queryClient = useQueryClient()
 
   const contato = conversa.contato
-  const nome = contato?.nome || conversa.nome || 'Sem nome'
+  const nome = contato?.nome || contato?.nome_fantasia || conversa.nome || 'Sem nome'
 
   // Notas do contato
   const { data: notasData, isLoading: notasLoading } = useQuery({
@@ -65,8 +66,8 @@ export function ContatoDrawer({ conversa, isOpen, onClose, onInsertQuickReply }:
       setNovaNota('')
       toast.success('Nota salva')
     },
-    onError: (error: any) => {
-      toast.error(error?.response?.data?.error || 'Erro ao salvar nota')
+    onError: (error: Error) => {
+      toast.error(error.message || 'Erro ao salvar nota')
     },
   })
 
