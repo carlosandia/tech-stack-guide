@@ -3,6 +3,8 @@ import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/providers/AuthProvider'
 import { useBlockedRedirect } from '@/hooks/useBlockedRedirect'
 import { AppToolbarProvider, useAppToolbar } from '../contexts/AppToolbarContext'
+import { FeedbackButton } from '@/modules/feedback/components/FeedbackButton'
+import { NotificacoesSino } from '@/modules/feedback/components/NotificacoesSino'
 import {
   LayoutDashboard,
   Users,
@@ -225,8 +227,13 @@ function AppLayoutInner() {
             </nav>
           </div>
 
-          {/* Right: User Menu */}
-          <div className="relative">
+          {/* Right: Notificacoes + User Menu */}
+          <div className="flex items-center gap-1">
+            {/* Sino de Notificacoes */}
+            <NotificacoesSino />
+
+            {/* User Menu */}
+            <div className="relative">
             <button
               onClick={() => setUserMenuOpen(!userMenuOpen)}
               className="flex items-center gap-2 p-2 hover:bg-accent rounded-md transition-all duration-200"
@@ -272,7 +279,8 @@ function AppLayoutInner() {
               </>
             )}
           </div>
-        </div>
+            </div>
+          </div>
       </header>
 
       {/* Toolbar sticky - 48px */}
@@ -282,6 +290,9 @@ function AppLayoutInner() {
       <main className="flex-1 overflow-hidden">
         <Outlet />
       </main>
+
+      {/* Botao flutuante de Feedback */}
+      <FeedbackButton />
     </div>
   )
 }

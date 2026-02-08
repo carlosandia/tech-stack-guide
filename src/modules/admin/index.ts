@@ -13,6 +13,7 @@ export { OrganizacoesPage as AdminOrganizacoesPage } from './pages/OrganizacoesP
 export { OrganizacaoDetalhesPage as AdminOrganizacaoDetalhesPage } from './pages/OrganizacaoDetalhesPage'
 export { PlanosPage as AdminPlanosPage } from './pages/PlanosPage'
 export { ConfiguracoesGlobaisPage as AdminConfiguracoesGlobaisPage } from './pages/ConfiguracoesGlobaisPage'
+export { EvolucaoPage as AdminEvolucaoPage } from './pages/EvolucaoPage'
 
 // Components
 export { NovaOrganizacaoModal } from './components/NovaOrganizacaoModal'

@@ -9,6 +9,7 @@ import {
   AdminPlanosPage,
   AdminConfiguracoesGlobaisPage,
   AdminModulosPage,
+  AdminEvolucaoPage,
 } from '@/modules/admin'
 import { AppLayout, AppDashboardPage } from '@/modules/app'
 import { PlanosPage, TrialCadastroPage, CheckoutSucessoPage, OnboardingPage } from '@/modules/public'
@@ -123,6 +124,7 @@ function App() {
         <Route path="planos" element={<AdminPlanosPage />} />
          <Route path="modulos" element={<AdminModulosPage />} />
         <Route path="configuracoes" element={<AdminConfiguracoesGlobaisPage />} />
+        <Route path="evolucao" element={<AdminEvolucaoPage />} />
       </Route>
 
       {/* Redireciona raiz baseado no role */}
