@@ -1,19 +1,21 @@
 /**
  * AIDEV-NOTE: Drawer lateral com informações do contato (PRD-09 RF-004)
- * Seções: Contato, Ações rápidas, Notas, Mensagens Prontas, Info da Conversa
+ * Seções: Contato, Ações rápidas, Notas, Mensagens Prontas, Oportunidades, Info da Conversa
  * Usa Supabase direto via conversas.api.ts
  */
 
 import { useState } from 'react'
-import { X, Phone, Mail, ChevronDown, ChevronRight, Loader2, MessageSquare, Zap, ListTodo, TrendingUp, Trash2 } from 'lucide-react'
+import { X, Phone, Mail, ChevronDown, ChevronRight, Loader2, MessageSquare, Zap, ListTodo, TrendingUp, Trash2, ExternalLink } from 'lucide-react'
 import { InstagramIcon } from '@/shared/components/InstagramIcon'
 import { CriarTarefaConversaModal } from './CriarTarefaConversaModal'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { conversasApi, type Conversa, type NotaContato, type MensagemPronta } from '../services/conversas.api'
 import { useMensagensProntas } from '../hooks/useMensagensProntas'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
+import { supabase } from '@/lib/supabase'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
+import { useNavigate } from 'react-router-dom'
 
 interface ContatoDrawerProps {
   conversa: Conversa
@@ -70,10 +72,94 @@ function ActionButton({ icon: Icon, label, onClick, variant = 'default' }: {
   )
 }
 
+// Seção de oportunidades vinculadas ao contato
+function OportunidadesContato({ contatoId, navigate }: { contatoId: string; navigate: ReturnType<typeof useNavigate> }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['oportunidades-contato', contatoId],
+    queryFn: async () => {
+      const { data: ops, error } = await supabase
+        .from('oportunidades')
+        .select(`
+          id, titulo, valor, status,
+          etapa:etapas_funil!inner(nome, cor, funil:funis!inner(id, nome))
+        `)
+        .eq('contato_id', contatoId)
+        .is('deletado_em', null)
+        .order('criado_em', { ascending: false })
+        .limit(10)
+      if (error) throw error
+      return ops || []
+    },
+    enabled: !!contatoId,
+  })
+
+  const oportunidades = data || []
+
+  const statusCor: Record<string, string> = {
+    aberta: 'bg-success/15 text-success-foreground',
+    ganha: 'bg-success/15 text-success-foreground',
+    perdida: 'bg-destructive/15 text-destructive',
+  }
+
+  return (
+    <SectionCollapsible title="Oportunidades" icon={<TrendingUp className="w-3.5 h-3.5 text-primary" />} defaultOpen>
+      {isLoading ? (
+        <div className="flex justify-center py-3">
+          <Loader2 className="w-5 h-5 text-muted-foreground animate-spin" />
+        </div>
+      ) : oportunidades.length === 0 ? (
+        <p className="text-xs text-muted-foreground">Nenhuma oportunidade encontrada</p>
+      ) : (
+        <div className="space-y-1.5">
+          {oportunidades.map((op: any) => {
+            const etapa = op.etapa
+            const funilNome = etapa?.funil?.nome || ''
+            const funilId = etapa?.funil?.id || ''
+            return (
+              <button
+                key={op.id}
+                onClick={() => navigate(`/app/negocios?funil=${funilId}&oportunidade=${op.id}`)}
+                className="w-full p-2.5 rounded-md text-left hover:bg-accent/50 transition-all duration-200 border border-border/30 group"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium text-foreground truncate">{op.titulo}</span>
+                  <ExternalLink className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                </div>
+                <div className="flex items-center gap-2 mt-1">
+                  {funilNome && (
+                    <span className="text-[10px] text-muted-foreground truncate">{funilNome}</span>
+                  )}
+                  {etapa?.nome && (
+                    <>
+                      <span className="text-[10px] text-muted-foreground">·</span>
+                      <span className="text-[10px] text-muted-foreground truncate">{etapa.nome}</span>
+                    </>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 mt-1">
+                  {op.valor != null && (
+                    <span className="text-[10px] font-medium text-foreground">
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(op.valor)}
+                    </span>
+                  )}
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium capitalize ${statusCor[op.status] || 'bg-muted text-muted-foreground'}`}>
+                    {op.status}
+                  </span>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </SectionCollapsible>
+  )
+}
+
 export function ContatoDrawer({ conversa, isOpen, onClose, onInsertQuickReply, onCriarOportunidade }: ContatoDrawerProps) {
   const [novaNota, setNovaNota] = useState('')
   const [tarefaModalOpen, setTarefaModalOpen] = useState(false)
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
 
   const contato = conversa.contato
   const nome = contato?.nome || contato?.nome_fantasia || conversa.nome || 'Sem nome'
@@ -297,6 +383,9 @@ export function ContatoDrawer({ conversa, isOpen, onClose, onInsertQuickReply, o
               </div>
             )}
           </SectionCollapsible>
+
+          {/* Oportunidades do Contato */}
+          <OportunidadesContato contatoId={conversa.contato_id} navigate={navigate} />
 
           {/* Conversation Info */}
           <SectionCollapsible title="Informações da Conversa">

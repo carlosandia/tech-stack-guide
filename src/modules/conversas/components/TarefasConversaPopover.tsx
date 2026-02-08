@@ -121,9 +121,9 @@ export function TarefasConversaPopover({ contatoId }: TarefasConversaPopoverProp
       {open && (
         <>
           <div className="fixed inset-0 z-[590]" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 mt-1 w-80 bg-card border border-border rounded-lg shadow-lg z-[600] overflow-hidden">
+          <div className="absolute right-0 mt-1 w-80 rounded-lg shadow-lg z-[600] overflow-hidden border border-border" style={{ backgroundColor: 'hsl(var(--card))' }}>
             {/* Header */}
-            <div className="px-3 py-2.5 border-b border-border bg-muted/30">
+            <div className="px-3 py-2.5 border-b border-border" style={{ backgroundColor: 'hsl(var(--muted) / 0.5)' }}>
               <p className="text-sm font-semibold text-foreground">Tarefas do Contato</p>
               <p className="text-[11px] text-muted-foreground">
                 {totalPendentes} pendente{totalPendentes !== 1 ? 's' : ''}
@@ -131,7 +131,7 @@ export function TarefasConversaPopover({ contatoId }: TarefasConversaPopoverProp
             </div>
 
             {/* Lista */}
-            <div className="max-h-[320px] overflow-y-auto">
+            <div className="max-h-[320px] overflow-y-auto" style={{ backgroundColor: 'hsl(var(--card))' }}>
               {loading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
