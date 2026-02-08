@@ -168,12 +168,71 @@ Deno.serve(async (req) => {
           }),
         });
 
-        // 422 = session already started — treat as success
+        // 422 = session already started — check actual status
         if (wahaResponse.status === 422) {
           const errBody = await wahaResponse.json().catch(() => ({}));
-          console.log(`[waha-proxy] Session already exists, treating as success:`, errBody.message);
+          console.log(`[waha-proxy] Session already exists:`, errBody.message);
 
-          // Ensure DB record exists
+          // Check the real status of the session
+          const checkResp = await fetch(`${baseUrl}/api/sessions/${sessionId}`, {
+            headers: { "X-Api-Key": apiKey },
+          });
+
+          let realStatus = "unknown";
+          if (checkResp.ok) {
+            const checkData = await checkResp.json();
+            realStatus = checkData.status;
+            console.log(`[waha-proxy] Real session status: ${realStatus}`);
+          } else {
+            await checkResp.text(); // consume body
+          }
+
+          // If session is FAILED or STOPPED, stop it and restart
+          if (realStatus === "FAILED" || realStatus === "STOPPED") {
+            console.log(`[waha-proxy] Session in ${realStatus} state, stopping and restarting...`);
+
+            // Stop the failed session
+            const stopResp = await fetch(`${baseUrl}/api/sessions/stop`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
+              body: JSON.stringify({ name: sessionId }),
+            });
+            await stopResp.text(); // consume body
+            console.log(`[waha-proxy] Stop response: ${stopResp.status}`);
+
+            // Small delay to let WAHA clean up
+            await new Promise(r => setTimeout(r, 1000));
+
+            // Restart the session
+            const restartResp = await fetch(`${baseUrl}/api/sessions/start`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
+              body: JSON.stringify({
+                name: sessionId,
+                config: { proxy: null, webhooks: [] },
+              }),
+            });
+            const restartData = await restartResp.json().catch(() => ({}));
+            console.log(`[waha-proxy] Restart response: ${restartResp.status}`, restartData);
+
+            await upsertSessao({ status: "scanning", ultimo_qr_gerado: new Date().toISOString() });
+
+            return new Response(
+              JSON.stringify({ name: sessionId, status: "SCAN_QR_CODE", restarted: true }),
+              { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+
+          // If WORKING, already connected
+          if (realStatus === "WORKING") {
+            await upsertSessao({ status: "connected" });
+            return new Response(
+              JSON.stringify({ name: sessionId, status: "WORKING", already_connected: true }),
+              { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+
+          // Otherwise (SCAN_QR_CODE, STARTING, etc.) treat as ready for QR
           await upsertSessao({ status: "scanning" });
 
           return new Response(

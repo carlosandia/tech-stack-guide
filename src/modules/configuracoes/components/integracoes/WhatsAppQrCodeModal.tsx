@@ -68,14 +68,26 @@ export function WhatsAppQrCodeModal({ onClose, onSuccess }: WhatsAppQrCodeModalP
     setStep('loading')
     setErrorMsg('')
     try {
-      await iniciarSessao.mutateAsync()
+      const iniciarResult = await iniciarSessao.mutateAsync()
+
+      // Se já está conectado, pular QR
+      if (iniciarResult?.status === 'WORKING' || iniciarResult?.already_connected) {
+        setStep('connected')
+        setTimeout(() => onSuccess(), 1500)
+        return
+      }
+
+      // Pequeno delay para dar tempo ao WAHA gerar o QR (especialmente após restart)
+      if (iniciarResult?.restarted) {
+        await new Promise(r => setTimeout(r, 2000))
+      }
+
       const qrResult = await obterQrCode.mutateAsync()
       if (qrResult.qr_code) {
         setStep('qr')
         startCountdown()
         startPolling()
       } else {
-        // Pode já estar conectado
         if (qrResult.status === 'connected') {
           setStep('connected')
           setTimeout(() => onSuccess(), 1500)
