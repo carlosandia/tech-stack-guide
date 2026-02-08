@@ -131,7 +131,7 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer }: ChatWindowProps) 
         .eq('organizacao_id', usr.organizacao_id)
         .eq('ativo', true)
         .is('deletado_em', null)
-        .order('ordem', { ascending: true })
+        .order('criado_em', { ascending: true })
         .limit(1)
 
       if (!funis?.length) {
@@ -148,7 +148,7 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer }: ChatWindowProps) 
         .eq('funil_id', funilId)
         .eq('ativo', true)
         .is('deletado_em', null)
-        .order('posicao', { ascending: true })
+        .order('ordem', { ascending: true })
         .limit(1)
 
       if (!etapas?.length) {
