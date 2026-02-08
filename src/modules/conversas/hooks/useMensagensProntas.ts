@@ -1,5 +1,6 @@
 /**
  * AIDEV-NOTE: Hook para Mensagens Prontas / Quick Replies (PRD-09)
+ * Usa Supabase direto via conversas.api.ts
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -22,8 +23,8 @@ export function useCriarMensagemPronta() {
       queryClient.invalidateQueries({ queryKey: ['mensagens-prontas'] })
       toast.success('Mensagem pronta criada')
     },
-    onError: (error: any) => {
-      toast.error(error?.response?.data?.error || 'Erro ao criar mensagem pronta')
+    onError: (error: Error) => {
+      toast.error(error.message || 'Erro ao criar mensagem pronta')
     },
   })
 }
@@ -37,8 +38,8 @@ export function useExcluirMensagemPronta() {
       queryClient.invalidateQueries({ queryKey: ['mensagens-prontas'] })
       toast.success('Mensagem pronta excluída')
     },
-    onError: (error: any) => {
-      toast.error(error?.response?.data?.error || 'Erro ao excluir')
+    onError: (error: Error) => {
+      toast.error(error.message || 'Erro ao excluir')
     },
   })
 }

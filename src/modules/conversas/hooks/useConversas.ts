@@ -1,5 +1,6 @@
 /**
  * AIDEV-NOTE: Hooks TanStack Query para Conversas (PRD-09)
+ * Usa Supabase direto via conversas.api.ts
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -10,7 +11,7 @@ export function useConversas(params?: ListarConversasParams) {
   return useQuery({
     queryKey: ['conversas', params],
     queryFn: () => conversasApi.listar(params),
-    refetchInterval: 30000, // refresh a cada 30s como fallback
+    refetchInterval: 30000,
   })
 }
 
@@ -31,8 +32,8 @@ export function useCriarConversa() {
       queryClient.invalidateQueries({ queryKey: ['conversas'] })
       toast.success('Conversa iniciada com sucesso')
     },
-    onError: (error: any) => {
-      toast.error(error?.response?.data?.error || 'Erro ao iniciar conversa')
+    onError: (error: Error) => {
+      toast.error(error.message || 'Erro ao iniciar conversa')
     },
   })
 }
@@ -48,8 +49,8 @@ export function useAlterarStatusConversa() {
       queryClient.invalidateQueries({ queryKey: ['conversa', variables.id] })
       toast.success('Status alterado')
     },
-    onError: (error: any) => {
-      toast.error(error?.response?.data?.error || 'Erro ao alterar status')
+    onError: (error: Error) => {
+      toast.error(error.message || 'Erro ao alterar status')
     },
   })
 }

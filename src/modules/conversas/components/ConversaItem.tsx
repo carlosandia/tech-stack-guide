@@ -92,7 +92,7 @@ function getTipoBadge(tipo: string): { label: string; className: string } | null
 }
 
 export function ConversaItem({ conversa, isActive, onClick }: ConversaItemProps) {
-  const nome = conversa.contato?.nome || conversa.nome || 'Sem nome'
+  const nome = conversa.contato?.nome || conversa.contato?.nome_fantasia || conversa.nome || 'Sem nome'
   const fotoUrl = conversa.contato?.foto_url || conversa.foto_url
   const hasUnread = conversa.mensagens_nao_lidas > 0
   const preview = getMessagePreview(conversa)

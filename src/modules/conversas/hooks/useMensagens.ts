@@ -1,5 +1,6 @@
 /**
  * AIDEV-NOTE: Hooks TanStack Query para Mensagens (PRD-09)
+ * Usa Supabase direto via conversas.api.ts
  */
 
 import { useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query'
@@ -33,8 +34,8 @@ export function useEnviarTexto() {
       queryClient.invalidateQueries({ queryKey: ['mensagens', variables.conversaId] })
       queryClient.invalidateQueries({ queryKey: ['conversas'] })
     },
-    onError: (error: any) => {
-      toast.error(error?.response?.data?.error || 'Erro ao enviar mensagem')
+    onError: (error: Error) => {
+      toast.error(error.message || 'Erro ao enviar mensagem')
     },
   })
 }
@@ -49,8 +50,8 @@ export function useEnviarMedia() {
       queryClient.invalidateQueries({ queryKey: ['mensagens', variables.conversaId] })
       queryClient.invalidateQueries({ queryKey: ['conversas'] })
     },
-    onError: (error: any) => {
-      toast.error(error?.response?.data?.error || 'Erro ao enviar mídia')
+    onError: (error: Error) => {
+      toast.error(error.message || 'Erro ao enviar mídia')
     },
   })
 }

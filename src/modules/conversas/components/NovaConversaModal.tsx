@@ -1,22 +1,15 @@
 /**
  * AIDEV-NOTE: Modal para iniciar nova conversa (WhatsApp/Instagram)
  * PRD-09 RF-005: Suporta número direto OU busca de contato existente
+ * Usa Supabase direto via conversas.api.ts
  */
 
 import { useState, useEffect } from 'react'
 import { MessageSquare, Search, User, Loader2 } from 'lucide-react'
 import { ModalBase } from '@/modules/configuracoes/components/ui/ModalBase'
 import { useCriarConversa } from '../hooks/useConversas'
+import { conversasApi, type ConversaContato } from '../services/conversas.api'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
-import api from '@/lib/api'
-
-interface ContatoBusca {
-  id: string
-  nome: string
-  email?: string | null
-  telefone?: string | null
-  foto_url?: string | null
-}
 
 interface NovaConversaModalProps {
   isOpen: boolean
@@ -29,8 +22,8 @@ export function NovaConversaModal({ isOpen, onClose, onConversaCriada }: NovaCon
   const [mensagem, setMensagem] = useState('')
   const [canal, setCanal] = useState<'whatsapp' | 'instagram'>('whatsapp')
   const [buscaContato, setBuscaContato] = useState('')
-  const [contatoSelecionado, setContatoSelecionado] = useState<ContatoBusca | null>(null)
-  const [contatosResultado, setContatosResultado] = useState<ContatoBusca[]>([])
+  const [contatoSelecionado, setContatoSelecionado] = useState<ConversaContato | null>(null)
+  const [contatosResultado, setContatosResultado] = useState<ConversaContato[]>([])
   const [buscando, setBuscando] = useState(false)
   const [modo, setModo] = useState<'telefone' | 'contato'>('telefone')
 
@@ -49,7 +42,7 @@ export function NovaConversaModal({ isOpen, onClose, onConversaCriada }: NovaCon
     }
   }, [isOpen])
 
-  // Debounced contact search
+  // Debounced contact search via Supabase direto
   useEffect(() => {
     if (!buscaContato.trim() || buscaContato.trim().length < 2) {
       setContatosResultado([])
@@ -59,10 +52,8 @@ export function NovaConversaModal({ isOpen, onClose, onConversaCriada }: NovaCon
     const timer = setTimeout(async () => {
       setBuscando(true)
       try {
-        const { data } = await api.get('/v1/contatos', {
-          params: { busca: buscaContato.trim(), limit: 10 },
-        })
-        setContatosResultado(data.contatos || [])
+        const contatos = await conversasApi.buscarContatos(buscaContato.trim())
+        setContatosResultado(contatos)
       } catch {
         setContatosResultado([])
       } finally {
@@ -73,11 +64,10 @@ export function NovaConversaModal({ isOpen, onClose, onConversaCriada }: NovaCon
     return () => clearTimeout(timer)
   }, [buscaContato])
 
-  const handleSelectContato = (contato: ContatoBusca) => {
+  const handleSelectContato = (contato: ConversaContato) => {
     setContatoSelecionado(contato)
     setBuscaContato('')
     setContatosResultado([])
-    // Pre-fill phone if available
     if (contato.telefone) {
       setTelefone(contato.telefone)
     }
@@ -173,14 +163,10 @@ export function NovaConversaModal({ isOpen, onClose, onConversaCriada }: NovaCon
         {contatoSelecionado && (
           <div className="flex items-center gap-3 p-3 rounded-md bg-primary/5 border border-primary/20">
             <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-              {contatoSelecionado.foto_url ? (
-                <img src={contatoSelecionado.foto_url} alt={contatoSelecionado.nome} className="w-10 h-10 rounded-full object-cover" />
-              ) : (
-                <User className="w-5 h-5 text-primary" />
-              )}
+              <User className="w-5 h-5 text-primary" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-foreground truncate">{contatoSelecionado.nome}</p>
+              <p className="text-sm font-medium text-foreground truncate">{contatoSelecionado.nome || contatoSelecionado.nome_fantasia}</p>
               {contatoSelecionado.telefone && (
                 <p className="text-xs text-muted-foreground">{contatoSelecionado.telefone}</p>
               )}
@@ -200,7 +186,6 @@ export function NovaConversaModal({ isOpen, onClose, onConversaCriada }: NovaCon
         {/* Modo: telefone ou contato */}
         {!contatoSelecionado && (
           <>
-            {/* Toggle */}
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setModo('telefone')}
@@ -256,7 +241,6 @@ export function NovaConversaModal({ isOpen, onClose, onConversaCriada }: NovaCon
                   />
                 </div>
 
-                {/* Results */}
                 {buscando && (
                   <div className="flex justify-center py-3">
                     <Loader2 className="w-5 h-5 text-muted-foreground animate-spin" />
@@ -271,14 +255,10 @@ export function NovaConversaModal({ isOpen, onClose, onConversaCriada }: NovaCon
                         className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-accent/50 transition-all duration-200 border-b border-border/30 last:border-b-0"
                       >
                         <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-                          {c.foto_url ? (
-                            <img src={c.foto_url} alt={c.nome} className="w-8 h-8 rounded-full object-cover" />
-                          ) : (
-                            <User className="w-4 h-4 text-muted-foreground" />
-                          )}
+                          <User className="w-4 h-4 text-muted-foreground" />
                         </div>
                         <div className="min-w-0">
-                          <p className="text-sm font-medium text-foreground truncate">{c.nome}</p>
+                          <p className="text-sm font-medium text-foreground truncate">{c.nome || c.nome_fantasia}</p>
                           <p className="text-[11px] text-muted-foreground truncate">
                             {c.telefone || c.email || ''}
                           </p>
