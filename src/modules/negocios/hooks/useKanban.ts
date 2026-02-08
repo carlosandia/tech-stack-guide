@@ -62,8 +62,9 @@ export function useMoverEtapa() {
   return useMutation({
     mutationFn: ({ oportunidadeId, etapaDestinoId }: { oportunidadeId: string; etapaDestinoId: string }) =>
       negociosApi.moverEtapa(oportunidadeId, etapaDestinoId),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['kanban'] })
+      queryClient.invalidateQueries({ queryKey: ['oportunidade', variables.oportunidadeId] })
     },
   })
 }
