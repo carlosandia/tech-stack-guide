@@ -1,162 +1,242 @@
 
+# Plano: Implementacao Frontend do Modulo de Feedback (PRD-15)
 
-# Plano: Gaps do PRD-09 - Modulo de Conversas
+## Resumo
 
-## Resumo da Analise
+O backend do modulo de Feedback ja esta totalmente implementado (rotas Express, service, schemas Zod). As tabelas `feedbacks` e `notificacoes` existem no banco com RLS configurado. O frontend precisa ser construido do zero com 3 partes principais:
 
-Apos investigacao completa do PRD-09-CONVERSAS.md (1932 linhas) versus a implementacao atual, identifiquei **6 gaps** que precisam ser corrigidos. A maioria sao funcionalidades parcialmente implementadas ou detalhes de UI faltantes.
+1. **Botao Flutuante + Popover** (Admin/Member) - visible em todas as paginas do CRM
+2. **Pagina /admin/evolucao** (Super Admin) - lista, filtros, detalhes e resolucao
+3. **Sino de Notificacoes** (Admin/Member) - badge no header + dropdown
 
-## Gaps Identificados (por prioridade)
+## Arquitetura de Acesso ao Dados
 
-### 1. Menu de Anexos (RF-006) - Must-have
-**Problema:** O botao de clip (Paperclip) existe no ChatInput mas nao faz nada ao clicar. O PRD especifica um menu popup com opcoes: Documento, Fotos e Videos, Camera, Audio, Contato, Enquete, Evento, Resposta Rapida.
+O frontend usara **Supabase direto** (mesmo padrao do `admin.api.ts` e `conversas.api.ts`), sem depender do backend Express. As RLS policies ja suportam isso:
+- `feedbacks`: INSERT via `organizacao_id = get_user_tenant_id()`, SELECT via `usuario_id` ou `role = super_admin`
+- `notificacoes`: ALL via `usuario_id` com `auth.uid()`
 
-**Solucao:** Criar um componente `AnexosMenu.tsx` com popup posicionado acima do botao clip. As opcoes de Documento e Fotos/Videos abrirao file pickers nativos do navegador. Contato, Enquete e Camera terao modais dedicados. Evento, Pix e Camera ficarao como placeholders (futuro).
+---
 
-**Arquivo:** `src/modules/conversas/components/AnexosMenu.tsx`
+## Componentes a Criar
 
-### 2. Scroll Infinito na Lista de Conversas (RF-002) - Must-have
-**Problema:** A lista de conversas (ConversasList) renderiza todas as conversas retornadas de uma unica vez. O PRD exige "scroll infinito com paginacao (20 por vez)".
+### Parte 1: Botao Flutuante + Popover (Admin/Member)
 
-**Solucao:** Modificar `ConversasList.tsx` para detectar scroll ate o final e chamar proxima pagina. O hook `useConversas` precisa ser migrado para `useInfiniteQuery` (como ja feito em useMensagens).
+**Arquivo:** `src/modules/feedback/components/FeedbackButton.tsx`
+- Botao circular fixo, 56x56px, canto inferior direito (24px margem)
+- Background: gradiente `linear-gradient(135deg, #7C3AED, #3B82F6)`
+- Icone: `Lightbulb` (Lucide), branco, 24px
+- Z-index: 9999 (conforme PRD)
+- Estados: hover (scale 1.1), active (scale 0.95), focus (ring azul)
+- Visivel apenas para `admin` e `member` (verificacao via `useAuth`)
+- Ao clicar, abre/fecha o popover
 
-**Arquivos:**
-- `src/modules/conversas/hooks/useConversas.ts` (migrar para useInfiniteQuery)
-- `src/modules/conversas/components/ConversasList.tsx` (adicionar scroll detection)
-- `src/modules/conversas/pages/ConversasPage.tsx` (adaptar ao novo formato de dados)
+**Arquivo:** `src/modules/feedback/components/FeedbackPopover.tsx`
+- Largura: 400px, border-radius 12px
+- Header com gradiente roxo/azul, icone lampada, titulo "Nos ajude a melhorar"
+- Dropdown de tipo com 3 opcoes: Bug (vermelho), Sugestao (roxo), Duvida (azul)
+- Textarea com contador de caracteres (min 10, max 10.000)
+- Botoes Cancelar (outline) e Enviar Feedback (primary, desabilitado se invalido)
+- Loading spinner durante envio
+- Toast de sucesso/erro via sonner
+- Fecha e limpa apos envio
 
-### 3. Botoes de Acao no Drawer do Contato (RF-004) - Must-have
-**Problema:** O PRD especifica 4 botoes de acao abaixo dos dados do contato: "Nova mensagem", "Nova tarefa", "Nova oportunidade" e "Excluir". A implementacao atual nao tem esses botoes.
+**Integracao:** Adicionado no `AppLayout.tsx` (antes do fechamento de `</div>` do container principal), renderizado condicionalmente para `admin` e `member`
 
-**Solucao:** Adicionar uma barra de acoes com icones ao ContatoDrawer, abaixo dos dados de contato.
+### Parte 2: Pagina /admin/evolucao (Super Admin)
 
-**Arquivo:** `src/modules/conversas/components/ContatoDrawer.tsx`
+**Arquivo:** `src/modules/admin/pages/EvolucaoPage.tsx`
+- Titulo: "Evolucao do Produto"
+- Barra de filtros: Empresa (select), Tipo (select), Status (select), Busca (input com debounce 300ms)
+- Tabela com colunas: Empresa, Usuario, Tipo (badge colorido), Data (DD/MM HH:mm), Status (badge)
+- Paginacao com 10 itens por pagina
+- Click na linha abre modal de detalhes
 
-### 4. Botao de Criar Mensagem Pronta no Popover (RF-008) - Must-have
-**Problema:** O popover de MensagensProntas nao possui o botao "[+ Nova mensagem pronta]" descrito no PRD. Atualmente so lista as existentes.
+**Arquivo:** `src/modules/admin/components/FeedbackDetalhesModal.tsx`
+- Modal com campos readonly: Empresa, Usuario (nome + email + role), Tipo (badge), Data, Descricao (scrollable)
+- Se aberto: botao "Marcar como Resolvido"
+- Se resolvido: exibe info de resolucao (quem, quando)
+- Ao resolver: toast de sucesso, invalida query
 
-**Solucao:** Adicionar um botao no rodape do popover que abre um mini-formulario inline (atalho, titulo, conteudo) para criacao rapida. Usar o `conversasApi.criarPronta()` que ja existe.
+### Parte 3: Sino de Notificacoes (Admin/Member)
 
-**Arquivo:** `src/modules/conversas/components/MensagensProntasPopover.tsx`
+**Arquivo:** `src/modules/feedback/components/NotificacoesSino.tsx`
+- Icone Bell no header, badge vermelho com contagem (9+ se > 9)
+- Dropdown com ultimas 5 notificacoes
+- Cada item: icone (CheckCircle verde para feedback_resolvido), titulo, mensagem truncada, data relativa
+- Indicador de nao lida (bolinha azul)
+- Botao "Marcar todas como lidas"
+- Click em notificacao marca como lida
 
-### 5. Icones Faltantes na Barra de Entrada (RF-003) - Detalhes de UI
-**Problema:** O PRD especifica icones adicionais na barra: [@] mencao, [pin] localizacao, [emoji] picker. Atualmente so temos: raio (quick replies), clip (anexos), mic.
+**Integracao:** Adicionado no header do `AppLayout.tsx`, entre a navegacao e o menu de usuario
 
-**Solucao:** Adicionar icones para localizacao (MapPin) e mencao (@) como placeholders com tooltip "Em breve". O emoji picker pode ser adicionado como placeholder tambem, ja que requer uma lib externa.
+---
 
-**Arquivo:** `src/modules/conversas/components/ChatInput.tsx`
+## Servicos e Hooks
 
-### 6. Integracao com Negocios - Botao +Opp Funcional (RF-014) - Must-have
-**Problema:** O botao [+Opp] no ChatHeader atualmente exibe apenas um toast placeholder. O PRD diz que deve abrir o modal de criacao de oportunidade (NovaOportunidadeModal do modulo negocios) com o contato pre-selecionado.
+### Servico de Feedback
+**Arquivo:** `src/modules/feedback/services/feedback.api.ts`
+- `criarFeedback(tipo, descricao)` - Insert no Supabase com org do usuario logado
+- `listarFeedbacksAdmin(filtros)` - Query com joins para organizacao e usuario (Super Admin)
+- `resolverFeedback(id)` - Update status + criar notificacao + audit_log
 
-**Solucao:** Importar e abrir o NovaOportunidadeModal existente do modulo de negocios, passando o contato da conversa como valor pre-preenchido.
+### Servico de Notificacoes
+**Arquivo:** `src/modules/feedback/services/notificacoes.api.ts`
+- `listarNotificacoes(limit)` - Select com order by criado_em DESC
+- `contarNaoLidas()` - Count com lida = false
+- `marcarComoLida(id)` - Update lida = true, lida_em = now
+- `marcarTodasComoLidas()` - Update all do usuario
 
-**Arquivos:**
-- `src/modules/conversas/components/ChatWindow.tsx`
-- `src/modules/conversas/components/ChatHeader.tsx`
+### Hooks
+**Arquivo:** `src/modules/feedback/hooks/useFeedback.ts`
+- `useCriarFeedback()` - mutation com toast
+- `useFeedbacksAdmin(filtros)` - useQuery para lista
+- `useResolverFeedback()` - mutation com invalidacao
+
+**Arquivo:** `src/modules/feedback/hooks/useNotificacoes.ts`
+- `useNotificacoes(limit)` - useQuery
+- `useContagemNaoLidas()` - useQuery com refetch interval (30s)
+- `useMarcarLida()` - mutation
+- `useMarcarTodasLidas()` - mutation
 
 ---
 
 ## Secao Tecnica
 
-### 1. AnexosMenu.tsx (novo componente)
+### Estrutura de Arquivos
 
 ```text
-Componente popup que aparece acima do botao clip
-Opcoes com icone + label:
-  - FileText: "Documento" --> file picker (PDF, DOC, XLS, ZIP, max 100MB)
-  - Image: "Fotos e Videos" --> file picker (JPG, PNG, GIF, MP4, max 16MB/64MB)
-  - Camera: "Camera" --> placeholder (futuro)
-  - Mic: "Audio" --> placeholder (futuro, liga com RF-009)
-  - User: "Contato" --> placeholder (compartilhar vCard)
-  - BarChart3: "Enquete" --> placeholder (futuro)
-  
-Ao selecionar arquivo, chama enviarMedia mutation com tipo detectado pelo mimetype.
+src/modules/feedback/
+  components/
+    FeedbackButton.tsx       -- Botao flutuante (FAB)
+    FeedbackPopover.tsx      -- Formulario de envio
+    NotificacoesSino.tsx     -- Sino + dropdown no header
+  hooks/
+    useFeedback.ts           -- Hooks de feedback
+    useNotificacoes.ts       -- Hooks de notificacoes
+  services/
+    feedback.api.ts          -- API Supabase (feedbacks)
+    notificacoes.api.ts      -- API Supabase (notificacoes)
+  index.ts                   -- Barrel exports
+
+src/modules/admin/
+  pages/
+    EvolucaoPage.tsx         -- Pagina /admin/evolucao (nova)
+  components/
+    FeedbackDetalhesModal.tsx -- Modal de detalhes (novo)
 ```
 
-Integracao no ChatInput:
-- O botao Paperclip recebe `onClick` que abre/fecha o AnexosMenu
-- Ao selecionar arquivo, o input de upload e ativado
-- Apos upload ao Supabase Storage, chama `enviarMedia`
+### Queries Supabase (feedback.api.ts)
 
-### 2. useConversas migrado para useInfiniteQuery
-
+**Criar Feedback (Admin/Member):**
 ```text
-Mudanca:
-  De: useQuery({ queryKey: ['conversas', params], queryFn: ... })
-  Para: useInfiniteQuery({
-    queryKey: ['conversas', params],
-    queryFn: ({ pageParam = 1 }) => conversasApi.listar({ ...params, page: pageParam }),
-    getNextPageParam: (lastPage) => lastPage.page < lastPage.total_pages ? lastPage.page + 1 : undefined,
-    initialPageParam: 1,
-  })
-
-ConversasList: adicionar onScroll handler que detecta scroll ate o fundo
-ConversasPage: flatMap pages para obter array completo de conversas
+supabase.from('feedbacks').insert({
+  organizacao_id,  // vem do user.organizacao_id
+  usuario_id,      // vem do user.id
+  tipo,
+  descricao,
+  status: 'aberto'
+}).select('id, tipo, descricao, status, criado_em').single()
 ```
 
-### 3. Botoes de acao no ContatoDrawer
-
+**Listar Feedbacks (Super Admin):**
 ```text
-Apos secao de dados de contato, antes das secoes expansiveis:
-
-<div className="flex items-center justify-center gap-3 py-3 border-b">
-  <ActionButton icon={MessageSquare} label="Mensagem" />
-  <ActionButton icon={ListTodo} label="Tarefa" />
-  <ActionButton icon={TrendingUp} label="Oportunidade" onClick={onCriarOportunidade} />
-  <ActionButton icon={Trash2} label="Excluir" variant="destructive" />
-</div>
+supabase.from('feedbacks').select(`
+  *,
+  organizacao:organizacoes_saas!feedbacks_organizacao_id_fkey(id, nome),
+  usuario:usuarios!feedbacks_usuario_id_fkey(id, nome, email, role),
+  resolvido_por_usuario:usuarios!feedbacks_resolvido_por_fkey(id, nome)
+`, { count: 'exact' })
+.is('deletado_em', null)
+.order('criado_em', { ascending: false })
+// + filtros dinamicos
+.range(offset, offset + limit - 1)
 ```
 
-### 4. Formulario inline no MensagensProntasPopover
-
+**Resolver Feedback (Super Admin):**
 ```text
-Adicionar estado `criando: boolean` no popover
-Quando criando=true, exibir formulario com:
-  - Input: Atalho (sem barra, sem espacos)
-  - Input: Titulo
-  - Textarea: Conteudo
-  - Botoes: Cancelar / Salvar
-  
-Usar conversasApi.criarPronta() + invalidar queryKey ['mensagens-prontas']
+// 1. Update status
+supabase.from('feedbacks').update({
+  status: 'resolvido',
+  resolvido_em: new Date().toISOString(),
+  resolvido_por: userId,
+  atualizado_em: new Date().toISOString()
+}).eq('id', feedbackId)
+
+// 2. Criar notificacao para usuario original
+supabase.from('notificacoes').insert({
+  usuario_id: feedback.usuario_id,
+  tipo: 'feedback_resolvido',
+  titulo: 'Seu feedback foi resolvido',
+  mensagem: descricaoResumida,
+  referencia_tipo: 'feedback',
+  referencia_id: feedbackId
+})
 ```
 
-### 5. Icones adicionais no ChatInput
+### Queries Supabase (notificacoes.api.ts)
 
+**Listar:**
 ```text
-Adicionar na barra de acoes (entre clip e mic):
-  - MapPin (Localização) - disabled, title="Em breve"
-  - AtSign (@) Menção - disabled, title="Em breve"
-  
-O emoji picker fica como placeholder (precisa lib externa futuramente)
+supabase.from('notificacoes')
+  .select('*')
+  .eq('usuario_id', userId)
+  .order('criado_em', { ascending: false })
+  .limit(5)
 ```
 
-### 6. Integracao com NovaOportunidadeModal
-
+**Contar nao lidas:**
 ```text
-No ChatWindow:
-  - Importar NovaOportunidadeModal do modulo negocios
-  - Estado: oportunidadeModalOpen
-  - Ao clicar +Opp: abre modal com dados pre-preenchidos do contato
-  - Dados passados: contato_id, nome, telefone, email
+supabase.from('notificacoes')
+  .select('id', { count: 'exact', head: true })
+  .eq('usuario_id', userId)
+  .eq('lida', false)
 ```
 
-## Sequencia de Implementacao
+**Marcar como lida:**
+```text
+supabase.from('notificacoes')
+  .update({ lida: true, lida_em: new Date().toISOString() })
+  .eq('id', notificacaoId)
+```
 
-1. `AnexosMenu.tsx` (novo) + integracao no `ChatInput.tsx`
-2. `useConversas.ts` (migrar para useInfiniteQuery)
-3. `ConversasList.tsx` (scroll infinito)
-4. `ConversasPage.tsx` (adaptar ao novo formato)
-5. `ContatoDrawer.tsx` (botoes de acao)
-6. `MensagensProntasPopover.tsx` (formulario criacao)
-7. `ChatInput.tsx` (icones adicionais)
-8. `ChatWindow.tsx` + `ChatHeader.tsx` (integracao com NovaOportunidadeModal)
+### Alteracoes em Arquivos Existentes
 
-## Itens Fora do Escopo (confirmados como fase futura)
+1. **`src/App.tsx`** - Adicionar rota `/admin/evolucao` com `<EvolucaoPage />`
+2. **`src/modules/admin/index.ts`** - Exportar `EvolucaoPage`
+3. **`src/modules/admin/layouts/AdminLayout.tsx`** - Adicionar item "Evolucao" no menu (icone Lightbulb)
+4. **`src/modules/app/layouts/AppLayout.tsx`** - Adicionar `<NotificacoesSino />` no header + `<FeedbackButton />` no body
+5. **`src/modules/admin/layouts/AdminLayout.tsx`** - Atualizar `getPageTitle` para incluir "Evolucao"
 
-- RF-009: Gravacao de audio nativo (precisa MediaRecorder API)
-- RF-011: Agendamento de mensagens (precisa cron job no backend)
-- Emoji picker (precisa lib externa como emoji-mart)
-- Busca dentro da conversa (header Search)
-- Compartilhamento de vCard
-- Criacao de enquetes
+### Especificacoes de Cores (Design System)
+
+**Badges de Tipo (PRD-15):**
+| Tipo | Background | Text |
+|------|------------|------|
+| bug | #FEE2E2 | #991B1B |
+| sugestao | #EDE9FE | #5B21B6 |
+| duvida | #DBEAFE | #1E40AF |
+
+**Badges de Status:**
+| Status | Background | Text |
+|--------|------------|------|
+| aberto | #FEF3C7 | #92400E |
+| resolvido | #D1FAE5 | #065F46 |
+
+**Botao Flutuante:**
+| Propriedade | Valor |
+|-------------|-------|
+| Tamanho | 56x56px (w-14 h-14) |
+| Background | gradient roxo-azul |
+| Shadow | shadow-lg (0 4px 12px) |
+| Hover | scale-110, shadow-xl |
+| Z-index | z-[9999] |
+
+### Sequencia de Implementacao
+
+1. Servicos: `feedback.api.ts` + `notificacoes.api.ts`
+2. Hooks: `useFeedback.ts` + `useNotificacoes.ts`
+3. Componentes Admin: `EvolucaoPage.tsx` + `FeedbackDetalhesModal.tsx`
+4. Integracao Admin: rota + menu + exports
+5. Componentes CRM: `FeedbackButton.tsx` + `FeedbackPopover.tsx`
+6. Componente Notificacoes: `NotificacoesSino.tsx`
+7. Integracao CRM: AppLayout (botao + sino)
