@@ -91,6 +91,17 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Get WAHA config to fetch profile pictures
+    const { data: wahaConfig } = await supabaseAdmin
+      .from("configuracoes_globais")
+      .select("configuracoes")
+      .eq("plataforma", "waha")
+      .maybeSingle();
+
+    const wahaApiUrl = (wahaConfig?.configuracoes as Record<string, string>)?.api_url?.replace(/\/+$/, "") || null;
+    const wahaApiKey = (wahaConfig?.configuracoes as Record<string, string>)?.api_key || null;
+    console.log(`[waha-webhook] WAHA config loaded: url=${wahaApiUrl ? 'yes' : 'no'}, key=${wahaApiKey ? 'yes' : 'no'}`);
+
     // Extract phone number and message
     const rawFrom = payload.from || "";
     const phoneNumber = rawFrom.replace("@c.us", "").replace("@s.whatsapp.net", "");
@@ -112,13 +123,40 @@ Deno.serve(async (req) => {
     console.log(`[waha-webhook] Processing message from ${phoneNumber} (${phoneName || "unknown"}) - type: ${messageType}`);
 
     // =====================================================
+    // STEP 0: Fetch WhatsApp profile picture from WAHA API
+    // =====================================================
+    let profilePictureUrl: string | null = null;
+
+    if (wahaApiUrl && wahaApiKey) {
+      try {
+        const picResp = await fetch(
+          `${wahaApiUrl}/api/contacts/profile-picture?contactId=${encodeURIComponent(rawFrom)}&session=${encodeURIComponent(sessionName)}`,
+          { headers: { "X-Api-Key": wahaApiKey } }
+        );
+
+        if (picResp.ok) {
+          const picData = await picResp.json();
+          profilePictureUrl = picData?.profilePictureUrl || picData?.url || picData?.profilePicUrl || null;
+          if (profilePictureUrl) {
+            console.log(`[waha-webhook] Got profile picture for ${phoneNumber}`);
+          }
+        } else {
+          const picErr = await picResp.text();
+          console.log(`[waha-webhook] No profile picture available (${picResp.status}): ${picErr.substring(0, 100)}`);
+        }
+      } catch (picError) {
+        console.log(`[waha-webhook] Error fetching profile picture:`, picError);
+      }
+    }
+
+    // =====================================================
     // STEP 1: Find or create contact
     // =====================================================
     let contatoId: string;
 
     const { data: existingContato } = await supabaseAdmin
       .from("contatos")
-      .select("id")
+      .select("id, nome")
       .eq("organizacao_id", sessao.organizacao_id)
       .eq("telefone", phoneNumber)
       .is("deletado_em", null)
@@ -127,6 +165,15 @@ Deno.serve(async (req) => {
     if (existingContato) {
       contatoId = existingContato.id;
       console.log(`[waha-webhook] Found existing contato: ${contatoId}`);
+
+      // Update contact name if we have a better name from WhatsApp
+      if (phoneName && existingContato.nome !== phoneName) {
+        await supabaseAdmin
+          .from("contatos")
+          .update({ nome: phoneName, atualizado_em: now })
+          .eq("id", contatoId);
+        console.log(`[waha-webhook] Updated contato name to: ${phoneName}`);
+      }
     } else {
       // Create new contact
       const contactName = phoneName || phoneNumber;
@@ -173,16 +220,19 @@ Deno.serve(async (req) => {
     if (existingConversa) {
       conversaId = existingConversa.id;
 
-      // Update conversation counters
+      // Update conversation counters + photo + name
+      const updateData: Record<string, unknown> = {
+        total_mensagens: (existingConversa.total_mensagens || 0) + 1,
+        mensagens_nao_lidas: (existingConversa.mensagens_nao_lidas || 0) + 1,
+        ultima_mensagem_em: now,
+        atualizado_em: now,
+      };
+      if (phoneName) updateData.nome = phoneName;
+      if (profilePictureUrl) updateData.foto_url = profilePictureUrl;
+
       const { error: updateConvError } = await supabaseAdmin
         .from("conversas")
-        .update({
-          total_mensagens: (existingConversa.total_mensagens || 0) + 1,
-          mensagens_nao_lidas: (existingConversa.mensagens_nao_lidas || 0) + 1,
-          ultima_mensagem_em: now,
-          nome: phoneName || undefined,
-          atualizado_em: now,
-        })
+        .update(updateData)
         .eq("id", conversaId);
 
       if (updateConvError) {
@@ -203,6 +253,7 @@ Deno.serve(async (req) => {
           canal: "whatsapp",
           tipo: "individual",
           nome: phoneName || phoneNumber,
+          foto_url: profilePictureUrl,
           status: "aberta",
           total_mensagens: 1,
           mensagens_nao_lidas: 1,
