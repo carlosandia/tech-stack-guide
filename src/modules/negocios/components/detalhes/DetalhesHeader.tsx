@@ -114,14 +114,14 @@ export function DetalhesHeader({ oportunidade, etapas, onMoverEtapa, onClose, on
                   className="fixed inset-0 z-[500]"
                   onClick={() => { setMenuAberto(false); setConfirmarExclusao(false) }}
                 />
-                <div className="absolute right-0 top-full mt-1 z-[501] bg-popover border border-border rounded-lg shadow-lg min-w-[180px] py-1">
+                <div className="absolute right-0 top-full mt-1 z-[501] bg-popover border border-border rounded-lg shadow-lg py-1">
                   {!confirmarExclusao ? (
                     <button
                       type="button"
                       onClick={() => setConfirmarExclusao(true)}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors whitespace-nowrap"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-4 h-4 flex-shrink-0" />
                       Excluir oportunidade
                     </button>
                   ) : (
