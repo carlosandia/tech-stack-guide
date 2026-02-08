@@ -111,6 +111,10 @@ Deno.serve(async (req) => {
     const baseUrl = apiUrl.replace(/\/+$/, "");
     const sessionId = session_name || `crm_${authUserId.substring(0, 8)}`;
 
+    // Build webhook URL for waha-webhook Edge Function
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const webhookUrl = `${supabaseUrl}/functions/v1/waha-webhook`;
+
     console.log(`[waha-proxy] Action: ${action}, Session: ${sessionId}, WAHA URL: ${baseUrl}`);
 
     // Helper: upsert sessoes_whatsapp record
@@ -163,7 +167,12 @@ Deno.serve(async (req) => {
             name: sessionId,
             config: {
               proxy: null,
-              webhooks: [],
+              webhooks: [
+                {
+                  url: webhookUrl,
+                  events: ["message"],
+                },
+              ],
             },
           }),
         });
@@ -208,7 +217,15 @@ Deno.serve(async (req) => {
               headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
               body: JSON.stringify({
                 name: sessionId,
-                config: { proxy: null, webhooks: [] },
+                config: {
+                  proxy: null,
+                  webhooks: [
+                    {
+                      url: webhookUrl,
+                      events: ["message"],
+                    },
+                  ],
+                },
               }),
             });
             const restartData = await restartResp.json().catch(() => ({}));
