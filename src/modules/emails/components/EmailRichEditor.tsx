@@ -28,6 +28,8 @@ interface EmailRichEditorProps {
 export function EmailRichEditor({
   content,
   onChange,
+  className,
+  minHeight = '120px',
 }: EmailRichEditorProps) {
   const editor = useEditor({
     extensions: [
