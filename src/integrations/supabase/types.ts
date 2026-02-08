@@ -3447,6 +3447,7 @@ export type Database = {
           fechado_em: string | null
           funil_id: string
           id: string
+          modo_valor: string | null
           moeda: string | null
           motivo_resultado_id: string | null
           observacoes: string | null
@@ -3478,6 +3479,7 @@ export type Database = {
           fechado_em?: string | null
           funil_id: string
           id?: string
+          modo_valor?: string | null
           moeda?: string | null
           motivo_resultado_id?: string | null
           observacoes?: string | null
@@ -3509,6 +3511,7 @@ export type Database = {
           fechado_em?: string | null
           funil_id?: string
           id?: string
+          modo_valor?: string | null
           moeda?: string | null
           motivo_resultado_id?: string | null
           observacoes?: string | null

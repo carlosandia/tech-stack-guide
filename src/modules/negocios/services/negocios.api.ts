@@ -98,6 +98,7 @@ export interface Oportunidade {
   valor?: number | null
   moeda?: string | null
   tipo_valor?: string | null
+  modo_valor?: 'manual' | 'produtos' | null
   recorrente?: boolean | null
   periodo_recorrencia?: string | null
   usuario_responsavel_id?: string | null

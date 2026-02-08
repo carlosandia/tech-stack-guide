@@ -7,12 +7,13 @@
  */
 
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
-import { DollarSign, User, Calendar, Mail, Phone, Settings2, Check, Building2, RefreshCw, Link2, X, Search, Loader2, ChevronDown, Hash, Type, ToggleLeft, Globe, FileText } from 'lucide-react'
+import { DollarSign, User, Calendar, Mail, Phone, Settings2, Check, Building2, RefreshCw, Link2, X, Search, Loader2, ChevronDown, Hash, Type, ToggleLeft, Globe, FileText, Package } from 'lucide-react'
 import type { Oportunidade } from '../../services/negocios.api'
 import { negociosApi } from '../../services/negocios.api'
 import { useAtualizarOportunidade, useAtualizarContato, useAvaliarQualificacao } from '../../hooks/useOportunidadeDetalhes'
 import { useCamposDefinicoes, useValoresCampos, SLUG_TO_CONTATO_COLUMN, getValorExibicao } from '../../hooks/useCamposDetalhes'
 import type { CampoDefinicao } from '../../hooks/useCamposDetalhes'
+import { ProdutosOportunidade } from './ProdutosOportunidade'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 
@@ -391,53 +392,92 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
           {/* Valor (nativo) */}
           {isCampoVisivel('valor') && (
             <div>
-              <FieldRow
-                icon={<DollarSign className="w-3.5 h-3.5" />}
-                label="Valor"
-                value={formatCurrency(oportunidade.valor)}
-                placeholder="R$ 0,00"
-                isEditing={editingField === 'valor'}
-                onStartEdit={() => {
-                  setEditingField('valor')
-                  setEditValue(String(oportunidade.valor || ''))
-                }}
-                editValue={editValue}
-                onEditChange={setEditValue}
-                onSave={() => handleSaveOp('valor', editValue ? parseFloat(editValue) : null)}
-                onCancel={() => setEditingField(null)}
-              />
-              {/* MRR editável */}
-              <div className="ml-5.5 mt-1 flex items-center gap-1.5">
-                <label className="flex items-center gap-1 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={!!oportunidade.recorrente}
-                    onChange={handleToggleMrr}
-                    className="w-3 h-3 rounded border-input text-primary focus:ring-ring/30"
-                  />
-                  <span className="text-[10px] font-medium text-muted-foreground flex items-center gap-0.5">
-                    <RefreshCw className="w-2.5 h-2.5" />
-                    MRR
-                  </span>
-                </label>
-                {oportunidade.recorrente && (
-                  <div className="relative">
-                    <select
-                      value={oportunidade.periodo_recorrencia || 'mensal'}
-                      onChange={(e) => handlePeriodoChange(e.target.value)}
-                      className="h-5 pl-1 pr-4 text-[10px] font-semibold text-primary bg-primary/10 border-0 rounded focus:ring-0 appearance-none cursor-pointer"
-                    >
-                      {PERIODOS_MRR.map(p => (
-                        <option key={p.value} value={p.value}>{p.label}</option>
-                      ))}
-                    </select>
-                    <ChevronDown className="absolute right-0.5 top-1/2 -translate-y-1/2 w-2.5 h-2.5 text-primary pointer-events-none" />
-                  </div>
-                )}
-                {!oportunidade.recorrente && oportunidade.valor && (
-                  <span className="text-[10px] text-muted-foreground">Valor único</span>
-                )}
+              {/* Toggle Manual/Produtos */}
+              <div className="flex items-center gap-1.5 mb-2">
+                <DollarSign className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                <p className="text-[11px] text-muted-foreground">Valor</p>
+                <div className="flex items-center ml-auto bg-muted rounded-md p-0.5">
+                  <button
+                    onClick={() => handleSaveOp('modo_valor', 'manual')}
+                    className={`px-2 py-0.5 text-[10px] font-medium rounded transition-all ${
+                      (oportunidade.modo_valor || 'manual') === 'manual'
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    Manual
+                  </button>
+                  <button
+                    onClick={() => handleSaveOp('modo_valor', 'produtos')}
+                    className={`px-2 py-0.5 text-[10px] font-medium rounded transition-all flex items-center gap-0.5 ${
+                      oportunidade.modo_valor === 'produtos'
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    <Package className="w-2.5 h-2.5" />
+                    Produtos
+                  </button>
+                </div>
               </div>
+
+              {/* Modo Manual */}
+              {(oportunidade.modo_valor || 'manual') === 'manual' ? (
+                <>
+                  <FieldRow
+                    icon={<span />}
+                    label=""
+                    value={formatCurrency(oportunidade.valor)}
+                    placeholder="R$ 0,00"
+                    isEditing={editingField === 'valor'}
+                    onStartEdit={() => {
+                      setEditingField('valor')
+                      setEditValue(String(oportunidade.valor || ''))
+                    }}
+                    editValue={editValue}
+                    onEditChange={setEditValue}
+                    onSave={() => handleSaveOp('valor', editValue ? parseFloat(editValue) : null)}
+                    onCancel={() => setEditingField(null)}
+                  />
+                  {/* MRR editável */}
+                  <div className="ml-5.5 mt-1 flex items-center gap-1.5">
+                    <label className="flex items-center gap-1 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={!!oportunidade.recorrente}
+                        onChange={handleToggleMrr}
+                        className="w-3 h-3 rounded border-input text-primary focus:ring-ring/30"
+                      />
+                      <span className="text-[10px] font-medium text-muted-foreground flex items-center gap-0.5">
+                        <RefreshCw className="w-2.5 h-2.5" />
+                        MRR
+                      </span>
+                    </label>
+                    {oportunidade.recorrente && (
+                      <div className="relative">
+                        <select
+                          value={oportunidade.periodo_recorrencia || 'mensal'}
+                          onChange={(e) => handlePeriodoChange(e.target.value)}
+                          className="h-5 pl-1 pr-4 text-[10px] font-semibold text-primary bg-primary/10 border-0 rounded focus:ring-0 appearance-none cursor-pointer"
+                        >
+                          {PERIODOS_MRR.map(p => (
+                            <option key={p.value} value={p.value}>{p.label}</option>
+                          ))}
+                        </select>
+                        <ChevronDown className="absolute right-0.5 top-1/2 -translate-y-1/2 w-2.5 h-2.5 text-primary pointer-events-none" />
+                      </div>
+                    )}
+                    {!oportunidade.recorrente && oportunidade.valor && (
+                      <span className="text-[10px] text-muted-foreground">Valor único</span>
+                    )}
+                  </div>
+                </>
+              ) : (
+                /* Modo Produtos */
+                <div className="ml-5.5">
+                  <ProdutosOportunidade oportunidadeId={oportunidade.id} />
+                </div>
+              )}
             </div>
           )}
 
