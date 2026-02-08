@@ -17,6 +17,7 @@ import { ConfiguracoesLayout, CamposPage, ProdutosPage, MotivosPage, TarefasTemp
 import { ContatosPage } from '@/modules/contatos'
 import { NegociosPage, PipelineConfigPage } from '@/modules/negocios'
 import { TarefasPage } from '@/modules/tarefas'
+import { ConversasPage } from '@/modules/conversas'
 
 /**
  * AIDEV-NOTE: Roteamento principal da aplicacao
@@ -75,6 +76,7 @@ function App() {
         <Route path="negocios" element={<NegociosPage />} />
         <Route path="negocios/pipeline/:id" element={<PipelineConfigPage />} />
         <Route path="tarefas" element={<TarefasPage />} />
+        <Route path="conversas" element={<ConversasPage />} />
       </Route>
 
       {/* Configuracoes - PRD-05 (layout próprio com header/toolbar) */}
