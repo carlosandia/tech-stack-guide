@@ -136,6 +136,7 @@ export interface Tarefa {
   criado_por_id?: string | null
   tarefa_template_id?: string | null
   etapa_origem_id?: string | null
+  etapa_origem_nome?: string | null
   criado_em: string
   owner?: { id: string; nome: string } | null
 }
@@ -237,6 +238,23 @@ export const detalhesApi = {
       }
     }
 
+    // Enriquecer com etapa de origem
+    const etapaIds = [...new Set(tarefas.filter(t => t.etapa_origem_id).map(t => t.etapa_origem_id!))]
+    let etapasMap: Record<string, string> = {}
+
+    if (etapaIds.length > 0) {
+      const { data: etapas } = await supabase
+        .from('etapas_funil')
+        .select('id, nome')
+        .in('id', etapaIds)
+
+      if (etapas) {
+        for (const e of etapas) {
+          etapasMap[e.id] = e.nome
+        }
+      }
+    }
+
     return tarefas.map(t => ({
       id: t.id,
       titulo: t.titulo,
@@ -251,6 +269,7 @@ export const detalhesApi = {
       criado_por_id: t.criado_por_id,
       tarefa_template_id: t.tarefa_template_id,
       etapa_origem_id: t.etapa_origem_id,
+      etapa_origem_nome: t.etapa_origem_id ? etapasMap[t.etapa_origem_id] || null : null,
       criado_em: t.criado_em,
       owner: t.owner_id ? ownersMap[t.owner_id] || null : null,
     }))

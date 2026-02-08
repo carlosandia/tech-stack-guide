@@ -1,11 +1,11 @@
 /**
  * AIDEV-NOTE: Aba Tarefas (RF-14.3 Tab 2) - Implementação completa
  * Lista tarefas automáticas + manuais, criar tarefa, marcar concluída
- * Separação visual Pendentes / Concluídas
+ * Separação visual Pendentes / Concluídas, agrupadas por etapa de origem
  */
 
-import { useState, useCallback } from 'react'
-import { CheckSquare, Plus, Circle, CheckCircle2, Clock, Trash2, AlertCircle, Loader2 } from 'lucide-react'
+import { useState, useCallback, useMemo } from 'react'
+import { CheckSquare, Plus, Circle, CheckCircle2, Clock, Trash2, AlertCircle, Loader2, Layers } from 'lucide-react'
 import { toast } from 'sonner'
 import { format, isPast, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -28,6 +28,40 @@ const PRIORIDADE_MAP: Record<string, { label: string; class: string }> = {
   urgente: { label: 'Urgente', class: 'text-destructive font-semibold' },
 }
 
+interface TarefasPorEtapa {
+  etapaId: string | null
+  etapaNome: string
+  tarefas: Tarefa[]
+}
+
+function agruparPorEtapa(tarefas: Tarefa[]): TarefasPorEtapa[] {
+  const map = new Map<string | null, { nome: string; tarefas: Tarefa[] }>()
+
+  for (const t of tarefas) {
+    const key = t.etapa_origem_id || null
+    if (!map.has(key)) {
+      map.set(key, {
+        nome: t.etapa_origem_nome || 'Sem etapa',
+        tarefas: [],
+      })
+    }
+    map.get(key)!.tarefas.push(t)
+  }
+
+  // Etapas com nome primeiro (ordenado), "Sem etapa" por último
+  const groups = Array.from(map.entries()).map(([id, g]) => ({
+    etapaId: id,
+    etapaNome: g.nome,
+    tarefas: g.tarefas,
+  }))
+
+  return groups.sort((a, b) => {
+    if (!a.etapaId) return 1
+    if (!b.etapaId) return -1
+    return a.etapaNome.localeCompare(b.etapaNome)
+  })
+}
+
 export function AbaTarefas({ oportunidadeId }: AbaTarefasProps) {
   const { data: tarefas, isLoading } = useTarefasOportunidade(oportunidadeId)
   const criarTarefa = useCriarTarefa()
@@ -39,8 +73,12 @@ export function AbaTarefas({ oportunidadeId }: AbaTarefasProps) {
   const [novaData, setNovaData] = useState('')
   const [novaPrioridade, setNovaPrioridade] = useState('media')
 
-  const pendentes = tarefas?.filter(t => t.status !== 'concluida') || []
-  const concluidas = tarefas?.filter(t => t.status === 'concluida') || []
+  const pendentes = useMemo(() => tarefas?.filter(t => t.status !== 'concluida') || [], [tarefas])
+  const concluidas = useMemo(() => tarefas?.filter(t => t.status === 'concluida') || [], [tarefas])
+
+  // Agrupar pendentes por etapa apenas se existem tarefas com etapa
+  const temEtapas = useMemo(() => pendentes.some(t => t.etapa_origem_id), [pendentes])
+  const gruposPendentes = useMemo(() => temEtapas ? agruparPorEtapa(pendentes) : null, [pendentes, temEtapas])
 
   const handleCriar = useCallback(async () => {
     if (!novoTitulo.trim()) return
@@ -163,7 +201,35 @@ export function AbaTarefas({ oportunidadeId }: AbaTarefasProps) {
           <CheckSquare className="w-8 h-8 mx-auto text-muted-foreground/20 mb-2" />
           <p className="text-xs text-muted-foreground">Nenhuma tarefa pendente</p>
         </div>
+      ) : gruposPendentes ? (
+        /* Agrupado por etapa */
+        <div className="space-y-3">
+          {gruposPendentes.map(grupo => (
+            <div key={grupo.etapaId || 'sem-etapa'}>
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <Layers className="w-3 h-3 text-muted-foreground" />
+                <span className="text-[11px] font-medium text-muted-foreground">
+                  {grupo.etapaNome}
+                </span>
+                <span className="text-[10px] text-muted-foreground/60">
+                  ({grupo.tarefas.length})
+                </span>
+              </div>
+              <div className="space-y-1 ml-1 border-l-2 border-border pl-2.5">
+                {grupo.tarefas.map(tarefa => (
+                  <TarefaItem
+                    key={tarefa.id}
+                    tarefa={tarefa}
+                    onToggle={handleToggleStatus}
+                    onExcluir={handleExcluir}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       ) : (
+        /* Sem agrupamento */
         <div className="space-y-1">
           {pendentes.map(tarefa => (
             <TarefaItem
