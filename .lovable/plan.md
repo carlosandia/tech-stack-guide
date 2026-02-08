@@ -1,270 +1,227 @@
 
 
-# Plano de Implementacao: PRD-11 - Caixa de Entrada de Email
+# Analise de Gaps - PRD-11: Caixa de Entrada de Email
 
-## Visao Geral
+## Resumo da Situacao Atual
 
-Implementar o modulo de Caixa de Entrada de Email, permitindo que usuarios (Admin/Member) recebam, leiam e respondam emails diretamente no CRM. O Super Admin **nao** utiliza este modulo, mas ele deve aparecer no painel de modulos e nos planos.
-
-Dado o tamanho do PRD (14 RFs + tabelas + backend + frontend), o plano sera dividido em **3 etapas** para implementacao incremental.
+O modulo foi parcialmente implementado. As bases de backend (tabelas, RLS, indices, rotas, service) e o frontend basico (layout split-view, lista, visualizacao, composer) estao funcionais. Porem, ao comparar item a item com o PRD-11, existem **gaps significativos** em funcionalidades Must-have e Should-have.
 
 ---
 
-## Etapa 1 - Banco de Dados + Modulo no Super Admin + Backend Base
+## O que JA esta implementado (OK)
 
-### 1.1 Tabelas no Supabase (SQL via migration)
-
-Criar 5 tabelas conforme definido no PRD-11:
-
-**`emails_recebidos`** - Tabela principal de emails sincronizados/recebidos:
-- `id`, `organizacao_id`, `usuario_id`, `conexao_email_id`
-- Identificadores externos: `message_id`, `thread_id`, `provider_id`
-- Cabecalho: `de_email`, `de_nome`, `para_email`, `cc_email`, `bcc_email`, `assunto`
-- Conteudo: `preview`, `corpo_texto`, `corpo_html`, `tem_anexos`, `anexos_info` (jsonb)
-- Status: `pasta` (inbox/sent/drafts/archived/trash), `lido`, `favorito`
-- Vinculacao CRM: `contato_id`, `oportunidade_id`
-- Timestamps: `data_email`, `sincronizado_em`, `criado_em`, `atualizado_em`, `deletado_em`
-- Constraint UNIQUE: `(organizacao_id, usuario_id, message_id)`
-
-**`emails_rascunhos`** - Rascunhos de email:
-- `id`, `organizacao_id`, `usuario_id`
-- `tipo` (novo/resposta/encaminhar), `email_original_id`
-- Conteudo: `para_email`, `cc_email`, `bcc_email`, `assunto`, `corpo_html`, `anexos_temp`
-- Timestamps
-
-**`emails_tracking`** - Rastreamento de abertura:
-- `id`, `organizacao_id`, `email_id`, `message_id`
-- `tipo` (enviado/entregue/aberto/clicado), `contador`
-- `ip`, `user_agent`, `primeira_vez`, `ultima_vez`
-
-**`emails_assinaturas`** - Assinatura por usuario:
-- `id`, `organizacao_id`, `usuario_id`
-- `assinatura_html`, `incluir_em_respostas`, `incluir_em_novos`
-- UNIQUE: `(organizacao_id, usuario_id)`
-
-**`emails_sync_estado`** - Estado de sincronizacao:
-- `id`, `organizacao_id`, `usuario_id`, `conexao_email_id`
-- `ultimo_sync`, `ultimo_history_id`, `ultimo_uid_validity`, `ultimo_uid`
-- `status` (pendente/sincronizando/ok/erro), `erro_mensagem`, `tentativas_erro`
-
-### 1.2 Indices
-
-- `idx_emails_tenant_user_pasta` em `(organizacao_id, usuario_id, pasta, data_email DESC)`
-- `idx_emails_tenant_user_lido` em `(organizacao_id, usuario_id, lido)`
-- `idx_emails_contato` em `(contato_id)`
-- `idx_emails_message_id` em `(message_id)`
-- `idx_emails_busca` GIN para busca full-text em `assunto + corpo_texto`
-- `idx_tracking_message` em `(message_id)`
-
-### 1.3 RLS Policies
-
-Todas as tabelas com RLS habilitado. Policies baseadas em `organizacao_id` usando `get_user_tenant_id()`, garantindo isolamento multi-tenant. O `usuario_id` tambem sera verificado para emails (cada usuario so ve seus proprios emails).
-
-### 1.4 Triggers
-
-- `trigger_set_atualizado_em` nas tabelas `emails_recebidos`, `emails_rascunhos`, `emails_assinaturas`, `emails_sync_estado`
-
-### 1.5 Modulo no Super Admin
-
-Inserir novo registro na tabela `modulos`:
-- slug: `caixa-entrada-email`
-- nome: `Caixa de Entrada`
-- descricao: `Receber, ler e responder emails via IMAP/Gmail API`
-- icone: `Mail`
-- obrigatorio: `false`
-- ordem: `9` (apos Automacoes)
-- requer: `['conexoes']`
-
-Vincular aos planos Pro e Enterprise na tabela `planos_modulos`.
-
-### 1.6 Backend - Routes e Service
-
-**Novos arquivos:**
-
-- `backend/src/routes/emails.ts` - Rotas conforme PRD-11:
-  - `GET /api/v1/emails` - Listar emails (com filtros, paginacao, pasta)
-  - `GET /api/v1/emails/:id` - Detalhe de um email
-  - `PATCH /api/v1/emails/:id` - Atualizar (lido, favorito, pasta)
-  - `DELETE /api/v1/emails/:id` - Mover para lixeira
-  - `POST /api/v1/emails/lote` - Acoes em lote
-  - `POST /api/v1/emails/enviar` - Enviar novo email
-  - `POST /api/v1/emails/:id/responder` - Responder
-  - `POST /api/v1/emails/:id/encaminhar` - Encaminhar
-  - `GET /api/v1/emails/rascunhos` - Listar rascunhos
-  - `POST /api/v1/emails/rascunhos` - Criar/atualizar rascunho
-  - `DELETE /api/v1/emails/rascunhos/:id` - Deletar rascunho
-  - `POST /api/v1/emails/sync` - Forcar sincronizacao
-  - `GET /api/v1/emails/sync/status` - Status do sync
-  - `GET /api/v1/emails/assinatura` - Obter assinatura
-  - `PUT /api/v1/emails/assinatura` - Salvar assinatura
-  - `GET /api/v1/emails/:id/anexos/:anexoId` - Download de anexo
-
-- `backend/src/services/caixa-entrada.service.ts` - Service principal:
-  - Sincronizacao Gmail API (usando googleapis ja instalado)
-  - Sincronizacao IMAP (necessario instalar `imapflow`)
-  - Vinculacao automatica com contatos (busca por email em `contatos`)
-  - Envio usando `email.service.ts` existente do PRD-08
-  - Gerenciamento de rascunhos
-  - Assinatura
-
-- `backend/src/schemas/emails.ts` - Schemas Zod para validacao
-
-**Registro em `backend/src/index.ts`:**
-- `app.use('/api/v1/emails', authMiddleware, requireTenant, emailsRoutes)`
-
-**Nova dependencia no backend:**
-- `imapflow` - Biblioteca moderna para IMAP (substitui node-imap, melhor API async)
+| Requisito | Status |
+|-----------|--------|
+| RF-001: Layout split-view desktop | OK |
+| RF-001: Responsivo mobile (lista vs leitura) | OK |
+| RF-001: Contador nao lidos no menu | OK (hook existe, mas badge no menu falta) |
+| RF-002: 5 pastas (Inbox, Sent, Drafts, Archived, Trash) | OK |
+| RF-002: Navegacao entre pastas via tabs | OK |
+| RF-003: Lista com remetente, assunto, preview, data | OK |
+| RF-003: Indicador nao lido (bolinha azul + negrito) | OK |
+| RF-003: Favorito (estrela) | OK |
+| RF-003: Icone de anexo (clip) | OK |
+| RF-003: Selecao multipla com checkbox | OK |
+| RF-004: Cabecalho (De, Para, Cc, Data) | OK |
+| RF-004: Renderizacao de HTML | OK (mas sem sanitizacao!) |
+| RF-004: Botoes de acao (Responder, Encaminhar, Arquivar, Deletar) | OK |
+| RF-004: Marcar como lido/nao lido | OK |
+| RF-005: Responder email pre-preenchendo destinatario e assunto | OK |
+| RF-006: Botao "Escrever" abre modal composicao | OK |
+| RF-008: Sync Gmail API (inicial + incremental) | OK |
+| RF-008: Deduplicacao por Message-ID | OK |
+| RF-010: Acoes em lote (marcar lido, arquivar, deletar, favoritar) | OK |
+| RF-012: Backend assinatura (CRUD) | OK |
+| DB: 5 tabelas criadas com RLS | OK |
+| DB: Indices (incluindo GIN full-text) | OK |
+| Backend: 17 rotas definidas | OK |
+| Modulo registrado no Super Admin | OK |
 
 ---
 
-## Etapa 2 - Frontend: Pagina Principal `/emails`
+## GAPS Identificados
 
-### 2.1 Estrutura do Modulo
+### GAPS CRITICOS (Must-have)
 
-```text
-src/modules/emails/
-  index.ts              -- Barrel export
-  pages/
-    EmailsPage.tsx      -- Pagina principal split-view
-  components/
-    EmailsList.tsx       -- Lista de emails (esquerda)
-    EmailItem.tsx        -- Item individual na lista
-    EmailViewer.tsx      -- Painel de leitura (direita)
-    EmailComposer.tsx    -- Modal de composicao/resposta
-    EmailToolbar.tsx     -- Toolbar com pastas e acoes
-    EmailFilters.tsx     -- Busca e filtros rapidos
-    EmailBatchBar.tsx    -- Barra de acoes em lote
-    ContatoCard.tsx      -- Card do contato vinculado
-    EmailEmpty.tsx       -- Estado vazio
-    AssinaturaConfig.tsx -- Config de assinatura (modal)
-  hooks/
-    useEmails.ts         -- React Query hooks
-    useEmailSync.ts      -- Hook de sincronizacao
-  services/
-    emails.api.ts        -- Chamadas API via axios
-```
+#### 1. Sanitizacao HTML (XSS) - RF-004, RNF-002
+**Severidade:** CRITICA (seguranca)
+- O `EmailViewer.tsx` usa `dangerouslySetInnerHTML` direto sem sanitizar o HTML
+- Nao ha `dompurify` instalado no projeto
+- Qualquer email malicioso pode executar scripts no navegador
+- **Acao:** Instalar `dompurify` e sanitizar todo `corpo_html` antes de renderizar
 
-### 2.2 Layout da Pagina (Desktop)
+#### 2. Composer nao envia de fato - RF-005, RF-006
+**Severidade:** CRITICA (funcionalidade core)
+- O `handleSend` no `EmailsPage.tsx` (linha 153-159) tem um `TODO` e mostra apenas um toast
+- O frontend nao esta integrado com o backend `/api/v1/emails/enviar`
+- O composer usa `<textarea>` simples em vez do TipTap (ja instalado no projeto)
+- **Acao:** Integrar `onSend` com a API de envio; usar editor TipTap para formatacao rich text
 
-Split-view conforme PRD-11:
-- **Esquerda (380px):** Toolbar (pastas: Inbox/Enviados/Rascunhos/Arquivados/Lixeira) + Lista de emails com scroll infinito
-- **Direita (flex):** Painel de leitura com cabecalho, corpo HTML sanitizado, anexos, acoes (Responder/Encaminhar/Arquivar/Deletar), e card do contato vinculado
+#### 3. "Responder Todos" ausente - RF-005
+**Severidade:** ALTA
+- PRD exige 3 acoes: Responder, Responder Todos, Encaminhar
+- Apenas Responder e Encaminhar estao implementados
+- **Acao:** Adicionar botao "Responder Todos" que inclui todos os destinatarios Cc no campo Para
 
-### 2.3 Mobile
+#### 4. Card do Contato Vinculado ausente - RF-007
+**Severidade:** ALTA (Must-have no PRD)
+- Componente `ContatoCard.tsx` nao foi criado
+- Nao ha exibicao do contato vinculado no painel de leitura
+- Nao ha botao "Criar Contato" se remetente nao for contato CRM
+- Nao ha botao "Criar Tarefa" a partir do email
+- Nao ha listagem de oportunidades vinculadas ao contato
+- **Acao:** Criar componente `ContatoCard` que busca contato pelo `contato_id` ou `de_email`, exibe informacoes e oportunidades
 
-- Lista e leitura em telas separadas (estado controlado)
-- Toolbar como dropdown de pastas
-- Navegacao por swipe ou back button
+#### 5. Sync IMAP nao implementado - RF-008
+**Severidade:** MEDIA-ALTA
+- O service backend tem apenas `logger.warn('Sync IMAP ainda nao implementado')` (linha 568)
+- PRD exige suporte a IMAP para provedores nao-Gmail
+- Dependencia `imapflow` nao esta instalada
+- **Acao:** Implementar sync IMAP usando `imapflow` ou marcar como v1.1
 
-### 2.4 Rota no App
-
-Adicionar em `src/App.tsx`:
-```
-<Route path="emails" element={<EmailsPage />} />
-```
-
-Dentro do bloco `/app` (Admin/Member).
-
-### 2.5 Menu de Navegacao
-
-Adicionar item no `AppLayout.tsx`:
-```
-{ label: 'Emails', path: '/app/emails', icon: Mail }
-```
-
-Com badge de contador de nao-lidos.
-
-### 2.6 Estilizacao
-
-Seguir fielmente o `docs/designsystem.md`:
-- Cores: tokens semanticos (primary, muted-foreground, border, etc.)
-- Tipografia: text-sm (14px) para lista, text-base para leitura
-- Espacamento: p-3, p-4 conforme hierarquia
-- Border radius: rounded-md (6px), rounded-lg (8px)
-- Glass effect no header conforme padrao existente
-- Z-index conforme design system
+#### 6. Download de Anexos nao funciona no frontend - RF-004
+**Severidade:** ALTA
+- O `AnexoItem` no `EmailViewer.tsx` apenas exibe o nome, nao tem botao/link de download
+- Nao ha integracao com a rota `GET /api/v1/emails/:id/anexos/:anexoId`
+- **Acao:** Adicionar funcao de download nos itens de anexo
 
 ---
 
-## Etapa 3 - Funcionalidades Complementares
+### GAPS IMPORTANTES (Should-have)
 
-### 3.1 Composicao de Email
+#### 7. Filtros rapidos ausentes - RF-009
+- Faltam filtros rapidos: "Nao lidos", "Com anexos", "Favoritos", "De contatos CRM", "Periodo"
+- Componente `EmailFilters.tsx` nao foi criado
+- A busca nao tem debounce de 300ms
+- **Acao:** Criar barra de filtros combinaveis abaixo da busca
 
-- Modal `EmailComposer` com editor TipTap (ja instalado no projeto)
-- Autocomplete de destinatarios buscando contatos do CRM
-- Campos Cc/Bcc ocultos por padrao
-- Upload de anexos (max 25MB)
-- Assinatura automatica
-- Auto-save de rascunho a cada 30s
+#### 8. Assinatura de Email sem UI - RF-012
+- Backend esta completo (CRUD), mas nao existe componente `AssinaturaConfig.tsx`
+- Nao ha como o usuario configurar ou editar sua assinatura no frontend
+- Deveria usar editor TipTap para editar a assinatura
+- **Acao:** Criar modal/pagina de configuracao de assinatura
 
-### 3.2 Vinculacao com Contatos
+#### 9. Badge de nao lidos no menu - RF-011
+- O hook `useContadorNaoLidos` existe, mas o `AppLayout.tsx` nao exibe badge ao lado do item "Emails"
+- **Acao:** Adicionar badge com contador de nao lidos no item do menu
 
-- Busca automatica em `contatos` pelo email do remetente
-- Card do contato com oportunidades vinculadas
-- Botao "Criar Contato" se nao existir
-- Botao "Criar Tarefa" a partir do email
+#### 10. Toast de novo email - RF-011
+- Nao ha notificacao toast quando novos emails chegam via polling
+- **Acao:** Comparar contagem anterior vs atual e mostrar toast se houver novos
 
-### 3.3 Busca e Filtros
+#### 11. Confirmacao para acoes destrutivas - RF-010
+- Nao ha modal de confirmacao ao deletar emails (lote ou individual)
+- PRD exige confirmacao para acoes destrutivas
+- **Acao:** Adicionar dialog de confirmacao antes de deletar
 
-- Campo de busca com debounce 300ms
-- Filtros: nao lidos, com anexos, favoritos, de contatos CRM, periodo
-- Filtros combinaveis (AND logico)
-
-### 3.4 Acoes em Lote
-
-- Checkbox para selecao multipla
-- Barra flutuante com acoes: marcar lido, arquivar, deletar, favoritar
-- Confirmacao para acoes destrutivas
-
-### 3.5 Notificacoes
-
-- Badge com contador de nao-lidos no menu (icone Mail)
-- Toast ao receber novo email via polling (60s)
-
-### 3.6 Assinatura de Email
-
-- Editor rich text (TipTap) para criar assinatura
-- Opcoes: incluir em novos emails, incluir em respostas
-
-### 3.7 Rastreamento (Could-have)
-
-- Pixel 1x1 transparente inserido no HTML
-- Rota publica `GET /t/:trackingId.gif`
-- Indicadores: Enviado, Entregue, Lido
+#### 12. Paginacao infinita (scroll) - RF-003
+- A lista usa paginacao tradicional (botoes anterior/proximo)
+- PRD pede "paginacao infinita (carregar mais ao scroll)"
+- **Acao:** Substituir por scroll infinito com `IntersectionObserver`
 
 ---
 
-## Detalhes Tecnicos
+### GAPS MENORES (Could-have / Nice-to-have)
 
-### Sincronizacao
+#### 13. Rastreamento de abertura (Tracking) - RF-013
+- Tabela `emails_tracking` existe e o backend registra evento "enviado"
+- Falta: checkbox "Rastrear abertura" no composer
+- Falta: inserir pixel 1x1 no HTML do email
+- Falta: rota publica `GET /t/:trackingId.gif`
+- Falta: indicadores visuais (check azul) nos emails enviados
+- **Acao:** Implementar em versao futura (Could-have)
 
-- **Gmail API:** Usa `googleapis` (ja instalado). Scopes `gmail.readonly` e `gmail.modify` ja definidos no `EmailService`. Sync inicial: ultimos 100 emails. Sync incremental: via `history.list()` a cada 60s ou sob demanda.
-- **IMAP:** Usa `imapflow` (a instalar). Conecta ao servidor IMAP do provedor. Sync inicial: FETCH ultimos 100 emails da INBOX. Sync incremental: polling a cada 60s com SEARCH SINCE.
-- **Deduplicacao:** Por `Message-ID` (RFC 5322), constraint UNIQUE na tabela.
+#### 14. Timeline do Contato - RF-014
+- Emails nao aparecem na timeline/historico do contato
+- PRD marca como Must-have para integracao com contatos
+- **Acao:** Quando o modulo de contatos tiver timeline, integrar emails
 
-### Seguranca
+#### 15. Upload de anexos no envio - RF-005, RF-006
+- Rota `POST /api/v1/emails/upload` definida no PRD mas nao implementada
+- Composer nao tem botao de anexar
+- **Acao:** Implementar upload temporario e anexar ao envio
 
-- HTML de emails sanitizado com DOMPurify (a instalar no frontend)
-- Credenciais IMAP criptografadas com `encrypt()` existente (AES via crypto-js)
-- Tokens OAuth ja criptografados pelo PRD-08
-- Conteudo de emails armazenado no banco (nao em cache)
+#### 16. Autocomplete de contatos no Composer - RF-006
+- Campo "Para" e um input simples, sem autocomplete
+- PRD pede busca em contatos do CRM com sugestoes
+- **Acao:** Integrar busca de contatos na digitacao do campo "Para"
 
-### Dependencias a Instalar
+#### 17. Auto-save de rascunho a cada 30s - RF-005
+- Hooks de rascunho existem (`useSalvarRascunho`), mas nao sao usados no Composer
+- **Acao:** Adicionar `useEffect` com intervalo de 30s no modal de composicao
 
-**Backend:**
-- `imapflow` - Cliente IMAP moderno com async/await
+#### 18. Lixeira esvazia automaticamente apos 30 dias - RF-002
+- Nao ha job/cron para limpar emails na lixeira com mais de 30 dias
+- **Acao:** Criar funcao scheduled ou cron no backend
 
-**Frontend:**
-- `dompurify` + `@types/dompurify` - Sanitizacao de HTML de emails
+#### 19. Links abrem em nova aba - RF-004
+- O HTML renderizado nao forca `target="_blank"` nos links
+- **Acao:** Adicionar `target="_blank" rel="noopener"` via DOMPurify hooks
 
-### Arquivos Existentes Impactados
+#### 20. Double-click abre em modal/fullscreen - RF-003
+- Nao ha handler de double-click no `EmailItem`
+- **Acao:** Implementar modo fullscreen para visualizacao
 
-| Arquivo | Mudanca |
-|---------|---------|
-| `backend/src/index.ts` | Registrar rotas `/api/v1/emails` |
-| `src/App.tsx` | Adicionar rota `/app/emails` |
-| `src/modules/app/layouts/AppLayout.tsx` | Adicionar item "Emails" no menu com badge |
-| `src/modules/app/index.ts` | Exportar nova pagina |
-| Tabela `modulos` (SQL) | INSERT do modulo "Caixa de Entrada" |
-| Tabela `planos_modulos` (SQL) | INSERT vinculos com planos Pro/Enterprise |
+---
+
+## Plano de Correcao por Prioridade
+
+### Prioridade 1 - Correcoes Criticas (implementar agora)
+
+1. **Instalar `dompurify`** e sanitizar HTML no `EmailViewer.tsx`
+2. **Integrar envio real** no `ComposeEmailModal` com a API backend
+3. **Usar TipTap** como editor no Composer (ja instalado no projeto)
+4. **Adicionar "Responder Todos"** no `EmailViewer`
+5. **Criar `ContatoCard`** com informacoes do contato vinculado, oportunidades, botoes "Criar Contato" e "Criar Tarefa"
+6. **Habilitar download de anexos** nos itens de anexo
+
+### Prioridade 2 - Melhorias Importantes (implementar em seguida)
+
+7. **Criar barra de filtros rapidos** (nao lidos, com anexos, favoritos, periodo)
+8. **Debounce 300ms** na busca
+9. **Badge de nao lidos** no menu do `AppLayout`
+10. **Modal de assinatura** com editor TipTap
+11. **Confirmacao de exclusao** com dialog
+12. **Toast de novo email** ao detectar novas mensagens no polling
+
+### Prioridade 3 - Refinamentos (backlog)
+
+13. Scroll infinito na lista
+14. Auto-save de rascunho a cada 30s
+15. Autocomplete de contatos no campo "Para"
+16. Links com `target="_blank"` via DOMPurify
+17. Upload de anexos no envio
+18. Tracking de abertura (pixel)
+19. Integracao com timeline do contato
+20. Limpeza automatica da lixeira (30 dias)
+21. Sync IMAP com `imapflow`
+
+---
+
+## Detalhes Tecnicos das Correcoes
+
+### Sanitizacao HTML (Gap 1)
+- Instalar: `dompurify` + `@types/dompurify`
+- No `EmailViewer.tsx`, importar DOMPurify e usar:
+```typescript
+const cleanHtml = DOMPurify.sanitize(email.corpo_html, {
+  ADD_ATTR: ['target'],
+  ALLOW_TAGS: ['a','p','br','b','i','u','strong','em','h1','h2','h3','ul','ol','li','table','tr','td','th','img','blockquote','hr','span','div'],
+})
+```
+
+### Editor TipTap no Composer (Gap 2)
+- TipTap ja esta instalado (`@tiptap/react`, `@tiptap/starter-kit`, extensions)
+- Substituir `<textarea>` por componente com `useEditor` e toolbar basica
+- Toolbar: Bold, Italic, Underline, Link, Lista
+
+### ContatoCard (Gap 4)
+- Buscar contato pelo `contato_id` do email ou pelo `de_email` na tabela `contatos`
+- Exibir: avatar, nome, cargo, empresa
+- Listar oportunidades vinculadas ao contato
+- Botoes: "Ver Contato", "Ver Oportunidade", "Criar Contato" (se nao existe), "Criar Tarefa"
+
+### Badge no Menu (Gap 9)
+- O `AppLayout.tsx` ja tem o item "Emails" com icone Mail
+- Adicionar hook `useContadorNaoLidos` e renderizar badge similar ao da pasta inbox no EmailList
 
