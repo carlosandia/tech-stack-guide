@@ -6,6 +6,7 @@
 
 import { useState } from 'react'
 import { X, Phone, Mail, ChevronDown, ChevronRight, Loader2, MessageSquare, Zap, ListTodo, TrendingUp, Trash2 } from 'lucide-react'
+import { InstagramIcon } from '@/shared/components/InstagramIcon'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { conversasApi, type Conversa, type NotaContato, type MensagemPronta } from '../services/conversas.api'
 import { useMensagensProntas } from '../hooks/useMensagensProntas'
@@ -143,7 +144,7 @@ export function ContatoDrawer({ conversa, isOpen, onClose, onInsertQuickReply, o
               {conversa.canal === 'whatsapp' ? (
                 <WhatsAppIcon size={14} className="text-[#25D366]" />
               ) : (
-                <MessageSquare className="w-3.5 h-3.5 text-purple-500" />
+                <InstagramIcon size={14} className="text-[#E4405F]" />
               )}
               <span className="text-xs text-muted-foreground capitalize">{conversa.canal}</span>
             </div>
