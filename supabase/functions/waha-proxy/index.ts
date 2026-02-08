@@ -4,7 +4,7 @@
  * Suporta: iniciar sessão, obter QR code, verificar status, desconectar
  */
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -113,6 +113,16 @@ Deno.serve(async (req) => {
             },
           }),
         });
+
+        // 422 = session already started — treat as success
+        if (wahaResponse.status === 422) {
+          const errBody = await wahaResponse.json().catch(() => ({}));
+          console.log(`[waha-proxy] Session already exists, treating as success:`, errBody.message);
+          return new Response(
+            JSON.stringify({ name: sessionId, status: "SCAN_QR_CODE", already_started: true }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
         break;
       }
 
