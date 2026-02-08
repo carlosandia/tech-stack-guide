@@ -14,6 +14,7 @@ interface ChatHeaderProps {
   onOpenDrawer: () => void
   onAlterarStatus: (status: 'aberta' | 'pendente' | 'fechada') => void
   onCriarOportunidade?: () => void
+  onToggleBusca?: () => void
 }
 
 const statusLabels: Record<string, { label: string; className: string }> = {
@@ -27,7 +28,7 @@ function getInitials(nome?: string | null): string {
   return nome.split(' ').filter(Boolean).slice(0, 2).map(p => p[0].toUpperCase()).join('')
 }
 
-export function ChatHeader({ conversa, onBack, onOpenDrawer, onAlterarStatus, onCriarOportunidade }: ChatHeaderProps) {
+export function ChatHeader({ conversa, onBack, onOpenDrawer, onAlterarStatus, onCriarOportunidade, onToggleBusca }: ChatHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const nome = conversa.contato?.nome || conversa.nome || 'Sem nome'
   const fotoUrl = conversa.contato?.foto_url || conversa.foto_url
@@ -89,7 +90,8 @@ export function ChatHeader({ conversa, onBack, onOpenDrawer, onAlterarStatus, on
       <div className="flex items-center gap-1">
         {/* Buscar mensagens - touch target 44px (GAP 3) */}
         <button
-          className="p-2 min-w-[44px] min-h-[44px] items-center justify-center rounded-md hover:bg-accent transition-all duration-200 hidden sm:flex"
+          onClick={onToggleBusca}
+          className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md hover:bg-accent transition-all duration-200"
           title="Buscar na conversa"
         >
           <Search className="w-4 h-4 text-muted-foreground" />

@@ -15,6 +15,8 @@ interface ChatMessagesProps {
   hasMore: boolean
   onLoadMore: () => void
   isFetchingMore: boolean
+  highlightIds?: Set<string>
+  focusedId?: string | null
 }
 
 function formatDateSeparator(dateStr: string): string {
@@ -24,7 +26,7 @@ function formatDateSeparator(dateStr: string): string {
   return format(date, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
 }
 
-export function ChatMessages({ mensagens, isLoading, hasMore, onLoadMore, isFetchingMore }: ChatMessagesProps) {
+export function ChatMessages({ mensagens, isLoading, hasMore, onLoadMore, isFetchingMore, highlightIds, focusedId }: ChatMessagesProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const prevLengthRef = useRef(0)
@@ -62,6 +64,14 @@ export function ChatMessages({ mensagens, isLoading, hasMore, onLoadMore, isFetc
     container.addEventListener('scroll', handleScroll)
     return () => container.removeEventListener('scroll', handleScroll)
   }, [hasMore, isFetchingMore, onLoadMore])
+
+  // Scroll to focused search result
+  useEffect(() => {
+    if (focusedId) {
+      const el = document.getElementById(`msg-${focusedId}`)
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [focusedId])
 
   // Mensagens em ordem cronológica (API retorna desc, invertemos)
   const sortedMessages = useMemo(() => {
@@ -110,7 +120,17 @@ export function ChatMessages({ mensagens, isLoading, hasMore, onLoadMore, isFetc
           !isSameDay(new Date(msg.criado_em), new Date(sortedMessages[idx - 1].criado_em))
 
         return (
-          <div key={msg.id}>
+          <div
+            key={msg.id}
+            id={`msg-${msg.id}`}
+            className={
+              focusedId === msg.id
+                ? 'bg-warning-muted/40 rounded-md transition-colors duration-300'
+                : highlightIds?.has(msg.id)
+                ? 'bg-warning-muted/20 rounded-md'
+                : ''
+            }
+          >
             {showDateSep && (
               <div className="flex items-center justify-center my-3">
                 <span className="px-3 py-1 text-[11px] font-medium text-muted-foreground bg-muted/80 rounded-full shadow-sm">
