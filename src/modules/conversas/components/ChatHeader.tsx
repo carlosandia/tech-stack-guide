@@ -99,7 +99,11 @@ export function ChatHeader({ conversa, onBack, onOpenDrawer, onAlterarStatus, on
         </button>
 
         {/* Tarefas do contato */}
-        <TarefasConversaPopover contatoId={conversa.contato_id} />
+        <TarefasConversaPopover
+          contatoId={conversa.contato_id}
+          contatoNome={nome}
+          canal={conversa.canal as 'whatsapp' | 'instagram'}
+        />
 
         {/* Criar oportunidade */}
         {onCriarOportunidade && (
