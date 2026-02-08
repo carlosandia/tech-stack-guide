@@ -1,9 +1,12 @@
 /**
  * AIDEV-NOTE: Modal de detalhes do feedback (PRD-15)
  * Super Admin - visualizar detalhes e resolver feedback
+ * GAP 5: Modal permanece aberto após resolução e exibe info de resolução
  */
 
+import { useState } from 'react'
 import { useResolverFeedback } from '@/modules/feedback/hooks/useFeedback'
+import { useAuth } from '@/providers/AuthProvider'
 import type { FeedbackComDetalhes } from '@/modules/feedback/services/feedback.api'
 import {
   X,
@@ -19,6 +22,7 @@ interface FeedbackDetalhesModalProps {
   feedback: FeedbackComDetalhes
   open: boolean
   onClose: () => void
+  onResolved?: () => void
 }
 
 function TipoBadge({ tipo }: { tipo: string }) {
@@ -54,15 +58,27 @@ function roleLabel(role: string) {
   return role
 }
 
-export function FeedbackDetalhesModal({ feedback, open, onClose }: FeedbackDetalhesModalProps) {
+export function FeedbackDetalhesModal({ feedback: initialFeedback, open, onClose, onResolved }: FeedbackDetalhesModalProps) {
+  const { user } = useAuth()
   const resolver = useResolverFeedback()
-  const isResolvido = feedback.status === 'resolvido'
+
+  // Estado local mutável para atualizar após resolução (GAP 5)
+  const [localFeedback, setLocalFeedback] = useState<FeedbackComDetalhes>(initialFeedback)
+  const isResolvido = localFeedback.status === 'resolvido'
 
   if (!open) return null
 
   const handleResolver = async () => {
-    await resolver.mutateAsync(feedback.id)
-    onClose()
+    await resolver.mutateAsync(localFeedback.id)
+    // Atualizar estado local ao invés de fechar o modal
+    setLocalFeedback((prev) => ({
+      ...prev,
+      status: 'resolvido',
+      resolvido_em: new Date().toISOString(),
+      resolvido_por: user?.id || null,
+      resolvido_por_usuario: user ? { id: user.id, nome: user.nome || 'Super Admin' } : null,
+    }))
+    onResolved?.()
   }
 
   return (
@@ -89,16 +105,16 @@ export function FeedbackDetalhesModal({ feedback, open, onClose }: FeedbackDetal
             {/* Empresa */}
             <div>
               <label className="text-xs font-medium text-muted-foreground">Empresa</label>
-              <p className="text-sm text-foreground mt-0.5">{feedback.organizacao?.nome || '—'}</p>
+              <p className="text-sm text-foreground mt-0.5">{localFeedback.organizacao?.nome || '—'}</p>
             </div>
 
             {/* Usuario */}
             <div>
               <label className="text-xs font-medium text-muted-foreground">Usuário</label>
               <div className="mt-0.5">
-                <p className="text-sm font-medium text-foreground">{feedback.usuario?.nome}</p>
+                <p className="text-sm font-medium text-foreground">{localFeedback.usuario?.nome}</p>
                 <p className="text-xs text-muted-foreground">
-                  {feedback.usuario?.email} · {roleLabel(feedback.usuario?.role)}
+                  {localFeedback.usuario?.email} · {roleLabel(localFeedback.usuario?.role)}
                 </p>
               </div>
             </div>
@@ -107,11 +123,11 @@ export function FeedbackDetalhesModal({ feedback, open, onClose }: FeedbackDetal
             <div className="flex items-center gap-4">
               <div>
                 <label className="text-xs font-medium text-muted-foreground">Tipo</label>
-                <div className="mt-1"><TipoBadge tipo={feedback.tipo} /></div>
+                <div className="mt-1"><TipoBadge tipo={localFeedback.tipo} /></div>
               </div>
               <div>
                 <label className="text-xs font-medium text-muted-foreground">Data</label>
-                <p className="text-sm text-foreground mt-0.5">{formatDateFull(feedback.criado_em)}</p>
+                <p className="text-sm text-foreground mt-0.5">{formatDateFull(localFeedback.criado_em)}</p>
               </div>
             </div>
 
@@ -119,7 +135,7 @@ export function FeedbackDetalhesModal({ feedback, open, onClose }: FeedbackDetal
             <div>
               <label className="text-xs font-medium text-muted-foreground">Descrição</label>
               <div className="mt-1 p-3 bg-muted/50 rounded-md max-h-48 overflow-y-auto">
-                <p className="text-sm text-foreground whitespace-pre-wrap">{feedback.descricao}</p>
+                <p className="text-sm text-foreground whitespace-pre-wrap">{localFeedback.descricao}</p>
               </div>
             </div>
 
@@ -130,10 +146,10 @@ export function FeedbackDetalhesModal({ feedback, open, onClose }: FeedbackDetal
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                   <span className="text-sm font-medium text-emerald-800">Resolvido</span>
                 </div>
-                {feedback.resolvido_por_usuario && (
+                {localFeedback.resolvido_por_usuario && (
                   <p className="text-xs text-emerald-700">
-                    Por {feedback.resolvido_por_usuario.nome}
-                    {feedback.resolvido_em && ` em ${formatDateFull(feedback.resolvido_em)}`}
+                    Por {localFeedback.resolvido_por_usuario.nome}
+                    {localFeedback.resolvido_em && ` em ${formatDateFull(localFeedback.resolvido_em)}`}
                   </p>
                 )}
               </div>

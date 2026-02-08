@@ -1,9 +1,12 @@
 /**
  * AIDEV-NOTE: Pagina Evolucao do Produto (PRD-15)
  * Super Admin - listagem de feedbacks com filtros, paginacao e detalhes
+ * GAP 3: Filtro de Empresa adicionado
  */
 
 import { useState, useEffect, useCallback } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { supabase } from '@/lib/supabase'
 import { useToolbar } from '../contexts/ToolbarContext'
 import { useFeedbacksAdmin } from '@/modules/feedback/hooks/useFeedback'
 import { FeedbackDetalhesModal } from '../components/FeedbackDetalhesModal'
@@ -29,6 +32,8 @@ const STATUS_OPTIONS: { value: StatusFeedback; label: string }[] = [
   { value: 'aberto', label: 'Aberto' },
   { value: 'resolvido', label: 'Resolvido' },
 ]
+
+// --- Sub-componentes extraídos ---
 
 function TipoBadge({ tipo }: { tipo: string }) {
   const config: Record<string, { bg: string; text: string; icon: React.ElementType }> = {
@@ -64,10 +69,29 @@ function formatDate(dateStr: string) {
     ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 }
 
+// --- Hook para buscar organizações ---
+
+function useOrganizacoesSelect() {
+  return useQuery({
+    queryKey: ['organizacoes-select'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('organizacoes_saas')
+        .select('id, nome')
+        .order('nome')
+      if (error) throw error
+      return data || []
+    },
+  })
+}
+
+// --- Página principal ---
+
 export function EvolucaoPage() {
   const { setActions, setSubtitle } = useToolbar()
 
   // Filtros
+  const [empresa, setEmpresa] = useState('')
   const [tipo, setTipo] = useState<TipoFeedback | ''>('')
   const [status, setStatus] = useState<StatusFeedback | ''>('')
   const [busca, setBusca] = useState('')
@@ -78,6 +102,9 @@ export function EvolucaoPage() {
   // Detalhes
   const [selected, setSelected] = useState<FeedbackComDetalhes | null>(null)
 
+  // Organizações para filtro (GAP 3)
+  const { data: organizacoes } = useOrganizacoesSelect()
+
   // Debounce busca
   useEffect(() => {
     const timer = setTimeout(() => setBuscaDebounced(busca), 300)
@@ -85,9 +112,10 @@ export function EvolucaoPage() {
   }, [busca])
 
   // Reset page ao mudar filtros
-  useEffect(() => { setPage(1) }, [tipo, status, buscaDebounced])
+  useEffect(() => { setPage(1) }, [empresa, tipo, status, buscaDebounced])
 
   const { data, isLoading } = useFeedbacksAdmin({
+    empresa_id: empresa || undefined,
     tipo: tipo || undefined,
     status: status || undefined,
     busca: buscaDebounced || undefined,
@@ -110,6 +138,18 @@ export function EvolucaoPage() {
     <div className="p-4 sm:p-6 lg:p-8 space-y-4">
       {/* Filtros */}
       <div className="flex flex-wrap items-center gap-3">
+        {/* Filtro Empresa (GAP 3) */}
+        <select
+          value={empresa}
+          onChange={(e) => setEmpresa(e.target.value)}
+          className="h-9 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+        >
+          <option value="">Todas as empresas</option>
+          {organizacoes?.map((org) => (
+            <option key={org.id} value={org.id}>{org.nome}</option>
+          ))}
+        </select>
+
         <select
           value={tipo}
           onChange={(e) => setTipo(e.target.value as TipoFeedback | '')}
@@ -221,12 +261,15 @@ export function EvolucaoPage() {
         </div>
       )}
 
-      {/* Modal de Detalhes */}
+      {/* Modal de Detalhes (GAP 5: onResolved para invalidar lista) */}
       {selected && (
         <FeedbackDetalhesModal
           feedback={selected}
           open={!!selected}
           onClose={() => setSelected(null)}
+          onResolved={() => {
+            // A lista será atualizada pelo invalidateQueries do hook
+          }}
         />
       )}
     </div>

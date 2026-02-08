@@ -1,9 +1,12 @@
 /**
  * AIDEV-NOTE: Hooks React Query para Notificacoes (PRD-15)
+ * GAP 7: Supabase Realtime para atualizacao instantanea do badge
  */
 
+import { useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/providers/AuthProvider'
+import { supabase } from '@/lib/supabase'
 import { notificacoesApi } from '../services/notificacoes.api'
 
 /**
@@ -20,16 +23,42 @@ export function useNotificacoes(limit = 5) {
 }
 
 /**
- * Contar notificacoes nao lidas (com refetch a cada 30s)
+ * Contar notificacoes nao lidas (com Realtime + fallback polling 30s)
  */
 export function useContagemNaoLidas() {
   const { user } = useAuth()
+  const queryClient = useQueryClient()
+
+  // Supabase Realtime subscription (GAP 7)
+  useEffect(() => {
+    if (!user?.id) return
+
+    const channel = supabase
+      .channel(`notificacoes-realtime-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notificacoes',
+          filter: `usuario_id=eq.${user.id}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['notificacoes'] })
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [user?.id, queryClient])
 
   return useQuery({
     queryKey: ['notificacoes', 'contagem', user?.id],
     queryFn: () => notificacoesApi.contarNaoLidas(user!.id),
     enabled: !!user?.id,
-    refetchInterval: 30000,
+    refetchInterval: 30000, // fallback polling
   })
 }
 
