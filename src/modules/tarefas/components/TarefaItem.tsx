@@ -87,8 +87,8 @@ export function TarefaItem({ tarefa, onConcluir, onClickOportunidade }: TarefaIt
     ? `${oportunidade.titulo || 'Sem título'}${oportunidade.codigo ? ` #${oportunidade.codigo}` : ''}`
     : null
 
-  const pipelineLabel = oportunidade?.funis?.nome
-  const etapaLabel = tarefa.etapa_origem?.nome || oportunidade?.etapas_funil?.nome
+  const pipelineLabel = tarefa.funil_nome
+  const etapaLabel = tarefa.etapa_origem_nome || tarefa.etapa_nome
 
   return (
     <div
