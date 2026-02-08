@@ -187,23 +187,22 @@ Deno.serve(async (req) => {
             await checkResp.text(); // consume body
           }
 
-          // If session is FAILED or STOPPED, stop it and restart
+          // If session is FAILED or STOPPED, delete it entirely and restart
           if (realStatus === "FAILED" || realStatus === "STOPPED") {
-            console.log(`[waha-proxy] Session in ${realStatus} state, stopping and restarting...`);
+            console.log(`[waha-proxy] Session in ${realStatus} state, deleting and restarting...`);
 
-            // Stop the failed session
-            const stopResp = await fetch(`${baseUrl}/api/sessions/stop`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
-              body: JSON.stringify({ name: sessionId }),
+            // Delete the session entirely (stop alone doesn't remove it)
+            const deleteResp = await fetch(`${baseUrl}/api/sessions/${sessionId}`, {
+              method: "DELETE",
+              headers: { "X-Api-Key": apiKey },
             });
-            await stopResp.text(); // consume body
-            console.log(`[waha-proxy] Stop response: ${stopResp.status}`);
+            console.log(`[waha-proxy] Delete response: ${deleteResp.status}`);
+            await deleteResp.text(); // consume body
 
-            // Small delay to let WAHA clean up
-            await new Promise(r => setTimeout(r, 1000));
+            // Wait for WAHA to fully clean up
+            await new Promise(r => setTimeout(r, 2000));
 
-            // Restart the session
+            // Start a fresh session
             const restartResp = await fetch(`${baseUrl}/api/sessions/start`, {
               method: "POST",
               headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
@@ -213,7 +212,14 @@ Deno.serve(async (req) => {
               }),
             });
             const restartData = await restartResp.json().catch(() => ({}));
-            console.log(`[waha-proxy] Restart response: ${restartResp.status}`, restartData);
+            console.log(`[waha-proxy] Restart response: ${restartResp.status}`, JSON.stringify(restartData));
+
+            if (!restartResp.ok && restartResp.status !== 422) {
+              return new Response(
+                JSON.stringify({ error: "Falha ao reiniciar sessão WAHA", details: restartData }),
+                { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+              );
+            }
 
             await upsertSessao({ status: "scanning", ultimo_qr_gerado: new Date().toISOString() });
 
