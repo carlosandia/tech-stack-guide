@@ -99,9 +99,8 @@ export function TarefasConversaPopover({ contatoId }: TarefasConversaPopoverProp
         .from('tarefas')
         .update({
           status: 'concluida',
-          concluido_em: new Date().toISOString(),
-          atualizado_em: new Date().toISOString(),
-        } as any)
+          data_conclusao: new Date().toISOString(),
+        })
         .eq('id', tarefaId)
 
       if (error) throw error
