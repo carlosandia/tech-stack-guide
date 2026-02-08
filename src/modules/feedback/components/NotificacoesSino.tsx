@@ -53,8 +53,8 @@ export function NotificacoesSino() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [open])
 
-  // Apenas admin e member
-  if (role !== 'admin' && role !== 'member') return null
+  // Visível para admin, member e super_admin
+  if (!role) return null
 
   const count = naoLidas || 0
   const displayCount = count > 9 ? '9+' : count
