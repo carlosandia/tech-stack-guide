@@ -85,7 +85,10 @@ export function NotificacoesSino() {
               <h4 className="text-sm font-semibold text-foreground">Notificações</h4>
               {count > 0 && (
                 <button
-                  onClick={() => marcarTodasLidas.mutate()}
+                  onClick={() => {
+                    marcarTodasLidas.mutate()
+                    setOpen(false)
+                  }}
                   disabled={marcarTodasLidas.isPending}
                   className="text-xs text-primary hover:text-primary/80 font-medium"
                 >

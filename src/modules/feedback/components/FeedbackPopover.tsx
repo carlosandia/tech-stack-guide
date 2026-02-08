@@ -8,7 +8,7 @@ import { useCriarFeedback } from '../hooks/useFeedback'
 import type { TipoFeedback } from '../services/feedback.api'
 import {
   Lightbulb,
-  Bug,
+  Settings2,
   HelpCircle,
   Loader2,
   X,
@@ -19,7 +19,7 @@ interface FeedbackPopoverProps {
 }
 
 const TIPOS: { value: TipoFeedback; label: string; icon: React.ElementType; color: string }[] = [
-  { value: 'bug', label: 'Bug', icon: Bug, color: 'text-red-600 bg-red-50 border-red-200 hover:bg-red-100' },
+  { value: 'bug', label: 'Bug', icon: Settings2, color: 'text-red-600 bg-red-50 border-red-200 hover:bg-red-100' },
   { value: 'sugestao', label: 'Sugestão', icon: Lightbulb, color: 'text-violet-600 bg-violet-50 border-violet-200 hover:bg-violet-100' },
   { value: 'duvida', label: 'Dúvida', icon: HelpCircle, color: 'text-blue-600 bg-blue-50 border-blue-200 hover:bg-blue-100' },
 ]
