@@ -7,6 +7,7 @@
 import { useState } from 'react'
 import { X, Phone, Mail, ChevronDown, ChevronRight, Loader2, MessageSquare, Zap, ListTodo, TrendingUp, Trash2 } from 'lucide-react'
 import { InstagramIcon } from '@/shared/components/InstagramIcon'
+import { CriarTarefaConversaModal } from './CriarTarefaConversaModal'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { conversasApi, type Conversa, type NotaContato, type MensagemPronta } from '../services/conversas.api'
 import { useMensagensProntas } from '../hooks/useMensagensProntas'
@@ -71,6 +72,7 @@ function ActionButton({ icon: Icon, label, onClick, variant = 'default' }: {
 
 export function ContatoDrawer({ conversa, isOpen, onClose, onInsertQuickReply, onCriarOportunidade }: ContatoDrawerProps) {
   const [novaNota, setNovaNota] = useState('')
+  const [tarefaModalOpen, setTarefaModalOpen] = useState(false)
   const queryClient = useQueryClient()
 
   const contato = conversa.contato
@@ -163,7 +165,7 @@ export function ContatoDrawer({ conversa, isOpen, onClose, onInsertQuickReply, o
             <ActionButton
               icon={ListTodo}
               label="Tarefa"
-              onClick={() => toast.info('Criação de tarefa será integrada em breve')}
+              onClick={() => setTarefaModalOpen(true)}
             />
             <ActionButton
               icon={TrendingUp}
@@ -330,6 +332,16 @@ export function ContatoDrawer({ conversa, isOpen, onClose, onInsertQuickReply, o
             </div>
           </SectionCollapsible>
         </div>
+
+        {/* Modal de Criar Tarefa */}
+        {tarefaModalOpen && (
+          <CriarTarefaConversaModal
+            contatoId={conversa.contato_id}
+            contatoNome={nome}
+            canal={conversa.canal}
+            onClose={() => setTarefaModalOpen(false)}
+          />
+        )}
       </div>
     </>
   )
