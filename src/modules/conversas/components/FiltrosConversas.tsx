@@ -86,14 +86,14 @@ export function FiltrosConversas({
         )}
       </div>
 
-      {/* Canal tabs + Status select — uma única linha */}
-      <div className="flex items-center gap-1">
+      {/* Canal tabs + Status select — uma única linha, compacta */}
+      <div className="flex items-center gap-0.5 overflow-hidden">
         {canais.map((c) => (
           <button
             key={c.label}
             onClick={() => onCanalChange(c.value)}
             className={`
-              flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md font-medium transition-all duration-200 whitespace-nowrap
+              flex items-center gap-1 px-2 py-1 text-[11px] rounded-md font-medium transition-all duration-200 whitespace-nowrap flex-shrink-0
               ${canal === c.value
                 ? 'bg-primary/10 text-primary'
                 : 'text-muted-foreground hover:text-foreground hover:bg-accent'
@@ -105,14 +105,14 @@ export function FiltrosConversas({
           </button>
         ))}
 
-        <div className="w-px h-4 bg-border mx-1 flex-shrink-0" />
+        <div className="w-px h-3.5 bg-border mx-0.5 flex-shrink-0" />
 
         {/* Status — custom select dropdown */}
-        <div ref={statusRef} className="relative">
+        <div ref={statusRef} className="relative flex-shrink-0">
           <button
             onClick={() => setStatusOpen(!statusOpen)}
             className={`
-              flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md font-medium transition-all duration-200 whitespace-nowrap
+              flex items-center gap-0.5 px-2 py-1 text-[11px] rounded-md font-medium transition-all duration-200 whitespace-nowrap
               ${status
                 ? 'bg-primary/10 text-primary'
                 : 'text-muted-foreground hover:text-foreground hover:bg-accent'
@@ -124,7 +124,7 @@ export function FiltrosConversas({
           </button>
 
           {statusOpen && (
-            <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-border rounded-lg shadow-lg py-1 min-w-[120px]">
+            <div className="absolute left-0 top-full mt-1 z-[600] bg-card border border-border rounded-lg shadow-lg py-1 min-w-[110px]">
               {statuses.map((s) => (
                 <button
                   key={s.label}
@@ -133,7 +133,7 @@ export function FiltrosConversas({
                     setStatusOpen(false)
                   }}
                   className={`
-                    block w-full text-left px-3 py-1.5 text-xs transition-colors duration-150
+                    block w-full text-left px-3 py-1.5 text-[11px] transition-colors duration-150
                     ${status === s.value
                       ? 'bg-primary/10 text-primary font-medium'
                       : 'text-foreground hover:bg-accent'
