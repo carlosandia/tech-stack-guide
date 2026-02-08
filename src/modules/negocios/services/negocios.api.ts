@@ -994,16 +994,67 @@ export const negociosApi = {
     dados_novos: Record<string, unknown> | null
     criado_em: string
     usuario_id: string | null
+    usuario_nome: string | null
   }>> => {
     const { data, error } = await supabase
       .from('audit_log')
       .select('id, acao, entidade, detalhes, dados_anteriores, dados_novos, criado_em, usuario_id')
       .eq('entidade_id', oportunidadeId)
       .order('criado_em', { ascending: false })
-      .limit(50)
+      .limit(100)
 
     if (error) throw new Error(error.message)
-    return (data || []) as any
+    const eventos = (data || []) as any[]
+
+    // Enriquecer com nomes de usuários
+    const userIds = [...new Set(eventos.filter(e => e.usuario_id).map(e => e.usuario_id))]
+    let usersMap: Record<string, string> = {}
+
+    if (userIds.length > 0) {
+      const { data: usuarios } = await supabase
+        .from('usuarios')
+        .select('id, nome, sobrenome')
+        .in('id', userIds)
+
+      if (usuarios) {
+        for (const u of usuarios) {
+          usersMap[u.id] = [u.nome, u.sobrenome].filter(Boolean).join(' ')
+        }
+      }
+    }
+
+    // Enriquecer nomes de etapas nos eventos de movimentação
+    const etapaIds = new Set<string>()
+    for (const ev of eventos) {
+      if (ev.acao === 'movimentacao' && ev.detalhes) {
+        if (ev.detalhes.etapa_anterior_id) etapaIds.add(ev.detalhes.etapa_anterior_id as string)
+        if (ev.detalhes.etapa_nova_id) etapaIds.add(ev.detalhes.etapa_nova_id as string)
+      }
+    }
+
+    let etapasMap: Record<string, string> = {}
+    if (etapaIds.size > 0) {
+      const { data: etapas } = await supabase
+        .from('etapas_funil')
+        .select('id, nome')
+        .in('id', [...etapaIds])
+
+      if (etapas) {
+        for (const e of etapas) {
+          etapasMap[e.id] = e.nome
+        }
+      }
+    }
+
+    return eventos.map(ev => ({
+      ...ev,
+      usuario_nome: ev.usuario_id ? usersMap[ev.usuario_id] || null : null,
+      detalhes: ev.acao === 'movimentacao' && ev.detalhes ? {
+        ...ev.detalhes,
+        etapa_anterior_nome: etapasMap[ev.detalhes.etapa_anterior_id as string] || null,
+        etapa_nova_nome: etapasMap[ev.detalhes.etapa_nova_id as string] || null,
+      } : ev.detalhes,
+    }))
   },
 
   // =====================================================

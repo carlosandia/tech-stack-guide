@@ -5225,6 +5225,7 @@ export type Database = {
         Args: { p_meta_id: string; p_modo?: string }
         Returns: Json
       }
+      get_current_usuario_id: { Args: never; Returns: string }
       get_user_tenant_id: { Args: never; Returns: string }
       has_app_role: {
         Args: {
