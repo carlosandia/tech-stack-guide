@@ -1,266 +1,123 @@
 
-# Plano de Correcao: Responsividade e Progressive Disclosure - Modulo /conversas
+# Plano de Correcao: Filtros de Conversas + Relatorios de Atendimento
 
-## Resumo da Analise
+## Parte 1: Correcao de Bugs UI (FiltrosConversas)
 
-Analisei o documento `designsystem.md` (Secoes 7, 7.7, 11) e todos os 12 componentes do modulo `/conversas`. Encontrei **8 gaps** de conformidade com o Design System, sendo 2 criticos que afetam a experiencia em todas as viewports.
+### Bug 1: Overflow visual nos filtros
+
+**Problema:** A area de filtros mostra os tabs de canal (Todas, WhatsApp, Instagram) e um `<select>` de status ("Todas" + chevron) lado a lado em uma unica linha. O `<select>` HTML nativo nao segue o Design System e o chevron do select cria confusao visual, parecendo que a lista esta "vazando" para fora do container.
+
+**Causa raiz:** O layout mistura tabs com select nativo na mesma linha sem separacao visual adequada. O separador (`w-px h-4 bg-border`) e discreto demais e o select nativo nao tem estilizacao consistente.
+
+**Correcao:**
+- Substituir o `<select>` HTML nativo por tabs estilizadas para status, igual ao padrao ja usado para canais
+- Reorganizar o layout: canal tabs na primeira linha, status tabs na segunda linha (ou na mesma linha com separacao clara)
+- Adicionar `overflow-hidden` e `flex-wrap` no container para evitar vazamento visual
+
+### Bug 2: Icone do Instagram ausente
+
+**Problema:** No array `canais` (linha 21 de FiltrosConversas.tsx), o item Instagram nao possui propriedade `icon`. O WhatsApp tem `<WhatsAppIcon>` mas Instagram esta sem icone.
+
+**Correcao:** Criar componente `InstagramIcon` (SVG oficial do Instagram) em `src/shared/components/InstagramIcon.tsx`, seguindo o mesmo padrao do `WhatsAppIcon.tsx`. Usar a cor oficial do Instagram (gradiente ou roxo `#E4405F`). Adicionar o icone no array `canais`.
+
+### Arquivos a modificar (Parte 1):
+1. **`src/shared/components/InstagramIcon.tsx`** - NOVO: Componente SVG do Instagram
+2. **`src/modules/conversas/components/FiltrosConversas.tsx`** - Importar InstagramIcon, adicionar ao array, refatorar layout dos filtros
 
 ---
 
-## Gaps Identificados
+## Parte 2: Relatorios de Atendimento (Feature Nova)
 
-### GAP 1 - CRITICO: Breakpoints Tailwind nao correspondem ao Design System
+### Metricas Propostas
 
-**Problema:** O `tailwind.config.ts` usa os breakpoints DEFAULT do Tailwind (`sm: 640px`), mas o Design System define `sm: 480px`. Isso significa que todas as classes `sm:` no projeto inteiro quebram em dispositivos entre 480-640px.
+Baseado na sua necessidade principal (tempo de resposta) e nas melhores praticas de SaaS de atendimento, proponho **10 metricas** organizadas em 3 categorias:
 
-**Impacto:** Todo o sistema de Progressive Disclosure esta desalinhado. Elementos que deveriam aparecer a partir de 480px so aparecem em 640px, desperdicando espaco em mobiles grandes.
+#### Categoria 1: Velocidade de Atendimento
+| Metrica | Descricao | Calculo |
+|---------|-----------|---------|
+| **Tempo Medio de Primeira Resposta (TMR)** | Quanto tempo leva para o vendedor enviar a primeira mensagem apos receber uma do cliente | Media de (timestamp 1a resposta `from_me=true` - timestamp 1a mensagem `from_me=false`) por conversa |
+| **Tempo Medio de Resposta (TMA)** | Media de todas as interacoes, nao so a primeira | Para cada mensagem do cliente, mede o tempo ate a proxima resposta do vendedor |
+| **Conversas sem Resposta** | Conversas que receberam mensagem do cliente mas nao tiveram resposta em X horas | Contagem de conversas com ultima mensagem `from_me=false` ha mais de N horas |
 
-**Evidencia no Design System:**
-- Secao 7.1: `sm = 480px` (Mobile grande)
-- Secao 7.2: Configuracao Tailwind recomendada
+#### Categoria 2: Volume e Produtividade
+| Metrica | Descricao | Calculo |
+|---------|-----------|---------|
+| **Total de Conversas** | Volume total no periodo filtrado | Count de conversas com atividade no periodo |
+| **Mensagens Enviadas/Recebidas** | Volume de mensagens por direcao | Count de mensagens agrupadas por `from_me` |
+| **Conversas por Vendedor** | Distribuicao de carga entre a equipe | Count de conversas agrupadas por `usuario_id` |
+| **Taxa de Resolucao** | % de conversas marcadas como "fechada" no periodo | (Conversas fechadas / Total conversas) * 100 |
 
-**Correcao:** Atualizar `tailwind.config.ts` para adicionar os breakpoints `xs`, `sm: 480px` e `3xl: 1920px` conforme Design System.
+#### Categoria 3: Qualidade e Conversao
+| Metrica | Descricao | Calculo |
+|---------|-----------|---------|
+| **Tempo Medio de Resolucao** | Tempo entre abertura e fechamento da conversa | Media de (`status_alterado_em` quando status=fechada - `primeira_mensagem_em`) |
+| **Taxa de Conversao (Conversa -> Oportunidade)** | % de conversas que geraram oportunidade | Conversas que tiveram oportunidade criada / Total de conversas |
+| **Conversas por Canal** | Distribuicao WhatsApp vs Instagram | Count agrupado por `canal` |
 
-### GAP 2 - CRITICO: Toolbar vazia e header duplicado
+### Arquitetura da Feature
 
-**Problema (visivel no screenshot):** O modulo Conversas renderiza DOIS headers:
-1. Toolbar do AppLayout mostrando "Conversas" (48px, vazio)
-2. Header interno do painel esquerdo mostrando "Conversas" + "+ Nova" (mais 44px)
+A feature sera implementada como um painel colapsavel abaixo da toolbar (mesmo padrao do MetricasPanel do modulo de Negocios), acessivel via botao na toolbar do AppLayout.
 
-O Design System (Secao 11.4) define que o Toolbar de Conversas deve conter:
-- Esquerda: "Conversas" + Filtro (Todas | Abertas | Pendentes)
-- Direita: Buscar + Filtros avancados + [+ Nova Conversa]
+**Componentes novos:**
+1. **`ConversasMetricasPanel.tsx`** - Painel de cards com as metricas calculadas
+2. **`ConversasRelatorioPage.tsx`** - Pagina dedicada para relatorios detalhados (futuro, V2)
 
-**Impacto:** ~92px de espaco vertical desperdicado com informacao redundante. Em viewports de 800px de altura, isso representa ~11% da area util perdida.
+**Dados disponiveis no banco:**
+- Tabela `mensagens`: `from_me`, `criado_em`, `conversa_id` - permite calcular tempos de resposta
+- Tabela `conversas`: `status`, `status_alterado_em`, `primeira_mensagem_em`, `ultima_mensagem_em`, `canal`, `usuario_id` - permite calcular resolucao, volume, distribuicao
 
-**Correcao:** 
-- Mover os controles do header interno do painel esquerdo para o Toolbar do AppLayout via `setActions` e `setCenterContent`
-- Remover o header interno duplicado do painel esquerdo
-- No mobile, quando uma conversa esta ativa, ocultar a toolbar (o ChatHeader ja faz esse papel)
+### Visibilidade por Role
+- **Admin**: Ve metricas de todos os vendedores (global do tenant)
+- **Member**: Ve apenas suas proprias metricas
 
-### GAP 3 - MEDIO: Touch targets abaixo do minimo (48x48px)
-
-**Problema:** Varios botoes interativos nao atendem ao tamanho minimo de 48x48px definido na Secao 7.7.3:
-
-| Componente | Elemento | Tamanho atual | Minimo |
-|------------|----------|---------------|--------|
-| ChatHeader | Botao Buscar | ~28px (p-1.5) | 48px |
-| ChatHeader | Botao + Oportunidade | ~28px (p-1.5) | 48px |
-| ChatHeader | Botao Menu (tres pontos) | ~28px (p-1.5) | 48px |
-| ChatInput | Botoes Zap/Clip/MapPin/AtSign | ~28px (p-1.5) | 48px |
-| FiltrosConversas | Tabs de canal | ~24px (py-1) | 44px |
-| ConversaItem | Botao da conversa | py-3 (~46px) | 48px |
-
-**Correcao:** Aumentar padding dos botoes para p-2.5 (minimo 40px com icone de 16px) ou usar classes min-w/min-h de 44px.
-
-### GAP 4 - MEDIO: Progressive Disclosure ausente no ChatInput
-
-**Problema:** O ChatInput mostra 4 botoes de acao inline (Zap, Paperclip, MapPin, AtSign) em TODOS os viewports. No mobile, isso comprime a area de texto e viola a Secao 7.7.1:
-- MapPin e AtSign estao disabled ("em breve") - nao deveriam aparecer no mobile
-- A Secao 7.7.2 diz: "Acoes em linha" no mobile devem usar "Menu (tres pontos)"
-
-**Correcao:** 
-- Mobile: mostrar apenas Zap + Paperclip. Esconder MapPin e AtSign (disabled)
-- Tablet+: mostrar todos
-
-### GAP 5 - MEDIO: ContatoDrawer sem suporte mobile adequado
-
-**Problema:** O drawer usa `fixed w-[320px]` em todas as viewports. No mobile:
-- Deveria ser fullscreen (w-full) conforme Secao 10.5 (Sheet)
-- Falta `padding-bottom: env(safe-area-inset-bottom)` para iOS
-- O z-index 301 esta correto per Design System (z-drawer: 300)
-
-**Correcao:** No mobile, drawer ocupa 100% da largura. Adicionar safe-area-inset-bottom.
-
-### GAP 6 - BAIXO: AnexosMenu pode ficar cortado no mobile
-
-**Problema:** O AnexosMenu usa `position: absolute bottom-full left-0` que pode sair da tela em mobiles pequenos. Design System Secao 10.6 recomenda `side offset: 4px` e posicionamento inteligente.
-
-**Correcao:** Adicionar `right-0` no mobile e verificar limites da tela. Alternativamente, usar fullscreen bottom-sheet no mobile.
-
-### GAP 7 - BAIXO: MensagensProntasPopover sem responsividade
-
-**Problema:** O popover usa `absolute bottom-full left-0 right-0` com `max-h-[360px]`. No mobile, deveria ser um drawer/bottom sheet conforme Design System Secao 10.5 (Drawer Mobile).
-
-**Correcao:** Em viewports < 768px, converter para overlay fullscreen com close no header.
-
-### GAP 8 - BAIXO: ChatMessageBubble max-width nao usa breakpoints corretos
-
-**Problema:** Usa `max-w-[75%] lg:max-w-[60%]`. O Design System indica que em mobile as bolhas devem ocupar mais espaco (ate 85%) para leitura confortavel.
-
-**Correcao:** Usar `max-w-[85%] sm:max-w-[75%] lg:max-w-[60%]` para melhor aproveitamento em telas pequenas.
+### Filtros do Painel
+- Periodo: Hoje, 7 dias, 30 dias, 60 dias, 90 dias
+- Canal: Todos, WhatsApp, Instagram
+- Vendedor: Todos (admin only), vendedor especifico
 
 ---
 
 ## Secao Tecnica
 
-### 1. tailwind.config.ts (GAP 1)
+### Arquivo: `src/shared/components/InstagramIcon.tsx` (NOVO)
 
-Adicionar no objeto `theme.extend`:
+Componente SVG com a mesma interface do WhatsAppIcon (props: `size`, `className`). Usa o path SVG oficial do logo Instagram.
 
-```text
-screens: {
-  'xs': '0px',
-  'sm': '480px',
-  'md': '768px',
-  'lg': '1024px',
-  'xl': '1280px',
-  '2xl': '1536px',
-  '3xl': '1920px',
-},
-```
+### Arquivo: `src/modules/conversas/components/FiltrosConversas.tsx`
 
-ATENCAO: Mudar `sm` de 640px para 480px afeta TODOS os `sm:` classes no projeto. Sera necessario revisar componentes que usam `sm:` para garantir que nao quebram. Os principais afetados sao:
-- AppLayout.tsx (nome usuario `hidden sm:block`, titulo toolbar `hidden sm:block`)
-- NovaConversaModal.tsx (padding `p-4 sm:p-6`)
-- ChatHeader.tsx (buscar `hidden sm:flex`)
+Mudancas:
+- Importar `InstagramIcon` e adicionar ao item Instagram no array `canais`
+- Substituir `<select>` nativo por tabs estilizadas para status (mesmo padrao visual dos tabs de canal)
+- Reorganizar layout: canal tabs + separador + status tabs (tudo na mesma linha com `flex-wrap` para mobile)
+- Adicionar `overflow-hidden` no container pai
 
-### 2. ConversasPage.tsx + Toolbar Integration (GAP 2)
+### Arquivo: `src/modules/conversas/components/ConversasMetricasPanel.tsx` (NOVO)
 
-Refatorar o `useEffect` para popular o toolbar:
+Componente de metricas com:
+- Cards compactos seguindo Design System (rounded-lg, shadow-sm, cores semanticas)
+- Calculo client-side das metricas a partir de queries Supabase
+- Filtro de periodo integrado (chips: 7d, 30d, 60d, 90d)
+- Layout responsivo: 2 colunas no mobile, 3 no tablet, 5 no desktop
 
-```text
-// ConversasPage.tsx
-useEffect(() => {
-  // Toolbar: lado esquerdo vazio (titulo vem do AppLayout)
-  // Toolbar: lado direito = botao + Nova Conversa
-  setActions(
-    <button onClick={() => setNovaConversaAberta(true)}
-      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary-foreground bg-primary hover:bg-primary/90 rounded-md">
-      <Plus className="w-3.5 h-3.5" />
-      <span className="hidden sm:inline">Nova Conversa</span>
-    </button>
-  )
+### Arquivo: `src/modules/conversas/hooks/useConversasMetricas.ts` (NOVO)
 
-  return () => { setActions(null); setSubtitle(null); setCenterContent(null) }
-}, [setActions, setSubtitle, setCenterContent])
-```
+Hook com queries Supabase para:
+- Buscar mensagens do periodo filtrado com `from_me` e `criado_em`
+- Buscar conversas com status e timestamps
+- Calcular todas as 10 metricas client-side
+- Cache via TanStack Query com `staleTime: 5min`
 
-Remover o header interno do painel esquerdo (linhas 70-80 do ConversasPage.tsx).
+### Arquivo: `src/modules/conversas/pages/ConversasPage.tsx`
 
-No mobile com conversa ativa, ocultar toolbar condicionalmente.
-
-### 3. ChatHeader.tsx - Touch Targets (GAP 3)
-
-Aumentar padding dos botoes de acao de `p-1.5` para `p-2` com min-w/min-h:
-
-```text
-// De:
-className="p-1.5 rounded-md hover:bg-accent"
-
-// Para:
-className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md hover:bg-accent"
-```
-
-### 4. ChatInput.tsx - Progressive Disclosure (GAP 4)
-
-Esconder botoes disabled no mobile:
-
-```text
-// MapPin e AtSign - esconder em mobile
-<button className="p-1.5 ... hidden sm:flex" disabled>
-  <MapPin className="w-4 h-4" />
-</button>
-<button className="p-1.5 ... hidden sm:flex" disabled>
-  <AtSign className="w-4 h-4" />
-</button>
-```
-
-Aumentar touch targets dos botoes visiveis (Zap, Paperclip) para 44px.
-
-### 5. ContatoDrawer.tsx - Mobile Fullscreen (GAP 5)
-
-Ajustar largura responsiva e safe areas:
-
-```text
-// De:
-className="fixed right-0 top-0 bottom-0 z-[301] w-[320px] bg-white ..."
-
-// Para:
-className="fixed right-0 top-0 bottom-0 z-[301] w-full sm:w-[320px] bg-white ..."
-```
-
-Adicionar no container scrollable:
-
-```text
-className="flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom)]"
-```
-
-### 6. AnexosMenu.tsx - Posicionamento Mobile (GAP 6)
-
-Adicionar responsividade:
-
-```text
-// De:
-className="absolute bottom-full left-0 mb-1 z-[301] ..."
-
-// Para (mobile: centralizado, desktop: alinhado):
-className="absolute bottom-full left-0 right-0 sm:right-auto mb-1 z-[301] w-full sm:w-52 ..."
-```
-
-### 7. MensagensProntasPopover.tsx - Mobile Overlay (GAP 7)
-
-No mobile, usar overlay mais amigavel:
-
-```text
-// Adicionar classes responsivas
-className="absolute bottom-full left-0 right-0 mb-1 z-[301] ...
-  sm:max-h-[360px]
-  max-h-[70vh]
-"
-```
-
-### 8. ChatMessageBubble.tsx - Max Width (GAP 8)
-
-```text
-// De:
-className="max-w-[75%] lg:max-w-[60%]"
-
-// Para:
-className="max-w-[85%] sm:max-w-[75%] lg:max-w-[60%]"
-```
-
-### 9. FiltrosConversas.tsx - Touch Targets (GAP 3)
-
-Aumentar height dos tabs de canal:
-
-```text
-// De:
-className="px-2 py-1 text-xs ..."
-
-// Para:
-className="px-2.5 py-1.5 text-xs min-h-[36px] ..."
-```
-
-### Arquivos a Modificar
-
-| Arquivo | GAP(s) | Tipo |
-|---------|--------|------|
-| `tailwind.config.ts` | 1 | Configuracao |
-| `src/modules/conversas/pages/ConversasPage.tsx` | 2 | Refatoracao |
-| `src/modules/conversas/components/ChatHeader.tsx` | 3 | CSS |
-| `src/modules/conversas/components/ChatInput.tsx` | 3, 4 | CSS + Logica |
-| `src/modules/conversas/components/ContatoDrawer.tsx` | 5 | CSS |
-| `src/modules/conversas/components/AnexosMenu.tsx` | 6 | CSS |
-| `src/modules/conversas/components/MensagensProntasPopover.tsx` | 7 | CSS |
-| `src/modules/conversas/components/ChatMessageBubble.tsx` | 8 | CSS |
-| `src/modules/conversas/components/FiltrosConversas.tsx` | 3 | CSS |
-| `src/modules/conversas/components/ConversaItem.tsx` | 3 | CSS |
+Mudancas:
+- Adicionar botao de metricas (icone BarChart3) no toolbar via `setActions`
+- Estado `metricasVisiveis` com persistencia em localStorage
+- Renderizar `ConversasMetricasPanel` condicionalmente acima do split-view
 
 ### Sequencia de Implementacao
 
-1. `tailwind.config.ts` (GAP 1) - Breakpoints corretos, impacta tudo
-2. `ConversasPage.tsx` (GAP 2) - Toolbar integration, remover header duplicado
-3. `ChatHeader.tsx` (GAP 3) - Touch targets
-4. `ChatInput.tsx` (GAP 3+4) - Touch targets + progressive disclosure
-5. `ContatoDrawer.tsx` (GAP 5) - Mobile fullscreen
-6. `FiltrosConversas.tsx` + `ConversaItem.tsx` (GAP 3) - Touch targets
-7. `AnexosMenu.tsx` (GAP 6) - Posicionamento mobile
-8. `MensagensProntasPopover.tsx` (GAP 7) - Mobile overlay
-9. `ChatMessageBubble.tsx` (GAP 8) - Max width responsivo
-
-### Riscos e Cuidados
-
-- **GAP 1 (Breakpoints)**: Alterar `sm` de 640px para 480px pode afetar outros modulos que usam `sm:`. Revisao necessaria em AppLayout, ContatosPage, NegociosPage apos a mudanca.
-- **GAP 2 (Toolbar)**: A remocao do header interno do painel esquerdo muda o layout visual. O botao "+ Nova" precisa ficar acessivel no mobile (via toolbar ou FAB).
-- Testes obrigatorios nos viewports: 360x800, 390x844, 768x1024, 1024x768, 1280x800, 1920x1080 (Secao 7.6).
+1. `InstagramIcon.tsx` - Componente SVG (sem dependencia)
+2. `FiltrosConversas.tsx` - Correcao de overflow + icone Instagram
+3. `useConversasMetricas.ts` - Hook de dados
+4. `ConversasMetricasPanel.tsx` - UI das metricas
+5. `ConversasPage.tsx` - Integracao do painel + botao na toolbar
