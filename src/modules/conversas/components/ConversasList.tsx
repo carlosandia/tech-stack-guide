@@ -1,7 +1,9 @@
 /**
- * AIDEV-NOTE: Lista de conversas com scroll (painel esquerdo)
+ * AIDEV-NOTE: Lista de conversas com scroll infinito (painel esquerdo)
+ * Detecta scroll até o final para carregar próxima página
  */
 
+import { useRef, useCallback } from 'react'
 import { ConversaItem } from './ConversaItem'
 import type { Conversa } from '../services/conversas.api'
 import { MessageSquare, Loader2 } from 'lucide-react'
@@ -11,9 +13,32 @@ interface ConversasListProps {
   conversaAtivaId: string | null
   onSelectConversa: (id: string) => void
   isLoading: boolean
+  hasNextPage?: boolean
+  isFetchingNextPage?: boolean
+  onLoadMore?: () => void
 }
 
-export function ConversasList({ conversas, conversaAtivaId, onSelectConversa, isLoading }: ConversasListProps) {
+export function ConversasList({
+  conversas,
+  conversaAtivaId,
+  onSelectConversa,
+  isLoading,
+  hasNextPage,
+  isFetchingNextPage,
+  onLoadMore,
+}: ConversasListProps) {
+  const listRef = useRef<HTMLDivElement>(null)
+
+  const handleScroll = useCallback(() => {
+    const el = listRef.current
+    if (!el || !hasNextPage || isFetchingNextPage) return
+
+    // Trigger load more when within 100px of the bottom
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 100) {
+      onLoadMore?.()
+    }
+  }, [hasNextPage, isFetchingNextPage, onLoadMore])
+
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center">
@@ -39,7 +64,11 @@ export function ConversasList({ conversas, conversaAtivaId, onSelectConversa, is
   }
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div
+      ref={listRef}
+      className="flex-1 overflow-y-auto"
+      onScroll={handleScroll}
+    >
       {conversas.map((conversa) => (
         <ConversaItem
           key={conversa.id}
@@ -48,6 +77,13 @@ export function ConversasList({ conversas, conversaAtivaId, onSelectConversa, is
           onClick={() => onSelectConversa(conversa.id)}
         />
       ))}
+
+      {/* Loading more indicator */}
+      {isFetchingNextPage && (
+        <div className="flex items-center justify-center py-3">
+          <Loader2 className="w-4 h-4 text-muted-foreground animate-spin" />
+        </div>
+      )}
     </div>
   )
 }

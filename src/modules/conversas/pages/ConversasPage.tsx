@@ -2,9 +2,10 @@
  * AIDEV-NOTE: Página principal do módulo de Conversas (PRD-09)
  * Split-view estilo WhatsApp Web: lista à esquerda + chat à direita
  * Mobile: lista ou chat em tela cheia
+ * Usa useInfiniteQuery para scroll infinito na lista
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Plus } from 'lucide-react'
 import { useAppToolbar } from '@/modules/app/contexts/AppToolbarContext'
 import { useConversas } from '../hooks/useConversas'
@@ -15,6 +16,7 @@ import { ConversaEmpty } from '../components/ConversaEmpty'
 import { ChatWindow } from '../components/ChatWindow'
 import { ContatoDrawer } from '../components/ContatoDrawer'
 import { NovaConversaModal } from '../components/NovaConversaModal'
+import { toast } from 'sonner'
 import type { ListarConversasParams } from '../services/conversas.api'
 
 export function ConversasPage() {
@@ -24,10 +26,21 @@ export function ConversasPage() {
   const [novaConversaAberta, setNovaConversaAberta] = useState(false)
   const [filtros, setFiltros] = useState<ListarConversasParams>({})
 
-  const { data, isLoading } = useConversas(filtros)
+  const {
+    data,
+    isLoading,
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+  } = useConversas(filtros)
   useConversasRealtime(conversaAtivaId)
 
-  const conversas = data?.conversas || []
+  // Flatten paginated data
+  const conversas = useMemo(() => {
+    if (!data?.pages) return []
+    return data.pages.flatMap((p) => p.conversas)
+  }, [data])
+
   const conversaAtiva = conversas.find((c) => c.id === conversaAtivaId) || null
 
   // Limpa toolbar do AppLayout
@@ -80,6 +93,9 @@ export function ConversasPage() {
           conversaAtivaId={conversaAtivaId}
           onSelectConversa={setConversaAtivaId}
           isLoading={isLoading}
+          hasNextPage={hasNextPage}
+          isFetchingNextPage={isFetchingNextPage}
+          onLoadMore={() => fetchNextPage()}
         />
       </div>
 
@@ -100,6 +116,11 @@ export function ConversasPage() {
               isOpen={drawerAberto}
               onClose={() => setDrawerAberto(false)}
               onInsertQuickReply={handleInsertQuickReply}
+              onCriarOportunidade={() => {
+                setDrawerAberto(false)
+                // O botão +Opp no header do ChatWindow gerencia o modal de oportunidade
+                toast.info('Use o botão + no header do chat para criar uma oportunidade')
+              }}
             />
           </>
         ) : (

@@ -1,11 +1,11 @@
 /**
  * AIDEV-NOTE: Drawer lateral com informações do contato (PRD-09 RF-004)
- * Seções: Contato, Notas, Mensagens Prontas, Info da Conversa
+ * Seções: Contato, Ações rápidas, Notas, Mensagens Prontas, Info da Conversa
  * Usa Supabase direto via conversas.api.ts
  */
 
 import { useState } from 'react'
-import { X, Phone, Mail, ChevronDown, ChevronRight, Loader2, MessageSquare, Zap } from 'lucide-react'
+import { X, Phone, Mail, ChevronDown, ChevronRight, Loader2, MessageSquare, Zap, ListTodo, TrendingUp, Trash2 } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { conversasApi, type Conversa, type NotaContato, type MensagemPronta } from '../services/conversas.api'
 import { useMensagensProntas } from '../hooks/useMensagensProntas'
@@ -18,6 +18,7 @@ interface ContatoDrawerProps {
   isOpen: boolean
   onClose: () => void
   onInsertQuickReply?: (conteudo: string) => void
+  onCriarOportunidade?: () => void
 }
 
 function getInitials(nome?: string | null): string {
@@ -45,7 +46,29 @@ function SectionCollapsible({ title, icon, children, defaultOpen = false }: { ti
   )
 }
 
-export function ContatoDrawer({ conversa, isOpen, onClose, onInsertQuickReply }: ContatoDrawerProps) {
+function ActionButton({ icon: Icon, label, onClick, variant = 'default' }: {
+  icon: React.ElementType
+  label: string
+  onClick?: () => void
+  variant?: 'default' | 'destructive'
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex flex-col items-center gap-1 px-3 py-2 rounded-md transition-all duration-200 ${
+        variant === 'destructive'
+          ? 'text-destructive hover:bg-destructive/10'
+          : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+      }`}
+      title={label}
+    >
+      <Icon className="w-4 h-4" />
+      <span className="text-[10px] font-medium">{label}</span>
+    </button>
+  )
+}
+
+export function ContatoDrawer({ conversa, isOpen, onClose, onInsertQuickReply, onCriarOportunidade }: ContatoDrawerProps) {
   const [novaNota, setNovaNota] = useState('')
   const queryClient = useQueryClient()
 
@@ -124,6 +147,34 @@ export function ContatoDrawer({ conversa, isOpen, onClose, onInsertQuickReply }:
               )}
               <span className="text-xs text-muted-foreground capitalize">{conversa.canal}</span>
             </div>
+          </div>
+
+          {/* Ações Rápidas (PRD-09 RF-004) */}
+          <div className="flex items-center justify-center gap-2 py-3 px-4 border-b border-border/50">
+            <ActionButton
+              icon={MessageSquare}
+              label="Mensagem"
+              onClick={() => {
+                onClose()
+                toast.info('Foque no campo de mensagem para responder')
+              }}
+            />
+            <ActionButton
+              icon={ListTodo}
+              label="Tarefa"
+              onClick={() => toast.info('Criação de tarefa será integrada em breve')}
+            />
+            <ActionButton
+              icon={TrendingUp}
+              label="Oportunidade"
+              onClick={onCriarOportunidade}
+            />
+            <ActionButton
+              icon={Trash2}
+              label="Excluir"
+              variant="destructive"
+              onClick={() => toast.info('Exclusão de conversa será implementada em breve')}
+            />
           </div>
 
           {/* Contact Info */}

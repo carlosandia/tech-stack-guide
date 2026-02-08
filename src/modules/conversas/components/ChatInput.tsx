@@ -1,26 +1,29 @@
 /**
  * AIDEV-NOTE: Barra de entrada de mensagem com tabs (Responder/Nota Privada)
  * Estilo WhatsApp: textarea expansível, Enter=enviar, Shift+Enter=nova linha
- * Ícones: raio (quick replies), clip (anexos), mic (áudio)
+ * Ícones: raio (quick replies), clip (anexos), mappin, @, mic (áudio)
  */
 
 import { useState, useRef, useCallback, type KeyboardEvent } from 'react'
-import { Send, Zap, StickyNote, MessageSquare, Paperclip, Mic } from 'lucide-react'
+import { Send, Zap, StickyNote, MessageSquare, Paperclip, Mic, MapPin, AtSign } from 'lucide-react'
+import { AnexosMenu } from './AnexosMenu'
 
 interface ChatInputProps {
   onSendMessage: (texto: string) => void
   onSendNote: (texto: string) => void
   onOpenQuickReplies: () => void
+  onFileSelected: (file: File, tipo: string) => void
   isSending: boolean
   disabled?: boolean
 }
 
 type InputTab = 'responder' | 'nota'
 
-export function ChatInput({ onSendMessage, onSendNote, onOpenQuickReplies, isSending, disabled }: ChatInputProps) {
+export function ChatInput({ onSendMessage, onSendNote, onOpenQuickReplies, onFileSelected, isSending, disabled }: ChatInputProps) {
   const [tab, setTab] = useState<InputTab>('responder')
   const [texto, setTexto] = useState('')
   const [notaTexto, setNotaTexto] = useState('')
+  const [anexosOpen, setAnexosOpen] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const autoResize = useCallback((el: HTMLTextAreaElement) => {
@@ -108,7 +111,7 @@ export function ChatInput({ onSendMessage, onSendNote, onOpenQuickReplies, isSen
         <div className="flex items-end gap-2">
           {/* Action buttons (only for reply mode) */}
           {!isNota && (
-            <div className="flex items-center gap-0.5 pb-1">
+            <div className="flex items-center gap-0.5 pb-1 relative">
               <button
                 type="button"
                 onClick={onOpenQuickReplies}
@@ -117,12 +120,36 @@ export function ChatInput({ onSendMessage, onSendNote, onOpenQuickReplies, isSen
               >
                 <Zap className="w-4 h-4" />
               </button>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setAnexosOpen(!anexosOpen)}
+                  className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200"
+                  title="Anexar arquivo"
+                >
+                  <Paperclip className="w-4 h-4" />
+                </button>
+                <AnexosMenu
+                  isOpen={anexosOpen}
+                  onClose={() => setAnexosOpen(false)}
+                  onFileSelected={onFileSelected}
+                />
+              </div>
               <button
                 type="button"
-                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200"
-                title="Anexar arquivo"
+                disabled
+                className="p-1.5 rounded-md text-muted-foreground/40 cursor-not-allowed transition-all duration-200"
+                title="Localização (em breve)"
               >
-                <Paperclip className="w-4 h-4" />
+                <MapPin className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                disabled
+                className="p-1.5 rounded-md text-muted-foreground/40 cursor-not-allowed transition-all duration-200"
+                title="Menção (em breve)"
+              >
+                <AtSign className="w-4 h-4" />
               </button>
             </div>
           )}
