@@ -44,7 +44,7 @@ const plataformaConfig: Record<PlataformaIntegracao, {
 }> = {
   whatsapp: {
     nome: 'WhatsApp',
-    descricao: 'Integração via WAHA para envio e recebimento de mensagens',
+    descricao: 'Envio e recebimento de mensagens (não oficial)',
     icon: WhatsAppIcon,
     cor: 'text-green-600',
     bgCor: 'bg-green-50',
