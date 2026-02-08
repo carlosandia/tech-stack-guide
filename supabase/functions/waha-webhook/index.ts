@@ -105,7 +105,9 @@ Deno.serve(async (req) => {
     // Extract phone number and message
     const rawFrom = payload.from || "";
     const phoneNumber = rawFrom.replace("@c.us", "").replace("@s.whatsapp.net", "");
-    const phoneName = payload._data?.notifyName || payload.notifyName || null;
+    // WAHA sends the name in multiple possible fields depending on version/engine
+    const phoneName = payload._data?.pushName || payload._data?.notifyName || payload.notifyName || payload.pushName || null;
+    console.log(`[waha-webhook] Name extraction: pushName=${payload._data?.pushName}, notifyName=${payload._data?.notifyName || payload.notifyName}`);
     const messageBody = payload.body || payload.text || "";
     const messageType = payload.type || "chat";
     const messageId = payload.id?._serialized || payload.id?.id || payload.id || `waha_${Date.now()}`;
@@ -136,13 +138,12 @@ Deno.serve(async (req) => {
 
         if (picResp.ok) {
           const picData = await picResp.json();
-          profilePictureUrl = picData?.profilePictureUrl || picData?.url || picData?.profilePicUrl || null;
-          if (profilePictureUrl) {
-            console.log(`[waha-webhook] Got profile picture for ${phoneNumber}`);
-          }
+          console.log(`[waha-webhook] Profile picture API response:`, JSON.stringify(picData).substring(0, 300));
+          profilePictureUrl = picData?.profilePictureUrl || picData?.url || picData?.profilePicUrl || picData?.profilePictureURL || null;
+          console.log(`[waha-webhook] Profile picture URL: ${profilePictureUrl || 'none'}`);
         } else {
           const picErr = await picResp.text();
-          console.log(`[waha-webhook] No profile picture available (${picResp.status}): ${picErr.substring(0, 100)}`);
+          console.log(`[waha-webhook] No profile picture available (${picResp.status}): ${picErr.substring(0, 200)}`);
         }
       } catch (picError) {
         console.log(`[waha-webhook] Error fetching profile picture:`, picError);
