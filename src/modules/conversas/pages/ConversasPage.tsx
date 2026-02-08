@@ -43,9 +43,17 @@ export function ConversasPage() {
 
   const conversaAtiva = conversas.find((c) => c.id === conversaAtivaId) || null
 
-  // Limpa toolbar do AppLayout
+  // Integra ações no toolbar do AppLayout (GAP 2)
   useEffect(() => {
-    setActions(null)
+    setActions(
+      <button
+        onClick={() => setNovaConversaAberta(true)}
+        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary-foreground bg-primary hover:bg-primary/90 rounded-md transition-all duration-200"
+      >
+        <Plus className="w-3.5 h-3.5" />
+        <span className="hidden sm:inline">Nova Conversa</span>
+      </button>
+    )
     setSubtitle(null)
     setCenterContent(null)
     return () => {
@@ -53,7 +61,7 @@ export function ConversasPage() {
       setSubtitle(null)
       setCenterContent(null)
     }
-  }, [setActions, setSubtitle, setCenterContent])
+  }, [setActions, setSubtitle, setCenterContent, setNovaConversaAberta])
 
   const handleInsertQuickReply = (_conteudo: string) => {
     // Drawer quick reply - could be passed to ChatWindow to insert into textarea
@@ -61,24 +69,12 @@ export function ConversasPage() {
 
   return (
     <div className="h-full flex overflow-hidden">
-      {/* Painel esquerdo - Lista de conversas */}
+      {/* Painel esquerdo - Lista de conversas (sem header duplicado - GAP 2) */}
       <div className={`
         flex flex-col border-r border-border/60 bg-white/80 backdrop-blur-md
         w-full lg:w-[320px] xl:w-[340px] flex-shrink-0
         ${conversaAtivaId ? 'hidden lg:flex' : 'flex'}
       `}>
-        {/* Header do painel */}
-        <div className="flex-shrink-0 flex items-center justify-between px-3 py-2.5 border-b border-border/50">
-          <h2 className="text-sm font-semibold text-foreground">Conversas</h2>
-          <button
-            onClick={() => setNovaConversaAberta(true)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-primary-foreground bg-primary hover:bg-primary/90 rounded-md transition-all duration-200"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Nova
-          </button>
-        </div>
-
         <FiltrosConversas
           canal={filtros.canal}
           status={filtros.status}

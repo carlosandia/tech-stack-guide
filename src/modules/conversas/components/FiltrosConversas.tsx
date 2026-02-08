@@ -75,7 +75,7 @@ export function FiltrosConversas({
             key={c.label}
             onClick={() => onCanalChange(c.value)}
             className={`
-              flex items-center gap-1 px-2 py-1 text-xs rounded-md font-medium transition-all duration-200
+              flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md font-medium transition-all duration-200 min-h-[36px]
               ${canal === c.value
                 ? 'bg-primary/10 text-primary'
                 : 'text-muted-foreground hover:text-foreground hover:bg-accent'

@@ -255,7 +255,7 @@ export function ChatMessageBubble({ mensagem }: ChatMessageBubbleProps) {
     <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} mb-1`}>
       <div
         className={`
-          relative max-w-[75%] lg:max-w-[60%] rounded-lg px-3 py-2
+          relative max-w-[85%] sm:max-w-[75%] lg:max-w-[60%] rounded-lg px-3 py-2
           ${isMe
             ? 'bg-primary/10 border border-primary/15'
             : 'bg-muted border border-border/30'

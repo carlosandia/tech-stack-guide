@@ -111,9 +111,9 @@ export function ContatoDrawer({ conversa, isOpen, onClose, onInsertQuickReply, o
         onClick={onClose}
       />
 
-      {/* Drawer */}
+      {/* Drawer - mobile fullscreen (GAP 5) */}
       <div className={`
-        fixed right-0 top-0 bottom-0 z-[301] w-[320px] bg-white border-l border-border
+        fixed right-0 top-0 bottom-0 z-[301] w-full sm:w-[320px] bg-white border-l border-border
         transform transition-transform duration-300 ease-in-out
         lg:relative lg:z-auto lg:transform-none
         ${isOpen ? 'translate-x-0' : 'translate-x-full'}
@@ -127,8 +127,8 @@ export function ContatoDrawer({ conversa, isOpen, onClose, onInsertQuickReply, o
           </button>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto">
+        {/* Content - safe area inset para iOS (GAP 5) */}
+        <div className="flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom)]">
           {/* Avatar + Name */}
           <div className="flex flex-col items-center py-6 px-4 border-b border-border/50">
             {contato?.foto_url ? (

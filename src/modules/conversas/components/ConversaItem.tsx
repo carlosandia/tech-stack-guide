@@ -103,7 +103,7 @@ export function ConversaItem({ conversa, isActive, onClick }: ConversaItemProps)
     <button
       onClick={onClick}
       className={`
-        w-full flex items-center gap-3 px-3 py-3 text-left transition-all duration-200
+        w-full flex items-center gap-3 px-3 py-3.5 text-left transition-all duration-200 min-h-[56px]
         border-b border-border/50
         ${isActive
           ? 'bg-primary/5 border-l-2 border-l-primary'

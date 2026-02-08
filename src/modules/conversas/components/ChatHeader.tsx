@@ -37,10 +37,10 @@ export function ChatHeader({ conversa, onBack, onOpenDrawer, onAlterarStatus, on
     <div className="flex-shrink-0 h-14 bg-white/80 backdrop-blur-md border-b border-border/60 flex items-center justify-between px-3 gap-2">
       {/* Left: Back + Avatar + Info */}
       <div className="flex items-center gap-2 min-w-0">
-        {/* Back button (mobile only) */}
+        {/* Back button (mobile only) - touch target 44px (GAP 3) */}
         <button
           onClick={onBack}
-          className="lg:hidden p-1.5 rounded-md hover:bg-accent transition-all duration-200"
+          className="lg:hidden p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md hover:bg-accent transition-all duration-200"
         >
           <ArrowLeft className="w-5 h-5 text-foreground" />
         </button>
@@ -87,19 +87,19 @@ export function ChatHeader({ conversa, onBack, onOpenDrawer, onAlterarStatus, on
 
       {/* Right: Actions + Status + Menu */}
       <div className="flex items-center gap-1">
-        {/* Buscar mensagens - placeholder */}
+        {/* Buscar mensagens - touch target 44px (GAP 3) */}
         <button
-          className="p-1.5 rounded-md hover:bg-accent transition-all duration-200 hidden sm:flex"
+          className="p-2 min-w-[44px] min-h-[44px] items-center justify-center rounded-md hover:bg-accent transition-all duration-200 hidden sm:flex"
           title="Buscar na conversa"
         >
           <Search className="w-4 h-4 text-muted-foreground" />
         </button>
 
-        {/* Criar oportunidade */}
+        {/* Criar oportunidade - touch target 44px (GAP 3) */}
         {onCriarOportunidade && (
           <button
             onClick={onCriarOportunidade}
-            className="p-1.5 rounded-md hover:bg-accent transition-all duration-200"
+            className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md hover:bg-accent transition-all duration-200"
             title="Nova oportunidade"
           >
             <Plus className="w-4 h-4 text-muted-foreground" />
@@ -114,7 +114,7 @@ export function ChatHeader({ conversa, onBack, onOpenDrawer, onAlterarStatus, on
         <div className="relative">
           <button
             onClick={() => setMenuOpen(!menuOpen)}
-            className="p-1.5 rounded-md hover:bg-accent transition-all duration-200"
+            className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md hover:bg-accent transition-all duration-200"
           >
             <MoreVertical className="w-4.5 h-4.5 text-muted-foreground" />
           </button>

@@ -115,7 +115,7 @@ export function ChatInput({ onSendMessage, onSendNote, onOpenQuickReplies, onFil
               <button
                 type="button"
                 onClick={onOpenQuickReplies}
-                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200"
+                className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200"
                 title="Mensagens prontas (/)"
               >
                 <Zap className="w-4 h-4" />
@@ -124,7 +124,7 @@ export function ChatInput({ onSendMessage, onSendNote, onOpenQuickReplies, onFil
                 <button
                   type="button"
                   onClick={() => setAnexosOpen(!anexosOpen)}
-                  className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200"
+                  className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200"
                   title="Anexar arquivo"
                 >
                   <Paperclip className="w-4 h-4" />
@@ -135,10 +135,11 @@ export function ChatInput({ onSendMessage, onSendNote, onOpenQuickReplies, onFil
                   onFileSelected={onFileSelected}
                 />
               </div>
+              {/* Progressive Disclosure (GAP 4): esconde ações disabled no mobile */}
               <button
                 type="button"
                 disabled
-                className="p-1.5 rounded-md text-muted-foreground/40 cursor-not-allowed transition-all duration-200"
+                className="hidden sm:flex p-2 min-w-[44px] min-h-[44px] items-center justify-center rounded-md text-muted-foreground/40 cursor-not-allowed transition-all duration-200"
                 title="Localização (em breve)"
               >
                 <MapPin className="w-4 h-4" />
@@ -146,7 +147,7 @@ export function ChatInput({ onSendMessage, onSendNote, onOpenQuickReplies, onFil
               <button
                 type="button"
                 disabled
-                className="p-1.5 rounded-md text-muted-foreground/40 cursor-not-allowed transition-all duration-200"
+                className="hidden sm:flex p-2 min-w-[44px] min-h-[44px] items-center justify-center rounded-md text-muted-foreground/40 cursor-not-allowed transition-all duration-200"
                 title="Menção (em breve)"
               >
                 <AtSign className="w-4 h-4" />
