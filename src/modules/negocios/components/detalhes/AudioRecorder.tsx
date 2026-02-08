@@ -150,7 +150,13 @@ export function AudioPlayer({ src, duration }: AudioPlayerProps) {
     if (!audio) return
 
     const handleLoadedMetadata = () => {
-      setTotalDuration(Math.round(audio.duration) || duration || 0)
+      const audioDur = audio.duration
+      // WebM blobs often report Infinity/NaN for duration
+      if (audioDur && isFinite(audioDur) && !isNaN(audioDur)) {
+        setTotalDuration(Math.round(audioDur))
+      } else if (duration) {
+        setTotalDuration(duration)
+      }
       setIsLoading(false)
     }
     const handleTimeUpdate = () => setCurrentTime(audio.currentTime)
