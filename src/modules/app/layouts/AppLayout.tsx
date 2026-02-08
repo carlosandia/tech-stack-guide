@@ -11,6 +11,7 @@ import {
   Briefcase,
   MessageSquare,
   CheckSquare,
+  Mail,
   Settings,
   LogOut,
   Menu,
@@ -46,6 +47,11 @@ const menuItems = [
     label: 'Conversas',
     path: '/app/conversas',
     icon: MessageSquare,
+  },
+  {
+    label: 'Emails',
+    path: '/app/emails',
+    icon: Mail,
   },
   {
     label: 'Tarefas',
@@ -97,6 +103,7 @@ function getPageTitle(pathname: string): string {
   if (pathname.startsWith('/app/contatos')) return 'Contatos'
   if (pathname.startsWith('/app/negocios')) return 'Negócios'
   if (pathname.startsWith('/app/conversas')) return 'Conversas'
+  if (pathname.startsWith('/app/emails')) return 'Emails'
   if (pathname.startsWith('/app/tarefas')) return 'Tarefas'
   if (pathname.startsWith('/app/configuracoes')) return 'Configurações'
   return 'CRM'
