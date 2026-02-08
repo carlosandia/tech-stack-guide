@@ -1,10 +1,13 @@
 /**
  * AIDEV-NOTE: Filtros de conversas (busca, canal, status)
+ * Usa tabs estilizadas para canal e status (sem select nativo)
+ * Ícone Instagram incluído
  */
 
 import { useState, useEffect } from 'react'
 import { Search, X } from 'lucide-react'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
+import { InstagramIcon } from '@/shared/components/InstagramIcon'
 
 interface FiltrosConversasProps {
   canal?: 'whatsapp' | 'instagram'
@@ -18,7 +21,7 @@ interface FiltrosConversasProps {
 const canais = [
   { value: undefined, label: 'Todas' },
   { value: 'whatsapp' as const, label: 'WhatsApp', icon: <WhatsAppIcon size={14} className="text-[#25D366]" /> },
-  { value: 'instagram' as const, label: 'Instagram' },
+  { value: 'instagram' as const, label: 'Instagram', icon: <InstagramIcon size={14} className="text-[#E4405F]" /> },
 ]
 
 const statuses = [
@@ -47,7 +50,7 @@ export function FiltrosConversas({
   }, [buscaLocal])
 
   return (
-    <div className="flex-shrink-0 px-3 py-2 space-y-2 border-b border-border/50">
+    <div className="flex-shrink-0 px-3 py-2 space-y-2 border-b border-border/50 overflow-hidden">
       {/* Busca */}
       <div className="relative">
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -68,8 +71,9 @@ export function FiltrosConversas({
         )}
       </div>
 
-      {/* Canal tabs */}
-      <div className="flex items-center gap-1">
+      {/* Canal + Status tabs */}
+      <div className="flex items-center gap-1 flex-wrap overflow-hidden">
+        {/* Canal tabs */}
         {canais.map((c) => (
           <button
             key={c.label}
@@ -87,20 +91,24 @@ export function FiltrosConversas({
           </button>
         ))}
 
-        <div className="w-px h-4 bg-border mx-1" />
+        <div className="w-px h-4 bg-border mx-1 flex-shrink-0" />
 
-        {/* Status dropdown compacto */}
-        <select
-          value={status || ''}
-          onChange={(e) => onStatusChange((e.target.value || undefined) as any)}
-          className="text-xs bg-transparent border-none text-muted-foreground cursor-pointer focus:outline-none"
-        >
-          {statuses.map((s) => (
-            <option key={s.label} value={s.value || ''}>
-              {s.label}
-            </option>
-          ))}
-        </select>
+        {/* Status tabs (mesmo padrão visual dos canais) */}
+        {statuses.map((s) => (
+          <button
+            key={s.label}
+            onClick={() => onStatusChange(s.value)}
+            className={`
+              flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md font-medium transition-all duration-200 min-h-[36px]
+              ${status === s.value
+                ? 'bg-primary/10 text-primary'
+                : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+              }
+            `}
+          >
+            {s.label}
+          </button>
+        ))}
       </div>
     </div>
   )
