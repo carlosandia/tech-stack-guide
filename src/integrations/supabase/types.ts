@@ -306,6 +306,90 @@ export type Database = {
           },
         ]
       }
+      campos_formularios: {
+        Row: {
+          atualizado_em: string
+          condicional_ativo: boolean
+          condicional_campo_id: string | null
+          condicional_operador: string | null
+          condicional_valor: string | null
+          criado_em: string
+          etapa_numero: number | null
+          formulario_id: string
+          id: string
+          label: string
+          largura: string
+          mapeamento_campo: string | null
+          nome: string
+          obrigatorio: boolean
+          opcoes: Json | null
+          ordem: number
+          placeholder: string | null
+          texto_ajuda: string | null
+          tipo: string
+          validacoes: Json | null
+        }
+        Insert: {
+          atualizado_em?: string
+          condicional_ativo?: boolean
+          condicional_campo_id?: string | null
+          condicional_operador?: string | null
+          condicional_valor?: string | null
+          criado_em?: string
+          etapa_numero?: number | null
+          formulario_id: string
+          id?: string
+          label: string
+          largura?: string
+          mapeamento_campo?: string | null
+          nome: string
+          obrigatorio?: boolean
+          opcoes?: Json | null
+          ordem?: number
+          placeholder?: string | null
+          texto_ajuda?: string | null
+          tipo?: string
+          validacoes?: Json | null
+        }
+        Update: {
+          atualizado_em?: string
+          condicional_ativo?: boolean
+          condicional_campo_id?: string | null
+          condicional_operador?: string | null
+          condicional_valor?: string | null
+          criado_em?: string
+          etapa_numero?: number | null
+          formulario_id?: string
+          id?: string
+          label?: string
+          largura?: string
+          mapeamento_campo?: string | null
+          nome?: string
+          obrigatorio?: boolean
+          opcoes?: Json | null
+          ordem?: number
+          placeholder?: string | null
+          texto_ajuda?: string | null
+          tipo?: string
+          validacoes?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campos_formularios_condicional_campo_id_fkey"
+            columns: ["condicional_campo_id"]
+            isOneToOne: false
+            referencedRelation: "campos_formularios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campos_formularios_formulario_id_fkey"
+            columns: ["formulario_id"]
+            isOneToOne: false
+            referencedRelation: "formularios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       categorias_produtos: {
         Row: {
           ativo: boolean | null
@@ -2185,6 +2269,53 @@ export type Database = {
           },
         ]
       }
+      estilos_formularios: {
+        Row: {
+          atualizado_em: string
+          botao: Json
+          cabecalho: Json
+          campos: Json
+          container: Json
+          criado_em: string
+          css_customizado: string | null
+          formulario_id: string
+          id: string
+          pagina: Json
+        }
+        Insert: {
+          atualizado_em?: string
+          botao?: Json
+          cabecalho?: Json
+          campos?: Json
+          container?: Json
+          criado_em?: string
+          css_customizado?: string | null
+          formulario_id: string
+          id?: string
+          pagina?: Json
+        }
+        Update: {
+          atualizado_em?: string
+          botao?: Json
+          cabecalho?: Json
+          campos?: Json
+          container?: Json
+          criado_em?: string
+          css_customizado?: string | null
+          formulario_id?: string
+          id?: string
+          pagina?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "estilos_formularios_formulario_id_fkey"
+            columns: ["formulario_id"]
+            isOneToOne: true
+            referencedRelation: "formularios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       etapas_funil: {
         Row: {
           ativo: boolean | null
@@ -2479,6 +2610,146 @@ export type Database = {
             columns: ["usuario_id"]
             isOneToOne: false
             referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      formularios: {
+        Row: {
+          atualizado_em: string
+          captcha_ativo: boolean
+          captcha_site_key: string | null
+          captcha_tipo: string | null
+          criado_em: string
+          criado_por: string | null
+          deletado_em: string | null
+          descricao: string | null
+          despublicado_em: string | null
+          emails_notificacao: string[] | null
+          etapa_id: string | null
+          funil_id: string | null
+          honeypot_ativo: boolean
+          id: string
+          mensagem_sucesso: string | null
+          meta_descricao: string | null
+          meta_titulo: string | null
+          nome: string
+          notificar_email: boolean
+          og_image_url: string | null
+          organizacao_id: string
+          publicado_em: string | null
+          rate_limit_ativo: boolean
+          rate_limit_janela_minutos: number
+          rate_limit_max: number
+          redirecionar_apos_envio: boolean
+          slug: string
+          status: string
+          taxa_conversao: number
+          tipo: string
+          titulo_pagina: string | null
+          total_submissoes: number
+          total_visualizacoes: number
+          url_redirecionamento: string | null
+        }
+        Insert: {
+          atualizado_em?: string
+          captcha_ativo?: boolean
+          captcha_site_key?: string | null
+          captcha_tipo?: string | null
+          criado_em?: string
+          criado_por?: string | null
+          deletado_em?: string | null
+          descricao?: string | null
+          despublicado_em?: string | null
+          emails_notificacao?: string[] | null
+          etapa_id?: string | null
+          funil_id?: string | null
+          honeypot_ativo?: boolean
+          id?: string
+          mensagem_sucesso?: string | null
+          meta_descricao?: string | null
+          meta_titulo?: string | null
+          nome: string
+          notificar_email?: boolean
+          og_image_url?: string | null
+          organizacao_id: string
+          publicado_em?: string | null
+          rate_limit_ativo?: boolean
+          rate_limit_janela_minutos?: number
+          rate_limit_max?: number
+          redirecionar_apos_envio?: boolean
+          slug: string
+          status?: string
+          taxa_conversao?: number
+          tipo?: string
+          titulo_pagina?: string | null
+          total_submissoes?: number
+          total_visualizacoes?: number
+          url_redirecionamento?: string | null
+        }
+        Update: {
+          atualizado_em?: string
+          captcha_ativo?: boolean
+          captcha_site_key?: string | null
+          captcha_tipo?: string | null
+          criado_em?: string
+          criado_por?: string | null
+          deletado_em?: string | null
+          descricao?: string | null
+          despublicado_em?: string | null
+          emails_notificacao?: string[] | null
+          etapa_id?: string | null
+          funil_id?: string | null
+          honeypot_ativo?: boolean
+          id?: string
+          mensagem_sucesso?: string | null
+          meta_descricao?: string | null
+          meta_titulo?: string | null
+          nome?: string
+          notificar_email?: boolean
+          og_image_url?: string | null
+          organizacao_id?: string
+          publicado_em?: string | null
+          rate_limit_ativo?: boolean
+          rate_limit_janela_minutos?: number
+          rate_limit_max?: number
+          redirecionar_apos_envio?: boolean
+          slug?: string
+          status?: string
+          taxa_conversao?: number
+          tipo?: string
+          titulo_pagina?: string | null
+          total_submissoes?: number
+          total_visualizacoes?: number
+          url_redirecionamento?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "formularios_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "formularios_etapa_id_fkey"
+            columns: ["etapa_id"]
+            isOneToOne: false
+            referencedRelation: "etapas_funil"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "formularios_funil_id_fkey"
+            columns: ["funil_id"]
+            isOneToOne: false
+            referencedRelation: "funis"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "formularios_organizacao_id_fkey"
+            columns: ["organizacao_id"]
+            isOneToOne: false
+            referencedRelation: "organizacoes_saas"
             referencedColumns: ["id"]
           },
         ]
@@ -3196,6 +3467,82 @@ export type Database = {
             columns: ["usuario_id"]
             isOneToOne: false
             referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      links_compartilhamento_formularios: {
+        Row: {
+          ativo: boolean
+          atualizado_em: string
+          codigo_embed: string | null
+          criado_em: string
+          criado_por: string | null
+          formulario_id: string
+          id: string
+          organizacao_id: string
+          qrcode_data: string | null
+          tipo: string
+          total_cliques: number
+          url_completa: string
+          utm_campaign: string | null
+          utm_medium: string | null
+          utm_source: string | null
+        }
+        Insert: {
+          ativo?: boolean
+          atualizado_em?: string
+          codigo_embed?: string | null
+          criado_em?: string
+          criado_por?: string | null
+          formulario_id: string
+          id?: string
+          organizacao_id: string
+          qrcode_data?: string | null
+          tipo?: string
+          total_cliques?: number
+          url_completa: string
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+        }
+        Update: {
+          ativo?: boolean
+          atualizado_em?: string
+          codigo_embed?: string | null
+          criado_em?: string
+          criado_por?: string | null
+          formulario_id?: string
+          id?: string
+          organizacao_id?: string
+          qrcode_data?: string | null
+          tipo?: string
+          total_cliques?: number
+          url_completa?: string
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "links_compartilhamento_formularios_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "links_compartilhamento_formularios_formulario_id_fkey"
+            columns: ["formulario_id"]
+            isOneToOne: false
+            referencedRelation: "formularios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "links_compartilhamento_formularios_organizacao_id_fkey"
+            columns: ["organizacao_id"]
+            isOneToOne: false
+            referencedRelation: "organizacoes_saas"
             referencedColumns: ["id"]
           },
         ]
@@ -4867,6 +5214,41 @@ export type Database = {
           },
         ]
       }
+      rate_limits_formularios: {
+        Row: {
+          formulario_id: string
+          id: string
+          ip_address: unknown
+          primeira_tentativa: string
+          tentativas: number
+          ultima_tentativa: string
+        }
+        Insert: {
+          formulario_id: string
+          id?: string
+          ip_address: unknown
+          primeira_tentativa?: string
+          tentativas?: number
+          ultima_tentativa?: string
+        }
+        Update: {
+          formulario_id?: string
+          id?: string
+          ip_address?: unknown
+          primeira_tentativa?: string
+          tentativas?: number
+          ultima_tentativa?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rate_limits_formularios_formulario_id_fkey"
+            columns: ["formulario_id"]
+            isOneToOne: false
+            referencedRelation: "formularios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       refresh_tokens: {
         Row: {
           criado_em: string
@@ -5238,6 +5620,116 @@ export type Database = {
             columns: ["usuario_id"]
             isOneToOne: false
             referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      submissoes_formularios: {
+        Row: {
+          captcha_validado: boolean | null
+          contato_id: string | null
+          criado_em: string
+          dados: Json
+          erro_mensagem: string | null
+          formulario_id: string
+          geo_cidade: string | null
+          geo_estado: string | null
+          geo_pais: string | null
+          honeypot_preenchido: boolean
+          id: string
+          ip_address: unknown
+          lead_score: number | null
+          oportunidade_id: string | null
+          organizacao_id: string
+          pagina_origem: string | null
+          referrer: string | null
+          status: string
+          user_agent: string | null
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+        }
+        Insert: {
+          captcha_validado?: boolean | null
+          contato_id?: string | null
+          criado_em?: string
+          dados?: Json
+          erro_mensagem?: string | null
+          formulario_id: string
+          geo_cidade?: string | null
+          geo_estado?: string | null
+          geo_pais?: string | null
+          honeypot_preenchido?: boolean
+          id?: string
+          ip_address?: unknown
+          lead_score?: number | null
+          oportunidade_id?: string | null
+          organizacao_id: string
+          pagina_origem?: string | null
+          referrer?: string | null
+          status?: string
+          user_agent?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Update: {
+          captcha_validado?: boolean | null
+          contato_id?: string | null
+          criado_em?: string
+          dados?: Json
+          erro_mensagem?: string | null
+          formulario_id?: string
+          geo_cidade?: string | null
+          geo_estado?: string | null
+          geo_pais?: string | null
+          honeypot_preenchido?: boolean
+          id?: string
+          ip_address?: unknown
+          lead_score?: number | null
+          oportunidade_id?: string | null
+          organizacao_id?: string
+          pagina_origem?: string | null
+          referrer?: string | null
+          status?: string
+          user_agent?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "submissoes_formularios_contato_id_fkey"
+            columns: ["contato_id"]
+            isOneToOne: false
+            referencedRelation: "contatos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "submissoes_formularios_formulario_id_fkey"
+            columns: ["formulario_id"]
+            isOneToOne: false
+            referencedRelation: "formularios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "submissoes_formularios_oportunidade_id_fkey"
+            columns: ["oportunidade_id"]
+            isOneToOne: false
+            referencedRelation: "oportunidades"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "submissoes_formularios_organizacao_id_fkey"
+            columns: ["organizacao_id"]
+            isOneToOne: false
+            referencedRelation: "organizacoes_saas"
             referencedColumns: ["id"]
           },
         ]
@@ -5839,6 +6331,7 @@ export type Database = {
       is_super_admin: { Args: never; Returns: boolean }
       is_super_admin_v2: { Args: never; Returns: boolean }
       is_tenant_admin: { Args: never; Returns: boolean }
+      limpar_rate_limits_formularios: { Args: never; Returns: undefined }
       log_audit: {
         Args: {
           p_acao: string
