@@ -981,6 +981,8 @@ export type Database = {
           notificar_tarefa_vencida: boolean | null
           organizacao_id: string
           timezone: string | null
+          widget_whatsapp_ativo: boolean | null
+          widget_whatsapp_config: Json | null
         }
         Insert: {
           assinatura_mensagem?: string | null
@@ -998,6 +1000,8 @@ export type Database = {
           notificar_tarefa_vencida?: boolean | null
           organizacao_id: string
           timezone?: string | null
+          widget_whatsapp_ativo?: boolean | null
+          widget_whatsapp_config?: Json | null
         }
         Update: {
           assinatura_mensagem?: string | null
@@ -1015,6 +1019,8 @@ export type Database = {
           notificar_tarefa_vencida?: boolean | null
           organizacao_id?: string
           timezone?: string | null
+          widget_whatsapp_ativo?: boolean | null
+          widget_whatsapp_config?: Json | null
         }
         Relationships: [
           {
