@@ -7,7 +7,7 @@
  */
 
 import { useState, useRef, useCallback } from 'react'
-import { Monitor, Tablet, Smartphone, Paintbrush } from 'lucide-react'
+import { Monitor, Tablet, Smartphone, Paintbrush, Eye, EyeOff, Code, Save, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import type { CampoFormulario, Formulario, EstiloContainer, EstiloCampos, EstiloBotao, EstiloCabecalho } from '../../services/formularios.api'
@@ -45,6 +45,13 @@ interface Props {
   estiloCabecalho?: EstiloCabecalho
   selectedStyleElement?: SelectedElement
   onSelectStyleElement?: (el: SelectedElement) => void
+  // Toolbar props
+  onToggleFinalPreview?: () => void
+  showFinalPreview?: boolean
+  onToggleCss?: () => void
+  showCssDrawer?: boolean
+  onSaveEstilos?: () => void
+  isSaving?: boolean
 }
 
 export function FormPreview({
@@ -62,6 +69,12 @@ export function FormPreview({
   estiloCabecalho,
   selectedStyleElement,
   onSelectStyleElement,
+  onToggleFinalPreview,
+  showFinalPreview,
+  onToggleCss,
+  showCssDrawer,
+  onSaveEstilos,
+  isSaving,
 }: Props) {
   const [viewport, setViewport] = useState<Viewport>('desktop')
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
@@ -178,23 +191,54 @@ export function FormPreview({
   return (
     <div className="flex flex-col h-full">
       {/* Viewport switcher */}
-      <div className="flex items-center justify-center gap-1 py-2 border-b border-border bg-muted/30">
-        {([
-          { key: 'desktop', icon: Monitor, label: 'Desktop' },
-          { key: 'tablet', icon: Tablet, label: 'Tablet' },
-          { key: 'mobile', icon: Smartphone, label: 'Mobile' },
-        ] as const).map(({ key, icon: Icon, label }) => (
-          <Button
-            key={key}
-            variant="ghost"
-            size="sm"
-            onClick={() => setViewport(key)}
-            className={cn("h-7 px-2.5", viewport === key && "bg-muted text-foreground font-medium")}
-          >
-            <Icon className="w-3.5 h-3.5 mr-1.5" />
-            <span className="hidden sm:inline text-xs">{label}</span>
-          </Button>
-        ))}
+      <div className="flex items-center justify-between gap-1 px-3 py-1.5 border-b border-border bg-muted/30 shrink-0">
+        {/* Left: Visualizar Final + CSS */}
+        <div className="flex items-center gap-1">
+          {onToggleFinalPreview && (
+            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onToggleFinalPreview}>
+              {showFinalPreview ? (
+                <><EyeOff className="w-3.5 h-3.5 mr-1.5" />Voltar</>
+              ) : (
+                <><Eye className="w-3.5 h-3.5 mr-1.5" />Visualizar Final</>
+              )}
+            </Button>
+          )}
+          {onToggleCss && !showFinalPreview && (
+            <Button variant={showCssDrawer ? 'secondary' : 'ghost'} size="sm" className="h-7 text-xs" onClick={onToggleCss}>
+              <Code className="w-3.5 h-3.5 mr-1.5" />CSS
+            </Button>
+          )}
+        </div>
+
+        {/* Center: Viewport switcher */}
+        <div className="flex items-center gap-1">
+          {([
+            { key: 'desktop', icon: Monitor, label: 'Desktop' },
+            { key: 'tablet', icon: Tablet, label: 'Tablet' },
+            { key: 'mobile', icon: Smartphone, label: 'Mobile' },
+          ] as const).map(({ key, icon: Icon, label }) => (
+            <Button
+              key={key}
+              variant="ghost"
+              size="sm"
+              onClick={() => setViewport(key)}
+              className={cn("h-7 px-2.5", viewport === key && "bg-muted text-foreground font-medium")}
+            >
+              <Icon className="w-3.5 h-3.5 mr-1.5" />
+              <span className="hidden sm:inline text-xs">{label}</span>
+            </Button>
+          ))}
+        </div>
+
+        {/* Right: Salvar Estilos */}
+        <div className="flex items-center">
+          {onSaveEstilos && (
+            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={onSaveEstilos} disabled={isSaving}>
+              {isSaving ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1.5" />}
+              Salvar Estilos
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Preview area */}
@@ -267,28 +311,10 @@ export function FormPreview({
           {/* Fields area - with style editing trigger */}
           <div
             className={cn(
-              'rounded transition-all relative group/campos',
+              'rounded transition-all relative',
               selectedStyleElement === 'campos' && 'outline outline-2 outline-dashed outline-primary outline-offset-2'
             )}
           >
-            {/* Style edit trigger for campos */}
-            {onSelectStyleElement && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onSelectStyleElement('campos')
-                }}
-                className={cn(
-                  'absolute -right-2 -top-2 z-10 p-1 rounded-full border bg-card shadow-sm transition-opacity',
-                  'opacity-0 hover:opacity-100 group-hover/campos:opacity-100',
-                  selectedStyleElement === 'campos' ? 'opacity-100 border-primary text-primary' : 'border-border text-muted-foreground hover:text-primary hover:border-primary'
-                )}
-                title="Editar estilos dos campos"
-              >
-                <Paintbrush className="w-3 h-3" />
-              </button>
-            )}
 
             {/* Empty state drop zone */}
             {campos.length === 0 && renderDropZone(0, true)}
