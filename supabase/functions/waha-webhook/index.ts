@@ -1,11 +1,13 @@
 /**
  * AIDEV-NOTE: Edge Function receptor de webhooks do WAHA (WhatsApp)
- * Recebe eventos de mensagens do WAHA e:
+ * Recebe eventos de mensagens e ACK do WAHA e:
  * 1. Busca/cria contato pelo telefone
  * 2. Busca/cria conversa vinculada à sessão WhatsApp
- * 3. Insere mensagem na conversa
+ * 3. Insere mensagem na conversa (individual ou grupo)
  * 4. Atualiza contadores da conversa
  * 5. Cria pré-oportunidade se auto_criar_pre_oportunidade estiver habilitado
+ * 6. Processa message.ack para atualizar status de entrega/leitura
+ * 7. Suporta mensagens de grupo (@g.us) com participant
  * Público (verify_jwt = false) - validação via session_name
  */
 
@@ -38,27 +40,8 @@ Deno.serve(async (req) => {
       session: body.session,
       from: body.payload?.from,
       fromMe: body.payload?.fromMe,
+      participant: body.payload?.participant,
     }));
-
-    // Only process incoming messages
-    if (body.event !== "message") {
-      console.log(`[waha-webhook] Ignoring event: ${body.event}`);
-      return new Response(
-        JSON.stringify({ ok: true, message: "Event ignored" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const payload = body.payload;
-
-    // Ignore outgoing messages (sent by us)
-    if (!payload || payload.fromMe === true) {
-      console.log("[waha-webhook] Ignoring outgoing message");
-      return new Response(
-        JSON.stringify({ ok: true, message: "Outgoing ignored" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
 
     const sessionName = body.session;
     if (!sessionName) {
@@ -74,6 +57,80 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
+
+    // =====================================================
+    // HANDLE message.ack EVENT (delivery/read status)
+    // =====================================================
+    if (body.event === "message.ack") {
+      const payload = body.payload;
+      if (!payload) {
+        return new Response(
+          JSON.stringify({ ok: true, message: "No payload for ack" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const ack = payload.ack ?? payload._data?.ack;
+      const ackName = payload.ackName || payload._data?.ackName || null;
+      const messageId = payload.id?._serialized || payload.id?.id || payload.id || null;
+
+      console.log(`[waha-webhook] ACK event: messageId=${messageId}, ack=${ack}, ackName=${ackName}`);
+
+      if (messageId && ack !== undefined && ack !== null) {
+        // Find the session to get organizacao_id
+        const { data: sessao } = await supabaseAdmin
+          .from("sessoes_whatsapp")
+          .select("id, organizacao_id")
+          .eq("session_name", sessionName)
+          .is("deletado_em", null)
+          .maybeSingle();
+
+        if (sessao) {
+          const { error: updateError, count } = await supabaseAdmin
+            .from("mensagens")
+            .update({
+              ack: ack,
+              ack_name: ackName,
+              atualizado_em: new Date().toISOString(),
+            })
+            .eq("message_id", messageId)
+            .eq("organizacao_id", sessao.organizacao_id);
+
+          if (updateError) {
+            console.error(`[waha-webhook] Error updating ACK:`, updateError.message);
+          } else {
+            console.log(`[waha-webhook] ✅ ACK updated: messageId=${messageId}, ack=${ack} (${ackName}), rows=${count}`);
+          }
+        } else {
+          console.log(`[waha-webhook] Session not found for ACK: ${sessionName}`);
+        }
+      }
+
+      return new Response(
+        JSON.stringify({ ok: true, message: "ACK processed" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Only process message events from here
+    if (body.event !== "message") {
+      console.log(`[waha-webhook] Ignoring event: ${body.event}`);
+      return new Response(
+        JSON.stringify({ ok: true, message: "Event ignored" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const payload = body.payload;
+
+    // Ignore outgoing messages (sent by us) - the frontend handles saving sent messages
+    if (!payload || payload.fromMe === true) {
+      console.log("[waha-webhook] Ignoring outgoing message");
+      return new Response(
+        JSON.stringify({ ok: true, message: "Outgoing ignored" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     // Find the WhatsApp session
     const { data: sessao, error: sessaoError } = await supabaseAdmin
@@ -100,19 +157,95 @@ Deno.serve(async (req) => {
 
     const wahaApiUrl = (wahaConfig?.configuracoes as Record<string, string>)?.api_url?.replace(/\/+$/, "") || null;
     const wahaApiKey = (wahaConfig?.configuracoes as Record<string, string>)?.api_key || null;
-    console.log(`[waha-webhook] WAHA config loaded: url=${wahaApiUrl ? 'yes' : 'no'}, key=${wahaApiKey ? 'yes' : 'no'}`);
 
-    // Extract phone number and message
+    // Extract message data
     const rawFrom = payload.from || "";
-    const phoneNumber = rawFrom.replace("@c.us", "").replace("@s.whatsapp.net", "");
-    // WAHA sends the name in multiple possible fields depending on version/engine
-    const phoneName = payload._data?.pushName || payload._data?.notifyName || payload.notifyName || payload.pushName || null;
-    console.log(`[waha-webhook] Name extraction: pushName=${payload._data?.pushName}, notifyName=${payload._data?.notifyName || payload.notifyName}`);
     const messageBody = payload.body || payload.text || "";
     const messageType = payload.type || "chat";
     const messageId = payload.id?._serialized || payload.id?.id || payload.id || `waha_${Date.now()}`;
     const timestamp = payload.timestamp || Math.floor(Date.now() / 1000);
     const now = new Date().toISOString();
+
+    // =====================================================
+    // DETECT GROUP vs INDIVIDUAL
+    // =====================================================
+    const isGroup = rawFrom.includes("@g.us");
+    const participantRaw = payload.participant || payload._data?.participant || null;
+
+    let chatId: string;
+    let phoneNumber: string;
+    let phoneName: string | null;
+    let conversaTipo: string;
+    let groupName: string | null = null;
+    let groupPhotoUrl: string | null = null;
+
+    if (isGroup) {
+      // GROUP MESSAGE
+      chatId = rawFrom; // e.g. "120363xxx@g.us"
+      // The participant is who actually sent the message inside the group
+      phoneNumber = participantRaw
+        ? participantRaw.replace("@c.us", "").replace("@s.whatsapp.net", "")
+        : "";
+      phoneName = payload._data?.pushName || payload._data?.notifyName || payload.notifyName || payload.pushName || null;
+      conversaTipo = "grupo";
+
+      // Extract group name from payload
+      groupName = payload._data?.subject || payload._data?.name || null;
+
+      console.log(`[waha-webhook] GROUP message from ${phoneNumber} in ${chatId} (${groupName || "unknown group"})`);
+
+      // Fetch group metadata from WAHA (name + photo)
+      if (wahaApiUrl && wahaApiKey) {
+        try {
+          // Fetch group info
+          if (!groupName) {
+            const groupResp = await fetch(
+              `${wahaApiUrl}/api/groups?session=${encodeURIComponent(sessionName)}`,
+              { headers: { "X-Api-Key": wahaApiKey } }
+            );
+            if (groupResp.ok) {
+              const groups = await groupResp.json();
+              const thisGroup = Array.isArray(groups)
+                ? groups.find((g: Record<string, unknown>) => g.id === rawFrom || g.id?._serialized === rawFrom)
+                : null;
+              if (thisGroup) {
+                groupName = thisGroup.subject || thisGroup.name || null;
+              }
+            } else {
+              await groupResp.text();
+            }
+          }
+
+          // Fetch group profile picture
+          const picResp = await fetch(
+            `${wahaApiUrl}/api/contacts/profile-picture?contactId=${encodeURIComponent(rawFrom)}&session=${encodeURIComponent(sessionName)}`,
+            { headers: { "X-Api-Key": wahaApiKey } }
+          );
+          if (picResp.ok) {
+            const picData = await picResp.json();
+            groupPhotoUrl = picData?.profilePictureUrl || picData?.url || picData?.profilePicUrl || picData?.profilePictureURL || null;
+          } else {
+            await picResp.text();
+          }
+        } catch (e) {
+          console.log(`[waha-webhook] Error fetching group metadata:`, e);
+        }
+      }
+
+      if (!phoneNumber) {
+        console.log("[waha-webhook] No participant in group message");
+        return new Response(
+          JSON.stringify({ ok: true, message: "No participant" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    } else {
+      // INDIVIDUAL MESSAGE
+      chatId = rawFrom; // e.g. "5513988506995@c.us"
+      phoneNumber = rawFrom.replace("@c.us", "").replace("@s.whatsapp.net", "");
+      phoneName = payload._data?.pushName || payload._data?.notifyName || payload.notifyName || payload.pushName || null;
+      conversaTipo = "individual";
+    }
 
     if (!phoneNumber) {
       console.log("[waha-webhook] No phone number in message");
@@ -122,14 +255,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`[waha-webhook] Processing message from ${phoneNumber} (${phoneName || "unknown"}) - type: ${messageType}`);
+    console.log(`[waha-webhook] Processing ${conversaTipo} message from ${phoneNumber} (${phoneName || "unknown"}) - type: ${messageType}`);
 
     // =====================================================
-    // STEP 0: Fetch WhatsApp profile picture from WAHA API
+    // STEP 0: Fetch WhatsApp profile picture (for individual)
     // =====================================================
     let profilePictureUrl: string | null = null;
 
-    if (wahaApiUrl && wahaApiKey) {
+    if (!isGroup && wahaApiUrl && wahaApiKey) {
       try {
         const picResp = await fetch(
           `${wahaApiUrl}/api/contacts/profile-picture?contactId=${encodeURIComponent(rawFrom)}&session=${encodeURIComponent(sessionName)}`,
@@ -138,12 +271,9 @@ Deno.serve(async (req) => {
 
         if (picResp.ok) {
           const picData = await picResp.json();
-          console.log(`[waha-webhook] Profile picture API response:`, JSON.stringify(picData).substring(0, 300));
           profilePictureUrl = picData?.profilePictureUrl || picData?.url || picData?.profilePicUrl || picData?.profilePictureURL || null;
-          console.log(`[waha-webhook] Profile picture URL: ${profilePictureUrl || 'none'}`);
         } else {
-          const picErr = await picResp.text();
-          console.log(`[waha-webhook] No profile picture available (${picResp.status}): ${picErr.substring(0, 200)}`);
+          await picResp.text();
         }
       } catch (picError) {
         console.log(`[waha-webhook] Error fetching profile picture:`, picError);
@@ -151,7 +281,7 @@ Deno.serve(async (req) => {
     }
 
     // =====================================================
-    // STEP 1: Find or create contact
+    // STEP 1: Find or create contact (by participant phone for groups)
     // =====================================================
     let contatoId: string;
 
@@ -165,7 +295,6 @@ Deno.serve(async (req) => {
 
     if (existingContato) {
       contatoId = existingContato.id;
-      console.log(`[waha-webhook] Found existing contato: ${contatoId}`);
 
       // Update contact name if we have a better name from WhatsApp
       if (phoneName && existingContato.nome !== phoneName) {
@@ -173,10 +302,8 @@ Deno.serve(async (req) => {
           .from("contatos")
           .update({ nome: phoneName, atualizado_em: now })
           .eq("id", contatoId);
-        console.log(`[waha-webhook] Updated contato name to: ${phoneName}`);
       }
     } else {
-      // Create new contact
       const contactName = phoneName || phoneNumber;
       const { data: newContato, error: contatoError } = await supabaseAdmin
         .from("contatos")
@@ -205,8 +332,8 @@ Deno.serve(async (req) => {
 
     // =====================================================
     // STEP 2: Find or create conversation
+    // For groups: chat_id is the group ID, contato_id is the first participant
     // =====================================================
-    const chatId = rawFrom; // e.g. "5513988506995@c.us"
     let conversaId: string;
 
     const { data: existingConversa } = await supabaseAdmin
@@ -221,28 +348,31 @@ Deno.serve(async (req) => {
     if (existingConversa) {
       conversaId = existingConversa.id;
 
-      // Update conversation counters + photo + name
       const updateData: Record<string, unknown> = {
         total_mensagens: (existingConversa.total_mensagens || 0) + 1,
         mensagens_nao_lidas: (existingConversa.mensagens_nao_lidas || 0) + 1,
         ultima_mensagem_em: now,
         atualizado_em: now,
       };
-      if (phoneName) updateData.nome = phoneName;
-      if (profilePictureUrl) updateData.foto_url = profilePictureUrl;
 
-      const { error: updateConvError } = await supabaseAdmin
+      if (isGroup) {
+        if (groupName) updateData.nome = groupName;
+        if (groupPhotoUrl) updateData.foto_url = groupPhotoUrl;
+      } else {
+        if (phoneName) updateData.nome = phoneName;
+        if (profilePictureUrl) updateData.foto_url = profilePictureUrl;
+      }
+
+      await supabaseAdmin
         .from("conversas")
         .update(updateData)
         .eq("id", conversaId);
 
-      if (updateConvError) {
-        console.error(`[waha-webhook] Error updating conversa:`, updateConvError.message);
-      } else {
-        console.log(`[waha-webhook] Updated conversa ${conversaId}`);
-      }
+      console.log(`[waha-webhook] Updated conversa ${conversaId}`);
     } else {
-      // Create new conversation
+      const conversaName = isGroup ? (groupName || chatId) : (phoneName || phoneNumber);
+      const conversaFoto = isGroup ? groupPhotoUrl : profilePictureUrl;
+
       const { data: newConversa, error: conversaError } = await supabaseAdmin
         .from("conversas")
         .insert({
@@ -252,9 +382,9 @@ Deno.serve(async (req) => {
           sessao_whatsapp_id: sessao.id,
           chat_id: chatId,
           canal: "whatsapp",
-          tipo: "individual",
-          nome: phoneName || phoneNumber,
-          foto_url: profilePictureUrl,
+          tipo: conversaTipo,
+          nome: conversaName,
+          foto_url: conversaFoto,
           status: "aberta",
           total_mensagens: 1,
           mensagens_nao_lidas: 1,
@@ -273,7 +403,7 @@ Deno.serve(async (req) => {
       }
 
       conversaId = newConversa.id;
-      console.log(`[waha-webhook] Created new conversa: ${conversaId}`);
+      console.log(`[waha-webhook] Created new ${conversaTipo} conversa: ${conversaId}`);
     }
 
     // =====================================================
@@ -281,21 +411,28 @@ Deno.serve(async (req) => {
     // =====================================================
     const wahaType = messageType === "chat" ? "text" : messageType;
 
+    const messageInsert: Record<string, unknown> = {
+      organizacao_id: sessao.organizacao_id,
+      conversa_id: conversaId,
+      message_id: messageId,
+      from_me: false,
+      from_number: phoneNumber,
+      to_number: null,
+      tipo: wahaType,
+      body: messageBody ? messageBody.substring(0, 10000) : null,
+      has_media: payload.hasMedia || false,
+      timestamp_externo: timestamp,
+      raw_data: payload,
+    };
+
+    // For groups, store participant info
+    if (isGroup && participantRaw) {
+      messageInsert.participant = participantRaw;
+    }
+
     const { data: newMsg, error: msgError } = await supabaseAdmin
       .from("mensagens")
-      .insert({
-        organizacao_id: sessao.organizacao_id,
-        conversa_id: conversaId,
-        message_id: messageId,
-        from_me: false,
-        from_number: phoneNumber,
-        to_number: null,
-        tipo: wahaType,
-        body: messageBody ? messageBody.substring(0, 10000) : null,
-        has_media: payload.hasMedia || false,
-        timestamp_externo: timestamp,
-        raw_data: payload,
-      })
+      .insert(messageInsert)
       .select("id")
       .single();
 
@@ -306,10 +443,9 @@ Deno.serve(async (req) => {
     }
 
     // =====================================================
-    // STEP 4: Pre-opportunity (if enabled)
+    // STEP 4: Pre-opportunity (if enabled, only for individual)
     // =====================================================
-    if (sessao.auto_criar_pre_oportunidade && sessao.funil_destino_id) {
-      // Check if there's already a pending pre-opportunity for this phone
+    if (!isGroup && sessao.auto_criar_pre_oportunidade && sessao.funil_destino_id) {
       const { data: existingPreOp } = await supabaseAdmin
         .from("pre_oportunidades")
         .select("id, total_mensagens")
@@ -320,8 +456,7 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (existingPreOp) {
-        // Update existing pre-opportunity with new message
-        const { error: updateError } = await supabaseAdmin
+        await supabaseAdmin
           .from("pre_oportunidades")
           .update({
             ultima_mensagem: messageBody.substring(0, 500),
@@ -331,15 +466,8 @@ Deno.serve(async (req) => {
             atualizado_em: now,
           })
           .eq("id", existingPreOp.id);
-
-        if (updateError) {
-          console.error(`[waha-webhook] Error updating pre-op:`, updateError.message);
-        } else {
-          console.log(`[waha-webhook] Updated pre-op ${existingPreOp.id} (msgs: ${(existingPreOp.total_mensagens || 0) + 1})`);
-        }
       } else {
-        // Create new pre-opportunity
-        const { data: newPreOp, error: insertError } = await supabaseAdmin
+        await supabaseAdmin
           .from("pre_oportunidades")
           .insert({
             organizacao_id: sessao.organizacao_id,
@@ -352,15 +480,7 @@ Deno.serve(async (req) => {
             ultima_mensagem: messageBody.substring(0, 500),
             ultima_mensagem_em: now,
             total_mensagens: 1,
-          })
-          .select("id")
-          .single();
-
-        if (insertError) {
-          console.error(`[waha-webhook] Error creating pre-op:`, insertError.message);
-        } else {
-          console.log(`[waha-webhook] Created new pre-op ${newPreOp?.id} for ${phoneNumber}`);
-        }
+          });
       }
     }
 
@@ -382,7 +502,7 @@ Deno.serve(async (req) => {
       })
       .eq("id", sessao.id);
 
-    console.log(`[waha-webhook] ✅ Fully processed message from ${phoneNumber}: contato=${contatoId}, conversa=${conversaId}`);
+    console.log(`[waha-webhook] ✅ Fully processed ${conversaTipo} message from ${phoneNumber}: contato=${contatoId}, conversa=${conversaId}`);
 
     return new Response(
       JSON.stringify({ ok: true, message: "Processed" }),
