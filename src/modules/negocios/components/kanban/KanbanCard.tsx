@@ -364,7 +364,7 @@ export function KanbanCard({ oportunidade, onDragStart, onClick, config, isSelec
           </div>
 
           {acoesRapidas.length > 0 && (
-            <div className="flex items-center gap-0.5">
+            <div className="flex items-center gap-1" onDragStart={(e) => e.stopPropagation()} draggable={false}>
               {acoesRapidas.map((key) => {
                 const acao = ACOES_ICONS[key]
                 if (!acao) return null
@@ -373,11 +373,13 @@ export function KanbanCard({ oportunidade, onDragStart, onClick, config, isSelec
                   <button
                     key={key}
                     type="button"
+                    draggable={false}
+                    onMouseDown={(e) => e.stopPropagation()}
                     onClick={(e) => handleAcaoRapida(e, key)}
-                    className="w-6 h-6 flex items-center justify-center rounded hover:bg-accent/50 text-muted-foreground transition-colors"
+                    className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
                     title={acao.label}
                   >
-                    <Icon className="w-3.5 h-3.5" />
+                    <Icon className="w-4 h-4" />
                   </button>
                 )
               })}

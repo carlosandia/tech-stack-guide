@@ -61,30 +61,36 @@ export function SolicitacaoCard({ preOp, onClick, onWhatsApp }: SolicitacaoCardP
       </div>
 
       {/* Preview da mensagem */}
-      <button type="button" onClick={() => onClick(preOp)} className="w-full text-left">
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => onClick(preOp)}
+        onKeyDown={(e) => { if (e.key === 'Enter') onClick(preOp) }}
+        className="w-full text-left cursor-pointer"
+      >
         {preOp.ultima_mensagem && (
           <p className="text-xs text-muted-foreground line-clamp-2 mb-2 leading-relaxed">
             {preOp.ultima_mensagem}
           </p>
         )}
+      </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-between">
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onWhatsApp?.(preOp) }}
-            className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-[#25D366] transition-colors"
-            title="Ver conversa WhatsApp"
-          >
-            <WhatsAppIcon size={12} className="flex-shrink-0" />
-            <span>{preOp.total_mensagens} msg</span>
-          </button>
-          <div className={`flex items-center gap-1 text-[10px] font-medium ${isUrgente ? 'text-destructive' : 'text-muted-foreground'}`}>
-            <Clock className="w-3 h-3" />
-            <span>{formatTempoEspera(preOp.tempo_espera_minutos)}</span>
-          </div>
+      {/* Footer */}
+      <div className="flex items-center justify-between mt-1">
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onWhatsApp?.(preOp) }}
+          className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-[#25D366] transition-colors"
+          title="Ver conversa WhatsApp"
+        >
+          <WhatsAppIcon size={12} className="flex-shrink-0" />
+          <span>{preOp.total_mensagens} msg</span>
+        </button>
+        <div className={`flex items-center gap-1 text-[10px] font-medium ${isUrgente ? 'text-destructive' : 'text-muted-foreground'}`}>
+          <Clock className="w-3 h-3" />
+          <span>{formatTempoEspera(preOp.tempo_espera_minutos)}</span>
         </div>
-      </button>
+      </div>
     </div>
   )
 }
