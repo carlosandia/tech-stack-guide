@@ -1308,6 +1308,26 @@ export const integracoesApi = {
       })
     }
 
+    // API4COM
+    const { data: api4comData } = await supabase
+      .from('conexoes_api4com')
+      .select('id, organizacao_id, status, api_url, conectado_em, ultimo_erro')
+      .is('deletado_em', null)
+
+    if (api4comData) {
+      api4comData.forEach((row: Record<string, unknown>) => {
+        integracoes.push({
+          id: row.id as string,
+          organizacao_id: row.organizacao_id as string,
+          plataforma: 'api4com',
+          status: ['connected', 'ativo', 'conectado'].includes(row.status as string) ? 'conectado' : (row.status as string) || 'desconectado',
+          conectado_em: row.conectado_em as string | null,
+          ultimo_erro: row.ultimo_erro as string | null,
+          conta_externa_nome: row.api_url as string | null,
+        })
+      })
+    }
+
     return { integracoes, total: integracoes.length }
   },
 
@@ -1330,6 +1350,14 @@ export const integracoesApi = {
       await supabase.functions.invoke('waha-proxy', {
         body: { action: 'desconectar' },
       })
+    } else if (routePlataforma === 'api4com') {
+      // Soft delete na conexao api4com
+      if (_id) {
+        await supabase
+          .from('conexoes_api4com')
+          .update({ deletado_em: new Date().toISOString(), status: 'desconectado' })
+          .eq('id', _id)
+      }
     } else {
       await api.delete(`/v1/conexoes/${routePlataforma}`)
     }

@@ -238,6 +238,19 @@ function PlataformaDetails({ integracao }: { integracao: Integracao }) {
     )
   }
 
+  if (plataforma === 'api4com') {
+    return (
+      <div className="space-y-1">
+        {integracao.conta_externa_nome && (
+          <div className="flex items-center gap-1.5">
+            <Phone className="w-3 h-3 text-muted-foreground" />
+            <p className="text-xs text-foreground">{integracao.conta_externa_nome}</p>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return null
 }
 
