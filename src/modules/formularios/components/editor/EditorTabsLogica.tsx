@@ -3,7 +3,7 @@
  */
 
 import { useState, useCallback } from 'react'
-import { Plus, Zap, Loader2 } from 'lucide-react'
+import { Plus, Zap, Loader2, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useRegrasCondicionais, useCriarRegra, useAtualizarRegra, useExcluirRegra } from '../../hooks/useFormularioRegras'
 import { useCamposFormulario } from '../../hooks/useFormularioCampos'
@@ -81,9 +81,20 @@ export function EditorTabsLogica({ formulario }: Props) {
         )}
       </div>
 
-      <p className="text-xs text-muted-foreground">
-        Crie regras para mostrar, ocultar ou redirecionar campos com base nas respostas do usuário.
-      </p>
+      <div className="border border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 dark:border-blue-800 rounded-lg p-3 space-y-1.5">
+        <div className="flex items-start gap-2">
+          <Info className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
+          <div>
+            <p className="text-xs font-medium text-blue-900 dark:text-blue-200">Controle dinâmico do formulário</p>
+            <p className="text-xs text-blue-700 dark:text-blue-300 mt-0.5">
+              Crie regras para mostrar, ocultar ou pular campos/etapas com base nas respostas do usuário.
+            </p>
+            <p className="text-[11px] text-blue-600/80 dark:text-blue-400/80 mt-1">
+              Ex: "Se Tipo = Empresa, mostrar CNPJ" · "Se cidade = SP, pular etapa de endereço"
+            </p>
+          </div>
+        </div>
+      </div>
 
       {campos.length === 0 && (
         <div className="text-center py-8 border border-dashed border-border rounded-lg">

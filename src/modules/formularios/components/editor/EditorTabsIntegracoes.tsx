@@ -3,7 +3,7 @@
  */
 
 import { useState } from 'react'
-import { Loader2, Webhook, Trash2, Power, ChevronDown, ChevronRight } from 'lucide-react'
+import { Loader2, Webhook, Trash2, Power, ChevronDown, ChevronRight, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import {
@@ -38,6 +38,21 @@ export function EditorTabsIntegracoes({ formulario }: Props) {
 
   return (
     <div className="p-4 space-y-4 overflow-y-auto max-h-full">
+      <div className="border border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 dark:border-blue-800 rounded-lg p-3 space-y-1.5">
+        <div className="flex items-start gap-2">
+          <Info className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
+          <div>
+            <p className="text-xs font-medium text-blue-900 dark:text-blue-200">Conecte a sistemas externos</p>
+            <p className="text-xs text-blue-700 dark:text-blue-300 mt-0.5">
+              Configure webhooks e integrações com pipeline para automatizar o fluxo de dados.
+            </p>
+            <p className="text-[11px] text-blue-600/80 dark:text-blue-400/80 mt-1">
+              Ex: "Enviar dados para Slack" · "Criar oportunidade no pipeline" · "Sincronizar leads"
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Pipeline info */}
       <div className="p-3 rounded-lg border border-border bg-card space-y-2">
         <h4 className="text-xs font-semibold text-foreground">Integração com Pipeline</h4>
