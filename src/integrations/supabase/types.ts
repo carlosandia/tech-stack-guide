@@ -2969,6 +2969,8 @@ export type Database = {
           captcha_ativo: boolean
           captcha_site_key: string | null
           captcha_tipo: string | null
+          config_botoes: Json | null
+          config_pos_envio: Json | null
           criado_em: string
           criado_por: string | null
           data_fim: string | null
@@ -3023,6 +3025,8 @@ export type Database = {
           captcha_ativo?: boolean
           captcha_site_key?: string | null
           captcha_tipo?: string | null
+          config_botoes?: Json | null
+          config_pos_envio?: Json | null
           criado_em?: string
           criado_por?: string | null
           data_fim?: string | null
@@ -3077,6 +3081,8 @@ export type Database = {
           captcha_ativo?: boolean
           captcha_site_key?: string | null
           captcha_tipo?: string | null
+          config_botoes?: Json | null
+          config_pos_envio?: Json | null
           criado_em?: string
           criado_por?: string | null
           data_fim?: string | null

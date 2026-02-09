@@ -66,6 +66,9 @@ export function FormularioEditorPage() {
   const [pagina, setPagina] = useState(ESTILO_PADRAO.pagina)
   const [cssCustomizado, setCssCustomizado] = useState('')
 
+  // Config botoes from formulario
+  const configBotoes = formulario?.config_botoes as any || null
+
   useEffect(() => {
     if (estilos) {
       setContainer(estilos.container || ESTILO_PADRAO.container)
@@ -306,6 +309,7 @@ export function FormularioEditorPage() {
                 isSaving={salvarEstilos.isPending}
                 paginaBackgroundColor={pagina.background_color}
                 cssCustomizado={cssCustomizado}
+                configBotoes={configBotoes}
               />
             </div>
 

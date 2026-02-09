@@ -10,7 +10,9 @@ import { useState, useRef, useCallback } from 'react'
 import { Monitor, Tablet, Smartphone, Paintbrush, Eye, EyeOff, Code, Save, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import type { CampoFormulario, Formulario, EstiloContainer, EstiloCampos, EstiloBotao, EstiloCabecalho } from '../../services/formularios.api'
+import type { ConfigBotoes } from '../config/ConfigBotoesEnvioForm'
 import { CampoItem } from '../campos/CampoItem'
 import type { SelectedElement } from '../estilos/EstiloPreviewInterativo'
 
@@ -55,6 +57,7 @@ interface Props {
   // Final preview props
   paginaBackgroundColor?: string
   cssCustomizado?: string
+  configBotoes?: ConfigBotoes | null
 }
 
 export function FormPreview({
@@ -80,6 +83,7 @@ export function FormPreview({
   isSaving,
   paginaBackgroundColor,
   cssCustomizado,
+  configBotoes,
 }: Props) {
   const [viewport, setViewport] = useState<Viewport>('desktop')
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
@@ -380,7 +384,7 @@ export function FormPreview({
             </div>
           )}
 
-          {/* Submit button */}
+          {/* Submit button(s) */}
           {campos.length > 0 && (
             <div className="mt-6 relative group/botao">
               {!showFinalPreview && onSelectStyleElement && (
@@ -400,24 +404,85 @@ export function FormPreview({
                   <Paintbrush className="w-3 h-3" />
                 </button>
               )}
-              <button
-                type="button"
-                className={cn(
-                  'rounded-md text-sm font-semibold transition-all',
-                  !estiloBotao && 'w-full bg-primary text-primary-foreground py-2.5',
-                  !showFinalPreview && selectedStyleElement === 'botao' && 'outline outline-2 outline-dashed outline-primary outline-offset-2'
-                )}
-                style={estiloBotao ? buttonStyle : undefined}
-                onClick={showFinalPreview ? undefined : handleButtonClick}
-              >
-                {estiloBotao?.texto || 'Enviar'}
-              </button>
+
+              {renderBotoes(
+                configBotoes,
+                estiloBotao,
+                buttonStyle,
+                showFinalPreview || false,
+                selectedStyleElement,
+                handleButtonClick,
+              )}
             </div>
           )}
         </div>
       </div>
     </div>
   )
+}
+
+/** Renderiza botões de envio baseado na configuração */
+function renderBotoes(
+  configBotoes: ConfigBotoes | null | undefined,
+  estiloBotao: EstiloBotao | undefined,
+  buttonStyle: React.CSSProperties,
+  showFinalPreview: boolean,
+  selectedStyleElement: SelectedElement | undefined,
+  handleButtonClick: (e: React.MouseEvent) => void,
+) {
+  const tipoBotao = configBotoes?.tipo_botao || 'enviar'
+  const showEnviar = tipoBotao === 'enviar' || tipoBotao === 'ambos'
+  const showWhatsApp = tipoBotao === 'whatsapp' || tipoBotao === 'ambos'
+
+  const enviarBtn = showEnviar ? (
+    <button
+      type="button"
+      className={cn(
+        'rounded-md text-sm font-semibold transition-all',
+        !estiloBotao && 'w-full bg-primary text-primary-foreground py-2.5',
+        !showFinalPreview && selectedStyleElement === 'botao' && 'outline outline-2 outline-dashed outline-primary outline-offset-2'
+      )}
+      style={estiloBotao ? buttonStyle : undefined}
+      onClick={showFinalPreview ? undefined : handleButtonClick}
+    >
+      {estiloBotao?.texto || 'Enviar'}
+    </button>
+  ) : null
+
+  const whatsAppBtn = showWhatsApp ? (
+    <button
+      type="button"
+      className={cn(
+        'rounded-md text-sm font-semibold transition-all flex items-center justify-center gap-2',
+        !showFinalPreview && selectedStyleElement === 'botao' && 'outline outline-2 outline-dashed outline-primary outline-offset-2'
+      )}
+      style={{
+        backgroundColor: '#25D366',
+        color: '#FFFFFF',
+        borderRadius: estiloBotao?.border_radius || '6px',
+        width: tipoBotao === 'ambos' ? '100%' : (estiloBotao?.largura === 'full' ? '100%' : estiloBotao?.largura === '50%' ? '50%' : 'auto'),
+        padding: '10px 20px',
+        fontSize: '14px',
+        fontWeight: 600,
+        border: 'none',
+      }}
+      onClick={showFinalPreview ? undefined : handleButtonClick}
+    >
+      <WhatsAppIcon size={16} className="shrink-0" />
+      Enviar via WhatsApp
+    </button>
+  ) : null
+
+  if (tipoBotao === 'ambos') {
+    return (
+      <div className="flex flex-col sm:flex-row gap-2">
+        {enviarBtn}
+        {whatsAppBtn}
+      </div>
+    )
+  }
+
+  return enviarBtn || whatsAppBtn
 }
 
 /** Renderiza um campo no modo visualização final com estilos aplicados */
