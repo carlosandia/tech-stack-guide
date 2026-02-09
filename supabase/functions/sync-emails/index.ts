@@ -4,7 +4,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
  * AIDEV-NOTE: Edge Function para sincronizar emails via IMAP
  * Conecta ao servidor IMAP do usuário, busca emails recentes (headers + body)
  * e salva na tabela emails_recebidos
- * Usa raw TCP/TLS (mesmo padrão do SMTP no codebase)
+ * Usa raw TCP/TLS, latin1 para preservar bytes em dados MIME
  */
 
 const corsHeaders = {
@@ -33,15 +33,38 @@ function detectImapHost(smtpHost: string): { host: string; port: number } {
 }
 
 // =====================================================
+// Byte Helpers
+// =====================================================
+
+/** Convert a latin1-encoded string back to raw bytes */
+function latin1ToBytes(str: string): Uint8Array {
+  const bytes = new Uint8Array(str.length);
+  for (let i = 0; i < str.length; i++) {
+    bytes[i] = str.charCodeAt(i) & 0xff;
+  }
+  return bytes;
+}
+
+/** Decode raw bytes with a given charset, fallback to utf-8 */
+function decodeBytes(bytes: Uint8Array, charset?: string): string {
+  const cs = (charset || "utf-8").trim().toLowerCase();
+  try {
+    return new TextDecoder(cs, { fatal: false }).decode(bytes);
+  } catch {
+    return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+  }
+}
+
+// =====================================================
 // MIME Parsing Helpers
 // =====================================================
 
-function decodeQuotedPrintableBytes(str: string): Uint8Array {
+function decodeQuotedPrintableToBytes(str: string): Uint8Array {
   const raw = str.replace(/=\r?\n/g, "");
   const bytes: number[] = [];
   let i = 0;
   while (i < raw.length) {
-    if (raw[i] === '=' && i + 2 < raw.length) {
+    if (raw[i] === "=" && i + 2 < raw.length) {
       const hex = raw.substring(i + 1, i + 3);
       const val = parseInt(hex, 16);
       if (!isNaN(val)) {
@@ -50,45 +73,38 @@ function decodeQuotedPrintableBytes(str: string): Uint8Array {
         continue;
       }
     }
-    bytes.push(raw.charCodeAt(i));
+    bytes.push(raw.charCodeAt(i) & 0xff);
     i++;
   }
   return new Uint8Array(bytes);
 }
 
-function decodeQuotedPrintable(str: string, charset?: string): string {
-  const bytes = decodeQuotedPrintableBytes(str);
-  try {
-    return new TextDecoder(charset || "utf-8", { fatal: false }).decode(bytes);
-  } catch {
-    return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
-  }
-}
-
-function decodeBase64Body(str: string, charset?: string): string {
-  try {
-    const cleaned = str.replace(/\s/g, "");
-    if (!cleaned) return "";
-    const bytes = Uint8Array.from(atob(cleaned), (c) => c.charCodeAt(0));
-    try {
-      return new TextDecoder(charset || "utf-8", { fatal: false }).decode(bytes);
-    } catch {
-      return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
-    }
-  } catch {
-    return str;
-  }
-}
-
-function decodeContentBody(content: string, encoding: string, charset?: string): string {
+function decodeContentBody(
+  content: string,
+  encoding: string,
+  charset?: string
+): string {
   const enc = (encoding || "7bit").trim().toLowerCase();
   switch (enc) {
-    case "base64":
-      return decodeBase64Body(content, charset);
-    case "quoted-printable":
-      return decodeQuotedPrintable(content, charset);
-    default:
-      return content;
+    case "base64": {
+      const cleaned = content.replace(/\s/g, "");
+      if (!cleaned) return "";
+      try {
+        const bytes = Uint8Array.from(atob(cleaned), (c) => c.charCodeAt(0));
+        return decodeBytes(bytes, charset);
+      } catch {
+        return content;
+      }
+    }
+    case "quoted-printable": {
+      const bytes = decodeQuotedPrintableToBytes(content);
+      return decodeBytes(bytes, charset);
+    }
+    default: {
+      // 7bit/8bit — content is latin1 string, decode with charset
+      const bytes = latin1ToBytes(content);
+      return decodeBytes(bytes, charset || "utf-8");
+    }
   }
 }
 
@@ -188,7 +204,8 @@ class ImapClient {
   private rawBuffer = new Uint8Array(0);
   private tagNum = 0;
   private encoder = new TextEncoder();
-  private decoder = new TextDecoder();
+  // Use latin1 for line reading so header encoded-words (ASCII) are preserved
+  private lineDecoder = new TextDecoder("utf-8");
 
   private concat(a: Uint8Array, b: Uint8Array): Uint8Array {
     const r = new Uint8Array(a.length + b.length);
@@ -210,7 +227,7 @@ class ImapClient {
     while (true) {
       for (let i = 0; i < this.rawBuffer.length - 1; i++) {
         if (this.rawBuffer[i] === 0x0d && this.rawBuffer[i + 1] === 0x0a) {
-          const line = this.decoder.decode(this.rawBuffer.subarray(0, i));
+          const line = this.lineDecoder.decode(this.rawBuffer.subarray(0, i));
           this.rawBuffer = this.rawBuffer.subarray(i + 2);
           return line;
         }
@@ -219,9 +236,15 @@ class ImapClient {
     }
   }
 
-  private async readNBytes(n: number): Promise<string> {
+  /**
+   * Read N bytes as latin1 string — preserves all byte values 0-255.
+   * This is critical for email body data which may use various charsets.
+   */
+  private async readNBytesLatin1(n: number): Promise<string> {
     await this.fill(n);
-    const data = this.decoder.decode(this.rawBuffer.subarray(0, n));
+    const data = new TextDecoder("latin1").decode(
+      this.rawBuffer.subarray(0, n)
+    );
     this.rawBuffer = this.rawBuffer.subarray(n);
     return data;
   }
@@ -240,7 +263,9 @@ class ImapClient {
 
   async command(cmd: string): Promise<{ lines: string[]; ok: boolean }> {
     const tag = `A${String(++this.tagNum).padStart(4, "0")}`;
-    const logCmd = cmd.startsWith("LOGIN") ? "LOGIN ***" : cmd.substring(0, 80);
+    const logCmd = cmd.startsWith("LOGIN")
+      ? "LOGIN ***"
+      : cmd.substring(0, 80);
     console.log(`[sync-emails] > ${tag} ${logCmd}`);
     await this.send(`${tag} ${cmd}\r\n`);
 
@@ -248,11 +273,11 @@ class ImapClient {
     while (true) {
       const line = await this.readLine();
 
-      // Handle literal {N}
+      // Handle literal {N} — read N bytes as latin1 to preserve raw data
       const litMatch = line.match(/\{(\d+)\}$/);
       if (litMatch) {
         const size = parseInt(litMatch[1]);
-        const litData = await this.readNBytes(size);
+        const litData = await this.readNBytesLatin1(size);
         lines.push(line + "\n" + litData);
         continue;
       }
@@ -305,9 +330,7 @@ class ImapClient {
     return [];
   }
 
-  async uidFetchHeaders(
-    uids: number[]
-  ): Promise<string[][]> {
+  async uidFetchHeaders(uids: number[]): Promise<string[][]> {
     if (uids.length === 0) return [];
     const uidList = uids.join(",");
     const result = await this.command(
@@ -338,7 +361,7 @@ class ImapClient {
     if (uids.length === 0) return [];
     const results: Array<{ uid: number; raw: string }> = [];
 
-    // Process in batches of 5 to avoid overwhelming
+    // Process in batches of 5
     for (let i = 0; i < uids.length; i += 5) {
       const batch = uids.slice(i, i + 5);
       const uidList = batch.join(",");
@@ -423,18 +446,14 @@ function decodeRFC2047(str: string): string {
         const cs = charset.toLowerCase();
         if (encoding.toUpperCase() === "B") {
           const bytes = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
-          try {
-            return new TextDecoder(cs, { fatal: false }).decode(bytes);
-          } catch {
-            return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
-          }
+          return decodeBytes(bytes, cs);
         } else {
-          // Q encoding - decode to bytes, then use charset
+          // Q encoding
           const raw = data.replace(/_/g, " ");
           const bytes: number[] = [];
           let i = 0;
           while (i < raw.length) {
-            if (raw[i] === '=' && i + 2 < raw.length) {
+            if (raw[i] === "=" && i + 2 < raw.length) {
               const hex = raw.substring(i + 1, i + 3);
               const val = parseInt(hex, 16);
               if (!isNaN(val)) {
@@ -446,11 +465,7 @@ function decodeRFC2047(str: string): string {
             bytes.push(raw.charCodeAt(i));
             i++;
           }
-          try {
-            return new TextDecoder(cs, { fatal: false }).decode(new Uint8Array(bytes));
-          } catch {
-            return new TextDecoder("utf-8", { fatal: false }).decode(new Uint8Array(bytes));
-          }
+          return decodeBytes(new Uint8Array(bytes), cs);
         }
       } catch {
         return data;
@@ -459,11 +474,29 @@ function decodeRFC2047(str: string): string {
   );
 }
 
+/**
+ * Detect and fix mojibake: UTF-8 bytes that were decoded as latin1.
+ * e.g. "Ã³" (U+00C3 U+00B3) → decode as latin1 bytes → 0xC3 0xB3 → re-decode as UTF-8 → "ó"
+ */
+function fixMojibake(text: string): string {
+  // Common mojibake patterns for accented Portuguese characters
+  if (/[\u00C0-\u00DF][\u0080-\u00BF]/.test(text)) {
+    try {
+      const bytes = latin1ToBytes(text);
+      const fixed = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+      return fixed;
+    } catch {
+      return text;
+    }
+  }
+  return text;
+}
+
 function parseEmailAddress(
   raw: string
 ): { name: string | null; email: string } {
   if (!raw) return { name: null, email: "" };
-  const decoded = decodeRFC2047(raw.trim());
+  const decoded = fixMojibake(decodeRFC2047(raw.trim()));
   const match = decoded.match(/^"?([^"<]*)"?\s*<([^>]+)>/);
   if (match) {
     return { name: match[1].trim() || null, email: match[2].trim() };
@@ -513,9 +546,16 @@ function parseFetchGroup(group: string[]): ParsedEmail | null {
 
   if (!headerText) return null;
 
-  const headers = parseEmailHeaders(headerText);
+  // Header literal data was read as latin1 — re-decode to get proper bytes
+  const headerBytes = latin1ToBytes(headerText);
+  const headerUtf8 = new TextDecoder("utf-8", { fatal: false }).decode(
+    headerBytes
+  );
+
+  const headers = parseEmailHeaders(headerUtf8);
   const from = parseEmailAddress(headers["from"] || "");
-  const subject = decodeRFC2047(headers["subject"] || "(sem assunto)");
+  const rawSubject = decodeRFC2047(headers["subject"] || "(sem assunto)");
+  const subject = fixMojibake(rawSubject);
   const messageId = (headers["message-id"] || `uid-${uid}@imap`).replace(
     /[<>]/g,
     ""
@@ -542,8 +582,18 @@ function parseFetchGroup(group: string[]): ParsedEmail | null {
 
 function imapDateStr(date: Date): string {
   const months = [
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
   ];
   return `${date.getDate()}-${months[date.getMonth()]}-${date.getFullYear()}`;
 }
@@ -605,7 +655,10 @@ Deno.serve(async (req) => {
 
     if (userError || !usuario) {
       return new Response(
-        JSON.stringify({ sucesso: false, mensagem: "Usuário não encontrado" }),
+        JSON.stringify({
+          sucesso: false,
+          mensagem: "Usuário não encontrado",
+        }),
         {
           status: 403,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -650,6 +703,7 @@ Deno.serve(async (req) => {
 
     const imap = new ImapClient();
     let novos = 0;
+    let atualizados = 0;
 
     try {
       const greeting = await imap.connect(imapConfig.host, imapConfig.port);
@@ -680,6 +734,7 @@ Deno.serve(async (req) => {
             sucesso: true,
             mensagem: "Caixa de entrada vazia",
             novos: 0,
+            atualizados: 0,
           }),
           {
             status: 200,
@@ -701,6 +756,7 @@ Deno.serve(async (req) => {
             sucesso: true,
             mensagem: "Nenhum email novo nos últimos 14 dias",
             novos: 0,
+            atualizados: 0,
           }),
           {
             status: 200,
@@ -712,13 +768,12 @@ Deno.serve(async (req) => {
       // Limit to last 50
       const recentUids = uids.slice(-50);
 
-      // Get existing message_ids for dedup
+      // Get existing message_ids for dedup — include ALL pastas (inbox, sent, etc.)
       const { data: existing } = await supabaseAdmin
         .from("emails_recebidos")
         .select("message_id")
         .eq("organizacao_id", usuario.organizacao_id)
-        .eq("usuario_id", usuario.id)
-        .eq("pasta", "inbox");
+        .eq("usuario_id", usuario.id);
 
       const existingIds = new Set(
         (existing || []).map((e: { message_id: string }) => e.message_id)
@@ -763,36 +818,41 @@ Deno.serve(async (req) => {
           tem_anexos: false,
           data_email: emailDate,
           sincronizado_em: new Date().toISOString(),
-          // Body fields will be filled below
           corpo_html: null as string | null,
           corpo_texto: null as string | null,
         });
       }
 
       // =====================================================
-      // PHASE 2: Fetch bodies for new emails
+      // PHASE 2: Fetch bodies for new emails + backfill existing
       // =====================================================
       const newUids = toInsert
         .map((e) => parseInt(e.provider_id as string))
         .filter((n) => !isNaN(n));
 
-      // Also find existing emails missing body (backfill, limit 10)
+      // Find existing emails missing body OR with garbled subjects (backfill, limit 20)
       const { data: missingBody } = await supabaseAdmin
         .from("emails_recebidos")
-        .select("id, provider_id")
+        .select("id, provider_id, assunto, corpo_html, corpo_texto")
         .eq("organizacao_id", usuario.organizacao_id)
         .eq("usuario_id", usuario.id)
-        .is("corpo_html", null)
-        .is("corpo_texto", null)
         .not("provider_id", "is", null)
         .eq("pasta", "inbox")
-        .limit(10);
+        .or("corpo_html.is.null,corpo_texto.is.null")
+        .limit(20);
 
       const existingMissing = (missingBody || [])
-        .map((e: { id: string; provider_id: string | null }) => ({
-          dbId: e.id,
-          uid: parseInt(e.provider_id || "0"),
-        }))
+        .map(
+          (e: {
+            id: string;
+            provider_id: string | null;
+            assunto: string | null;
+          }) => ({
+            dbId: e.id,
+            uid: parseInt(e.provider_id || "0"),
+            assunto: e.assunto,
+          })
+        )
         .filter((e: { uid: number }) => !isNaN(e.uid) && e.uid > 0);
 
       const allUidsToFetch = [
@@ -827,7 +887,7 @@ Deno.serve(async (req) => {
               }
             }
 
-            // Update existing email missing body
+            // Update existing email missing body (backfill)
             const existingItem = existingMissing.find(
               (e: { uid: number }) => e.uid === uid
             );
@@ -836,14 +896,46 @@ Deno.serve(async (req) => {
                 .substring(0, 200)
                 .replace(/\s+/g, " ")
                 .trim();
-              await supabaseAdmin
+
+              // Also re-decode subject from headers if it had mojibake
+              // We extract subject from the full MIME headers in the body
+              let fixedSubject: string | undefined;
+              const headerEnd = raw.replace(/\r\n/g, "\n").indexOf("\n\n");
+              if (headerEnd > 0) {
+                const headerPart = raw.substring(0, headerEnd);
+                const headerBytes = latin1ToBytes(headerPart);
+                const headerUtf8 = new TextDecoder("utf-8", {
+                  fatal: false,
+                }).decode(headerBytes);
+                const hdrs = parseEmailHeaders(headerUtf8);
+                if (hdrs["subject"]) {
+                  const decoded = fixMojibake(decodeRFC2047(hdrs["subject"]));
+                  if (decoded !== existingItem.assunto) {
+                    fixedSubject = decoded;
+                  }
+                }
+              }
+
+              const updateData: Record<string, unknown> = {
+                corpo_html: html || null,
+                corpo_texto: text || null,
+              };
+              if (previewText) updateData.preview = previewText;
+              if (fixedSubject) updateData.assunto = fixedSubject;
+
+              const { error: updErr } = await supabaseAdmin
                 .from("emails_recebidos")
-                .update({
-                  corpo_html: html || null,
-                  corpo_texto: text || null,
-                  ...(previewText ? { preview: previewText } : {}),
-                })
+                .update(updateData)
                 .eq("id", existingItem.dbId);
+
+              if (!updErr) {
+                atualizados++;
+              } else {
+                console.warn(
+                  `[sync-emails] Backfill update failed for ${existingItem.dbId}:`,
+                  updErr.message
+                );
+              }
             }
           }
         } catch (bodyErr) {
@@ -861,7 +953,8 @@ Deno.serve(async (req) => {
           .insert(toInsert);
 
         if (insertError) {
-          console.error("[sync-emails] Erro ao inserir emails:", insertError);
+          console.error("[sync-emails] Erro ao inserir batch:", insertError);
+          // Fallback: insert one by one
           for (const email of toInsert) {
             const { error } = await supabaseAdmin
               .from("emails_recebidos")
@@ -879,7 +972,9 @@ Deno.serve(async (req) => {
         }
       }
 
-      console.log(`[sync-emails] ${novos} novos emails salvos`);
+      console.log(
+        `[sync-emails] ${novos} novos, ${atualizados} atualizados (backfill)`
+      );
 
       // Update sync state
       await supabaseAdmin
@@ -907,6 +1002,7 @@ Deno.serve(async (req) => {
           sucesso: false,
           mensagem: `Erro ao sincronizar: ${errMsg}`,
           novos,
+          atualizados,
         }),
         {
           status: 200,
@@ -915,14 +1011,18 @@ Deno.serve(async (req) => {
       );
     }
 
+    const msgParts: string[] = [];
+    if (novos > 0) msgParts.push(`${novos} novo(s)`);
+    if (atualizados > 0) msgParts.push(`${atualizados} atualizado(s)`);
+    const mensagem =
+      msgParts.length > 0 ? msgParts.join(", ") : "Nenhum email novo";
+
     return new Response(
       JSON.stringify({
         sucesso: true,
-        mensagem:
-          novos > 0
-            ? `${novos} novo(s) email(s) sincronizado(s)`
-            : "Nenhum email novo",
+        mensagem,
         novos,
+        atualizados,
       }),
       {
         status: 200,
@@ -932,7 +1032,12 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error("[sync-emails] Error:", error);
     return new Response(
-      JSON.stringify({ sucesso: false, mensagem: "Erro interno", novos: 0 }),
+      JSON.stringify({
+        sucesso: false,
+        mensagem: "Erro interno",
+        novos: 0,
+        atualizados: 0,
+      }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
