@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
     const webhookUrl = `${supabaseUrl}/functions/v1/waha-webhook`;
 
     // Webhook events to subscribe
-    const webhookEvents = ["message", "message.ack", "poll.vote"];
+    const webhookEvents = ["message", "message.ack", "poll.vote", "poll.vote.failed"];
 
     console.log(`[waha-proxy] Action: ${action}, Session: ${sessionId}, WAHA URL: ${baseUrl}`);
 
@@ -357,7 +357,7 @@ Deno.serve(async (req) => {
 
             // Re-configure webhook to ensure latest events (e.g. poll.vote)
             try {
-              await fetch(`${baseUrl}/api/sessions/${sessionId}`, {
+              const patchResp = await fetch(`${baseUrl}/api/sessions/${sessionId}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
                 body: JSON.stringify({
@@ -366,7 +366,8 @@ Deno.serve(async (req) => {
                   }
                 })
               });
-              console.log(`[waha-proxy] Webhook re-configured for ${sessionId}`);
+              const patchData = await patchResp.json().catch(() => null);
+              console.log(`[waha-proxy] Webhook reconfig result: ${patchResp.status}`, JSON.stringify(patchData));
             } catch (e) {
               console.log(`[waha-proxy] Webhook reconfig failed:`, e);
             }
@@ -757,6 +758,111 @@ Deno.serve(async (req) => {
           JSON.stringify({ ok: true, message_id: pollMsgId, data: pollData }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
+      }
+
+      // =====================================================
+      // CONSULTAR VOTOS DE ENQUETE VIA WAHA API
+      // =====================================================
+      case "consultar_votos_enquete": {
+        const { message_id: pollMsgId, conversa_id: pollConversaId } = body as {
+          message_id?: string;
+          conversa_id?: string;
+        };
+
+        if (!pollMsgId) {
+          return new Response(
+            JSON.stringify({ error: "message_id é obrigatório" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        console.log(`[waha-proxy] Fetching poll votes for ${pollMsgId}, session: ${sessionId}`);
+
+        // Try WAHA poll votes endpoint
+        try {
+          const pollVotesResp = await fetch(`${baseUrl}/api/${sessionId}/polls/${encodeURIComponent(pollMsgId)}/votes`, {
+            method: "GET",
+            headers: { "X-Api-Key": apiKey },
+          });
+
+          const pollVotesData = await pollVotesResp.json().catch(() => null);
+          console.log(`[waha-proxy] Poll votes response: ${pollVotesResp.status}`, JSON.stringify(pollVotesData).substring(0, 500));
+
+          if (pollVotesResp.ok && pollVotesData) {
+            // Update poll_options in the database
+            if (pollConversaId) {
+              // Find the poll message in DB
+              const { data: pollMsg } = await supabaseAdmin
+                .from("mensagens")
+                .select("id, poll_options")
+                .eq("message_id", pollMsgId)
+                .eq("organizacao_id", organizacaoId)
+                .maybeSingle();
+
+              // Also try ilike for short IDs
+              let targetMsg = pollMsg;
+              if (!targetMsg && pollMsgId.includes('_')) {
+                const shortId = pollMsgId.split('_').pop();
+                const { data: ilikeMsg } = await supabaseAdmin
+                  .from("mensagens")
+                  .select("id, poll_options")
+                  .ilike("message_id", `%_${shortId}`)
+                  .eq("organizacao_id", organizacaoId)
+                  .maybeSingle();
+                targetMsg = ilikeMsg;
+              }
+
+              if (targetMsg && targetMsg.poll_options) {
+                // Parse WAHA response to update vote counts
+                const currentOptions = targetMsg.poll_options as Array<{ text: string; votes: number }>;
+                const votes = pollVotesData.votes || pollVotesData || [];
+
+                // Build vote count map from WAHA response
+                const voteCounts: Record<string, number> = {};
+                if (Array.isArray(votes)) {
+                  for (const v of votes) {
+                    const optName = v.optionName || v.name || v.option || '';
+                    const voters = v.voters || v.chatIds || [];
+                    voteCounts[optName] = Array.isArray(voters) ? voters.length : (v.count || 0);
+                  }
+                }
+
+                const updatedOptions = currentOptions.map(opt => ({
+                  ...opt,
+                  votes: voteCounts[opt.text] ?? opt.votes,
+                }));
+
+                await supabaseAdmin
+                  .from("mensagens")
+                  .update({ poll_options: updatedOptions, atualizado_em: new Date().toISOString() })
+                  .eq("id", targetMsg.id);
+
+                console.log(`[waha-proxy] ✅ Poll votes updated in DB for ${targetMsg.id}`);
+
+                return new Response(
+                  JSON.stringify({ ok: true, poll_options: updatedOptions, raw: pollVotesData }),
+                  { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+                );
+              }
+            }
+
+            return new Response(
+              JSON.stringify({ ok: true, data: pollVotesData }),
+              { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+
+          return new Response(
+            JSON.stringify({ ok: false, error: "Não foi possível obter votos da enquete", status: pollVotesResp.status }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        } catch (e) {
+          console.error(`[waha-proxy] Error fetching poll votes:`, e);
+          return new Response(
+            JSON.stringify({ ok: false, error: "Erro ao consultar votos" }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
       }
 
       default:

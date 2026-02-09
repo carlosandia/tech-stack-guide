@@ -20,6 +20,8 @@ interface ChatMessagesProps {
   focusedId?: string | null
   /** Tipo da conversa: 'individual' | 'grupo' | 'canal' */
   conversaTipo?: string
+  /** ID da conversa (para consultar votos de enquete) */
+  conversaId?: string
 }
 
 function formatDateSeparator(dateStr: string): string {
@@ -66,7 +68,7 @@ function getParticipantDisplayName(msg: Mensagem): string {
   return 'Desconhecido'
 }
 
-export function ChatMessages({ mensagens, isLoading, hasMore, onLoadMore, isFetchingMore, highlightIds, focusedId, conversaTipo }: ChatMessagesProps) {
+export function ChatMessages({ mensagens, isLoading, hasMore, onLoadMore, isFetchingMore, highlightIds, focusedId, conversaTipo, conversaId }: ChatMessagesProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const prevLengthRef = useRef(0)
@@ -192,6 +194,7 @@ export function ChatMessages({ mensagens, isLoading, hasMore, onLoadMore, isFetc
               mensagem={msg}
               participantName={participantName}
               participantColor={participantColor}
+              conversaId={conversaId}
             />
           </div>
         )

@@ -20,6 +20,20 @@ export function AudioRecorder({ onSend, onCancel }: AudioRecorderProps) {
   const chunksRef = useRef<Blob[]>([])
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
+  const durationRef = useRef(0)
+
+  const cleanup = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current)
+      timerRef.current = null
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop())
+      streamRef.current = null
+    }
+    mediaRecorderRef.current = null
+    setIsRecording(false)
+  }, [])
 
   const startRecording = useCallback(async () => {
     try {
@@ -34,7 +48,7 @@ export function AudioRecorder({ onSend, onCancel }: AudioRecorderProps) {
           ? 'audio/webm;codecs=opus'
           : 'audio/webm'
 
-      const recorder = new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 32000 })
+      const recorder = new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 128000 })
       mediaRecorderRef.current = recorder
       chunksRef.current = []
 
@@ -45,36 +59,29 @@ export function AudioRecorder({ onSend, onCancel }: AudioRecorderProps) {
       recorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: mimeType })
         if (blob.size > 0) {
-          onSend(blob, duration)
+          onSend(blob, durationRef.current)
         }
         cleanup()
       }
 
-      recorder.start(100)
+      // No timeslice = single chunk with complete container metadata (duration)
+      recorder.start()
       setIsRecording(true)
       setDuration(0)
+      durationRef.current = 0
 
       timerRef.current = setInterval(() => {
-        setDuration(prev => prev + 1)
+        setDuration(prev => {
+          const next = prev + 1
+          durationRef.current = next
+          return next
+        })
       }, 1000)
     } catch (err) {
       console.error('[AudioRecorder] Error:', err)
       setError('Não foi possível acessar o microfone')
     }
-  }, [duration, onSend])
-
-  const cleanup = useCallback(() => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current)
-      timerRef.current = null
-    }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop())
-      streamRef.current = null
-    }
-    mediaRecorderRef.current = null
-    setIsRecording(false)
-  }, [])
+  }, [onSend, cleanup])
 
   const handleCancel = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {

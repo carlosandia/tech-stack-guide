@@ -92,38 +92,63 @@ Deno.serve(async (req) => {
             atualizado_em: new Date().toISOString(),
           };
 
-          // Try exact match first
-          const { data: exactMatch, error: updateError } = await supabaseAdmin
+          // Try exact match first (only update if new ack > current ack to prevent downgrade)
+          const { data: exactMatch } = await supabaseAdmin
             .from("mensagens")
-            .update(ackUpdate)
+            .select("id, ack")
             .eq("message_id", messageId)
-            .eq("organizacao_id", sessao.organizacao_id)
-            .select("id");
+            .eq("organizacao_id", sessao.organizacao_id);
 
-          if (updateError) {
-            console.error(`[waha-webhook] Error updating ACK:`, updateError.message);
+          let matched = false;
+          if (exactMatch && exactMatch.length > 0) {
+            // Only update if new ack is higher than current
+            const currentAck = exactMatch[0].ack ?? 0;
+            if (ack > currentAck) {
+              const { error: updateError } = await supabaseAdmin
+                .from("mensagens")
+                .update(ackUpdate)
+                .eq("id", exactMatch[0].id);
+              if (updateError) {
+                console.error(`[waha-webhook] Error updating ACK:`, updateError.message);
+              } else {
+                console.log(`[waha-webhook] ✅ ACK updated: messageId=${messageId}, ack=${currentAck}->${ack} (${ackName})`);
+              }
+            } else {
+              console.log(`[waha-webhook] ACK skip downgrade: messageId=${messageId}, current=${currentAck}, new=${ack}`);
+            }
+            matched = true;
           }
 
-          const matched = exactMatch && exactMatch.length > 0;
-
-          // Fallback: try short ID (last segment after _)
+          // Fallback: try ILIKE with short ID suffix (handles @lid vs @c.us mismatch)
           if (!matched && messageId.includes('_')) {
             const shortId = messageId.split('_').pop();
-            console.log(`[waha-webhook] ACK fallback: trying shortId=${shortId}`);
-            const { data: shortMatch, error: fallbackError } = await supabaseAdmin
+            console.log(`[waha-webhook] ACK fallback: trying ilike %_${shortId}`);
+            const { data: ilikeMatch } = await supabaseAdmin
               .from("mensagens")
-              .update(ackUpdate)
-              .eq("message_id", shortId!)
-              .eq("organizacao_id", sessao.organizacao_id)
-              .select("id");
+              .select("id, ack")
+              .ilike("message_id", `%_${shortId}`)
+              .eq("organizacao_id", sessao.organizacao_id);
 
-            if (fallbackError) {
-              console.error(`[waha-webhook] ACK fallback error:`, fallbackError.message);
+            if (ilikeMatch && ilikeMatch.length > 0) {
+              const currentAck = ilikeMatch[0].ack ?? 0;
+              if (ack > currentAck) {
+                const { error: fallbackError } = await supabaseAdmin
+                  .from("mensagens")
+                  .update(ackUpdate)
+                  .eq("id", ilikeMatch[0].id);
+                if (fallbackError) {
+                  console.error(`[waha-webhook] ACK fallback error:`, fallbackError.message);
+                } else {
+                  console.log(`[waha-webhook] ✅ ACK fallback updated: shortId=${shortId}, ack=${currentAck}->${ack} (${ackName})`);
+                }
+              } else {
+                console.log(`[waha-webhook] ACK fallback skip downgrade: shortId=${shortId}, current=${currentAck}, new=${ack}`);
+              }
             } else {
-              console.log(`[waha-webhook] ✅ ACK fallback: shortId=${shortId}, matched=${shortMatch && shortMatch.length > 0}`);
+              console.log(`[waha-webhook] ACK fallback: no match for ilike %_${shortId}`);
             }
-          } else {
-            console.log(`[waha-webhook] ✅ ACK updated: messageId=${messageId}, ack=${ack} (${ackName}), matched=${matched}`);
+          } else if (!matched) {
+            console.log(`[waha-webhook] ACK: no match for messageId=${messageId}`);
           }
         } else {
           console.log(`[waha-webhook] Session not found for ACK: ${sessionName}`);

@@ -710,6 +710,43 @@ export const conversasApi = {
     return data as Mensagem
   },
 
+  /**
+   * Consulta votos de uma enquete via WAHA API
+   */
+  async consultarVotosEnquete(conversaId: string, messageId: string): Promise<{ poll_options?: Array<{ text: string; votes: number }> } | null> {
+    const { data: conversa } = await supabase
+      .from('conversas')
+      .select('sessao_whatsapp_id, canal')
+      .eq('id', conversaId)
+      .maybeSingle()
+
+    if (!conversa?.sessao_whatsapp_id || conversa?.canal !== 'whatsapp') return null
+
+    const { data: sessao } = await supabase
+      .from('sessoes_whatsapp')
+      .select('session_name')
+      .eq('id', conversa.sessao_whatsapp_id)
+      .maybeSingle()
+
+    if (!sessao?.session_name) return null
+
+    const { data, error } = await supabase.functions.invoke('waha-proxy', {
+      body: {
+        action: 'consultar_votos_enquete',
+        session_name: sessao.session_name,
+        message_id: messageId,
+        conversa_id: conversaId,
+      },
+    })
+
+    if (error) {
+      console.error('[conversasApi] Erro ao consultar votos:', error)
+      return null
+    }
+
+    return data
+  },
+
   // --- Mensagens Prontas ---
 
   async listarProntas(params?: { busca?: string }): Promise<{ mensagens_prontas: MensagemPronta[]; total: number }> {

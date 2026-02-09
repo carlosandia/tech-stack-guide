@@ -307,6 +307,7 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer }: ChatWindowProps) 
         highlightIds={mensagensDestacadas}
         focusedId={mensagemFocadaId}
         conversaTipo={conversa.tipo}
+        conversaId={conversa.id}
       />
 
       <div className="relative">

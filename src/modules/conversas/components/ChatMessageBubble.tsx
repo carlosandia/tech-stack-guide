@@ -16,9 +16,12 @@ import {
   User,
   FileText,
   ExternalLink,
+  RefreshCw,
 } from 'lucide-react'
 import type { Mensagem } from '../services/conversas.api'
+import { conversasApi } from '../services/conversas.api'
 import { MediaViewer } from './MediaViewer'
+import { toast } from 'sonner'
 
 interface ChatMessageBubbleProps {
   mensagem: Mensagem
@@ -26,6 +29,8 @@ interface ChatMessageBubbleProps {
   participantName?: string | null
   /** Cor do participant (para grupos) */
   participantColor?: string | null
+  /** ID da conversa (para consultar votos de enquete) */
+  conversaId?: string
 }
 
 function AckIndicator({ ack }: { ack: number }) {
@@ -215,11 +220,44 @@ function ContactContent({ mensagem }: { mensagem: Mensagem }) {
   )
 }
 
-function PollContent({ mensagem }: { mensagem: Mensagem }) {
+function PollContent({ mensagem, conversaId }: { mensagem: Mensagem; conversaId?: string }) {
+  const [loading, setLoading] = useState(false)
+  const [options, setOptions] = useState(mensagem.poll_options)
+
+  const handleRefresh = async () => {
+    if (!conversaId || !mensagem.message_id) return
+    setLoading(true)
+    try {
+      const result = await conversasApi.consultarVotosEnquete(conversaId, mensagem.message_id)
+      if (result?.poll_options) {
+        setOptions(result.poll_options)
+        toast.success('Votos atualizados')
+      } else {
+        toast.info('Sem dados de votos disponíveis')
+      }
+    } catch {
+      toast.error('Erro ao consultar votos')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="space-y-2 min-w-[220px]">
-      <p className="text-sm font-medium">{mensagem.poll_question}</p>
-      {mensagem.poll_options?.map((opt, idx) => (
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-medium">{mensagem.poll_question}</p>
+        {conversaId && (
+          <button
+            onClick={handleRefresh}
+            disabled={loading}
+            className="p-1 rounded hover:bg-accent/50 text-muted-foreground hover:text-foreground transition-colors"
+            title="Atualizar votos"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+        )}
+      </div>
+      {(options || mensagem.poll_options)?.map((opt, idx) => (
         <div key={idx} className="flex items-center justify-between py-1 px-2 rounded bg-background/50 text-xs">
           <span>{opt.text}</span>
           <span className="text-muted-foreground">{opt.votes}</span>
@@ -246,7 +284,7 @@ function ReactionContent({ mensagem }: { mensagem: Mensagem }) {
   )
 }
 
-function renderContent(mensagem: Mensagem, onViewMedia?: (url: string, tipo: 'image' | 'video') => void) {
+function renderContent(mensagem: Mensagem, onViewMedia?: (url: string, tipo: 'image' | 'video') => void, conversaId?: string) {
   switch (mensagem.tipo) {
     case 'text':
       return <TextContent body={mensagem.body || ''} />
@@ -263,7 +301,7 @@ function renderContent(mensagem: Mensagem, onViewMedia?: (url: string, tipo: 'im
     case 'contact':
       return <ContactContent mensagem={mensagem} />
     case 'poll':
-      return <PollContent mensagem={mensagem} />
+      return <PollContent mensagem={mensagem} conversaId={conversaId} />
     case 'sticker':
       return <StickerContent mensagem={mensagem} />
     case 'reaction':
@@ -273,7 +311,7 @@ function renderContent(mensagem: Mensagem, onViewMedia?: (url: string, tipo: 'im
   }
 }
 
-export function ChatMessageBubble({ mensagem, participantName, participantColor }: ChatMessageBubbleProps) {
+export function ChatMessageBubble({ mensagem, participantName, participantColor, conversaId }: ChatMessageBubbleProps) {
   const [viewerMedia, setViewerMedia] = useState<{ url: string; tipo: 'image' | 'video' } | null>(null)
   const isMe = mensagem.from_me
   const isSticker = mensagem.tipo === 'sticker'
@@ -289,7 +327,7 @@ export function ChatMessageBubble({ mensagem, participantName, participantColor 
       <>
         <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} mb-1`}>
           <div className="relative">
-            {renderContent(mensagem, handleViewMedia)}
+            {renderContent(mensagem, handleViewMedia, conversaId)}
             <span className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1 justify-end">
               {format(new Date(mensagem.criado_em), 'HH:mm')}
               {isMe && <AckIndicator ack={mensagem.ack} />}
@@ -329,7 +367,7 @@ export function ChatMessageBubble({ mensagem, participantName, participantColor 
             </p>
           )}
 
-          {renderContent(mensagem, handleViewMedia)}
+          {renderContent(mensagem, handleViewMedia, conversaId)}
 
           {/* Timestamp + ACK */}
           <div className="flex items-center gap-1 justify-end mt-1">
