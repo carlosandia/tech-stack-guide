@@ -3,16 +3,32 @@
  * Mostra como o formulário ficará para o usuário final
  * Suporta visualização desktop/tablet/mobile
  * Drop zones claras entre campos para drag-and-drop preciso
+ * Suporta click-to-edit de estilos (container, campos, botão)
  */
 
 import { useState, useRef, useCallback } from 'react'
 import { Monitor, Tablet, Smartphone } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import type { CampoFormulario, Formulario } from '../../services/formularios.api'
+import type { CampoFormulario, Formulario, EstiloContainer, EstiloCampos, EstiloBotao, EstiloCabecalho } from '../../services/formularios.api'
 import { CampoItem } from '../campos/CampoItem'
+import type { SelectedElement } from '../estilos/EstiloPreviewInterativo'
 
 type Viewport = 'desktop' | 'tablet' | 'mobile'
+
+const SOMBRA_MAP: Record<string, string> = {
+  none: 'none',
+  sm: '0 1px 2px 0 rgb(0 0 0 / 0.05)',
+  md: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+  lg: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
+  xl: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)',
+}
+
+const TAMANHO_BOTAO: Record<string, string> = {
+  sm: '8px 16px',
+  md: '10px 20px',
+  lg: '14px 28px',
+}
 
 interface Props {
   formulario: Formulario
@@ -23,6 +39,12 @@ interface Props {
   onMoveCampo: (id: string, direcao: 'up' | 'down') => void
   onReorderCampo: (dragId: string, targetIndex: number) => void
   onDropNewCampo: (e: React.DragEvent, index: number) => void
+  estiloContainer?: EstiloContainer
+  estiloCampos?: EstiloCampos
+  estiloBotao?: EstiloBotao
+  estiloCabecalho?: EstiloCabecalho
+  selectedStyleElement?: SelectedElement
+  onSelectStyleElement?: (el: SelectedElement) => void
 }
 
 export function FormPreview({
@@ -34,6 +56,12 @@ export function FormPreview({
   onMoveCampo,
   onReorderCampo,
   onDropNewCampo,
+  estiloContainer,
+  estiloCampos: _estiloCampos,
+  estiloBotao,
+  estiloCabecalho,
+  selectedStyleElement,
+  onSelectStyleElement,
 }: Props) {
   const [viewport, setViewport] = useState<Viewport>('desktop')
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
@@ -44,6 +72,44 @@ export function FormPreview({
     tablet: 'max-w-[768px]',
     mobile: 'max-w-[390px]',
   }
+
+  // Style-derived values
+  const containerStyle: React.CSSProperties = estiloContainer ? {
+    backgroundColor: estiloContainer.background_color || '#FFFFFF',
+    borderRadius: estiloContainer.border_radius || '8px',
+    padding: estiloContainer.padding || '24px',
+    fontFamily: estiloContainer.font_family || 'Inter, sans-serif',
+    boxShadow: SOMBRA_MAP[estiloContainer.sombra || 'md'] || SOMBRA_MAP.md,
+  } : {}
+
+  const buttonStyle: React.CSSProperties = estiloBotao ? {
+    backgroundColor: estiloBotao.background_color || '#3B82F6',
+    color: estiloBotao.texto_cor || '#FFFFFF',
+    borderRadius: estiloBotao.border_radius || '6px',
+    width: estiloBotao.largura === 'full' ? '100%' : estiloBotao.largura === '50%' ? '50%' : 'auto',
+    padding: TAMANHO_BOTAO[estiloBotao.tamanho || 'md'],
+    fontSize: '14px',
+    fontWeight: 600,
+    border: 'none',
+  } : {}
+
+  const getStyleOutline = (el: SelectedElement) =>
+    selectedStyleElement === el
+      ? '2px dashed hsl(var(--primary))'
+      : undefined
+
+  const styleHoverClass = 'hover:outline hover:outline-2 hover:outline-dashed hover:outline-muted-foreground/40 hover:outline-offset-2 cursor-pointer'
+
+  const handleContainerClick = useCallback((e: React.MouseEvent) => {
+    if (e.target === e.currentTarget && onSelectStyleElement) {
+      onSelectStyleElement('container')
+    }
+  }, [onSelectStyleElement])
+
+  const handleButtonClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    onSelectStyleElement?.('botao')
+  }, [onSelectStyleElement])
 
   const handleDragEnter = useCallback((e: React.DragEvent, index: number) => {
     e.preventDefault()
@@ -73,14 +139,12 @@ export function FormPreview({
     dragCounter.current = {}
     setDragOverIndex(null)
 
-    // New campo from palette
     const campoTipoData = e.dataTransfer.getData('application/campo-tipo')
     if (campoTipoData) {
       onDropNewCampo(e, index)
       return
     }
 
-    // Existing campo being reordered — pass target index directly
     const draggedId = e.dataTransfer.getData('application/campo-id')
     if (draggedId) {
       onReorderCampo(draggedId, index)
@@ -136,70 +200,140 @@ export function FormPreview({
       </div>
 
       {/* Preview area */}
-      <div className="flex-1 overflow-auto p-4 bg-muted/20">
-        <div className={cn(
-          'mx-auto transition-all duration-300 bg-card rounded-lg border border-border shadow-sm p-6',
-          viewportWidths[viewport]
-        )}>
+      <div
+        className="flex-1 overflow-auto p-4 bg-muted/20"
+        onClick={(e) => {
+          // Click on background deselects style element
+          if (e.target === e.currentTarget) {
+            onSelectStyleElement?.(null)
+          }
+        }}
+      >
+        <div
+          className={cn(
+            'mx-auto transition-all duration-300 rounded-lg border border-border',
+            viewportWidths[viewport],
+            !estiloContainer && 'bg-card shadow-sm p-6',
+            selectedStyleElement === 'container' ? '' : styleHoverClass
+          )}
+          style={{
+            ...containerStyle,
+            outline: getStyleOutline('container'),
+            outlineOffset: getStyleOutline('container') ? '4px' : undefined,
+          }}
+          onClick={handleContainerClick}
+          title="Clique para editar estilos do container"
+        >
           {/* Form header */}
           <div className="mb-6 text-center">
-            <h2 className="text-lg font-semibold text-foreground">{formulario.nome}</h2>
+            {estiloCabecalho?.logo_url && (
+              <img
+                src={estiloCabecalho.logo_url}
+                alt="Logo"
+                style={{
+                  maxHeight: '40px',
+                  marginBottom: '8px',
+                  display: estiloCabecalho.logo_posicao === 'centro' ? 'inline-block' : 'block',
+                }}
+              />
+            )}
+            <h2
+              className="text-lg font-semibold"
+              style={{ color: estiloCabecalho?.titulo_cor || undefined }}
+            >
+              {formulario.nome}
+            </h2>
             {formulario.descricao && (
-              <p className="text-sm text-muted-foreground mt-1">{formulario.descricao}</p>
+              <p
+                className="text-sm mt-1"
+                style={{ color: estiloCabecalho?.descricao_cor || undefined }}
+              >
+                {formulario.descricao}
+              </p>
             )}
           </div>
 
-          {/* Empty state drop zone */}
-          {campos.length === 0 && renderDropZone(0, true)}
+          {/* Fields area - clickable for style editing */}
+          <div
+            className={cn(
+              'rounded transition-all',
+              selectedStyleElement === 'campos' ? '' : styleHoverClass
+            )}
+            style={{
+              outline: getStyleOutline('campos'),
+              outlineOffset: getStyleOutline('campos') ? '2px' : undefined,
+            }}
+            onClick={(e) => {
+              // Only select campos style if clicking on the fields container bg, not on a specific campo
+              if (e.target === e.currentTarget && onSelectStyleElement) {
+                e.stopPropagation()
+                onSelectStyleElement('campos')
+              }
+            }}
+            title="Clique para editar estilos dos campos"
+          >
+            {/* Empty state drop zone */}
+            {campos.length === 0 && renderDropZone(0, true)}
 
-          {/* Fields with drop zones */}
-          {campos.length > 0 && (
-            <div>
-              {/* Top drop zone */}
-              {renderDropZone(0)}
+            {/* Fields with drop zones */}
+            {campos.length > 0 && (
+              <div>
+                {/* Top drop zone */}
+                {renderDropZone(0)}
 
-              {campos.map((campo, index) => (
-                <div key={campo.id}>
-                  <CampoItem
-                    campo={campo}
-                    isSelected={selectedCampoId === campo.id}
-                    isDragOver={false}
-                    onSelect={() => onSelectCampo(campo.id)}
-                    onRemove={() => onRemoveCampo(campo.id)}
-                    onMoveUp={index > 0 ? () => onMoveCampo(campo.id, 'up') : undefined}
-                    onMoveDown={index < campos.length - 1 ? () => onMoveCampo(campo.id, 'down') : undefined}
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData('application/campo-id', campo.id)
-                      e.dataTransfer.effectAllowed = 'move'
-                    }}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      const draggedId = e.dataTransfer.getData('application/campo-id')
-                      if (draggedId && draggedId !== campo.id) {
-                        // Dropping ON a campo means insert at that campo's position
-                        onReorderCampo(draggedId, index)
-                      }
-                    }}
-                    onDragLeave={() => {}}
-                  />
+                {campos.map((campo, index) => (
+                  <div key={campo.id}>
+                    <CampoItem
+                      campo={campo}
+                      isSelected={selectedCampoId === campo.id}
+                      isDragOver={false}
+                      onSelect={() => onSelectCampo(campo.id)}
+                      onRemove={() => onRemoveCampo(campo.id)}
+                      onMoveUp={index > 0 ? () => onMoveCampo(campo.id, 'up') : undefined}
+                      onMoveDown={index < campos.length - 1 ? () => onMoveCampo(campo.id, 'down') : undefined}
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('application/campo-id', campo.id)
+                        e.dataTransfer.effectAllowed = 'move'
+                      }}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        const draggedId = e.dataTransfer.getData('application/campo-id')
+                        if (draggedId && draggedId !== campo.id) {
+                          onReorderCampo(draggedId, index)
+                        }
+                      }}
+                      onDragLeave={() => {}}
+                    />
 
-                  {/* Drop zone after each field */}
-                  {renderDropZone(index + 1)}
-                </div>
-              ))}
-            </div>
-          )}
+                    {/* Drop zone after each field */}
+                    {renderDropZone(index + 1)}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
-          {/* Submit button preview */}
+          {/* Submit button preview - clickable for style editing */}
           {campos.length > 0 && (
             <div className="mt-6">
               <button
                 type="button"
-                className="w-full rounded-md bg-primary text-primary-foreground py-2.5 text-sm font-semibold pointer-events-none"
+                className={cn(
+                  'rounded-md text-sm font-semibold transition-all',
+                  !estiloBotao && 'w-full bg-primary text-primary-foreground py-2.5 pointer-events-none',
+                  estiloBotao && styleHoverClass
+                )}
+                style={estiloBotao ? {
+                  ...buttonStyle,
+                  outline: getStyleOutline('botao'),
+                  outlineOffset: getStyleOutline('botao') ? '2px' : undefined,
+                } : undefined}
+                onClick={handleButtonClick}
+                title="Clique para editar estilos do botão"
               >
-                Enviar
+                {estiloBotao?.texto || 'Enviar'}
               </button>
             </div>
           )}
