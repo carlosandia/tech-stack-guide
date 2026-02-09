@@ -668,6 +668,21 @@ Deno.serve(async (req) => {
       raw_data: payload,
     };
 
+    // =====================================================
+    // Extract reply/quote context (quotedStanzaID)
+    // =====================================================
+    const quotedStanzaID = payload._data?.quotedStanzaID
+      || payload._data?.contextInfo?.quotedStanzaId
+      || null;
+
+    if (quotedStanzaID) {
+      // Store the quoted message ID - this maps to the message_id field
+      // WAHA sends the short stanza ID, but our DB may store the serialized form
+      // We store the raw stanza ID and resolve in the lookup
+      messageInsert.reply_to_message_id = quotedStanzaID;
+      console.log(`[waha-webhook] Reply detected: quotedStanzaID=${quotedStanzaID}`);
+    }
+
     // For groups and channels, store participant info
     if ((isGroup || isChannel) && participantRaw) {
       messageInsert.participant = participantRaw;
