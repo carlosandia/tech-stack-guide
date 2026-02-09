@@ -3,7 +3,7 @@
  * e suporte a exibição de nomes de participantes em grupos
  */
 
-import { useRef, useEffect, useMemo } from 'react'
+import { useRef, useEffect, useMemo, useCallback } from 'react'
 import { format, isToday, isYesterday, isSameDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Loader2 } from 'lucide-react'
@@ -125,6 +125,15 @@ export function ChatMessages({ mensagens, isLoading, hasMore, onLoadMore, isFetc
       (a, b) => new Date(a.criado_em).getTime() - new Date(b.criado_em).getTime()
     )
   }, [mensagens])
+
+  // Build a map of message_id -> Mensagem for quoted messages
+  const messageByWahaId = useMemo(() => {
+    const map = new Map<string, Mensagem>()
+    for (const msg of sortedMessages) {
+      if (msg.message_id) map.set(msg.message_id, msg)
+    }
+    return map
+  }, [sortedMessages])
 
   if (isLoading) {
     return (
