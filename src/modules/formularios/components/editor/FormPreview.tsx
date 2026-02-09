@@ -52,6 +52,9 @@ interface Props {
   showCssDrawer?: boolean
   onSaveEstilos?: () => void
   isSaving?: boolean
+  // Final preview props
+  paginaBackgroundColor?: string
+  cssCustomizado?: string
 }
 
 export function FormPreview({
@@ -64,7 +67,7 @@ export function FormPreview({
   onReorderCampo,
   onDropNewCampo,
   estiloContainer,
-  estiloCampos: _estiloCampos,
+  estiloCampos,
   estiloBotao,
   estiloCabecalho,
   selectedStyleElement,
@@ -75,6 +78,8 @@ export function FormPreview({
   showCssDrawer,
   onSaveEstilos,
   isSaving,
+  paginaBackgroundColor,
+  cssCustomizado,
 }: Props) {
   const [viewport, setViewport] = useState<Viewport>('desktop')
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
@@ -243,26 +248,37 @@ export function FormPreview({
 
       {/* Preview area */}
       <div
-        className="flex-1 overflow-auto p-4 bg-muted/20"
+        className="flex-1 overflow-auto p-4"
+        style={{ backgroundColor: showFinalPreview ? (paginaBackgroundColor || '#F3F4F6') : undefined }}
         onClick={(e) => {
-          // Click on background deselects style element
           if (e.target === e.currentTarget) {
             onSelectStyleElement?.(null)
           }
         }}
       >
+        {/* Inject custom CSS */}
+        {cssCustomizado && (
+          <style dangerouslySetInnerHTML={{ __html: cssCustomizado }} />
+        )}
+
         <div
           className={cn(
-            'mx-auto transition-all duration-300 rounded-lg border border-border relative group/container',
+            'mx-auto transition-all duration-300 rounded-lg relative',
             viewportWidths[viewport],
-            !estiloContainer && 'bg-card shadow-sm p-6',
-            selectedStyleElement === 'container' && 'outline outline-2 outline-dashed outline-primary outline-offset-4'
+            showFinalPreview
+              ? 'border border-border'
+              : cn(
+                  'border border-border group/container',
+                  !estiloContainer && 'bg-card shadow-sm p-6',
+                  selectedStyleElement === 'container' && 'outline outline-2 outline-dashed outline-primary outline-offset-4'
+                )
           )}
           style={containerStyle}
-          onClick={handleContainerClick}
+          onClick={showFinalPreview ? undefined : handleContainerClick}
+          data-form-container
         >
-          {/* Style edit trigger for container */}
-          {onSelectStyleElement && (
+          {/* Style edit trigger for container - only in editor mode */}
+          {!showFinalPreview && onSelectStyleElement && (
             <button
               type="button"
               onClick={(e) => {
@@ -279,6 +295,7 @@ export function FormPreview({
               <Paintbrush className="w-3 h-3" />
             </button>
           )}
+
           {/* Form header */}
           <div className="mb-6 text-center">
             {estiloCabecalho?.logo_url && (
@@ -294,77 +311,79 @@ export function FormPreview({
             )}
             <h2
               className="text-lg font-semibold"
-              style={{ color: estiloCabecalho?.titulo_cor || undefined }}
+              style={{ color: estiloCabecalho?.titulo_cor || undefined, fontFamily }}
             >
               {formulario.nome}
             </h2>
             {formulario.descricao && (
               <p
                 className="text-sm mt-1"
-                style={{ color: estiloCabecalho?.descricao_cor || undefined }}
+                style={{ color: estiloCabecalho?.descricao_cor || undefined, fontFamily }}
               >
                 {formulario.descricao}
               </p>
             )}
           </div>
 
-          {/* Fields area - with style editing trigger */}
-          <div
-            className={cn(
-              'rounded transition-all relative',
-              selectedStyleElement === 'campos' && 'outline outline-2 outline-dashed outline-primary outline-offset-2'
-            )}
-          >
+          {/* Fields area */}
+          {showFinalPreview ? (
+            /* Final Preview: render all field types with styles */
+            <div className="space-y-3">
+              {campos.map((campo) => (
+                <div key={campo.id}>{renderFinalCampo(campo, estiloCampos, fontFamily)}</div>
+              ))}
+            </div>
+          ) : (
+            /* Editor mode: drag-and-drop */
+            <div
+              className={cn(
+                'rounded transition-all relative',
+                selectedStyleElement === 'campos' && 'outline outline-2 outline-dashed outline-primary outline-offset-2'
+              )}
+            >
+              {campos.length === 0 && renderDropZone(0, true)}
 
-            {/* Empty state drop zone */}
-            {campos.length === 0 && renderDropZone(0, true)}
+              {campos.length > 0 && (
+                <div className="group/campos">
+                  {renderDropZone(0)}
+                  {campos.map((campo, index) => (
+                    <div key={campo.id}>
+                      <CampoItem
+                        campo={campo}
+                        isSelected={selectedCampoId === campo.id}
+                        isDragOver={false}
+                        onSelect={() => onSelectCampo(campo.id)}
+                        onRemove={() => onRemoveCampo(campo.id)}
+                        onMoveUp={index > 0 ? () => onMoveCampo(campo.id, 'up') : undefined}
+                        onMoveDown={index < campos.length - 1 ? () => onMoveCampo(campo.id, 'down') : undefined}
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('application/campo-id', campo.id)
+                          e.dataTransfer.effectAllowed = 'move'
+                        }}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          const draggedId = e.dataTransfer.getData('application/campo-id')
+                          if (draggedId && draggedId !== campo.id) {
+                            onReorderCampo(draggedId, index)
+                          }
+                        }}
+                        onDragLeave={() => {}}
+                        onStyleEdit={onSelectStyleElement ? () => onSelectStyleElement('campos') : undefined}
+                      />
+                      {renderDropZone(index + 1)}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
-            {/* Fields with drop zones */}
-            {campos.length > 0 && (
-              <div className="group/campos">
-                {/* Top drop zone */}
-                {renderDropZone(0)}
-
-                {campos.map((campo, index) => (
-                  <div key={campo.id}>
-                    <CampoItem
-                      campo={campo}
-                      isSelected={selectedCampoId === campo.id}
-                      isDragOver={false}
-                      onSelect={() => onSelectCampo(campo.id)}
-                      onRemove={() => onRemoveCampo(campo.id)}
-                      onMoveUp={index > 0 ? () => onMoveCampo(campo.id, 'up') : undefined}
-                      onMoveDown={index < campos.length - 1 ? () => onMoveCampo(campo.id, 'down') : undefined}
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData('application/campo-id', campo.id)
-                        e.dataTransfer.effectAllowed = 'move'
-                      }}
-                      onDragOver={(e) => e.preventDefault()}
-                      onDrop={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        const draggedId = e.dataTransfer.getData('application/campo-id')
-                        if (draggedId && draggedId !== campo.id) {
-                          onReorderCampo(draggedId, index)
-                        }
-                      }}
-                      onDragLeave={() => {}}
-                      onStyleEdit={onSelectStyleElement ? () => onSelectStyleElement('campos') : undefined}
-                    />
-
-                    {/* Drop zone after each field */}
-                    {renderDropZone(index + 1)}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Submit button preview - clickable for style editing */}
+          {/* Submit button */}
           {campos.length > 0 && (
             <div className="mt-6 relative group/botao">
-              {/* Style edit trigger for botão */}
-              {onSelectStyleElement && (
+              {!showFinalPreview && onSelectStyleElement && (
                 <button
                   type="button"
                   onClick={(e) => {
@@ -385,11 +404,11 @@ export function FormPreview({
                 type="button"
                 className={cn(
                   'rounded-md text-sm font-semibold transition-all',
-                  !estiloBotao && 'w-full bg-primary text-primary-foreground py-2.5 pointer-events-none',
-                  selectedStyleElement === 'botao' && 'outline outline-2 outline-dashed outline-primary outline-offset-2'
+                  !estiloBotao && 'w-full bg-primary text-primary-foreground py-2.5',
+                  !showFinalPreview && selectedStyleElement === 'botao' && 'outline outline-2 outline-dashed outline-primary outline-offset-2'
                 )}
                 style={estiloBotao ? buttonStyle : undefined}
-                onClick={handleButtonClick}
+                onClick={showFinalPreview ? undefined : handleButtonClick}
               >
                 {estiloBotao?.texto || 'Enviar'}
               </button>
@@ -399,4 +418,218 @@ export function FormPreview({
       </div>
     </div>
   )
+}
+
+/** Renderiza um campo no modo visualização final com estilos aplicados */
+function renderFinalCampo(
+  campo: CampoFormulario,
+  estiloCampos: EstiloCampos | undefined,
+  fontFamily: string,
+) {
+  const labelStyle: React.CSSProperties = {
+    color: estiloCampos?.label_cor || '#374151',
+    fontSize: estiloCampos?.label_tamanho || '14px',
+    fontWeight: 500,
+    display: 'block',
+    marginBottom: '4px',
+    fontFamily,
+  }
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    backgroundColor: estiloCampos?.input_background || '#F9FAFB',
+    border: `1px solid ${estiloCampos?.input_border_color || '#D1D5DB'}`,
+    borderRadius: estiloCampos?.input_border_radius || '6px',
+    color: estiloCampos?.input_texto_cor || '#1F2937',
+    padding: '8px 12px',
+    fontSize: '14px',
+    outline: 'none',
+    fontFamily,
+  }
+
+  const placeholder = campo.placeholder || ''
+
+  switch (campo.tipo) {
+    case 'titulo':
+      return (
+        <h3 style={{ ...labelStyle, fontSize: '18px', fontWeight: 600, marginBottom: 0 }}>
+          {placeholder || campo.label || 'Título da seção'}
+        </h3>
+      )
+    case 'paragrafo':
+      return (
+        <p style={{ color: estiloCampos?.label_cor || '#6B7280', fontSize: '14px', margin: 0, fontFamily }}>
+          {placeholder || campo.label || 'Texto descritivo'}
+        </p>
+      )
+    case 'divisor':
+      return <hr style={{ border: 'none', borderTop: `1px solid ${estiloCampos?.input_border_color || '#D1D5DB'}` }} />
+    case 'espacador':
+      return <div style={{ height: '16px' }} />
+    case 'oculto':
+      return null
+    case 'bloco_html':
+      return (
+        <div
+          style={{ fontSize: '14px', fontFamily }}
+          dangerouslySetInnerHTML={{ __html: campo.valor_padrao || '<p>Bloco HTML</p>' }}
+        />
+      )
+    case 'area_texto':
+      return (
+        <div>
+          <span style={labelStyle}>{campo.label}{campo.obrigatorio ? ' *' : ''}</span>
+          <textarea style={{ ...inputStyle, height: '64px', resize: 'none' }} placeholder={placeholder || 'Digite aqui...'} readOnly />
+        </div>
+      )
+    case 'checkbox':
+    case 'checkbox_termos':
+      return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <input type="checkbox" disabled style={{ width: '16px', height: '16px' }} />
+          <span style={{ ...labelStyle, marginBottom: 0 }}>{campo.label}{campo.obrigatorio ? ' *' : ''}</span>
+        </div>
+      )
+    case 'selecao':
+    case 'selecao_multipla':
+      return (
+        <div>
+          <span style={labelStyle}>{campo.label}{campo.obrigatorio ? ' *' : ''}</span>
+          <select style={{ ...inputStyle, appearance: 'auto' }} disabled>
+            <option>{placeholder || (campo.tipo === 'selecao_multipla' ? 'Selecione uma ou mais...' : 'Selecione...')}</option>
+          </select>
+        </div>
+      )
+    case 'radio':
+      return (
+        <div>
+          <span style={labelStyle}>{campo.label}{campo.obrigatorio ? ' *' : ''}</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            {(campo.opcoes as string[] || ['Opção 1', 'Opção 2']).slice(0, 4).map((op, i) => (
+              <label key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', color: estiloCampos?.input_texto_cor || '#1F2937', fontFamily }}>
+                <input type="radio" disabled name={campo.id} />
+                {typeof op === 'string' ? op : `Opção ${i + 1}`}
+              </label>
+            ))}
+          </div>
+        </div>
+      )
+    case 'data':
+      return (
+        <div>
+          <span style={labelStyle}>{campo.label}{campo.obrigatorio ? ' *' : ''}</span>
+          <input type="date" style={inputStyle} readOnly />
+        </div>
+      )
+    case 'data_hora':
+      return (
+        <div>
+          <span style={labelStyle}>{campo.label}{campo.obrigatorio ? ' *' : ''}</span>
+          <input type="datetime-local" style={inputStyle} readOnly />
+        </div>
+      )
+    case 'hora':
+      return (
+        <div>
+          <span style={labelStyle}>{campo.label}{campo.obrigatorio ? ' *' : ''}</span>
+          <input type="time" style={inputStyle} readOnly />
+        </div>
+      )
+    case 'moeda':
+      return (
+        <div>
+          <span style={labelStyle}>{campo.label}{campo.obrigatorio ? ' *' : ''}</span>
+          <input style={inputStyle} placeholder={placeholder || 'R$ 0,00'} readOnly />
+        </div>
+      )
+    case 'numero':
+      return (
+        <div>
+          <span style={labelStyle}>{campo.label}{campo.obrigatorio ? ' *' : ''}</span>
+          <input type="number" style={inputStyle} placeholder={placeholder || '0'} readOnly />
+        </div>
+      )
+    case 'url':
+      return (
+        <div>
+          <span style={labelStyle}>{campo.label}{campo.obrigatorio ? ' *' : ''}</span>
+          <input type="url" style={inputStyle} placeholder={placeholder || 'https://'} readOnly />
+        </div>
+      )
+    case 'avaliacao':
+      return (
+        <div>
+          <span style={labelStyle}>{campo.label}{campo.obrigatorio ? ' *' : ''}</span>
+          <div style={{ display: 'flex', gap: '4px', fontSize: '20px', color: '#FBBF24' }}>
+            {'★★★★★'.split('').map((s, i) => <span key={i}>{s}</span>)}
+          </div>
+        </div>
+      )
+    case 'nps':
+      return (
+        <div>
+          <span style={labelStyle}>{campo.label}{campo.obrigatorio ? ' *' : ''}</span>
+          <div style={{ display: 'flex', gap: '4px' }}>
+            {Array.from({ length: 11 }, (_, i) => (
+              <span key={i} style={{ ...inputStyle, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, fontSize: '12px', textAlign: 'center' as const }}>{i}</span>
+            ))}
+          </div>
+        </div>
+      )
+    case 'slider':
+      return (
+        <div>
+          <span style={labelStyle}>{campo.label}{campo.obrigatorio ? ' *' : ''}</span>
+          <input type="range" style={{ width: '100%' }} disabled />
+        </div>
+      )
+    case 'assinatura':
+      return (
+        <div>
+          <span style={labelStyle}>{campo.label}{campo.obrigatorio ? ' *' : ''}</span>
+          <div style={{ ...inputStyle, height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: estiloCampos?.input_texto_cor || '#9CA3AF' }}>
+            Área de assinatura
+          </div>
+        </div>
+      )
+    case 'cor':
+      return (
+        <div>
+          <span style={labelStyle}>{campo.label}{campo.obrigatorio ? ' *' : ''}</span>
+          <input type="color" style={{ width: '48px', height: '32px', border: 'none', cursor: 'default' }} disabled />
+        </div>
+      )
+    case 'ranking':
+      return (
+        <div>
+          <span style={labelStyle}>{campo.label}{campo.obrigatorio ? ' *' : ''}</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            {['Item 1', 'Item 2', 'Item 3'].map((item, i) => (
+              <div key={i} style={{ ...inputStyle, padding: '6px 12px' }}>{i + 1}. {item}</div>
+            ))}
+          </div>
+        </div>
+      )
+    case 'arquivo':
+    case 'imagem':
+    case 'documento':
+    case 'upload_video':
+    case 'upload_audio':
+      return (
+        <div>
+          <span style={labelStyle}>{campo.label}{campo.obrigatorio ? ' *' : ''}</span>
+          <div style={{ ...inputStyle, padding: '12px', textAlign: 'center' as const, color: estiloCampos?.input_texto_cor || '#9CA3AF', borderStyle: 'dashed' }}>
+            Clique ou arraste para enviar
+          </div>
+        </div>
+      )
+    default:
+      // text, email, telefone, telefone_br, cpf, cnpj, cep, endereco, pais, estado, cidade, etc.
+      return (
+        <div>
+          <span style={labelStyle}>{campo.label}{campo.obrigatorio ? ' *' : ''}</span>
+          <input style={inputStyle} placeholder={placeholder || 'Digite aqui...'} readOnly />
+        </div>
+      )
+  }
 }

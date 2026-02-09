@@ -26,7 +26,7 @@ import { EditorHeader } from '../components/editor/EditorHeader'
 import { CamposPaleta } from '../components/campos/CamposPaleta'
 import { CampoConfigPanel } from '../components/campos/CampoConfigPanel'
 import { FormPreview } from '../components/editor/FormPreview'
-import { EstiloPreviewInterativo, type SelectedElement } from '../components/estilos/EstiloPreviewInterativo'
+import { type SelectedElement } from '../components/estilos/EstiloPreviewInterativo'
 import { EstiloPopover } from '../components/estilos/EstiloPopover'
 import { EstiloContainerForm } from '../components/estilos/EstiloContainerForm'
 import { EstiloCamposForm } from '../components/estilos/EstiloCamposForm'
@@ -240,136 +240,121 @@ export function FormularioEditorPage() {
       {activeTab === 'campos' && (
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Main content */}
-          {showFinalPreview ? (
-            /* Final Preview Mode */
-            <div
-              className="flex-1 overflow-y-auto flex items-center justify-center p-6"
-              style={{ backgroundColor: pagina.background_color || '#F3F4F6' }}
-            >
-              <EstiloPreviewInterativo
-                container={container}
-                cabecalho={cabecalho}
-                campos={camposEstilo}
-                botao={botao}
-                titulo={formulario.nome}
-                descricao={formulario.descricao || undefined}
-                selectedElement={null}
-                onSelectElement={() => {}}
-                isPreviewMode={true}
-                camposReais={campos}
-              />
-            </div>
-          ) : (
-            /* Editor Mode */
-            <div className="flex-1 flex overflow-hidden relative">
-              {/* Mobile toggle buttons */}
-              <div className="lg:hidden absolute top-2 left-2 z-10 flex gap-1">
-                <Button
-                  variant={showPaleta ? 'default' : 'outline'}
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => { setShowPaleta(!showPaleta); if (!showPaleta) setShowConfig(false) }}
-                >
-                  <PanelLeft className="w-4 h-4" />
-                </Button>
-                {selectedCampo && (
+          <div className="flex-1 flex overflow-hidden relative">
+            {/* Paleta - hidden in final preview */}
+            {!showFinalPreview && (
+              <>
+                {/* Mobile toggle buttons */}
+                <div className="lg:hidden absolute top-2 left-2 z-10 flex gap-1">
                   <Button
-                    variant={showConfig ? 'default' : 'outline'}
+                    variant={showPaleta ? 'default' : 'outline'}
                     size="icon"
                     className="h-8 w-8"
-                    onClick={() => { setShowConfig(!showConfig); if (!showConfig) setShowPaleta(false) }}
+                    onClick={() => { setShowPaleta(!showPaleta); if (!showPaleta) setShowConfig(false) }}
                   >
-                    <PanelRight className="w-4 h-4" />
+                    <PanelLeft className="w-4 h-4" />
                   </Button>
-                )}
-              </div>
-
-              {/* Paleta */}
-              <div
-                className={cn(
-                  'border-r border-border bg-card overflow-y-auto flex-shrink-0 transition-all duration-200',
-                  'hidden lg:block lg:w-64',
-                  showPaleta && 'block absolute inset-y-0 left-0 w-64 z-20 shadow-lg lg:relative lg:shadow-none'
-                )}
-              >
-                <div className="p-3">
-                  <CamposPaleta />
+                  {selectedCampo && (
+                    <Button
+                      variant={showConfig ? 'default' : 'outline'}
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => { setShowConfig(!showConfig); if (!showConfig) setShowPaleta(false) }}
+                    >
+                      <PanelRight className="w-4 h-4" />
+                    </Button>
+                  )}
                 </div>
-              </div>
 
-              {/* Preview */}
-              <div className="flex-1 overflow-hidden">
-                <FormPreview
-                  formulario={formulario}
-                  campos={campos}
-                  selectedCampoId={selectedCampoId}
-                  onSelectCampo={handleSelectCampo}
-                  onRemoveCampo={handleRemoveCampo}
-                  onMoveCampo={handleMoveCampo}
-                  onReorderCampo={handleReorderCampo}
-                  onDropNewCampo={handleDropNewCampo}
-                  estiloContainer={container}
-                  estiloCampos={camposEstilo}
-                  estiloBotao={botao}
-                  estiloCabecalho={cabecalho}
-                  selectedStyleElement={selectedStyleElement}
-                  onSelectStyleElement={handleSelectStyleElement}
-                  onToggleFinalPreview={toggleFinalPreview}
-                  showFinalPreview={showFinalPreview}
-                  onToggleCss={() => setShowCssDrawer((v) => !v)}
-                  showCssDrawer={showCssDrawer}
-                  onSaveEstilos={handleSaveEstilos}
-                  isSaving={salvarEstilos.isPending}
-                />
-              </div>
-
-              {/* Config panel (campo config) */}
-              {selectedCampo && !selectedStyleElement && (
+                {/* Paleta */}
                 <div
                   className={cn(
-                    'border-l border-border bg-card overflow-y-auto flex-shrink-0 transition-all duration-200',
-                    'hidden lg:block lg:w-72',
-                    showConfig && 'block absolute inset-y-0 right-0 w-72 z-20 shadow-lg lg:relative lg:shadow-none'
+                    'border-r border-border bg-card overflow-y-auto flex-shrink-0 transition-all duration-200',
+                    'hidden lg:block lg:w-64',
+                    showPaleta && 'block absolute inset-y-0 left-0 w-64 z-20 shadow-lg lg:relative lg:shadow-none'
                   )}
                 >
                   <div className="p-3">
-                    <CampoConfigPanel
-                      campo={selectedCampo}
-                      onUpdate={handleUpdateCampo}
-                      onClose={() => { setSelectedCampoId(null); setShowConfig(false) }}
-                    />
+                    <CamposPaleta />
                   </div>
                 </div>
-              )}
+              </>
+            )}
 
-              {/* Style panel */}
-              {selectedStyleElement && (
-                <EstiloPopover
-                  open={!!selectedStyleElement}
-                  onClose={() => setSelectedStyleElement(null)}
-                  titulo={panelTitle}
-                >
-                  {selectedStyleElement === 'container' && (
-                    <EstiloContainerForm value={container} onChange={setContainer} />
-                  )}
-                  {selectedStyleElement === 'campos' && (
-                    <EstiloCamposForm value={camposEstilo} onChange={setCamposEstilo} />
-                  )}
-                  {selectedStyleElement === 'botao' && (
-                    <EstiloBotaoForm value={botao} onChange={setBotao} />
-                  )}
-                </EstiloPopover>
-              )}
-
-              {/* Mobile overlay */}
-              {(showPaleta || showConfig) && (
-                <div
-                  className="lg:hidden fixed inset-0 bg-foreground/20 z-10"
-                  onClick={() => { setShowPaleta(false); setShowConfig(false) }}
-                />
-              )}
+            {/* Preview */}
+            <div className="flex-1 overflow-hidden">
+              <FormPreview
+                formulario={formulario}
+                campos={campos}
+                selectedCampoId={showFinalPreview ? null : selectedCampoId}
+                onSelectCampo={showFinalPreview ? () => {} : handleSelectCampo}
+                onRemoveCampo={handleRemoveCampo}
+                onMoveCampo={handleMoveCampo}
+                onReorderCampo={handleReorderCampo}
+                onDropNewCampo={handleDropNewCampo}
+                estiloContainer={container}
+                estiloCampos={camposEstilo}
+                estiloBotao={botao}
+                estiloCabecalho={cabecalho}
+                selectedStyleElement={showFinalPreview ? undefined : selectedStyleElement}
+                onSelectStyleElement={showFinalPreview ? undefined : handleSelectStyleElement}
+                onToggleFinalPreview={toggleFinalPreview}
+                showFinalPreview={showFinalPreview}
+                onToggleCss={() => setShowCssDrawer((v) => !v)}
+                showCssDrawer={showCssDrawer}
+                onSaveEstilos={handleSaveEstilos}
+                isSaving={salvarEstilos.isPending}
+                paginaBackgroundColor={pagina.background_color}
+                cssCustomizado={cssCustomizado}
+              />
             </div>
-          )}
+
+            {/* Config panel - hidden in final preview */}
+            {!showFinalPreview && selectedCampo && !selectedStyleElement && (
+              <div
+                className={cn(
+                  'border-l border-border bg-card overflow-y-auto flex-shrink-0 transition-all duration-200',
+                  'hidden lg:block lg:w-72',
+                  showConfig && 'block absolute inset-y-0 right-0 w-72 z-20 shadow-lg lg:relative lg:shadow-none'
+                )}
+              >
+                <div className="p-3">
+                  <CampoConfigPanel
+                    campo={selectedCampo}
+                    onUpdate={handleUpdateCampo}
+                    onClose={() => { setSelectedCampoId(null); setShowConfig(false) }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Style panel - hidden in final preview */}
+            {!showFinalPreview && selectedStyleElement && (
+              <EstiloPopover
+                open={!!selectedStyleElement}
+                onClose={() => setSelectedStyleElement(null)}
+                titulo={panelTitle}
+              >
+                {selectedStyleElement === 'container' && (
+                  <EstiloContainerForm value={container} onChange={setContainer} />
+                )}
+                {selectedStyleElement === 'campos' && (
+                  <EstiloCamposForm value={camposEstilo} onChange={setCamposEstilo} />
+                )}
+                {selectedStyleElement === 'botao' && (
+                  <EstiloBotaoForm value={botao} onChange={setBotao} />
+                )}
+              </EstiloPopover>
+            )}
+
+            {/* Mobile overlay */}
+            {!showFinalPreview && (showPaleta || showConfig) && (
+              <div
+                className="lg:hidden fixed inset-0 bg-foreground/20 z-10"
+                onClick={() => { setShowPaleta(false); setShowConfig(false) }}
+              />
+            )}
+          </div>
 
           {/* CSS Drawer */}
           {showCssDrawer && !showFinalPreview && (
