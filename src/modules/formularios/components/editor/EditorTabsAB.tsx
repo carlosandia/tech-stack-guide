@@ -3,7 +3,7 @@
  */
 
 import { useState } from 'react'
-import { Loader2, Play, Pause, CheckCircle } from 'lucide-react'
+import { Loader2, Play, Pause, CheckCircle, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import {
@@ -58,6 +58,21 @@ export function EditorTabsAB({ formulario }: Props) {
 
   return (
     <div className="p-4 space-y-4 overflow-y-auto max-h-full">
+      <div className="border border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 dark:border-blue-800 rounded-lg p-3 space-y-1.5">
+        <div className="flex items-start gap-2">
+          <Info className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
+          <div>
+            <p className="text-xs font-medium text-blue-900 dark:text-blue-200">Teste variações para otimizar conversão</p>
+            <p className="text-xs text-blue-700 dark:text-blue-300 mt-0.5">
+              Crie testes A/B para descobrir qual versão do formulário gera mais resultados.
+            </p>
+            <p className="text-[11px] text-blue-600/80 dark:text-blue-400/80 mt-1">
+              Ex: "Botão verde vs azul" · "Formulário curto vs longo" · "Título diferente"
+            </p>
+          </div>
+        </div>
+      </div>
+
       <TesteABForm
         onCriar={(p) => criarTeste.mutate(p)}
         loading={criarTeste.isPending}

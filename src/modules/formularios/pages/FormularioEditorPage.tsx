@@ -68,11 +68,24 @@ export function FormularioEditorPage() {
       const tipoCampo = JSON.parse(campoTipoData)
       const label = tipoCampo.label || tipoCampo.tipo
       const nome = tipoCampo.tipo + '_' + Date.now().toString(36)
-      criarCampo.mutate({
+      const newCampoPayload = {
         nome, label, tipo: tipoCampo.tipo, ordem: index, obrigatorio: false, largura: 'full',
-      } as Partial<CampoFormulario>)
+      } as Partial<CampoFormulario>
+
+      if (campos.length === 0) {
+        criarCampo.mutate(newCampoPayload)
+        return
+      }
+
+      const shifted = campos.map((c) => ({
+        id: c.id,
+        ordem: c.ordem >= index ? c.ordem + 1 : c.ordem,
+      }))
+      reordenarCampos.mutate(shifted, {
+        onSuccess: () => criarCampo.mutate(newCampoPayload),
+      })
     },
-    [criarCampo]
+    [criarCampo, campos, reordenarCampos]
   )
 
   const handleMoveCampo = useCallback(
