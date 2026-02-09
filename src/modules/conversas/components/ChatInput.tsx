@@ -113,6 +113,32 @@ export function ChatInput({
         </button>
       </div>
 
+      {/* Reply preview bar */}
+      {replyingTo && !isNota && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-muted/50 border-b border-border/30">
+          <div className="w-1 h-10 rounded-full bg-primary flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-semibold text-primary">
+              {replyingTo.from_me ? 'Você' : 'Contato'}
+            </p>
+            <p className="text-xs text-muted-foreground truncate">
+              {replyingTo.tipo === 'text' ? replyingTo.body :
+               replyingTo.tipo === 'image' ? '📷 Foto' :
+               replyingTo.tipo === 'video' ? '🎥 Vídeo' :
+               replyingTo.tipo === 'audio' ? '🎵 Áudio' :
+               replyingTo.tipo === 'document' ? `📄 ${replyingTo.media_filename || 'Documento'}` :
+               'Mensagem'}
+            </p>
+          </div>
+          <button
+            onClick={onCancelReply}
+            className="p-1 rounded-full hover:bg-accent text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Input area */}
       <div className={`p-3 ${isNota ? 'bg-warning-muted/30' : ''}`}>
         {isNota && (
