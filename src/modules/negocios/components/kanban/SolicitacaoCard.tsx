@@ -46,8 +46,8 @@ export function SolicitacaoCard({ preOp, onClick, onWhatsApp }: SolicitacaoCardP
               <User className="w-3.5 h-3.5 text-muted-foreground" />
             </div>
           )}
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-foreground truncate">
+          <div className="min-w-0 flex-1 text-left">
+            <p className="text-sm font-medium text-foreground truncate text-left">
               {preOp.phone_name || formatPhoneDisplay(preOp.phone_number)}
             </p>
             {preOp.phone_name && (

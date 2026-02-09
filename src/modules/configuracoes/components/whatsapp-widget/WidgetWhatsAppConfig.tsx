@@ -112,19 +112,6 @@ export function WidgetWhatsAppConfig({ value, onChange }: Props) {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Coluna Esquerda - Configurações */}
           <div className="space-y-5">
-            {/* Número WhatsApp */}
-            <div>
-              <label className="text-sm font-medium text-foreground mb-1.5 block">Número WhatsApp</label>
-              <input
-                type="text"
-                value={config.numero}
-                onChange={e => update('numero', e.target.value)}
-                placeholder="5511999999999"
-                className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm text-foreground"
-              />
-              <p className="text-xs text-muted-foreground mt-1">Inclua o código do país (ex: 55 para Brasil)</p>
-            </div>
-
             {/* Pipeline / Funil */}
             <div>
               <label className="text-sm font-medium text-foreground mb-1.5 block">Pipeline de Destino</label>
@@ -139,6 +126,19 @@ export function WidgetWhatsAppConfig({ value, onChange }: Props) {
                 ))}
               </select>
               <p className="text-xs text-muted-foreground mt-1">Em qual pipeline as oportunidades do widget serão criadas</p>
+            </div>
+
+            {/* Número WhatsApp */}
+            <div>
+              <label className="text-sm font-medium text-foreground mb-1.5 block">Número WhatsApp</label>
+              <input
+                type="text"
+                value={config.numero}
+                onChange={e => update('numero', e.target.value)}
+                placeholder="5511999999999"
+                className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm text-foreground"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Inclua o código do país (ex: 55 para Brasil)</p>
             </div>
 
             {/* Posição */}
