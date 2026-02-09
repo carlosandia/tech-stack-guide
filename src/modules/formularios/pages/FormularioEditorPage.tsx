@@ -1,0 +1,234 @@
+/**
+ * AIDEV-NOTE: Página de edição do formulário com drag-and-drop
+ * Layout: Paleta (esquerda) | Preview (centro) | Config (direita)
+ * Responsivo: em mobile, paleta e config viram drawers/modais
+ */
+
+import { useState, useCallback } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
+import { PanelLeft, PanelRight, Loader2 } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { useFormulario } from '../hooks/useFormularios'
+import {
+  useCamposFormulario,
+  useCriarCampo,
+  useAtualizarCampo,
+  useExcluirCampo,
+  useReordenarCampos,
+} from '../hooks/useFormularioCampos'
+import { EditorHeader } from '../components/editor/EditorHeader'
+import { CamposPaleta } from '../components/campos/CamposPaleta'
+import { CampoConfigPanel } from '../components/campos/CampoConfigPanel'
+import { FormPreview } from '../components/editor/FormPreview'
+import type { CampoFormulario } from '../services/formularios.api'
+
+export function FormularioEditorPage() {
+  const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
+
+  const { data: formulario, isLoading: loadingForm } = useFormulario(id || null)
+  const { data: campos = [], isLoading: loadingCampos } = useCamposFormulario(id || null)
+  const criarCampo = useCriarCampo(id || '')
+  const atualizarCampo = useAtualizarCampo(id || '')
+  const excluirCampo = useExcluirCampo(id || '')
+  const reordenarCampos = useReordenarCampos(id || '')
+
+  const [selectedCampoId, setSelectedCampoId] = useState<string | null>(null)
+  const [showPaleta, setShowPaleta] = useState(true)
+  const [showConfig, setShowConfig] = useState(false)
+
+  const selectedCampo = campos.find((c) => c.id === selectedCampoId)
+
+  // When user drops a new field type from palette into preview
+  const handleDropNewCampo = useCallback(
+    (e: React.DragEvent, index: number) => {
+      const campoTipoData = e.dataTransfer.getData('application/campo-tipo')
+      if (!campoTipoData) return
+
+      const tipoCampo = JSON.parse(campoTipoData)
+      const label = tipoCampo.label || tipoCampo.tipo
+      const nome = tipoCampo.tipo + '_' + Date.now().toString(36)
+
+      criarCampo.mutate({
+        nome,
+        label,
+        tipo: tipoCampo.tipo,
+        ordem: index,
+        obrigatorio: false,
+        largura: 'full',
+      } as Partial<CampoFormulario>)
+    },
+    [criarCampo]
+  )
+
+  // Move campo up/down
+  const handleMoveCampo = useCallback(
+    (campoId: string, direcao: 'up' | 'down') => {
+      const index = campos.findIndex((c) => c.id === campoId)
+      if (index === -1) return
+      const newIndex = direcao === 'up' ? index - 1 : index + 1
+      if (newIndex < 0 || newIndex >= campos.length) return
+
+      const newCampos = [...campos]
+      const [moved] = newCampos.splice(index, 1)
+      newCampos.splice(newIndex, 0, moved)
+
+      const reorder = newCampos.map((c, i) => ({ id: c.id, ordem: i }))
+      reordenarCampos.mutate(reorder)
+    },
+    [campos, reordenarCampos]
+  )
+
+  // Reorder via drag-and-drop between existing campos
+  const handleReorderCampo = useCallback(
+    (dragId: string, dropId: string) => {
+      if (dragId === dropId) return
+      const dragIdx = campos.findIndex((c) => c.id === dragId)
+      const dropIdx = campos.findIndex((c) => c.id === dropId)
+      if (dragIdx === -1 || dropIdx === -1) return
+
+      const newCampos = [...campos]
+      const [moved] = newCampos.splice(dragIdx, 1)
+      newCampos.splice(dropIdx, 0, moved)
+
+      const reorder = newCampos.map((c, i) => ({ id: c.id, ordem: i }))
+      reordenarCampos.mutate(reorder)
+    },
+    [campos, reordenarCampos]
+  )
+
+  const handleSelectCampo = useCallback((id: string | null) => {
+    setSelectedCampoId(id)
+    if (id) setShowConfig(true)
+  }, [])
+
+  const handleUpdateCampo = useCallback(
+    (payload: Partial<CampoFormulario>) => {
+      if (!selectedCampoId) return
+      atualizarCampo.mutate({ campoId: selectedCampoId, payload })
+    },
+    [selectedCampoId, atualizarCampo]
+  )
+
+  const handleRemoveCampo = useCallback(
+    (campoId: string) => {
+      excluirCampo.mutate(campoId)
+      if (selectedCampoId === campoId) {
+        setSelectedCampoId(null)
+        setShowConfig(false)
+      }
+    },
+    [excluirCampo, selectedCampoId]
+  )
+
+  if (loadingForm || loadingCampos) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (!formulario) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-3">
+        <p className="text-sm text-muted-foreground">Formulário não encontrado</p>
+        <Button variant="outline" size="sm" onClick={() => navigate('/app/formularios')}>
+          Voltar
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col h-full overflow-hidden">
+      <EditorHeader formulario={formulario} />
+
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Mobile toggle buttons */}
+        <div className="lg:hidden absolute top-2 left-2 z-10 flex gap-1">
+          <Button
+            variant={showPaleta ? 'default' : 'outline'}
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => { setShowPaleta(!showPaleta); if (!showPaleta) setShowConfig(false) }}
+          >
+            <PanelLeft className="w-4 h-4" />
+          </Button>
+          {selectedCampo && (
+            <Button
+              variant={showConfig ? 'default' : 'outline'}
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => { setShowConfig(!showConfig); if (!showConfig) setShowPaleta(false) }}
+            >
+              <PanelRight className="w-4 h-4" />
+            </Button>
+          )}
+        </div>
+
+        {/* Paleta (left panel) */}
+        <div
+          className={cn(
+            'border-r border-border bg-card overflow-y-auto flex-shrink-0 transition-all duration-200',
+            // Desktop: always visible
+            'hidden lg:block lg:w-64',
+            // Mobile: overlay when toggled
+            showPaleta && 'block absolute inset-y-0 left-0 w-64 z-20 shadow-lg lg:relative lg:shadow-none'
+          )}
+        >
+          <div className="p-3">
+            <CamposPaleta />
+          </div>
+        </div>
+
+        {/* Preview (center) */}
+        <div className="flex-1 overflow-hidden">
+          <FormPreview
+            formulario={formulario}
+            campos={campos}
+            selectedCampoId={selectedCampoId}
+            onSelectCampo={handleSelectCampo}
+            onRemoveCampo={handleRemoveCampo}
+            onMoveCampo={handleMoveCampo}
+            onReorderCampo={handleReorderCampo}
+            onDropNewCampo={handleDropNewCampo}
+          />
+        </div>
+
+        {/* Config panel (right) */}
+        {selectedCampo && (
+          <div
+            className={cn(
+              'border-l border-border bg-card overflow-y-auto flex-shrink-0 transition-all duration-200',
+              // Desktop: always visible when campo selected
+              'hidden lg:block lg:w-72',
+              // Mobile: overlay when toggled
+              showConfig && 'block absolute inset-y-0 right-0 w-72 z-20 shadow-lg lg:relative lg:shadow-none'
+            )}
+          >
+            <div className="p-3">
+              <CampoConfigPanel
+                campo={selectedCampo}
+                onUpdate={handleUpdateCampo}
+                onClose={() => {
+                  setSelectedCampoId(null)
+                  setShowConfig(false)
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Mobile overlay backdrop */}
+        {(showPaleta || showConfig) && (
+          <div
+            className="lg:hidden fixed inset-0 bg-foreground/20 z-10"
+            onClick={() => { setShowPaleta(false); setShowConfig(false) }}
+          />
+        )}
+      </div>
+    </div>
+  )
+}

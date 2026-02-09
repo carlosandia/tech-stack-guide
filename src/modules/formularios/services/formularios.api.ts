@@ -242,6 +242,126 @@ async function contarPorStatus(): Promise<Record<string, number>> {
   return contagem
 }
 
+// =====================================================
+// Campos do Formulário
+// =====================================================
+
+export interface CampoFormulario {
+  id: string
+  formulario_id: string
+  nome: string
+  label: string
+  tipo: string
+  placeholder?: string | null
+  texto_ajuda?: string | null
+  obrigatorio: boolean
+  validacoes?: Record<string, unknown> | null
+  opcoes?: unknown[] | null
+  mapeamento_campo?: string | null
+  largura: string
+  ordem: number
+  etapa_numero?: number | null
+  condicional_ativo: boolean
+  condicional_campo_id?: string | null
+  condicional_operador?: string | null
+  condicional_valor?: string | null
+  valor_padrao?: string | null
+  valor_pontuacao?: number | null
+  regras_pontuacao?: unknown | null
+  prefill_ativo?: boolean | null
+  prefill_fonte?: string | null
+  prefill_chave?: string | null
+  mostrar_para_leads_conhecidos?: boolean | null
+  alternativa_para_campo_id?: string | null
+  prioridade_profiling?: number | null
+  criado_em: string
+  atualizado_em: string
+}
+
+async function listarCampos(formularioId: string): Promise<CampoFormulario[]> {
+  const { data, error } = await supabase
+    .from('campos_formularios')
+    .select('*')
+    .eq('formulario_id', formularioId)
+    .order('ordem', { ascending: true })
+
+  if (error) throw new Error(`Erro ao listar campos: ${error.message}`)
+  return (data || []) as unknown as CampoFormulario[]
+}
+
+async function criarCampo(
+  formularioId: string,
+  payload: Partial<CampoFormulario>
+): Promise<CampoFormulario> {
+  const insertData = {
+    formulario_id: formularioId,
+    nome: payload.nome || '',
+    label: payload.label || '',
+    tipo: payload.tipo || 'texto',
+    placeholder: payload.placeholder,
+    texto_ajuda: payload.texto_ajuda,
+    obrigatorio: payload.obrigatorio ?? false,
+    validacoes: (payload.validacoes || {}) as Record<string, unknown>,
+    opcoes: (payload.opcoes || []) as unknown[],
+    mapeamento_campo: payload.mapeamento_campo,
+    largura: payload.largura || 'full',
+    ordem: payload.ordem ?? 0,
+    etapa_numero: payload.etapa_numero || 1,
+    valor_padrao: payload.valor_padrao,
+  } as any
+
+  const { data, error } = await supabase
+    .from('campos_formularios')
+    .insert(insertData)
+    .select()
+    .single()
+
+  if (error) throw new Error(`Erro ao criar campo: ${error.message}`)
+  return data as unknown as CampoFormulario
+}
+
+async function atualizarCampo(
+  formularioId: string,
+  campoId: string,
+  payload: Partial<CampoFormulario>
+): Promise<CampoFormulario> {
+  const { data, error } = await supabase
+    .from('campos_formularios')
+    .update(payload as Record<string, unknown>)
+    .eq('formulario_id', formularioId)
+    .eq('id', campoId)
+    .select()
+    .single()
+
+  if (error) throw new Error(`Erro ao atualizar campo: ${error.message}`)
+  return data as unknown as CampoFormulario
+}
+
+async function excluirCampo(formularioId: string, campoId: string): Promise<void> {
+  const { error } = await supabase
+    .from('campos_formularios')
+    .delete()
+    .eq('formulario_id', formularioId)
+    .eq('id', campoId)
+
+  if (error) throw new Error(`Erro ao excluir campo: ${error.message}`)
+}
+
+async function reordenarCampos(
+  formularioId: string,
+  campos: { id: string; ordem: number }[]
+): Promise<void> {
+  for (const item of campos) {
+    const { error } = await supabase
+      .from('campos_formularios')
+      .update({ ordem: item.ordem })
+      .eq('formulario_id', formularioId)
+      .eq('id', item.id)
+
+    if (error) throw new Error(`Erro ao reordenar: ${error.message}`)
+  }
+}
+
 export const formulariosApi = {
   listar,
   buscar,
@@ -252,4 +372,9 @@ export const formulariosApi = {
   publicar,
   despublicar,
   contarPorStatus,
+  listarCampos,
+  criarCampo,
+  atualizarCampo,
+  excluirCampo,
+  reordenarCampos,
 }

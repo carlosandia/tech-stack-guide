@@ -12,7 +12,7 @@ import {
   AdminEvolucaoPage,
 } from '@/modules/admin'
 import { AppLayout, AppDashboardPage } from '@/modules/app'
-import { FormulariosPage } from '@/modules/formularios'
+import { FormulariosPage, FormularioEditorPage } from '@/modules/formularios'
 import { PlanosPage, TrialCadastroPage, CheckoutSucessoPage, OnboardingPage } from '@/modules/public'
 import { BlockedPage } from '@/modules/blocked'
 import { ConfiguracoesLayout, CamposPage, ProdutosPage, MotivosPage, TarefasTemplatesPage, EtapasTemplatesPage, RegrasPage, ConfigCardPage, ConexoesPage, WebhooksEntradaPage, WebhooksSaidaPage, MembrosPage, EquipesPage, PerfisPermissaoPage, MetasPage, ConfigGeralPage } from '@/modules/configuracoes'
@@ -82,6 +82,7 @@ function App() {
         <Route path="conversas" element={<ConversasPage />} />
         <Route path="emails" element={<EmailsPage />} />
         <Route path="formularios" element={<FormulariosPage />} />
+        <Route path="formularios/:id" element={<FormularioEditorPage />} />
       </Route>
 
       {/* Configuracoes - PRD-05 (layout próprio com header/toolbar) */}
