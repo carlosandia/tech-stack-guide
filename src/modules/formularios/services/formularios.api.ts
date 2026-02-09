@@ -1116,6 +1116,116 @@ async function excluirVarianteAB(varianteId: string): Promise<void> {
   if (error) throw new Error(`Erro ao excluir variante: ${error.message}`)
 }
 
+// =====================================================
+// Webhooks
+// =====================================================
+
+export interface WebhookFormulario {
+  id: string
+  formulario_id: string
+  organizacao_id: string
+  nome_webhook: string
+  url_webhook: string
+  metodo_http?: string | null
+  headers_customizados?: Record<string, string> | null
+  formato_payload?: string | null
+  mapeamento_campos?: Record<string, string> | null
+  incluir_metadados?: boolean | null
+  condicoes_disparo?: Record<string, unknown> | null
+  disparar_em?: string | null
+  ativo?: boolean | null
+  retry_ativo?: boolean | null
+  max_tentativas?: number | null
+  atraso_retry_segundos?: number | null
+  contagem_sucesso?: number | null
+  contagem_falha?: number | null
+  ultimo_disparo_em?: string | null
+  ultimo_status_code?: number | null
+  ultimo_erro?: string | null
+  criado_em?: string | null
+  atualizado_em?: string | null
+}
+
+export interface LogWebhookFormulario {
+  id: string
+  webhook_id: string
+  submissao_id?: string | null
+  request_url: string
+  request_metodo?: string | null
+  request_headers?: Record<string, string> | null
+  request_body?: string | null
+  response_status_code?: number | null
+  response_headers?: Record<string, string> | null
+  response_body?: string | null
+  response_tempo_ms?: number | null
+  status?: string | null
+  mensagem_erro?: string | null
+  contagem_retry?: number | null
+  disparado_em?: string | null
+  concluido_em?: string | null
+}
+
+async function listarWebhooks(formularioId: string): Promise<WebhookFormulario[]> {
+  const { data, error } = await supabase
+    .from('webhooks_formularios')
+    .select('*')
+    .eq('formulario_id', formularioId)
+    .order('criado_em', { ascending: false })
+  if (error) throw new Error(`Erro ao listar webhooks: ${error.message}`)
+  return (data || []) as unknown as WebhookFormulario[]
+}
+
+async function criarWebhook(formularioId: string, payload: {
+  nome_webhook: string
+  url_webhook: string
+  metodo_http?: string
+  headers_customizados?: Record<string, string>
+  formato_payload?: string
+  retry_ativo?: boolean
+  max_tentativas?: number
+  atraso_retry_segundos?: number
+  incluir_metadados?: boolean
+}): Promise<WebhookFormulario> {
+  const organizacaoId = await getOrganizacaoId()
+  const { data, error } = await supabase
+    .from('webhooks_formularios')
+    .insert({ formulario_id: formularioId, organizacao_id: organizacaoId, ...payload } as any)
+    .select()
+    .single()
+  if (error) throw new Error(`Erro ao criar webhook: ${error.message}`)
+  return data as unknown as WebhookFormulario
+}
+
+async function atualizarWebhook(webhookId: string, payload: Partial<WebhookFormulario>): Promise<WebhookFormulario> {
+  const { data, error } = await supabase
+    .from('webhooks_formularios')
+    .update(payload as any)
+    .eq('id', webhookId)
+    .select()
+    .single()
+  if (error) throw new Error(`Erro ao atualizar webhook: ${error.message}`)
+  return data as unknown as WebhookFormulario
+}
+
+async function excluirWebhook(webhookId: string): Promise<void> {
+  const { error } = await supabase
+    .from('webhooks_formularios')
+    .delete()
+    .eq('id', webhookId)
+  if (error) throw new Error(`Erro ao excluir webhook: ${error.message}`)
+}
+
+async function listarLogsWebhook(webhookId: string, limite = 20): Promise<LogWebhookFormulario[]> {
+  const { data, error } = await supabase
+    .from('logs_webhooks_formularios')
+    .select('*')
+    .eq('webhook_id', webhookId)
+    .order('disparado_em', { ascending: false })
+    .limit(limite)
+  if (error) throw new Error(`Erro ao listar logs: ${error.message}`)
+  return (data || []) as unknown as LogWebhookFormulario[]
+}
+
 export const formulariosApi = {
   listar,
   buscar,
@@ -1162,4 +1272,10 @@ export const formulariosApi = {
   listarVariantesAB,
   criarVarianteAB,
   excluirVarianteAB,
+  // Webhooks
+  listarWebhooks,
+  criarWebhook,
+  atualizarWebhook,
+  excluirWebhook,
+  listarLogsWebhook,
 }
