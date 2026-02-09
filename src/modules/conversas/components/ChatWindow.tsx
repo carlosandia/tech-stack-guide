@@ -5,7 +5,7 @@
  * Conecta ações de silenciar, limpar e apagar conversa
  */
 
-import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { ChatHeader } from './ChatHeader'
 import { ChatMessages } from './ChatMessages'
 import { ChatInput } from './ChatInput'
@@ -21,7 +21,7 @@ import { conversasApi } from '../services/conversas.api'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import { NovaOportunidadeModal } from '@/modules/negocios/components/modals/NovaOportunidadeModal'
-import type { Conversa, ConversaContato } from '../services/conversas.api'
+import type { Conversa, ConversaContato, Mensagem } from '../services/conversas.api'
 
 interface ChatWindowProps {
   conversa: Conversa
@@ -45,6 +45,7 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
   const [cameraOpen, setCameraOpen] = useState(false)
   const [contatoModalOpen, setContatoModalOpen] = useState(false)
   const [enqueteModalOpen, setEnqueteModalOpen] = useState(false)
+  const [replyingTo, setReplyingTo] = useState<Mensagem | null>(null)
 
   const {
     data: mensagensData,
@@ -97,7 +98,12 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
   }, [conversa.id])
 
   const handleSendMessage = (texto: string) => {
-    enviarTexto.mutate({ conversaId: conversa.id, texto })
+    enviarTexto.mutate({
+      conversaId: conversa.id,
+      texto,
+      replyTo: replyingTo?.message_id,
+    })
+    setReplyingTo(null)
   }
 
   const handleSendNote = async (conteudo: string) => {
