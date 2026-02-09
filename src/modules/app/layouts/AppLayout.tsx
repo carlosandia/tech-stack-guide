@@ -59,12 +59,6 @@ const menuItems = [
     path: '/app/tarefas',
     icon: CheckSquare,
   },
-  {
-    label: 'Configurações',
-    path: '/app/configuracoes',
-    icon: Settings,
-    adminOnly: true,
-  },
 ]
 
 function NavItem({
@@ -119,9 +113,9 @@ function AppLayoutInner() {
 
   useBlockedRedirect()
 
-  const isAdmin = role === 'admin'
+  const isAdmin = role === 'admin' // used for settings gear visibility
   const pageTitle = getPageTitle(location.pathname)
-  const visibleItems = menuItems.filter(item => !('adminOnly' in item && item.adminOnly) || isAdmin)
+  const visibleItems = menuItems
 
   const handleLogout = async () => {
     try {
@@ -185,6 +179,23 @@ function AppLayoutInner() {
               {item.path === '/app/emails' && <EmailBadge />}
             </NavLink>
           ))}
+          {/* Configurações link — admin only in mobile drawer */}
+          {isAdmin && (
+            <NavLink
+              to="/app/configuracoes"
+              onClick={() => setDrawerOpen(false)}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200 ${
+                  isActive
+                    ? 'border border-primary/40 bg-primary/5 text-primary'
+                    : 'border border-transparent text-muted-foreground hover:text-foreground hover:bg-accent'
+                }`
+              }
+            >
+              <Settings className="w-5 h-5" />
+              Configurações
+            </NavLink>
+          )}
         </nav>
 
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200/60">
@@ -237,8 +248,25 @@ function AppLayoutInner() {
             </nav>
           </div>
 
-          {/* Right: Notificacoes + User Menu */}
+          {/* Right: Settings gear + Notificacoes + User Menu */}
           <div className="flex items-center gap-1">
+            {/* Settings gear icon — admin only */}
+            {isAdmin && (
+              <NavLink
+                to="/app/configuracoes"
+                className={({ isActive }) =>
+                  `p-2 rounded-md transition-colors ${
+                    isActive
+                      ? 'text-primary bg-primary/5'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                  }`
+                }
+                title="Configurações"
+              >
+                <Settings className="w-5 h-5" />
+              </NavLink>
+            )}
+
             {/* Sino de Notificacoes */}
             <NotificacoesSino />
 
