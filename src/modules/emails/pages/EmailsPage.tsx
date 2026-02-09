@@ -92,6 +92,9 @@ export function EmailsPage() {
   const acaoLote = useAcaoLote()
   const enviarEmail = useEnviarEmail()
 
+  // Sincronização IMAP
+  const sincronizarEmails = useSincronizarEmails()
+
   // Notificação de novos emails
   useNewEmailNotification()
 
@@ -267,7 +270,11 @@ export function EmailsPage() {
           onSelect={handleSelect}
           onToggleFavorito={handleToggleFavorito}
           onAcaoLote={handleAcaoLote}
-          onRefresh={() => refetch()}
+          onRefresh={() => {
+            sincronizarEmails.mutate()
+            refetch()
+          }}
+          isSyncing={sincronizarEmails.isPending}
           page={page}
           totalPages={totalPages}
           onPageChange={setPage}
