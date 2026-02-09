@@ -4,7 +4,7 @@
  * Popover "mais ações" com: Responder, Encaminhar, Excluir, Marcar como não lido, Traduzir, Imprimir
  */
 
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import DOMPurify from 'dompurify'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -101,6 +101,27 @@ function getInitialColor(name: string): string {
   return colors[hash % colors.length]
 }
 
+function decodeQuotedPrintableString(str: string): string {
+  const raw = str.replace(/=\r?\n/g, '')
+  const bytes: number[] = []
+  let i = 0
+  while (i < raw.length) {
+    if (raw[i] === '=' && i + 2 < raw.length && /^[0-9A-Fa-f]{2}$/.test(raw.substring(i + 1, i + 3))) {
+      bytes.push(parseInt(raw.substring(i + 1, i + 3), 16))
+      i += 3
+    } else {
+      bytes.push(raw.charCodeAt(i))
+      i++
+    }
+  }
+  return new TextDecoder('utf-8').decode(new Uint8Array(bytes))
+}
+
+function looksLikeHtml(str: string): boolean {
+  const t = str.trim()
+  return /^<!DOCTYPE|^<html|^<head|^<body|^<table|^<div/i.test(t)
+}
+
 export function EmailViewer({
   email,
   isLoading,
@@ -115,6 +136,20 @@ export function EmailViewer({
 }: EmailViewerProps) {
   const [moreMenuOpen, setMoreMenuOpen] = useState(false)
   const moreMenuRef = useRef<HTMLDivElement>(null)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+
+  const adjustIframeHeight = useCallback(() => {
+    const iframe = iframeRef.current
+    if (!iframe) return
+    try {
+      const doc = iframe.contentDocument || iframe.contentWindow?.document
+      if (doc?.body) {
+        const h = Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight)
+        iframe.style.height = h + 'px'
+      }
+    } catch { /* sandbox */ }
+  }, [])
+
 
   // Close popover on outside click
   useEffect(() => {
@@ -129,12 +164,38 @@ export function EmailViewer({
   }, [moreMenuOpen])
 
   const cleanHtml = useMemo(() => {
-    if (!email?.corpo_html) return ''
-    const sanitized = DOMPurify.sanitize(email.corpo_html, {
+    let html = email?.corpo_html || ''
+
+    // Fallback: detect HTML stored in corpo_texto (MIME parser edge case)
+    if (!html && email?.corpo_texto) {
+      const text = email.corpo_texto.trim()
+      if (looksLikeHtml(text) || text.includes('=3D"') || text.includes("=3D'")) {
+        html = text
+      }
+    }
+
+    if (!html) return ''
+
+    // Decode quoted-printable remnants if present
+    if (html.includes('=3D') || /=\r?\n/.test(html)) {
+      html = decodeQuotedPrintableString(html)
+    }
+
+    // Sanitize — keep full document structure, styles, images
+    const sanitized = DOMPurify.sanitize(html, {
+      WHOLE_DOCUMENT: true,
+      ADD_TAGS: ['style'],
       ADD_ATTR: ['target'],
+      FORBID_TAGS: ['script'],
+      FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover'],
     })
-    return sanitized.replace(/<a /g, '<a target="_blank" rel="noopener noreferrer" ')
-  }, [email?.corpo_html])
+
+    // Inject <base target="_blank"> for links
+    if (sanitized.includes('<head>')) {
+      return sanitized.replace('<head>', '<head><base target="_blank">')
+    }
+    return `<head><base target="_blank"></head>${sanitized}`
+  }, [email?.corpo_html, email?.corpo_texto])
 
   if (isLoading) {
     return (
@@ -309,18 +370,23 @@ export function EmailViewer({
       <ContatoCard contatoId={email.contato_id} email={email.de_email} nome={email.de_nome} />
 
       {/* Email body */}
-      <div className="flex-1 overflow-y-auto px-5 py-3">
+      <div className="flex-1 overflow-y-auto">
         {cleanHtml ? (
-          <div
-            className="prose prose-sm max-w-none text-foreground [&_a]:text-primary"
-            dangerouslySetInnerHTML={{ __html: cleanHtml }}
+          <iframe
+            ref={iframeRef}
+            srcDoc={cleanHtml}
+            sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+            className="w-full border-0"
+            style={{ minHeight: '200px' }}
+            onLoad={adjustIframeHeight}
+            title="Conteúdo do email"
           />
         ) : email.corpo_texto ? (
-          <pre className="text-sm text-foreground whitespace-pre-wrap font-sans leading-relaxed">
+          <pre className="text-sm text-foreground whitespace-pre-wrap font-sans leading-relaxed px-5 py-3">
             {email.corpo_texto}
           </pre>
         ) : (
-          <p className="text-sm text-muted-foreground italic">Sem conteúdo</p>
+          <p className="text-sm text-muted-foreground italic px-5 py-3">Sem conteúdo</p>
         )}
       </div>
 
