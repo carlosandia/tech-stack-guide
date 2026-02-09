@@ -286,8 +286,8 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
             </Select>
           </div>
 
-          {/* Enviar config */}
-          {(config.tipo_botao === 'enviar' || config.tipo_botao === 'ambos') && !isWhatsApp && (
+          {/* Enviar config - show when enviar or ambos, regardless of which button opened the panel */}
+          {(config.tipo_botao === 'enviar' || config.tipo_botao === 'ambos') && (
             <div className="space-y-2 p-2 rounded border border-border bg-muted/30">
               <p className="text-xs font-medium flex items-center gap-1.5">
                 <Send className="w-3 h-3" /> Enviar
@@ -318,8 +318,8 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
             </div>
           )}
 
-          {/* WhatsApp config */}
-          {(config.tipo_botao === 'whatsapp' || config.tipo_botao === 'ambos') && isWhatsApp && (
+          {/* WhatsApp config - show when whatsapp or ambos, regardless of which button opened the panel */}
+          {(config.tipo_botao === 'whatsapp' || config.tipo_botao === 'ambos') && (
             <div className="space-y-2 p-2 rounded border border-border bg-muted/30">
               <p className="text-xs font-medium flex items-center gap-1.5">
                 <WhatsAppIcon size={12} /> WhatsApp
@@ -367,14 +367,6 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
                 />
               </div>
             </div>
-          )}
-
-          {/* Show general config for opposite button type */}
-          {isWhatsApp && (config.tipo_botao === 'enviar' || config.tipo_botao === 'ambos') && (
-            <p className="text-[10px] text-muted-foreground">Clique no pincel do botão Enviar para configurá-lo.</p>
-          )}
-          {!isWhatsApp && (config.tipo_botao === 'whatsapp' || config.tipo_botao === 'ambos') && (
-            <p className="text-[10px] text-muted-foreground">Clique no pincel do botão WhatsApp para configurá-lo.</p>
           )}
 
           <Button size="sm" className="w-full text-xs" onClick={saveConfig} disabled={saving}>
