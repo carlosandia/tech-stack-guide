@@ -10,7 +10,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/providers/AuthProvider'
-import { subDays, differenceInMinutes } from 'date-fns'
+import { subDays } from 'date-fns'
 
 export type PeriodoMetricas = 'hoje' | '7d' | '30d' | '60d' | '90d'
 export type CanalFiltro = 'todos' | 'whatsapp' | 'instagram'
@@ -150,7 +150,7 @@ async function fetchMetricas(filters: MetricasFilters, role: string): Promise<Co
     if (primeiraCliente) {
       const primeiraResposta = msgs.find(m => m.from_me && new Date(m.criado_em) > new Date(primeiraCliente.criado_em))
       if (primeiraResposta) {
-        const diff = differenceInMinutes(new Date(primeiraResposta.criado_em), new Date(primeiraCliente.criado_em))
+        const diff = (new Date(primeiraResposta.criado_em).getTime() - new Date(primeiraCliente.criado_em).getTime()) / 60000
         tmrValues.push(diff)
       }
     }
@@ -161,7 +161,7 @@ async function fetchMetricas(filters: MetricasFilters, role: string): Promise<Co
         // Encontrar próxima msg from_me
         const resposta = msgs.slice(i + 1).find(m => m.from_me)
         if (resposta) {
-          const diff = differenceInMinutes(new Date(resposta.criado_em), new Date(msgs[i].criado_em))
+          const diff = (new Date(resposta.criado_em).getTime() - new Date(msgs[i].criado_em).getTime()) / 60000
           tmaValues.push(diff)
         }
       }
@@ -182,7 +182,7 @@ async function fetchMetricas(filters: MetricasFilters, role: string): Promise<Co
   for (const [, msgs] of msgsPorConversa) {
     const ultimaMsg = msgs[msgs.length - 1]
     if (ultimaMsg && !ultimaMsg.from_me) {
-      const diff = differenceInMinutes(agora, new Date(ultimaMsg.criado_em))
+      const diff = (agora.getTime() - new Date(ultimaMsg.criado_em).getTime()) / 60000
       if (diff > 120) conversasSemResposta++
     }
   }
@@ -197,7 +197,7 @@ async function fetchMetricas(filters: MetricasFilters, role: string): Promise<Co
   const temposResolucao: number[] = []
   for (const c of conversasList) {
     if (c.status === 'fechada' && c.primeira_mensagem_em && c.status_alterado_em) {
-      const diff = differenceInMinutes(new Date(c.status_alterado_em), new Date(c.primeira_mensagem_em))
+      const diff = (new Date(c.status_alterado_em).getTime() - new Date(c.primeira_mensagem_em).getTime()) / 60000
       if (diff > 0) temposResolucao.push(diff)
     }
   }
