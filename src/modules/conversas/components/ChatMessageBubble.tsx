@@ -2,8 +2,10 @@
  * AIDEV-NOTE: Bolha de mensagem individual no chat (PRD-09)
  * Suporta todos os tipos: text, image, video, audio, document, location, contact, poll, sticker, reaction
  * Suporta exibição de nome do remetente em grupos
+ * Integra MediaViewer para lightbox de imagens e vídeos
  */
 
+import { useState } from 'react'
 import { format } from 'date-fns'
 import {
   Check,
@@ -16,6 +18,7 @@ import {
   ExternalLink,
 } from 'lucide-react'
 import type { Mensagem } from '../services/conversas.api'
+import { MediaViewer } from './MediaViewer'
 
 interface ChatMessageBubbleProps {
   mensagem: Mensagem
@@ -63,7 +66,7 @@ function TextContent({ body }: { body: string }) {
   )
 }
 
-function ImageContent({ mensagem }: { mensagem: Mensagem }) {
+function ImageContent({ mensagem, onViewMedia }: { mensagem: Mensagem; onViewMedia?: (url: string, tipo: 'image' | 'video') => void }) {
   return (
     <div className="space-y-1">
       {mensagem.media_url && (
@@ -72,6 +75,7 @@ function ImageContent({ mensagem }: { mensagem: Mensagem }) {
           alt="Imagem"
           className="rounded-md max-w-[280px] max-h-[300px] object-cover cursor-pointer hover:opacity-90 transition-opacity"
           loading="lazy"
+          onClick={() => onViewMedia?.(mensagem.media_url!, 'image')}
         />
       )}
       {mensagem.caption && <TextContent body={mensagem.caption} />}
@@ -79,16 +83,25 @@ function ImageContent({ mensagem }: { mensagem: Mensagem }) {
   )
 }
 
-function VideoContent({ mensagem }: { mensagem: Mensagem }) {
+function VideoContent({ mensagem, onViewMedia }: { mensagem: Mensagem; onViewMedia?: (url: string, tipo: 'image' | 'video') => void }) {
   return (
     <div className="space-y-1">
       {mensagem.media_url && (
-        <video
-          src={mensagem.media_url}
-          controls
-          className="rounded-md max-w-[280px] max-h-[300px]"
-          preload="metadata"
-        />
+        <div
+          className="relative cursor-pointer group"
+          onClick={() => onViewMedia?.(mensagem.media_url!, 'video')}
+        >
+          <video
+            src={mensagem.media_url}
+            className="rounded-md max-w-[280px] max-h-[300px]"
+            preload="metadata"
+          />
+          <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-md group-hover:bg-black/30 transition-colors">
+            <div className="w-12 h-12 rounded-full bg-black/50 flex items-center justify-center">
+              <Play className="w-6 h-6 text-white fill-white ml-0.5" />
+            </div>
+          </div>
+        </div>
       )}
       {mensagem.caption && <TextContent body={mensagem.caption} />}
     </div>
@@ -208,14 +221,14 @@ function ReactionContent({ mensagem }: { mensagem: Mensagem }) {
   )
 }
 
-function renderContent(mensagem: Mensagem) {
+function renderContent(mensagem: Mensagem, onViewMedia?: (url: string, tipo: 'image' | 'video') => void) {
   switch (mensagem.tipo) {
     case 'text':
       return <TextContent body={mensagem.body || ''} />
     case 'image':
-      return <ImageContent mensagem={mensagem} />
+      return <ImageContent mensagem={mensagem} onViewMedia={onViewMedia} />
     case 'video':
-      return <VideoContent mensagem={mensagem} />
+      return <VideoContent mensagem={mensagem} onViewMedia={onViewMedia} />
     case 'audio':
       return <AudioContent mensagem={mensagem} />
     case 'document':
@@ -236,56 +249,79 @@ function renderContent(mensagem: Mensagem) {
 }
 
 export function ChatMessageBubble({ mensagem, participantName, participantColor }: ChatMessageBubbleProps) {
+  const [viewerMedia, setViewerMedia] = useState<{ url: string; tipo: 'image' | 'video' } | null>(null)
   const isMe = mensagem.from_me
   const isSticker = mensagem.tipo === 'sticker'
   const isReaction = mensagem.tipo === 'reaction'
 
+  const handleViewMedia = (url: string, tipo: 'image' | 'video') => {
+    setViewerMedia({ url, tipo })
+  }
+
   // Sticker e reaction não tem bolha
   if (isSticker || isReaction) {
     return (
-      <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} mb-1`}>
-        <div className="relative">
-          {renderContent(mensagem)}
-          <span className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1 justify-end">
-            {format(new Date(mensagem.criado_em), 'HH:mm')}
-            {isMe && <AckIndicator ack={mensagem.ack} />}
-          </span>
+      <>
+        <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} mb-1`}>
+          <div className="relative">
+            {renderContent(mensagem, handleViewMedia)}
+            <span className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1 justify-end">
+              {format(new Date(mensagem.criado_em), 'HH:mm')}
+              {isMe && <AckIndicator ack={mensagem.ack} />}
+            </span>
+          </div>
         </div>
-      </div>
+        {viewerMedia && (
+          <MediaViewer
+            url={viewerMedia.url}
+            tipo={viewerMedia.tipo}
+            onClose={() => setViewerMedia(null)}
+          />
+        )}
+      </>
     )
   }
 
   return (
-    <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} mb-1`}>
-      <div
-        className={`
-          relative max-w-[85%] sm:max-w-[75%] lg:max-w-[60%] rounded-lg px-3 py-2
-          ${isMe
-            ? 'bg-primary/10 border border-primary/15'
-            : 'bg-muted border border-border/30'
-          }
-        `}
-      >
-        {/* Participant name for group messages (received only) */}
-        {participantName && !isMe && (
-          <p
-            className="text-[11px] font-semibold mb-0.5 truncate"
-            style={{ color: participantColor || 'hsl(var(--primary))' }}
-          >
-            {participantName}
-          </p>
-        )}
+    <>
+      <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} mb-1`}>
+        <div
+          className={`
+            relative max-w-[85%] sm:max-w-[75%] lg:max-w-[60%] rounded-lg px-3 py-2
+            ${isMe
+              ? 'bg-primary/10 border border-primary/15'
+              : 'bg-muted border border-border/30'
+            }
+          `}
+        >
+          {/* Participant name for group messages (received only) */}
+          {participantName && !isMe && (
+            <p
+              className="text-[11px] font-semibold mb-0.5 truncate"
+              style={{ color: participantColor || 'hsl(var(--primary))' }}
+            >
+              {participantName}
+            </p>
+          )}
 
-        {renderContent(mensagem)}
+          {renderContent(mensagem, handleViewMedia)}
 
-        {/* Timestamp + ACK */}
-        <div className="flex items-center gap-1 justify-end mt-1">
-          <span className="text-[10px] text-muted-foreground">
-            {format(new Date(mensagem.criado_em), 'HH:mm')}
-          </span>
-          {isMe && <AckIndicator ack={mensagem.ack} />}
+          {/* Timestamp + ACK */}
+          <div className="flex items-center gap-1 justify-end mt-1">
+            <span className="text-[10px] text-muted-foreground">
+              {format(new Date(mensagem.criado_em), 'HH:mm')}
+            </span>
+            {isMe && <AckIndicator ack={mensagem.ack} />}
+          </div>
         </div>
       </div>
-    </div>
+      {viewerMedia && (
+        <MediaViewer
+          url={viewerMedia.url}
+          tipo={viewerMedia.tipo}
+          onClose={() => setViewerMedia(null)}
+        />
+      )}
+    </>
   )
 }

@@ -28,9 +28,11 @@ export function AudioRecorder({ onSend, onCancel }: AudioRecorderProps) {
       })
       streamRef.current = stream
 
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-        ? 'audio/webm;codecs=opus'
-        : 'audio/webm'
+      const mimeType = MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')
+        ? 'audio/ogg;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+          ? 'audio/webm;codecs=opus'
+          : 'audio/webm'
 
       const recorder = new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 32000 })
       mediaRecorderRef.current = recorder
