@@ -12,7 +12,7 @@ import { z } from 'zod'
 // Enums
 // =====================================================
 
-export const PlataformaEnum = z.enum(['whatsapp', 'instagram', 'meta_ads', 'google', 'email'])
+export const PlataformaEnum = z.enum(['whatsapp', 'instagram', 'meta_ads', 'google', 'email', 'api4com'])
 export type Plataforma = z.infer<typeof PlataformaEnum>
 
 // Alias para PlataformaIntegracao para compatibilidade

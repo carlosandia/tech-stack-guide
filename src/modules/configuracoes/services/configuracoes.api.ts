@@ -220,7 +220,7 @@ export interface ConfiguracaoCard {
 }
 
 // Integracoes
-export type PlataformaIntegracao = 'whatsapp' | 'instagram' | 'meta_ads' | 'google' | 'email'
+export type PlataformaIntegracao = 'whatsapp' | 'instagram' | 'meta_ads' | 'google' | 'email' | 'api4com'
 export type TipoConexaoEmail = 'gmail_oauth' | 'smtp_manual'
 
 export interface Integracao {

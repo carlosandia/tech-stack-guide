@@ -3058,6 +3058,92 @@ export type Database = {
           },
         ]
       }
+      ligacoes: {
+        Row: {
+          contato_id: string | null
+          criado_em: string
+          direcao: string
+          duracao_segundos: number | null
+          fim_em: string | null
+          gravacao_url: string | null
+          id: string
+          inicio_em: string
+          metadata: Json | null
+          notas: string | null
+          numero_destino: string
+          numero_origem: string | null
+          oportunidade_id: string | null
+          organizacao_id: string
+          status: string
+          usuario_id: string
+        }
+        Insert: {
+          contato_id?: string | null
+          criado_em?: string
+          direcao?: string
+          duracao_segundos?: number | null
+          fim_em?: string | null
+          gravacao_url?: string | null
+          id?: string
+          inicio_em?: string
+          metadata?: Json | null
+          notas?: string | null
+          numero_destino: string
+          numero_origem?: string | null
+          oportunidade_id?: string | null
+          organizacao_id: string
+          status?: string
+          usuario_id: string
+        }
+        Update: {
+          contato_id?: string | null
+          criado_em?: string
+          direcao?: string
+          duracao_segundos?: number | null
+          fim_em?: string | null
+          gravacao_url?: string | null
+          id?: string
+          inicio_em?: string
+          metadata?: Json | null
+          notas?: string | null
+          numero_destino?: string
+          numero_origem?: string | null
+          oportunidade_id?: string | null
+          organizacao_id?: string
+          status?: string
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ligacoes_contato_id_fkey"
+            columns: ["contato_id"]
+            isOneToOne: false
+            referencedRelation: "contatos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ligacoes_oportunidade_id_fkey"
+            columns: ["oportunidade_id"]
+            isOneToOne: false
+            referencedRelation: "oportunidades"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ligacoes_organizacao_id_fkey"
+            columns: ["organizacao_id"]
+            isOneToOne: false
+            referencedRelation: "organizacoes_saas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ligacoes_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       log_conversions_api: {
         Row: {
           config_id: string | null
@@ -4667,6 +4753,60 @@ export type Database = {
             columns: ["organizacao_id"]
             isOneToOne: false
             referencedRelation: "organizacoes_saas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ramais_voip: {
+        Row: {
+          atualizado_em: string
+          criado_em: string
+          extension: string
+          id: string
+          nome_exibicao: string | null
+          organizacao_id: string
+          password_encrypted: string
+          sip_server: string
+          status: string
+          usuario_id: string
+        }
+        Insert: {
+          atualizado_em?: string
+          criado_em?: string
+          extension: string
+          id?: string
+          nome_exibicao?: string | null
+          organizacao_id: string
+          password_encrypted: string
+          sip_server?: string
+          status?: string
+          usuario_id: string
+        }
+        Update: {
+          atualizado_em?: string
+          criado_em?: string
+          extension?: string
+          id?: string
+          nome_exibicao?: string | null
+          organizacao_id?: string
+          password_encrypted?: string
+          sip_server?: string
+          status?: string
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ramais_voip_organizacao_id_fkey"
+            columns: ["organizacao_id"]
+            isOneToOne: false
+            referencedRelation: "organizacoes_saas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ramais_voip_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
             referencedColumns: ["id"]
           },
         ]
