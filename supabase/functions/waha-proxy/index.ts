@@ -964,6 +964,15 @@ Deno.serve(async (req) => {
         const deleteData = await deleteResp.json().catch(() => ({}));
         console.log(`[waha-proxy] Delete message response: ${deleteResp.status}`, JSON.stringify(deleteData).substring(0, 300));
 
+        // Handle NOWEB store limitation gracefully
+        if (!deleteResp.ok && deleteData?.message?.includes?.("NOWEB store")) {
+          console.log(`[waha-proxy] NOWEB store not enabled - returning partial success for apagar_mensagem`);
+          return new Response(
+            JSON.stringify({ ok: true, waha_unsupported: true, message: "Funcionalidade requer NOWEB store. Operação aplicada apenas no CRM." }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
         return new Response(
           JSON.stringify({ ok: deleteResp.ok, data: deleteData }),
           { status: deleteResp.ok ? 200 : deleteResp.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -992,6 +1001,15 @@ Deno.serve(async (req) => {
 
         const clearData = await clearResp.json().catch(() => ({}));
         console.log(`[waha-proxy] Clear chat response: ${clearResp.status}`, JSON.stringify(clearData).substring(0, 300));
+
+        // Handle NOWEB store limitation gracefully
+        if (!clearResp.ok && clearData?.message?.includes?.("NOWEB store")) {
+          console.log(`[waha-proxy] NOWEB store not enabled - returning partial success for limpar_conversa`);
+          return new Response(
+            JSON.stringify({ ok: true, waha_unsupported: true, message: "Funcionalidade requer NOWEB store. Operação aplicada apenas no CRM." }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
 
         return new Response(
           JSON.stringify({ ok: clearResp.ok, data: clearData }),
@@ -1022,6 +1040,15 @@ Deno.serve(async (req) => {
         const delConvData = await delConvResp.json().catch(() => ({}));
         console.log(`[waha-proxy] Delete chat response: ${delConvResp.status}`, JSON.stringify(delConvData).substring(0, 300));
 
+        // Handle NOWEB store limitation gracefully
+        if (!delConvResp.ok && delConvData?.message?.includes?.("NOWEB store")) {
+          console.log(`[waha-proxy] NOWEB store not enabled - returning partial success for apagar_conversa`);
+          return new Response(
+            JSON.stringify({ ok: true, waha_unsupported: true, message: "Funcionalidade requer NOWEB store. Operação aplicada apenas no CRM." }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
         return new Response(
           JSON.stringify({ ok: delConvResp.ok, data: delConvData }),
           { status: delConvResp.ok ? 200 : delConvResp.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -1051,6 +1078,15 @@ Deno.serve(async (req) => {
         const archData = await archResp.json().catch(() => ({}));
         console.log(`[waha-proxy] Archive chat response: ${archResp.status}`, JSON.stringify(archData).substring(0, 300));
 
+        // Handle NOWEB store limitation gracefully
+        if (!archResp.ok && archData?.message?.includes?.("NOWEB store")) {
+          console.log(`[waha-proxy] NOWEB store not enabled - returning partial success for arquivar_conversa`);
+          return new Response(
+            JSON.stringify({ ok: true, waha_unsupported: true, message: "Funcionalidade requer NOWEB store. Operação aplicada apenas no CRM." }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
         return new Response(
           JSON.stringify({ ok: archResp.ok, data: archData }),
           { status: archResp.ok ? 200 : archResp.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -1079,6 +1115,15 @@ Deno.serve(async (req) => {
 
         const unreadData = await unreadResp.json().catch(() => ({}));
         console.log(`[waha-proxy] Unread chat response: ${unreadResp.status}`, JSON.stringify(unreadData).substring(0, 300));
+
+        // Handle NOWEB store limitation gracefully
+        if (!unreadResp.ok && unreadData?.message?.includes?.("NOWEB store")) {
+          console.log(`[waha-proxy] NOWEB store not enabled - returning partial success for marcar_nao_lida`);
+          return new Response(
+            JSON.stringify({ ok: true, waha_unsupported: true, message: "Funcionalidade requer NOWEB store. Operação aplicada apenas no CRM." }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
 
         return new Response(
           JSON.stringify({ ok: unreadResp.ok, data: unreadData }),
