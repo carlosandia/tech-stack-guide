@@ -18,7 +18,7 @@ import { MetaAdsConexaoModal } from '../components/integracoes/MetaAdsConexaoMod
 import { GoogleCalendarConexaoModal } from '../components/integracoes/GoogleCalendarConexaoModal'
 import type { PlataformaIntegracao, Integracao } from '../services/configuracoes.api'
 
-const PLATAFORMAS: PlataformaIntegracao[] = ['whatsapp', 'instagram', 'meta_ads', 'google', 'email']
+const PLATAFORMAS: PlataformaIntegracao[] = ['whatsapp', 'instagram', 'meta_ads', 'google', 'email', 'api4com']
 
 export function ConexoesPage() {
   const { setSubtitle, setActions } = useConfigToolbar()

@@ -77,6 +77,13 @@ const plataformaConfig: Record<PlataformaIntegracao, {
     cor: 'text-amber-600',
     bgCor: 'bg-amber-50',
   },
+  api4com: {
+    nome: 'API4COM - Telefonia VoIP',
+    descricao: 'Ligações telefônicas direto do CRM via WebRTC/SIP',
+    icon: Phone,
+    cor: 'text-violet-600',
+    bgCor: 'bg-violet-50',
+  },
 }
 
 function formatDate(dateStr?: string | null): string {
