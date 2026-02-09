@@ -1,76 +1,80 @@
 
-# Plano: 5 Correcoes no Editor de Formularios
+# Plano: Mascaras, Rota Publica, e Pos-Envio nos Botoes
 
-## 1. Config nao atualiza campos visiveis apos salvar tipo de botao
+## 1. Rota publica `/f/:slug` - Link direto nao funciona
 
-**Problema**: Ao trocar o tipo de botao (ex: para "Ambos") e salvar, os campos de configuracao especificos nao aparecem imediatamente. So aparecem ao fechar e reabrir o painel.
+**Problema**: Nao existe uma rota `/f/:slug` no `App.tsx`. O link direto, embed e QR Code apontam para essa URL, mas ela cai no catch-all `*` que redireciona para `/`. O formulario nunca e exibido publicamente.
 
-**Causa**: O `BotaoConfigPanel` carrega `config` do banco apenas no `useEffect` inicial. Apos o `saveConfig`, o `queryClient.invalidateQueries` invalida a query mas o estado local `config` ja foi atualizado via `setConfig`. O problema real e que o `configBotoes` no `FormularioEditorPage` (que controla quais botoes aparecem no preview) nao recarrega - o `formulario` precisa ser re-fetched.
+**Solucao**:
+- Criar pagina `src/modules/formularios/pages/FormularioPublicoPage.tsx` que:
+  - Busca o formulario pelo slug (query publica sem autenticacao)
+  - Busca os campos do formulario
+  - Renderiza o formulario completo com estilos aplicados
+  - Captura UTMs da URL (`utm_source`, `utm_medium`, `utm_campaign`) e armazena para envio junto com a submissao
+  - Permite preenchimento e submissao (insert na tabela `submissoes_formularios`)
+  - Exibe mensagem de sucesso/redirecionamento conforme `config_pos_envio`
+- Adicionar rota `<Route path="/f/:slug" element={<FormularioPublicoPage />} />` no `App.tsx` (fora do layout autenticado)
+- Criar funcao `buscarPorSlug(slug)` no `formularios.api.ts` que faz SELECT publico (precisa de RLS policy para leitura publica de formularios publicados)
 
-**Correcao**:
-- No `BotaoConfigPanel.tsx`, apos salvar com sucesso, tambem invalidar a query `['formularios', formularioId]` (ja faz isso) E propagar o novo `config` para o pai via callback.
-- Adicionar uma prop `onConfigChange` ao `BotaoConfigPanel` para notificar o `FormularioEditorPage` da mudanca imediata no `configBotoes`.
-- No `FormularioEditorPage`, manter um estado local `configBotoes` que e atualizado tanto pelo fetch quanto pelo callback do painel.
+**Sobre UTMs**: A logica de construcao de URL no `LinkDiretoCard` esta correta. Os UTMs serao capturados pela pagina publica via `useSearchParams` e armazenados na submissao.
 
----
-
-## 2. Largura Total nao funciona com dois botoes
-
-**Problema**: Quando "Largura Total" esta selecionada e ha dois botoes, o botao Enviar fica muito pequeno (nao ocupa 50% cada).
-
-**Causa**: No `renderBotoes` (FormPreview.tsx linha 487-493), quando `tipoBotao === 'ambos'`, os botoes ficam em `flex` mas sem `flex-1`. O `buttonStyle.width` e `100%` (largura total), mas dentro de um flex container sem grow, isso nao se distribui bem.
-
-**Correcao**:
-- Quando `tipoBotao === 'ambos'`, aplicar `flex-1` nos wrappers dos botoes para que dividam o espaco igualmente.
-- Quando o estilo for "Largura Total" e houver 2 botoes, cada um recebe `flex: 1` e `width: 100%` dentro do seu wrapper.
-- Quando for "auto" ou "50%", manter o comportamento atual.
+**Sobre Embed e QR Code**: Funcionarao automaticamente assim que a rota publica existir, pois ambos apontam para `/f/:slug`. O QR Code usa API externa (qrserver.com) que nao depende de autenticacao.
 
 ---
 
-## 3. Visualizar Final deve permitir interacao/teste
+## 2. Mascaras em todos os campos no preview
 
-**Problema**: No modo "Visualizar Final", os campos estao todos com `readOnly` ou `disabled`, impossibilitando testar o formulario.
+**Problema**: Campos como `telefone`, `telefone_br`, `cpf`, `cnpj`, `cep`, `moeda` nao possuem mascaras interativas no preview. Apenas placeholders estaticos.
 
-**Correcao**:
-- No `renderFinalCampo` (FormPreview.tsx linhas 500-711), remover `readOnly` e `disabled` de todos os inputs.
-- Permitir que checkboxes, selects, radios, date pickers etc. sejam interativos.
-- Manter os botoes funcionais no preview final (sem `onClick={undefined}`).
-
----
-
-## 4. Campo "Termos de Uso" precisa de link para modal
-
-**Problema**: O campo `checkbox_termos` renderiza apenas um checkbox com texto, sem possibilidade de visualizar os termos.
-
-**Correcao**:
-- Adicionar um campo `conteudo_termos` ao `CampoFormulario` (usar o campo `valor_padrao` ja existente para armazenar o HTML dos termos).
-- No `CampoConfigPanel`, quando o tipo for `checkbox_termos`, mostrar um campo `Textarea` para inserir o texto dos termos.
-- No `renderFinalCampo` e no `CampoItem`, renderizar um link "Ver termos" ao lado do checkbox que abre um Dialog/Modal com o conteudo.
-- Criar um componente `TermosModal` simples com Dialog do Radix.
+**Solucao**: 
+- Criar helper `src/modules/formularios/utils/masks.ts` com funcoes de mascara puras (sem dependencia de lib externa):
+  - `maskCPF(value)` - `000.000.000-00`
+  - `maskCNPJ(value)` - `00.000.000/0000-00`  
+  - `maskCEP(value)` - `00000-000`
+  - `maskTelefone(value)` - `(00) 00000-0000`
+  - `maskTelefoneInternacional(value)` - `+00 00000-0000`
+  - `maskMoeda(value)` - `R$ 0,00`
+- No `renderFinalCampo` (FormPreview.tsx), usar `onChange` com mascaras nos inputs correspondentes para que o usuario veja a formatacao em tempo real
+- Na pagina publica (`FormularioPublicoPage`), reutilizar as mesmas mascaras
 
 ---
 
-## 5. Texto de ajuda deve aparecer como icone (i) ao lado do label
+## 3. Mover Pos-Envio para dentro do BotaoConfigPanel
 
-**Problema**: O texto de ajuda aparece como texto simples abaixo do campo. Deveria ser um icone (i) ao lado do label que mostra o texto em tooltip/popover.
+**Problema**: A configuracao de pos-envio (mensagem sucesso, erro, redirecionamento) esta na aba "Configuracoes" separada dos botoes. Faz mais sentido estar junto com a configuracao dos botoes.
 
-**Correcao**:
-- No `CampoItem.tsx` (linha 98-100), substituir o `<p>` do texto de ajuda por um icone `Info` (lucide) ao lado do label (linha 89-95).
-- Usar um `Popover` ou `title` attr para mostrar o texto ao passar o mouse.
-- No `renderFinalCampo` (FormPreview.tsx), aplicar o mesmo padrao: icone (i) ao lado do label com tooltip.
+**Solucao**:
+- Adicionar uma terceira sub-aba no `BotaoConfigPanel`: **"Pos-Envio"** (alem de "Estilo" e "Configuracao")
+- Mover o conteudo do `ConfigPosEnvioForm` (mensagem sucesso, mensagem erro, acao apos envio, URL redirecionamento, tempo) para essa nova aba
+- Remover o `enviar_url_redirecionamento` da aba "Configuracao" (ja que estara no Pos-Envio)
+- Remover `ConfigPosEnvioForm` do `EditorTabsConfig.tsx`
+- O salvamento continua usando `config_pos_envio` no formulario
 
 ---
 
-## Arquivos a modificar
+## Detalhes Tecnicos
 
-1. **`BotaoConfigPanel.tsx`** - Adicionar prop `onConfigChange` callback; chamar apos salvar
-2. **`FormularioEditorPage.tsx`** - Estado local para `configBotoes` atualizado via callback
-3. **`FormPreview.tsx`**:
-   - `renderBotoes`: flex-1 nos wrappers quando ambos
-   - `renderFinalCampo`: remover readOnly/disabled; adicionar icone (i) para texto_ajuda; modal de termos no checkbox_termos
-4. **`CampoItem.tsx`** - Texto de ajuda como icone (i) com Popover ao lado do label
-5. **`CampoConfigPanel.tsx`** - Campo para conteudo dos termos quando tipo = checkbox_termos (usar `valor_padrao`)
+### Arquivos a criar:
+1. **`src/modules/formularios/pages/FormularioPublicoPage.tsx`** - Pagina publica do formulario com renderizacao completa, mascaras, captura de UTMs e submissao
+2. **`src/modules/formularios/utils/masks.ts`** - Funcoes de mascara puras para CPF, CNPJ, CEP, telefone, moeda
 
-## Componente novo
+### Arquivos a modificar:
 
-- `src/modules/formularios/components/campos/TermosModal.tsx` - Dialog simples para exibir texto dos termos
+1. **`src/App.tsx`** - Adicionar `<Route path="/f/:slug" element={<FormularioPublicoPage />} />` nas rotas publicas
+2. **`src/modules/formularios/services/formularios.api.ts`**:
+   - Adicionar `buscarPorSlug(slug)` para busca publica
+   - Adicionar `listarCamposPublico(formularioId)` para busca publica de campos
+   - Adicionar `enviarSubmissao(formularioId, dados, utms)` para criar submissao
+3. **`src/modules/formularios/components/editor/FormPreview.tsx`** - Integrar mascaras nos inputs do `renderFinalCampo` (onChange com mask)
+4. **`src/modules/formularios/components/config/BotaoConfigPanel.tsx`**:
+   - Adicionar terceira aba "Pos-Envio"
+   - Integrar campos de mensagem sucesso/erro, acao apos envio, URL redirecionamento
+   - Carregar e salvar `config_pos_envio` junto com `config_botoes`
+   - Remover `enviar_url_redirecionamento` da aba Config (movido para Pos-Envio)
+5. **`src/modules/formularios/components/editor/EditorTabsConfig.tsx`** - Remover `ConfigPosEnvioForm` e seu import
+
+### Consideracoes de seguranca:
+- A rota publica precisara de uma RLS policy permitindo SELECT em `formularios` e `campos_formularios` onde `status = 'publicado'` e sem autenticacao (anon)
+- INSERT na tabela `submissoes_formularios` tambem precisara de policy anon
+- Validacao server-side dos dados submetidos
+- Sanitizacao de HTML no campo `bloco_html` com DOMPurify (ja instalado no projeto)
