@@ -18,14 +18,13 @@ interface ChatMessagesProps {
   isFetchingMore: boolean
   highlightIds?: Set<string>
   focusedId?: string | null
-  /** Tipo da conversa: 'individual' | 'grupo' | 'canal' */
   conversaTipo?: string
-  /** ID da conversa (para consultar votos de enquete) */
   conversaId?: string
-  /** Callback para apagar mensagem */
   onDeleteMessage?: (mensagemId: string, messageWahaId: string, paraTodos: boolean) => void
-  /** Callback para responder mensagem */
   onReplyMessage?: (mensagem: Mensagem) => void
+  onReactMessage?: (mensagem: Mensagem, emoji: string) => void
+  onForwardMessage?: (mensagem: Mensagem) => void
+  onPinMessage?: (mensagem: Mensagem) => void
 }
 
 function formatDateSeparator(dateStr: string): string {
@@ -35,7 +34,6 @@ function formatDateSeparator(dateStr: string): string {
   return format(date, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
 }
 
-// Cores distintas para participantes de grupo
 const participantColors = [
   '#e17055', '#00b894', '#0984e3', '#6c5ce7',
   '#fdcb6e', '#e84393', '#00cec9', '#d63031',
@@ -47,12 +45,7 @@ function getParticipantColor(participant: string): string {
   return participantColors[hash % participantColors.length]
 }
 
-/**
- * Extrai o nome de exibição do participant de uma mensagem de grupo.
- * Usa pushName do raw_data ou o número de telefone.
- */
 function getParticipantDisplayName(msg: Mensagem): string {
-  // Try raw_data for pushName (sent by webhook)
   const rawData = msg.raw_data as Record<string, unknown> | null
   if (rawData) {
     const pushName = (rawData._data as Record<string, unknown>)?.pushName as string
@@ -60,25 +53,24 @@ function getParticipantDisplayName(msg: Mensagem): string {
       || (rawData._data as Record<string, unknown>)?.notifyName as string
     if (pushName) return pushName
   }
-
-  // Fallback: use from_number or participant field
   const participant = msg.participant || msg.from_number
   if (participant) {
-    // Format phone number: 5511999999999 -> +55 11 99999-9999
     const cleaned = participant.replace('@c.us', '').replace('@s.whatsapp.net', '')
     return `+${cleaned}`
   }
-
   return 'Desconhecido'
 }
 
-export function ChatMessages({ mensagens, isLoading, hasMore, onLoadMore, isFetchingMore, highlightIds, focusedId, conversaTipo, conversaId, onDeleteMessage, onReplyMessage }: ChatMessagesProps) {
+export function ChatMessages({
+  mensagens, isLoading, hasMore, onLoadMore, isFetchingMore,
+  highlightIds, focusedId, conversaTipo, conversaId,
+  onDeleteMessage, onReplyMessage, onReactMessage, onForwardMessage, onPinMessage,
+}: ChatMessagesProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const prevLengthRef = useRef(0)
   const isGroup = conversaTipo === 'grupo' || conversaTipo === 'canal'
 
-  // Auto-scroll para baixo quando novas mensagens chegam
   useEffect(() => {
     if (mensagens.length > prevLengthRef.current) {
       if (prevLengthRef.current === 0) {
@@ -96,7 +88,6 @@ export function ChatMessages({ mensagens, isLoading, hasMore, onLoadMore, isFetc
     prevLengthRef.current = mensagens.length
   }, [mensagens.length])
 
-  // Scroll up detection para carregar mais
   useEffect(() => {
     const container = containerRef.current
     if (!container || !hasMore) return
@@ -111,7 +102,6 @@ export function ChatMessages({ mensagens, isLoading, hasMore, onLoadMore, isFetc
     return () => container.removeEventListener('scroll', handleScroll)
   }, [hasMore, isFetchingMore, onLoadMore])
 
-  // Scroll to focused search result
   useEffect(() => {
     if (focusedId) {
       const el = document.getElementById(`msg-${focusedId}`)
@@ -119,14 +109,12 @@ export function ChatMessages({ mensagens, isLoading, hasMore, onLoadMore, isFetc
     }
   }, [focusedId])
 
-  // Mensagens em ordem cronológica (API retorna desc, invertemos)
   const sortedMessages = useMemo(() => {
     return [...mensagens].sort(
       (a, b) => new Date(a.criado_em).getTime() - new Date(b.criado_em).getTime()
     )
   }, [mensagens])
 
-  // Build a map of message_id -> Mensagem for quoted messages
   const messageByWahaId = useMemo(() => {
     const map = new Map<string, Mensagem>()
     for (const msg of sortedMessages) {
@@ -161,7 +149,6 @@ export function ChatMessages({ mensagens, isLoading, hasMore, onLoadMore, isFetc
         backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
       }}
     >
-      {/* Loading more indicator */}
       {isFetchingMore && (
         <div className="flex justify-center py-2">
           <Loader2 className="w-5 h-5 text-muted-foreground animate-spin" />
@@ -169,12 +156,10 @@ export function ChatMessages({ mensagens, isLoading, hasMore, onLoadMore, isFetc
       )}
 
       {sortedMessages.map((msg, idx) => {
-        // Separador de data
         const showDateSep =
           idx === 0 ||
           !isSameDay(new Date(msg.criado_em), new Date(sortedMessages[idx - 1].criado_em))
 
-        // Group: determine participant name and color
         let participantName: string | null = null
         let participantColor: string | null = null
 
@@ -192,8 +177,8 @@ export function ChatMessages({ mensagens, isLoading, hasMore, onLoadMore, isFetc
               focusedId === msg.id
                 ? 'bg-warning-muted/40 rounded-md transition-colors duration-300'
                 : highlightIds?.has(msg.id)
-                ? 'bg-warning-muted/20 rounded-md'
-                : ''
+                  ? 'bg-warning-muted/20 rounded-md'
+                  : ''
             }
           >
             {showDateSep && (
@@ -210,6 +195,9 @@ export function ChatMessages({ mensagens, isLoading, hasMore, onLoadMore, isFetc
               conversaId={conversaId}
               onDeleteMessage={onDeleteMessage}
               onReplyMessage={onReplyMessage}
+              onReactMessage={onReactMessage}
+              onForwardMessage={onForwardMessage}
+              onPinMessage={onPinMessage}
               quotedMessage={msg.reply_to_message_id ? messageByWahaId.get(msg.reply_to_message_id) || null : null}
             />
           </div>

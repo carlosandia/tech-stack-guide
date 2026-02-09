@@ -581,7 +581,70 @@ export const conversasApi = {
     if (error) throw new Error(error.message)
   },
 
-  // --- Mensagens ---
+  // =====================================================
+  // Ações de Mensagem (fixar, reagir, encaminhar)
+  // =====================================================
+
+  /** Fixar mensagem no chat via WAHA */
+  async fixarMensagem(conversaId: string, messageWahaId: string): Promise<void> {
+    const session = await getConversaWahaSession(conversaId)
+    if (session) {
+      try {
+        await supabase.functions.invoke('waha-proxy', {
+          body: {
+            action: 'fixar_mensagem',
+            session_name: session.sessionName,
+            chat_id: session.chatId,
+            message_id: messageWahaId,
+          },
+        })
+      } catch (e) {
+        console.warn('[conversasApi] WAHA fixar_mensagem falhou (CRM continua):', e)
+      }
+    }
+  },
+
+  /** Reagir a uma mensagem via WAHA */
+  async reagirMensagem(conversaId: string, messageWahaId: string, emoji: string): Promise<void> {
+    const session = await getConversaWahaSession(conversaId)
+    if (session) {
+      try {
+        await supabase.functions.invoke('waha-proxy', {
+          body: {
+            action: 'reagir_mensagem',
+            session_name: session.sessionName,
+            chat_id: session.chatId,
+            message_id: messageWahaId,
+            emoji,
+          },
+        })
+      } catch (e) {
+        console.warn('[conversasApi] WAHA reagir_mensagem falhou:', e)
+        throw new Error('Erro ao reagir à mensagem')
+      }
+    }
+  },
+
+  /** Encaminhar mensagem para outra conversa via WAHA */
+  async encaminharMensagem(conversaId: string, messageWahaId: string, destinoChatId: string): Promise<void> {
+    const session = await getConversaWahaSession(conversaId)
+    if (session) {
+      try {
+        await supabase.functions.invoke('waha-proxy', {
+          body: {
+            action: 'encaminhar_mensagem',
+            session_name: session.sessionName,
+            chat_id: session.chatId,
+            message_id: messageWahaId,
+            destino_chat_id: destinoChatId,
+          },
+        })
+      } catch (e) {
+        console.warn('[conversasApi] WAHA encaminhar_mensagem falhou:', e)
+        throw new Error('Erro ao encaminhar mensagem')
+      }
+    }
+  },
 
   async listarMensagens(conversaId: string, params?: ListarMensagensParams): Promise<ListarMensagensResponse> {
     const page = params?.page || 1

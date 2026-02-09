@@ -1,8 +1,8 @@
 /**
  * AIDEV-NOTE: Janela de chat completa (header + busca + mensagens + input)
  * Integra SelecionarPipelineModal + NovaOportunidadeModal para criação de oportunidade
- * Integra AudioRecorder, CameraCapture, ContatoSelectorModal, EnqueteModal
- * Conecta ações de silenciar, limpar e apagar conversa
+ * Integra AudioRecorder, CameraCapture, ContatoSelectorModal, EnqueteModal, EncaminharModal
+ * Conecta ações de silenciar, limpar, apagar, fixar, reagir e encaminhar
  */
 
 import { useState, useMemo, useEffect, useCallback } from 'react'
@@ -15,8 +15,13 @@ import { SelecionarPipelineModal } from './SelecionarPipelineModal'
 import { CameraCapture } from './CameraCapture'
 import { ContatoSelectorModal } from './ContatoSelectorModal'
 import { EnqueteModal } from './EnqueteModal'
+import { EncaminharModal } from './EncaminharModal'
 import { useMensagens, useEnviarTexto, useEnviarContato, useEnviarEnquete } from '../hooks/useMensagens'
-import { useAlterarStatusConversa, useMarcarComoLida, useSilenciarConversa, useLimparConversa, useApagarConversa, useApagarMensagem } from '../hooks/useConversas'
+import {
+  useAlterarStatusConversa, useMarcarComoLida, useSilenciarConversa,
+  useLimparConversa, useApagarConversa, useApagarMensagem,
+  useFixarMensagem, useReagirMensagem, useEncaminharMensagem,
+} from '../hooks/useConversas'
 import { conversasApi } from '../services/conversas.api'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
@@ -41,11 +46,12 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
   const [termoBusca, setTermoBusca] = useState('')
   const [buscaIndex, setBuscaIndex] = useState(0)
 
-  // New feature states
+  // Feature states
   const [cameraOpen, setCameraOpen] = useState(false)
   const [contatoModalOpen, setContatoModalOpen] = useState(false)
   const [enqueteModalOpen, setEnqueteModalOpen] = useState(false)
   const [replyingTo, setReplyingTo] = useState<Mensagem | null>(null)
+  const [encaminharMsg, setEncaminharMsg] = useState<Mensagem | null>(null)
 
   const {
     data: mensagensData,
@@ -64,6 +70,9 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
   const limparConversa = useLimparConversa()
   const apagarConversa = useApagarConversa()
   const apagarMensagem = useApagarMensagem()
+  const fixarMensagem = useFixarMensagem()
+  const reagirMensagem = useReagirMensagem()
+  const encaminharMensagem = useEncaminharMensagem()
 
   // Flatten paginated messages
   const mensagens = useMemo(() => {
@@ -88,7 +97,7 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
     if (conversa.mensagens_nao_lidas > 0) {
       marcarLida.mutate(conversa.id)
     }
-  }, [conversa.id]) // Only on conversation change
+  }, [conversa.id])
 
   // Reset search on conversation change
   useEffect(() => {
@@ -240,6 +249,29 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
     setOportunidadeModalOpen(true)
   }, [])
 
+  // New action handlers
+  const handleReactMessage = useCallback((mensagem: Mensagem, emoji: string) => {
+    reagirMensagem.mutate({ conversaId: conversa.id, messageWahaId: mensagem.message_id, emoji })
+  }, [conversa.id, reagirMensagem])
+
+  const handleForwardMessage = useCallback((mensagem: Mensagem) => {
+    setEncaminharMsg(mensagem)
+  }, [])
+
+  const handleForwardConfirm = useCallback((_destinoConversaId: string, destinoChatId: string) => {
+    if (!encaminharMsg) return
+    encaminharMensagem.mutate({
+      conversaId: conversa.id,
+      messageWahaId: encaminharMsg.message_id,
+      destinoChatId,
+    })
+    setEncaminharMsg(null)
+  }, [conversa.id, encaminharMsg, encaminharMensagem])
+
+  const handlePinMessage = useCallback((mensagem: Mensagem) => {
+    fixarMensagem.mutate({ conversaId: conversa.id, messageWahaId: mensagem.message_id })
+  }, [conversa.id, fixarMensagem])
+
   const handleSearch = (termo: string) => {
     setTermoBusca(termo)
     setBuscaIndex(0)
@@ -318,6 +350,9 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
           apagarMensagem.mutate({ conversaId: conversa.id, mensagemId, messageWahaId, paraTodos })
         }}
         onReplyMessage={(msg) => setReplyingTo(msg)}
+        onReactMessage={handleReactMessage}
+        onForwardMessage={handleForwardMessage}
+        onPinMessage={handlePinMessage}
       />
 
       <div className="relative">
@@ -360,6 +395,14 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
         <EnqueteModal
           onSend={handleEnqueteSend}
           onClose={() => setEnqueteModalOpen(false)}
+        />
+      )}
+
+      {encaminharMsg && (
+        <EncaminharModal
+          mensagem={encaminharMsg}
+          onForward={handleForwardConfirm}
+          onClose={() => setEncaminharMsg(null)}
         />
       )}
 
