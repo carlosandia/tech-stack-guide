@@ -13,7 +13,7 @@ import type {
   CampoFormulario,
 } from '../../services/formularios.api'
 
-export type SelectedElement = 'container' | 'campos' | 'botao' | null
+export type SelectedElement = 'container' | 'campos' | 'botao' | 'botao_whatsapp' | null
 
 interface Props {
   container: EstiloContainer

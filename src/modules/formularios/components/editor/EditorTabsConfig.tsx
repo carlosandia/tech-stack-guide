@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils'
 import { ConfigPopupForm } from '../config/ConfigPopupForm'
 import { ConfigNewsletterForm } from '../config/ConfigNewsletterForm'
 import { ConfigEtapasForm } from '../config/ConfigEtapasForm'
-import { ConfigBotoesEnvioForm } from '../config/ConfigBotoesEnvioForm'
+
 import { ConfigPosEnvioForm } from '../config/ConfigPosEnvioForm'
 import { EditorTabsLogica } from './EditorTabsLogica'
 import { EditorTabsIntegracoes } from './EditorTabsIntegracoes'
@@ -76,9 +76,6 @@ export function EditorTabsConfig({ formulario }: Props) {
                 <ConfigNewsletterForm formularioId={formulario.id} />
               </>
             )}
-
-            <hr className="border-border" />
-            <ConfigBotoesEnvioForm formularioId={formulario.id} />
 
             <hr className="border-border" />
             <ConfigPosEnvioForm formularioId={formulario.id} />

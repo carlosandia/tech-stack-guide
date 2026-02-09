@@ -30,7 +30,7 @@ import { type SelectedElement } from '../components/estilos/EstiloPreviewInterat
 import { EstiloPopover } from '../components/estilos/EstiloPopover'
 import { EstiloContainerForm } from '../components/estilos/EstiloContainerForm'
 import { EstiloCamposForm } from '../components/estilos/EstiloCamposForm'
-import { EstiloBotaoForm } from '../components/estilos/EstiloBotaoForm'
+import { BotaoConfigPanel } from '../components/config/BotaoConfigPanel'
 import { EditorTabsCompartilhar } from '../components/editor/EditorTabsCompartilhar'
 import { EditorTabsConfig } from '../components/editor/EditorTabsConfig'
 import { EditorTabsAnalytics } from '../components/editor/EditorTabsAnalytics'
@@ -202,7 +202,9 @@ export function FormularioEditorPage() {
       : selectedStyleElement === 'campos'
       ? 'Campos'
       : selectedStyleElement === 'botao'
-      ? 'Botão'
+      ? 'Botão Enviar'
+      : selectedStyleElement === 'botao_whatsapp'
+      ? 'Botão WhatsApp'
       : ''
 
   if (loadingForm || loadingCampos) {
@@ -346,7 +348,20 @@ export function FormularioEditorPage() {
                   <EstiloCamposForm value={camposEstilo} onChange={setCamposEstilo} />
                 )}
                 {selectedStyleElement === 'botao' && (
-                  <EstiloBotaoForm value={botao} onChange={setBotao} />
+                  <BotaoConfigPanel
+                    formularioId={formulario.id}
+                    tipo="botao"
+                    estiloBotao={botao}
+                    onChangeEstilo={setBotao}
+                  />
+                )}
+                {selectedStyleElement === 'botao_whatsapp' && (
+                  <BotaoConfigPanel
+                    formularioId={formulario.id}
+                    tipo="botao_whatsapp"
+                    estiloBotao={botao}
+                    onChangeEstilo={setBotao}
+                  />
                 )}
               </EstiloPopover>
             )}
