@@ -225,8 +225,27 @@ export function KanbanCard({ oportunidade, onDragStart, onClick, config, isSelec
       case 'tarefas_pendentes':
         return null
 
-      case 'tags':
-        return null
+      case 'tags': {
+        const segmentos = (oportunidade as any)._segmentos as Array<{ id: string; nome: string; cor: string }> | undefined
+        if (!segmentos || segmentos.length === 0) return null
+        return (
+          <div key={key} className="flex items-center gap-1 flex-wrap">
+            {segmentos.map(seg => (
+              <span
+                key={seg.id}
+                className="text-[10px] font-medium px-1.5 py-0.5 rounded-full border"
+                style={{
+                  backgroundColor: `${seg.cor}15`,
+                  borderColor: `${seg.cor}40`,
+                  color: seg.cor,
+                }}
+              >
+                {seg.nome}
+              </span>
+            ))}
+          </div>
+        )
+      }
 
       default:
         return null
@@ -280,7 +299,7 @@ export function KanbanCard({ oportunidade, onDragStart, onClick, config, isSelec
           onClick(oportunidade)
         }}
         className={`
-          bg-card border rounded-lg shadow-sm
+          group/card bg-card border rounded-lg shadow-sm
           hover:shadow-md cursor-grab active:cursor-grabbing
           transition-all duration-200 select-none overflow-hidden
           ${isSelected ? 'border-primary ring-1 ring-primary/40' : 'border-border'}
@@ -288,23 +307,31 @@ export function KanbanCard({ oportunidade, onDragStart, onClick, config, isSelec
       >
         <div className="px-3 pt-3 pb-2">
           <div className="flex items-center justify-between mb-1.5">
-            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+            <div className="flex items-center gap-0 min-w-0 flex-1">
               {onToggleSelect && (
-                <input
-                  type="checkbox"
-                  checked={!!isSelected}
-                  onChange={(e) => {
-                    e.stopPropagation()
-                    onToggleSelect(oportunidade.id)
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                  className="w-3.5 h-3.5 rounded border-border text-primary focus:ring-primary/30 flex-shrink-0 cursor-pointer"
-                />
+                <div
+                  className={`flex-shrink-0 overflow-hidden transition-all duration-200 ease-in-out ${
+                    isSelected
+                      ? 'w-5 opacity-100 mr-1.5'
+                      : 'w-0 opacity-0 group-hover/card:w-5 group-hover/card:opacity-100 group-hover/card:mr-1.5'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={!!isSelected}
+                    onChange={(e) => {
+                      e.stopPropagation()
+                      onToggleSelect(oportunidade.id)
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-3.5 h-3.5 rounded border-border text-primary focus:ring-primary/30 cursor-pointer"
+                  />
+                </div>
               )}
               <p className="text-sm font-medium text-foreground leading-tight truncate">
                 {oportunidade.titulo}
               </p>
-              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 whitespace-nowrap ${qualificacao.className}`}>
+              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 whitespace-nowrap ml-1.5 ${qualificacao.className}`}>
                 {qualificacao.label}
               </span>
             </div>

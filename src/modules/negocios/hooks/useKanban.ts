@@ -105,3 +105,26 @@ export function useFecharOportunidade() {
     },
   })
 }
+
+export function useExcluirOportunidadesEmMassa() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (ids: string[]) => negociosApi.excluirOportunidadesEmMassa(ids),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['kanban'] })
+    },
+  })
+}
+
+export function useMoverOportunidadesEmMassa() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ ids, etapaDestinoId }: { ids: string[]; etapaDestinoId: string }) =>
+      negociosApi.moverOportunidadesEmMassa(ids, etapaDestinoId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['kanban'] })
+    },
+  })
+}

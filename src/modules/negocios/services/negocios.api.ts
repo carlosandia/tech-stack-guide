@@ -403,6 +403,39 @@ export const negociosApi = {
       }
     }
 
+    // Buscar segmentos dos contatos para exibir tags nos cards
+    let segmentosContatoMap: Record<string, Array<{ id: string; nome: string; cor: string }>> = {}
+
+    if (contatoIds.length > 0) {
+      const { data: contatoSegmentos } = await supabase
+        .from('contatos_segmentos')
+        .select('contato_id, segmento_id')
+        .in('contato_id', contatoIds)
+
+      if (contatoSegmentos && contatoSegmentos.length > 0) {
+        const segIds = [...new Set(contatoSegmentos.map(cs => cs.segmento_id))]
+        const { data: segmentos } = await supabase
+          .from('segmentos')
+          .select('id, nome, cor')
+          .in('id', segIds)
+          .is('deletado_em', null)
+
+        const segMap: Record<string, { id: string; nome: string; cor: string }> = {}
+        if (segmentos) {
+          for (const s of segmentos) {
+            segMap[s.id] = { id: s.id, nome: s.nome, cor: s.cor || '#6B7280' }
+          }
+        }
+
+        for (const cs of contatoSegmentos) {
+          if (!segmentosContatoMap[cs.contato_id]) segmentosContatoMap[cs.contato_id] = []
+          if (segMap[cs.segmento_id]) {
+            segmentosContatoMap[cs.contato_id].push(segMap[cs.segmento_id])
+          }
+        }
+      }
+    }
+
     // Enriquecer oportunidades
     const opsEnriquecidas = ops.map(o => ({
       ...o,
@@ -410,6 +443,7 @@ export const negociosApi = {
       responsavel: o.usuario_responsavel_id ? responsaveisMap[o.usuario_responsavel_id] || null : null,
       _tarefas_pendentes: tarefasPendentesMap[o.id] || 0,
       _tarefas_total: tarefasTotalMap[o.id] || 0,
+      _segmentos: segmentosContatoMap[o.contato_id] || [],
     }))
 
     // Agrupar por etapa
@@ -1315,5 +1349,25 @@ export const negociosApi = {
     }
 
     return todasPassam
+  },
+
+  // Excluir oportunidades em massa (soft delete)
+  excluirOportunidadesEmMassa: async (ids: string[]): Promise<void> => {
+    const { error } = await supabase
+      .from('oportunidades')
+      .update({ deletado_em: new Date().toISOString() } as any)
+      .in('id', ids)
+
+    if (error) throw new Error(error.message)
+  },
+
+  // Mover oportunidades em massa para outra etapa
+  moverOportunidadesEmMassa: async (ids: string[], etapaDestinoId: string): Promise<void> => {
+    const { error } = await supabase
+      .from('oportunidades')
+      .update({ etapa_id: etapaDestinoId } as any)
+      .in('id', ids)
+
+    if (error) throw new Error(error.message)
   },
 }
