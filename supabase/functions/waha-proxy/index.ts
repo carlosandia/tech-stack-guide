@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
     const webhookUrl = `${supabaseUrl}/functions/v1/waha-webhook`;
 
     // Webhook events to subscribe
-    const webhookEvents = ["message", "message.ack"];
+    const webhookEvents = ["message", "message.ack", "poll.vote"];
 
     console.log(`[waha-proxy] Action: ${action}, Session: ${sessionId}, WAHA URL: ${baseUrl}`);
 

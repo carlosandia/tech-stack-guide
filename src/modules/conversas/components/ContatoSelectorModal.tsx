@@ -18,10 +18,17 @@ function gerarVCard(contato: ConversaContato): string {
   const firstName = parts[0] || ''
   const lastName = parts.slice(1).join(' ') || ''
 
+  // Limpar telefone: remover espaços, traços, parênteses
+  const telefoneLimpo = contato.telefone?.replace(/[\s\-\(\)\.]/g, '') || ''
+  // Extrair apenas dígitos para o waid
+  const waid = telefoneLimpo.replace(/\D/g, '')
+  // Garantir que o número tenha + no início
+  const telFormatado = telefoneLimpo.startsWith('+') ? telefoneLimpo : `+${telefoneLimpo}`
+
   let vcard = 'BEGIN:VCARD\nVERSION:3.0\n'
   vcard += `FN:${nome}\n`
   vcard += `N:${lastName};${firstName};;;\n`
-  if (contato.telefone) vcard += `TEL;type=CELL:${contato.telefone}\n`
+  if (waid) vcard += `TEL;type=CELL;waid=${waid}:${telFormatado}\n`
   if (contato.email) vcard += `EMAIL:${contato.email}\n`
   vcard += 'END:VCARD'
 

@@ -112,6 +112,74 @@ Deno.serve(async (req) => {
       );
     }
 
+    // =====================================================
+    // HANDLE poll.vote EVENT (poll vote updates)
+    // =====================================================
+    if (body.event === "poll.vote") {
+      const payload = body.payload;
+      console.log(`[waha-webhook] poll.vote event received:`, JSON.stringify(payload).substring(0, 500));
+
+      if (payload) {
+        // WAHA poll.vote payload structure: { vote: { id, selectedOptions, timestamp } }
+        const vote = payload.vote || payload;
+        const pollMessageId = vote?.parentMessage?.id?._serialized || vote?.parentMessage?.id || vote?.id?._serialized || vote?.id || null;
+        const selectedOptions = vote?.selectedOptions || vote?.options || [];
+
+        console.log(`[waha-webhook] Poll vote: messageId=${pollMessageId}, options=${JSON.stringify(selectedOptions)}`);
+
+        if (pollMessageId) {
+          // Find the session to get organizacao_id
+          const { data: sessao } = await supabaseAdmin
+            .from("sessoes_whatsapp")
+            .select("id, organizacao_id")
+            .eq("session_name", sessionName)
+            .is("deletado_em", null)
+            .maybeSingle();
+
+          if (sessao) {
+            // Find the poll message
+            const { data: pollMsg } = await supabaseAdmin
+              .from("mensagens")
+              .select("id, poll_options")
+              .eq("message_id", pollMessageId)
+              .eq("organizacao_id", sessao.organizacao_id)
+              .maybeSingle();
+
+            if (pollMsg && pollMsg.poll_options) {
+              const currentOptions = pollMsg.poll_options as Array<{ text: string; votes: number }>;
+              const updatedOptions = currentOptions.map(opt => {
+                const wasSelected = selectedOptions.some((so: { name?: string; text?: string }) =>
+                  (so.name || so.text) === opt.text
+                );
+                return { ...opt, votes: wasSelected ? (opt.votes || 0) + 1 : opt.votes };
+              });
+
+              const { error: updateError } = await supabaseAdmin
+                .from("mensagens")
+                .update({
+                  poll_options: updatedOptions,
+                  atualizado_em: new Date().toISOString(),
+                })
+                .eq("id", pollMsg.id);
+
+              if (updateError) {
+                console.error(`[waha-webhook] Error updating poll votes:`, updateError.message);
+              } else {
+                console.log(`[waha-webhook] ✅ Poll votes updated for message ${pollMsg.id}`);
+              }
+            } else {
+              console.log(`[waha-webhook] Poll message not found: ${pollMessageId}`);
+            }
+          }
+        }
+      }
+
+      return new Response(
+        JSON.stringify({ ok: true, message: "Poll vote processed" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Only process message events from here
     if (body.event !== "message") {
       console.log(`[waha-webhook] Ignoring event: ${body.event}`);
@@ -475,6 +543,47 @@ Deno.serve(async (req) => {
     // For groups and channels, store participant info
     if ((isGroup || isChannel) && participantRaw) {
       messageInsert.participant = participantRaw;
+    }
+
+    // =====================================================
+    // Extract media data from WAHA payload
+    // =====================================================
+    if (payload.hasMedia && payload.media?.url) {
+      messageInsert.media_url = payload.media.url;
+      messageInsert.media_mimetype = payload.media.mimetype || null;
+      messageInsert.media_filename = payload.media.filename || payload._data?.filename || null;
+      messageInsert.media_size = payload.media.filesize || payload._data?.size || null;
+      messageInsert.media_duration = payload._data?.duration || null;
+      console.log(`[waha-webhook] Media extracted: url=${payload.media.url}, mime=${payload.media.mimetype}, filename=${payload.media.filename}`);
+    }
+
+    // Extract caption for media messages
+    if (payload.caption) {
+      messageInsert.caption = payload.caption;
+    }
+
+    // Extract location data
+    if (wahaType === "location") {
+      messageInsert.location_latitude = payload.location?.latitude || payload._data?.lat || null;
+      messageInsert.location_longitude = payload.location?.longitude || payload._data?.lng || null;
+      messageInsert.location_name = payload.location?.description || null;
+      messageInsert.location_address = payload.location?.address || null;
+    }
+
+    // Extract contact (vCard) data
+    if (wahaType === "contact" || wahaType === "vcard") {
+      messageInsert.tipo = "contact";
+      messageInsert.vcard = payload.vCards?.[0] || payload._data?.body || null;
+    }
+
+    // Extract poll data
+    if (wahaType === "poll" || wahaType === "poll_creation") {
+      messageInsert.tipo = "poll";
+      messageInsert.poll_question = payload._data?.pollName || payload.body || null;
+      const pollOpts = payload._data?.pollOptions;
+      if (Array.isArray(pollOpts)) {
+        messageInsert.poll_options = pollOpts.map((opt: { name?: string }) => ({ text: opt.name || "", votes: 0 }));
+      }
     }
 
     const { data: newMsg, error: msgError } = await supabaseAdmin
