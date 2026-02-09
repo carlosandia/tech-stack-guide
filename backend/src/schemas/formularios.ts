@@ -585,3 +585,175 @@ export const AtualizarConfigProfilingSchema = z.object({
 })
 
 export type AtualizarConfigProfilingPayload = z.infer<typeof AtualizarConfigProfilingSchema>
+
+// =====================================================
+// ENUMS ETAPA 4
+// =====================================================
+
+export const StatusTesteABSchema = z.enum(['rascunho', 'em_andamento', 'pausado', 'concluido'])
+export const MetricaObjetivoSchema = z.enum(['taxa_conversao', 'taxa_submissao', 'tempo_preenchimento'])
+export const MetodoHttpWebhookSchema = z.enum(['POST', 'PUT', 'PATCH'])
+export const FormatoPayloadSchema = z.enum(['json', 'form_urlencoded', 'xml'])
+export const DispararEmSchema = z.enum(['submissao', 'lead_qualificado', 'resposta_especifica'])
+export const TipoEventoAnalyticsSchema = z.enum([
+  'visualizacao', 'inicio', 'foco_campo', 'saida_campo',
+  'erro_campo', 'etapa_concluida', 'submissao', 'abandono',
+])
+
+// =====================================================
+// A/B TESTING
+// =====================================================
+
+export const TesteABSchema = z.object({
+  id: z.string().uuid(),
+  formulario_id: z.string().uuid(),
+  organizacao_id: z.string().uuid(),
+  nome_teste: z.string(),
+  descricao_teste: z.string().nullable().optional(),
+  status: StatusTesteABSchema,
+  metrica_objetivo: z.string(),
+  confianca_minima: z.number(),
+  duracao_minima_dias: z.number(),
+  minimo_submissoes: z.number(),
+  iniciado_em: z.string().nullable().optional(),
+  pausado_em: z.string().nullable().optional(),
+  concluido_em: z.string().nullable().optional(),
+  variante_vencedora_id: z.string().uuid().nullable().optional(),
+  criado_por: z.string().uuid().nullable().optional(),
+  criado_em: z.string(),
+  atualizado_em: z.string(),
+})
+export type TesteAB = z.infer<typeof TesteABSchema>
+
+export const CriarTesteABSchema = z.object({
+  nome_teste: z.string().min(1).max(255),
+  descricao_teste: z.string().optional(),
+  metrica_objetivo: MetricaObjetivoSchema.optional().default('taxa_conversao'),
+  confianca_minima: z.number().min(50).max(99.99).optional().default(95),
+  duracao_minima_dias: z.number().int().min(1).max(90).optional().default(7),
+  minimo_submissoes: z.number().int().min(10).max(10000).optional().default(100),
+})
+export type CriarTesteABPayload = z.infer<typeof CriarTesteABSchema>
+
+export const AtualizarTesteABSchema = CriarTesteABSchema.partial()
+export type AtualizarTesteABPayload = z.infer<typeof AtualizarTesteABSchema>
+
+// Variantes
+export const VarianteABSchema = z.object({
+  id: z.string().uuid(),
+  teste_ab_id: z.string().uuid(),
+  nome_variante: z.string(),
+  letra_variante: z.string(),
+  e_controle: z.boolean(),
+  alteracoes: z.any(),
+  porcentagem_trafego: z.number(),
+  contagem_visualizacoes: z.number(),
+  contagem_submissoes: z.number(),
+  taxa_conversao: z.number(),
+  criado_em: z.string(),
+})
+export type VarianteAB = z.infer<typeof VarianteABSchema>
+
+export const CriarVarianteABSchema = z.object({
+  nome_variante: z.string().min(1).max(100),
+  letra_variante: z.string().length(1),
+  e_controle: z.boolean().optional().default(false),
+  alteracoes: z.record(z.any()).optional().default({}),
+  porcentagem_trafego: z.number().int().min(0).max(100).optional().default(50),
+})
+export type CriarVarianteABPayload = z.infer<typeof CriarVarianteABSchema>
+
+// =====================================================
+// WEBHOOKS FORMULARIOS
+// =====================================================
+
+export const WebhookFormularioSchema = z.object({
+  id: z.string().uuid(),
+  formulario_id: z.string().uuid(),
+  organizacao_id: z.string().uuid(),
+  nome_webhook: z.string(),
+  url_webhook: z.string(),
+  metodo_http: z.string(),
+  headers_customizados: z.any(),
+  formato_payload: z.string(),
+  incluir_metadados: z.boolean(),
+  mapeamento_campos: z.any(),
+  disparar_em: z.string(),
+  condicoes_disparo: z.any().nullable().optional(),
+  retry_ativo: z.boolean(),
+  max_tentativas: z.number(),
+  atraso_retry_segundos: z.number(),
+  ativo: z.boolean(),
+  ultimo_disparo_em: z.string().nullable().optional(),
+  ultimo_status_code: z.number().nullable().optional(),
+  ultimo_erro: z.string().nullable().optional(),
+  contagem_sucesso: z.number(),
+  contagem_falha: z.number(),
+  criado_em: z.string(),
+  atualizado_em: z.string(),
+})
+export type WebhookFormulario = z.infer<typeof WebhookFormularioSchema>
+
+export const CriarWebhookFormularioSchema = z.object({
+  nome_webhook: z.string().min(1).max(100),
+  url_webhook: z.string().url(),
+  metodo_http: MetodoHttpWebhookSchema.optional().default('POST'),
+  headers_customizados: z.record(z.string()).optional(),
+  formato_payload: FormatoPayloadSchema.optional().default('json'),
+  incluir_metadados: z.boolean().optional().default(true),
+  mapeamento_campos: z.record(z.string()).optional(),
+  disparar_em: DispararEmSchema.optional().default('submissao'),
+  condicoes_disparo: z.record(z.any()).optional(),
+  retry_ativo: z.boolean().optional().default(true),
+  max_tentativas: z.number().int().min(1).max(10).optional().default(3),
+  atraso_retry_segundos: z.number().int().min(10).max(3600).optional().default(60),
+})
+export type CriarWebhookFormularioPayload = z.infer<typeof CriarWebhookFormularioSchema>
+
+export const AtualizarWebhookFormularioSchema = CriarWebhookFormularioSchema.partial().extend({
+  ativo: z.boolean().optional(),
+})
+export type AtualizarWebhookFormularioPayload = z.infer<typeof AtualizarWebhookFormularioSchema>
+
+// =====================================================
+// EVENTOS ANALYTICS FORMULARIOS
+// =====================================================
+
+export const EventoAnalyticsSchema = z.object({
+  id: z.string().uuid(),
+  formulario_id: z.string().uuid(),
+  visitor_id: z.string().nullable().optional(),
+  session_id: z.string().nullable().optional(),
+  tipo_evento: TipoEventoAnalyticsSchema,
+  dados_evento: z.any(),
+  tempo_no_formulario_segundos: z.number().nullable().optional(),
+  tempo_no_campo_segundos: z.number().nullable().optional(),
+  url_pagina: z.string().nullable().optional(),
+  referrer: z.string().nullable().optional(),
+  tipo_dispositivo: z.string().nullable().optional(),
+  navegador: z.string().nullable().optional(),
+  variante_ab_id: z.string().uuid().nullable().optional(),
+  criado_em: z.string(),
+})
+export type EventoAnalytics = z.infer<typeof EventoAnalyticsSchema>
+
+export const RegistrarEventoSchema = z.object({
+  tipo_evento: TipoEventoAnalyticsSchema,
+  dados_evento: z.record(z.any()).optional(),
+  visitor_id: z.string().max(64).optional(),
+  session_id: z.string().max(64).optional(),
+  tempo_no_formulario_segundos: z.number().int().optional(),
+  tempo_no_campo_segundos: z.number().int().optional(),
+  url_pagina: z.string().optional(),
+  referrer: z.string().optional(),
+  tipo_dispositivo: z.string().max(20).optional(),
+  navegador: z.string().max(50).optional(),
+  variante_ab_id: z.string().uuid().optional(),
+})
+export type RegistrarEventoPayload = z.infer<typeof RegistrarEventoSchema>
+
+export const FiltroAnalyticsSchema = z.object({
+  data_inicio: z.string().datetime().optional(),
+  data_fim: z.string().datetime().optional(),
+  tipo_evento: TipoEventoAnalyticsSchema.optional(),
+})

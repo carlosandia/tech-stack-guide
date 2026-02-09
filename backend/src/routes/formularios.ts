@@ -14,6 +14,9 @@ import estilosService from '../services/estilos-formularios.service.js'
 import submissoesService from '../services/submissoes-formularios.service.js'
 import configService from '../services/config-formularios.service.js'
 import logicaCondicionalService from '../services/logica-condicional-formularios.service.js'
+import testesABService from '../services/testes-ab-formularios.service.js'
+import webhooksService from '../services/webhooks-formularios.service.js'
+import analyticsService from '../services/analytics-formularios.service.js'
 import {
   CriarFormularioSchema,
   AtualizarFormularioSchema,
@@ -31,6 +34,13 @@ import {
   AtualizarRegraCondicionalSchema,
   ReordenarRegrasCondicionaisSchema,
   AtualizarConfigProfilingSchema,
+  CriarTesteABSchema,
+  AtualizarTesteABSchema,
+  CriarVarianteABSchema,
+  CriarWebhookFormularioSchema,
+  AtualizarWebhookFormularioSchema,
+  RegistrarEventoSchema,
+  FiltroAnalyticsSchema,
 } from '../schemas/formularios.js'
 
 const router = Router()
@@ -571,6 +581,285 @@ router.put('/:id/progressive-profiling', requireAdmin, async (req: Request, res:
     if (error instanceof Error && error.message === 'Formulario nao encontrado') return res.status(404).json({ error: error.message })
     console.error('Erro ao atualizar config profiling:', error)
     res.status(500).json({ error: 'Erro ao atualizar config profiling' })
+  }
+})
+
+// =====================================================
+// A/B TESTING (Etapa 4)
+// =====================================================
+
+// GET /:id/testes-ab
+router.get('/:id/testes-ab', async (req: Request, res: Response) => {
+  try {
+    const organizacaoId = getOrganizacaoId(req)
+    const testes = await testesABService.listarTestesAB(organizacaoId, req.params.id)
+    res.json({ testes })
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Formulario nao encontrado') return res.status(404).json({ error: error.message })
+    console.error('Erro ao listar testes AB:', error)
+    res.status(500).json({ error: 'Erro ao listar testes AB' })
+  }
+})
+
+// POST /:id/testes-ab (Admin)
+router.post('/:id/testes-ab', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const organizacaoId = getOrganizacaoId(req)
+    const payload = CriarTesteABSchema.parse(req.body)
+    const teste = await testesABService.criarTesteAB(organizacaoId, req.params.id, payload, getUserId(req))
+    res.status(201).json(teste)
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: 'Dados invalidos', details: error.errors })
+    if (error instanceof Error && error.message === 'Formulario nao encontrado') return res.status(404).json({ error: error.message })
+    console.error('Erro ao criar teste AB:', error)
+    res.status(500).json({ error: 'Erro ao criar teste AB' })
+  }
+})
+
+// GET /:id/testes-ab/:testeId
+router.get('/:id/testes-ab/:testeId', async (req: Request, res: Response) => {
+  try {
+    const organizacaoId = getOrganizacaoId(req)
+    const teste = await testesABService.buscarTesteAB(organizacaoId, req.params.id, req.params.testeId)
+    if (!teste) return res.status(404).json({ error: 'Teste AB nao encontrado' })
+    res.json(teste)
+  } catch (error) {
+    console.error('Erro ao buscar teste AB:', error)
+    res.status(500).json({ error: 'Erro ao buscar teste AB' })
+  }
+})
+
+// PUT /:id/testes-ab/:testeId (Admin)
+router.put('/:id/testes-ab/:testeId', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const organizacaoId = getOrganizacaoId(req)
+    const payload = AtualizarTesteABSchema.parse(req.body)
+    const teste = await testesABService.atualizarTesteAB(organizacaoId, req.params.id, req.params.testeId, payload)
+    res.json(teste)
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: 'Dados invalidos', details: error.errors })
+    console.error('Erro ao atualizar teste AB:', error)
+    res.status(500).json({ error: 'Erro ao atualizar teste AB' })
+  }
+})
+
+// POST /:id/testes-ab/:testeId/iniciar (Admin)
+router.post('/:id/testes-ab/:testeId/iniciar', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const organizacaoId = getOrganizacaoId(req)
+    const teste = await testesABService.iniciarTesteAB(organizacaoId, req.params.id, req.params.testeId)
+    res.json(teste)
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('pelo menos 2')) return res.status(400).json({ error: error.message })
+    console.error('Erro ao iniciar teste AB:', error)
+    res.status(500).json({ error: 'Erro ao iniciar teste AB' })
+  }
+})
+
+// POST /:id/testes-ab/:testeId/pausar (Admin)
+router.post('/:id/testes-ab/:testeId/pausar', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const organizacaoId = getOrganizacaoId(req)
+    const teste = await testesABService.pausarTesteAB(organizacaoId, req.params.id, req.params.testeId)
+    res.json(teste)
+  } catch (error) {
+    console.error('Erro ao pausar teste AB:', error)
+    res.status(500).json({ error: 'Erro ao pausar teste AB' })
+  }
+})
+
+// POST /:id/testes-ab/:testeId/concluir (Admin)
+router.post('/:id/testes-ab/:testeId/concluir', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const organizacaoId = getOrganizacaoId(req)
+    const teste = await testesABService.concluirTesteAB(organizacaoId, req.params.id, req.params.testeId)
+    res.json(teste)
+  } catch (error) {
+    console.error('Erro ao concluir teste AB:', error)
+    res.status(500).json({ error: 'Erro ao concluir teste AB' })
+  }
+})
+
+// GET /:id/testes-ab/:testeId/resultados
+router.get('/:id/testes-ab/:testeId/resultados', async (req: Request, res: Response) => {
+  try {
+    const resultados = await testesABService.resultadosTesteAB(req.params.testeId)
+    res.json(resultados)
+  } catch (error) {
+    console.error('Erro ao obter resultados:', error)
+    res.status(500).json({ error: 'Erro ao obter resultados do teste AB' })
+  }
+})
+
+// GET /:id/testes-ab/:testeId/variantes
+router.get('/:id/testes-ab/:testeId/variantes', async (req: Request, res: Response) => {
+  try {
+    const variantes = await testesABService.listarVariantes(req.params.testeId)
+    res.json({ variantes })
+  } catch (error) {
+    console.error('Erro ao listar variantes:', error)
+    res.status(500).json({ error: 'Erro ao listar variantes' })
+  }
+})
+
+// POST /:id/testes-ab/:testeId/variantes (Admin)
+router.post('/:id/testes-ab/:testeId/variantes', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const payload = CriarVarianteABSchema.parse(req.body)
+    const variante = await testesABService.criarVariante(req.params.testeId, payload)
+    res.status(201).json(variante)
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: 'Dados invalidos', details: error.errors })
+    console.error('Erro ao criar variante:', error)
+    res.status(500).json({ error: 'Erro ao criar variante' })
+  }
+})
+
+// =====================================================
+// WEBHOOKS FORMULARIOS (Etapa 4)
+// =====================================================
+
+// GET /:id/webhooks
+router.get('/:id/webhooks', async (req: Request, res: Response) => {
+  try {
+    const organizacaoId = getOrganizacaoId(req)
+    const webhooks = await webhooksService.listarWebhooks(organizacaoId, req.params.id)
+    res.json({ webhooks })
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Formulario nao encontrado') return res.status(404).json({ error: error.message })
+    console.error('Erro ao listar webhooks:', error)
+    res.status(500).json({ error: 'Erro ao listar webhooks' })
+  }
+})
+
+// POST /:id/webhooks (Admin)
+router.post('/:id/webhooks', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const organizacaoId = getOrganizacaoId(req)
+    const payload = CriarWebhookFormularioSchema.parse(req.body)
+    const webhook = await webhooksService.criarWebhook(organizacaoId, req.params.id, payload)
+    res.status(201).json(webhook)
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: 'Dados invalidos', details: error.errors })
+    console.error('Erro ao criar webhook:', error)
+    res.status(500).json({ error: 'Erro ao criar webhook' })
+  }
+})
+
+// PUT /:id/webhooks/:webhookId (Admin)
+router.put('/:id/webhooks/:webhookId', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const organizacaoId = getOrganizacaoId(req)
+    const payload = AtualizarWebhookFormularioSchema.parse(req.body)
+    const webhook = await webhooksService.atualizarWebhook(organizacaoId, req.params.id, req.params.webhookId, payload)
+    res.json(webhook)
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: 'Dados invalidos', details: error.errors })
+    console.error('Erro ao atualizar webhook:', error)
+    res.status(500).json({ error: 'Erro ao atualizar webhook' })
+  }
+})
+
+// DELETE /:id/webhooks/:webhookId (Admin)
+router.delete('/:id/webhooks/:webhookId', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const organizacaoId = getOrganizacaoId(req)
+    await webhooksService.excluirWebhook(organizacaoId, req.params.id, req.params.webhookId)
+    res.status(204).send()
+  } catch (error) {
+    console.error('Erro ao excluir webhook:', error)
+    res.status(500).json({ error: 'Erro ao excluir webhook' })
+  }
+})
+
+// POST /:id/webhooks/:webhookId/testar (Admin)
+router.post('/:id/webhooks/:webhookId/testar', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const organizacaoId = getOrganizacaoId(req)
+    const resultado = await webhooksService.testarWebhook(organizacaoId, req.params.id, req.params.webhookId)
+    res.json(resultado)
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Webhook nao encontrado') return res.status(404).json({ error: error.message })
+    console.error('Erro ao testar webhook:', error)
+    res.status(500).json({ error: 'Erro ao testar webhook' })
+  }
+})
+
+// GET /:id/webhooks/:webhookId/logs
+router.get('/:id/webhooks/:webhookId/logs', async (req: Request, res: Response) => {
+  try {
+    const organizacaoId = getOrganizacaoId(req)
+    const logs = await webhooksService.listarLogsWebhook(organizacaoId, req.params.id, req.params.webhookId)
+    res.json({ logs })
+  } catch (error) {
+    console.error('Erro ao listar logs webhook:', error)
+    res.status(500).json({ error: 'Erro ao listar logs' })
+  }
+})
+
+// =====================================================
+// ANALYTICS FORMULARIOS (Etapa 4)
+// =====================================================
+
+// GET /:id/analytics
+router.get('/:id/analytics', async (req: Request, res: Response) => {
+  try {
+    const organizacaoId = getOrganizacaoId(req)
+    const filtros = FiltroAnalyticsSchema.parse(req.query)
+    const metricas = await analyticsService.obterMetricas(organizacaoId, req.params.id, filtros)
+    res.json(metricas)
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Formulario nao encontrado') return res.status(404).json({ error: error.message })
+    console.error('Erro ao obter analytics:', error)
+    res.status(500).json({ error: 'Erro ao obter analytics' })
+  }
+})
+
+// GET /:id/analytics/funil
+router.get('/:id/analytics/funil', async (req: Request, res: Response) => {
+  try {
+    const organizacaoId = getOrganizacaoId(req)
+    const funil = await analyticsService.obterFunilConversao(organizacaoId, req.params.id)
+    res.json(funil)
+  } catch (error) {
+    console.error('Erro ao obter funil:', error)
+    res.status(500).json({ error: 'Erro ao obter funil de conversao' })
+  }
+})
+
+// GET /:id/analytics/desempenho-campos
+router.get('/:id/analytics/desempenho-campos', async (req: Request, res: Response) => {
+  try {
+    const organizacaoId = getOrganizacaoId(req)
+    const campos = await analyticsService.obterDesempenhoCampos(organizacaoId, req.params.id)
+    res.json({ campos })
+  } catch (error) {
+    console.error('Erro ao obter desempenho campos:', error)
+    res.status(500).json({ error: 'Erro ao obter desempenho dos campos' })
+  }
+})
+
+// GET /:id/analytics/abandono
+router.get('/:id/analytics/abandono', async (req: Request, res: Response) => {
+  try {
+    const organizacaoId = getOrganizacaoId(req)
+    const abandono = await analyticsService.obterTaxaAbandono(organizacaoId, req.params.id)
+    res.json(abandono)
+  } catch (error) {
+    console.error('Erro ao obter taxa abandono:', error)
+    res.status(500).json({ error: 'Erro ao obter taxa de abandono' })
+  }
+})
+
+// GET /:id/analytics/conversao-por-origem
+router.get('/:id/analytics/conversao-por-origem', async (req: Request, res: Response) => {
+  try {
+    const organizacaoId = getOrganizacaoId(req)
+    const origens = await analyticsService.obterConversaoPorOrigem(organizacaoId, req.params.id)
+    res.json({ origens })
+  } catch (error) {
+    console.error('Erro ao obter conversao por origem:', error)
+    res.status(500).json({ error: 'Erro ao obter conversao por origem' })
   }
 })
 
