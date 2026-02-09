@@ -759,6 +759,74 @@ async function buscarSubmissao(submissaoId: string): Promise<SubmissaoFormulario
   return data as unknown as SubmissaoFormulario
 }
 
+// =====================================================
+// Regras Condicionais
+// =====================================================
+
+export interface RegraCondicional {
+  id: string
+  formulario_id: string
+  nome_regra: string
+  ordem_regra: number
+  ativa: boolean
+  tipo_acao: string // 'mostrar' | 'ocultar' | 'pular_etapa' | 'redirecionar' | 'definir_valor'
+  campo_alvo_id?: string | null
+  indice_etapa_alvo?: number | null
+  url_redirecionamento_alvo?: string | null
+  valor_alvo?: string | null
+  condicoes: CondicaoRegra[]
+  logica_condicoes: string // 'E' | 'OU'
+  criado_em: string
+  atualizado_em: string
+}
+
+export interface CondicaoRegra {
+  campo_id: string
+  operador: string // 'igual' | 'diferente' | 'contem' | 'nao_contem' | 'maior' | 'menor' | 'vazio' | 'nao_vazio'
+  valor?: string
+}
+
+async function listarRegras(formularioId: string): Promise<RegraCondicional[]> {
+  const { data, error } = await supabase
+    .from('regras_condicionais_formularios')
+    .select('*')
+    .eq('formulario_id', formularioId)
+    .order('ordem_regra', { ascending: true })
+  if (error) throw new Error(`Erro ao listar regras: ${error.message}`)
+  return (data || []) as unknown as RegraCondicional[]
+}
+
+async function criarRegra(formularioId: string, payload: Partial<RegraCondicional>): Promise<RegraCondicional> {
+  const { data, error } = await supabase
+    .from('regras_condicionais_formularios')
+    .insert({ formulario_id: formularioId, ...payload } as any)
+    .select()
+    .single()
+  if (error) throw new Error(`Erro ao criar regra: ${error.message}`)
+  return data as unknown as RegraCondicional
+}
+
+async function atualizarRegra(formularioId: string, regraId: string, payload: Partial<RegraCondicional>): Promise<RegraCondicional> {
+  const { data, error } = await supabase
+    .from('regras_condicionais_formularios')
+    .update(payload as any)
+    .eq('formulario_id', formularioId)
+    .eq('id', regraId)
+    .select()
+    .single()
+  if (error) throw new Error(`Erro ao atualizar regra: ${error.message}`)
+  return data as unknown as RegraCondicional
+}
+
+async function excluirRegra(formularioId: string, regraId: string): Promise<void> {
+  const { error } = await supabase
+    .from('regras_condicionais_formularios')
+    .delete()
+    .eq('formulario_id', formularioId)
+    .eq('id', regraId)
+  if (error) throw new Error(`Erro ao excluir regra: ${error.message}`)
+}
+
 export const formulariosApi = {
   listar,
   buscar,
@@ -786,4 +854,8 @@ export const formulariosApi = {
   excluirEtapa,
   listarSubmissoes,
   buscarSubmissao,
+  listarRegras,
+  criarRegra,
+  atualizarRegra,
+  excluirRegra,
 }
