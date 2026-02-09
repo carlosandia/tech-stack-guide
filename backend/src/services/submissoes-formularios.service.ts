@@ -44,11 +44,8 @@ export async function buscarFormularioPublico(slug: string) {
     .eq('formulario_id', formulario.id)
     .single()
 
-  // Incrementar visualizacoes
-  await supabase
-    .from('formularios')
-    .update({ total_visualizacoes: (formulario.total_visualizacoes || 0) + 1 })
-    .eq('id', formulario.id)
+  // Incrementar visualizacoes (atomico)
+  await supabase.rpc('incrementar_visualizacoes_formulario', { p_formulario_id: formulario.id })
 
   return {
     formulario,
@@ -59,6 +56,87 @@ export async function buscarFormularioPublico(slug: string) {
 
 // =====================================================
 // Rate Limit
+// =====================================================
+// Validacao Server-Side dos Dados Submetidos
+// =====================================================
+
+async function validarDadosSubmissao(
+  formularioId: string,
+  dados: Record<string, any>
+): Promise<{ valido: boolean; erros: string[] }> {
+  const { data: campos } = await supabase
+    .from('campos_formularios')
+    .select('nome, label, tipo, obrigatorio, validacoes')
+    .eq('formulario_id', formularioId)
+    .order('ordem', { ascending: true })
+
+  if (!campos || campos.length === 0) {
+    return { valido: true, erros: [] }
+  }
+
+  const erros: string[] = []
+
+  for (const campo of campos) {
+    const valor = dados[campo.nome]
+
+    // Verificar obrigatoriedade
+    if (campo.obrigatorio && (valor === undefined || valor === null || valor === '')) {
+      erros.push(`Campo "${campo.label}" e obrigatorio`)
+      continue
+    }
+
+    // Se nao obrigatorio e vazio, pular
+    if (valor === undefined || valor === null || valor === '') continue
+
+    // Validar tipo
+    switch (campo.tipo) {
+      case 'email':
+        if (typeof valor === 'string' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(valor)) {
+          erros.push(`Campo "${campo.label}" deve ser um email valido`)
+        }
+        break
+      case 'telefone':
+        if (typeof valor === 'string' && !/^[\d\s\-\+\(\)]{8,20}$/.test(valor)) {
+          erros.push(`Campo "${campo.label}" deve ser um telefone valido`)
+        }
+        break
+      case 'numero':
+        if (isNaN(Number(valor))) {
+          erros.push(`Campo "${campo.label}" deve ser um numero`)
+        }
+        break
+      case 'url':
+        try { new URL(String(valor)) } catch {
+          erros.push(`Campo "${campo.label}" deve ser uma URL valida`)
+        }
+        break
+      case 'cpf':
+        if (typeof valor === 'string' && !/^\d{3}\.?\d{3}\.?\d{3}-?\d{2}$/.test(valor)) {
+          erros.push(`Campo "${campo.label}" deve ser um CPF valido`)
+        }
+        break
+      case 'cnpj':
+        if (typeof valor === 'string' && !/^\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}$/.test(valor)) {
+          erros.push(`Campo "${campo.label}" deve ser um CNPJ valido`)
+        }
+        break
+    }
+
+    // Validacoes customizadas
+    const validacoes = campo.validacoes as Record<string, any> | null
+    if (validacoes) {
+      if (validacoes.min_length && typeof valor === 'string' && valor.length < validacoes.min_length) {
+        erros.push(`Campo "${campo.label}" deve ter no minimo ${validacoes.min_length} caracteres`)
+      }
+      if (validacoes.max_length && typeof valor === 'string' && valor.length > validacoes.max_length) {
+        erros.push(`Campo "${campo.label}" deve ter no maximo ${validacoes.max_length} caracteres`)
+      }
+    }
+  }
+
+  return { valido: erros.length === 0, erros }
+}
+
 // =====================================================
 
 async function verificarRateLimit(formularioId: string, ipAddress: string, max: number, janelaMinutos: number): Promise<boolean> {
@@ -137,6 +215,12 @@ export async function submeterFormulario(
     return { sucesso: false, mensagem: 'Formulario nao encontrado ou nao publicado' }
   }
 
+  // Validar dados contra campos do formulario
+  const validacao = await validarDadosSubmissao(formulario.id, payload.dados)
+  if (!validacao.valido) {
+    return { sucesso: false, mensagem: `Dados invalidos: ${validacao.erros.join('; ')}` }
+  }
+
   // Verificar honeypot
   if (formulario.honeypot_ativo && payload.honeypot) {
     // Bot detectado - registrar como spam silenciosamente
@@ -194,16 +278,8 @@ export async function submeterFormulario(
     return { sucesso: false, mensagem: 'Erro ao processar submissao' }
   }
 
-  // Incrementar contador
-  await supabase
-    .from('formularios')
-    .update({
-      total_submissoes: (formulario.total_submissoes || 0) + 1,
-      taxa_conversao: formulario.total_visualizacoes > 0
-        ? Number(((((formulario.total_submissoes || 0) + 1) / formulario.total_visualizacoes) * 100).toFixed(2))
-        : 0,
-    })
-    .eq('id', formulario.id)
+  // Incrementar contador (atomico)
+  await supabase.rpc('incrementar_submissoes_formulario', { p_formulario_id: formulario.id })
 
   // Integracao com pipeline (se configurado)
   if (formulario.funil_id && formulario.etapa_id) {
