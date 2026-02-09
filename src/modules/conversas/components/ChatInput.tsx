@@ -5,7 +5,7 @@
  */
 
 import { useState, useRef, useCallback, type KeyboardEvent } from 'react'
-import { Send, Zap, StickyNote, MessageSquare, Paperclip, Mic, Smile, X, Reply } from 'lucide-react'
+import { Send, Zap, StickyNote, MessageSquare, Paperclip, Mic, Smile, X } from 'lucide-react'
 import { AnexosMenu } from './AnexosMenu'
 import { AudioRecorder } from './AudioRecorder'
 import { EmojiPicker } from './EmojiPicker'
