@@ -66,8 +66,16 @@ export function FormularioEditorPage() {
   const [pagina, setPagina] = useState(ESTILO_PADRAO.pagina)
   const [cssCustomizado, setCssCustomizado] = useState('')
 
-  // Config botoes from formulario
-  const configBotoes = formulario?.config_botoes as any || null
+  // Config botoes - local state for immediate reactivity
+  const [localConfigBotoes, setLocalConfigBotoes] = useState<any>(null)
+  const configBotoes = localConfigBotoes ?? (formulario?.config_botoes as any) ?? null
+
+  // Sync from server when formulario changes
+  useEffect(() => {
+    if (formulario?.config_botoes) {
+      setLocalConfigBotoes(formulario.config_botoes as any)
+    }
+  }, [formulario?.config_botoes])
 
   useEffect(() => {
     if (estilos) {
@@ -353,6 +361,7 @@ export function FormularioEditorPage() {
                     tipo="botao"
                     estiloBotao={botao}
                     onChangeEstilo={setBotao}
+                    onConfigChange={setLocalConfigBotoes}
                   />
                 )}
                 {selectedStyleElement === 'botao_whatsapp' && (
@@ -361,6 +370,7 @@ export function FormularioEditorPage() {
                     tipo="botao_whatsapp"
                     estiloBotao={botao}
                     onChangeEstilo={setBotao}
+                    onConfigChange={setLocalConfigBotoes}
                   />
                 )}
               </EstiloPopover>

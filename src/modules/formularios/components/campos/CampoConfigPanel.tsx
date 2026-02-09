@@ -236,6 +236,19 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
             />
           </div>
         )}
+
+        {campo.tipo === 'checkbox_termos' && (
+          <div className="space-y-1.5">
+            <Label className="text-xs">Texto dos Termos de Uso</Label>
+            <Textarea
+              value={form.valor_padrao}
+              onChange={(e) => setForm((f) => ({ ...f, valor_padrao: e.target.value }))}
+              rows={6}
+              placeholder="Insira aqui o texto completo dos termos de uso que será exibido no link 'Ver termos'..."
+            />
+            <p className="text-[10px] text-muted-foreground">Este texto será exibido em um modal quando o usuário clicar em "Ver termos".</p>
+          </div>
+        )}
       </div>
 
       <Button
