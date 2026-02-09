@@ -143,7 +143,7 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer }: ChatWindowProps) 
   }, [conversa.id])
 
   // Audio send handler
-  const handleAudioSend = useCallback(async (blob: Blob, duration: number) => {
+  const handleAudioSend = useCallback(async (blob: Blob, _duration: number) => {
     try {
       const path = `conversas/${conversa.id}/audio_${Date.now()}.webm`
 
