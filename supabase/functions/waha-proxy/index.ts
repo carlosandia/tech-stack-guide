@@ -358,15 +358,17 @@ Deno.serve(async (req) => {
 
             // Re-configure webhook to ensure latest events (e.g. message.any, poll.vote)
             try {
-              // Try PUT first (WAHA Plus standard), fallback to PATCH
               let reconfigOk = false;
+              // WAHA requires full body with "name" + trailing slash on PUT
               const configBody = JSON.stringify({
+                name: sessionId,
                 config: {
                   webhooks: [{ url: webhookUrl, events: webhookEvents }]
                 }
               });
 
-              const putResp = await fetch(`${baseUrl}/api/sessions/${sessionId}`, {
+              // Try PUT with trailing slash (WAHA Plus standard endpoint)
+              const putResp = await fetch(`${baseUrl}/api/sessions/${sessionId}/`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
                 body: configBody,
@@ -376,14 +378,31 @@ Deno.serve(async (req) => {
               reconfigOk = putResp.ok;
 
               if (!reconfigOk) {
-                // Fallback to PATCH
-                const patchResp = await fetch(`${baseUrl}/api/sessions/${sessionId}`, {
-                  method: "PATCH",
+                // Fallback: stop + start to apply new webhook config
+                console.log(`[waha-proxy] PUT failed, using stop+start fallback to reconfig webhooks`);
+                const stopResp = await fetch(`${baseUrl}/api/sessions/stop`, {
+                  method: "POST",
                   headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
-                  body: configBody,
+                  body: JSON.stringify({ name: sessionId, logout: false }),
                 });
-                const patchData = await patchResp.json().catch(() => null);
-                console.log(`[waha-proxy] Webhook reconfig PATCH fallback: ${patchResp.status}`, JSON.stringify(patchData));
+                console.log(`[waha-proxy] Stop for reconfig: ${stopResp.status}`);
+                await stopResp.text();
+
+                // Wait briefly for session to stop
+                await new Promise(r => setTimeout(r, 1500));
+
+                const startResp = await fetch(`${baseUrl}/api/sessions/start`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
+                  body: JSON.stringify({
+                    name: sessionId,
+                    config: {
+                      webhooks: [{ url: webhookUrl, events: webhookEvents }]
+                    }
+                  }),
+                });
+                const startData = await startResp.json().catch(() => null);
+                console.log(`[waha-proxy] Start for reconfig: ${startResp.status}`, JSON.stringify(startData));
               }
             } catch (e) {
               console.log(`[waha-proxy] Webhook reconfig failed:`, e);
