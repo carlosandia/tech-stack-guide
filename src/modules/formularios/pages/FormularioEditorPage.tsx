@@ -1,12 +1,12 @@
 /**
- * AIDEV-NOTE: Página de edição do formulário com drag-and-drop
- * Layout: Paleta (esquerda) | Preview (centro) | Config (direita)
- * Responsivo: em mobile, paleta e config viram drawers/modais
+ * AIDEV-NOTE: Página de edição do formulário com tabs
+ * Tabs: Campos | Estilos (e futuras tabs)
+ * Campos: Paleta (esquerda) | Preview (centro) | Config (direita)
  */
 
 import { useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { PanelLeft, PanelRight, Loader2 } from 'lucide-react'
+import { PanelLeft, PanelRight, Loader2, LayoutGrid, Paintbrush } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { useFormulario } from '../hooks/useFormularios'
@@ -21,7 +21,15 @@ import { EditorHeader } from '../components/editor/EditorHeader'
 import { CamposPaleta } from '../components/campos/CamposPaleta'
 import { CampoConfigPanel } from '../components/campos/CampoConfigPanel'
 import { FormPreview } from '../components/editor/FormPreview'
+import { EditorTabsEstilos } from '../components/editor/EditorTabsEstilos'
 import type { CampoFormulario } from '../services/formularios.api'
+
+type EditorTab = 'campos' | 'estilos'
+
+const TABS: { key: EditorTab; label: string; icon: React.ElementType }[] = [
+  { key: 'campos', label: 'Campos', icon: LayoutGrid },
+  { key: 'estilos', label: 'Estilos', icon: Paintbrush },
+]
 
 export function FormularioEditorPage() {
   const { id } = useParams<{ id: string }>()
@@ -34,66 +42,51 @@ export function FormularioEditorPage() {
   const excluirCampo = useExcluirCampo(id || '')
   const reordenarCampos = useReordenarCampos(id || '')
 
+  const [activeTab, setActiveTab] = useState<EditorTab>('campos')
   const [selectedCampoId, setSelectedCampoId] = useState<string | null>(null)
   const [showPaleta, setShowPaleta] = useState(true)
   const [showConfig, setShowConfig] = useState(false)
 
   const selectedCampo = campos.find((c) => c.id === selectedCampoId)
 
-  // When user drops a new field type from palette into preview
   const handleDropNewCampo = useCallback(
     (e: React.DragEvent, index: number) => {
       const campoTipoData = e.dataTransfer.getData('application/campo-tipo')
       if (!campoTipoData) return
-
       const tipoCampo = JSON.parse(campoTipoData)
       const label = tipoCampo.label || tipoCampo.tipo
       const nome = tipoCampo.tipo + '_' + Date.now().toString(36)
-
       criarCampo.mutate({
-        nome,
-        label,
-        tipo: tipoCampo.tipo,
-        ordem: index,
-        obrigatorio: false,
-        largura: 'full',
+        nome, label, tipo: tipoCampo.tipo, ordem: index, obrigatorio: false, largura: 'full',
       } as Partial<CampoFormulario>)
     },
     [criarCampo]
   )
 
-  // Move campo up/down
   const handleMoveCampo = useCallback(
     (campoId: string, direcao: 'up' | 'down') => {
       const index = campos.findIndex((c) => c.id === campoId)
       if (index === -1) return
       const newIndex = direcao === 'up' ? index - 1 : index + 1
       if (newIndex < 0 || newIndex >= campos.length) return
-
       const newCampos = [...campos]
       const [moved] = newCampos.splice(index, 1)
       newCampos.splice(newIndex, 0, moved)
-
-      const reorder = newCampos.map((c, i) => ({ id: c.id, ordem: i }))
-      reordenarCampos.mutate(reorder)
+      reordenarCampos.mutate(newCampos.map((c, i) => ({ id: c.id, ordem: i })))
     },
     [campos, reordenarCampos]
   )
 
-  // Reorder via drag-and-drop between existing campos
   const handleReorderCampo = useCallback(
     (dragId: string, dropId: string) => {
       if (dragId === dropId) return
       const dragIdx = campos.findIndex((c) => c.id === dragId)
       const dropIdx = campos.findIndex((c) => c.id === dropId)
       if (dragIdx === -1 || dropIdx === -1) return
-
       const newCampos = [...campos]
       const [moved] = newCampos.splice(dragIdx, 1)
       newCampos.splice(dropIdx, 0, moved)
-
-      const reorder = newCampos.map((c, i) => ({ id: c.id, ordem: i }))
-      reordenarCampos.mutate(reorder)
+      reordenarCampos.mutate(newCampos.map((c, i) => ({ id: c.id, ordem: i })))
     },
     [campos, reordenarCampos]
   )
@@ -145,90 +138,111 @@ export function FormularioEditorPage() {
     <div className="flex flex-col h-full overflow-hidden">
       <EditorHeader formulario={formulario} />
 
-      <div className="flex-1 flex overflow-hidden relative">
-        {/* Mobile toggle buttons */}
-        <div className="lg:hidden absolute top-2 left-2 z-10 flex gap-1">
-          <Button
-            variant={showPaleta ? 'default' : 'outline'}
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => { setShowPaleta(!showPaleta); if (!showPaleta) setShowConfig(false) }}
+      {/* Tab Bar */}
+      <div className="flex items-center gap-1 px-4 py-1.5 border-b border-border bg-card">
+        {TABS.map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            onClick={() => setActiveTab(key)}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+              activeTab === key
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+            )}
           >
-            <PanelLeft className="w-4 h-4" />
-          </Button>
-          {selectedCampo && (
+            <Icon className="w-3.5 h-3.5" />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'campos' && (
+        <div className="flex-1 flex overflow-hidden relative">
+          {/* Mobile toggle buttons */}
+          <div className="lg:hidden absolute top-2 left-2 z-10 flex gap-1">
             <Button
-              variant={showConfig ? 'default' : 'outline'}
+              variant={showPaleta ? 'default' : 'outline'}
               size="icon"
               className="h-8 w-8"
-              onClick={() => { setShowConfig(!showConfig); if (!showConfig) setShowPaleta(false) }}
+              onClick={() => { setShowPaleta(!showPaleta); if (!showPaleta) setShowConfig(false) }}
             >
-              <PanelRight className="w-4 h-4" />
+              <PanelLeft className="w-4 h-4" />
             </Button>
-          )}
-        </div>
-
-        {/* Paleta (left panel) */}
-        <div
-          className={cn(
-            'border-r border-border bg-card overflow-y-auto flex-shrink-0 transition-all duration-200',
-            // Desktop: always visible
-            'hidden lg:block lg:w-64',
-            // Mobile: overlay when toggled
-            showPaleta && 'block absolute inset-y-0 left-0 w-64 z-20 shadow-lg lg:relative lg:shadow-none'
-          )}
-        >
-          <div className="p-3">
-            <CamposPaleta />
+            {selectedCampo && (
+              <Button
+                variant={showConfig ? 'default' : 'outline'}
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => { setShowConfig(!showConfig); if (!showConfig) setShowPaleta(false) }}
+              >
+                <PanelRight className="w-4 h-4" />
+              </Button>
+            )}
           </div>
-        </div>
 
-        {/* Preview (center) */}
-        <div className="flex-1 overflow-hidden">
-          <FormPreview
-            formulario={formulario}
-            campos={campos}
-            selectedCampoId={selectedCampoId}
-            onSelectCampo={handleSelectCampo}
-            onRemoveCampo={handleRemoveCampo}
-            onMoveCampo={handleMoveCampo}
-            onReorderCampo={handleReorderCampo}
-            onDropNewCampo={handleDropNewCampo}
-          />
-        </div>
-
-        {/* Config panel (right) */}
-        {selectedCampo && (
+          {/* Paleta */}
           <div
             className={cn(
-              'border-l border-border bg-card overflow-y-auto flex-shrink-0 transition-all duration-200',
-              // Desktop: always visible when campo selected
-              'hidden lg:block lg:w-72',
-              // Mobile: overlay when toggled
-              showConfig && 'block absolute inset-y-0 right-0 w-72 z-20 shadow-lg lg:relative lg:shadow-none'
+              'border-r border-border bg-card overflow-y-auto flex-shrink-0 transition-all duration-200',
+              'hidden lg:block lg:w-64',
+              showPaleta && 'block absolute inset-y-0 left-0 w-64 z-20 shadow-lg lg:relative lg:shadow-none'
             )}
           >
             <div className="p-3">
-              <CampoConfigPanel
-                campo={selectedCampo}
-                onUpdate={handleUpdateCampo}
-                onClose={() => {
-                  setSelectedCampoId(null)
-                  setShowConfig(false)
-                }}
-              />
+              <CamposPaleta />
             </div>
           </div>
-        )}
 
-        {/* Mobile overlay backdrop */}
-        {(showPaleta || showConfig) && (
-          <div
-            className="lg:hidden fixed inset-0 bg-foreground/20 z-10"
-            onClick={() => { setShowPaleta(false); setShowConfig(false) }}
-          />
-        )}
-      </div>
+          {/* Preview */}
+          <div className="flex-1 overflow-hidden">
+            <FormPreview
+              formulario={formulario}
+              campos={campos}
+              selectedCampoId={selectedCampoId}
+              onSelectCampo={handleSelectCampo}
+              onRemoveCampo={handleRemoveCampo}
+              onMoveCampo={handleMoveCampo}
+              onReorderCampo={handleReorderCampo}
+              onDropNewCampo={handleDropNewCampo}
+            />
+          </div>
+
+          {/* Config panel */}
+          {selectedCampo && (
+            <div
+              className={cn(
+                'border-l border-border bg-card overflow-y-auto flex-shrink-0 transition-all duration-200',
+                'hidden lg:block lg:w-72',
+                showConfig && 'block absolute inset-y-0 right-0 w-72 z-20 shadow-lg lg:relative lg:shadow-none'
+              )}
+            >
+              <div className="p-3">
+                <CampoConfigPanel
+                  campo={selectedCampo}
+                  onUpdate={handleUpdateCampo}
+                  onClose={() => { setSelectedCampoId(null); setShowConfig(false) }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Mobile overlay */}
+          {(showPaleta || showConfig) && (
+            <div
+              className="lg:hidden fixed inset-0 bg-foreground/20 z-10"
+              onClick={() => { setShowPaleta(false); setShowConfig(false) }}
+            />
+          )}
+        </div>
+      )}
+
+      {activeTab === 'estilos' && (
+        <div className="flex-1 overflow-hidden">
+          <EditorTabsEstilos formulario={formulario} />
+        </div>
+      )}
     </div>
   )
 }
