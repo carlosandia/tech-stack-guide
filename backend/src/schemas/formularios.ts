@@ -477,3 +477,111 @@ export const AtualizarFormularioEtapa2Schema = z.object({
 })
 
 export type AtualizarFormularioEtapa2Payload = z.infer<typeof AtualizarFormularioEtapa2Schema>
+
+// =====================================================
+// ENUMS ETAPA 3
+// =====================================================
+
+export const TipoAcaoCondicionalSchema = z.enum([
+  'mostrar_campo', 'ocultar_campo', 'mostrar_etapa', 'ocultar_etapa',
+  'pular_para_etapa', 'redirecionar', 'definir_valor', 'tornar_obrigatorio',
+])
+export type TipoAcaoCondicional = z.infer<typeof TipoAcaoCondicionalSchema>
+
+export const LogicaCondicoesSchema = z.enum(['e', 'ou'])
+
+export const MetodoIdentificacaoSchema = z.enum(['email', 'cookie', 'email_e_cookie'])
+
+// =====================================================
+// REGRAS CONDICIONAIS
+// =====================================================
+
+export const CondicaoRegraSchema = z.object({
+  campo_id: z.string().uuid(),
+  operador: z.enum(['igual', 'diferente', 'contem', 'nao_contem', 'maior_que', 'menor_que', 'vazio', 'nao_vazio']),
+  valor: z.string().optional(),
+  logica: LogicaCondicoesSchema.optional(),
+})
+
+export type CondicaoRegra = z.infer<typeof CondicaoRegraSchema>
+
+export const RegraCondicionalSchema = z.object({
+  id: z.string().uuid(),
+  formulario_id: z.string().uuid(),
+  nome_regra: z.string(),
+  ordem_regra: z.number(),
+  ativa: z.boolean(),
+  tipo_acao: TipoAcaoCondicionalSchema,
+  campo_alvo_id: z.string().uuid().nullable().optional(),
+  indice_etapa_alvo: z.number().nullable().optional(),
+  url_redirecionamento_alvo: z.string().nullable().optional(),
+  valor_alvo: z.string().nullable().optional(),
+  condicoes: z.array(CondicaoRegraSchema),
+  logica_condicoes: LogicaCondicoesSchema,
+  criado_em: z.string(),
+  atualizado_em: z.string(),
+})
+
+export type RegraCondicional = z.infer<typeof RegraCondicionalSchema>
+
+export const CriarRegraCondicionalSchema = z.object({
+  nome_regra: z.string().min(1).max(100),
+  ordem_regra: z.number().int().optional().default(0),
+  ativa: z.boolean().optional().default(true),
+  tipo_acao: TipoAcaoCondicionalSchema,
+  campo_alvo_id: z.string().uuid().optional(),
+  indice_etapa_alvo: z.number().int().optional(),
+  url_redirecionamento_alvo: z.string().url().optional(),
+  valor_alvo: z.string().optional(),
+  condicoes: z.array(CondicaoRegraSchema).min(1, 'Pelo menos uma condicao e obrigatoria'),
+  logica_condicoes: LogicaCondicoesSchema.optional().default('e'),
+})
+
+export type CriarRegraCondicionalPayload = z.infer<typeof CriarRegraCondicionalSchema>
+
+export const AtualizarRegraCondicionalSchema = CriarRegraCondicionalSchema.partial()
+export type AtualizarRegraCondicionalPayload = z.infer<typeof AtualizarRegraCondicionalSchema>
+
+export const ReordenarRegrasCondicionaisSchema = z.object({
+  regras: z.array(z.object({
+    id: z.string().uuid(),
+    ordem_regra: z.number().int().min(0),
+  })),
+})
+export type ReordenarRegrasCondicionaisPayload = z.infer<typeof ReordenarRegrasCondicionaisSchema>
+
+// =====================================================
+// CONFIG PROGRESSIVE PROFILING
+// =====================================================
+
+export const ConfigProgressiveProfilingSchema = z.object({
+  id: z.string().uuid(),
+  formulario_id: z.string().uuid(),
+  ativo: z.boolean(),
+  metodo_identificacao: z.string(),
+  nome_cookie: z.string(),
+  dias_expiracao_cookie: z.number(),
+  ocultar_campos_conhecidos: z.boolean(),
+  mostrar_campos_alternativos: z.boolean(),
+  min_campos_exibir: z.number(),
+  ordem_prioridade_campos: z.array(z.string()),
+  saudacao_lead_conhecido: z.string(),
+  criado_em: z.string(),
+  atualizado_em: z.string(),
+})
+
+export type ConfigProgressiveProfiling = z.infer<typeof ConfigProgressiveProfilingSchema>
+
+export const AtualizarConfigProfilingSchema = z.object({
+  ativo: z.boolean().optional(),
+  metodo_identificacao: MetodoIdentificacaoSchema.optional(),
+  nome_cookie: z.string().max(100).optional(),
+  dias_expiracao_cookie: z.number().int().min(1).max(730).optional(),
+  ocultar_campos_conhecidos: z.boolean().optional(),
+  mostrar_campos_alternativos: z.boolean().optional(),
+  min_campos_exibir: z.number().int().min(1).max(20).optional(),
+  ordem_prioridade_campos: z.array(z.string().uuid()).optional(),
+  saudacao_lead_conhecido: z.string().max(500).optional(),
+})
+
+export type AtualizarConfigProfilingPayload = z.infer<typeof AtualizarConfigProfilingSchema>

@@ -308,6 +308,7 @@ export type Database = {
       }
       campos_formularios: {
         Row: {
+          alternativa_para_campo_id: string | null
           atualizado_em: string
           condicional_ativo: boolean
           condicional_campo_id: string | null
@@ -320,16 +321,25 @@ export type Database = {
           label: string
           largura: string
           mapeamento_campo: string | null
+          mostrar_para_leads_conhecidos: boolean | null
           nome: string
           obrigatorio: boolean
           opcoes: Json | null
           ordem: number
           placeholder: string | null
+          prefill_ativo: boolean | null
+          prefill_chave: string | null
+          prefill_fonte: string | null
+          prioridade_profiling: number | null
+          regras_pontuacao: Json | null
           texto_ajuda: string | null
           tipo: string
           validacoes: Json | null
+          valor_padrao: string | null
+          valor_pontuacao: number | null
         }
         Insert: {
+          alternativa_para_campo_id?: string | null
           atualizado_em?: string
           condicional_ativo?: boolean
           condicional_campo_id?: string | null
@@ -342,16 +352,25 @@ export type Database = {
           label: string
           largura?: string
           mapeamento_campo?: string | null
+          mostrar_para_leads_conhecidos?: boolean | null
           nome: string
           obrigatorio?: boolean
           opcoes?: Json | null
           ordem?: number
           placeholder?: string | null
+          prefill_ativo?: boolean | null
+          prefill_chave?: string | null
+          prefill_fonte?: string | null
+          prioridade_profiling?: number | null
+          regras_pontuacao?: Json | null
           texto_ajuda?: string | null
           tipo?: string
           validacoes?: Json | null
+          valor_padrao?: string | null
+          valor_pontuacao?: number | null
         }
         Update: {
+          alternativa_para_campo_id?: string | null
           atualizado_em?: string
           condicional_ativo?: boolean
           condicional_campo_id?: string | null
@@ -364,16 +383,31 @@ export type Database = {
           label?: string
           largura?: string
           mapeamento_campo?: string | null
+          mostrar_para_leads_conhecidos?: boolean | null
           nome?: string
           obrigatorio?: boolean
           opcoes?: Json | null
           ordem?: number
           placeholder?: string | null
+          prefill_ativo?: boolean | null
+          prefill_chave?: string | null
+          prefill_fonte?: string | null
+          prioridade_profiling?: number | null
+          regras_pontuacao?: Json | null
           texto_ajuda?: string | null
           tipo?: string
           validacoes?: Json | null
+          valor_padrao?: string | null
+          valor_pontuacao?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "campos_formularios_alternativa_para_campo_id_fkey"
+            columns: ["alternativa_para_campo_id"]
+            isOneToOne: false
+            referencedRelation: "campos_formularios"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "campos_formularios_condicional_campo_id_fkey"
             columns: ["condicional_campo_id"]
@@ -1061,6 +1095,62 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "config_popup_formularios_formulario_id_fkey"
+            columns: ["formulario_id"]
+            isOneToOne: true
+            referencedRelation: "formularios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      config_progressive_profiling_formularios: {
+        Row: {
+          ativo: boolean | null
+          atualizado_em: string | null
+          criado_em: string | null
+          dias_expiracao_cookie: number | null
+          formulario_id: string
+          id: string
+          metodo_identificacao: string | null
+          min_campos_exibir: number | null
+          mostrar_campos_alternativos: boolean | null
+          nome_cookie: string | null
+          ocultar_campos_conhecidos: boolean | null
+          ordem_prioridade_campos: Json | null
+          saudacao_lead_conhecido: string | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          atualizado_em?: string | null
+          criado_em?: string | null
+          dias_expiracao_cookie?: number | null
+          formulario_id: string
+          id?: string
+          metodo_identificacao?: string | null
+          min_campos_exibir?: number | null
+          mostrar_campos_alternativos?: boolean | null
+          nome_cookie?: string | null
+          ocultar_campos_conhecidos?: boolean | null
+          ordem_prioridade_campos?: Json | null
+          saudacao_lead_conhecido?: string | null
+        }
+        Update: {
+          ativo?: boolean | null
+          atualizado_em?: string | null
+          criado_em?: string | null
+          dias_expiracao_cookie?: number | null
+          formulario_id?: string
+          id?: string
+          metodo_identificacao?: string | null
+          min_campos_exibir?: number | null
+          mostrar_campos_alternativos?: boolean | null
+          nome_cookie?: string | null
+          ocultar_campos_conhecidos?: boolean | null
+          ordem_prioridade_campos?: Json | null
+          saudacao_lead_conhecido?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "config_progressive_profiling_formularios_formulario_id_fkey"
             columns: ["formulario_id"]
             isOneToOne: true
             referencedRelation: "formularios"
@@ -5532,6 +5622,72 @@ export type Database = {
             columns: ["usuario_id"]
             isOneToOne: false
             referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      regras_condicionais_formularios: {
+        Row: {
+          ativa: boolean | null
+          atualizado_em: string | null
+          campo_alvo_id: string | null
+          condicoes: Json
+          criado_em: string | null
+          formulario_id: string
+          id: string
+          indice_etapa_alvo: number | null
+          logica_condicoes: string | null
+          nome_regra: string
+          ordem_regra: number
+          tipo_acao: string
+          url_redirecionamento_alvo: string | null
+          valor_alvo: string | null
+        }
+        Insert: {
+          ativa?: boolean | null
+          atualizado_em?: string | null
+          campo_alvo_id?: string | null
+          condicoes?: Json
+          criado_em?: string | null
+          formulario_id: string
+          id?: string
+          indice_etapa_alvo?: number | null
+          logica_condicoes?: string | null
+          nome_regra: string
+          ordem_regra?: number
+          tipo_acao: string
+          url_redirecionamento_alvo?: string | null
+          valor_alvo?: string | null
+        }
+        Update: {
+          ativa?: boolean | null
+          atualizado_em?: string | null
+          campo_alvo_id?: string | null
+          condicoes?: Json
+          criado_em?: string | null
+          formulario_id?: string
+          id?: string
+          indice_etapa_alvo?: number | null
+          logica_condicoes?: string | null
+          nome_regra?: string
+          ordem_regra?: number
+          tipo_acao?: string
+          url_redirecionamento_alvo?: string | null
+          valor_alvo?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "regras_condicionais_formularios_campo_alvo_id_fkey"
+            columns: ["campo_alvo_id"]
+            isOneToOne: false
+            referencedRelation: "campos_formularios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "regras_condicionais_formularios_formulario_id_fkey"
+            columns: ["formulario_id"]
+            isOneToOne: false
+            referencedRelation: "formularios"
             referencedColumns: ["id"]
           },
         ]
