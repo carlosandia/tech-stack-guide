@@ -21,7 +21,7 @@ interface Props {
   onSelectCampo: (id: string | null) => void
   onRemoveCampo: (id: string) => void
   onMoveCampo: (id: string, direcao: 'up' | 'down') => void
-  onReorderCampo: (dragId: string, dropId: string) => void
+  onReorderCampo: (dragId: string, targetIndex: number) => void
   onDropNewCampo: (e: React.DragEvent, index: number) => void
 }
 
@@ -80,16 +80,12 @@ export function FormPreview({
       return
     }
 
-    // Check if it's an existing campo being reordered
+    // Existing campo being reordered — pass target index directly
     const draggedId = e.dataTransfer.getData('application/campo-id')
-    if (draggedId && campos[index]) {
-      onReorderCampo(draggedId, campos[index].id)
-    } else if (draggedId) {
-      // Dropped at end
-      const lastCampo = campos[campos.length - 1]
-      if (lastCampo) onReorderCampo(draggedId, lastCampo.id)
+    if (draggedId) {
+      onReorderCampo(draggedId, index)
     }
-  }, [campos, onDropNewCampo, onReorderCampo])
+  }, [onDropNewCampo, onReorderCampo])
 
   const renderDropZone = (index: number, isEmpty = false) => (
     <div
@@ -182,7 +178,8 @@ export function FormPreview({
                       e.stopPropagation()
                       const draggedId = e.dataTransfer.getData('application/campo-id')
                       if (draggedId && draggedId !== campo.id) {
-                        onReorderCampo(draggedId, campo.id)
+                        // Dropping ON a campo means insert at that campo's position
+                        onReorderCampo(draggedId, index)
                       }
                     }}
                     onDragLeave={() => {}}

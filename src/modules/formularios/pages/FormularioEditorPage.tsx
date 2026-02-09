@@ -90,14 +90,14 @@ export function FormularioEditorPage() {
   )
 
   const handleReorderCampo = useCallback(
-    (dragId: string, dropId: string) => {
-      if (dragId === dropId) return
+    (dragId: string, targetIndex: number) => {
       const dragIdx = campos.findIndex((c) => c.id === dragId)
-      const dropIdx = campos.findIndex((c) => c.id === dropId)
-      if (dragIdx === -1 || dropIdx === -1) return
+      if (dragIdx === -1) return
+      if (dragIdx === targetIndex || dragIdx === targetIndex - 1) return
       const newCampos = [...campos]
       const [moved] = newCampos.splice(dragIdx, 1)
-      newCampos.splice(dropIdx, 0, moved)
+      const insertAt = dragIdx < targetIndex ? targetIndex - 1 : targetIndex
+      newCampos.splice(insertAt, 0, moved)
       reordenarCampos.mutate(newCampos.map((c, i) => ({ id: c.id, ordem: i })))
     },
     [campos, reordenarCampos]
