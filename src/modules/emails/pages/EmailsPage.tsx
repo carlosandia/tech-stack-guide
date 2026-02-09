@@ -23,7 +23,7 @@ import {
   useDeletarEmail,
   useAcaoLote,
   useEnviarEmail,
-  useNewEmailNotification,
+  // useNewEmailNotification removido — realtime hook já cuida
   useSincronizarEmails,
   useAutoSyncEmails,
   useSalvarRascunho,
@@ -146,8 +146,7 @@ export function EmailsPage() {
   // Sincronização IMAP
   const sincronizarEmails = useSincronizarEmails()
 
-  // Notificação de novos emails
-  useNewEmailNotification()
+  // Notificações via realtime (useEmailRealtime abaixo)
 
   // Realtime: escuta novos emails via Supabase Realtime
   useEmailRealtime()

@@ -234,9 +234,7 @@ export function useAutoSyncEmails() {
         if (result.novos > 0 || result.atualizados > 0) {
           queryClient.invalidateQueries({ queryKey: ['emails'] })
           queryClient.invalidateQueries({ queryKey: ['email'] })
-          if (result.novos > 0) {
-            toast.success(`${result.novos} email(s) novo(s) recebido(s)`)
-          }
+          // Notificação removida aqui — useEmailRealtime já cuida das notificações individuais
         }
       } catch {
         // Silencioso — erros de auto-sync não devem interromper o usuário
