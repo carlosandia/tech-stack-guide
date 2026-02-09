@@ -26,14 +26,17 @@ export function useEmailRealtime() {
           queryClient.invalidateQueries({ queryKey: ['emails'] })
           queryClient.invalidateQueries({ queryKey: ['email'] })
 
+          // Só notifica emails recebidos na inbox (não enviados, não arquivados)
           const newEmail = payload.new as any
-          const remetente = newEmail?.de_nome || newEmail?.de_email || 'Novo email'
-          const assunto = newEmail?.assunto || '(sem assunto)'
+          if (newEmail?.pasta === 'inbox') {
+            const remetente = newEmail?.de_nome || newEmail?.de_email || 'Novo email'
+            const assunto = newEmail?.assunto || '(sem assunto)'
 
-          toast.info(`📧 ${remetente}`, {
-            description: assunto,
-            duration: 5000,
-          })
+            toast.info(`📧 ${remetente}`, {
+              description: assunto,
+              duration: 5000,
+            })
+          }
         }
       )
       .on(
