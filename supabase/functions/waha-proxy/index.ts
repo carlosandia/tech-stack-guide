@@ -374,18 +374,49 @@ Deno.serve(async (req) => {
       }
 
       case "desconectar": {
-        wahaResponse = await fetch(`${baseUrl}/api/sessions/stop`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Api-Key": apiKey,
-          },
-          body: JSON.stringify({ name: sessionId }),
-        });
+        // 1. LOGOUT - desemparelha o número do WhatsApp
+        try {
+          const logoutResp = await fetch(`${baseUrl}/api/sessions/${sessionId}/logout`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
+          });
+          console.log(`[waha-proxy] Logout response: ${logoutResp.status}`);
+          await logoutResp.text(); // consume body
+        } catch (e) {
+          console.log(`[waha-proxy] Logout failed (may already be stopped): ${e}`);
+        }
 
+        // 2. STOP - para a sessão com logout
+        try {
+          const stopResp = await fetch(`${baseUrl}/api/sessions/stop`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
+            body: JSON.stringify({ name: sessionId, logout: true }),
+          });
+          console.log(`[waha-proxy] Stop response: ${stopResp.status}`);
+          await stopResp.text();
+        } catch (e) {
+          console.log(`[waha-proxy] Stop failed: ${e}`);
+        }
+
+        // 3. DELETE - remove a sessão completamente do WAHA
+        try {
+          const deleteResp = await fetch(`${baseUrl}/api/sessions/${sessionId}`, {
+            method: "DELETE",
+            headers: { "X-Api-Key": apiKey },
+          });
+          console.log(`[waha-proxy] Delete response: ${deleteResp.status}`);
+          await deleteResp.text();
+        } catch (e) {
+          console.log(`[waha-proxy] Delete failed: ${e}`);
+        }
+
+        // 4. Atualizar banco - limpar phone para forçar novo QR
         await upsertSessao({
           status: "disconnected",
           desconectado_em: new Date().toISOString(),
+          phone_number: null,
+          phone_name: null,
         });
         break;
       }
