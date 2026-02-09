@@ -7,7 +7,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Plus, BarChart3 } from 'lucide-react'
 import { useAppToolbar } from '@/modules/app/contexts/AppToolbarContext'
-import { useConversas, useArquivarConversa, useFixarConversa, useMarcarNaoLida, useApagarConversa } from '../hooks/useConversas'
+import { useConversas, useArquivarConversa, useDesarquivarConversa, useFixarConversa, useMarcarNaoLida, useApagarConversa } from '../hooks/useConversas'
 import { useConversasRealtime } from '../hooks/useConversasRealtime'
 import { ConversasList } from '../components/ConversasList'
 import { FiltrosConversas } from '../components/FiltrosConversas'
@@ -52,6 +52,7 @@ export function ConversasPage() {
   useConversasRealtime(conversaAtivaId)
 
   const arquivarConversa = useArquivarConversa()
+  const desarquivarConversa = useDesarquivarConversa()
   const fixarConversa = useFixarConversa()
   const marcarNaoLida = useMarcarNaoLida()
   const apagarConversa = useApagarConversa()
@@ -102,10 +103,18 @@ export function ConversasPage() {
 
   // List action handlers
   const handleArquivar = useCallback((id: string) => {
-    arquivarConversa.mutate(id, {
-      onSuccess: () => { if (conversaAtivaId === id) setConversaAtivaId(null) }
-    })
-  }, [arquivarConversa, conversaAtivaId])
+    // Verificar se a conversa está arquivada para decidir a ação
+    const conversa = conversas.find(c => c.id === id)
+    if (conversa?.arquivada) {
+      desarquivarConversa.mutate(id, {
+        onSuccess: () => { if (conversaAtivaId === id) setConversaAtivaId(null) }
+      })
+    } else {
+      arquivarConversa.mutate(id, {
+        onSuccess: () => { if (conversaAtivaId === id) setConversaAtivaId(null) }
+      })
+    }
+  }, [arquivarConversa, desarquivarConversa, conversaAtivaId, conversas])
 
   const handleFixar = useCallback((id: string, fixar: boolean) => {
     fixarConversa.mutate({ conversaId: id, fixar })

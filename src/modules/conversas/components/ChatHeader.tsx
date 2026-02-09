@@ -4,7 +4,7 @@
  * Menu expandido: silenciar, limpar conversa, apagar conversa
  */
 
-import { ArrowLeft, MoreVertical, CircleDot, Search, Plus, BellOff, Bell, Trash2, Eraser, Timer } from 'lucide-react'
+import { ArrowLeft, MoreVertical, CircleDot, Search, Plus, BellOff, Bell, Trash2, Eraser, Timer, CheckCircle2 } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
@@ -124,6 +124,18 @@ function MenuDropdown({
               <Timer className="w-4 h-4" />
               Mensagens temporárias
             </button>
+
+            <div className="h-px bg-border my-1" />
+
+            {conversa.status !== 'fechada' && (
+              <button
+                onClick={() => { onAlterarStatus('fechada'); onClose() }}
+                className="flex items-center gap-2 w-full px-3 py-2 text-sm text-foreground hover:bg-accent transition-colors"
+              >
+                <CheckCircle2 className="w-4 h-4 text-muted-foreground" />
+                Finalizar conversa
+              </button>
+            )}
 
             <div className="h-px bg-border my-1" />
 

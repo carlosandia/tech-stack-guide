@@ -2,10 +2,11 @@
  * AIDEV-NOTE: Modal para iniciar nova conversa (WhatsApp/Instagram)
  * PRD-09 RF-005: Suporta número direto OU busca de contato existente
  * Usa Supabase direto via conversas.api.ts
+ * Inclui seletor de país com bandeira (padrão Brasil +55)
  */
 
 import { useState, useEffect } from 'react'
-import { MessageSquare, Search, User, Loader2 } from 'lucide-react'
+import { MessageSquare, Search, User, Loader2, ChevronDown } from 'lucide-react'
 import { ModalBase } from '@/modules/configuracoes/components/ui/ModalBase'
 import { useCriarConversa } from '../hooks/useConversas'
 import { conversasApi, type ConversaContato } from '../services/conversas.api'
@@ -17,6 +18,20 @@ interface NovaConversaModalProps {
   onConversaCriada: (id: string) => void
 }
 
+const PAISES = [
+  { codigo: '+55', bandeira: '🇧🇷', nome: 'Brasil', placeholder: '11999999999' },
+  { codigo: '+1', bandeira: '🇺🇸', nome: 'EUA', placeholder: '2025551234' },
+  { codigo: '+54', bandeira: '🇦🇷', nome: 'Argentina', placeholder: '1155551234' },
+  { codigo: '+351', bandeira: '🇵🇹', nome: 'Portugal', placeholder: '912345678' },
+  { codigo: '+595', bandeira: '🇵🇾', nome: 'Paraguai', placeholder: '981123456' },
+  { codigo: '+598', bandeira: '🇺🇾', nome: 'Uruguai', placeholder: '91234567' },
+  { codigo: '+56', bandeira: '🇨🇱', nome: 'Chile', placeholder: '912345678' },
+  { codigo: '+57', bandeira: '🇨🇴', nome: 'Colômbia', placeholder: '3101234567' },
+  { codigo: '+52', bandeira: '🇲🇽', nome: 'México', placeholder: '5512345678' },
+  { codigo: '+44', bandeira: '🇬🇧', nome: 'Reino Unido', placeholder: '7911123456' },
+  { codigo: '+34', bandeira: '🇪🇸', nome: 'Espanha', placeholder: '612345678' },
+]
+
 export function NovaConversaModal({ isOpen, onClose, onConversaCriada }: NovaConversaModalProps) {
   const [telefone, setTelefone] = useState('')
   const [mensagem, setMensagem] = useState('')
@@ -26,6 +41,8 @@ export function NovaConversaModal({ isOpen, onClose, onConversaCriada }: NovaCon
   const [contatosResultado, setContatosResultado] = useState<ConversaContato[]>([])
   const [buscando, setBuscando] = useState(false)
   const [modo, setModo] = useState<'telefone' | 'contato'>('telefone')
+  const [paisSelecionado, setPaisSelecionado] = useState(PAISES[0])
+  const [paisDropdownOpen, setPaisDropdownOpen] = useState(false)
 
   const criarConversa = useCriarConversa()
 
@@ -39,6 +56,8 @@ export function NovaConversaModal({ isOpen, onClose, onConversaCriada }: NovaCon
       setContatoSelecionado(null)
       setContatosResultado([])
       setModo('telefone')
+      setPaisSelecionado(PAISES[0])
+      setPaisDropdownOpen(false)
     }
   }, [isOpen])
 
@@ -84,7 +103,13 @@ export function NovaConversaModal({ isOpen, onClose, onConversaCriada }: NovaCon
     if (contatoSelecionado) {
       dados.contato_id = contatoSelecionado.id
     } else if (telefone.trim()) {
-      dados.telefone = telefone.trim()
+      // Para WhatsApp, concatenar código do país + número limpo
+      if (canal === 'whatsapp') {
+        const numeroLimpo = telefone.replace(/\D/g, '')
+        dados.telefone = paisSelecionado.codigo + numeroLimpo
+      } else {
+        dados.telefone = telefone.trim()
+      }
     } else {
       return
     }
@@ -212,17 +237,66 @@ export function NovaConversaModal({ isOpen, onClose, onConversaCriada }: NovaCon
             {modo === 'telefone' ? (
               <div>
                 <label className="text-sm font-medium text-foreground mb-1.5 block">
-                  {canal === 'whatsapp' ? 'Telefone (com DDD)' : 'Usuário do Instagram'}
+                  {canal === 'whatsapp' ? 'Telefone (DDD + número)' : 'Usuário do Instagram'}
                 </label>
-                <input
-                  type="text"
-                  value={telefone}
-                  onChange={(e) => setTelefone(e.target.value)}
-                  placeholder={canal === 'whatsapp' ? '+5511999999999' : '@usuario'}
-                  className="w-full px-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
-                />
+                {canal === 'whatsapp' ? (
+                  <div className="flex gap-2">
+                    {/* Seletor de país com bandeira */}
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setPaisDropdownOpen(!paisDropdownOpen)}
+                        className="flex items-center gap-1.5 px-2.5 py-2 h-[38px] text-sm border border-input rounded-md bg-background hover:bg-accent/50 transition-colors min-w-[90px]"
+                      >
+                        <span className="text-base leading-none">{paisSelecionado.bandeira}</span>
+                        <span className="text-xs text-foreground font-medium">{paisSelecionado.codigo}</span>
+                        <ChevronDown className="w-3 h-3 text-muted-foreground ml-auto" />
+                      </button>
+                      {paisDropdownOpen && (
+                        <>
+                          <div className="fixed inset-0 z-40" onClick={() => setPaisDropdownOpen(false)} />
+                          <div className="absolute top-full left-0 mt-1 w-56 bg-popover border border-border rounded-md shadow-lg py-1 z-50 max-h-[200px] overflow-y-auto">
+                            {PAISES.map((pais) => (
+                              <button
+                                key={pais.codigo}
+                                onClick={() => {
+                                  setPaisSelecionado(pais)
+                                  setPaisDropdownOpen(false)
+                                }}
+                                className={`flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent transition-colors ${
+                                  paisSelecionado.codigo === pais.codigo ? 'bg-primary/5 text-primary font-medium' : 'text-foreground'
+                                }`}
+                              >
+                                <span className="text-base">{pais.bandeira}</span>
+                                <span className="flex-1 text-left">{pais.nome}</span>
+                                <span className="text-xs text-muted-foreground">{pais.codigo}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    <input
+                      type="text"
+                      value={telefone}
+                      onChange={(e) => setTelefone(e.target.value)}
+                      placeholder={paisSelecionado.placeholder}
+                      className="flex-1 px-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
+                    />
+                  </div>
+                ) : (
+                  <input
+                    type="text"
+                    value={telefone}
+                    onChange={(e) => setTelefone(e.target.value)}
+                    placeholder="@usuario"
+                    className="w-full px-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
+                  />
+                )}
                 {canal === 'whatsapp' && (
-                  <p className="text-[11px] text-muted-foreground mt-1">Informe o número com código do país e DDD</p>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Informe DDD + número (ex: {paisSelecionado.placeholder})
+                  </p>
                 )}
               </div>
             ) : (

@@ -28,8 +28,8 @@ export function useEnviarTexto() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ conversaId, texto, replyTo }: { conversaId: string; texto: string; replyTo?: string }) =>
-      conversasApi.enviarTexto(conversaId, texto, replyTo),
+    mutationFn: ({ conversaId, texto, replyTo, isTemplate }: { conversaId: string; texto: string; replyTo?: string; isTemplate?: boolean }) =>
+      conversasApi.enviarTexto(conversaId, texto, replyTo, isTemplate),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['mensagens', variables.conversaId] })
       queryClient.invalidateQueries({ queryKey: ['conversas'] })

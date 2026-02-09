@@ -8,7 +8,7 @@ import { useState } from 'react'
 import { format, isToday, isYesterday } from 'date-fns'
 import {
   Camera, Video, Mic, FileText, MapPin, User, BarChart3, Smile,
-  ChevronDown, Archive, Pin, PinOff, Eye, Trash2, BellOff,
+  ChevronDown, Archive, ArchiveRestore, Pin, PinOff, Eye, Trash2, BellOff,
 } from 'lucide-react'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import type { Conversa } from '../services/conversas.api'
@@ -205,8 +205,12 @@ export function ConversaItem({ conversa, isActive, onClick, onArquivar, onFixar,
               onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onArquivar?.(conversa.id) }}
               className="flex items-center gap-2 w-full px-3 py-2 text-sm text-foreground hover:bg-accent transition-colors"
             >
-              <Archive className="w-4 h-4 text-muted-foreground" />
-              Arquivar conversa
+              {conversa.arquivada ? (
+                <ArchiveRestore className="w-4 h-4 text-muted-foreground" />
+              ) : (
+                <Archive className="w-4 h-4 text-muted-foreground" />
+              )}
+              {conversa.arquivada ? 'Desarquivar conversa' : 'Arquivar conversa'}
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onFixar?.(conversa.id, !conversa.fixada) }}
