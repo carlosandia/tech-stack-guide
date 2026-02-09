@@ -79,11 +79,11 @@ export function EmailItem({
         />
       </button>
 
-      {/* Sender name - fixed width */}
-      <div className="flex-shrink-0 w-[180px] lg:w-[200px] pr-4">
+      {/* Sender name - compact width */}
+      <div className="flex-shrink-0 w-[110px] pr-2">
         <span
           className={cn(
-            'text-sm truncate block',
+            'text-[13px] truncate block',
             isUnread ? 'font-semibold text-foreground' : 'text-foreground/70'
           )}
         >
@@ -92,23 +92,22 @@ export function EmailItem({
       </div>
 
       {/* Subject + Preview - takes remaining space */}
-      <div className="flex-1 min-w-0 flex items-center gap-1 pr-3">
-        <span
-          className={cn(
-            'text-sm truncate',
-            isUnread ? 'font-semibold text-foreground' : 'text-foreground/70'
-          )}
-        >
-          {email.assunto || '(sem assunto)'}
-        </span>
-        {email.preview && (
-          <>
-            <span className="text-sm text-muted-foreground/50 flex-shrink-0"> - </span>
-            <span className="text-sm text-muted-foreground/60 truncate">
-              {email.preview}
+      <div className="flex-1 min-w-0 pr-2">
+        <div className="flex items-center gap-1 min-w-0">
+          <span
+            className={cn(
+              'text-[13px] truncate flex-shrink min-w-0',
+              isUnread ? 'font-semibold text-foreground' : 'text-foreground/70'
+            )}
+          >
+            {email.assunto || '(sem assunto)'}
+          </span>
+          {email.preview && email.preview !== email.assunto && (
+            <span className="text-[13px] text-muted-foreground/50 truncate flex-shrink-[2] min-w-0">
+              — {email.preview}
             </span>
-          </>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Attachment + Date */}

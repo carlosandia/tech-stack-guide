@@ -226,7 +226,7 @@ export function EmailViewer({
       </div>
 
       {/* ContatoCard - CRM context */}
-      <ContatoCard contatoId={email.contato_id} email={email.de_email} />
+      <ContatoCard contatoId={email.contato_id} email={email.de_email} nome={email.de_nome} />
 
       {/* Email body */}
       <div className="flex-1 overflow-y-auto px-6 py-4">

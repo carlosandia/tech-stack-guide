@@ -24,6 +24,7 @@ import {
   useEnviarEmail,
   useNewEmailNotification,
   useSincronizarEmails,
+  useSalvarRascunho,
 } from '../hooks/useEmails'
 import type { PastaEmail, AcaoLote } from '../types/email.types'
 
@@ -91,6 +92,7 @@ export function EmailsPage() {
   const deletarEmail = useDeletarEmail()
   const acaoLote = useAcaoLote()
   const enviarEmail = useEnviarEmail()
+  const salvarRascunho = useSalvarRascunho()
 
   // Sincronização IMAP
   const sincronizarEmails = useSincronizarEmails()
@@ -237,6 +239,15 @@ export function EmailsPage() {
     [enviarEmail]
   )
 
+  const handleSaveDraft = useCallback(
+    (data: { para_email?: string; cc_email?: string; bcc_email?: string; assunto?: string; corpo_html?: string; tipo?: 'novo' | 'resposta' | 'encaminhar' }) => {
+      salvarRascunho.mutate(data, {
+        onSuccess: () => setComposerOpen(false),
+      })
+    },
+    [salvarRascunho]
+  )
+
   const emails = emailsData?.data || []
   const total = emailsData?.total || 0
   const totalPages = emailsData?.total_pages || 1
@@ -310,7 +321,9 @@ export function EmailsPage() {
         isOpen={composerOpen}
         onClose={() => setComposerOpen(false)}
         onSend={handleSend}
+        onSaveDraft={handleSaveDraft}
         isSending={enviarEmail.isPending}
+        isSavingDraft={salvarRascunho.isPending}
         defaults={composerDefaults}
         resetKey={composerResetKey}
       />

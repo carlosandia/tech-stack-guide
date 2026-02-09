@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router-dom'
 interface ContatoCardProps {
   contatoId: string | null
   email: string
+  nome?: string | null
 }
 
 async function buscarContato(contatoId: string | null, email: string) {
@@ -33,7 +34,7 @@ async function buscarContato(contatoId: string | null, email: string) {
   return data
 }
 
-export function ContatoCard({ contatoId, email }: ContatoCardProps) {
+export function ContatoCard({ contatoId, email, nome }: ContatoCardProps) {
   const navigate = useNavigate()
 
   const { data: contato } = useQuery({
@@ -45,6 +46,12 @@ export function ContatoCard({ contatoId, email }: ContatoCardProps) {
 
   if (contato === undefined) return null
 
+  const handleCriarContato = () => {
+    const params = new URLSearchParams({ criar: 'pessoa', email })
+    if (nome) params.set('nome', nome)
+    navigate(`/app/contatos/pessoas?${params.toString()}`)
+  }
+
   if (!contato) {
     return (
       <div className="flex items-center gap-2 px-4 py-2 border-b border-border/60 bg-muted/20">
@@ -53,7 +60,7 @@ export function ContatoCard({ contatoId, email }: ContatoCardProps) {
           Contato não encontrado no CRM
         </span>
         <button
-          onClick={() => navigate(`/app/contatos?criar=pessoa&email=${encodeURIComponent(email)}`)}
+          onClick={handleCriarContato}
           className="inline-flex items-center gap-1 text-xs text-primary hover:underline flex-shrink-0"
         >
           <Plus className="w-3 h-3" />
