@@ -2779,6 +2779,72 @@ export type Database = {
           },
         ]
       }
+      eventos_analytics_formularios: {
+        Row: {
+          criado_em: string | null
+          dados_evento: Json | null
+          formulario_id: string
+          id: string
+          navegador: string | null
+          referrer: string | null
+          session_id: string | null
+          tempo_no_campo_segundos: number | null
+          tempo_no_formulario_segundos: number | null
+          tipo_dispositivo: string | null
+          tipo_evento: string
+          url_pagina: string | null
+          variante_ab_id: string | null
+          visitor_id: string | null
+        }
+        Insert: {
+          criado_em?: string | null
+          dados_evento?: Json | null
+          formulario_id: string
+          id?: string
+          navegador?: string | null
+          referrer?: string | null
+          session_id?: string | null
+          tempo_no_campo_segundos?: number | null
+          tempo_no_formulario_segundos?: number | null
+          tipo_dispositivo?: string | null
+          tipo_evento: string
+          url_pagina?: string | null
+          variante_ab_id?: string | null
+          visitor_id?: string | null
+        }
+        Update: {
+          criado_em?: string | null
+          dados_evento?: Json | null
+          formulario_id?: string
+          id?: string
+          navegador?: string | null
+          referrer?: string | null
+          session_id?: string | null
+          tempo_no_campo_segundos?: number | null
+          tempo_no_formulario_segundos?: number | null
+          tipo_dispositivo?: string | null
+          tipo_evento?: string
+          url_pagina?: string | null
+          variante_ab_id?: string | null
+          visitor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eventos_analytics_formularios_formulario_id_fkey"
+            columns: ["formulario_id"]
+            isOneToOne: false
+            referencedRelation: "formularios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eventos_analytics_formularios_variante_ab_id_fkey"
+            columns: ["variante_ab_id"]
+            isOneToOne: false
+            referencedRelation: "variantes_ab_formularios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       eventos_pendentes: {
         Row: {
           atualizado_em: string
@@ -2939,6 +3005,7 @@ export type Database = {
           slug: string
           status: string
           taxa_conversao: number
+          teste_ab_atual_id: string | null
           tipo: string
           tipo_botao_envio: string | null
           titulo_pagina: string | null
@@ -2992,6 +3059,7 @@ export type Database = {
           slug: string
           status?: string
           taxa_conversao?: number
+          teste_ab_atual_id?: string | null
           tipo?: string
           tipo_botao_envio?: string | null
           titulo_pagina?: string | null
@@ -3045,6 +3113,7 @@ export type Database = {
           slug?: string
           status?: string
           taxa_conversao?: number
+          teste_ab_atual_id?: string | null
           tipo?: string
           tipo_botao_envio?: string | null
           titulo_pagina?: string | null
@@ -3083,6 +3152,13 @@ export type Database = {
             columns: ["organizacao_id"]
             isOneToOne: false
             referencedRelation: "organizacoes_saas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "formularios_teste_ab_atual_id_fkey"
+            columns: ["teste_ab_atual_id"]
+            isOneToOne: false
+            referencedRelation: "testes_ab_formularios"
             referencedColumns: ["id"]
           },
         ]
@@ -3981,6 +4057,78 @@ export type Database = {
           sessao?: string | null
         }
         Relationships: []
+      }
+      logs_webhooks_formularios: {
+        Row: {
+          concluido_em: string | null
+          contagem_retry: number | null
+          disparado_em: string | null
+          id: string
+          mensagem_erro: string | null
+          request_body: string | null
+          request_headers: Json | null
+          request_metodo: string | null
+          request_url: string
+          response_body: string | null
+          response_headers: Json | null
+          response_status_code: number | null
+          response_tempo_ms: number | null
+          status: string | null
+          submissao_id: string | null
+          webhook_id: string
+        }
+        Insert: {
+          concluido_em?: string | null
+          contagem_retry?: number | null
+          disparado_em?: string | null
+          id?: string
+          mensagem_erro?: string | null
+          request_body?: string | null
+          request_headers?: Json | null
+          request_metodo?: string | null
+          request_url: string
+          response_body?: string | null
+          response_headers?: Json | null
+          response_status_code?: number | null
+          response_tempo_ms?: number | null
+          status?: string | null
+          submissao_id?: string | null
+          webhook_id: string
+        }
+        Update: {
+          concluido_em?: string | null
+          contagem_retry?: number | null
+          disparado_em?: string | null
+          id?: string
+          mensagem_erro?: string | null
+          request_body?: string | null
+          request_headers?: Json | null
+          request_metodo?: string | null
+          request_url?: string
+          response_body?: string | null
+          response_headers?: Json | null
+          response_status_code?: number | null
+          response_tempo_ms?: number | null
+          status?: string | null
+          submissao_id?: string | null
+          webhook_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "logs_webhooks_formularios_submissao_id_fkey"
+            columns: ["submissao_id"]
+            isOneToOne: false
+            referencedRelation: "submissoes_formularios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "logs_webhooks_formularios_webhook_id_fkey"
+            columns: ["webhook_id"]
+            isOneToOne: false
+            referencedRelation: "webhooks_formularios"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       mensagens: {
         Row: {
@@ -6318,6 +6466,88 @@ export type Database = {
           },
         ]
       }
+      testes_ab_formularios: {
+        Row: {
+          atualizado_em: string | null
+          concluido_em: string | null
+          confianca_minima: number | null
+          criado_em: string | null
+          criado_por: string | null
+          descricao_teste: string | null
+          duracao_minima_dias: number | null
+          formulario_id: string
+          id: string
+          iniciado_em: string | null
+          metrica_objetivo: string | null
+          minimo_submissoes: number | null
+          nome_teste: string
+          organizacao_id: string
+          pausado_em: string | null
+          status: string
+          variante_vencedora_id: string | null
+        }
+        Insert: {
+          atualizado_em?: string | null
+          concluido_em?: string | null
+          confianca_minima?: number | null
+          criado_em?: string | null
+          criado_por?: string | null
+          descricao_teste?: string | null
+          duracao_minima_dias?: number | null
+          formulario_id: string
+          id?: string
+          iniciado_em?: string | null
+          metrica_objetivo?: string | null
+          minimo_submissoes?: number | null
+          nome_teste: string
+          organizacao_id: string
+          pausado_em?: string | null
+          status?: string
+          variante_vencedora_id?: string | null
+        }
+        Update: {
+          atualizado_em?: string | null
+          concluido_em?: string | null
+          confianca_minima?: number | null
+          criado_em?: string | null
+          criado_por?: string | null
+          descricao_teste?: string | null
+          duracao_minima_dias?: number | null
+          formulario_id?: string
+          id?: string
+          iniciado_em?: string | null
+          metrica_objetivo?: string | null
+          minimo_submissoes?: number | null
+          nome_teste?: string
+          organizacao_id?: string
+          pausado_em?: string | null
+          status?: string
+          variante_vencedora_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "testes_ab_formularios_formulario_id_fkey"
+            columns: ["formulario_id"]
+            isOneToOne: false
+            referencedRelation: "formularios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "testes_ab_formularios_organizacao_id_fkey"
+            columns: ["organizacao_id"]
+            isOneToOne: false
+            referencedRelation: "organizacoes_saas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "testes_ab_variante_vencedora_fkey"
+            columns: ["variante_vencedora_id"]
+            isOneToOne: false
+            referencedRelation: "variantes_ab_formularios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string | null
@@ -6480,6 +6710,56 @@ export type Database = {
           },
         ]
       }
+      variantes_ab_formularios: {
+        Row: {
+          alteracoes: Json
+          contagem_submissoes: number | null
+          contagem_visualizacoes: number | null
+          criado_em: string | null
+          e_controle: boolean | null
+          id: string
+          letra_variante: string
+          nome_variante: string
+          porcentagem_trafego: number | null
+          taxa_conversao: number | null
+          teste_ab_id: string
+        }
+        Insert: {
+          alteracoes?: Json
+          contagem_submissoes?: number | null
+          contagem_visualizacoes?: number | null
+          criado_em?: string | null
+          e_controle?: boolean | null
+          id?: string
+          letra_variante: string
+          nome_variante: string
+          porcentagem_trafego?: number | null
+          taxa_conversao?: number | null
+          teste_ab_id: string
+        }
+        Update: {
+          alteracoes?: Json
+          contagem_submissoes?: number | null
+          contagem_visualizacoes?: number | null
+          criado_em?: string | null
+          e_controle?: boolean | null
+          id?: string
+          letra_variante?: string
+          nome_variante?: string
+          porcentagem_trafego?: number | null
+          taxa_conversao?: number | null
+          teste_ab_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "variantes_ab_formularios_teste_ab_id_fkey"
+            columns: ["teste_ab_id"]
+            isOneToOne: false
+            referencedRelation: "testes_ab_formularios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       webhooks_entrada: {
         Row: {
           api_key: string | null
@@ -6539,6 +6819,99 @@ export type Database = {
           },
           {
             foreignKeyName: "webhooks_entrada_organizacao_id_fkey"
+            columns: ["organizacao_id"]
+            isOneToOne: false
+            referencedRelation: "organizacoes_saas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      webhooks_formularios: {
+        Row: {
+          ativo: boolean | null
+          atraso_retry_segundos: number | null
+          atualizado_em: string | null
+          condicoes_disparo: Json | null
+          contagem_falha: number | null
+          contagem_sucesso: number | null
+          criado_em: string | null
+          disparar_em: string | null
+          formato_payload: string | null
+          formulario_id: string
+          headers_customizados: Json | null
+          id: string
+          incluir_metadados: boolean | null
+          mapeamento_campos: Json | null
+          max_tentativas: number | null
+          metodo_http: string | null
+          nome_webhook: string
+          organizacao_id: string
+          retry_ativo: boolean | null
+          ultimo_disparo_em: string | null
+          ultimo_erro: string | null
+          ultimo_status_code: number | null
+          url_webhook: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          atraso_retry_segundos?: number | null
+          atualizado_em?: string | null
+          condicoes_disparo?: Json | null
+          contagem_falha?: number | null
+          contagem_sucesso?: number | null
+          criado_em?: string | null
+          disparar_em?: string | null
+          formato_payload?: string | null
+          formulario_id: string
+          headers_customizados?: Json | null
+          id?: string
+          incluir_metadados?: boolean | null
+          mapeamento_campos?: Json | null
+          max_tentativas?: number | null
+          metodo_http?: string | null
+          nome_webhook: string
+          organizacao_id: string
+          retry_ativo?: boolean | null
+          ultimo_disparo_em?: string | null
+          ultimo_erro?: string | null
+          ultimo_status_code?: number | null
+          url_webhook: string
+        }
+        Update: {
+          ativo?: boolean | null
+          atraso_retry_segundos?: number | null
+          atualizado_em?: string | null
+          condicoes_disparo?: Json | null
+          contagem_falha?: number | null
+          contagem_sucesso?: number | null
+          criado_em?: string | null
+          disparar_em?: string | null
+          formato_payload?: string | null
+          formulario_id?: string
+          headers_customizados?: Json | null
+          id?: string
+          incluir_metadados?: boolean | null
+          mapeamento_campos?: Json | null
+          max_tentativas?: number | null
+          metodo_http?: string | null
+          nome_webhook?: string
+          organizacao_id?: string
+          retry_ativo?: boolean | null
+          ultimo_disparo_em?: string | null
+          ultimo_erro?: string | null
+          ultimo_status_code?: number | null
+          url_webhook?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webhooks_formularios_formulario_id_fkey"
+            columns: ["formulario_id"]
+            isOneToOne: false
+            referencedRelation: "formularios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "webhooks_formularios_organizacao_id_fkey"
             columns: ["organizacao_id"]
             isOneToOne: false
             referencedRelation: "organizacoes_saas"
