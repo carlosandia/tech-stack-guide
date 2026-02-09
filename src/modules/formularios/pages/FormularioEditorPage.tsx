@@ -1,14 +1,17 @@
 /**
  * AIDEV-NOTE: Página de edição do formulário com tabs
- * Tabs: Campos | Estilos (e futuras tabs)
- * Campos: Paleta (esquerda) | Preview (centro) | Config (direita)
+ * Tabs: Campos | Configurações | Lógica | ...
+ * Campos: Paleta (esquerda) | Preview (centro) | Config/Estilos (direita)
+ * Estilos integrados no preview com click-to-edit inline
  */
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { PanelLeft, PanelRight, Loader2, LayoutGrid, Paintbrush, Settings2, Share2, Zap, BarChart3, FlaskConical, Plug } from 'lucide-react'
+import { PanelLeft, PanelRight, Loader2, LayoutGrid, Settings2, Share2, Zap, BarChart3, FlaskConical, Plug, Eye, EyeOff, Save, Code } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { useFormulario } from '../hooks/useFormularios'
 import {
   useCamposFormulario,
@@ -17,11 +20,17 @@ import {
   useExcluirCampo,
   useReordenarCampos,
 } from '../hooks/useFormularioCampos'
+import { useEstilosFormulario, useSalvarEstilos } from '../hooks/useFormularioEstilos'
+import { ESTILO_PADRAO } from '../services/formularios.api'
 import { EditorHeader } from '../components/editor/EditorHeader'
 import { CamposPaleta } from '../components/campos/CamposPaleta'
 import { CampoConfigPanel } from '../components/campos/CampoConfigPanel'
 import { FormPreview } from '../components/editor/FormPreview'
-import { EditorTabsEstilos } from '../components/editor/EditorTabsEstilos'
+import { EstiloPreviewInterativo, type SelectedElement } from '../components/estilos/EstiloPreviewInterativo'
+import { EstiloPopover } from '../components/estilos/EstiloPopover'
+import { EstiloContainerForm } from '../components/estilos/EstiloContainerForm'
+import { EstiloCamposForm } from '../components/estilos/EstiloCamposForm'
+import { EstiloBotaoForm } from '../components/estilos/EstiloBotaoForm'
 import { EditorTabsCompartilhar } from '../components/editor/EditorTabsCompartilhar'
 import { EditorTabsConfig } from '../components/editor/EditorTabsConfig'
 import { EditorTabsLogica } from '../components/editor/EditorTabsLogica'
@@ -30,11 +39,10 @@ import { EditorTabsAB } from '../components/editor/EditorTabsAB'
 import { EditorTabsIntegracoes } from '../components/editor/EditorTabsIntegracoes'
 import type { CampoFormulario } from '../services/formularios.api'
 
-type EditorTab = 'campos' | 'estilos' | 'config' | 'logica' | 'compartilhar' | 'analytics' | 'ab' | 'integracoes'
+type EditorTab = 'campos' | 'config' | 'logica' | 'compartilhar' | 'analytics' | 'ab' | 'integracoes'
 
 const TABS: { key: EditorTab; label: string; icon: React.ElementType }[] = [
   { key: 'campos', label: 'Campos', icon: LayoutGrid },
-  { key: 'estilos', label: 'Estilos', icon: Paintbrush },
   { key: 'config', label: 'Configurações', icon: Settings2 },
   { key: 'logica', label: 'Lógica', icon: Zap },
   { key: 'integracoes', label: 'Integrações', icon: Plug },
@@ -54,12 +62,56 @@ export function FormularioEditorPage() {
   const excluirCampo = useExcluirCampo(id || '')
   const reordenarCampos = useReordenarCampos(id || '')
 
+  // Estilos state
+  const { data: estilos } = useEstilosFormulario(id || null)
+  const salvarEstilos = useSalvarEstilos(id || '')
+  const [container, setContainer] = useState(ESTILO_PADRAO.container)
+  const [cabecalho, setCabecalho] = useState(ESTILO_PADRAO.cabecalho)
+  const [camposEstilo, setCamposEstilo] = useState(ESTILO_PADRAO.campos)
+  const [botao, setBotao] = useState(ESTILO_PADRAO.botao)
+  const [pagina, setPagina] = useState(ESTILO_PADRAO.pagina)
+  const [cssCustomizado, setCssCustomizado] = useState('')
+
+  useEffect(() => {
+    if (estilos) {
+      setContainer(estilos.container || ESTILO_PADRAO.container)
+      setCabecalho(estilos.cabecalho || ESTILO_PADRAO.cabecalho)
+      setCamposEstilo(estilos.campos || ESTILO_PADRAO.campos)
+      setBotao(estilos.botao || ESTILO_PADRAO.botao)
+      setPagina(estilos.pagina || ESTILO_PADRAO.pagina)
+      setCssCustomizado(estilos.css_customizado || '')
+    }
+  }, [estilos])
+
   const [activeTab, setActiveTab] = useState<EditorTab>('campos')
   const [selectedCampoId, setSelectedCampoId] = useState<string | null>(null)
   const [showPaleta, setShowPaleta] = useState(true)
   const [showConfig, setShowConfig] = useState(false)
 
+  // Style editing state
+  const [showFinalPreview, setShowFinalPreview] = useState(false)
+  const [selectedStyleElement, setSelectedStyleElement] = useState<SelectedElement>(null)
+  const [showCssDrawer, setShowCssDrawer] = useState(false)
+
   const selectedCampo = campos.find((c) => c.id === selectedCampoId)
+
+  const handleSaveEstilos = () => {
+    salvarEstilos.mutate({
+      container,
+      cabecalho,
+      campos: camposEstilo,
+      botao,
+      pagina,
+      css_customizado: cssCustomizado || null,
+    })
+  }
+
+  const toggleFinalPreview = () => {
+    setShowFinalPreview((v) => !v)
+    setSelectedStyleElement(null)
+    setSelectedCampoId(null)
+    setShowConfig(false)
+  }
 
   const handleDropNewCampo = useCallback(
     (e: React.DragEvent, index: number) => {
@@ -118,6 +170,7 @@ export function FormularioEditorPage() {
 
   const handleSelectCampo = useCallback((id: string | null) => {
     setSelectedCampoId(id)
+    setSelectedStyleElement(null)
     if (id) setShowConfig(true)
   }, [])
 
@@ -139,6 +192,21 @@ export function FormularioEditorPage() {
     },
     [excluirCampo, selectedCampoId]
   )
+
+  const handleSelectStyleElement = useCallback((el: SelectedElement) => {
+    setSelectedStyleElement(el)
+    setSelectedCampoId(null)
+    setShowConfig(false)
+  }, [])
+
+  const panelTitle =
+    selectedStyleElement === 'container'
+      ? 'Container'
+      : selectedStyleElement === 'campos'
+      ? 'Campos'
+      : selectedStyleElement === 'botao'
+      ? 'Botão'
+      : ''
 
   if (loadingForm || loadingCampos) {
     return (
@@ -168,7 +236,13 @@ export function FormularioEditorPage() {
         {TABS.map(({ key, label, icon: Icon }) => (
           <button
             key={key}
-            onClick={() => setActiveTab(key)}
+            onClick={() => {
+              setActiveTab(key)
+              if (key !== 'campos') {
+                setShowFinalPreview(false)
+                setSelectedStyleElement(null)
+              }
+            }}
             className={cn(
               'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
               activeTab === key
@@ -184,88 +258,198 @@ export function FormularioEditorPage() {
 
       {/* Tab Content */}
       {activeTab === 'campos' && (
-        <div className="flex-1 flex overflow-hidden relative">
-          {/* Mobile toggle buttons */}
-          <div className="lg:hidden absolute top-2 left-2 z-10 flex gap-1">
-            <Button
-              variant={showPaleta ? 'default' : 'outline'}
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => { setShowPaleta(!showPaleta); if (!showPaleta) setShowConfig(false) }}
-            >
-              <PanelLeft className="w-4 h-4" />
-            </Button>
-            {selectedCampo && (
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Style action bar */}
+          <div className="flex items-center justify-between gap-2 px-4 py-1.5 border-b border-border bg-background shrink-0">
+            <div className="flex items-center gap-2">
               <Button
-                variant={showConfig ? 'default' : 'outline'}
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => { setShowConfig(!showConfig); if (!showConfig) setShowPaleta(false) }}
+                variant={showFinalPreview ? 'default' : 'outline'}
+                size="sm"
+                className="h-7 text-xs"
+                onClick={toggleFinalPreview}
               >
-                <PanelRight className="w-4 h-4" />
+                {showFinalPreview ? (
+                  <>
+                    <EyeOff className="w-3.5 h-3.5 mr-1.5" />
+                    Voltar ao Editor
+                  </>
+                ) : (
+                  <>
+                    <Eye className="w-3.5 h-3.5 mr-1.5" />
+                    Visualizar Final
+                  </>
+                )}
               </Button>
-            )}
-          </div>
 
-          {/* Paleta */}
-          <div
-            className={cn(
-              'border-r border-border bg-card overflow-y-auto flex-shrink-0 transition-all duration-200',
-              'hidden lg:block lg:w-64',
-              showPaleta && 'block absolute inset-y-0 left-0 w-64 z-20 shadow-lg lg:relative lg:shadow-none'
-            )}
-          >
-            <div className="p-3">
-              <CamposPaleta />
-            </div>
-          </div>
-
-          {/* Preview */}
-          <div className="flex-1 overflow-hidden">
-            <FormPreview
-              formulario={formulario}
-              campos={campos}
-              selectedCampoId={selectedCampoId}
-              onSelectCampo={handleSelectCampo}
-              onRemoveCampo={handleRemoveCampo}
-              onMoveCampo={handleMoveCampo}
-              onReorderCampo={handleReorderCampo}
-              onDropNewCampo={handleDropNewCampo}
-            />
-          </div>
-
-          {/* Config panel */}
-          {selectedCampo && (
-            <div
-              className={cn(
-                'border-l border-border bg-card overflow-y-auto flex-shrink-0 transition-all duration-200',
-                'hidden lg:block lg:w-72',
-                showConfig && 'block absolute inset-y-0 right-0 w-72 z-20 shadow-lg lg:relative lg:shadow-none'
+              {!showFinalPreview && (
+                <Button
+                  variant={showCssDrawer ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setShowCssDrawer((v) => !v)}
+                >
+                  <Code className="w-3.5 h-3.5 mr-1.5" />
+                  CSS
+                </Button>
               )}
+            </div>
+
+            <Button size="sm" className="h-7 text-xs" onClick={handleSaveEstilos} disabled={salvarEstilos.isPending}>
+              {salvarEstilos.isPending ? (
+                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+              ) : (
+                <Save className="w-3.5 h-3.5 mr-1.5" />
+              )}
+              Salvar Estilos
+            </Button>
+          </div>
+
+          {/* Main content */}
+          {showFinalPreview ? (
+            /* Final Preview Mode */
+            <div
+              className="flex-1 overflow-y-auto flex items-center justify-center p-6"
+              style={{ backgroundColor: pagina.background_color || '#F3F4F6' }}
             >
-              <div className="p-3">
-                <CampoConfigPanel
-                  campo={selectedCampo}
-                  onUpdate={handleUpdateCampo}
-                  onClose={() => { setSelectedCampoId(null); setShowConfig(false) }}
+              <EstiloPreviewInterativo
+                container={container}
+                cabecalho={cabecalho}
+                campos={camposEstilo}
+                botao={botao}
+                titulo={formulario.nome}
+                descricao={formulario.descricao || undefined}
+                selectedElement={null}
+                onSelectElement={() => {}}
+                isPreviewMode={true}
+              />
+            </div>
+          ) : (
+            /* Editor Mode */
+            <div className="flex-1 flex overflow-hidden relative">
+              {/* Mobile toggle buttons */}
+              <div className="lg:hidden absolute top-2 left-2 z-10 flex gap-1">
+                <Button
+                  variant={showPaleta ? 'default' : 'outline'}
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => { setShowPaleta(!showPaleta); if (!showPaleta) setShowConfig(false) }}
+                >
+                  <PanelLeft className="w-4 h-4" />
+                </Button>
+                {selectedCampo && (
+                  <Button
+                    variant={showConfig ? 'default' : 'outline'}
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => { setShowConfig(!showConfig); if (!showConfig) setShowPaleta(false) }}
+                  >
+                    <PanelRight className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
+
+              {/* Paleta */}
+              <div
+                className={cn(
+                  'border-r border-border bg-card overflow-y-auto flex-shrink-0 transition-all duration-200',
+                  'hidden lg:block lg:w-64',
+                  showPaleta && 'block absolute inset-y-0 left-0 w-64 z-20 shadow-lg lg:relative lg:shadow-none'
+                )}
+              >
+                <div className="p-3">
+                  <CamposPaleta />
+                </div>
+              </div>
+
+              {/* Preview */}
+              <div className="flex-1 overflow-hidden">
+                <FormPreview
+                  formulario={formulario}
+                  campos={campos}
+                  selectedCampoId={selectedCampoId}
+                  onSelectCampo={handleSelectCampo}
+                  onRemoveCampo={handleRemoveCampo}
+                  onMoveCampo={handleMoveCampo}
+                  onReorderCampo={handleReorderCampo}
+                  onDropNewCampo={handleDropNewCampo}
+                  estiloContainer={container}
+                  estiloCampos={camposEstilo}
+                  estiloBotao={botao}
+                  estiloCabecalho={cabecalho}
+                  selectedStyleElement={selectedStyleElement}
+                  onSelectStyleElement={handleSelectStyleElement}
                 />
               </div>
+
+              {/* Config panel (campo config) */}
+              {selectedCampo && !selectedStyleElement && (
+                <div
+                  className={cn(
+                    'border-l border-border bg-card overflow-y-auto flex-shrink-0 transition-all duration-200',
+                    'hidden lg:block lg:w-72',
+                    showConfig && 'block absolute inset-y-0 right-0 w-72 z-20 shadow-lg lg:relative lg:shadow-none'
+                  )}
+                >
+                  <div className="p-3">
+                    <CampoConfigPanel
+                      campo={selectedCampo}
+                      onUpdate={handleUpdateCampo}
+                      onClose={() => { setSelectedCampoId(null); setShowConfig(false) }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Style panel */}
+              {selectedStyleElement && (
+                <EstiloPopover
+                  open={!!selectedStyleElement}
+                  onClose={() => setSelectedStyleElement(null)}
+                  titulo={panelTitle}
+                >
+                  {selectedStyleElement === 'container' && (
+                    <EstiloContainerForm value={container} onChange={setContainer} />
+                  )}
+                  {selectedStyleElement === 'campos' && (
+                    <EstiloCamposForm value={camposEstilo} onChange={setCamposEstilo} />
+                  )}
+                  {selectedStyleElement === 'botao' && (
+                    <EstiloBotaoForm value={botao} onChange={setBotao} />
+                  )}
+                </EstiloPopover>
+              )}
+
+              {/* Mobile overlay */}
+              {(showPaleta || showConfig) && (
+                <div
+                  className="lg:hidden fixed inset-0 bg-foreground/20 z-10"
+                  onClick={() => { setShowPaleta(false); setShowConfig(false) }}
+                />
+              )}
             </div>
           )}
 
-          {/* Mobile overlay */}
-          {(showPaleta || showConfig) && (
-            <div
-              className="lg:hidden fixed inset-0 bg-foreground/20 z-10"
-              onClick={() => { setShowPaleta(false); setShowConfig(false) }}
-            />
+          {/* CSS Drawer */}
+          {showCssDrawer && !showFinalPreview && (
+            <div className="border-t border-border bg-background p-3 shrink-0 animate-in slide-in-from-bottom-2 duration-200">
+              <div className="flex items-center justify-between mb-2">
+                <Label className="text-xs font-semibold">CSS Customizado (Avançado)</Label>
+                <button
+                  onClick={() => setShowCssDrawer(false)}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Fechar
+                </button>
+              </div>
+              <Textarea
+                value={cssCustomizado}
+                onChange={(e) => setCssCustomizado(e.target.value)}
+                rows={4}
+                placeholder=".form-container { /* seus estilos */ }"
+                className="font-mono text-xs"
+              />
+            </div>
           )}
-        </div>
-      )}
-
-      {activeTab === 'estilos' && (
-        <div className="flex-1 overflow-hidden">
-          <EditorTabsEstilos formulario={formulario} />
         </div>
       )}
 
