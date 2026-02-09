@@ -126,10 +126,7 @@ export function FormPreview({
     }
   }, [onSelectStyleElement])
 
-  const handleButtonClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation()
-    onSelectStyleElement?.('botao')
-  }, [onSelectStyleElement])
+  // handleButtonClick removed - buttons now call onSelectStyleElement directly
 
   const handleDragEnter = useCallback((e: React.DragEvent, index: number) => {
     e.preventDefault()
@@ -386,32 +383,14 @@ export function FormPreview({
 
           {/* Submit button(s) */}
           {campos.length > 0 && (
-            <div className="mt-6 relative group/botao">
-              {!showFinalPreview && onSelectStyleElement && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onSelectStyleElement('botao')
-                  }}
-                  className={cn(
-                    'absolute -right-2 -top-2 z-10 p-1 rounded-full border bg-card shadow-sm transition-opacity',
-                    'opacity-0 group-hover/botao:opacity-100',
-                    selectedStyleElement === 'botao' ? 'opacity-100 border-primary text-primary' : 'border-border text-muted-foreground hover:text-primary hover:border-primary'
-                  )}
-                  title="Editar estilos do botão"
-                >
-                  <Paintbrush className="w-3 h-3" />
-                </button>
-              )}
-
+            <div className="mt-6">
               {renderBotoes(
                 configBotoes,
                 estiloBotao,
                 buttonStyle,
                 showFinalPreview || false,
                 selectedStyleElement,
-                handleButtonClick,
+                onSelectStyleElement,
               )}
             </div>
           )}
@@ -428,49 +407,81 @@ function renderBotoes(
   buttonStyle: React.CSSProperties,
   showFinalPreview: boolean,
   selectedStyleElement: SelectedElement | undefined,
-  handleButtonClick: (e: React.MouseEvent) => void,
+  onSelectStyleElement: ((el: SelectedElement) => void) | undefined,
 ) {
   const tipoBotao = configBotoes?.tipo_botao || 'enviar'
   const showEnviar = tipoBotao === 'enviar' || tipoBotao === 'ambos'
   const showWhatsApp = tipoBotao === 'whatsapp' || tipoBotao === 'ambos'
 
   const enviarBtn = showEnviar ? (
-    <button
-      type="button"
-      className={cn(
-        'rounded-md text-sm font-semibold transition-all',
-        !estiloBotao && 'w-full bg-primary text-primary-foreground py-2.5',
-        !showFinalPreview && selectedStyleElement === 'botao' && 'outline outline-2 outline-dashed outline-primary outline-offset-2'
+    <div className="relative group/botao-enviar">
+      {!showFinalPreview && onSelectStyleElement && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onSelectStyleElement('botao') }}
+          className={cn(
+            'absolute -right-2 -top-2 z-10 p-1 rounded-full border bg-card shadow-sm transition-opacity',
+            'opacity-0 group-hover/botao-enviar:opacity-100',
+            selectedStyleElement === 'botao' ? 'opacity-100 border-primary text-primary' : 'border-border text-muted-foreground hover:text-primary hover:border-primary'
+          )}
+          title="Editar estilos do botão Enviar"
+        >
+          <Paintbrush className="w-3 h-3" />
+        </button>
       )}
-      style={estiloBotao ? buttonStyle : undefined}
-      onClick={showFinalPreview ? undefined : handleButtonClick}
-    >
-      {estiloBotao?.texto || 'Enviar'}
-    </button>
+      <button
+        type="button"
+        className={cn(
+          'rounded-md text-sm font-semibold transition-all',
+          !estiloBotao && 'w-full bg-primary text-primary-foreground py-2.5',
+          !showFinalPreview && selectedStyleElement === 'botao' && 'outline outline-2 outline-dashed outline-primary outline-offset-2'
+        )}
+        style={estiloBotao ? buttonStyle : undefined}
+        onClick={showFinalPreview ? undefined : (e) => { e.stopPropagation(); onSelectStyleElement?.('botao') }}
+      >
+        {estiloBotao?.texto || 'Enviar'}
+      </button>
+    </div>
   ) : null
 
   const whatsAppBtn = showWhatsApp ? (
-    <button
-      type="button"
-      className={cn(
-        'rounded-md text-sm font-semibold transition-all flex items-center justify-center gap-2',
-        !showFinalPreview && selectedStyleElement === 'botao' && 'outline outline-2 outline-dashed outline-primary outline-offset-2'
+    <div className="relative group/botao-whatsapp">
+      {!showFinalPreview && onSelectStyleElement && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onSelectStyleElement('botao_whatsapp') }}
+          className={cn(
+            'absolute -right-2 -top-2 z-10 p-1 rounded-full border bg-card shadow-sm transition-opacity',
+            'opacity-0 group-hover/botao-whatsapp:opacity-100',
+            selectedStyleElement === 'botao_whatsapp' ? 'opacity-100 border-primary text-primary' : 'border-border text-muted-foreground hover:text-primary hover:border-primary'
+          )}
+          title="Editar estilos do botão WhatsApp"
+        >
+          <Paintbrush className="w-3 h-3" />
+        </button>
       )}
-      style={{
-        backgroundColor: '#25D366',
-        color: '#FFFFFF',
-        borderRadius: estiloBotao?.border_radius || '6px',
-        width: tipoBotao === 'ambos' ? '100%' : (estiloBotao?.largura === 'full' ? '100%' : estiloBotao?.largura === '50%' ? '50%' : 'auto'),
-        padding: '10px 20px',
-        fontSize: '14px',
-        fontWeight: 600,
-        border: 'none',
-      }}
-      onClick={showFinalPreview ? undefined : handleButtonClick}
-    >
-      <WhatsAppIcon size={16} className="shrink-0" />
-      Enviar via WhatsApp
-    </button>
+      <button
+        type="button"
+        className={cn(
+          'rounded-md text-sm font-semibold transition-all flex items-center justify-center gap-2',
+          !showFinalPreview && selectedStyleElement === 'botao_whatsapp' && 'outline outline-2 outline-dashed outline-primary outline-offset-2'
+        )}
+        style={{
+          backgroundColor: estiloBotao?.whatsapp_background || '#25D366',
+          color: estiloBotao?.whatsapp_texto_cor || '#FFFFFF',
+          borderRadius: estiloBotao?.whatsapp_border_radius || estiloBotao?.border_radius || '6px',
+          width: tipoBotao === 'ambos' ? '100%' : (estiloBotao?.largura === 'full' ? '100%' : estiloBotao?.largura === '50%' ? '50%' : 'auto'),
+          padding: '10px 20px',
+          fontSize: '14px',
+          fontWeight: 600,
+          border: 'none',
+        }}
+        onClick={showFinalPreview ? undefined : (e) => { e.stopPropagation(); onSelectStyleElement?.('botao_whatsapp') }}
+      >
+        <WhatsAppIcon size={16} className="shrink-0" />
+        {estiloBotao?.whatsapp_texto || 'Enviar via WhatsApp'}
+      </button>
+    </div>
   ) : null
 
   if (tipoBotao === 'ambos') {
