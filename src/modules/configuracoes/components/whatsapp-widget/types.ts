@@ -12,6 +12,7 @@ export interface WidgetWhatsAppConfig {
   foto_atendente_url: string
   mensagem_boas_vindas: string
   cor_botao: string
+  funil_id: string // ID do funil/pipeline para criação de oportunidades
 }
 
 export const DEFAULT_WIDGET_CONFIG: WidgetWhatsAppConfig = {
@@ -24,4 +25,5 @@ export const DEFAULT_WIDGET_CONFIG: WidgetWhatsAppConfig = {
   foto_atendente_url: '',
   mensagem_boas_vindas: 'Olá! 👋 Como posso te ajudar?',
   cor_botao: '#25D366',
+  funil_id: '',
 }

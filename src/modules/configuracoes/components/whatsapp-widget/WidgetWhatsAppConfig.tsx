@@ -8,6 +8,7 @@ import { useState, useRef, useMemo } from 'react'
 import { MessageSquare, Copy, Check, Upload, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { useCampos } from '../../hooks/useCampos'
+import { useFunis } from '@/modules/negocios/hooks/useFunis'
 import { supabase } from '@/lib/supabase'
 import { compressImage } from '@/shared/utils/compressMedia'
 import type { WidgetWhatsAppConfig as WidgetConfig } from './types'
@@ -23,7 +24,9 @@ interface Props {
 export function WidgetWhatsAppConfig({ value, onChange }: Props) {
   const config = { ...DEFAULT_WIDGET_CONFIG, ...value }
   const { data: camposData } = useCampos('pessoa')
+  const { data: funis } = useFunis()
   const campos = camposData?.campos || []
+  const funisAtivos = useMemo(() => (funis || []).filter((f: any) => !f.arquivado && !f.deletado_em), [funis])
   const [copiado, setCopiado] = useState(false)
   const [uploading, setUploading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -120,6 +123,22 @@ export function WidgetWhatsAppConfig({ value, onChange }: Props) {
                 className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm text-foreground"
               />
               <p className="text-xs text-muted-foreground mt-1">Inclua o código do país (ex: 55 para Brasil)</p>
+            </div>
+
+            {/* Pipeline / Funil */}
+            <div>
+              <label className="text-sm font-medium text-foreground mb-1.5 block">Pipeline de Destino</label>
+              <select
+                value={config.funil_id}
+                onChange={e => update('funil_id', e.target.value)}
+                className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm text-foreground"
+              >
+                <option value="">Selecione a pipeline...</option>
+                {funisAtivos.map((f: any) => (
+                  <option key={f.id} value={f.id}>{f.nome}</option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground mt-1">Em qual pipeline as oportunidades do widget serão criadas</p>
             </div>
 
             {/* Posição */}

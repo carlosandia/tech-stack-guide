@@ -124,7 +124,7 @@ export function Api4comConexaoModal({ onClose, onSuccess }: Api4comConexaoModalP
       size="md"
       footer={footer}
     >
-      <div className="space-y-4">
+      <div className="p-4 sm:p-6 space-y-4">
         {/* Instruções */}
         <div className="bg-primary/5 border border-primary/20 rounded-lg p-3">
           <div className="flex items-start gap-2.5">
