@@ -7,7 +7,7 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { PanelLeft, PanelRight, Loader2, LayoutGrid, Settings2, Share2, Zap, BarChart3, FlaskConical, Plug, Eye, EyeOff, Save, Code } from 'lucide-react'
+import { PanelLeft, PanelRight, Loader2, LayoutGrid, Settings2, Share2, BarChart3 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -33,21 +33,15 @@ import { EstiloCamposForm } from '../components/estilos/EstiloCamposForm'
 import { EstiloBotaoForm } from '../components/estilos/EstiloBotaoForm'
 import { EditorTabsCompartilhar } from '../components/editor/EditorTabsCompartilhar'
 import { EditorTabsConfig } from '../components/editor/EditorTabsConfig'
-import { EditorTabsLogica } from '../components/editor/EditorTabsLogica'
 import { EditorTabsAnalytics } from '../components/editor/EditorTabsAnalytics'
-import { EditorTabsAB } from '../components/editor/EditorTabsAB'
-import { EditorTabsIntegracoes } from '../components/editor/EditorTabsIntegracoes'
 import type { CampoFormulario } from '../services/formularios.api'
 
-type EditorTab = 'campos' | 'config' | 'logica' | 'compartilhar' | 'analytics' | 'ab' | 'integracoes'
+type EditorTab = 'campos' | 'config' | 'compartilhar' | 'analytics'
 
 const TABS: { key: EditorTab; label: string; icon: React.ElementType }[] = [
   { key: 'campos', label: 'Campos', icon: LayoutGrid },
   { key: 'config', label: 'Configurações', icon: Settings2 },
-  { key: 'logica', label: 'Lógica', icon: Zap },
-  { key: 'integracoes', label: 'Integrações', icon: Plug },
   { key: 'analytics', label: 'Analytics', icon: BarChart3 },
-  { key: 'ab', label: 'A/B Testing', icon: FlaskConical },
   { key: 'compartilhar', label: 'Compartilhar', icon: Share2 },
 ]
 
@@ -245,51 +239,6 @@ export function FormularioEditorPage() {
       {/* Tab Content */}
       {activeTab === 'campos' && (
         <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Style action bar */}
-          <div className="flex items-center justify-between gap-2 px-4 py-1.5 border-b border-border bg-background shrink-0">
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 text-xs"
-                onClick={toggleFinalPreview}
-              >
-                {showFinalPreview ? (
-                  <>
-                    <EyeOff className="w-3.5 h-3.5 mr-1.5" />
-                    Voltar ao Editor
-                  </>
-                ) : (
-                  <>
-                    <Eye className="w-3.5 h-3.5 mr-1.5" />
-                    Visualizar Final
-                  </>
-                )}
-              </Button>
-
-              {!showFinalPreview && (
-                <Button
-                  variant={showCssDrawer ? 'secondary' : 'ghost'}
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={() => setShowCssDrawer((v) => !v)}
-                >
-                  <Code className="w-3.5 h-3.5 mr-1.5" />
-                  CSS
-                </Button>
-              )}
-            </div>
-
-            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleSaveEstilos} disabled={salvarEstilos.isPending}>
-              {salvarEstilos.isPending ? (
-                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-              ) : (
-                <Save className="w-3.5 h-3.5 mr-1.5" />
-              )}
-              Salvar Estilos
-            </Button>
-          </div>
-
           {/* Main content */}
           {showFinalPreview ? (
             /* Final Preview Mode */
@@ -365,6 +314,12 @@ export function FormularioEditorPage() {
                   estiloCabecalho={cabecalho}
                   selectedStyleElement={selectedStyleElement}
                   onSelectStyleElement={handleSelectStyleElement}
+                  onToggleFinalPreview={toggleFinalPreview}
+                  showFinalPreview={showFinalPreview}
+                  onToggleCss={() => setShowCssDrawer((v) => !v)}
+                  showCssDrawer={showCssDrawer}
+                  onSaveEstilos={handleSaveEstilos}
+                  isSaving={salvarEstilos.isPending}
                 />
               </div>
 
@@ -446,12 +401,6 @@ export function FormularioEditorPage() {
         </div>
       )}
 
-      {activeTab === 'logica' && (
-        <div className="flex-1 overflow-hidden">
-          <EditorTabsLogica formulario={formulario} />
-        </div>
-      )}
-
       {activeTab === 'compartilhar' && (
         <div className="flex-1 overflow-hidden">
           <EditorTabsCompartilhar formulario={formulario} />
@@ -461,18 +410,6 @@ export function FormularioEditorPage() {
       {activeTab === 'analytics' && (
         <div className="flex-1 overflow-hidden">
           <EditorTabsAnalytics formulario={formulario} />
-        </div>
-      )}
-
-      {activeTab === 'ab' && (
-        <div className="flex-1 overflow-hidden">
-          <EditorTabsAB formulario={formulario} />
-        </div>
-      )}
-
-      {activeTab === 'integracoes' && (
-        <div className="flex-1 overflow-hidden">
-          <EditorTabsIntegracoes formulario={formulario} />
         </div>
       )}
     </div>
