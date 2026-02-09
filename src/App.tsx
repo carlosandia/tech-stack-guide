@@ -13,6 +13,7 @@ import {
 } from '@/modules/admin'
 import { AppLayout, AppDashboardPage } from '@/modules/app'
 import { FormulariosPage, FormularioEditorPage } from '@/modules/formularios'
+import { FormularioPublicoPage } from '@/modules/formularios/pages/FormularioPublicoPage'
 import { PlanosPage, TrialCadastroPage, CheckoutSucessoPage, OnboardingPage } from '@/modules/public'
 import { BlockedPage } from '@/modules/blocked'
 import { ConfiguracoesLayout, CamposPage, ProdutosPage, MotivosPage, TarefasTemplatesPage, EtapasTemplatesPage, RegrasPage, ConfigCardPage, ConexoesPage, WebhooksEntradaPage, WebhooksSaidaPage, MembrosPage, EquipesPage, PerfisPermissaoPage, MetasPage, ConfigGeralPage } from '@/modules/configuracoes'
@@ -57,6 +58,7 @@ function App() {
        <Route path="/sucesso" element={<CheckoutSucessoPage />} />
        <Route path="/onboarding" element={<OnboardingPage />} />
        <Route path="/bloqueado" element={<BlockedPage />} />
+       <Route path="/f/:slug" element={<FormularioPublicoPage />} />
  
        {/* Rotas de autenticacao */}
        <Route path="/login" element={<LoginPage />} />

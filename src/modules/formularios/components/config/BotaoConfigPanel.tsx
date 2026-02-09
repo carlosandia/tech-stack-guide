@@ -26,7 +26,7 @@ import type { ConfigBotoes } from './ConfigBotoesEnvioForm'
 import type { EstiloBotao } from '../../services/formularios.api'
 import { useQueryClient } from '@tanstack/react-query'
 
-type TabType = 'estilo' | 'config'
+type TabType = 'estilo' | 'config' | 'pos_envio'
 
 const CONFIG_PADRAO: ConfigBotoes = {
   tipo_botao: 'enviar',
@@ -68,18 +68,28 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
   const [loaded, setLoaded] = useState(false)
   const [funis, setFunis] = useState<FunilOption[]>([])
   const [smtpInfo, setSmtpInfo] = useState<SmtpInfo | null>(null)
+  const [posEnvio, setPosEnvio] = useState({
+    mensagem_sucesso: 'Formulário enviado com sucesso! Entraremos em contato em breve.',
+    mensagem_erro: 'Ocorreu um erro ao enviar. Tente novamente.',
+    tipo_acao_sucesso: 'mensagem' as 'mensagem' | 'redirecionar' | 'ambos',
+    url_redirecionamento: '',
+    tempo_redirecionamento: 3,
+  })
   const queryClient = useQueryClient()
 
   useEffect(() => {
     async function load() {
       const { data } = await supabase
         .from('formularios')
-        .select('config_botoes')
+        .select('config_botoes, config_pos_envio')
         .eq('id', formularioId)
         .single()
 
       if (data?.config_botoes && typeof data.config_botoes === 'object') {
         setConfig({ ...CONFIG_PADRAO, ...(data.config_botoes as Partial<ConfigBotoes>) })
+      }
+      if (data?.config_pos_envio && typeof data.config_pos_envio === 'object') {
+        setPosEnvio(prev => ({ ...prev, ...(data.config_pos_envio as any) }))
       }
       setLoaded(true)
     }
@@ -134,7 +144,7 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
     setSaving(true)
     const { error } = await supabase
       .from('formularios')
-      .update({ config_botoes: config as any })
+      .update({ config_botoes: config as any, config_pos_envio: posEnvio as any })
       .eq('id', formularioId)
 
     setSaving(false)
@@ -145,6 +155,10 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
       queryClient.invalidateQueries({ queryKey: ['formularios', formularioId] })
       onConfigChange?.(config)
     }
+  }
+
+  const updatePosEnvio = (key: string, value: unknown) => {
+    setPosEnvio(prev => ({ ...prev, [key]: value }))
   }
 
   const updateEstilo = (key: keyof EstiloBotao, val: string | boolean) => {
@@ -259,6 +273,16 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
           onClick={() => setTab('config')}
         >
           Configuração
+        </button>
+        <button
+          type="button"
+          className={cn(
+            'flex-1 text-xs py-1.5 font-medium transition-colors',
+            tab === 'pos_envio' ? 'bg-primary text-primary-foreground' : 'bg-muted/50 text-muted-foreground hover:text-foreground'
+          )}
+          onClick={() => setTab('pos_envio')}
+        >
+          Pós-Envio
         </button>
       </div>
 
@@ -496,17 +520,6 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
                   {renderSmtpInfo()}
                 </>
               )}
-              <div className="space-y-1">
-                <Label className="text-[11px]">URL de redirecionamento (pós-envio)</Label>
-                <Input
-                  value={config.enviar_url_redirecionamento || ''}
-                  onChange={(e) => updateConfig('enviar_url_redirecionamento', e.target.value)}
-                  placeholder="https://seusite.com/obrigado"
-                  className="text-xs"
-                  type="url"
-                />
-                <p className="text-[10px] text-muted-foreground">Deixe vazio para exibir mensagem de sucesso</p>
-              </div>
             </div>
           )}
 
@@ -568,6 +581,77 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
           <Button size="sm" className="w-full text-xs" onClick={saveConfig} disabled={saving}>
             {saving ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : null}
             Salvar Configuração
+          </Button>
+        </div>
+      )}
+
+      {/* Pós-Envio tab */}
+      {tab === 'pos_envio' && loaded && (
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Mensagem de Sucesso</Label>
+            <Textarea
+              value={posEnvio.mensagem_sucesso}
+              onChange={(e) => updatePosEnvio('mensagem_sucesso', e.target.value)}
+              placeholder="Formulário enviado com sucesso!"
+              className="text-xs"
+              rows={2}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Mensagem de Erro</Label>
+            <Textarea
+              value={posEnvio.mensagem_erro}
+              onChange={(e) => updatePosEnvio('mensagem_erro', e.target.value)}
+              placeholder="Ocorreu um erro ao enviar."
+              className="text-xs"
+              rows={2}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Ação após envio bem-sucedido</Label>
+            <Select value={posEnvio.tipo_acao_sucesso} onValueChange={(v) => updatePosEnvio('tipo_acao_sucesso', v)}>
+              <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="mensagem">Mostrar mensagem</SelectItem>
+                <SelectItem value="redirecionar">Redirecionar para URL</SelectItem>
+                <SelectItem value="ambos">Mensagem + Redirecionar</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {(posEnvio.tipo_acao_sucesso === 'redirecionar' || posEnvio.tipo_acao_sucesso === 'ambos') && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">URL de Redirecionamento</Label>
+              <Input
+                value={posEnvio.url_redirecionamento}
+                onChange={(e) => updatePosEnvio('url_redirecionamento', e.target.value)}
+                placeholder="https://seusite.com/obrigado"
+                className="text-xs"
+                type="url"
+              />
+            </div>
+          )}
+
+          {posEnvio.tipo_acao_sucesso === 'ambos' && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">Tempo antes de redirecionar (s)</Label>
+              <Input
+                value={posEnvio.tempo_redirecionamento}
+                onChange={(e) => updatePosEnvio('tempo_redirecionamento', Number(e.target.value) || 3)}
+                className="text-xs"
+                type="number"
+                min={1}
+                max={30}
+              />
+            </div>
+          )}
+
+          <Button size="sm" className="w-full text-xs" onClick={saveConfig} disabled={saving}>
+            {saving ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : null}
+            Salvar Pós-Envio
           </Button>
         </div>
       )}

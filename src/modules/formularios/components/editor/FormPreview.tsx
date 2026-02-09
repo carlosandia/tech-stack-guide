@@ -7,6 +7,7 @@
  */
 
 import { useState, useRef, useCallback } from 'react'
+import { getMaskForType } from '../../utils/masks'
 import { Monitor, Tablet, Smartphone, Paintbrush, Eye, EyeOff, Code, Save, Loader2, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -329,11 +330,7 @@ export function FormPreview({
           {/* Fields area */}
           {showFinalPreview ? (
             /* Final Preview: render all field types with styles and largura support */
-            <div style={{ fontSize: 0 }}>
-              {campos.map((campo) => (
-                <div key={campo.id} style={{ fontSize: '14px', marginBottom: '12px' }}>{renderFinalCampo(campo, estiloCampos, fontFamily)}</div>
-              ))}
-            </div>
+            <FinalPreviewFields campos={campos} estiloCampos={estiloCampos} fontFamily={fontFamily} />
           ) : (
             /* Editor mode: drag-and-drop */
             <div
@@ -396,6 +393,27 @@ export function FormPreview({
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+/** Wrapper com estado para campos no preview final (suporta máscaras interativas) */
+function FinalPreviewFields({ campos, estiloCampos, fontFamily }: { campos: CampoFormulario[], estiloCampos: EstiloCampos | undefined, fontFamily: string }) {
+  const [valores, setValores] = useState<Record<string, string>>({})
+
+  const handleChange = useCallback((campoId: string, tipo: string, rawValue: string) => {
+    const mask = getMaskForType(tipo)
+    const value = mask ? mask(rawValue) : rawValue
+    setValores(prev => ({ ...prev, [campoId]: value }))
+  }, [])
+
+  return (
+    <div style={{ fontSize: 0 }}>
+      {campos.map((campo) => (
+        <div key={campo.id} style={{ fontSize: '14px', marginBottom: '12px' }}>
+          {renderFinalCampo(campo, estiloCampos, fontFamily, valores[campo.id] || '', (v) => handleChange(campo.id, campo.tipo, v))}
+        </div>
+      ))}
     </div>
   )
 }
@@ -521,6 +539,8 @@ function renderFinalCampo(
   campo: CampoFormulario,
   estiloCampos: EstiloCampos | undefined,
   fontFamily: string,
+  valor: string = '',
+  onChange?: (v: string) => void,
 ) {
   const labelStyle: React.CSSProperties = {
     color: estiloCampos?.label_cor || '#374151',
@@ -586,25 +606,29 @@ function renderFinalCampo(
 
   // Campos de input (com suporte a largura)
   const renderInput = () => {
+    const handleInput = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+      onChange?.(e.target.value)
+    }
+
     switch (campo.tipo) {
       case 'area_texto':
         return (
           <div>
             {renderLabel(campo, labelStyle)}
-            <textarea style={{ ...inputStyle, height: '64px', resize: 'vertical' }} placeholder={placeholder || 'Digite aqui...'} />
+            <textarea style={{ ...inputStyle, height: '64px', resize: 'vertical' }} placeholder={placeholder || 'Digite aqui...'} value={valor} onChange={handleInput} />
           </div>
         )
       case 'checkbox':
         return (
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <input type="checkbox" style={{ width: '16px', height: '16px' }} />
+            <input type="checkbox" style={{ width: '16px', height: '16px' }} onChange={(e) => onChange?.(e.target.checked ? 'sim' : '')} />
             <span style={{ ...labelStyle, marginBottom: 0 }}>{campo.label}{campo.obrigatorio ? <span style={{ color: '#EF4444' }}> *</span> : ''}</span>
           </div>
         )
       case 'checkbox_termos':
         return (
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <input type="checkbox" style={{ width: '16px', height: '16px' }} />
+            <input type="checkbox" style={{ width: '16px', height: '16px' }} onChange={(e) => onChange?.(e.target.checked ? 'sim' : '')} />
             <span style={{ ...labelStyle, marginBottom: 0 }}>
               {campo.label}{campo.obrigatorio ? <span style={{ color: '#EF4444' }}> *</span> : ''}
               {campo.valor_padrao && (
@@ -631,7 +655,7 @@ function renderFinalCampo(
         return (
           <div>
             {renderLabel(campo, labelStyle)}
-            <select style={{ ...inputStyle, appearance: 'auto' }}>
+            <select style={{ ...inputStyle, appearance: 'auto' }} value={valor} onChange={handleInput}>
               <option value="">{placeholder || (campo.tipo === 'selecao_multipla' ? 'Selecione uma ou mais...' : 'Selecione...')}</option>
               {(campo.opcoes as string[] || []).map((op, i) => (
                 <option key={i} value={op}>{typeof op === 'string' ? op : `Opção ${i + 1}`}</option>
@@ -646,7 +670,7 @@ function renderFinalCampo(
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               {(campo.opcoes as string[] || ['Opção 1', 'Opção 2']).slice(0, 4).map((op, i) => (
                 <label key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', color: estiloCampos?.input_texto_cor || '#1F2937', fontFamily, cursor: 'pointer' }}>
-                  <input type="radio" name={campo.id} />
+                  <input type="radio" name={campo.id} checked={valor === op} onChange={() => onChange?.(typeof op === 'string' ? op : `Opção ${i + 1}`)} />
                   {typeof op === 'string' ? op : `Opção ${i + 1}`}
                 </label>
               ))}
@@ -654,88 +678,34 @@ function renderFinalCampo(
           </div>
         )
       case 'data':
-        return (
-          <div>
-            {renderLabel(campo, labelStyle)}
-            <input type="date" style={inputStyle} />
-          </div>
-        )
+        return <div>{renderLabel(campo, labelStyle)}<input type="date" style={inputStyle} value={valor} onChange={handleInput} /></div>
       case 'data_hora':
-        return (
-          <div>
-            {renderLabel(campo, labelStyle)}
-            <input type="datetime-local" style={inputStyle} />
-          </div>
-        )
+        return <div>{renderLabel(campo, labelStyle)}<input type="datetime-local" style={inputStyle} value={valor} onChange={handleInput} /></div>
       case 'hora':
-        return (
-          <div>
-            {renderLabel(campo, labelStyle)}
-            <input type="time" style={inputStyle} />
-          </div>
-        )
+        return <div>{renderLabel(campo, labelStyle)}<input type="time" style={inputStyle} value={valor} onChange={handleInput} /></div>
       case 'moeda':
-        return (
-          <div>
-            {renderLabel(campo, labelStyle)}
-            <input style={inputStyle} placeholder={placeholder || 'R$ 0,00'} />
-          </div>
-        )
-      case 'numero':
-        return (
-          <div>
-            {renderLabel(campo, labelStyle)}
-            <input type="number" style={inputStyle} placeholder={placeholder || '0'} />
-          </div>
-        )
-      case 'url':
-        return (
-          <div>
-            {renderLabel(campo, labelStyle)}
-            <input type="url" style={inputStyle} placeholder={placeholder || 'https://'} />
-          </div>
-        )
-      case 'email':
-        return (
-          <div>
-            {renderLabel(campo, labelStyle)}
-            <input type="email" style={inputStyle} placeholder={placeholder || 'email@exemplo.com'} />
-          </div>
-        )
+      case 'cpf':
+      case 'cnpj':
+      case 'cep':
       case 'telefone':
       case 'telefone_br':
         return (
           <div>
             {renderLabel(campo, labelStyle)}
-            <input type="tel" style={inputStyle} placeholder={placeholder || (campo.tipo === 'telefone_br' ? '(00) 00000-0000' : '+00 00000-0000')} />
+            <input style={inputStyle} placeholder={placeholder || ''} value={valor} onChange={handleInput} />
           </div>
         )
-      case 'cpf':
-        return (
-          <div>
-            {renderLabel(campo, labelStyle)}
-            <input style={inputStyle} placeholder={placeholder || '000.000.000-00'} />
-          </div>
-        )
-      case 'cnpj':
-        return (
-          <div>
-            {renderLabel(campo, labelStyle)}
-            <input style={inputStyle} placeholder={placeholder || '00.000.000/0000-00'} />
-          </div>
-        )
-      case 'cep':
-        return (
-          <div>
-            {renderLabel(campo, labelStyle)}
-            <input style={inputStyle} placeholder={placeholder || '00000-000'} />
-          </div>
-        )
+      case 'numero':
+        return <div>{renderLabel(campo, labelStyle)}<input type="number" style={inputStyle} placeholder={placeholder || '0'} value={valor} onChange={handleInput} /></div>
+      case 'url':
+        return <div>{renderLabel(campo, labelStyle)}<input type="url" style={inputStyle} placeholder={placeholder || 'https://'} value={valor} onChange={handleInput} /></div>
+      case 'email':
+        return <div>{renderLabel(campo, labelStyle)}<input type="email" style={inputStyle} placeholder={placeholder || 'email@exemplo.com'} value={valor} onChange={handleInput} /></div>
       case 'endereco':
         return (
           <div>
             {renderLabel(campo, labelStyle)}
-            <input style={{ ...inputStyle, marginBottom: '6px' }} placeholder={placeholder || 'Rua, número...'} />
+            <input style={{ ...inputStyle, marginBottom: '6px' }} placeholder={placeholder || 'Rua, número...'} value={valor} onChange={handleInput} />
             <div style={{ display: 'flex', gap: '6px' }}>
               <input style={{ ...inputStyle, flex: 1 }} placeholder="Cidade" />
               <input style={{ ...inputStyle, flex: 1 }} placeholder="Estado" />
@@ -747,7 +717,7 @@ function renderFinalCampo(
           <div>
             {renderLabel(campo, labelStyle)}
             <div style={{ display: 'flex', gap: '4px', fontSize: '20px', color: '#FBBF24', cursor: 'pointer' }}>
-              {'★★★★★'.split('').map((s, i) => <span key={i}>{s}</span>)}
+              {'★★★★★'.split('').map((s, i) => <span key={i} onClick={() => onChange?.(String(i + 1))}>{s}</span>)}
             </div>
           </div>
         )
@@ -757,18 +727,13 @@ function renderFinalCampo(
             {renderLabel(campo, labelStyle)}
             <div style={{ display: 'flex', gap: '4px' }}>
               {Array.from({ length: 11 }, (_, i) => (
-                <span key={i} style={{ ...inputStyle, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, fontSize: '12px', textAlign: 'center' as const, cursor: 'pointer' }}>{i}</span>
+                <span key={i} onClick={() => onChange?.(String(i))} style={{ ...inputStyle, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, fontSize: '12px', textAlign: 'center' as const, cursor: 'pointer', backgroundColor: valor === String(i) ? '#3B82F6' : inputStyle.backgroundColor, color: valor === String(i) ? '#FFFFFF' : inputStyle.color }}>{i}</span>
               ))}
             </div>
           </div>
         )
       case 'slider':
-        return (
-          <div>
-            {renderLabel(campo, labelStyle)}
-            <input type="range" style={{ width: '100%' }} />
-          </div>
-        )
+        return <div>{renderLabel(campo, labelStyle)}<input type="range" style={{ width: '100%' }} value={valor || '50'} onChange={handleInput} /></div>
       case 'assinatura':
         return (
           <div>
@@ -779,12 +744,7 @@ function renderFinalCampo(
           </div>
         )
       case 'cor':
-        return (
-          <div>
-            {renderLabel(campo, labelStyle)}
-            <input type="color" style={{ width: '48px', height: '32px', border: 'none', cursor: 'pointer' }} />
-          </div>
-        )
+        return <div>{renderLabel(campo, labelStyle)}<input type="color" style={{ width: '48px', height: '32px', border: 'none', cursor: 'pointer' }} value={valor || '#000000'} onChange={handleInput} /></div>
       case 'ranking':
         return (
           <div>
@@ -813,7 +773,7 @@ function renderFinalCampo(
         return (
           <div>
             {renderLabel(campo, labelStyle)}
-            <input style={inputStyle} placeholder={placeholder || 'Digite aqui...'} />
+            <input style={inputStyle} placeholder={placeholder || 'Digite aqui...'} value={valor} onChange={handleInput} />
           </div>
         )
     }

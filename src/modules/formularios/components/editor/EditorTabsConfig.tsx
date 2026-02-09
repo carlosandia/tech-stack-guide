@@ -11,7 +11,7 @@ import { ConfigPopupForm } from '../config/ConfigPopupForm'
 import { ConfigNewsletterForm } from '../config/ConfigNewsletterForm'
 import { ConfigEtapasForm } from '../config/ConfigEtapasForm'
 
-import { ConfigPosEnvioForm } from '../config/ConfigPosEnvioForm'
+
 import { EditorTabsLogica } from './EditorTabsLogica'
 import { EditorTabsAB } from './EditorTabsAB'
 import type { Formulario } from '../../services/formularios.api'
@@ -76,8 +76,6 @@ export function EditorTabsConfig({ formulario }: Props) {
               </>
             )}
 
-            <hr className="border-border" />
-            <ConfigPosEnvioForm formularioId={formulario.id} />
           </div>
         </CollapsibleSection>
 
