@@ -132,12 +132,20 @@ function renderFieldPreview(campo: CampoFormulario) {
         </div>
       )
 
+    case 'selecao_multipla':
+      return (
+        <div className={cn(baseInputClass, 'flex items-center justify-between')}>
+          <span>{placeholder || 'Selecione uma ou mais...'}</span>
+          <ChevronDown className="w-3.5 h-3.5" />
+        </div>
+      )
+
     case 'checkbox':
     case 'checkbox_termos':
       return (
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 rounded border border-input bg-background" />
-          <span className="text-sm text-muted-foreground">{placeholder || 'Aceito os termos'}</span>
+          <span className="text-sm text-muted-foreground">{placeholder || (campo.tipo === 'checkbox_termos' ? 'Aceito os termos' : 'Opção')}</span>
         </div>
       )
 
@@ -210,6 +218,18 @@ function renderFieldPreview(campo: CampoFormulario) {
         </div>
       )
 
+    case 'ranking':
+      return (
+        <div className="space-y-1">
+          {(campo.opcoes as string[] || ['Item 1', 'Item 2', 'Item 3']).slice(0, 3).map((op, i) => (
+            <div key={i} className="flex items-center gap-2 px-2 py-1 rounded border border-input bg-background">
+              <span className="text-xs font-medium text-muted-foreground w-4">{i + 1}.</span>
+              <span className="text-sm text-muted-foreground">{typeof op === 'string' ? op : `Item ${i + 1}`}</span>
+            </div>
+          ))}
+        </div>
+      )
+
     case 'titulo':
       return <p className="text-lg font-semibold text-foreground">{placeholder || 'Título da seção'}</p>
 
@@ -222,6 +242,13 @@ function renderFieldPreview(campo: CampoFormulario) {
     case 'espacador':
       return <div className="h-6" />
 
+    case 'bloco_html':
+      return (
+        <div className={cn(baseInputClass, 'font-mono text-xs bg-muted/30')}>
+          {placeholder || '<p>Conteúdo HTML</p>'}
+        </div>
+      )
+
     case 'oculto':
       return <p className="text-xs text-muted-foreground italic">Campo oculto (não visível para o usuário)</p>
 
@@ -233,6 +260,12 @@ function renderFieldPreview(campo: CampoFormulario) {
 
     case 'cep':
       return <div className={baseInputClass}>{placeholder || '00000-000'}</div>
+
+    case 'moeda':
+      return <div className={baseInputClass}>{placeholder || 'R$ 0,00'}</div>
+
+    case 'telefone_br':
+      return <div className={baseInputClass}>{placeholder || '(00) 00000-0000'}</div>
 
     case 'endereco':
       return (

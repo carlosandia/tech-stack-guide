@@ -2,9 +2,10 @@
  * AIDEV-NOTE: Preview responsivo do formulário
  * Mostra como o formulário ficará para o usuário final
  * Suporta visualização desktop/tablet/mobile
+ * Drop zones claras entre campos para drag-and-drop preciso
  */
 
-import { useState } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { Monitor, Tablet, Smartphone } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -36,6 +37,7 @@ export function FormPreview({
 }: Props) {
   const [viewport, setViewport] = useState<Viewport>('desktop')
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+  const dragCounter = useRef<Record<number, number>>({})
 
   const viewportWidths: Record<Viewport, string> = {
     desktop: 'max-w-full',
@@ -43,17 +45,35 @@ export function FormPreview({
     mobile: 'max-w-[390px]',
   }
 
-  const handleDragOverArea = (e: React.DragEvent, index: number) => {
+  const handleDragEnter = useCallback((e: React.DragEvent, index: number) => {
+    e.preventDefault()
+    e.stopPropagation()
+    dragCounter.current[index] = (dragCounter.current[index] || 0) + 1
+    setDragOverIndex(index)
+  }, [])
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     e.dataTransfer.dropEffect = 'copy'
-    setDragOverIndex(index)
-  }
+  }, [])
 
-  const handleDropArea = (e: React.DragEvent, index: number) => {
+  const handleDragLeave = useCallback((e: React.DragEvent, index: number) => {
     e.preventDefault()
+    e.stopPropagation()
+    dragCounter.current[index] = (dragCounter.current[index] || 0) - 1
+    if (dragCounter.current[index] <= 0) {
+      dragCounter.current[index] = 0
+      setDragOverIndex((prev) => (prev === index ? null : prev))
+    }
+  }, [])
+
+  const handleDrop = useCallback((e: React.DragEvent, index: number) => {
+    e.preventDefault()
+    e.stopPropagation()
+    dragCounter.current = {}
     setDragOverIndex(null)
 
-    // Check if it's a new campo from palette
+    // New campo from palette
     const campoTipoData = e.dataTransfer.getData('application/campo-tipo')
     if (campoTipoData) {
       onDropNewCampo(e, index)
@@ -64,8 +84,38 @@ export function FormPreview({
     const draggedId = e.dataTransfer.getData('application/campo-id')
     if (draggedId && campos[index]) {
       onReorderCampo(draggedId, campos[index].id)
+    } else if (draggedId) {
+      // Dropped at end
+      const lastCampo = campos[campos.length - 1]
+      if (lastCampo) onReorderCampo(draggedId, lastCampo.id)
     }
-  }
+  }, [campos, onDropNewCampo, onReorderCampo])
+
+  const renderDropZone = (index: number, isEmpty = false) => (
+    <div
+      onDragEnter={(e) => handleDragEnter(e, index)}
+      onDragOver={handleDragOver}
+      onDragLeave={(e) => handleDragLeave(e, index)}
+      onDrop={(e) => handleDrop(e, index)}
+      className={cn(
+        'transition-all rounded-md',
+        dragOverIndex === index
+          ? 'border-2 border-dashed border-primary bg-primary/5 py-4 text-center my-1'
+          : isEmpty
+            ? 'border-2 border-dashed border-border py-8 text-center'
+            : 'py-1',
+      )}
+    >
+      {dragOverIndex === index && (
+        <p className="text-xs text-primary font-medium">Soltar aqui</p>
+      )}
+      {isEmpty && dragOverIndex !== index && (
+        <p className="text-sm text-muted-foreground">
+          Arraste campos da paleta para cá
+        </p>
+      )}
+    </div>
+  )
 
   return (
     <div className="flex flex-col h-full">
@@ -103,69 +153,47 @@ export function FormPreview({
             )}
           </div>
 
-          {/* Drop zone: top of form */}
-          <div
-            onDragOver={(e) => handleDragOverArea(e, 0)}
-            onDrop={(e) => handleDropArea(e, 0)}
-            onDragLeave={() => setDragOverIndex(null)}
-            className={cn(
-              'transition-all rounded-md mb-2',
-              dragOverIndex === 0
-                ? 'border-2 border-dashed border-primary bg-primary/5 p-4 text-center'
-                : 'h-2',
-              campos.length === 0 && 'border-2 border-dashed border-border p-8 text-center'
-            )}
-          >
-            {campos.length === 0 && dragOverIndex !== 0 && (
-              <p className="text-sm text-muted-foreground">
-                Arraste campos da paleta para cá
-              </p>
-            )}
-            {dragOverIndex === 0 && (
-              <p className="text-xs text-primary font-medium">Soltar aqui</p>
-            )}
-          </div>
+          {/* Empty state drop zone */}
+          {campos.length === 0 && renderDropZone(0, true)}
 
-          {/* Fields */}
-          <div className="space-y-2">
-            {campos.map((campo, index) => (
-              <div key={campo.id}>
-                <CampoItem
-                  campo={campo}
-                  isSelected={selectedCampoId === campo.id}
-                  isDragOver={dragOverIndex === index + 1}
-                  onSelect={() => onSelectCampo(campo.id)}
-                  onRemove={() => onRemoveCampo(campo.id)}
-                  onMoveUp={index > 0 ? () => onMoveCampo(campo.id, 'up') : undefined}
-                  onMoveDown={index < campos.length - 1 ? () => onMoveCampo(campo.id, 'down') : undefined}
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData('application/campo-id', campo.id)
-                    e.dataTransfer.effectAllowed = 'move'
-                  }}
-                  onDragOver={(e) => handleDragOverArea(e, index + 1)}
-                  onDrop={(e) => handleDropArea(e, index + 1)}
-                  onDragLeave={() => setDragOverIndex(null)}
-                />
+          {/* Fields with drop zones */}
+          {campos.length > 0 && (
+            <div>
+              {/* Top drop zone */}
+              {renderDropZone(0)}
 
-                {/* Drop zone between fields */}
-                <div
-                  onDragOver={(e) => handleDragOverArea(e, index + 1)}
-                  onDrop={(e) => handleDropArea(e, index + 1)}
-                  onDragLeave={() => setDragOverIndex(null)}
-                  className={cn(
-                    'transition-all rounded-md',
-                    dragOverIndex === index + 1
-                      ? 'border-2 border-dashed border-primary bg-primary/5 p-3 text-center my-1'
-                      : 'h-1'
-                  )}
-                >
-                  {dragOverIndex === index + 1 && (
-                    <p className="text-xs text-primary font-medium">Soltar aqui</p>
-                  )}
+              {campos.map((campo, index) => (
+                <div key={campo.id}>
+                  <CampoItem
+                    campo={campo}
+                    isSelected={selectedCampoId === campo.id}
+                    isDragOver={false}
+                    onSelect={() => onSelectCampo(campo.id)}
+                    onRemove={() => onRemoveCampo(campo.id)}
+                    onMoveUp={index > 0 ? () => onMoveCampo(campo.id, 'up') : undefined}
+                    onMoveDown={index < campos.length - 1 ? () => onMoveCampo(campo.id, 'down') : undefined}
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('application/campo-id', campo.id)
+                      e.dataTransfer.effectAllowed = 'move'
+                    }}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      const draggedId = e.dataTransfer.getData('application/campo-id')
+                      if (draggedId && draggedId !== campo.id) {
+                        onReorderCampo(draggedId, campo.id)
+                      }
+                    }}
+                    onDragLeave={() => {}}
+                  />
+
+                  {/* Drop zone after each field */}
+                  {renderDropZone(index + 1)}
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
 
           {/* Submit button preview */}
           {campos.length > 0 && (
