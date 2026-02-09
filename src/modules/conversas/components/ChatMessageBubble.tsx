@@ -36,13 +36,19 @@ interface ChatMessageBubbleProps {
 function AckIndicator({ ack }: { ack: number }) {
   if (ack <= 0) return null
 
+  // WAHA ACK mapping:
+  // 1 = PENDING (enviado ao servidor) → check simples cinza
+  // 2 = DEVICE (entregue ao dispositivo) → check duplo cinza
+  // 3 = READ (lido) → check duplo azul
+  // 4 = READ (alternativo) → check duplo azul
+  // 5 = PLAYED (reproduzido) → check duplo azul + play
   if (ack === 1) {
     return <Check className="w-3.5 h-3.5 text-muted-foreground/50" />
   }
-  if (ack === 2 || ack === 3) {
+  if (ack === 2) {
     return <CheckCheck className="w-3.5 h-3.5 text-muted-foreground/50" />
   }
-  if (ack === 4) {
+  if (ack === 3 || ack === 4) {
     return <CheckCheck className="w-3.5 h-3.5 text-blue-500" />
   }
   if (ack === 5) {

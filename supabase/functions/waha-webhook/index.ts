@@ -164,7 +164,7 @@ Deno.serve(async (req) => {
     // =====================================================
     // HANDLE poll.vote EVENT (poll vote updates)
     // =====================================================
-    if (body.event === "poll.vote") {
+    if (body.event === "poll.vote" || body.event === "poll.vote.failed") {
       const payload = body.payload;
       console.log(`[waha-webhook] poll.vote event received:`, JSON.stringify(payload).substring(0, 500));
 
