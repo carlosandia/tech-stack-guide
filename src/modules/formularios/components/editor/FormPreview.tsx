@@ -4,6 +4,7 @@
  * Suporta visualização desktop/tablet/mobile
  * Drop zones claras entre campos para drag-and-drop preciso
  * Suporta click-to-edit de estilos (container, campos, botão)
+ * Inclui seletor de país com bandeira para campos de telefone
  */
 
 import { useState, useRef, useCallback } from 'react'
@@ -401,6 +402,7 @@ export function FormPreview({
 /** Wrapper com estado para campos no preview final (suporta máscaras interativas) */
 function FinalPreviewFields({ campos, estiloCampos, fontFamily }: { campos: CampoFormulario[], estiloCampos: EstiloCampos | undefined, fontFamily: string }) {
   const [valores, setValores] = useState<Record<string, string>>({})
+  const [paises, setPaises] = useState<Record<string, { code: string; ddi: string; flag: string }>>({})
 
   const handleChange = useCallback((campoId: string, tipo: string, rawValue: string) => {
     const mask = getMaskForType(tipo)
@@ -408,11 +410,21 @@ function FinalPreviewFields({ campos, estiloCampos, fontFamily }: { campos: Camp
     setValores(prev => ({ ...prev, [campoId]: value }))
   }, [])
 
+  const handlePaisChange = useCallback((campoId: string, pais: { code: string; ddi: string; flag: string }) => {
+    setPaises(prev => ({ ...prev, [campoId]: pais }))
+  }, [])
+
   return (
     <div style={{ fontSize: 0 }}>
       {campos.map((campo) => (
         <div key={campo.id} style={{ fontSize: '14px', marginBottom: '12px' }}>
-          {renderFinalCampo(campo, estiloCampos, fontFamily, valores[campo.id] || '', (v) => handleChange(campo.id, campo.tipo, v))}
+          {renderFinalCampo(
+            campo, estiloCampos, fontFamily,
+            valores[campo.id] || '',
+            (v) => handleChange(campo.id, campo.tipo, v),
+            paises[campo.id] || { code: 'BR', ddi: '55', flag: '🇧🇷' },
+            (p) => handlePaisChange(campo.id, p),
+          )}
         </div>
       ))}
     </div>
@@ -535,13 +547,141 @@ function renderLabel(
   )
 }
 
-/** Renderiza um campo no modo visualização final com estilos aplicados */
+const PAISES_COMUNS = [
+  { code: 'BR', ddi: '55', flag: '🇧🇷', nome: 'Brasil' },
+  { code: 'US', ddi: '1', flag: '🇺🇸', nome: 'EUA' },
+  { code: 'PT', ddi: '351', flag: '🇵🇹', nome: 'Portugal' },
+  { code: 'AR', ddi: '54', flag: '🇦🇷', nome: 'Argentina' },
+  { code: 'UY', ddi: '598', flag: '🇺🇾', nome: 'Uruguai' },
+  { code: 'PY', ddi: '595', flag: '🇵🇾', nome: 'Paraguai' },
+  { code: 'CL', ddi: '56', flag: '🇨🇱', nome: 'Chile' },
+  { code: 'CO', ddi: '57', flag: '🇨🇴', nome: 'Colômbia' },
+  { code: 'MX', ddi: '52', flag: '🇲🇽', nome: 'México' },
+  { code: 'ES', ddi: '34', flag: '🇪🇸', nome: 'Espanha' },
+  { code: 'FR', ddi: '33', flag: '🇫🇷', nome: 'França' },
+  { code: 'DE', ddi: '49', flag: '🇩🇪', nome: 'Alemanha' },
+  { code: 'IT', ddi: '39', flag: '🇮🇹', nome: 'Itália' },
+  { code: 'GB', ddi: '44', flag: '🇬🇧', nome: 'Reino Unido' },
+  { code: 'JP', ddi: '81', flag: '🇯🇵', nome: 'Japão' },
+]
+
+/** Input de telefone com seletor de país/DDI */
+function PhoneInputWithCountry({
+  inputStyle,
+  placeholder,
+  valor,
+  onChange,
+  paisSelecionado,
+  onPaisChange,
+}: {
+  inputStyle: React.CSSProperties
+  placeholder: string
+  valor: string
+  onChange: (v: string) => void
+  paisSelecionado?: { code: string; ddi: string; flag: string }
+  onPaisChange?: (p: { code: string; ddi: string; flag: string }) => void
+}) {
+  const [aberto, setAberto] = useState(false)
+  const pais = paisSelecionado || PAISES_COMUNS[0]
+
+  return (
+    <div style={{ position: 'relative', display: 'flex', gap: 0 }}>
+      {/* Seletor de país */}
+      <button
+        type="button"
+        onClick={() => setAberto(!aberto)}
+        style={{
+          ...inputStyle,
+          width: 'auto',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+          padding: '8px 8px',
+          borderRight: 'none',
+          borderTopRightRadius: 0,
+          borderBottomRightRadius: 0,
+          cursor: 'pointer',
+          flexShrink: 0,
+          fontSize: '14px',
+        }}
+      >
+        <span style={{ fontSize: '16px', lineHeight: 1 }}>{pais.flag}</span>
+        <span style={{ fontSize: '12px', color: inputStyle.color, opacity: 0.7 }}>+{pais.ddi}</span>
+        <span style={{ fontSize: '10px', opacity: 0.5 }}>▼</span>
+      </button>
+      {/* Input */}
+      <input
+        style={{
+          ...inputStyle,
+          borderTopLeftRadius: 0,
+          borderBottomLeftRadius: 0,
+          flex: 1,
+        }}
+        placeholder={placeholder || '(00) 00000-0000'}
+        value={valor}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      {/* Dropdown */}
+      {aberto && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '100%',
+            left: 0,
+            zIndex: 50,
+            background: '#FFFFFF',
+            border: `1px solid ${(inputStyle.border as string)?.includes('solid') ? '#D1D5DB' : '#D1D5DB'}`,
+            borderRadius: '8px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+            maxHeight: '200px',
+            overflowY: 'auto',
+            minWidth: '200px',
+            marginTop: '4px',
+          }}
+        >
+          {PAISES_COMUNS.map((p) => (
+            <button
+              key={p.code}
+              type="button"
+              onClick={() => {
+                onPaisChange?.(p)
+                setAberto(false)
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                width: '100%',
+                padding: '8px 12px',
+                border: 'none',
+                background: p.code === pais.code ? '#F3F4F6' : 'transparent',
+                cursor: 'pointer',
+                fontSize: '13px',
+                textAlign: 'left',
+              }}
+              onMouseEnter={(e) => { (e.target as HTMLElement).style.background = '#F3F4F6' }}
+              onMouseLeave={(e) => { (e.target as HTMLElement).style.background = p.code === pais.code ? '#F3F4F6' : 'transparent' }}
+            >
+              <span style={{ fontSize: '16px' }}>{p.flag}</span>
+              <span>{p.nome}</span>
+              <span style={{ marginLeft: 'auto', color: '#9CA3AF', fontSize: '12px' }}>+{p.ddi}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+
 function renderFinalCampo(
   campo: CampoFormulario,
   estiloCampos: EstiloCampos | undefined,
   fontFamily: string,
   valor: string = '',
   onChange?: (v: string) => void,
+  paisSelecionado?: { code: string; ddi: string; flag: string },
+  onPaisChange?: (p: { code: string; ddi: string; flag: string }) => void,
 ) {
   const labelStyle: React.CSSProperties = {
     color: estiloCampos?.label_cor || '#374151',
@@ -688,12 +828,25 @@ function renderFinalCampo(
       case 'cpf':
       case 'cnpj':
       case 'cep':
+        return (
+          <div>
+            {renderLabel(campo, labelStyle)}
+            <input style={inputStyle} placeholder={placeholder || ''} value={valor} onChange={handleInput} />
+          </div>
+        )
       case 'telefone':
       case 'telefone_br':
         return (
           <div>
             {renderLabel(campo, labelStyle)}
-            <input style={inputStyle} placeholder={placeholder || ''} value={valor} onChange={handleInput} />
+            <PhoneInputWithCountry
+              inputStyle={inputStyle}
+              placeholder={placeholder}
+              valor={valor}
+              onChange={(v) => onChange?.(v)}
+              paisSelecionado={paisSelecionado}
+              onPaisChange={onPaisChange}
+            />
           </div>
         )
       case 'numero':
