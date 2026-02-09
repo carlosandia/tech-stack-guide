@@ -55,8 +55,10 @@ export interface Formulario {
   criar_oportunidade_automatico?: boolean
   notificar_responsavel?: boolean
   ab_testing_ativo?: boolean
+  teste_ab_atual_id?: string | null
   total_submissoes?: number
   total_visualizacoes?: number
+  taxa_conversao?: number
   publicado_em?: string | null
   criado_em: string
   atualizado_em: string
@@ -827,6 +829,293 @@ async function excluirRegra(formularioId: string, regraId: string): Promise<void
   if (error) throw new Error(`Erro ao excluir regra: ${error.message}`)
 }
 
+// =====================================================
+// Analytics
+// =====================================================
+
+export interface MetricasFormulario {
+  total_visualizacoes: number
+  total_submissoes: number
+  taxa_conversao: number
+  eventos_por_tipo: Record<string, number>
+  total_abandonos: number
+  total_inicios: number
+}
+
+export interface FunilConversao {
+  etapas: { nome: string; valor: number }[]
+}
+
+export interface DesempenhoCampo {
+  campo_id: string
+  total_interacoes: number
+  total_erros: number
+  tempo_medio_segundos: number
+}
+
+async function obterMetricas(formularioId: string): Promise<MetricasFormulario> {
+  // Buscar dados do formulário
+  const { data: form } = await supabase
+    .from('formularios')
+    .select('total_visualizacoes, total_submissoes, taxa_conversao')
+    .eq('id', formularioId)
+    .single()
+
+  if (!form) throw new Error('Formulário não encontrado')
+
+  // Buscar eventos agrupados
+  const { data: eventos } = await supabase
+    .from('eventos_analytics_formularios')
+    .select('tipo_evento')
+    .eq('formulario_id', formularioId)
+
+  const contagemPorTipo: Record<string, number> = {}
+  if (eventos) {
+    for (const e of eventos) {
+      contagemPorTipo[e.tipo_evento] = (contagemPorTipo[e.tipo_evento] || 0) + 1
+    }
+  }
+
+  return {
+    total_visualizacoes: form.total_visualizacoes ?? 0,
+    total_submissoes: form.total_submissoes ?? 0,
+    taxa_conversao: form.taxa_conversao ?? 0,
+    eventos_por_tipo: contagemPorTipo,
+    total_abandonos: contagemPorTipo['abandono'] || 0,
+    total_inicios: contagemPorTipo['inicio'] || 0,
+  }
+}
+
+async function obterFunilConversao(formularioId: string): Promise<FunilConversao> {
+  const { data: eventos } = await supabase
+    .from('eventos_analytics_formularios')
+    .select('tipo_evento')
+    .eq('formulario_id', formularioId)
+
+  if (!eventos) return { etapas: [] }
+
+  const contagem: Record<string, number> = {}
+  for (const e of eventos) {
+    contagem[e.tipo_evento] = (contagem[e.tipo_evento] || 0) + 1
+  }
+
+  return {
+    etapas: [
+      { nome: 'Visualização', valor: contagem['visualizacao'] || 0 },
+      { nome: 'Início', valor: contagem['inicio'] || 0 },
+      { nome: 'Submissão', valor: contagem['submissao'] || 0 },
+    ],
+  }
+}
+
+async function obterDesempenhoCampos(formularioId: string): Promise<DesempenhoCampo[]> {
+  const { data: eventos } = await supabase
+    .from('eventos_analytics_formularios')
+    .select('tipo_evento, dados_evento, tempo_no_campo_segundos')
+    .eq('formulario_id', formularioId)
+    .in('tipo_evento', ['foco_campo', 'saida_campo', 'erro_campo'])
+
+  if (!eventos || eventos.length === 0) return []
+
+  const campos: Record<string, { interacoes: number; erros: number; tempo_total: number }> = {}
+
+  for (const e of eventos) {
+    const campoId = (e.dados_evento as any)?.campo_id || 'desconhecido'
+    if (!campos[campoId]) campos[campoId] = { interacoes: 0, erros: 0, tempo_total: 0 }
+    campos[campoId].interacoes++
+    if (e.tipo_evento === 'erro_campo') campos[campoId].erros++
+    if (e.tempo_no_campo_segundos) campos[campoId].tempo_total += e.tempo_no_campo_segundos
+  }
+
+  return Object.entries(campos).map(([campoId, stats]) => ({
+    campo_id: campoId,
+    total_interacoes: stats.interacoes,
+    total_erros: stats.erros,
+    tempo_medio_segundos: stats.interacoes > 0 ? Math.round(stats.tempo_total / stats.interacoes) : 0,
+  }))
+}
+
+// =====================================================
+// A/B Testing
+// =====================================================
+
+export interface TesteAB {
+  id: string
+  formulario_id: string
+  organizacao_id: string
+  nome_teste: string
+  descricao_teste?: string | null
+  status: string
+  metrica_objetivo?: string | null
+  confianca_minima?: number | null
+  duracao_minima_dias?: number | null
+  minimo_submissoes?: number | null
+  variante_vencedora_id?: string | null
+  criado_por?: string | null
+  iniciado_em?: string | null
+  pausado_em?: string | null
+  concluido_em?: string | null
+  criado_em?: string | null
+  atualizado_em?: string | null
+}
+
+export interface VarianteAB {
+  id: string
+  teste_ab_id: string
+  nome_variante: string
+  letra_variante: string
+  e_controle?: boolean | null
+  alteracoes: Record<string, unknown>
+  porcentagem_trafego?: number | null
+  contagem_visualizacoes?: number | null
+  contagem_submissoes?: number | null
+  taxa_conversao?: number | null
+  criado_em?: string | null
+}
+
+async function listarTestesAB(formularioId: string): Promise<TesteAB[]> {
+  const organizacaoId = await getOrganizacaoId()
+  const { data, error } = await supabase
+    .from('testes_ab_formularios')
+    .select('*')
+    .eq('formulario_id', formularioId)
+    .eq('organizacao_id', organizacaoId)
+    .order('criado_em', { ascending: false })
+  if (error) throw new Error(`Erro ao listar testes AB: ${error.message}`)
+  return (data || []) as unknown as TesteAB[]
+}
+
+async function buscarTesteAB(testeId: string): Promise<TesteAB> {
+  const { data, error } = await supabase
+    .from('testes_ab_formularios')
+    .select('*')
+    .eq('id', testeId)
+    .single()
+  if (error) throw new Error(`Erro ao buscar teste AB: ${error.message}`)
+  return data as unknown as TesteAB
+}
+
+async function criarTesteAB(formularioId: string, payload: {
+  nome_teste: string
+  descricao_teste?: string
+  metrica_objetivo?: string
+  confianca_minima?: number
+  duracao_minima_dias?: number
+  minimo_submissoes?: number
+}): Promise<TesteAB> {
+  const organizacaoId = await getOrganizacaoId()
+  const { data, error } = await supabase
+    .from('testes_ab_formularios')
+    .insert({ formulario_id: formularioId, organizacao_id: organizacaoId, ...payload })
+    .select()
+    .single()
+  if (error) throw new Error(`Erro ao criar teste AB: ${error.message}`)
+  return data as unknown as TesteAB
+}
+
+async function atualizarTesteAB(testeId: string, payload: Partial<TesteAB>): Promise<TesteAB> {
+  const { data, error } = await supabase
+    .from('testes_ab_formularios')
+    .update(payload as any)
+    .eq('id', testeId)
+    .select()
+    .single()
+  if (error) throw new Error(`Erro ao atualizar teste AB: ${error.message}`)
+  return data as unknown as TesteAB
+}
+
+async function iniciarTesteAB(testeId: string, formularioId: string): Promise<TesteAB> {
+  const { data, error } = await supabase
+    .from('testes_ab_formularios')
+    .update({ status: 'em_andamento', iniciado_em: new Date().toISOString() })
+    .eq('id', testeId)
+    .select()
+    .single()
+  if (error) throw new Error(`Erro ao iniciar teste AB: ${error.message}`)
+
+  await supabase
+    .from('formularios')
+    .update({ ab_testing_ativo: true, teste_ab_atual_id: testeId } as any)
+    .eq('id', formularioId)
+
+  return data as unknown as TesteAB
+}
+
+async function pausarTesteAB(testeId: string): Promise<TesteAB> {
+  const { data, error } = await supabase
+    .from('testes_ab_formularios')
+    .update({ status: 'pausado', pausado_em: new Date().toISOString() })
+    .eq('id', testeId)
+    .select()
+    .single()
+  if (error) throw new Error(`Erro ao pausar teste AB: ${error.message}`)
+  return data as unknown as TesteAB
+}
+
+async function concluirTesteAB(testeId: string, formularioId: string): Promise<TesteAB> {
+  // Buscar variante vencedora
+  const { data: variantes } = await supabase
+    .from('variantes_ab_formularios')
+    .select('id, taxa_conversao')
+    .eq('teste_ab_id', testeId)
+    .order('taxa_conversao', { ascending: false })
+
+  const vencedoraId = variantes && variantes.length > 0 ? variantes[0].id : null
+
+  const { data, error } = await supabase
+    .from('testes_ab_formularios')
+    .update({
+      status: 'concluido',
+      concluido_em: new Date().toISOString(),
+      variante_vencedora_id: vencedoraId,
+    })
+    .eq('id', testeId)
+    .select()
+    .single()
+  if (error) throw new Error(`Erro ao concluir teste AB: ${error.message}`)
+
+  await supabase
+    .from('formularios')
+    .update({ ab_testing_ativo: false, teste_ab_atual_id: null } as any)
+    .eq('id', formularioId)
+
+  return data as unknown as TesteAB
+}
+
+async function listarVariantesAB(testeId: string): Promise<VarianteAB[]> {
+  const { data, error } = await supabase
+    .from('variantes_ab_formularios')
+    .select('*')
+    .eq('teste_ab_id', testeId)
+    .order('letra_variante', { ascending: true })
+  if (error) throw new Error(`Erro ao listar variantes: ${error.message}`)
+  return (data || []) as unknown as VarianteAB[]
+}
+
+async function criarVarianteAB(testeId: string, payload: {
+  nome_variante: string
+  letra_variante: string
+  e_controle?: boolean
+  alteracoes?: Record<string, unknown>
+  porcentagem_trafego?: number
+}): Promise<VarianteAB> {
+  const { data, error } = await supabase
+    .from('variantes_ab_formularios')
+    .insert({ teste_ab_id: testeId, ...payload } as any)
+    .select()
+    .single()
+  if (error) throw new Error(`Erro ao criar variante: ${error.message}`)
+  return data as unknown as VarianteAB
+}
+
+async function excluirVarianteAB(varianteId: string): Promise<void> {
+  const { error } = await supabase
+    .from('variantes_ab_formularios')
+    .delete()
+    .eq('id', varianteId)
+  if (error) throw new Error(`Erro ao excluir variante: ${error.message}`)
+}
+
 export const formulariosApi = {
   listar,
   buscar,
@@ -858,4 +1147,19 @@ export const formulariosApi = {
   criarRegra,
   atualizarRegra,
   excluirRegra,
+  // Analytics
+  obterMetricas,
+  obterFunilConversao,
+  obterDesempenhoCampos,
+  // A/B Testing
+  listarTestesAB,
+  buscarTesteAB,
+  criarTesteAB,
+  atualizarTesteAB,
+  iniciarTesteAB,
+  pausarTesteAB,
+  concluirTesteAB,
+  listarVariantesAB,
+  criarVarianteAB,
+  excluirVarianteAB,
 }

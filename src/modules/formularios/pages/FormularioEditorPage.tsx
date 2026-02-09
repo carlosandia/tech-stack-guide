@@ -6,7 +6,7 @@
 
 import { useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { PanelLeft, PanelRight, Loader2, LayoutGrid, Paintbrush, Settings2, Share2, Zap } from 'lucide-react'
+import { PanelLeft, PanelRight, Loader2, LayoutGrid, Paintbrush, Settings2, Share2, Zap, BarChart3, FlaskConical } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { useFormulario } from '../hooks/useFormularios'
@@ -25,15 +25,19 @@ import { EditorTabsEstilos } from '../components/editor/EditorTabsEstilos'
 import { EditorTabsCompartilhar } from '../components/editor/EditorTabsCompartilhar'
 import { EditorTabsConfig } from '../components/editor/EditorTabsConfig'
 import { EditorTabsLogica } from '../components/editor/EditorTabsLogica'
+import { EditorTabsAnalytics } from '../components/editor/EditorTabsAnalytics'
+import { EditorTabsAB } from '../components/editor/EditorTabsAB'
 import type { CampoFormulario } from '../services/formularios.api'
 
-type EditorTab = 'campos' | 'estilos' | 'config' | 'logica' | 'compartilhar'
+type EditorTab = 'campos' | 'estilos' | 'config' | 'logica' | 'compartilhar' | 'analytics' | 'ab'
 
 const TABS: { key: EditorTab; label: string; icon: React.ElementType }[] = [
   { key: 'campos', label: 'Campos', icon: LayoutGrid },
   { key: 'estilos', label: 'Estilos', icon: Paintbrush },
   { key: 'config', label: 'Configurações', icon: Settings2 },
   { key: 'logica', label: 'Lógica', icon: Zap },
+  { key: 'analytics', label: 'Analytics', icon: BarChart3 },
+  { key: 'ab', label: 'A/B Testing', icon: FlaskConical },
   { key: 'compartilhar', label: 'Compartilhar', icon: Share2 },
 ]
 
@@ -265,6 +269,18 @@ export function FormularioEditorPage() {
       {activeTab === 'compartilhar' && (
         <div className="flex-1 overflow-hidden">
           <EditorTabsCompartilhar formulario={formulario} />
+        </div>
+      )}
+
+      {activeTab === 'analytics' && (
+        <div className="flex-1 overflow-hidden">
+          <EditorTabsAnalytics formulario={formulario} />
+        </div>
+      )}
+
+      {activeTab === 'ab' && (
+        <div className="flex-1 overflow-hidden">
+          <EditorTabsAB formulario={formulario} />
         </div>
       )}
     </div>
