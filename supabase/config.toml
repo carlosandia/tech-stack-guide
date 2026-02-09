@@ -41,3 +41,9 @@ verify_jwt = false
 
 [functions.sync-emails]
 verify_jwt = false
+
+[functions.translate-email]
+verify_jwt = false
+
+[functions.delete-email]
+verify_jwt = false

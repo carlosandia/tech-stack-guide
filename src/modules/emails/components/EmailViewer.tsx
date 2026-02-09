@@ -42,6 +42,7 @@ interface EmailViewerProps {
   onResponder: (id: string) => void
   onResponderTodos: (id: string) => void
   onEncaminhar: (id: string) => void
+  onTraduzir?: (id: string) => Promise<string>
 }
 
 function AnexoItem({ anexo, emailId }: { anexo: AnexoInfo; emailId: string }) {
@@ -133,8 +134,11 @@ export function EmailViewer({
   onResponder,
   onResponderTodos,
   onEncaminhar,
+  onTraduzir,
 }: EmailViewerProps) {
   const [moreMenuOpen, setMoreMenuOpen] = useState(false)
+  const [traducao, setTraducao] = useState<string | null>(null)
+  const [traduzindo, setTraduzindo] = useState(false)
   const moreMenuRef = useRef<HTMLDivElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
 
@@ -150,6 +154,11 @@ export function EmailViewer({
     } catch { /* sandbox */ }
   }, [])
 
+  // Reset translation when email changes
+  useEffect(() => {
+    setTraducao(null)
+    setTraduzindo(false)
+  }, [email?.id])
 
   // Close popover on outside click
   useEffect(() => {
@@ -248,9 +257,26 @@ export function EmailViewer({
     },
     { divider: true },
     {
-      label: 'Traduzir',
+      label: traduzindo ? 'Traduzindo...' : traducao ? 'Ver original' : 'Traduzir',
       icon: Languages,
-      action: () => toast.info('Tradução será implementada em breve'),
+      action: async () => {
+        if (traducao) {
+          setTraducao(null)
+          return
+        }
+        if (onTraduzir && email) {
+          setTraduzindo(true)
+          try {
+            const result = await onTraduzir(email.id)
+            setTraducao(result)
+            toast.success('Email traduzido')
+          } catch (err) {
+            toast.error((err as Error).message || 'Erro ao traduzir')
+          } finally {
+            setTraduzindo(false)
+          }
+        }
+      },
     },
     {
       label: 'Imprimir',
@@ -371,7 +397,29 @@ export function EmailViewer({
 
       {/* Email body */}
       <div className="flex-1 overflow-y-auto">
-        {cleanHtml ? (
+        {/* Translation banner */}
+        {(traducao || traduzindo) && (
+          <div className="px-5 py-2 bg-accent/30 border-b border-border/40 flex items-center gap-2">
+            <Languages className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+            <span className="text-xs font-medium text-muted-foreground">
+              {traduzindo ? 'Traduzindo...' : 'Tradução para Português'}
+            </span>
+            {traducao && (
+              <button
+                onClick={() => setTraducao(null)}
+                className="text-xs text-primary hover:underline ml-auto"
+              >
+                Ver original
+              </button>
+            )}
+          </div>
+        )}
+
+        {traducao ? (
+          <pre className="text-sm text-foreground whitespace-pre-wrap font-sans leading-relaxed px-5 py-3">
+            {traducao}
+          </pre>
+        ) : cleanHtml ? (
           <iframe
             ref={iframeRef}
             srcDoc={cleanHtml}

@@ -64,12 +64,21 @@ export function useDeletarEmail() {
 
   return useMutation({
     mutationFn: (id: string) => emailsApi.deletar(id),
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['emails'] })
-      toast.success('Email movido para lixeira')
+      toast.success(data.mensagem || 'Email excluído')
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Erro ao excluir email')
+    },
+  })
+}
+
+export function useTraduzirEmail() {
+  return useMutation({
+    mutationFn: (emailId: string) => emailsApi.traduzirEmail(emailId),
+    onError: (error: Error) => {
+      toast.error(error.message || 'Erro ao traduzir email')
     },
   })
 }
