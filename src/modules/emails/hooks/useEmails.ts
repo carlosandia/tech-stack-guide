@@ -187,9 +187,16 @@ export function useSincronizarEmails() {
   return useMutation({
     mutationFn: () => emailsApi.sincronizarEmails(),
     onSuccess: (data) => {
+      // Invalidate ALL email queries — list AND individual emails
       queryClient.invalidateQueries({ queryKey: ['emails'] })
-      if (data.novos > 0) {
-        toast.success(`${data.novos} novo(s) email(s) sincronizado(s)`)
+      queryClient.invalidateQueries({ queryKey: ['email'] })
+
+      const parts: string[] = []
+      if (data.novos > 0) parts.push(`${data.novos} novo(s)`)
+      if (data.atualizados > 0) parts.push(`${data.atualizados} atualizado(s)`)
+
+      if (parts.length > 0) {
+        toast.success(`Sincronizado: ${parts.join(', ')}`)
       } else {
         toast.info('Nenhum email novo')
       }

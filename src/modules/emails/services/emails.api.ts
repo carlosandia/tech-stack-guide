@@ -237,13 +237,13 @@ export const emailsApi = {
   /**
    * Sincronizar emails via IMAP (busca novos emails do servidor)
    */
-  sincronizarEmails: async (): Promise<{ sucesso: boolean; mensagem: string; novos: number }> => {
+  sincronizarEmails: async (): Promise<{ sucesso: boolean; mensagem: string; novos: number; atualizados: number }> => {
     const { data, error } = await supabase.functions.invoke('sync-emails', {})
 
     if (error) throw new Error(error.message || 'Erro ao sincronizar')
     if (data && !data.sucesso) throw new Error(data.mensagem || 'Falha na sincronização')
 
-    return data || { sucesso: true, mensagem: 'Sincronizado', novos: 0 }
+    return data || { sucesso: true, mensagem: 'Sincronizado', novos: 0, atualizados: 0 }
   },
 
   /**
