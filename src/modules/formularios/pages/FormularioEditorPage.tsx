@@ -249,7 +249,7 @@ export function FormularioEditorPage() {
           <div className="flex items-center justify-between gap-2 px-4 py-1.5 border-b border-border bg-background shrink-0">
             <div className="flex items-center gap-2">
               <Button
-                variant={showFinalPreview ? 'default' : 'outline'}
+                variant="ghost"
                 size="sm"
                 className="h-7 text-xs"
                 onClick={toggleFinalPreview}
@@ -280,7 +280,7 @@ export function FormularioEditorPage() {
               )}
             </div>
 
-            <Button size="sm" className="h-7 text-xs" onClick={handleSaveEstilos} disabled={salvarEstilos.isPending}>
+            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleSaveEstilos} disabled={salvarEstilos.isPending}>
               {salvarEstilos.isPending ? (
                 <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
               ) : (
