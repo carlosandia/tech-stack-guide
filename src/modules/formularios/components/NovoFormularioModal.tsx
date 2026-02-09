@@ -18,13 +18,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { criarFormularioSchema, type CriarFormularioInput, TipoFormularioOptions } from '../schemas/formulario.schema'
 import { useCriarFormulario } from '../hooks/useFormularios'
 
@@ -40,12 +33,15 @@ export function NovoFormularioModal({ open, onOpenChange }: Props) {
     register,
     handleSubmit,
     setValue,
+    watch,
     reset,
     formState: { errors },
   } = useForm<CriarFormularioInput>({
     resolver: zodResolver(criarFormularioSchema),
     defaultValues: { nome: '', tipo: 'inline', descricao: '' },
   })
+
+  const tipoAtual = watch('tipo')
 
   const onSubmit = async (data: CriarFormularioInput) => {
     await criarMutation.mutateAsync(data)
@@ -88,21 +84,17 @@ export function NovoFormularioModal({ open, onOpenChange }: Props) {
               <Label>
                 Tipo <span className="text-destructive">*</span>
               </Label>
-              <Select
-                defaultValue="inline"
-                onValueChange={(val) => setValue('tipo', val as CriarFormularioInput['tipo'])}
+              <select
+                value={tipoAtual}
+                onChange={(e) => setValue('tipo', e.target.value as CriarFormularioInput['tipo'])}
+                className="w-full h-10 rounded-md border border-border bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o tipo" />
-                </SelectTrigger>
-                <SelectContent>
-                  {TipoFormularioOptions.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                {TipoFormularioOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="space-y-2">
