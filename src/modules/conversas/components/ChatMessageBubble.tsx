@@ -235,7 +235,9 @@ function PollContent({ mensagem, conversaId }: { mensagem: Mensagem; conversaId?
     setLoading(true)
     try {
       const result = await conversasApi.consultarVotosEnquete(conversaId, mensagem.message_id)
-      if (result?.poll_options) {
+      if (result?.engine_limitation) {
+        toast.info('Votos de enquete não disponíveis com engine NOWEB. Verifique diretamente no WhatsApp.', { duration: 5000 })
+      } else if (result?.poll_options) {
         setOptions(result.poll_options)
         toast.success('Votos atualizados')
       } else {

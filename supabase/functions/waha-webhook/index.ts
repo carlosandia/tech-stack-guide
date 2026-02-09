@@ -419,15 +419,50 @@ Deno.serve(async (req) => {
       // AIDEV-NOTE: For fromMe messages (sent from phone), payload.from = OUR number,
       // payload.to = the chat partner. We need the partner's ID for chatId/phoneNumber.
       if (isFromMe) {
-        const toField = payload.to || payload._data?.to || rawFrom;
+        let toField = payload.to || payload._data?.to || rawFrom;
+        
+        // Resolve @lid to @c.us using remoteJidAlt
+        if (toField.includes("@lid")) {
+          const altJid = payload._data?.key?.remoteJidAlt || payload._data?.to;
+          if (altJid && altJid.includes("@s.whatsapp.net")) {
+            toField = altJid.replace("@s.whatsapp.net", "@c.us");
+            console.log(`[waha-webhook] Resolved @lid (fromMe to): ${payload.to} -> ${toField}`);
+          } else {
+            // Try extracting number from other fields
+            const altTo = payload._data?.chat?.id?._serialized || payload._data?.chat?.id;
+            if (altTo && !altTo.includes("@lid")) {
+              toField = altTo;
+              console.log(`[waha-webhook] Resolved @lid (fromMe via chat.id): ${payload.to} -> ${toField}`);
+            }
+          }
+        }
+        
         chatId = toField; // e.g. "5513988506995@c.us" (the other person)
-        phoneNumber = toField.replace("@c.us", "").replace("@s.whatsapp.net", "");
+        phoneNumber = toField.replace("@c.us", "").replace("@s.whatsapp.net", "").replace("@lid", "");
         // For fromMe, pushName/notifyName might not be available for the recipient
         phoneName = payload._data?.notifyName || payload.notifyName || null;
         console.log(`[waha-webhook] fromMe individual: from=${rawFrom}, to=${toField}, chatId=${chatId}`);
       } else {
-        chatId = rawFrom; // e.g. "5513988506995@c.us"
-        phoneNumber = rawFrom.replace("@c.us", "").replace("@s.whatsapp.net", "");
+        let resolvedFrom = rawFrom;
+        
+        // Resolve @lid to @c.us using remoteJidAlt
+        if (rawFrom.includes("@lid")) {
+          const altJid = payload._data?.key?.remoteJidAlt;
+          if (altJid) {
+            resolvedFrom = altJid.replace("@s.whatsapp.net", "@c.us");
+            console.log(`[waha-webhook] Resolved @lid: ${rawFrom} -> ${resolvedFrom}`);
+          } else {
+            // Fallback: try chat.id or other fields
+            const altFrom = payload._data?.chat?.id?._serialized || payload._data?.chat?.id;
+            if (altFrom && !altFrom.includes("@lid")) {
+              resolvedFrom = altFrom;
+              console.log(`[waha-webhook] Resolved @lid (via chat.id): ${rawFrom} -> ${resolvedFrom}`);
+            }
+          }
+        }
+        
+        chatId = resolvedFrom; // e.g. "5513988506995@c.us"
+        phoneNumber = resolvedFrom.replace("@c.us", "").replace("@s.whatsapp.net", "").replace("@lid", "");
         phoneName = payload._data?.pushName || payload._data?.notifyName || payload.notifyName || payload.pushName || null;
       }
       conversaTipo = "individual";
@@ -599,7 +634,23 @@ Deno.serve(async (req) => {
     // =====================================================
     // STEP 3: Insert message
     // =====================================================
-    const wahaType = messageType === "chat" ? "text" : messageType;
+    let wahaType = messageType === "chat" ? "text" : (messageType || "text");
+
+    // If type is "text" but has media, infer correct type from mimetype
+    if ((wahaType === "text" || wahaType === "chat") && payload.hasMedia && payload.media?.mimetype) {
+      const mime = (payload.media.mimetype as string).toLowerCase();
+      if (mime.startsWith("image/")) {
+        wahaType = "image";
+      } else if (mime.startsWith("video/")) {
+        wahaType = "video";
+      } else if (mime.startsWith("audio/")) {
+        // Check if it's a PTT (voice note)
+        wahaType = payload.media?.ptt ? "ptt" : "audio";
+      } else {
+        wahaType = "document";
+      }
+      console.log(`[waha-webhook] Media type inferred from mimetype (${mime}): ${wahaType}`);
+    }
 
     const messageInsert: Record<string, unknown> = {
       organizacao_id: sessao.organizacao_id,
