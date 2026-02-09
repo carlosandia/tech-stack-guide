@@ -1090,6 +1090,39 @@ Deno.serve(async (req) => {
       }
 
       // =====================================================
+      // DESARQUIVAR CONVERSA VIA WAHA
+      // =====================================================
+      case "desarquivar_conversa": {
+        const { chat_id: unarchChatId } = body as { chat_id?: string };
+
+        if (!unarchChatId) {
+          return new Response(
+            JSON.stringify({ error: "chat_id é obrigatório" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        console.log(`[waha-proxy] Unarchiving chat ${unarchChatId}, session: ${sessionId}`);
+
+        const unarchResp = await fetch(`${baseUrl}/api/${sessionId}/chats/${encodeURIComponent(unarchChatId)}/unarchive`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
+        });
+
+        const unarchData = await unarchResp.json().catch(() => ({}));
+        console.log(`[waha-proxy] Unarchive chat response: ${unarchResp.status}`, JSON.stringify(unarchData).substring(0, 300));
+
+        if (!unarchResp.ok && isNowebLimitation(unarchResp.status, unarchData)) {
+          return nowebPartialResponse('desarquivar_conversa');
+        }
+
+        return new Response(
+          JSON.stringify({ ok: unarchResp.ok, data: unarchData }),
+          { status: unarchResp.ok ? 200 : unarchResp.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // =====================================================
       // MARCAR COMO NÃO LIDA VIA WAHA
       // =====================================================
       case "marcar_nao_lida": {
