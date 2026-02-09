@@ -129,14 +129,14 @@ export function FormulariosPage() {
         )}
 
         <Select
-          value={tipoFilter}
-          onValueChange={(val: string) => { setTipoFilter(val as TipoFormulario | ''); setPagina(1) }}
+          value={tipoFilter || 'todos'}
+          onValueChange={(val: string) => { setTipoFilter(val === 'todos' ? '' : val as TipoFormulario); setPagina(1) }}
         >
           <SelectTrigger className="w-[160px]">
             <SelectValue placeholder="Tipo" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Todos os tipos</SelectItem>
+            <SelectItem value="todos">Todos os tipos</SelectItem>
             {TipoFormularioOptions.map((opt) => (
               <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
             ))}
