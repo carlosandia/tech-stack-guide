@@ -1,96 +1,97 @@
 
 
-# Plano: Correcoes e Funcionalidades do Menu de Acoes de Mensagem
+## Plano de Melhorias no Modulo de Conversas
 
-## Problema 1: Popover cortado pela janela de conversa
-
-O menu de acoes (`MessageActionMenu`) usa `position: absolute` dentro de um container com `overflow-y: auto` (a area de mensagens `ChatMessages`), o que faz o dropdown ser cortado pelas bordas do container.
-
-**Solucao:** Renderizar o dropdown via `createPortal` no `document.body` com `position: fixed`, calculando a posicao com base no botao clicado (usando `getBoundingClientRect()`). Mesmo padrao ja aplicado com sucesso no `FiltrosConversas.tsx`.
+Sao 4 ajustes independentes a implementar:
 
 ---
 
-## Problema 2: Funcionalidade Fixar Mensagem
+### 1. Nova Conversa -- Campo de telefone com bandeira e codigo de pais
 
-**API WAHA disponivel:**
-- `POST /api/{session}/chats/{chatId}/messages/{messageId}/pin` com body `{"duration": 86400}` (NOWEB suportado)
-- `POST /api/{session}/chats/{chatId}/messages/{messageId}/unpin` (NOWEB suportado)
+**Problema atual**: O campo de telefone e um input de texto simples onde o usuario precisa digitar o codigo de pais completo (+5511999999999).
 
-**Implementacao:**
-- Nova action `fixar_mensagem` no `waha-proxy` chamando o endpoint de pin
-- Novo metodo `fixarMensagem()` no `conversas.api.ts`
-- Novo hook `useFixarMensagem()` no `useConversas.ts`
-- Conectar o botao "Fixar" no `MessageActionMenu` ao handler real
-- Propagar callbacks de `ChatWindow` -> `ChatMessages` -> `ChatMessageBubble`
+**Solucao**: Transformar em um campo com seletor de bandeira/pais (padrao Brasil +55), onde o usuario digita apenas DDD + numero. O codigo do pais sera concatenado automaticamente ao submeter.
 
----
+**Arquivo**: `src/modules/conversas/components/NovaConversaModal.tsx`
 
-## Problema 3: Funcionalidade Reagir
-
-**API WAHA disponivel:**
-- `POST /api/reaction` com body `{"chatId": "...", "session": "...", "messageId": "...", "reaction": "emoji"}` (NOWEB suportado)
-
-**Implementacao:**
-- Nova action `reagir_mensagem` no `waha-proxy`
-- Novo metodo `reagirMensagem()` no `conversas.api.ts`
-- Novo hook `useReagirMensagem()` no `useConversas.ts`
-- Ao clicar em "Reagir", abrir um mini picker de emojis rapidos (6 emojis mais usados + botao para abrir EmojiPicker completo), posicionado via Portal junto ao menu
-- A reacao selecionada e enviada ao WhatsApp via WAHA e salva localmente como mensagem tipo `reaction`
+**Detalhes tecnicos**:
+- Criar estado `codigoPais` (default `+55`) e uma lista compacta de paises mais comuns (BR, US, AR, PT, etc.) com bandeiras emoji
+- Dropdown simples ao lado do input para trocar o pais
+- Placeholder muda para "11999999999" (sem +55)
+- No `handleSubmit`, concatenar `codigoPais + telefone.replace(/\D/g, '')` antes de enviar
+- Manter formatacao limpa: o backend recebe sempre o numero completo com codigo de pais
 
 ---
 
-## Problema 4: Funcionalidade Encaminhar
+### 2. Desarquivar conversa -- Menu de contexto dinamico
 
-**API WAHA disponivel:**
-- `POST /api/forwardMessage` com body `{"chatId": "destino", "session": "...", "messageId": "..."}` (NOWEB suportado)
+**Problema atual**: Quando o usuario esta na aba "Arquivadas", o menu de contexto do `ConversaItem` ainda mostra "Arquivar conversa" em vez de "Desarquivar conversa".
 
-**Implementacao:**
-- Nova action `encaminhar_mensagem` no `waha-proxy`
-- Novo metodo `encaminharMensagem()` no `conversas.api.ts`
-- Novo hook `useEncaminharMensagem()` no `useConversas.ts`
-- Novo componente `EncaminharModal.tsx` - modal com busca de contatos/conversas existentes do CRM (usando `conversasApi.buscarContatos()` e lista de conversas ativas)
-- O usuario seleciona o destino e a mensagem e encaminhada via WAHA
-- A lista de destinos sera baseada nos contatos salvos no CRM (tabela `contatos`) - abordagem mais confiavel e consistente
+**Solucao**: Tornar o botao de arquivar/desarquivar dinamico com base no estado `conversa.arquivada`.
 
----
-
-## Problema 5: Copiar qualquer tipo de conteudo + CTRL+V no textarea
-
-**Copiar:**
-- Texto: copia texto para clipboard (ja funciona)
-- Imagem/Video: copia a URL da midia para clipboard (para colar em outra conversa ou app)
-- Audio: copia URL do audio
-- Documento: copia URL do documento
-- Contato: copia vCard
-
-**CTRL+V no textarea:**
-- Adicionar handler `onPaste` no textarea do `ChatInput.tsx`
-- Detectar tipo de conteudo colado:
-  - Se for texto, inserir normalmente (ja funciona nativamente)
-  - Se for arquivo/imagem (via `clipboardData.files`), tratar como anexo, chamando `onFileSelected` com o arquivo colado
+**Arquivos**:
+- `src/modules/conversas/components/ConversaItem.tsx` -- Alterar o texto e icone do botao de arquivar para mostrar "Desarquivar conversa" quando `conversa.arquivada === true`. Usar icone `ArchiveRestore` (lucide) para desarquivar.
+- `src/modules/conversas/services/conversas.api.ts` -- Criar funcao `desarquivarConversa(conversaId)` que seta `arquivada: false` e sincroniza com WAHA.
+- `src/modules/conversas/hooks/useConversas.ts` -- Criar hook `useDesarquivarConversa()`.
+- `src/modules/conversas/pages/ConversasPage.tsx` -- Atualizar `handleArquivar` para verificar se a conversa esta arquivada e chamar a funcao correta (arquivar ou desarquivar).
 
 ---
 
-## Detalhes Tecnicos
+### 3. Historico de Interacoes no Drawer lateral
 
-### Arquivos a criar:
-1. `src/modules/conversas/components/EncaminharModal.tsx` - Modal de selecao de destino para encaminhamento
+**Problema atual**: O drawer lateral ("Info do Contato") nao exibe metricas de interacao como total de mensagens enviadas/recebidas e tempo medio de resposta.
 
-### Arquivos a modificar:
-1. **`supabase/functions/waha-proxy/index.ts`** - 3 novas actions: `fixar_mensagem`, `reagir_mensagem`, `encaminhar_mensagem`
-2. **`src/modules/conversas/services/conversas.api.ts`** - 3 novos metodos: `fixarMensagem`, `reagirMensagem`, `encaminharMensagem`
-3. **`src/modules/conversas/hooks/useConversas.ts`** - 3 novos hooks de mutacao
-4. **`src/modules/conversas/components/ChatMessageBubble.tsx`** - Portal no menu, handler de fixar/reagir/encaminhar/copiar universal, mini emoji picker para reacoes
-5. **`src/modules/conversas/components/ChatMessages.tsx`** - Propagar novos callbacks
-6. **`src/modules/conversas/components/ChatWindow.tsx`** - Conectar novos hooks e gerenciar estado do modal de encaminhar
-7. **`src/modules/conversas/components/ChatInput.tsx`** - Handler `onPaste` para CTRL+V de arquivos/imagens
+**Solucao**: Adicionar secao "Historico de Interacoes" no `ContatoDrawer` com metricas calculadas a partir das mensagens da conversa.
 
-### Sequencia de implementacao:
-1. Portal do menu (correcao visual)
-2. CTRL+V no textarea
-3. Copiar universal (todos os tipos de midia)
-4. Fixar mensagem (waha-proxy + API + UI)
-5. Reagir (waha-proxy + API + UI com mini picker)
-6. Encaminhar (waha-proxy + API + Modal + UI)
-7. Deploy do waha-proxy atualizado
+**Arquivo**: `src/modules/conversas/components/ContatoDrawer.tsx`
+
+**Detalhes tecnicos**:
+- Nova secao colapsavel `HistoricoInteracoes` entre "Informacoes da Conversa" e as outras secoes
+- Query no Supabase para contar mensagens da conversa agrupando por `from_me`
+- Exibir:
+  - Total de mensagens (ja existe em `conversa.total_mensagens`)
+  - Mensagens enviadas (count where `from_me = true`)
+  - Mensagens recebidas (count where `from_me = false`)
+  - Tempo medio de resposta (calculado pela diferenca entre mensagem recebida e proxima enviada)
+- Layout em grid 2 colunas com label/valor, estilo consistente com "Informacoes da Conversa"
+
+---
+
+### 4. Finalizar conversa e Badge "Template" em mensagens prontas
+
+**Problema atual**:
+- (a) Nao ha botao para "Finalizar" (fechar) a conversa diretamente
+- (b) Mensagens enviadas via atalho/mensagem pronta nao sao identificadas visualmente no chat
+
+**Solucao (a) -- Finalizar Conversa**:
+- Adicionar botao "Finalizar" no `ChatHeader.tsx` (ao lado do menu, ou como item do menu dropdown)
+- Ao finalizar, chamar `alterarStatus(id, 'fechada')` que ja existe
+- Quando uma nova mensagem chegar numa conversa fechada, o webhook ja a reabre automaticamente (logica existente em `reabrirSeNecessario`)
+
+**Solucao (b) -- Badge "Template"**:
+- Ao enviar mensagem pronta via `handleQuickReplySelect` no `ChatWindow.tsx`, marcar a mensagem com metadata indicando que e template
+- Adicionar coluna ou usar campo existente `raw_data` para armazenar `{ is_template: true }` na mensagem
+- No `ChatMessageBubble.tsx`, verificar `mensagem.raw_data?.is_template` e renderizar um badge "Template" discreto (pill verde/azul) ao lado do horario na bolha
+
+**Arquivos**:
+- `src/modules/conversas/components/ChatWindow.tsx` -- Alterar `handleQuickReplySelect` para passar flag de template ao enviar
+- `src/modules/conversas/services/conversas.api.ts` -- Aceitar parametro opcional `isTemplate` em `enviarTexto` e gravar no `raw_data`
+- `src/modules/conversas/components/ChatMessageBubble.tsx` -- Renderizar badge "Template" quando `raw_data?.is_template`
+- `src/modules/conversas/components/ChatHeader.tsx` -- Adicionar item "Finalizar" no menu dropdown (com confirmacao)
+
+---
+
+### Resumo de arquivos impactados
+
+| Arquivo | Alteracao |
+|---------|-----------|
+| `NovaConversaModal.tsx` | Seletor de pais com bandeira + input formatado |
+| `ConversaItem.tsx` | Texto dinamico arquivar/desarquivar |
+| `conversas.api.ts` | `desarquivarConversa()` + param `isTemplate` em `enviarTexto` |
+| `useConversas.ts` | `useDesarquivarConversa()` |
+| `ConversasPage.tsx` | Toggle arquivar/desarquivar no handler |
+| `ContatoDrawer.tsx` | Secao "Historico de Interacoes" |
+| `ChatHeader.tsx` | Item "Finalizar" no menu |
+| `ChatWindow.tsx` | Flag template no envio de mensagem pronta |
+| `ChatMessageBubble.tsx` | Badge "Template" visual |
 
