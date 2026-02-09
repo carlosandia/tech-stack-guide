@@ -1,11 +1,13 @@
 /**
  * AIDEV-NOTE: Modal de composição de email com editor TipTap (RF-005, RF-006)
  * Suporta: novo, responder, responder todos, encaminhar
+ * Inclui assinatura do usuário automaticamente
  */
 
 import { useState, useEffect } from 'react'
 import { X, Send, Loader2 } from 'lucide-react'
 import { EmailRichEditor } from './EmailRichEditor'
+import { useAssinatura } from '../hooks/useEmails'
 
 export type ComposerMode = 'novo' | 'responder' | 'responder_todos' | 'encaminhar'
 
@@ -48,17 +50,47 @@ export function ComposeEmailModal({
   const [showBcc, setShowBcc] = useState(false)
   const [editorKey, setEditorKey] = useState(0)
 
+  // Buscar assinatura do usuário
+  const { data: assinatura } = useAssinatura()
+
+  // Monta o conteúdo inicial com assinatura
+  const buildInitialContent = () => {
+    const defaultBody = defaults?.corpo_html || ''
+    let signatureHtml = ''
+
+    // Verifica se deve incluir assinatura
+    const isNewEmail = mode === 'novo'
+    const isReplyOrForward = mode === 'responder' || mode === 'responder_todos' || mode === 'encaminhar'
+
+    if (assinatura?.assinatura_html) {
+      const shouldInclude =
+        (isNewEmail && assinatura.incluir_em_novos !== false) ||
+        (isReplyOrForward && assinatura.incluir_em_respostas !== false)
+
+      if (shouldInclude) {
+        signatureHtml = `<br/><div class="email-signature" style="margin-top: 16px; padding-top: 12px; border-top: 1px solid #e5e7eb;">${assinatura.assinatura_html}</div>`
+      }
+    }
+
+    if (isNewEmail) {
+      return signatureHtml // Novo email: só assinatura
+    }
+
+    // Resposta/encaminhar: assinatura + corpo original
+    return signatureHtml + defaultBody
+  }
+
   // Reset form quando resetKey muda (nova composição)
   useEffect(() => {
     setPara(defaults?.para_email || '')
     setCc(defaults?.cc_email || '')
     setBcc('')
     setAssunto(defaults?.assunto || '')
-    setCorpo(defaults?.corpo_html || '')
+    setCorpo(buildInitialContent())
     setShowCc(!!defaults?.cc_email)
     setShowBcc(false)
     setEditorKey((k) => k + 1)
-  }, [resetKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [resetKey, assinatura]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!isOpen) return null
 
