@@ -25,7 +25,6 @@ import {
   Smile,
   Forward,
   Pin,
-  X,
 } from 'lucide-react'
 import type { Mensagem } from '../services/conversas.api'
 import { conversasApi } from '../services/conversas.api'
@@ -335,7 +334,7 @@ function QuotedMessagePreview({ quoted, isMe }: { quoted: Mensagem; isMe: boolea
 // Action Menu
 // =====================================================
 
-function MessageActionMenu({ mensagem, onDelete, onReply, onCopy }: {
+function MessageActionMenu({ mensagem, onDelete, onReply }: {
   mensagem: Mensagem
   onDelete: (paraTodos: boolean) => void
   onReply?: () => void
