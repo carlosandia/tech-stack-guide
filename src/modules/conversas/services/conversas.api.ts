@@ -536,6 +536,31 @@ export const conversasApi = {
     if (error) throw new Error(error.message)
   },
 
+  /** Desarquivar conversa (WA + flag local) */
+  async desarquivarConversa(conversaId: string): Promise<void> {
+    const session = await getConversaWahaSession(conversaId)
+    if (session) {
+      try {
+        await supabase.functions.invoke('waha-proxy', {
+          body: {
+            action: 'desarquivar_conversa',
+            session_name: session.sessionName,
+            chat_id: session.chatId,
+          },
+        })
+      } catch (e) {
+        console.warn('[conversasApi] WAHA desarquivar_conversa falhou (CRM continua):', e)
+      }
+    }
+
+    const { error } = await supabase
+      .from('conversas')
+      .update({ arquivada: false })
+      .eq('id', conversaId)
+
+    if (error) throw new Error(error.message)
+  },
+
   /** Fixar/desfixar conversa (apenas CRM) */
   async fixarConversa(conversaId: string, fixar: boolean): Promise<void> {
     const { error } = await supabase
@@ -725,7 +750,7 @@ export const conversasApi = {
    * Envia mensagem de texto. Se a conversa tem sessão WhatsApp ativa,
    * envia via WAHA API. Caso contrário, salva apenas localmente.
    */
-  async enviarTexto(conversaId: string, texto: string, replyTo?: string): Promise<Mensagem> {
+  async enviarTexto(conversaId: string, texto: string, replyTo?: string, isTemplate?: boolean): Promise<Mensagem> {
     const organizacaoId = await getOrganizacaoId()
 
     // Buscar dados da conversa para determinar se é WhatsApp
@@ -785,6 +810,7 @@ export const conversasApi = {
         has_media: false,
         ack: wahaMessageId ? 1 : 0,
         reply_to_message_id: replyTo || null,
+        ...(isTemplate ? { raw_data: { is_template: true } } : {}),
       })
       .select('*')
       .single()

@@ -132,7 +132,7 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
   }
 
   const handleQuickReplySelect = (conteudo: string) => {
-    enviarTexto.mutate({ conversaId: conversa.id, texto: conteudo })
+    enviarTexto.mutate({ conversaId: conversa.id, texto: conteudo, isTemplate: true })
   }
 
   const handleAlterarStatus = (status: 'aberta' | 'pendente' | 'fechada') => {

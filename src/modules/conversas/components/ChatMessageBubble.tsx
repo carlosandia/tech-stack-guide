@@ -694,9 +694,14 @@ export function ChatMessageBubble({
             <div className="relative">
               <span className="text-sm whitespace-pre-wrap break-words" dangerouslySetInnerHTML={{ __html: formattedBody }} />
               {/* Invisible spacer to reserve room for the floating timestamp */}
-              <span className="inline-block w-[70px]" aria-hidden="true">&nbsp;</span>
+              <span className={`inline-block ${(mensagem.raw_data as any)?.is_template ? 'w-[130px]' : 'w-[70px]'}`} aria-hidden="true">&nbsp;</span>
               {/* Floating timestamp at bottom-right */}
-              <span className="absolute bottom-0 right-0 flex items-center gap-0.5 text-[10px] text-muted-foreground whitespace-nowrap select-none">
+              <span className="absolute bottom-0 right-0 flex items-center gap-1 text-[10px] text-muted-foreground whitespace-nowrap select-none">
+                {(mensagem.raw_data as any)?.is_template && (
+                  <span className="px-1.5 py-0.5 rounded-full bg-primary/15 text-primary text-[9px] font-semibold leading-none">
+                    Template
+                  </span>
+                )}
                 {format(new Date(mensagem.criado_em), 'HH:mm')}
                 {isMe && <AckIndicator ack={mensagem.ack} />}
               </span>

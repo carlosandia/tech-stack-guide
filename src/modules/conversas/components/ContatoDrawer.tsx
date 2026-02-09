@@ -249,6 +249,91 @@ function OportunidadesContato({ contatoId, navigate }: { contatoId: string; navi
   )
 }
 
+// Seção de Histórico de Interações (métricas de mensagens)
+function HistoricoInteracoes({ conversaId, totalMensagens }: { conversaId: string; totalMensagens: number }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['historico-interacoes', conversaId],
+    queryFn: async () => {
+      const { data: mensagens, error } = await supabase
+        .from('mensagens')
+        .select('from_me, criado_em')
+        .eq('conversa_id', conversaId)
+        .is('deletado_em', null)
+        .order('criado_em', { ascending: true })
+
+      if (error) throw error
+      if (!mensagens || mensagens.length === 0) return { enviadas: 0, recebidas: 0, tempoMedioMin: null }
+
+      let enviadas = 0
+      let recebidas = 0
+      let tempoRespostaTotal = 0
+      let tempoRespostaCount = 0
+
+      for (let i = 0; i < mensagens.length; i++) {
+        if (mensagens[i].from_me) {
+          enviadas++
+        } else {
+          recebidas++
+          // Calcular tempo de resposta: próxima mensagem enviada após recebida
+          for (let j = i + 1; j < mensagens.length; j++) {
+            if (mensagens[j].from_me) {
+              const diff = new Date(mensagens[j].criado_em).getTime() - new Date(mensagens[i].criado_em).getTime()
+              tempoRespostaTotal += diff
+              tempoRespostaCount++
+              break
+            }
+          }
+        }
+      }
+
+      const tempoMedioMin = tempoRespostaCount > 0
+        ? Math.round(tempoRespostaTotal / tempoRespostaCount / 60000)
+        : null
+
+      return { enviadas, recebidas, tempoMedioMin }
+    },
+    enabled: !!conversaId,
+  })
+
+  const formatTempoResposta = (min: number | null) => {
+    if (min === null) return '—'
+    if (min < 1) return '< 1 min'
+    if (min < 60) return `${min} min`
+    const h = Math.floor(min / 60)
+    const m = min % 60
+    return m > 0 ? `${h}h ${m}min` : `${h}h`
+  }
+
+  return (
+    <SectionCollapsible title="Histórico de Interações" icon={<MessageSquare className="w-3.5 h-3.5 text-primary" />} defaultOpen>
+      {isLoading ? (
+        <div className="flex justify-center py-3">
+          <Loader2 className="w-5 h-5 text-muted-foreground animate-spin" />
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          <div className="p-2.5 rounded-md bg-muted/50 border border-border/30">
+            <p className="text-[10px] text-muted-foreground uppercase font-medium">Total</p>
+            <p className="text-lg font-semibold text-foreground">{totalMensagens}</p>
+          </div>
+          <div className="p-2.5 rounded-md bg-muted/50 border border-border/30">
+            <p className="text-[10px] text-muted-foreground uppercase font-medium">Tempo médio</p>
+            <p className="text-lg font-semibold text-foreground">{formatTempoResposta(data?.tempoMedioMin ?? null)}</p>
+          </div>
+          <div className="p-2.5 rounded-md bg-primary/5 border border-primary/10">
+            <p className="text-[10px] text-muted-foreground uppercase font-medium">Enviadas</p>
+            <p className="text-lg font-semibold text-foreground">{data?.enviadas ?? 0}</p>
+          </div>
+          <div className="p-2.5 rounded-md bg-muted/50 border border-border/30">
+            <p className="text-[10px] text-muted-foreground uppercase font-medium">Recebidas</p>
+            <p className="text-lg font-semibold text-foreground">{data?.recebidas ?? 0}</p>
+          </div>
+        </div>
+      )}
+    </SectionCollapsible>
+  )
+}
+
 export function ContatoDrawer({ conversa, isOpen, onClose, onInsertQuickReply, onCriarOportunidade }: ContatoDrawerProps) {
   const [novaNota, setNovaNota] = useState('')
   const [tarefaModalOpen, setTarefaModalOpen] = useState(false)
@@ -483,6 +568,9 @@ export function ContatoDrawer({ conversa, isOpen, onClose, onInsertQuickReply, o
 
           {/* Oportunidades do Contato */}
           <OportunidadesContato contatoId={conversa.contato_id} navigate={navigate} />
+
+          {/* Histórico de Interações */}
+          <HistoricoInteracoes conversaId={conversa.id} totalMensagens={conversa.total_mensagens} />
 
           {/* Conversation Info */}
           <SectionCollapsible title="Informações da Conversa">

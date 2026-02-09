@@ -137,6 +137,21 @@ export function useArquivarConversa() {
   })
 }
 
+export function useDesarquivarConversa() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (conversaId: string) => conversasApi.desarquivarConversa(conversaId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['conversas'] })
+      toast.success('Conversa desarquivada')
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Erro ao desarquivar conversa')
+    },
+  })
+}
+
 export function useFixarConversa() {
   const queryClient = useQueryClient()
 
