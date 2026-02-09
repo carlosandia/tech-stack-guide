@@ -7,7 +7,7 @@
  */
 
 import { useState, useRef, useCallback } from 'react'
-import { Monitor, Tablet, Smartphone } from 'lucide-react'
+import { Monitor, Tablet, Smartphone, Paintbrush } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import type { CampoFormulario, Formulario, EstiloContainer, EstiloCampos, EstiloBotao, EstiloCabecalho } from '../../services/formularios.api'
@@ -93,12 +93,6 @@ export function FormPreview({
     border: 'none',
   } : {}
 
-  const getStyleOutline = (el: SelectedElement) =>
-    selectedStyleElement === el
-      ? '2px dashed hsl(var(--primary))'
-      : undefined
-
-  const styleHoverClass = 'hover:outline hover:outline-2 hover:outline-dashed hover:outline-muted-foreground/40 hover:outline-offset-2 cursor-pointer'
 
   const handleContainerClick = useCallback((e: React.MouseEvent) => {
     if (e.target === e.currentTarget && onSelectStyleElement) {
@@ -211,19 +205,32 @@ export function FormPreview({
       >
         <div
           className={cn(
-            'mx-auto transition-all duration-300 rounded-lg border border-border',
+            'mx-auto transition-all duration-300 rounded-lg border border-border relative group/container',
             viewportWidths[viewport],
             !estiloContainer && 'bg-card shadow-sm p-6',
-            selectedStyleElement === 'container' ? '' : styleHoverClass
+            selectedStyleElement === 'container' && 'outline outline-2 outline-dashed outline-primary outline-offset-4'
           )}
-          style={{
-            ...containerStyle,
-            outline: getStyleOutline('container'),
-            outlineOffset: getStyleOutline('container') ? '4px' : undefined,
-          }}
+          style={containerStyle}
           onClick={handleContainerClick}
-          title="Clique para editar estilos do container"
         >
+          {/* Style edit trigger for container */}
+          {onSelectStyleElement && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onSelectStyleElement('container')
+              }}
+              className={cn(
+                'absolute -right-2 -top-2 z-10 p-1 rounded-full border bg-card shadow-sm transition-opacity',
+                'opacity-0 group-hover/container:opacity-100',
+                selectedStyleElement === 'container' ? 'opacity-100 border-primary text-primary' : 'border-border text-muted-foreground hover:text-primary hover:border-primary'
+              )}
+              title="Editar estilos do container"
+            >
+              <Paintbrush className="w-3 h-3" />
+            </button>
+          )}
           {/* Form header */}
           <div className="mb-6 text-center">
             {estiloCabecalho?.logo_url && (
@@ -253,31 +260,38 @@ export function FormPreview({
             )}
           </div>
 
-          {/* Fields area - clickable for style editing */}
+          {/* Fields area - with style editing trigger */}
           <div
             className={cn(
-              'rounded transition-all',
-              selectedStyleElement === 'campos' ? '' : styleHoverClass
+              'rounded transition-all relative',
+              selectedStyleElement === 'campos' && 'outline outline-2 outline-dashed outline-primary outline-offset-2'
             )}
-            style={{
-              outline: getStyleOutline('campos'),
-              outlineOffset: getStyleOutline('campos') ? '2px' : undefined,
-            }}
-            onClick={(e) => {
-              // Only select campos style if clicking on the fields container bg, not on a specific campo
-              if (e.target === e.currentTarget && onSelectStyleElement) {
-                e.stopPropagation()
-                onSelectStyleElement('campos')
-              }
-            }}
-            title="Clique para editar estilos dos campos"
           >
+            {/* Style edit trigger for campos */}
+            {onSelectStyleElement && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onSelectStyleElement('campos')
+                }}
+                className={cn(
+                  'absolute -right-2 -top-2 z-10 p-1 rounded-full border bg-card shadow-sm transition-opacity',
+                  'opacity-0 hover:opacity-100 group-hover/campos:opacity-100',
+                  selectedStyleElement === 'campos' ? 'opacity-100 border-primary text-primary' : 'border-border text-muted-foreground hover:text-primary hover:border-primary'
+                )}
+                title="Editar estilos dos campos"
+              >
+                <Paintbrush className="w-3 h-3" />
+              </button>
+            )}
+
             {/* Empty state drop zone */}
             {campos.length === 0 && renderDropZone(0, true)}
 
             {/* Fields with drop zones */}
             {campos.length > 0 && (
-              <div>
+              <div className="group/campos">
                 {/* Top drop zone */}
                 {renderDropZone(0)}
 
@@ -317,21 +331,34 @@ export function FormPreview({
 
           {/* Submit button preview - clickable for style editing */}
           {campos.length > 0 && (
-            <div className="mt-6">
+            <div className="mt-6 relative group/botao">
+              {/* Style edit trigger for botão */}
+              {onSelectStyleElement && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onSelectStyleElement('botao')
+                  }}
+                  className={cn(
+                    'absolute -right-2 -top-2 z-10 p-1 rounded-full border bg-card shadow-sm transition-opacity',
+                    'opacity-0 group-hover/botao:opacity-100',
+                    selectedStyleElement === 'botao' ? 'opacity-100 border-primary text-primary' : 'border-border text-muted-foreground hover:text-primary hover:border-primary'
+                  )}
+                  title="Editar estilos do botão"
+                >
+                  <Paintbrush className="w-3 h-3" />
+                </button>
+              )}
               <button
                 type="button"
                 className={cn(
                   'rounded-md text-sm font-semibold transition-all',
                   !estiloBotao && 'w-full bg-primary text-primary-foreground py-2.5 pointer-events-none',
-                  estiloBotao && styleHoverClass
+                  selectedStyleElement === 'botao' && 'outline outline-2 outline-dashed outline-primary outline-offset-2'
                 )}
-                style={estiloBotao ? {
-                  ...buttonStyle,
-                  outline: getStyleOutline('botao'),
-                  outlineOffset: getStyleOutline('botao') ? '2px' : undefined,
-                } : undefined}
+                style={estiloBotao ? buttonStyle : undefined}
                 onClick={handleButtonClick}
-                title="Clique para editar estilos do botão"
               >
                 {estiloBotao?.texto || 'Enviar'}
               </button>

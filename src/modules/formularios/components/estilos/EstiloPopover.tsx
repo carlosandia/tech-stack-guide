@@ -17,7 +17,7 @@ export function EstiloPopover({ open, onClose, titulo, children }: Props) {
   if (!open) return null
 
   return (
-    <div className="w-72 shrink-0 border-l border-border bg-background overflow-y-auto p-3 animate-in slide-in-from-right-4 duration-200">
+    <div className="w-72 shrink-0 border-l border-border bg-card overflow-y-auto p-4 animate-in slide-in-from-right-4 duration-200">
       <div className="flex items-center justify-between mb-3">
         <h4 className="text-sm font-semibold text-foreground">{titulo}</h4>
         <button
