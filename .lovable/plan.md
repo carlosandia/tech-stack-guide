@@ -1,175 +1,218 @@
 
-## Correcao: Conversas Duplicadas, Midia Recebida e Enquete
+
+## Implementacao: Emoji Picker, Acoes no WhatsApp e Menu de Conversa
 
 ---
 
-### Diagnostico Confirmado por Dados Reais
+### Escopo e Viabilidade (WAHA NOWEB Engine)
 
-| # | Problema | Causa Raiz (confirmada) | Evidencia |
-|---|---------|--------------------------|-----------|
-| 1 | Conversas duplicadas ao reconectar | WAHA envia `from: 162826672971943@lid` (Linked ID) em vez de `5513988506995@c.us`. O webhook nao reconhece `@lid`, cria contato E conversa novos. | DB: 2 conversas para "Carlos Andia" - uma com `chat_id: 5513988506995@c.us`, outra com `162826672971943@lid`. 2 contatos tambem. |
-| 2 | Audio/foto/video recebidos nao aparecem | `payload.type` chega como `null` para mensagens recebidas via `message.any`. O webhook salva `tipo: "text"` mesmo com `has_media: true` e `media_url` preenchida. O frontend so renderiza midia se `tipo` for "image"/"video"/"audio". | DB: mensagens com `tipo=text`, `has_media=true`, `media_mimetype=video/mp4` |
-| 3 | Enquete nao retorna votos | Engine NOWEB do WAHA nao consegue descriptografar votos (`selectedOptions: []`). O botao "Mostrar votos" nao encontra endpoint funcional. | Logs: `poll.vote.failed` com `selectedOptions: []`. Docs WAHA confirmam: "pollUpdates - encrypted votes (not decrypted yet)" para NOWEB. |
+Antes de detalhar, aqui esta a compatibilidade real com o engine NOWEB do WAHA:
 
----
-
-## Correcao 1: Resolver `@lid` para Numero Real (Dedup Conversa + Contato)
-
-**Arquivo:** `supabase/functions/waha-webhook/index.ts`
-
-**Descoberta chave**: O raw_data da mensagem ja contem o numero real em `_data.key.remoteJidAlt`:
-
-```text
-payload._data.key = {
-  "remoteJid": "162826672971943@lid",
-  "remoteJidAlt": "5513988506995@s.whatsapp.net",  ← NUMERO REAL
-  "addressingMode": "lid"
-}
-```
-
-### Logica de correcao:
-
-Na secao de INDIVIDUAL MESSAGE (linhas 417-434), ANTES de definir `chatId` e `phoneNumber`:
-
-1. Detectar se `rawFrom` contem `@lid`
-2. Se sim, buscar `payload._data?.key?.remoteJidAlt` para obter o JID real
-3. Converter `@s.whatsapp.net` para `@c.us` (formato padrao)
-4. Usar o numero real como `chatId` e `phoneNumber`
-
-```text
-// Resolver @lid para @c.us usando remoteJidAlt
-let resolvedFrom = rawFrom;
-if (rawFrom.includes("@lid")) {
-  const altJid = payload._data?.key?.remoteJidAlt;
-  if (altJid) {
-    resolvedFrom = altJid.replace("@s.whatsapp.net", "@c.us");
-    console.log(`[waha-webhook] Resolved @lid: ${rawFrom} -> ${resolvedFrom}`);
-  }
-}
-```
-
-Tambem aplicar para `isFromMe` quando `toField` contiver `@lid`:
-- Verificar `payload._data?.key?.remoteJidAlt` ou `payload.to` para o formato correto
-
-Para mensagens `fromMe` com `@lid`, tambem verificar `payload._data?.to` e `payload.to` para resolver o destino.
-
-Isso garante que mensagens de `@lid` usem a mesma conversa e contato que `@c.us`.
-
-### Tambem aplicar em:
-- Busca de contato por telefone (step 1): ja usa `phoneNumber` resolvido
-- Busca de conversa por `chat_id` (step 2): ja usa `chatId` resolvido
-- Nenhum codigo adicional necessario apos resolver no inicio
+| Funcionalidade | WAHA NOWEB Suporte | CRM Local | Sincronizado? |
+|---|---|---|---|
+| Emoji Picker (enviar emoji no texto) | Sim (texto normal) | Sim | Sim |
+| Apagar mensagem | Sim (`DELETE /api/{session}/chats/{chatId}/messages/{messageId}`) | Sim | Sim |
+| Limpar conversa (apagar todas msgs) | Sim (`DELETE /api/{session}/chats/{chatId}/messages`) | Sim | Sim |
+| Apagar conversa | Sim (`DELETE /api/{session}/chats/{chatId}`) | Sim | Sim |
+| Arquivar conversa | Sim (`POST /api/{session}/chats/{chatId}/archive`) | Sim | Sim |
+| Fixar conversa | Nao (sem endpoint WAHA) | Sim | Apenas CRM |
+| Marcar como nao lido | Sim (`POST /api/{session}/chats/{chatId}/unread`) | Sim | Sim |
+| Silenciar notificacoes | Nao (sem endpoint WAHA para NOWEB) | Sim | Apenas CRM |
+| Mensagens temporarias | Nao (sem endpoint WAHA para NOWEB) | Nao | Nao |
+| Selecionar mensagens | N/A (funcionalidade de UI) | Sim | N/A |
 
 ---
 
-## Correcao 2: Detectar Tipo de Midia pelo Mimetype
+### 1. Emoji Picker Completo
 
-**Arquivo:** `supabase/functions/waha-webhook/index.ts` (apos linha 602)
+**Componente:** `src/modules/conversas/components/EmojiPicker.tsx`
 
-O `payload.type` chega como `undefined` para mensagens do `message.any`, entao `wahaType` fica como `"text"`. Mas o `media.mimetype` tem o tipo correto.
+Criar um picker de emojis estilo WhatsApp Web com:
+- Categorias por abas (icones no topo): Smileys, Pessoas, Animais, Comida, Viagens, Atividades, Objetos, Simbolos, Bandeiras
+- Barra de busca "Pesquisar emoji"
+- Grid de emojis nativos do sistema (sem biblioteca externa pesada)
+- Emojis recentes (salvos no localStorage)
+- Popover posicionado acima do botao de emoji
 
-### Logica de correcao:
+**Integracao no ChatInput:**
+- Adicionar botao de emoji (Smile icon) ao lado do textarea
+- Ao clicar num emoji, inserir no cursor atual do textarea
+- Nao necessita envio especial - emoji e texto normal
 
-Apos definir `wahaType`, adicionar deteccao por mimetype:
+**Dados dos emojis:** Mapa estatic com ~500 emojis mais usados organizados por categoria (inline no componente, sem dependencia externa).
 
-```text
-// Se tipo e "text" mas tem midia, inferir tipo pelo mimetype
-if (wahaType === "text" && payload.hasMedia && payload.media?.mimetype) {
-  const mime = payload.media.mimetype.toLowerCase();
-  if (mime.startsWith("image/")) wahaType = "image";
-  else if (mime.startsWith("video/")) wahaType = "video";
-  else if (mime.startsWith("audio/")) {
-    // Verificar se e PTT (voice note)
-    wahaType = payload.media?.ptt ? "ptt" : "audio";
-  }
-  else wahaType = "document";
-  console.log(`[waha-webhook] Media type inferred from mimetype: ${wahaType}`);
-}
-```
+---
 
-Isso garante que audio, foto e video recebidos sejam salvos com o tipo correto e renderizados adequadamente no frontend.
+### 2. Menu de Acoes na Conversa (Header do Chat)
 
-### Tambem corrigir mensagens historicas:
+**Arquivo:** `src/modules/conversas/components/ChatHeader.tsx`
 
-Executar um UPDATE no banco para corrigir mensagens ja salvas incorretamente:
+Expandir o menu dropdown (tres pontinhos) para incluir:
+
+| Acao | Endpoint WAHA | Comportamento |
+|---|---|---|
+| Selecionar mensagens | N/A | Ativa modo de selecao na UI |
+| Silenciar notificacoes | Sem API WAHA | Toggle local no CRM (campo `silenciada` na tabela) |
+| Mensagens temporarias | Sem API WAHA | Mostrar toast "Funcionalidade nao disponivel com engine NOWEB" |
+| Limpar conversa | `DELETE /api/{session}/chats/{chatId}/messages` | Apaga no WA + soft delete local |
+| Apagar conversa | `DELETE /api/{session}/chats/{chatId}` | Apaga no WA + soft delete local |
+
+**Confirmacao:** Limpar e Apagar conversa exigem dialog de confirmacao com texto explicativo.
+
+---
+
+### 3. Menu de Contexto na Lista de Conversas (Sidebar)
+
+**Arquivo:** `src/modules/conversas/components/ConversaItem.tsx`
+
+Ao clicar na seta (chevron) que aparece no hover de cada item da lista, abrir um popover/dropdown com:
+
+| Acao | Endpoint WAHA | Comportamento |
+|---|---|---|
+| Arquivar conversa | `POST /api/{session}/chats/{chatId}/archive` | Arquiva no WA + soft delete local |
+| Fixar conversa | Sem API WAHA | Toggle de campo `fixada` no CRM (ordena no topo) |
+| Marcar como nao lido | `POST /api/{session}/chats/{chatId}/unread` | Marca no WA + incrementa badge local |
+| Apagar conversa | `DELETE /api/{session}/chats/{chatId}` | Apaga no WA + soft delete local |
+
+**Interacao:** Botao chevron-down aparece no hover sobre o item, clicando abre o popover. Nao muda o comportamento do click no item (que abre a conversa).
+
+---
+
+### 4. Apagar Mensagem Individual
+
+**Arquivo:** `src/modules/conversas/components/ChatMessageBubble.tsx`
+
+Ao hover/long-press numa bolha de mensagem enviada (from_me=true), mostrar botao com dropdown:
+- "Apagar para mim" - soft delete local
+- "Apagar para todos" - `DELETE /api/{session}/chats/{chatId}/messages/{messageId}` + soft delete local
+
+Para mensagens recebidas (from_me=false):
+- Apenas "Apagar para mim" (soft delete local)
+
+---
+
+### 5. Alteracoes no Banco de Dados
+
+Adicionar colunas na tabela `conversas`:
+
 ```sql
--- Corrigir mensagens com tipo errado
-UPDATE mensagens SET tipo = 'image' WHERE tipo = 'text' AND has_media = true AND media_mimetype LIKE 'image/%';
-UPDATE mensagens SET tipo = 'video' WHERE tipo = 'text' AND has_media = true AND media_mimetype LIKE 'video/%';
-UPDATE mensagens SET tipo = 'audio' WHERE tipo = 'text' AND has_media = true AND media_mimetype LIKE 'audio/%';
+ALTER TABLE conversas ADD COLUMN IF NOT EXISTS fixada boolean DEFAULT false;
+ALTER TABLE conversas ADD COLUMN IF NOT EXISTS silenciada boolean DEFAULT false;
+ALTER TABLE conversas ADD COLUMN IF NOT EXISTS arquivada boolean DEFAULT false;
 ```
 
 ---
 
-## Correcao 3: Enquete - Usar WAHA Lids API + Mensagem Informativa
+### 6. Novas Actions no waha-proxy
 
-**Arquivos:** `supabase/functions/waha-proxy/index.ts` + `src/modules/conversas/components/ChatMessageBubble.tsx`
+**Arquivo:** `supabase/functions/waha-proxy/index.ts`
 
-### Problema fundamental:
-O engine NOWEB nao descriptografa votos de enquetes. Isso e uma limitacao documentada do WAHA. O evento `poll.vote.failed` chega com `selectedOptions: []`.
+Adicionar cases no switch de actions:
 
-### Acoes:
+| Action | Endpoint WAHA | Metodo |
+|---|---|---|
+| `apagar_mensagem` | `/api/{session}/chats/{chatId}/messages/{messageId}` | DELETE |
+| `limpar_conversa` | `/api/{session}/chats/{chatId}/messages` | DELETE |
+| `apagar_conversa` | `/api/{session}/chats/{chatId}` | DELETE |
+| `arquivar_conversa` | `/api/{session}/chats/{chatId}/archive` | POST |
+| `marcar_nao_lida` | `/api/{session}/chats/{chatId}/unread` | POST |
 
-**3a. Melhorar o endpoint `consultar_votos_enquete`** no waha-proxy:
-- Tentar `GET /api/{session}/chats/{chatId}/messages/{messageId}` para buscar a mensagem atualizada
-- Se o WAHA retornar `_data.pollUpdates`, tentar extrair dados (mesmo que criptografados)
-- Retornar um campo `engine_limitation: true` quando os votos nao puderem ser obtidos
+---
 
-**3b. Atualizar o botao "Mostrar votos"** no ChatMessageBubble:
-- Quando receber `engine_limitation: true`, mostrar toast informativo: "Votos de enquete nao disponiveis com engine NOWEB. Verifique diretamente no WhatsApp."
-- Manter o botao funcional para tentativas futuras (caso o WAHA atualize)
+### 7. Service Layer (conversas.api.ts)
+
+Adicionar metodos:
+
+- `apagarMensagem(conversaId, messageId, paraTodos)` - chama waha-proxy se paraTodos + soft delete
+- `limparConversa(conversaId)` - chama waha-proxy + soft delete todas mensagens
+- `apagarConversa(conversaId)` - chama waha-proxy + soft delete conversa
+- `arquivarConversa(conversaId)` - chama waha-proxy + marca como arquivada
+- `fixarConversa(conversaId)` - toggle fixada (sem WAHA)
+- `marcarNaoLida(conversaId)` - chama waha-proxy + incrementa badge
+- `silenciarConversa(conversaId)` - toggle silenciada (sem WAHA)
 
 ---
 
 ## Resumo de Arquivos
 
+### Novos arquivos:
+1. `src/modules/conversas/components/EmojiPicker.tsx` - Componente picker de emojis com categorias, busca e recentes
+
 ### Arquivos editados:
-1. `supabase/functions/waha-webhook/index.ts` - Resolver @lid para @c.us usando remoteJidAlt + inferir tipo de midia pelo mimetype
-2. `supabase/functions/waha-proxy/index.ts` - Melhorar endpoint de consulta de votos com mensagem de limitacao
-3. `src/modules/conversas/components/ChatMessageBubble.tsx` - Mostrar mensagem informativa sobre limitacao de votos
+2. `src/modules/conversas/components/ChatInput.tsx` - Adicionar botao emoji + integracao EmojiPicker
+3. `src/modules/conversas/components/ChatHeader.tsx` - Expandir menu com selecionar, silenciar, temporarias, limpar, apagar
+4. `src/modules/conversas/components/ConversaItem.tsx` - Adicionar botao chevron + popover com arquivar, fixar, nao lida, apagar
+5. `src/modules/conversas/components/ConversasList.tsx` - Passar callbacks de acoes para ConversaItem
+6. `src/modules/conversas/components/ChatMessageBubble.tsx` - Menu de apagar mensagem no hover
+7. `src/modules/conversas/components/ChatWindow.tsx` - Conectar handlers de selecao, limpar, apagar
+8. `src/modules/conversas/pages/ConversasPage.tsx` - Conectar handlers de arquivar, fixar, nao lida, apagar
+9. `src/modules/conversas/services/conversas.api.ts` - Novos metodos de acao
+10. `src/modules/conversas/hooks/useConversas.ts` - Novos hooks de mutacao
+11. `supabase/functions/waha-proxy/index.ts` - Novas actions (apagar_mensagem, limpar, arquivar, etc.)
 
-### SQL a executar:
-- UPDATE para corrigir mensagens historicas com tipo errado
+### Migracao SQL:
+12. Adicionar colunas `fixada`, `silenciada`, `arquivada` na tabela `conversas`
 
-### Deploy necessario:
-- `waha-webhook`
-- `waha-proxy`
+### Deploy:
+- `waha-proxy` (novas actions)
 
-### Detalhes Tecnicos
+### Dependencias:
+- Nenhuma nova (emoji picker sera feito com dados inline, sem biblioteca externa)
 
-**Fluxo @lid corrigido:**
+---
 
-```text
-Mensagem chega: from="162826672971943@lid"
-  |
-  v
-Detecta @lid → busca _data.key.remoteJidAlt
-  |
-  v
-Encontra: "5513988506995@s.whatsapp.net"
-  |
-  v
-Converte para: "5513988506995@c.us"
-  |
-  v
-chatId = "5513988506995@c.us" → ENCONTRA conversa existente
-phoneNumber = "5513988506995" → ENCONTRA contato existente
-  |
-  v
-Usa mesma conversa e contato (sem duplicacao)
-```
+## Detalhes Tecnicos
 
-**Fluxo midia corrigido:**
+### Emoji Picker - Estrutura de dados
+
+Os emojis serao organizados em um mapa estatico por categoria. Exemplo:
 
 ```text
-Mensagem chega: type=undefined, hasMedia=true, media.mimetype="video/mp4"
-  |
-  v
-wahaType = "text" (default) → detecta hasMedia + mimetype
-  |
-  v
-wahaType = "video" (inferido de "video/mp4")
-  |
-  v
-Salva com tipo="video" → Frontend renderiza VideoContent corretamente
+const EMOJI_DATA = {
+  'Smileys': ['😀','😃','😄','😁','😆','😅','🤣','😂', ...],
+  'Pessoas': ['👋','🤚','🖐️','✋','🖖', ...],
+  'Animais': ['🐶','🐱','🐭','🐹', ...],
+  ...
+}
 ```
+
+Isso evita dependencias externas e mantém o bundle leve (~15KB de dados de emoji).
+
+### Fluxo de Apagar Conversa (sincronizado)
+
+```text
+Usuario clica "Apagar conversa" no CRM
+  |
+  v
+Dialog de confirmacao ("Apagar conversa no CRM e no WhatsApp?")
+  |
+  v [Confirmar]
+  |
+  ├── 1. waha-proxy action="apagar_conversa" 
+  │   └── DELETE /api/{session}/chats/{chatId}
+  │
+  ├── 2. Supabase: UPDATE conversas SET deletado_em = now()
+  │
+  └── 3. Invalidar queries, remover da lista
+```
+
+### Fluxo de Apagar Mensagem (para todos)
+
+```text
+Usuario clica "Apagar para todos" na bolha
+  |
+  v
+  ├── 1. waha-proxy action="apagar_mensagem"
+  │   └── DELETE /api/{session}/chats/{chatId}/messages/{messageId}
+  │
+  ├── 2. Supabase: UPDATE mensagens SET deletado_em = now()
+  │
+  └── 3. Invalidar queries
+```
+
+### Ordenacao com Fixadas
+
+Na listagem de conversas, aplicar ordenacao:
+1. Fixadas primeiro (fixada = true)
+2. Dentro de cada grupo, por ultima_mensagem_em DESC
+
