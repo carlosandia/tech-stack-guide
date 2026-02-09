@@ -44,9 +44,10 @@ interface Props {
   tipo: 'botao' | 'botao_whatsapp'
   estiloBotao: EstiloBotao
   onChangeEstilo: (v: EstiloBotao) => void
+  onConfigChange?: (config: ConfigBotoes) => void
 }
 
-export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEstilo }: Props) {
+export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEstilo, onConfigChange }: Props) {
   const [tab, setTab] = useState<TabType>('estilo')
   const [config, setConfig] = useState<ConfigBotoes>(CONFIG_PADRAO)
   const [saving, setSaving] = useState(false)
@@ -86,6 +87,7 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
     } else {
       toast.success('Configuração salva')
       queryClient.invalidateQueries({ queryKey: ['formularios', formularioId] })
+      onConfigChange?.(config)
     }
   }
 

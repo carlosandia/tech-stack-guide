@@ -3,7 +3,7 @@
  * Renderiza o campo com aparência real + controles de edição
  */
 
-import { GripVertical, Trash2, Settings, ChevronUp, ChevronDown, Paintbrush } from 'lucide-react'
+import { GripVertical, Trash2, Settings, ChevronUp, ChevronDown, Paintbrush, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { CampoFormulario } from '../../services/formularios.api'
 import { Button } from '@/components/ui/button'
@@ -86,18 +86,20 @@ export function CampoItem({
       {/* Field preview */}
       <div className="space-y-1.5 pl-4">
         <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-foreground">
+          <label className="text-sm font-medium text-foreground flex items-center gap-1">
             {campo.label || campo.nome}
             {campo.obrigatorio && <span className="text-destructive ml-0.5">*</span>}
+            {campo.texto_ajuda && (
+              <span title={campo.texto_ajuda} className="cursor-help">
+                <Info className="w-3.5 h-3.5 text-muted-foreground" />
+              </span>
+            )}
           </label>
           <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
             {getLabelTipo(campo.tipo)}
           </Badge>
         </div>
         {renderFieldPreview(campo)}
-        {campo.texto_ajuda && (
-          <p className="text-xs text-muted-foreground">{campo.texto_ajuda}</p>
-        )}
       </div>
     </div>
   )
