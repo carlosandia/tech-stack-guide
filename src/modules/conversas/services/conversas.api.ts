@@ -424,18 +424,22 @@ export const conversasApi = {
 
   /** Apagar mensagem individual (soft delete local + WAHA se paraTodos) */
   async apagarMensagem(conversaId: string, mensagemId: string, messageWahaId: string, paraTodos: boolean): Promise<void> {
-    // Se paraTodos, enviar para WAHA
+    // Se paraTodos, enviar para WAHA (non-blocking)
     if (paraTodos) {
       const session = await getConversaWahaSession(conversaId)
       if (session) {
-        await supabase.functions.invoke('waha-proxy', {
-          body: {
-            action: 'apagar_mensagem',
-            session_name: session.sessionName,
-            chat_id: session.chatId,
-            message_id: messageWahaId,
-          },
-        })
+        try {
+          await supabase.functions.invoke('waha-proxy', {
+            body: {
+              action: 'apagar_mensagem',
+              session_name: session.sessionName,
+              chat_id: session.chatId,
+              message_id: messageWahaId,
+            },
+          })
+        } catch (e) {
+          console.warn('[conversasApi] WAHA apagar_mensagem falhou (CRM continua):', e)
+        }
       }
     }
 
@@ -452,13 +456,17 @@ export const conversasApi = {
   async limparConversa(conversaId: string): Promise<void> {
     const session = await getConversaWahaSession(conversaId)
     if (session) {
-      await supabase.functions.invoke('waha-proxy', {
-        body: {
-          action: 'limpar_conversa',
-          session_name: session.sessionName,
-          chat_id: session.chatId,
-        },
-      })
+      try {
+        await supabase.functions.invoke('waha-proxy', {
+          body: {
+            action: 'limpar_conversa',
+            session_name: session.sessionName,
+            chat_id: session.chatId,
+          },
+        })
+      } catch (e) {
+        console.warn('[conversasApi] WAHA limpar_conversa falhou (CRM continua):', e)
+      }
     }
 
     // Soft delete all messages locally
@@ -480,13 +488,17 @@ export const conversasApi = {
   async apagarConversa(conversaId: string): Promise<void> {
     const session = await getConversaWahaSession(conversaId)
     if (session) {
-      await supabase.functions.invoke('waha-proxy', {
-        body: {
-          action: 'apagar_conversa',
-          session_name: session.sessionName,
-          chat_id: session.chatId,
-        },
-      })
+      try {
+        await supabase.functions.invoke('waha-proxy', {
+          body: {
+            action: 'apagar_conversa',
+            session_name: session.sessionName,
+            chat_id: session.chatId,
+          },
+        })
+      } catch (e) {
+        console.warn('[conversasApi] WAHA apagar_conversa falhou (CRM continua):', e)
+      }
     }
 
     const { error } = await supabase
@@ -501,13 +513,17 @@ export const conversasApi = {
   async arquivarConversa(conversaId: string): Promise<void> {
     const session = await getConversaWahaSession(conversaId)
     if (session) {
-      await supabase.functions.invoke('waha-proxy', {
-        body: {
-          action: 'arquivar_conversa',
-          session_name: session.sessionName,
-          chat_id: session.chatId,
-        },
-      })
+      try {
+        await supabase.functions.invoke('waha-proxy', {
+          body: {
+            action: 'arquivar_conversa',
+            session_name: session.sessionName,
+            chat_id: session.chatId,
+          },
+        })
+      } catch (e) {
+        console.warn('[conversasApi] WAHA arquivar_conversa falhou (CRM continua):', e)
+      }
     }
 
     const { error } = await supabase
@@ -532,13 +548,17 @@ export const conversasApi = {
   async marcarNaoLida(conversaId: string): Promise<void> {
     const session = await getConversaWahaSession(conversaId)
     if (session) {
-      await supabase.functions.invoke('waha-proxy', {
-        body: {
-          action: 'marcar_nao_lida',
-          session_name: session.sessionName,
-          chat_id: session.chatId,
-        },
-      })
+      try {
+        await supabase.functions.invoke('waha-proxy', {
+          body: {
+            action: 'marcar_nao_lida',
+            session_name: session.sessionName,
+            chat_id: session.chatId,
+          },
+        })
+      } catch (e) {
+        console.warn('[conversasApi] WAHA marcar_nao_lida falhou (CRM continua):', e)
+      }
     }
 
     // Set unread to at least 1
