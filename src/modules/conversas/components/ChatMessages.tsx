@@ -212,3 +212,11 @@ export function ChatMessages({ mensagens, isLoading, hasMore, onLoadMore, isFetc
               onReplyMessage={onReplyMessage}
               quotedMessage={msg.reply_to_message_id ? messageByWahaId.get(msg.reply_to_message_id) || null : null}
             />
+          </div>
+        )
+      })}
+
+      <div ref={bottomRef} />
+    </div>
+  )
+}
