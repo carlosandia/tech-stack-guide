@@ -20,15 +20,33 @@ import {
 import type { CampoFormulario } from '../../services/formularios.api'
 
 const MAPEAMENTOS = [
-  { value: 'nenhum', label: 'Nenhum' },
-  { value: 'nome', label: 'Nome' },
-  { value: 'sobrenome', label: 'Sobrenome' },
-  { value: 'email', label: 'Email' },
-  { value: 'telefone', label: 'Telefone' },
-  { value: 'cargo', label: 'Cargo' },
-  { value: 'empresa', label: 'Empresa' },
-  { value: 'website', label: 'Website' },
-  { value: 'observacoes', label: 'Observações' },
+  { value: 'nenhum', label: 'Nenhum', grupo: '' },
+  // Pessoa
+  { value: 'pessoa.nome', label: 'Nome', grupo: 'Pessoa' },
+  { value: 'pessoa.sobrenome', label: 'Sobrenome', grupo: 'Pessoa' },
+  { value: 'pessoa.email', label: 'Email', grupo: 'Pessoa' },
+  { value: 'pessoa.telefone', label: 'Telefone', grupo: 'Pessoa' },
+  { value: 'pessoa.cargo', label: 'Cargo', grupo: 'Pessoa' },
+  { value: 'pessoa.linkedin_url', label: 'LinkedIn', grupo: 'Pessoa' },
+  { value: 'pessoa.observacoes', label: 'Observações', grupo: 'Pessoa' },
+  // Empresa
+  { value: 'empresa.nome_fantasia', label: 'Nome Fantasia', grupo: 'Empresa' },
+  { value: 'empresa.razao_social', label: 'Razão Social', grupo: 'Empresa' },
+  { value: 'empresa.cnpj', label: 'CNPJ', grupo: 'Empresa' },
+  { value: 'empresa.email', label: 'Email', grupo: 'Empresa' },
+  { value: 'empresa.telefone', label: 'Telefone', grupo: 'Empresa' },
+  { value: 'empresa.website', label: 'Website', grupo: 'Empresa' },
+  { value: 'empresa.segmento', label: 'Segmento de Mercado', grupo: 'Empresa' },
+  { value: 'empresa.porte', label: 'Porte', grupo: 'Empresa' },
+  { value: 'empresa.observacoes', label: 'Observações', grupo: 'Empresa' },
+  // Endereço (compartilhado)
+  { value: 'endereco.logradouro', label: 'Logradouro', grupo: 'Endereço' },
+  { value: 'endereco.numero', label: 'Número', grupo: 'Endereço' },
+  { value: 'endereco.complemento', label: 'Complemento', grupo: 'Endereço' },
+  { value: 'endereco.bairro', label: 'Bairro', grupo: 'Endereço' },
+  { value: 'endereco.cidade', label: 'Cidade', grupo: 'Endereço' },
+  { value: 'endereco.estado', label: 'Estado', grupo: 'Endereço' },
+  { value: 'endereco.cep', label: 'CEP', grupo: 'Endereço' },
 ]
 
 const LARGURAS = [
@@ -183,9 +201,26 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
               <SelectValue placeholder="Nenhum" />
             </SelectTrigger>
             <SelectContent>
-              {MAPEAMENTOS.map((m) => (
-                <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
-              ))}
+              {(() => {
+                const grupos = [...new Set(MAPEAMENTOS.map((m) => m.grupo))]
+                return grupos.map((grupo) => {
+                  const items = MAPEAMENTOS.filter((m) => m.grupo === grupo)
+                  return (
+                    <div key={grupo || 'none'}>
+                      {grupo && (
+                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          {grupo}
+                        </div>
+                      )}
+                      {items.map((m) => (
+                        <SelectItem key={m.value} value={m.value}>
+                          {grupo ? `${m.label}` : m.label}
+                        </SelectItem>
+                      ))}
+                    </div>
+                  )
+                })
+              })()}
             </SelectContent>
           </Select>
         </div>
