@@ -536,11 +536,11 @@ export function ChatMessageBubble({
   const isMe = mensagem.from_me
   const isSticker = mensagem.tipo === 'sticker'
   const isReaction = mensagem.tipo === 'reaction'
-  const isTextType = mensagem.tipo === 'text' && !!mensagem.body
+  const isTextType = mensagem.tipo === 'text'
 
   // Pre-format body for inline text rendering
   const formattedBody = useMemo(() => {
-    if (!mensagem.body) return ''
+    if (!mensagem.body) return '<span class="italic text-muted-foreground">Mensagem indisponível</span>'
     return mensagem.body
       .replace(/\*(.*?)\*/g, '<strong>$1</strong>')
       .replace(/_(.*?)_/g, '<em>$1</em>')

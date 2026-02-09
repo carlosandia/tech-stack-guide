@@ -81,7 +81,7 @@ export function MediaViewer({ url, tipo, onClose }: MediaViewerProps) {
 
   const content = (
     <div
-      className="fixed inset-0 z-[500] flex flex-col bg-black/90 backdrop-blur-sm"
+      className="fixed inset-0 z-[600] flex flex-col bg-black/90 backdrop-blur-sm"
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}

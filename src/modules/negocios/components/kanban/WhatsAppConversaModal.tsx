@@ -4,8 +4,7 @@
  */
 
 import { useState, useEffect } from 'react'
-import { X, Loader2, MessageCircle } from 'lucide-react'
-import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
+import { Loader2, MessageCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { ChatWindow } from '@/modules/conversas/components/ChatWindow'
 import type { Conversa } from '@/modules/conversas/services/conversas.api'
@@ -77,19 +76,7 @@ export function WhatsAppConversaModal({ isOpen, onClose, contatoId, contatoNome,
     <>
       <div className="fixed inset-0 z-[500] bg-foreground/30" onClick={onClose} />
       <div className="fixed inset-4 md:inset-8 lg:inset-y-8 lg:left-[15%] lg:right-[15%] z-[501] bg-background border border-border rounded-xl shadow-2xl flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-muted/30">
-          <WhatsAppIcon className="w-5 h-5 text-green-600" />
-          <div className="flex-1 min-w-0">
-            <h3 className="text-sm font-semibold text-foreground truncate">{contatoNome}</h3>
-            <p className="text-xs text-muted-foreground">{telefone}</p>
-          </div>
-          <button onClick={onClose} className="p-1.5 rounded-md hover:bg-accent transition-colors">
-            <X className="w-4 h-4 text-muted-foreground" />
-          </button>
-        </div>
-
-        {/* Content */}
+        {/* Content - ChatWindow provides its own header */}
         <div className="flex-1 overflow-hidden flex flex-col">
           {loading ? (
             <div className="flex items-center justify-center h-full">
