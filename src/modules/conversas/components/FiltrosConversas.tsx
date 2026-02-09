@@ -109,7 +109,7 @@ export function FiltrosConversas({
       </div>
 
       {/* Canal tabs + Status select + Arquivadas — uma única linha, compacta */}
-      <div className="flex items-center gap-0.5 overflow-visible">
+      <div className="flex items-center gap-0.5 overflow-visible flex-wrap">
         {canais.map((c) => (
           <button
             key={c.label}
