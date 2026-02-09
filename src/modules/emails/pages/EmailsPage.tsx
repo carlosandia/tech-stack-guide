@@ -1,12 +1,13 @@
 /**
- * AIDEV-NOTE: Página principal da Caixa de Entrada de Email (PRD-11)
- * Layout split-view: lista de emails à esquerda + visualização à direita
+ * AIDEV-NOTE: Página principal da Caixa de Entrada de Email (PRD-11) - Layout estilo Gmail
+ * 3 colunas: Sidebar (pastas) | Lista de emails | Visualização
  * Responsivo: mobile mostra uma coluna por vez
  */
 
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Settings2 } from 'lucide-react'
+import { Settings2 } from 'lucide-react'
 import { useAppToolbar } from '@/modules/app/contexts/AppToolbarContext'
+import { EmailSidebar } from '../components/EmailSidebar'
 import { EmailList } from '../components/EmailList'
 import { EmailViewer } from '../components/EmailViewer'
 import { ComposeEmailModal, type ComposerMode } from '../components/ComposeEmailModal'
@@ -25,8 +26,11 @@ import {
 } from '../hooks/useEmails'
 import type { PastaEmail, AcaoLote } from '../types/email.types'
 
+// Extended type to include "starred" virtual folder
+type PastaEmailExtended = PastaEmail | 'starred'
+
 export function EmailsPage() {
-  const [pasta, setPasta] = useState<PastaEmail>('inbox')
+  const [pasta, setPasta] = useState<PastaEmailExtended>('inbox')
   const [busca, setBusca] = useState('')
   const [page, setPage] = useState(1)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -61,25 +65,22 @@ export function EmailsPage() {
           <Settings2 className="w-4 h-4" />
           <span className="hidden sm:inline">Assinatura</span>
         </button>
-        <button
-          onClick={() => openComposer('novo')}
-          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">Novo Email</span>
-        </button>
       </div>
     )
     return () => setActions(null)
   }, [setActions]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Build query params - "starred" maps to favorito filter on inbox
+  const queryPasta: PastaEmail = pasta === 'starred' ? 'inbox' : pasta
+  const queryFiltros = pasta === 'starred' ? { ...filtros, favorito: true } : filtros
+
   // Queries
   const { data: emailsData, isLoading, refetch } = useEmails({
-    pasta,
+    pasta: queryPasta,
     busca,
     page,
     per_page: 20,
-    ...filtros,
+    ...queryFiltros,
   })
   const { data: selectedEmail, isLoading: loadingEmail } = useEmail(selectedId)
   const { data: naoLidos } = useContadorNaoLidos()
@@ -146,7 +147,6 @@ export function EmailsPage() {
     [atualizarEmail]
   )
 
-  // Abre dialog de confirmação ao invés de deletar direto
   const handleDeletar = useCallback((id: string) => {
     setPendingDelete({ ids: [id] })
   }, [])
@@ -238,11 +238,21 @@ export function EmailsPage() {
   const totalPages = emailsData?.total_pages || 1
 
   return (
-    <div className="flex h-full">
-      {/* Lista de emails */}
+    <div className="flex h-full bg-background">
+      {/* Gmail-style Sidebar - hidden on mobile */}
+      <div className="hidden lg:flex">
+        <EmailSidebar
+          pasta={pasta}
+          setPasta={setPasta}
+          naoLidosInbox={naoLidos?.inbox || 0}
+          onCompose={() => openComposer('novo')}
+        />
+      </div>
+
+      {/* Email List */}
       <div
         className={`
-          w-full md:w-[380px] md:min-w-[380px] md:max-w-[380px] flex-shrink-0
+          w-full lg:w-auto lg:flex-1 lg:max-w-[520px] flex-shrink-0
           ${selectedId ? 'hidden md:flex md:flex-col' : 'flex flex-col'}
         `}
       >
@@ -250,8 +260,6 @@ export function EmailsPage() {
           emails={emails}
           total={total}
           isLoading={isLoading}
-          pasta={pasta}
-          setPasta={setPasta}
           busca={busca}
           setBusca={setBusca}
           selectedId={selectedId}
@@ -259,7 +267,6 @@ export function EmailsPage() {
           onToggleFavorito={handleToggleFavorito}
           onAcaoLote={handleAcaoLote}
           onRefresh={() => refetch()}
-          naoLidosInbox={naoLidos?.inbox || 0}
           page={page}
           totalPages={totalPages}
           onPageChange={setPage}
@@ -268,7 +275,7 @@ export function EmailsPage() {
         />
       </div>
 
-      {/* Visualizador de email */}
+      {/* Email Viewer */}
       <div
         className={`
           flex-1 min-w-0
