@@ -118,9 +118,9 @@ export function DetalhesOportunidadeModal({
           aria-modal="true"
           className="
             pointer-events-auto
-            bg-card border border-border rounded-lg shadow-lg
+            bg-background border border-border rounded-lg shadow-lg
             flex flex-col
-            w-[calc(100%-16px)] sm:max-w-4xl lg:max-w-6xl
+            w-[calc(100%-16px)] sm:max-w-5xl lg:max-w-7xl
             max-h-[calc(100dvh-32px)] sm:max-h-[90vh]
             animate-enter
           "
@@ -142,9 +142,9 @@ export function DetalhesOportunidadeModal({
               />
 
               {/* Body: 3 colunas desktop, stack mobile */}
-              <div className="flex-1 overflow-hidden min-h-0 flex flex-col lg:flex-row">
+              <div className="flex-1 overflow-hidden min-h-0 flex flex-col lg:flex-row lg:gap-3 lg:p-3">
                 {/* Bloco 1: Campos (25%) */}
-                <div className="lg:w-[260px] lg:flex-shrink-0 border-b lg:border-b-0 lg:border-r border-border overflow-y-auto p-4">
+                <div className="lg:w-[280px] lg:flex-shrink-0 border-b lg:border-b-0 lg:border border-border lg:rounded-lg bg-card overflow-y-auto p-4">
                   <DetalhesCampos
                     oportunidade={oportunidade}
                     membros={membros || []}
@@ -152,7 +152,7 @@ export function DetalhesOportunidadeModal({
                 </div>
 
                 {/* Bloco 2: Abas (50%) */}
-                <div className="flex-1 min-w-0 flex flex-col overflow-hidden border-b lg:border-b-0 lg:border-r border-border">
+                <div className="flex-1 min-w-0 flex flex-col overflow-hidden border-b lg:border-b-0 lg:border border-border lg:rounded-lg bg-card">
                   <DetalhesAbas
                     oportunidadeId={oportunidade.id}
                     usuarioAtualId={undefined}
@@ -161,7 +161,7 @@ export function DetalhesOportunidadeModal({
                 </div>
 
                 {/* Bloco 3: Histórico (25%) */}
-                <div className="lg:w-[240px] lg:flex-shrink-0 overflow-y-auto p-4">
+                <div className="lg:w-[260px] lg:flex-shrink-0 lg:border border-border lg:rounded-lg bg-card overflow-y-auto p-4">
                   <DetalhesHistorico oportunidadeId={oportunidade.id} />
                 </div>
               </div>

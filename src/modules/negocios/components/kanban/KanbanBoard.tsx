@@ -6,14 +6,14 @@
  * Suporte a seleção múltipla de cards com bulk actions
  */
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import type { Oportunidade, KanbanData } from '../../services/negocios.api'
 import { KanbanColumn } from './KanbanColumn'
 import { SolicitacoesColumn } from './SolicitacoesColumn'
 import { OportunidadeBulkActions } from './OportunidadeBulkActions'
 import { toast } from 'sonner'
-import { useMoverEtapa } from '../../hooks/useKanban'
+import { useMoverEtapa, useExcluirOportunidadesEmMassa, useMoverOportunidadesEmMassa } from '../../hooks/useKanban'
 import { useConfigCard } from '@/modules/configuracoes/hooks/useRegras'
 import type { CardConfig } from './KanbanCard'
 
@@ -27,6 +27,8 @@ interface KanbanBoardProps {
 export function KanbanBoard({ data, isLoading, onDropGanhoPerda, onCardClick }: KanbanBoardProps) {
   const draggedOpRef = useRef<Oportunidade | null>(null)
   const moverEtapa = useMoverEtapa()
+  const excluirEmMassa = useExcluirOportunidadesEmMassa()
+  const moverEmMassa = useMoverOportunidadesEmMassa()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   // Buscar configuração de cards
@@ -48,6 +50,63 @@ export function KanbanBoard({ data, isLoading, onDropGanhoPerda, onCardClick }: 
   const handleClearSelection = useCallback(() => {
     setSelectedIds(new Set())
   }, [])
+
+  // Mapear selectedIds para contato_ids (para segmentar)
+  const { selectedIdsArr, contatoIds } = useMemo(() => {
+    const arr = Array.from(selectedIds)
+    const allOps = data?.etapas?.flatMap(e => e.oportunidades) || []
+    const cIds = arr
+      .map(id => allOps.find(o => o.id === id)?.contato_id)
+      .filter((id): id is string => !!id)
+    return { selectedIdsArr: arr, contatoIds: [...new Set(cIds)] }
+  }, [selectedIds, data])
+
+  const handleExcluir = useCallback(() => {
+    excluirEmMassa.mutate(selectedIdsArr, {
+      onSuccess: () => {
+        toast.success(`${selectedIdsArr.length} oportunidade(s) excluída(s)`)
+        handleClearSelection()
+      },
+      onError: () => toast.error('Erro ao excluir oportunidades'),
+    })
+  }, [selectedIdsArr, excluirEmMassa, handleClearSelection])
+
+  const handleMoverEtapa = useCallback((etapaId: string) => {
+    moverEmMassa.mutate({ ids: selectedIdsArr, etapaDestinoId: etapaId }, {
+      onSuccess: () => {
+        toast.success(`${selectedIdsArr.length} oportunidade(s) movida(s)`)
+        handleClearSelection()
+      },
+      onError: () => toast.error('Erro ao mover oportunidades'),
+    })
+  }, [selectedIdsArr, moverEmMassa, handleClearSelection])
+
+  const handleExportar = useCallback(() => {
+    const allOps = data?.etapas?.flatMap(e => e.oportunidades) || []
+    const selected = allOps.filter(o => selectedIds.has(o.id))
+    if (selected.length === 0) return
+
+    const headers = ['Título', 'Valor', 'Contato', 'Etapa', 'Criado em']
+    const rows = selected.map(o => {
+      const contato = o.contato
+      const nomeContato = contato
+        ? (contato.tipo === 'empresa' ? contato.nome_fantasia || contato.razao_social : [contato.nome, contato.sobrenome].filter(Boolean).join(' '))
+        : ''
+      const etapa = data.etapas.find(e => e.id === o.etapa_id)?.nome || ''
+      return [o.titulo, String(o.valor || 0), nomeContato, etapa, o.criado_em].map(v => `"${(v || '').replace(/"/g, '""')}"`)
+    })
+
+    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `oportunidades_${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success(`${selected.length} oportunidade(s) exportada(s)`)
+    handleClearSelection()
+  }, [data, selectedIds, handleClearSelection])
 
   const handleDragStart = useCallback((e: React.DragEvent, oportunidade: Oportunidade) => {
     draggedOpRef.current = oportunidade
@@ -128,19 +187,15 @@ export function KanbanBoard({ data, isLoading, onDropGanhoPerda, onCardClick }: 
 
       <OportunidadeBulkActions
         selectedCount={selectedIds.size}
-        onExcluir={() => {
-          toast.info('Excluir em massa: em desenvolvimento')
-          handleClearSelection()
-        }}
-        onExportar={() => {
-          toast.info('Exportar em massa: em desenvolvimento')
-          handleClearSelection()
-        }}
-        onMoverEtapa={() => {
-          toast.info('Mover em massa: em desenvolvimento')
-          handleClearSelection()
-        }}
+        selectedIds={selectedIdsArr}
+        contatoIds={contatoIds}
+        etapas={data.etapas}
+        onExcluir={handleExcluir}
+        onExportar={handleExportar}
+        onMoverEtapa={handleMoverEtapa}
         onClearSelection={handleClearSelection}
+        isDeleting={excluirEmMassa.isPending}
+        isMoving={moverEmMassa.isPending}
       />
     </>
   )
