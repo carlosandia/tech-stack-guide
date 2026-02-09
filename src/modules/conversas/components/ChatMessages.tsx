@@ -24,6 +24,8 @@ interface ChatMessagesProps {
   conversaId?: string
   /** Callback para apagar mensagem */
   onDeleteMessage?: (mensagemId: string, messageWahaId: string, paraTodos: boolean) => void
+  /** Callback para responder mensagem */
+  onReplyMessage?: (mensagem: Mensagem) => void
 }
 
 function formatDateSeparator(dateStr: string): string {
