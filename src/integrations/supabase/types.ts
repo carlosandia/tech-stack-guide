@@ -929,6 +929,145 @@ export type Database = {
           },
         ]
       }
+      config_newsletter_formularios: {
+        Row: {
+          assunto_email_confirmacao: string | null
+          atualizado_em: string | null
+          criado_em: string | null
+          descricao_frequencia_envio: string | null
+          double_optin_ativo: boolean | null
+          formulario_id: string
+          frequencia_envio: string | null
+          id: string
+          id_lista_externa: string | null
+          mostrar_checkbox_consentimento: boolean | null
+          nome_lista: string | null
+          provedor_externo: string | null
+          ref_api_key_externa: string | null
+          tags: Json | null
+          template_email_confirmacao: string | null
+          texto_consentimento: string | null
+          url_politica_privacidade: string | null
+        }
+        Insert: {
+          assunto_email_confirmacao?: string | null
+          atualizado_em?: string | null
+          criado_em?: string | null
+          descricao_frequencia_envio?: string | null
+          double_optin_ativo?: boolean | null
+          formulario_id: string
+          frequencia_envio?: string | null
+          id?: string
+          id_lista_externa?: string | null
+          mostrar_checkbox_consentimento?: boolean | null
+          nome_lista?: string | null
+          provedor_externo?: string | null
+          ref_api_key_externa?: string | null
+          tags?: Json | null
+          template_email_confirmacao?: string | null
+          texto_consentimento?: string | null
+          url_politica_privacidade?: string | null
+        }
+        Update: {
+          assunto_email_confirmacao?: string | null
+          atualizado_em?: string | null
+          criado_em?: string | null
+          descricao_frequencia_envio?: string | null
+          double_optin_ativo?: boolean | null
+          formulario_id?: string
+          frequencia_envio?: string | null
+          id?: string
+          id_lista_externa?: string | null
+          mostrar_checkbox_consentimento?: boolean | null
+          nome_lista?: string | null
+          provedor_externo?: string | null
+          ref_api_key_externa?: string | null
+          tags?: Json | null
+          template_email_confirmacao?: string | null
+          texto_consentimento?: string | null
+          url_politica_privacidade?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "config_newsletter_formularios_formulario_id_fkey"
+            columns: ["formulario_id"]
+            isOneToOne: true
+            referencedRelation: "formularios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      config_popup_formularios: {
+        Row: {
+          atraso_segundos: number | null
+          atualizado_em: string | null
+          clique_overlay_fecha: boolean | null
+          cor_fundo_overlay: string | null
+          criado_em: string | null
+          dias_expiracao_cookie: number | null
+          duracao_animacao_ms: number | null
+          formulario_id: string
+          id: string
+          mostrar_mobile: boolean | null
+          mostrar_uma_vez_sessao: boolean | null
+          popup_imagem_posicao: string | null
+          popup_imagem_url: string | null
+          porcentagem_scroll: number | null
+          posicao: string | null
+          seletor_elemento_clique: string | null
+          tipo_animacao: string | null
+          tipo_gatilho: string
+        }
+        Insert: {
+          atraso_segundos?: number | null
+          atualizado_em?: string | null
+          clique_overlay_fecha?: boolean | null
+          cor_fundo_overlay?: string | null
+          criado_em?: string | null
+          dias_expiracao_cookie?: number | null
+          duracao_animacao_ms?: number | null
+          formulario_id: string
+          id?: string
+          mostrar_mobile?: boolean | null
+          mostrar_uma_vez_sessao?: boolean | null
+          popup_imagem_posicao?: string | null
+          popup_imagem_url?: string | null
+          porcentagem_scroll?: number | null
+          posicao?: string | null
+          seletor_elemento_clique?: string | null
+          tipo_animacao?: string | null
+          tipo_gatilho?: string
+        }
+        Update: {
+          atraso_segundos?: number | null
+          atualizado_em?: string | null
+          clique_overlay_fecha?: boolean | null
+          cor_fundo_overlay?: string | null
+          criado_em?: string | null
+          dias_expiracao_cookie?: number | null
+          duracao_animacao_ms?: number | null
+          formulario_id?: string
+          id?: string
+          mostrar_mobile?: boolean | null
+          mostrar_uma_vez_sessao?: boolean | null
+          popup_imagem_posicao?: string | null
+          popup_imagem_url?: string | null
+          porcentagem_scroll?: number | null
+          posicao?: string | null
+          seletor_elemento_clique?: string | null
+          tipo_animacao?: string | null
+          tipo_gatilho?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "config_popup_formularios_formulario_id_fkey"
+            columns: ["formulario_id"]
+            isOneToOne: true
+            referencedRelation: "formularios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       configuracoes_card: {
         Row: {
           acoes_rapidas: Json | null
@@ -2316,6 +2455,59 @@ export type Database = {
           },
         ]
       }
+      etapas_formularios: {
+        Row: {
+          atualizado_em: string | null
+          criado_em: string | null
+          descricao_etapa: string | null
+          formulario_id: string
+          icone_etapa: string | null
+          id: string
+          indice_etapa: number
+          texto_botao_anterior: string | null
+          texto_botao_enviar: string | null
+          texto_botao_proximo: string | null
+          titulo_etapa: string
+          validar_ao_avancar: boolean | null
+        }
+        Insert: {
+          atualizado_em?: string | null
+          criado_em?: string | null
+          descricao_etapa?: string | null
+          formulario_id: string
+          icone_etapa?: string | null
+          id?: string
+          indice_etapa: number
+          texto_botao_anterior?: string | null
+          texto_botao_enviar?: string | null
+          texto_botao_proximo?: string | null
+          titulo_etapa: string
+          validar_ao_avancar?: boolean | null
+        }
+        Update: {
+          atualizado_em?: string | null
+          criado_em?: string | null
+          descricao_etapa?: string | null
+          formulario_id?: string
+          icone_etapa?: string | null
+          id?: string
+          indice_etapa?: number
+          texto_botao_anterior?: string | null
+          texto_botao_enviar?: string | null
+          texto_botao_proximo?: string | null
+          titulo_etapa?: string
+          validar_ao_avancar?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "etapas_formularios_formulario_id_fkey"
+            columns: ["formulario_id"]
+            isOneToOne: false
+            referencedRelation: "formularios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       etapas_funil: {
         Row: {
           ativo: boolean | null
@@ -2616,20 +2808,30 @@ export type Database = {
       }
       formularios: {
         Row: {
+          ab_testing_ativo: boolean | null
           atualizado_em: string
           captcha_ativo: boolean
           captcha_site_key: string | null
           captcha_tipo: string | null
           criado_em: string
           criado_por: string | null
+          data_fim: string | null
+          data_inicio: string | null
           deletado_em: string | null
           descricao: string | null
           despublicado_em: string | null
           emails_notificacao: string[] | null
           etapa_id: string | null
+          facebook_event_name: string | null
+          facebook_pixel_id: string | null
           funil_id: string | null
+          google_ads_conversion_id: string | null
+          google_ads_conversion_label: string | null
           honeypot_ativo: boolean
           id: string
+          lead_scoring_ativo: boolean | null
+          max_submissoes: number | null
+          mensagem_fechado: string | null
           mensagem_sucesso: string | null
           meta_descricao: string | null
           meta_titulo: string | null
@@ -2637,6 +2839,8 @@ export type Database = {
           notificar_email: boolean
           og_image_url: string | null
           organizacao_id: string
+          pontuacao_base_lead: number | null
+          progressive_profiling_ativo: boolean | null
           publicado_em: string | null
           rate_limit_ativo: boolean
           rate_limit_janela_minutos: number
@@ -2646,26 +2850,41 @@ export type Database = {
           status: string
           taxa_conversao: number
           tipo: string
+          tipo_botao_envio: string | null
           titulo_pagina: string | null
           total_submissoes: number
           total_visualizacoes: number
+          tracking_conversao_ativo: boolean | null
           url_redirecionamento: string | null
+          versao: number | null
+          whatsapp_mensagem_template: string | null
+          whatsapp_numero: string | null
         }
         Insert: {
+          ab_testing_ativo?: boolean | null
           atualizado_em?: string
           captcha_ativo?: boolean
           captcha_site_key?: string | null
           captcha_tipo?: string | null
           criado_em?: string
           criado_por?: string | null
+          data_fim?: string | null
+          data_inicio?: string | null
           deletado_em?: string | null
           descricao?: string | null
           despublicado_em?: string | null
           emails_notificacao?: string[] | null
           etapa_id?: string | null
+          facebook_event_name?: string | null
+          facebook_pixel_id?: string | null
           funil_id?: string | null
+          google_ads_conversion_id?: string | null
+          google_ads_conversion_label?: string | null
           honeypot_ativo?: boolean
           id?: string
+          lead_scoring_ativo?: boolean | null
+          max_submissoes?: number | null
+          mensagem_fechado?: string | null
           mensagem_sucesso?: string | null
           meta_descricao?: string | null
           meta_titulo?: string | null
@@ -2673,6 +2892,8 @@ export type Database = {
           notificar_email?: boolean
           og_image_url?: string | null
           organizacao_id: string
+          pontuacao_base_lead?: number | null
+          progressive_profiling_ativo?: boolean | null
           publicado_em?: string | null
           rate_limit_ativo?: boolean
           rate_limit_janela_minutos?: number
@@ -2682,26 +2903,41 @@ export type Database = {
           status?: string
           taxa_conversao?: number
           tipo?: string
+          tipo_botao_envio?: string | null
           titulo_pagina?: string | null
           total_submissoes?: number
           total_visualizacoes?: number
+          tracking_conversao_ativo?: boolean | null
           url_redirecionamento?: string | null
+          versao?: number | null
+          whatsapp_mensagem_template?: string | null
+          whatsapp_numero?: string | null
         }
         Update: {
+          ab_testing_ativo?: boolean | null
           atualizado_em?: string
           captcha_ativo?: boolean
           captcha_site_key?: string | null
           captcha_tipo?: string | null
           criado_em?: string
           criado_por?: string | null
+          data_fim?: string | null
+          data_inicio?: string | null
           deletado_em?: string | null
           descricao?: string | null
           despublicado_em?: string | null
           emails_notificacao?: string[] | null
           etapa_id?: string | null
+          facebook_event_name?: string | null
+          facebook_pixel_id?: string | null
           funil_id?: string | null
+          google_ads_conversion_id?: string | null
+          google_ads_conversion_label?: string | null
           honeypot_ativo?: boolean
           id?: string
+          lead_scoring_ativo?: boolean | null
+          max_submissoes?: number | null
+          mensagem_fechado?: string | null
           mensagem_sucesso?: string | null
           meta_descricao?: string | null
           meta_titulo?: string | null
@@ -2709,6 +2945,8 @@ export type Database = {
           notificar_email?: boolean
           og_image_url?: string | null
           organizacao_id?: string
+          pontuacao_base_lead?: number | null
+          progressive_profiling_ativo?: boolean | null
           publicado_em?: string | null
           rate_limit_ativo?: boolean
           rate_limit_janela_minutos?: number
@@ -2718,10 +2956,15 @@ export type Database = {
           status?: string
           taxa_conversao?: number
           tipo?: string
+          tipo_botao_envio?: string | null
           titulo_pagina?: string | null
           total_submissoes?: number
           total_visualizacoes?: number
+          tracking_conversao_ativo?: boolean | null
           url_redirecionamento?: string | null
+          versao?: number | null
+          whatsapp_mensagem_template?: string | null
+          whatsapp_numero?: string | null
         }
         Relationships: [
           {

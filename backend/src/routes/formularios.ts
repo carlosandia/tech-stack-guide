@@ -12,6 +12,7 @@ import formulariosService from '../services/formularios.service.js'
 import camposService from '../services/campos-formularios.service.js'
 import estilosService from '../services/estilos-formularios.service.js'
 import submissoesService from '../services/submissoes-formularios.service.js'
+import configService from '../services/config-formularios.service.js'
 import {
   CriarFormularioSchema,
   AtualizarFormularioSchema,
@@ -22,6 +23,9 @@ import {
   AtualizarEstiloSchema,
   ListarSubmissoesQuerySchema,
   CriarLinkCompartilhamentoSchema,
+  AtualizarConfigPopupSchema,
+  AtualizarConfigNewsletterSchema,
+  AtualizarEtapasSchema,
 } from '../schemas/formularios.js'
 
 const router = Router()
@@ -336,6 +340,120 @@ router.get('/:id/links-compartilhamento', async (req: Request, res: Response) =>
   } catch (error) {
     console.error('Erro ao listar links:', error)
     res.status(500).json({ error: 'Erro ao listar links de compartilhamento' })
+  }
+})
+
+// =====================================================
+// CONFIG POPUP (Etapa 2)
+// =====================================================
+
+// GET /:id/config-popup
+router.get('/:id/config-popup', async (req: Request, res: Response) => {
+  try {
+    const organizacaoId = getOrganizacaoId(req)
+    const config = await configService.buscarConfigPopup(organizacaoId, req.params.id)
+    res.json(config || {})
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'Formulario nao encontrado') return res.status(404).json({ error: error.message })
+      if (error.message.includes('nao e do tipo')) return res.status(400).json({ error: error.message })
+    }
+    console.error('Erro ao buscar config popup:', error)
+    res.status(500).json({ error: 'Erro ao buscar config popup' })
+  }
+})
+
+// PUT /:id/config-popup (Admin)
+router.put('/:id/config-popup', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const organizacaoId = getOrganizacaoId(req)
+    const payload = AtualizarConfigPopupSchema.parse(req.body)
+    const config = await configService.atualizarConfigPopup(organizacaoId, req.params.id, payload)
+    res.json(config)
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: 'Dados invalidos', details: error.errors })
+    if (error instanceof Error) {
+      if (error.message === 'Formulario nao encontrado') return res.status(404).json({ error: error.message })
+      if (error.message.includes('nao e do tipo')) return res.status(400).json({ error: error.message })
+    }
+    console.error('Erro ao atualizar config popup:', error)
+    res.status(500).json({ error: 'Erro ao atualizar config popup' })
+  }
+})
+
+// =====================================================
+// CONFIG NEWSLETTER (Etapa 2)
+// =====================================================
+
+// GET /:id/config-newsletter
+router.get('/:id/config-newsletter', async (req: Request, res: Response) => {
+  try {
+    const organizacaoId = getOrganizacaoId(req)
+    const config = await configService.buscarConfigNewsletter(organizacaoId, req.params.id)
+    res.json(config || {})
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'Formulario nao encontrado') return res.status(404).json({ error: error.message })
+      if (error.message.includes('nao e do tipo')) return res.status(400).json({ error: error.message })
+    }
+    console.error('Erro ao buscar config newsletter:', error)
+    res.status(500).json({ error: 'Erro ao buscar config newsletter' })
+  }
+})
+
+// PUT /:id/config-newsletter (Admin)
+router.put('/:id/config-newsletter', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const organizacaoId = getOrganizacaoId(req)
+    const payload = AtualizarConfigNewsletterSchema.parse(req.body)
+    const config = await configService.atualizarConfigNewsletter(organizacaoId, req.params.id, payload)
+    res.json(config)
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: 'Dados invalidos', details: error.errors })
+    if (error instanceof Error) {
+      if (error.message === 'Formulario nao encontrado') return res.status(404).json({ error: error.message })
+      if (error.message.includes('nao e do tipo')) return res.status(400).json({ error: error.message })
+    }
+    console.error('Erro ao atualizar config newsletter:', error)
+    res.status(500).json({ error: 'Erro ao atualizar config newsletter' })
+  }
+})
+
+// =====================================================
+// ETAPAS MULTI-STEP (Etapa 2)
+// =====================================================
+
+// GET /:id/etapas
+router.get('/:id/etapas', async (req: Request, res: Response) => {
+  try {
+    const organizacaoId = getOrganizacaoId(req)
+    const etapas = await configService.listarEtapas(organizacaoId, req.params.id)
+    res.json({ etapas })
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'Formulario nao encontrado') return res.status(404).json({ error: error.message })
+      if (error.message.includes('nao e do tipo')) return res.status(400).json({ error: error.message })
+    }
+    console.error('Erro ao listar etapas:', error)
+    res.status(500).json({ error: 'Erro ao listar etapas' })
+  }
+})
+
+// PUT /:id/etapas (Admin) - Bulk update
+router.put('/:id/etapas', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const organizacaoId = getOrganizacaoId(req)
+    const payload = AtualizarEtapasSchema.parse(req.body)
+    const etapas = await configService.atualizarEtapas(organizacaoId, req.params.id, payload)
+    res.json({ etapas })
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: 'Dados invalidos', details: error.errors })
+    if (error instanceof Error) {
+      if (error.message === 'Formulario nao encontrado') return res.status(404).json({ error: error.message })
+      if (error.message.includes('nao e do tipo')) return res.status(400).json({ error: error.message })
+    }
+    console.error('Erro ao atualizar etapas:', error)
+    res.status(500).json({ error: 'Erro ao atualizar etapas' })
   }
 })
 

@@ -314,3 +314,166 @@ export const CriarLinkCompartilhamentoSchema = z.object({
 })
 
 export type CriarLinkCompartilhamentoPayload = z.infer<typeof CriarLinkCompartilhamentoSchema>
+
+// =====================================================
+// ENUMS ETAPA 2
+// =====================================================
+
+export const TipoGatilhoPopupSchema = z.enum(['intencao_saida', 'atraso_tempo', 'porcentagem_scroll', 'clique'])
+export const TipoAnimacaoPopupSchema = z.enum(['fade', 'slide_cima', 'slide_baixo', 'zoom', 'nenhum'])
+export const PosicaoPopupSchema = z.enum(['centro', 'topo_direita', 'baixo_direita', 'baixo_esquerda', 'topo_esquerda'])
+export const PosicaoImagemPopupSchema = z.enum(['topo', 'esquerda', 'direita', 'fundo'])
+export const TipoBotaoEnvioSchema = z.enum(['padrao', 'whatsapp'])
+export const FrequenciaEnvioSchema = z.enum(['diario', 'semanal', 'quinzenal', 'mensal', 'custom'])
+export const ProvedorExternoSchema = z.enum(['mailchimp', 'sendgrid', 'mailerlite', 'convertkit', 'nenhum'])
+
+// =====================================================
+// CONFIG POPUP FORMULARIOS
+// =====================================================
+
+export const ConfigPopupSchema = z.object({
+  id: z.string().uuid(),
+  formulario_id: z.string().uuid(),
+  tipo_gatilho: TipoGatilhoPopupSchema,
+  atraso_segundos: z.number(),
+  porcentagem_scroll: z.number(),
+  seletor_elemento_clique: z.string().nullable().optional(),
+  mostrar_uma_vez_sessao: z.boolean(),
+  dias_expiracao_cookie: z.number(),
+  mostrar_mobile: z.boolean(),
+  cor_fundo_overlay: z.string(),
+  clique_overlay_fecha: z.boolean(),
+  tipo_animacao: TipoAnimacaoPopupSchema,
+  duracao_animacao_ms: z.number(),
+  popup_imagem_url: z.string().nullable().optional(),
+  popup_imagem_posicao: PosicaoImagemPopupSchema,
+  posicao: PosicaoPopupSchema,
+  criado_em: z.string(),
+  atualizado_em: z.string(),
+})
+
+export type ConfigPopup = z.infer<typeof ConfigPopupSchema>
+
+export const AtualizarConfigPopupSchema = z.object({
+  tipo_gatilho: TipoGatilhoPopupSchema.optional(),
+  atraso_segundos: z.number().int().min(0).max(300).optional(),
+  porcentagem_scroll: z.number().int().min(0).max(100).optional(),
+  seletor_elemento_clique: z.string().max(255).optional(),
+  mostrar_uma_vez_sessao: z.boolean().optional(),
+  dias_expiracao_cookie: z.number().int().min(1).max(365).optional(),
+  mostrar_mobile: z.boolean().optional(),
+  cor_fundo_overlay: z.string().max(30).optional(),
+  clique_overlay_fecha: z.boolean().optional(),
+  tipo_animacao: TipoAnimacaoPopupSchema.optional(),
+  duracao_animacao_ms: z.number().int().min(0).max(2000).optional(),
+  popup_imagem_url: z.string().url().nullable().optional(),
+  popup_imagem_posicao: PosicaoImagemPopupSchema.optional(),
+  posicao: PosicaoPopupSchema.optional(),
+})
+
+export type AtualizarConfigPopupPayload = z.infer<typeof AtualizarConfigPopupSchema>
+
+// =====================================================
+// CONFIG NEWSLETTER FORMULARIOS
+// =====================================================
+
+export const ConfigNewsletterSchema = z.object({
+  id: z.string().uuid(),
+  formulario_id: z.string().uuid(),
+  double_optin_ativo: z.boolean(),
+  assunto_email_confirmacao: z.string(),
+  template_email_confirmacao: z.string().nullable().optional(),
+  nome_lista: z.string().nullable().optional(),
+  tags: z.any().nullable().optional(),
+  frequencia_envio: z.string().nullable().optional(),
+  descricao_frequencia_envio: z.string().nullable().optional(),
+  texto_consentimento: z.string(),
+  url_politica_privacidade: z.string().nullable().optional(),
+  mostrar_checkbox_consentimento: z.boolean(),
+  provedor_externo: z.string().nullable().optional(),
+  id_lista_externa: z.string().nullable().optional(),
+  ref_api_key_externa: z.string().nullable().optional(),
+  criado_em: z.string(),
+  atualizado_em: z.string(),
+})
+
+export type ConfigNewsletter = z.infer<typeof ConfigNewsletterSchema>
+
+export const AtualizarConfigNewsletterSchema = z.object({
+  double_optin_ativo: z.boolean().optional(),
+  assunto_email_confirmacao: z.string().max(255).optional(),
+  template_email_confirmacao: z.string().optional(),
+  nome_lista: z.string().max(100).optional(),
+  tags: z.array(z.string()).optional(),
+  frequencia_envio: FrequenciaEnvioSchema.optional(),
+  descricao_frequencia_envio: z.string().optional(),
+  texto_consentimento: z.string().optional(),
+  url_politica_privacidade: z.string().url().nullable().optional(),
+  mostrar_checkbox_consentimento: z.boolean().optional(),
+  provedor_externo: ProvedorExternoSchema.optional(),
+  id_lista_externa: z.string().max(100).optional(),
+  ref_api_key_externa: z.string().max(100).optional(),
+})
+
+export type AtualizarConfigNewsletterPayload = z.infer<typeof AtualizarConfigNewsletterSchema>
+
+// =====================================================
+// ETAPAS FORMULARIOS (Multi-step)
+// =====================================================
+
+export const EtapaFormularioSchema = z.object({
+  id: z.string().uuid(),
+  formulario_id: z.string().uuid(),
+  indice_etapa: z.number(),
+  titulo_etapa: z.string(),
+  descricao_etapa: z.string().nullable().optional(),
+  icone_etapa: z.string().nullable().optional(),
+  validar_ao_avancar: z.boolean(),
+  texto_botao_proximo: z.string(),
+  texto_botao_anterior: z.string(),
+  texto_botao_enviar: z.string(),
+  criado_em: z.string(),
+  atualizado_em: z.string(),
+})
+
+export type EtapaFormulario = z.infer<typeof EtapaFormularioSchema>
+
+export const CriarEtapaSchema = z.object({
+  indice_etapa: z.number().int().min(0),
+  titulo_etapa: z.string().min(1).max(255),
+  descricao_etapa: z.string().optional(),
+  icone_etapa: z.string().max(50).optional(),
+  validar_ao_avancar: z.boolean().optional().default(true),
+  texto_botao_proximo: z.string().max(50).optional().default('Proximo'),
+  texto_botao_anterior: z.string().max(50).optional().default('Voltar'),
+  texto_botao_enviar: z.string().max(50).optional().default('Enviar'),
+})
+
+export type CriarEtapaPayload = z.infer<typeof CriarEtapaSchema>
+
+export const AtualizarEtapasSchema = z.object({
+  etapas: z.array(CriarEtapaSchema),
+})
+
+export type AtualizarEtapasPayload = z.infer<typeof AtualizarEtapasSchema>
+
+// =====================================================
+// CAMPOS ADICIONAIS FORMULARIO (Etapa 2)
+// =====================================================
+
+export const AtualizarFormularioEtapa2Schema = z.object({
+  tipo_botao_envio: TipoBotaoEnvioSchema.optional(),
+  whatsapp_numero: z.string().max(20).optional(),
+  whatsapp_mensagem_template: z.string().optional(),
+  max_submissoes: z.number().int().min(1).nullable().optional(),
+  data_inicio: z.string().datetime().nullable().optional(),
+  data_fim: z.string().datetime().nullable().optional(),
+  mensagem_fechado: z.string().optional(),
+  tracking_conversao_ativo: z.boolean().optional(),
+  google_ads_conversion_id: z.string().max(100).optional(),
+  google_ads_conversion_label: z.string().max(100).optional(),
+  facebook_pixel_id: z.string().max(100).optional(),
+  facebook_event_name: z.string().max(50).optional(),
+})
+
+export type AtualizarFormularioEtapa2Payload = z.infer<typeof AtualizarFormularioEtapa2Schema>
