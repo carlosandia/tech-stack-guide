@@ -317,6 +317,7 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
         onDeleteMessage={(mensagemId, messageWahaId, paraTodos) => {
           apagarMensagem.mutate({ conversaId: conversa.id, mensagemId, messageWahaId, paraTodos })
         }}
+        onReplyMessage={(msg) => setReplyingTo(msg)}
       />
 
       <div className="relative">
@@ -336,6 +337,8 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
           onOpenEnquete={() => setEnqueteModalOpen(true)}
           isSending={enviarTexto.isPending}
           disabled={conversa.status === 'fechada'}
+          replyingTo={replyingTo}
+          onCancelReply={() => setReplyingTo(null)}
         />
       </div>
 
