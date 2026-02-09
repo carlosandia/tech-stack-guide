@@ -2,6 +2,7 @@
  * AIDEV-NOTE: Service layer para módulo de Conversas (PRD-09)
  * Usa Supabase client direto (respeita RLS via get_user_tenant_id)
  * Envio real de mensagens via WAHA (waha-proxy edge function)
+ * Inclui ações sincronizadas com WhatsApp: apagar, limpar, arquivar, etc.
  */
 
 import { supabase } from '@/lib/supabase'
@@ -92,6 +93,9 @@ export interface Conversa {
   ultima_mensagem_em?: string | null
   primeira_mensagem_em?: string | null
   status_alterado_em?: string | null
+  fixada: boolean
+  silenciada: boolean
+  arquivada: boolean
   criado_em: string
   atualizado_em: string
   contato?: ConversaContato
@@ -148,7 +152,6 @@ export interface Mensagem {
   timestamp_externo?: number | null
   criado_em: string
   atualizado_em: string
-  // Group participant display fields (populated from raw_data)
   raw_data?: Record<string, unknown> | null
 }
 
@@ -193,6 +196,30 @@ export interface NotaContato {
 }
 
 // =====================================================
+// Helper: get session data for WAHA actions
+// =====================================================
+
+async function getConversaWahaSession(conversaId: string) {
+  const { data: conversa } = await supabase
+    .from('conversas')
+    .select('chat_id, sessao_whatsapp_id, canal')
+    .eq('id', conversaId)
+    .maybeSingle()
+
+  if (!conversa?.sessao_whatsapp_id || conversa?.canal !== 'whatsapp') return null
+
+  const { data: sessao } = await supabase
+    .from('sessoes_whatsapp')
+    .select('session_name')
+    .eq('id', conversa.sessao_whatsapp_id)
+    .maybeSingle()
+
+  if (!sessao?.session_name) return null
+
+  return { chatId: conversa.chat_id, sessionName: sessao.session_name }
+}
+
+// =====================================================
 // API Functions (Supabase direto)
 // =====================================================
 
@@ -214,6 +241,8 @@ export const conversasApi = {
       `, { count: 'exact' })
       .eq('organizacao_id', organizacaoId)
       .is('deletado_em', null)
+      .eq('arquivada', false)
+      .order('fixada', { ascending: false })
       .order('ultima_mensagem_em', { ascending: false, nullsFirst: false })
       .range(from, to)
 
@@ -389,6 +418,148 @@ export const conversasApi = {
     if (error) throw new Error(error.message)
   },
 
+  // =====================================================
+  // Ações de Conversa (sincronizadas com WhatsApp)
+  // =====================================================
+
+  /** Apagar mensagem individual (soft delete local + WAHA se paraTodos) */
+  async apagarMensagem(conversaId: string, mensagemId: string, messageWahaId: string, paraTodos: boolean): Promise<void> {
+    // Se paraTodos, enviar para WAHA
+    if (paraTodos) {
+      const session = await getConversaWahaSession(conversaId)
+      if (session) {
+        await supabase.functions.invoke('waha-proxy', {
+          body: {
+            action: 'apagar_mensagem',
+            session_name: session.sessionName,
+            chat_id: session.chatId,
+            message_id: messageWahaId,
+          },
+        })
+      }
+    }
+
+    // Soft delete local
+    const { error } = await supabase
+      .from('mensagens')
+      .update({ deletado_em: new Date().toISOString() })
+      .eq('id', mensagemId)
+
+    if (error) throw new Error(error.message)
+  },
+
+  /** Limpar conversa (apagar todas mensagens) */
+  async limparConversa(conversaId: string): Promise<void> {
+    const session = await getConversaWahaSession(conversaId)
+    if (session) {
+      await supabase.functions.invoke('waha-proxy', {
+        body: {
+          action: 'limpar_conversa',
+          session_name: session.sessionName,
+          chat_id: session.chatId,
+        },
+      })
+    }
+
+    // Soft delete all messages locally
+    const { error } = await supabase
+      .from('mensagens')
+      .update({ deletado_em: new Date().toISOString() })
+      .eq('conversa_id', conversaId)
+      .is('deletado_em', null)
+
+    if (error) throw new Error(error.message)
+
+    await supabase
+      .from('conversas')
+      .update({ total_mensagens: 0, mensagens_nao_lidas: 0 })
+      .eq('id', conversaId)
+  },
+
+  /** Apagar conversa (WA + soft delete local) */
+  async apagarConversa(conversaId: string): Promise<void> {
+    const session = await getConversaWahaSession(conversaId)
+    if (session) {
+      await supabase.functions.invoke('waha-proxy', {
+        body: {
+          action: 'apagar_conversa',
+          session_name: session.sessionName,
+          chat_id: session.chatId,
+        },
+      })
+    }
+
+    const { error } = await supabase
+      .from('conversas')
+      .update({ deletado_em: new Date().toISOString() })
+      .eq('id', conversaId)
+
+    if (error) throw new Error(error.message)
+  },
+
+  /** Arquivar conversa (WA + flag local) */
+  async arquivarConversa(conversaId: string): Promise<void> {
+    const session = await getConversaWahaSession(conversaId)
+    if (session) {
+      await supabase.functions.invoke('waha-proxy', {
+        body: {
+          action: 'arquivar_conversa',
+          session_name: session.sessionName,
+          chat_id: session.chatId,
+        },
+      })
+    }
+
+    const { error } = await supabase
+      .from('conversas')
+      .update({ arquivada: true })
+      .eq('id', conversaId)
+
+    if (error) throw new Error(error.message)
+  },
+
+  /** Fixar/desfixar conversa (apenas CRM) */
+  async fixarConversa(conversaId: string, fixar: boolean): Promise<void> {
+    const { error } = await supabase
+      .from('conversas')
+      .update({ fixada: fixar })
+      .eq('id', conversaId)
+
+    if (error) throw new Error(error.message)
+  },
+
+  /** Marcar como não lida (WA + badge local) */
+  async marcarNaoLida(conversaId: string): Promise<void> {
+    const session = await getConversaWahaSession(conversaId)
+    if (session) {
+      await supabase.functions.invoke('waha-proxy', {
+        body: {
+          action: 'marcar_nao_lida',
+          session_name: session.sessionName,
+          chat_id: session.chatId,
+        },
+      })
+    }
+
+    // Set unread to at least 1
+    const { error } = await supabase
+      .from('conversas')
+      .update({ mensagens_nao_lidas: 1 })
+      .eq('id', conversaId)
+
+    if (error) throw new Error(error.message)
+  },
+
+  /** Silenciar/dessilenciar conversa (apenas CRM) */
+  async silenciarConversa(conversaId: string, silenciar: boolean): Promise<void> {
+    const { error } = await supabase
+      .from('conversas')
+      .update({ silenciada: silenciar })
+      .eq('id', conversaId)
+
+    if (error) throw new Error(error.message)
+  },
+
   // --- Mensagens ---
 
   async listarMensagens(conversaId: string, params?: ListarMensagensParams): Promise<ListarMensagensResponse> {
@@ -487,7 +658,7 @@ export const conversasApi = {
         tipo: 'text',
         body: texto,
         has_media: false,
-        ack: wahaMessageId ? 1 : 0, // 1 = PENDING (enviado ao servidor WAHA)
+        ack: wahaMessageId ? 1 : 0,
         reply_to_message_id: replyTo || null,
       })
       .select('*')

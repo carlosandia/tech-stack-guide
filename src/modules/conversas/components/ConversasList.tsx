@@ -1,6 +1,7 @@
 /**
  * AIDEV-NOTE: Lista de conversas com scroll infinito (painel esquerdo)
  * Detecta scroll até o final para carregar próxima página
+ * Passa callbacks de ações de contexto para ConversaItem
  */
 
 import { useRef, useCallback } from 'react'
@@ -16,6 +17,10 @@ interface ConversasListProps {
   hasNextPage?: boolean
   isFetchingNextPage?: boolean
   onLoadMore?: () => void
+  onArquivar?: (id: string) => void
+  onFixar?: (id: string, fixar: boolean) => void
+  onMarcarNaoLida?: (id: string) => void
+  onApagar?: (id: string) => void
 }
 
 export function ConversasList({
@@ -26,14 +31,16 @@ export function ConversasList({
   hasNextPage,
   isFetchingNextPage,
   onLoadMore,
+  onArquivar,
+  onFixar,
+  onMarcarNaoLida,
+  onApagar,
 }: ConversasListProps) {
   const listRef = useRef<HTMLDivElement>(null)
 
   const handleScroll = useCallback(() => {
     const el = listRef.current
     if (!el || !hasNextPage || isFetchingNextPage) return
-
-    // Trigger load more when within 100px of the bottom
     if (el.scrollTop + el.clientHeight >= el.scrollHeight - 100) {
       onLoadMore?.()
     }
@@ -75,10 +82,13 @@ export function ConversasList({
           conversa={conversa}
           isActive={conversa.id === conversaAtivaId}
           onClick={() => onSelectConversa(conversa.id)}
+          onArquivar={onArquivar}
+          onFixar={onFixar}
+          onMarcarNaoLida={onMarcarNaoLida}
+          onApagar={onApagar}
         />
       ))}
 
-      {/* Loading more indicator */}
       {isFetchingNextPage && (
         <div className="flex items-center justify-center py-3">
           <Loader2 className="w-4 h-4 text-muted-foreground animate-spin" />

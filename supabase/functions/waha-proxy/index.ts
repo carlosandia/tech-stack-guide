@@ -930,6 +930,162 @@ Deno.serve(async (req) => {
         }
       }
 
+      // =====================================================
+      // APAGAR MENSAGEM INDIVIDUAL VIA WAHA
+      // =====================================================
+      case "apagar_mensagem": {
+        const { chat_id: delMsgChatId, message_id: delMsgId } = body as {
+          chat_id?: string;
+          message_id?: string;
+        };
+
+        if (!delMsgChatId || !delMsgId) {
+          return new Response(
+            JSON.stringify({ error: "chat_id e message_id são obrigatórios" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        console.log(`[waha-proxy] Deleting message ${delMsgId} from ${delMsgChatId}, session: ${sessionId}`);
+
+        const delMsgResp = await fetch(`${baseUrl}/api/sendSeen`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
+          body: JSON.stringify({ chatId: delMsgChatId, session: sessionId }),
+        });
+        await delMsgResp.text();
+
+        // Delete message for everyone
+        const deleteResp = await fetch(`${baseUrl}/api/${sessionId}/chats/${encodeURIComponent(delMsgChatId)}/messages/${encodeURIComponent(delMsgId)}`, {
+          method: "DELETE",
+          headers: { "X-Api-Key": apiKey },
+        });
+
+        const deleteData = await deleteResp.json().catch(() => ({}));
+        console.log(`[waha-proxy] Delete message response: ${deleteResp.status}`, JSON.stringify(deleteData).substring(0, 300));
+
+        return new Response(
+          JSON.stringify({ ok: deleteResp.ok, data: deleteData }),
+          { status: deleteResp.ok ? 200 : deleteResp.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // =====================================================
+      // LIMPAR CONVERSA (APAGAR TODAS MENSAGENS) VIA WAHA
+      // =====================================================
+      case "limpar_conversa": {
+        const { chat_id: clearChatId } = body as { chat_id?: string };
+
+        if (!clearChatId) {
+          return new Response(
+            JSON.stringify({ error: "chat_id é obrigatório" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        console.log(`[waha-proxy] Clearing chat ${clearChatId}, session: ${sessionId}`);
+
+        const clearResp = await fetch(`${baseUrl}/api/${sessionId}/chats/${encodeURIComponent(clearChatId)}/messages`, {
+          method: "DELETE",
+          headers: { "X-Api-Key": apiKey },
+        });
+
+        const clearData = await clearResp.json().catch(() => ({}));
+        console.log(`[waha-proxy] Clear chat response: ${clearResp.status}`, JSON.stringify(clearData).substring(0, 300));
+
+        return new Response(
+          JSON.stringify({ ok: clearResp.ok, data: clearData }),
+          { status: clearResp.ok ? 200 : clearResp.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // =====================================================
+      // APAGAR CONVERSA VIA WAHA
+      // =====================================================
+      case "apagar_conversa": {
+        const { chat_id: delConvChatId } = body as { chat_id?: string };
+
+        if (!delConvChatId) {
+          return new Response(
+            JSON.stringify({ error: "chat_id é obrigatório" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        console.log(`[waha-proxy] Deleting chat ${delConvChatId}, session: ${sessionId}`);
+
+        const delConvResp = await fetch(`${baseUrl}/api/${sessionId}/chats/${encodeURIComponent(delConvChatId)}`, {
+          method: "DELETE",
+          headers: { "X-Api-Key": apiKey },
+        });
+
+        const delConvData = await delConvResp.json().catch(() => ({}));
+        console.log(`[waha-proxy] Delete chat response: ${delConvResp.status}`, JSON.stringify(delConvData).substring(0, 300));
+
+        return new Response(
+          JSON.stringify({ ok: delConvResp.ok, data: delConvData }),
+          { status: delConvResp.ok ? 200 : delConvResp.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // =====================================================
+      // ARQUIVAR CONVERSA VIA WAHA
+      // =====================================================
+      case "arquivar_conversa": {
+        const { chat_id: archChatId } = body as { chat_id?: string };
+
+        if (!archChatId) {
+          return new Response(
+            JSON.stringify({ error: "chat_id é obrigatório" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        console.log(`[waha-proxy] Archiving chat ${archChatId}, session: ${sessionId}`);
+
+        const archResp = await fetch(`${baseUrl}/api/${sessionId}/chats/${encodeURIComponent(archChatId)}/archive`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
+        });
+
+        const archData = await archResp.json().catch(() => ({}));
+        console.log(`[waha-proxy] Archive chat response: ${archResp.status}`, JSON.stringify(archData).substring(0, 300));
+
+        return new Response(
+          JSON.stringify({ ok: archResp.ok, data: archData }),
+          { status: archResp.ok ? 200 : archResp.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // =====================================================
+      // MARCAR COMO NÃO LIDA VIA WAHA
+      // =====================================================
+      case "marcar_nao_lida": {
+        const { chat_id: unreadChatId } = body as { chat_id?: string };
+
+        if (!unreadChatId) {
+          return new Response(
+            JSON.stringify({ error: "chat_id é obrigatório" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        console.log(`[waha-proxy] Marking chat ${unreadChatId} as unread, session: ${sessionId}`);
+
+        const unreadResp = await fetch(`${baseUrl}/api/${sessionId}/chats/${encodeURIComponent(unreadChatId)}/unread`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
+        });
+
+        const unreadData = await unreadResp.json().catch(() => ({}));
+        console.log(`[waha-proxy] Unread chat response: ${unreadResp.status}`, JSON.stringify(unreadData).substring(0, 300));
+
+        return new Response(
+          JSON.stringify({ ok: unreadResp.ok, data: unreadData }),
+          { status: unreadResp.ok ? 200 : unreadResp.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       default:
         return new Response(
           JSON.stringify({ error: `Action '${action}' não reconhecida` }),
