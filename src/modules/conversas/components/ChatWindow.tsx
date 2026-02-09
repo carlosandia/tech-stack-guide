@@ -1,7 +1,7 @@
 /**
  * AIDEV-NOTE: Janela de chat completa (header + busca + mensagens + input)
  * Integra SelecionarPipelineModal + NovaOportunidadeModal para criação de oportunidade
- * Pré-preenche dados do contato da conversa na oportunidade
+ * Integra AudioRecorder, CameraCapture, ContatoSelectorModal, EnqueteModal
  */
 
 import { useState, useMemo, useEffect, useCallback } from 'react'
@@ -11,13 +11,16 @@ import { ChatInput } from './ChatInput'
 import { BuscaMensagensBar } from './BuscaMensagensBar'
 import { MensagensProntasPopover } from './MensagensProntasPopover'
 import { SelecionarPipelineModal } from './SelecionarPipelineModal'
-import { useMensagens, useEnviarTexto } from '../hooks/useMensagens'
+import { CameraCapture } from './CameraCapture'
+import { ContatoSelectorModal } from './ContatoSelectorModal'
+import { EnqueteModal } from './EnqueteModal'
+import { useMensagens, useEnviarTexto, useEnviarContato, useEnviarEnquete } from '../hooks/useMensagens'
 import { useAlterarStatusConversa, useMarcarComoLida } from '../hooks/useConversas'
 import { conversasApi } from '../services/conversas.api'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import { NovaOportunidadeModal } from '@/modules/negocios/components/modals/NovaOportunidadeModal'
-import type { Conversa } from '../services/conversas.api'
+import type { Conversa, ConversaContato } from '../services/conversas.api'
 
 interface ChatWindowProps {
   conversa: Conversa
@@ -36,6 +39,11 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer }: ChatWindowProps) 
   const [termoBusca, setTermoBusca] = useState('')
   const [buscaIndex, setBuscaIndex] = useState(0)
 
+  // New feature states
+  const [cameraOpen, setCameraOpen] = useState(false)
+  const [contatoModalOpen, setContatoModalOpen] = useState(false)
+  const [enqueteModalOpen, setEnqueteModalOpen] = useState(false)
+
   const {
     data: mensagensData,
     isLoading: mensagensLoading,
@@ -45,6 +53,8 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer }: ChatWindowProps) 
   } = useMensagens(conversa.id)
 
   const enviarTexto = useEnviarTexto()
+  const enviarContato = useEnviarContato()
+  const enviarEnquete = useEnviarEnquete()
   const alterarStatus = useAlterarStatusConversa()
   const marcarLida = useMarcarComoLida()
 
@@ -131,6 +141,83 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer }: ChatWindowProps) 
       toast.error(error?.message || 'Erro ao enviar arquivo')
     }
   }, [conversa.id])
+
+  // Audio send handler
+  const handleAudioSend = useCallback(async (blob: Blob, duration: number) => {
+    try {
+      const path = `conversas/${conversa.id}/audio_${Date.now()}.webm`
+
+      const { error: uploadError } = await supabase.storage
+        .from('chat-media')
+        .upload(path, blob, { contentType: 'audio/webm' })
+
+      if (uploadError) {
+        toast.error('Erro ao fazer upload do áudio')
+        return
+      }
+
+      const { data: urlData } = supabase.storage
+        .from('chat-media')
+        .getPublicUrl(path)
+
+      await conversasApi.enviarMedia(conversa.id, {
+        tipo: 'audio',
+        media_url: urlData.publicUrl,
+      })
+
+      toast.success('Áudio enviado')
+    } catch (error: any) {
+      toast.error(error?.message || 'Erro ao enviar áudio')
+    }
+  }, [conversa.id])
+
+  // Camera capture handler
+  const handleCameraCapture = useCallback(async (blob: Blob) => {
+    setCameraOpen(false)
+    try {
+      const path = `conversas/${conversa.id}/foto_${Date.now()}.jpg`
+
+      const { error: uploadError } = await supabase.storage
+        .from('chat-media')
+        .upload(path, blob, { contentType: 'image/jpeg' })
+
+      if (uploadError) {
+        toast.error('Erro ao fazer upload da foto')
+        return
+      }
+
+      const { data: urlData } = supabase.storage
+        .from('chat-media')
+        .getPublicUrl(path)
+
+      await conversasApi.enviarMedia(conversa.id, {
+        tipo: 'image',
+        media_url: urlData.publicUrl,
+      })
+
+      toast.success('Foto enviada')
+    } catch (error: any) {
+      toast.error(error?.message || 'Erro ao enviar foto')
+    }
+  }, [conversa.id])
+
+  // Contact send handler
+  const handleContatoSelect = useCallback((contato: ConversaContato, vcard: string) => {
+    setContatoModalOpen(false)
+    const nome = contato.nome || contato.nome_fantasia || 'Contato'
+    enviarContato.mutate({ conversaId: conversa.id, contatoNome: nome, vcard })
+  }, [conversa.id, enviarContato])
+
+  // Poll send handler
+  const handleEnqueteSend = useCallback((data: { pergunta: string; opcoes: string[]; multiplas: boolean }) => {
+    setEnqueteModalOpen(false)
+    enviarEnquete.mutate({
+      conversaId: conversa.id,
+      pergunta: data.pergunta,
+      opcoes: data.opcoes,
+      multiplas: data.multiplas,
+    })
+  }, [conversa.id, enviarEnquete])
 
   // Abrir seletor de pipeline
   const handleCriarOportunidade = useCallback(() => {
@@ -229,10 +316,38 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer }: ChatWindowProps) 
           onSendNote={handleSendNote}
           onOpenQuickReplies={() => setQuickRepliesOpen(true)}
           onFileSelected={handleFileSelected}
+          onAudioSend={handleAudioSend}
+          onOpenCamera={() => setCameraOpen(true)}
+          onOpenContato={() => setContatoModalOpen(true)}
+          onOpenEnquete={() => setEnqueteModalOpen(true)}
           isSending={enviarTexto.isPending}
           disabled={conversa.status === 'fechada'}
         />
       </div>
+
+      {/* Camera Capture Modal */}
+      {cameraOpen && (
+        <CameraCapture
+          onCapture={handleCameraCapture}
+          onClose={() => setCameraOpen(false)}
+        />
+      )}
+
+      {/* Contact Selector Modal */}
+      {contatoModalOpen && (
+        <ContatoSelectorModal
+          onSelect={handleContatoSelect}
+          onClose={() => setContatoModalOpen(false)}
+        />
+      )}
+
+      {/* Poll/Enquete Modal */}
+      {enqueteModalOpen && (
+        <EnqueteModal
+          onSend={handleEnqueteSend}
+          onClose={() => setEnqueteModalOpen(false)}
+        />
+      )}
 
       {/* Modal de Seleção de Pipeline */}
       {pipelineModalOpen && (

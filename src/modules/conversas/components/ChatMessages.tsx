@@ -70,7 +70,7 @@ export function ChatMessages({ mensagens, isLoading, hasMore, onLoadMore, isFetc
   const containerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const prevLengthRef = useRef(0)
-  const isGroup = conversaTipo === 'grupo'
+  const isGroup = conversaTipo === 'grupo' || conversaTipo === 'canal'
 
   // Auto-scroll para baixo quando novas mensagens chegam
   useEffect(() => {

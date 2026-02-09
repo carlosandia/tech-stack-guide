@@ -568,6 +568,111 @@ Deno.serve(async (req) => {
         );
       }
 
+      // =====================================================
+      // ENVIAR CONTATO (vCard) VIA WAHA
+      // =====================================================
+      case "enviar_contato": {
+        const { chat_id: contactChatId, vcard, contact_name } = body as {
+          chat_id?: string;
+          vcard?: string;
+          contact_name?: string;
+        };
+
+        if (!contactChatId || !vcard || !contact_name) {
+          return new Response(
+            JSON.stringify({ error: "chat_id, vcard e contact_name são obrigatórios" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        console.log(`[waha-proxy] Sending contact vCard to ${contactChatId}, session: ${sessionId}`);
+
+        const contactResp = await fetch(`${baseUrl}/api/sendContactVcard`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Api-Key": apiKey,
+          },
+          body: JSON.stringify({
+            chatId: contactChatId,
+            session: sessionId,
+            contacts: [{ fullName: contact_name, vcard }],
+          }),
+        });
+
+        const contactData = await contactResp.json().catch(() => ({}));
+        console.log(`[waha-proxy] sendContactVcard response: ${contactResp.status}`, JSON.stringify(contactData).substring(0, 500));
+
+        if (!contactResp.ok) {
+          return new Response(
+            JSON.stringify({ error: "Falha ao enviar contato", details: contactData }),
+            { status: contactResp.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const contactMsgId = contactData.id?._serialized || contactData.id?.id || contactData.id || contactData.key?.id || null;
+
+        return new Response(
+          JSON.stringify({ ok: true, message_id: contactMsgId, data: contactData }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // =====================================================
+      // ENVIAR ENQUETE (Poll) VIA WAHA
+      // =====================================================
+      case "enviar_enquete": {
+        const { chat_id: pollChatId, poll_name, poll_options, poll_allow_multiple } = body as {
+          chat_id?: string;
+          poll_name?: string;
+          poll_options?: string[];
+          poll_allow_multiple?: boolean;
+        };
+
+        if (!pollChatId || !poll_name || !poll_options || poll_options.length < 2) {
+          return new Response(
+            JSON.stringify({ error: "chat_id, poll_name e poll_options (min 2) são obrigatórios" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        console.log(`[waha-proxy] Sending poll to ${pollChatId}, session: ${sessionId}, options: ${poll_options.length}`);
+
+        const pollResp = await fetch(`${baseUrl}/api/sendPoll`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Api-Key": apiKey,
+          },
+          body: JSON.stringify({
+            chatId: pollChatId,
+            session: sessionId,
+            poll: {
+              name: poll_name,
+              options: poll_options,
+              multipleAnswers: poll_allow_multiple || false,
+            },
+          }),
+        });
+
+        const pollData = await pollResp.json().catch(() => ({}));
+        console.log(`[waha-proxy] sendPoll response: ${pollResp.status}`, JSON.stringify(pollData).substring(0, 500));
+
+        if (!pollResp.ok) {
+          return new Response(
+            JSON.stringify({ error: "Falha ao enviar enquete", details: pollData }),
+            { status: pollResp.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const pollMsgId = pollData.id?._serialized || pollData.id?.id || pollData.id || pollData.key?.id || null;
+
+        return new Response(
+          JSON.stringify({ ok: true, message_id: pollMsgId, data: pollData }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       default:
         return new Response(
           JSON.stringify({ error: `Action '${action}' não reconhecida` }),

@@ -1,29 +1,39 @@
 /**
  * AIDEV-NOTE: Barra de entrada de mensagem com tabs (Responder/Nota Privada)
  * Estilo WhatsApp: textarea expansível, Enter=enviar, Shift+Enter=nova linha
- * Ícones: raio (quick replies), clip (anexos), mappin, @, mic (áudio)
+ * Integra AudioRecorder inline quando gravação está ativa
  */
 
 import { useState, useRef, useCallback, type KeyboardEvent } from 'react'
 import { Send, Zap, StickyNote, MessageSquare, Paperclip, Mic, MapPin, AtSign } from 'lucide-react'
 import { AnexosMenu } from './AnexosMenu'
+import { AudioRecorder } from './AudioRecorder'
 
 interface ChatInputProps {
   onSendMessage: (texto: string) => void
   onSendNote: (texto: string) => void
   onOpenQuickReplies: () => void
   onFileSelected: (file: File, tipo: string) => void
+  onAudioSend: (blob: Blob, duration: number) => void
+  onOpenCamera: () => void
+  onOpenContato: () => void
+  onOpenEnquete: () => void
   isSending: boolean
   disabled?: boolean
 }
 
 type InputTab = 'responder' | 'nota'
 
-export function ChatInput({ onSendMessage, onSendNote, onOpenQuickReplies, onFileSelected, isSending, disabled }: ChatInputProps) {
+export function ChatInput({
+  onSendMessage, onSendNote, onOpenQuickReplies, onFileSelected,
+  onAudioSend, onOpenCamera, onOpenContato, onOpenEnquete,
+  isSending, disabled
+}: ChatInputProps) {
   const [tab, setTab] = useState<InputTab>('responder')
   const [texto, setTexto] = useState('')
   const [notaTexto, setNotaTexto] = useState('')
   const [anexosOpen, setAnexosOpen] = useState(false)
+  const [isRecording, setIsRecording] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const autoResize = useCallback((el: HTMLTextAreaElement) => {
@@ -58,7 +68,6 @@ export function ChatInput({ onSendMessage, onSendNote, onOpenQuickReplies, onFil
   const handleInputChange = (value: string) => {
     if (tab === 'responder') {
       setTexto(value)
-      // Trigger quick replies on "/"
       if (value === '/') {
         onOpenQuickReplies()
       }
@@ -108,109 +117,124 @@ export function ChatInput({ onSendMessage, onSendNote, onOpenQuickReplies, onFil
           </p>
         )}
 
-        <div className="flex items-end gap-2">
-          {/* Action buttons (only for reply mode) */}
-          {!isNota && (
-            <div className="flex items-center gap-0.5 pb-1 relative">
-              <button
-                type="button"
-                onClick={onOpenQuickReplies}
-                className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200"
-                title="Mensagens prontas (/)"
-              >
-                <Zap className="w-4 h-4" />
-              </button>
-              <div className="relative">
+        {/* Audio recorder inline (replaces input when recording) */}
+        {isRecording && !isNota ? (
+          <AudioRecorder
+            onSend={(blob, dur) => {
+              setIsRecording(false)
+              onAudioSend(blob, dur)
+            }}
+            onCancel={() => setIsRecording(false)}
+          />
+        ) : (
+          <div className="flex items-end gap-2">
+            {/* Action buttons (only for reply mode) */}
+            {!isNota && (
+              <div className="flex items-center gap-0.5 pb-1 relative">
                 <button
                   type="button"
-                  onClick={() => setAnexosOpen(!anexosOpen)}
+                  onClick={onOpenQuickReplies}
                   className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200"
-                  title="Anexar arquivo"
+                  title="Mensagens prontas (/)"
                 >
-                  <Paperclip className="w-4 h-4" />
+                  <Zap className="w-4 h-4" />
                 </button>
-                <AnexosMenu
-                  isOpen={anexosOpen}
-                  onClose={() => setAnexosOpen(false)}
-                  onFileSelected={onFileSelected}
-                />
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setAnexosOpen(!anexosOpen)}
+                    className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200"
+                    title="Anexar arquivo"
+                  >
+                    <Paperclip className="w-4 h-4" />
+                  </button>
+                  <AnexosMenu
+                    isOpen={anexosOpen}
+                    onClose={() => setAnexosOpen(false)}
+                    onFileSelected={onFileSelected}
+                    onAudioRecord={() => { setAnexosOpen(false); setIsRecording(true) }}
+                    onCamera={() => { setAnexosOpen(false); onOpenCamera() }}
+                    onContato={() => { setAnexosOpen(false); onOpenContato() }}
+                    onEnquete={() => { setAnexosOpen(false); onOpenEnquete() }}
+                  />
+                </div>
+                {/* Progressive Disclosure: hide disabled actions on mobile */}
+                <button
+                  type="button"
+                  disabled
+                  className="hidden sm:flex p-2 min-w-[44px] min-h-[44px] items-center justify-center rounded-md text-muted-foreground/40 cursor-not-allowed transition-all duration-200"
+                  title="Localização (em breve)"
+                >
+                  <MapPin className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  disabled
+                  className="hidden sm:flex p-2 min-w-[44px] min-h-[44px] items-center justify-center rounded-md text-muted-foreground/40 cursor-not-allowed transition-all duration-200"
+                  title="Menção (em breve)"
+                >
+                  <AtSign className="w-4 h-4" />
+                </button>
               </div>
-              {/* Progressive Disclosure (GAP 4): esconde ações disabled no mobile */}
-              <button
-                type="button"
-                disabled
-                className="hidden sm:flex p-2 min-w-[44px] min-h-[44px] items-center justify-center rounded-md text-muted-foreground/40 cursor-not-allowed transition-all duration-200"
-                title="Localização (em breve)"
-              >
-                <MapPin className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                disabled
-                className="hidden sm:flex p-2 min-w-[44px] min-h-[44px] items-center justify-center rounded-md text-muted-foreground/40 cursor-not-allowed transition-all duration-200"
-                title="Menção (em breve)"
-              >
-                <AtSign className="w-4 h-4" />
-              </button>
+            )}
+
+            {/* Textarea */}
+            <div className="flex-1">
+              <textarea
+                ref={textareaRef}
+                value={currentText}
+                onChange={(e) => {
+                  handleInputChange(e.target.value)
+                  autoResize(e.target)
+                }}
+                onKeyDown={handleKeyDown}
+                placeholder={isNota ? 'Escreva uma nota privada...' : 'Shift + Enter para nova linha...'}
+                disabled={disabled}
+                rows={2}
+                className={`
+                  w-full resize-none rounded-md border px-3 py-2 text-sm
+                  focus:outline-none focus:ring-1
+                  placeholder:text-muted-foreground
+                  disabled:opacity-50
+                  overflow-hidden
+                  ${isNota
+                    ? 'bg-warning-muted/20 border-warning/30 focus:ring-warning/50'
+                    : 'bg-background border-border focus:ring-ring'
+                  }
+                `}
+                style={{ maxHeight: '150px' }}
+              />
             </div>
-          )}
 
-          {/* Textarea */}
-          <div className="flex-1">
-            <textarea
-              ref={textareaRef}
-              value={currentText}
-              onChange={(e) => {
-                handleInputChange(e.target.value)
-                autoResize(e.target)
-              }}
-              onKeyDown={handleKeyDown}
-              placeholder={isNota ? 'Escreva uma nota privada...' : 'Shift + Enter para nova linha...'}
-              disabled={disabled}
-              rows={2}
-              className={`
-                w-full resize-none rounded-md border px-3 py-2 text-sm
-                focus:outline-none focus:ring-1
-                placeholder:text-muted-foreground
-                disabled:opacity-50
-                overflow-hidden
-                ${isNota
-                  ? 'bg-warning-muted/20 border-warning/30 focus:ring-warning/50'
-                  : 'bg-background border-border focus:ring-ring'
-                }
-              `}
-              style={{ maxHeight: '150px' }}
-            />
+            {/* Send / Mic button */}
+            {!isNota && !hasText ? (
+              <button
+                className="p-2 rounded-md bg-muted text-muted-foreground hover:bg-accent hover:text-foreground transition-all duration-200 flex-shrink-0 mb-0.5"
+                title="Gravar áudio"
+                onClick={() => setIsRecording(true)}
+              >
+                <Mic className="w-4 h-4" />
+              </button>
+            ) : (
+              <button
+                onClick={handleSend}
+                disabled={!currentText.trim() || isSending || disabled}
+                className={`
+                  p-2 rounded-md transition-all duration-200 flex-shrink-0 mb-0.5
+                  ${currentText.trim()
+                    ? isNota
+                      ? 'bg-warning text-white hover:bg-warning/90'
+                      : 'bg-primary text-primary-foreground hover:bg-primary/90'
+                    : 'bg-muted text-muted-foreground cursor-not-allowed'
+                  }
+                `}
+                title={isNota ? 'Salvar nota' : 'Enviar mensagem'}
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            )}
           </div>
-
-          {/* Send / Mic button */}
-          {!isNota && !hasText ? (
-            <button
-              className="p-2 rounded-md bg-muted text-muted-foreground hover:bg-accent transition-all duration-200 flex-shrink-0 mb-0.5"
-              title="Gravar áudio (em breve)"
-              disabled
-            >
-              <Mic className="w-4 h-4" />
-            </button>
-          ) : (
-            <button
-              onClick={handleSend}
-              disabled={!currentText.trim() || isSending || disabled}
-              className={`
-                p-2 rounded-md transition-all duration-200 flex-shrink-0 mb-0.5
-                ${currentText.trim()
-                  ? isNota
-                    ? 'bg-warning text-white hover:bg-warning/90'
-                    : 'bg-primary text-primary-foreground hover:bg-primary/90'
-                  : 'bg-muted text-muted-foreground cursor-not-allowed'
-                }
-              `}
-              title={isNota ? 'Salvar nota' : 'Enviar mensagem'}
-            >
-              <Send className="w-4 h-4" />
-            </button>
-          )}
-        </div>
+        )}
       </div>
     </div>
   )

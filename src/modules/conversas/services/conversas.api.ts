@@ -577,6 +577,139 @@ export const conversasApi = {
     return data as Mensagem
   },
 
+  /**
+   * Envia contato vCard. Se é WhatsApp com sessão, envia via WAHA API.
+   */
+  async enviarContato(conversaId: string, dados: { contact_name: string; vcard: string }): Promise<Mensagem> {
+    const organizacaoId = await getOrganizacaoId()
+
+    const { data: conversa } = await supabase
+      .from('conversas')
+      .select('chat_id, sessao_whatsapp_id, canal')
+      .eq('id', conversaId)
+      .maybeSingle()
+
+    let wahaMessageId: string | null = null
+
+    if (conversa?.sessao_whatsapp_id && conversa?.canal === 'whatsapp') {
+      const { data: sessao } = await supabase
+        .from('sessoes_whatsapp')
+        .select('session_name')
+        .eq('id', conversa.sessao_whatsapp_id)
+        .maybeSingle()
+
+      if (sessao?.session_name) {
+        const { data: wahaResult, error: wahaError } = await supabase.functions.invoke('waha-proxy', {
+          body: {
+            action: 'enviar_contato',
+            session_name: sessao.session_name,
+            chat_id: conversa.chat_id,
+            contact_name: dados.contact_name,
+            vcard: dados.vcard,
+          },
+        })
+
+        if (wahaError) throw new Error('Erro ao enviar contato pelo WhatsApp')
+        if (wahaResult?.error) throw new Error(wahaResult.error)
+        wahaMessageId = wahaResult?.message_id || null
+      }
+    }
+
+    const { data, error } = await supabase
+      .from('mensagens')
+      .insert({
+        organizacao_id: organizacaoId,
+        conversa_id: conversaId,
+        message_id: wahaMessageId || `local_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+        from_me: true,
+        tipo: 'contact',
+        vcard: dados.vcard,
+        body: `Contato: ${dados.contact_name}`,
+        has_media: false,
+        ack: wahaMessageId ? 1 : 0,
+      })
+      .select('*')
+      .single()
+
+    if (error) throw new Error(error.message)
+
+    await supabase
+      .from('conversas')
+      .update({ ultima_mensagem_em: new Date().toISOString() })
+      .eq('id', conversaId)
+
+    return data as Mensagem
+  },
+
+  /**
+   * Envia enquete (poll). Se é WhatsApp com sessão, envia via WAHA API.
+   */
+  async enviarEnquete(conversaId: string, dados: { poll_name: string; poll_options: string[]; poll_allow_multiple: boolean }): Promise<Mensagem> {
+    const organizacaoId = await getOrganizacaoId()
+
+    const { data: conversa } = await supabase
+      .from('conversas')
+      .select('chat_id, sessao_whatsapp_id, canal')
+      .eq('id', conversaId)
+      .maybeSingle()
+
+    let wahaMessageId: string | null = null
+
+    if (conversa?.sessao_whatsapp_id && conversa?.canal === 'whatsapp') {
+      const { data: sessao } = await supabase
+        .from('sessoes_whatsapp')
+        .select('session_name')
+        .eq('id', conversa.sessao_whatsapp_id)
+        .maybeSingle()
+
+      if (sessao?.session_name) {
+        const { data: wahaResult, error: wahaError } = await supabase.functions.invoke('waha-proxy', {
+          body: {
+            action: 'enviar_enquete',
+            session_name: sessao.session_name,
+            chat_id: conversa.chat_id,
+            poll_name: dados.poll_name,
+            poll_options: dados.poll_options,
+            poll_allow_multiple: dados.poll_allow_multiple,
+          },
+        })
+
+        if (wahaError) throw new Error('Erro ao enviar enquete pelo WhatsApp')
+        if (wahaResult?.error) throw new Error(wahaResult.error)
+        wahaMessageId = wahaResult?.message_id || null
+      }
+    }
+
+    const pollOptions = dados.poll_options.map(opt => ({ text: opt, votes: 0 }))
+
+    const { data, error } = await supabase
+      .from('mensagens')
+      .insert({
+        organizacao_id: organizacaoId,
+        conversa_id: conversaId,
+        message_id: wahaMessageId || `local_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+        from_me: true,
+        tipo: 'poll',
+        poll_question: dados.poll_name,
+        poll_options: pollOptions,
+        poll_allow_multiple: dados.poll_allow_multiple,
+        body: `📊 ${dados.poll_name}`,
+        has_media: false,
+        ack: wahaMessageId ? 1 : 0,
+      })
+      .select('*')
+      .single()
+
+    if (error) throw new Error(error.message)
+
+    await supabase
+      .from('conversas')
+      .update({ ultima_mensagem_em: new Date().toISOString() })
+      .eq('id', conversaId)
+
+    return data as Mensagem
+  },
+
   // --- Mensagens Prontas ---
 
   async listarProntas(params?: { busca?: string }): Promise<{ mensagens_prontas: MensagemPronta[]; total: number }> {

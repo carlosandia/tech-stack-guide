@@ -55,3 +55,35 @@ export function useEnviarMedia() {
     },
   })
 }
+
+export function useEnviarContato() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ conversaId, contatoNome, vcard }: { conversaId: string; contatoNome: string; vcard: string }) =>
+      conversasApi.enviarContato(conversaId, { contact_name: contatoNome, vcard }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['mensagens', variables.conversaId] })
+      queryClient.invalidateQueries({ queryKey: ['conversas'] })
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Erro ao enviar contato')
+    },
+  })
+}
+
+export function useEnviarEnquete() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ conversaId, pergunta, opcoes, multiplas }: { conversaId: string; pergunta: string; opcoes: string[]; multiplas: boolean }) =>
+      conversasApi.enviarEnquete(conversaId, { poll_name: pergunta, poll_options: opcoes, poll_allow_multiple: multiplas }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['mensagens', variables.conversaId] })
+      queryClient.invalidateQueries({ queryKey: ['conversas'] })
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Erro ao enviar enquete')
+    },
+  })
+}
