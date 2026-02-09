@@ -1,122 +1,175 @@
 
-
-## Correcao Pontual: Ticks de Visualizado (ACK) e Enquete (Votos)
-
----
-
-### Diagnostico Confirmado
-
-| Problema | Causa Raiz (confirmada por dados) |
-|---------|----------------------------------|
-| Ticks azuis nao aparecem | **Frontend**: O componente `AckIndicator` mapeia `ack=3` como cinza (DELIVERED), mas no WAHA `ack=3` significa READ. O banco ja tem `ack=3, ack_name=READ` correto - o problema e exclusivamente no mapeamento visual do componente. |
-| Enquete nao retorna votos | **Dois problemas**: (1) O WAHA envia `poll.vote.failed` em vez de `poll.vote` (confirmado nos logs). O webhook ignora esse evento. (2) O webhook reconfig falha com 404 em PUT/PATCH - o endpoint correto do WAHA e `PUT /api/sessions/{session}/` (com trailing slash) ou `POST /api/sessions/{name}` para update. |
+## Correcao: Conversas Duplicadas, Midia Recebida e Enquete
 
 ---
 
-### Evidencias dos Logs
+### Diagnostico Confirmado por Dados Reais
 
-**ACK - Backend funciona, frontend nao reflete:**
-```text
-Banco de dados:
-  ack=3, ack_name=READ  (para varias mensagens recentes)
-
-AckIndicator atual:
-  ack 2 ou 3 -> CheckCheck CINZA (muted-foreground)  ← ERRADO para ack=3
-  ack 4     -> CheckCheck AZUL                       ← nunca atingido pelo WAHA
-```
-
-**Enquete - poll.vote.failed chega mas e ignorado:**
-```text
-[waha-webhook] Ignoring event: poll.vote.failed
-[waha-webhook] Event received: {"event":"poll.vote.failed","session":"crm_893fb161"}
-```
-
-**Webhook reconfig - 404 em todos os metodos:**
-```text
-[waha-proxy] Webhook reconfig result: 404 {"message":"Cannot PATCH /api/sessions/crm_893fb161"}
-```
+| # | Problema | Causa Raiz (confirmada) | Evidencia |
+|---|---------|--------------------------|-----------|
+| 1 | Conversas duplicadas ao reconectar | WAHA envia `from: 162826672971943@lid` (Linked ID) em vez de `5513988506995@c.us`. O webhook nao reconhece `@lid`, cria contato E conversa novos. | DB: 2 conversas para "Carlos Andia" - uma com `chat_id: 5513988506995@c.us`, outra com `162826672971943@lid`. 2 contatos tambem. |
+| 2 | Audio/foto/video recebidos nao aparecem | `payload.type` chega como `null` para mensagens recebidas via `message.any`. O webhook salva `tipo: "text"` mesmo com `has_media: true` e `media_url` preenchida. O frontend so renderiza midia se `tipo` for "image"/"video"/"audio". | DB: mensagens com `tipo=text`, `has_media=true`, `media_mimetype=video/mp4` |
+| 3 | Enquete nao retorna votos | Engine NOWEB do WAHA nao consegue descriptografar votos (`selectedOptions: []`). O botao "Mostrar votos" nao encontra endpoint funcional. | Logs: `poll.vote.failed` com `selectedOptions: []`. Docs WAHA confirmam: "pollUpdates - encrypted votes (not decrypted yet)" para NOWEB. |
 
 ---
 
-## Correcao 1: AckIndicator - Mapeamento WAHA Correto
-
-**Arquivo:** `src/modules/conversas/components/ChatMessageBubble.tsx` (linhas 36-57)
-
-O mapeamento WAHA e diferente do que foi assumido:
-
-| ACK | WAHA Significado | Visual Correto |
-|-----|-----------------|----------------|
-| 0 | ERROR | nenhum icone |
-| 1 | PENDING | check simples cinza |
-| 2 | DEVICE (entregue ao servidor) | check duplo cinza |
-| 3 | READ | check duplo AZUL |
-| 4 | READ (alternativo) | check duplo AZUL |
-| 5 | PLAYED | check duplo AZUL + play |
-
-Corrigir para:
-- `ack === 1` -> Check cinza (pendente)
-- `ack === 2` -> CheckCheck cinza (enviado)
-- `ack >= 3 && ack <= 4` -> CheckCheck AZUL (lido)
-- `ack === 5` -> CheckCheck AZUL + Play (reproduzido)
-
----
-
-## Correcao 2: Processar `poll.vote.failed` no Webhook
+## Correcao 1: Resolver `@lid` para Numero Real (Dedup Conversa + Contato)
 
 **Arquivo:** `supabase/functions/waha-webhook/index.ts`
 
-O evento `poll.vote.failed` contem dados do voto mesmo quando "falha" (a "falha" geralmente e na descriptografia do poll, mas os dados parciais ainda vem). Adicionar handler:
+**Descoberta chave**: O raw_data da mensagem ja contem o numero real em `_data.key.remoteJidAlt`:
 
 ```text
-if (body.event === "poll.vote" || body.event === "poll.vote.failed") {
-  // Log completo do payload para debug
-  console.log(`[waha-webhook] ${body.event}:`, JSON.stringify(body.payload).substring(0, 1000));
-  // Processar votos (mesmo codigo existente)
+payload._data.key = {
+  "remoteJid": "162826672971943@lid",
+  "remoteJidAlt": "5513988506995@s.whatsapp.net",  ← NUMERO REAL
+  "addressingMode": "lid"
 }
 ```
 
-Isso permite capturar votos mesmo quando o WAHA reporta como "failed".
+### Logica de correcao:
 
----
+Na secao de INDIVIDUAL MESSAGE (linhas 417-434), ANTES de definir `chatId` e `phoneNumber`:
 
-## Correcao 3: Webhook Reconfig - Endpoint Correto
-
-**Arquivo:** `supabase/functions/waha-proxy/index.ts` (case `status`, linhas 359-390)
-
-O endpoint `PUT /api/sessions/{session}` com corpo `{config: {webhooks: [...]}}` retorna 404. Conforme a documentacao do WAHA, o endpoint correto para atualizar uma sessao e:
+1. Detectar se `rawFrom` contem `@lid`
+2. Se sim, buscar `payload._data?.key?.remoteJidAlt` para obter o JID real
+3. Converter `@s.whatsapp.net` para `@c.us` (formato padrao)
+4. Usar o numero real como `chatId` e `phoneNumber`
 
 ```text
-PUT /api/sessions/{session}/
-```
-
-Com o corpo completo (incluindo `name`):
-```json
-{
-  "name": "crm_893fb161",
-  "config": {
-    "webhooks": [{ "url": "...", "events": [...] }]
+// Resolver @lid para @c.us usando remoteJidAlt
+let resolvedFrom = rawFrom;
+if (rawFrom.includes("@lid")) {
+  const altJid = payload._data?.key?.remoteJidAlt;
+  if (altJid) {
+    resolvedFrom = altJid.replace("@s.whatsapp.net", "@c.us");
+    console.log(`[waha-webhook] Resolved @lid: ${rawFrom} -> ${resolvedFrom}`);
   }
 }
 ```
 
-Se o PUT continuar falhando, usar a alternativa: deletar e recriar a sessao para atualizar os webhooks (so em ultimo caso, pois desconecta temporariamente).
+Tambem aplicar para `isFromMe` quando `toField` contiver `@lid`:
+- Verificar `payload._data?.key?.remoteJidAlt` ou `payload.to` para o formato correto
+
+Para mensagens `fromMe` com `@lid`, tambem verificar `payload._data?.to` e `payload.to` para resolver o destino.
+
+Isso garante que mensagens de `@lid` usem a mesma conversa e contato que `@c.us`.
+
+### Tambem aplicar em:
+- Busca de contato por telefone (step 1): ja usa `phoneNumber` resolvido
+- Busca de conversa por `chat_id` (step 2): ja usa `chatId` resolvido
+- Nenhum codigo adicional necessario apos resolver no inicio
+
+---
+
+## Correcao 2: Detectar Tipo de Midia pelo Mimetype
+
+**Arquivo:** `supabase/functions/waha-webhook/index.ts` (apos linha 602)
+
+O `payload.type` chega como `undefined` para mensagens do `message.any`, entao `wahaType` fica como `"text"`. Mas o `media.mimetype` tem o tipo correto.
+
+### Logica de correcao:
+
+Apos definir `wahaType`, adicionar deteccao por mimetype:
+
+```text
+// Se tipo e "text" mas tem midia, inferir tipo pelo mimetype
+if (wahaType === "text" && payload.hasMedia && payload.media?.mimetype) {
+  const mime = payload.media.mimetype.toLowerCase();
+  if (mime.startsWith("image/")) wahaType = "image";
+  else if (mime.startsWith("video/")) wahaType = "video";
+  else if (mime.startsWith("audio/")) {
+    // Verificar se e PTT (voice note)
+    wahaType = payload.media?.ptt ? "ptt" : "audio";
+  }
+  else wahaType = "document";
+  console.log(`[waha-webhook] Media type inferred from mimetype: ${wahaType}`);
+}
+```
+
+Isso garante que audio, foto e video recebidos sejam salvos com o tipo correto e renderizados adequadamente no frontend.
+
+### Tambem corrigir mensagens historicas:
+
+Executar um UPDATE no banco para corrigir mensagens ja salvas incorretamente:
+```sql
+-- Corrigir mensagens com tipo errado
+UPDATE mensagens SET tipo = 'image' WHERE tipo = 'text' AND has_media = true AND media_mimetype LIKE 'image/%';
+UPDATE mensagens SET tipo = 'video' WHERE tipo = 'text' AND has_media = true AND media_mimetype LIKE 'video/%';
+UPDATE mensagens SET tipo = 'audio' WHERE tipo = 'text' AND has_media = true AND media_mimetype LIKE 'audio/%';
+```
+
+---
+
+## Correcao 3: Enquete - Usar WAHA Lids API + Mensagem Informativa
+
+**Arquivos:** `supabase/functions/waha-proxy/index.ts` + `src/modules/conversas/components/ChatMessageBubble.tsx`
+
+### Problema fundamental:
+O engine NOWEB nao descriptografa votos de enquetes. Isso e uma limitacao documentada do WAHA. O evento `poll.vote.failed` chega com `selectedOptions: []`.
+
+### Acoes:
+
+**3a. Melhorar o endpoint `consultar_votos_enquete`** no waha-proxy:
+- Tentar `GET /api/{session}/chats/{chatId}/messages/{messageId}` para buscar a mensagem atualizada
+- Se o WAHA retornar `_data.pollUpdates`, tentar extrair dados (mesmo que criptografados)
+- Retornar um campo `engine_limitation: true` quando os votos nao puderem ser obtidos
+
+**3b. Atualizar o botao "Mostrar votos"** no ChatMessageBubble:
+- Quando receber `engine_limitation: true`, mostrar toast informativo: "Votos de enquete nao disponiveis com engine NOWEB. Verifique diretamente no WhatsApp."
+- Manter o botao funcional para tentativas futuras (caso o WAHA atualize)
 
 ---
 
 ## Resumo de Arquivos
 
 ### Arquivos editados:
-1. `src/modules/conversas/components/ChatMessageBubble.tsx` - AckIndicator: ack=3 -> azul
-2. `supabase/functions/waha-webhook/index.ts` - Processar poll.vote.failed
-3. `supabase/functions/waha-proxy/index.ts` - Fix endpoint de reconfig webhook
+1. `supabase/functions/waha-webhook/index.ts` - Resolver @lid para @c.us usando remoteJidAlt + inferir tipo de midia pelo mimetype
+2. `supabase/functions/waha-proxy/index.ts` - Melhorar endpoint de consulta de votos com mensagem de limitacao
+3. `src/modules/conversas/components/ChatMessageBubble.tsx` - Mostrar mensagem informativa sobre limitacao de votos
+
+### SQL a executar:
+- UPDATE para corrigir mensagens historicas com tipo errado
 
 ### Deploy necessario:
-- `waha-proxy`
 - `waha-webhook`
+- `waha-proxy`
 
-### Sequencia:
-1. ChatMessageBubble (fix visual imediato dos ticks)
-2. waha-webhook (processar poll.vote.failed)
-3. waha-proxy (fix endpoint reconfig)
-4. Deploy edge functions
+### Detalhes Tecnicos
 
+**Fluxo @lid corrigido:**
+
+```text
+Mensagem chega: from="162826672971943@lid"
+  |
+  v
+Detecta @lid → busca _data.key.remoteJidAlt
+  |
+  v
+Encontra: "5513988506995@s.whatsapp.net"
+  |
+  v
+Converte para: "5513988506995@c.us"
+  |
+  v
+chatId = "5513988506995@c.us" → ENCONTRA conversa existente
+phoneNumber = "5513988506995" → ENCONTRA contato existente
+  |
+  v
+Usa mesma conversa e contato (sem duplicacao)
+```
+
+**Fluxo midia corrigido:**
+
+```text
+Mensagem chega: type=undefined, hasMedia=true, media.mimetype="video/mp4"
+  |
+  v
+wahaType = "text" (default) → detecta hasMedia + mimetype
+  |
+  v
+wahaType = "video" (inferido de "video/mp4")
+  |
+  v
+Salva com tipo="video" → Frontend renderiza VideoContent corretamente
+```
