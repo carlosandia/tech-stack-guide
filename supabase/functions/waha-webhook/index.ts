@@ -167,9 +167,10 @@ Deno.serve(async (req) => {
     const now = new Date().toISOString();
 
     // =====================================================
-    // DETECT GROUP vs INDIVIDUAL
+    // DETECT GROUP vs INDIVIDUAL vs CHANNEL (@newsletter)
     // =====================================================
     const isGroup = rawFrom.includes("@g.us");
+    const isChannel = rawFrom.includes("@newsletter");
     const participantRaw = payload.participant || payload._data?.participant || null;
 
     let chatId: string;
@@ -179,10 +180,58 @@ Deno.serve(async (req) => {
     let groupName: string | null = null;
     let groupPhotoUrl: string | null = null;
 
-    if (isGroup) {
+    if (isChannel) {
+      // CHANNEL MESSAGE (@newsletter)
+      chatId = rawFrom; // e.g. "29847512@newsletter"
+      phoneNumber = participantRaw
+        ? participantRaw.replace("@c.us", "").replace("@s.whatsapp.net", "").replace("@lid", "")
+        : rawFrom.replace("@newsletter", "");
+      phoneName = payload._data?.pushName || payload._data?.notifyName || payload.notifyName || payload.pushName || null;
+      conversaTipo = "canal";
+
+      // Extract channel name from payload
+      groupName = payload._data?.subject || payload._data?.name || payload._data?.chat?.name || null;
+
+      console.log(`[waha-webhook] CHANNEL message in ${chatId} (${groupName || "unknown channel"})`);
+
+      // Fetch channel metadata from WAHA if available
+      if (wahaApiUrl && wahaApiKey) {
+        try {
+          if (!groupName) {
+            const chResp = await fetch(
+              `${wahaApiUrl}/api/contacts/about?contactId=${encodeURIComponent(rawFrom)}&session=${encodeURIComponent(sessionName)}`,
+              { headers: { "X-Api-Key": wahaApiKey } }
+            );
+            if (chResp.ok) {
+              const chData = await chResp.json();
+              groupName = chData?.pushname || chData?.name || null;
+            } else {
+              await chResp.text();
+            }
+          }
+
+          // Fetch channel picture
+          const picResp = await fetch(
+            `${wahaApiUrl}/api/contacts/profile-picture?contactId=${encodeURIComponent(rawFrom)}&session=${encodeURIComponent(sessionName)}`,
+            { headers: { "X-Api-Key": wahaApiKey } }
+          );
+          if (picResp.ok) {
+            const picData = await picResp.json();
+            groupPhotoUrl = picData?.profilePictureUrl || picData?.url || picData?.profilePicUrl || null;
+          } else {
+            await picResp.text();
+          }
+        } catch (e) {
+          console.log(`[waha-webhook] Error fetching channel metadata:`, e);
+        }
+      }
+
+      if (!phoneNumber) {
+        phoneNumber = rawFrom.replace("@newsletter", "");
+      }
+    } else if (isGroup) {
       // GROUP MESSAGE
       chatId = rawFrom; // e.g. "120363xxx@g.us"
-      // The participant is who actually sent the message inside the group
       phoneNumber = participantRaw
         ? participantRaw.replace("@c.us", "").replace("@s.whatsapp.net", "")
         : "";
@@ -197,7 +246,6 @@ Deno.serve(async (req) => {
       // Fetch group metadata from WAHA (name + photo)
       if (wahaApiUrl && wahaApiKey) {
         try {
-          // Fetch group info
           if (!groupName) {
             const groupResp = await fetch(
               `${wahaApiUrl}/api/groups?session=${encodeURIComponent(sessionName)}`,
@@ -216,7 +264,6 @@ Deno.serve(async (req) => {
             }
           }
 
-          // Fetch group profile picture
           const picResp = await fetch(
             `${wahaApiUrl}/api/contacts/profile-picture?contactId=${encodeURIComponent(rawFrom)}&session=${encodeURIComponent(sessionName)}`,
             { headers: { "X-Api-Key": wahaApiKey } }
@@ -262,7 +309,7 @@ Deno.serve(async (req) => {
     // =====================================================
     let profilePictureUrl: string | null = null;
 
-    if (!isGroup && wahaApiUrl && wahaApiKey) {
+    if (!isGroup && !isChannel && wahaApiUrl && wahaApiKey) {
       try {
         const picResp = await fetch(
           `${wahaApiUrl}/api/contacts/profile-picture?contactId=${encodeURIComponent(rawFrom)}&session=${encodeURIComponent(sessionName)}`,
@@ -355,7 +402,7 @@ Deno.serve(async (req) => {
         atualizado_em: now,
       };
 
-      if (isGroup) {
+      if (isGroup || isChannel) {
         if (groupName) updateData.nome = groupName;
         if (groupPhotoUrl) updateData.foto_url = groupPhotoUrl;
       } else {
@@ -370,8 +417,8 @@ Deno.serve(async (req) => {
 
       console.log(`[waha-webhook] Updated conversa ${conversaId}`);
     } else {
-      const conversaName = isGroup ? (groupName || chatId) : (phoneName || phoneNumber);
-      const conversaFoto = isGroup ? groupPhotoUrl : profilePictureUrl;
+      const conversaName = (isGroup || isChannel) ? (groupName || chatId) : (phoneName || phoneNumber);
+      const conversaFoto = (isGroup || isChannel) ? groupPhotoUrl : profilePictureUrl;
 
       const { data: newConversa, error: conversaError } = await supabaseAdmin
         .from("conversas")
@@ -425,8 +472,8 @@ Deno.serve(async (req) => {
       raw_data: payload,
     };
 
-    // For groups, store participant info
-    if (isGroup && participantRaw) {
+    // For groups and channels, store participant info
+    if ((isGroup || isChannel) && participantRaw) {
       messageInsert.participant = participantRaw;
     }
 
@@ -445,7 +492,7 @@ Deno.serve(async (req) => {
     // =====================================================
     // STEP 4: Pre-opportunity (if enabled, only for individual)
     // =====================================================
-    if (!isGroup && sessao.auto_criar_pre_oportunidade && sessao.funil_destino_id) {
+    if (!isGroup && !isChannel && sessao.auto_criar_pre_oportunidade && sessao.funil_destino_id) {
       const { data: existingPreOp } = await supabaseAdmin
         .from("pre_oportunidades")
         .select("id, total_mensagens")

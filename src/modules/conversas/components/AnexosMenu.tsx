@@ -1,6 +1,5 @@
 /**
- * AIDEV-NOTE: Menu popup de anexos (PRD-09 RF-006)
- * Aparece acima do botão clip no ChatInput
+ * AIDEV-NOTE: Menu popup de anexos com ícones coloridos estilo WhatsApp Web (PRD-09 RF-006)
  * Opções: Documento, Fotos/Vídeos, Câmera, Áudio, Contato, Enquete
  */
 
@@ -11,39 +10,61 @@ interface AnexosMenuProps {
   isOpen: boolean
   onClose: () => void
   onFileSelected: (file: File, tipo: string) => void
+  onAudioRecord: () => void
+  onCamera: () => void
+  onContato: () => void
+  onEnquete: () => void
 }
 
 interface MenuOption {
   icon: React.ElementType
   label: string
+  color: string
+  bgColor: string
   accept?: string
-  disabled?: boolean
-  disabledLabel?: string
   tipo: string
+  action: 'file-doc' | 'file-media' | 'audio' | 'camera' | 'contato' | 'enquete'
 }
 
 const menuOptions: MenuOption[] = [
-  { icon: FileText, label: 'Documento', accept: '.pdf,.doc,.docx,.xls,.xlsx,.csv,.zip,.rar,.txt', tipo: 'document' },
-  { icon: Image, label: 'Fotos e Vídeos', accept: 'image/*,video/*', tipo: 'image' },
-  { icon: Camera, label: 'Câmera', disabled: true, disabledLabel: 'Em breve', tipo: 'image' },
-  { icon: Mic, label: 'Áudio', disabled: true, disabledLabel: 'Em breve', tipo: 'audio' },
-  { icon: User, label: 'Contato', disabled: true, disabledLabel: 'Em breve', tipo: 'contact' },
-  { icon: BarChart3, label: 'Enquete', disabled: true, disabledLabel: 'Em breve', tipo: 'poll' },
+  { icon: FileText, label: 'Documento', color: '#7C3AED', bgColor: '#7C3AED15', accept: '.pdf,.doc,.docx,.xls,.xlsx,.csv,.zip,.rar,.txt', tipo: 'document', action: 'file-doc' },
+  { icon: Image, label: 'Fotos e Vídeos', color: '#2563EB', bgColor: '#2563EB15', accept: 'image/*,video/*', tipo: 'image', action: 'file-media' },
+  { icon: Camera, label: 'Câmera', color: '#EF4444', bgColor: '#EF444415', tipo: 'image', action: 'camera' },
+  { icon: Mic, label: 'Áudio', color: '#F97316', bgColor: '#F9731615', tipo: 'audio', action: 'audio' },
+  { icon: User, label: 'Contato', color: '#1D4ED8', bgColor: '#1D4ED815', tipo: 'contact', action: 'contato' },
+  { icon: BarChart3, label: 'Enquete', color: '#16A34A', bgColor: '#16A34A15', tipo: 'poll', action: 'enquete' },
 ]
 
-export function AnexosMenu({ isOpen, onClose, onFileSelected }: AnexosMenuProps) {
+export function AnexosMenu({ isOpen, onClose, onFileSelected, onAudioRecord, onCamera, onContato, onEnquete }: AnexosMenuProps) {
   const docInputRef = useRef<HTMLInputElement>(null)
   const mediaInputRef = useRef<HTMLInputElement>(null)
 
   if (!isOpen) return null
 
   const handleOptionClick = (option: MenuOption) => {
-    if (option.disabled) return
-
-    if (option.label === 'Documento') {
-      docInputRef.current?.click()
-    } else if (option.label === 'Fotos e Vídeos') {
-      mediaInputRef.current?.click()
+    switch (option.action) {
+      case 'file-doc':
+        docInputRef.current?.click()
+        break
+      case 'file-media':
+        mediaInputRef.current?.click()
+        break
+      case 'audio':
+        onAudioRecord()
+        onClose()
+        break
+      case 'camera':
+        onCamera()
+        onClose()
+        break
+      case 'contato':
+        onContato()
+        onClose()
+        break
+      case 'enquete':
+        onEnquete()
+        onClose()
+        break
     }
   }
 
@@ -51,7 +72,6 @@ export function AnexosMenu({ isOpen, onClose, onFileSelected }: AnexosMenuProps)
     const file = e.target.files?.[0]
     if (!file) return
 
-    // Detectar tipo baseado no mimetype
     let detectedTipo = tipo
     if (file.type.startsWith('image/')) detectedTipo = 'image'
     else if (file.type.startsWith('video/')) detectedTipo = 'video'
@@ -60,8 +80,6 @@ export function AnexosMenu({ isOpen, onClose, onFileSelected }: AnexosMenuProps)
 
     onFileSelected(file, detectedTipo)
     onClose()
-
-    // Reset input
     e.target.value = ''
   }
 
@@ -70,8 +88,8 @@ export function AnexosMenu({ isOpen, onClose, onFileSelected }: AnexosMenuProps)
       {/* Backdrop */}
       <div className="fixed inset-0 z-[300]" onClick={onClose} />
 
-      {/* Menu popup - responsivo (GAP 6) */}
-      <div className="absolute bottom-full left-0 right-0 sm:right-auto mb-1 z-[301] bg-white/95 backdrop-blur-md border border-border rounded-lg shadow-lg w-full sm:w-52">
+      {/* Menu popup */}
+      <div className="absolute bottom-full left-0 right-0 sm:right-auto mb-1 z-[301] bg-white/95 backdrop-blur-md border border-border rounded-lg shadow-lg w-full sm:w-56">
         {/* Header */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-border/50">
           <span className="text-xs font-medium text-foreground">Anexar</span>
@@ -88,14 +106,15 @@ export function AnexosMenu({ isOpen, onClose, onFileSelected }: AnexosMenuProps)
               <button
                 key={option.label}
                 onClick={() => handleOptionClick(option)}
-                disabled={option.disabled}
-                className="flex items-center gap-2.5 w-full px-3 py-2 text-sm text-foreground hover:bg-accent/50 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-foreground hover:bg-accent/50 transition-all duration-200"
               >
-                <Icon className="w-4 h-4 text-muted-foreground" />
-                <span className="flex-1 text-left text-xs">{option.label}</span>
-                {option.disabled && (
-                  <span className="text-[10px] text-muted-foreground italic">{option.disabledLabel}</span>
-                )}
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                  style={{ backgroundColor: option.bgColor }}
+                >
+                  <Icon className="w-4 h-4" style={{ color: option.color }} />
+                </div>
+                <span className="text-xs font-medium">{option.label}</span>
               </button>
             )
           })}
