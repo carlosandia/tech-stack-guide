@@ -302,6 +302,8 @@ export async function duplicarFormulario(
       meta_titulo: original.meta_titulo,
       meta_descricao: original.meta_descricao,
       og_image_url: original.og_image_url,
+      config_botoes: original.config_botoes,
+      config_pos_envio: original.config_pos_envio,
       criado_por: criadoPor,
     })
     .select()

@@ -60,6 +60,8 @@ export interface Formulario {
   total_visualizacoes?: number
   taxa_conversao?: number
   publicado_em?: string | null
+  config_botoes?: Record<string, unknown> | null
+  config_pos_envio?: Record<string, unknown> | null
   criado_em: string
   atualizado_em: string
   deletado_em?: string | null
@@ -102,7 +104,7 @@ async function listar(params?: ListarFormulariosParams): Promise<ListarFormulari
 
   let query = supabase
     .from('formularios')
-    .select('id, nome, slug, tipo, status, descricao, total_submissoes, total_visualizacoes, publicado_em, criado_em, atualizado_em, organizacao_id, url_redirecionamento, mensagem_sucesso, funil_id, ab_testing_ativo, deletado_em', { count: 'exact' })
+    .select('id, nome, slug, tipo, status, descricao, total_submissoes, total_visualizacoes, publicado_em, criado_em, atualizado_em, organizacao_id, url_redirecionamento, mensagem_sucesso, funil_id, ab_testing_ativo, deletado_em, config_botoes, config_pos_envio', { count: 'exact' })
     .is('deletado_em', null)
     .order('criado_em', { ascending: false })
 
@@ -170,7 +172,7 @@ async function criar(payload: {
 async function atualizar(id: string, payload: Partial<Formulario>): Promise<Formulario> {
   const { data, error } = await supabase
     .from('formularios')
-    .update(payload)
+    .update(payload as any)
     .eq('id', id)
     .is('deletado_em', null)
     .select()

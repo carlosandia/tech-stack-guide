@@ -14,6 +14,11 @@ import {
 } from '@/components/ui/select'
 import type { EstiloBotao } from '../../services/formularios.api'
 
+export interface EstiloBotaoWhatsApp {
+  whatsapp_texto?: string
+  whatsapp_background?: string
+}
+
 const LARGURAS = [
   { value: 'full', label: 'Largura Total' },
   { value: 'auto', label: 'Automática' },
