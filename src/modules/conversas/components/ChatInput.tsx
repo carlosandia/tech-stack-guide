@@ -5,10 +5,11 @@
  */
 
 import { useState, useRef, useCallback, type KeyboardEvent } from 'react'
-import { Send, Zap, StickyNote, MessageSquare, Paperclip, Mic, Smile } from 'lucide-react'
+import { Send, Zap, StickyNote, MessageSquare, Paperclip, Mic, Smile, X } from 'lucide-react'
 import { AnexosMenu } from './AnexosMenu'
 import { AudioRecorder } from './AudioRecorder'
 import { EmojiPicker } from './EmojiPicker'
+import type { Mensagem } from '../services/conversas.api'
 
 interface ChatInputProps {
   onSendMessage: (texto: string) => void
@@ -21,6 +22,8 @@ interface ChatInputProps {
   onOpenEnquete: () => void
   isSending: boolean
   disabled?: boolean
+  replyingTo?: Mensagem | null
+  onCancelReply?: () => void
 }
 
 type InputTab = 'responder' | 'nota'
@@ -28,7 +31,7 @@ type InputTab = 'responder' | 'nota'
 export function ChatInput({
   onSendMessage, onSendNote, onOpenQuickReplies, onFileSelected,
   onAudioSend, onOpenCamera, onOpenContato, onOpenEnquete,
-  isSending, disabled
+  isSending, disabled, replyingTo, onCancelReply
 }: ChatInputProps) {
   const [tab, setTab] = useState<InputTab>('responder')
   const [texto, setTexto] = useState('')
@@ -109,6 +112,32 @@ export function ChatInput({
           Nota Privada
         </button>
       </div>
+
+      {/* Reply preview bar */}
+      {replyingTo && !isNota && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-muted/50 border-b border-border/30">
+          <div className="w-1 h-10 rounded-full bg-primary flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-semibold text-primary">
+              {replyingTo.from_me ? 'Você' : 'Contato'}
+            </p>
+            <p className="text-xs text-muted-foreground truncate">
+              {replyingTo.tipo === 'text' ? replyingTo.body :
+               replyingTo.tipo === 'image' ? '📷 Foto' :
+               replyingTo.tipo === 'video' ? '🎥 Vídeo' :
+               replyingTo.tipo === 'audio' ? '🎵 Áudio' :
+               replyingTo.tipo === 'document' ? `📄 ${replyingTo.media_filename || 'Documento'}` :
+               'Mensagem'}
+            </p>
+          </div>
+          <button
+            onClick={onCancelReply}
+            className="p-1 rounded-full hover:bg-accent text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Input area */}
       <div className={`p-3 ${isNota ? 'bg-warning-muted/30' : ''}`}>

@@ -3,6 +3,7 @@
  * Suporta todos os tipos: text, image, video, audio, document, location, contact, poll, sticker, reaction
  * Suporta exibição de nome do remetente em grupos
  * Integra MediaViewer para lightbox de imagens e vídeos
+ * Menu de ações: Responder, Copiar, Reagir, Encaminhar, Fixar, Apagar
  */
 
 import { useState, useRef, useEffect } from 'react'
@@ -19,6 +20,11 @@ import {
   RefreshCw,
   ChevronDown,
   Trash2,
+  Reply,
+  Copy,
+  Smile,
+  Forward,
+  Pin,
 } from 'lucide-react'
 import type { Mensagem } from '../services/conversas.api'
 import { conversasApi } from '../services/conversas.api'
@@ -35,26 +41,21 @@ interface ChatMessageBubbleProps {
   conversaId?: string
   /** Callback para apagar mensagem */
   onDeleteMessage?: (mensagemId: string, messageWahaId: string, paraTodos: boolean) => void
+  /** Callback para responder mensagem */
+  onReplyMessage?: (mensagem: Mensagem) => void
+  /** Mensagem citada (reply_to) */
+  quotedMessage?: Mensagem | null
 }
+
+// =====================================================
+// Sub-components
+// =====================================================
 
 function AckIndicator({ ack }: { ack: number }) {
   if (ack <= 0) return null
-
-  // WAHA ACK mapping:
-  // 1 = PENDING (enviado ao servidor) → check simples cinza
-  // 2 = DEVICE (entregue ao dispositivo) → check duplo cinza
-  // 3 = READ (lido) → check duplo azul
-  // 4 = READ (alternativo) → check duplo azul
-  // 5 = PLAYED (reproduzido) → check duplo azul + play
-  if (ack === 1) {
-    return <Check className="w-3.5 h-3.5 text-muted-foreground/50" />
-  }
-  if (ack === 2) {
-    return <CheckCheck className="w-3.5 h-3.5 text-muted-foreground/50" />
-  }
-  if (ack === 3 || ack === 4) {
-    return <CheckCheck className="w-3.5 h-3.5 text-blue-500" />
-  }
+  if (ack === 1) return <Check className="w-3.5 h-3.5 text-muted-foreground/50" />
+  if (ack === 2) return <CheckCheck className="w-3.5 h-3.5 text-muted-foreground/50" />
+  if (ack === 3 || ack === 4) return <CheckCheck className="w-3.5 h-3.5 text-blue-500" />
   if (ack === 5) {
     return (
       <div className="flex items-center gap-0.5">
@@ -115,15 +116,8 @@ function VideoContent({ mensagem, onViewMedia }: { mensagem: Mensagem; onViewMed
   }
   return (
     <div className="space-y-1">
-      <div
-        className="relative cursor-pointer group"
-        onClick={() => onViewMedia?.(mensagem.media_url!, 'video')}
-      >
-        <video
-          src={mensagem.media_url}
-          className="rounded-md max-w-[280px] max-h-[300px]"
-          preload="metadata"
-        />
+      <div className="relative cursor-pointer group" onClick={() => onViewMedia?.(mensagem.media_url!, 'video')}>
+        <video src={mensagem.media_url} className="rounded-md max-w-[280px] max-h-[300px]" preload="metadata" />
         <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-md group-hover:bg-black/30 transition-colors">
           <div className="w-12 h-12 rounded-full bg-black/50 flex items-center justify-center">
             <Play className="w-6 h-6 text-white fill-white ml-0.5" />
@@ -156,7 +150,6 @@ function DocumentContent({ mensagem }: { mensagem: Mensagem }) {
   const handleDownload = async () => {
     const url = mensagem.media_url
     if (!url) return
-
     setDownloading(true)
     try {
       const response = await fetch(url)
@@ -170,7 +163,6 @@ function DocumentContent({ mensagem }: { mensagem: Mensagem }) {
       document.body.removeChild(link)
       URL.revokeObjectURL(blobUrl)
     } catch {
-      // Fallback: open URL directly
       window.open(url, '_blank')
     } finally {
       setDownloading(false)
@@ -199,25 +191,14 @@ function DocumentContent({ mensagem }: { mensagem: Mensagem }) {
 
 function LocationContent({ mensagem }: { mensagem: Mensagem }) {
   const mapsUrl = `https://www.google.com/maps?q=${mensagem.location_latitude},${mensagem.location_longitude}`
-
   return (
-    <a
-      href={mapsUrl}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="flex items-center gap-2 p-2 rounded-md bg-background/50 border border-border/50 hover:bg-accent/50 transition-colors min-w-[200px]"
-    >
+    <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
+      className="flex items-center gap-2 p-2 rounded-md bg-background/50 border border-border/50 hover:bg-accent/50 transition-colors min-w-[200px]">
       <MapPin className="w-8 h-8 text-destructive flex-shrink-0" />
       <div className="flex-1 min-w-0">
-        {mensagem.location_name && (
-          <p className="text-xs font-medium truncate">{mensagem.location_name}</p>
-        )}
-        {mensagem.location_address && (
-          <p className="text-[11px] text-muted-foreground truncate">{mensagem.location_address}</p>
-        )}
-        {!mensagem.location_name && !mensagem.location_address && (
-          <p className="text-xs text-muted-foreground">Localização compartilhada</p>
-        )}
+        {mensagem.location_name && <p className="text-xs font-medium truncate">{mensagem.location_name}</p>}
+        {mensagem.location_address && <p className="text-[11px] text-muted-foreground truncate">{mensagem.location_address}</p>}
+        {!mensagem.location_name && !mensagem.location_address && <p className="text-xs text-muted-foreground">Localização compartilhada</p>}
       </div>
       <ExternalLink className="w-4 h-4 text-muted-foreground flex-shrink-0" />
     </a>
@@ -252,7 +233,7 @@ function PollContent({ mensagem, conversaId }: { mensagem: Mensagem; conversaId?
     try {
       const result = await conversasApi.consultarVotosEnquete(conversaId, mensagem.message_id)
       if (result?.engine_limitation) {
-        toast.info('Votos de enquete não disponíveis com engine NOWEB. Verifique diretamente no WhatsApp.', { duration: 5000 })
+        toast.info('Votos de enquete não disponíveis com engine NOWEB.', { duration: 5000 })
       } else if (result?.poll_options) {
         setOptions(result.poll_options)
         toast.success('Votos atualizados')
@@ -271,12 +252,8 @@ function PollContent({ mensagem, conversaId }: { mensagem: Mensagem; conversaId?
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium">{mensagem.poll_question}</p>
         {conversaId && (
-          <button
-            onClick={handleRefresh}
-            disabled={loading}
-            className="p-1 rounded hover:bg-accent/50 text-muted-foreground hover:text-foreground transition-colors"
-            title="Atualizar votos"
-          >
+          <button onClick={handleRefresh} disabled={loading}
+            className="p-1 rounded hover:bg-accent/50 text-muted-foreground hover:text-foreground transition-colors" title="Atualizar votos">
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           </button>
         )}
@@ -292,57 +269,80 @@ function PollContent({ mensagem, conversaId }: { mensagem: Mensagem; conversaId?
 }
 
 function StickerContent({ mensagem }: { mensagem: Mensagem }) {
-  return (
-    <img
-      src={mensagem.media_url || ''}
-      alt="Sticker"
-      className="w-[150px] h-[150px] object-contain"
-      loading="lazy"
-    />
-  )
+  return <img src={mensagem.media_url || ''} alt="Sticker" className="w-[150px] h-[150px] object-contain" loading="lazy" />
 }
 
 function ReactionContent({ mensagem }: { mensagem: Mensagem }) {
-  return (
-    <span className="text-2xl">{mensagem.reaction_emoji}</span>
-  )
+  return <span className="text-2xl">{mensagem.reaction_emoji}</span>
 }
 
 function renderContent(mensagem: Mensagem, onViewMedia?: (url: string, tipo: 'image' | 'video') => void, conversaId?: string) {
   switch (mensagem.tipo) {
-    case 'text':
-      return <TextContent body={mensagem.body || ''} />
-    case 'image':
-      return <ImageContent mensagem={mensagem} onViewMedia={onViewMedia} />
-    case 'video':
-      return <VideoContent mensagem={mensagem} onViewMedia={onViewMedia} />
-    case 'audio':
-      return <AudioContent mensagem={mensagem} />
-    case 'document':
-      return <DocumentContent mensagem={mensagem} />
-    case 'location':
-      return <LocationContent mensagem={mensagem} />
-    case 'contact':
-      return <ContactContent mensagem={mensagem} />
-    case 'poll':
-      return <PollContent mensagem={mensagem} conversaId={conversaId} />
-    case 'sticker':
-      return <StickerContent mensagem={mensagem} />
-    case 'reaction':
-      return <ReactionContent mensagem={mensagem} />
-    default:
-      return <p className="text-sm text-muted-foreground italic">Tipo não suportado</p>
+    case 'text': return <TextContent body={mensagem.body || ''} />
+    case 'image': return <ImageContent mensagem={mensagem} onViewMedia={onViewMedia} />
+    case 'video': return <VideoContent mensagem={mensagem} onViewMedia={onViewMedia} />
+    case 'audio': return <AudioContent mensagem={mensagem} />
+    case 'document': return <DocumentContent mensagem={mensagem} />
+    case 'location': return <LocationContent mensagem={mensagem} />
+    case 'contact': return <ContactContent mensagem={mensagem} />
+    case 'poll': return <PollContent mensagem={mensagem} conversaId={conversaId} />
+    case 'sticker': return <StickerContent mensagem={mensagem} />
+    case 'reaction': return <ReactionContent mensagem={mensagem} />
+    default: return <p className="text-sm text-muted-foreground italic">Tipo não suportado</p>
   }
 }
 
-function MessageActionMenu({ mensagem, onDelete }: {
+// =====================================================
+// Quoted message preview (reply bubble)
+// =====================================================
+
+function QuotedMessagePreview({ quoted, isMe }: { quoted: Mensagem; isMe: boolean }) {
+  const getPreviewText = () => {
+    switch (quoted.tipo) {
+      case 'text': return quoted.body || ''
+      case 'image': return '📷 Foto'
+      case 'video': return '🎥 Vídeo'
+      case 'audio': return '🎵 Áudio'
+      case 'document': return `📄 ${quoted.media_filename || 'Documento'}`
+      case 'location': return '📍 Localização'
+      case 'contact': return '👤 Contato'
+      case 'poll': return `📊 ${quoted.poll_question || 'Enquete'}`
+      case 'sticker': return '🎨 Sticker'
+      default: return 'Mensagem'
+    }
+  }
+
+  return (
+    <div className={`
+      rounded-md px-2.5 py-1.5 mb-1.5 border-l-[3px] cursor-pointer
+      ${isMe
+        ? 'bg-primary/5 border-l-primary/40'
+        : 'bg-muted/60 border-l-muted-foreground/40'
+      }
+    `}>
+      <p className="text-[11px] font-semibold text-primary truncate">
+        {quoted.from_me ? 'Você' : 'Contato'}
+      </p>
+      <p className="text-[11px] text-muted-foreground truncate max-w-[250px]">
+        {getPreviewText()}
+      </p>
+    </div>
+  )
+}
+
+// =====================================================
+// Action Menu
+// =====================================================
+
+function MessageActionMenu({ mensagem, onDelete, onReply }: {
   mensagem: Mensagem
   onDelete: (paraTodos: boolean) => void
+  onReply?: () => void
+  onCopy?: () => void
 }) {
   const [open, setOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
-  // Close on click outside
   useEffect(() => {
     if (!open) return
     const handler = (e: MouseEvent) => {
@@ -354,6 +354,15 @@ function MessageActionMenu({ mensagem, onDelete }: {
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
 
+  const handleCopy = () => {
+    const text = mensagem.body || mensagem.caption || ''
+    if (text) {
+      navigator.clipboard.writeText(text)
+      toast.success('Copiado')
+    }
+    setOpen(false)
+  }
+
   return (
     <div ref={menuRef} className="relative">
       <button
@@ -364,18 +373,71 @@ function MessageActionMenu({ mensagem, onDelete }: {
       </button>
 
       {open && (
-        <div className={`absolute z-50 top-full mt-1 ${mensagem.from_me ? 'right-0' : 'left-0'} bg-popover border border-border rounded-lg shadow-lg py-1 min-w-[180px]`}>
+        <div className={`absolute z-[9999] top-full mt-1 ${mensagem.from_me ? 'left-0' : 'right-0'} bg-popover border border-border rounded-lg shadow-lg py-1 min-w-[180px]`}>
+          {/* Responder */}
+          {onReply && (
+            <button
+              onClick={() => { onReply(); setOpen(false) }}
+              className="flex items-center gap-2.5 w-full px-3 py-2 text-xs hover:bg-accent/50 transition-colors text-foreground"
+            >
+              <Reply className="w-3.5 h-3.5 text-muted-foreground" />
+              Responder
+            </button>
+          )}
+
+          {/* Copiar */}
+          <button
+            onClick={handleCopy}
+            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs hover:bg-accent/50 transition-colors text-foreground"
+          >
+            <Copy className="w-3.5 h-3.5 text-muted-foreground" />
+            Copiar
+          </button>
+
+          {/* Reagir */}
+          <button
+            onClick={() => { toast.info('Reações em breve'); setOpen(false) }}
+            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs hover:bg-accent/50 transition-colors text-foreground"
+          >
+            <Smile className="w-3.5 h-3.5 text-muted-foreground" />
+            Reagir
+          </button>
+
+          {/* Encaminhar */}
+          <button
+            onClick={() => { toast.info('Encaminhar em breve'); setOpen(false) }}
+            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs hover:bg-accent/50 transition-colors text-foreground"
+          >
+            <Forward className="w-3.5 h-3.5 text-muted-foreground" />
+            Encaminhar
+          </button>
+
+          {/* Fixar */}
+          <button
+            onClick={() => { toast.info('Fixar mensagem em breve'); setOpen(false) }}
+            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs hover:bg-accent/50 transition-colors text-foreground"
+          >
+            <Pin className="w-3.5 h-3.5 text-muted-foreground" />
+            Fixar
+          </button>
+
+          {/* Divider */}
+          <div className="my-1 border-t border-border/50" />
+
+          {/* Apagar para mim */}
           <button
             onClick={() => { onDelete(false); setOpen(false) }}
-            className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-accent/50 transition-colors text-foreground"
+            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs hover:bg-accent/50 transition-colors text-foreground"
           >
             <Trash2 className="w-3.5 h-3.5 text-muted-foreground" />
             Apagar para mim
           </button>
+
+          {/* Apagar para todos (only fromMe) */}
           {mensagem.from_me && (
             <button
               onClick={() => { onDelete(true); setOpen(false) }}
-              className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-accent/50 transition-colors text-destructive"
+              className="flex items-center gap-2.5 w-full px-3 py-2 text-xs hover:bg-accent/50 transition-colors text-destructive"
             >
               <Trash2 className="w-3.5 h-3.5" />
               Apagar para todos
@@ -388,7 +450,14 @@ function MessageActionMenu({ mensagem, onDelete }: {
 }
 
 
-export function ChatMessageBubble({ mensagem, participantName, participantColor, conversaId, onDeleteMessage }: ChatMessageBubbleProps) {
+// =====================================================
+// Main component
+// =====================================================
+
+export function ChatMessageBubble({
+  mensagem, participantName, participantColor, conversaId,
+  onDeleteMessage, onReplyMessage, quotedMessage
+}: ChatMessageBubbleProps) {
   const [viewerMedia, setViewerMedia] = useState<{ url: string; tipo: 'image' | 'video' } | null>(null)
   const [hovered, setHovered] = useState(false)
   const isMe = mensagem.from_me
@@ -401,6 +470,10 @@ export function ChatMessageBubble({ mensagem, participantName, participantColor,
 
   const handleDelete = (paraTodos: boolean) => {
     onDeleteMessage?.(mensagem.id, mensagem.message_id, paraTodos)
+  }
+
+  const handleReply = () => {
+    onReplyMessage?.(mensagem)
   }
 
   // Sticker e reaction não tem bolha
@@ -417,11 +490,7 @@ export function ChatMessageBubble({ mensagem, participantName, participantColor,
           </div>
         </div>
         {viewerMedia && (
-          <MediaViewer
-            url={viewerMedia.url}
-            tipo={viewerMedia.tipo}
-            onClose={() => setViewerMedia(null)}
-          />
+          <MediaViewer url={viewerMedia.url} tipo={viewerMedia.tipo} onClose={() => setViewerMedia(null)} />
         )}
       </>
     )
@@ -434,10 +503,14 @@ export function ChatMessageBubble({ mensagem, participantName, participantColor,
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
       >
-        {/* Action menu - left side for received messages */}
-        {!isMe && hovered && onDeleteMessage && (
+        {/* Action menu - LEFT side for SENT messages (isMe) */}
+        {isMe && hovered && onDeleteMessage && (
           <div className="flex items-start pt-1 mr-1">
-            <MessageActionMenu mensagem={mensagem} onDelete={handleDelete} />
+            <MessageActionMenu
+              mensagem={mensagem}
+              onDelete={handleDelete}
+              onReply={onReplyMessage ? handleReply : undefined}
+            />
           </div>
         )}
 
@@ -460,6 +533,11 @@ export function ChatMessageBubble({ mensagem, participantName, participantColor,
             </p>
           )}
 
+          {/* Quoted message preview */}
+          {quotedMessage && (
+            <QuotedMessagePreview quoted={quotedMessage} isMe={isMe} />
+          )}
+
           {renderContent(mensagem, handleViewMedia, conversaId)}
 
           {/* Timestamp + ACK */}
@@ -471,19 +549,19 @@ export function ChatMessageBubble({ mensagem, participantName, participantColor,
           </div>
         </div>
 
-        {/* Action menu - right side for sent messages */}
-        {isMe && hovered && onDeleteMessage && (
+        {/* Action menu - RIGHT side for RECEIVED messages (!isMe) */}
+        {!isMe && hovered && onDeleteMessage && (
           <div className="flex items-start pt-1 ml-1">
-            <MessageActionMenu mensagem={mensagem} onDelete={handleDelete} />
+            <MessageActionMenu
+              mensagem={mensagem}
+              onDelete={handleDelete}
+              onReply={onReplyMessage ? handleReply : undefined}
+            />
           </div>
         )}
       </div>
       {viewerMedia && (
-        <MediaViewer
-          url={viewerMedia.url}
-          tipo={viewerMedia.tipo}
-          onClose={() => setViewerMedia(null)}
-        />
+        <MediaViewer url={viewerMedia.url} tipo={viewerMedia.tipo} onClose={() => setViewerMedia(null)} />
       )}
     </>
   )

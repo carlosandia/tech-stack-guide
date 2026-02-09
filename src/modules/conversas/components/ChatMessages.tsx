@@ -24,6 +24,8 @@ interface ChatMessagesProps {
   conversaId?: string
   /** Callback para apagar mensagem */
   onDeleteMessage?: (mensagemId: string, messageWahaId: string, paraTodos: boolean) => void
+  /** Callback para responder mensagem */
+  onReplyMessage?: (mensagem: Mensagem) => void
 }
 
 function formatDateSeparator(dateStr: string): string {
@@ -70,7 +72,7 @@ function getParticipantDisplayName(msg: Mensagem): string {
   return 'Desconhecido'
 }
 
-export function ChatMessages({ mensagens, isLoading, hasMore, onLoadMore, isFetchingMore, highlightIds, focusedId, conversaTipo, conversaId, onDeleteMessage }: ChatMessagesProps) {
+export function ChatMessages({ mensagens, isLoading, hasMore, onLoadMore, isFetchingMore, highlightIds, focusedId, conversaTipo, conversaId, onDeleteMessage, onReplyMessage }: ChatMessagesProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const prevLengthRef = useRef(0)
@@ -123,6 +125,15 @@ export function ChatMessages({ mensagens, isLoading, hasMore, onLoadMore, isFetc
       (a, b) => new Date(a.criado_em).getTime() - new Date(b.criado_em).getTime()
     )
   }, [mensagens])
+
+  // Build a map of message_id -> Mensagem for quoted messages
+  const messageByWahaId = useMemo(() => {
+    const map = new Map<string, Mensagem>()
+    for (const msg of sortedMessages) {
+      if (msg.message_id) map.set(msg.message_id, msg)
+    }
+    return map
+  }, [sortedMessages])
 
   if (isLoading) {
     return (
@@ -198,6 +209,8 @@ export function ChatMessages({ mensagens, isLoading, hasMore, onLoadMore, isFetc
               participantColor={participantColor}
               conversaId={conversaId}
               onDeleteMessage={onDeleteMessage}
+              onReplyMessage={onReplyMessage}
+              quotedMessage={msg.reply_to_message_id ? messageByWahaId.get(msg.reply_to_message_id) || null : null}
             />
           </div>
         )

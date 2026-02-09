@@ -21,7 +21,7 @@ import { conversasApi } from '../services/conversas.api'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import { NovaOportunidadeModal } from '@/modules/negocios/components/modals/NovaOportunidadeModal'
-import type { Conversa, ConversaContato } from '../services/conversas.api'
+import type { Conversa, ConversaContato, Mensagem } from '../services/conversas.api'
 
 interface ChatWindowProps {
   conversa: Conversa
@@ -45,6 +45,7 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
   const [cameraOpen, setCameraOpen] = useState(false)
   const [contatoModalOpen, setContatoModalOpen] = useState(false)
   const [enqueteModalOpen, setEnqueteModalOpen] = useState(false)
+  const [replyingTo, setReplyingTo] = useState<Mensagem | null>(null)
 
   const {
     data: mensagensData,
@@ -97,7 +98,12 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
   }, [conversa.id])
 
   const handleSendMessage = (texto: string) => {
-    enviarTexto.mutate({ conversaId: conversa.id, texto })
+    enviarTexto.mutate({
+      conversaId: conversa.id,
+      texto,
+      replyTo: replyingTo?.message_id,
+    })
+    setReplyingTo(null)
   }
 
   const handleSendNote = async (conteudo: string) => {
@@ -311,6 +317,7 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
         onDeleteMessage={(mensagemId, messageWahaId, paraTodos) => {
           apagarMensagem.mutate({ conversaId: conversa.id, mensagemId, messageWahaId, paraTodos })
         }}
+        onReplyMessage={(msg) => setReplyingTo(msg)}
       />
 
       <div className="relative">
@@ -330,6 +337,8 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
           onOpenEnquete={() => setEnqueteModalOpen(true)}
           isSending={enviarTexto.isPending}
           disabled={conversa.status === 'fechada'}
+          replyingTo={replyingTo}
+          onCancelReply={() => setReplyingTo(null)}
         />
       </div>
 
