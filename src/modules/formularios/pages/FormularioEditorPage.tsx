@@ -362,6 +362,8 @@ export function FormularioEditorPage() {
                     estiloBotao={botao}
                     onChangeEstilo={setBotao}
                     onConfigChange={setLocalConfigBotoes}
+                    onSaveEstilos={handleSaveEstilos}
+                    isSavingEstilos={salvarEstilos.isPending}
                   />
                 )}
                 {selectedStyleElement === 'botao_whatsapp' && (
@@ -371,6 +373,8 @@ export function FormularioEditorPage() {
                     estiloBotao={botao}
                     onChangeEstilo={setBotao}
                     onConfigChange={setLocalConfigBotoes}
+                    onSaveEstilos={handleSaveEstilos}
+                    isSavingEstilos={salvarEstilos.isPending}
                   />
                 )}
               </EstiloPopover>

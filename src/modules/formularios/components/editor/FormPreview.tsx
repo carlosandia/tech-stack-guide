@@ -266,6 +266,7 @@ export function FormPreview({
         <div
           className={cn(
             'mx-auto transition-all duration-300 rounded-lg relative',
+            showFinalPreview && 'form-container',
             viewportWidths[viewport],
             showFinalPreview
               ? 'border border-border'
