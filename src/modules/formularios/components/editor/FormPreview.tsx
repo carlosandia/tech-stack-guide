@@ -9,7 +9,7 @@
 
 import { useState, useRef, useCallback } from 'react'
 import { getMaskForType } from '../../utils/masks'
-import { Monitor, Tablet, Smartphone, Paintbrush, Eye, EyeOff, Code, Save, Loader2, Info } from 'lucide-react'
+import { Monitor, Tablet, Smartphone, Paintbrush, Eye, EyeOff, Code, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
@@ -78,8 +78,8 @@ export function FormPreview({
   showFinalPreview,
   onToggleCss,
   showCssDrawer,
-  onSaveEstilos,
-  isSaving,
+  onSaveEstilos: _onSaveEstilos,
+  isSaving: _isSaving,
   paginaBackgroundColor,
   cssCustomizado,
   configBotoes,
@@ -238,15 +238,8 @@ export function FormPreview({
           ))}
         </div>
 
-        {/* Right: Salvar Estilos */}
-        <div className="flex items-center">
-          {onSaveEstilos && (
-            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={onSaveEstilos} disabled={isSaving}>
-              {isSaving ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1.5" />}
-              Salvar Estilos
-            </Button>
-          )}
-        </div>
+        {/* Right: spacer */}
+        <div className="flex items-center" />
       </div>
 
       {/* Preview area */}

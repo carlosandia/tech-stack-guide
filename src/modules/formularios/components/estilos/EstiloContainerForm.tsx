@@ -42,7 +42,6 @@ export function EstiloContainerForm({ value, onChange }: Props) {
 
   return (
     <div className="space-y-4">
-      <h4 className="text-sm font-semibold text-foreground">Container</h4>
 
       <div className="space-y-3">
         <div className="space-y-1.5">

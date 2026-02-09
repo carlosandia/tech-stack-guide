@@ -40,7 +40,6 @@ export function EstiloCamposForm({ value, onChange }: Props) {
 
   return (
     <div className="space-y-4">
-      <h4 className="text-sm font-semibold text-foreground">Campos</h4>
 
       <div className="space-y-3">
         <ColorField

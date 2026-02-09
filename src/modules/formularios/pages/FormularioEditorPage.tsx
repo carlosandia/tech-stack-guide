@@ -348,6 +348,8 @@ export function FormularioEditorPage() {
                 open={!!selectedStyleElement}
                 onClose={() => setSelectedStyleElement(null)}
                 titulo={panelTitle}
+                onSave={handleSaveEstilos}
+                isSaving={salvarEstilos.isPending}
               >
                 {selectedStyleElement === 'container' && (
                   <EstiloContainerForm value={container} onChange={setContainer} />
