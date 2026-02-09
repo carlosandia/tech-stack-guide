@@ -343,11 +343,13 @@ function ReactionPicker({ onSelect, position }: {
       className="fixed z-[10000] flex items-center gap-1 bg-popover border border-border rounded-full px-2 py-1.5 shadow-lg"
       style={{ top: position.top - 48, left: position.left }}
       onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
     >
       {QUICK_REACTIONS.map((emoji) => (
         <button
           key={emoji}
           onClick={() => onSelect(emoji)}
+          onMouseDown={(e) => e.stopPropagation()}
           className="w-8 h-8 flex items-center justify-center text-lg hover:bg-accent rounded-full transition-colors hover:scale-125"
         >
           {emoji}

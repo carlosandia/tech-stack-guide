@@ -589,17 +589,20 @@ export const conversasApi = {
   async fixarMensagem(conversaId: string, messageWahaId: string): Promise<void> {
     const session = await getConversaWahaSession(conversaId)
     if (session) {
-      try {
-        await supabase.functions.invoke('waha-proxy', {
-          body: {
-            action: 'fixar_mensagem',
-            session_name: session.sessionName,
-            chat_id: session.chatId,
-            message_id: messageWahaId,
-          },
-        })
-      } catch (e) {
-        console.warn('[conversasApi] WAHA fixar_mensagem falhou (CRM continua):', e)
+      const { data, error } = await supabase.functions.invoke('waha-proxy', {
+        body: {
+          action: 'fixar_mensagem',
+          session_name: session.sessionName,
+          chat_id: session.chatId,
+          message_id: messageWahaId,
+        },
+      })
+      if (error) {
+        console.warn('[conversasApi] WAHA fixar_mensagem falhou:', error)
+        throw new Error('Erro ao fixar mensagem no WhatsApp')
+      }
+      if (data?.waha_unsupported) {
+        throw new Error('Fixar mensagem não suportado pelo engine NOWEB')
       }
     }
   },
@@ -608,19 +611,21 @@ export const conversasApi = {
   async reagirMensagem(conversaId: string, messageWahaId: string, emoji: string): Promise<void> {
     const session = await getConversaWahaSession(conversaId)
     if (session) {
-      try {
-        await supabase.functions.invoke('waha-proxy', {
-          body: {
-            action: 'reagir_mensagem',
-            session_name: session.sessionName,
-            chat_id: session.chatId,
-            message_id: messageWahaId,
-            emoji,
-          },
-        })
-      } catch (e) {
-        console.warn('[conversasApi] WAHA reagir_mensagem falhou:', e)
+      const { data, error } = await supabase.functions.invoke('waha-proxy', {
+        body: {
+          action: 'reagir_mensagem',
+          session_name: session.sessionName,
+          chat_id: session.chatId,
+          message_id: messageWahaId,
+          emoji,
+        },
+      })
+      if (error) {
+        console.warn('[conversasApi] WAHA reagir_mensagem falhou:', error)
         throw new Error('Erro ao reagir à mensagem')
+      }
+      if (data?.waha_unsupported) {
+        throw new Error('Reação não suportada pelo engine NOWEB')
       }
     }
   },
