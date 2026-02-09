@@ -13,6 +13,7 @@ import camposService from '../services/campos-formularios.service.js'
 import estilosService from '../services/estilos-formularios.service.js'
 import submissoesService from '../services/submissoes-formularios.service.js'
 import configService from '../services/config-formularios.service.js'
+import logicaCondicionalService from '../services/logica-condicional-formularios.service.js'
 import {
   CriarFormularioSchema,
   AtualizarFormularioSchema,
@@ -26,6 +27,10 @@ import {
   AtualizarConfigPopupSchema,
   AtualizarConfigNewsletterSchema,
   AtualizarEtapasSchema,
+  CriarRegraCondicionalSchema,
+  AtualizarRegraCondicionalSchema,
+  ReordenarRegrasCondicionaisSchema,
+  AtualizarConfigProfilingSchema,
 } from '../schemas/formularios.js'
 
 const router = Router()
@@ -454,6 +459,118 @@ router.put('/:id/etapas', requireAdmin, async (req: Request, res: Response) => {
     }
     console.error('Erro ao atualizar etapas:', error)
     res.status(500).json({ error: 'Erro ao atualizar etapas' })
+  }
+})
+
+// =====================================================
+// REGRAS CONDICIONAIS (Etapa 3)
+// =====================================================
+
+// PUT /:id/regras-condicionais/reordenar - DEVE vir antes de /:regraId
+router.put('/:id/regras-condicionais/reordenar', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const organizacaoId = getOrganizacaoId(req)
+    const payload = ReordenarRegrasCondicionaisSchema.parse(req.body)
+    await logicaCondicionalService.reordenarRegrasCondicionais(organizacaoId, req.params.id, payload.regras)
+    res.json({ success: true })
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: 'Dados invalidos', details: error.errors })
+    console.error('Erro ao reordenar regras condicionais:', error)
+    res.status(500).json({ error: 'Erro ao reordenar regras condicionais' })
+  }
+})
+
+// GET /:id/regras-condicionais
+router.get('/:id/regras-condicionais', async (req: Request, res: Response) => {
+  try {
+    const organizacaoId = getOrganizacaoId(req)
+    const regras = await logicaCondicionalService.listarRegrasCondicionais(organizacaoId, req.params.id)
+    res.json({ regras })
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Formulario nao encontrado') return res.status(404).json({ error: error.message })
+    console.error('Erro ao listar regras condicionais:', error)
+    res.status(500).json({ error: 'Erro ao listar regras condicionais' })
+  }
+})
+
+// POST /:id/regras-condicionais (Admin)
+router.post('/:id/regras-condicionais', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const organizacaoId = getOrganizacaoId(req)
+    const payload = CriarRegraCondicionalSchema.parse(req.body)
+    const regra = await logicaCondicionalService.criarRegraCondicional(organizacaoId, req.params.id, payload)
+    res.status(201).json(regra)
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: 'Dados invalidos', details: error.errors })
+    if (error instanceof Error && error.message === 'Formulario nao encontrado') return res.status(404).json({ error: error.message })
+    console.error('Erro ao criar regra condicional:', error)
+    res.status(500).json({ error: 'Erro ao criar regra condicional' })
+  }
+})
+
+// PUT /:id/regras-condicionais/:regraId (Admin)
+router.put('/:id/regras-condicionais/:regraId', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const organizacaoId = getOrganizacaoId(req)
+    const payload = AtualizarRegraCondicionalSchema.parse(req.body)
+    const regra = await logicaCondicionalService.atualizarRegraCondicional(organizacaoId, req.params.id, req.params.regraId, payload)
+    res.json(regra)
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: 'Dados invalidos', details: error.errors })
+    if (error instanceof Error && error.message === 'Formulario nao encontrado') return res.status(404).json({ error: error.message })
+    console.error('Erro ao atualizar regra condicional:', error)
+    res.status(500).json({ error: 'Erro ao atualizar regra condicional' })
+  }
+})
+
+// DELETE /:id/regras-condicionais/:regraId (Admin)
+router.delete('/:id/regras-condicionais/:regraId', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const organizacaoId = getOrganizacaoId(req)
+    await logicaCondicionalService.excluirRegraCondicional(organizacaoId, req.params.id, req.params.regraId)
+    res.status(204).send()
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Formulario nao encontrado') return res.status(404).json({ error: error.message })
+    console.error('Erro ao excluir regra condicional:', error)
+    res.status(500).json({ error: 'Erro ao excluir regra condicional' })
+  }
+})
+
+// =====================================================
+// PROGRESSIVE PROFILING (Etapa 3)
+// =====================================================
+
+// GET /:id/progressive-profiling
+router.get('/:id/progressive-profiling', async (req: Request, res: Response) => {
+  try {
+    const organizacaoId = getOrganizacaoId(req)
+    const config = await logicaCondicionalService.buscarConfigProfiling(organizacaoId, req.params.id)
+    res.json(config || {})
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Formulario nao encontrado') return res.status(404).json({ error: error.message })
+    console.error('Erro ao buscar config profiling:', error)
+    res.status(500).json({ error: 'Erro ao buscar config profiling' })
+  }
+})
+
+// PUT /:id/progressive-profiling (Admin)
+router.put('/:id/progressive-profiling', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const organizacaoId = getOrganizacaoId(req)
+    const payload = AtualizarConfigProfilingSchema.parse(req.body)
+    const config = await logicaCondicionalService.atualizarConfigProfiling(organizacaoId, req.params.id, payload)
+
+    // Sincronizar flag no formulario
+    if (payload.ativo !== undefined) {
+      await logicaCondicionalService.toggleProgressiveProfiling(organizacaoId, req.params.id, payload.ativo)
+    }
+
+    res.json(config)
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: 'Dados invalidos', details: error.errors })
+    if (error instanceof Error && error.message === 'Formulario nao encontrado') return res.status(404).json({ error: error.message })
+    console.error('Erro ao atualizar config profiling:', error)
+    res.status(500).json({ error: 'Erro ao atualizar config profiling' })
   }
 })
 
