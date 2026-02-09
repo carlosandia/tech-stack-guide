@@ -25,6 +25,7 @@ import {
   useEnviarEmail,
   useNewEmailNotification,
   useSincronizarEmails,
+  useAutoSyncEmails,
   useSalvarRascunho,
   useRascunhos,
   useTraduzirEmail,
@@ -150,6 +151,9 @@ export function EmailsPage() {
 
   // Realtime: escuta novos emails via Supabase Realtime
   useEmailRealtime()
+
+  // Auto-sync IMAP a cada 2 minutos (silencioso)
+  useAutoSyncEmails()
 
   // Auto-marcar como lido ao selecionar
   useEffect(() => {

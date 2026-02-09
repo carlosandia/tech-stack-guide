@@ -216,6 +216,47 @@ export function useSincronizarEmails() {
   })
 }
 
+/**
+ * Auto-sync IMAP silencioso a cada 2 minutos.
+ * Não exibe toast quando não há novos emails.
+ */
+export function useAutoSyncEmails() {
+  const queryClient = useQueryClient()
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const isSyncingRef = useRef(false)
+
+  useEffect(() => {
+    const doSync = async () => {
+      if (isSyncingRef.current) return
+      isSyncingRef.current = true
+      try {
+        const result = await emailsApi.sincronizarEmails()
+        if (result.novos > 0 || result.atualizados > 0) {
+          queryClient.invalidateQueries({ queryKey: ['emails'] })
+          queryClient.invalidateQueries({ queryKey: ['email'] })
+          if (result.novos > 0) {
+            toast.success(`${result.novos} email(s) novo(s) recebido(s)`)
+          }
+        }
+      } catch {
+        // Silencioso — erros de auto-sync não devem interromper o usuário
+      } finally {
+        isSyncingRef.current = false
+      }
+    }
+
+    // Sync inicial ao montar
+    doSync()
+
+    // Auto-sync a cada 2 minutos
+    intervalRef.current = setInterval(doSync, 120_000)
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current)
+    }
+  }, [queryClient])
+}
+
 // =====================================================
 // Conexões
 // =====================================================
