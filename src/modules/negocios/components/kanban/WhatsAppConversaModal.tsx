@@ -39,16 +39,16 @@ export function WhatsAppConversaModal({ isOpen, onClose, contatoId, contatoNome,
             contato:contatos!conversas_contato_id_fkey(id, nome, nome_fantasia, email, telefone)
           `)
           .eq('canal', 'whatsapp')
-          .is('deletado_em', null)
           .order('ultima_mensagem_em', { ascending: false })
           .limit(1)
 
         if (contatoId) {
-          query = query.eq('contato_id', contatoId)
+          query = query.eq('contato_id', contatoId).is('deletado_em', null)
         } else if (telefone) {
-          // Lookup by phone: find chat_id matching the phone number
+          // For pre-opportunities, search by chat_id format (phone@c.us)
+          // Don't filter by deletado_em since the conversation may have been soft-deleted
           const phoneClean = telefone.replace(/\D/g, '')
-          query = query.like('chat_id', `%${phoneClean}%`)
+          query = query.eq('chat_id', `${phoneClean}@c.us`)
         }
 
         const { data, error } = await query.maybeSingle()
