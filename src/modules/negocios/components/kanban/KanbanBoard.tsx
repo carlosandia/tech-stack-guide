@@ -3,14 +3,15 @@
  * Scroll horizontal com colunas, responsivo com snap no mobile
  * Inclui coluna "Solicitações" (RF-11) antes das etapas
  * Busca config de cards de /configuracoes/cards e repassa aos cards
- * Conforme PRD-07 e Design System
+ * Suporte a seleção múltipla de cards com bulk actions
  */
 
-import { useCallback, useRef } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import type { Oportunidade, KanbanData } from '../../services/negocios.api'
 import { KanbanColumn } from './KanbanColumn'
 import { SolicitacoesColumn } from './SolicitacoesColumn'
+import { OportunidadeBulkActions } from './OportunidadeBulkActions'
 import { toast } from 'sonner'
 import { useMoverEtapa } from '../../hooks/useKanban'
 import { useConfigCard } from '@/modules/configuracoes/hooks/useRegras'
@@ -26,6 +27,7 @@ interface KanbanBoardProps {
 export function KanbanBoard({ data, isLoading, onDropGanhoPerda, onCardClick }: KanbanBoardProps) {
   const draggedOpRef = useRef<Oportunidade | null>(null)
   const moverEtapa = useMoverEtapa()
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   // Buscar configuração de cards
   const { data: configCard } = useConfigCard()
@@ -33,6 +35,19 @@ export function KanbanBoard({ data, isLoading, onDropGanhoPerda, onCardClick }: 
     camposVisiveis: Array.isArray(configCard.campos_visiveis) ? configCard.campos_visiveis : undefined as any,
     acoesRapidas: Array.isArray((configCard as any).acoes_rapidas) ? (configCard as any).acoes_rapidas : undefined as any,
   } : undefined
+
+  const handleToggleSelect = useCallback((id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedIds(new Set())
+  }, [])
 
   const handleDragStart = useCallback((e: React.DragEvent, oportunidade: Oportunidade) => {
     draggedOpRef.current = oportunidade
@@ -90,23 +105,43 @@ export function KanbanBoard({ data, isLoading, onDropGanhoPerda, onCardClick }: 
   }
 
   return (
-    <div className="flex-1 overflow-x-auto overflow-y-hidden">
-      <div className="flex gap-3 p-3 sm:p-4 h-full min-w-min">
-        {/* Coluna Solicitações (RF-11) - antes das etapas */}
-        <SolicitacoesColumn funilId={data.funil.id} />
+    <>
+      <div className="flex-1 overflow-x-auto overflow-y-hidden">
+        <div className="flex gap-3 p-3 sm:p-4 h-full min-w-min">
+          <SolicitacoesColumn funilId={data.funil.id} />
 
-        {data.etapas.map(etapa => (
-          <KanbanColumn
-            key={etapa.id}
-            etapa={etapa}
-            onDragStart={handleDragStart}
-            onDragOver={handleDragOver}
-            onDrop={handleDrop}
-            onCardClick={onCardClick}
-            cardConfig={cardConfig}
-          />
-        ))}
+          {data.etapas.map(etapa => (
+            <KanbanColumn
+              key={etapa.id}
+              etapa={etapa}
+              onDragStart={handleDragStart}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+              onCardClick={onCardClick}
+              cardConfig={cardConfig}
+              selectedIds={selectedIds}
+              onToggleSelect={handleToggleSelect}
+            />
+          ))}
+        </div>
       </div>
-    </div>
+
+      <OportunidadeBulkActions
+        selectedCount={selectedIds.size}
+        onExcluir={() => {
+          toast.info('Excluir em massa: em desenvolvimento')
+          handleClearSelection()
+        }}
+        onExportar={() => {
+          toast.info('Exportar em massa: em desenvolvimento')
+          handleClearSelection()
+        }}
+        onMoverEtapa={() => {
+          toast.info('Mover em massa: em desenvolvimento')
+          handleClearSelection()
+        }}
+        onClearSelection={handleClearSelection}
+      />
+    </>
   )
 }

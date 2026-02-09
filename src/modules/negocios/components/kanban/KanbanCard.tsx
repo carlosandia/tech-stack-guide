@@ -40,6 +40,8 @@ interface KanbanCardProps {
   onDragStart: (e: React.DragEvent, oportunidade: Oportunidade) => void
   onClick: (oportunidade: Oportunidade) => void
   config?: CardConfig
+  isSelected?: boolean
+  onToggleSelect?: (id: string) => void
 }
 
 // =====================================================
@@ -113,7 +115,7 @@ const ACOES_ICONS: Record<string, { icon: React.ElementType; label: string }> = 
 // Component
 // =====================================================
 
-export function KanbanCard({ oportunidade, onDragStart, onClick, config }: KanbanCardProps) {
+export function KanbanCard({ oportunidade, onDragStart, onClick, config, isSelected, onToggleSelect }: KanbanCardProps) {
   const { camposVisiveis, acoesRapidas } = config || DEFAULT_CONFIG
   const qualificacao = getQualificacaoLabel(oportunidade)
   const tarefasPendentes = (oportunidade as any)._tarefas_pendentes ?? 0
@@ -269,16 +271,36 @@ export function KanbanCard({ oportunidade, onDragStart, onClick, config }: Kanba
       <div
         draggable
         onDragStart={(e) => onDragStart(e, oportunidade)}
-        onClick={() => onClick(oportunidade)}
-        className="
-          bg-card border border-border rounded-lg shadow-sm
+        onClick={(e) => {
+          if (onToggleSelect && e.ctrlKey) {
+            e.stopPropagation()
+            onToggleSelect(oportunidade.id)
+            return
+          }
+          onClick(oportunidade)
+        }}
+        className={`
+          bg-card border rounded-lg shadow-sm
           hover:shadow-md cursor-grab active:cursor-grabbing
           transition-all duration-200 select-none overflow-hidden
-        "
+          ${isSelected ? 'border-primary ring-1 ring-primary/40' : 'border-border'}
+        `}
       >
         <div className="px-3 pt-3 pb-2">
           <div className="flex items-center justify-between mb-1.5">
             <div className="flex items-center gap-1.5 min-w-0 flex-1">
+              {onToggleSelect && (
+                <input
+                  type="checkbox"
+                  checked={!!isSelected}
+                  onChange={(e) => {
+                    e.stopPropagation()
+                    onToggleSelect(oportunidade.id)
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-3.5 h-3.5 rounded border-border text-primary focus:ring-primary/30 flex-shrink-0 cursor-pointer"
+                />
+              )}
               <p className="text-sm font-medium text-foreground leading-tight truncate">
                 {oportunidade.titulo}
               </p>

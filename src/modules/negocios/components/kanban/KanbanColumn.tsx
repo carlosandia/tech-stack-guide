@@ -20,6 +20,8 @@ interface KanbanColumnProps {
   onDrop: (e: React.DragEvent, etapaId: string, tipoEtapa: string) => void
   onCardClick: (oportunidade: Oportunidade) => void
   cardConfig?: CardConfig
+  selectedIds?: Set<string>
+  onToggleSelect?: (id: string) => void
 }
 
 function formatValorResumido(valor: number): string {
@@ -45,7 +47,7 @@ function getColumnBorderColor(tipo: string): string {
   }
 }
 
-export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardClick, cardConfig }: KanbanColumnProps) {
+export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardClick, cardConfig, selectedIds, onToggleSelect }: KanbanColumnProps) {
   const [isDragOver, setIsDragOver] = useState(false)
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -111,6 +113,8 @@ export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardCli
               onDragStart={onDragStart}
               onClick={onCardClick}
               config={cardConfig}
+              isSelected={selectedIds?.has(op.id)}
+              onToggleSelect={onToggleSelect}
             />
           ))
         )}
