@@ -143,9 +143,11 @@ export function ConversasPage() {
             canal={filtros.canal}
             status={filtros.status}
             busca={filtros.busca}
+            arquivadas={filtros.arquivadas}
             onCanalChange={(canal) => setFiltros((f) => ({ ...f, canal }))}
             onStatusChange={(status) => setFiltros((f) => ({ ...f, status }))}
             onBuscaChange={(busca) => setFiltros((f) => ({ ...f, busca }))}
+            onArquivadasChange={(arquivadas) => setFiltros((f) => ({ ...f, arquivadas }))}
           />
 
           <ConversasList

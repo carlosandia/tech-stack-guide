@@ -105,6 +105,7 @@ export interface Conversa {
 export interface ListarConversasParams {
   canal?: 'whatsapp' | 'instagram'
   status?: 'aberta' | 'pendente' | 'fechada'
+  arquivadas?: boolean
   busca?: string
   page?: number
   limit?: number
@@ -241,7 +242,7 @@ export const conversasApi = {
       `, { count: 'exact' })
       .eq('organizacao_id', organizacaoId)
       .is('deletado_em', null)
-      .eq('arquivada', false)
+      .eq('arquivada', params?.arquivadas ? true : false)
       .order('fixada', { ascending: false })
       .order('ultima_mensagem_em', { ascending: false, nullsFirst: false })
       .range(from, to)
