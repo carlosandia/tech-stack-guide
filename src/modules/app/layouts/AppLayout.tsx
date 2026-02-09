@@ -12,6 +12,7 @@ import {
   MessageSquare,
   CheckSquare,
   Mail,
+  FileText,
   Settings,
   LogOut,
   Menu,
@@ -58,6 +59,11 @@ const menuItems = [
     label: 'Tarefas',
     path: '/app/tarefas',
     icon: CheckSquare,
+  },
+  {
+    label: 'Formulários',
+    path: '/app/formularios',
+    icon: FileText,
   },
 ]
 

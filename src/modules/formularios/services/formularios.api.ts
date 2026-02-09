@@ -512,6 +512,182 @@ async function salvarEstilos(
   return data as unknown as EstiloFormulario
 }
 
+// =====================================================
+// Config Popup
+// =====================================================
+
+export interface ConfigPopup {
+  id: string
+  formulario_id: string
+  tipo_gatilho: string
+  atraso_segundos: number
+  porcentagem_scroll: number
+  seletor_elemento_clique?: string | null
+  mostrar_uma_vez_sessao: boolean
+  dias_expiracao_cookie: number
+  mostrar_mobile: boolean
+  cor_fundo_overlay: string
+  clique_overlay_fecha: boolean
+  tipo_animacao: string
+  duracao_animacao_ms: number
+  popup_imagem_url?: string | null
+  popup_imagem_posicao: string
+  posicao: string
+}
+
+async function buscarConfigPopup(formularioId: string): Promise<ConfigPopup | null> {
+  const { data, error } = await supabase
+    .from('config_popup_formularios')
+    .select('*')
+    .eq('formulario_id', formularioId)
+    .maybeSingle()
+  if (error) throw new Error(`Erro ao buscar config popup: ${error.message}`)
+  return data as ConfigPopup | null
+}
+
+async function salvarConfigPopup(formularioId: string, payload: Partial<ConfigPopup>): Promise<ConfigPopup> {
+  const { data: existente } = await supabase
+    .from('config_popup_formularios')
+    .select('id')
+    .eq('formulario_id', formularioId)
+    .maybeSingle()
+
+  if (existente) {
+    const { data, error } = await supabase
+      .from('config_popup_formularios')
+      .update(payload as any)
+      .eq('formulario_id', formularioId)
+      .select()
+      .single()
+    if (error) throw new Error(`Erro ao atualizar config popup: ${error.message}`)
+    return data as unknown as ConfigPopup
+  }
+
+  const { data, error } = await supabase
+    .from('config_popup_formularios')
+    .insert({ formulario_id: formularioId, ...payload } as any)
+    .select()
+    .single()
+  if (error) throw new Error(`Erro ao criar config popup: ${error.message}`)
+  return data as unknown as ConfigPopup
+}
+
+// =====================================================
+// Config Newsletter
+// =====================================================
+
+export interface ConfigNewsletter {
+  id: string
+  formulario_id: string
+  double_optin_ativo: boolean
+  assunto_email_confirmacao?: string | null
+  template_email_confirmacao?: string | null
+  nome_lista?: string | null
+  tags?: unknown[] | null
+  frequencia_envio?: string | null
+  descricao_frequencia_envio?: string | null
+  texto_consentimento?: string | null
+  url_politica_privacidade?: string | null
+  mostrar_checkbox_consentimento: boolean
+  provedor_externo?: string | null
+  id_lista_externa?: string | null
+  ref_api_key_externa?: string | null
+}
+
+async function buscarConfigNewsletter(formularioId: string): Promise<ConfigNewsletter | null> {
+  const { data, error } = await supabase
+    .from('config_newsletter_formularios')
+    .select('*')
+    .eq('formulario_id', formularioId)
+    .maybeSingle()
+  if (error) throw new Error(`Erro ao buscar config newsletter: ${error.message}`)
+  return data as ConfigNewsletter | null
+}
+
+async function salvarConfigNewsletter(formularioId: string, payload: Partial<ConfigNewsletter>): Promise<ConfigNewsletter> {
+  const { data: existente } = await supabase
+    .from('config_newsletter_formularios')
+    .select('id')
+    .eq('formulario_id', formularioId)
+    .maybeSingle()
+
+  if (existente) {
+    const { data, error } = await supabase
+      .from('config_newsletter_formularios')
+      .update(payload as any)
+      .eq('formulario_id', formularioId)
+      .select()
+      .single()
+    if (error) throw new Error(`Erro ao atualizar config newsletter: ${error.message}`)
+    return data as unknown as ConfigNewsletter
+  }
+
+  const { data, error } = await supabase
+    .from('config_newsletter_formularios')
+    .insert({ formulario_id: formularioId, ...payload } as any)
+    .select()
+    .single()
+  if (error) throw new Error(`Erro ao criar config newsletter: ${error.message}`)
+  return data as unknown as ConfigNewsletter
+}
+
+// =====================================================
+// Etapas (Multi-step)
+// =====================================================
+
+export interface EtapaFormulario {
+  id: string
+  formulario_id: string
+  indice_etapa: number
+  titulo_etapa?: string | null
+  descricao_etapa?: string | null
+  icone_etapa?: string | null
+  texto_botao_proximo?: string | null
+  texto_botao_anterior?: string | null
+  validar_antes_avancar: boolean
+}
+
+async function listarEtapas(formularioId: string): Promise<EtapaFormulario[]> {
+  const { data, error } = await supabase
+    .from('etapas_formularios')
+    .select('*')
+    .eq('formulario_id', formularioId)
+    .order('indice_etapa', { ascending: true })
+  if (error) throw new Error(`Erro ao listar etapas: ${error.message}`)
+  return (data || []) as unknown as EtapaFormulario[]
+}
+
+async function criarEtapa(formularioId: string, payload: Partial<EtapaFormulario>): Promise<EtapaFormulario> {
+  const { data, error } = await supabase
+    .from('etapas_formularios')
+    .insert({ formulario_id: formularioId, ...payload } as any)
+    .select()
+    .single()
+  if (error) throw new Error(`Erro ao criar etapa: ${error.message}`)
+  return data as unknown as EtapaFormulario
+}
+
+async function atualizarEtapa(formularioId: string, etapaId: string, payload: Partial<EtapaFormulario>): Promise<EtapaFormulario> {
+  const { data, error } = await supabase
+    .from('etapas_formularios')
+    .update(payload as any)
+    .eq('formulario_id', formularioId)
+    .eq('id', etapaId)
+    .select()
+    .single()
+  if (error) throw new Error(`Erro ao atualizar etapa: ${error.message}`)
+  return data as unknown as EtapaFormulario
+}
+
+async function excluirEtapa(formularioId: string, etapaId: string): Promise<void> {
+  const { error } = await supabase
+    .from('etapas_formularios')
+    .delete()
+    .eq('formulario_id', formularioId)
+    .eq('id', etapaId)
+  if (error) throw new Error(`Erro ao excluir etapa: ${error.message}`)
+}
+
 export const formulariosApi = {
   listar,
   buscar,
@@ -529,4 +705,12 @@ export const formulariosApi = {
   reordenarCampos,
   buscarEstilos,
   salvarEstilos,
+  buscarConfigPopup,
+  salvarConfigPopup,
+  buscarConfigNewsletter,
+  salvarConfigNewsletter,
+  listarEtapas,
+  criarEtapa,
+  atualizarEtapa,
+  excluirEtapa,
 }
