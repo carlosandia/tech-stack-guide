@@ -36,36 +36,65 @@ function detectImapHost(smtpHost: string): { host: string; port: number } {
 // MIME Parsing Helpers
 // =====================================================
 
-function decodeQuotedPrintable(str: string): string {
-  return str
-    .replace(/=\r?\n/g, "")
-    .replace(/=([0-9A-Fa-f]{2})/g, (_, hex: string) =>
-      String.fromCharCode(parseInt(hex, 16))
-    );
+function decodeQuotedPrintableBytes(str: string): Uint8Array {
+  const raw = str.replace(/=\r?\n/g, "");
+  const bytes: number[] = [];
+  let i = 0;
+  while (i < raw.length) {
+    if (raw[i] === '=' && i + 2 < raw.length) {
+      const hex = raw.substring(i + 1, i + 3);
+      const val = parseInt(hex, 16);
+      if (!isNaN(val)) {
+        bytes.push(val);
+        i += 3;
+        continue;
+      }
+    }
+    bytes.push(raw.charCodeAt(i));
+    i++;
+  }
+  return new Uint8Array(bytes);
 }
 
-function decodeBase64Body(str: string): string {
+function decodeQuotedPrintable(str: string, charset?: string): string {
+  const bytes = decodeQuotedPrintableBytes(str);
+  try {
+    return new TextDecoder(charset || "utf-8", { fatal: false }).decode(bytes);
+  } catch {
+    return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+  }
+}
+
+function decodeBase64Body(str: string, charset?: string): string {
   try {
     const cleaned = str.replace(/\s/g, "");
     if (!cleaned) return "";
-    return new TextDecoder("utf-8", { fatal: false }).decode(
-      Uint8Array.from(atob(cleaned), (c) => c.charCodeAt(0))
-    );
+    const bytes = Uint8Array.from(atob(cleaned), (c) => c.charCodeAt(0));
+    try {
+      return new TextDecoder(charset || "utf-8", { fatal: false }).decode(bytes);
+    } catch {
+      return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+    }
   } catch {
     return str;
   }
 }
 
-function decodeContentBody(content: string, encoding: string): string {
+function decodeContentBody(content: string, encoding: string, charset?: string): string {
   const enc = (encoding || "7bit").trim().toLowerCase();
   switch (enc) {
     case "base64":
-      return decodeBase64Body(content);
+      return decodeBase64Body(content, charset);
     case "quoted-printable":
-      return decodeQuotedPrintable(content);
+      return decodeQuotedPrintable(content, charset);
     default:
       return content;
   }
+}
+
+function extractCharset(contentTypeHeader: string): string | undefined {
+  const match = contentTypeHeader.match(/charset="?([^"\s;]+)"?/i);
+  return match ? match[1].trim().toLowerCase() : undefined;
 }
 
 function parseMimeMessage(raw: string): { html: string; text: string } {
@@ -87,14 +116,16 @@ function parseMimeMessage(raw: string): { html: string; text: string } {
   }
 
   // Single part
-  const ctMatch = headers.match(/Content-Type:\s*([^\n;]+)/i);
-  const contentType = ctMatch ? ctMatch[1].trim().toLowerCase() : "text/plain";
+  const ctMatch = headers.match(/Content-Type:\s*([^\n]+)/i);
+  const contentTypeRaw = ctMatch ? ctMatch[1].trim() : "text/plain";
+  const contentType = contentTypeRaw.toLowerCase();
+  const charset = extractCharset(contentTypeRaw);
   const encodingMatch = headers.match(
     /Content-Transfer-Encoding:\s*([^\n]+)/i
   );
   const encoding = encodingMatch ? encodingMatch[1].trim() : "7bit";
 
-  const decoded = decodeContentBody(body, encoding);
+  const decoded = decodeContentBody(body, encoding, charset);
   if (contentType.includes("text/html")) {
     return { html: decoded, text: "" };
   }
@@ -129,17 +160,19 @@ function parseMultipart(
       continue;
     }
 
-    const ctMatch = partHeaders.match(/Content-Type:\s*([^\n;]+)/i);
-    const contentType = ctMatch ? ctMatch[1].trim().toLowerCase() : "";
+    const ctMatch = partHeaders.match(/Content-Type:\s*([^\n]+)/i);
+    const contentTypeRaw = ctMatch ? ctMatch[1].trim() : "";
+    const contentType = contentTypeRaw.toLowerCase();
+    const charset = extractCharset(contentTypeRaw);
     const encodingMatch = partHeaders.match(
       /Content-Transfer-Encoding:\s*([^\n]+)/i
     );
     const encoding = encodingMatch ? encodingMatch[1].trim() : "7bit";
 
     if (contentType.includes("text/html") && !html) {
-      html = decodeContentBody(partBody, encoding);
+      html = decodeContentBody(partBody, encoding, charset);
     } else if (contentType.includes("text/plain") && !text) {
-      text = decodeContentBody(partBody, encoding);
+      text = decodeContentBody(partBody, encoding, charset);
     }
   }
 
@@ -385,19 +418,39 @@ function decodeRFC2047(str: string): string {
   if (!str) return str;
   return str.replace(
     /=\?([^?]+)\?([BbQq])\?([^?]+)\?=/g,
-    (_, _charset: string, encoding: string, data: string) => {
+    (_, charset: string, encoding: string, data: string) => {
       try {
+        const cs = charset.toLowerCase();
         if (encoding.toUpperCase() === "B") {
-          return new TextDecoder().decode(
-            Uint8Array.from(atob(data), (c) => c.charCodeAt(0))
-          );
+          const bytes = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
+          try {
+            return new TextDecoder(cs, { fatal: false }).decode(bytes);
+          } catch {
+            return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+          }
         } else {
-          const decoded = data
-            .replace(/_/g, " ")
-            .replace(/=([0-9A-Fa-f]{2})/g, (__, hex: string) =>
-              String.fromCharCode(parseInt(hex, 16))
-            );
-          return decoded;
+          // Q encoding - decode to bytes, then use charset
+          const raw = data.replace(/_/g, " ");
+          const bytes: number[] = [];
+          let i = 0;
+          while (i < raw.length) {
+            if (raw[i] === '=' && i + 2 < raw.length) {
+              const hex = raw.substring(i + 1, i + 3);
+              const val = parseInt(hex, 16);
+              if (!isNaN(val)) {
+                bytes.push(val);
+                i += 3;
+                continue;
+              }
+            }
+            bytes.push(raw.charCodeAt(i));
+            i++;
+          }
+          try {
+            return new TextDecoder(cs, { fatal: false }).decode(new Uint8Array(bytes));
+          } catch {
+            return new TextDecoder("utf-8", { fatal: false }).decode(new Uint8Array(bytes));
+          }
         }
       } catch {
         return data;
