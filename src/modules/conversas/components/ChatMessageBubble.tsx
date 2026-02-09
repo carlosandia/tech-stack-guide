@@ -1,6 +1,7 @@
 /**
  * AIDEV-NOTE: Bolha de mensagem individual no chat (PRD-09)
  * Suporta todos os tipos: text, image, video, audio, document, location, contact, poll, sticker, reaction
+ * Suporta exibição de nome do remetente em grupos
  */
 
 import { format } from 'date-fns'
@@ -18,6 +19,10 @@ import type { Mensagem } from '../services/conversas.api'
 
 interface ChatMessageBubbleProps {
   mensagem: Mensagem
+  /** Nome do participant (para grupos, mensagens recebidas) */
+  participantName?: string | null
+  /** Cor do participant (para grupos) */
+  participantColor?: string | null
 }
 
 function AckIndicator({ ack }: { ack: number }) {
@@ -44,7 +49,6 @@ function AckIndicator({ ack }: { ack: number }) {
 }
 
 function TextContent({ body }: { body: string }) {
-  // Basic WhatsApp-style formatting
   const formatted = body
     .replace(/\*(.*?)\*/g, '<strong>$1</strong>')
     .replace(/_(.*?)_/g, '<em>$1</em>')
@@ -231,7 +235,7 @@ function renderContent(mensagem: Mensagem) {
   }
 }
 
-export function ChatMessageBubble({ mensagem }: ChatMessageBubbleProps) {
+export function ChatMessageBubble({ mensagem, participantName, participantColor }: ChatMessageBubbleProps) {
   const isMe = mensagem.from_me
   const isSticker = mensagem.tipo === 'sticker'
   const isReaction = mensagem.tipo === 'reaction'
@@ -262,6 +266,16 @@ export function ChatMessageBubble({ mensagem }: ChatMessageBubbleProps) {
           }
         `}
       >
+        {/* Participant name for group messages (received only) */}
+        {participantName && !isMe && (
+          <p
+            className="text-[11px] font-semibold mb-0.5 truncate"
+            style={{ color: participantColor || 'hsl(var(--primary))' }}
+          >
+            {participantName}
+          </p>
+        )}
+
         {renderContent(mensagem)}
 
         {/* Timestamp + ACK */}

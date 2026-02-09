@@ -215,6 +215,7 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer }: ChatWindowProps) 
         isFetchingMore={isFetchingNextPage}
         highlightIds={mensagensDestacadas}
         focusedId={mensagemFocadaId}
+        conversaTipo={conversa.tipo}
       />
 
       <div className="relative">

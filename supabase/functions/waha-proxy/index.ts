@@ -1,7 +1,8 @@
 /**
  * AIDEV-NOTE: Edge Function proxy para WAHA API (WhatsApp)
  * Lê credenciais de configuracoes_globais e faz proxy para WAHA
- * Suporta: iniciar sessão, obter QR code, verificar status, desconectar
+ * Suporta: iniciar sessão, obter QR code, verificar status, desconectar,
+ *          enviar mensagem de texto, enviar mídia
  * Salva/atualiza sessoes_whatsapp no banco ao detectar conexão
  */
 
@@ -115,11 +116,13 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const webhookUrl = `${supabaseUrl}/functions/v1/waha-webhook`;
 
+    // Webhook events to subscribe
+    const webhookEvents = ["message", "message.ack"];
+
     console.log(`[waha-proxy] Action: ${action}, Session: ${sessionId}, WAHA URL: ${baseUrl}`);
 
     // Helper: upsert sessoes_whatsapp record
     async function upsertSessao(data: Record<string, unknown>) {
-      // Check if exists
       const { data: existing } = await supabaseAdmin
         .from("sessoes_whatsapp")
         .select("id")
@@ -170,7 +173,7 @@ Deno.serve(async (req) => {
               webhooks: [
                 {
                   url: webhookUrl,
-                  events: ["message"],
+                  events: webhookEvents,
                 },
               ],
             },
@@ -193,25 +196,22 @@ Deno.serve(async (req) => {
             realStatus = checkData.status;
             console.log(`[waha-proxy] Real session status: ${realStatus}`);
           } else {
-            await checkResp.text(); // consume body
+            await checkResp.text();
           }
 
           // If session is FAILED or STOPPED, delete it entirely and restart
           if (realStatus === "FAILED" || realStatus === "STOPPED") {
             console.log(`[waha-proxy] Session in ${realStatus} state, deleting and restarting...`);
 
-            // Delete the session entirely (stop alone doesn't remove it)
             const deleteResp = await fetch(`${baseUrl}/api/sessions/${sessionId}`, {
               method: "DELETE",
               headers: { "X-Api-Key": apiKey },
             });
             console.log(`[waha-proxy] Delete response: ${deleteResp.status}`);
-            await deleteResp.text(); // consume body
+            await deleteResp.text();
 
-            // Wait for WAHA to fully clean up
             await new Promise(r => setTimeout(r, 2000));
 
-            // Start a fresh session
             const restartResp = await fetch(`${baseUrl}/api/sessions/start`, {
               method: "POST",
               headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
@@ -222,7 +222,7 @@ Deno.serve(async (req) => {
                   webhooks: [
                     {
                       url: webhookUrl,
-                      events: ["message"],
+                      events: webhookEvents,
                     },
                   ],
                 },
@@ -265,22 +265,17 @@ Deno.serve(async (req) => {
         }
 
         if (wahaResponse.ok) {
-          // Create/update DB record
           await upsertSessao({ status: "scanning", ultimo_qr_gerado: new Date().toISOString() });
         }
         break;
       }
 
       case "qr_code": {
-        // Get QR code image as base64
         wahaResponse = await fetch(`${baseUrl}/api/${sessionId}/auth/qr`, {
           method: "GET",
-          headers: {
-            "X-Api-Key": apiKey,
-          },
+          headers: { "X-Api-Key": apiKey },
         });
 
-        // WAHA returns the QR code as an image, convert to base64
         if (wahaResponse.ok) {
           const contentType = wahaResponse.headers.get("content-type") || "";
           
@@ -295,7 +290,6 @@ Deno.serve(async (req) => {
             );
           }
           
-          // If it's JSON (e.g., already connected), pass through
           const jsonData = await wahaResponse.json().catch(() => ({}));
           return new Response(
             JSON.stringify({ 
@@ -307,11 +301,9 @@ Deno.serve(async (req) => {
           );
         }
 
-        // If 404 or error, session may not exist or already connected
         const errorBody = await wahaResponse.text().catch(() => "");
         console.log(`[waha-proxy] QR response status: ${wahaResponse.status}, body: ${errorBody}`);
         
-        // Check if already connected
         if (wahaResponse.status === 404 || wahaResponse.status === 422) {
           const statusResp = await fetch(`${baseUrl}/api/sessions/${sessionId}`, {
             headers: { "X-Api-Key": apiKey },
@@ -320,7 +312,6 @@ Deno.serve(async (req) => {
           if (statusResp.ok) {
             const statusData = await statusResp.json();
             if (statusData.status === "WORKING") {
-              // Save connected status to DB
               const me = statusData.me || {};
               await upsertSessao({
                 status: "connected",
@@ -335,7 +326,7 @@ Deno.serve(async (req) => {
               );
             }
           } else {
-            await statusResp.text(); // consume body
+            await statusResp.text();
           }
         }
 
@@ -346,12 +337,9 @@ Deno.serve(async (req) => {
       }
 
       case "status": {
-        // Check session status
         wahaResponse = await fetch(`${baseUrl}/api/sessions/${sessionId}`, {
           method: "GET",
-          headers: {
-            "X-Api-Key": apiKey,
-          },
+          headers: { "X-Api-Key": apiKey },
         });
 
         if (wahaResponse.ok) {
@@ -359,7 +347,6 @@ Deno.serve(async (req) => {
           const isConnected = statusData.status === "WORKING";
           const me = statusData.me || {};
 
-          // If connected, save/update the DB record
           if (isConnected) {
             await upsertSessao({
               status: "connected",
@@ -387,7 +374,6 @@ Deno.serve(async (req) => {
       }
 
       case "desconectar": {
-        // Stop session
         wahaResponse = await fetch(`${baseUrl}/api/sessions/stop`, {
           method: "POST",
           headers: {
@@ -397,7 +383,6 @@ Deno.serve(async (req) => {
           body: JSON.stringify({ name: sessionId }),
         });
 
-        // Update DB record
         await upsertSessao({
           status: "disconnected",
           desconectado_em: new Date().toISOString(),
@@ -406,11 +391,8 @@ Deno.serve(async (req) => {
       }
 
       case "configurar_webhook": {
-        // Instead of PUT /api/sessions/{id} which restarts the session,
-        // use PATCH to update webhook config without restart
         console.log(`[waha-proxy] Configuring webhook for session ${sessionId}: ${webhookUrl}`);
         
-        // First check current session status
         const checkResp = await fetch(`${baseUrl}/api/sessions/${sessionId}`, {
           headers: { "X-Api-Key": apiKey },
         });
@@ -427,11 +409,6 @@ Deno.serve(async (req) => {
         const currentSession = await checkResp.json();
         console.log(`[waha-proxy] Current session status: ${currentSession.status}`);
 
-        // Use PUT on /api/sessions/{id}/config to update only the config without restarting
-        // If that endpoint doesn't exist, fall back to updating just the webhook via the session
-        let configUpdated = false;
-        
-        // Try PATCH first (doesn't restart)
         const patchResp = await fetch(`${baseUrl}/api/sessions/${sessionId}`, {
           method: "PATCH",
           headers: {
@@ -443,7 +420,7 @@ Deno.serve(async (req) => {
               webhooks: [
                 {
                   url: webhookUrl,
-                  events: ["message"],
+                  events: webhookEvents,
                 },
               ],
             },
@@ -453,20 +430,140 @@ Deno.serve(async (req) => {
         if (patchResp.ok || patchResp.status === 200) {
           const patchResult = await patchResp.json().catch(() => ({}));
           console.log(`[waha-proxy] PATCH webhook config response: ${patchResp.status}`, JSON.stringify(patchResult));
-          configUpdated = true;
         } else {
           const patchErr = await patchResp.text();
           console.log(`[waha-proxy] PATCH not supported (${patchResp.status}), webhook already configured during session start`);
-          // If PATCH is not supported, the webhook was already configured during iniciar
-          // Just save the URL in the database
-          configUpdated = true;
         }
 
-        // Save webhook URL to DB regardless
         await upsertSessao({ webhook_url: webhookUrl });
 
         return new Response(
           JSON.stringify({ ok: true, message: "Webhook configurado", webhook_url: webhookUrl }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // =====================================================
+      // ENVIAR MENSAGEM DE TEXTO VIA WAHA
+      // =====================================================
+      case "enviar_mensagem": {
+        const { chat_id, text, reply_to } = body as {
+          chat_id?: string;
+          text?: string;
+          reply_to?: string;
+        };
+
+        if (!chat_id || !text) {
+          return new Response(
+            JSON.stringify({ error: "chat_id e text são obrigatórios" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        console.log(`[waha-proxy] Sending text to ${chat_id}, session: ${sessionId}`);
+
+        const sendBody: Record<string, unknown> = {
+          chatId: chat_id,
+          text: text,
+          session: sessionId,
+        };
+
+        if (reply_to) {
+          sendBody.reply_to = reply_to;
+        }
+
+        const sendResp = await fetch(`${baseUrl}/api/sendText`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Api-Key": apiKey,
+          },
+          body: JSON.stringify(sendBody),
+        });
+
+        const sendData = await sendResp.json().catch(() => ({}));
+        console.log(`[waha-proxy] sendText response: ${sendResp.status}`, JSON.stringify(sendData).substring(0, 500));
+
+        if (!sendResp.ok) {
+          return new Response(
+            JSON.stringify({ error: "Falha ao enviar mensagem", details: sendData }),
+            { status: sendResp.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Extract message_id from WAHA response
+        const messageId = sendData.id?._serialized || sendData.id?.id || sendData.id || sendData.key?.id || null;
+
+        return new Response(
+          JSON.stringify({ ok: true, message_id: messageId, data: sendData }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // =====================================================
+      // ENVIAR MÍDIA VIA WAHA
+      // =====================================================
+      case "enviar_media": {
+        const { chat_id: mediaChatId, media_url, caption: mediaCaption, filename, media_type } = body as {
+          chat_id?: string;
+          media_url?: string;
+          caption?: string;
+          filename?: string;
+          media_type?: string;
+        };
+
+        if (!mediaChatId || !media_url) {
+          return new Response(
+            JSON.stringify({ error: "chat_id e media_url são obrigatórios" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        console.log(`[waha-proxy] Sending media to ${mediaChatId}, type: ${media_type}, session: ${sessionId}`);
+
+        // Determine WAHA endpoint based on media type
+        let endpoint = "sendImage";
+        if (media_type === "video") endpoint = "sendVideo";
+        else if (media_type === "audio") endpoint = "sendVoice";
+        else if (media_type === "document") endpoint = "sendFile";
+
+        const mediaBody: Record<string, unknown> = {
+          chatId: mediaChatId,
+          session: sessionId,
+        };
+
+        if (endpoint === "sendFile") {
+          mediaBody.file = { url: media_url };
+          if (filename) mediaBody.file = { url: media_url, filename };
+          if (mediaCaption) mediaBody.caption = mediaCaption;
+        } else {
+          mediaBody.file = { url: media_url };
+          if (mediaCaption) mediaBody.caption = mediaCaption;
+        }
+
+        const mediaResp = await fetch(`${baseUrl}/api/${endpoint}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Api-Key": apiKey,
+          },
+          body: JSON.stringify(mediaBody),
+        });
+
+        const mediaData = await mediaResp.json().catch(() => ({}));
+        console.log(`[waha-proxy] ${endpoint} response: ${mediaResp.status}`, JSON.stringify(mediaData).substring(0, 500));
+
+        if (!mediaResp.ok) {
+          return new Response(
+            JSON.stringify({ error: "Falha ao enviar mídia", details: mediaData }),
+            { status: mediaResp.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const mediaMessageId = mediaData.id?._serialized || mediaData.id?.id || mediaData.id || mediaData.key?.id || null;
+
+        return new Response(
+          JSON.stringify({ ok: true, message_id: mediaMessageId, data: mediaData }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }

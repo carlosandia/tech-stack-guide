@@ -1,7 +1,7 @@
 /**
  * AIDEV-NOTE: Service layer para módulo de Conversas (PRD-09)
  * Usa Supabase client direto (respeita RLS via get_user_tenant_id)
- * Mesmo padrão arquitetural de contatos, negocios e tarefas.
+ * Envio real de mensagens via WAHA (waha-proxy edge function)
  */
 
 import { supabase } from '@/lib/supabase'
@@ -148,6 +148,8 @@ export interface Mensagem {
   timestamp_externo?: number | null
   criado_em: string
   atualizado_em: string
+  // Group participant display fields (populated from raw_data)
+  raw_data?: Record<string, unknown> | null
 }
 
 export interface ListarMensagensParams {
@@ -235,7 +237,6 @@ export const conversasApi = {
     if (conversas.length > 0) {
       const conversaIds = conversas.map(c => c.id)
       
-      // Buscar última mensagem de cada conversa (via query separada)
       const { data: ultimasMensagens } = await supabase
         .from('mensagens')
         .select('id, conversa_id, tipo, body, from_me, criado_em')
@@ -244,7 +245,6 @@ export const conversasApi = {
         .order('criado_em', { ascending: false })
 
       if (ultimasMensagens) {
-        // Group by conversa_id, pegando só a primeira (mais recente)
         const ultimaMap = new Map<string, UltimaMensagemPreview>()
         for (const msg of ultimasMensagens) {
           if (!ultimaMap.has(msg.conversa_id)) {
@@ -295,10 +295,8 @@ export const conversasApi = {
     const organizacaoId = await getOrganizacaoId()
     const usuarioId = await getUsuarioId()
 
-    // Se não tem contato_id, precisamos buscar ou criar pelo telefone
     let contatoId = dados.contato_id
     if (!contatoId && dados.telefone) {
-      // Buscar contato existente pelo telefone
       const { data: contato } = await supabase
         .from('contatos')
         .select('id')
@@ -310,7 +308,6 @@ export const conversasApi = {
       if (contato) {
         contatoId = contato.id
       } else {
-        // Criar contato novo
         const { data: novoContato, error: contatoError } = await supabase
           .from('contatos')
           .insert({
@@ -331,7 +328,6 @@ export const conversasApi = {
 
     if (!contatoId) throw new Error('Contato não encontrado')
 
-    // Criar conversa
     const chatId = `${dados.canal}_${contatoId}_${Date.now()}`
     const { data: conversa, error } = await supabase
       .from('conversas')
@@ -353,7 +349,6 @@ export const conversasApi = {
 
     if (error) throw new Error(error.message)
 
-    // Criar mensagem inicial
     await supabase
       .from('mensagens')
       .insert({
@@ -430,20 +425,69 @@ export const conversasApi = {
     }
   },
 
+  /**
+   * Envia mensagem de texto. Se a conversa tem sessão WhatsApp ativa,
+   * envia via WAHA API. Caso contrário, salva apenas localmente.
+   */
   async enviarTexto(conversaId: string, texto: string, replyTo?: string): Promise<Mensagem> {
     const organizacaoId = await getOrganizacaoId()
 
+    // Buscar dados da conversa para determinar se é WhatsApp
+    const { data: conversa } = await supabase
+      .from('conversas')
+      .select('chat_id, sessao_whatsapp_id, canal')
+      .eq('id', conversaId)
+      .maybeSingle()
+
+    let wahaMessageId: string | null = null
+
+    // Se é uma conversa WhatsApp com sessão, enviar via WAHA
+    if (conversa?.sessao_whatsapp_id && conversa?.canal === 'whatsapp') {
+      // Buscar session_name da sessão
+      const { data: sessao } = await supabase
+        .from('sessoes_whatsapp')
+        .select('session_name')
+        .eq('id', conversa.sessao_whatsapp_id)
+        .maybeSingle()
+
+      if (sessao?.session_name) {
+        const { data: wahaResult, error: wahaError } = await supabase.functions.invoke('waha-proxy', {
+          body: {
+            action: 'enviar_mensagem',
+            session_name: sessao.session_name,
+            chat_id: conversa.chat_id,
+            text: texto,
+            reply_to: replyTo || undefined,
+          },
+        })
+
+        if (wahaError) {
+          console.error('[conversas.api] Erro ao enviar via WAHA:', wahaError)
+          throw new Error('Erro ao enviar mensagem pelo WhatsApp')
+        }
+
+        if (wahaResult?.error) {
+          console.error('[conversas.api] WAHA retornou erro:', wahaResult.error)
+          throw new Error(wahaResult.error)
+        }
+
+        wahaMessageId = wahaResult?.message_id || null
+        console.log('[conversas.api] Mensagem enviada via WAHA, messageId:', wahaMessageId)
+      }
+    }
+
+    // Salvar mensagem no banco
     const { data, error } = await supabase
       .from('mensagens')
       .insert({
         organizacao_id: organizacaoId,
         conversa_id: conversaId,
-        message_id: `local_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+        message_id: wahaMessageId || `local_${Date.now()}_${Math.random().toString(36).slice(2)}`,
         from_me: true,
         tipo: 'text',
         body: texto,
         has_media: false,
-        ack: 0,
+        ack: wahaMessageId ? 1 : 0, // 1 = PENDING (enviado ao servidor WAHA)
         reply_to_message_id: replyTo || null,
       })
       .select('*')
@@ -463,22 +507,68 @@ export const conversasApi = {
     return data as Mensagem
   },
 
+  /**
+   * Envia mídia. Se é WhatsApp com sessão, envia via WAHA API.
+   */
   async enviarMedia(conversaId: string, dados: { tipo: string; media_url: string; caption?: string; filename?: string }): Promise<Mensagem> {
     const organizacaoId = await getOrganizacaoId()
+
+    // Buscar dados da conversa
+    const { data: conversa } = await supabase
+      .from('conversas')
+      .select('chat_id, sessao_whatsapp_id, canal')
+      .eq('id', conversaId)
+      .maybeSingle()
+
+    let wahaMessageId: string | null = null
+
+    // Se é WhatsApp com sessão, enviar via WAHA
+    if (conversa?.sessao_whatsapp_id && conversa?.canal === 'whatsapp') {
+      const { data: sessao } = await supabase
+        .from('sessoes_whatsapp')
+        .select('session_name')
+        .eq('id', conversa.sessao_whatsapp_id)
+        .maybeSingle()
+
+      if (sessao?.session_name) {
+        const { data: wahaResult, error: wahaError } = await supabase.functions.invoke('waha-proxy', {
+          body: {
+            action: 'enviar_media',
+            session_name: sessao.session_name,
+            chat_id: conversa.chat_id,
+            media_url: dados.media_url,
+            media_type: dados.tipo,
+            caption: dados.caption,
+            filename: dados.filename,
+          },
+        })
+
+        if (wahaError) {
+          console.error('[conversas.api] Erro ao enviar mídia via WAHA:', wahaError)
+          throw new Error('Erro ao enviar mídia pelo WhatsApp')
+        }
+
+        if (wahaResult?.error) {
+          throw new Error(wahaResult.error)
+        }
+
+        wahaMessageId = wahaResult?.message_id || null
+      }
+    }
 
     const { data, error } = await supabase
       .from('mensagens')
       .insert({
         organizacao_id: organizacaoId,
         conversa_id: conversaId,
-        message_id: `local_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+        message_id: wahaMessageId || `local_${Date.now()}_${Math.random().toString(36).slice(2)}`,
         from_me: true,
         tipo: dados.tipo,
         caption: dados.caption || null,
         has_media: true,
         media_url: dados.media_url,
         media_filename: dados.filename || null,
-        ack: 0,
+        ack: wahaMessageId ? 1 : 0,
       })
       .select('*')
       .single()

@@ -1,5 +1,6 @@
 /**
- * AIDEV-NOTE: Área de mensagens com scroll infinito e separadores de data
+ * AIDEV-NOTE: Área de mensagens com scroll infinito, separadores de data
+ * e suporte a exibição de nomes de participantes em grupos
  */
 
 import { useRef, useEffect, useMemo } from 'react'
@@ -17,6 +18,8 @@ interface ChatMessagesProps {
   isFetchingMore: boolean
   highlightIds?: Set<string>
   focusedId?: string | null
+  /** Tipo da conversa: 'individual' | 'grupo' | 'canal' */
+  conversaTipo?: string
 }
 
 function formatDateSeparator(dateStr: string): string {
@@ -26,15 +29,52 @@ function formatDateSeparator(dateStr: string): string {
   return format(date, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
 }
 
-export function ChatMessages({ mensagens, isLoading, hasMore, onLoadMore, isFetchingMore, highlightIds, focusedId }: ChatMessagesProps) {
+// Cores distintas para participantes de grupo
+const participantColors = [
+  '#e17055', '#00b894', '#0984e3', '#6c5ce7',
+  '#fdcb6e', '#e84393', '#00cec9', '#d63031',
+  '#55efc4', '#a29bfe', '#fd79a8', '#ffeaa7',
+]
+
+function getParticipantColor(participant: string): string {
+  const hash = participant.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)
+  return participantColors[hash % participantColors.length]
+}
+
+/**
+ * Extrai o nome de exibição do participant de uma mensagem de grupo.
+ * Usa pushName do raw_data ou o número de telefone.
+ */
+function getParticipantDisplayName(msg: Mensagem): string {
+  // Try raw_data for pushName (sent by webhook)
+  const rawData = msg.raw_data as Record<string, unknown> | null
+  if (rawData) {
+    const pushName = (rawData._data as Record<string, unknown>)?.pushName as string
+      || rawData.notifyName as string
+      || (rawData._data as Record<string, unknown>)?.notifyName as string
+    if (pushName) return pushName
+  }
+
+  // Fallback: use from_number or participant field
+  const participant = msg.participant || msg.from_number
+  if (participant) {
+    // Format phone number: 5511999999999 -> +55 11 99999-9999
+    const cleaned = participant.replace('@c.us', '').replace('@s.whatsapp.net', '')
+    return `+${cleaned}`
+  }
+
+  return 'Desconhecido'
+}
+
+export function ChatMessages({ mensagens, isLoading, hasMore, onLoadMore, isFetchingMore, highlightIds, focusedId, conversaTipo }: ChatMessagesProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const prevLengthRef = useRef(0)
+  const isGroup = conversaTipo === 'grupo'
 
   // Auto-scroll para baixo quando novas mensagens chegam
   useEffect(() => {
     if (mensagens.length > prevLengthRef.current) {
-      // Só auto-scroll se estava perto do bottom ou é carregamento inicial
       if (prevLengthRef.current === 0) {
         bottomRef.current?.scrollIntoView({ behavior: 'instant' })
       } else {
@@ -119,6 +159,16 @@ export function ChatMessages({ mensagens, isLoading, hasMore, onLoadMore, isFetc
           idx === 0 ||
           !isSameDay(new Date(msg.criado_em), new Date(sortedMessages[idx - 1].criado_em))
 
+        // Group: determine participant name and color
+        let participantName: string | null = null
+        let participantColor: string | null = null
+
+        if (isGroup && !msg.from_me) {
+          const participant = msg.participant || msg.from_number || ''
+          participantName = getParticipantDisplayName(msg)
+          participantColor = getParticipantColor(participant)
+        }
+
         return (
           <div
             key={msg.id}
@@ -138,7 +188,11 @@ export function ChatMessages({ mensagens, isLoading, hasMore, onLoadMore, isFetc
                 </span>
               </div>
             )}
-            <ChatMessageBubble mensagem={msg} />
+            <ChatMessageBubble
+              mensagem={msg}
+              participantName={participantName}
+              participantColor={participantColor}
+            />
           </div>
         )
       })}
