@@ -80,10 +80,10 @@ export function EmailItem({
       </button>
 
       {/* Sender name - compact width */}
-      <div className="flex-shrink-0 w-[110px] pr-2">
+      <div className="flex-shrink-0 w-[100px] lg:w-[120px] pr-2">
         <span
           className={cn(
-            'text-[13px] truncate block',
+            'text-xs sm:text-sm truncate block',
             isUnread ? 'font-semibold text-foreground' : 'text-foreground/70'
           )}
         >
@@ -92,18 +92,18 @@ export function EmailItem({
       </div>
 
       {/* Subject + Preview - takes remaining space */}
-      <div className="flex-1 min-w-0 pr-2">
+      <div className="flex-1 min-w-0 pr-2 overflow-hidden">
         <div className="flex items-center gap-1 min-w-0">
           <span
             className={cn(
-              'text-[13px] truncate flex-shrink min-w-0',
+              'text-xs sm:text-sm truncate flex-shrink min-w-0',
               isUnread ? 'font-semibold text-foreground' : 'text-foreground/70'
             )}
           >
             {email.assunto || '(sem assunto)'}
           </span>
           {email.preview && email.preview !== email.assunto && (
-            <span className="text-[13px] text-muted-foreground/50 truncate flex-shrink-[2] min-w-0">
+            <span className="text-xs text-muted-foreground/50 truncate flex-shrink-[2] min-w-0 hidden sm:inline">
               — {email.preview}
             </span>
           )}

@@ -1,6 +1,7 @@
 /**
  * AIDEV-NOTE: Painel de visualização do email selecionado - Estilo Gmail
  * DOMPurify para sanitização HTML (XSS), Responder Todos, Download anexos, ContatoCard
+ * Tamanhos de ícones conforme Design System: inline w-4 h-4, empty state w-12 h-12
  */
 
 import { useMemo } from 'react'
@@ -21,7 +22,6 @@ import {
   Loader2,
   Download,
   MoreVertical,
-  Smile,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -68,7 +68,7 @@ function AnexoItem({ anexo, emailId }: { anexo: AnexoInfo; emailId: string }) {
     <button
       onClick={handleDownload}
       className="
-        flex items-center gap-2 px-3 py-2.5 rounded-lg
+        flex items-center gap-2 px-3 py-2 rounded-lg
         border border-border/50 bg-muted/20
         text-sm hover:bg-accent/40 transition-colors group
         min-w-[160px] max-w-[240px]
@@ -77,7 +77,7 @@ function AnexoItem({ anexo, emailId }: { anexo: AnexoInfo; emailId: string }) {
       <Paperclip className="w-4 h-4 text-muted-foreground flex-shrink-0" />
       <div className="flex-1 min-w-0 text-left">
         <p className="text-xs font-medium text-foreground truncate">{anexo.filename}</p>
-        <p className="text-[10px] text-muted-foreground">{tamanho}</p>
+        <p className="text-[11px] text-muted-foreground">{tamanho}</p>
       </div>
       <Download className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
     </button>
@@ -122,7 +122,7 @@ export function EmailViewer({
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
       </div>
     )
   }
@@ -130,8 +130,8 @@ export function EmailViewer({
   if (!email) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-        <Mail className="w-20 h-20 mb-4 opacity-10" />
-        <p className="text-base font-medium opacity-40">Selecione um email para ler</p>
+        <Mail className="w-12 h-12 mb-3 opacity-10" />
+        <p className="text-sm font-medium opacity-40">Selecione um email para ler</p>
       </div>
     )
   }
@@ -144,47 +144,43 @@ export function EmailViewer({
   const avatarColor = getInitialColor(nomeRemetente)
 
   const iconBtnClass =
-    'p-2 rounded-full hover:bg-accent/60 transition-colors text-muted-foreground hover:text-foreground'
+    'p-1.5 rounded-full hover:bg-accent/60 transition-colors text-muted-foreground hover:text-foreground'
 
   return (
     <div className="flex flex-col h-full">
-      {/* Gmail-style action bar */}
+      {/* Action bar */}
       <div className="flex items-center gap-0.5 px-2 py-1 border-b border-border/40 flex-shrink-0">
         <button onClick={onBack} className={cn(iconBtnClass, 'md:hidden')}>
-          <ArrowLeft className="w-4.5 h-4.5" />
+          <ArrowLeft className="w-4 h-4" />
         </button>
         <button onClick={() => onArquivar(email.id)} className={iconBtnClass} title="Arquivar">
-          <Archive className="w-4.5 h-4.5" />
+          <Archive className="w-4 h-4" />
         </button>
-        <button
-          onClick={() => onDeletar(email.id)}
-          className={iconBtnClass}
-          title="Excluir"
-        >
-          <Trash2 className="w-4.5 h-4.5" />
+        <button onClick={() => onDeletar(email.id)} className={iconBtnClass} title="Excluir">
+          <Trash2 className="w-4 h-4" />
         </button>
         <button
           onClick={() => onToggleLido(email.id, !email.lido)}
           className={iconBtnClass}
           title={email.lido ? 'Marcar como não lido' : 'Marcar como lido'}
         >
-          {email.lido ? <Mail className="w-4.5 h-4.5" /> : <MailOpen className="w-4.5 h-4.5" />}
+          {email.lido ? <Mail className="w-4 h-4" /> : <MailOpen className="w-4 h-4" />}
         </button>
         <div className="flex-1" />
       </div>
 
       {/* Subject */}
-      <div className="px-6 pt-5 pb-2 flex-shrink-0">
-        <h1 className="text-xl font-normal text-foreground leading-snug">
+      <div className="px-5 pt-4 pb-1.5 flex-shrink-0">
+        <h2 className="text-lg font-medium text-foreground leading-snug">
           {email.assunto || '(sem assunto)'}
-        </h1>
+        </h2>
       </div>
 
-      {/* Sender info - Gmail style */}
-      <div className="flex items-start gap-3 px-6 py-3 flex-shrink-0">
+      {/* Sender info */}
+      <div className="flex items-start gap-3 px-5 py-2.5 flex-shrink-0">
         {/* Avatar */}
         <div className={cn(
-          'w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-semibold',
+          'w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-semibold',
           avatarColor
         )}>
           {nomeRemetente[0]?.toUpperCase() || '?'}
@@ -212,15 +208,15 @@ export function EmailViewer({
             className={iconBtnClass}
           >
             <Star className={cn(
-              'w-4.5 h-4.5',
+              'w-4 h-4',
               email.favorito && 'fill-amber-400 text-amber-400'
             )} />
           </button>
           <button onClick={() => onResponder(email.id)} className={iconBtnClass} title="Responder">
-            <Reply className="w-4.5 h-4.5" />
+            <Reply className="w-4 h-4" />
           </button>
           <button className={iconBtnClass}>
-            <MoreVertical className="w-4.5 h-4.5" />
+            <MoreVertical className="w-4 h-4" />
           </button>
         </div>
       </div>
@@ -229,7 +225,7 @@ export function EmailViewer({
       <ContatoCard contatoId={email.contato_id} email={email.de_email} nome={email.de_nome} />
 
       {/* Email body */}
-      <div className="flex-1 overflow-y-auto px-6 py-4">
+      <div className="flex-1 overflow-y-auto px-5 py-3">
         {cleanHtml ? (
           <div
             className="prose prose-sm max-w-none text-foreground [&_a]:text-primary"
@@ -246,7 +242,7 @@ export function EmailViewer({
 
       {/* Attachments */}
       {anexos.length > 0 && (
-        <div className="px-6 py-3 border-t border-border/40 flex-shrink-0">
+        <div className="px-5 py-2.5 border-t border-border/40 flex-shrink-0">
           <p className="text-xs font-medium text-muted-foreground mb-2">
             {anexos.length} anexo{anexos.length > 1 ? 's' : ''}
           </p>
@@ -258,12 +254,12 @@ export function EmailViewer({
         </div>
       )}
 
-      {/* Reply/Forward bar - Gmail style */}
-      <div className="flex items-center gap-2 px-6 py-4 border-t border-border/40 flex-shrink-0">
+      {/* Reply/Forward bar */}
+      <div className="flex items-center gap-2 px-5 py-3 border-t border-border/40 flex-shrink-0">
         <button
           onClick={() => onResponder(email.id)}
           className="
-            inline-flex items-center gap-2 h-9 px-5 rounded-full
+            inline-flex items-center gap-1.5 h-8 px-4 rounded-full
             border border-border/60 text-sm font-medium text-foreground
             hover:bg-accent/50 hover:shadow-sm transition-all
           "
@@ -274,7 +270,7 @@ export function EmailViewer({
         <button
           onClick={() => onResponderTodos(email.id)}
           className="
-            inline-flex items-center gap-2 h-9 px-5 rounded-full
+            inline-flex items-center gap-1.5 h-8 px-4 rounded-full
             border border-border/60 text-sm font-medium text-foreground
             hover:bg-accent/50 hover:shadow-sm transition-all
           "
@@ -285,16 +281,13 @@ export function EmailViewer({
         <button
           onClick={() => onEncaminhar(email.id)}
           className="
-            inline-flex items-center gap-2 h-9 px-5 rounded-full
+            inline-flex items-center gap-1.5 h-8 px-4 rounded-full
             border border-border/60 text-sm font-medium text-foreground
             hover:bg-accent/50 hover:shadow-sm transition-all
           "
         >
           <Forward className="w-4 h-4" />
           Encaminhar
-        </button>
-        <button className={cn(iconBtnClass, 'ml-auto')}>
-          <Smile className="w-4.5 h-4.5" />
         </button>
       </div>
     </div>

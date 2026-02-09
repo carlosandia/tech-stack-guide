@@ -2,9 +2,10 @@
  * AIDEV-NOTE: Página principal da Caixa de Entrada de Email (PRD-11) - Layout estilo Gmail
  * 3 colunas: Sidebar (pastas) | Lista de emails | Visualização
  * Responsivo: mobile mostra uma coluna por vez
+ * Rascunhos: lê de emails_rascunhos e abre no composer ao clicar
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Settings2 } from 'lucide-react'
 import { useAppToolbar } from '@/modules/app/contexts/AppToolbarContext'
 import { EmailSidebar } from '../components/EmailSidebar'
@@ -25,8 +26,9 @@ import {
   useNewEmailNotification,
   useSincronizarEmails,
   useSalvarRascunho,
+  useRascunhos,
 } from '../hooks/useEmails'
-import type { PastaEmail, AcaoLote } from '../types/email.types'
+import type { PastaEmail, AcaoLote, EmailRecebido } from '../types/email.types'
 
 // Extended type to include "starred" virtual folder
 type PastaEmailExtended = PastaEmail | 'starred'
@@ -72,8 +74,10 @@ export function EmailsPage() {
     return () => setActions(null)
   }, [setActions]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const isDrafts = pasta === 'drafts'
+
   // Build query params - "starred" maps to favorito filter on inbox
-  const queryPasta: PastaEmail = pasta === 'starred' ? 'inbox' : pasta
+  const queryPasta: PastaEmail = pasta === 'starred' ? 'inbox' : pasta === 'drafts' ? 'inbox' : pasta
   const queryFiltros = pasta === 'starred' ? { ...filtros, favorito: true } : filtros
 
   // Queries
@@ -84,8 +88,49 @@ export function EmailsPage() {
     per_page: 20,
     ...queryFiltros,
   })
-  const { data: selectedEmail, isLoading: loadingEmail } = useEmail(selectedId)
+  const { data: selectedEmail, isLoading: loadingEmail } = useEmail(isDrafts ? null : selectedId)
   const { data: naoLidos } = useContadorNaoLidos()
+  const { data: rascunhosData, isLoading: isLoadingRascunhos } = useRascunhos()
+
+  // Map drafts to EmailRecebido-like objects
+  const draftEmails: EmailRecebido[] = useMemo(() => {
+    if (!isDrafts || !rascunhosData) return []
+    return rascunhosData.map((r) => ({
+      id: r.id,
+      organizacao_id: r.organizacao_id,
+      usuario_id: r.usuario_id,
+      conexao_email_id: null,
+      message_id: `draft-${r.id}`,
+      thread_id: null,
+      provider_id: null,
+      de_email: '',
+      de_nome: 'Rascunho',
+      para_email: r.para_email || '(sem destinatário)',
+      cc_email: r.cc_email,
+      bcc_email: r.bcc_email,
+      assunto: r.assunto || '(sem assunto)',
+      corpo_html: r.corpo_html,
+      corpo_texto: null,
+      preview: r.assunto || '(sem assunto)',
+      data_email: r.atualizado_em,
+      pasta: 'drafts' as PastaEmail,
+      lido: true,
+      favorito: false,
+      tem_anexos: false,
+      anexos_info: null,
+      contato_id: null,
+      oportunidade_id: null,
+      sincronizado_em: null,
+      criado_em: r.criado_em,
+      atualizado_em: r.atualizado_em,
+      deletado_em: r.deletado_em,
+    }))
+  }, [isDrafts, rascunhosData])
+
+  // Use correct data source
+  const emails = isDrafts ? draftEmails : (emailsData?.data || [])
+  const total = isDrafts ? draftEmails.length : (emailsData?.total || 0)
+  const totalPages = isDrafts ? 1 : (emailsData?.total_pages || 1)
 
   // Mutations
   const atualizarEmail = useAtualizarEmail()
@@ -127,9 +172,25 @@ export function EmailsPage() {
     []
   )
 
-  const handleSelect = useCallback((id: string) => {
-    setSelectedId(id)
-  }, [])
+  const handleSelect = useCallback(
+    (id: string) => {
+      // If in drafts mode, open the compose modal with draft data
+      if (isDrafts) {
+        const draft = rascunhosData?.find((r) => r.id === id)
+        if (draft) {
+          openComposer('novo', {
+            para_email: draft.para_email || undefined,
+            cc_email: draft.cc_email || undefined,
+            assunto: draft.assunto || undefined,
+            corpo_html: draft.corpo_html || undefined,
+          })
+        }
+        return
+      }
+      setSelectedId(id)
+    },
+    [isDrafts, rascunhosData, openComposer]
+  )
 
   const handleToggleFavorito = useCallback(
     (id: string, favorito: boolean) => {
@@ -248,10 +309,6 @@ export function EmailsPage() {
     [salvarRascunho]
   )
 
-  const emails = emailsData?.data || []
-  const total = emailsData?.total || 0
-  const totalPages = emailsData?.total_pages || 1
-
   return (
     <div className="flex h-full bg-background">
       {/* Gmail-style Sidebar - hidden on mobile */}
@@ -267,14 +324,14 @@ export function EmailsPage() {
       {/* Email List */}
       <div
         className={`
-          w-full lg:w-auto lg:min-w-[320px] lg:max-w-[380px] flex-shrink-0
+          w-full lg:w-auto lg:min-w-[300px] lg:max-w-[360px] flex-shrink-0
           ${selectedId ? 'hidden md:flex md:flex-col' : 'flex flex-col'}
         `}
       >
         <EmailList
           emails={emails}
           total={total}
-          isLoading={isLoading}
+          isLoading={isDrafts ? isLoadingRascunhos : isLoading}
           busca={busca}
           setBusca={setBusca}
           selectedId={selectedId}
