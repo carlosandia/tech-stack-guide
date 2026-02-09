@@ -5,10 +5,11 @@
  */
 
 import { useState, useRef, useCallback, type KeyboardEvent } from 'react'
-import { Send, Zap, StickyNote, MessageSquare, Paperclip, Mic, Smile } from 'lucide-react'
+import { Send, Zap, StickyNote, MessageSquare, Paperclip, Mic, Smile, X, Reply } from 'lucide-react'
 import { AnexosMenu } from './AnexosMenu'
 import { AudioRecorder } from './AudioRecorder'
 import { EmojiPicker } from './EmojiPicker'
+import type { Mensagem } from '../services/conversas.api'
 
 interface ChatInputProps {
   onSendMessage: (texto: string) => void
@@ -21,6 +22,8 @@ interface ChatInputProps {
   onOpenEnquete: () => void
   isSending: boolean
   disabled?: boolean
+  replyingTo?: Mensagem | null
+  onCancelReply?: () => void
 }
 
 type InputTab = 'responder' | 'nota'
@@ -28,7 +31,7 @@ type InputTab = 'responder' | 'nota'
 export function ChatInput({
   onSendMessage, onSendNote, onOpenQuickReplies, onFileSelected,
   onAudioSend, onOpenCamera, onOpenContato, onOpenEnquete,
-  isSending, disabled
+  isSending, disabled, replyingTo, onCancelReply
 }: ChatInputProps) {
   const [tab, setTab] = useState<InputTab>('responder')
   const [texto, setTexto] = useState('')
