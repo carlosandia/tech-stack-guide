@@ -1,54 +1,102 @@
 
-## Plano: Unificar Status, Corrigir Metricas de Tempo de Resposta
 
-### Problema 1: Duplicidade "Finalizar conversa" vs "Fechada"
+# Plano: Config Geral - Ajustes de Layout + Widget WhatsApp para Website
 
-No menu do `ChatHeader.tsx`, existem dois caminhos para a mesma acao:
-- O item "Fechada" na secao "Alterar Status" (linha 96-108)
-- O botao separado "Finalizar conversa" (linha 130-138)
+## Resumo
 
-Ambos chamam `onAlterarStatus('fechada')`. Isso confunde o usuario.
+Tres alteracoes na pagina Config Geral (`/app/configuracoes/config-geral`):
 
-**Solucao**: Remover o botao separado "Finalizar conversa" e manter apenas o item "Fechada" na lista de status. Isso reduz cliques e elimina a confusao.
+1. **Manter secao Automacao** - A pagina inteira ja e restrita a `role === 'admin'`, entao a secao de automacao so aparece para gestores. Nenhuma alteracao necessaria.
 
-**Arquivo**: `src/modules/conversas/components/ChatHeader.tsx`
-- Remover o bloco condicional `{conversa.status !== 'fechada' && (...)}` (linhas 130-138)
-- Remover o `<div>` separador acima dele (linha 128)
-- Remover import nao utilizado `CheckCircle2`
+2. **Expandir para 100% do width** - Remover a restricao `max-w-2xl` que limita o conteudo a metade da tela.
+
+3. **Nova secao: Widget WhatsApp para Website** - Configuracao completa para gerar um script/embed de botao flutuante de WhatsApp no site do usuario.
 
 ---
 
-### Problema 2: Logica do Tempo Medio de Resposta (individual e geral)
+## Detalhes da Nova Secao: Widget WhatsApp
 
-Existem dois calculos de TMA duplicados com logica ligeiramente diferente:
+### Campos de Configuracao
 
-| Local | Calculo |
-|-------|---------|
-| `ContatoDrawer.tsx` (HistoricoInteracoes) | Usa milissegundos, divide por 60000, arredonda com `Math.round` |
-| `useConversasMetricas.ts` (geral) | Usa `differenceInMinutes` do date-fns que trunca (nao arredonda) |
+| Campo | Tipo | Descricao |
+|-------|------|-----------|
+| Ativar Widget | Toggle | Liga/desliga o widget |
+| Numero WhatsApp | Texto | Numero para onde direcionar (com DDI) |
+| Posicao do Botao | Select | `Direita inferior` ou `Esquerda inferior` |
+| Usar Pre-Formulario | Toggle | Se ativado, exibe formulario antes de redirecionar |
+| Campos do Formulario | Multi-select | Campos vindos de `/app/configuracoes/campos` (entidade pessoa) para montar o formulario |
+| Nome do Atendente | Texto | Nome exibido no header do widget (ex: "Maria") |
+| Foto do Atendente | Upload imagem | Foto exibida no header simulando conversa WhatsApp |
+| Mensagem de Boas-vindas | Texto | Mensagem inicial no estilo bolha WhatsApp |
+| Cor do Botao | Color picker | Cor de fundo do botao flutuante (padrao: verde WhatsApp #25D366) |
 
-**Problema com `differenceInMinutes`**: Se o usuario respondeu em 45 segundos, `differenceInMinutes` retorna 0. Respostas rapidas sao ignoradas, inflando a media.
+### Fluxo do Widget no Site do Usuario
 
-**Solucao**: Unificar a logica usando milissegundos em ambos os locais para maior precisao.
+```text
+[Visitante ve botao flutuante]
+        |
+        v
+[Clica no botao] --> (Sem formulario?) --> [Abre wa.me/numero]
+        |
+        v (Com formulario?)
+[Abre mini-chat com header do atendente]
+        |
+        v
+[Preenche campos selecionados pelo admin]
+        |
+        v
+[Clica "Iniciar Conversa"]
+        |
+        v
+[Redireciona para wa.me/numero?text=dados_preenchidos]
+```
 
-**Arquivo**: `src/modules/conversas/hooks/useConversasMetricas.ts`
-- Substituir `differenceInMinutes` por calculo em ms (`(dateB - dateA) / 60000`) para TMR e TMA
-- Isso captura respostas menores que 1 minuto corretamente
+### Geracao do Script Embed
 
-**Arquivo**: `src/modules/conversas/components/ContatoDrawer.tsx`
-- A logica atual usando ms ja esta correta, nenhuma alteracao necessaria
+- Gera um `<script>` tag que o usuario copia e cola no HTML do seu site
+- O script cria o botao flutuante + mini-formulario com os estilos configurados
+- Visual inspirado no WhatsApp (verde, bolhas, avatar do atendente)
+- Script auto-contido (sem dependencias externas), inline CSS + JS vanilla
+- Botao com textarea para copiar o codigo gerado
+
+### Preview ao Vivo
+
+- Uma previa visual do widget sera renderizada ao lado das configuracoes
+- Mostra como ficara o botao e o formulario no site do usuario
 
 ---
 
-### Problema 3: Historico de Interacoes carrega automaticamente
+## Detalhes Tecnicos
 
-O `HistoricoInteracoes` ja usa `useQuery` que carrega automaticamente ao abrir o drawer. Nao precisa de clique extra. Isso ja esta correto.
+### Arquivos a Criar/Modificar
 
----
+1. **`src/modules/configuracoes/pages/ConfigGeralPage.tsx`**
+   - Remover `max-w-2xl` do container principal
+   - Adicionar nova secao "WhatsApp no Website" com todos os campos
+   - Incluir botao "Copiar Script" que gera o embed
+   - Incluir preview visual do widget
 
-### Resumo de alteracoes
+2. **`src/modules/configuracoes/components/whatsapp-widget/WidgetWhatsAppConfig.tsx`** (novo)
+   - Componente da secao de configuracao com todos os campos
+   - Busca campos personalizados de "pessoa" para popular o multi-select
+   - Upload de foto do atendente para o Supabase Storage
+   - Geracao do script embed auto-contido
 
-| Arquivo | Alteracao |
-|---------|-----------|
-| `ChatHeader.tsx` | Remover "Finalizar conversa" duplicado e separador desnecessario |
-| `useConversasMetricas.ts` | Trocar `differenceInMinutes` por calculo em ms para precisao |
+3. **`src/modules/configuracoes/components/whatsapp-widget/WidgetWhatsAppPreview.tsx`** (novo)
+   - Preview visual do widget (botao flutuante + formulario aberto)
+   - Atualiza em tempo real conforme usuario muda configuracoes
+
+4. **`src/modules/configuracoes/components/whatsapp-widget/generateWidgetScript.ts`** (novo)
+   - Funcao utilitaria que recebe as configuracoes e retorna o HTML/JS/CSS do script embed
+
+5. **`src/modules/configuracoes/hooks/useConfigTenant.ts`**
+   - Ja existente, sera usado para salvar as configs do widget na tabela `config_tenant`
+
+### Persistencia
+
+- As configuracoes do widget serao salvas na tabela `config_tenant` existente, adicionando campos como `widget_whatsapp_ativo`, `widget_whatsapp_config` (JSONB) via o mesmo fluxo de `useAtualizarConfigTenant`
+
+### Sugestao de Melhoria Adicional
+
+Para aparecer tambem na secao de Conexoes WhatsApp: adicionar um link/atalho na pagina `/app/configuracoes/conexoes` no card do WhatsApp com "Configurar Widget para Website" que leva para a secao correspondente em Config Geral. Isso pode ser feito como passo adicional.
+
