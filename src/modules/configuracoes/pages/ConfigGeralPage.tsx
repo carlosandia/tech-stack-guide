@@ -2,7 +2,7 @@
  * AIDEV-NOTE: Página de Configurações Gerais do Tenant (Admin Only)
  * Conforme PRD-05 - Seção 4. Configurações Gerais
  * Campos: moeda, timezone, formato data, notificações, horários comerciais
- * Inclui: banner de email desconectado + editor rico para assinatura
+ * Inclui: banner de email desconectado + editor rico para assinatura + Widget WhatsApp
  */
 
 import { useState, useEffect } from 'react'
@@ -13,6 +13,8 @@ import { useAuth } from '@/providers/AuthProvider'
 import { useConfigToolbar } from '../contexts/ConfigToolbarContext'
 import { useConfigTenant, useAtualizarConfigTenant } from '../hooks/useConfigTenant'
 import { RichTextEditor } from '../components/editor/RichTextEditor'
+import { WidgetWhatsAppConfig } from '../components/whatsapp-widget/WidgetWhatsAppConfig'
+import { DEFAULT_WIDGET_CONFIG, type WidgetWhatsAppConfig as WidgetConfig } from '../components/whatsapp-widget/types'
 import { supabase } from '@/lib/supabase'
 
 // =====================================================
@@ -165,6 +167,8 @@ export function ConfigGeralPage() {
     horario_inicio_envio: '08:00',
     horario_fim_envio: '18:00',
   })
+
+  const [widgetConfig, setWidgetConfig] = useState<WidgetConfig>(DEFAULT_WIDGET_CONFIG)
   const [temAlteracoes, setTemAlteracoes] = useState(false)
 
   useEffect(() => {
@@ -182,6 +186,11 @@ export function ConfigGeralPage() {
         horario_inicio_envio: config.horario_inicio_envio || '08:00',
         horario_fim_envio: config.horario_fim_envio || '18:00',
       })
+      // Carregar widget config do JSONB
+      const raw = (config as any)?.widget_whatsapp_config
+      if (raw && typeof raw === 'object') {
+        setWidgetConfig({ ...DEFAULT_WIDGET_CONFIG, ...raw })
+      }
       setTemAlteracoes(false)
     }
   }, [config])
@@ -197,9 +206,18 @@ export function ConfigGeralPage() {
     setTemAlteracoes(true)
   }
 
+  const handleWidgetChange = (newConfig: WidgetConfig) => {
+    setWidgetConfig(newConfig)
+    setTemAlteracoes(true)
+  }
+
   const handleSave = async () => {
     try {
-      await atualizarConfig.mutateAsync(form)
+      await atualizarConfig.mutateAsync({
+        ...form,
+        widget_whatsapp_ativo: widgetConfig.ativo,
+        widget_whatsapp_config: widgetConfig,
+      })
       setTemAlteracoes(false)
     } catch (err) {
       console.error('Erro ao salvar configurações:', err)
@@ -225,11 +243,11 @@ export function ConfigGeralPage() {
   }
 
   return (
-    <div className="max-w-2xl space-y-8">
+    <div className="space-y-8">
       {/* Localização */}
       <section className="bg-card rounded-lg border border-border p-6 space-y-4">
         <h2 className="text-base font-semibold text-foreground">Localização</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <SelectField label="Moeda Padrão" value={form.moeda_padrao} onChange={v => updateField('moeda_padrao', v)} options={MOEDAS} />
           <SelectField label="Fuso Horário" value={form.timezone} onChange={v => updateField('timezone', v)} options={TIMEZONES} />
           <SelectField label="Formato de Data" value={form.formato_data} onChange={v => updateField('formato_data', v)} options={FORMATOS_DATA} />
@@ -239,43 +257,18 @@ export function ConfigGeralPage() {
       {/* Notificações */}
       <section className="bg-card rounded-lg border border-border p-6 space-y-4">
         <h2 className="text-base font-semibold text-foreground">Notificações</h2>
-
-        {/* Banner de email desconectado */}
         {!loadingEmail && !temEmailConectado && <BannerEmailDesconectado />}
-
-        <ToggleItem
-          label="Nova Oportunidade"
-          desc="Enviar email ao criar oportunidade"
-          checked={form.notificar_nova_oportunidade}
-          onChange={() => updateField('notificar_nova_oportunidade', !form.notificar_nova_oportunidade)}
-        />
-        <ToggleItem
-          label="Tarefa Vencida"
-          desc="Enviar email quando tarefa vencer"
-          checked={form.notificar_tarefa_vencida}
-          onChange={() => updateField('notificar_tarefa_vencida', !form.notificar_tarefa_vencida)}
-        />
-        <ToggleItem
-          label="Mudança de Etapa"
-          desc="Enviar email ao mover etapa no funil"
-          checked={form.notificar_mudanca_etapa}
-          onChange={() => updateField('notificar_mudanca_etapa', !form.notificar_mudanca_etapa)}
-        />
+        <ToggleItem label="Nova Oportunidade" desc="Enviar email ao criar oportunidade" checked={form.notificar_nova_oportunidade} onChange={() => updateField('notificar_nova_oportunidade', !form.notificar_nova_oportunidade)} />
+        <ToggleItem label="Tarefa Vencida" desc="Enviar email quando tarefa vencer" checked={form.notificar_tarefa_vencida} onChange={() => updateField('notificar_tarefa_vencida', !form.notificar_tarefa_vencida)} />
+        <ToggleItem label="Mudança de Etapa" desc="Enviar email ao mover etapa no funil" checked={form.notificar_mudanca_etapa} onChange={() => updateField('notificar_mudanca_etapa', !form.notificar_mudanca_etapa)} />
       </section>
 
       {/* Automação */}
       <section className="bg-card rounded-lg border border-border p-6 space-y-4">
         <h2 className="text-base font-semibold text-foreground">Automação</h2>
-        <ToggleItem
-          label="Criar Tarefa Automática"
-          desc="Criar tarefas da etapa automaticamente ao mover oportunidade"
-          checked={form.criar_tarefa_automatica}
-          onChange={() => updateField('criar_tarefa_automatica', !form.criar_tarefa_automatica)}
-        />
+        <ToggleItem label="Criar Tarefa Automática" desc="Criar tarefas da etapa automaticamente ao mover oportunidade" checked={form.criar_tarefa_automatica} onChange={() => updateField('criar_tarefa_automatica', !form.criar_tarefa_automatica)} />
         <div>
-          <label className="text-sm font-medium text-foreground mb-1.5 block">
-            Dias para Alerta de Inatividade
-          </label>
+          <label className="text-sm font-medium text-foreground mb-1.5 block">Dias para Alerta de Inatividade</label>
           <input
             type="number"
             min={1}
@@ -294,21 +287,11 @@ export function ConfigGeralPage() {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="text-sm font-medium text-foreground mb-1.5 block">Início</label>
-            <input
-              type="time"
-              value={form.horario_inicio_envio}
-              onChange={e => updateField('horario_inicio_envio', e.target.value)}
-              className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm text-foreground"
-            />
+            <input type="time" value={form.horario_inicio_envio} onChange={e => updateField('horario_inicio_envio', e.target.value)} className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm text-foreground" />
           </div>
           <div>
             <label className="text-sm font-medium text-foreground mb-1.5 block">Fim</label>
-            <input
-              type="time"
-              value={form.horario_fim_envio}
-              onChange={e => updateField('horario_fim_envio', e.target.value)}
-              className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm text-foreground"
-            />
+            <input type="time" value={form.horario_fim_envio} onChange={e => updateField('horario_fim_envio', e.target.value)} className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm text-foreground" />
           </div>
         </div>
         <p className="text-xs text-muted-foreground">Mensagens programadas serão enviadas dentro deste horário</p>
@@ -318,16 +301,13 @@ export function ConfigGeralPage() {
       <section className="bg-card rounded-lg border border-border p-6 space-y-4">
         <div>
           <h2 className="text-base font-semibold text-foreground">Assinatura de Mensagem</h2>
-          <p className="text-xs text-muted-foreground mt-1">
-            Crie uma assinatura com formatação, imagens e tabelas para seus emails e mensagens.
-          </p>
+          <p className="text-xs text-muted-foreground mt-1">Crie uma assinatura com formatação, imagens e tabelas para seus emails e mensagens.</p>
         </div>
-        <RichTextEditor
-          value={form.assinatura_mensagem}
-          onChange={html => updateField('assinatura_mensagem', html)}
-          placeholder="Crie sua assinatura profissional..."
-        />
+        <RichTextEditor value={form.assinatura_mensagem} onChange={html => updateField('assinatura_mensagem', html)} placeholder="Crie sua assinatura profissional..." />
       </section>
+
+      {/* Widget WhatsApp */}
+      <WidgetWhatsAppConfig value={widgetConfig} onChange={handleWidgetChange} />
 
       {/* Botão salvar (condicional) */}
       {temAlteracoes && (
@@ -337,11 +317,7 @@ export function ConfigGeralPage() {
             disabled={atualizarConfig.isPending}
             className="flex items-center gap-2 px-6 py-2.5 text-sm font-medium text-primary-foreground bg-primary rounded-md shadow-lg hover:bg-primary/90 transition-all duration-200 disabled:opacity-50"
           >
-            {atualizarConfig.isPending ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Save className="w-4 h-4" />
-            )}
+            {atualizarConfig.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
             Salvar Alterações
           </button>
         </div>
