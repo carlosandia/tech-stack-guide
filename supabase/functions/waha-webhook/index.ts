@@ -526,6 +526,11 @@ Deno.serve(async (req) => {
       }
     } else {
       const contactName = phoneName || phoneNumber;
+      // Se auto_criar_pre_oportunidade está ativo, criar contato com status 'pre_lead'
+      // para que não apareça na listagem de contatos até ser aceito
+      const contatoStatus = (sessao.auto_criar_pre_oportunidade && sessao.funil_destino_id && !isFromMe && !isGroup && !isChannel)
+        ? "pre_lead"
+        : "novo";
       const { data: newContato, error: contatoError } = await supabaseAdmin
         .from("contatos")
         .insert({
@@ -534,7 +539,7 @@ Deno.serve(async (req) => {
           origem: "whatsapp",
           nome: contactName,
           telefone: phoneNumber,
-          status: "novo",
+          status: contatoStatus,
         })
         .select("id")
         .single();
