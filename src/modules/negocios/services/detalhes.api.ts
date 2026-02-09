@@ -6,62 +6,9 @@
 
 import { supabase } from '@/lib/supabase'
 
-// =====================================================
-// Compressão de imagens (client-side)
-// =====================================================
+// Compressão de imagens — usa utilitário compartilhado
+import { compressImage } from '@/shared/utils/compressMedia'
 
-const COMPRESSIBLE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
-const MAX_DIMENSION = 1920
-const COMPRESS_QUALITY = 0.8
-
-async function compressImage(file: File): Promise<File> {
-  if (!COMPRESSIBLE_TYPES.includes(file.type)) return file
-
-  return new Promise((resolve) => {
-    const img = new Image()
-    const objectUrl = URL.createObjectURL(file)
-
-    img.onload = () => {
-      URL.revokeObjectURL(objectUrl)
-      let { width, height } = img
-
-      if (width <= MAX_DIMENSION && height <= MAX_DIMENSION && file.size < 500 * 1024) {
-        resolve(file)
-        return
-      }
-
-      if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
-        const ratio = Math.min(MAX_DIMENSION / width, MAX_DIMENSION / height)
-        width = Math.round(width * ratio)
-        height = Math.round(height * ratio)
-      }
-
-      const canvas = document.createElement('canvas')
-      canvas.width = width
-      canvas.height = height
-      const ctx = canvas.getContext('2d')
-      if (!ctx) { resolve(file); return }
-      ctx.drawImage(img, 0, 0, width, height)
-
-      canvas.toBlob(
-        (blob) => {
-          if (!blob || blob.size >= file.size) { resolve(file); return }
-          const ext = file.name.replace(/\.[^.]+$/, '')
-          resolve(new File([blob], `${ext}.jpg`, { type: 'image/jpeg' }))
-        },
-        'image/jpeg',
-        COMPRESS_QUALITY,
-      )
-    }
-
-    img.onerror = () => {
-      URL.revokeObjectURL(objectUrl)
-      resolve(file)
-    }
-
-    img.src = objectUrl
-  })
-}
 
 // =====================================================
 // Helpers reutilizáveis
@@ -378,7 +325,7 @@ export const detalhesApi = {
     const userId = await getUsuarioId()
 
     // Comprimir imagem antes do upload (transparente para não-imagens)
-    const processedFile = await compressImage(file)
+    const processedFile = await compressImage(file) as File
 
     const fileExt = processedFile.name.split('.').pop()
     const fileName = `${crypto.randomUUID()}.${fileExt}`
