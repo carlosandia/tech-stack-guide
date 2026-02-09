@@ -3,7 +3,8 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 /**
  * AIDEV-NOTE: Edge Function para envio de email via SMTP
  * Busca credenciais do usuario na tabela conexoes_email
- * Envia email real usando comandos SMTP diretos (mesma abordagem do test-smtp)
+ * Envia email real usando comandos SMTP diretos
+ * SALVA cópia do email enviado na tabela emails_recebidos (pasta=sent)
  */
 
 const corsHeaders = {
@@ -27,10 +28,12 @@ async function sendSmtpEmail(config: {
   from: string;
   fromName?: string;
   to: string;
+  cc?: string;
+  bcc?: string;
   subject: string;
   body: string;
   bodyType: string;
-}): Promise<{ sucesso: boolean; mensagem: string }> {
+}): Promise<{ sucesso: boolean; mensagem: string; messageId?: string }> {
   try {
     const useTLS = config.port === 465;
     let conn: Deno.TcpConn | Deno.TlsConn;
@@ -105,11 +108,27 @@ async function sendSmtpEmail(config: {
       return { sucesso: false, mensagem: "Servidor rejeitou remetente" };
     }
 
-    // RCPT TO
+    // RCPT TO - destinatário principal
     const rcptResp = await sendCommand(`RCPT TO:<${config.to}>`);
     if (!rcptResp.startsWith("250")) {
       conn.close();
       return { sucesso: false, mensagem: "Servidor rejeitou destinatário" };
+    }
+
+    // RCPT TO - CC
+    if (config.cc) {
+      const ccAddrs = config.cc.split(",").map((e) => e.trim()).filter(Boolean);
+      for (const addr of ccAddrs) {
+        await sendCommand(`RCPT TO:<${addr}>`);
+      }
+    }
+
+    // RCPT TO - BCC
+    if (config.bcc) {
+      const bccAddrs = config.bcc.split(",").map((e) => e.trim()).filter(Boolean);
+      for (const addr of bccAddrs) {
+        await sendCommand(`RCPT TO:<${addr}>`);
+      }
     }
 
     // DATA
@@ -120,23 +139,30 @@ async function sendSmtpEmail(config: {
     }
 
     // Compose message
+    const messageId = `${crypto.randomUUID()}@crmrenove.local`;
     const fromDisplay = config.fromName ? `"${config.fromName}" <${fromAddr}>` : fromAddr;
     const contentType = config.bodyType === "html"
       ? "text/html; charset=UTF-8"
       : "text/plain; charset=UTF-8";
 
-    const message = [
+    const headers = [
       `From: ${fromDisplay}`,
       `To: ${config.to}`,
+    ];
+
+    if (config.cc) {
+      headers.push(`Cc: ${config.cc}`);
+    }
+
+    headers.push(
       `Subject: =?UTF-8?B?${btoa(unescape(encodeURIComponent(config.subject)))}?=`,
       `MIME-Version: 1.0`,
       `Content-Type: ${contentType}`,
       `Date: ${new Date().toUTCString()}`,
-      `Message-ID: <${crypto.randomUUID()}@crmrenove.local>`,
-      ``,
-      config.body,
-      `.`,
-    ].join("\r\n");
+      `Message-ID: <${messageId}>`,
+    );
+
+    const message = [...headers, ``, config.body, `.`].join("\r\n");
 
     const msgResp = await sendCommand(message);
     if (!msgResp.startsWith("250")) {
@@ -147,7 +173,7 @@ async function sendSmtpEmail(config: {
     await sendCommand("QUIT");
     conn.close();
 
-    return { sucesso: true, mensagem: "Email enviado com sucesso!" };
+    return { sucesso: true, mensagem: "Email enviado com sucesso!", messageId };
   } catch (err) {
     const msg = (err as Error).message;
     console.error("[send-email] SMTP error:", msg);
@@ -232,7 +258,7 @@ Deno.serve(async (req) => {
 
     // Parse body
     const body = await req.json();
-    const { to, subject, body: emailBody, body_type } = body;
+    const { to, cc, bcc, subject, body: emailBody, body_type } = body;
 
     if (!to || !subject) {
       return new Response(
@@ -248,10 +274,12 @@ Deno.serve(async (req) => {
       host: conexao.smtp_host,
       port: conexao.smtp_port || 587,
       user: conexao.smtp_user,
-      pass: conexao.smtp_pass_encrypted, // TODO: decrypt when encryption is implemented
+      pass: conexao.smtp_pass_encrypted,
       from: conexao.email,
       fromName: conexao.nome_remetente || usuario.nome,
       to,
+      cc: cc || undefined,
+      bcc: bcc || undefined,
       subject,
       body: emailBody || "",
       bodyType: body_type || "html",
@@ -267,6 +295,46 @@ Deno.serve(async (req) => {
           ultimo_erro: null,
         })
         .eq("id", conexao.id);
+
+      // =====================================================
+      // SALVAR CÓPIA DO EMAIL ENVIADO na tabela emails_recebidos
+      // =====================================================
+      const now = new Date().toISOString();
+      const preview = (emailBody || "")
+        .replace(/<[^>]*>/g, "")
+        .substring(0, 200)
+        .trim();
+
+      const { error: saveError } = await supabaseAdmin
+        .from("emails_recebidos")
+        .insert({
+          organizacao_id: usuario.organizacao_id,
+          usuario_id: usuario.id,
+          conexao_email_id: conexao.id,
+          message_id: result.messageId || `${crypto.randomUUID()}@crmrenove.local`,
+          de_email: conexao.email,
+          de_nome: conexao.nome_remetente || usuario.nome,
+          para_email: to,
+          cc_email: cc || null,
+          bcc_email: bcc || null,
+          assunto: subject,
+          corpo_html: emailBody || null,
+          corpo_texto: preview || null,
+          preview: preview || null,
+          pasta: "sent",
+          lido: true,
+          favorito: false,
+          tem_anexos: false,
+          data_email: now,
+          sincronizado_em: now,
+        });
+
+      if (saveError) {
+        console.error("[send-email] Erro ao salvar cópia do email enviado:", saveError);
+        // Não falha o request — o email já foi enviado
+      } else {
+        console.log("[send-email] Cópia salva na pasta 'sent'");
+      }
     } else {
       await supabaseAdmin
         .from("conexoes_email")

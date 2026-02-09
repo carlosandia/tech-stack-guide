@@ -23,6 +23,7 @@ import {
   useAcaoLote,
   useEnviarEmail,
   useNewEmailNotification,
+  useSincronizarEmails,
 } from '../hooks/useEmails'
 import type { PastaEmail, AcaoLote } from '../types/email.types'
 

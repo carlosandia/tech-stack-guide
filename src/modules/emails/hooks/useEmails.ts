@@ -174,6 +174,29 @@ export function useSalvarAssinatura() {
 }
 
 // =====================================================
+// Sincronização IMAP
+// =====================================================
+
+export function useSincronizarEmails() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: () => emailsApi.sincronizarEmails(),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['emails'] })
+      if (data.novos > 0) {
+        toast.success(`${data.novos} novo(s) email(s) sincronizado(s)`)
+      } else {
+        toast.info('Nenhum email novo')
+      }
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Erro ao sincronizar emails')
+    },
+  })
+}
+
+// =====================================================
 // Conexões
 // =====================================================
 
