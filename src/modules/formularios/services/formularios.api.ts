@@ -362,6 +362,156 @@ async function reordenarCampos(
   }
 }
 
+// =====================================================
+// Estilos do Formulário
+// =====================================================
+
+export interface EstiloContainer {
+  background_color?: string
+  border_radius?: string
+  padding?: string
+  sombra?: string
+  max_width?: string
+  font_family?: string
+}
+
+export interface EstiloCabecalho {
+  logo_url?: string | null
+  logo_posicao?: string
+  titulo_cor?: string
+  titulo_tamanho?: string
+  descricao_cor?: string
+  descricao_tamanho?: string
+}
+
+export interface EstiloCampos {
+  label_cor?: string
+  label_tamanho?: string
+  input_background?: string
+  input_border_color?: string
+  input_border_radius?: string
+  input_texto_cor?: string
+  input_placeholder_cor?: string
+  erro_cor?: string
+}
+
+export interface EstiloBotao {
+  texto?: string
+  texto_cor?: string
+  background_color?: string
+  hover_background?: string
+  border_radius?: string
+  largura?: string
+  tamanho?: string
+}
+
+export interface EstiloPagina {
+  background_color?: string
+  background_image_url?: string | null
+  background_overlay?: boolean
+  background_overlay_cor?: string
+}
+
+export interface EstiloFormulario {
+  id: string
+  formulario_id: string
+  container: EstiloContainer
+  cabecalho: EstiloCabecalho
+  campos: EstiloCampos
+  botao: EstiloBotao
+  pagina: EstiloPagina
+  css_customizado?: string | null
+  criado_em: string
+  atualizado_em: string
+}
+
+export const ESTILO_PADRAO: Omit<EstiloFormulario, 'id' | 'formulario_id' | 'criado_em' | 'atualizado_em'> = {
+  container: {
+    background_color: '#FFFFFF',
+    border_radius: '8px',
+    padding: '24px',
+    sombra: 'md',
+    max_width: '600px',
+    font_family: 'Inter',
+  },
+  cabecalho: {
+    logo_url: null,
+    logo_posicao: 'centro',
+    titulo_cor: '#1F2937',
+    titulo_tamanho: '24px',
+    descricao_cor: '#6B7280',
+    descricao_tamanho: '14px',
+  },
+  campos: {
+    label_cor: '#374151',
+    label_tamanho: '14px',
+    input_background: '#F9FAFB',
+    input_border_color: '#D1D5DB',
+    input_border_radius: '6px',
+    input_texto_cor: '#1F2937',
+    input_placeholder_cor: '#9CA3AF',
+    erro_cor: '#EF4444',
+  },
+  botao: {
+    texto: 'Enviar',
+    texto_cor: '#FFFFFF',
+    background_color: '#3B82F6',
+    hover_background: '#2563EB',
+    border_radius: '6px',
+    largura: 'full',
+    tamanho: 'md',
+  },
+  pagina: {
+    background_color: '#F3F4F6',
+    background_image_url: null,
+    background_overlay: false,
+    background_overlay_cor: 'rgba(0,0,0,0.5)',
+  },
+  css_customizado: null,
+}
+
+async function buscarEstilos(formularioId: string): Promise<EstiloFormulario | null> {
+  const { data, error } = await supabase
+    .from('estilos_formularios')
+    .select('*')
+    .eq('formulario_id', formularioId)
+    .maybeSingle()
+
+  if (error) throw new Error(`Erro ao buscar estilos: ${error.message}`)
+  return data as EstiloFormulario | null
+}
+
+async function salvarEstilos(
+  formularioId: string,
+  payload: Partial<Pick<EstiloFormulario, 'container' | 'cabecalho' | 'campos' | 'botao' | 'pagina' | 'css_customizado'>>
+): Promise<EstiloFormulario> {
+  // Check if exists
+  const { data: existente } = await supabase
+    .from('estilos_formularios')
+    .select('id')
+    .eq('formulario_id', formularioId)
+    .maybeSingle()
+
+  if (existente) {
+    const { data, error } = await supabase
+      .from('estilos_formularios')
+      .update(payload as Record<string, unknown>)
+      .eq('formulario_id', formularioId)
+      .select()
+      .single()
+    if (error) throw new Error(`Erro ao atualizar estilos: ${error.message}`)
+    return data as unknown as EstiloFormulario
+  }
+
+  const { data, error } = await supabase
+    .from('estilos_formularios')
+    .insert({ formulario_id: formularioId, ...payload } as any)
+    .select()
+    .single()
+  if (error) throw new Error(`Erro ao criar estilos: ${error.message}`)
+  return data as unknown as EstiloFormulario
+}
+
 export const formulariosApi = {
   listar,
   buscar,
@@ -377,4 +527,6 @@ export const formulariosApi = {
   atualizarCampo,
   excluirCampo,
   reordenarCampos,
+  buscarEstilos,
+  salvarEstilos,
 }
