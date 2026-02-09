@@ -3,7 +3,7 @@
  * e suporte a exibição de nomes de participantes em grupos
  */
 
-import { useRef, useEffect, useMemo, useCallback } from 'react'
+import { useRef, useEffect, useMemo } from 'react'
 import { format, isToday, isYesterday, isSameDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Loader2 } from 'lucide-react'
@@ -209,12 +209,6 @@ export function ChatMessages({ mensagens, isLoading, hasMore, onLoadMore, isFetc
               participantColor={participantColor}
               conversaId={conversaId}
               onDeleteMessage={onDeleteMessage}
+              onReplyMessage={onReplyMessage}
+              quotedMessage={msg.reply_to_message_id ? messageByWahaId.get(msg.reply_to_message_id) || null : null}
             />
-          </div>
-        )
-      })}
-
-      <div ref={bottomRef} />
-    </div>
-  )
-}
