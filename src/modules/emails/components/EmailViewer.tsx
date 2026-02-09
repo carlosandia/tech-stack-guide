@@ -1,10 +1,10 @@
 /**
  * AIDEV-NOTE: Painel de visualização do email selecionado - Estilo Gmail
  * DOMPurify para sanitização HTML (XSS), Responder Todos, Download anexos, ContatoCard
- * Tamanhos de ícones conforme Design System: inline w-4 h-4, empty state w-12 h-12
+ * Popover "mais ações" com: Responder, Encaminhar, Excluir, Marcar como não lido, Traduzir, Imprimir
  */
 
-import { useMemo } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import DOMPurify from 'dompurify'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -22,6 +22,8 @@ import {
   Loader2,
   Download,
   MoreVertical,
+  Languages,
+  Printer,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -111,6 +113,21 @@ export function EmailViewer({
   onResponderTodos,
   onEncaminhar,
 }: EmailViewerProps) {
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false)
+  const moreMenuRef = useRef<HTMLDivElement>(null)
+
+  // Close popover on outside click
+  useEffect(() => {
+    if (!moreMenuOpen) return
+    const handler = (e: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+        setMoreMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [moreMenuOpen])
+
   const cleanHtml = useMemo(() => {
     if (!email?.corpo_html) return ''
     const sanitized = DOMPurify.sanitize(email.corpo_html, {
@@ -145,6 +162,41 @@ export function EmailViewer({
 
   const iconBtnClass =
     'p-1.5 rounded-full hover:bg-accent/60 transition-colors text-muted-foreground hover:text-foreground'
+
+  const moreMenuItems: Array<{ label: string; icon: React.ElementType; action: () => void } | { divider: true }> = [
+    {
+      label: 'Responder',
+      icon: Reply,
+      action: () => onResponder(email.id),
+    },
+    {
+      label: 'Encaminhar',
+      icon: Forward,
+      action: () => onEncaminhar(email.id),
+    },
+    { divider: true },
+    {
+      label: 'Excluir',
+      icon: Trash2,
+      action: () => onDeletar(email.id),
+    },
+    {
+      label: email.lido ? 'Marcar como não lida' : 'Marcar como lida',
+      icon: email.lido ? Mail : MailOpen,
+      action: () => onToggleLido(email.id, !email.lido),
+    },
+    { divider: true },
+    {
+      label: 'Traduzir',
+      icon: Languages,
+      action: () => toast.info('Tradução será implementada em breve'),
+    },
+    {
+      label: 'Imprimir',
+      icon: Printer,
+      action: () => window.print(),
+    },
+  ]
 
   return (
     <div className="flex flex-col h-full">
@@ -215,9 +267,41 @@ export function EmailViewer({
           <button onClick={() => onResponder(email.id)} className={iconBtnClass} title="Responder">
             <Reply className="w-4 h-4" />
           </button>
-          <button className={iconBtnClass}>
-            <MoreVertical className="w-4 h-4" />
-          </button>
+
+          {/* More menu (3 dots) with popover */}
+          <div className="relative" ref={moreMenuRef}>
+            <button
+              onClick={() => setMoreMenuOpen(!moreMenuOpen)}
+              className={iconBtnClass}
+              title="Mais ações"
+            >
+              <MoreVertical className="w-4 h-4" />
+            </button>
+
+            {moreMenuOpen && (
+              <div className="absolute right-0 top-full mt-1 w-52 bg-background border border-border rounded-lg shadow-lg z-50 py-1">
+                {moreMenuItems.map((item, i) => {
+                  if ('divider' in item) {
+                    return <div key={`d-${i}`} className="h-px bg-border my-1" />
+                  }
+                  const Icon = item.icon
+                  return (
+                    <button
+                      key={item.label}
+                      onClick={() => {
+                        item.action()
+                        setMoreMenuOpen(false)
+                      }}
+                      className="flex items-center gap-2.5 w-full px-3 py-2 text-sm text-foreground hover:bg-accent transition-colors"
+                    >
+                      <Icon className="w-4 h-4 text-muted-foreground" />
+                      {item.label}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
