@@ -2,14 +2,26 @@
  * AIDEV-NOTE: Modal de composição de email com editor TipTap (RF-005, RF-006)
  * Suporta: novo, responder, responder todos, encaminhar
  * Inclui assinatura do usuário automaticamente + salvar como rascunho
+ * Suporte a múltiplos anexos com compressão de imagens (max 25MB total)
  */
 
-import { useState, useEffect } from 'react'
-import { X, Send, Loader2, FileText } from 'lucide-react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { X, Send, Loader2, FileText, Paperclip, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { EmailRichEditor } from './EmailRichEditor'
 import { useAssinatura } from '../hooks/useEmails'
+import { compressImage } from '@/shared/utils/compressMedia'
 
 export type ComposerMode = 'novo' | 'responder' | 'responder_todos' | 'encaminhar'
+
+const MAX_TOTAL_SIZE = 25 * 1024 * 1024 // 25MB
+const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20MB por arquivo
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
 
 interface ComposeEmailModalProps {
   mode: ComposerMode
@@ -21,6 +33,7 @@ interface ComposeEmailModalProps {
     bcc_email?: string
     assunto: string
     corpo_html: string
+    anexos?: File[]
   }) => void
   onSaveDraft?: (data: {
     para_email?: string
@@ -60,16 +73,17 @@ export function ComposeEmailModal({
   const [showCc, setShowCc] = useState(false)
   const [showBcc, setShowBcc] = useState(false)
   const [editorKey, setEditorKey] = useState(0)
+  const [anexos, setAnexos] = useState<File[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Buscar assinatura do usuário
   const { data: assinatura } = useAssinatura()
 
-  // Monta o conteúdo inicial com assinatura
+  const totalAnexosSize = anexos.reduce((acc, f) => acc + f.size, 0)
+
   const buildInitialContent = () => {
     const defaultBody = defaults?.corpo_html || ''
     let signatureHtml = ''
 
-    // Verifica se deve incluir assinatura
     const isNewEmail = mode === 'novo'
     const isReplyOrForward = mode === 'responder' || mode === 'responder_todos' || mode === 'encaminhar'
 
@@ -83,15 +97,10 @@ export function ComposeEmailModal({
       }
     }
 
-    if (isNewEmail) {
-      return signatureHtml // Novo email: só assinatura
-    }
-
-    // Resposta/encaminhar: assinatura + corpo original
+    if (isNewEmail) return signatureHtml
     return signatureHtml + defaultBody
   }
 
-  // Reset form quando resetKey muda (nova composição)
   useEffect(() => {
     setPara(defaults?.para_email || '')
     setCc(defaults?.cc_email || '')
@@ -101,7 +110,44 @@ export function ComposeEmailModal({
     setShowCc(!!defaults?.cc_email)
     setShowBcc(false)
     setEditorKey((k) => k + 1)
+    setAnexos([])
   }, [resetKey, assinatura]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleAddFiles = useCallback(async (files: FileList | null) => {
+    if (!files || files.length === 0) return
+
+    const newFiles: File[] = []
+    let currentTotal = totalAnexosSize
+
+    for (const file of Array.from(files)) {
+      if (file.size > MAX_FILE_SIZE) {
+        toast.error(`${file.name} excede o limite de 20MB`)
+        continue
+      }
+
+      // Comprimir imagens
+      const processed = await compressImage(file, file.name) as File
+      
+      if (currentTotal + processed.size > MAX_TOTAL_SIZE) {
+        toast.error('Limite total de 25MB atingido')
+        break
+      }
+
+      currentTotal += processed.size
+      newFiles.push(processed)
+    }
+
+    if (newFiles.length > 0) {
+      setAnexos(prev => [...prev, ...newFiles])
+    }
+
+    // Reset input
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }, [totalAnexosSize])
+
+  const removeAnexo = useCallback((index: number) => {
+    setAnexos(prev => prev.filter((_, i) => i !== index))
+  }, [])
 
   if (!isOpen) return null
 
@@ -121,6 +167,7 @@ export function ComposeEmailModal({
       bcc_email: bcc || undefined,
       assunto,
       corpo_html: corpo,
+      anexos: anexos.length > 0 ? anexos : undefined,
     })
   }
 
@@ -228,9 +275,39 @@ export function ComposeEmailModal({
             <EmailRichEditor key={editorKey} content={corpo} onChange={setCorpo} minHeight="180px" />
           </div>
 
+          {/* Anexos */}
+          {anexos.length > 0 && (
+            <div className="px-4 py-2 border-t border-border/40 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-muted-foreground font-medium">
+                  {anexos.length} anexo{anexos.length > 1 ? 's' : ''} ({formatFileSize(totalAnexosSize)} / 25MB)
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {anexos.map((file, idx) => (
+                  <div
+                    key={`${file.name}-${idx}`}
+                    className="flex items-center gap-1 px-2 py-1 bg-muted/50 rounded text-xs text-foreground border border-border/40"
+                  >
+                    <Paperclip className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                    <span className="truncate max-w-[120px]">{file.name}</span>
+                    <span className="text-muted-foreground">({formatFileSize(file.size)})</span>
+                    <button
+                      type="button"
+                      onClick={() => removeAnexo(idx)}
+                      className="p-0.5 rounded hover:bg-destructive/10 hover:text-destructive transition-colors"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Footer */}
           <div className="flex items-center justify-between px-4 py-3 border-t border-border">
-            <div>
+            <div className="flex items-center gap-2">
               {onSaveDraft && (
                 <button
                   type="button"
@@ -246,6 +323,22 @@ export function ComposeEmailModal({
                   Rascunho
                 </button>
               )}
+              {/* Botão de anexo */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={(e) => handleAddFiles(e.target.files)}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-border text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                title="Anexar arquivos (max 25MB total)"
+              >
+                <Paperclip className="w-4 h-4" />
+              </button>
             </div>
             <button
               type="submit"

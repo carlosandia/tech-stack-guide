@@ -5854,6 +5854,10 @@ export type Database = {
         }
         Returns: string
       }
+      registrar_abertura_email: {
+        Args: { p_tracking_id: string }
+        Returns: undefined
+      }
       set_current_tenant: { Args: { tenant_id: string }; Returns: undefined }
       verificar_cortesias_expiradas: { Args: never; Returns: undefined }
     }

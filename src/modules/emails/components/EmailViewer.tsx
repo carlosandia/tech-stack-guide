@@ -335,6 +335,22 @@ export function EmailViewer({
             para {email.para_email}
             {email.cc_email && `, cc: ${email.cc_email}`}
           </p>
+          {/* Tracking status para emails enviados */}
+          {email.pasta === 'sent' && email.tracking_id && (
+            <p className="text-[10px] mt-1">
+              {email.aberto_em ? (
+                <span className="text-success flex items-center gap-1">
+                  <MailOpen className="w-3 h-3" />
+                  Aberto {email.total_aberturas > 1 ? `${email.total_aberturas}x` : ''} — {format(new Date(email.aberto_em), "dd/MM 'às' HH:mm", { locale: ptBR })}
+                </span>
+              ) : (
+                <span className="text-muted-foreground flex items-center gap-1">
+                  <Mail className="w-3 h-3" />
+                  Não aberto
+                </span>
+              )}
+            </p>
+          )}
         </div>
 
         {/* Right actions */}

@@ -124,6 +124,9 @@ export function EmailsPage() {
       contato_id: null,
       oportunidade_id: null,
       sincronizado_em: null,
+      tracking_id: null,
+      aberto_em: null,
+      total_aberturas: 0,
       criado_em: r.criado_em,
       atualizado_em: r.atualizado_em,
       deletado_em: r.deletado_em,
@@ -301,7 +304,7 @@ export function EmailsPage() {
   )
 
   const handleSend = useCallback(
-    (data: { para_email: string; cc_email?: string; bcc_email?: string; assunto: string; corpo_html: string }) => {
+    (data: { para_email: string; cc_email?: string; bcc_email?: string; assunto: string; corpo_html: string; anexos?: File[] }) => {
       enviarEmail.mutate(data, {
         onSuccess: () => setComposerOpen(false),
       })

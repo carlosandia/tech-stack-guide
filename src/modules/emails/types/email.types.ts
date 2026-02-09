@@ -32,6 +32,9 @@ export interface EmailRecebido {
   contato_id: string | null
   oportunidade_id: string | null
   sincronizado_em: string | null
+  tracking_id: string | null
+  aberto_em: string | null
+  total_aberturas: number
   criado_em: string
   atualizado_em: string
   deletado_em: string | null
