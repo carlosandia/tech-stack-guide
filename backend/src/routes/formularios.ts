@@ -181,6 +181,20 @@ router.post('/:id/duplicar', requireAdmin, async (req: Request, res: Response) =
 // CAMPOS DO FORMULARIO
 // =====================================================
 
+// PUT /:id/campos/reordenar - Reordenar campos (Admin) - DEVE vir ANTES de /:id/campos/:campoId
+router.put('/:id/campos/reordenar', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const organizacaoId = getOrganizacaoId(req)
+    const payload = ReordenarCamposSchema.parse(req.body)
+    await camposService.reordenarCampos(organizacaoId, req.params.id, payload)
+    res.json({ success: true })
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: 'Dados invalidos', details: error.errors })
+    console.error('Erro ao reordenar campos:', error)
+    res.status(500).json({ error: 'Erro ao reordenar campos' })
+  }
+})
+
 // GET /:id/campos - Listar campos
 router.get('/:id/campos', async (req: Request, res: Response) => {
   try {
@@ -237,20 +251,6 @@ router.delete('/:id/campos/:campoId', requireAdmin, async (req: Request, res: Re
     if (error instanceof Error && error.message === 'Formulario nao encontrado') return res.status(404).json({ error: error.message })
     console.error('Erro ao excluir campo:', error)
     res.status(500).json({ error: 'Erro ao excluir campo' })
-  }
-})
-
-// PUT /:id/campos/reordenar - Reordenar campos (Admin)
-router.put('/:id/campos/reordenar', requireAdmin, async (req: Request, res: Response) => {
-  try {
-    const organizacaoId = getOrganizacaoId(req)
-    const payload = ReordenarCamposSchema.parse(req.body)
-    await camposService.reordenarCampos(organizacaoId, req.params.id, payload)
-    res.json({ success: true })
-  } catch (error) {
-    if (error instanceof z.ZodError) return res.status(400).json({ error: 'Dados invalidos', details: error.errors })
-    console.error('Erro ao reordenar campos:', error)
-    res.status(500).json({ error: 'Erro ao reordenar campos' })
   }
 })
 

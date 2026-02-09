@@ -6328,6 +6328,14 @@ export type Database = {
         Returns: boolean
       }
       has_role: { Args: { _role: string; _user_id: string }; Returns: boolean }
+      incrementar_submissoes_formulario: {
+        Args: { p_formulario_id: string }
+        Returns: undefined
+      }
+      incrementar_visualizacoes_formulario: {
+        Args: { p_formulario_id: string }
+        Returns: undefined
+      }
       is_super_admin: { Args: never; Returns: boolean }
       is_super_admin_v2: { Args: never; Returns: boolean }
       is_tenant_admin: { Args: never; Returns: boolean }
