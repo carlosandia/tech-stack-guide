@@ -713,7 +713,7 @@ export const conversasApi = {
   /**
    * Consulta votos de uma enquete via WAHA API
    */
-  async consultarVotosEnquete(conversaId: string, messageId: string): Promise<{ poll_options?: Array<{ text: string; votes: number }> } | null> {
+  async consultarVotosEnquete(conversaId: string, messageId: string): Promise<{ poll_options?: Array<{ text: string; votes: number }>; engine_limitation?: boolean } | null> {
     const { data: conversa } = await supabase
       .from('conversas')
       .select('sessao_whatsapp_id, canal')

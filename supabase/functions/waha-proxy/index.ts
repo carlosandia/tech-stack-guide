@@ -825,6 +825,26 @@ Deno.serve(async (req) => {
           console.log(`[waha-proxy] Poll votes response: ${pollVotesResp.status}`, JSON.stringify(pollVotesData).substring(0, 500));
 
           if (pollVotesResp.ok && pollVotesData) {
+            // Check if WAHA returned empty/encrypted votes (NOWEB engine limitation)
+            const votes = pollVotesData.votes || pollVotesData || [];
+            const hasActualVotes = Array.isArray(votes) && votes.length > 0 && votes.some((v: Record<string, unknown>) => {
+              const voters = v.voters || v.chatIds || [];
+              return (Array.isArray(voters) && voters.length > 0) || (v.count && (v.count as number) > 0);
+            });
+
+            if (!hasActualVotes) {
+              // NOWEB engine limitation - votes are encrypted and can't be decrypted
+              console.log(`[waha-proxy] Poll votes empty/encrypted - NOWEB engine limitation`);
+              return new Response(
+                JSON.stringify({ 
+                  ok: false, 
+                  engine_limitation: true,
+                  error: "Votos de enquete não disponíveis com engine NOWEB. Verifique diretamente no WhatsApp." 
+                }),
+                { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+              );
+            }
+
             // Update poll_options in the database
             if (pollConversaId) {
               // Find the poll message in DB
@@ -851,7 +871,6 @@ Deno.serve(async (req) => {
               if (targetMsg && targetMsg.poll_options) {
                 // Parse WAHA response to update vote counts
                 const currentOptions = targetMsg.poll_options as Array<{ text: string; votes: number }>;
-                const votes = pollVotesData.votes || pollVotesData || [];
 
                 // Build vote count map from WAHA response
                 const voteCounts: Record<string, number> = {};
@@ -888,14 +907,24 @@ Deno.serve(async (req) => {
             );
           }
 
+          // If endpoint returned error, it's likely a NOWEB limitation
           return new Response(
-            JSON.stringify({ ok: false, error: "Não foi possível obter votos da enquete", status: pollVotesResp.status }),
+            JSON.stringify({ 
+              ok: false, 
+              engine_limitation: true,
+              error: "Votos de enquete não disponíveis com engine NOWEB. Verifique diretamente no WhatsApp.",
+              status: pollVotesResp.status 
+            }),
             { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         } catch (e) {
           console.error(`[waha-proxy] Error fetching poll votes:`, e);
           return new Response(
-            JSON.stringify({ ok: false, error: "Erro ao consultar votos" }),
+            JSON.stringify({ 
+              ok: false, 
+              engine_limitation: true,
+              error: "Votos de enquete não disponíveis. Verifique diretamente no WhatsApp." 
+            }),
             { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
