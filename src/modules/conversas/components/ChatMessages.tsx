@@ -111,12 +111,13 @@ export function ChatMessages({
   }, [focusedId])
 
   const sortedMessages = useMemo(() => {
-    return [...mensagens]
-      // Filter out text messages with null/empty body (WAHA webhook duplicates)
-      .filter(m => !(m.tipo === 'text' && !m.body))
-      .sort(
-        (a, b) => new Date(a.criado_em).getTime() - new Date(b.criado_em).getTime()
-      )
+    // Deduplicate: if there are messages WITH body and messages WITHOUT body for the same conversation,
+    // filter out the empty ones (WAHA duplicates). But if ALL are empty, keep them to show activity.
+    const withBody = mensagens.filter(m => !(m.tipo === 'text' && !m.body))
+    const filtered = withBody.length > 0 ? withBody : mensagens
+    return [...filtered].sort(
+      (a, b) => new Date(a.criado_em).getTime() - new Date(b.criado_em).getTime()
+    )
   }, [mensagens])
 
   const messageByWahaId = useMemo(() => {
