@@ -317,7 +317,7 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
   const mensagemFocadaId = resultadosBusca[buscaIndex]?.mensagem.id || null
 
   return (
-    <div className="flex-1 flex flex-col min-w-0 bg-background">
+    <div className="flex-1 flex flex-col min-w-0 min-h-0 h-full bg-background">
       <ChatHeader
         conversa={conversa}
         onBack={onBack}

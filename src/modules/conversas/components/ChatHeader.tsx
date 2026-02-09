@@ -5,7 +5,8 @@
  */
 
 import { ArrowLeft, MoreVertical, CircleDot, Search, Plus, BellOff, Bell, Trash2, Eraser, Timer } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import { TarefasConversaPopover } from './TarefasConversaPopover'
 import { toast } from 'sonner'
@@ -32,6 +33,121 @@ const statusLabels: Record<string, { label: string; className: string }> = {
 function getInitials(nome?: string | null): string {
   if (!nome) return '?'
   return nome.split(' ').filter(Boolean).slice(0, 2).map(p => p[0].toUpperCase()).join('')
+}
+
+/** Portal-based menu dropdown to avoid z-index issues inside modals */
+function MenuDropdown({
+  isOpen, onToggle, onClose, conversa,
+  onAlterarStatus, onSilenciar, onLimpar, onApagar,
+}: {
+  isOpen: boolean
+  onToggle: () => void
+  onClose: () => void
+  conversa: Conversa
+  onAlterarStatus: (s: 'aberta' | 'pendente' | 'fechada') => void
+  onSilenciar: () => void
+  onLimpar: () => void
+  onApagar: () => void
+}) {
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null)
+
+  useEffect(() => {
+    if (isOpen && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect()
+      setPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
+    }
+  }, [isOpen])
+
+  useEffect(() => {
+    if (!isOpen) return
+    function handleClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node) &&
+          btnRef.current && !btnRef.current.contains(e.target as Node)) {
+        onClose()
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [isOpen, onClose])
+
+  return (
+    <div className="relative">
+      <button
+        ref={btnRef}
+        onClick={onToggle}
+        className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md hover:bg-accent transition-all duration-200"
+      >
+        <MoreVertical className="w-4.5 h-4.5 text-muted-foreground" />
+      </button>
+
+      {isOpen && pos && createPortal(
+        <>
+          <div className="fixed inset-0" style={{ zIndex: 9998 }} onClick={onClose} />
+          <div
+            ref={menuRef}
+            className="fixed w-52 bg-popover border border-border rounded-md shadow-xl py-1"
+            style={{ top: pos.top, right: pos.right, zIndex: 9999 }}
+          >
+            <p className="px-3 py-1.5 text-[11px] font-medium text-muted-foreground uppercase">
+              Alterar status
+            </p>
+            {(['aberta', 'pendente', 'fechada'] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => onAlterarStatus(s)}
+                disabled={conversa.status === s}
+                className={`flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent transition-all duration-200 disabled:opacity-40 ${
+                  conversa.status === s ? 'text-primary font-medium' : 'text-foreground'
+                }`}
+              >
+                <CircleDot className="w-3.5 h-3.5" />
+                {statusLabels[s].label}
+              </button>
+            ))}
+
+            <div className="h-px bg-border my-1" />
+
+            <button
+              onClick={onSilenciar}
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-foreground hover:bg-accent transition-colors"
+            >
+              {conversa.silenciada ? <Bell className="w-4 h-4 text-muted-foreground" /> : <BellOff className="w-4 h-4 text-muted-foreground" />}
+              {conversa.silenciada ? 'Ativar notificações' : 'Silenciar notificações'}
+            </button>
+
+            <button
+              onClick={() => { toast.info('Mensagens temporárias não disponíveis com engine NOWEB'); onClose() }}
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-muted-foreground hover:bg-accent transition-colors"
+            >
+              <Timer className="w-4 h-4" />
+              Mensagens temporárias
+            </button>
+
+            <div className="h-px bg-border my-1" />
+
+            <button
+              onClick={onLimpar}
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-foreground hover:bg-accent transition-colors"
+            >
+              <Eraser className="w-4 h-4 text-muted-foreground" />
+              Limpar conversa
+            </button>
+
+            <button
+              onClick={onApagar}
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+            >
+              <Trash2 className="w-4 h-4" />
+              Apagar conversa
+            </button>
+          </div>
+        </>,
+        document.body
+      )}
+    </div>
+  )
 }
 
 export function ChatHeader({ conversa, onBack, onOpenDrawer, onAlterarStatus, onCriarOportunidade, onToggleBusca, onSilenciar, onLimparConversa, onApagarConversa }: ChatHeaderProps) {
@@ -129,79 +245,16 @@ export function ChatHeader({ conversa, onBack, onOpenDrawer, onAlterarStatus, on
           </span>
 
           {/* Menu */}
-          <div className="relative">
-            <button
-              onClick={() => setMenuOpen(!menuOpen)}
-              className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md hover:bg-accent transition-all duration-200"
-            >
-              <MoreVertical className="w-4.5 h-4.5 text-muted-foreground" />
-            </button>
-
-            {menuOpen && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
-                <div className="absolute right-0 mt-1 w-52 bg-popover border border-border rounded-md shadow-xl py-1 z-[60]" style={{ opacity: 1 }}>
-                  {/* Status section */}
-                  <p className="px-3 py-1.5 text-[11px] font-medium text-muted-foreground uppercase">
-                    Alterar status
-                  </p>
-                  {(['aberta', 'pendente', 'fechada'] as const).map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => { onAlterarStatus(s); setMenuOpen(false) }}
-                      disabled={conversa.status === s}
-                      className={`flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent transition-all duration-200 disabled:opacity-40 ${
-                        conversa.status === s ? 'text-primary font-medium' : 'text-foreground'
-                      }`}
-                    >
-                      <CircleDot className="w-3.5 h-3.5" />
-                      {statusLabels[s].label}
-                    </button>
-                  ))}
-
-                  <div className="h-px bg-border my-1" />
-
-                  {/* Silenciar */}
-                  <button
-                    onClick={() => { onSilenciar?.(!conversa.silenciada); setMenuOpen(false) }}
-                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-foreground hover:bg-accent transition-colors"
-                  >
-                    {conversa.silenciada ? <Bell className="w-4 h-4 text-muted-foreground" /> : <BellOff className="w-4 h-4 text-muted-foreground" />}
-                    {conversa.silenciada ? 'Ativar notificações' : 'Silenciar notificações'}
-                  </button>
-
-                  {/* Mensagens temporárias */}
-                  <button
-                    onClick={() => { toast.info('Mensagens temporárias não disponíveis com engine NOWEB'); setMenuOpen(false) }}
-                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-muted-foreground hover:bg-accent transition-colors"
-                  >
-                    <Timer className="w-4 h-4" />
-                    Mensagens temporárias
-                  </button>
-
-                  <div className="h-px bg-border my-1" />
-
-                  {/* Limpar conversa */}
-                  <button
-                    onClick={() => { setMenuOpen(false); setConfirmAction('limpar') }}
-                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-foreground hover:bg-accent transition-colors"
-                  >
-                    <Eraser className="w-4 h-4 text-muted-foreground" />
-                    Limpar conversa
-                  </button>
-
-                  {/* Apagar conversa */}
-                  <button
-                    onClick={() => { setMenuOpen(false); setConfirmAction('apagar') }}
-                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Apagar conversa
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+          <MenuDropdown
+            isOpen={menuOpen}
+            onToggle={() => setMenuOpen(!menuOpen)}
+            onClose={() => setMenuOpen(false)}
+            conversa={conversa}
+            onAlterarStatus={(s) => { onAlterarStatus(s); setMenuOpen(false) }}
+            onSilenciar={() => { onSilenciar?.(!conversa.silenciada); setMenuOpen(false) }}
+            onLimpar={() => { setMenuOpen(false); setConfirmAction('limpar') }}
+            onApagar={() => { setMenuOpen(false); setConfirmAction('apagar') }}
+          />
         </div>
       </div>
 
