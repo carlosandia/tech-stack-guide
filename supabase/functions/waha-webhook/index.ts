@@ -675,14 +675,83 @@ Deno.serve(async (req) => {
 
     // =====================================================
     // Extract media data from WAHA payload
+    // Download from WAHA and re-upload to Supabase Storage
     // =====================================================
     if (payload.hasMedia && payload.media?.url) {
-      messageInsert.media_url = payload.media.url;
-      messageInsert.media_mimetype = payload.media.mimetype || null;
-      messageInsert.media_filename = payload.media.filename || payload._data?.filename || null;
-      messageInsert.media_size = payload.media.filesize || payload._data?.size || null;
-      messageInsert.media_duration = payload._data?.duration || null;
-      console.log(`[waha-webhook] Media extracted: url=${payload.media.url}, mime=${payload.media.mimetype}, filename=${payload.media.filename}`);
+      const wahaMediaUrl = payload.media.url as string;
+      const mediaMimetype = (payload.media.mimetype as string) || null;
+      const mediaFilename = (payload.media.filename as string) || (payload._data?.filename as string) || null;
+      const mediaSize = payload.media.filesize || payload._data?.size || null;
+      const mediaDuration = payload._data?.duration || null;
+
+      messageInsert.media_mimetype = mediaMimetype;
+      messageInsert.media_filename = mediaFilename;
+      messageInsert.media_size = mediaSize;
+      messageInsert.media_duration = mediaDuration;
+
+      console.log(`[waha-webhook] Media detected: wahaUrl=${wahaMediaUrl}, mime=${mediaMimetype}, filename=${mediaFilename}`);
+
+      // Try to download from WAHA and upload to Supabase Storage for public access
+      let finalMediaUrl = wahaMediaUrl;
+      try {
+        // Download from WAHA (may require API key)
+        const fetchHeaders: Record<string, string> = {};
+        if (wahaApiKey && wahaMediaUrl.includes(wahaApiUrl || "__none__")) {
+          fetchHeaders["X-Api-Key"] = wahaApiKey;
+        }
+        
+        const mediaResponse = await fetch(wahaMediaUrl, { headers: fetchHeaders });
+        
+        if (mediaResponse.ok) {
+          const mediaBlob = await mediaResponse.arrayBuffer();
+          const mediaBytes = new Uint8Array(mediaBlob);
+          
+          // Determine file extension from mimetype or filename
+          const extMap: Record<string, string> = {
+            "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif",
+            "video/mp4": "mp4", "video/3gpp": "3gp", "video/quicktime": "mov",
+            "audio/ogg": "ogg", "audio/mpeg": "mp3", "audio/mp4": "m4a", "audio/aac": "aac",
+            "application/pdf": "pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+          };
+          let ext = mediaMimetype ? (extMap[mediaMimetype.toLowerCase()] || mediaMimetype.split("/")[1] || "bin") : "bin";
+          if (mediaFilename) {
+            const fileExt = mediaFilename.split(".").pop();
+            if (fileExt && fileExt.length <= 5) ext = fileExt;
+          }
+
+          // Upload to Supabase Storage
+          const storagePath = `conversas/${conversaId}/${messageId.replace(/[^a-zA-Z0-9._-]/g, "_")}.${ext}`;
+          const contentType = mediaMimetype || "application/octet-stream";
+
+          const { error: uploadError } = await supabaseAdmin.storage
+            .from("chat-media")
+            .upload(storagePath, mediaBytes, {
+              contentType,
+              upsert: true,
+            });
+
+          if (uploadError) {
+            console.error(`[waha-webhook] Storage upload error: ${uploadError.message}`);
+          } else {
+            // Get public URL
+            const { data: publicUrlData } = supabaseAdmin.storage
+              .from("chat-media")
+              .getPublicUrl(storagePath);
+            
+            if (publicUrlData?.publicUrl) {
+              finalMediaUrl = publicUrlData.publicUrl;
+              console.log(`[waha-webhook] ✅ Media uploaded to Storage: ${finalMediaUrl}`);
+            }
+          }
+        } else {
+          console.warn(`[waha-webhook] Failed to download from WAHA (${mediaResponse.status}), keeping original URL`);
+        }
+      } catch (dlError) {
+        console.error(`[waha-webhook] Media download/upload error:`, dlError);
+        // Keep original WAHA URL as fallback
+      }
+
+      messageInsert.media_url = finalMediaUrl;
     }
 
     // Extract caption for media messages
