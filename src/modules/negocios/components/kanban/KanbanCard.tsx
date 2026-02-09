@@ -2,8 +2,10 @@
  * AIDEV-NOTE: Card individual do Kanban — renderiza campos dinamicamente
  * baseado na configuração salva em /configuracoes/cards.
  * Badge de qualificação (Lead/MQL/SQL) na mesma linha do título.
+ * Ações rápidas: WhatsApp abre modal de conversa, Email abre compose modal.
  */
 
+import { useState } from 'react'
 import {
   User,
   DollarSign,
@@ -18,6 +20,9 @@ import {
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import type { Oportunidade } from '../../services/negocios.api'
 import { TarefasPopover } from './TarefasPopover'
+import { WhatsAppConversaModal } from './WhatsAppConversaModal'
+import { ComposeEmailModal } from '@/modules/emails/components/ComposeEmailModal'
+import { useEnviarEmail, useSalvarRascunho } from '@/modules/emails/hooks/useEmails'
 import { formatDistanceToNow, format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
@@ -115,6 +120,14 @@ export function KanbanCard({ oportunidade, onDragStart, onClick, config }: Kanba
   const tarefasTotal = (oportunidade as any)._tarefas_total ?? 0
   const tarefasConcluidas = tarefasTotal - tarefasPendentes
 
+  // Modal states
+  const [whatsappOpen, setWhatsappOpen] = useState(false)
+  const [emailOpen, setEmailOpen] = useState(false)
+  const [emailResetKey, setEmailResetKey] = useState(0)
+
+  const enviarEmail = useEnviarEmail()
+  const salvarRascunho = useSalvarRascunho()
+
   const tempoNaEtapa = formatDistanceToNow(new Date(oportunidade.atualizado_em), {
     locale: ptBR,
     addSuffix: false,
@@ -208,11 +221,9 @@ export function KanbanCard({ oportunidade, onDragStart, onClick, config }: Kanba
         )
 
       case 'tarefas_pendentes':
-        // Handled in header
         return null
 
       case 'tags':
-        // TODO: render tags/segmentos when available on oportunidade
         return null
 
       default:
@@ -220,11 +231,12 @@ export function KanbanCard({ oportunidade, onDragStart, onClick, config }: Kanba
     }
   }
 
-  // Filtrar campos que não retornam null (exceto tarefas_pendentes que vai no header)
   const camposRenderizados = camposVisiveis
     .filter(key => key !== 'tarefas_pendentes')
     .map(renderCampo)
     .filter(Boolean)
+
+  const contatoNome = getContatoNome(oportunidade)
 
   const handleAcaoRapida = (e: React.MouseEvent, key: string) => {
     e.stopPropagation()
@@ -238,93 +250,124 @@ export function KanbanCard({ oportunidade, onDragStart, onClick, config }: Kanba
         break
       case 'whatsapp':
         if (oportunidade.contato.telefone) {
-          const phone = oportunidade.contato.telefone.replace(/\D/g, '')
-          window.open(`https://wa.me/${phone}`, '_blank')
+          setWhatsappOpen(true)
         }
         break
       case 'email':
         if (oportunidade.contato.email) {
-          window.open(`mailto:${oportunidade.contato.email}`, '_blank')
+          setEmailResetKey(k => k + 1)
+          setEmailOpen(true)
         }
         break
       case 'agendar':
-        // TODO: open scheduling modal
         break
     }
   }
 
   return (
-    <div
-      draggable
-      onDragStart={(e) => onDragStart(e, oportunidade)}
-      onClick={() => onClick(oportunidade)}
-      className="
-        bg-card border border-border rounded-lg shadow-sm
-        hover:shadow-md cursor-grab active:cursor-grabbing
-        transition-all duration-200 select-none overflow-hidden
-      "
-    >
-      <div className="px-3 pt-3 pb-2">
-        {/* Título + Badge qualificação na mesma linha */}
-        <div className="flex items-center justify-between mb-1.5">
-          <div className="flex items-center gap-1.5 min-w-0 flex-1">
-            <p className="text-sm font-medium text-foreground leading-tight truncate">
-              {oportunidade.titulo}
-            </p>
-            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 whitespace-nowrap ${qualificacao.className}`}>
-              {qualificacao.label}
-            </span>
+    <>
+      <div
+        draggable
+        onDragStart={(e) => onDragStart(e, oportunidade)}
+        onClick={() => onClick(oportunidade)}
+        className="
+          bg-card border border-border rounded-lg shadow-sm
+          hover:shadow-md cursor-grab active:cursor-grabbing
+          transition-all duration-200 select-none overflow-hidden
+        "
+      >
+        <div className="px-3 pt-3 pb-2">
+          <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+              <p className="text-sm font-medium text-foreground leading-tight truncate">
+                {oportunidade.titulo}
+              </p>
+              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 whitespace-nowrap ${qualificacao.className}`}>
+                {qualificacao.label}
+              </span>
+            </div>
+
+            {camposVisiveis.includes('tarefas_pendentes') && (
+              <div className="flex-shrink-0 ml-1.5">
+                <TarefasPopover
+                  oportunidadeId={oportunidade.id}
+                  totalPendentes={tarefasPendentes}
+                  totalTarefas={tarefasTotal}
+                  totalConcluidas={tarefasConcluidas}
+                />
+              </div>
+            )}
           </div>
 
-          {/* Tarefas badge no header — sempre visível quando configurado */}
-          {camposVisiveis.includes('tarefas_pendentes') && (
-            <div className="flex-shrink-0 ml-1.5">
-              <TarefasPopover
-                oportunidadeId={oportunidade.id}
-                totalPendentes={tarefasPendentes}
-                totalTarefas={tarefasTotal}
-                totalConcluidas={tarefasConcluidas}
-              />
+          {camposRenderizados.length > 0 && (
+            <div className="space-y-1.5">
+              {camposRenderizados}
             </div>
           )}
         </div>
 
-        {/* Campos dinâmicos */}
-        {camposRenderizados.length > 0 && (
-          <div className="space-y-1.5">
-            {camposRenderizados}
+        <div className="flex items-center justify-between px-3 py-2 border-t border-border/50 bg-muted/30">
+          <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+            <Clock className="w-3 h-3" />
+            <span>{tempoNaEtapa}</span>
           </div>
-        )}
-      </div>
 
-      {/* Footer: Tempo + Ações rápidas */}
-      <div className="flex items-center justify-between px-3 py-2 border-t border-border/50 bg-muted/30">
-        <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-          <Clock className="w-3 h-3" />
-          <span>{tempoNaEtapa}</span>
+          {acoesRapidas.length > 0 && (
+            <div className="flex items-center gap-0.5">
+              {acoesRapidas.map((key) => {
+                const acao = ACOES_ICONS[key]
+                if (!acao) return null
+                const Icon = acao.icon
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={(e) => handleAcaoRapida(e, key)}
+                    className="w-6 h-6 flex items-center justify-center rounded hover:bg-accent/50 text-muted-foreground transition-colors"
+                    title={acao.label}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </div>
-
-        {acoesRapidas.length > 0 && (
-          <div className="flex items-center gap-0.5">
-            {acoesRapidas.map((key) => {
-              const acao = ACOES_ICONS[key]
-              if (!acao) return null
-              const Icon = acao.icon
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={(e) => handleAcaoRapida(e, key)}
-                  className="w-6 h-6 flex items-center justify-center rounded hover:bg-accent/50 text-muted-foreground transition-colors"
-                  title={acao.label}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                </button>
-              )
-            })}
-          </div>
-        )}
       </div>
-    </div>
+
+      {/* WhatsApp Conversa Modal */}
+      {whatsappOpen && oportunidade.contato?.telefone && (
+        <WhatsAppConversaModal
+          isOpen={whatsappOpen}
+          onClose={() => setWhatsappOpen(false)}
+          contatoId={oportunidade.contato_id}
+          contatoNome={contatoNome}
+          telefone={oportunidade.contato.telefone}
+        />
+      )}
+
+      {/* Email Compose Modal */}
+      <ComposeEmailModal
+        mode="novo"
+        isOpen={emailOpen}
+        onClose={() => setEmailOpen(false)}
+        onSend={(data) => {
+          enviarEmail.mutate(data, {
+            onSuccess: () => setEmailOpen(false),
+          })
+        }}
+        onSaveDraft={(data) => {
+          salvarRascunho.mutate(data, {
+            onSuccess: () => setEmailOpen(false),
+          })
+        }}
+        isSending={enviarEmail.isPending}
+        isSavingDraft={salvarRascunho.isPending}
+        defaults={{
+          para_email: oportunidade.contato?.email || '',
+        }}
+        resetKey={emailResetKey}
+      />
+    </>
   )
 }

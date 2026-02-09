@@ -29,6 +29,7 @@ import {
   useRascunhos,
   useTraduzirEmail,
 } from '../hooks/useEmails'
+import { useEmailRealtime } from '../hooks/useEmailRealtime'
 import type { PastaEmail, AcaoLote, EmailRecebido } from '../types/email.types'
 
 // Extended type to include "starred" virtual folder
@@ -146,6 +147,9 @@ export function EmailsPage() {
 
   // Notificação de novos emails
   useNewEmailNotification()
+
+  // Realtime: escuta novos emails via Supabase Realtime
+  useEmailRealtime()
 
   // Auto-marcar como lido ao selecionar
   useEffect(() => {
