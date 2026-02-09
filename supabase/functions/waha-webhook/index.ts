@@ -416,9 +416,20 @@ Deno.serve(async (req) => {
       }
     } else {
       // INDIVIDUAL MESSAGE
-      chatId = rawFrom; // e.g. "5513988506995@c.us"
-      phoneNumber = rawFrom.replace("@c.us", "").replace("@s.whatsapp.net", "");
-      phoneName = payload._data?.pushName || payload._data?.notifyName || payload.notifyName || payload.pushName || null;
+      // AIDEV-NOTE: For fromMe messages (sent from phone), payload.from = OUR number,
+      // payload.to = the chat partner. We need the partner's ID for chatId/phoneNumber.
+      if (isFromMe) {
+        const toField = payload.to || payload._data?.to || rawFrom;
+        chatId = toField; // e.g. "5513988506995@c.us" (the other person)
+        phoneNumber = toField.replace("@c.us", "").replace("@s.whatsapp.net", "");
+        // For fromMe, pushName/notifyName might not be available for the recipient
+        phoneName = payload._data?.notifyName || payload.notifyName || null;
+        console.log(`[waha-webhook] fromMe individual: from=${rawFrom}, to=${toField}, chatId=${chatId}`);
+      } else {
+        chatId = rawFrom; // e.g. "5513988506995@c.us"
+        phoneNumber = rawFrom.replace("@c.us", "").replace("@s.whatsapp.net", "");
+        phoneName = payload._data?.pushName || payload._data?.notifyName || payload.notifyName || payload.pushName || null;
+      }
       conversaTipo = "individual";
     }
 
@@ -595,8 +606,10 @@ Deno.serve(async (req) => {
       conversa_id: conversaId,
       message_id: messageId,
       from_me: isFromMe,
-      from_number: phoneNumber,
-      to_number: null,
+      // For fromMe: from_number = our number (rawFrom), to_number = contact (phoneNumber)
+      // For received: from_number = contact (phoneNumber), to_number = null
+      from_number: isFromMe ? rawFrom.replace("@c.us", "").replace("@s.whatsapp.net", "") : phoneNumber,
+      to_number: isFromMe ? phoneNumber : null,
       tipo: wahaType,
       body: messageBody ? messageBody.substring(0, 10000) : null,
       has_media: payload.hasMedia || false,

@@ -356,19 +356,35 @@ Deno.serve(async (req) => {
               conectado_em: new Date().toISOString(),
             });
 
-            // Re-configure webhook to ensure latest events (e.g. poll.vote)
+            // Re-configure webhook to ensure latest events (e.g. message.any, poll.vote)
             try {
-              const patchResp = await fetch(`${baseUrl}/api/sessions/${sessionId}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
-                body: JSON.stringify({
-                  config: {
-                    webhooks: [{ url: webhookUrl, events: webhookEvents }]
-                  }
-                })
+              // Try PUT first (WAHA Plus standard), fallback to PATCH
+              let reconfigOk = false;
+              const configBody = JSON.stringify({
+                config: {
+                  webhooks: [{ url: webhookUrl, events: webhookEvents }]
+                }
               });
-              const patchData = await patchResp.json().catch(() => null);
-              console.log(`[waha-proxy] Webhook reconfig result: ${patchResp.status}`, JSON.stringify(patchData));
+
+              const putResp = await fetch(`${baseUrl}/api/sessions/${sessionId}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
+                body: configBody,
+              });
+              const putData = await putResp.json().catch(() => null);
+              console.log(`[waha-proxy] Webhook reconfig PUT result: ${putResp.status}`, JSON.stringify(putData));
+              reconfigOk = putResp.ok;
+
+              if (!reconfigOk) {
+                // Fallback to PATCH
+                const patchResp = await fetch(`${baseUrl}/api/sessions/${sessionId}`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
+                  body: configBody,
+                });
+                const patchData = await patchResp.json().catch(() => null);
+                console.log(`[waha-proxy] Webhook reconfig PATCH fallback: ${patchResp.status}`, JSON.stringify(patchData));
+              }
             } catch (e) {
               console.log(`[waha-proxy] Webhook reconfig failed:`, e);
             }
