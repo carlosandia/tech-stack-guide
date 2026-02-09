@@ -5,7 +5,7 @@
  * Integra MediaViewer para lightbox de imagens e vídeos
  */
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { format } from 'date-fns'
 import {
   Check,
@@ -17,6 +17,8 @@ import {
   FileText,
   ExternalLink,
   RefreshCw,
+  ChevronDown,
+  Trash2,
 } from 'lucide-react'
 import type { Mensagem } from '../services/conversas.api'
 import { conversasApi } from '../services/conversas.api'
@@ -31,6 +33,8 @@ interface ChatMessageBubbleProps {
   participantColor?: string | null
   /** ID da conversa (para consultar votos de enquete) */
   conversaId?: string
+  /** Callback para apagar mensagem */
+  onDeleteMessage?: (mensagemId: string, messageWahaId: string, paraTodos: boolean) => void
 }
 
 function AckIndicator({ ack }: { ack: number }) {
@@ -331,14 +335,72 @@ function renderContent(mensagem: Mensagem, onViewMedia?: (url: string, tipo: 'im
   }
 }
 
-export function ChatMessageBubble({ mensagem, participantName, participantColor, conversaId }: ChatMessageBubbleProps) {
+function MessageActionMenu({ mensagem, onDelete }: {
+  mensagem: Mensagem
+  onDelete: (paraTodos: boolean) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  // Close on click outside
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  return (
+    <div ref={menuRef} className="relative">
+      <button
+        onClick={(e) => { e.stopPropagation(); setOpen(!open) }}
+        className="p-1 rounded-full bg-background/80 border border-border/50 shadow-sm hover:bg-accent/50 transition-colors"
+      >
+        <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+      </button>
+
+      {open && (
+        <div className={`absolute z-50 top-full mt-1 ${mensagem.from_me ? 'right-0' : 'left-0'} bg-popover border border-border rounded-lg shadow-lg py-1 min-w-[180px]`}>
+          <button
+            onClick={() => { onDelete(false); setOpen(false) }}
+            className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-accent/50 transition-colors text-foreground"
+          >
+            <Trash2 className="w-3.5 h-3.5 text-muted-foreground" />
+            Apagar para mim
+          </button>
+          {mensagem.from_me && (
+            <button
+              onClick={() => { onDelete(true); setOpen(false) }}
+              className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-accent/50 transition-colors text-destructive"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Apagar para todos
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+
+export function ChatMessageBubble({ mensagem, participantName, participantColor, conversaId, onDeleteMessage }: ChatMessageBubbleProps) {
   const [viewerMedia, setViewerMedia] = useState<{ url: string; tipo: 'image' | 'video' } | null>(null)
+  const [hovered, setHovered] = useState(false)
   const isMe = mensagem.from_me
   const isSticker = mensagem.tipo === 'sticker'
   const isReaction = mensagem.tipo === 'reaction'
 
   const handleViewMedia = (url: string, tipo: 'image' | 'video') => {
     setViewerMedia({ url, tipo })
+  }
+
+  const handleDelete = (paraTodos: boolean) => {
+    onDeleteMessage?.(mensagem.id, mensagem.message_id, paraTodos)
   }
 
   // Sticker e reaction não tem bolha
@@ -367,7 +429,18 @@ export function ChatMessageBubble({ mensagem, participantName, participantColor,
 
   return (
     <>
-      <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} mb-1`}>
+      <div
+        className={`flex ${isMe ? 'justify-end' : 'justify-start'} mb-1 group/msg`}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+      >
+        {/* Action menu - left side for received messages */}
+        {!isMe && hovered && onDeleteMessage && (
+          <div className="flex items-start pt-1 mr-1">
+            <MessageActionMenu mensagem={mensagem} onDelete={handleDelete} />
+          </div>
+        )}
+
         <div
           className={`
             relative max-w-[85%] sm:max-w-[75%] lg:max-w-[60%] rounded-lg px-3 py-2
@@ -397,6 +470,13 @@ export function ChatMessageBubble({ mensagem, participantName, participantColor,
             {isMe && <AckIndicator ack={mensagem.ack} />}
           </div>
         </div>
+
+        {/* Action menu - right side for sent messages */}
+        {isMe && hovered && onDeleteMessage && (
+          <div className="flex items-start pt-1 ml-1">
+            <MessageActionMenu mensagem={mensagem} onDelete={handleDelete} />
+          </div>
+        )}
       </div>
       {viewerMedia && (
         <MediaViewer

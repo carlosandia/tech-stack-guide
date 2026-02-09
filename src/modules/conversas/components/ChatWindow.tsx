@@ -16,7 +16,7 @@ import { CameraCapture } from './CameraCapture'
 import { ContatoSelectorModal } from './ContatoSelectorModal'
 import { EnqueteModal } from './EnqueteModal'
 import { useMensagens, useEnviarTexto, useEnviarContato, useEnviarEnquete } from '../hooks/useMensagens'
-import { useAlterarStatusConversa, useMarcarComoLida, useSilenciarConversa, useLimparConversa, useApagarConversa } from '../hooks/useConversas'
+import { useAlterarStatusConversa, useMarcarComoLida, useSilenciarConversa, useLimparConversa, useApagarConversa, useApagarMensagem } from '../hooks/useConversas'
 import { conversasApi } from '../services/conversas.api'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
@@ -62,6 +62,7 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
   const silenciarConversa = useSilenciarConversa()
   const limparConversa = useLimparConversa()
   const apagarConversa = useApagarConversa()
+  const apagarMensagem = useApagarMensagem()
 
   // Flatten paginated messages
   const mensagens = useMemo(() => {
@@ -307,6 +308,9 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
         focusedId={mensagemFocadaId}
         conversaTipo={conversa.tipo}
         conversaId={conversa.id}
+        onDeleteMessage={(mensagemId, messageWahaId, paraTodos) => {
+          apagarMensagem.mutate({ conversaId: conversa.id, mensagemId, messageWahaId, paraTodos })
+        }}
       />
 
       <div className="relative">
