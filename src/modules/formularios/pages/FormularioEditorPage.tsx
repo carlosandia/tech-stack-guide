@@ -307,6 +307,7 @@ export function FormularioEditorPage() {
                 selectedElement={null}
                 onSelectElement={() => {}}
                 isPreviewMode={true}
+                camposReais={campos}
               />
             </div>
           ) : (

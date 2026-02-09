@@ -3,7 +3,7 @@
  * Renderiza o campo com aparência real + controles de edição
  */
 
-import { GripVertical, Trash2, Settings, ChevronUp, ChevronDown } from 'lucide-react'
+import { GripVertical, Trash2, Settings, ChevronUp, ChevronDown, Paintbrush } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { CampoFormulario } from '../../services/formularios.api'
 import { Button } from '@/components/ui/button'
@@ -21,6 +21,7 @@ interface Props {
   onDragOver: (e: React.DragEvent) => void
   onDrop: (e: React.DragEvent) => void
   onDragLeave: (e: React.DragEvent) => void
+  onStyleEdit?: () => void
 }
 
 export function CampoItem({
@@ -35,6 +36,7 @@ export function CampoItem({
   onDragOver,
   onDrop,
   onDragLeave,
+  onStyleEdit,
 }: Props) {
   return (
     <div
@@ -71,6 +73,11 @@ export function CampoItem({
         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); onSelect() }}>
           <Settings className="w-3 h-3" />
         </Button>
+        {onStyleEdit && (
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); onStyleEdit() }} title="Editar estilos dos campos">
+            <Paintbrush className="w-3 h-3" />
+          </Button>
+        )}
         <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); onRemove() }}>
           <Trash2 className="w-3 h-3" />
         </Button>
