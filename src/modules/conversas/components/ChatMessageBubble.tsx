@@ -6,7 +6,7 @@
  * Menu de ações via Portal: Responder, Copiar, Reagir, Encaminhar, Fixar, Apagar
  */
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { format } from 'date-fns'
 import {
@@ -518,6 +518,17 @@ export function ChatMessageBubble({
   const isMe = mensagem.from_me
   const isSticker = mensagem.tipo === 'sticker'
   const isReaction = mensagem.tipo === 'reaction'
+  const isTextType = mensagem.tipo === 'text' && !!mensagem.body
+
+  // Pre-format body for inline text rendering
+  const formattedBody = useMemo(() => {
+    if (!mensagem.body) return ''
+    return mensagem.body
+      .replace(/\*(.*?)\*/g, '<strong>$1</strong>')
+      .replace(/_(.*?)_/g, '<em>$1</em>')
+      .replace(/~(.*?)~/g, '<del>$1</del>')
+      .replace(/```(.*?)```/gs, '<code>$1</code>')
+  }, [mensagem.body])
 
   const handleViewMedia = (url: string, tipo: 'image' | 'video') => {
     setViewerMedia({ url, tipo })
@@ -640,7 +651,7 @@ export function ChatMessageBubble({
         <div
           ref={bubbleRef}
           className={`
-            relative max-w-[85%] sm:max-w-[75%] lg:max-w-[60%] rounded-lg px-3 py-2
+            relative max-w-[85%] sm:max-w-[75%] lg:max-w-[60%] rounded-lg px-3 py-1.5
             ${isMe
               ? 'bg-primary/10 border border-primary/15'
               : 'bg-muted border border-border/30'
@@ -660,14 +671,29 @@ export function ChatMessageBubble({
             <QuotedMessagePreview quoted={quotedMessage} isMe={isMe} />
           )}
 
-          {renderContent(mensagem, handleViewMedia, conversaId)}
-
-          <div className="flex items-center gap-1 justify-end mt-1">
-            <span className="text-[10px] text-muted-foreground">
-              {format(new Date(mensagem.criado_em), 'HH:mm')}
-            </span>
-            {isMe && <AckIndicator ack={mensagem.ack} />}
-          </div>
+          {/* Inline text + timestamp (WhatsApp style) */}
+          {isTextType ? (
+            <div className="relative">
+              <span className="text-sm whitespace-pre-wrap break-words" dangerouslySetInnerHTML={{ __html: formattedBody }} />
+              {/* Invisible spacer to reserve room for the floating timestamp */}
+              <span className="inline-block w-[70px]" aria-hidden="true">&nbsp;</span>
+              {/* Floating timestamp at bottom-right */}
+              <span className="absolute bottom-0 right-0 flex items-center gap-0.5 text-[10px] text-muted-foreground whitespace-nowrap select-none">
+                {format(new Date(mensagem.criado_em), 'HH:mm')}
+                {isMe && <AckIndicator ack={mensagem.ack} />}
+              </span>
+            </div>
+          ) : (
+            <>
+              {renderContent(mensagem, handleViewMedia, conversaId)}
+              <div className="flex items-center gap-1 justify-end mt-1">
+                <span className="text-[10px] text-muted-foreground">
+                  {format(new Date(mensagem.criado_em), 'HH:mm')}
+                </span>
+                {isMe && <AckIndicator ack={mensagem.ack} />}
+              </div>
+            </>
+          )}
         </div>
 
         {/* Action menu - RIGHT side for RECEIVED messages (!isMe) */}
