@@ -17,7 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
-import { Send, Loader2, Bold, Italic, Underline, Mail, Save } from 'lucide-react'
+import { Send, Loader2, Bold, Italic, Underline, Mail } from 'lucide-react'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
@@ -63,7 +63,7 @@ interface Props {
   isSavingEstilos?: boolean
 }
 
-export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEstilo, onConfigChange, onSaveEstilos, isSavingEstilos }: Props) {
+export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEstilo, onConfigChange }: Props) {
   const [tab, setTab] = useState<TabType>('estilo')
   const [config, setConfig] = useState<ConfigBotoes>(CONFIG_PADRAO)
   const [saving, setSaving] = useState(false)
@@ -484,13 +484,6 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
             </>
           )}
 
-          {/* Botão Salvar Estilos */}
-          {onSaveEstilos && (
-            <Button size="sm" className="w-full text-xs mt-3" variant="outline" onClick={onSaveEstilos} disabled={isSavingEstilos}>
-              {isSavingEstilos ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Save className="w-3 h-3 mr-1" />}
-              Salvar Estilos
-            </Button>
-          )}
         </div>
       )}
 
