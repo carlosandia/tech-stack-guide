@@ -4,7 +4,7 @@
  * Inclui ícone WhatsApp para abrir conversa inline
  */
 
-import { Clock, User, Phone, MessageCircle } from 'lucide-react'
+import { Clock, User, Phone } from 'lucide-react'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import type { PreOportunidadeCard } from '../../services/pre-oportunidades.api'
 
@@ -58,14 +58,6 @@ export function SolicitacaoCard({ preOp, onClick, onWhatsApp }: SolicitacaoCardP
             )}
           </div>
         </button>
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); onWhatsApp?.(preOp) }}
-          className="flex-shrink-0 p-1.5 rounded-md hover:bg-accent transition-colors"
-          title="Ver conversa WhatsApp"
-        >
-          <WhatsAppIcon size={16} className="text-[#25D366]" />
-        </button>
       </div>
 
       {/* Preview da mensagem */}
@@ -78,10 +70,15 @@ export function SolicitacaoCard({ preOp, onClick, onWhatsApp }: SolicitacaoCardP
 
         {/* Footer */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-            <MessageCircle className="w-3 h-3" />
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onWhatsApp?.(preOp) }}
+            className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-[#25D366] transition-colors"
+            title="Ver conversa WhatsApp"
+          >
+            <WhatsAppIcon size={12} className="flex-shrink-0" />
             <span>{preOp.total_mensagens} msg</span>
-          </div>
+          </button>
           <div className={`flex items-center gap-1 text-[10px] font-medium ${isUrgente ? 'text-destructive' : 'text-muted-foreground'}`}>
             <Clock className="w-3 h-3" />
             <span>{formatTempoEspera(preOp.tempo_espera_minutos)}</span>
