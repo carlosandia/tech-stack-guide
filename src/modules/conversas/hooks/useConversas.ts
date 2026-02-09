@@ -1,6 +1,7 @@
 /**
  * AIDEV-NOTE: Hooks TanStack Query para Conversas (PRD-09)
  * useConversas usa useInfiniteQuery para scroll infinito (20 por vez)
+ * Inclui hooks para ações sincronizadas com WhatsApp
  */
 
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -65,6 +66,121 @@ export function useMarcarComoLida() {
     mutationFn: (id: string) => conversasApi.marcarComoLida(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['conversas'] })
+    },
+  })
+}
+
+// =====================================================
+// Hooks para ações sincronizadas com WhatsApp
+// =====================================================
+
+export function useApagarMensagem() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ conversaId, mensagemId, messageWahaId, paraTodos }: {
+      conversaId: string; mensagemId: string; messageWahaId: string; paraTodos: boolean
+    }) => conversasApi.apagarMensagem(conversaId, mensagemId, messageWahaId, paraTodos),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['mensagens'] })
+      toast.success('Mensagem apagada')
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Erro ao apagar mensagem')
+    },
+  })
+}
+
+export function useLimparConversa() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (conversaId: string) => conversasApi.limparConversa(conversaId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['mensagens'] })
+      queryClient.invalidateQueries({ queryKey: ['conversas'] })
+      toast.success('Conversa limpa')
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Erro ao limpar conversa')
+    },
+  })
+}
+
+export function useApagarConversa() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (conversaId: string) => conversasApi.apagarConversa(conversaId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['conversas'] })
+      toast.success('Conversa apagada')
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Erro ao apagar conversa')
+    },
+  })
+}
+
+export function useArquivarConversa() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (conversaId: string) => conversasApi.arquivarConversa(conversaId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['conversas'] })
+      toast.success('Conversa arquivada')
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Erro ao arquivar conversa')
+    },
+  })
+}
+
+export function useFixarConversa() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ conversaId, fixar }: { conversaId: string; fixar: boolean }) =>
+      conversasApi.fixarConversa(conversaId, fixar),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['conversas'] })
+      toast.success(variables.fixar ? 'Conversa fixada' : 'Conversa desafixada')
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Erro ao fixar conversa')
+    },
+  })
+}
+
+export function useMarcarNaoLida() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (conversaId: string) => conversasApi.marcarNaoLida(conversaId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['conversas'] })
+      toast.success('Marcada como não lida')
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Erro ao marcar como não lida')
+    },
+  })
+}
+
+export function useSilenciarConversa() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ conversaId, silenciar }: { conversaId: string; silenciar: boolean }) =>
+      conversasApi.silenciarConversa(conversaId, silenciar),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['conversas'] })
+      queryClient.invalidateQueries({ queryKey: ['conversa'] })
+      toast.success(variables.silenciar ? 'Notificações silenciadas' : 'Notificações ativadas')
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Erro ao silenciar conversa')
     },
   })
 }

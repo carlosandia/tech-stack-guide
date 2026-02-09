@@ -5,9 +5,10 @@
  */
 
 import { useState, useRef, useCallback, type KeyboardEvent } from 'react'
-import { Send, Zap, StickyNote, MessageSquare, Paperclip, Mic, MapPin, AtSign } from 'lucide-react'
+import { Send, Zap, StickyNote, MessageSquare, Paperclip, Mic, Smile } from 'lucide-react'
 import { AnexosMenu } from './AnexosMenu'
 import { AudioRecorder } from './AudioRecorder'
+import { EmojiPicker } from './EmojiPicker'
 
 interface ChatInputProps {
   onSendMessage: (texto: string) => void
@@ -34,6 +35,7 @@ export function ChatInput({
   const [notaTexto, setNotaTexto] = useState('')
   const [anexosOpen, setAnexosOpen] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
+  const [emojiOpen, setEmojiOpen] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const autoResize = useCallback((el: HTMLTextAreaElement) => {
@@ -131,6 +133,48 @@ export function ChatInput({
             {/* Action buttons (only for reply mode) */}
             {!isNota && (
               <div className="flex items-center gap-0.5 pb-1 relative">
+                {/* Emoji picker button */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setEmojiOpen(!emojiOpen)}
+                    className={`p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md transition-all duration-200 ${
+                      emojiOpen ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                    }`}
+                    title="Emojis"
+                  >
+                    <Smile className="w-4 h-4" />
+                  </button>
+                  {emojiOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setEmojiOpen(false)} />
+                      <div className="absolute bottom-12 left-0 z-50">
+                        <EmojiPicker
+                          onSelect={(emoji) => {
+                            if (tab === 'responder') {
+                              const el = textareaRef.current
+                              if (el) {
+                                const start = el.selectionStart
+                                const end = el.selectionEnd
+                                const newText = texto.slice(0, start) + emoji + texto.slice(end)
+                                setTexto(newText)
+                                requestAnimationFrame(() => {
+                                  el.selectionStart = el.selectionEnd = start + emoji.length
+                                  el.focus()
+                                })
+                              } else {
+                                setTexto(t => t + emoji)
+                              }
+                            } else {
+                              setNotaTexto(t => t + emoji)
+                            }
+                          }}
+                          onClose={() => setEmojiOpen(false)}
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
                 <button
                   type="button"
                   onClick={onOpenQuickReplies}
@@ -158,23 +202,6 @@ export function ChatInput({
                     onEnquete={() => { setAnexosOpen(false); onOpenEnquete() }}
                   />
                 </div>
-                {/* Progressive Disclosure: hide disabled actions on mobile */}
-                <button
-                  type="button"
-                  disabled
-                  className="hidden sm:flex p-2 min-w-[44px] min-h-[44px] items-center justify-center rounded-md text-muted-foreground/40 cursor-not-allowed transition-all duration-200"
-                  title="Localização (em breve)"
-                >
-                  <MapPin className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  disabled
-                  className="hidden sm:flex p-2 min-w-[44px] min-h-[44px] items-center justify-center rounded-md text-muted-foreground/40 cursor-not-allowed transition-all duration-200"
-                  title="Menção (em breve)"
-                >
-                  <AtSign className="w-4 h-4" />
-                </button>
               </div>
             )}
 

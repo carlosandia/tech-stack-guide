@@ -2,6 +2,7 @@
  * AIDEV-NOTE: Janela de chat completa (header + busca + mensagens + input)
  * Integra SelecionarPipelineModal + NovaOportunidadeModal para criação de oportunidade
  * Integra AudioRecorder, CameraCapture, ContatoSelectorModal, EnqueteModal
+ * Conecta ações de silenciar, limpar e apagar conversa
  */
 
 import { useState, useMemo, useEffect, useCallback } from 'react'
@@ -15,7 +16,7 @@ import { CameraCapture } from './CameraCapture'
 import { ContatoSelectorModal } from './ContatoSelectorModal'
 import { EnqueteModal } from './EnqueteModal'
 import { useMensagens, useEnviarTexto, useEnviarContato, useEnviarEnquete } from '../hooks/useMensagens'
-import { useAlterarStatusConversa, useMarcarComoLida } from '../hooks/useConversas'
+import { useAlterarStatusConversa, useMarcarComoLida, useSilenciarConversa, useLimparConversa, useApagarConversa } from '../hooks/useConversas'
 import { conversasApi } from '../services/conversas.api'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
@@ -26,9 +27,10 @@ interface ChatWindowProps {
   conversa: Conversa
   onBack: () => void
   onOpenDrawer: () => void
+  onConversaApagada?: () => void
 }
 
-export function ChatWindow({ conversa, onBack, onOpenDrawer }: ChatWindowProps) {
+export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }: ChatWindowProps) {
   const [quickRepliesOpen, setQuickRepliesOpen] = useState(false)
   const [pipelineModalOpen, setPipelineModalOpen] = useState(false)
   const [oportunidadeModalOpen, setOportunidadeModalOpen] = useState(false)
@@ -57,6 +59,9 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer }: ChatWindowProps) 
   const enviarEnquete = useEnviarEnquete()
   const alterarStatus = useAlterarStatusConversa()
   const marcarLida = useMarcarComoLida()
+  const silenciarConversa = useSilenciarConversa()
+  const limparConversa = useLimparConversa()
+  const apagarConversa = useApagarConversa()
 
   // Flatten paginated messages
   const mensagens = useMemo(() => {
@@ -142,10 +147,8 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer }: ChatWindowProps) 
     }
   }, [conversa.id])
 
-  // Audio send handler
   const handleAudioSend = useCallback(async (blob: Blob, _duration: number) => {
     try {
-      // Use real blob MIME type for proper playback in browser and WhatsApp
       const isOgg = blob.type.includes('ogg')
       const ext = isOgg ? 'ogg' : 'webm'
       const contentType = isOgg ? 'audio/ogg' : 'audio/webm'
@@ -175,7 +178,6 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer }: ChatWindowProps) 
     }
   }, [conversa.id])
 
-  // Camera capture handler
   const handleCameraCapture = useCallback(async (blob: Blob) => {
     setCameraOpen(false)
     try {
@@ -205,14 +207,12 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer }: ChatWindowProps) 
     }
   }, [conversa.id])
 
-  // Contact send handler
   const handleContatoSelect = useCallback((contato: ConversaContato, vcard: string) => {
     setContatoModalOpen(false)
     const nome = contato.nome || contato.nome_fantasia || 'Contato'
     enviarContato.mutate({ conversaId: conversa.id, contatoNome: nome, vcard })
   }, [conversa.id, enviarContato])
 
-  // Poll send handler
   const handleEnqueteSend = useCallback((data: { pergunta: string; opcoes: string[]; multiplas: boolean }) => {
     setEnqueteModalOpen(false)
     enviarEnquete.mutate({
@@ -223,19 +223,16 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer }: ChatWindowProps) 
     })
   }, [conversa.id, enviarEnquete])
 
-  // Abrir seletor de pipeline
   const handleCriarOportunidade = useCallback(() => {
     setPipelineModalOpen(true)
   }, [])
 
-  // Após selecionar pipeline, abrir modal de oportunidade
   const handlePipelineSelecionada = useCallback((funilId: string, etapaId: string) => {
     setFunilData({ funilId, etapaId })
     setPipelineModalOpen(false)
     setOportunidadeModalOpen(true)
   }, [])
 
-  // Search handlers
   const handleSearch = (termo: string) => {
     setTermoBusca(termo)
     setBuscaIndex(0)
@@ -251,7 +248,6 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer }: ChatWindowProps) 
     setBuscaIndex((prev) => (prev + 1) % resultadosBusca.length)
   }
 
-  // Dados do contato para pré-preencher na oportunidade
   const contatoPreSelecionado = useMemo(() => {
     if (!conversa.contato) return undefined
     return {
@@ -263,13 +259,11 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer }: ChatWindowProps) 
     }
   }, [conversa.contato])
 
-  // IDs de mensagens que correspondem à busca para highlight
   const mensagensDestacadas = useMemo(() => {
     if (!termoBusca.trim()) return new Set<string>()
     return new Set(resultadosBusca.map(r => r.mensagem.id))
   }, [resultadosBusca, termoBusca])
 
-  // ID da mensagem atualmente focada na busca
   const mensagemFocadaId = resultadosBusca[buscaIndex]?.mensagem.id || null
 
   return (
@@ -281,6 +275,11 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer }: ChatWindowProps) 
         onAlterarStatus={handleAlterarStatus}
         onCriarOportunidade={handleCriarOportunidade}
         onToggleBusca={() => setBuscaAberta((prev) => !prev)}
+        onSilenciar={(silenciar) => silenciarConversa.mutate({ conversaId: conversa.id, silenciar })}
+        onLimparConversa={() => limparConversa.mutate(conversa.id)}
+        onApagarConversa={() => {
+          apagarConversa.mutate(conversa.id, { onSuccess: () => onConversaApagada?.() })
+        }}
       />
 
       {buscaAberta && (
@@ -330,7 +329,6 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer }: ChatWindowProps) 
         />
       </div>
 
-      {/* Camera Capture Modal */}
       {cameraOpen && (
         <CameraCapture
           onCapture={handleCameraCapture}
@@ -338,7 +336,6 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer }: ChatWindowProps) 
         />
       )}
 
-      {/* Contact Selector Modal */}
       {contatoModalOpen && (
         <ContatoSelectorModal
           onSelect={handleContatoSelect}
@@ -346,7 +343,6 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer }: ChatWindowProps) 
         />
       )}
 
-      {/* Poll/Enquete Modal */}
       {enqueteModalOpen && (
         <EnqueteModal
           onSend={handleEnqueteSend}
@@ -354,7 +350,6 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer }: ChatWindowProps) 
         />
       )}
 
-      {/* Modal de Seleção de Pipeline */}
       {pipelineModalOpen && (
         <SelecionarPipelineModal
           onClose={() => setPipelineModalOpen(false)}
@@ -362,7 +357,6 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer }: ChatWindowProps) 
         />
       )}
 
-      {/* Modal de Nova Oportunidade */}
       {oportunidadeModalOpen && funilData && (
         <NovaOportunidadeModal
           funilId={funilData.funilId}

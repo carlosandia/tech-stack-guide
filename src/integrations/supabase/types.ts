@@ -1205,6 +1205,7 @@ export type Database = {
       }
       conversas: {
         Row: {
+          arquivada: boolean
           atualizado_em: string
           canal: string
           chat_id: string
@@ -1212,6 +1213,7 @@ export type Database = {
           contato_id: string
           criado_em: string
           deletado_em: string | null
+          fixada: boolean
           foto_url: string | null
           id: string
           mensagens_nao_lidas: number | null
@@ -1219,6 +1221,7 @@ export type Database = {
           organizacao_id: string
           primeira_mensagem_em: string | null
           sessao_whatsapp_id: string | null
+          silenciada: boolean
           status: string
           status_alterado_em: string | null
           tipo: string
@@ -1227,6 +1230,7 @@ export type Database = {
           usuario_id: string
         }
         Insert: {
+          arquivada?: boolean
           atualizado_em?: string
           canal: string
           chat_id: string
@@ -1234,6 +1238,7 @@ export type Database = {
           contato_id: string
           criado_em?: string
           deletado_em?: string | null
+          fixada?: boolean
           foto_url?: string | null
           id?: string
           mensagens_nao_lidas?: number | null
@@ -1241,6 +1246,7 @@ export type Database = {
           organizacao_id: string
           primeira_mensagem_em?: string | null
           sessao_whatsapp_id?: string | null
+          silenciada?: boolean
           status?: string
           status_alterado_em?: string | null
           tipo?: string
@@ -1249,6 +1255,7 @@ export type Database = {
           usuario_id: string
         }
         Update: {
+          arquivada?: boolean
           atualizado_em?: string
           canal?: string
           chat_id?: string
@@ -1256,6 +1263,7 @@ export type Database = {
           contato_id?: string
           criado_em?: string
           deletado_em?: string | null
+          fixada?: boolean
           foto_url?: string | null
           id?: string
           mensagens_nao_lidas?: number | null
@@ -1263,6 +1271,7 @@ export type Database = {
           organizacao_id?: string
           primeira_mensagem_em?: string | null
           sessao_whatsapp_id?: string | null
+          silenciada?: boolean
           status?: string
           status_alterado_em?: string | null
           tipo?: string

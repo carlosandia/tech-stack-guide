@@ -1,14 +1,13 @@
 /**
  * AIDEV-NOTE: Página principal do módulo de Conversas (PRD-09)
  * Split-view estilo WhatsApp Web: lista à esquerda + chat à direita
- * Mobile: lista ou chat em tela cheia
- * Usa useInfiniteQuery para scroll infinito na lista
+ * Conecta ações de contexto: arquivar, fixar, marcar não lida, apagar
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Plus, BarChart3 } from 'lucide-react'
 import { useAppToolbar } from '@/modules/app/contexts/AppToolbarContext'
-import { useConversas } from '../hooks/useConversas'
+import { useConversas, useArquivarConversa, useFixarConversa, useMarcarNaoLida, useApagarConversa } from '../hooks/useConversas'
 import { useConversasRealtime } from '../hooks/useConversasRealtime'
 import { ConversasList } from '../components/ConversasList'
 import { FiltrosConversas } from '../components/FiltrosConversas'
@@ -26,6 +25,7 @@ export function ConversasPage() {
   const [drawerAberto, setDrawerAberto] = useState(false)
   const [novaConversaAberta, setNovaConversaAberta] = useState(false)
   const [filtros, setFiltros] = useState<ListarConversasParams>({})
+  const [confirmApagar, setConfirmApagar] = useState<string | null>(null)
   const [metricasVisiveis, setMetricasVisiveis] = useState<boolean>(() => {
     try {
       return localStorage.getItem('conversas_metricas_visiveis') === 'true'
@@ -51,6 +51,11 @@ export function ConversasPage() {
   } = useConversas(filtros)
   useConversasRealtime(conversaAtivaId)
 
+  const arquivarConversa = useArquivarConversa()
+  const fixarConversa = useFixarConversa()
+  const marcarNaoLida = useMarcarNaoLida()
+  const apagarConversa = useApagarConversa()
+
   // Flatten paginated data
   const conversas = useMemo(() => {
     if (!data?.pages) return []
@@ -59,7 +64,7 @@ export function ConversasPage() {
 
   const conversaAtiva = conversas.find((c) => c.id === conversaAtivaId) || null
 
-  // Integra ações no toolbar do AppLayout (GAP 2)
+  // Toolbar actions
   useEffect(() => {
     setActions(
       <div className="flex items-center gap-1.5">
@@ -95,78 +100,123 @@ export function ConversasPage() {
     }
   }, [setActions, setSubtitle, setCenterContent, setNovaConversaAberta, metricasVisiveis, toggleMetricas])
 
-  const handleInsertQuickReply = (_conteudo: string) => {
-    // Drawer quick reply - could be passed to ChatWindow to insert into textarea
-  }
+  // List action handlers
+  const handleArquivar = useCallback((id: string) => {
+    arquivarConversa.mutate(id, {
+      onSuccess: () => { if (conversaAtivaId === id) setConversaAtivaId(null) }
+    })
+  }, [arquivarConversa, conversaAtivaId])
+
+  const handleFixar = useCallback((id: string, fixar: boolean) => {
+    fixarConversa.mutate({ conversaId: id, fixar })
+  }, [fixarConversa])
+
+  const handleMarcarNaoLida = useCallback((id: string) => {
+    marcarNaoLida.mutate(id)
+  }, [marcarNaoLida])
+
+  const handleApagarFromList = useCallback((id: string) => {
+    setConfirmApagar(id)
+  }, [])
+
+  const confirmApagarConversa = useCallback(() => {
+    if (!confirmApagar) return
+    apagarConversa.mutate(confirmApagar, {
+      onSuccess: () => { if (conversaAtivaId === confirmApagar) setConversaAtivaId(null) }
+    })
+    setConfirmApagar(null)
+  }, [confirmApagar, apagarConversa, conversaAtivaId])
+
+  const handleInsertQuickReply = (_conteudo: string) => {}
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      {/* Painel de métricas (colapsável) */}
       {metricasVisiveis && <ConversasMetricasPanel />}
 
       <div className="flex-1 flex overflow-hidden">
-      {/* Painel esquerdo - Lista de conversas (sem header duplicado - GAP 2) */}
-      <div className={`
-        flex flex-col border-r border-border/60 bg-white/80 backdrop-blur-md
-        w-full lg:w-[320px] xl:w-[340px] flex-shrink-0
-        ${conversaAtivaId ? 'hidden lg:flex' : 'flex'}
-      `}>
-        <FiltrosConversas
-          canal={filtros.canal}
-          status={filtros.status}
-          busca={filtros.busca}
-          onCanalChange={(canal) => setFiltros((f) => ({ ...f, canal }))}
-          onStatusChange={(status) => setFiltros((f) => ({ ...f, status }))}
-          onBuscaChange={(busca) => setFiltros((f) => ({ ...f, busca }))}
-        />
+        <div className={`
+          flex flex-col border-r border-border/60 bg-white/80 backdrop-blur-md
+          w-full lg:w-[320px] xl:w-[340px] flex-shrink-0
+          ${conversaAtivaId ? 'hidden lg:flex' : 'flex'}
+        `}>
+          <FiltrosConversas
+            canal={filtros.canal}
+            status={filtros.status}
+            busca={filtros.busca}
+            onCanalChange={(canal) => setFiltros((f) => ({ ...f, canal }))}
+            onStatusChange={(status) => setFiltros((f) => ({ ...f, status }))}
+            onBuscaChange={(busca) => setFiltros((f) => ({ ...f, busca }))}
+          />
 
-        <ConversasList
-          conversas={conversas}
-          conversaAtivaId={conversaAtivaId}
-          onSelectConversa={setConversaAtivaId}
-          isLoading={isLoading}
-          hasNextPage={hasNextPage}
-          isFetchingNextPage={isFetchingNextPage}
-          onLoadMore={() => fetchNextPage()}
+          <ConversasList
+            conversas={conversas}
+            conversaAtivaId={conversaAtivaId}
+            onSelectConversa={setConversaAtivaId}
+            isLoading={isLoading}
+            hasNextPage={hasNextPage}
+            isFetchingNextPage={isFetchingNextPage}
+            onLoadMore={() => fetchNextPage()}
+            onArquivar={handleArquivar}
+            onFixar={handleFixar}
+            onMarcarNaoLida={handleMarcarNaoLida}
+            onApagar={handleApagarFromList}
+          />
+        </div>
+
+        <div className={`
+          flex-1 flex min-w-0
+          ${conversaAtivaId ? 'flex' : 'hidden lg:flex'}
+        `}>
+          {conversaAtiva ? (
+            <>
+              <ChatWindow
+                conversa={conversaAtiva}
+                onBack={() => setConversaAtivaId(null)}
+                onOpenDrawer={() => setDrawerAberto(true)}
+                onConversaApagada={() => setConversaAtivaId(null)}
+              />
+              <ContatoDrawer
+                conversa={conversaAtiva}
+                isOpen={drawerAberto}
+                onClose={() => setDrawerAberto(false)}
+                onInsertQuickReply={handleInsertQuickReply}
+                onCriarOportunidade={() => {
+                  setDrawerAberto(false)
+                  toast.info('Use o botão + no header do chat para criar uma oportunidade')
+                }}
+              />
+            </>
+          ) : (
+            <ConversaEmpty />
+          )}
+        </div>
+
+        <NovaConversaModal
+          isOpen={novaConversaAberta}
+          onClose={() => setNovaConversaAberta(false)}
+          onConversaCriada={(id) => setConversaAtivaId(id)}
         />
       </div>
 
-      {/* Painel direito - Chat ou estado vazio */}
-      <div className={`
-        flex-1 flex min-w-0
-        ${conversaAtivaId ? 'flex' : 'hidden lg:flex'}
-      `}>
-        {conversaAtiva ? (
-          <>
-            <ChatWindow
-              conversa={conversaAtiva}
-              onBack={() => setConversaAtivaId(null)}
-              onOpenDrawer={() => setDrawerAberto(true)}
-            />
-            <ContatoDrawer
-              conversa={conversaAtiva}
-              isOpen={drawerAberto}
-              onClose={() => setDrawerAberto(false)}
-              onInsertQuickReply={handleInsertQuickReply}
-              onCriarOportunidade={() => {
-                setDrawerAberto(false)
-                // O botão +Opp no header do ChatWindow gerencia o modal de oportunidade
-                toast.info('Use o botão + no header do chat para criar uma oportunidade')
-              }}
-            />
-          </>
-        ) : (
-          <ConversaEmpty />
-        )}
-      </div>
-
-      {/* Modal nova conversa */}
-      <NovaConversaModal
-        isOpen={novaConversaAberta}
-        onClose={() => setNovaConversaAberta(false)}
-        onConversaCriada={(id) => setConversaAtivaId(id)}
-      />
-    </div>
+      {/* Confirm delete dialog from list */}
+      {confirmApagar && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setConfirmApagar(null)}>
+          <div className="bg-popover border border-border rounded-lg shadow-xl p-6 max-w-sm mx-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-semibold text-foreground mb-2">Apagar conversa?</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              A conversa será removida do CRM e do WhatsApp. Esta ação não pode ser desfeita.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setConfirmApagar(null)} className="px-4 py-2 text-sm text-foreground bg-muted hover:bg-accent rounded-md transition-colors">
+                Cancelar
+              </button>
+              <button onClick={confirmApagarConversa} className="px-4 py-2 text-sm text-destructive-foreground bg-destructive hover:bg-destructive/90 rounded-md transition-colors">
+                Apagar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
