@@ -407,6 +407,53 @@ export type Database = {
           },
         ]
       }
+      conexoes_api4com: {
+        Row: {
+          access_token_encrypted: string
+          api_url: string
+          atualizado_em: string
+          conectado_em: string | null
+          criado_em: string
+          deletado_em: string | null
+          id: string
+          organizacao_id: string
+          status: string
+          ultimo_erro: string | null
+        }
+        Insert: {
+          access_token_encrypted: string
+          api_url?: string
+          atualizado_em?: string
+          conectado_em?: string | null
+          criado_em?: string
+          deletado_em?: string | null
+          id?: string
+          organizacao_id: string
+          status?: string
+          ultimo_erro?: string | null
+        }
+        Update: {
+          access_token_encrypted?: string
+          api_url?: string
+          atualizado_em?: string
+          conectado_em?: string | null
+          criado_em?: string
+          deletado_em?: string | null
+          id?: string
+          organizacao_id?: string
+          status?: string
+          ultimo_erro?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conexoes_api4com_organizacao_id_fkey"
+            columns: ["organizacao_id"]
+            isOneToOne: true
+            referencedRelation: "organizacoes_saas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conexoes_email: {
         Row: {
           access_token_encrypted: string | null

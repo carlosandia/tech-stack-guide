@@ -16,6 +16,7 @@ import { EmailConexaoModal } from '../components/integracoes/EmailConexaoModal'
 import { InstagramConexaoModal } from '../components/integracoes/InstagramConexaoModal'
 import { MetaAdsConexaoModal } from '../components/integracoes/MetaAdsConexaoModal'
 import { GoogleCalendarConexaoModal } from '../components/integracoes/GoogleCalendarConexaoModal'
+import { Api4comConexaoModal } from '../components/integracoes/Api4comConexaoModal'
 import type { PlataformaIntegracao, Integracao } from '../services/configuracoes.api'
 
 const PLATAFORMAS: PlataformaIntegracao[] = ['whatsapp', 'instagram', 'meta_ads', 'google', 'email', 'api4com']
@@ -150,6 +151,13 @@ export function ConexoesPage() {
       {modalAberto === 'google' && (
         <GoogleCalendarConexaoModal
           onClose={() => setModalAberto(null)}
+        />
+      )}
+
+      {modalAberto === 'api4com' && (
+        <Api4comConexaoModal
+          onClose={() => setModalAberto(null)}
+          onSuccess={handleModalSuccess}
         />
       )}
     </div>
