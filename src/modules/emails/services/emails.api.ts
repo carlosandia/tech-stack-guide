@@ -220,6 +220,8 @@ export const emailsApi = {
     const { data, error } = await supabase.functions.invoke('send-email', {
       body: {
         to: payload.para_email,
+        cc: payload.cc_email || undefined,
+        bcc: payload.bcc_email || undefined,
         subject: payload.assunto,
         body: payload.corpo_html,
         body_type: 'html',
@@ -230,6 +232,18 @@ export const emailsApi = {
     if (data && !data.sucesso) throw new Error(data.mensagem || 'Falha ao enviar email')
 
     return data || { sucesso: true, mensagem: 'Email enviado' }
+  },
+
+  /**
+   * Sincronizar emails via IMAP (busca novos emails do servidor)
+   */
+  sincronizarEmails: async (): Promise<{ sucesso: boolean; mensagem: string; novos: number }> => {
+    const { data, error } = await supabase.functions.invoke('sync-emails', {})
+
+    if (error) throw new Error(error.message || 'Erro ao sincronizar')
+    if (data && !data.sucesso) throw new Error(data.mensagem || 'Falha na sincronização')
+
+    return data || { sucesso: true, mensagem: 'Sincronizado', novos: 0 }
   },
 
   /**
