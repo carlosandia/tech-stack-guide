@@ -27,6 +27,10 @@ import webhooksRoutes, { webhookReceiverRouter } from './routes/webhooks.js'
 import equipesRoutes, { usuariosRouter, perfisRouter } from './routes/equipe.js'
 import metasRoutes from './routes/metas.js'
 
+// Rotas PRD-17 - Formularios
+import formulariosRoutes from './routes/formularios.js'
+import formulariosPublicoRoutes from './routes/formularios-publico.js'
+
 // Rotas PRD-08 - Conexoes com Plataformas Externas
 import conexoesRoutes, {
   wahaWebhookHandler,
@@ -105,6 +109,9 @@ app.use('/api/v1/admin', adminRoutes)
 // Webhook receiver (publico - nao requer autenticacao)
 app.use('/api/v1/webhook', webhookReceiverRouter)
 
+// Rotas PRD-17 - Formularios publicos (SEM auth)
+app.use('/api/v1/publico/formularios', formulariosPublicoRoutes)
+
 // Rotas PRD-05 - Configuracoes do Tenant (requer autenticacao + tenant)
 app.use('/api/v1/campos', authMiddleware, requireTenant, camposRoutes)
 app.use('/api/v1/produtos', authMiddleware, requireTenant, produtosRoutes)
@@ -121,6 +128,9 @@ app.use('/api/v1/equipes', authMiddleware, requireTenant, equipesRoutes)
 app.use('/api/v1/usuarios', authMiddleware, requireTenant, usuariosRouter)
 app.use('/api/v1/perfis-permissao', authMiddleware, requireTenant, perfisRouter)
 app.use('/api/v1/metas', authMiddleware, requireTenant, metasRoutes)
+
+// Rotas PRD-17 - Formularios (requer autenticacao + tenant)
+app.use('/api/v1/formularios', authMiddleware, requireTenant, formulariosRoutes)
 
 // Rotas PRD-06 - Contatos (requer autenticacao + tenant)
 app.use('/api/v1/contatos', authMiddleware, requireTenant, contatosRoutes)
