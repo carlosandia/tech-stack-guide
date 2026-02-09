@@ -434,7 +434,11 @@ Deno.serve(async (req) => {
           phone_number: null,
           phone_name: null,
         });
-        break;
+
+        return new Response(
+          JSON.stringify({ ok: true, status: "disconnected" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
 
       case "configurar_webhook": {
