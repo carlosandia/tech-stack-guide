@@ -16,6 +16,7 @@ import {
   UserCircle,
   CalendarDays,
   Calendar,
+  Tag,
 } from 'lucide-react'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import type { Oportunidade } from '../../services/negocios.api'
@@ -229,7 +230,8 @@ export function KanbanCard({ oportunidade, onDragStart, onClick, config, isSelec
         const segmentos = (oportunidade as any)._segmentos as Array<{ id: string; nome: string; cor: string }> | undefined
         if (!segmentos || segmentos.length === 0) return null
         return (
-          <div key={key} className="flex items-center gap-1 flex-wrap">
+          <div key={key} className="flex items-center gap-1.5 flex-wrap">
+            <Tag className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
             {segmentos.map(seg => (
               <span
                 key={seg.id}
