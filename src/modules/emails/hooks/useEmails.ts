@@ -87,7 +87,7 @@ export function useEnviarEmail() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (payload: EnviarEmailPayload) => emailsApi.enviarEmail(payload),
+    mutationFn: (payload: EnviarEmailPayload & { anexos?: File[] }) => emailsApi.enviarEmail(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['emails'] })
       toast.success('Email enviado com sucesso!')

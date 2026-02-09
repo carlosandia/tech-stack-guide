@@ -5,6 +5,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
  * Busca credenciais do usuario na tabela conexoes_email
  * Envia email real usando comandos SMTP diretos
  * SALVA cópia do email enviado na tabela emails_recebidos (pasta=sent)
+ * Suporta: anexos via Storage, tracking pixel
  */
 
 const corsHeaders = {
@@ -17,6 +18,31 @@ const corsHeaders = {
 function extractHostnameFromGreeting(greeting: string, fallback: string): string {
   const parts = greeting.trim().split(/\s+/);
   return parts.length > 1 ? parts[1] : fallback;
+}
+
+/** Converte Uint8Array para base64 */
+function uint8ArrayToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+/** Divide string em linhas de 76 caracteres (MIME standard) */
+function splitBase64Lines(base64: string): string {
+  const lines: string[] = [];
+  for (let i = 0; i < base64.length; i += 76) {
+    lines.push(base64.substring(i, i + 76));
+  }
+  return lines.join("\r\n");
+}
+
+interface AnexoInfo {
+  filename: string;
+  storage_path: string;
+  mimeType: string;
+  size: number;
 }
 
 /** Envia email via SMTP com AUTH LOGIN + STARTTLS */
@@ -33,6 +59,8 @@ async function sendSmtpEmail(config: {
   subject: string;
   body: string;
   bodyType: string;
+  boundary?: string;
+  rawMessage?: string;
 }): Promise<{ sucesso: boolean; mensagem: string; messageId?: string }> {
   try {
     const useTLS = config.port === 465;
@@ -138,37 +166,16 @@ async function sendSmtpEmail(config: {
       return { sucesso: false, mensagem: "Servidor não aceitou início de dados" };
     }
 
-    // Compose message
-    const messageId = `${crypto.randomUUID()}@crmrenove.local`;
-    const fromDisplay = config.fromName ? `"${config.fromName}" <${fromAddr}>` : fromAddr;
-    const contentType = config.bodyType === "html"
-      ? "text/html; charset=UTF-8"
-      : "text/plain; charset=UTF-8";
-
-    const headers = [
-      `From: ${fromDisplay}`,
-      `To: ${config.to}`,
-    ];
-
-    if (config.cc) {
-      headers.push(`Cc: ${config.cc}`);
-    }
-
-    headers.push(
-      `Subject: =?UTF-8?B?${btoa(unescape(encodeURIComponent(config.subject)))}?=`,
-      `MIME-Version: 1.0`,
-      `Content-Type: ${contentType}`,
-      `Date: ${new Date().toUTCString()}`,
-      `Message-ID: <${messageId}>`,
-    );
-
-    const message = [...headers, ``, config.body, `.`].join("\r\n");
+    // Se rawMessage foi fornecido (MIME multipart), usa diretamente
+    const message = config.rawMessage || buildSimpleMessage(config);
 
     const msgResp = await sendCommand(message);
     if (!msgResp.startsWith("250")) {
       conn.close();
       return { sucesso: false, mensagem: "Servidor não aceitou a mensagem" };
     }
+
+    const messageId = extractMessageId(message);
 
     await sendCommand("QUIT");
     conn.close();
@@ -179,6 +186,99 @@ async function sendSmtpEmail(config: {
     console.error("[send-email] SMTP error:", msg);
     return { sucesso: false, mensagem: `Erro SMTP: ${msg}` };
   }
+}
+
+function extractMessageId(message: string): string {
+  const match = message.match(/Message-ID:\s*<([^>]+)>/i);
+  return match ? match[1] : `${crypto.randomUUID()}@crmrenove.local`;
+}
+
+function buildSimpleMessage(config: {
+  from: string;
+  fromName?: string;
+  to: string;
+  cc?: string;
+  subject: string;
+  body: string;
+  bodyType: string;
+}): string {
+  const messageId = `${crypto.randomUUID()}@crmrenove.local`;
+  const fromDisplay = config.fromName ? `"${config.fromName}" <${config.from}>` : config.from;
+  const contentType = config.bodyType === "html"
+    ? "text/html; charset=UTF-8"
+    : "text/plain; charset=UTF-8";
+
+  const headers = [
+    `From: ${fromDisplay}`,
+    `To: ${config.to}`,
+  ];
+
+  if (config.cc) {
+    headers.push(`Cc: ${config.cc}`);
+  }
+
+  headers.push(
+    `Subject: =?UTF-8?B?${btoa(unescape(encodeURIComponent(config.subject)))}?=`,
+    `MIME-Version: 1.0`,
+    `Content-Type: ${contentType}`,
+    `Date: ${new Date().toUTCString()}`,
+    `Message-ID: <${messageId}>`,
+  );
+
+  return [...headers, ``, config.body, `.`].join("\r\n");
+}
+
+function buildMimeMessage(config: {
+  from: string;
+  fromName?: string;
+  to: string;
+  cc?: string;
+  subject: string;
+  body: string;
+  anexos: { filename: string; mimeType: string; base64: string }[];
+}): string {
+  const messageId = `${crypto.randomUUID()}@crmrenove.local`;
+  const boundary = `----=_Part_${crypto.randomUUID().replace(/-/g, "")}`;
+  const fromDisplay = config.fromName ? `"${config.fromName}" <${config.from}>` : config.from;
+
+  const headers = [
+    `From: ${fromDisplay}`,
+    `To: ${config.to}`,
+  ];
+
+  if (config.cc) {
+    headers.push(`Cc: ${config.cc}`);
+  }
+
+  headers.push(
+    `Subject: =?UTF-8?B?${btoa(unescape(encodeURIComponent(config.subject)))}?=`,
+    `MIME-Version: 1.0`,
+    `Content-Type: multipart/mixed; boundary="${boundary}"`,
+    `Date: ${new Date().toUTCString()}`,
+    `Message-ID: <${messageId}>`,
+    ``,
+    `--${boundary}`,
+    `Content-Type: text/html; charset=UTF-8`,
+    `Content-Transfer-Encoding: 7bit`,
+    ``,
+    config.body,
+  );
+
+  // Adiciona cada anexo
+  for (const anexo of config.anexos) {
+    headers.push(
+      `--${boundary}`,
+      `Content-Type: ${anexo.mimeType}; name="=?UTF-8?B?${btoa(unescape(encodeURIComponent(anexo.filename)))}?="`,
+      `Content-Disposition: attachment; filename="=?UTF-8?B?${btoa(unescape(encodeURIComponent(anexo.filename)))}?="`,
+      `Content-Transfer-Encoding: base64`,
+      ``,
+      splitBase64Lines(anexo.base64),
+    );
+  }
+
+  headers.push(`--${boundary}--`, `.`);
+
+  return headers.join("\r\n");
 }
 
 Deno.serve(async (req) => {
@@ -258,7 +358,15 @@ Deno.serve(async (req) => {
 
     // Parse body
     const body = await req.json();
-    const { to, cc, bcc, subject, body: emailBody, body_type } = body;
+    const { to, cc, bcc, subject, body: emailBody, body_type, anexos } = body as {
+      to: string;
+      cc?: string;
+      bcc?: string;
+      subject: string;
+      body: string;
+      body_type?: string;
+      anexos?: AnexoInfo[];
+    };
 
     if (!to || !subject) {
       return new Response(
@@ -267,9 +375,65 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log("[send-email] Enviando para:", to, "via", conexao.smtp_host);
+    console.log("[send-email] Enviando para:", to, "via", conexao.smtp_host, "anexos:", anexos?.length || 0);
 
-    // Enviar
+    // Gerar tracking ID
+    const trackingId = crypto.randomUUID();
+    const trackingUrl = `${supabaseUrl}/functions/v1/email-tracking?t=${trackingId}`;
+    const trackingPixel = `<img src="${trackingUrl}" width="1" height="1" style="display:none;border:0;" alt="" />`;
+
+    // Injetar tracking pixel no corpo HTML
+    let finalBody = emailBody || "";
+    if (body_type === "html" || !body_type) {
+      // Insere antes do </body> ou no final
+      if (finalBody.includes("</body>")) {
+        finalBody = finalBody.replace("</body>", `${trackingPixel}</body>`);
+      } else {
+        finalBody += trackingPixel;
+      }
+    }
+
+    // Preparar anexos: download do Storage
+    let anexosProcessados: { filename: string; mimeType: string; base64: string }[] = [];
+    const hasAnexos = anexos && anexos.length > 0;
+
+    if (hasAnexos) {
+      for (const anexo of anexos!) {
+        const { data: fileData, error: downloadError } = await supabaseAdmin.storage
+          .from("email-anexos")
+          .download(anexo.storage_path);
+
+        if (downloadError || !fileData) {
+          console.error("[send-email] Erro download anexo:", anexo.filename, downloadError);
+          continue;
+        }
+
+        const arrayBuffer = await fileData.arrayBuffer();
+        const base64 = uint8ArrayToBase64(new Uint8Array(arrayBuffer));
+
+        anexosProcessados.push({
+          filename: anexo.filename,
+          mimeType: anexo.mimeType,
+          base64,
+        });
+      }
+    }
+
+    // Construir e enviar mensagem
+    let rawMessage: string | undefined;
+
+    if (anexosProcessados.length > 0) {
+      rawMessage = buildMimeMessage({
+        from: conexao.email,
+        fromName: conexao.nome_remetente || usuario.nome,
+        to,
+        cc: cc || undefined,
+        subject,
+        body: finalBody,
+        anexos: anexosProcessados,
+      });
+    }
+
     const result = await sendSmtpEmail({
       host: conexao.smtp_host,
       port: conexao.smtp_port || 587,
@@ -281,8 +445,9 @@ Deno.serve(async (req) => {
       cc: cc || undefined,
       bcc: bcc || undefined,
       subject,
-      body: emailBody || "",
+      body: finalBody,
       bodyType: body_type || "html",
+      rawMessage,
     });
 
     // Atualizar contadores na conexão
@@ -296,9 +461,7 @@ Deno.serve(async (req) => {
         })
         .eq("id", conexao.id);
 
-      // =====================================================
-      // SALVAR CÓPIA DO EMAIL ENVIADO na tabela emails_recebidos
-      // =====================================================
+      // SALVAR CÓPIA DO EMAIL ENVIADO
       const now = new Date().toISOString();
       const preview = (emailBody || "")
         .replace(/<[^>]*>/g, "")
@@ -324,23 +487,26 @@ Deno.serve(async (req) => {
           pasta: "sent",
           lido: true,
           favorito: false,
-          tem_anexos: false,
+          tem_anexos: hasAnexos || false,
+          anexos_info: hasAnexos ? anexos : null,
           data_email: now,
           sincronizado_em: now,
+          tracking_id: trackingId,
         });
 
       if (saveError) {
-        console.error("[send-email] Erro ao salvar cópia do email enviado:", saveError);
-        // Não falha o request — o email já foi enviado
-      } else {
-        console.log("[send-email] Cópia salva na pasta 'sent'");
+        console.error("[send-email] Erro ao salvar cópia:", saveError);
+      }
+
+      // Cleanup: remover arquivos do storage após envio bem-sucedido
+      if (hasAnexos) {
+        const paths = anexos!.map((a) => a.storage_path);
+        await supabaseAdmin.storage.from("email-anexos").remove(paths);
       }
     } else {
       await supabaseAdmin
         .from("conexoes_email")
-        .update({
-          ultimo_erro: result.mensagem,
-        })
+        .update({ ultimo_erro: result.mensagem })
         .eq("id", conexao.id);
     }
 

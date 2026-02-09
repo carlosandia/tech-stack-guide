@@ -225,9 +225,37 @@ export const emailsApi = {
   },
 
   /**
-   * Enviar email via Edge Function (SMTP)
+   * Enviar email via Edge Function (SMTP) com suporte a anexos
    */
-  enviarEmail: async (payload: EnviarEmailPayload): Promise<{ sucesso: boolean; mensagem: string }> => {
+  enviarEmail: async (payload: EnviarEmailPayload & { anexos?: File[] }): Promise<{ sucesso: boolean; mensagem: string }> => {
+    // Upload anexos para Storage se existirem
+    let anexosInfo: { filename: string; storage_path: string; mimeType: string; size: number }[] = []
+
+    if (payload.anexos && payload.anexos.length > 0) {
+      const orgId = await getOrganizacaoId()
+      const userId = await getUsuarioId()
+      const timestamp = Date.now()
+
+      for (const file of payload.anexos) {
+        const path = `${orgId}/${userId}/${timestamp}/${file.name}`
+        const { error: uploadError } = await supabase.storage
+          .from('email-anexos')
+          .upload(path, file)
+
+        if (uploadError) {
+          console.error('Erro upload anexo:', uploadError)
+          throw new Error(`Erro ao fazer upload do anexo: ${file.name}`)
+        }
+
+        anexosInfo.push({
+          filename: file.name,
+          storage_path: path,
+          mimeType: file.type || 'application/octet-stream',
+          size: file.size,
+        })
+      }
+    }
+
     const { data, error } = await supabase.functions.invoke('send-email', {
       body: {
         to: payload.para_email,
@@ -236,6 +264,7 @@ export const emailsApi = {
         subject: payload.assunto,
         body: payload.corpo_html,
         body_type: 'html',
+        anexos: anexosInfo.length > 0 ? anexosInfo : undefined,
       },
     })
 
