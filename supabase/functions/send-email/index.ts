@@ -95,21 +95,27 @@ async function sendSmtpEmail(config: {
     };
 
     const sendCommand = async (cmd: string): Promise<string> => {
+      const safeLog = cmd.startsWith(btoa("")) ? "[REDACTED]" : cmd;
+      console.log(`[SMTP] >>> ${safeLog}`);
       await conn.write(encoder.encode(cmd + "\r\n"));
-      return await readResponse();
+      const resp = await readResponse();
+      console.log(`[SMTP] <<< ${resp.substring(0, 200).replace(/\r\n/g, " | ")}`);
+      return resp;
     };
 
     // Greeting
     const greeting = await readResponse();
+    console.log(`[SMTP] Greeting: ${greeting.substring(0, 200).replace(/\r\n/g, " | ")}`);
     if (!greeting.startsWith("220")) {
       conn.close();
       return { sucesso: false, mensagem: "Servidor SMTP rejeitou conexão" };
     }
 
     const realHostname = extractHostnameFromGreeting(greeting, config.host);
+    console.log(`[SMTP] realHostname: ${realHostname}`);
 
     // EHLO
-    await sendCommand("EHLO crmrenove.local");
+    const ehloResp1 = await sendCommand("EHLO crmrenove.local");
 
     // STARTTLS if port 587
     if (config.port === 587) {
@@ -117,6 +123,7 @@ async function sendSmtpEmail(config: {
       if (starttlsResp.startsWith("220")) {
         const tlsConn = await Deno.startTls(conn as Deno.TcpConn, { hostname: realHostname });
         conn = tlsConn;
+        console.log("[SMTP] TLS upgraded successfully");
         await sendCommand("EHLO crmrenove.local");
       }
     }
@@ -137,7 +144,7 @@ async function sendSmtpEmail(config: {
     const passResp = await sendCommand(btoa(config.pass));
     if (!passResp.startsWith("235")) {
       conn.close();
-      return { sucesso: false, mensagem: "Falha na autenticação SMTP. Verifique suas credenciais." };
+      return { sucesso: false, mensagem: `Falha na autenticação SMTP: ${passResp.substring(0, 100)}` };
     }
 
     // MAIL FROM
@@ -145,14 +152,14 @@ async function sendSmtpEmail(config: {
     const mailFromResp = await sendCommand(`MAIL FROM:<${fromAddr}>`);
     if (!mailFromResp.startsWith("250")) {
       conn.close();
-      return { sucesso: false, mensagem: "Servidor rejeitou remetente" };
+      return { sucesso: false, mensagem: `Servidor rejeitou remetente: ${mailFromResp.substring(0, 100)}` };
     }
 
     // RCPT TO - destinatário principal
     const rcptResp = await sendCommand(`RCPT TO:<${config.to}>`);
     if (!rcptResp.startsWith("250")) {
       conn.close();
-      return { sucesso: false, mensagem: "Servidor rejeitou destinatário" };
+      return { sucesso: false, mensagem: `Servidor rejeitou destinatário: ${rcptResp.substring(0, 200)}` };
     }
 
     // RCPT TO - CC
