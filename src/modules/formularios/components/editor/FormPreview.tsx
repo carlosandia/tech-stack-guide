@@ -329,10 +329,10 @@ export function FormPreview({
 
           {/* Fields area */}
           {showFinalPreview ? (
-            /* Final Preview: render all field types with styles */
-            <div className="space-y-3">
+            /* Final Preview: render all field types with styles and largura support */
+            <div style={{ fontSize: 0 }}>
               {campos.map((campo) => (
-                <div key={campo.id}>{renderFinalCampo(campo, estiloCampos, fontFamily)}</div>
+                <div key={campo.id} style={{ fontSize: '14px', marginBottom: '12px' }}>{renderFinalCampo(campo, estiloCampos, fontFamily)}</div>
               ))}
             </div>
           ) : (
@@ -543,6 +543,17 @@ function renderFinalCampo(
 
   const placeholder = campo.placeholder || ''
 
+  // Largura do wrapper
+  const larguraMap: Record<string, string> = { full: '100%', half: '50%', third: '33.33%' }
+  const wrapperStyle: React.CSSProperties = {
+    width: larguraMap[campo.largura] || '100%',
+    display: 'inline-block',
+    verticalAlign: 'top',
+    paddingRight: campo.largura !== 'full' ? '8px' : undefined,
+    boxSizing: 'border-box' as const,
+  }
+
+  // Campos de layout (sem wrapper de largura)
   switch (campo.tipo) {
     case 'titulo':
       return (
@@ -569,185 +580,242 @@ function renderFinalCampo(
           dangerouslySetInnerHTML={{ __html: campo.valor_padrao || '<p>Bloco HTML</p>' }}
         />
       )
-    case 'area_texto':
-      return (
-        <div>
-          {renderLabel(campo, labelStyle)}
-          <textarea style={{ ...inputStyle, height: '64px', resize: 'vertical' }} placeholder={placeholder || 'Digite aqui...'} />
-        </div>
-      )
-    case 'checkbox':
-      return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <input type="checkbox" style={{ width: '16px', height: '16px' }} />
-          <span style={{ ...labelStyle, marginBottom: 0 }}>{campo.label}{campo.obrigatorio ? ' *' : ''}</span>
-        </div>
-      )
-    case 'checkbox_termos':
-      return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <input type="checkbox" style={{ width: '16px', height: '16px' }} />
-          <span style={{ ...labelStyle, marginBottom: 0 }}>
-            {campo.label}{campo.obrigatorio ? ' *' : ''}
-            {campo.valor_padrao && (
-              <TermosModal
-                texto={campo.valor_padrao}
-                trigger={
-                  <button
-                    type="button"
-                    style={{ color: '#3B82F6', textDecoration: 'underline', marginLeft: '4px', fontSize: 'inherit', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
-                  >
-                    Ver termos
-                  </button>
-                }
-              />
-            )}
-          </span>
-        </div>
-      )
-    case 'selecao':
-    case 'selecao_multipla':
-      return (
-        <div>
-          {renderLabel(campo, labelStyle)}
-          <select style={{ ...inputStyle, appearance: 'auto' }}>
-            <option value="">{placeholder || (campo.tipo === 'selecao_multipla' ? 'Selecione uma ou mais...' : 'Selecione...')}</option>
-            {(campo.opcoes as string[] || []).map((op, i) => (
-              <option key={i} value={op}>{typeof op === 'string' ? op : `Opção ${i + 1}`}</option>
-            ))}
-          </select>
-        </div>
-      )
-    case 'radio':
-      return (
-        <div>
-          {renderLabel(campo, labelStyle)}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            {(campo.opcoes as string[] || ['Opção 1', 'Opção 2']).slice(0, 4).map((op, i) => (
-              <label key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', color: estiloCampos?.input_texto_cor || '#1F2937', fontFamily, cursor: 'pointer' }}>
-                <input type="radio" name={campo.id} />
-                {typeof op === 'string' ? op : `Opção ${i + 1}`}
-              </label>
-            ))}
-          </div>
-        </div>
-      )
-    case 'data':
-      return (
-        <div>
-          {renderLabel(campo, labelStyle)}
-          <input type="date" style={inputStyle} />
-        </div>
-      )
-    case 'data_hora':
-      return (
-        <div>
-          {renderLabel(campo, labelStyle)}
-          <input type="datetime-local" style={inputStyle} />
-        </div>
-      )
-    case 'hora':
-      return (
-        <div>
-          {renderLabel(campo, labelStyle)}
-          <input type="time" style={inputStyle} />
-        </div>
-      )
-    case 'moeda':
-      return (
-        <div>
-          {renderLabel(campo, labelStyle)}
-          <input style={inputStyle} placeholder={placeholder || 'R$ 0,00'} />
-        </div>
-      )
-    case 'numero':
-      return (
-        <div>
-          {renderLabel(campo, labelStyle)}
-          <input type="number" style={inputStyle} placeholder={placeholder || '0'} />
-        </div>
-      )
-    case 'url':
-      return (
-        <div>
-          {renderLabel(campo, labelStyle)}
-          <input type="url" style={inputStyle} placeholder={placeholder || 'https://'} />
-        </div>
-      )
-    case 'avaliacao':
-      return (
-        <div>
-          {renderLabel(campo, labelStyle)}
-          <div style={{ display: 'flex', gap: '4px', fontSize: '20px', color: '#FBBF24', cursor: 'pointer' }}>
-            {'★★★★★'.split('').map((s, i) => <span key={i}>{s}</span>)}
-          </div>
-        </div>
-      )
-    case 'nps':
-      return (
-        <div>
-          {renderLabel(campo, labelStyle)}
-          <div style={{ display: 'flex', gap: '4px' }}>
-            {Array.from({ length: 11 }, (_, i) => (
-              <span key={i} style={{ ...inputStyle, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, fontSize: '12px', textAlign: 'center' as const, cursor: 'pointer' }}>{i}</span>
-            ))}
-          </div>
-        </div>
-      )
-    case 'slider':
-      return (
-        <div>
-          {renderLabel(campo, labelStyle)}
-          <input type="range" style={{ width: '100%' }} />
-        </div>
-      )
-    case 'assinatura':
-      return (
-        <div>
-          {renderLabel(campo, labelStyle)}
-          <div style={{ ...inputStyle, height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: estiloCampos?.input_texto_cor || '#9CA3AF' }}>
-            Área de assinatura
-          </div>
-        </div>
-      )
-    case 'cor':
-      return (
-        <div>
-          {renderLabel(campo, labelStyle)}
-          <input type="color" style={{ width: '48px', height: '32px', border: 'none', cursor: 'pointer' }} />
-        </div>
-      )
-    case 'ranking':
-      return (
-        <div>
-          {renderLabel(campo, labelStyle)}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            {['Item 1', 'Item 2', 'Item 3'].map((item, i) => (
-              <div key={i} style={{ ...inputStyle, padding: '6px 12px' }}>{i + 1}. {item}</div>
-            ))}
-          </div>
-        </div>
-      )
-    case 'arquivo':
-    case 'imagem':
-    case 'documento':
-    case 'upload_video':
-    case 'upload_audio':
-      return (
-        <div>
-          {renderLabel(campo, labelStyle)}
-          <div style={{ ...inputStyle, padding: '12px', textAlign: 'center' as const, color: estiloCampos?.input_texto_cor || '#9CA3AF', borderStyle: 'dashed', cursor: 'pointer' }}>
-            Clique ou arraste para enviar
-          </div>
-        </div>
-      )
-    default:
-      // text, email, telefone, telefone_br, cpf, cnpj, cep, endereco, pais, estado, cidade, etc.
-      return (
-        <div>
-          {renderLabel(campo, labelStyle)}
-          <input style={inputStyle} placeholder={placeholder || 'Digite aqui...'} />
-        </div>
-      )
   }
+
+  // Campos de input (com suporte a largura)
+  const renderInput = () => {
+    switch (campo.tipo) {
+      case 'area_texto':
+        return (
+          <div>
+            {renderLabel(campo, labelStyle)}
+            <textarea style={{ ...inputStyle, height: '64px', resize: 'vertical' }} placeholder={placeholder || 'Digite aqui...'} />
+          </div>
+        )
+      case 'checkbox':
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <input type="checkbox" style={{ width: '16px', height: '16px' }} />
+            <span style={{ ...labelStyle, marginBottom: 0 }}>{campo.label}{campo.obrigatorio ? ' *' : ''}</span>
+          </div>
+        )
+      case 'checkbox_termos':
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <input type="checkbox" style={{ width: '16px', height: '16px' }} />
+            <span style={{ ...labelStyle, marginBottom: 0 }}>
+              {campo.label}{campo.obrigatorio ? ' *' : ''}
+              {campo.valor_padrao && (
+                <TermosModal
+                  texto={campo.valor_padrao}
+                  trigger={
+                    <button
+                      type="button"
+                      style={{ color: '#3B82F6', textDecoration: 'underline', marginLeft: '4px', fontSize: 'inherit', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
+                    >
+                      Ver termos
+                    </button>
+                  }
+                />
+              )}
+            </span>
+          </div>
+        )
+      case 'selecao':
+      case 'selecao_multipla':
+      case 'pais':
+      case 'estado':
+      case 'cidade':
+        return (
+          <div>
+            {renderLabel(campo, labelStyle)}
+            <select style={{ ...inputStyle, appearance: 'auto' }}>
+              <option value="">{placeholder || (campo.tipo === 'selecao_multipla' ? 'Selecione uma ou mais...' : 'Selecione...')}</option>
+              {(campo.opcoes as string[] || []).map((op, i) => (
+                <option key={i} value={op}>{typeof op === 'string' ? op : `Opção ${i + 1}`}</option>
+              ))}
+            </select>
+          </div>
+        )
+      case 'radio':
+        return (
+          <div>
+            {renderLabel(campo, labelStyle)}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              {(campo.opcoes as string[] || ['Opção 1', 'Opção 2']).slice(0, 4).map((op, i) => (
+                <label key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', color: estiloCampos?.input_texto_cor || '#1F2937', fontFamily, cursor: 'pointer' }}>
+                  <input type="radio" name={campo.id} />
+                  {typeof op === 'string' ? op : `Opção ${i + 1}`}
+                </label>
+              ))}
+            </div>
+          </div>
+        )
+      case 'data':
+        return (
+          <div>
+            {renderLabel(campo, labelStyle)}
+            <input type="date" style={inputStyle} />
+          </div>
+        )
+      case 'data_hora':
+        return (
+          <div>
+            {renderLabel(campo, labelStyle)}
+            <input type="datetime-local" style={inputStyle} />
+          </div>
+        )
+      case 'hora':
+        return (
+          <div>
+            {renderLabel(campo, labelStyle)}
+            <input type="time" style={inputStyle} />
+          </div>
+        )
+      case 'moeda':
+        return (
+          <div>
+            {renderLabel(campo, labelStyle)}
+            <input style={inputStyle} placeholder={placeholder || 'R$ 0,00'} />
+          </div>
+        )
+      case 'numero':
+        return (
+          <div>
+            {renderLabel(campo, labelStyle)}
+            <input type="number" style={inputStyle} placeholder={placeholder || '0'} />
+          </div>
+        )
+      case 'url':
+        return (
+          <div>
+            {renderLabel(campo, labelStyle)}
+            <input type="url" style={inputStyle} placeholder={placeholder || 'https://'} />
+          </div>
+        )
+      case 'email':
+        return (
+          <div>
+            {renderLabel(campo, labelStyle)}
+            <input type="email" style={inputStyle} placeholder={placeholder || 'email@exemplo.com'} />
+          </div>
+        )
+      case 'telefone':
+      case 'telefone_br':
+        return (
+          <div>
+            {renderLabel(campo, labelStyle)}
+            <input type="tel" style={inputStyle} placeholder={placeholder || (campo.tipo === 'telefone_br' ? '(00) 00000-0000' : '+00 00000-0000')} />
+          </div>
+        )
+      case 'cpf':
+        return (
+          <div>
+            {renderLabel(campo, labelStyle)}
+            <input style={inputStyle} placeholder={placeholder || '000.000.000-00'} />
+          </div>
+        )
+      case 'cnpj':
+        return (
+          <div>
+            {renderLabel(campo, labelStyle)}
+            <input style={inputStyle} placeholder={placeholder || '00.000.000/0000-00'} />
+          </div>
+        )
+      case 'cep':
+        return (
+          <div>
+            {renderLabel(campo, labelStyle)}
+            <input style={inputStyle} placeholder={placeholder || '00000-000'} />
+          </div>
+        )
+      case 'endereco':
+        return (
+          <div>
+            {renderLabel(campo, labelStyle)}
+            <input style={{ ...inputStyle, marginBottom: '6px' }} placeholder={placeholder || 'Rua, número...'} />
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <input style={{ ...inputStyle, flex: 1 }} placeholder="Cidade" />
+              <input style={{ ...inputStyle, flex: 1 }} placeholder="Estado" />
+            </div>
+          </div>
+        )
+      case 'avaliacao':
+        return (
+          <div>
+            {renderLabel(campo, labelStyle)}
+            <div style={{ display: 'flex', gap: '4px', fontSize: '20px', color: '#FBBF24', cursor: 'pointer' }}>
+              {'★★★★★'.split('').map((s, i) => <span key={i}>{s}</span>)}
+            </div>
+          </div>
+        )
+      case 'nps':
+        return (
+          <div>
+            {renderLabel(campo, labelStyle)}
+            <div style={{ display: 'flex', gap: '4px' }}>
+              {Array.from({ length: 11 }, (_, i) => (
+                <span key={i} style={{ ...inputStyle, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, fontSize: '12px', textAlign: 'center' as const, cursor: 'pointer' }}>{i}</span>
+              ))}
+            </div>
+          </div>
+        )
+      case 'slider':
+        return (
+          <div>
+            {renderLabel(campo, labelStyle)}
+            <input type="range" style={{ width: '100%' }} />
+          </div>
+        )
+      case 'assinatura':
+        return (
+          <div>
+            {renderLabel(campo, labelStyle)}
+            <div style={{ ...inputStyle, height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: estiloCampos?.input_texto_cor || '#9CA3AF' }}>
+              Área de assinatura
+            </div>
+          </div>
+        )
+      case 'cor':
+        return (
+          <div>
+            {renderLabel(campo, labelStyle)}
+            <input type="color" style={{ width: '48px', height: '32px', border: 'none', cursor: 'pointer' }} />
+          </div>
+        )
+      case 'ranking':
+        return (
+          <div>
+            {renderLabel(campo, labelStyle)}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              {(campo.opcoes as string[] || ['Item 1', 'Item 2', 'Item 3']).map((item, i) => (
+                <div key={i} style={{ ...inputStyle, padding: '6px 12px' }}>{i + 1}. {typeof item === 'string' ? item : `Item ${i + 1}`}</div>
+              ))}
+            </div>
+          </div>
+        )
+      case 'arquivo':
+      case 'imagem':
+      case 'documento':
+      case 'upload_video':
+      case 'upload_audio':
+        return (
+          <div>
+            {renderLabel(campo, labelStyle)}
+            <div style={{ ...inputStyle, padding: '12px', textAlign: 'center' as const, color: estiloCampos?.input_texto_cor || '#9CA3AF', borderStyle: 'dashed', cursor: 'pointer' }}>
+              Clique ou arraste para enviar
+            </div>
+          </div>
+        )
+      default:
+        return (
+          <div>
+            {renderLabel(campo, labelStyle)}
+            <input style={inputStyle} placeholder={placeholder || 'Digite aqui...'} />
+          </div>
+        )
+    }
+  }
+
+  return <div style={wrapperStyle}>{renderInput()}</div>
 }
