@@ -4,7 +4,7 @@
  * Integra AudioRecorder inline quando gravação está ativa
  */
 
-import { useState, useRef, useCallback, type KeyboardEvent } from 'react'
+import { useState, useRef, useCallback, type KeyboardEvent, type ClipboardEvent } from 'react'
 import { Send, Zap, StickyNote, MessageSquare, Paperclip, Mic, Smile, X } from 'lucide-react'
 import { AnexosMenu } from './AnexosMenu'
 import { AudioRecorder } from './AudioRecorder'
@@ -52,6 +52,20 @@ export function ChatInput({
       handleSend()
     }
   }
+
+  const handlePaste = useCallback((e: ClipboardEvent<HTMLTextAreaElement>) => {
+    const files = e.clipboardData?.files
+    if (files && files.length > 0) {
+      e.preventDefault()
+      const file = files[0]
+      const tipo = file.type.startsWith('image/') ? 'image'
+        : file.type.startsWith('video/') ? 'video'
+        : file.type.startsWith('audio/') ? 'audio'
+        : 'document'
+      onFileSelected(file, tipo)
+    }
+    // Text paste is handled natively
+  }, [onFileSelected])
 
   const handleSend = () => {
     if (tab === 'responder') {
@@ -244,6 +258,7 @@ export function ChatInput({
                   autoResize(e.target)
                 }}
                 onKeyDown={handleKeyDown}
+                onPaste={!isNota ? handlePaste : undefined}
                 placeholder={isNota ? 'Escreva uma nota privada...' : 'Shift + Enter para nova linha...'}
                 disabled={disabled}
                 rows={2}

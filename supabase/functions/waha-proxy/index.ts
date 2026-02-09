@@ -1122,6 +1122,128 @@ Deno.serve(async (req) => {
         );
       }
 
+      // =====================================================
+      // FIXAR MENSAGEM VIA WAHA
+      // =====================================================
+      case "fixar_mensagem": {
+        const { chat_id: pinChatId, message_id: pinMsgId } = body as {
+          chat_id?: string;
+          message_id?: string;
+        };
+
+        if (!pinChatId || !pinMsgId) {
+          return new Response(
+            JSON.stringify({ error: "chat_id e message_id são obrigatórios" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        console.log(`[waha-proxy] Pinning message ${pinMsgId} in ${pinChatId}, session: ${sessionId}`);
+
+        const pinResp = await fetch(`${baseUrl}/api/${sessionId}/chats/${encodeURIComponent(pinChatId)}/messages/${encodeURIComponent(pinMsgId)}/pin`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
+          body: JSON.stringify({ duration: 604800 }), // 7 days
+        });
+
+        const pinData = await pinResp.json().catch(() => ({}));
+        console.log(`[waha-proxy] Pin message response: ${pinResp.status}`, JSON.stringify(pinData).substring(0, 300));
+
+        if (!pinResp.ok && isNowebLimitation(pinResp.status, pinData)) {
+          return nowebPartialResponse('fixar_mensagem');
+        }
+
+        return new Response(
+          JSON.stringify({ ok: pinResp.ok, data: pinData }),
+          { status: pinResp.ok ? 200 : pinResp.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // =====================================================
+      // REAGIR A MENSAGEM VIA WAHA
+      // =====================================================
+      case "reagir_mensagem": {
+        const { chat_id: reactChatId, message_id: reactMsgId, emoji: reactEmoji } = body as {
+          chat_id?: string;
+          message_id?: string;
+          emoji?: string;
+        };
+
+        if (!reactChatId || !reactMsgId || !reactEmoji) {
+          return new Response(
+            JSON.stringify({ error: "chat_id, message_id e emoji são obrigatórios" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        console.log(`[waha-proxy] Reacting with ${reactEmoji} to ${reactMsgId} in ${reactChatId}, session: ${sessionId}`);
+
+        const reactResp = await fetch(`${baseUrl}/api/reaction`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
+          body: JSON.stringify({
+            chatId: reactChatId,
+            session: sessionId,
+            messageId: reactMsgId,
+            reaction: reactEmoji,
+          }),
+        });
+
+        const reactData = await reactResp.json().catch(() => ({}));
+        console.log(`[waha-proxy] Reaction response: ${reactResp.status}`, JSON.stringify(reactData).substring(0, 300));
+
+        if (!reactResp.ok && isNowebLimitation(reactResp.status, reactData)) {
+          return nowebPartialResponse('reagir_mensagem');
+        }
+
+        return new Response(
+          JSON.stringify({ ok: reactResp.ok, data: reactData }),
+          { status: reactResp.ok ? 200 : reactResp.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // =====================================================
+      // ENCAMINHAR MENSAGEM VIA WAHA
+      // =====================================================
+      case "encaminhar_mensagem": {
+        const { chat_id: fwdChatId, message_id: fwdMsgId, destino_chat_id: fwdDestino } = body as {
+          chat_id?: string;
+          message_id?: string;
+          destino_chat_id?: string;
+        };
+
+        if (!fwdChatId || !fwdMsgId || !fwdDestino) {
+          return new Response(
+            JSON.stringify({ error: "chat_id, message_id e destino_chat_id são obrigatórios" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        console.log(`[waha-proxy] Forwarding message ${fwdMsgId} from ${fwdChatId} to ${fwdDestino}, session: ${sessionId}`);
+
+        const fwdResp = await fetch(`${baseUrl}/api/forwardMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
+          body: JSON.stringify({
+            chatId: fwdDestino,
+            session: sessionId,
+            messageId: fwdMsgId,
+          }),
+        });
+
+        const fwdData = await fwdResp.json().catch(() => ({}));
+        console.log(`[waha-proxy] Forward response: ${fwdResp.status}`, JSON.stringify(fwdData).substring(0, 300));
+
+        if (!fwdResp.ok && isNowebLimitation(fwdResp.status, fwdData)) {
+          return nowebPartialResponse('encaminhar_mensagem');
+        }
+
+        return new Response(
+          JSON.stringify({ ok: fwdResp.ok, data: fwdData }),
+          { status: fwdResp.ok ? 200 : fwdResp.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       default:
         return new Response(
           JSON.stringify({ error: `Action '${action}' não reconhecida` }),

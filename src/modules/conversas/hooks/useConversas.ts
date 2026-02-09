@@ -184,3 +184,58 @@ export function useSilenciarConversa() {
     },
   })
 }
+
+// =====================================================
+// Hooks para ações de mensagem (fixar, reagir, encaminhar)
+// =====================================================
+
+export function useFixarMensagem() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ conversaId, messageWahaId }: {
+      conversaId: string; messageWahaId: string
+    }) => conversasApi.fixarMensagem(conversaId, messageWahaId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['mensagens'] })
+      toast.success('Mensagem fixada')
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Erro ao fixar mensagem')
+    },
+  })
+}
+
+export function useReagirMensagem() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ conversaId, messageWahaId, emoji }: {
+      conversaId: string; messageWahaId: string; emoji: string
+    }) => conversasApi.reagirMensagem(conversaId, messageWahaId, emoji),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['mensagens'] })
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Erro ao reagir à mensagem')
+    },
+  })
+}
+
+export function useEncaminharMensagem() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ conversaId, messageWahaId, destinoChatId }: {
+      conversaId: string; messageWahaId: string; destinoChatId: string
+    }) => conversasApi.encaminharMensagem(conversaId, messageWahaId, destinoChatId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['mensagens'] })
+      queryClient.invalidateQueries({ queryKey: ['conversas'] })
+      toast.success('Mensagem encaminhada')
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Erro ao encaminhar mensagem')
+    },
+  })
+}

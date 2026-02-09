@@ -3,10 +3,11 @@
  * Suporta todos os tipos: text, image, video, audio, document, location, contact, poll, sticker, reaction
  * Suporta exibição de nome do remetente em grupos
  * Integra MediaViewer para lightbox de imagens e vídeos
- * Menu de ações: Responder, Copiar, Reagir, Encaminhar, Fixar, Apagar
+ * Menu de ações via Portal: Responder, Copiar, Reagir, Encaminhar, Fixar, Apagar
  */
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { format } from 'date-fns'
 import {
   Check,
@@ -33,17 +34,14 @@ import { toast } from 'sonner'
 
 interface ChatMessageBubbleProps {
   mensagem: Mensagem
-  /** Nome do participant (para grupos, mensagens recebidas) */
   participantName?: string | null
-  /** Cor do participant (para grupos) */
   participantColor?: string | null
-  /** ID da conversa (para consultar votos de enquete) */
   conversaId?: string
-  /** Callback para apagar mensagem */
   onDeleteMessage?: (mensagemId: string, messageWahaId: string, paraTodos: boolean) => void
-  /** Callback para responder mensagem */
   onReplyMessage?: (mensagem: Mensagem) => void
-  /** Mensagem citada (reply_to) */
+  onReactMessage?: (mensagem: Mensagem, emoji: string) => void
+  onForwardMessage?: (mensagem: Mensagem) => void
+  onPinMessage?: (mensagem: Mensagem) => void
   quotedMessage?: Mensagem | null
 }
 
@@ -331,121 +329,172 @@ function QuotedMessagePreview({ quoted, isMe }: { quoted: Mensagem; isMe: boolea
 }
 
 // =====================================================
-// Action Menu
+// Quick Reaction Emojis
 // =====================================================
 
-function MessageActionMenu({ mensagem, onDelete, onReply }: {
+const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏']
+
+function ReactionPicker({ onSelect, position }: {
+  onSelect: (emoji: string) => void
+  position: { top: number; left: number }
+}) {
+  return createPortal(
+    <div
+      className="fixed z-[10000] flex items-center gap-1 bg-popover border border-border rounded-full px-2 py-1.5 shadow-lg"
+      style={{ top: position.top - 48, left: position.left }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {QUICK_REACTIONS.map((emoji) => (
+        <button
+          key={emoji}
+          onClick={() => onSelect(emoji)}
+          className="w-8 h-8 flex items-center justify-center text-lg hover:bg-accent rounded-full transition-colors hover:scale-125"
+        >
+          {emoji}
+        </button>
+      ))}
+    </div>,
+    document.body
+  )
+}
+
+// =====================================================
+// Action Menu (Portal-based)
+// =====================================================
+
+function MessageActionMenu({ mensagem, onDelete, onReply, onCopy, onReact, onForward, onPin }: {
   mensagem: Mensagem
   onDelete: (paraTodos: boolean) => void
   onReply?: () => void
   onCopy?: () => void
+  onReact?: () => void
+  onForward?: () => void
+  onPin?: () => void
 }) {
   const [open, setOpen] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null)
 
   useEffect(() => {
     if (!open) return
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setOpen(false)
-      }
+    const handler = () => {
+      setOpen(false)
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+    // Use setTimeout so the click that opened doesn't immediately close
+    const timer = setTimeout(() => {
+      document.addEventListener('mousedown', handler)
+    }, 10)
+    return () => {
+      clearTimeout(timer)
+      document.removeEventListener('mousedown', handler)
+    }
   }, [open])
 
-  const handleCopy = () => {
-    const text = mensagem.body || mensagem.caption || ''
-    if (text) {
-      navigator.clipboard.writeText(text)
-      toast.success('Copiado')
+  const handleToggle = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!open && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect()
+      const menuWidth = 180
+      let left = mensagem.from_me ? rect.left : rect.right - menuWidth
+      // Ensure it doesn't go off-screen
+      if (left + menuWidth > window.innerWidth) left = window.innerWidth - menuWidth - 8
+      if (left < 8) left = 8
+      setMenuPos({ top: rect.bottom + 4, left })
     }
-    setOpen(false)
-  }
+    setOpen(!open)
+  }, [open, mensagem.from_me])
+
+  const menuContent = open && menuPos ? createPortal(
+    <div
+      className="fixed z-[9999] bg-popover border border-border rounded-lg shadow-lg py-1 min-w-[180px]"
+      style={{ top: menuPos.top, left: menuPos.left }}
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      {onReply && (
+        <button
+          onClick={() => { onReply(); setOpen(false) }}
+          className="flex items-center gap-2.5 w-full px-3 py-2 text-xs hover:bg-accent/50 transition-colors text-foreground"
+        >
+          <Reply className="w-3.5 h-3.5 text-muted-foreground" />
+          Responder
+        </button>
+      )}
+
+      {onCopy && (
+        <button
+          onClick={() => { onCopy(); setOpen(false) }}
+          className="flex items-center gap-2.5 w-full px-3 py-2 text-xs hover:bg-accent/50 transition-colors text-foreground"
+        >
+          <Copy className="w-3.5 h-3.5 text-muted-foreground" />
+          Copiar
+        </button>
+      )}
+
+      {onReact && (
+        <button
+          onClick={() => { onReact(); setOpen(false) }}
+          className="flex items-center gap-2.5 w-full px-3 py-2 text-xs hover:bg-accent/50 transition-colors text-foreground"
+        >
+          <Smile className="w-3.5 h-3.5 text-muted-foreground" />
+          Reagir
+        </button>
+      )}
+
+      {onForward && (
+        <button
+          onClick={() => { onForward(); setOpen(false) }}
+          className="flex items-center gap-2.5 w-full px-3 py-2 text-xs hover:bg-accent/50 transition-colors text-foreground"
+        >
+          <Forward className="w-3.5 h-3.5 text-muted-foreground" />
+          Encaminhar
+        </button>
+      )}
+
+      {onPin && (
+        <button
+          onClick={() => { onPin(); setOpen(false) }}
+          className="flex items-center gap-2.5 w-full px-3 py-2 text-xs hover:bg-accent/50 transition-colors text-foreground"
+        >
+          <Pin className="w-3.5 h-3.5 text-muted-foreground" />
+          Fixar
+        </button>
+      )}
+
+      <div className="my-1 border-t border-border/50" />
+
+      <button
+        onClick={() => { onDelete(false); setOpen(false) }}
+        className="flex items-center gap-2.5 w-full px-3 py-2 text-xs hover:bg-accent/50 transition-colors text-foreground"
+      >
+        <Trash2 className="w-3.5 h-3.5 text-muted-foreground" />
+        Apagar para mim
+      </button>
+
+      {mensagem.from_me && (
+        <button
+          onClick={() => { onDelete(true); setOpen(false) }}
+          className="flex items-center gap-2.5 w-full px-3 py-2 text-xs hover:bg-accent/50 transition-colors text-destructive"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+          Apagar para todos
+        </button>
+      )}
+    </div>,
+    document.body
+  ) : null
 
   return (
-    <div ref={menuRef} className="relative">
+    <>
       <button
-        onClick={(e) => { e.stopPropagation(); setOpen(!open) }}
+        ref={buttonRef}
+        onClick={handleToggle}
         className="p-1 rounded-full bg-background/80 border border-border/50 shadow-sm hover:bg-accent/50 transition-colors"
       >
         <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
       </button>
-
-      {open && (
-        <div className={`absolute z-[9999] top-full mt-1 ${mensagem.from_me ? 'left-0' : 'right-0'} bg-popover border border-border rounded-lg shadow-lg py-1 min-w-[180px]`}>
-          {/* Responder */}
-          {onReply && (
-            <button
-              onClick={() => { onReply(); setOpen(false) }}
-              className="flex items-center gap-2.5 w-full px-3 py-2 text-xs hover:bg-accent/50 transition-colors text-foreground"
-            >
-              <Reply className="w-3.5 h-3.5 text-muted-foreground" />
-              Responder
-            </button>
-          )}
-
-          {/* Copiar */}
-          <button
-            onClick={handleCopy}
-            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs hover:bg-accent/50 transition-colors text-foreground"
-          >
-            <Copy className="w-3.5 h-3.5 text-muted-foreground" />
-            Copiar
-          </button>
-
-          {/* Reagir */}
-          <button
-            onClick={() => { toast.info('Reações em breve'); setOpen(false) }}
-            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs hover:bg-accent/50 transition-colors text-foreground"
-          >
-            <Smile className="w-3.5 h-3.5 text-muted-foreground" />
-            Reagir
-          </button>
-
-          {/* Encaminhar */}
-          <button
-            onClick={() => { toast.info('Encaminhar em breve'); setOpen(false) }}
-            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs hover:bg-accent/50 transition-colors text-foreground"
-          >
-            <Forward className="w-3.5 h-3.5 text-muted-foreground" />
-            Encaminhar
-          </button>
-
-          {/* Fixar */}
-          <button
-            onClick={() => { toast.info('Fixar mensagem em breve'); setOpen(false) }}
-            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs hover:bg-accent/50 transition-colors text-foreground"
-          >
-            <Pin className="w-3.5 h-3.5 text-muted-foreground" />
-            Fixar
-          </button>
-
-          {/* Divider */}
-          <div className="my-1 border-t border-border/50" />
-
-          {/* Apagar para mim */}
-          <button
-            onClick={() => { onDelete(false); setOpen(false) }}
-            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs hover:bg-accent/50 transition-colors text-foreground"
-          >
-            <Trash2 className="w-3.5 h-3.5 text-muted-foreground" />
-            Apagar para mim
-          </button>
-
-          {/* Apagar para todos (only fromMe) */}
-          {mensagem.from_me && (
-            <button
-              onClick={() => { onDelete(true); setOpen(false) }}
-              className="flex items-center gap-2.5 w-full px-3 py-2 text-xs hover:bg-accent/50 transition-colors text-destructive"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              Apagar para todos
-            </button>
-          )}
-        </div>
-      )}
-    </div>
+      {menuContent}
+    </>
   )
 }
 
@@ -456,10 +505,14 @@ function MessageActionMenu({ mensagem, onDelete, onReply }: {
 
 export function ChatMessageBubble({
   mensagem, participantName, participantColor, conversaId,
-  onDeleteMessage, onReplyMessage, quotedMessage
+  onDeleteMessage, onReplyMessage, onReactMessage, onForwardMessage, onPinMessage,
+  quotedMessage
 }: ChatMessageBubbleProps) {
   const [viewerMedia, setViewerMedia] = useState<{ url: string; tipo: 'image' | 'video' } | null>(null)
   const [hovered, setHovered] = useState(false)
+  const [showReactionPicker, setShowReactionPicker] = useState(false)
+  const [reactionPos, setReactionPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
+  const bubbleRef = useRef<HTMLDivElement>(null)
   const isMe = mensagem.from_me
   const isSticker = mensagem.tipo === 'sticker'
   const isReaction = mensagem.tipo === 'reaction'
@@ -475,6 +528,70 @@ export function ChatMessageBubble({
   const handleReply = () => {
     onReplyMessage?.(mensagem)
   }
+
+  // Universal copy: text, media URL, vcard, etc.
+  const handleCopy = useCallback(() => {
+    let content = ''
+    switch (mensagem.tipo) {
+      case 'text':
+        content = mensagem.body || ''
+        break
+      case 'image':
+      case 'video':
+      case 'audio':
+      case 'document':
+      case 'sticker':
+        content = mensagem.media_url || mensagem.caption || mensagem.body || ''
+        break
+      case 'contact':
+        content = mensagem.vcard || mensagem.body || ''
+        break
+      case 'location':
+        content = `https://www.google.com/maps?q=${mensagem.location_latitude},${mensagem.location_longitude}`
+        break
+      case 'poll':
+        content = `📊 ${mensagem.poll_question}\n${mensagem.poll_options?.map(o => `• ${o.text}`).join('\n') || ''}`
+        break
+      default:
+        content = mensagem.body || ''
+    }
+    if (content) {
+      navigator.clipboard.writeText(content)
+      toast.success('Copiado')
+    }
+  }, [mensagem])
+
+  const handleReact = useCallback(() => {
+    if (bubbleRef.current) {
+      const rect = bubbleRef.current.getBoundingClientRect()
+      setReactionPos({
+        top: rect.top,
+        left: isMe ? rect.left : rect.left + 40,
+      })
+    }
+    setShowReactionPicker(true)
+  }, [isMe])
+
+  const handleReactionSelect = useCallback((emoji: string) => {
+    setShowReactionPicker(false)
+    onReactMessage?.(mensagem, emoji)
+  }, [mensagem, onReactMessage])
+
+  const handleForward = useCallback(() => {
+    onForwardMessage?.(mensagem)
+  }, [mensagem, onForwardMessage])
+
+  const handlePin = useCallback(() => {
+    onPinMessage?.(mensagem)
+  }, [mensagem, onPinMessage])
+
+  // Close reaction picker on outside click
+  useEffect(() => {
+    if (!showReactionPicker) return
+    const handler = () => setShowReactionPicker(false)
+    const timer = setTimeout(() => document.addEventListener('mousedown', handler), 10)
+    return () => { clearTimeout(timer); document.removeEventListener('mousedown', handler) }
+  }, [showReactionPicker])
 
   // Sticker e reaction não tem bolha
   if (isSticker || isReaction) {
@@ -510,11 +627,16 @@ export function ChatMessageBubble({
               mensagem={mensagem}
               onDelete={handleDelete}
               onReply={onReplyMessage ? handleReply : undefined}
+              onCopy={handleCopy}
+              onReact={onReactMessage ? handleReact : undefined}
+              onForward={onForwardMessage ? handleForward : undefined}
+              onPin={onPinMessage ? handlePin : undefined}
             />
           </div>
         )}
 
         <div
+          ref={bubbleRef}
           className={`
             relative max-w-[85%] sm:max-w-[75%] lg:max-w-[60%] rounded-lg px-3 py-2
             ${isMe
@@ -523,7 +645,6 @@ export function ChatMessageBubble({
             }
           `}
         >
-          {/* Participant name for group messages (received only) */}
           {participantName && !isMe && (
             <p
               className="text-[11px] font-semibold mb-0.5 truncate"
@@ -533,14 +654,12 @@ export function ChatMessageBubble({
             </p>
           )}
 
-          {/* Quoted message preview */}
           {quotedMessage && (
             <QuotedMessagePreview quoted={quotedMessage} isMe={isMe} />
           )}
 
           {renderContent(mensagem, handleViewMedia, conversaId)}
 
-          {/* Timestamp + ACK */}
           <div className="flex items-center gap-1 justify-end mt-1">
             <span className="text-[10px] text-muted-foreground">
               {format(new Date(mensagem.criado_em), 'HH:mm')}
@@ -556,10 +675,22 @@ export function ChatMessageBubble({
               mensagem={mensagem}
               onDelete={handleDelete}
               onReply={onReplyMessage ? handleReply : undefined}
+              onCopy={handleCopy}
+              onReact={onReactMessage ? handleReact : undefined}
+              onForward={onForwardMessage ? handleForward : undefined}
+              onPin={onPinMessage ? handlePin : undefined}
             />
           </div>
         )}
       </div>
+
+      {showReactionPicker && (
+        <ReactionPicker
+          onSelect={handleReactionSelect}
+          position={reactionPos}
+        />
+      )}
+
       {viewerMedia && (
         <MediaViewer url={viewerMedia.url} tipo={viewerMedia.tipo} onClose={() => setViewerMedia(null)} />
       )}
