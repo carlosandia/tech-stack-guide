@@ -189,7 +189,9 @@ async function sendSmtpEmail(config: {
     // Se rawMessage foi fornecido (MIME multipart), usa diretamente
     const message = config.rawMessage || buildSimpleMessage(config);
 
-    const msgResp = await sendCommand(message);
+    // Timeout maior para DATA com anexos (servidor pode demorar para processar)
+    const dataTimeout = config.rawMessage ? 120000 : 30000;
+    const msgResp = await sendCommand(message, dataTimeout);
     if (!msgResp.startsWith("250")) {
       conn.close();
       return { sucesso: false, mensagem: "Servidor não aceitou a mensagem" };
