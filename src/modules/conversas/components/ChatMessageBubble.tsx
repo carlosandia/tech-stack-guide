@@ -78,42 +78,54 @@ function TextContent({ body }: { body: string }) {
 }
 
 function ImageContent({ mensagem, onViewMedia }: { mensagem: Mensagem; onViewMedia?: (url: string, tipo: 'image' | 'video') => void }) {
+  if (!mensagem.media_url) {
+    return (
+      <div className="flex items-center gap-2 p-3 rounded-md bg-muted/50 border border-border/30 text-muted-foreground text-xs italic">
+        <FileText className="w-4 h-4" />
+        <span>Imagem indisponível</span>
+      </div>
+    )
+  }
   return (
     <div className="space-y-1">
-      {mensagem.media_url && (
-        <img
-          src={mensagem.media_url}
-          alt="Imagem"
-          className="rounded-md max-w-[280px] max-h-[300px] object-cover cursor-pointer hover:opacity-90 transition-opacity"
-          loading="lazy"
-          onClick={() => onViewMedia?.(mensagem.media_url!, 'image')}
-        />
-      )}
+      <img
+        src={mensagem.media_url}
+        alt="Imagem"
+        className="rounded-md max-w-[280px] max-h-[300px] object-cover cursor-pointer hover:opacity-90 transition-opacity"
+        loading="lazy"
+        onClick={() => onViewMedia?.(mensagem.media_url!, 'image')}
+      />
       {mensagem.caption && <TextContent body={mensagem.caption} />}
     </div>
   )
 }
 
 function VideoContent({ mensagem, onViewMedia }: { mensagem: Mensagem; onViewMedia?: (url: string, tipo: 'image' | 'video') => void }) {
+  if (!mensagem.media_url) {
+    return (
+      <div className="flex items-center gap-2 p-3 rounded-md bg-muted/50 border border-border/30 text-muted-foreground text-xs italic">
+        <Play className="w-4 h-4" />
+        <span>Vídeo indisponível</span>
+      </div>
+    )
+  }
   return (
     <div className="space-y-1">
-      {mensagem.media_url && (
-        <div
-          className="relative cursor-pointer group"
-          onClick={() => onViewMedia?.(mensagem.media_url!, 'video')}
-        >
-          <video
-            src={mensagem.media_url}
-            className="rounded-md max-w-[280px] max-h-[300px]"
-            preload="metadata"
-          />
-          <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-md group-hover:bg-black/30 transition-colors">
-            <div className="w-12 h-12 rounded-full bg-black/50 flex items-center justify-center">
-              <Play className="w-6 h-6 text-white fill-white ml-0.5" />
-            </div>
+      <div
+        className="relative cursor-pointer group"
+        onClick={() => onViewMedia?.(mensagem.media_url!, 'video')}
+      >
+        <video
+          src={mensagem.media_url}
+          className="rounded-md max-w-[280px] max-h-[300px]"
+          preload="metadata"
+        />
+        <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-md group-hover:bg-black/30 transition-colors">
+          <div className="w-12 h-12 rounded-full bg-black/50 flex items-center justify-center">
+            <Play className="w-6 h-6 text-white fill-white ml-0.5" />
           </div>
         </div>
-      )}
+      </div>
       {mensagem.caption && <TextContent body={mensagem.caption} />}
     </div>
   )
