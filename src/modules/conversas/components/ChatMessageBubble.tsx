@@ -31,12 +31,14 @@ import type { Mensagem } from '../services/conversas.api'
 import { conversasApi } from '../services/conversas.api'
 import { MediaViewer } from './MediaViewer'
 import { toast } from 'sonner'
+import { WhatsAppAudioPlayer } from './WhatsAppAudioPlayer'
 
 interface ChatMessageBubbleProps {
   mensagem: Mensagem
   participantName?: string | null
   participantColor?: string | null
   conversaId?: string
+  fotoUrl?: string | null
   onDeleteMessage?: (mensagemId: string, messageWahaId: string, paraTodos: boolean) => void
   onReplyMessage?: (mensagem: Mensagem) => void
   onReactMessage?: (mensagem: Mensagem, emoji: string) => void
@@ -127,18 +129,22 @@ function VideoContent({ mensagem, onViewMedia }: { mensagem: Mensagem; onViewMed
   )
 }
 
-function AudioContent({ mensagem }: { mensagem: Mensagem }) {
+function AudioContent({ mensagem, isMe, fotoUrl }: { mensagem: Mensagem; isMe?: boolean; fotoUrl?: string | null }) {
+  if (!mensagem.media_url) {
+    return (
+      <div className="flex items-center gap-2 p-3 rounded-md bg-muted/50 border border-border/30 text-muted-foreground text-xs italic">
+        <Play className="w-4 h-4" />
+        <span>Áudio indisponível</span>
+      </div>
+    )
+  }
   return (
-    <div className="min-w-[200px]">
-      {mensagem.media_url && (
-        <audio src={mensagem.media_url} controls className="w-full h-8" preload="metadata" />
-      )}
-      {mensagem.media_duration && (
-        <span className="text-[11px] text-muted-foreground">
-          {Math.floor(mensagem.media_duration / 60)}:{String(mensagem.media_duration % 60).padStart(2, '0')}
-        </span>
-      )}
-    </div>
+    <WhatsAppAudioPlayer
+      src={mensagem.media_url}
+      duration={mensagem.media_duration ?? undefined}
+      isMe={!!isMe}
+      fotoUrl={fotoUrl}
+    />
   )
 }
 
@@ -274,12 +280,18 @@ function ReactionContent({ mensagem }: { mensagem: Mensagem }) {
   return <span className="text-2xl">{mensagem.reaction_emoji}</span>
 }
 
-function renderContent(mensagem: Mensagem, onViewMedia?: (url: string, tipo: 'image' | 'video') => void, conversaId?: string) {
+function renderContent(
+  mensagem: Mensagem,
+  onViewMedia?: (url: string, tipo: 'image' | 'video') => void,
+  conversaId?: string,
+  isMe?: boolean,
+  fotoUrl?: string | null,
+) {
   switch (mensagem.tipo) {
     case 'text': return <TextContent body={mensagem.body || ''} />
     case 'image': return <ImageContent mensagem={mensagem} onViewMedia={onViewMedia} />
     case 'video': return <VideoContent mensagem={mensagem} onViewMedia={onViewMedia} />
-    case 'audio': return <AudioContent mensagem={mensagem} />
+    case 'audio': return <AudioContent mensagem={mensagem} isMe={isMe} fotoUrl={fotoUrl} />
     case 'document': return <DocumentContent mensagem={mensagem} />
     case 'location': return <LocationContent mensagem={mensagem} />
     case 'contact': return <ContactContent mensagem={mensagem} />
@@ -397,11 +409,17 @@ function MessageActionMenu({ mensagem, onDelete, onReply, onCopy, onReact, onFor
     if (!open && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect()
       const menuWidth = 180
+      const menuHeight = 260 // estimated max menu height
       let left = mensagem.from_me ? rect.left : rect.right - menuWidth
-      // Ensure it doesn't go off-screen
+      // Ensure it doesn't go off-screen horizontally
       if (left + menuWidth > window.innerWidth) left = window.innerWidth - menuWidth - 8
       if (left < 8) left = 8
-      setMenuPos({ top: rect.bottom + 4, left })
+      // Smart vertical positioning: open upward if not enough space below
+      const spaceBelow = window.innerHeight - rect.bottom
+      const top = spaceBelow < menuHeight
+        ? Math.max(8, rect.top - menuHeight)
+        : rect.bottom + 4
+      setMenuPos({ top, left })
     }
     setOpen(!open)
   }, [open, mensagem.from_me])
@@ -506,7 +524,7 @@ function MessageActionMenu({ mensagem, onDelete, onReply, onCopy, onReact, onFor
 // =====================================================
 
 export function ChatMessageBubble({
-  mensagem, participantName, participantColor, conversaId,
+  mensagem, participantName, participantColor, conversaId, fotoUrl,
   onDeleteMessage, onReplyMessage, onReactMessage, onForwardMessage, onPinMessage,
   quotedMessage
 }: ChatMessageBubbleProps) {
@@ -612,7 +630,7 @@ export function ChatMessageBubble({
       <>
         <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} mb-1`}>
           <div className="relative">
-            {renderContent(mensagem, handleViewMedia, conversaId)}
+            {renderContent(mensagem, handleViewMedia, conversaId, isMe, fotoUrl)}
             <span className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1 justify-end">
               {format(new Date(mensagem.criado_em), 'HH:mm')}
               {isMe && <AckIndicator ack={mensagem.ack} />}
@@ -685,7 +703,7 @@ export function ChatMessageBubble({
             </div>
           ) : (
             <>
-              {renderContent(mensagem, handleViewMedia, conversaId)}
+              {renderContent(mensagem, handleViewMedia, conversaId, isMe, fotoUrl)}
               <div className="flex items-center gap-1 justify-end mt-1">
                 <span className="text-[10px] text-muted-foreground">
                   {format(new Date(mensagem.criado_em), 'HH:mm')}

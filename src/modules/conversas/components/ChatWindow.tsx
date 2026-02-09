@@ -364,6 +364,7 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
         focusedId={mensagemFocadaId}
         conversaTipo={conversa.tipo}
         conversaId={conversa.id}
+        fotoUrl={conversa.contato?.foto_url || conversa.foto_url}
         onDeleteMessage={(mensagemId, messageWahaId, paraTodos) => {
           apagarMensagem.mutate({ conversaId: conversa.id, mensagemId, messageWahaId, paraTodos })
         }}

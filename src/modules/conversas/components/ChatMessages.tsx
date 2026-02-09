@@ -20,6 +20,7 @@ interface ChatMessagesProps {
   focusedId?: string | null
   conversaTipo?: string
   conversaId?: string
+  fotoUrl?: string | null
   onDeleteMessage?: (mensagemId: string, messageWahaId: string, paraTodos: boolean) => void
   onReplyMessage?: (mensagem: Mensagem) => void
   onReactMessage?: (mensagem: Mensagem, emoji: string) => void
@@ -63,7 +64,7 @@ function getParticipantDisplayName(msg: Mensagem): string {
 
 export function ChatMessages({
   mensagens, isLoading, hasMore, onLoadMore, isFetchingMore,
-  highlightIds, focusedId, conversaTipo, conversaId,
+  highlightIds, focusedId, conversaTipo, conversaId, fotoUrl,
   onDeleteMessage, onReplyMessage, onReactMessage, onForwardMessage, onPinMessage,
 }: ChatMessagesProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -202,6 +203,7 @@ export function ChatMessages({
               participantName={participantName}
               participantColor={participantColor}
               conversaId={conversaId}
+              fotoUrl={fotoUrl}
               onDeleteMessage={onDeleteMessage}
               onReplyMessage={onReplyMessage}
               onReactMessage={onReactMessage}
