@@ -10,6 +10,7 @@ import { usePreOportunidadesPendentes } from '../../hooks/usePreOportunidades'
 import { SolicitacaoCard } from './SolicitacaoCard'
 import { AceitarPreOportunidadeModal } from '../modals/AceitarPreOportunidadeModal'
 import { RejeitarPreOportunidadeModal } from '../modals/RejeitarPreOportunidadeModal'
+import { WhatsAppConversaModal } from './WhatsAppConversaModal'
 import type { PreOportunidadeCard } from '../../services/pre-oportunidades.api'
 
 interface SolicitacoesColumnProps {
@@ -20,6 +21,7 @@ export function SolicitacoesColumn({ funilId }: SolicitacoesColumnProps) {
   const { data: preOps, isLoading } = usePreOportunidadesPendentes(funilId)
   const [selectedPreOp, setSelectedPreOp] = useState<PreOportunidadeCard | null>(null)
   const [showRejeitar, setShowRejeitar] = useState<PreOportunidadeCard | null>(null)
+  const [whatsAppPreOp, setWhatsAppPreOp] = useState<PreOportunidadeCard | null>(null)
 
   const total = preOps?.length || 0
 
@@ -56,6 +58,7 @@ export function SolicitacoesColumn({ funilId }: SolicitacoesColumnProps) {
                 key={preOp.id}
                 preOp={preOp}
                 onClick={setSelectedPreOp}
+                onWhatsApp={setWhatsAppPreOp}
               />
             ))
           )}
@@ -79,6 +82,16 @@ export function SolicitacoesColumn({ funilId }: SolicitacoesColumnProps) {
         <RejeitarPreOportunidadeModal
           preOp={showRejeitar}
           onClose={() => setShowRejeitar(null)}
+        />
+      )}
+
+      {whatsAppPreOp && (
+        <WhatsAppConversaModal
+          isOpen
+          onClose={() => setWhatsAppPreOp(null)}
+          contatoId=""
+          contatoNome={whatsAppPreOp.phone_name || whatsAppPreOp.phone_number}
+          telefone={whatsAppPreOp.phone_number}
         />
       )}
     </>

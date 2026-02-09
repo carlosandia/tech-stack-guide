@@ -31,19 +31,27 @@ export function WhatsAppConversaModal({ isOpen, onClose, contatoId, contatoNome,
 
     const buscarConversa = async () => {
       try {
-        // Buscar conversa existente para este contato via WhatsApp
-        const { data, error } = await supabase
+        // Build query - by contato_id or by phone number
+        let query = supabase
           .from('conversas')
           .select(`
             *,
             contato:contatos!conversas_contato_id_fkey(id, nome, nome_fantasia, email, telefone)
           `)
-          .eq('contato_id', contatoId)
           .eq('canal', 'whatsapp')
           .is('deletado_em', null)
           .order('ultima_mensagem_em', { ascending: false })
           .limit(1)
-          .maybeSingle()
+
+        if (contatoId) {
+          query = query.eq('contato_id', contatoId)
+        } else if (telefone) {
+          // Lookup by phone: find chat_id matching the phone number
+          const phoneClean = telefone.replace(/\D/g, '')
+          query = query.like('chat_id', `%${phoneClean}%`)
+        }
+
+        const { data, error } = await query.maybeSingle()
 
         if (error) throw error
 
