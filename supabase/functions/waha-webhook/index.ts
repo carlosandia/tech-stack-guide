@@ -86,20 +86,44 @@ Deno.serve(async (req) => {
           .maybeSingle();
 
         if (sessao) {
-          const { error: updateError, count } = await supabaseAdmin
+          const ackUpdate = {
+            ack: ack,
+            ack_name: ackName,
+            atualizado_em: new Date().toISOString(),
+          };
+
+          // Try exact match first
+          const { data: exactMatch, error: updateError } = await supabaseAdmin
             .from("mensagens")
-            .update({
-              ack: ack,
-              ack_name: ackName,
-              atualizado_em: new Date().toISOString(),
-            })
+            .update(ackUpdate)
             .eq("message_id", messageId)
-            .eq("organizacao_id", sessao.organizacao_id);
+            .eq("organizacao_id", sessao.organizacao_id)
+            .select("id");
 
           if (updateError) {
             console.error(`[waha-webhook] Error updating ACK:`, updateError.message);
+          }
+
+          const matched = exactMatch && exactMatch.length > 0;
+
+          // Fallback: try short ID (last segment after _)
+          if (!matched && messageId.includes('_')) {
+            const shortId = messageId.split('_').pop();
+            console.log(`[waha-webhook] ACK fallback: trying shortId=${shortId}`);
+            const { data: shortMatch, error: fallbackError } = await supabaseAdmin
+              .from("mensagens")
+              .update(ackUpdate)
+              .eq("message_id", shortId!)
+              .eq("organizacao_id", sessao.organizacao_id)
+              .select("id");
+
+            if (fallbackError) {
+              console.error(`[waha-webhook] ACK fallback error:`, fallbackError.message);
+            } else {
+              console.log(`[waha-webhook] ✅ ACK fallback: shortId=${shortId}, matched=${shortMatch && shortMatch.length > 0}`);
+            }
           } else {
-            console.log(`[waha-webhook] ✅ ACK updated: messageId=${messageId}, ack=${ack} (${ackName}), rows=${count}`);
+            console.log(`[waha-webhook] ✅ ACK updated: messageId=${messageId}, ack=${ack} (${ackName}), matched=${matched}`);
           }
         } else {
           console.log(`[waha-webhook] Session not found for ACK: ${sessionName}`);
@@ -191,14 +215,16 @@ Deno.serve(async (req) => {
 
     const payload = body.payload;
 
-    // Ignore outgoing messages (sent by us) - the frontend handles saving sent messages
-    if (!payload || payload.fromMe === true) {
-      console.log("[waha-webhook] Ignoring outgoing message");
+    if (!payload) {
+      console.log("[waha-webhook] No payload in message event");
       return new Response(
-        JSON.stringify({ ok: true, message: "Outgoing ignored" }),
+        JSON.stringify({ ok: true, message: "No payload" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // Allow fromMe messages (sent from phone) for CRM sync
+    const isFromMe = payload.fromMe === true;
 
     // Find the WhatsApp session
     const { data: sessao, error: sessaoError } = await supabaseAdmin
@@ -240,6 +266,15 @@ Deno.serve(async (req) => {
     const isGroup = rawFrom.includes("@g.us");
     const isChannel = rawFrom.includes("@newsletter");
     const participantRaw = payload.participant || payload._data?.participant || null;
+
+    // Skip fromMe in groups/channels (would create contact for our own number)
+    if (isFromMe && (isGroup || isChannel)) {
+      console.log("[waha-webhook] Skipping fromMe in group/channel");
+      return new Response(
+        JSON.stringify({ ok: true, message: "FromMe group/channel ignored" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     let chatId: string;
     let phoneNumber: string;
@@ -465,10 +500,14 @@ Deno.serve(async (req) => {
 
       const updateData: Record<string, unknown> = {
         total_mensagens: (existingConversa.total_mensagens || 0) + 1,
-        mensagens_nao_lidas: (existingConversa.mensagens_nao_lidas || 0) + 1,
         ultima_mensagem_em: now,
         atualizado_em: now,
       };
+
+      // Only increment unread for received messages (not fromMe)
+      if (!isFromMe) {
+        updateData.mensagens_nao_lidas = (existingConversa.mensagens_nao_lidas || 0) + 1;
+      }
 
       if (isGroup || isChannel) {
         if (groupName) updateData.nome = groupName;
@@ -502,7 +541,7 @@ Deno.serve(async (req) => {
           foto_url: conversaFoto,
           status: "aberta",
           total_mensagens: 1,
-          mensagens_nao_lidas: 1,
+          mensagens_nao_lidas: isFromMe ? 0 : 1,
           primeira_mensagem_em: now,
           ultima_mensagem_em: now,
         })
@@ -530,7 +569,7 @@ Deno.serve(async (req) => {
       organizacao_id: sessao.organizacao_id,
       conversa_id: conversaId,
       message_id: messageId,
-      from_me: false,
+      from_me: isFromMe,
       from_number: phoneNumber,
       to_number: null,
       tipo: wahaType,
@@ -586,6 +625,36 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Check for duplicate message (avoid re-inserting messages sent via CRM)
+    const { data: existingMsg } = await supabaseAdmin
+      .from("mensagens")
+      .select("id")
+      .eq("message_id", messageId)
+      .eq("organizacao_id", sessao.organizacao_id)
+      .maybeSingle();
+
+    let isDuplicate = !!existingMsg;
+
+    // Also check short ID form (CRM-sent messages use short key.id format)
+    if (!isDuplicate && messageId.includes('_')) {
+      const shortId = messageId.split('_').pop();
+      const { data: existingShort } = await supabaseAdmin
+        .from("mensagens")
+        .select("id")
+        .eq("message_id", shortId!)
+        .eq("organizacao_id", sessao.organizacao_id)
+        .maybeSingle();
+      isDuplicate = !!existingShort;
+    }
+
+    if (isDuplicate) {
+      console.log(`[waha-webhook] Duplicate message ${messageId}, skipping insert`);
+      return new Response(
+        JSON.stringify({ ok: true, message: "Duplicate skipped" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const { data: newMsg, error: msgError } = await supabaseAdmin
       .from("mensagens")
       .insert(messageInsert)
@@ -601,7 +670,7 @@ Deno.serve(async (req) => {
     // =====================================================
     // STEP 4: Pre-opportunity (if enabled, only for individual)
     // =====================================================
-    if (!isGroup && !isChannel && sessao.auto_criar_pre_oportunidade && sessao.funil_destino_id) {
+    if (!isFromMe && !isGroup && !isChannel && sessao.auto_criar_pre_oportunidade && sessao.funil_destino_id) {
       const { data: existingPreOp } = await supabaseAdmin
         .from("pre_oportunidades")
         .select("id, total_mensagens")
@@ -643,20 +712,23 @@ Deno.serve(async (req) => {
     // =====================================================
     // STEP 5: Update session stats
     // =====================================================
-    const { data: currentSessao } = await supabaseAdmin
-      .from("sessoes_whatsapp")
-      .select("total_mensagens_recebidas")
-      .eq("id", sessao.id)
-      .single();
+    // Update session stats (only for received messages)
+    if (!isFromMe) {
+      const { data: currentSessao } = await supabaseAdmin
+        .from("sessoes_whatsapp")
+        .select("total_mensagens_recebidas")
+        .eq("id", sessao.id)
+        .single();
 
-    await supabaseAdmin
-      .from("sessoes_whatsapp")
-      .update({
-        total_mensagens_recebidas: (currentSessao?.total_mensagens_recebidas || 0) + 1,
-        ultima_mensagem_em: now,
-        atualizado_em: now,
-      })
-      .eq("id", sessao.id);
+      await supabaseAdmin
+        .from("sessoes_whatsapp")
+        .update({
+          total_mensagens_recebidas: (currentSessao?.total_mensagens_recebidas || 0) + 1,
+          ultima_mensagem_em: now,
+          atualizado_em: now,
+        })
+        .eq("id", sessao.id);
+    }
 
     console.log(`[waha-webhook] ✅ Fully processed ${conversaTipo} message from ${phoneNumber}: contato=${contatoId}, conversa=${conversaId}`);
 

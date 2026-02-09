@@ -145,11 +145,15 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer }: ChatWindowProps) 
   // Audio send handler
   const handleAudioSend = useCallback(async (blob: Blob, _duration: number) => {
     try {
-      const path = `conversas/${conversa.id}/audio_${Date.now()}.ogg`
+      // Use real blob MIME type for proper playback in browser and WhatsApp
+      const isOgg = blob.type.includes('ogg')
+      const ext = isOgg ? 'ogg' : 'webm'
+      const contentType = isOgg ? 'audio/ogg' : 'audio/webm'
+      const path = `conversas/${conversa.id}/audio_${Date.now()}.${ext}`
 
       const { error: uploadError } = await supabase.storage
         .from('chat-media')
-        .upload(path, blob, { contentType: 'audio/ogg' })
+        .upload(path, blob, { contentType })
 
       if (uploadError) {
         toast.error('Erro ao fazer upload do áudio')

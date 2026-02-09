@@ -124,12 +124,37 @@ function AudioContent({ mensagem }: { mensagem: Mensagem }) {
 }
 
 function DocumentContent({ mensagem }: { mensagem: Mensagem }) {
+  const [downloading, setDownloading] = useState(false)
+
+  const handleDownload = async () => {
+    const url = mensagem.media_url
+    if (!url) return
+
+    setDownloading(true)
+    try {
+      const response = await fetch(url)
+      const blob = await response.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = blobUrl
+      link.download = mensagem.media_filename || 'documento'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(blobUrl)
+    } catch {
+      // Fallback: open URL directly
+      window.open(url, '_blank')
+    } finally {
+      setDownloading(false)
+    }
+  }
+
   return (
-    <a
-      href={mensagem.media_url || '#'}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="flex items-center gap-2 p-2 rounded-md bg-background/50 border border-border/50 hover:bg-accent/50 transition-colors min-w-[200px]"
+    <button
+      onClick={handleDownload}
+      disabled={downloading}
+      className="flex items-center gap-2 p-2 rounded-md bg-background/50 border border-border/50 hover:bg-accent/50 transition-colors min-w-[200px] text-left"
     >
       <FileText className="w-8 h-8 text-primary flex-shrink-0" />
       <div className="flex-1 min-w-0">
@@ -140,8 +165,8 @@ function DocumentContent({ mensagem }: { mensagem: Mensagem }) {
           </p>
         )}
       </div>
-      <Download className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-    </a>
+      <Download className={`w-4 h-4 text-muted-foreground flex-shrink-0 ${downloading ? 'animate-pulse' : ''}`} />
+    </button>
   )
 }
 
