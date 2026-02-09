@@ -1822,6 +1822,7 @@ export type Database = {
       }
       emails_recebidos: {
         Row: {
+          aberto_em: string | null
           anexos_info: Json | null
           assunto: string | null
           atualizado_em: string
@@ -1849,9 +1850,12 @@ export type Database = {
           sincronizado_em: string | null
           tem_anexos: boolean
           thread_id: string | null
+          total_aberturas: number | null
+          tracking_id: string | null
           usuario_id: string
         }
         Insert: {
+          aberto_em?: string | null
           anexos_info?: Json | null
           assunto?: string | null
           atualizado_em?: string
@@ -1879,9 +1883,12 @@ export type Database = {
           sincronizado_em?: string | null
           tem_anexos?: boolean
           thread_id?: string | null
+          total_aberturas?: number | null
+          tracking_id?: string | null
           usuario_id: string
         }
         Update: {
+          aberto_em?: string | null
           anexos_info?: Json | null
           assunto?: string | null
           atualizado_em?: string
@@ -1909,6 +1916,8 @@ export type Database = {
           sincronizado_em?: string | null
           tem_anexos?: boolean
           thread_id?: string | null
+          total_aberturas?: number | null
+          tracking_id?: string | null
           usuario_id?: string
         }
         Relationships: [
