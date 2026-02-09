@@ -114,28 +114,32 @@ function extractCharset(contentTypeHeader: string): string | undefined {
 }
 
 function parseMimeMessage(raw: string): { html: string; text: string } {
-  // Normalize line endings
   const normalized = raw.replace(/\r\n/g, "\n");
 
   const headerEnd = normalized.indexOf("\n\n");
   if (headerEnd < 0) return { html: "", text: "" };
 
-  const headers = normalized.substring(0, headerEnd);
+  const rawHeaders = normalized.substring(0, headerEnd);
   const body = normalized.substring(headerEnd + 2);
 
-  // Check for multipart
-  const boundaryMatch = headers.match(
-    /Content-Type:\s*multipart\/[^;]*;\s*boundary="?([^"\n;]+)"?/i
-  );
-  if (boundaryMatch) {
-    return parseMultipart(body, boundaryMatch[1].trim());
+  // Unfold headers (RFC 2822: line starting with whitespace is continuation)
+  const headers = rawHeaders.replace(/\n[ \t]+/g, " ");
+
+  // Check for multipart — flexible detection (handles any param order)
+  const isMultipart = /Content-Type:\s*multipart\//i.test(headers);
+  if (isMultipart) {
+    const boundaryMatch = headers.match(/boundary="?([^"\s;]+)"?/i);
+    if (boundaryMatch) {
+      return parseMultipart(body, boundaryMatch[1].trim());
+    }
+    console.warn("[sync-emails] Multipart detected but no boundary found");
   }
 
   // Single part
   const ctMatch = headers.match(/Content-Type:\s*([^\n]+)/i);
   const contentTypeRaw = ctMatch ? ctMatch[1].trim() : "text/plain";
   const contentType = contentTypeRaw.toLowerCase();
-  const charset = extractCharset(contentTypeRaw);
+  const charset = extractCharset(contentTypeRaw) || extractCharset(headers);
   const encodingMatch = headers.match(
     /Content-Transfer-Encoding:\s*([^\n]+)/i
   );
@@ -162,24 +166,28 @@ function parseMultipart(
     const partHeaderEnd = part.indexOf("\n\n");
     if (partHeaderEnd < 0) continue;
 
-    const partHeaders = part.substring(0, partHeaderEnd);
+    const rawPartHeaders = part.substring(0, partHeaderEnd);
     const partBody = part.substring(partHeaderEnd + 2);
 
-    // Nested multipart
-    const nestedBoundary = partHeaders.match(
-      /Content-Type:\s*multipart\/[^;]*;\s*boundary="?([^"\n;]+)"?/i
-    );
-    if (nestedBoundary) {
-      const nested = parseMultipart(partBody, nestedBoundary[1].trim());
-      if (nested.html && !html) html = nested.html;
-      if (nested.text && !text) text = nested.text;
-      continue;
+    // Unfold part headers
+    const partHeaders = rawPartHeaders.replace(/\n[ \t]+/g, " ");
+
+    // Nested multipart — flexible detection
+    const isNestedMultipart = /Content-Type:\s*multipart\//i.test(partHeaders);
+    if (isNestedMultipart) {
+      const nestedBoundary = partHeaders.match(/boundary="?([^"\s;]+)"?/i);
+      if (nestedBoundary) {
+        const nested = parseMultipart(partBody, nestedBoundary[1].trim());
+        if (nested.html && !html) html = nested.html;
+        if (nested.text && !text) text = nested.text;
+        continue;
+      }
     }
 
     const ctMatch = partHeaders.match(/Content-Type:\s*([^\n]+)/i);
     const contentTypeRaw = ctMatch ? ctMatch[1].trim() : "";
     const contentType = contentTypeRaw.toLowerCase();
-    const charset = extractCharset(contentTypeRaw);
+    const charset = extractCharset(contentTypeRaw) || extractCharset(partHeaders);
     const encodingMatch = partHeaders.match(
       /Content-Transfer-Encoding:\s*([^\n]+)/i
     );
