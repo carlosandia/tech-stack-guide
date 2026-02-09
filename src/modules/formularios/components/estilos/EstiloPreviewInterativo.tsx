@@ -1,6 +1,7 @@
 /**
  * AIDEV-NOTE: Preview interativo com click-to-edit para estilos
  * Cada área (container, campos, botão) é clicável e abre painel de edição
+ * Renderiza campos reais do formulário quando disponíveis
  */
 
 import { useCallback } from 'react'
@@ -9,6 +10,7 @@ import type {
   EstiloCabecalho,
   EstiloCampos,
   EstiloBotao,
+  CampoFormulario,
 } from '../../services/formularios.api'
 
 export type SelectedElement = 'container' | 'campos' | 'botao' | null
@@ -23,6 +25,7 @@ interface Props {
   selectedElement: SelectedElement
   onSelectElement: (el: SelectedElement) => void
   isPreviewMode: boolean
+  camposReais?: CampoFormulario[]
 }
 
 const SOMBRA_MAP: Record<string, string> = {
@@ -49,13 +52,18 @@ export function EstiloPreviewInterativo({
   selectedElement,
   onSelectElement,
   isPreviewMode,
+  camposReais,
 }: Props) {
+  const fontFamily = container.font_family
+    ? `${container.font_family}, 'Inter', system-ui, sans-serif`
+    : "'Inter', system-ui, sans-serif"
+
   const containerStyle: React.CSSProperties = {
     backgroundColor: container.background_color || '#FFFFFF',
     borderRadius: container.border_radius || '8px',
     padding: container.padding || '24px',
     maxWidth: container.max_width || '600px',
-    fontFamily: container.font_family || 'Inter, sans-serif',
+    fontFamily,
     boxShadow: SOMBRA_MAP[container.sombra || 'md'] || SOMBRA_MAP.md,
     margin: '0 auto',
   }
@@ -66,6 +74,7 @@ export function EstiloPreviewInterativo({
     fontWeight: 500,
     display: 'block',
     marginBottom: '4px',
+    fontFamily,
   }
 
   const inputStyle: React.CSSProperties = {
@@ -77,6 +86,7 @@ export function EstiloPreviewInterativo({
     padding: '8px 12px',
     fontSize: '14px',
     outline: 'none',
+    fontFamily,
   }
 
   const buttonStyle: React.CSSProperties = {
@@ -89,6 +99,7 @@ export function EstiloPreviewInterativo({
     fontWeight: 600,
     border: 'none',
     cursor: isPreviewMode ? 'default' : 'pointer',
+    fontFamily,
   }
 
   const getOutline = (el: SelectedElement) =>
@@ -128,6 +139,95 @@ export function EstiloPreviewInterativo({
     [isPreviewMode, onSelectElement]
   )
 
+  // Render a single field based on its type
+  const renderCampoPreview = (campo: CampoFormulario) => {
+    const placeholder = campo.placeholder || ''
+
+    switch (campo.tipo) {
+      case 'titulo':
+        return (
+          <h3 style={{ ...labelStyle, fontSize: '18px', fontWeight: 600, marginBottom: 0 }}>
+            {placeholder || campo.label || 'Título da seção'}
+          </h3>
+        )
+      case 'paragrafo':
+        return (
+          <p style={{ color: campos.label_cor || '#6B7280', fontSize: '14px', margin: 0, fontFamily }}>
+            {placeholder || campo.label || 'Texto descritivo'}
+          </p>
+        )
+      case 'divisor':
+        return <hr style={{ border: 'none', borderTop: `1px solid ${campos.input_border_color || '#D1D5DB'}` }} />
+      case 'espacador':
+        return <div style={{ height: '16px' }} />
+      case 'oculto':
+        return null
+      case 'area_texto':
+        return (
+          <div>
+            <span style={labelStyle}>
+              {campo.label}{campo.obrigatorio ? ' *' : ''}
+            </span>
+            <textarea
+              style={{ ...inputStyle, height: '64px', resize: 'none' }}
+              placeholder={placeholder || 'Digite aqui...'}
+              readOnly
+            />
+          </div>
+        )
+      case 'checkbox':
+      case 'checkbox_termos':
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <input type="checkbox" disabled style={{ width: '16px', height: '16px' }} />
+            <span style={{ ...labelStyle, marginBottom: 0 }}>
+              {campo.label}{campo.obrigatorio ? ' *' : ''}
+            </span>
+          </div>
+        )
+      case 'selecao':
+      case 'selecao_multipla':
+        return (
+          <div>
+            <span style={labelStyle}>
+              {campo.label}{campo.obrigatorio ? ' *' : ''}
+            </span>
+            <select style={{ ...inputStyle, appearance: 'auto' }} disabled>
+              <option>{placeholder || 'Selecione...'}</option>
+            </select>
+          </div>
+        )
+      case 'radio':
+        return (
+          <div>
+            <span style={labelStyle}>
+              {campo.label}{campo.obrigatorio ? ' *' : ''}
+            </span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              {(campo.opcoes as string[] || ['Opção 1', 'Opção 2']).slice(0, 4).map((op, i) => (
+                <label key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', color: campos.input_texto_cor || '#1F2937', fontFamily }}>
+                  <input type="radio" disabled name={campo.id} />
+                  {typeof op === 'string' ? op : `Opção ${i + 1}`}
+                </label>
+              ))}
+            </div>
+          </div>
+        )
+      default:
+        return (
+          <div>
+            <span style={labelStyle}>
+              {campo.label}{campo.obrigatorio ? ' *' : ''}
+            </span>
+            <input style={inputStyle} placeholder={placeholder || 'Digite aqui...'} readOnly />
+          </div>
+        )
+    }
+  }
+
+  // Determine which fields to render
+  const fieldsToRender = camposReais && camposReais.length > 0 ? camposReais : null
+
   return (
     <div
       data-estilo-area
@@ -161,12 +261,12 @@ export function EstiloPreviewInterativo({
             />
           )}
           {titulo && (
-            <h3 style={{ color: cabecalho.titulo_cor || '#1F2937', fontSize: cabecalho.titulo_tamanho || '24px', fontWeight: 600, margin: 0 }}>
+            <h3 style={{ color: cabecalho.titulo_cor || '#1F2937', fontSize: cabecalho.titulo_tamanho || '24px', fontWeight: 600, margin: 0, fontFamily }}>
               {titulo}
             </h3>
           )}
           {descricao && (
-            <p style={{ color: cabecalho.descricao_cor || '#6B7280', fontSize: cabecalho.descricao_tamanho || '14px', margin: '4px 0 0' }}>
+            <p style={{ color: cabecalho.descricao_cor || '#6B7280', fontSize: cabecalho.descricao_tamanho || '14px', margin: '4px 0 0', fontFamily }}>
               {descricao}
             </p>
           )}
@@ -188,18 +288,26 @@ export function EstiloPreviewInterativo({
         onClick={handleCamposClick}
         title={!isPreviewMode ? 'Clique para editar campos' : undefined}
       >
-        <div>
-          <span style={labelStyle}>Nome completo</span>
-          <input style={inputStyle} placeholder="Digite seu nome..." readOnly />
-        </div>
-        <div>
-          <span style={labelStyle}>Email *</span>
-          <input style={inputStyle} placeholder="seu@email.com" readOnly />
-        </div>
-        <div>
-          <span style={labelStyle}>Telefone</span>
-          <input style={inputStyle} placeholder="(00) 00000-0000" readOnly />
-        </div>
+        {fieldsToRender ? (
+          fieldsToRender.map((campo) => (
+            <div key={campo.id}>{renderCampoPreview(campo)}</div>
+          ))
+        ) : (
+          <>
+            <div>
+              <span style={labelStyle}>Nome completo</span>
+              <input style={inputStyle} placeholder="Digite seu nome..." readOnly />
+            </div>
+            <div>
+              <span style={labelStyle}>Email *</span>
+              <input style={inputStyle} placeholder="seu@email.com" readOnly />
+            </div>
+            <div>
+              <span style={labelStyle}>Telefone</span>
+              <input style={inputStyle} placeholder="(00) 00000-0000" readOnly />
+            </div>
+          </>
+        )}
       </div>
 
       {/* Button */}

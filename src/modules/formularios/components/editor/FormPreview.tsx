@@ -74,13 +74,17 @@ export function FormPreview({
   }
 
   // Style-derived values
+  const fontFamily = estiloContainer?.font_family
+    ? `${estiloContainer.font_family}, 'Inter', system-ui, sans-serif`
+    : "'Inter', system-ui, sans-serif"
+
   const containerStyle: React.CSSProperties = estiloContainer ? {
     backgroundColor: estiloContainer.background_color || '#FFFFFF',
     borderRadius: estiloContainer.border_radius || '8px',
     padding: estiloContainer.padding || '24px',
-    fontFamily: estiloContainer.font_family || 'Inter, sans-serif',
+    fontFamily,
     boxShadow: SOMBRA_MAP[estiloContainer.sombra || 'md'] || SOMBRA_MAP.md,
-  } : {}
+  } : { fontFamily: "'Inter', system-ui, sans-serif" }
 
   const buttonStyle: React.CSSProperties = estiloBotao ? {
     backgroundColor: estiloBotao.background_color || '#3B82F6',
@@ -319,6 +323,7 @@ export function FormPreview({
                         }
                       }}
                       onDragLeave={() => {}}
+                      onStyleEdit={onSelectStyleElement ? () => onSelectStyleElement('campos') : undefined}
                     />
 
                     {/* Drop zone after each field */}
