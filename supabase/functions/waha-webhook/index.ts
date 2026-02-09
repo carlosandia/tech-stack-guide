@@ -229,8 +229,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Only process message events from here
-    if (body.event !== "message") {
+    // Only process message events from here (both "message" and "message.any")
+    if (body.event !== "message" && body.event !== "message.any") {
       console.log(`[waha-webhook] Ignoring event: ${body.event}`);
       return new Response(
         JSON.stringify({ ok: true, message: "Event ignored" }),
