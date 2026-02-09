@@ -4,3 +4,4 @@
  */
 
 export { FormulariosPage } from './pages/FormulariosPage'
+export { FormularioEditorPage } from './pages/FormularioEditorPage'
