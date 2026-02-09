@@ -1,177 +1,301 @@
 
-# Plano de Implementacao - PRD-17: Modulo de Formularios (Backend)
 
-## Analise e GAPs Corrigidos
+# Plano de Frontend - Modulo de Formularios Avancados (PRD-17)
 
-Analisei o PRD-17 por completo (16 tabelas, 50+ endpoints, 15 services) e identifiquei os seguintes GAPs que serao corrigidos na implementacao:
+## Analise do Backend
 
-1. **RLS incorreta no PRD**: O documento usa `current_setting('app.current_tenant')::uuid`, mas o projeto padroniza `get_user_tenant_id()` + `is_super_admin_v2()`. Sera corrigido em todas as policies.
-2. **Tabelas filhas sem `organizacao_id`**: Tabelas como `campos_formularios`, `estilos_formularios`, etc. nao tem `organizacao_id`. Nao e bloqueante pois o backend usa `supabaseAdmin` (bypass RLS), e o isolamento e feito via service layer verificando `organizacao_id` do formulario pai.
-3. **Rotas publicas**: As rotas `/api/v1/publico/formularios/*` (submissao, renderizacao, tracking) precisam ficar fora dos middlewares `authMiddleware` e `requireTenant` no `index.ts`.
+O backend esta **substancialmente completo** com todas as 4 etapas implementadas:
 
-## Estrategia de Implementacao por Etapas
+- **Etapa 1**: CRUD de formularios, campos, estilos, submissoes, compartilhamento
+- **Etapa 2**: Config popup, newsletter (LGPD), multi-step
+- **Etapa 3**: Regras condicionais, progressive profiling
+- **Etapa 4**: A/B testing, webhooks, analytics
 
-Seguindo a recomendacao do proprio PRD (secao 14.2) e boas praticas, o backend sera implementado em **4 etapas progressivas**:
-
----
-
-### ETAPA 1 - MVP Core (Prioridade: Must-have)
-
-**Objetivo:** CRUD de formularios + campos + estilos + submissao publica funcional
-
-**Arquivos a criar:**
-
-| Arquivo | Descricao |
-|---------|-----------|
-| `backend/src/schemas/formularios.ts` | Schemas Zod para formularios, campos, estilos, submissoes |
-| `backend/src/services/formularios.service.ts` | CRUD formularios (criar, listar, buscar, atualizar, excluir, publicar, despublicar, duplicar) |
-| `backend/src/services/campos-formularios.service.ts` | CRUD campos do formulario + reordenacao |
-| `backend/src/services/estilos-formularios.service.ts` | GET/PUT estilos do formulario |
-| `backend/src/services/submissoes-formularios.service.ts` | Receber submissao publica, rate limit, criar lead/oportunidade |
-| `backend/src/routes/formularios.ts` | Rotas autenticadas (CRUD + campos + estilos + submissoes) |
-| `backend/src/routes/formularios-publico.ts` | Rotas publicas (GET formulario por slug, POST submissao) |
-| Migration SQL | 6 tabelas: `formularios`, `campos_formularios`, `estilos_formularios`, `submissoes_formularios`, `rate_limits_formularios`, `links_compartilhamento_formularios` |
-
-**Tabelas (Migration):**
-- `formularios` - tabela principal com todos campos do PRD
-- `campos_formularios` - campos do formulario com tipos, validacao, mapeamento
-- `estilos_formularios` - JSONB com estilos do container/cabecalho/campos/botao
-- `submissoes_formularios` - dados de submissao com UTM, geo, lead scoring
-- `rate_limits_formularios` - controle de rate limit por IP
-- `links_compartilhamento_formularios` - links, embed, QR code
-
-**Endpoints implementados:**
-- `GET/POST /api/v1/formularios` - Listar e criar
-- `GET/PUT/DELETE /api/v1/formularios/:id` - CRUD individual
-- `POST /api/v1/formularios/:id/publicar` e `/despublicar`
-- `POST /api/v1/formularios/:id/duplicar`
-- `GET/POST/PUT/DELETE /api/v1/formularios/:id/campos`
-- `PUT /api/v1/formularios/:id/campos/reordenar`
-- `GET/PUT /api/v1/formularios/:id/estilos`
-- `GET /api/v1/formularios/:id/submissoes`
-- `POST /api/v1/formularios/:id/compartilhar`
-- `GET /api/v1/formularios/:id/links-compartilhamento`
-- **Publico (sem auth):** `GET /api/v1/publico/formularios/:slug`
-- **Publico (sem auth):** `POST /api/v1/publico/formularios/:slug/submeter`
-
-**RLS:** Aplicada em `formularios`, `submissoes_formularios` e `links_compartilhamento_formularios` usando `get_user_tenant_id()` + `is_super_admin_v2()`. Tabelas filhas sem `organizacao_id` ficam sem RLS (acesso controlado pelo service).
-
-**Registro em `index.ts`:**
-- Rotas autenticadas: `app.use('/api/v1/formularios', authMiddleware, requireTenant, formulariosRoutes)`
-- Rotas publicas: `app.use('/api/v1/publico/formularios', formulariosPublicoRoutes)` (SEM auth)
+Unica lacuna menor: tabela `rate_limits_formularios` nao foi criada como tabela separada (rate limiting e tratado no service). Isso nao impacta o frontend.
 
 ---
 
-### ETAPA 2 - Tipos Especificos (Prioridade: Must/Should-have)
+## Estrutura do Modulo Frontend
 
-**Objetivo:** Popup de saida, newsletter com LGPD, multi-etapas
-
-**Arquivos a criar:**
-
-| Arquivo | Descricao |
-|---------|-----------|
-| Migration SQL | 3 tabelas: `config_popup_formularios`, `config_newsletter_formularios`, `etapas_formularios` |
-
-**Arquivos a editar:**
-
-| Arquivo | Alteracao |
-|---------|-----------|
-| `backend/src/schemas/formularios.ts` | Adicionar schemas de popup, newsletter, etapas |
-| `backend/src/routes/formularios.ts` | Adicionar rotas de config-popup, config-newsletter, etapas |
-| `backend/src/services/formularios.service.ts` | Adicionar metodos de config popup/newsletter/etapas |
-
-**Endpoints adicionados:**
-- `GET/PUT /api/v1/formularios/:id/config-popup`
-- `GET/PUT /api/v1/formularios/:id/config-newsletter`
-- `GET/PUT /api/v1/formularios/:id/etapas`
-
----
-
-### ETAPA 3 - Logica Condicional + Progressive Profiling (Prioridade: Should-have)
-
-**Objetivo:** Regras condicionais e personalizacao para leads conhecidos
-
-**Arquivos a criar:**
-
-| Arquivo | Descricao |
-|---------|-----------|
-| `backend/src/services/logica-condicional-formularios.service.ts` | CRUD regras condicionais |
-| `backend/src/services/progressive-profiling-formularios.service.ts` | Config progressive profiling |
-| Migration SQL | 2 tabelas: `regras_condicionais_formularios`, `config_progressive_profiling_formularios` |
-
-**Arquivos a editar:**
-
-| Arquivo | Alteracao |
-|---------|-----------|
-| `backend/src/schemas/formularios.ts` | Schemas de regras condicionais e profiling |
-| `backend/src/routes/formularios.ts` | Rotas de regras-condicionais e progressive-profiling |
-
-**Endpoints adicionados:**
-- `GET/POST /api/v1/formularios/:id/regras-condicionais`
-- `PUT/DELETE /api/v1/formularios/:id/regras-condicionais/:regraId`
-- `PUT /api/v1/formularios/:id/regras-condicionais/reordenar`
-- `GET/PUT /api/v1/formularios/:id/progressive-profiling`
-
----
-
-### ETAPA 4 - A/B Testing + Webhooks + Analytics (Prioridade: Could/Should-have)
-
-**Objetivo:** Otimizacao de conversao e integracoes externas
-
-**Arquivos a criar:**
-
-| Arquivo | Descricao |
-|---------|-----------|
-| `backend/src/services/testes-ab-formularios.service.ts` | CRUD testes A/B, variantes, resultados |
-| `backend/src/services/webhooks-formularios.service.ts` | CRUD webhooks, disparo com retry, logs |
-| `backend/src/services/analytics-formularios.service.ts` | Eventos, metricas, funil, abandono |
-| Migration SQL | 4 tabelas: `testes_ab_formularios`, `variantes_ab_formularios`, `webhooks_formularios`, `logs_webhooks_formularios`, `eventos_analytics_formularios` |
-
-**Arquivos a editar:**
-
-| Arquivo | Alteracao |
-|---------|-----------|
-| `backend/src/schemas/formularios.ts` | Schemas de A/B, webhooks, analytics |
-| `backend/src/routes/formularios.ts` | Rotas de testes-ab, webhooks, analytics |
-| `backend/src/routes/formularios-publico.ts` | Rota publica de tracking de eventos |
-
-**Endpoints adicionados:**
-- Testes A/B: 12 endpoints (CRUD teste + variantes + iniciar/pausar/concluir + resultados)
-- Webhooks: 6 endpoints (CRUD + testar + logs)
-- Analytics: 5 endpoints (metricas, funil, campos, abandono, conversao por origem)
-- **Publico:** `POST /api/v1/publico/formularios/:slug/rastrear`
-
----
-
-## Detalhes Tecnicos
-
-### Padrao de Codigo (seguindo padroes existentes)
-
-- **Schemas:** Zod com tipos derivados via `z.infer`
-- **Services:** Funcoes exportadas com `supabaseAdmin` (bypass RLS no backend)
-- **Routes:** Express Router com helpers `getOrganizacaoId`, `getUserId`, `requireAdmin`
-- **Validacao:** `ZodSchema.parse(req.body)` com catch para 400
-- **Soft delete:** `deletado_em` timestamp, filtro `.is('deletado_em', null)`
-- **Nomenclatura:** PT-BR snake_case no banco, camelCase no codigo
-
-### Seguranca
-
-- Rate limit em rotas publicas: 10 submissoes/min por IP (tabela `rate_limits_formularios`)
-- Captcha: Validacao opcional de reCAPTCHA/hCaptcha via API do Google
-- Honeypot: Campo oculto na submissao para detectar bots
-- RLS com `get_user_tenant_id()` nas tabelas com `organizacao_id`
-
-### Integracao com Pipeline
-
-Na submissao, se o formulario tem `funil_id` e `etapa_id`:
-1. Cria/busca contato na tabela `contatos` (usando email como chave)
-2. Cria oportunidade na tabela `oportunidades` vinculada ao funil/etapa
-3. Registra UTMs na oportunidade
+```text
+src/modules/formularios/
+  index.ts                         -- Barrel exports
+  services/
+    formularios.api.ts             -- Chamadas Supabase/API
+  hooks/
+    useFormularios.ts              -- TanStack Query (CRUD)
+    useFormularioCampos.ts         -- Campos do formulario
+    useFormularioEstilos.ts        -- Estilos
+    useFormularioConfig.ts         -- Popup/Newsletter/Etapas
+    useFormularioSubmissoes.ts     -- Submissoes
+    useFormularioAnalytics.ts      -- Analytics
+    useFormularioCompartilhar.ts   -- Links/Embed/QR
+    useFormularioRegras.ts         -- Logica condicional
+    useFormularioAB.ts             -- A/B Testing
+    useFormularioWebhooks.ts       -- Webhooks
+  schemas/
+    formulario.schema.ts           -- Zod validacao frontend
+  pages/
+    FormulariosPage.tsx            -- Listagem principal
+    FormularioEditorPage.tsx       -- Editor completo (tabs)
+  components/
+    -- Listagem --
+    FormulariosList.tsx            -- Tabela/cards com filtros
+    FormularioStatusBadge.tsx      -- Badge de status
+    FormularioTipoBadge.tsx        -- Badge de tipo
+    NovoFormularioModal.tsx        -- Modal de criacao (tipo + nome)
+    DuplicarFormularioModal.tsx    -- Modal de duplicacao
+    -- Editor (Tabs) --
+    editor/
+      EditorHeader.tsx             -- Nome, status, acoes (publicar/salvar)
+      EditorTabsCampos.tsx         -- Tab: Campos (drag-and-drop)
+      EditorTabsEstilos.tsx        -- Tab: Estilos visuais
+      EditorTabsConfig.tsx         -- Tab: Configuracoes (popup/newsletter/etapas)
+      EditorTabsLogica.tsx         -- Tab: Regras condicionais
+      EditorTabsIntegracoes.tsx    -- Tab: Webhooks + Pipeline
+      EditorTabsCompartilhar.tsx   -- Tab: Links, embed, QR
+      EditorTabsAnalytics.tsx      -- Tab: Metricas e funil
+      EditorTabsAB.tsx             -- Tab: A/B Testing
+    -- Campos --
+    campos/
+      CampoItem.tsx                -- Item arrastavel do campo
+      CampoConfigPanel.tsx         -- Painel lateral de config do campo
+      CamposPaleta.tsx             -- Paleta de tipos de campo
+      CamposReordenar.tsx          -- Lista drag-and-drop
+    -- Estilos --
+    estilos/
+      EstiloContainerForm.tsx      -- Config visual container
+      EstiloCamposForm.tsx         -- Config visual campos
+      EstiloBotaoForm.tsx          -- Config visual botao
+      EstiloPreview.tsx            -- Preview em tempo real
+    -- Config Especifico --
+    config/
+      ConfigPopupForm.tsx          -- Trigger, animacao, overlay
+      ConfigNewsletterForm.tsx     -- LGPD, double opt-in
+      ConfigEtapasForm.tsx         -- Multi-step builder
+    -- Logica --
+    logica/
+      RegraCondicionalItem.tsx     -- Uma regra
+      RegraCondicionalForm.tsx     -- Form de criar/editar regra
+      RegrasCondicionaisList.tsx   -- Lista de regras
+    -- Compartilhamento --
+    compartilhar/
+      LinkDiretoCard.tsx           -- Link copiavel
+      EmbedCodeCard.tsx            -- Codigo embed
+      QRCodeCard.tsx               -- QR Code
+    -- Analytics --
+    analytics/
+      FunilConversaoChart.tsx      -- Grafico funil
+      MetricasResumoCards.tsx      -- Cards de metricas
+      DesempenhoCamposTable.tsx    -- Tabela de performance
+    -- A/B Testing --
+    ab/
+      TesteABForm.tsx              -- Criar/editar teste
+      VariantesList.tsx            -- Lista de variantes
+      ResultadosAB.tsx             -- Resultados com metricas
+    -- Webhooks --
+    webhooks/
+      WebhookFormularioForm.tsx    -- Config do webhook
+      WebhookFormularioLogs.tsx    -- Logs de execucao
+    -- Submissoes --
+    submissoes/
+      SubmissoesList.tsx           -- Lista de submissoes
+      SubmissaoDetalhe.tsx         -- Detalhe de uma submissao
+```
 
 ---
 
-## Recomendacao
+## Etapas de Implementacao
 
-Implementar **Etapa 1** primeiro (e a mais extensa, ~60% do trabalho), testar, e depois seguir com as demais etapas sequencialmente. Cada etapa e independente e funcional por si so.
+### Etapa F1 - Fundacao e Listagem (Must-have)
 
-Deseja que eu prossiga com a implementacao da **Etapa 1**?
+**Objetivo**: Service API, hooks base, pagina de listagem, modal de criacao.
+
+**Arquivos**:
+- `src/modules/formularios/services/formularios.api.ts` - Chamadas ao Supabase
+- `src/modules/formularios/hooks/useFormularios.ts` - TanStack Query
+- `src/modules/formularios/schemas/formulario.schema.ts` - Validacao Zod
+- `src/modules/formularios/pages/FormulariosPage.tsx` - Listagem com filtros
+- `src/modules/formularios/components/FormulariosList.tsx` - Tabela
+- `src/modules/formularios/components/FormularioStatusBadge.tsx`
+- `src/modules/formularios/components/FormularioTipoBadge.tsx`
+- `src/modules/formularios/components/NovoFormularioModal.tsx`
+- `src/modules/formularios/index.ts`
+- Registrar rota `/app/formularios` no `App.tsx`
+
+**Funcionalidades**:
+- Listar formularios com filtros (status, tipo, busca)
+- Paginacao
+- Contadores por status
+- Criar novo formulario (nome, tipo, slug auto-gerado)
+- Excluir (soft delete) com confirmacao
+- Duplicar formulario
+- Publicar/Despublicar via dropdown de acoes
+
+---
+
+### Etapa F2 - Editor: Campos (Must-have)
+
+**Objetivo**: Pagina de edicao com gerenciamento de campos.
+
+**Arquivos**:
+- `src/modules/formularios/pages/FormularioEditorPage.tsx` - Layout com tabs
+- `src/modules/formularios/hooks/useFormularioCampos.ts`
+- `src/modules/formularios/components/editor/EditorHeader.tsx`
+- `src/modules/formularios/components/editor/EditorTabsCampos.tsx`
+- `src/modules/formularios/components/campos/CamposPaleta.tsx`
+- `src/modules/formularios/components/campos/CampoItem.tsx`
+- `src/modules/formularios/components/campos/CampoConfigPanel.tsx`
+- `src/modules/formularios/components/campos/CamposReordenar.tsx`
+- Rota `/app/formularios/:id` no `App.tsx`
+
+**Funcionalidades**:
+- Paleta lateral com tipos de campo disponiveis
+- Adicionar campo ao formulario
+- Reordenar campos (drag-and-drop ou botoes up/down)
+- Editar configuracoes do campo (label, placeholder, obrigatorio, validacoes)
+- Mapeamento de campo para contatos (nome, email, telefone, etc.)
+- Suporte a etapa_numero para multi-step
+- Remover campo com confirmacao
+
+---
+
+### Etapa F3 - Editor: Estilos e Preview (Must-have)
+
+**Objetivo**: Configuracao visual do formulario com preview em tempo real.
+
+**Arquivos**:
+- `src/modules/formularios/hooks/useFormularioEstilos.ts`
+- `src/modules/formularios/components/editor/EditorTabsEstilos.tsx`
+- `src/modules/formularios/components/estilos/EstiloContainerForm.tsx`
+- `src/modules/formularios/components/estilos/EstiloCamposForm.tsx`
+- `src/modules/formularios/components/estilos/EstiloBotaoForm.tsx`
+- `src/modules/formularios/components/estilos/EstiloPreview.tsx`
+
+**Funcionalidades**:
+- Configurar cor de fundo, bordas, padding, sombra do container
+- Configurar logo, titulo, subtitulo do cabecalho
+- Configurar estilos dos campos (cores, bordas, espacamento)
+- Configurar botao (cor, texto, largura, hover)
+- Preview em tempo real ao lado do formulario de config
+- CSS customizado (textarea com highlight)
+
+---
+
+### Etapa F4 - Editor: Config Especifico por Tipo (Must-have)
+
+**Objetivo**: Configuracoes de popup, newsletter e multi-step.
+
+**Arquivos**:
+- `src/modules/formularios/hooks/useFormularioConfig.ts`
+- `src/modules/formularios/components/editor/EditorTabsConfig.tsx`
+- `src/modules/formularios/components/config/ConfigPopupForm.tsx`
+- `src/modules/formularios/components/config/ConfigNewsletterForm.tsx`
+- `src/modules/formularios/components/config/ConfigEtapasForm.tsx`
+
+**Funcionalidades**:
+- **Popup**: Tipo de gatilho, atraso, scroll %, animacao, overlay, posicao, imagem
+- **Newsletter**: Double opt-in, texto LGPD, URL privacidade, provedor externo, tags
+- **Multi-step**: CRUD de etapas, definir textos dos botoes, validacao por etapa, icones
+
+---
+
+### Etapa F5 - Submissoes e Compartilhamento (Must-have)
+
+**Objetivo**: Visualizar submissoes e compartilhar formulario.
+
+**Arquivos**:
+- `src/modules/formularios/hooks/useFormularioSubmissoes.ts`
+- `src/modules/formularios/hooks/useFormularioCompartilhar.ts`
+- `src/modules/formularios/components/editor/EditorTabsCompartilhar.tsx`
+- `src/modules/formularios/components/compartilhar/LinkDiretoCard.tsx`
+- `src/modules/formularios/components/compartilhar/EmbedCodeCard.tsx`
+- `src/modules/formularios/components/compartilhar/QRCodeCard.tsx`
+- `src/modules/formularios/components/submissoes/SubmissoesList.tsx`
+- `src/modules/formularios/components/submissoes/SubmissaoDetalhe.tsx`
+
+**Funcionalidades**:
+- Listar submissoes com paginacao e filtro por status
+- Ver detalhes de uma submissao (dados, UTMs, geo, lead score)
+- Gerar link direto com UTMs
+- Gerar codigo embed (inline, modal, sidebar)
+- Gerar QR Code
+- Copiar para clipboard
+
+---
+
+### Etapa F6 - Logica Condicional (Should-have)
+
+**Objetivo**: Interface para criar regras condicionais.
+
+**Arquivos**:
+- `src/modules/formularios/hooks/useFormularioRegras.ts`
+- `src/modules/formularios/components/editor/EditorTabsLogica.tsx`
+- `src/modules/formularios/components/logica/RegrasCondicionaisList.tsx`
+- `src/modules/formularios/components/logica/RegraCondicionalForm.tsx`
+- `src/modules/formularios/components/logica/RegraCondicionalItem.tsx`
+
+**Funcionalidades**:
+- Listar regras do formulario
+- Criar regra com: campo fonte, operador, valor, acao (mostrar/ocultar/pular/redirecionar)
+- Suporte a multiplas condicoes (E/OU)
+- Reordenar regras
+- Ativar/desativar regra individual
+
+---
+
+### Etapa F7 - Analytics e A/B Testing (Could-have)
+
+**Objetivo**: Dashboard de metricas e testes A/B.
+
+**Arquivos**:
+- `src/modules/formularios/hooks/useFormularioAnalytics.ts`
+- `src/modules/formularios/hooks/useFormularioAB.ts`
+- `src/modules/formularios/components/editor/EditorTabsAnalytics.tsx`
+- `src/modules/formularios/components/editor/EditorTabsAB.tsx`
+- `src/modules/formularios/components/analytics/MetricasResumoCards.tsx`
+- `src/modules/formularios/components/analytics/FunilConversaoChart.tsx`
+- `src/modules/formularios/components/analytics/DesempenhoCamposTable.tsx`
+- `src/modules/formularios/components/ab/TesteABForm.tsx`
+- `src/modules/formularios/components/ab/VariantesList.tsx`
+- `src/modules/formularios/components/ab/ResultadosAB.tsx`
+
+**Funcionalidades**:
+- Cards de resumo: visualizacoes, submissoes, taxa de conversao, abandono
+- Grafico de funil de conversao
+- Tabela de desempenho por campo (tempo, erros, abandono)
+- CRUD de testes A/B com variantes
+- Iniciar/pausar/concluir testes
+- Resultados com taxa de conversao por variante
+
+---
+
+### Etapa F8 - Webhooks e Integracoes (Should-have)
+
+**Objetivo**: Configurar webhooks e integracao com pipeline.
+
+**Arquivos**:
+- `src/modules/formularios/hooks/useFormularioWebhooks.ts`
+- `src/modules/formularios/components/editor/EditorTabsIntegracoes.tsx`
+- `src/modules/formularios/components/webhooks/WebhookFormularioForm.tsx`
+- `src/modules/formularios/components/webhooks/WebhookFormularioLogs.tsx`
+
+**Funcionalidades**:
+- CRUD de webhooks (URL, metodo, headers, payload)
+- Testar webhook (POST real)
+- Visualizar logs de execucao
+- Config de retry (ativo, max tentativas, atraso)
+- Configurar funil e etapa destino para criar oportunidades automaticamente
+
+---
+
+## Padroes Tecnicos
+
+- **API**: Chamadas diretas ao Supabase via `@/lib/supabase` (padrao do projeto)
+- **State**: TanStack Query para cache e mutacoes
+- **Validacao**: Zod no frontend alinhado com schemas do backend
+- **UI**: shadcn/ui + Design System (designsystem.md)
+- **Drag-and-drop**: Implementacao com HTML5 Drag API ou botoes up/down como fallback
+- **Graficos**: Barras/funil com CSS puro ou SVG simples (sem lib externa pesada)
+- **Rotas**: `/app/formularios` (lista) e `/app/formularios/:id` (editor com tabs)
+
