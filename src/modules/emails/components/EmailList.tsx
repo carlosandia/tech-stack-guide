@@ -19,6 +19,7 @@ import {
   ChevronRight,
   Inbox,
   SlidersHorizontal,
+  Pencil,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { EmailItem } from './EmailItem'
@@ -42,6 +43,7 @@ interface EmailListProps {
   onPageChange: (page: number) => void
   filtros: EmailFiltros
   setFiltros: (filtros: EmailFiltros) => void
+  onCompose?: () => void
 }
 
 export function EmailList({
@@ -61,6 +63,7 @@ export function EmailList({
   onPageChange,
   filtros,
   setFiltros,
+  onCompose,
 }: EmailListProps) {
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set())
   const [buscaLocal, setBuscaLocal] = useState(busca)
@@ -157,51 +160,66 @@ export function EmailList({
       )}
 
       {/* Toolbar: checkbox + actions + pagination */}
-      <div className="flex items-center gap-0.5 px-1 py-0.5 border-b border-border/40 flex-shrink-0">
+      <div className="flex flex-wrap items-center gap-0.5 px-1 py-0.5 border-b border-border/40 flex-shrink-0">
         {/* Left side - checkbox and actions */}
-        <button onClick={toggleAll} className={iconBtnClass} title="Selecionar todos">
-          {hasChecked && checkedIds.size === emails.length ? (
-            <CheckSquare className="w-4 h-4" />
-          ) : (
-            <Square className="w-4 h-4" />
-          )}
-        </button>
-
-        {hasChecked ? (
-          <>
-            <div className="w-px h-4 bg-border/60 mx-0.5" />
-            <button onClick={() => executarAcao('marcar_lido')} className={iconBtnClass} title="Marcar como lido">
-              <MailOpen className="w-4 h-4" />
-            </button>
-            <button onClick={() => executarAcao('marcar_nao_lido')} className={iconBtnClass} title="Marcar como não lido">
-              <Mail className="w-4 h-4" />
-            </button>
-            <button onClick={() => executarAcao('arquivar')} className={iconBtnClass} title="Arquivar">
-              <Archive className="w-4 h-4" />
-            </button>
-            <button onClick={() => executarAcao('favoritar')} className={iconBtnClass} title="Favoritar">
-              <Star className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => executarAcao('mover_lixeira')}
-              className={cn(iconBtnClass, 'text-destructive hover:text-destructive')}
-              title="Excluir"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-            <span className="text-xs text-muted-foreground ml-1">{checkedIds.size} selecionado(s)</span>
-          </>
-        ) : (
-          <button onClick={onRefresh} className={iconBtnClass} disabled={isLoading || isSyncing} title="Sincronizar">
-            <RefreshCw className={cn('w-4 h-4', (isLoading || isSyncing) && 'animate-spin')} />
+        <div className="flex items-center gap-0.5">
+          <button onClick={toggleAll} className={iconBtnClass} title="Selecionar todos">
+            {hasChecked && checkedIds.size === emails.length ? (
+              <CheckSquare className="w-4 h-4" />
+            ) : (
+              <Square className="w-4 h-4" />
+            )}
           </button>
-        )}
+
+          {hasChecked ? (
+            <>
+              <div className="w-px h-4 bg-border/60 mx-0.5" />
+              <button onClick={() => executarAcao('marcar_lido')} className={iconBtnClass} title="Marcar como lido">
+                <MailOpen className="w-4 h-4" />
+              </button>
+              <button onClick={() => executarAcao('marcar_nao_lido')} className={iconBtnClass} title="Marcar como não lido">
+                <Mail className="w-4 h-4" />
+              </button>
+              <button onClick={() => executarAcao('arquivar')} className={iconBtnClass} title="Arquivar">
+                <Archive className="w-4 h-4" />
+              </button>
+              <button onClick={() => executarAcao('favoritar')} className={iconBtnClass} title="Favoritar">
+                <Star className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => executarAcao('mover_lixeira')}
+                className={cn(iconBtnClass, 'text-destructive hover:text-destructive')}
+                title="Excluir"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+              <span className="text-xs text-muted-foreground ml-1 whitespace-nowrap">{checkedIds.size} sel.</span>
+            </>
+          ) : (
+            <>
+              <button onClick={onRefresh} className={iconBtnClass} disabled={isLoading || isSyncing} title="Sincronizar">
+                <RefreshCw className={cn('w-4 h-4', (isLoading || isSyncing) && 'animate-spin')} />
+              </button>
+              {/* Botão Escrever - visível apenas no mobile (sidebar oculta) */}
+              {onCompose && (
+                <button
+                  onClick={onCompose}
+                  className="lg:hidden inline-flex items-center gap-1 ml-1 px-2.5 py-1 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+                  title="Escrever email"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Escrever</span>
+                </button>
+              )}
+            </>
+          )}
+        </div>
 
         {/* Right side - pagination */}
         <div className="flex-1" />
         {total > 0 && (
           <div className="flex items-center gap-0.5">
-            <span className="text-xs text-muted-foreground mr-1">
+            <span className="text-xs text-muted-foreground mr-1 whitespace-nowrap">
               {startItem}–{endItem} de {total}
             </span>
             <button

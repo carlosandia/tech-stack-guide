@@ -360,6 +360,7 @@ export function EmailsPage() {
           onPageChange={setPage}
           filtros={filtros}
           setFiltros={setFiltros}
+          onCompose={() => openComposer('novo')}
         />
       </div>
 
