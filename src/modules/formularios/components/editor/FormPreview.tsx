@@ -263,7 +263,7 @@ export function FormPreview({
           {/* Fields area - with style editing trigger */}
           <div
             className={cn(
-              'rounded transition-all relative',
+              'rounded transition-all relative group/campos',
               selectedStyleElement === 'campos' && 'outline outline-2 outline-dashed outline-primary outline-offset-2'
             )}
           >
