@@ -279,6 +279,8 @@ export const conversasApi = {
         const ultimaMap = new Map<string, UltimaMensagemPreview>()
         for (const msg of ultimasMensagens) {
           if (!ultimaMap.has(msg.conversa_id)) {
+            // Skip text messages with null body (WAHA webhook duplicates)
+            if (msg.tipo === 'text' && !msg.body) continue
             ultimaMap.set(msg.conversa_id, {
               id: msg.id,
               tipo: msg.tipo,
@@ -326,11 +328,13 @@ export const conversasApi = {
     const organizacaoId = await getOrganizacaoId()
     const usuarioId = await getUsuarioId()
 
+    // Resolve or create contact
     let contatoId = dados.contato_id
+    let telefoneContato = dados.telefone
     if (!contatoId && dados.telefone) {
       const { data: contato } = await supabase
         .from('contatos')
-        .select('id')
+        .select('id, telefone')
         .eq('organizacao_id', organizacaoId)
         .eq('telefone', dados.telefone)
         .is('deletado_em', null)
@@ -338,6 +342,7 @@ export const conversasApi = {
 
       if (contato) {
         contatoId = contato.id
+        telefoneContato = contato.telefone || dados.telefone
       } else {
         const { data: novoContato, error: contatoError } = await supabase
           .from('contatos')
@@ -359,13 +364,62 @@ export const conversasApi = {
 
     if (!contatoId) throw new Error('Contato não encontrado')
 
-    const chatId = `${dados.canal}_${contatoId}_${Date.now()}`
+    // Try to find active WAHA session for WhatsApp
+    let sessaoWhatsappId: string | null = null
+    let wahaChatId: string | null = null
+    let wahaMessageId: string | null = null
+    let ack = 0
+
+    if (dados.canal === 'whatsapp' && telefoneContato) {
+      // Find active session
+      const { data: sessao } = await supabase
+        .from('sessoes_whatsapp')
+        .select('id, session_name')
+        .eq('organizacao_id', organizacaoId)
+        .eq('status', 'connected')
+        .limit(1)
+        .maybeSingle()
+
+      if (sessao) {
+        sessaoWhatsappId = sessao.id
+        // Format phone for WhatsApp chat_id: remove + and non-digits, append @c.us
+        const phoneClean = telefoneContato.replace(/\D/g, '')
+        wahaChatId = `${phoneClean}@c.us`
+
+        // Send message via WAHA
+        try {
+          const { data: wahaResult, error: wahaError } = await supabase.functions.invoke('waha-proxy', {
+            body: {
+              action: 'enviar_mensagem',
+              session_name: sessao.session_name,
+              chat_id: wahaChatId,
+              text: dados.mensagem_inicial,
+            },
+          })
+
+          if (wahaError) {
+            console.error('[conversas.api] Erro ao enviar via WAHA na criação:', wahaError)
+          } else if (wahaResult?.error) {
+            console.error('[conversas.api] WAHA retornou erro na criação:', wahaResult.error)
+          } else {
+            wahaMessageId = wahaResult?.message_id || null
+            ack = 1
+            console.log('[conversas.api] Mensagem inicial enviada via WAHA, messageId:', wahaMessageId)
+          }
+        } catch (e) {
+          console.error('[conversas.api] Exceção ao enviar via WAHA:', e)
+        }
+      }
+    }
+
+    const chatId = wahaChatId || `${dados.canal}_${contatoId}_${Date.now()}`
     const { data: conversa, error } = await supabase
       .from('conversas')
       .insert({
         organizacao_id: organizacaoId,
         contato_id: contatoId,
         usuario_id: usuarioId,
+        sessao_whatsapp_id: sessaoWhatsappId,
         chat_id: chatId,
         canal: dados.canal,
         tipo: 'individual',
@@ -385,12 +439,12 @@ export const conversasApi = {
       .insert({
         organizacao_id: organizacaoId,
         conversa_id: conversa.id,
-        message_id: `local_${Date.now()}`,
+        message_id: wahaMessageId || `local_${Date.now()}`,
         from_me: true,
         tipo: 'text',
         body: dados.mensagem_inicial,
         has_media: false,
-        ack: 0,
+        ack,
       })
 
     return conversa as unknown as Conversa

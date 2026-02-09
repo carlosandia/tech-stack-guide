@@ -111,9 +111,12 @@ export function ChatMessages({
   }, [focusedId])
 
   const sortedMessages = useMemo(() => {
-    return [...mensagens].sort(
-      (a, b) => new Date(a.criado_em).getTime() - new Date(b.criado_em).getTime()
-    )
+    return [...mensagens]
+      // Filter out text messages with null/empty body (WAHA webhook duplicates)
+      .filter(m => !(m.tipo === 'text' && !m.body))
+      .sort(
+        (a, b) => new Date(a.criado_em).getTime() - new Date(b.criado_em).getTime()
+      )
   }, [mensagens])
 
   const messageByWahaId = useMemo(() => {
