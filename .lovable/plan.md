@@ -1,89 +1,76 @@
 
-# Plano: Botoes individualizados e configuracao acessivel na aba Campos
+# Plano: 5 Correcoes no Editor de Formularios
 
-## Problema 1: Pincel de estilo unico para dois botoes
+## 1. Config nao atualiza campos visiveis apos salvar tipo de botao
 
-Atualmente, ha um unico icone de pincel que abre o painel de estilo "botao" para ambos os botoes (Enviar e WhatsApp). O usuario precisa poder estilizar cada botao individualmente.
+**Problema**: Ao trocar o tipo de botao (ex: para "Ambos") e salvar, os campos de configuracao especificos nao aparecem imediatamente. So aparecem ao fechar e reabrir o painel.
 
-### Solucao
+**Causa**: O `BotaoConfigPanel` carrega `config` do banco apenas no `useEffect` inicial. Apos o `saveConfig`, o `queryClient.invalidateQueries` invalida a query mas o estado local `config` ja foi atualizado via `setConfig`. O problema real e que o `configBotoes` no `FormularioEditorPage` (que controla quais botoes aparecem no preview) nao recarrega - o `formulario` precisa ser re-fetched.
 
-1. **Expandir o tipo `SelectedElement`** em `EstiloPreviewInterativo.tsx` para incluir `'botao_whatsapp'` alem de `'botao'`
-2. **Renderizar dois pinceis separados** no `FormPreview.tsx` (linhas 388-416):
-   - Um pincel sobre o botao "Enviar" que abre `selectedStyleElement = 'botao'`
-   - Um pincel sobre o botao "WhatsApp" que abre `selectedStyleElement = 'botao_whatsapp'`
-   - Cada botao tera seu proprio `group/` wrapper com pincel individual
-3. **Adicionar painel de estilo do WhatsApp** no `FormularioEditorPage.tsx` (linhas 335-351):
-   - Quando `selectedStyleElement === 'botao_whatsapp'`, renderizar um novo formulario `EstiloBotaoWhatsAppForm` dentro do `EstiloPopover`
-   - Este formulario permitira configurar: texto do botao, cor de fundo, cor do texto, border-radius (campos ja parcialmente definidos na interface `EstiloBotaoWhatsApp` em `EstiloBotaoForm.tsx`)
-4. **Salvar estilos do WhatsApp** no objeto `botao` existente, adicionando campos prefixados (`whatsapp_texto`, `whatsapp_background`, `whatsapp_texto_cor`) ao tipo `EstiloBotao` em `formularios.api.ts`
-5. **Aplicar estilos individuais** na funcao `renderBotoes` do `FormPreview.tsx` - o botao WhatsApp usara as cores configuradas em vez do verde fixo `#25D366`
+**Correcao**:
+- No `BotaoConfigPanel.tsx`, apos salvar com sucesso, tambem invalidar a query `['formularios', formularioId]` (ja faz isso) E propagar o novo `config` para o pai via callback.
+- Adicionar uma prop `onConfigChange` ao `BotaoConfigPanel` para notificar o `FormularioEditorPage` da mudanca imediata no `configBotoes`.
+- No `FormularioEditorPage`, manter um estado local `configBotoes` que e atualizado tanto pelo fetch quanto pelo callback do painel.
 
 ---
 
-## Problema 2: Configuracao de botoes escondida na aba Configuracoes
+## 2. Largura Total nao funciona com dois botoes
 
-O usuario configura campos e ve botoes na aba "Campos", mas a configuracao dos botoes (tipo, WhatsApp, etc.) esta na aba "Configuracoes". Isso dificulta a descoberta.
+**Problema**: Quando "Largura Total" esta selecionada e ha dois botoes, o botao Enviar fica muito pequeno (nao ocupa 50% cada).
 
-### Solucao
+**Causa**: No `renderBotoes` (FormPreview.tsx linha 487-493), quando `tipoBotao === 'ambos'`, os botoes ficam em `flex` mas sem `flex-1`. O `buttonStyle.width` e `100%` (largura total), mas dentro de um flex container sem grow, isso nao se distribui bem.
 
-Mover a configuracao dos botoes para um **painel compacto abaixo dos botoes no preview**, acessivel via click no pincel ou um icone de engrenagem no proprio botao. Quando o usuario clica no pincel de estilo do botao, o painel lateral ja abre. Adicionaremos uma **aba/toggle dentro do EstiloPopover** para alternar entre "Estilo" e "Comportamento".
-
-Implementacao:
-
-1. **Criar componente `BotaoConfigPanel.tsx`** que combina:
-   - Toggle de tipo de botao (Enviar / WhatsApp / Ambos) - versao compacta
-   - Configuracoes do WhatsApp (numero, template) - quando WhatsApp ativo
-   - Configuracoes de oportunidade e email - toggles compactos
-   - Reutiliza a logica do `ConfigBotoesEnvioForm` mas em formato compacto para o painel lateral
-
-2. **Atualizar o `EstiloPopover`** para quando `selectedStyleElement === 'botao'`:
-   - Mostrar duas sub-abas: "Estilo" (formulario atual de cores/tamanho) e "Configuracao" (tipo de botao, WhatsApp, etc.)
-   - Isso mantem tudo acessivel na aba Campos sem sair do contexto
-
-3. **Remover `ConfigBotoesEnvioForm` do `EditorTabsConfig.tsx`** - ja que estara acessivel pelo painel do botao na aba Campos. Manter `ConfigPosEnvioForm` na aba Configuracoes pois e sobre comportamento pos-envio.
-
-4. **Atualizar `FormularioEditorPage.tsx`** para:
-   - Recarregar `configBotoes` apos salvar no painel (invalidar query do formulario)
-   - Passar callback de atualizacao para o painel
+**Correcao**:
+- Quando `tipoBotao === 'ambos'`, aplicar `flex-1` nos wrappers dos botoes para que dividam o espaco igualmente.
+- Quando o estilo for "Largura Total" e houver 2 botoes, cada um recebe `flex: 1` e `width: 100%` dentro do seu wrapper.
+- Quando for "auto" ou "50%", manter o comportamento atual.
 
 ---
 
-## Detalhes Tecnicos
+## 3. Visualizar Final deve permitir interacao/teste
 
-### Arquivos a criar:
-- `src/modules/formularios/components/config/BotaoConfigPanel.tsx` - Painel compacto com abas Estilo/Configuracao para o botao
+**Problema**: No modo "Visualizar Final", os campos estao todos com `readOnly` ou `disabled`, impossibilitando testar o formulario.
 
-### Arquivos a modificar:
+**Correcao**:
+- No `renderFinalCampo` (FormPreview.tsx linhas 500-711), remover `readOnly` e `disabled` de todos os inputs.
+- Permitir que checkboxes, selects, radios, date pickers etc. sejam interativos.
+- Manter os botoes funcionais no preview final (sem `onClick={undefined}`).
 
-1. **`EstiloPreviewInterativo.tsx`** - Expandir tipo `SelectedElement` para `'botao' | 'botao_whatsapp'`
+---
 
-2. **`FormPreview.tsx`**:
-   - Separar pinceis por botao (Enviar e WhatsApp) com wrappers individuais `group/`
-   - Aplicar estilos do WhatsApp do objeto `estiloBotao` (campos whatsapp_*)
+## 4. Campo "Termos de Uso" precisa de link para modal
 
-3. **`FormularioEditorPage.tsx`**:
-   - Adicionar tratamento para `selectedStyleElement === 'botao_whatsapp'`
-   - Renderizar `BotaoConfigPanel` no `EstiloPopover` com sub-abas
-   - Invalidar query do formulario ao salvar config de botoes
+**Problema**: O campo `checkbox_termos` renderiza apenas um checkbox com texto, sem possibilidade de visualizar os termos.
 
-4. **`formularios.api.ts`** - Adicionar campos `whatsapp_texto`, `whatsapp_background`, `whatsapp_texto_cor` ao tipo `EstiloBotao`
+**Correcao**:
+- Adicionar um campo `conteudo_termos` ao `CampoFormulario` (usar o campo `valor_padrao` ja existente para armazenar o HTML dos termos).
+- No `CampoConfigPanel`, quando o tipo for `checkbox_termos`, mostrar um campo `Textarea` para inserir o texto dos termos.
+- No `renderFinalCampo` e no `CampoItem`, renderizar um link "Ver termos" ao lado do checkbox que abre um Dialog/Modal com o conteudo.
+- Criar um componente `TermosModal` simples com Dialog do Radix.
 
-5. **`EstiloBotaoForm.tsx`** - Manter apenas estilos do botao Enviar (como esta)
+---
 
-6. **`EditorTabsConfig.tsx`** - Remover `ConfigBotoesEnvioForm` desta secao (movido para painel do botao)
+## 5. Texto de ajuda deve aparecer como icone (i) ao lado do label
 
-### Fluxo do usuario (resultado final):
+**Problema**: O texto de ajuda aparece como texto simples abaixo do campo. Deveria ser um icone (i) ao lado do label que mostra o texto em tooltip/popover.
 
-```text
-Aba Campos > Preview > Clica no pincel do botao Enviar
-  > Painel lateral abre com:
-    [Estilo] [Configuracao]
-    - Estilo: cores, tamanho, texto
-    - Configuracao: tipo botao, oportunidade, email
+**Correcao**:
+- No `CampoItem.tsx` (linha 98-100), substituir o `<p>` do texto de ajuda por um icone `Info` (lucide) ao lado do label (linha 89-95).
+- Usar um `Popover` ou `title` attr para mostrar o texto ao passar o mouse.
+- No `renderFinalCampo` (FormPreview.tsx), aplicar o mesmo padrao: icone (i) ao lado do label com tooltip.
 
-Aba Campos > Preview > Clica no pincel do botao WhatsApp
-  > Painel lateral abre com:
-    [Estilo] [Configuracao]  
-    - Estilo: cor de fundo, texto, border-radius
-    - Configuracao: numero, template, oportunidade, email
-```
+---
+
+## Arquivos a modificar
+
+1. **`BotaoConfigPanel.tsx`** - Adicionar prop `onConfigChange` callback; chamar apos salvar
+2. **`FormularioEditorPage.tsx`** - Estado local para `configBotoes` atualizado via callback
+3. **`FormPreview.tsx`**:
+   - `renderBotoes`: flex-1 nos wrappers quando ambos
+   - `renderFinalCampo`: remover readOnly/disabled; adicionar icone (i) para texto_ajuda; modal de termos no checkbox_termos
+4. **`CampoItem.tsx`** - Texto de ajuda como icone (i) com Popover ao lado do label
+5. **`CampoConfigPanel.tsx`** - Campo para conteudo dos termos quando tipo = checkbox_termos (usar `valor_padrao`)
+
+## Componente novo
+
+- `src/modules/formularios/components/campos/TermosModal.tsx` - Dialog simples para exibir texto dos termos
