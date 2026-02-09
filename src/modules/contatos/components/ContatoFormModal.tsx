@@ -35,6 +35,7 @@ interface ContatoFormModalProps {
   usuarios?: Array<{ id: string; nome: string; sobrenome?: string | null }>
   isAdmin?: boolean
   onBack?: () => void
+  initialValues?: { email?: string; nome?: string }
 }
 
 function getInputType(tipoCampo: string): string {
@@ -72,6 +73,7 @@ export function ContatoFormModal({
   usuarios = [],
   isAdmin = false,
   onBack,
+  initialValues,
 }: ContatoFormModalProps) {
   const isEditing = !!contato
   const isPessoa = tipo === 'pessoa'
@@ -192,9 +194,9 @@ export function ContatoFormModal({
       })
     } else {
       if (isPessoa) {
-        defaults.nome = ''
+        defaults.nome = initialValues?.nome || ''
         defaults.sobrenome = ''
-        defaults.email = ''
+        defaults.email = initialValues?.email || ''
         defaults.telefone = ''
         defaults.cargo = ''
         defaults.empresa_id = ''

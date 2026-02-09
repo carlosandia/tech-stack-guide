@@ -131,6 +131,10 @@ export function useSalvarRascunho() {
     mutationFn: (payload: SalvarRascunhoPayload) => emailsApi.salvarRascunho(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['emails', 'rascunhos'] })
+      toast.success('Rascunho salvo')
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Erro ao salvar rascunho')
     },
   })
 }

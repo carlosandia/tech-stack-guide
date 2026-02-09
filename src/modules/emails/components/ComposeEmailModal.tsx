@@ -1,11 +1,11 @@
 /**
  * AIDEV-NOTE: Modal de composição de email com editor TipTap (RF-005, RF-006)
  * Suporta: novo, responder, responder todos, encaminhar
- * Inclui assinatura do usuário automaticamente
+ * Inclui assinatura do usuário automaticamente + salvar como rascunho
  */
 
 import { useState, useEffect } from 'react'
-import { X, Send, Loader2 } from 'lucide-react'
+import { X, Send, Loader2, FileText } from 'lucide-react'
 import { EmailRichEditor } from './EmailRichEditor'
 import { useAssinatura } from '../hooks/useEmails'
 
@@ -22,7 +22,16 @@ interface ComposeEmailModalProps {
     assunto: string
     corpo_html: string
   }) => void
+  onSaveDraft?: (data: {
+    para_email?: string
+    cc_email?: string
+    bcc_email?: string
+    assunto?: string
+    corpo_html?: string
+    tipo?: 'novo' | 'resposta' | 'encaminhar'
+  }) => void
   isSending: boolean
+  isSavingDraft?: boolean
   defaults?: {
     para_email?: string
     cc_email?: string
@@ -37,7 +46,9 @@ export function ComposeEmailModal({
   isOpen,
   onClose,
   onSend,
+  onSaveDraft,
   isSending,
+  isSavingDraft,
   defaults,
   resetKey = 0,
 }: ComposeEmailModalProps) {
@@ -110,6 +121,24 @@ export function ComposeEmailModal({
       bcc_email: bcc || undefined,
       assunto,
       corpo_html: corpo,
+    })
+  }
+
+  const handleSaveDraft = () => {
+    if (!onSaveDraft) return
+    const tipoMap: Record<ComposerMode, 'novo' | 'resposta' | 'encaminhar'> = {
+      novo: 'novo',
+      responder: 'resposta',
+      responder_todos: 'resposta',
+      encaminhar: 'encaminhar',
+    }
+    onSaveDraft({
+      para_email: para || undefined,
+      cc_email: cc || undefined,
+      bcc_email: bcc || undefined,
+      assunto: assunto || undefined,
+      corpo_html: corpo || undefined,
+      tipo: tipoMap[mode],
     })
   }
 
@@ -200,7 +229,24 @@ export function ComposeEmailModal({
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-end px-4 py-3 border-t border-border">
+          <div className="flex items-center justify-between px-4 py-3 border-t border-border">
+            <div>
+              {onSaveDraft && (
+                <button
+                  type="button"
+                  onClick={handleSaveDraft}
+                  disabled={isSavingDraft}
+                  className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-border text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50 transition-colors"
+                >
+                  {isSavingDraft ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <FileText className="w-4 h-4" />
+                  )}
+                  Rascunho
+                </button>
+              )}
+            </div>
             <button
               type="submit"
               disabled={isSending || !para || !assunto}

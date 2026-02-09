@@ -76,6 +76,7 @@ export function ContatosPage() {
   const [deletingContato, setDeletingContato] = useState<Contato | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [openedFormFromView, setOpenedFormFromView] = useState(false)
+  const [initialFormValues, setInitialFormValues] = useState<{ email?: string; nome?: string } | undefined>()
 
   // Estado de vínculos (exclusão)
   const [deleteBloqueado, setDeleteBloqueado] = useState(false)
@@ -176,6 +177,21 @@ export function ContatosPage() {
     setOrdenarPor('criado_em')
     setOrdem('desc')
   }, [tipo])
+
+  // Handle URL params for creating contact from other modules (e.g. Email)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const criarTipo = params.get('criar')
+    if (criarTipo === 'pessoa' || criarTipo === 'empresa') {
+      const email = params.get('email') || ''
+      const nome = params.get('nome') || ''
+      setInitialFormValues({ email: email || undefined, nome: nome || undefined })
+      setEditingContato(null)
+      setFormModalOpen(true)
+      // Clean URL params
+      navigate(location.pathname, { replace: true })
+    }
+  }, [location.search]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Contagem de filtros ativos
   const filtrosAtivos = [statusFilter, origemFilter, segmentoFilter, responsavelFilter, dataInicioFilter, dataFimFilter].filter(Boolean).length
@@ -671,7 +687,7 @@ export function ContatosPage() {
       {/* Modais */}
       <ContatoFormModal
         open={formModalOpen}
-        onClose={() => { setFormModalOpen(false); setEditingContato(null); setOpenedFormFromView(false) }}
+        onClose={() => { setFormModalOpen(false); setEditingContato(null); setOpenedFormFromView(false); setInitialFormValues(undefined) }}
         onSubmit={handleFormSubmit}
         tipo={tipo}
         contato={editingContato}
@@ -680,6 +696,7 @@ export function ContatosPage() {
         empresas={empresasLista}
         usuarios={usuariosLista}
         onBack={openedFormFromView ? handleBackToView : undefined}
+        initialValues={initialFormValues}
       />
 
       <ContatoViewModal
