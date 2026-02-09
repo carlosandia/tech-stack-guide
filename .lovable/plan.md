@@ -1,219 +1,170 @@
 
-
-## Correcao Completa: Documento, Audio, Enquete, ACK e Sync de Mensagens
-
----
-
-### Diagnostico (baseado em logs e banco de dados)
-
-| # | Problema | Causa Raiz Confirmada |
-|---|---------|----------------------|
-| 1 | Documento nao abre no navegador | ERR_BLOCKED_BY_CLIENT - adblocker bloqueia URLs de storage do Supabase. Precisa de download via JavaScript |
-| 2 | Audio 0:00 no WhatsApp | Chrome grava em WebM/Opus, mas o upload forca `contentType: 'audio/ogg'`. O WAHA tenta transcodificar mas a metadata de duracao se perde. Tambem no CRM: Chrome nao reproduz OGG nativo, causando 0:00 no player |
-| 3 | Enquete nao atualiza votos | Nenhum evento `poll.vote` nos logs - a sessao WAHA existente foi criada ANTES de adicionarmos `poll.vote` na lista de eventos. O webhook da sessao ativa nao esta subscrito a esse evento |
-| 4 | ACK (ticks) nao atualizam | **Confirmado via banco**: mensagens enviadas salvam `message_id` curto (ex: `3EB04067E27C93ECDE4987`), mas os eventos ACK usam formato serializado (ex: `true_162826672971943@lid_3EB04067E27C93ECDE4987`). O `.eq("message_id", messageId)` nunca encontra a mensagem - logs mostram `rows=null` |
-| 5 | Mensagens do celular nao sincronizam | Linha 195 do webhook: `if (payload.fromMe === true) return` - ignora TODAS as mensagens enviadas pelo celular |
+## Correcao: Ticks Azuis (ACK READ), Enquete e Audio
 
 ---
 
-## Correcao 1: Download de Documentos via JavaScript
+### Diagnostico Confirmado por Logs
 
-**Arquivo:** `src/modules/conversas/components/ChatMessageBubble.tsx` (componente `DocumentContent`)
-
-O link atual usa `<a href={url} target="_blank">` que e bloqueado por adblockers. Implementar download via fetch + blob:
-
-- Substituir o `<a>` por um `<button>` com handler `onClick`
-- No handler: `fetch(url) -> blob -> URL.createObjectURL -> link.click()`
-- Isso contorna o bloqueio do adblocker pois o download e feito via JS, nao via navegacao direta
-- Manter fallback: se o fetch falhar, abrir URL diretamente como link
+| # | Problema | Causa Raiz (confirmada nos logs) |
+|---|---------|----------------------------------|
+| 1 | Ticks azuis (READ) nao funcionam | Eventos READ (ack=3/4) chegam com formato `@lid` (ex: `true_162826672971943@lid_3EB0CAB17B0E252BCF5C85`). O fallback tenta `.eq("message_id", shortId)` mas o banco agora armazena IDs serializados completos (`true_5513988506995@c.us_3EB0CAB17B0E252BCF5C85`). O `.eq` exato nao encontra. |
+| 2 | Enquete nao retorna votos | Zero eventos `poll.vote` nos logs. Apesar da reconfiguracao do webhook (`Webhook re-configured`), o WAHA nao esta disparando esse evento. Necessario usar evento `poll.vote` com formato correto ou usar metodo alternativo. |
+| 3 | Audio 0:00 no WhatsApp | `audioBitsPerSecond: 32000` (muito baixo) e `recorder.start(100)` (timeslice de 100ms gera centenas de micro-chunks). O blob resultante perde metadata de duracao do container WebM, WAHA nao consegue transcodificar corretamente. |
 
 ---
 
-## Correcao 2: Audio - Manter Formato Real do Blob
+## Correcao 1: ACK com `@lid` - Usar `.ilike` no Fallback
 
-**Arquivo:** `src/modules/conversas/components/ChatWindow.tsx` (handleAudioSend)
+**Arquivo:** `supabase/functions/waha-webhook/index.ts` (linhas 109-124)
 
-**Problema**: O blob e gravado em WebM (unico formato suportado pelo Chrome) mas uploadado com `contentType: 'audio/ogg'`. Isso causa:
-- No CRM: Chrome nao reproduz OGG, mostra 0:00
-- No WhatsApp: metadata de duracao perdida na transcodificacao
+**Problema exato (confirmado nos logs):**
 
-**Correcao**: Usar o `blob.type` real para upload e extensao:
+```text
+Fluxo atual:
+1. Mensagem enviada, salva com: message_id = "true_5513988506995@c.us_3EB0CAB"
+2. ACK DEVICE chega com from="5513988506995@c.us" -> messageId="true_5513988506995@c.us_3EB0CAB" -> MATCH (ok)
+3. ACK READ chega com from="162826672971943@lid" -> messageId="true_162826672971943@lid_3EB0CAB" -> NO MATCH
+4. Fallback tenta: .eq("message_id", "3EB0CAB") -> NO MATCH (banco tem valor serializado completo)
+```
+
+**Correcao:** No fallback, usar `.ilike("message_id", `%_${shortId}`)` para encontrar qualquer message_id que TERMINE com o key.id curto:
 
 ```text
 De:
-  const path = `...audio_${Date.now()}.ogg`
-  upload(path, blob, { contentType: 'audio/ogg' })
+  .eq("message_id", shortId!)
 
 Para:
-  const isOgg = blob.type.includes('ogg')
-  const ext = isOgg ? 'ogg' : 'webm'
-  const contentType = isOgg ? 'audio/ogg' : 'audio/webm'
-  const path = `...audio_${Date.now()}.${ext}`
-  upload(path, blob, { contentType })
+  .ilike("message_id", `%_${shortId}`)
 ```
 
-O WAHA `sendVoice` aceita ambos os formatos e faz a transcodificacao automaticamente para o formato nativo do WhatsApp (OGG/Opus). Dessa forma:
-- No CRM: Chrome reproduz WebM nativamente (player funciona)
-- No WhatsApp: WAHA transcodifica corretamente com metadata de duracao
+Isso vai encontrar `true_5513988506995@c.us_3EB0CAB` quando procurar por `%_3EB0CAB`.
+
+Tambem precisamos garantir que o ACK mais alto prevaleca (nao sobrescrever READ com DEVICE que chega depois). Adicionar condicao: so atualizar se `ack` for maior que o atual.
 
 ---
 
-## Correcao 3: Re-configurar Webhook para Sessoes Existentes
+## Correcao 2: Enquete - Evento `poll.vote` e Formato de Webhook
 
-**Arquivo:** `supabase/functions/waha-proxy/index.ts` (case `status`)
+**Arquivo:** `supabase/functions/waha-proxy/index.ts`
 
-O problema e que a sessao foi criada antes de adicionarmos `poll.vote` aos eventos do webhook. Sessoes ja ativas nao recebem a configuracao atualizada automaticamente.
+O problema e que mesmo com a reconfiguracao, nenhum `poll.vote` chega. Duas acoes:
 
-**Correcao**: No case `status`, quando a sessao estiver WORKING, alem de atualizar o banco, tambem reconfigura o webhook com os eventos atualizados via PATCH:
+### 2a. Atualizar formato do webhook no PATCH
+
+O formato de PATCH na API WAHA pode exigir formato diferente. Vamos garantir que o update leia a resposta e log:
 
 ```text
-// Dentro do case "status", quando isConnected:
-// Re-configurar webhook para garantir eventos atualizados
-await fetch(`${baseUrl}/api/sessions/${sessionId}`, {
-  method: "PATCH",
-  headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
-  body: JSON.stringify({
-    config: {
-      webhooks: [{ url: webhookUrl, events: webhookEvents }]
-    }
-  })
-});
+const patchResp = await fetch(...)
+const patchData = await patchResp.json().catch(() => null);
+console.log(`[waha-proxy] Webhook reconfig result: ${patchResp.status}`, JSON.stringify(patchData));
 ```
 
-Isso garante que toda vez que o status for verificado (polling do frontend), o webhook e automaticamente atualizado com a lista de eventos mais recente.
+### 2b. Adicionar evento `poll.vote.failed` tambem
+
+Incluir `poll.vote.failed` na lista de eventos para cobrir mais cenarios.
+
+### 2c. Alternativa: Consultar votos via API WAHA
+
+Se o webhook `poll.vote` nao funcionar (limitacao do WAHA Plus ou da versao), adicionar um action `consultar_votos_enquete` no proxy que consulta a API WAHA `GET /api/{session}/polls/{messageId}` e atualiza o banco diretamente. O frontend pode chamar isso periodicamente ou ao visualizar uma enquete.
+
+**Arquivos:** `supabase/functions/waha-proxy/index.ts` + `src/modules/conversas/components/ChatMessageBubble.tsx`
 
 ---
 
-## Correcao 4: ACK - Corrigir Formato do message_id
+## Correcao 3: Audio - Gravacao de Alta Qualidade
 
-**Arquivo:** `supabase/functions/waha-proxy/index.ts` (retorno dos cases `enviar_mensagem`, `enviar_media`, `enviar_contato`)
+**Arquivo:** `src/modules/conversas/components/AudioRecorder.tsx`
 
-**Problema confirmado por dados**:
-- Mensagens de texto/media/contato salvam `message_id = "3EB04067E27C93ECDE4987"` (key.id curto)
-- Enquetes salvam `message_id = "true_5513988506995@c.us_3EB0CE2D5D8EC24CF851DE"` (id._serialized completo)
-- Eventos ACK usam formato serializado: `"true_162826672971943@lid_3EB04067E27C93ECDE4987"`
-- `.eq("message_id", serialized)` nunca encontra o ID curto -> `rows=null`
-
-**Correcao em 2 partes**:
-
-### 4a. No waha-proxy, construir message_id serializado no retorno
-
-Para cada action de envio (`enviar_mensagem`, `enviar_media`, `enviar_contato`), construir o formato `_serialized` a partir da resposta WAHA:
+### 3a. Remover timeslice do `recorder.start()`
 
 ```text
-const key = sendData.key || {};
-const messageId = sendData.id?._serialized
-  || (key.id && key.remoteJid
-    ? `${key.fromMe ? 'true' : 'false'}_${key.remoteJid.replace('@s.whatsapp.net', '@c.us')}_${key.id}`
-    : key.id || null);
+De:
+  recorder.start(100)    // 100ms timeslice = centenas de micro-chunks
+
+Para:
+  recorder.start()       // Sem timeslice = um unico chunk com metadata completa
 ```
 
-### 4b. No webhook ACK handler, fallback para ID curto
+Isso garante que o blob final tenha o container WebM/OGG completo com metadata de duracao correta.
 
-Se a busca exata por `message_id` nao encontrar resultado, extrair o ID curto (ultima parte apos `_`) e tentar novamente:
+### 3b. Aumentar bitrate
 
 ```text
-// Se nao achou com o ID completo, tenta com o ID curto
-if (count === 0 && messageId.includes('_')) {
-  const shortId = messageId.split('_').pop();
-  await supabaseAdmin.from("mensagens")
-    .update({ ack, ack_name, atualizado_em })
-    .eq("message_id", shortId)
-    .eq("organizacao_id", sessao.organizacao_id);
-}
+De:
+  audioBitsPerSecond: 32000   // 32kbps - muito baixo
+
+Para:
+  audioBitsPerSecond: 128000  // 128kbps - qualidade boa para voz
 ```
 
-Isso garante compatibilidade retroativa com mensagens ja salvas no formato curto E corrige novas mensagens para usar o formato completo.
+### 3c. Corrigir closure stale de `duration`
 
----
-
-## Correcao 5: Sincronizar Mensagens Enviadas pelo Celular
-
-**Arquivo:** `supabase/functions/waha-webhook/index.ts` (linhas 192-201)
-
-**Problema**: Linha 195 faz `if (payload.fromMe === true) return` - ignora completamente mensagens enviadas pelo celular.
-
-**Correcao**: Permitir mensagens `fromMe` mas evitar duplicatas:
+O `recorder.onstop` captura `duration` por closure no momento da criacao (sempre 0). Usar `useRef` para a duracao:
 
 ```text
-// ANTES: ignorava todas fromMe
-if (!payload || payload.fromMe === true) {
-  return ... "Outgoing ignored"
-}
+const durationRef = useRef(0)
 
-// DEPOIS: permitir fromMe, verificar duplicata antes de inserir
-if (!payload) {
-  return ... "No payload"
-}
+// No timer:
+setDuration(prev => {
+  const next = prev + 1
+  durationRef.current = next
+  return next
+})
 
-const isFromMe = payload.fromMe === true;
+// No onstop:
+onSend(blob, durationRef.current)
 ```
-
-Antes de inserir a mensagem (STEP 3), verificar se ja existe no banco:
-
-```text
-// Verificar duplicata pelo message_id
-const { data: existingMsg } = await supabaseAdmin
-  .from("mensagens")
-  .select("id")
-  .eq("message_id", messageId)
-  .eq("organizacao_id", sessao.organizacao_id)
-  .maybeSingle();
-
-// Tambem verificar pelo ID curto (mensagens enviadas pelo CRM usam formato curto)
-let isDuplicate = !!existingMsg;
-if (!isDuplicate && messageId.includes('_')) {
-  const shortId = messageId.split('_').pop();
-  const { data: existingShort } = await supabaseAdmin
-    .from("mensagens")
-    .select("id")
-    .eq("message_id", shortId)
-    .eq("organizacao_id", sessao.organizacao_id)
-    .maybeSingle();
-  isDuplicate = !!existingShort;
-}
-
-if (isDuplicate) {
-  console.log("[waha-webhook] Duplicate message, skipping insert");
-  return ... "Duplicate"
-}
-```
-
-Para mensagens `fromMe`, ajustar o `messageInsert`:
-- `from_me: isFromMe`
-- Nao incrementar `mensagens_nao_lidas` (sao mensagens do proprio usuario)
-- Extrair midia/caption da mesma forma que mensagens recebidas
-
-Esse fluxo permite:
-1. Mensagens enviadas pelo celular aparecem no CRM
-2. Mensagens enviadas pelo CRM nao sao duplicadas
-3. Contadores de nao-lidas so incrementam para mensagens recebidas
 
 ---
 
 ## Resumo de Arquivos
 
 ### Arquivos editados:
-1. `src/modules/conversas/components/ChatMessageBubble.tsx` - Download de documento via JS
-2. `src/modules/conversas/components/ChatWindow.tsx` - Upload de audio com MIME type correto
-3. `supabase/functions/waha-proxy/index.ts` - message_id serializado nos envios + reconfig webhook no status
-4. `supabase/functions/waha-webhook/index.ts` - Permitir fromMe + ACK com fallback ID curto
+1. `supabase/functions/waha-webhook/index.ts` - ACK fallback com `.ilike` + protecao contra downgrade de ack
+2. `supabase/functions/waha-proxy/index.ts` - Log detalhado do webhook reconfig + eventos adicionais + action para consultar votos de enquete
+3. `src/modules/conversas/components/AudioRecorder.tsx` - Remover timeslice, aumentar bitrate, corrigir closure de duration
+4. `src/modules/conversas/components/ChatMessageBubble.tsx` - Adicionar botao para consultar votos de enquete (se poll.vote webhook nao funcionar)
 
 ### Deploy necessario:
 - `waha-proxy`
 - `waha-webhook`
 
-### Sequencia de implementacao:
-1. Webhook (fromMe sync + ACK fix + poll.vote retroativo)
-2. Proxy (message_id serializado + webhook reconfig no status)
-3. ChatMessageBubble (download documento)
-4. ChatWindow (audio MIME correto)
+### Sequencia:
+1. waha-webhook (ACK ilike fix)
+2. waha-proxy (webhook reconfig melhorado + action consultar votos)
+3. AudioRecorder (gravacao corrigida)
+4. ChatMessageBubble (enquete votos alternativo)
 5. Deploy edge functions
 
-### Apos deploy:
-- Abrir uma conversa existente para que o polling de `status` reconfigure o webhook com `poll.vote`
-- Enviar uma mensagem pelo celular para testar a sincronizacao
-- Enviar enquete e votar para testar atualizacao em tempo real
-- Enviar audio e verificar reproducao no WhatsApp e no CRM
-- Enviar documento e testar download
+### Detalhes Tecnicos
 
+**ACK corrigido:**
+
+```text
+ACK READ chega: messageId="true_162826672971943@lid_3EB0CAB"
+  |
+  v
+Busca exata: .eq("message_id", "true_162826672971943@lid_3EB0CAB") -> nao encontra
+  |
+  v
+Fallback: shortId = "3EB0CAB"
+  |
+  v
+Busca ILIKE: .ilike("message_id", "%_3EB0CAB") -> ENCONTRA "true_5513988506995@c.us_3EB0CAB"
+  |
+  v
+Verifica se ack novo > ack atual (evita downgrade)
+  |
+  v
+UPDATE ack=3 (READ) -> Realtime notifica frontend -> Ticks azuis
+```
+
+**Audio corrigido:**
+
+```text
+ANTES:
+  start(100) -> centenas de micro-chunks -> Blob sem duration metadata -> WAHA nao transcodifica -> 0:00
+
+DEPOIS:
+  start() -> chunk unico ao parar -> Blob com metadata completa -> WAHA transcodifica com duracao -> audio funcional
+```
