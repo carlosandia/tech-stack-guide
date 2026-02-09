@@ -118,7 +118,16 @@ export function ChatMessages({
   const messageByWahaId = useMemo(() => {
     const map = new Map<string, Mensagem>()
     for (const msg of sortedMessages) {
-      if (msg.message_id) map.set(msg.message_id, msg)
+      if (msg.message_id) {
+        // Index by full serialized ID
+        map.set(msg.message_id, msg)
+        // Also index by short stanza ID (last segment after '_')
+        // This enables lookup when reply_to_message_id is a short quotedStanzaID
+        if (msg.message_id.includes('_')) {
+          const shortId = msg.message_id.split('_').pop()
+          if (shortId) map.set(shortId, msg)
+        }
+      }
     }
     return map
   }, [sortedMessages])
