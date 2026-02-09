@@ -1,59 +1,89 @@
 
-# Plano: Correção do Drag-and-Drop e Revisão das Tabs Avançadas
 
-## 1. Problema do Drag-and-Drop
+# Plano: Informacoes Explicativas nas 4 Tabs + Correcao do Drag-and-Drop
 
-### Diagnóstico
-O bug de posicionamento incorreto tem **duas causas raiz**:
+## 1. Problema do Drag-and-Drop (Causa Raiz)
 
-**Causa A - Reorder com offset errado:** Em `handleReorderCampo` (FormularioEditorPage.tsx), ao fazer `splice(dragIdx, 1)` seguido de `splice(dropIdx, 0, moved)`, os indices mudam apos o primeiro splice. Se `dragIdx < dropIdx`, o `dropIdx` deveria ser decrementado em 1, pois a remoção do item anterior desloca os indices.
+O `handleDropNewCampo` cria o campo com `ordem: index`, porem **nao reordena os campos existentes** para abrir espaco. Exemplo: se existem campos com ordem 0,1,2,3,4,5,6,7 e voce cria um novo com `ordem=1`, agora existem **dois campos com ordem=1**. O banco retorna o novo por ultimo (por `created_at`), fazendo-o aparecer no final.
 
-**Causa B - Drop zone usa ID do campo errado:** Em `FormPreview.tsx`, o `handleDrop` usa `campos[index]` para identificar o alvo, mas os drop zones estao numerados de 0 a N (onde N = campos.length). O drop zone `index + 1` (apos campo[index]) tenta acessar `campos[index]` como alvo, mas semanticamente deveria inserir APOS esse campo. Para novos campos da paleta, `onDropNewCampo(e, index)` passa o index correto, mas para reorder, a logica de mapeamento index-para-campo esta incorreta.
+### Correcao
 
-### Correção
-- Reescrever `handleReorderCampo` para considerar o deslocamento de indices apos o splice
-- Alterar `handleDrop` no FormPreview para calcular a posicao de inserção correta baseada no indice do drop zone (inserir na posição `index`, não no campo `campos[index]`)
-- Mudar a assinatura de `onReorderCampo` para receber `(dragId: string, targetIndex: number)` em vez de `(dragId: string, dropId: string)`, eliminando a ambiguidade
+**Arquivo: `src/modules/formularios/pages/FormularioEditorPage.tsx`**
 
-## 2. Revisão das Tabs Avançadas
+Alterar `handleDropNewCampo` para:
+1. Criar o campo novo com `ordem: index`
+2. Apos a criacao (onSuccess), chamar `reordenarCampos.mutate()` com todos os campos reindexados
+3. Alternativa mais simples: antes de criar, reordenar os campos existentes deslocando os que tem `ordem >= index` em +1, e depois criar o novo campo
 
-### Tab Logica Condicional - Status: Funcional
-- CRUD completo de regras com condições E/OU
-- Formulario usa `<select>` nativo (evita conflitos z-index)
-- Tipos de ação: mostrar, ocultar, pular_etapa, redirecionar, definir_valor
-- Sem problemas identificados
+Logica proposta:
+```
+handleDropNewCampo(e, index):
+  1. Desloca campos existentes: para cada campo com ordem >= index, incrementa ordem em +1
+  2. Cria o novo campo com ordem = index
+  3. Invalida a query para refletir a nova ordem
+```
 
-### Tab Integracoes (Webhooks) - Status: Funcional
-- Mostra status da integração com Pipeline (baseado em `funil_id`)
-- CRUD de webhooks com suporte a POST/PUT/PATCH, retry e metadados
-- Logs de execução por webhook expandivel
-- Sem problemas identificados
+Na pratica, isso sera feito com uma sequencia: primeiro `reordenarCampos.mutate()` com os indices ajustados, depois `criarCampo.mutate()` com o indice correto. Ou, mais eficiente: criar o campo e na callback onSuccess reordenar tudo.
 
-### Tab Analytics - Status: Funcional (dados dependem de eventos reais)
-- Metricas: visualizações, submissões, taxa conversão, inicios, abandonos
-- Funil de conversão: Visualização -> Inicio -> Submissão
-- Desempenho por campo: interações, erros, tempo medio
-- Os dados vem das tabelas `eventos_analytics_formularios` e `formularios` - funcionara corretamente quando houver dados reais
+**Abordagem escolhida (mais robusta):** Criar o campo, e no `onSuccess` do `criarCampo`, chamar `reordenarCampos` passando todos os campos na ordem desejada (inserindo o novo no indice correto).
 
-### Tab A/B Testing - Status: Funcional
-- Ciclo de vida: rascunho -> em_andamento -> pausado/concluido
-- Criação de variantes com distribuição de trafego
-- Ao concluir, seleciona variante vencedora pela maior `taxa_conversao`
-- Atualiza flag `ab_testing_ativo` no formulario
-- Sem problemas identificados
+Tambem corrigir o `CampoItem.onDrop` para aceitar drops de novos campos da paleta (tipo `application/campo-tipo`), nao apenas reorder.
 
-## 3. Detalhes Tecnicos da Correção
+---
 
-### Arquivo: `src/modules/formularios/pages/FormularioEditorPage.tsx`
-- Alterar `handleReorderCampo` para receber `(dragId: string, targetIndex: number)`
-- Calcular corretamente a posição de inserção considerando o deslocamento do splice
-- Logica: remover item do indice original, inserir no `targetIndex` (ajustando se `dragIdx < targetIndex`)
+## 2. Informacoes Explicativas nas 4 Tabs
 
-### Arquivo: `src/modules/formularios/components/editor/FormPreview.tsx`
-- Alterar `onReorderCampo` na interface Props para `(dragId: string, targetIndex: number) => void`
-- No `handleDrop`, passar `index` diretamente como posição de destino em vez de `campos[index].id`
-- Remover logica de fallback para "dropped at end" que causa comportamento inesperado
-- Nos handlers de drop do `CampoItem`, calcular o index correto baseado na posição do campo
+Adicionar um bloco informativo compacto no topo de cada uma das 4 tabs (Logica, Integracoes, Analytics, A/B Testing) com icone de informacao (Info), titulo do objetivo e exemplos de uso.
 
-### Arquivo: `src/modules/formularios/components/campos/CampoItem.tsx`
-- Atualizar prop `onDrop` para trabalhar com o novo sistema de indices
+### Tab Logica Condicional
+**Arquivo: `src/modules/formularios/components/editor/EditorTabsLogica.tsx`**
+
+Substituir o paragrafo simples existente por um bloco informativo com:
+- **Objetivo:** Controlar dinamicamente o formulario com base nas respostas do usuario
+- **Exemplos:** "Se o campo 'Tipo' = Empresa, mostrar campo CNPJ", "Se cidade = Sao Paulo, pular para etapa 3"
+- Icone `Info` com fundo suave
+
+### Tab Integracoes
+**Arquivo: `src/modules/formularios/components/editor/EditorTabsIntegracoes.tsx`**
+
+Adicionar bloco informativo no topo (antes do Pipeline info) com:
+- **Objetivo:** Conectar o formulario a sistemas externos e ao pipeline de vendas
+- **Exemplos:** "Enviar dados para Slack ao receber submissao", "Criar oportunidade automaticamente no pipeline", "Sincronizar leads com ferramenta de email marketing"
+
+### Tab Analytics
+**Arquivo: `src/modules/formularios/components/editor/EditorTabsAnalytics.tsx`**
+
+Adicionar bloco informativo no topo com:
+- **Objetivo:** Acompanhar o desempenho do formulario e identificar pontos de melhoria
+- **Exemplos:** "Ver quantas pessoas abandonam no campo 'Telefone'", "Comparar taxa de conversao ao longo do tempo", "Identificar campos com mais erros de preenchimento"
+
+### Tab A/B Testing
+**Arquivo: `src/modules/formularios/components/editor/EditorTabsAB.tsx`**
+
+Adicionar bloco informativo no topo (antes do TesteABForm) com:
+- **Objetivo:** Testar variacoes do formulario para descobrir qual converte mais
+- **Exemplos:** "Testar botao verde vs azul", "Comparar formulario curto vs longo", "Testar titulo diferente e medir impacto na conversao"
+
+### Estilo do Bloco Informativo (padrao para as 4 tabs)
+- Container com `border border-blue-200 bg-blue-50/50 rounded-lg p-3`
+- Icone `Info` com cor `text-blue-500`
+- Titulo em `text-xs font-semibold`
+- Exemplos em lista com marcadores, `text-xs text-muted-foreground`
+- Botao colapsavel opcional (pode iniciar aberto e o usuario fecha se quiser)
+
+---
+
+## Detalhes Tecnicos
+
+### Arquivos a editar:
+1. `src/modules/formularios/pages/FormularioEditorPage.tsx` - Correcao do `handleDropNewCampo`
+2. `src/modules/formularios/components/editor/FormPreview.tsx` - CampoItem onDrop para aceitar novos campos
+3. `src/modules/formularios/components/editor/EditorTabsLogica.tsx` - Bloco informativo
+4. `src/modules/formularios/components/editor/EditorTabsIntegracoes.tsx` - Bloco informativo
+5. `src/modules/formularios/components/editor/EditorTabsAnalytics.tsx` - Bloco informativo
+6. `src/modules/formularios/components/editor/EditorTabsAB.tsx` - Bloco informativo
+
+### Sequencia de implementacao:
+1. Corrigir o drag-and-drop no `handleDropNewCampo` (prioridade alta)
+2. Adicionar blocos informativos nas 4 tabs (paralelo)
+
