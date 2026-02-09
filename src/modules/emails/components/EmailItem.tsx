@@ -1,6 +1,6 @@
 /**
- * AIDEV-NOTE: Componente de item individual na lista de emails
- * Mostra remetente, assunto, preview, data e indicadores (lido, favorito, anexo)
+ * AIDEV-NOTE: Item de email estilo Gmail - layout single-line
+ * Formato: checkbox | star | remetente | assunto - preview | data
  */
 
 import { format, isToday, isYesterday, isThisYear } from 'date-fns'
@@ -23,7 +23,7 @@ function formatarDataEmail(dataStr: string): string {
   if (isToday(data)) return format(data, 'HH:mm')
   if (isYesterday(data)) return 'Ontem'
   if (isThisYear(data)) return format(data, "d 'de' MMM", { locale: ptBR })
-  return format(data, "d/MM/yy")
+  return format(data, 'd/MM/yy')
 }
 
 export function EmailItem({
@@ -35,19 +35,21 @@ export function EmailItem({
   onToggleFavorito,
 }: EmailItemProps) {
   const nomeRemetente = email.de_nome || email.de_email.split('@')[0]
+  const isUnread = !email.lido
 
   return (
     <div
       onClick={() => onSelect(email.id)}
       className={cn(
-        'flex items-start gap-3 px-3 py-2.5 cursor-pointer border-b border-border/50 transition-colors duration-150',
-        isSelected && 'bg-primary/5 border-l-2 border-l-primary',
-        !isSelected && 'hover:bg-accent/50',
-        !email.lido && 'bg-primary/[0.02]'
+        'flex items-center h-10 px-2 cursor-pointer border-b border-border/30 transition-colors duration-100 group',
+        isSelected && 'bg-primary/8',
+        !isSelected && 'hover:bg-accent/40 hover:shadow-[inset_0_-1px_0_0_hsl(var(--border)/0.5)]',
+        isUnread && !isSelected && 'bg-background',
+        !isUnread && !isSelected && 'bg-muted/20',
       )}
     >
       {/* Checkbox */}
-      <div className="flex-shrink-0 pt-0.5">
+      <div className="flex-shrink-0 w-8 flex items-center justify-center">
         <input
           type="checkbox"
           checked={isChecked}
@@ -55,7 +57,7 @@ export function EmailItem({
             e.stopPropagation()
             onToggleCheck(email.id)
           }}
-          className="w-4 h-4 rounded border-border text-primary focus:ring-primary/20"
+          className="w-4 h-4 rounded border-border text-primary focus:ring-primary/20 cursor-pointer"
         />
       </div>
 
@@ -65,61 +67,64 @@ export function EmailItem({
           e.stopPropagation()
           onToggleFavorito(email.id, !email.favorito)
         }}
-        className="flex-shrink-0 pt-0.5"
+        className="flex-shrink-0 w-7 flex items-center justify-center"
       >
         <Star
           className={cn(
             'w-4 h-4 transition-colors',
             email.favorito
               ? 'fill-amber-400 text-amber-400'
-              : 'text-muted-foreground/40 hover:text-amber-400'
+              : 'text-transparent group-hover:text-muted-foreground/30 hover:!text-amber-400'
           )}
         />
       </button>
 
-      {/* Content */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between gap-2">
-          <span
-            className={cn(
-              'text-sm truncate',
-              !email.lido ? 'font-semibold text-foreground' : 'font-medium text-muted-foreground'
-            )}
-          >
-            {nomeRemetente}
-          </span>
-          <div className="flex items-center gap-1.5 flex-shrink-0">
-            {email.tem_anexos && (
-              <Paperclip className="w-3.5 h-3.5 text-muted-foreground/60" />
-            )}
-            <span className="text-xs text-muted-foreground whitespace-nowrap">
-              {formatarDataEmail(email.data_email)}
-            </span>
-          </div>
-        </div>
-
-        <p
+      {/* Sender name - fixed width */}
+      <div className="flex-shrink-0 w-[180px] lg:w-[200px] pr-4">
+        <span
           className={cn(
-            'text-sm truncate mt-0.5',
-            !email.lido ? 'font-medium text-foreground' : 'text-muted-foreground'
+            'text-sm truncate block',
+            isUnread ? 'font-semibold text-foreground' : 'text-foreground/70'
+          )}
+        >
+          {nomeRemetente}
+        </span>
+      </div>
+
+      {/* Subject + Preview - takes remaining space */}
+      <div className="flex-1 min-w-0 flex items-center gap-1 pr-3">
+        <span
+          className={cn(
+            'text-sm truncate',
+            isUnread ? 'font-semibold text-foreground' : 'text-foreground/70'
           )}
         >
           {email.assunto || '(sem assunto)'}
-        </p>
-
+        </span>
         {email.preview && (
-          <p className="text-xs text-muted-foreground truncate mt-0.5">
-            {email.preview}
-          </p>
+          <>
+            <span className="text-sm text-muted-foreground/50 flex-shrink-0"> - </span>
+            <span className="text-sm text-muted-foreground/60 truncate">
+              {email.preview}
+            </span>
+          </>
         )}
       </div>
 
-      {/* Indicador não lido */}
-      {!email.lido && (
-        <div className="flex-shrink-0 pt-1.5">
-          <div className="w-2 h-2 rounded-full bg-primary" />
-        </div>
-      )}
+      {/* Attachment + Date */}
+      <div className="flex items-center gap-2 flex-shrink-0">
+        {email.tem_anexos && (
+          <Paperclip className="w-3.5 h-3.5 text-muted-foreground/50" />
+        )}
+        <span
+          className={cn(
+            'text-xs whitespace-nowrap min-w-[60px] text-right',
+            isUnread ? 'font-semibold text-foreground/70' : 'text-muted-foreground'
+          )}
+        >
+          {formatarDataEmail(email.data_email)}
+        </span>
+      </div>
     </div>
   )
 }
