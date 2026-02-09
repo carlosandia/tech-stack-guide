@@ -1190,11 +1190,13 @@ export const configCardApi = {
 export const integracoesApi = {
   listar: async () => {
     const integracoes: Integracao[] = []
+    const userId = await getUsuarioId()
 
-    // WhatsApp - via sessoes_whatsapp
+    // WhatsApp - via sessoes_whatsapp (cada usuário vê apenas sua sessão)
     const { data: whatsappData } = await supabase
       .from('sessoes_whatsapp')
-      .select('id, organizacao_id, status, phone_number, phone_name, session_name, conectado_em, atualizado_em')
+      .select('id, organizacao_id, usuario_id, status, phone_number, phone_name, session_name, conectado_em, atualizado_em')
+      .eq('usuario_id', userId)
       .is('deletado_em', null)
 
     if (whatsappData) {
