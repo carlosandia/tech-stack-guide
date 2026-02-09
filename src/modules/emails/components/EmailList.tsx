@@ -36,6 +36,7 @@ interface EmailListProps {
   onToggleFavorito: (id: string, favorito: boolean) => void
   onAcaoLote: (acao: AcaoLote, ids: string[]) => void
   onRefresh: () => void
+  isSyncing?: boolean
   page: number
   totalPages: number
   onPageChange: (page: number) => void
@@ -54,6 +55,7 @@ export function EmailList({
   onToggleFavorito,
   onAcaoLote,
   onRefresh,
+  isSyncing,
   page,
   totalPages,
   onPageChange,
@@ -190,8 +192,8 @@ export function EmailList({
             <span className="text-xs text-muted-foreground ml-1">{checkedIds.size} selecionado(s)</span>
           </>
         ) : (
-          <button onClick={onRefresh} className={iconBtnClass} disabled={isLoading} title="Atualizar">
-            <RefreshCw className={cn('w-4 h-4', isLoading && 'animate-spin')} />
+          <button onClick={onRefresh} className={iconBtnClass} disabled={isLoading || isSyncing} title="Sincronizar">
+            <RefreshCw className={cn('w-4 h-4', (isLoading || isSyncing) && 'animate-spin')} />
           </button>
         )}
 
