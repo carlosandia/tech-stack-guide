@@ -1,102 +1,128 @@
 
-
-# Plano: Config Geral - Ajustes de Layout + Widget WhatsApp para Website
+# Plano: Integracao VoIP com API4COM
 
 ## Resumo
 
-Tres alteracoes na pagina Config Geral (`/app/configuracoes/config-geral`):
+Implementar ligacoes telefonicas direto do CRM via API4COM usando WebRTC/SIP. Sem configuracao global do Super Admin -- cada tenant configura suas proprias credenciais.
 
-1. **Manter secao Automacao** - A pagina inteira ja e restrita a `role === 'admin'`, entao a secao de automacao so aparece para gestores. Nenhuma alteracao necessaria.
-
-2. **Expandir para 100% do width** - Remover a restricao `max-w-2xl` que limita o conteudo a metade da tela.
-
-3. **Nova secao: Widget WhatsApp para Website** - Configuracao completa para gerar um script/embed de botao flutuante de WhatsApp no site do usuario.
-
----
-
-## Detalhes da Nova Secao: Widget WhatsApp
-
-### Campos de Configuracao
-
-| Campo | Tipo | Descricao |
-|-------|------|-----------|
-| Ativar Widget | Toggle | Liga/desliga o widget |
-| Numero WhatsApp | Texto | Numero para onde direcionar (com DDI) |
-| Posicao do Botao | Select | `Direita inferior` ou `Esquerda inferior` |
-| Usar Pre-Formulario | Toggle | Se ativado, exibe formulario antes de redirecionar |
-| Campos do Formulario | Multi-select | Campos vindos de `/app/configuracoes/campos` (entidade pessoa) para montar o formulario |
-| Nome do Atendente | Texto | Nome exibido no header do widget (ex: "Maria") |
-| Foto do Atendente | Upload imagem | Foto exibida no header simulando conversa WhatsApp |
-| Mensagem de Boas-vindas | Texto | Mensagem inicial no estilo bolha WhatsApp |
-| Cor do Botao | Color picker | Cor de fundo do botao flutuante (padrao: verde WhatsApp #25D366) |
-
-### Fluxo do Widget no Site do Usuario
+## Arquitetura de Configuracao
 
 ```text
-[Visitante ve botao flutuante]
-        |
-        v
-[Clica no botao] --> (Sem formulario?) --> [Abre wa.me/numero]
-        |
-        v (Com formulario?)
-[Abre mini-chat com header do atendente]
-        |
-        v
-[Preenche campos selecionados pelo admin]
-        |
-        v
-[Clica "Iniciar Conversa"]
-        |
-        v
-[Redireciona para wa.me/numero?text=dados_preenchidos]
+Nivel 1: Admin do Tenant (/conexoes)
+  -> Token API4COM da organizacao
+  -> Salvo na tabela "integracoes" (plataforma = 'api4com')
+
+Nivel 2: Cada Usuario (config pessoal)
+  -> Ramal SIP (extension + senha)
+  -> Salvo na tabela "ramais_voip"
 ```
 
-### Geracao do Script Embed
+Nao ha nivel de Super Admin porque cada organizacao contrata e paga diretamente a API4COM.
 
-- Gera um `<script>` tag que o usuario copia e cola no HTML do seu site
-- O script cria o botao flutuante + mini-formulario com os estilos configurados
-- Visual inspirado no WhatsApp (verde, bolhas, avatar do atendente)
-- Script auto-contido (sem dependencias externas), inline CSS + JS vanilla
-- Botao com textarea para copiar o codigo gerado
+## Etapas de Implementacao
 
-### Preview ao Vivo
+### Etapa 1 -- Banco de Dados
 
-- Uma previa visual do widget sera renderizada ao lado das configuracoes
-- Mostra como ficara o botao e o formulario no site do usuario
+**Adicionar 'api4com' como plataforma valida** nas integracoes existentes (schema + enum).
 
----
+**Nova tabela `ramais_voip`:**
+- `id` UUID PK
+- `organizacao_id` UUID FK
+- `usuario_id` UUID FK
+- `extension` TEXT (ramal SIP)
+- `password_encrypted` TEXT (senha SIP)
+- `sip_server` TEXT (servidor SIP)
+- `nome_exibicao` TEXT (nome para identificar o ramal)
+- `status` ENUM ('ativo', 'inativo')
+- `criado_em`, `atualizado_em`
+- RLS: usuario so ve/edita o proprio ramal
+
+**Nova tabela `ligacoes`:**
+- `id` UUID PK
+- `organizacao_id` UUID FK
+- `usuario_id` UUID FK (quem ligou)
+- `oportunidade_id` UUID FK nullable
+- `contato_id` UUID FK nullable
+- `numero_destino` TEXT
+- `numero_origem` TEXT (ramal)
+- `direcao` ENUM ('saida') -- fase 1 apenas saida
+- `status` ENUM ('atendida', 'nao_atendida', 'ocupado', 'cancelada', 'em_andamento')
+- `duracao_segundos` INTEGER
+- `inicio_em` TIMESTAMPTZ
+- `fim_em` TIMESTAMPTZ nullable
+- `gravacao_url` TEXT nullable
+- `notas` TEXT nullable
+- `metadata` JSONB
+- `criado_em` TIMESTAMPTZ
+- RLS: filtro por tenant
+
+### Etapa 2 -- Card de Conexao API4COM em /conexoes
+
+Novo card na pagina de Conexoes do admin do tenant:
+- Titulo: "API4COM - Telefonia VoIP"
+- Icone: Phone
+- Modal de conexao com campos:
+  - Token da API4COM (obrigatorio)
+  - URL base da API (preenchido com default da API4COM)
+- Botao "Testar Conexao" para validar o token
+- Salvar na tabela `integracoes` com plataforma='api4com'
+
+### Etapa 3 -- Configuracao de Ramal Individual
+
+Nova secao nas configuracoes pessoais do usuario (ou modal acessivel):
+- Extension (ramal SIP)
+- Senha SIP
+- Servidor SIP (preenchido automaticamente via API4COM)
+- Botao "Testar Ramal"
+- Salvar na tabela `ramais_voip`
+
+### Etapa 4 -- Edge Function `api4com-proxy`
+
+Proxy seguro para interagir com a API da API4COM:
+- Validacao JWT + verificacao de tenant
+- Busca o token API4COM da tabela `integracoes`
+- Endpoints:
+  - `POST /validate` -- validar token do admin
+  - `GET /recordings/:id` -- buscar gravacao
+  - `POST /validate-extension` -- testar ramal SIP
+
+### Etapa 5 -- Hook `useWebphone` + libwebphone.js
+
+Hook React que encapsula a biblioteca SIP/WebRTC da API4COM (Kazoo Webphone):
+- Conexao SIP com credenciais do ramal do usuario
+- Originar chamadas (`call(numero)`)
+- Controles: mute, hold, hangup
+- Eventos: ringing, connected, ended
+- Estado: registrado, em chamada, desconectado
+
+### Etapa 6 -- Modal de Ligacao (`LigacaoModal`)
+
+Modal flutuante compacto para chamadas ativas:
+- Exibe: nome do contato, numero, cronometro
+- Controles: Ligar, Desligar, Mudo, Hold
+- Campo de notas pos-ligacao
+- Ao finalizar: salva registro na tabela `ligacoes` + audit_log
+- Pontos de ativacao: icone de telefone no card Kanban, modal de detalhes, qualquer telefone clicavel
+
+### Etapa 7 -- Aba "Ligacoes" no Modal de Detalhes
+
+Nova aba no modal de detalhes da oportunidade:
+- Lista de ligacoes vinculadas (ordenadas por data)
+- Cada item: data/hora, duracao, status, quem ligou
+- Player de audio para gravacoes (quando disponivel)
+- Notas da ligacao
+- Ligacoes tambem aparecem na timeline via audit_log
 
 ## Detalhes Tecnicos
 
-### Arquivos a Criar/Modificar
+- **Gravacao**: Usar gravacao nativa da API4COM e buscar URL via proxy. Possibilita futura transcricao com IA (Fase 2).
+- **Seguranca**: Token API4COM fica na tabela `integracoes` (campo access_token). Senha SIP criptografada na `ramais_voip`. Proxy via edge function para nunca expor credenciais no frontend.
+- **Design System**: Todos os componentes seguem o designsystem.md.
+- **Plataforma**: Adicionar 'api4com' ao enum `PlataformaEnum` nos schemas de integracoes.
 
-1. **`src/modules/configuracoes/pages/ConfigGeralPage.tsx`**
-   - Remover `max-w-2xl` do container principal
-   - Adicionar nova secao "WhatsApp no Website" com todos os campos
-   - Incluir botao "Copiar Script" que gera o embed
-   - Incluir preview visual do widget
+## Fora do Escopo (Fase 2)
 
-2. **`src/modules/configuracoes/components/whatsapp-widget/WidgetWhatsAppConfig.tsx`** (novo)
-   - Componente da secao de configuracao com todos os campos
-   - Busca campos personalizados de "pessoa" para popular o multi-select
-   - Upload de foto do atendente para o Supabase Storage
-   - Geracao do script embed auto-contido
-
-3. **`src/modules/configuracoes/components/whatsapp-widget/WidgetWhatsAppPreview.tsx`** (novo)
-   - Preview visual do widget (botao flutuante + formulario aberto)
-   - Atualiza em tempo real conforme usuario muda configuracoes
-
-4. **`src/modules/configuracoes/components/whatsapp-widget/generateWidgetScript.ts`** (novo)
-   - Funcao utilitaria que recebe as configuracoes e retorna o HTML/JS/CSS do script embed
-
-5. **`src/modules/configuracoes/hooks/useConfigTenant.ts`**
-   - Ja existente, sera usado para salvar as configs do widget na tabela `config_tenant`
-
-### Persistencia
-
-- As configuracoes do widget serao salvas na tabela `config_tenant` existente, adicionando campos como `widget_whatsapp_ativo`, `widget_whatsapp_config` (JSONB) via o mesmo fluxo de `useAtualizarConfigTenant`
-
-### Sugestao de Melhoria Adicional
-
-Para aparecer tambem na secao de Conexoes WhatsApp: adicionar um link/atalho na pagina `/app/configuracoes/conexoes` no card do WhatsApp com "Configurar Widget para Website" que leva para a secao correspondente em Config Geral. Isso pode ser feito como passo adicional.
-
+- Transcricao de ligacoes com IA
+- Insights comerciais automaticos
+- Chamadas de entrada (inbound)
+- Dashboard de metricas de ligacoes
