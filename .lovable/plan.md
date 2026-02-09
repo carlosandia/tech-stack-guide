@@ -1,170 +1,122 @@
 
-## Correcao: Ticks Azuis (ACK READ), Enquete e Audio
+
+## Correcao Pontual: Ticks de Visualizado (ACK) e Enquete (Votos)
 
 ---
 
-### Diagnostico Confirmado por Logs
+### Diagnostico Confirmado
 
-| # | Problema | Causa Raiz (confirmada nos logs) |
-|---|---------|----------------------------------|
-| 1 | Ticks azuis (READ) nao funcionam | Eventos READ (ack=3/4) chegam com formato `@lid` (ex: `true_162826672971943@lid_3EB0CAB17B0E252BCF5C85`). O fallback tenta `.eq("message_id", shortId)` mas o banco agora armazena IDs serializados completos (`true_5513988506995@c.us_3EB0CAB17B0E252BCF5C85`). O `.eq` exato nao encontra. |
-| 2 | Enquete nao retorna votos | Zero eventos `poll.vote` nos logs. Apesar da reconfiguracao do webhook (`Webhook re-configured`), o WAHA nao esta disparando esse evento. Necessario usar evento `poll.vote` com formato correto ou usar metodo alternativo. |
-| 3 | Audio 0:00 no WhatsApp | `audioBitsPerSecond: 32000` (muito baixo) e `recorder.start(100)` (timeslice de 100ms gera centenas de micro-chunks). O blob resultante perde metadata de duracao do container WebM, WAHA nao consegue transcodificar corretamente. |
-
----
-
-## Correcao 1: ACK com `@lid` - Usar `.ilike` no Fallback
-
-**Arquivo:** `supabase/functions/waha-webhook/index.ts` (linhas 109-124)
-
-**Problema exato (confirmado nos logs):**
-
-```text
-Fluxo atual:
-1. Mensagem enviada, salva com: message_id = "true_5513988506995@c.us_3EB0CAB"
-2. ACK DEVICE chega com from="5513988506995@c.us" -> messageId="true_5513988506995@c.us_3EB0CAB" -> MATCH (ok)
-3. ACK READ chega com from="162826672971943@lid" -> messageId="true_162826672971943@lid_3EB0CAB" -> NO MATCH
-4. Fallback tenta: .eq("message_id", "3EB0CAB") -> NO MATCH (banco tem valor serializado completo)
-```
-
-**Correcao:** No fallback, usar `.ilike("message_id", `%_${shortId}`)` para encontrar qualquer message_id que TERMINE com o key.id curto:
-
-```text
-De:
-  .eq("message_id", shortId!)
-
-Para:
-  .ilike("message_id", `%_${shortId}`)
-```
-
-Isso vai encontrar `true_5513988506995@c.us_3EB0CAB` quando procurar por `%_3EB0CAB`.
-
-Tambem precisamos garantir que o ACK mais alto prevaleca (nao sobrescrever READ com DEVICE que chega depois). Adicionar condicao: so atualizar se `ack` for maior que o atual.
+| Problema | Causa Raiz (confirmada por dados) |
+|---------|----------------------------------|
+| Ticks azuis nao aparecem | **Frontend**: O componente `AckIndicator` mapeia `ack=3` como cinza (DELIVERED), mas no WAHA `ack=3` significa READ. O banco ja tem `ack=3, ack_name=READ` correto - o problema e exclusivamente no mapeamento visual do componente. |
+| Enquete nao retorna votos | **Dois problemas**: (1) O WAHA envia `poll.vote.failed` em vez de `poll.vote` (confirmado nos logs). O webhook ignora esse evento. (2) O webhook reconfig falha com 404 em PUT/PATCH - o endpoint correto do WAHA e `PUT /api/sessions/{session}/` (com trailing slash) ou `POST /api/sessions/{name}` para update. |
 
 ---
 
-## Correcao 2: Enquete - Evento `poll.vote` e Formato de Webhook
+### Evidencias dos Logs
 
-**Arquivo:** `supabase/functions/waha-proxy/index.ts`
-
-O problema e que mesmo com a reconfiguracao, nenhum `poll.vote` chega. Duas acoes:
-
-### 2a. Atualizar formato do webhook no PATCH
-
-O formato de PATCH na API WAHA pode exigir formato diferente. Vamos garantir que o update leia a resposta e log:
-
+**ACK - Backend funciona, frontend nao reflete:**
 ```text
-const patchResp = await fetch(...)
-const patchData = await patchResp.json().catch(() => null);
-console.log(`[waha-proxy] Webhook reconfig result: ${patchResp.status}`, JSON.stringify(patchData));
+Banco de dados:
+  ack=3, ack_name=READ  (para varias mensagens recentes)
+
+AckIndicator atual:
+  ack 2 ou 3 -> CheckCheck CINZA (muted-foreground)  ← ERRADO para ack=3
+  ack 4     -> CheckCheck AZUL                       ← nunca atingido pelo WAHA
 ```
 
-### 2b. Adicionar evento `poll.vote.failed` tambem
+**Enquete - poll.vote.failed chega mas e ignorado:**
+```text
+[waha-webhook] Ignoring event: poll.vote.failed
+[waha-webhook] Event received: {"event":"poll.vote.failed","session":"crm_893fb161"}
+```
 
-Incluir `poll.vote.failed` na lista de eventos para cobrir mais cenarios.
-
-### 2c. Alternativa: Consultar votos via API WAHA
-
-Se o webhook `poll.vote` nao funcionar (limitacao do WAHA Plus ou da versao), adicionar um action `consultar_votos_enquete` no proxy que consulta a API WAHA `GET /api/{session}/polls/{messageId}` e atualiza o banco diretamente. O frontend pode chamar isso periodicamente ou ao visualizar uma enquete.
-
-**Arquivos:** `supabase/functions/waha-proxy/index.ts` + `src/modules/conversas/components/ChatMessageBubble.tsx`
+**Webhook reconfig - 404 em todos os metodos:**
+```text
+[waha-proxy] Webhook reconfig result: 404 {"message":"Cannot PATCH /api/sessions/crm_893fb161"}
+```
 
 ---
 
-## Correcao 3: Audio - Gravacao de Alta Qualidade
+## Correcao 1: AckIndicator - Mapeamento WAHA Correto
 
-**Arquivo:** `src/modules/conversas/components/AudioRecorder.tsx`
+**Arquivo:** `src/modules/conversas/components/ChatMessageBubble.tsx` (linhas 36-57)
 
-### 3a. Remover timeslice do `recorder.start()`
+O mapeamento WAHA e diferente do que foi assumido:
+
+| ACK | WAHA Significado | Visual Correto |
+|-----|-----------------|----------------|
+| 0 | ERROR | nenhum icone |
+| 1 | PENDING | check simples cinza |
+| 2 | DEVICE (entregue ao servidor) | check duplo cinza |
+| 3 | READ | check duplo AZUL |
+| 4 | READ (alternativo) | check duplo AZUL |
+| 5 | PLAYED | check duplo AZUL + play |
+
+Corrigir para:
+- `ack === 1` -> Check cinza (pendente)
+- `ack === 2` -> CheckCheck cinza (enviado)
+- `ack >= 3 && ack <= 4` -> CheckCheck AZUL (lido)
+- `ack === 5` -> CheckCheck AZUL + Play (reproduzido)
+
+---
+
+## Correcao 2: Processar `poll.vote.failed` no Webhook
+
+**Arquivo:** `supabase/functions/waha-webhook/index.ts`
+
+O evento `poll.vote.failed` contem dados do voto mesmo quando "falha" (a "falha" geralmente e na descriptografia do poll, mas os dados parciais ainda vem). Adicionar handler:
 
 ```text
-De:
-  recorder.start(100)    // 100ms timeslice = centenas de micro-chunks
-
-Para:
-  recorder.start()       // Sem timeslice = um unico chunk com metadata completa
+if (body.event === "poll.vote" || body.event === "poll.vote.failed") {
+  // Log completo do payload para debug
+  console.log(`[waha-webhook] ${body.event}:`, JSON.stringify(body.payload).substring(0, 1000));
+  // Processar votos (mesmo codigo existente)
+}
 ```
 
-Isso garante que o blob final tenha o container WebM/OGG completo com metadata de duracao correta.
+Isso permite capturar votos mesmo quando o WAHA reporta como "failed".
 
-### 3b. Aumentar bitrate
+---
+
+## Correcao 3: Webhook Reconfig - Endpoint Correto
+
+**Arquivo:** `supabase/functions/waha-proxy/index.ts` (case `status`, linhas 359-390)
+
+O endpoint `PUT /api/sessions/{session}` com corpo `{config: {webhooks: [...]}}` retorna 404. Conforme a documentacao do WAHA, o endpoint correto para atualizar uma sessao e:
 
 ```text
-De:
-  audioBitsPerSecond: 32000   // 32kbps - muito baixo
-
-Para:
-  audioBitsPerSecond: 128000  // 128kbps - qualidade boa para voz
+PUT /api/sessions/{session}/
 ```
 
-### 3c. Corrigir closure stale de `duration`
-
-O `recorder.onstop` captura `duration` por closure no momento da criacao (sempre 0). Usar `useRef` para a duracao:
-
-```text
-const durationRef = useRef(0)
-
-// No timer:
-setDuration(prev => {
-  const next = prev + 1
-  durationRef.current = next
-  return next
-})
-
-// No onstop:
-onSend(blob, durationRef.current)
+Com o corpo completo (incluindo `name`):
+```json
+{
+  "name": "crm_893fb161",
+  "config": {
+    "webhooks": [{ "url": "...", "events": [...] }]
+  }
+}
 ```
+
+Se o PUT continuar falhando, usar a alternativa: deletar e recriar a sessao para atualizar os webhooks (so em ultimo caso, pois desconecta temporariamente).
 
 ---
 
 ## Resumo de Arquivos
 
 ### Arquivos editados:
-1. `supabase/functions/waha-webhook/index.ts` - ACK fallback com `.ilike` + protecao contra downgrade de ack
-2. `supabase/functions/waha-proxy/index.ts` - Log detalhado do webhook reconfig + eventos adicionais + action para consultar votos de enquete
-3. `src/modules/conversas/components/AudioRecorder.tsx` - Remover timeslice, aumentar bitrate, corrigir closure de duration
-4. `src/modules/conversas/components/ChatMessageBubble.tsx` - Adicionar botao para consultar votos de enquete (se poll.vote webhook nao funcionar)
+1. `src/modules/conversas/components/ChatMessageBubble.tsx` - AckIndicator: ack=3 -> azul
+2. `supabase/functions/waha-webhook/index.ts` - Processar poll.vote.failed
+3. `supabase/functions/waha-proxy/index.ts` - Fix endpoint de reconfig webhook
 
 ### Deploy necessario:
 - `waha-proxy`
 - `waha-webhook`
 
 ### Sequencia:
-1. waha-webhook (ACK ilike fix)
-2. waha-proxy (webhook reconfig melhorado + action consultar votos)
-3. AudioRecorder (gravacao corrigida)
-4. ChatMessageBubble (enquete votos alternativo)
-5. Deploy edge functions
+1. ChatMessageBubble (fix visual imediato dos ticks)
+2. waha-webhook (processar poll.vote.failed)
+3. waha-proxy (fix endpoint reconfig)
+4. Deploy edge functions
 
-### Detalhes Tecnicos
-
-**ACK corrigido:**
-
-```text
-ACK READ chega: messageId="true_162826672971943@lid_3EB0CAB"
-  |
-  v
-Busca exata: .eq("message_id", "true_162826672971943@lid_3EB0CAB") -> nao encontra
-  |
-  v
-Fallback: shortId = "3EB0CAB"
-  |
-  v
-Busca ILIKE: .ilike("message_id", "%_3EB0CAB") -> ENCONTRA "true_5513988506995@c.us_3EB0CAB"
-  |
-  v
-Verifica se ack novo > ack atual (evita downgrade)
-  |
-  v
-UPDATE ack=3 (READ) -> Realtime notifica frontend -> Ticks azuis
-```
-
-**Audio corrigido:**
-
-```text
-ANTES:
-  start(100) -> centenas de micro-chunks -> Blob sem duration metadata -> WAHA nao transcodifica -> 0:00
-
-DEPOIS:
-  start() -> chunk unico ao parar -> Blob com metadata completa -> WAHA transcodifica com duracao -> audio funcional
-```
