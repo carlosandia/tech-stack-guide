@@ -4,16 +4,19 @@
  */
 
 import type { ReactNode } from 'react'
-import { X } from 'lucide-react'
+import { X, Save, Loader2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 
 interface Props {
   open: boolean
   onClose: () => void
   titulo: string
   children: ReactNode
+  onSave?: () => void
+  isSaving?: boolean
 }
 
-export function EstiloPopover({ open, onClose, titulo, children }: Props) {
+export function EstiloPopover({ open, onClose, titulo, children, onSave, isSaving }: Props) {
   if (!open) return null
 
   return (
@@ -28,6 +31,14 @@ export function EstiloPopover({ open, onClose, titulo, children }: Props) {
         </button>
       </div>
       {children}
+      {onSave && (
+        <div className="mt-4 pt-3 border-t border-border">
+          <Button size="sm" className="w-full" onClick={onSave} disabled={isSaving}>
+            {isSaving ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1.5" />}
+            Salvar Estilos
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
