@@ -354,6 +354,22 @@ Deno.serve(async (req) => {
               phone_name: me.pushName || statusData.name || null,
               conectado_em: new Date().toISOString(),
             });
+
+            // Re-configure webhook to ensure latest events (e.g. poll.vote)
+            try {
+              await fetch(`${baseUrl}/api/sessions/${sessionId}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
+                body: JSON.stringify({
+                  config: {
+                    webhooks: [{ url: webhookUrl, events: webhookEvents }]
+                  }
+                })
+              });
+              console.log(`[waha-proxy] Webhook re-configured for ${sessionId}`);
+            } catch (e) {
+              console.log(`[waha-proxy] Webhook reconfig failed:`, e);
+            }
           }
           
           return new Response(
@@ -522,8 +538,19 @@ Deno.serve(async (req) => {
           );
         }
 
-        // Extract message_id from WAHA response
-        const messageId = sendData.id?._serialized || sendData.id?.id || sendData.id || sendData.key?.id || null;
+        // Build serialized message_id for ACK matching
+        const key = sendData.key || {};
+        const rawId = sendData.id;
+        let messageId: string | null;
+        if (typeof rawId === 'object' && rawId?._serialized) {
+          messageId = rawId._serialized;
+        } else if (key.id && key.remoteJid) {
+          const jid = (key.remoteJid || '').replace('@s.whatsapp.net', '@c.us');
+          messageId = `${key.fromMe !== false ? 'true' : 'false'}_${jid}_${key.id}`;
+        } else {
+          messageId = (typeof rawId === 'string' ? rawId : rawId?.id) || key.id || null;
+        }
+        console.log(`[waha-proxy] Built messageId: ${messageId}`);
 
         return new Response(
           JSON.stringify({ ok: true, message_id: messageId, data: sendData }),
@@ -591,7 +618,19 @@ Deno.serve(async (req) => {
           );
         }
 
-        const mediaMessageId = mediaData.id?._serialized || mediaData.id?.id || mediaData.id || mediaData.key?.id || null;
+        // Build serialized message_id for ACK matching
+        const mediaKey = mediaData.key || {};
+        const mediaRawId = mediaData.id;
+        let mediaMessageId: string | null;
+        if (typeof mediaRawId === 'object' && mediaRawId?._serialized) {
+          mediaMessageId = mediaRawId._serialized;
+        } else if (mediaKey.id && mediaKey.remoteJid) {
+          const mjid = (mediaKey.remoteJid || '').replace('@s.whatsapp.net', '@c.us');
+          mediaMessageId = `${mediaKey.fromMe !== false ? 'true' : 'false'}_${mjid}_${mediaKey.id}`;
+        } else {
+          mediaMessageId = (typeof mediaRawId === 'string' ? mediaRawId : mediaRawId?.id) || mediaKey.id || null;
+        }
+        console.log(`[waha-proxy] Built mediaMessageId: ${mediaMessageId}`);
 
         return new Response(
           JSON.stringify({ ok: true, message_id: mediaMessageId, data: mediaData }),
@@ -641,7 +680,19 @@ Deno.serve(async (req) => {
           );
         }
 
-        const contactMsgId = contactData.id?._serialized || contactData.id?.id || contactData.id || contactData.key?.id || null;
+        // Build serialized message_id for ACK matching
+        const contactKey = contactData.key || {};
+        const contactRawId = contactData.id;
+        let contactMsgId: string | null;
+        if (typeof contactRawId === 'object' && contactRawId?._serialized) {
+          contactMsgId = contactRawId._serialized;
+        } else if (contactKey.id && contactKey.remoteJid) {
+          const cjid = (contactKey.remoteJid || '').replace('@s.whatsapp.net', '@c.us');
+          contactMsgId = `${contactKey.fromMe !== false ? 'true' : 'false'}_${cjid}_${contactKey.id}`;
+        } else {
+          contactMsgId = (typeof contactRawId === 'string' ? contactRawId : contactRawId?.id) || contactKey.id || null;
+        }
+        console.log(`[waha-proxy] Built contactMsgId: ${contactMsgId}`);
 
         return new Response(
           JSON.stringify({ ok: true, message_id: contactMsgId, data: contactData }),
