@@ -1,181 +1,131 @@
 
 
-## Plano: Suporte a Canal WhatsApp, Enquete, Audio, Contato, Camera e Documento com Icones Coloridos
+## Correção: Desconectar WhatsApp + ACK (Ticks) em Tempo Real
 
 ---
 
-## Resumo
+### Problema 1: Desconectar não gera novo QR code (JA APROVADO)
 
-Este plano cobre 2 grandes areas:
-1. **Suporte a Canal do WhatsApp** (`@newsletter`) no webhook e frontend
-2. **Ativacao completa do menu Anexar**: Enquete, Audio, Camera, Contato e Documento com icones coloridos (estilo WhatsApp Web - imagem de referencia)
+O `case "desconectar"` no `waha-proxy` apenas chama `POST /api/sessions/stop`, que para a sessão mas mantém as credenciais salvas. Ao reconectar, o WAHA reutiliza as credenciais e reconecta automaticamente ao mesmo número.
 
----
+**Correção:** Executar logout + stop + delete na sessão WAHA antes de atualizar o banco.
 
-## Parte 1: Suporte a Canal do WhatsApp (`@newsletter`)
+### Problema 2: Ticks de status (ACK) não atualizam em tempo real
 
-### O que e um Canal WhatsApp?
-Canais do WhatsApp usam IDs com `@newsletter` (ex: `29847512@newsletter`). Sao broadcasts unidirecionais do administrador. Mensagens recebidas de canais devem ser salvas como `tipo = 'canal'` na tabela `conversas`.
+Identifiquei a causa raiz: o hook `useConversasRealtime` escuta apenas:
+- `INSERT` na tabela `mensagens` (novas mensagens)
+- `UPDATE` na tabela `conversas` (atualização de conversa)
 
-### Alteracoes
+Quando o webhook recebe um evento `message.ack` e faz UPDATE na tabela `mensagens` (atualizando `ack` e `ack_name`), **nenhum listener captura essa mudança**. O frontend nunca sabe que o ACK foi atualizado, por isso fica eternamente em 1 tick.
 
-**Arquivo: `supabase/functions/waha-webhook/index.ts`**
-- Adicionar deteccao de `@newsletter` no campo `rawFrom`
-- Se detectado, setar `conversaTipo = "canal"` (em vez de `"grupo"` ou `"individual"`)
-- Tratar similar a grupo: `chatId` = ID do canal, `participant` = quem enviou
-- Buscar metadados do canal (nome, foto) via WAHA API se disponivel
-- Salvar na conversa com `tipo: "canal"`
-
-**Arquivo: `src/modules/conversas/components/ConversaItem.tsx`**
-- Ja possui `getTipoBadge('canal')` retornando badge roxo - sem mudanca necessaria
-
-**Arquivo: `src/modules/conversas/components/ChatMessages.tsx`**
-- Tratar `conversaTipo === 'canal'` de forma similar a grupo (mostrar nomes de participantes)
+O backend (webhook) já está correto -- ele processa o `message.ack` e atualiza o banco. O problema é puramente no frontend, que não escuta UPDATE na tabela de mensagens.
 
 ---
 
-## Parte 2: Menu Anexar Completo com Icones Coloridos
+## Plano de Implementação
 
-### 2.1 Redesign Visual do Menu (icones coloridos)
+### Etapa 1 - Corrigir `desconectar` no waha-proxy
 
-**Arquivo: `src/modules/conversas/components/AnexosMenu.tsx`**
+**Arquivo:** `supabase/functions/waha-proxy/index.ts` (linhas 376-391)
 
-Cada opcao tera um icone com cor distinta, seguindo a referencia do WhatsApp Web:
+Substituir o case `desconectar` por:
+1. `POST /api/sessions/{sessionId}/logout` - desemparelha o WhatsApp
+2. `POST /api/sessions/stop` com `logout: true` - para a sessão
+3. `DELETE /api/sessions/{sessionId}` - remove completamente do WAHA
+4. Atualizar banco: `status: "disconnected"`, limpar `phone_number` e `phone_name`
 
-| Opcao | Cor do Icone | Acao |
-|-------|-------------|------|
-| Documento | Roxo (#7C3AED) | Seletor de arquivo |
-| Fotos e Videos | Azul (#2563EB) | Seletor de midia |
-| Camera | Vermelho/Coral (#EF4444) | Captura via navegador |
-| Audio | Laranja (#F97316) | Gravacao de audio |
-| Contato | Azul Escuro (#1D4ED8) | Busca de contatos do CRM |
-| Enquete | Verde (#16A34A) | Modal de criacao |
+### Etapa 2 - Adicionar listener de UPDATE em mensagens no Realtime
 
-Remover o estado `disabled` de Camera, Audio, Contato e Enquete. Adicionar callbacks especificos para cada um.
+**Arquivo:** `src/modules/conversas/hooks/useConversasRealtime.ts`
 
-### 2.2 Gravacao de Audio
+Adicionar um terceiro listener no canal Supabase Realtime:
 
-**Componente novo: `src/modules/conversas/components/AudioRecorder.tsx`**
-- Usa `MediaRecorder API` com codec WebM/Opus (32kbps) - mesmo padrao ja usado no modulo de anotacoes
-- UI: barra de gravacao inline substituindo o input de texto temporariamente
-- Botoes: Cancelar (lixeira) | Tempo decorrido | Enviar (check)
-- Ao finalizar: upload para bucket `chat-media` no Supabase Storage, depois envio via `waha-proxy` (action `enviar_media` com `media_type: "audio"`)
-
-**Arquivo: `src/modules/conversas/components/ChatInput.tsx`**
-- Integrar `AudioRecorder` - quando clicado no menu ou no botao Mic (ja existente), mostrar a barra de gravacao
-- O botao Mic que ja existe na barra inferior passara a ativar a gravacao diretamente (sem menu)
-
-### 2.3 Camera (Foto/Video via Navegador)
-
-**Componente novo: `src/modules/conversas/components/CameraCapture.tsx`**
-- Usa `navigator.mediaDevices.getUserMedia` para acessar a camera
-- Modal fullscreen com preview da camera
-- Botao para capturar foto (Canvas API para snapshot)
-- Apos captura: preview + opcao de enviar ou descartar
-- Upload para `chat-media` e envio via `enviarMedia`
-
-### 2.4 Envio de Contato (vCard)
-
-**Componente novo: `src/modules/conversas/components/ContatoSelectorModal.tsx`**
-- Modal de busca de contatos do CRM (usa `conversasApi.buscarContatos`)
-- Ao selecionar, gerar vCard simples com nome/telefone/email
-- Enviar via `waha-proxy` com nova action `enviar_contato` que usa `POST /api/sendContactVcard` da WAHA API
-
-**Arquivo: `supabase/functions/waha-proxy/index.ts`**
-- Nova action `enviar_contato`:
-  - Recebe `chat_id`, `vcard` (string vCard), `name` (nome do contato)
-  - POST para `${baseUrl}/api/sendContactVcard` com `{ chatId, session, contacts: [{ fullName, vcard }] }`
-  - Retorna `message_id`
-
-**Arquivo: `src/modules/conversas/services/conversas.api.ts`**
-- Novo metodo `enviarContato(conversaId, contatoData)` que:
-  1. Chama `waha-proxy` action `enviar_contato`
-  2. Salva mensagem local com `tipo: 'contact'`, `vcard` preenchido
-
-### 2.5 Enquete
-
-**Componente novo: `src/modules/conversas/components/EnqueteModal.tsx`**
-- Modal conforme PRD-09:
-  - Campo "Pergunta" (obrigatorio)
-  - Lista de opcoes (minimo 2, maximo 12)
-  - Botao "+ Adicionar opcao"
-  - Checkbox "Permitir multiplas respostas"
-  - Botoes "Cancelar" e "Enviar Enquete"
-- Validacao: minimo 2 opcoes preenchidas
-
-**Arquivo: `supabase/functions/waha-proxy/index.ts`**
-- Nova action `enviar_enquete`:
-  - Recebe `chat_id`, `poll_name`, `poll_options`, `poll_allow_multiple`
-  - POST para `${baseUrl}/api/sendPoll` com `{ chatId, session, poll: { name, options, multipleAnswers } }`
-  - Retorna `message_id`
-
-**Arquivo: `src/modules/conversas/services/conversas.api.ts`**
-- Novo metodo `enviarEnquete(conversaId, enqueteData)` que:
-  1. Chama `waha-proxy` action `enviar_enquete`
-  2. Salva mensagem local com `tipo: 'poll'`, `poll_question`, `poll_options`, `poll_allow_multiple`
-
-### 2.6 Integracao no ChatWindow e ChatInput
-
-**Arquivo: `src/modules/conversas/components/AnexosMenu.tsx`**
-- Interface atualizada: `onFileSelected`, `onAudioRecord`, `onCamera`, `onContato`, `onEnquete`
-- Cada opcao chama o callback correspondente
-
-**Arquivo: `src/modules/conversas/components/ChatInput.tsx`**
-- Receber novos callbacks: `onStartAudioRecord`, `onOpenCamera`, `onOpenContato`, `onOpenEnquete`
-- Passar para `AnexosMenu`
-- Botao Mic existente (quando sem texto): ativar gravacao diretamente
-
-**Arquivo: `src/modules/conversas/components/ChatWindow.tsx`**
-- Gerenciar estados: `audioRecording`, `cameraOpen`, `contatoModalOpen`, `enqueteModalOpen`
-- Handlers para cada tipo de envio especializado
-- Renderizar modais/componentes condicionais
-
-### 2.7 Hooks adicionais
-
-**Arquivo: `src/modules/conversas/hooks/useMensagens.ts`**
-- Adicionar `useEnviarContato` e `useEnviarEnquete` mutations
-
----
-
-## Parte 3: Storage
-
-O bucket `chat-media` **nao existe** ainda no Supabase Storage. Sera necessario cria-lo via migracao SQL:
-
-```sql
-INSERT INTO storage.buckets (id, name, public) VALUES ('chat-media', 'chat-media', true);
+```text
+.on('postgres_changes', {
+  event: 'UPDATE',
+  schema: 'public',
+  table: 'mensagens',
+  filter: `organizacao_id=eq.${organizacaoId}`,
+}, (payload) => {
+  // Invalida mensagens da conversa para re-buscar com ACK atualizado
+  queryClient.invalidateQueries({ queryKey: ['mensagens', payload.new.conversa_id] })
+})
 ```
 
-Tambem sera necessario adicionar politica RLS para upload autenticado.
+Isso fará com que qualquer UPDATE na tabela `mensagens` (incluindo atualizações de ACK) invalide o cache do React Query, forçando um re-fetch das mensagens com os novos valores de `ack`.
+
+### Etapa 3 - Deploy das Edge Functions
+
+Após as alterações, deploy de `waha-proxy` para aplicar a correção do desconectar.
 
 ---
 
-## Sequencia de Implementacao
+## Detalhes Técnicos
 
-1. **Migracao SQL**: Criar bucket `chat-media` com RLS
-2. **Edge Functions**: Adicionar actions `enviar_contato` e `enviar_enquete` no `waha-proxy`, e suporte a `@newsletter` no `waha-webhook`
-3. **Componentes novos**: `AudioRecorder`, `CameraCapture`, `ContatoSelectorModal`, `EnqueteModal`
-4. **Refatorar AnexosMenu**: Icones coloridos, remover disabled, novos callbacks
-5. **Atualizar ChatInput/ChatWindow**: Integrar todos os novos componentes
-6. **API service**: Novos metodos `enviarContato` e `enviarEnquete`
-7. **Deploy e teste**: Deploy das edge functions e teste end-to-end
+### Fluxo de ACK corrigido:
 
----
+```text
+WhatsApp entrega/lê a mensagem
+    |
+    v
+WAHA envia evento "message.ack" para waha-webhook
+    |
+    v
+waha-webhook faz UPDATE em mensagens (ack=3, ack_name="DELIVERED")
+    |
+    v
+Supabase Realtime detecta UPDATE na tabela mensagens  <-- NOVO
+    |
+    v
+useConversasRealtime recebe evento e invalida cache
+    |
+    v
+React Query refaz busca das mensagens
+    |
+    v
+ChatMessageBubble renderiza com novo AckIndicator (2 ticks cinza/azul)
+```
 
-## Arquivos a serem criados
+### Mapeamento de ACK (já implementado no AckIndicator):
 
-- `src/modules/conversas/components/AudioRecorder.tsx`
-- `src/modules/conversas/components/CameraCapture.tsx`
-- `src/modules/conversas/components/ContatoSelectorModal.tsx`
-- `src/modules/conversas/components/EnqueteModal.tsx`
+| ACK | Visual | Significado |
+|-----|--------|-------------|
+| 0 | (nada) | ERROR |
+| 1 | 1 tick cinza | PENDING (enviado ao servidor) |
+| 2 | 2 ticks cinza | SENT (saiu do servidor) |
+| 3 | 2 ticks cinza | DELIVERED (entregue ao destinatário) |
+| 4 | 2 ticks azuis | READ (lido) |
+| 5 | 2 ticks azuis + play | PLAYED (reproduzido - áudio/vídeo) |
 
-## Arquivos a serem editados
+### Fluxo de desconectar corrigido:
 
-- `supabase/functions/waha-proxy/index.ts` (2 novas actions)
-- `supabase/functions/waha-webhook/index.ts` (suporte `@newsletter`)
-- `src/modules/conversas/components/AnexosMenu.tsx` (redesign completo)
-- `src/modules/conversas/components/ChatInput.tsx` (novos callbacks + audio inline)
-- `src/modules/conversas/components/ChatWindow.tsx` (estados e handlers)
-- `src/modules/conversas/components/ChatMessages.tsx` (tratar tipo `canal`)
-- `src/modules/conversas/services/conversas.api.ts` (novos metodos)
-- `src/modules/conversas/hooks/useMensagens.ts` (novas mutations)
+```text
+Usuário clica "Desconectar"
+    |
+    v
+waha-proxy: POST /api/sessions/{session}/logout
+    |
+    v
+waha-proxy: POST /api/sessions/stop (logout: true)
+    |
+    v
+waha-proxy: DELETE /api/sessions/{session}
+    |
+    v
+UPDATE sessoes_whatsapp: status=disconnected, phone=null
+    |
+    v
+Usuário clica "Conectar"
+    |
+    v
+waha-proxy: POST /api/sessions/start (sessão nova)
+    |
+    v
+WAHA retorna SCAN_QR_CODE -> novo QR exibido
+```
+
+### Arquivos a serem editados:
+
+1. `supabase/functions/waha-proxy/index.ts` - Case `desconectar` (linhas 376-391)
+2. `src/modules/conversas/hooks/useConversasRealtime.ts` - Novo listener UPDATE em mensagens
 
