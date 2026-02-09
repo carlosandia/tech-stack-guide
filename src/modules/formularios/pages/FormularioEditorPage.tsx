@@ -229,32 +229,18 @@ export function FormularioEditorPage() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <EditorHeader formulario={formulario} />
-
-      {/* Tab Bar */}
-      <div className="flex items-center gap-1 px-4 py-1.5 border-b border-border bg-card">
-        {TABS.map(({ key, label, icon: Icon }) => (
-          <button
-            key={key}
-            onClick={() => {
-              setActiveTab(key)
-              if (key !== 'campos') {
-                setShowFinalPreview(false)
-                setSelectedStyleElement(null)
-              }
-            }}
-            className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
-              activeTab === key
-                ? 'bg-primary text-primary-foreground'
-                : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-            )}
-          >
-            <Icon className="w-3.5 h-3.5" />
-            {label}
-          </button>
-        ))}
-      </div>
+      <EditorHeader
+        formulario={formulario}
+        tabs={TABS}
+        activeTab={activeTab}
+        onTabChange={(key) => {
+          setActiveTab(key as EditorTab)
+          if (key !== 'campos') {
+            setShowFinalPreview(false)
+            setSelectedStyleElement(null)
+          }
+        }}
+      />
 
       {/* Tab Content */}
       {activeTab === 'campos' && (
