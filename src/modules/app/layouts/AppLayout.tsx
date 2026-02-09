@@ -107,7 +107,12 @@ function getPageTitle(pathname: string): string {
   if (pathname.startsWith('/app/emails')) return 'Emails'
   if (pathname.startsWith('/app/tarefas')) return 'Tarefas'
   if (pathname.startsWith('/app/configuracoes')) return 'Configurações'
+  if (pathname.startsWith('/app/formularios')) return 'Formulários'
   return 'CRM'
+}
+
+function isFormularioEditorRoute(pathname: string): boolean {
+  return /^\/app\/formularios\/[^/]+$/.test(pathname)
 }
 
 function AppLayoutInner() {
@@ -121,6 +126,7 @@ function AppLayoutInner() {
 
   const isAdmin = role === 'admin' // used for settings gear visibility
   const pageTitle = getPageTitle(location.pathname)
+  const hideToolbar = isFormularioEditorRoute(location.pathname)
   const visibleItems = menuItems
 
   const handleLogout = async () => {
@@ -327,8 +333,8 @@ function AppLayoutInner() {
           </div>
       </header>
 
-      {/* Toolbar sticky - 48px */}
-      <ToolbarWithActions pageTitle={pageTitle} />
+      {/* Toolbar sticky - 48px (hidden on formulario editor) */}
+      {!hideToolbar && <ToolbarWithActions pageTitle={pageTitle} />}
 
       {/* Main content - flex-1 preenche altura restante, overflow-hidden para scroll interno das páginas */}
       <main className="flex-1 overflow-hidden">

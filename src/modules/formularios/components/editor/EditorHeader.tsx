@@ -21,17 +21,17 @@ export function EditorHeader({ formulario }: Props) {
   const despublicar = useDespublicarFormulario()
 
   return (
-    <div className="flex items-center justify-between border-b border-border bg-card px-4 py-3">
+    <div className="flex items-center justify-between border-b border-border bg-card px-4 py-2">
       <div className="flex items-center gap-3 min-w-0">
         <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0" onClick={() => navigate('/app/formularios')}>
           <ArrowLeft className="w-4 h-4" />
         </Button>
-        <div className="min-w-0">
+        <div className="flex items-center gap-2 min-w-0">
           <h1 className="text-sm font-semibold text-foreground truncate">{formulario.nome}</h1>
-          <div className="flex items-center gap-2 mt-0.5">
-            <FormularioTipoBadge tipo={formulario.tipo} />
-            <FormularioStatusBadge status={formulario.status} />
-          </div>
+          <span className="text-muted-foreground text-xs">·</span>
+          <FormularioTipoBadge tipo={formulario.tipo} />
+          <span className="text-muted-foreground text-xs">·</span>
+          <FormularioStatusBadge status={formulario.status} />
         </div>
       </div>
 
