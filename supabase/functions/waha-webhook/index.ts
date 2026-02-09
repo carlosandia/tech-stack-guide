@@ -669,16 +669,33 @@ Deno.serve(async (req) => {
     };
 
     // =====================================================
-    // Extract reply/quote context (quotedStanzaID)
+    // Extract reply/quote context (stanzaId from contextInfo)
+    // WAHA stores contextInfo inside the specific message type object
+    // e.g., extendedTextMessage.contextInfo, imageMessage.contextInfo, etc.
     // =====================================================
-    const quotedStanzaID = payload._data?.quotedStanzaID
-      || payload._data?.contextInfo?.quotedStanzaId
-      || null;
+    let quotedStanzaID: string | null = null;
+
+    // Search for stanzaId in _data.message.*.contextInfo
+    const msgData = payload._data?.message;
+    if (msgData && typeof msgData === 'object') {
+      for (const key of Object.keys(msgData)) {
+        const sub = msgData[key];
+        if (sub && typeof sub === 'object' && sub.contextInfo?.stanzaId) {
+          quotedStanzaID = sub.contextInfo.stanzaId;
+          break;
+        }
+      }
+    }
+
+    // Fallback: check top-level _data fields (older WAHA versions)
+    if (!quotedStanzaID) {
+      quotedStanzaID = payload._data?.quotedStanzaID
+        || payload._data?.contextInfo?.stanzaId
+        || payload._data?.contextInfo?.quotedStanzaId
+        || null;
+    }
 
     if (quotedStanzaID) {
-      // Store the quoted message ID - this maps to the message_id field
-      // WAHA sends the short stanza ID, but our DB may store the serialized form
-      // We store the raw stanza ID and resolve in the lookup
       messageInsert.reply_to_message_id = quotedStanzaID;
       console.log(`[waha-webhook] Reply detected: quotedStanzaID=${quotedStanzaID}`);
     }
