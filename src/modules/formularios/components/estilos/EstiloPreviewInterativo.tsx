@@ -36,11 +36,7 @@ const SOMBRA_MAP: Record<string, string> = {
   xl: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)',
 }
 
-const TAMANHO_BOTAO: Record<string, string> = {
-  sm: '8px 16px',
-  md: '10px 20px',
-  lg: '14px 28px',
-}
+// AIDEV-NOTE: TAMANHO_BOTAO removido - agora usamos altura livre
 
 export function EstiloPreviewInterativo({
   container,
@@ -94,9 +90,12 @@ export function EstiloPreviewInterativo({
     color: botao.texto_cor || '#FFFFFF',
     borderRadius: botao.border_radius || '6px',
     width: botao.largura === 'full' ? '100%' : botao.largura === '50%' ? '50%' : 'auto',
-    padding: TAMANHO_BOTAO[botao.tamanho || 'md'],
-    fontSize: '14px',
-    fontWeight: 600,
+    height: botao.altura || undefined,
+    padding: botao.altura ? '0 20px' : '10px 20px',
+    fontSize: botao.font_size || '14px',
+    fontWeight: botao.font_bold ? 700 : 600,
+    fontStyle: botao.font_italic ? 'italic' : undefined,
+    textDecoration: botao.font_underline ? 'underline' : undefined,
     border: 'none',
     cursor: isPreviewMode ? 'default' : 'pointer',
     fontFamily,

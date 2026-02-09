@@ -1,11 +1,11 @@
 /**
  * AIDEV-NOTE: Tab de Configurações do editor
- * Consolida: Geral (Popup/Newsletter/Etapas), Lógica, Integrações, A/B Testing
+ * Consolida: Geral (Popup/Newsletter/Etapas), Lógica, A/B Testing
  * Layout 2x2 grid full-width com seções colapsáveis
  */
 
 import { useState } from 'react'
-import { ChevronDown, Settings2, Zap, Plug, FlaskConical } from 'lucide-react'
+import { ChevronDown, Settings2, Zap, FlaskConical } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ConfigPopupForm } from '../config/ConfigPopupForm'
 import { ConfigNewsletterForm } from '../config/ConfigNewsletterForm'
@@ -13,7 +13,6 @@ import { ConfigEtapasForm } from '../config/ConfigEtapasForm'
 
 import { ConfigPosEnvioForm } from '../config/ConfigPosEnvioForm'
 import { EditorTabsLogica } from './EditorTabsLogica'
-import { EditorTabsIntegracoes } from './EditorTabsIntegracoes'
 import { EditorTabsAB } from './EditorTabsAB'
 import type { Formulario } from '../../services/formularios.api'
 
@@ -85,11 +84,6 @@ export function EditorTabsConfig({ formulario }: Props) {
         {/* Seção: Lógica Condicional */}
         <CollapsibleSection title="Lógica Condicional" icon={Zap}>
           <EditorTabsLogica formulario={formulario} />
-        </CollapsibleSection>
-
-        {/* Seção: Integrações */}
-        <CollapsibleSection title="Integrações" icon={Plug}>
-          <EditorTabsIntegracoes formulario={formulario} />
         </CollapsibleSection>
 
         {/* Seção: A/B Testing */}
