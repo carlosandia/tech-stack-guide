@@ -27,6 +27,7 @@ import {
   useSincronizarEmails,
   useSalvarRascunho,
   useRascunhos,
+  useTraduzirEmail,
 } from '../hooks/useEmails'
 import type { PastaEmail, AcaoLote, EmailRecebido } from '../types/email.types'
 
@@ -137,6 +138,7 @@ export function EmailsPage() {
   const deletarEmail = useDeletarEmail()
   const acaoLote = useAcaoLote()
   const enviarEmail = useEnviarEmail()
+  const traduzirEmail = useTraduzirEmail()
   const salvarRascunho = useSalvarRascunho()
 
   // Sincronização IMAP
@@ -369,6 +371,7 @@ export function EmailsPage() {
           onResponder={handleResponder}
           onResponderTodos={handleResponderTodos}
           onEncaminhar={handleEncaminhar}
+          onTraduzir={(id) => traduzirEmail.mutateAsync(id)}
         />
       </div>
 

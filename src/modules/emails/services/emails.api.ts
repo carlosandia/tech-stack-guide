@@ -166,20 +166,31 @@ export const emailsApi = {
   },
 
   /**
-   * Mover email para lixeira (soft delete)
+   * Excluir email do servidor IMAP + soft delete local
    */
-  deletar: async (id: string): Promise<void> => {
-    const orgId = await getOrganizacaoId()
-    const userId = await getUsuarioId()
+  deletar: async (id: string): Promise<{ deletado_servidor: boolean; mensagem: string }> => {
+    const { data, error } = await supabase.functions.invoke('delete-email', {
+      body: { email_id: id },
+    })
 
-    const { error } = await supabase
-      .from('emails_recebidos')
-      .update({ pasta: 'trash' })
-      .eq('id', id)
-      .eq('organizacao_id', orgId)
-      .eq('usuario_id', userId)
+    if (error) throw new Error(error.message || 'Erro ao excluir email')
+    if (data && !data.sucesso) throw new Error(data.mensagem || 'Falha ao excluir')
 
-    if (error) throw new Error(error.message)
+    return { deletado_servidor: data?.deletado_servidor ?? false, mensagem: data?.mensagem ?? 'Excluído' }
+  },
+
+  /**
+   * Traduzir email via Lovable AI
+   */
+  traduzirEmail: async (emailId: string): Promise<string> => {
+    const { data, error } = await supabase.functions.invoke('translate-email', {
+      body: { email_id: emailId },
+    })
+
+    if (error) throw new Error(error.message || 'Erro ao traduzir')
+    if (data && !data.sucesso) throw new Error(data.mensagem || 'Falha na tradução')
+
+    return data?.traducao || ''
   },
 
   /**
