@@ -140,7 +140,7 @@ export function ChatHeader({ conversa, onBack, onOpenDrawer, onAlterarStatus, on
             {menuOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
-                <div className="absolute right-0 mt-1 w-52 bg-popover border border-border rounded-md shadow-lg py-1 z-50">
+                <div className="absolute right-0 mt-1 w-52 bg-popover border border-border rounded-md shadow-xl py-1 z-[60]" style={{ opacity: 1 }}>
                   {/* Status section */}
                   <p className="px-3 py-1.5 text-[11px] font-medium text-muted-foreground uppercase">
                     Alterar status

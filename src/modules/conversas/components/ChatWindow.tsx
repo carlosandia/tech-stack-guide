@@ -374,7 +374,7 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
         onPinMessage={handlePinMessage}
       />
 
-      <div className="relative">
+      <div className="relative mt-auto">
         <MensagensProntasPopover
           isOpen={quickRepliesOpen}
           onClose={() => setQuickRepliesOpen(false)}
