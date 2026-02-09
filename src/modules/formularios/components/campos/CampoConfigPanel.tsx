@@ -20,7 +20,7 @@ import {
 import type { CampoFormulario } from '../../services/formularios.api'
 
 const MAPEAMENTOS = [
-  { value: '', label: 'Nenhum' },
+  { value: 'nenhum', label: 'Nenhum' },
   { value: 'nome', label: 'Nome' },
   { value: 'sobrenome', label: 'Sobrenome' },
   { value: 'email', label: 'Email' },
@@ -176,8 +176,8 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
         <div className="space-y-1.5">
           <Label className="text-xs">Mapear para Contato</Label>
           <Select
-            value={form.mapeamento_campo}
-            onValueChange={(v) => setForm((f) => ({ ...f, mapeamento_campo: v }))}
+            value={form.mapeamento_campo || 'nenhum'}
+            onValueChange={(v) => setForm((f) => ({ ...f, mapeamento_campo: v === 'nenhum' ? '' : v }))}
           >
             <SelectTrigger>
               <SelectValue placeholder="Nenhum" />
