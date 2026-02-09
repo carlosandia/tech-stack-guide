@@ -52,10 +52,10 @@ export function EditorHeader({ formulario, tabs, activeTab, onTabChange }: Props
               key={key}
               onClick={() => onTabChange?.(key)}
               className={cn(
-                'flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors whitespace-nowrap',
+                'flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium transition-colors whitespace-nowrap border-b-2',
                 activeTab === key
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                  ? 'border-primary text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground/30'
               )}
             >
               <Icon className="w-3.5 h-3.5" />

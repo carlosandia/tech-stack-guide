@@ -188,10 +188,10 @@ export function FormPreview({
         ] as const).map(({ key, icon: Icon, label }) => (
           <Button
             key={key}
-            variant={viewport === key ? 'default' : 'ghost'}
+            variant="ghost"
             size="sm"
             onClick={() => setViewport(key)}
-            className="h-7 px-2.5"
+            className={cn("h-7 px-2.5", viewport === key && "bg-muted text-foreground font-medium")}
           >
             <Icon className="w-3.5 h-3.5 mr-1.5" />
             <span className="hidden sm:inline text-xs">{label}</span>
