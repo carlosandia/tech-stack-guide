@@ -76,10 +76,22 @@ async function sendSmtpEmail(config: {
     const decoder = new TextDecoder();
 
     const readResponse = async (): Promise<string> => {
-      const buf = new Uint8Array(4096);
-      const n = await conn.read(buf);
-      if (n === null) throw new Error("Conexão fechada pelo servidor");
-      return decoder.decode(buf.subarray(0, n));
+      let fullResponse = "";
+      while (true) {
+        const buf = new Uint8Array(4096);
+        const n = await conn.read(buf);
+        if (n === null) throw new Error("Conexão fechada pelo servidor");
+        fullResponse += decoder.decode(buf.subarray(0, n));
+        // SMTP multi-line: lines with code+dash continue, code+space is final
+        const lines = fullResponse.split("\r\n").filter(l => l.length > 0);
+        if (lines.length === 0) continue;
+        const lastLine = lines[lines.length - 1];
+        // Check if last line is final (3-digit code followed by space or is the only line)
+        if (/^\d{3}[\s]/.test(lastLine) || /^\d{3}$/.test(lastLine)) {
+          break;
+        }
+      }
+      return fullResponse;
     };
 
     const sendCommand = async (cmd: string): Promise<string> => {
