@@ -407,11 +407,15 @@ export interface EstiloBotao {
   border_radius?: string
   largura?: string
   tamanho?: string
+  altura?: string
   // WhatsApp button styles
   whatsapp_texto?: string
   whatsapp_background?: string
   whatsapp_texto_cor?: string
   whatsapp_border_radius?: string
+  whatsapp_largura?: string
+  whatsapp_tamanho?: string
+  whatsapp_altura?: string
 }
 
 export interface EstiloPagina {

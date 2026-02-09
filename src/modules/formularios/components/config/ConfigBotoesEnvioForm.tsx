@@ -27,6 +27,7 @@ export interface ConfigBotoes {
   enviar_cria_oportunidade: boolean
   enviar_notifica_email: boolean
   enviar_email_destino: string
+  enviar_url_redirecionamento: string
   whatsapp_numero: string
   whatsapp_cria_oportunidade: boolean
   whatsapp_notifica_email: boolean
@@ -39,6 +40,7 @@ const CONFIG_PADRAO: ConfigBotoes = {
   enviar_cria_oportunidade: true,
   enviar_notifica_email: false,
   enviar_email_destino: '',
+  enviar_url_redirecionamento: '',
   whatsapp_numero: '',
   whatsapp_cria_oportunidade: false,
   whatsapp_notifica_email: false,

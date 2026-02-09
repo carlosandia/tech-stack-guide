@@ -32,6 +32,7 @@ const CONFIG_PADRAO: ConfigBotoes = {
   enviar_cria_oportunidade: true,
   enviar_notifica_email: false,
   enviar_email_destino: '',
+  enviar_url_redirecionamento: '',
   whatsapp_numero: '',
   whatsapp_cria_oportunidade: false,
   whatsapp_notifica_email: false,
@@ -176,6 +177,37 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
                   className="text-xs"
                 />
               </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Largura</Label>
+                <Select value={estiloBotao.whatsapp_largura || 'full'} onValueChange={(v) => updateEstilo('whatsapp_largura', v)}>
+                  <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="full">Largura Total</SelectItem>
+                    <SelectItem value="auto">Automática</SelectItem>
+                    <SelectItem value="50%">50%</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Tamanho</Label>
+                <Select value={estiloBotao.whatsapp_tamanho || 'md'} onValueChange={(v) => updateEstilo('whatsapp_tamanho', v)}>
+                  <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sm">Pequeno</SelectItem>
+                    <SelectItem value="md">Médio</SelectItem>
+                    <SelectItem value="lg">Grande</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Altura</Label>
+                <Input
+                  value={estiloBotao.whatsapp_altura || ''}
+                  onChange={(e) => updateEstilo('whatsapp_altura', e.target.value)}
+                  placeholder="Ex: 48px (vazio = automático)"
+                  className="text-xs"
+                />
+              </div>
             </>
           ) : (
             <>
@@ -265,6 +297,15 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Altura</Label>
+                <Input
+                  value={estiloBotao.altura || ''}
+                  onChange={(e) => updateEstilo('altura', e.target.value)}
+                  placeholder="Ex: 48px (vazio = automático)"
+                  className="text-xs"
+                />
+              </div>
             </>
           )}
         </div>
@@ -315,6 +356,17 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
                   type="email"
                 />
               )}
+              <div className="space-y-1">
+                <Label className="text-[11px]">URL de redirecionamento (pós-envio)</Label>
+                <Input
+                  value={config.enviar_url_redirecionamento || ''}
+                  onChange={(e) => updateConfig('enviar_url_redirecionamento', e.target.value)}
+                  placeholder="https://seusite.com/obrigado"
+                  className="text-xs"
+                  type="url"
+                />
+                <p className="text-[10px] text-muted-foreground">Deixe vazio para exibir mensagem de sucesso</p>
+              </div>
             </div>
           )}
 
