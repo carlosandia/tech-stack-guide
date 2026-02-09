@@ -17,7 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
-import { Send, Loader2, Bold, Italic, Underline, Mail } from 'lucide-react'
+import { Send, Loader2, Bold, Italic, Underline, Mail, Save } from 'lucide-react'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
@@ -59,9 +59,11 @@ interface Props {
   estiloBotao: EstiloBotao
   onChangeEstilo: (v: EstiloBotao) => void
   onConfigChange?: (config: ConfigBotoes) => void
+  onSaveEstilos?: () => void
+  isSavingEstilos?: boolean
 }
 
-export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEstilo, onConfigChange }: Props) {
+export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEstilo, onConfigChange, onSaveEstilos, isSavingEstilos }: Props) {
   const [tab, setTab] = useState<TabType>('estilo')
   const [config, setConfig] = useState<ConfigBotoes>(CONFIG_PADRAO)
   const [saving, setSaving] = useState(false)
@@ -100,13 +102,20 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
   useEffect(() => {
     async function loadFunis() {
       const { data: { user } } = await supabase.auth.getUser()
-      const tenantId = user?.user_metadata?.tenant_id
-      if (!tenantId) return
+      if (!user) return
+
+      // AIDEV-NOTE: Busca organizacao_id via tabela usuarios (não user_metadata)
+      const { data: usr } = await supabase
+        .from('usuarios')
+        .select('organizacao_id')
+        .eq('auth_id', user.id)
+        .maybeSingle()
+      if (!usr?.organizacao_id) return
 
       const { data } = await supabase
         .from('funis')
         .select('id, nome')
-        .eq('organizacao_id', tenantId)
+        .eq('organizacao_id', usr.organizacao_id)
         .is('deletado_em', null)
         .eq('arquivado', false)
         .order('nome')
@@ -120,13 +129,19 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
   useEffect(() => {
     async function loadSmtp() {
       const { data: { user } } = await supabase.auth.getUser()
-      const tenantId = user?.user_metadata?.tenant_id
-      if (!tenantId) return
+      if (!user) return
+
+      const { data: usr } = await supabase
+        .from('usuarios')
+        .select('organizacao_id')
+        .eq('auth_id', user.id)
+        .maybeSingle()
+      if (!usr?.organizacao_id) return
 
       const { data } = await supabase
         .from('conexoes_email')
         .select('email, status')
-        .eq('organizacao_id', tenantId)
+        .eq('organizacao_id', usr.organizacao_id)
         .eq('status', 'conectado')
         .limit(1)
         .maybeSingle()
@@ -468,6 +483,14 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
               {renderFontFormatting('')}
             </>
           )}
+
+          {/* Botão Salvar Estilos */}
+          {onSaveEstilos && (
+            <Button size="sm" className="w-full text-xs mt-3" variant="outline" onClick={onSaveEstilos} disabled={isSavingEstilos}>
+              {isSavingEstilos ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Save className="w-3 h-3 mr-1" />}
+              Salvar Estilos
+            </Button>
+          )}
         </div>
       )}
 
@@ -588,6 +611,11 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
       {/* Pós-Envio tab */}
       {tab === 'pos_envio' && loaded && (
         <div className="space-y-3">
+          {isWhatsApp && (
+            <p className="text-[10px] text-muted-foreground bg-muted/50 p-2 rounded">
+              ℹ O botão WhatsApp redireciona automaticamente para o WhatsApp com os campos formatados. As configurações abaixo se aplicam apenas ao botão <strong>Enviar</strong>.
+            </p>
+          )}
           <div className="space-y-1.5">
             <Label className="text-xs">Mensagem de Sucesso</Label>
             <Textarea
