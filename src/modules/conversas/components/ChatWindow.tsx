@@ -16,11 +16,12 @@ import { CameraCapture } from './CameraCapture'
 import { ContatoSelectorModal } from './ContatoSelectorModal'
 import { EnqueteModal } from './EnqueteModal'
 import { EncaminharModal } from './EncaminharModal'
+import { PinnedMessageBanner } from './PinnedMessageBanner'
 import { useMensagens, useEnviarTexto, useEnviarContato, useEnviarEnquete } from '../hooks/useMensagens'
 import {
   useAlterarStatusConversa, useMarcarComoLida, useSilenciarConversa,
   useLimparConversa, useApagarConversa, useApagarMensagem,
-  useFixarMensagem, useReagirMensagem, useEncaminharMensagem,
+  useFixarMensagem, useDesafixarMensagem, useReagirMensagem, useEncaminharMensagem,
 } from '../hooks/useConversas'
 import { conversasApi } from '../services/conversas.api'
 import { supabase } from '@/lib/supabase'
@@ -71,6 +72,7 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
   const apagarConversa = useApagarConversa()
   const apagarMensagem = useApagarMensagem()
   const fixarMensagem = useFixarMensagem()
+  const desafixarMensagem = useDesafixarMensagem()
   const reagirMensagem = useReagirMensagem()
   const encaminharMensagem = useEncaminharMensagem()
 
@@ -79,6 +81,11 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
     if (!mensagensData?.pages) return []
     return mensagensData.pages.flatMap((page) => page.mensagens)
   }, [mensagensData])
+
+  // Find pinned message
+  const pinnedMessage = useMemo(() => {
+    return mensagens.find((m) => m.fixada) || null
+  }, [mensagens])
 
   // Search results
   const resultadosBusca = useMemo(() => {
@@ -269,8 +276,12 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
   }, [conversa.id, encaminharMsg, encaminharMensagem])
 
   const handlePinMessage = useCallback((mensagem: Mensagem) => {
-    fixarMensagem.mutate({ conversaId: conversa.id, messageWahaId: mensagem.message_id })
+    fixarMensagem.mutate({ conversaId: conversa.id, mensagemId: mensagem.id, messageWahaId: mensagem.message_id })
   }, [conversa.id, fixarMensagem])
+
+  const handleUnpinMessage = useCallback((mensagem: Mensagem) => {
+    desafixarMensagem.mutate({ conversaId: conversa.id, mensagemId: mensagem.id, messageWahaId: mensagem.message_id })
+  }, [conversa.id, desafixarMensagem])
 
   const handleSearch = (termo: string) => {
     setTermoBusca(termo)
@@ -333,6 +344,13 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
           currentIndex={buscaIndex}
           onPrev={handleSearchPrev}
           onNext={handleSearchNext}
+        />
+      )}
+
+      {pinnedMessage && (
+        <PinnedMessageBanner
+          mensagem={pinnedMessage}
+          onUnpin={handleUnpinMessage}
         />
       )}
 

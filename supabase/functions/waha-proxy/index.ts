@@ -1160,6 +1160,42 @@ Deno.serve(async (req) => {
       }
 
       // =====================================================
+      // DESAFIXAR MENSAGEM VIA WAHA
+      // =====================================================
+      case "desafixar_mensagem": {
+        const { chat_id: unpinChatId, message_id: unpinMsgId } = body as {
+          chat_id?: string;
+          message_id?: string;
+        };
+
+        if (!unpinChatId || !unpinMsgId) {
+          return new Response(
+            JSON.stringify({ error: "chat_id e message_id são obrigatórios" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        console.log(`[waha-proxy] Unpinning message ${unpinMsgId} in ${unpinChatId}, session: ${sessionId}`);
+
+        const unpinResp = await fetch(`${baseUrl}/api/${sessionId}/chats/${encodeURIComponent(unpinChatId)}/messages/${encodeURIComponent(unpinMsgId)}/unpin`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
+        });
+
+        const unpinData = await unpinResp.json().catch(() => ({}));
+        console.log(`[waha-proxy] Unpin message response: ${unpinResp.status}`, JSON.stringify(unpinData).substring(0, 300));
+
+        if (!unpinResp.ok && isNowebLimitation(unpinResp.status, unpinData)) {
+          return nowebPartialResponse('desafixar_mensagem');
+        }
+
+        return new Response(
+          JSON.stringify({ ok: unpinResp.ok, data: unpinData }),
+          { status: unpinResp.ok ? 200 : unpinResp.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // =====================================================
       // REAGIR A MENSAGEM VIA WAHA
       // =====================================================
       case "reagir_mensagem": {
