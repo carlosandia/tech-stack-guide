@@ -688,6 +688,77 @@ async function excluirEtapa(formularioId: string, etapaId: string): Promise<void
   if (error) throw new Error(`Erro ao excluir etapa: ${error.message}`)
 }
 
+// =====================================================
+// Submissões
+// =====================================================
+
+export interface SubmissaoFormulario {
+  id: string
+  formulario_id: string
+  organizacao_id: string
+  dados: Record<string, unknown>
+  ip_address?: string | null
+  user_agent?: string | null
+  referrer?: string | null
+  pagina_origem?: string | null
+  utm_source?: string | null
+  utm_medium?: string | null
+  utm_campaign?: string | null
+  utm_term?: string | null
+  utm_content?: string | null
+  geo_pais?: string | null
+  geo_estado?: string | null
+  geo_cidade?: string | null
+  lead_score?: number | null
+  contato_id?: string | null
+  oportunidade_id?: string | null
+  status: string
+  erro_mensagem?: string | null
+  honeypot_preenchido?: boolean
+  captcha_validado?: boolean
+  criado_em: string
+}
+
+export interface ListarSubmissoesParams {
+  formularioId: string
+  status?: string
+  pagina?: number
+  por_pagina?: number
+}
+
+async function listarSubmissoes(params: ListarSubmissoesParams): Promise<{ data: SubmissaoFormulario[]; total: number }> {
+  const pagina = params.pagina || 1
+  const por_pagina = params.por_pagina || 20
+  const from = (pagina - 1) * por_pagina
+  const to = from + por_pagina - 1
+
+  let query = supabase
+    .from('submissoes_formularios')
+    .select('*', { count: 'exact' })
+    .eq('formulario_id', params.formularioId)
+    .order('criado_em', { ascending: false })
+
+  if (params.status) {
+    query = query.eq('status', params.status)
+  }
+
+  query = query.range(from, to)
+
+  const { data, error, count } = await query
+  if (error) throw new Error(`Erro ao listar submissões: ${error.message}`)
+  return { data: (data || []) as unknown as SubmissaoFormulario[], total: count || 0 }
+}
+
+async function buscarSubmissao(submissaoId: string): Promise<SubmissaoFormulario> {
+  const { data, error } = await supabase
+    .from('submissoes_formularios')
+    .select('*')
+    .eq('id', submissaoId)
+    .single()
+  if (error) throw new Error(`Erro ao buscar submissão: ${error.message}`)
+  return data as unknown as SubmissaoFormulario
+}
+
 export const formulariosApi = {
   listar,
   buscar,
@@ -713,4 +784,6 @@ export const formulariosApi = {
   criarEtapa,
   atualizarEtapa,
   excluirEtapa,
+  listarSubmissoes,
+  buscarSubmissao,
 }
