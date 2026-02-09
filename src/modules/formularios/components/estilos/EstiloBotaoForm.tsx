@@ -1,10 +1,12 @@
 /**
  * AIDEV-NOTE: Formulário de configuração visual do botão de submit
- * Texto, cores, tamanho, largura, border-radius
+ * Texto, cores, altura, largura, border-radius, formatação de fonte
  */
 
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
+import { Bold, Italic, Underline } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import {
   Select,
   SelectContent,
@@ -25,19 +27,13 @@ const LARGURAS = [
   { value: '50%', label: '50%' },
 ]
 
-const TAMANHOS = [
-  { value: 'sm', label: 'Pequeno' },
-  { value: 'md', label: 'Médio' },
-  { value: 'lg', label: 'Grande' },
-]
-
 interface Props {
   value: EstiloBotao
   onChange: (v: EstiloBotao) => void
 }
 
 export function EstiloBotaoForm({ value, onChange }: Props) {
-  const update = (key: keyof EstiloBotao, val: string) => {
+  const update = (key: keyof EstiloBotao, val: string | boolean) => {
     onChange({ ...value, [key]: val })
   }
 
@@ -132,17 +128,59 @@ export function EstiloBotaoForm({ value, onChange }: Props) {
         </div>
 
         <div className="space-y-1.5">
-          <Label className="text-xs">Tamanho</Label>
-          <Select value={value.tamanho || 'md'} onValueChange={(v) => update('tamanho', v)}>
-            <SelectTrigger className="text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {TAMANHOS.map((t) => (
-                <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Label className="text-xs">Altura</Label>
+          <Input
+            value={value.altura || ''}
+            onChange={(e) => update('altura', e.target.value)}
+            placeholder="Ex: 48px (vazio = automático)"
+            className="text-xs"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs">Tamanho da Fonte</Label>
+          <Input
+            value={value.font_size || '14px'}
+            onChange={(e) => update('font_size', e.target.value)}
+            placeholder="14px"
+            className="text-xs"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs">Formatação</Label>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => update('font_bold', !value.font_bold)}
+              className={cn(
+                'p-1.5 rounded border transition-colors',
+                value.font_bold ? 'bg-primary text-primary-foreground border-primary' : 'border-input hover:bg-muted'
+              )}
+            >
+              <Bold className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => update('font_italic', !value.font_italic)}
+              className={cn(
+                'p-1.5 rounded border transition-colors',
+                value.font_italic ? 'bg-primary text-primary-foreground border-primary' : 'border-input hover:bg-muted'
+              )}
+            >
+              <Italic className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => update('font_underline', !value.font_underline)}
+              className={cn(
+                'p-1.5 rounded border transition-colors',
+                value.font_underline ? 'bg-primary text-primary-foreground border-primary' : 'border-input hover:bg-muted'
+              )}
+            >
+              <Underline className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </div>
     </div>

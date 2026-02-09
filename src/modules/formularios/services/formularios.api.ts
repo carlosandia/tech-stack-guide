@@ -406,16 +406,22 @@ export interface EstiloBotao {
   hover_background?: string
   border_radius?: string
   largura?: string
-  tamanho?: string
   altura?: string
+  font_size?: string
+  font_bold?: boolean
+  font_italic?: boolean
+  font_underline?: boolean
   // WhatsApp button styles
   whatsapp_texto?: string
   whatsapp_background?: string
   whatsapp_texto_cor?: string
   whatsapp_border_radius?: string
   whatsapp_largura?: string
-  whatsapp_tamanho?: string
   whatsapp_altura?: string
+  whatsapp_font_size?: string
+  whatsapp_font_bold?: boolean
+  whatsapp_font_italic?: boolean
+  whatsapp_font_underline?: boolean
 }
 
 export interface EstiloPagina {
@@ -472,7 +478,7 @@ export const ESTILO_PADRAO: Omit<EstiloFormulario, 'id' | 'formulario_id' | 'cri
     hover_background: '#2563EB',
     border_radius: '6px',
     largura: 'full',
-    tamanho: 'md',
+    altura: '40px',
   },
   pagina: {
     background_color: '#F3F4F6',

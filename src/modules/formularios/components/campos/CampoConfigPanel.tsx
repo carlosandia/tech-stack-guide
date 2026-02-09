@@ -5,6 +5,7 @@
 
 import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -266,6 +267,7 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
           } else {
             handleSave()
           }
+          toast.success('Alterações salvas com sucesso')
         }}
         className="w-full"
         size="sm"

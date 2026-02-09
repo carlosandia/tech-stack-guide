@@ -27,11 +27,7 @@ const SOMBRA_MAP: Record<string, string> = {
   xl: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)',
 }
 
-const TAMANHO_BOTAO: Record<string, string> = {
-  sm: '8px 16px',
-  md: '10px 20px',
-  lg: '14px 28px',
-}
+// AIDEV-NOTE: TAMANHO_BOTAO removido - agora usamos altura livre definida pelo usuário
 
 interface Props {
   formulario: Formulario
@@ -114,9 +110,12 @@ export function FormPreview({
     color: estiloBotao.texto_cor || '#FFFFFF',
     borderRadius: estiloBotao.border_radius || '6px',
     width: estiloBotao.largura === 'full' ? '100%' : estiloBotao.largura === '50%' ? '50%' : 'auto',
-    padding: TAMANHO_BOTAO[estiloBotao.tamanho || 'md'],
-    fontSize: '14px',
-    fontWeight: 600,
+    height: estiloBotao.altura || undefined,
+    padding: estiloBotao.altura ? '0 20px' : '10px 20px',
+    fontSize: estiloBotao.font_size || '14px',
+    fontWeight: estiloBotao.font_bold ? 700 : 600,
+    fontStyle: estiloBotao.font_italic ? 'italic' : undefined,
+    textDecoration: estiloBotao.font_underline ? 'underline' : undefined,
     border: 'none',
   } : {}
 
@@ -471,10 +470,13 @@ function renderBotoes(
           backgroundColor: estiloBotao?.whatsapp_background || '#25D366',
           color: estiloBotao?.whatsapp_texto_cor || '#FFFFFF',
           borderRadius: estiloBotao?.whatsapp_border_radius || estiloBotao?.border_radius || '6px',
-          width: tipoBotao === 'ambos' ? '100%' : (estiloBotao?.largura === 'full' ? '100%' : estiloBotao?.largura === '50%' ? '50%' : 'auto'),
-          padding: '10px 20px',
-          fontSize: '14px',
-          fontWeight: 600,
+          width: tipoBotao === 'ambos' ? '100%' : (estiloBotao?.whatsapp_largura === 'full' ? '100%' : estiloBotao?.whatsapp_largura === '50%' ? '50%' : 'auto'),
+          height: estiloBotao?.whatsapp_altura || undefined,
+          padding: estiloBotao?.whatsapp_altura ? '0 20px' : '10px 20px',
+          fontSize: estiloBotao?.whatsapp_font_size || '14px',
+          fontWeight: estiloBotao?.whatsapp_font_bold ? 700 : 600,
+          fontStyle: estiloBotao?.whatsapp_font_italic ? 'italic' : undefined,
+          textDecoration: estiloBotao?.whatsapp_font_underline ? 'underline' : undefined,
           border: 'none',
         }}
         onClick={showFinalPreview ? undefined : (e) => { e.stopPropagation(); onSelectStyleElement?.('botao_whatsapp') }}
@@ -504,7 +506,7 @@ function renderLabel(
 ) {
   return (
     <span style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: '4px' }}>
-      {campo.label}{campo.obrigatorio ? ' *' : ''}
+      {campo.label}{campo.obrigatorio ? <span style={{ color: '#EF4444' }}> *</span> : ''}
       {campo.texto_ajuda && (
         <span title={campo.texto_ajuda} style={{ cursor: 'help', display: 'inline-flex' }}>
           <Info style={{ width: '14px', height: '14px', color: '#9CA3AF' }} />
@@ -596,7 +598,7 @@ function renderFinalCampo(
         return (
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <input type="checkbox" style={{ width: '16px', height: '16px' }} />
-            <span style={{ ...labelStyle, marginBottom: 0 }}>{campo.label}{campo.obrigatorio ? ' *' : ''}</span>
+            <span style={{ ...labelStyle, marginBottom: 0 }}>{campo.label}{campo.obrigatorio ? <span style={{ color: '#EF4444' }}> *</span> : ''}</span>
           </div>
         )
       case 'checkbox_termos':
@@ -604,7 +606,7 @@ function renderFinalCampo(
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <input type="checkbox" style={{ width: '16px', height: '16px' }} />
             <span style={{ ...labelStyle, marginBottom: 0 }}>
-              {campo.label}{campo.obrigatorio ? ' *' : ''}
+              {campo.label}{campo.obrigatorio ? <span style={{ color: '#EF4444' }}> *</span> : ''}
               {campo.valor_padrao && (
                 <TermosModal
                   texto={campo.valor_padrao}
