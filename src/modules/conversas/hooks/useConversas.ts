@@ -193,15 +193,32 @@ export function useFixarMensagem() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ conversaId, messageWahaId }: {
-      conversaId: string; messageWahaId: string
-    }) => conversasApi.fixarMensagem(conversaId, messageWahaId),
+    mutationFn: ({ conversaId, mensagemId, messageWahaId }: {
+      conversaId: string; mensagemId: string; messageWahaId: string
+    }) => conversasApi.fixarMensagem(conversaId, mensagemId, messageWahaId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['mensagens'] })
       toast.success('Mensagem fixada')
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Erro ao fixar mensagem')
+    },
+  })
+}
+
+export function useDesafixarMensagem() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ conversaId, mensagemId, messageWahaId }: {
+      conversaId: string; mensagemId: string; messageWahaId: string
+    }) => conversasApi.desafixarMensagem(conversaId, mensagemId, messageWahaId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['mensagens'] })
+      toast.success('Mensagem desafixada')
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Erro ao desafixar mensagem')
     },
   })
 }

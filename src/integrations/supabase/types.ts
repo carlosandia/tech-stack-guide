@@ -3164,6 +3164,7 @@ export type Database = {
           conversa_id: string
           criado_em: string
           deletado_em: string | null
+          fixada: boolean
           from_me: boolean
           from_number: string | null
           has_media: boolean | null
@@ -3201,6 +3202,7 @@ export type Database = {
           conversa_id: string
           criado_em?: string
           deletado_em?: string | null
+          fixada?: boolean
           from_me?: boolean
           from_number?: string | null
           has_media?: boolean | null
@@ -3238,6 +3240,7 @@ export type Database = {
           conversa_id?: string
           criado_em?: string
           deletado_em?: string | null
+          fixada?: boolean
           from_me?: boolean
           from_number?: string | null
           has_media?: boolean | null
