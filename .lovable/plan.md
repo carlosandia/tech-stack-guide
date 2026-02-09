@@ -1,111 +1,69 @@
 
-# Plano: Edicao de Estilos Inline no Preview (Click-to-Edit)
+# Plano: Otimizar UI do Editor de Formularios
 
-## Conceito
+## 1. Remover pincel duplicado da area de campos
 
-Substituir o layout atual da tab Estilos (painel de configs esquerda + preview direita) por uma experiencia de edicao inline direta no preview. O usuario clica no container, em um campo, ou no botao para abrir um popover/painel lateral compacto com as opcoes de estilo daquele elemento especifico. Um botao "Visualizar Final" mostra o formulario como ficara embedado, sem controles de edicao.
+Na imagem, ha dois pinceis: um no wrapper da area de campos (no `FormPreview.tsx`, linhas 274-291) e outro em cada `CampoItem`. O pincel do wrapper sera removido, mantendo apenas o pincel individual de cada campo.
 
----
-
-## 1. Novo Layout da Tab Estilos
-
-**Arquivo: `EditorTabsEstilos.tsx`** - Reescrever completamente
-
-- Remover o layout split (config esquerda | preview direita)
-- O preview ocupa 100% da area, centralizado
-- Estado `selectedElement`: `'container' | 'campos' | 'botao' | 'cabecalho' | null`
-- Estado `showFinalPreview`: boolean para alternar entre modo edicao e visualizacao final
-- Barra de acoes no topo: botao "Visualizar Final" (icone Eye) + botao "Salvar Estilos" + toggle CSS Customizado
+**Arquivo:** `src/modules/formularios/components/editor/FormPreview.tsx`
+- Remover o bloco do botao Paintbrush da area "Fields area" (linhas 274-291)
+- Manter o outline de selecao no wrapper (quando `selectedStyleElement === 'campos'`)
 
 ---
 
-## 2. Preview Interativo com Click-to-Edit
+## 2. Mover botoes para a linha do viewport switcher
 
-**Novo componente: `EstiloPreviewInterativo.tsx`** (substitui o uso de `EstiloPreview`)
+Atualmente existem duas barras: a "style action bar" (Visualizar Final, CSS, Salvar Estilos) e a barra do viewport (Desktop, Tablet, Mobile). Serao unificadas em uma unica linha.
 
-O preview renderiza o formulario com estilos aplicados em tempo real. Cada area clicavel tera:
+**Arquivo:** `src/modules/formularios/pages/FormularioEditorPage.tsx`
+- Remover a div da "style action bar" (linhas 248-291)
 
-- **Container (area externa):** Ao clicar no fundo/borda do container, abre popover com: cor de fundo, largura maxima, padding, borda arredondada, sombra, fonte
-- **Campos (clicar em qualquer campo):** Abre popover com: cor do label, tamanho do label, fundo do input, borda do input, border-radius, cor do texto, cor do placeholder, cor de erro
-- **Botao (clicar no botao Enviar):** Abre popover com: texto, cor do texto, cor de fundo, cor de hover, border-radius, largura, tamanho
-
-Indicacao visual:
-- Elemento selecionado recebe outline pontilhado azul (`outline-2 outline-dashed outline-primary`)
-- Tooltip sutil ao hover: "Clique para editar"
-- Ao clicar fora de qualquer elemento, fecha o popover
+**Arquivo:** `src/modules/formularios/components/editor/FormPreview.tsx`
+- O componente recebera novas props: `onToggleFinalPreview`, `showFinalPreview`, `onToggleCss`, `showCssDrawer`, `onSaveEstilos`, `isSaving`
+- Na barra do viewport switcher, adicionar a esquerda os botoes "Visualizar Final" e "CSS", e a direita o "Salvar Estilos"
+- Layout: `[Visualizar Final | CSS] --- [Desktop | Tablet | Mobile] --- [Salvar Estilos]`
 
 ---
 
-## 3. Popover de Edicao
+## 3. Consolidar abas Logica, Integracoes e A/B Testing dentro de Configuracoes
 
-**Novo componente: `EstiloPopover.tsx`**
+Reduzir de 7 abas para 4: **Campos | Configuracoes | Analytics | Compartilhar**
 
-- Usa Radix Popover posicionado ao lado do elemento clicado
-- Conteudo: reutiliza os mesmos campos dos forms existentes (EstiloContainerForm, EstiloCamposForm, EstiloBotaoForm) mas em formato mais compacto
-- Header do popover com titulo (ex: "Container", "Campos", "Botao") e botao fechar (X)
-- Max-height com scroll interno para nao ultrapassar a tela
+**Arquivo:** `src/modules/formularios/pages/FormularioEditorPage.tsx`
+- Remover `logica`, `integracoes` e `ab` do array `TABS`
+- Remover os blocos de renderizacao condicional dessas 3 abas
 
----
-
-## 4. Modo Visualizacao Final
-
-**Botao "Visualizar Final"** no topo da tab
-
-- Ao clicar, alterna para modo somente-leitura que mostra o formulario exatamente como ficara embedado:
-  - Sem outlines de selecao
-  - Sem hover effects de edicao
-  - Background da pagina aplicado (pagina.background_color)
-  - Formulario centralizado simulando um website
-- Botao muda para "Voltar ao Editor" para retornar ao modo de edicao
-- Visual similar a terceira imagem enviada (formulario limpo, sem controles)
-
----
-
-## 5. CSS Customizado
-
-- Mover o campo de CSS Customizado para um botao/toggle no topo ("CSS Avancado")
-- Ao clicar, abre um painel deslizante (drawer) na parte inferior com o textarea do CSS
+**Arquivo:** `src/modules/formularios/components/editor/EditorTabsConfig.tsx`
+- Expandir para incluir sub-secoes com acordeao ou secoes empilhadas:
+  - Secao "Configuracoes Gerais" (conteudo atual: Popup, Newsletter, Etapas)
+  - Secao "Logica Condicional" (conteudo do `EditorTabsLogica`)
+  - Secao "Integracoes" (conteudo do `EditorTabsIntegracoes`)
+  - Secao "A/B Testing" (conteudo do `EditorTabsAB`)
+- Cada secao tera um titulo clicavel com icone para expandir/recolher, seguindo o padrao visual existente
 
 ---
 
 ## Detalhes Tecnicos
 
-### Arquivos a criar:
-1. `src/modules/formularios/components/estilos/EstiloPreviewInterativo.tsx` - Preview com areas clicaveis
-2. `src/modules/formularios/components/estilos/EstiloPopover.tsx` - Popover generico para edicao
+### Arquivos modificados:
+1. `src/modules/formularios/components/editor/FormPreview.tsx` - Remover pincel duplicado + adicionar botoes na barra de viewport
+2. `src/modules/formularios/pages/FormularioEditorPage.tsx` - Remover action bar + remover abas consolidadas + passar props ao FormPreview
+3. `src/modules/formularios/components/editor/EditorTabsConfig.tsx` - Integrar Logica, Integracoes e A/B como secoes internas
 
-### Arquivos a editar:
-1. `src/modules/formularios/components/editor/EditorTabsEstilos.tsx` - Novo layout com preview full + barra de acoes
+### Arquivos nao modificados (reutilizados como estao):
+- `EditorTabsLogica.tsx` - Conteudo sera importado dentro de EditorTabsConfig
+- `EditorTabsIntegracoes.tsx` - Idem
+- `EditorTabsAB.tsx` - Idem
 
-### Arquivos mantidos (reutilizados dentro dos popovers):
-- `EstiloContainerForm.tsx` - Campos do container
-- `EstiloCamposForm.tsx` - Campos dos inputs
-- `EstiloBotaoForm.tsx` - Campos do botao
-
-### Dependencias:
-- Radix Popover (`@radix-ui/react-popover`) - ja disponivel via shadcn
-- Lucide icons: `Eye`, `EyeOff`, `Code`, `X`, `Save`
-
-### Fluxo de interacao:
+### Resultado final das abas:
 ```text
-+------------------------------------------+
-|  [Eye] Visualizar Final  [Save] Salvar   |
-+------------------------------------------+
-|                                          |
-|    +------------------------------+      |
-|    | Container (clicavel)         |      |
-|    |                              |      |
-|    |   Titulo do Formulario       |      |
-|    |                              |      |
-|    |   [Label] ___input___        |      |
-|    |   [Label] ___input___  <-- click    |
-|    |   [Label] ___input___        |      |
-|    |                              |      |
-|    |   [ Enviar ]  <-- click abre |      |
-|    |               popover botao  |      |
-|    +------------------------------+      |
-|                                          |
-+------------------------------------------+
+[Campos] [Configuracoes] [Analytics] [Compartilhar]
 ```
 
-Ao clicar em um campo, um Popover aparece ao lado com as opcoes de estilo daquele tipo de elemento. Ao clicar no container (area de fundo), o popover mostra opcoes do container. Ao clicar no botao, mostra opcoes do botao.
+Dentro de "Configuracoes", secoes colapsaveis:
+```text
+> Geral (Popup, Newsletter, Etapas)
+> Logica Condicional
+> Integracoes
+> A/B Testing
+```
