@@ -6,6 +6,7 @@
  */
 
 import { useState, useMemo, useEffect, useCallback } from 'react'
+import { compressImage } from '@/shared/utils/compressMedia'
 import { ChatHeader } from './ChatHeader'
 import { ChatMessages } from './ChatMessages'
 import { ChatInput } from './ChatInput'
@@ -141,12 +142,15 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
 
   const handleFileSelected = useCallback(async (file: File, tipo: string) => {
     try {
-      const ext = file.name.split('.').pop() || 'bin'
+      // Comprimir imagem antes do upload (transparente para não-imagens)
+      const processed = await compressImage(file, file.name)
+      const finalFile = processed instanceof File ? processed : new File([processed], file.name)
+      const ext = finalFile.name.split('.').pop() || 'bin'
       const path = `conversas/${conversa.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
 
       const { error: uploadError } = await supabase.storage
         .from('chat-media')
-        .upload(path, file)
+        .upload(path, finalFile)
 
       if (uploadError) {
         toast.error('Erro ao fazer upload do arquivo')
@@ -204,11 +208,13 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
   const handleCameraCapture = useCallback(async (blob: Blob) => {
     setCameraOpen(false)
     try {
+      // Comprimir foto da câmera antes do upload
+      const compressed = await compressImage(blob, 'foto.jpg')
       const path = `conversas/${conversa.id}/foto_${Date.now()}.jpg`
 
       const { error: uploadError } = await supabase.storage
         .from('chat-media')
-        .upload(path, blob, { contentType: 'image/jpeg' })
+        .upload(path, compressed, { contentType: 'image/jpeg' })
 
       if (uploadError) {
         toast.error('Erro ao fazer upload da foto')
