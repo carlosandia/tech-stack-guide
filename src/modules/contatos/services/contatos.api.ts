@@ -180,6 +180,7 @@ export const contatosApi = {
       .from('contatos')
       .select('*', { count: 'exact' })
       .is('deletado_em', null)
+      .neq('status', 'pre_lead')
       .order(ordenarPor, { ascending: ordemAsc })
       .range(from, to)
 

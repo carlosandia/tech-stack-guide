@@ -147,22 +147,46 @@ export const preOportunidadesApi = {
     let contatoId = payload.contato_existente_id
 
     if (!contatoId) {
-      const { data: novoContato, error: contatoError } = await supabase
+      // Buscar contato pré-existente pelo telefone (pode ser pre_lead do webhook)
+      const { data: contatoExistente } = await supabase
         .from('contatos')
-        .insert({
-          organizacao_id: organizacaoId,
-          tipo: 'pessoa',
-          nome: payload.contato_nome || preOp.phone_name || preOp.phone_number,
-          telefone: preOp.phone_number,
-          email: payload.contato_email || null,
-          origem: 'whatsapp',
-          criado_por: userId,
-        } as any)
-        .select('id')
-        .single()
+        .select('id, status')
+        .eq('organizacao_id', organizacaoId)
+        .eq('telefone', preOp.phone_number)
+        .is('deletado_em', null)
+        .maybeSingle()
 
-      if (contatoError) throw new Error(contatoError.message)
-      contatoId = novoContato.id
+      if (contatoExistente) {
+        contatoId = contatoExistente.id
+        // Se era pre_lead, promover para novo
+        if (contatoExistente.status === 'pre_lead') {
+          await supabase
+            .from('contatos')
+            .update({
+              status: 'novo',
+              nome: payload.contato_nome || preOp.phone_name || preOp.phone_number,
+              email: payload.contato_email || null,
+            } as any)
+            .eq('id', contatoId)
+        }
+      } else {
+        const { data: novoContato, error: contatoError } = await supabase
+          .from('contatos')
+          .insert({
+            organizacao_id: organizacaoId,
+            tipo: 'pessoa',
+            nome: payload.contato_nome || preOp.phone_name || preOp.phone_number,
+            telefone: preOp.phone_number,
+            email: payload.contato_email || null,
+            origem: 'whatsapp',
+            criado_por: userId,
+          } as any)
+          .select('id')
+          .single()
+
+        if (contatoError) throw new Error(contatoError.message)
+        contatoId = novoContato.id
+      }
     }
 
     // 3. Buscar etapa de entrada se não informada
