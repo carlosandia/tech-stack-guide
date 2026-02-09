@@ -126,7 +126,9 @@ function AppLayoutInner() {
 
   const isAdmin = role === 'admin' // used for settings gear visibility
   const pageTitle = getPageTitle(location.pathname)
-  const hideToolbar = isFormularioEditorRoute(location.pathname)
+  const isEditorRoute = isFormularioEditorRoute(location.pathname)
+  const hideToolbar = isEditorRoute
+  const hideHeader = isEditorRoute
   const visibleItems = menuItems
 
   const handleLogout = async () => {
@@ -221,117 +223,119 @@ function AppLayoutInner() {
         </div>
       </div>
 
-      {/* Header fixo - 56px - Glass Effect - flex-shrink-0 para não comprimir */}
-      <header className="flex-shrink-0 z-[100] h-14 bg-white/80 backdrop-blur-md border-b border-gray-200/60">
-        <div className="flex items-center justify-between h-full px-4 lg:px-6 max-w-[1920px] mx-auto">
-          {/* Left: Logo + Navigation */}
-          <div className="flex items-center gap-8">
-            {/* Mobile menu button */}
-            <button
-              className="md:hidden p-2 -ml-2 hover:bg-accent rounded-md"
-              onClick={() => setDrawerOpen(true)}
-            >
-              <Menu className="w-5 h-5 text-foreground" />
-            </button>
-
-            {/* Logo */}
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-sm">R</span>
-              </div>
-              <span className="hidden sm:block font-semibold text-lg text-foreground">
-                CRM Renove
-              </span>
-            </div>
-
-            {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center gap-1">
-              {visibleItems.map((item) => (
-                <NavItem
-                  key={item.path}
-                  to={item.path}
-                  exact={item.exact}
-                  icon={item.icon}
-                >
-                  {item.label}
-                  {item.path === '/app/emails' && <EmailBadge />}
-                </NavItem>
-              ))}
-            </nav>
-          </div>
-
-          {/* Right: Settings gear + Notificacoes + User Menu */}
-          <div className="flex items-center gap-1">
-            {/* Settings gear icon — admin only */}
-            {isAdmin && (
-              <NavLink
-                to="/app/configuracoes"
-                className={({ isActive }) =>
-                  `p-2 rounded-md transition-colors ${
-                    isActive
-                      ? 'text-primary bg-primary/5'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                  }`
-                }
-                title="Configurações"
+      {/* Header fixo - 56px - Glass Effect - hidden on formulario editor */}
+      {!hideHeader && (
+        <header className="flex-shrink-0 z-[100] h-14 bg-white/80 backdrop-blur-md border-b border-gray-200/60">
+          <div className="flex items-center justify-between h-full px-4 lg:px-6 max-w-[1920px] mx-auto">
+            {/* Left: Logo + Navigation */}
+            <div className="flex items-center gap-8">
+              {/* Mobile menu button */}
+              <button
+                className="md:hidden p-2 -ml-2 hover:bg-accent rounded-md"
+                onClick={() => setDrawerOpen(true)}
               >
-                <Settings className="w-5 h-5" />
-              </NavLink>
-            )}
+                <Menu className="w-5 h-5 text-foreground" />
+              </button>
 
-            {/* Sino de Notificacoes */}
-            <NotificacoesSino />
-
-            {/* User Menu */}
-            <div className="relative">
-            <button
-              onClick={() => setUserMenuOpen(!userMenuOpen)}
-              className="flex items-center gap-2 p-2 hover:bg-accent rounded-md transition-all duration-200"
-            >
-              <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center">
-                <span className="text-sm font-medium text-muted-foreground">
-                  {user?.nome?.[0]?.toUpperCase() || 'U'}
+              {/* Logo */}
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+                  <span className="text-primary-foreground font-bold text-sm">R</span>
+                </div>
+                <span className="hidden sm:block font-semibold text-lg text-foreground">
+                  CRM Renove
                 </span>
               </div>
-              <span className="hidden sm:block text-sm font-medium text-foreground max-w-[150px] truncate">
-                {user?.nome || 'Usuário'}
-              </span>
-              <ChevronDown className="w-4 h-4 text-muted-foreground" />
-            </button>
 
-            {/* User dropdown */}
-            {userMenuOpen && (
-              <>
-                <div
-                  className="fixed inset-0 z-40"
-                  onClick={() => setUserMenuOpen(false)}
-                />
-                <div className="absolute right-0 mt-1 w-56 bg-white/95 backdrop-blur-md rounded-md shadow-lg border border-gray-200/60 py-1 z-50">
-                  <div className="px-3 py-2 border-b border-gray-200/60">
-                    <p className="text-sm font-medium text-foreground">
-                      {user?.nome || 'Usuário'}
-                    </p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {user?.email}
-                    </p>
-                    <span className="inline-flex items-center mt-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
-                      {role === 'admin' ? 'Admin' : 'Membro'}
-                    </span>
-                  </div>
-                  <button
-                    onClick={handleLogout}
-                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-foreground hover:bg-accent"
+              {/* Desktop Navigation */}
+              <nav className="hidden md:flex items-center gap-1">
+                {visibleItems.map((item) => (
+                  <NavItem
+                    key={item.path}
+                    to={item.path}
+                    exact={item.exact}
+                    icon={item.icon}
                   >
-                    <LogOut className="w-4 h-4" />
-                    Sair
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+                    {item.label}
+                    {item.path === '/app/emails' && <EmailBadge />}
+                  </NavItem>
+                ))}
+              </nav>
             </div>
-          </div>
-      </header>
+
+            {/* Right: Settings gear + Notificacoes + User Menu */}
+            <div className="flex items-center gap-1">
+              {/* Settings gear icon — admin only */}
+              {isAdmin && (
+                <NavLink
+                  to="/app/configuracoes"
+                  className={({ isActive }) =>
+                    `p-2 rounded-md transition-colors ${
+                      isActive
+                        ? 'text-primary bg-primary/5'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                    }`
+                  }
+                  title="Configurações"
+                >
+                  <Settings className="w-5 h-5" />
+                </NavLink>
+              )}
+
+              {/* Sino de Notificacoes */}
+              <NotificacoesSino />
+
+              {/* User Menu */}
+              <div className="relative">
+              <button
+                onClick={() => setUserMenuOpen(!userMenuOpen)}
+                className="flex items-center gap-2 p-2 hover:bg-accent rounded-md transition-all duration-200"
+              >
+                <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center">
+                  <span className="text-sm font-medium text-muted-foreground">
+                    {user?.nome?.[0]?.toUpperCase() || 'U'}
+                  </span>
+                </div>
+                <span className="hidden sm:block text-sm font-medium text-foreground max-w-[150px] truncate">
+                  {user?.nome || 'Usuário'}
+                </span>
+                <ChevronDown className="w-4 h-4 text-muted-foreground" />
+              </button>
+
+              {/* User dropdown */}
+              {userMenuOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setUserMenuOpen(false)}
+                  />
+                  <div className="absolute right-0 mt-1 w-56 bg-white/95 backdrop-blur-md rounded-md shadow-lg border border-gray-200/60 py-1 z-50">
+                    <div className="px-3 py-2 border-b border-gray-200/60">
+                      <p className="text-sm font-medium text-foreground">
+                        {user?.nome || 'Usuário'}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {user?.email}
+                      </p>
+                      <span className="inline-flex items-center mt-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
+                        {role === 'admin' ? 'Admin' : 'Membro'}
+                      </span>
+                    </div>
+                    <button
+                      onClick={handleLogout}
+                      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-foreground hover:bg-accent"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      Sair
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+              </div>
+            </div>
+        </header>
+      )}
 
       {/* Toolbar sticky - 48px (hidden on formulario editor) */}
       {!hideToolbar && <ToolbarWithActions pageTitle={pageTitle} />}
