@@ -56,6 +56,20 @@ export function useConversasRealtime(conversaAtivaId?: string | null) {
           }
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'mensagens',
+          filter: `organizacao_id=eq.${organizacaoId}`,
+        },
+        (payload) => {
+          const mensagemAtualizada = payload.new as any
+          // Invalida cache das mensagens para refletir ACK atualizado
+          queryClient.invalidateQueries({ queryKey: ['mensagens', mensagemAtualizada.conversa_id] })
+        }
+      )
       .subscribe()
 
     return () => {
