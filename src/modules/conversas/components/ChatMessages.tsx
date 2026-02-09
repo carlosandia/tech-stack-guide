@@ -22,6 +22,8 @@ interface ChatMessagesProps {
   conversaTipo?: string
   /** ID da conversa (para consultar votos de enquete) */
   conversaId?: string
+  /** Callback para apagar mensagem */
+  onDeleteMessage?: (mensagemId: string, messageWahaId: string, paraTodos: boolean) => void
 }
 
 function formatDateSeparator(dateStr: string): string {
@@ -68,7 +70,7 @@ function getParticipantDisplayName(msg: Mensagem): string {
   return 'Desconhecido'
 }
 
-export function ChatMessages({ mensagens, isLoading, hasMore, onLoadMore, isFetchingMore, highlightIds, focusedId, conversaTipo, conversaId }: ChatMessagesProps) {
+export function ChatMessages({ mensagens, isLoading, hasMore, onLoadMore, isFetchingMore, highlightIds, focusedId, conversaTipo, conversaId, onDeleteMessage }: ChatMessagesProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const prevLengthRef = useRef(0)
@@ -195,6 +197,7 @@ export function ChatMessages({ mensagens, isLoading, hasMore, onLoadMore, isFetc
               participantName={participantName}
               participantColor={participantColor}
               conversaId={conversaId}
+              onDeleteMessage={onDeleteMessage}
             />
           </div>
         )
