@@ -3090,6 +3090,7 @@ export type Database = {
           mensagem_sucesso: string | null
           meta_descricao: string | null
           meta_titulo: string | null
+          multi_step_config: Json | null
           nome: string
           notificar_email: boolean
           og_image_url: string | null
@@ -3150,6 +3151,7 @@ export type Database = {
           mensagem_sucesso?: string | null
           meta_descricao?: string | null
           meta_titulo?: string | null
+          multi_step_config?: Json | null
           nome: string
           notificar_email?: boolean
           og_image_url?: string | null
@@ -3210,6 +3212,7 @@ export type Database = {
           mensagem_sucesso?: string | null
           meta_descricao?: string | null
           meta_titulo?: string | null
+          multi_step_config?: Json | null
           nome?: string
           notificar_email?: boolean
           og_image_url?: string | null

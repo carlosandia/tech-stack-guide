@@ -1,17 +1,16 @@
 /**
  * AIDEV-NOTE: Tab de Configurações do editor
- * Consolida: Geral (Popup/Newsletter/Etapas), Lógica, A/B Testing
- * Layout 2x2 grid full-width com seções colapsáveis
+ * Layout sidebar vertical + conteúdo full-width
+ * Seções condicionais baseadas no tipo do formulário
  */
 
 import { useState } from 'react'
-import { ChevronDown, Settings2, Zap, FlaskConical, Shield } from 'lucide-react'
+import { Settings2, Shield, Zap, FlaskConical, MousePointerClick, Mail, Layers } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ConfigPopupForm } from '../config/ConfigPopupForm'
 import { ConfigNewsletterForm } from '../config/ConfigNewsletterForm'
 import { ConfigEtapasForm } from '../config/ConfigEtapasForm'
 import { LgpdConfigSection } from '../config/LgpdConfigSection'
-
 import { EditorTabsLogica } from './EditorTabsLogica'
 import { EditorTabsAB } from './EditorTabsAB'
 import type { Formulario } from '../../services/formularios.api'
@@ -20,79 +19,101 @@ interface Props {
   formulario: Formulario
 }
 
-interface SectionProps {
-  title: string
+interface NavItem {
+  id: string
+  label: string
   icon: React.ElementType
-  defaultOpen?: boolean
-  children: React.ReactNode
-}
-
-function CollapsibleSection({ title, icon: Icon, defaultOpen = false, children }: SectionProps) {
-  const [open, setOpen] = useState(defaultOpen)
-
-  return (
-    <div className="border border-border rounded-lg overflow-hidden h-full flex flex-col">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium text-foreground hover:bg-muted/50 transition-colors shrink-0"
-      >
-        <Icon className="w-4 h-4 text-muted-foreground" />
-        <span className="flex-1 text-left">{title}</span>
-        <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform", open && "rotate-180")} />
-      </button>
-      {open && (
-        <div className="border-t border-border px-4 py-4 overflow-y-auto flex-1">
-          {children}
-        </div>
-      )}
-    </div>
-  )
 }
 
 export function EditorTabsConfig({ formulario }: Props) {
-  const isPopup = formulario.tipo === 'popup'
-  const isNewsletter = formulario.tipo === 'newsletter'
+  const navItems: NavItem[] = [
+    { id: 'geral', label: 'Geral', icon: Settings2 },
+    { id: 'lgpd', label: 'LGPD', icon: Shield },
+    { id: 'logica', label: 'Lógica', icon: Zap },
+    { id: 'ab', label: 'A/B Testing', icon: FlaskConical },
+    // Condicionais
+    ...(formulario.tipo === 'popup' ? [{ id: 'popup', label: 'Popup', icon: MousePointerClick }] : []),
+    ...(formulario.tipo === 'newsletter' ? [{ id: 'newsletter', label: 'Newsletter', icon: Mail }] : []),
+    ...(formulario.tipo === 'multi_step' ? [{ id: 'etapas', label: 'Etapas', icon: Layers }] : []),
+  ]
+
+  const [activeSection, setActiveSection] = useState('geral')
 
   return (
-    <div className="h-full overflow-y-auto p-4">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-full">
-        {/* Seção: Configurações Gerais */}
-        <CollapsibleSection title="Configurações Gerais" icon={Settings2} defaultOpen={true}>
-          <div className="space-y-6">
+    <div className="h-full flex flex-col lg:flex-row">
+      {/* Mobile: tabs horizontais */}
+      <div className="lg:hidden flex border-b border-border overflow-x-auto shrink-0 bg-muted/30">
+        {navItems.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => setActiveSection(item.id)}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium whitespace-nowrap transition-colors',
+              activeSection === item.id
+                ? 'text-primary border-b-2 border-primary'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            <item.icon className="w-3.5 h-3.5" />
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Desktop: sidebar vertical */}
+      <div className="hidden lg:flex flex-col w-48 shrink-0 border-r border-border bg-muted/30 py-2">
+        {navItems.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => setActiveSection(item.id)}
+            className={cn(
+              'flex items-center gap-2 px-4 py-2 text-sm transition-colors text-left',
+              activeSection === item.id
+                ? 'text-primary font-medium bg-primary/10 border-l-2 border-primary'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/50 border-l-2 border-transparent'
+            )}
+          >
+            <item.icon className="w-4 h-4" />
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Conteúdo */}
+      <div className="flex-1 overflow-y-auto p-4">
+        <div className="max-w-2xl mx-auto">
+          {activeSection === 'geral' && (
+            <div className="space-y-6">
+              <ConfigEtapasForm formularioId={formulario.id} />
+            </div>
+          )}
+
+          {activeSection === 'lgpd' && (
+            <LgpdConfigSection formulario={formulario} />
+          )}
+
+          {activeSection === 'logica' && (
+            <EditorTabsLogica formulario={formulario} />
+          )}
+
+          {activeSection === 'ab' && (
+            <EditorTabsAB formulario={formulario} />
+          )}
+
+          {activeSection === 'popup' && formulario.tipo === 'popup' && (
+            <ConfigPopupForm formularioId={formulario.id} />
+          )}
+
+          {activeSection === 'newsletter' && formulario.tipo === 'newsletter' && (
+            <ConfigNewsletterForm formularioId={formulario.id} />
+          )}
+
+          {activeSection === 'etapas' && formulario.tipo === 'multi_step' && (
             <ConfigEtapasForm formularioId={formulario.id} />
-
-            {isPopup && (
-              <>
-                <hr className="border-border" />
-                <ConfigPopupForm formularioId={formulario.id} />
-              </>
-            )}
-
-            {isNewsletter && (
-              <>
-                <hr className="border-border" />
-                <ConfigNewsletterForm formularioId={formulario.id} />
-              </>
-            )}
-
-          </div>
-        </CollapsibleSection>
-
-        {/* Seção: LGPD / Consentimento - disponível para TODOS os tipos */}
-        <CollapsibleSection title="LGPD / Consentimento" icon={Shield}>
-          <LgpdConfigSection formulario={formulario} />
-        </CollapsibleSection>
-
-        {/* Seção: Lógica Condicional */}
-        <CollapsibleSection title="Lógica Condicional" icon={Zap}>
-          <EditorTabsLogica formulario={formulario} />
-        </CollapsibleSection>
-
-        {/* Seção: A/B Testing */}
-        <CollapsibleSection title="A/B Testing" icon={FlaskConical}>
-          <EditorTabsAB formulario={formulario} />
-        </CollapsibleSection>
+          )}
+        </div>
       </div>
     </div>
   )
