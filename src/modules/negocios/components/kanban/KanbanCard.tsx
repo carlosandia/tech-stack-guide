@@ -5,7 +5,7 @@
  * Ações rápidas: WhatsApp abre modal de conversa, Email abre compose modal.
  */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   User,
   DollarSign,
@@ -139,18 +139,34 @@ export function KanbanCard({ oportunidade, onDragStart, onClick, config, slaConf
   const enviarEmail = useEnviarEmail()
   const salvarRascunho = useSalvarRascunho()
 
-  const tempoNaEtapa = formatDistanceToNow(new Date(oportunidade.atualizado_em), {
-    locale: ptBR,
-    addSuffix: false,
-  })
-
-  // AIDEV-NOTE: Lógica visual de SLA (RF-06)
-  const tempoDecorridoMs = Date.now() - new Date(oportunidade.atualizado_em).getTime()
-  const tempoDecorridoMin = Math.floor(tempoDecorridoMs / 60000)
+  // AIDEV-NOTE: Countdown reativo de SLA (RF-06)
   const slaAtivo = slaConfig?.sla_ativo && slaConfig.sla_tempo_minutos > 0
-  const slaPorcentagem = slaAtivo ? tempoDecorridoMin / slaConfig!.sla_tempo_minutos : 0
+  const [agora, setAgora] = useState(Date.now())
+
+  useEffect(() => {
+    if (!slaAtivo) return
+    const interval = setInterval(() => setAgora(Date.now()), 1000)
+    return () => clearInterval(interval)
+  }, [slaAtivo])
+
+  const tempoDecorridoSeg = Math.floor((agora - new Date(oportunidade.atualizado_em).getTime()) / 1000)
+  const tempoTotalSeg = slaAtivo ? slaConfig!.sla_tempo_minutos * 60 : 0
+  const tempoRestanteSeg = Math.max(0, tempoTotalSeg - tempoDecorridoSeg)
+  const slaPorcentagem = slaAtivo ? tempoDecorridoSeg / tempoTotalSeg : 0
   const slaStatus = !slaAtivo ? 'normal' : slaPorcentagem >= 1 ? 'estourado' : slaPorcentagem >= 0.8 ? 'aviso' : 'normal'
   const slaColorClass = slaStatus === 'estourado' ? 'text-destructive' : slaStatus === 'aviso' ? 'text-yellow-500' : 'text-muted-foreground'
+
+  const minRestantes = Math.floor(tempoRestanteSeg / 60)
+  const segRestantes = tempoRestanteSeg % 60
+  const countdownText = tempoRestanteSeg > 0
+    ? `${String(minRestantes).padStart(2, '0')}:${String(segRestantes).padStart(2, '0')}`
+    : 'Estourado'
+
+  // Tempo desde a criação (separado do SLA)
+  const tempoCriacao = formatDistanceToNow(new Date(oportunidade.criado_em), {
+    locale: ptBR,
+    addSuffix: true,
+  })
 
   // Renderiza um campo do card baseado na key
   const renderCampo = (key: string) => {
@@ -374,17 +390,20 @@ export function KanbanCard({ oportunidade, onDragStart, onClick, config, slaConf
         </div>
 
         <div className="flex items-center justify-between px-3 py-2 border-t border-border/50 bg-muted/30">
-          <div className={`flex items-center gap-1 text-[11px] ${slaColorClass}`}>
-            <Clock className={`w-3 h-3 ${slaStatus === 'estourado' ? 'animate-pulse' : ''}`} />
-            <span>
-              {slaAtivo
-                ? `${tempoDecorridoMin}/${slaConfig!.sla_tempo_minutos}min`
-                : tempoNaEtapa}
-            </span>
+          <div className="flex flex-col gap-0.5">
+            <div className={`flex items-center gap-1 text-[11px] ${slaColorClass}`}>
+              <Clock className={`w-3 h-3 ${slaStatus === 'estourado' ? 'animate-pulse' : ''}`} />
+              <span>
+                {slaAtivo ? countdownText : tempoCriacao}
+              </span>
+            </div>
+            {slaAtivo && (
+              <span className="text-[10px] text-muted-foreground ml-4">{tempoCriacao}</span>
+            )}
           </div>
 
           {acoesRapidas.length > 0 && (
-            <div className="flex items-center gap-1" onDragStart={(e) => e.stopPropagation()} draggable={false}>
+            <div className="flex items-center gap-0.5" onDragStart={(e) => e.stopPropagation()} draggable={false}>
               {acoesRapidas.map((key) => {
                 const acao = ACOES_ICONS[key]
                 if (!acao) return null
@@ -396,10 +415,10 @@ export function KanbanCard({ oportunidade, onDragStart, onClick, config, slaConf
                     draggable={false}
                     onMouseDown={(e) => e.stopPropagation()}
                     onClick={(e) => handleAcaoRapida(e, key)}
-                    className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                    className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
                     title={acao.label}
                   >
-                    <Icon className="w-4 h-4" />
+                    <Icon className="w-3.5 h-3.5" />
                   </button>
                 )
               })}
