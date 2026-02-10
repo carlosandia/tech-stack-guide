@@ -5,7 +5,7 @@
  * Estilos integrados no preview com click-to-edit inline
  */
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { PanelLeft, PanelRight, Loader2, LayoutGrid, Settings2, Share2, BarChart3 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -97,6 +97,7 @@ export function FormularioEditorPage() {
   const [showFinalPreview, setShowFinalPreview] = useState(false)
   const [selectedStyleElement, setSelectedStyleElement] = useState<SelectedElement>(null)
   const [showCssDrawer, setShowCssDrawer] = useState(false)
+  const botaoSaveConfigRef = useRef<(() => Promise<void>) | null>(null)
 
   const selectedCampo = campos.find((c) => c.id === selectedCampoId)
 
@@ -350,6 +351,7 @@ export function FormularioEditorPage() {
                 titulo={panelTitle}
                 onSave={handleSaveEstilos}
                 isSaving={salvarEstilos.isPending}
+                onSaveConfig={(selectedStyleElement === 'botao' || selectedStyleElement === 'botao_whatsapp') ? async () => { await botaoSaveConfigRef.current?.() } : undefined}
               >
                 {selectedStyleElement === 'container' && (
                   <EstiloContainerForm value={container} onChange={setContainer} />
@@ -364,8 +366,7 @@ export function FormularioEditorPage() {
                     estiloBotao={botao}
                     onChangeEstilo={setBotao}
                     onConfigChange={setLocalConfigBotoes}
-                    onSaveEstilos={handleSaveEstilos}
-                    isSavingEstilos={salvarEstilos.isPending}
+                    onRegisterSave={(fn) => { botaoSaveConfigRef.current = fn }}
                   />
                 )}
                 {selectedStyleElement === 'botao_whatsapp' && (
@@ -375,8 +376,7 @@ export function FormularioEditorPage() {
                     estiloBotao={botao}
                     onChangeEstilo={setBotao}
                     onConfigChange={setLocalConfigBotoes}
-                    onSaveEstilos={handleSaveEstilos}
-                    isSavingEstilos={salvarEstilos.isPending}
+                    onRegisterSave={(fn) => { botaoSaveConfigRef.current = fn }}
                   />
                 )}
               </EstiloPopover>

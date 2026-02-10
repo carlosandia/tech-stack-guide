@@ -16,8 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Button } from '@/components/ui/button'
-import { Send, Loader2, Bold, Italic, Underline, Mail } from 'lucide-react'
+import { Send, Bold, Italic, Underline, Mail } from 'lucide-react'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
@@ -61,12 +60,12 @@ interface Props {
   onConfigChange?: (config: ConfigBotoes) => void
   onSaveEstilos?: () => void
   isSavingEstilos?: boolean
+  onRegisterSave?: (saveFn: () => Promise<void>) => void
 }
 
-export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEstilo, onConfigChange }: Props) {
+export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEstilo, onConfigChange, onRegisterSave }: Props) {
   const [tab, setTab] = useState<TabType>('estilo')
   const [config, setConfig] = useState<ConfigBotoes>(CONFIG_PADRAO)
-  const [saving, setSaving] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [funis, setFunis] = useState<FunilOption[]>([])
   const [smtpInfo, setSmtpInfo] = useState<SmtpInfo | null>(null)
@@ -156,21 +155,24 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
   }
 
   const saveConfig = async () => {
-    setSaving(true)
     const { error } = await supabase
       .from('formularios')
       .update({ config_botoes: config as any, config_pos_envio: posEnvio as any })
       .eq('id', formularioId)
 
-    setSaving(false)
     if (error) {
       toast.error('Erro ao salvar configuração')
     } else {
-      toast.success('Configuração salva com sucesso')
+      toast.success('Configuração salva')
       queryClient.invalidateQueries({ queryKey: ['formularios', formularioId] })
       onConfigChange?.(config)
     }
   }
+
+  // Register save function for parent to call
+  useEffect(() => {
+    onRegisterSave?.(saveConfig)
+  })
 
   const updatePosEnvio = (key: string, value: unknown) => {
     setPosEnvio(prev => ({ ...prev, [key]: value }))
@@ -594,10 +596,6 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
             </div>
           )}
 
-          <Button size="sm" className="w-full text-xs" onClick={saveConfig} disabled={saving}>
-            {saving ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : null}
-            Salvar Configuração
-          </Button>
         </div>
       )}
 
@@ -670,10 +668,6 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
             </div>
           )}
 
-          <Button size="sm" className="w-full text-xs" onClick={saveConfig} disabled={saving}>
-            {saving ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : null}
-            Salvar Pós-Envio
-          </Button>
         </div>
       )}
     </div>
