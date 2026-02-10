@@ -1,11 +1,13 @@
 /**
  * AIDEV-NOTE: Painel lateral de configuração do campo selecionado
  * Permite editar label, placeholder, obrigatório, validações, mapeamento
+ * Inclui campos customizados globais (pessoa/empresa) no mapeamento
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { X, Plus, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useQueryClient } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -19,11 +21,17 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import type { CampoFormulario } from '../../services/formularios.api'
-import { useCriarCampo } from '@/modules/configuracoes/hooks/useCampos'
+import { useCriarCampo, useCampos } from '@/modules/configuracoes/hooks/useCampos'
 import { tipoCampoOptions } from '@/modules/configuracoes/schemas/campos.schema'
 import type { CriarCampoPayload } from '@/modules/configuracoes/services/configuracoes.api'
 
-const MAPEAMENTOS = [
+interface MapeamentoItem {
+  value: string
+  label: string
+  grupo: string
+}
+
+const MAPEAMENTOS_PADRAO: MapeamentoItem[] = [
   { value: 'nenhum', label: 'Nenhum', grupo: '' },
   // Pessoa
   { value: 'pessoa.nome', label: 'Nome', grupo: 'Pessoa' },
@@ -43,14 +51,6 @@ const MAPEAMENTOS = [
   { value: 'empresa.segmento', label: 'Segmento de Mercado', grupo: 'Empresa' },
   { value: 'empresa.porte', label: 'Porte', grupo: 'Empresa' },
   { value: 'empresa.observacoes', label: 'Observações', grupo: 'Empresa' },
-  // Endereço (compartilhado)
-  { value: 'endereco.logradouro', label: 'Logradouro', grupo: 'Endereço' },
-  { value: 'endereco.numero', label: 'Número', grupo: 'Endereço' },
-  { value: 'endereco.complemento', label: 'Complemento', grupo: 'Endereço' },
-  { value: 'endereco.bairro', label: 'Bairro', grupo: 'Endereço' },
-  { value: 'endereco.cidade', label: 'Cidade', grupo: 'Endereço' },
-  { value: 'endereco.estado', label: 'Estado', grupo: 'Endereço' },
-  { value: 'endereco.cep', label: 'CEP', grupo: 'Endereço' },
 ]
 
 const LARGURAS = [
@@ -68,11 +68,44 @@ interface Props {
 }
 
 export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props) {
+  const queryClient = useQueryClient()
   const criarCampoMutation = useCriarCampo()
+  const { data: camposPessoa } = useCampos('pessoa')
+  const { data: camposEmpresa } = useCampos('empresa')
+
   const [showCriarCampo, setShowCriarCampo] = useState(false)
   const [criarCampoEntidade, setCriarCampoEntidade] = useState<'pessoa' | 'empresa'>('pessoa')
   const [novoCampoNome, setNovoCampoNome] = useState('')
   const [novoCampoTipo, setNovoCampoTipo] = useState('texto')
+
+  // Build dynamic mapping list with custom fields
+  const MAPEAMENTOS = useMemo(() => {
+    const items: MapeamentoItem[] = [...MAPEAMENTOS_PADRAO]
+
+    // Add custom pessoa fields
+    const listaPessoa = Array.isArray(camposPessoa) ? camposPessoa : (camposPessoa?.campos || [])
+    const customPessoa = listaPessoa.filter((c: any) => !c.sistema && !c.deletado_em)
+    for (const cp of customPessoa) {
+      const slug = cp.slug || cp.nome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '_')
+      const value = `custom.pessoa.${slug}`
+      if (!items.some(i => i.value === value)) {
+        items.push({ value, label: cp.nome, grupo: 'Pessoa' })
+      }
+    }
+
+    const listaEmpresa = Array.isArray(camposEmpresa) ? camposEmpresa : (camposEmpresa?.campos || [])
+    const customEmpresa = listaEmpresa.filter((c: any) => !c.sistema && !c.deletado_em)
+    for (const ce of customEmpresa) {
+      const slug = ce.slug || ce.nome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '_')
+      const value = `custom.empresa.${slug}`
+      if (!items.some(i => i.value === value)) {
+        items.push({ value, label: ce.nome, grupo: 'Empresa' })
+      }
+    }
+
+    return items
+  }, [camposPessoa, camposEmpresa])
+
   const [form, setForm] = useState({
     label: campo.label || '',
     nome: campo.nome || '',
@@ -278,6 +311,10 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
                         nome: novoCampoNome.trim(),
                         entidade: criarCampoEntidade,
                         tipo: novoCampoTipo as CriarCampoPayload['tipo'],
+                      })
+                      // Invalidate campos queries so new field appears immediately
+                      await queryClient.invalidateQueries({
+                        queryKey: ['configuracoes', 'campos', criarCampoEntidade],
                       })
                       // Auto-mapear para o novo campo
                       const mapeamento = `custom.${criarCampoEntidade}.${slug}`
