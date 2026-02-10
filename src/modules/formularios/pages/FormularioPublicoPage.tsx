@@ -73,7 +73,7 @@ export function FormularioPublicoPage() {
   const [lgpdAceito, setLgpdAceito] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [ddiSelecionado, setDdiSelecionado] = useState<Record<string, string>>({})
-  const [enderecoValues, setEnderecoValues] = useState<Record<string, { rua: string; numero: string; cidade: string; estado: string }>>({})
+  const [enderecoValues, setEnderecoValues] = useState<Record<string, { rua: string; numero: string; complemento: string }>>({})
   const [buscandoCep, setBuscandoCep] = useState<Record<string, boolean>>({})
 
   // Captura UTMs
@@ -311,7 +311,7 @@ export function FormularioPublicoPage() {
                   onChange: (v) => handleChange(campo.id, campo.tipo, v),
                   ddi: ddiSelecionado[campo.id] || '+55',
                   onDdiChange: (ddi) => setDdiSelecionado(prev => ({ ...prev, [campo.id]: ddi })),
-                  enderecoValue: enderecoValues[campo.id] || { rua: '', numero: '', cidade: '', estado: '' },
+                  enderecoValue: enderecoValues[campo.id] || { rua: '', numero: '', complemento: '' },
                   onEnderecoChange: (val) => setEnderecoValues(prev => ({ ...prev, [campo.id]: val })),
                   buscandoCepField: buscandoCep[campo.id] || false,
                   onCepBusca: async (cepVal: string) => {
@@ -322,23 +322,27 @@ export function FormularioPublicoPage() {
                       const resp = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`)
                       const data = await resp.json()
                       if (!data.erro) {
-                        // Find the endereco campo that follows this CEP
+                        // Auto-fill separate endereco, cidade, estado fields
                         const endCampo = campos.find(c => c.tipo === 'endereco')
                         if (endCampo) {
                           setEnderecoValues(prev => ({
                             ...prev,
-                            [endCampo.id]: {
-                              rua: data.logradouro || '',
-                              numero: '',
-                              cidade: data.localidade || '',
-                              estado: data.uf || '',
-                            }
+                            [endCampo.id]: { rua: data.logradouro || '', numero: '', complemento: '' }
                           }))
+                          setValores(prev => ({ ...prev, [endCampo.id]: data.logradouro || '' }))
                         }
+                        const cidadeCampo = campos.find(c => c.tipo === 'cidade')
+                        if (cidadeCampo) setValores(prev => ({ ...prev, [cidadeCampo.id]: data.localidade || '' }))
+                        const estadoCampo = campos.find(c => c.tipo === 'estado')
+                        if (estadoCampo) setValores(prev => ({ ...prev, [estadoCampo.id]: data.uf || '' }))
+                        const paisCampo = campos.find(c => c.tipo === 'pais')
+                        if (paisCampo) setValores(prev => ({ ...prev, [paisCampo.id]: 'Brasil' }))
                       }
                     } catch { /* silently fail */ }
                     setBuscandoCep(prev => ({ ...prev, [campo.id]: false }))
                   },
+                  allCampos: campos,
+                  setValores,
                 })}
               </div>
             )
@@ -394,7 +398,7 @@ export function FormularioPublicoPage() {
 // Renderização de cada tipo de campo
 // =====================================================
 
-interface EnderecoValue { rua: string; numero: string; cidade: string; estado: string }
+interface EnderecoValue { rua: string; numero: string; complemento: string }
 
 interface RenderCampoProps {
   campo: CampoFormulario
@@ -410,6 +414,8 @@ interface RenderCampoProps {
   onEnderecoChange: (val: EnderecoValue) => void
   buscandoCepField: boolean
   onCepBusca: (cep: string) => void
+  allCampos: CampoFormulario[]
+  setValores: React.Dispatch<React.SetStateAction<Record<string, string>>>
 }
 
 // =====================================================
@@ -761,24 +767,17 @@ function renderCampoPublico(props: RenderCampoProps) {
       const updateField = (field: keyof EnderecoValue, v: string) => {
         const updated = { ...ev, [field]: v }
         onEnderecoChange(updated)
-        // Serialize to single value for submission
-        onChange([updated.rua, updated.numero, updated.cidade, updated.estado].filter(Boolean).join(', '))
+        onChange([updated.rua, updated.numero, updated.complemento].filter(Boolean).join(', '))
       }
       return (
         <div>
           {renderLabel()}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <div style={{ display: 'flex', gap: '8px' }}>
-              <input style={{ ...inputStyle, flex: 2 }} placeholder="Rua / Logradouro" value={ev.rua} onChange={e => updateField('rua', e.target.value)} />
-              <input style={{ ...inputStyle, flex: 0, width: '100px', minWidth: '80px' }} placeholder="Nº" value={ev.numero} onChange={e => updateField('numero', e.target.value)} />
+              <input style={{ ...inputStyle, flex: 1 }} placeholder="Rua / Logradouro" value={ev.rua} onChange={e => updateField('rua', e.target.value)} />
+              <input style={{ ...inputStyle, flex: 0, width: '80px', minWidth: '70px' }} placeholder="Nº" value={ev.numero} onChange={e => updateField('numero', e.target.value)} />
             </div>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <input style={{ ...inputStyle, flex: 1 }} placeholder="Cidade" value={ev.cidade} onChange={e => updateField('cidade', e.target.value)} />
-              <select style={{ ...inputStyle, flex: 0, width: '90px', minWidth: '80px', appearance: 'auto' as const }} value={ev.estado} onChange={e => updateField('estado', e.target.value)}>
-                <option value="">UF</option>
-                {ESTADOS_BR.map(uf => <option key={uf} value={uf}>{uf}</option>)}
-              </select>
-            </div>
+            <input style={inputStyle} placeholder="Complemento (opcional)" value={ev.complemento} onChange={e => updateField('complemento', e.target.value)} />
           </div>
         </div>
       )

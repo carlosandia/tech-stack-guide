@@ -337,11 +337,11 @@ function renderFieldPreview(campo: CampoFormulario) {
     case 'endereco':
       return (
         <div className="space-y-1.5">
-          <div className={baseInputClass}>{placeholder || 'Rua, número...'}</div>
-          <div className="grid grid-cols-2 gap-1.5">
-            <div className={baseInputClass}>Cidade</div>
-            <div className={baseInputClass}>Estado</div>
+          <div className="grid grid-cols-[1fr_80px] gap-1.5">
+            <div className={baseInputClass}>{placeholder || 'Rua / Logradouro'}</div>
+            <div className={baseInputClass}>Nº</div>
           </div>
+          <div className={baseInputClass}>Complemento</div>
         </div>
       )
 

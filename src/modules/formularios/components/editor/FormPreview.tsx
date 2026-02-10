@@ -1195,11 +1195,11 @@ function renderFinalCampo(
         return (
           <div>
             {renderLabel(campo, labelStyle)}
-            <input style={{ ...inputStyle, marginBottom: '6px' }} placeholder={placeholder || 'Rua, número...'} value={valor} onChange={handleInput} />
-            <div style={{ display: 'flex', gap: '6px' }}>
-              <input style={{ ...inputStyle, flex: 1 }} placeholder="Cidade" />
-              <input style={{ ...inputStyle, flex: 1 }} placeholder="Estado" />
+            <div style={{ display: 'flex', gap: '6px', marginBottom: '6px' }}>
+              <input style={{ ...inputStyle, flex: 1 }} placeholder={placeholder || 'Rua / Logradouro'} value={valor} onChange={handleInput} />
+              <input style={{ ...inputStyle, flex: 0, width: '80px', minWidth: '70px' }} placeholder="Nº" />
             </div>
+            <input style={inputStyle} placeholder="Complemento" />
           </div>
         )
       case 'avaliacao':
