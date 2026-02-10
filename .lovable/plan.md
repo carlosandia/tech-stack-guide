@@ -1,64 +1,101 @@
 
-# Botao "Historico" com Popover de Emails Visualizados
+# Editor de Layout para Popup com Templates Pre-definidos
 
 ## Objetivo
-Adicionar um botao "Historico" na toolbar do modulo de Emails que abre um popover/dropdown com uma timeline dos ultimos emails visualizados pelo usuario. Cada item mostra nome do remetente, email e permite clicar para reabrir o email (marcando como lido).
+Transformar o editor de formularios tipo "popup" para suportar layouts visuais com imagem + campos, usando templates pre-definidos. O usuario escolhe um template de layout (ex: imagem a esquerda, campos a direita) e configura a imagem via upload ou URL externa.
 
-## Como Funciona
+## Templates de Layout Disponíveis (6 opcoes)
 
-O historico sera armazenado localmente no `localStorage` (maximo 20 itens). Toda vez que o usuario seleciona um email para ler, um registro e adicionado ao historico com: id, nome, email, assunto e timestamp. O popover exibe esses registros como uma lista cronologica.
+```text
+1. "so_campos"          - Layout padrao, apenas campos (sem imagem)
+2. "imagem_esquerda"    - Imagem ocupa 40% a esquerda, campos 60% a direita
+3. "imagem_direita"     - Campos 60% a esquerda, imagem 40% a direita
+4. "imagem_topo"        - Imagem no topo (altura fixa), campos abaixo
+5. "imagem_fundo"       - Imagem de fundo cobrindo o popup inteiro, campos sobrepostos com overlay
+6. "imagem_lateral_full"- Imagem lateral 50% altura total, campos 50%
+```
+
+## Dados (ja existentes no banco)
+
+A tabela `config_popup_formularios` ja possui:
+- `popup_imagem_url` (text, nullable) - URL da imagem
+- `popup_imagem_posicao` (varchar) - sera usado para guardar o template escolhido
+
+Nao e necessaria nenhuma migracao SQL.
+
+## Storage
+
+Sera criado um bucket `formularios` no Supabase Storage via migracao SQL para uploads de imagens dos popups. Politica RLS: usuarios autenticados podem fazer upload e leitura.
 
 ## Arquivos a Criar
 
-### 1. `src/modules/emails/components/EmailHistoricoPopover.tsx`
-- Botao com icone `History` (lucide) e texto "Historico"
-- Popover manual (mesmo padrao do MoreMenu no EmailViewer: div absoluta + click outside)
-- Lista de ate 20 itens recentes, ordenados do mais recente para o mais antigo
-- Cada item mostra:
-  - Avatar circular com inicial colorida (mesmo `getInitialColor` do EmailViewer)
-  - Nome do remetente (bold)
-  - Email do remetente (muted)
-  - Assunto truncado
-  - Timestamp relativo (ex: "ha 5min", "ha 2h", "ontem")
-  - Botao/area clicavel que dispara `onSelect(id)`
-- Botao "Limpar historico" no rodape
-- Estado vazio: "Nenhum email visualizado recentemente"
-- z-index alto (z-50) e background solido `bg-background`
+### 1. `src/modules/formularios/components/config/PopupLayoutSelector.tsx`
+- Grade visual com 6 mini-previews dos templates
+- Cada template representado por um card clicavel com icone/diagrama SVG inline
+- O template ativo fica destacado com borda primary
+- Abaixo do seletor de template, campo de imagem (upload + URL):
+  - Toggle: "Upload" | "URL externa"
+  - Upload: input file com preview da imagem, compressao via `compressMedia.ts`
+  - URL: input text com preview ao perder foco
+  - Botao "Remover imagem"
 
-### 2. `src/modules/emails/hooks/useEmailHistorico.ts`
-- Hook que gerencia o historico no localStorage (chave: `emails_historico_visualizados`)
-- Funcoes: `adicionar(email)`, `listar()`, `limpar()`
-- Tipo `HistoricoItem`: `{ id, nome, email, assunto, timestamp }`
-- Limite de 20 itens (FIFO - remove o mais antigo)
-- Deduplicacao: se o mesmo email for aberto novamente, move para o topo
+### 2. Migracao SQL para bucket de storage
+- Criar bucket `formularios` (publico)
+- RLS: authenticated pode INSERT, SELECT; proprietario pode DELETE
 
 ## Arquivos a Modificar
 
-### 3. `src/modules/emails/pages/EmailsPage.tsx`
-- Importar `EmailHistoricoPopover` e `useEmailHistorico`
-- No `useEffect` que marca email como lido (linha 185-189), adicionar chamada para `historico.adicionar(selectedEmail)` quando o email e carregado
-- Adicionar o botao Historico na toolbar (entre Metricas e Assinatura)
-- Passar `onSelect={handleSelect}` para o popover para navegar ao email clicado
+### 3. `src/modules/formularios/components/config/ConfigPopupForm.tsx`
+- Importar e renderizar `PopupLayoutSelector` no topo do formulario
+- Passar `popup_imagem_url` e `popup_imagem_posicao` como props
+- Callbacks para atualizar o form state local
+
+### 4. `src/modules/formularios/components/editor/FormPreview.tsx`
+- Quando `formulario.tipo === 'popup'`, buscar config popup e aplicar o layout correspondente
+- Para cada template, o preview envolve o container do formulario em uma estrutura diferente:
+  - `imagem_esquerda`: flex-row com div imagem (40%) + div campos (60%)
+  - `imagem_direita`: flex-row com div campos (60%) + div imagem (40%)
+  - `imagem_topo`: flex-col com div imagem (altura fixa 200px) + div campos
+  - `imagem_fundo`: div relativa com imagem absoluta + overlay + campos
+  - `imagem_lateral_full`: flex-row 50/50
+  - `so_campos`: sem alteracao (layout atual)
+- A imagem usa `object-cover` e `rounded` seguindo o container
+
+### 5. `src/modules/formularios/pages/FormularioEditorPage.tsx`
+- Buscar `configPopup` via hook `useConfigPopup` quando `formulario.tipo === 'popup'`
+- Passar `configPopup` como prop para `FormPreview`
 
 ## Detalhes Tecnicos
 
-### Estrutura do item no historico
+### Seletor de Template (mini-previews)
+Cada template sera representado por um bloco com:
+- Fundo `bg-muted` com divisoes visuais simples (retangulos coloridos)
+- Label abaixo: "Sem imagem", "Imagem a esquerda", etc.
+- Grid: `grid grid-cols-3 gap-2`
+- Tamanho: ~80x60px cada mini-preview
+
+### Upload de Imagem
+- Usa `compressMedia.ts` existente para compressao client-side
+- Upload para `formularios/{formularioId}/popup-image.{ext}` no Supabase Storage
+- Preview inline com `max-h-32 object-cover rounded`
+- Limite: aceita JPG, PNG, WebP
+
+### Renderizacao do Layout no Preview
+O componente `FormPreview` recebera uma nova prop `popupLayout` com:
 ```text
 {
-  id: string           // ID do email
-  nome: string         // de_nome ou de_email
-  email: string        // de_email
-  assunto: string      // assunto do email
-  timestamp: number    // Date.now() de quando foi visualizado
+  template: 'so_campos' | 'imagem_esquerda' | 'imagem_direita' | 'imagem_topo' | 'imagem_fundo' | 'imagem_lateral_full'
+  imagemUrl: string | null
 }
 ```
 
-### Layout do popover
-- Largura: `w-80` (320px)
-- Max height: `max-h-96` com scroll
-- Header: "Ultimos visualizados" com icone History
-- Lista: items com hover bg-accent, cursor-pointer
-- Footer: botao "Limpar" discreto
+O wrapper do container sera condicional:
+- Se template tem imagem e imagemUrl existe: renderiza o layout correspondente
+- Se template tem imagem mas imagemUrl e null: mostra placeholder cinza com texto "Adicione uma imagem"
+- Se template e `so_campos`: renderiza normalmente sem alteracao
 
-### Toolbar - ordem dos botoes
-Historico | Metricas | Assinatura
+### Estrutura CSS dos Templates
+- `imagem_esquerda/direita`: `flex` com imagem `w-2/5` e campos `w-3/5`
+- `imagem_topo`: `flex-col` com imagem `h-48` e campos flex-1
+- `imagem_fundo`: `relative` com imagem absolute inset-0 + overlay `bg-black/40`
+- `imagem_lateral_full`: `flex` com ambos `w-1/2`
