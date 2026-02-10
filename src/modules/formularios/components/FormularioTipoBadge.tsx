@@ -4,13 +4,12 @@
  */
 
 import { Badge } from '@/components/ui/badge'
-import { FileText, MessageSquare, Globe, Mail, Layers } from 'lucide-react'
+import { FileText, MessageSquare, Mail, Layers } from 'lucide-react'
 import type { TipoFormulario } from '../services/formularios.api'
 
 const tipoConfig: Record<TipoFormulario, { label: string; icon: typeof FileText }> = {
   inline: { label: 'Inline', icon: FileText },
   popup: { label: 'Popup', icon: MessageSquare },
-  landing_page: { label: 'Landing Page', icon: Globe },
   newsletter: { label: 'Newsletter', icon: Mail },
   multi_step: { label: 'Multi-step', icon: Layers },
 }

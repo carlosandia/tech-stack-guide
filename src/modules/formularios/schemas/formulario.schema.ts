@@ -8,7 +8,6 @@ import { z } from 'zod'
 export const TipoFormularioOptions = [
   { value: 'inline', label: 'Inline (Embutido)' },
   { value: 'popup', label: 'Popup' },
-  { value: 'landing_page', label: 'Landing Page' },
   { value: 'newsletter', label: 'Newsletter' },
   { value: 'multi_step', label: 'Multi-step' },
 ] as const
@@ -21,7 +20,7 @@ export const StatusFormularioOptions = [
 
 export const criarFormularioSchema = z.object({
   nome: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres').max(100, 'Nome muito longo'),
-  tipo: z.enum(['inline', 'popup', 'landing_page', 'newsletter', 'multi_step'], {
+  tipo: z.enum(['inline', 'popup', 'newsletter', 'multi_step'], {
     required_error: 'Selecione o tipo do formulário',
   }),
   descricao: z.string().max(500).optional(),

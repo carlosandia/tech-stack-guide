@@ -9,6 +9,7 @@ import { Settings2, Shield, Zap, FlaskConical, MousePointerClick, Mail, Layers }
 import { cn } from '@/lib/utils'
 import { ConfigPopupForm } from '../config/ConfigPopupForm'
 import { ConfigNewsletterForm } from '../config/ConfigNewsletterForm'
+import { ConfigGeralForm } from '../config/ConfigGeralForm'
 import { ConfigEtapasForm } from '../config/ConfigEtapasForm'
 import { LgpdConfigSection } from '../config/LgpdConfigSection'
 import { EditorTabsLogica } from './EditorTabsLogica'
@@ -85,9 +86,7 @@ export function EditorTabsConfig({ formulario }: Props) {
       <div className="flex-1 overflow-y-auto p-4">
         <div className="max-w-2xl mx-auto">
           {activeSection === 'geral' && (
-            <div className="space-y-6">
-              <ConfigEtapasForm formularioId={formulario.id} />
-            </div>
+            <ConfigGeralForm formulario={formulario} />
           )}
 
           {activeSection === 'lgpd' && (
