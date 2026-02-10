@@ -51,9 +51,10 @@ const MAPEAMENTOS = [
 ]
 
 const LARGURAS = [
-  { value: 'full', label: 'Largura Total' },
-  { value: 'half', label: 'Meia Largura' },
-  { value: 'third', label: 'Um Terço' },
+  { value: 'full', label: 'Largura Total (100%)' },
+  { value: '1/2', label: 'Meia Largura (50%)' },
+  { value: '1/3', label: 'Um Terço (33%)' },
+  { value: '2/3', label: 'Dois Terços (66%)' },
 ]
 
 interface Props {

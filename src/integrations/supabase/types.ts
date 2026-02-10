@@ -965,11 +965,13 @@ export type Database = {
       }
       config_newsletter_formularios: {
         Row: {
+          assunto_boas_vindas: string | null
           assunto_email_confirmacao: string | null
           atualizado_em: string | null
           criado_em: string | null
           descricao_frequencia_envio: string | null
           double_optin_ativo: boolean | null
+          email_boas_vindas_ativo: boolean | null
           formulario_id: string
           frequencia_envio: string | null
           id: string
@@ -982,16 +984,19 @@ export type Database = {
           provedor_externo: string | null
           ref_api_key_externa: string | null
           tags: Json | null
+          template_boas_vindas: string | null
           template_email_confirmacao: string | null
           texto_consentimento: string | null
           url_politica_privacidade: string | null
         }
         Insert: {
+          assunto_boas_vindas?: string | null
           assunto_email_confirmacao?: string | null
           atualizado_em?: string | null
           criado_em?: string | null
           descricao_frequencia_envio?: string | null
           double_optin_ativo?: boolean | null
+          email_boas_vindas_ativo?: boolean | null
           formulario_id: string
           frequencia_envio?: string | null
           id?: string
@@ -1004,16 +1009,19 @@ export type Database = {
           provedor_externo?: string | null
           ref_api_key_externa?: string | null
           tags?: Json | null
+          template_boas_vindas?: string | null
           template_email_confirmacao?: string | null
           texto_consentimento?: string | null
           url_politica_privacidade?: string | null
         }
         Update: {
+          assunto_boas_vindas?: string | null
           assunto_email_confirmacao?: string | null
           atualizado_em?: string | null
           criado_em?: string | null
           descricao_frequencia_envio?: string | null
           double_optin_ativo?: boolean | null
+          email_boas_vindas_ativo?: boolean | null
           formulario_id?: string
           frequencia_envio?: string | null
           id?: string
@@ -1026,6 +1034,7 @@ export type Database = {
           provedor_externo?: string | null
           ref_api_key_externa?: string | null
           tags?: Json | null
+          template_boas_vindas?: string | null
           template_email_confirmacao?: string | null
           texto_consentimento?: string | null
           url_politica_privacidade?: string | null
@@ -1042,17 +1051,25 @@ export type Database = {
       }
       config_popup_formularios: {
         Row: {
+          ativo_a_partir_de: string | null
+          ativo_ate: string | null
           atraso_segundos: number | null
           atualizado_em: string | null
           clique_overlay_fecha: boolean | null
           cor_fundo_overlay: string | null
           criado_em: string | null
+          delay_botao_fechar: number | null
           dias_expiracao_cookie: number | null
           duracao_animacao_ms: number | null
           formulario_id: string
+          frequencia_exibicao: string | null
           id: string
+          max_exibicoes: number | null
+          mostrar_botao_fechar: boolean | null
           mostrar_mobile: boolean | null
           mostrar_uma_vez_sessao: boolean | null
+          paginas_alvo: string[] | null
+          paginas_excluidas: string[] | null
           popup_imagem_link: string | null
           popup_imagem_posicao: string | null
           popup_imagem_url: string | null
@@ -1061,19 +1078,28 @@ export type Database = {
           seletor_elemento_clique: string | null
           tipo_animacao: string | null
           tipo_gatilho: string
+          utm_filtro: Json | null
         }
         Insert: {
+          ativo_a_partir_de?: string | null
+          ativo_ate?: string | null
           atraso_segundos?: number | null
           atualizado_em?: string | null
           clique_overlay_fecha?: boolean | null
           cor_fundo_overlay?: string | null
           criado_em?: string | null
+          delay_botao_fechar?: number | null
           dias_expiracao_cookie?: number | null
           duracao_animacao_ms?: number | null
           formulario_id: string
+          frequencia_exibicao?: string | null
           id?: string
+          max_exibicoes?: number | null
+          mostrar_botao_fechar?: boolean | null
           mostrar_mobile?: boolean | null
           mostrar_uma_vez_sessao?: boolean | null
+          paginas_alvo?: string[] | null
+          paginas_excluidas?: string[] | null
           popup_imagem_link?: string | null
           popup_imagem_posicao?: string | null
           popup_imagem_url?: string | null
@@ -1082,19 +1108,28 @@ export type Database = {
           seletor_elemento_clique?: string | null
           tipo_animacao?: string | null
           tipo_gatilho?: string
+          utm_filtro?: Json | null
         }
         Update: {
+          ativo_a_partir_de?: string | null
+          ativo_ate?: string | null
           atraso_segundos?: number | null
           atualizado_em?: string | null
           clique_overlay_fecha?: boolean | null
           cor_fundo_overlay?: string | null
           criado_em?: string | null
+          delay_botao_fechar?: number | null
           dias_expiracao_cookie?: number | null
           duracao_animacao_ms?: number | null
           formulario_id?: string
+          frequencia_exibicao?: string | null
           id?: string
+          max_exibicoes?: number | null
+          mostrar_botao_fechar?: boolean | null
           mostrar_mobile?: boolean | null
           mostrar_uma_vez_sessao?: boolean | null
+          paginas_alvo?: string[] | null
+          paginas_excluidas?: string[] | null
           popup_imagem_link?: string | null
           popup_imagem_posicao?: string | null
           popup_imagem_url?: string | null
@@ -1103,6 +1138,7 @@ export type Database = {
           seletor_elemento_clique?: string | null
           tipo_animacao?: string | null
           tipo_gatilho?: string
+          utm_filtro?: Json | null
         }
         Relationships: [
           {
@@ -3045,6 +3081,10 @@ export type Database = {
           honeypot_ativo: boolean
           id: string
           lead_scoring_ativo: boolean | null
+          lgpd_ativo: boolean | null
+          lgpd_checkbox_obrigatorio: boolean | null
+          lgpd_texto_consentimento: string | null
+          lgpd_url_politica: string | null
           max_submissoes: number | null
           mensagem_fechado: string | null
           mensagem_sucesso: string | null
@@ -3101,6 +3141,10 @@ export type Database = {
           honeypot_ativo?: boolean
           id?: string
           lead_scoring_ativo?: boolean | null
+          lgpd_ativo?: boolean | null
+          lgpd_checkbox_obrigatorio?: boolean | null
+          lgpd_texto_consentimento?: string | null
+          lgpd_url_politica?: string | null
           max_submissoes?: number | null
           mensagem_fechado?: string | null
           mensagem_sucesso?: string | null
@@ -3157,6 +3201,10 @@ export type Database = {
           honeypot_ativo?: boolean
           id?: string
           lead_scoring_ativo?: boolean | null
+          lgpd_ativo?: boolean | null
+          lgpd_checkbox_obrigatorio?: boolean | null
+          lgpd_texto_consentimento?: string | null
+          lgpd_url_politica?: string | null
           max_submissoes?: number | null
           mensagem_fechado?: string | null
           mensagem_sucesso?: string | null

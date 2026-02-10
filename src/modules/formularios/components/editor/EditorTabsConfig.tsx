@@ -5,12 +5,12 @@
  */
 
 import { useState } from 'react'
-import { ChevronDown, Settings2, Zap, FlaskConical } from 'lucide-react'
+import { ChevronDown, Settings2, Zap, FlaskConical, Shield } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ConfigPopupForm } from '../config/ConfigPopupForm'
 import { ConfigNewsletterForm } from '../config/ConfigNewsletterForm'
 import { ConfigEtapasForm } from '../config/ConfigEtapasForm'
-
+import { LgpdConfigSection } from '../config/LgpdConfigSection'
 
 import { EditorTabsLogica } from './EditorTabsLogica'
 import { EditorTabsAB } from './EditorTabsAB'
@@ -77,6 +77,11 @@ export function EditorTabsConfig({ formulario }: Props) {
             )}
 
           </div>
+        </CollapsibleSection>
+
+        {/* Seção: LGPD / Consentimento - disponível para TODOS os tipos */}
+        <CollapsibleSection title="LGPD / Consentimento" icon={Shield}>
+          <LgpdConfigSection formulario={formulario} />
         </CollapsibleSection>
 
         {/* Seção: Lógica Condicional */}
