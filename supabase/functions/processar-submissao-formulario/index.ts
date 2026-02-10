@@ -517,6 +517,154 @@ Deno.serve(async (req) => {
             status: 'processada',
           })
           .eq('id', submissao_id)
+
+        // =====================================================
+        // RODÍZIO: Aplicar distribuição automática (RF-06)
+        // =====================================================
+        let responsavelId: string | null = null
+        try {
+          const { data: configDist } = await supabase
+            .from('configuracoes_distribuicao')
+            .select('*')
+            .eq('funil_id', funilId)
+            .single()
+
+          if (configDist && configDist.modo === 'rodizio') {
+            // Verificar horário específico
+            let dentroDoHorario = true
+            if (configDist.horario_especifico) {
+              const agora = new Date()
+              const diaSemana = agora.getDay() // 0=domingo
+              const horaAtual = `${String(agora.getHours()).padStart(2, '0')}:${String(agora.getMinutes()).padStart(2, '0')}`
+
+              if (configDist.dias_semana && !configDist.dias_semana.includes(diaSemana)) {
+                dentroDoHorario = false
+              }
+              if (configDist.horario_inicio && configDist.horario_fim) {
+                if (horaAtual < configDist.horario_inicio || horaAtual > configDist.horario_fim) {
+                  dentroDoHorario = false
+                }
+              }
+            }
+
+            if (dentroDoHorario) {
+              // Buscar membros ativos do funil
+              let membrosQuery = supabase
+                .from('funis_membros')
+                .select('usuario_id')
+                .eq('funil_id', funilId)
+                .eq('ativo', true)
+
+              const { data: membros } = await membrosQuery
+
+              if (membros && membros.length > 0) {
+                let membrosFiltrados = membros
+
+                // Filtrar inativos se configurado
+                if (configDist.pular_inativos) {
+                  const uIds = membros.map(m => m.usuario_id)
+                  const { data: usuariosAtivos } = await supabase
+                    .from('usuarios')
+                    .select('id')
+                    .in('id', uIds)
+                    .eq('status', 'ativo')
+
+                  if (usuariosAtivos) {
+                    const ativosSet = new Set(usuariosAtivos.map(u => u.id))
+                    membrosFiltrados = membros.filter(m => ativosSet.has(m.usuario_id))
+                  }
+                }
+
+                if (membrosFiltrados.length > 0) {
+                  const posicao = (configDist.posicao_rodizio || 0) % membrosFiltrados.length
+                  responsavelId = membrosFiltrados[posicao].usuario_id
+
+                  // Atualizar oportunidade com responsável
+                  await supabase
+                    .from('oportunidades')
+                    .update({ usuario_responsavel_id: responsavelId })
+                    .eq('id', oportunidade.id)
+
+                  // Incrementar posição do rodízio
+                  await supabase
+                    .from('configuracoes_distribuicao')
+                    .update({
+                      posicao_rodizio: (configDist.posicao_rodizio || 0) + 1,
+                      ultimo_usuario_id: responsavelId,
+                    })
+                    .eq('id', configDist.id)
+
+                  console.log(`[rodizio] Responsável atribuído: ${responsavelId} (posição ${posicao})`)
+                } else if (configDist.fallback_manual) {
+                  console.log('[rodizio] Nenhum membro ativo, fallback manual')
+                }
+              } else if (configDist.fallback_manual) {
+                console.log('[rodizio] Nenhum membro no funil, fallback manual')
+              }
+            } else if (configDist.fallback_manual) {
+              console.log('[rodizio] Fora do horário, fallback manual')
+            }
+          }
+        } catch (err) {
+          console.error('[rodizio] Erro ao aplicar distribuição:', err)
+        }
+
+        // =====================================================
+        // TAREFAS AUTOMÁTICAS: Criar baseado nos templates (RF-07)
+        // =====================================================
+        if (etapaId) {
+          try {
+            const { data: vinculos } = await supabase
+              .from('funis_etapas_tarefas')
+              .select(`
+                id, tarefa_template_id, ativo,
+                tarefa:tarefas_templates(id, titulo, tipo, descricao, canal, prioridade, dias_prazo)
+              `)
+              .eq('etapa_funil_id', etapaId)
+              .neq('ativo', false)
+
+            if (vinculos && vinculos.length > 0) {
+              const tarefasInsert = vinculos
+                .filter((v: any) => v.tarefa)
+                .map((v: any) => {
+                  const template = v.tarefa
+                  const dataVencimento = template.dias_prazo
+                    ? new Date(Date.now() + template.dias_prazo * 24 * 60 * 60 * 1000).toISOString()
+                    : null
+
+                  return {
+                    organizacao_id: formulario.organizacao_id,
+                    oportunidade_id: oportunidade.id,
+                    contato_id: contatoId,
+                    titulo: template.titulo,
+                    descricao: template.descricao || null,
+                    tipo: template.tipo || 'tarefa',
+                    canal: template.canal || null,
+                    prioridade: template.prioridade || 'media',
+                    owner_id: responsavelId,
+                    status: 'pendente',
+                    data_vencimento: dataVencimento,
+                    tarefa_template_id: template.id,
+                    etapa_origem_id: etapaId,
+                  }
+                })
+
+              if (tarefasInsert.length > 0) {
+                const { error: tarefasErr } = await supabase
+                  .from('tarefas')
+                  .insert(tarefasInsert)
+
+                if (tarefasErr) {
+                  console.error('[tarefas-auto] Erro ao criar tarefas:', tarefasErr)
+                } else {
+                  console.log(`[tarefas-auto] ${tarefasInsert.length} tarefa(s) criada(s)`)
+                }
+              }
+            }
+          } catch (err) {
+            console.error('[tarefas-auto] Erro:', err)
+          }
+        }
       }
     } else {
       await supabase
