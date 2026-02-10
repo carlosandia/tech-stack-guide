@@ -49,12 +49,37 @@ export function useAtualizarEmail() {
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: AtualizarEmailPayload }) =>
       emailsApi.atualizar(id, payload),
-    onSuccess: (_data, variables) => {
+    onMutate: async ({ id, payload }) => {
+      // AIDEV-NOTE: Optimistic update para refletir imediatamente na UI (ex: marcar como lido)
+      await queryClient.cancelQueries({ queryKey: ['emails'] })
+      const previousEmails = queryClient.getQueryData(['emails'])
+
+      queryClient.setQueriesData({ queryKey: ['emails'] }, (old: any) => {
+        if (!old?.data) return old
+        return {
+          ...old,
+          data: old.data.map((e: any) => (e.id === id ? { ...e, ...payload } : e)),
+        }
+      })
+
+      // Also update the individual email cache
+      queryClient.setQueryData(['email', id], (old: any) => {
+        if (!old) return old
+        return { ...old, ...payload }
+      })
+
+      return { previousEmails }
+    },
+    onError: (error: Error, _variables, context) => {
+      // Rollback on error
+      if (context?.previousEmails) {
+        queryClient.setQueriesData({ queryKey: ['emails'] }, context.previousEmails)
+      }
+      toast.error(error.message || 'Erro ao atualizar email')
+    },
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: ['emails'] })
       queryClient.invalidateQueries({ queryKey: ['email', variables.id] })
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao atualizar email')
     },
   })
 }
