@@ -424,36 +424,47 @@ export function FormPreview({
                     {campos.length > 0 && (
                       <div className="group/campos">
                         {renderDropZone(0)}
-                        {campos.map((campo, index) => (
-                          <div key={campo.id}>
-                            <CampoItem
-                              campo={campo}
-                              isSelected={selectedCampoId === campo.id}
-                              isDragOver={false}
-                              onSelect={() => onSelectCampo(campo.id)}
-                              onRemove={() => onRemoveCampo(campo.id)}
-                              onMoveUp={index > 0 ? () => onMoveCampo(campo.id, 'up') : undefined}
-                              onMoveDown={index < campos.length - 1 ? () => onMoveCampo(campo.id, 'down') : undefined}
-                              onDragStart={(e) => {
-                                e.dataTransfer.setData('application/campo-id', campo.id)
-                                e.dataTransfer.effectAllowed = 'move'
-                              }}
-                              onDragOver={(e) => e.preventDefault()}
-                              onDrop={(e) => {
-                                e.preventDefault()
-                                e.stopPropagation()
-                                const draggedId = e.dataTransfer.getData('application/campo-id')
-                                if (draggedId && draggedId !== campo.id) {
-                                  onReorderCampo(draggedId, index)
-                                }
-                              }}
-                              onDragLeave={() => {}}
-                              onStyleEdit={onSelectStyleElement ? () => onSelectStyleElement('campos') : undefined}
-                              onUpdateLabel={onUpdateCampoLabel ? (newLabel) => onUpdateCampoLabel(campo.id, newLabel) : undefined}
-                            />
-                            {renderDropZone(index + 1)}
-                          </div>
-                        ))}
+                        <div className="flex flex-wrap gap-x-2">
+                          {campos.map((campo, index) => {
+                            // AIDEV-NOTE: Larguras fracionárias - campos lado a lado
+                            const largura = campo.largura || 'full'
+                            const widthClass = largura === '1/2' ? 'w-[calc(50%-4px)]'
+                              : largura === '1/3' ? 'w-[calc(33.333%-5.333px)]'
+                              : largura === '2/3' ? 'w-[calc(66.666%-2.666px)]'
+                              : 'w-full'
+
+                            return (
+                              <div key={campo.id} className={widthClass}>
+                                <CampoItem
+                                  campo={campo}
+                                  isSelected={selectedCampoId === campo.id}
+                                  isDragOver={false}
+                                  onSelect={() => onSelectCampo(campo.id)}
+                                  onRemove={() => onRemoveCampo(campo.id)}
+                                  onMoveUp={index > 0 ? () => onMoveCampo(campo.id, 'up') : undefined}
+                                  onMoveDown={index < campos.length - 1 ? () => onMoveCampo(campo.id, 'down') : undefined}
+                                  onDragStart={(e) => {
+                                    e.dataTransfer.setData('application/campo-id', campo.id)
+                                    e.dataTransfer.effectAllowed = 'move'
+                                  }}
+                                  onDragOver={(e) => e.preventDefault()}
+                                  onDrop={(e) => {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    const draggedId = e.dataTransfer.getData('application/campo-id')
+                                    if (draggedId && draggedId !== campo.id) {
+                                      onReorderCampo(draggedId, index)
+                                    }
+                                  }}
+                                  onDragLeave={() => {}}
+                                  onStyleEdit={onSelectStyleElement ? () => onSelectStyleElement('campos') : undefined}
+                                  onUpdateLabel={onUpdateCampoLabel ? (newLabel) => onUpdateCampoLabel(campo.id, newLabel) : undefined}
+                                />
+                                {renderDropZone(index + 1)}
+                              </div>
+                            )
+                          })}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -615,18 +626,26 @@ function FinalPreviewFields({ campos, estiloCampos, fontFamily }: { campos: Camp
   }, [])
 
   return (
-    <div style={{ fontSize: 0 }}>
-      {campos.map((campo) => (
-        <div key={campo.id} style={{ fontSize: '14px', marginBottom: '12px' }}>
-          {renderFinalCampo(
-            campo, estiloCampos, fontFamily,
-            valores[campo.id] || '',
-            (v) => handleChange(campo.id, campo.tipo, v),
-            paises[campo.id] || { code: 'BR', ddi: '55', flag: '🇧🇷' },
-            (p) => handlePaisChange(campo.id, p),
-          )}
-        </div>
-      ))}
+    <div style={{ fontSize: 0, display: 'flex', flexWrap: 'wrap', gap: '0 8px' }}>
+      {campos.map((campo) => {
+        const largura = campo.largura || 'full'
+        const width = largura === '1/2' ? 'calc(50% - 4px)'
+          : largura === '1/3' ? 'calc(33.333% - 5.333px)'
+          : largura === '2/3' ? 'calc(66.666% - 2.666px)'
+          : '100%'
+
+        return (
+          <div key={campo.id} style={{ fontSize: '14px', marginBottom: '12px', width }}>
+            {renderFinalCampo(
+              campo, estiloCampos, fontFamily,
+              valores[campo.id] || '',
+              (v) => handleChange(campo.id, campo.tipo, v),
+              paises[campo.id] || { code: 'BR', ddi: '55', flag: '🇧🇷' },
+              (p) => handlePaisChange(campo.id, p),
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }

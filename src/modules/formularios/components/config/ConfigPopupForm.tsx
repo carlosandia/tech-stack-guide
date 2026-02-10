@@ -1,13 +1,16 @@
 /**
  * AIDEV-NOTE: Formulário de configuração do Popup
  * Gatilho, atraso, scroll, overlay, animação, posição
+ * + Ações avançadas de marketing: frequência, segmentação, agendamento
  */
 
 import { useState, useEffect } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Clock, Target, Calendar, X as XIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
   SelectContent,
@@ -42,6 +45,14 @@ const POSICOES = [
   { value: 'lateral_direita', label: 'Lateral Direita' },
 ]
 
+const FREQUENCIAS = [
+  { value: 'sempre', label: 'Sempre' },
+  { value: 'uma_vez', label: 'Uma vez por visitante' },
+  { value: 'uma_vez_por_dia', label: 'Uma vez por dia' },
+  { value: 'uma_vez_por_semana', label: 'Uma vez por semana' },
+  { value: 'personalizado', label: 'Personalizado (max exibições)' },
+]
+
 interface Props {
   formularioId: string
 }
@@ -66,7 +77,24 @@ export function ConfigPopupForm({ formularioId }: Props) {
     popup_imagem_url: null,
     popup_imagem_link: null,
     popup_imagem_posicao: 'so_campos',
+    // Avançado
+    frequencia_exibicao: 'uma_vez',
+    max_exibicoes: null,
+    paginas_alvo: [],
+    paginas_excluidas: [],
+    utm_filtro: null,
+    mostrar_botao_fechar: true,
+    delay_botao_fechar: 0,
+    ativo_a_partir_de: null,
+    ativo_ate: null,
   })
+
+  // Local state for textarea-based arrays
+  const [paginasAlvoText, setPaginasAlvoText] = useState('')
+  const [paginasExcluidasText, setPaginasExcluidasText] = useState('')
+  const [utmSource, setUtmSource] = useState('')
+  const [utmMedium, setUtmMedium] = useState('')
+  const [utmCampaign, setUtmCampaign] = useState('')
 
   useEffect(() => {
     if (config) {
@@ -86,7 +114,22 @@ export function ConfigPopupForm({ formularioId }: Props) {
         popup_imagem_url: config.popup_imagem_url || null,
         popup_imagem_link: (config as any).popup_imagem_link || null,
         popup_imagem_posicao: config.popup_imagem_posicao || 'so_campos',
+        frequencia_exibicao: config.frequencia_exibicao || 'uma_vez',
+        max_exibicoes: config.max_exibicoes ?? null,
+        paginas_alvo: config.paginas_alvo || [],
+        paginas_excluidas: config.paginas_excluidas || [],
+        utm_filtro: config.utm_filtro || null,
+        mostrar_botao_fechar: config.mostrar_botao_fechar ?? true,
+        delay_botao_fechar: config.delay_botao_fechar ?? 0,
+        ativo_a_partir_de: config.ativo_a_partir_de || null,
+        ativo_ate: config.ativo_ate || null,
       })
+      setPaginasAlvoText((config.paginas_alvo || []).join('\n'))
+      setPaginasExcluidasText((config.paginas_excluidas || []).join('\n'))
+      const utm = config.utm_filtro as Record<string, string> | null
+      setUtmSource(utm?.utm_source || '')
+      setUtmMedium(utm?.utm_medium || '')
+      setUtmCampaign(utm?.utm_campaign || '')
     }
   }, [config])
 
@@ -95,6 +138,21 @@ export function ConfigPopupForm({ formularioId }: Props) {
   }
 
   const update = (key: string, val: unknown) => setForm((f) => ({ ...f, [key]: val }))
+
+  const handleSave = () => {
+    const paginasAlvo = paginasAlvoText.split('\n').map(s => s.trim()).filter(Boolean)
+    const paginasExcluidas = paginasExcluidasText.split('\n').map(s => s.trim()).filter(Boolean)
+    const utmFiltro = (utmSource || utmMedium || utmCampaign)
+      ? { utm_source: utmSource || undefined, utm_medium: utmMedium || undefined, utm_campaign: utmCampaign || undefined }
+      : null
+
+    salvar.mutate({
+      ...form,
+      paginas_alvo: paginasAlvo,
+      paginas_excluidas: paginasExcluidas,
+      utm_filtro: utmFiltro as any,
+    })
+  }
 
   return (
     <div className="space-y-4">
@@ -194,7 +252,151 @@ export function ConfigPopupForm({ formularioId }: Props) {
         </div>
       </div>
 
-      <Button onClick={() => salvar.mutate(form)} disabled={salvar.isPending} className="w-full" size="sm">
+      {/* ====== AÇÕES AVANÇADAS DE MARKETING ====== */}
+
+      {/* Frequência de Exibição */}
+      <div className="p-3 rounded-lg border border-border bg-muted/30 space-y-3">
+        <div className="flex items-center gap-2">
+          <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+          <p className="text-xs font-medium text-foreground">Frequência de Exibição</p>
+        </div>
+
+        <div className="space-y-1.5">
+          <Select value={form.frequencia_exibicao || 'uma_vez'} onValueChange={(v) => update('frequencia_exibicao', v)}>
+            <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {FREQUENCIAS.map((f) => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {form.frequencia_exibicao === 'personalizado' && (
+          <div className="space-y-1.5">
+            <Label className="text-xs">Máximo de Exibições</Label>
+            <Input
+              type="number"
+              min={1}
+              value={form.max_exibicoes ?? ''}
+              onChange={(e) => update('max_exibicoes', e.target.value ? Number(e.target.value) : null)}
+              placeholder="Ex: 3"
+              className="text-xs"
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Botão Fechar */}
+      <div className="p-3 rounded-lg border border-border bg-muted/30 space-y-3">
+        <div className="flex items-center gap-2">
+          <XIcon className="w-3.5 h-3.5 text-muted-foreground" />
+          <p className="text-xs font-medium text-foreground">Botão Fechar</p>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <Label htmlFor="popup-btn-fechar" className="text-xs cursor-pointer">Mostrar botão de fechar (X)</Label>
+          <Switch
+            id="popup-btn-fechar"
+            checked={form.mostrar_botao_fechar ?? true}
+            onCheckedChange={(v) => update('mostrar_botao_fechar', v)}
+          />
+        </div>
+
+        {form.mostrar_botao_fechar !== false && (
+          <div className="space-y-1.5">
+            <Label className="text-xs">Delay para exibir botão (segundos)</Label>
+            <Input
+              type="number"
+              min={0}
+              value={form.delay_botao_fechar ?? 0}
+              onChange={(e) => update('delay_botao_fechar', Number(e.target.value))}
+              className="text-xs"
+            />
+            <p className="text-[10px] text-muted-foreground">0 = imediato. Ideal para forçar leitura antes de permitir fechar.</p>
+          </div>
+        )}
+      </div>
+
+      {/* Segmentação */}
+      <div className="p-3 rounded-lg border border-border bg-muted/30 space-y-3">
+        <div className="flex items-center gap-2">
+          <Target className="w-3.5 h-3.5 text-muted-foreground" />
+          <p className="text-xs font-medium text-foreground">Segmentação</p>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs">Páginas Alvo (uma URL por linha)</Label>
+          <Textarea
+            value={paginasAlvoText}
+            onChange={(e) => setPaginasAlvoText(e.target.value)}
+            rows={3}
+            placeholder={"/landing-page\n/produtos\n/precos"}
+            className="text-xs"
+          />
+          <p className="text-[10px] text-muted-foreground">Se vazio, aparece em todas as páginas.</p>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs">Páginas Excluídas (uma URL por linha)</Label>
+          <Textarea
+            value={paginasExcluidasText}
+            onChange={(e) => setPaginasExcluidasText(e.target.value)}
+            rows={2}
+            placeholder={"/checkout\n/obrigado"}
+            className="text-xs"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-foreground mt-2">Filtro UTM</p>
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <Label className="text-[10px]">Source</Label>
+              <Input value={utmSource} onChange={(e) => setUtmSource(e.target.value)} placeholder="google" className="text-xs" />
+            </div>
+            <div>
+              <Label className="text-[10px]">Medium</Label>
+              <Input value={utmMedium} onChange={(e) => setUtmMedium(e.target.value)} placeholder="cpc" className="text-xs" />
+            </div>
+            <div>
+              <Label className="text-[10px]">Campaign</Label>
+              <Input value={utmCampaign} onChange={(e) => setUtmCampaign(e.target.value)} placeholder="black-friday" className="text-xs" />
+            </div>
+          </div>
+          <p className="text-[10px] text-muted-foreground">Se vazio, aparece para todos os visitantes.</p>
+        </div>
+      </div>
+
+      {/* Agendamento */}
+      <div className="p-3 rounded-lg border border-border bg-muted/30 space-y-3">
+        <div className="flex items-center gap-2">
+          <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+          <p className="text-xs font-medium text-foreground">Agendamento</p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Ativo a partir de</Label>
+            <Input
+              type="datetime-local"
+              value={form.ativo_a_partir_de ? form.ativo_a_partir_de.slice(0, 16) : ''}
+              onChange={(e) => update('ativo_a_partir_de', e.target.value ? new Date(e.target.value).toISOString() : null)}
+              className="text-xs"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Ativo até</Label>
+            <Input
+              type="datetime-local"
+              value={form.ativo_ate ? form.ativo_ate.slice(0, 16) : ''}
+              onChange={(e) => update('ativo_ate', e.target.value ? new Date(e.target.value).toISOString() : null)}
+              className="text-xs"
+            />
+          </div>
+        </div>
+        <p className="text-[10px] text-muted-foreground">Se vazio, o popup fica sempre ativo (sem restrição de data).</p>
+      </div>
+
+      <Button onClick={handleSave} disabled={salvar.isPending} className="w-full" size="sm">
         {salvar.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Salvando...</> : 'Salvar Popup'}
       </Button>
     </div>

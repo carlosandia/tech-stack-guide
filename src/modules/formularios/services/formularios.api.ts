@@ -62,6 +62,11 @@ export interface Formulario {
   publicado_em?: string | null
   config_botoes?: Record<string, unknown> | null
   config_pos_envio?: Record<string, unknown> | null
+  // AIDEV-NOTE: LGPD global para todos os tipos
+  lgpd_ativo?: boolean
+  lgpd_texto_consentimento?: string | null
+  lgpd_url_politica?: string | null
+  lgpd_checkbox_obrigatorio?: boolean
   criado_em: string
   atualizado_em: string
   deletado_em?: string | null
@@ -565,6 +570,16 @@ export interface ConfigPopup {
   popup_imagem_link?: string | null
   popup_imagem_posicao: string
   posicao: string
+  // AIDEV-NOTE: Ações avançadas de marketing
+  frequencia_exibicao?: string | null
+  max_exibicoes?: number | null
+  paginas_alvo?: string[] | null
+  paginas_excluidas?: string[] | null
+  utm_filtro?: Record<string, string> | null
+  mostrar_botao_fechar?: boolean
+  delay_botao_fechar?: number | null
+  ativo_a_partir_de?: string | null
+  ativo_ate?: string | null
 }
 
 async function buscarConfigPopup(formularioId: string): Promise<ConfigPopup | null> {
@@ -629,6 +644,10 @@ export interface ConfigNewsletter {
   newsletter_layout?: NewsletterTemplate | null
   newsletter_imagem_url?: string | null
   newsletter_imagem_link?: string | null
+  // AIDEV-NOTE: Email de boas-vindas
+  email_boas_vindas_ativo?: boolean
+  assunto_boas_vindas?: string | null
+  template_boas_vindas?: string | null
 }
 
 async function buscarConfigNewsletter(formularioId: string): Promise<ConfigNewsletter | null> {

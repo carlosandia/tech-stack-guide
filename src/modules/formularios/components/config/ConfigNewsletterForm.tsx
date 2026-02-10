@@ -1,14 +1,15 @@
 /**
- * AIDEV-NOTE: Formulário de configuração da Newsletter (LGPD)
- * Double opt-in, texto de consentimento, política de privacidade
+ * AIDEV-NOTE: Formulário de configuração da Newsletter (LGPD + Boas-Vindas)
+ * Double opt-in, texto de consentimento, política de privacidade, email automático
  */
 
 import { useState, useEffect } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Mail } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
 import { useConfigNewsletter, useSalvarConfigNewsletter } from '../../hooks/useFormularioConfig'
 import type { ConfigNewsletter } from '../../services/formularios.api'
 
@@ -32,6 +33,10 @@ export function ConfigNewsletterForm({ formularioId }: Props) {
     mostrar_checkbox_consentimento: true,
     provedor_externo: '',
     id_lista_externa: '',
+    // Boas-vindas
+    email_boas_vindas_ativo: false,
+    assunto_boas_vindas: 'Bem-vindo!',
+    template_boas_vindas: '',
   })
 
   useEffect(() => {
@@ -48,6 +53,9 @@ export function ConfigNewsletterForm({ formularioId }: Props) {
         mostrar_checkbox_consentimento: config.mostrar_checkbox_consentimento,
         provedor_externo: config.provedor_externo || '',
         id_lista_externa: config.id_lista_externa || '',
+        email_boas_vindas_ativo: config.email_boas_vindas_ativo ?? false,
+        assunto_boas_vindas: config.assunto_boas_vindas || 'Bem-vindo!',
+        template_boas_vindas: config.template_boas_vindas || '',
       })
     }
   }, [config])
@@ -133,6 +141,54 @@ export function ConfigNewsletterForm({ formularioId }: Props) {
             placeholder="Semanal, Quinzenal, Mensal..."
             className="text-xs"
           />
+        </div>
+
+        {/* Email de Boas-Vindas */}
+        <div className="p-3 rounded-lg border border-border bg-muted/30 space-y-3">
+          <div className="flex items-center gap-2">
+            <Mail className="w-3.5 h-3.5 text-muted-foreground" />
+            <p className="text-xs font-medium text-foreground">Email de Boas-Vindas</p>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <Label htmlFor="nl-boas-vindas" className="text-xs cursor-pointer">Enviar email automático</Label>
+            <Switch
+              id="nl-boas-vindas"
+              checked={form.email_boas_vindas_ativo ?? false}
+              onCheckedChange={(v) => update('email_boas_vindas_ativo', v)}
+            />
+          </div>
+          <p className="text-[10px] text-muted-foreground">
+            Quando ativo, um email será enviado automaticamente via SMTP configurado ao receber uma nova inscrição.
+          </p>
+
+          {form.email_boas_vindas_ativo && (
+            <>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Assunto do Email</Label>
+                <Input
+                  value={form.assunto_boas_vindas || ''}
+                  onChange={(e) => update('assunto_boas_vindas', e.target.value)}
+                  placeholder="Bem-vindo à nossa newsletter!"
+                  className="text-xs"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs">Corpo do Email (HTML)</Label>
+                <Textarea
+                  value={form.template_boas_vindas || ''}
+                  onChange={(e) => update('template_boas_vindas', e.target.value)}
+                  rows={8}
+                  placeholder={"<h1>Bem-vindo!</h1>\n<p>Obrigado por se inscrever...</p>"}
+                  className="text-xs font-mono"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Use HTML para formatar o email. Variáveis disponíveis: {'{{nome}}'}, {'{{email}}'}.
+                </p>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Provedor externo */}
