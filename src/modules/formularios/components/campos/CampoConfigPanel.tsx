@@ -250,6 +250,40 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
             <p className="text-[10px] text-muted-foreground">Este texto será exibido em um modal quando o usuário clicar em "Ver termos".</p>
           </div>
         )}
+
+        {campo.tipo === 'imagem_link' && (
+          <div className="space-y-3 border-t border-border pt-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">URL da Imagem</Label>
+              <Input
+                value={form.valor_padrao}
+                onChange={(e) => setForm((f) => ({ ...f, valor_padrao: e.target.value }))}
+                placeholder="https://exemplo.com/imagem.jpg"
+              />
+              <p className="text-[10px] text-muted-foreground">Cole a URL da imagem que deseja exibir.</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">URL de Redirecionamento (ao clicar)</Label>
+              <Input
+                value={form.placeholder}
+                onChange={(e) => setForm((f) => ({ ...f, placeholder: e.target.value }))}
+                placeholder="https://exemplo.com/pagina-destino"
+              />
+              <p className="text-[10px] text-muted-foreground">Quando o usuário clicar na imagem, será redirecionado para esta URL.</p>
+            </div>
+            {form.valor_padrao && (
+              <div className="space-y-1">
+                <Label className="text-xs">Prévia</Label>
+                <img
+                  src={form.valor_padrao}
+                  alt="Prévia"
+                  className="w-full max-h-32 object-cover rounded border border-border"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                />
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <Button

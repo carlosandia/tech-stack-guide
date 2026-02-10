@@ -73,6 +73,7 @@ export const TIPOS_CAMPO: TipoCampoPaleta[] = [
   // Layout
   { tipo: 'titulo', label: 'Título', icon: Type, categoria: 'layout' },
   { tipo: 'paragrafo', label: 'Parágrafo', icon: MessageSquare, categoria: 'layout' },
+  { tipo: 'imagem_link', label: 'Imagem c/ Link', icon: Image, categoria: 'layout' },
   { tipo: 'divisor', label: 'Divisor', icon: Minus, categoria: 'layout' },
   { tipo: 'espacador', label: 'Espaçador', icon: Space, categoria: 'layout' },
   { tipo: 'bloco_html', label: 'Bloco HTML', icon: Code, categoria: 'layout' },
