@@ -192,9 +192,15 @@ export function FormularioPublicoPage() {
     }
 
     // Processar integração (criar contato + oportunidade) via Edge Function - fire and forget
+    // AIDEV-NOTE: Usa fetch direto pois supabase.functions.invoke pode falhar em contexto anônimo
     if (submissaoData?.id) {
-      supabase.functions.invoke('processar-submissao-formulario', {
-        body: { submissao_id: submissaoData.id, formulario_id: formulario.id },
+      fetch('https://ybzhlsalbnxwkfszkloa.supabase.co/functions/v1/processar-submissao-formulario', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inliemhsc2FsYm54d2tmc3prbG9hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMDExNzAsImV4cCI6MjA4NTc3NzE3MH0.NyxN8T0XCpnFSF_-0grGGcvhSbwOif0qxxlC_PshA9M',
+        },
+        body: JSON.stringify({ submissao_id: submissaoData.id, formulario_id: formulario.id }),
       }).catch(err => console.error('Erro ao processar integração:', err))
     }
 
