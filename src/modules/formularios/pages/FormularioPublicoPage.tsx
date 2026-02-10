@@ -235,7 +235,9 @@ export function FormularioPublicoPage() {
         <div style={{
           backgroundColor: container.background_color || '#FFFFFF',
           borderRadius: container.border_radius || '8px',
-          padding: container.padding || '24px',
+          padding: container.padding_top
+            ? `${container.padding_top}px ${container.padding_right || '24'}px ${container.padding_bottom || '24'}px ${container.padding_left || '24'}px`
+            : (container.padding || '24px'),
           maxWidth: container.max_width || '600px',
           width: '100%',
           margin: '16px',
@@ -253,7 +255,7 @@ export function FormularioPublicoPage() {
   const inputStyle: React.CSSProperties = {
     width: '100%',
     backgroundColor: camposEstilo.input_background || '#F9FAFB',
-    border: `1px solid ${camposEstilo.input_border_color || '#D1D5DB'}`,
+    border: `${camposEstilo.input_border_width || '1'}px solid ${camposEstilo.input_border_color || '#D1D5DB'}`,
     borderRadius: camposEstilo.input_border_radius || '6px',
     color: camposEstilo.input_texto_cor || '#1F2937',
     padding: '8px 12px',
@@ -279,11 +281,16 @@ export function FormularioPublicoPage() {
         style={{
           backgroundColor: container.background_color || '#FFFFFF',
           borderRadius: container.border_radius || '8px',
-          padding: container.padding || '24px',
+          padding: container.padding_top
+            ? `${container.padding_top}px ${container.padding_right || '24'}px ${container.padding_bottom || '24'}px ${container.padding_left || '24'}px`
+            : (container.padding || '24px'),
           maxWidth: container.max_width || '600px',
           width: '100%',
           boxShadow: SOMBRA_MAP[container.sombra || 'md'],
           fontFamily,
+          border: container.border_width && parseInt(container.border_width) > 0
+            ? `${container.border_width}px solid ${container.border_color || '#D1D5DB'}`
+            : undefined,
         }}
       >
         {/* Cabeçalho - só logo e descrição, sem título do formulário */}
