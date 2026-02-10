@@ -744,7 +744,7 @@ function RenderBotoes({
           )}
           title="Editar estilos do botão Enviar"
         >
-          <Paintbrush className="w-3 h-3" />
+          <Paintbrush className="w-3.5 h-3.5" />
         </button>
       )}
       <button
@@ -790,7 +790,7 @@ function RenderBotoes({
           )}
           title="Editar estilos do botão WhatsApp"
         >
-          <Paintbrush className="w-3 h-3" />
+          <Paintbrush className="w-3.5 h-3.5" />
         </button>
       )}
       <button
