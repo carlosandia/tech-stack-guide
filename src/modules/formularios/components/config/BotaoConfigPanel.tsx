@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Send, Bold, Italic, Underline, Mail } from 'lucide-react'
+import { Send, Bold, Italic, Underline, Mail, MessageCircle } from 'lucide-react'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
@@ -32,12 +32,16 @@ const CONFIG_PADRAO: ConfigBotoes = {
   enviar_cria_oportunidade: true,
   enviar_notifica_email: false,
   enviar_email_destino: '',
+  enviar_notifica_whatsapp: false,
+  enviar_whatsapp_destino: '',
   enviar_url_redirecionamento: '',
   enviar_funil_id: '',
   whatsapp_numero: '',
   whatsapp_cria_oportunidade: false,
   whatsapp_notifica_email: false,
   whatsapp_email_destino: '',
+  whatsapp_notifica_whatsapp: false,
+  whatsapp_whatsapp_destino: '',
   whatsapp_mensagem_template: '',
   whatsapp_funil_id: '',
 }
@@ -49,6 +53,12 @@ interface FunilOption {
 
 interface SmtpInfo {
   email: string
+  status: string
+}
+
+interface WahaInfo {
+  phone_number: string | null
+  phone_name: string | null
   status: string
 }
 
@@ -69,6 +79,7 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
   const [loaded, setLoaded] = useState(false)
   const [funis, setFunis] = useState<FunilOption[]>([])
   const [smtpInfo, setSmtpInfo] = useState<SmtpInfo | null>(null)
+  const [wahaInfo, setWahaInfo] = useState<WahaInfo | null>(null)
   const [posEnvio, setPosEnvio] = useState({
     mensagem_sucesso: 'Formulário enviado com sucesso! Entraremos em contato em breve.',
     mensagem_erro: 'Ocorreu um erro ao enviar. Tente novamente.',
@@ -141,13 +152,39 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
         .from('conexoes_email')
         .select('email, status')
         .eq('organizacao_id', usr.organizacao_id)
-        .eq('status', 'conectado')
+        .in('status', ['conectado', 'ativo'])
         .limit(1)
         .maybeSingle()
 
       if (data) setSmtpInfo(data)
     }
     loadSmtp()
+  }, [])
+
+  // Load WhatsApp WAHA session info
+  useEffect(() => {
+    async function loadWaha() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data: usr } = await supabase
+        .from('usuarios')
+        .select('organizacao_id')
+        .eq('auth_id', user.id)
+        .maybeSingle()
+      if (!usr?.organizacao_id) return
+
+      const { data } = await supabase
+        .from('sessoes_whatsapp')
+        .select('phone_number, phone_name, status')
+        .eq('organizacao_id', usr.organizacao_id)
+        .eq('status', 'connected')
+        .limit(1)
+        .maybeSingle()
+
+      if (data) setWahaInfo(data)
+    }
+    loadWaha()
   }, [])
 
   const updateConfig = (key: keyof ConfigBotoes, value: unknown) => {
@@ -347,6 +384,19 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
       <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
         <Mail className="w-3 h-3" />
         <span>Enviando via: <strong>{smtpInfo.email}</strong></span>
+      </div>
+    )
+  }
+
+  /** Renders WAHA WhatsApp info when whatsapp notification is enabled */
+  const renderWahaInfo = () => {
+    if (!wahaInfo) return (
+      <p className="text-[10px] text-amber-600">⚠ Nenhuma conexão WhatsApp ativa. Configure em Configurações → Conexões.</p>
+    )
+    return (
+      <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+        <MessageCircle className="w-3 h-3" />
+        <span>Enviando via: <strong>{wahaInfo.phone_number || wahaInfo.phone_name || 'Conectado'}</strong></span>
       </div>
     )
   }
@@ -621,7 +671,25 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
                     className="text-xs"
                     type="email"
                   />
-                  {renderSmtpInfo()}
+               {renderSmtpInfo()}
+                </>
+              )}
+              <div className="flex items-center justify-between">
+                <Label className="text-[11px]">Notificar WhatsApp</Label>
+                <Switch
+                  checked={config.enviar_notifica_whatsapp}
+                  onCheckedChange={(v) => updateConfig('enviar_notifica_whatsapp', v)}
+                />
+              </div>
+              {config.enviar_notifica_whatsapp && (
+                <>
+                  <Input
+                    value={config.enviar_whatsapp_destino}
+                    onChange={(e) => updateConfig('enviar_whatsapp_destino', e.target.value)}
+                    placeholder="5511999999999"
+                    className="text-xs"
+                  />
+                  {renderWahaInfo()}
                 </>
               )}
             </div>
@@ -667,6 +735,24 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
                     type="email"
                   />
                   {renderSmtpInfo()}
+                </>
+              )}
+              <div className="flex items-center justify-between">
+                <Label className="text-[11px]">Notificar WhatsApp</Label>
+                <Switch
+                  checked={config.whatsapp_notifica_whatsapp}
+                  onCheckedChange={(v) => updateConfig('whatsapp_notifica_whatsapp', v)}
+                />
+              </div>
+              {config.whatsapp_notifica_whatsapp && (
+                <>
+                  <Input
+                    value={config.whatsapp_whatsapp_destino}
+                    onChange={(e) => updateConfig('whatsapp_whatsapp_destino', e.target.value)}
+                    placeholder="5511999999999"
+                    className="text-xs"
+                  />
+                  {renderWahaInfo()}
                 </>
               )}
               <div className="space-y-1">
