@@ -7,6 +7,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import { env } from '@/config/env'
 import { getMaskForType } from '../utils/masks'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import DOMPurify from 'dompurify'
@@ -168,21 +169,32 @@ export function FormularioPublicoPage() {
       }
     })
 
-    const { error } = await supabase
-      .from('submissoes_formularios')
-      .insert({
-        formulario_id: formulario.id,
-        organizacao_id: formulario.organizacao_id,
-        dados: dadosCampos,
-        utm_source: utms.utm_source || null,
-        utm_medium: utms.utm_medium || null,
-        utm_campaign: utms.utm_campaign || null,
-        ip_address: null,
-        user_agent: navigator.userAgent,
+    // Submeter via backend API para processar integrações (criar contato, oportunidade, etc.)
+    try {
+      const apiUrl = env.API_URL || 'http://localhost:3001'
+      const response = await fetch(`${apiUrl}/api/v1/publico/formularios/${formulario.slug}/submeter`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dados: dadosCampos,
+          utm_source: utms.utm_source || undefined,
+          utm_medium: utms.utm_medium || undefined,
+          utm_campaign: utms.utm_campaign || undefined,
+          referrer: document.referrer || undefined,
+          pagina_origem: window.location.href,
+        }),
       })
 
-    setEnviando(false)
-    if (error) {
+      setEnviando(false)
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}))
+        const posEnvioErr = formulario.config_pos_envio as any
+        setErro(errData?.error || posEnvioErr?.mensagem_erro || 'Erro ao enviar formulário. Tente novamente.')
+        return
+      }
+    } catch (fetchErr) {
+      setEnviando(false)
       const posEnvioErr = formulario.config_pos_envio as any
       setErro(posEnvioErr?.mensagem_erro || 'Erro ao enviar formulário. Tente novamente.')
       return
