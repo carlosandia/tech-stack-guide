@@ -4,7 +4,7 @@
  */
 
 import { useEffect, useState } from 'react'
-import { X } from 'lucide-react'
+import { X, Plus, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -19,6 +19,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import type { CampoFormulario } from '../../services/formularios.api'
+import { useCriarCampo } from '@/modules/configuracoes/hooks/useCampos'
+import { tipoCampoOptions } from '@/modules/configuracoes/schemas/campos.schema'
+import type { CriarCampoPayload } from '@/modules/configuracoes/services/configuracoes.api'
 
 const MAPEAMENTOS = [
   { value: 'nenhum', label: 'Nenhum', grupo: '' },
@@ -65,6 +68,11 @@ interface Props {
 }
 
 export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props) {
+  const criarCampoMutation = useCriarCampo()
+  const [showCriarCampo, setShowCriarCampo] = useState(false)
+  const [criarCampoEntidade, setCriarCampoEntidade] = useState<'pessoa' | 'empresa'>('pessoa')
+  const [novoCampoNome, setNovoCampoNome] = useState('')
+  const [novoCampoTipo, setNovoCampoTipo] = useState('texto')
   const [form, setForm] = useState({
     label: campo.label || '',
     nome: campo.nome || '',
@@ -182,7 +190,19 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
           <Label className="text-xs">Mapear para Contato</Label>
           <Select
             value={form.mapeamento_campo || 'nenhum'}
-            onValueChange={(v) => setForm((f) => ({ ...f, mapeamento_campo: v === 'nenhum' ? '' : v }))}
+            onValueChange={(v) => {
+              if (v === '__criar_pessoa__') {
+                setCriarCampoEntidade('pessoa')
+                setShowCriarCampo(true)
+                return
+              }
+              if (v === '__criar_empresa__') {
+                setCriarCampoEntidade('empresa')
+                setShowCriarCampo(true)
+                return
+              }
+              setForm((f) => ({ ...f, mapeamento_campo: v === 'nenhum' ? '' : v }))
+            }}
           >
             <SelectTrigger>
               <SelectValue placeholder="Nenhum" />
@@ -192,6 +212,7 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
                 const grupos = [...new Set(MAPEAMENTOS.map((m) => m.grupo))]
                 return grupos.map((grupo) => {
                   const items = MAPEAMENTOS.filter((m) => m.grupo === grupo)
+                  const canCreate = grupo === 'Pessoa' || grupo === 'Empresa'
                   return (
                     <div key={grupo || 'none'}>
                       {grupo && (
@@ -201,15 +222,95 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
                       )}
                       {items.map((m) => (
                         <SelectItem key={m.value} value={m.value}>
-                          {grupo ? `${m.label}` : m.label}
+                          {m.label}
                         </SelectItem>
                       ))}
+                      {canCreate && (
+                        <SelectItem
+                          value={grupo === 'Pessoa' ? '__criar_pessoa__' : '__criar_empresa__'}
+                          className="text-primary"
+                        >
+                          <span className="flex items-center gap-1">
+                            <Plus className="w-3 h-3" />
+                            Criar campo de {grupo}
+                          </span>
+                        </SelectItem>
+                      )}
                     </div>
                   )
                 })
               })()}
             </SelectContent>
           </Select>
+
+          {/* Mini-form para criar campo inline */}
+          {showCriarCampo && (
+            <div className="mt-2 p-3 border border-primary/30 rounded-lg bg-primary/5 space-y-2">
+              <p className="text-xs font-semibold text-foreground">
+                Novo campo de {criarCampoEntidade === 'pessoa' ? 'Pessoa' : 'Empresa'}
+              </p>
+              <Input
+                value={novoCampoNome}
+                onChange={(e) => setNovoCampoNome(e.target.value)}
+                placeholder="Nome do campo"
+                className="h-8 text-xs"
+                autoFocus
+              />
+              <Select value={novoCampoTipo} onValueChange={setNovoCampoTipo}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {tipoCampoOptions.map((t) => (
+                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  className="h-7 text-xs flex-1"
+                  disabled={!novoCampoNome.trim() || criarCampoMutation.isPending}
+                  onClick={async () => {
+                    const slug = novoCampoNome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
+                    try {
+                      await criarCampoMutation.mutateAsync({
+                        nome: novoCampoNome.trim(),
+                        entidade: criarCampoEntidade,
+                        tipo: novoCampoTipo as CriarCampoPayload['tipo'],
+                      })
+                      // Auto-mapear para o novo campo
+                      const mapeamento = `custom.${criarCampoEntidade}.${slug}`
+                      setForm((f) => ({ ...f, mapeamento_campo: mapeamento }))
+                      setShowCriarCampo(false)
+                      setNovoCampoNome('')
+                      setNovoCampoTipo('texto')
+                    } catch {
+                      // Error handled by hook toast
+                    }
+                  }}
+                >
+                  {criarCampoMutation.isPending ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    'Criar'
+                  )}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-xs"
+                  onClick={() => {
+                    setShowCriarCampo(false)
+                    setNovoCampoNome('')
+                    setNovoCampoTipo('texto')
+                  }}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
 
         {needsOptions && (
