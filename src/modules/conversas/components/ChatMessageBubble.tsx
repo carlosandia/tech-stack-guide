@@ -8,6 +8,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
+import DOMPurify from 'dompurify'
 import { format } from 'date-fns'
 import {
   Check,
@@ -67,17 +68,27 @@ function AckIndicator({ ack }: { ack: number }) {
   return null
 }
 
-function TextContent({ body }: { body: string }) {
-  const formatted = body
+const DOMPURIFY_CONFIG = {
+  ALLOWED_TAGS: ['strong', 'em', 'del', 'code', 'span'],
+  ALLOWED_ATTR: ['class'],
+}
+
+function sanitizeFormattedHtml(text: string): string {
+  const formatted = text
     .replace(/\*(.*?)\*/g, '<strong>$1</strong>')
     .replace(/_(.*?)_/g, '<em>$1</em>')
     .replace(/~(.*?)~/g, '<del>$1</del>')
     .replace(/```(.*?)```/gs, '<code>$1</code>')
+  return DOMPurify.sanitize(formatted, DOMPURIFY_CONFIG)
+}
+
+function TextContent({ body }: { body: string }) {
+  const sanitized = sanitizeFormattedHtml(body)
 
   return (
     <p
       className="text-sm whitespace-pre-wrap break-words"
-      dangerouslySetInnerHTML={{ __html: formatted }}
+      dangerouslySetInnerHTML={{ __html: sanitized }}
     />
   )
 }
@@ -540,12 +551,8 @@ export function ChatMessageBubble({
 
   // Pre-format body for inline text rendering
   const formattedBody = useMemo(() => {
-    if (!mensagem.body) return '<span class="italic text-muted-foreground">Mensagem indisponível</span>'
-    return mensagem.body
-      .replace(/\*(.*?)\*/g, '<strong>$1</strong>')
-      .replace(/_(.*?)_/g, '<em>$1</em>')
-      .replace(/~(.*?)~/g, '<del>$1</del>')
-      .replace(/```(.*?)```/gs, '<code>$1</code>')
+    if (!mensagem.body) return DOMPurify.sanitize('<span class="italic text-muted-foreground">Mensagem indisponível</span>', DOMPURIFY_CONFIG)
+    return sanitizeFormattedHtml(mensagem.body)
   }, [mensagem.body])
 
   const handleViewMedia = (url: string, tipo: 'image' | 'video') => {
