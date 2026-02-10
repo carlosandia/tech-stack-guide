@@ -738,13 +738,13 @@ function RenderBotoes({
   const showWhatsApp = tipoBotao === 'whatsapp' || tipoBotao === 'ambos'
 
   const enviarBtn = showEnviar ? (
-    <div className="relative group/botao-enviar w-full">
+    <div className="relative group/botao-enviar">
       {!showFinalPreview && onSelectStyleElement && (
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onSelectStyleElement('botao') }}
           className={cn(
-            'absolute -right-2 -top-2 z-10 p-1 rounded-full border bg-card shadow-sm transition-opacity',
+            'absolute right-1 top-1/2 -translate-y-1/2 z-10 p-1 rounded-full border bg-card shadow-sm transition-opacity',
             'opacity-0 group-hover/botao-enviar:opacity-100',
             selectedStyleElement === 'botao' ? 'opacity-100 border-primary text-primary' : 'border-border text-muted-foreground hover:text-primary hover:border-primary'
           )}
@@ -756,12 +756,11 @@ function RenderBotoes({
       <button
         type="button"
         className={cn(
-          'rounded-md text-sm font-semibold transition-all',
-          (!estiloBotao || estiloBotao.largura === 'full') && 'w-full',
+          'rounded-md text-sm font-semibold transition-all w-full',
           !estiloBotao && 'bg-primary text-primary-foreground py-2.5',
           !showFinalPreview && selectedStyleElement === 'botao' && 'outline outline-2 outline-dashed outline-primary outline-offset-2'
         )}
-        style={estiloBotao ? buttonStyle : undefined}
+        style={estiloBotao ? { ...buttonStyle, width: '100%' } : undefined}
         onClick={showFinalPreview ? undefined : (e) => { e.stopPropagation(); onSelectStyleElement?.('botao') }}
         onDoubleClick={!showFinalPreview && onUpdateBotaoTexto ? (e) => { e.stopPropagation(); setEditingEnviar(true) } : undefined}
       >
@@ -784,13 +783,13 @@ function RenderBotoes({
   ) : null
 
   const whatsAppBtn = showWhatsApp ? (
-    <div className="relative group/botao-whatsapp w-full">
+    <div className="relative group/botao-whatsapp">
       {!showFinalPreview && onSelectStyleElement && (
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onSelectStyleElement('botao_whatsapp') }}
           className={cn(
-            'absolute -right-2 -top-2 z-10 p-1 rounded-full border bg-card shadow-sm transition-opacity',
+            'absolute right-1 top-1/2 -translate-y-1/2 z-10 p-1 rounded-full border bg-card shadow-sm transition-opacity',
             'opacity-0 group-hover/botao-whatsapp:opacity-100',
             selectedStyleElement === 'botao_whatsapp' ? 'opacity-100 border-primary text-primary' : 'border-border text-muted-foreground hover:text-primary hover:border-primary'
           )}
@@ -802,15 +801,14 @@ function RenderBotoes({
       <button
         type="button"
         className={cn(
-          'rounded-md text-sm font-semibold transition-all flex items-center justify-center gap-2',
-          'w-full',
+          'rounded-md text-sm font-semibold transition-all flex items-center justify-center gap-2 w-full',
           !showFinalPreview && selectedStyleElement === 'botao_whatsapp' && 'outline outline-2 outline-dashed outline-primary outline-offset-2'
         )}
         style={{
           backgroundColor: estiloBotao?.whatsapp_background || '#25D366',
           color: estiloBotao?.whatsapp_texto_cor || '#FFFFFF',
           borderRadius: estiloBotao?.whatsapp_border_radius || estiloBotao?.border_radius || '6px',
-          width: (!estiloBotao?.whatsapp_largura || estiloBotao.whatsapp_largura === 'full') ? '100%' : estiloBotao.whatsapp_largura,
+          width: '100%',
           height: estiloBotao?.whatsapp_altura || undefined,
           padding: estiloBotao?.whatsapp_padding || (estiloBotao?.whatsapp_altura ? '0 20px' : '10px 20px'),
           margin: estiloBotao?.whatsapp_margin || undefined,
@@ -844,8 +842,10 @@ function RenderBotoes({
     </div>
   ) : null
 
+  // AIDEV-NOTE: Resolve largura do wrapper (container) baseado no config
+  const resolveWrapperWidth = (largura?: string) => (!largura || largura === 'full') ? '100%' : largura
+
   if (tipoBotao === 'ambos') {
-    // AIDEV-NOTE: 50% = lado a lado (cada um 50%); full/auto = empilhados (cada um 100%)
     const larguraEnviar = estiloBotao?.largura || 'full'
     const larguraWhatsApp = estiloBotao?.whatsapp_largura || 'full'
     const ladoALado = larguraEnviar === '50%' && larguraWhatsApp === '50%'
@@ -858,7 +858,16 @@ function RenderBotoes({
     )
   }
 
-  return enviarBtn || whatsAppBtn
+  // Single button: wrapper controls width
+  if (enviarBtn) {
+    return <div style={{ width: resolveWrapperWidth(estiloBotao?.largura) }}>{enviarBtn}</div>
+  }
+  if (whatsAppBtn) {
+    return <div style={{ width: resolveWrapperWidth(estiloBotao?.whatsapp_largura) }}>{whatsAppBtn}</div>
+  }
+  return null
+
+  
 }
 
 /** Helper: renders label with optional info icon tooltip */
