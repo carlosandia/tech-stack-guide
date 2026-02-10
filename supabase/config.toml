@@ -53,3 +53,6 @@ verify_jwt = false
 
 [functions.email-tracking]
 verify_jwt = false
+
+[functions.processar-submissao-formulario]
+verify_jwt = false
