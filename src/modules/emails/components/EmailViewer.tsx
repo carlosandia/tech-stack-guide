@@ -208,17 +208,39 @@ export function EmailViewer({
 
     // Sanitize — keep full document structure, styles, images
     // AIDEV-NOTE: FORBID_TAGS inclui script+noscript para eliminar erros de "Blocked script execution"
+    // AIDEV-NOTE: Lista completa de event handlers HTML para prevenir XSS
+    const ALL_EVENT_HANDLERS = [
+      'onerror','onload','onclick','ondblclick','onmouseover','onmouseout','onmouseenter',
+      'onmouseleave','onmousedown','onmouseup','onmousemove','onfocus','onblur','onchange',
+      'oninput','onsubmit','onreset','onkeydown','onkeyup','onkeypress','onscroll',
+      'onresize','onhashchange','onpopstate','onbeforeunload','onunload','onmessage',
+      'onanimationstart','onanimationend','onanimationiteration','ontransitionend',
+      'ontouchstart','ontouchend','ontouchmove','ontouchcancel','onpointerdown',
+      'onpointerup','onpointermove','oncontextmenu','ondrag','ondragstart','ondragend',
+      'ondragover','ondragenter','ondragleave','ondrop','onwheel','oncopy','oncut','onpaste',
+    ]
+
     let sanitized = DOMPurify.sanitize(html, {
       WHOLE_DOCUMENT: true,
       ADD_TAGS: ['style'],
       ADD_ATTR: ['target'],
-      FORBID_TAGS: ['script', 'noscript'],
-      FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'onmouseout', 'onfocus', 'onblur'],
+      FORBID_TAGS: ['script', 'noscript', 'iframe', 'object', 'embed', 'applet'],
+      FORBID_ATTR: ALL_EVENT_HANDLERS,
     })
 
     // Remover scripts residuais que possam ter escapado do DOMPurify
     sanitized = sanitized.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
     sanitized = sanitized.replace(/<noscript\b[^<]*(?:(?!<\/noscript>)<[^<]*)*<\/noscript>/gi, '')
+
+    // Remover link tags que carregam scripts
+    sanitized = sanitized.replace(/<link\b[^>]*\bas\s*=\s*["']?script["']?[^>]*\/?>/gi, '')
+
+    // Remover referências ao tailwindcss CDN (causa warning "Blocked script execution")
+    sanitized = sanitized.replace(/<script[^>]*cdn\.tailwindcss\.com[^>]*>[\s\S]*?<\/script>/gi, '')
+    sanitized = sanitized.replace(/<link[^>]*cdn\.tailwindcss\.com[^>]*\/?>/gi, '')
+
+    // Remover comentários condicionais do IE que podem conter scripts
+    sanitized = sanitized.replace(/<!--\[if[\s\S]*?<!\[endif\]-->/gi, '')
 
     // Inject <base target="_blank"> for links
     if (sanitized.includes('<head>')) {
