@@ -1,6 +1,7 @@
 /**
  * AIDEV-NOTE: Edge Function para processar submissões de formulários
  * Cria contato e oportunidade no CRM com base nos mapeamentos de campos
+ * Envia notificações por Email (SMTP) e WhatsApp (WAHA) conforme config_botoes
  * Chamada fire-and-forget após inserção da submissão
  */
 
@@ -10,6 +11,290 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 }
+
+// =====================================================
+// SMTP Helper Functions
+// =====================================================
+
+function extractHostnameFromGreeting(greeting: string, fallback: string): string {
+  const parts = greeting.trim().split(/\s+/)
+  return parts.length > 1 ? parts[1] : fallback
+}
+
+async function writeAll(conn: Deno.TcpConn | Deno.TlsConn, data: Uint8Array): Promise<void> {
+  let offset = 0
+  while (offset < data.length) {
+    const n = await conn.write(data.subarray(offset))
+    if (n === null || n === 0) throw new Error('Falha ao escrever no socket SMTP')
+    offset += n
+  }
+}
+
+async function enviarEmailSmtp(config: {
+  host: string
+  port: number
+  user: string
+  pass: string
+  from: string
+  fromName?: string
+  to: string
+  subject: string
+  bodyHtml: string
+}): Promise<{ sucesso: boolean; mensagem: string }> {
+  let dataResponseOk = false
+  try {
+    const useTLS = config.port === 465
+    let conn: Deno.TcpConn | Deno.TlsConn
+
+    if (useTLS) {
+      conn = await Deno.connectTls({ hostname: config.host, port: config.port })
+    } else {
+      conn = await Deno.connect({ hostname: config.host, port: config.port })
+    }
+
+    const encoder = new TextEncoder()
+    const decoder = new TextDecoder()
+
+    const readResponse = async (timeoutMs = 15000): Promise<string> => {
+      let fullResponse = ''
+      while (true) {
+        const buf = new Uint8Array(4096)
+        const readPromise = conn.read(buf)
+        const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs))
+        const n = await Promise.race([readPromise, timeoutPromise])
+        if (n === null) throw new Error('Timeout lendo resposta SMTP')
+        if (n === 0) throw new Error('Conexão fechada pelo servidor')
+        fullResponse += decoder.decode(buf.subarray(0, n as number))
+        const lines = fullResponse.split('\r\n').filter(l => l.length > 0)
+        if (lines.length === 0) continue
+        const lastLine = lines[lines.length - 1]
+        if (/^\d{3}[\s]/.test(lastLine) || /^\d{3}$/.test(lastLine)) break
+      }
+      return fullResponse
+    }
+
+    const sendCommand = async (cmd: string, timeoutMs = 15000): Promise<string> => {
+      await writeAll(conn, encoder.encode(cmd + '\r\n'))
+      return await readResponse(timeoutMs)
+    }
+
+    const greeting = await readResponse()
+    if (!greeting.startsWith('220')) {
+      conn.close()
+      return { sucesso: false, mensagem: 'Servidor SMTP rejeitou conexão' }
+    }
+
+    const realHostname = extractHostnameFromGreeting(greeting, config.host)
+    await sendCommand('EHLO crmrenove.local')
+
+    if (config.port === 587) {
+      const starttlsResp = await sendCommand('STARTTLS')
+      if (starttlsResp.startsWith('220')) {
+        conn = await Deno.startTls(conn as Deno.TcpConn, { hostname: realHostname })
+        await sendCommand('EHLO crmrenove.local')
+      }
+    }
+
+    const authResp = await sendCommand('AUTH LOGIN')
+    if (!authResp.startsWith('334')) { conn.close(); return { sucesso: false, mensagem: 'AUTH LOGIN não suportado' } }
+
+    const userResp = await sendCommand(btoa(config.user))
+    if (!userResp.startsWith('334')) { conn.close(); return { sucesso: false, mensagem: 'Falha auth (usuário)' } }
+
+    const passResp = await sendCommand(btoa(config.pass))
+    if (!passResp.startsWith('235')) { conn.close(); return { sucesso: false, mensagem: 'Falha auth (senha)' } }
+
+    const mailFromResp = await sendCommand(`MAIL FROM:<${config.from}>`)
+    if (!mailFromResp.startsWith('250')) { conn.close(); return { sucesso: false, mensagem: 'Remetente rejeitado' } }
+
+    const rcptResp = await sendCommand(`RCPT TO:<${config.to}>`)
+    if (!rcptResp.startsWith('250')) { conn.close(); return { sucesso: false, mensagem: 'Destinatário rejeitado' } }
+
+    const dataResp = await sendCommand('DATA')
+    if (!dataResp.startsWith('354')) { conn.close(); return { sucesso: false, mensagem: 'DATA rejeitado' } }
+
+    const messageId = `${crypto.randomUUID()}@crmrenove.local`
+    const fromDisplay = config.fromName ? `"${config.fromName}" <${config.from}>` : config.from
+    const message = [
+      `From: ${fromDisplay}`,
+      `To: ${config.to}`,
+      `Subject: =?UTF-8?B?${btoa(unescape(encodeURIComponent(config.subject)))}?=`,
+      `MIME-Version: 1.0`,
+      `Content-Type: text/html; charset=UTF-8`,
+      `Date: ${new Date().toUTCString()}`,
+      `Message-ID: <${messageId}>`,
+      ``,
+      config.bodyHtml,
+      `.`,
+    ].join('\r\n')
+
+    await writeAll(conn, encoder.encode(message + '\r\n'))
+    const msgResp = await readResponse(30000)
+
+    if (!msgResp.startsWith('250')) {
+      conn.close()
+      return { sucesso: false, mensagem: `Mensagem rejeitada: ${msgResp.substring(0, 100)}` }
+    }
+    dataResponseOk = true
+
+    try { await sendCommand('QUIT', 5000) } catch (_) { /* ok */ }
+    try { conn.close() } catch (_) { /* ok */ }
+
+    return { sucesso: true, mensagem: 'Email enviado' }
+  } catch (err) {
+    const msg = (err as Error).message
+    if (dataResponseOk && (msg.includes('close_notify') || msg.includes('peer closed'))) {
+      return { sucesso: true, mensagem: 'Email enviado (close_notify)' }
+    }
+    return { sucesso: false, mensagem: `Erro SMTP: ${msg}` }
+  }
+}
+
+// =====================================================
+// Notification Helpers
+// =====================================================
+
+async function notificarEmail(
+  supabase: ReturnType<typeof createClient>,
+  organizacaoId: string,
+  emailDestino: string,
+  dadosContato: Record<string, any>,
+  nomeFormulario: string,
+  funilNome: string,
+) {
+  console.log('[notif-email] Buscando conexão SMTP para org:', organizacaoId)
+
+  const { data: conexao } = await supabase
+    .from('conexoes_email')
+    .select('email, nome_remetente, smtp_host, smtp_port, smtp_user, smtp_pass_encrypted')
+    .eq('organizacao_id', organizacaoId)
+    .in('status', ['ativo', 'conectado'])
+    .is('deletado_em', null)
+    .limit(1)
+    .single()
+
+  if (!conexao?.smtp_host || !conexao?.smtp_user || !conexao?.smtp_pass_encrypted) {
+    console.error('[notif-email] Nenhuma conexão SMTP válida encontrada')
+    return
+  }
+
+  const camposHtml = Object.entries(dadosContato)
+    .filter(([k]) => !k.startsWith('custom.'))
+    .map(([k, v]) => `<tr><td style="padding:6px 12px;border:1px solid #ddd;font-weight:600;text-transform:capitalize">${k}</td><td style="padding:6px 12px;border:1px solid #ddd">${v}</td></tr>`)
+    .join('')
+
+  const bodyHtml = `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+      <h2 style="color:#1a1a2e">📋 Nova Submissão de Formulário</h2>
+      <p><strong>Formulário:</strong> ${nomeFormulario}</p>
+      <p><strong>Pipeline:</strong> ${funilNome}</p>
+      <table style="width:100%;border-collapse:collapse;margin:16px 0">
+        <thead><tr><th style="padding:8px 12px;border:1px solid #ddd;background:#f5f5f5;text-align:left">Campo</th><th style="padding:8px 12px;border:1px solid #ddd;background:#f5f5f5;text-align:left">Valor</th></tr></thead>
+        <tbody>${camposHtml}</tbody>
+      </table>
+      <p style="color:#666;font-size:12px">Enviado automaticamente pelo CRM Renove</p>
+    </div>`
+
+  const nomeContato = dadosContato.nome || 'Lead'
+  const result = await enviarEmailSmtp({
+    host: conexao.smtp_host,
+    port: conexao.smtp_port || 587,
+    user: conexao.smtp_user,
+    pass: conexao.smtp_pass_encrypted,
+    from: conexao.email,
+    fromName: conexao.nome_remetente || 'CRM Renove',
+    to: emailDestino,
+    subject: `Nova submissão: ${nomeContato}`,
+    bodyHtml,
+  })
+
+  console.log('[notif-email] Resultado:', result)
+}
+
+async function notificarWhatsApp(
+  supabase: ReturnType<typeof createClient>,
+  organizacaoId: string,
+  numeroDestino: string,
+  dadosContato: Record<string, any>,
+  nomeFormulario: string,
+  funilNome: string,
+) {
+  console.log('[notif-waha] Buscando config WAHA e sessão para org:', organizacaoId)
+
+  // Buscar config global WAHA
+  const { data: configGlobal } = await supabase
+    .from('configuracoes_globais')
+    .select('configuracoes')
+    .eq('plataforma', 'waha')
+    .single()
+
+  if (!configGlobal?.configuracoes) {
+    console.error('[notif-waha] Configuração WAHA global não encontrada')
+    return
+  }
+
+  const wahaConfig = configGlobal.configuracoes as Record<string, any>
+  const apiUrl = wahaConfig.api_url || wahaConfig.url
+  const apiKey = wahaConfig.api_key || wahaConfig.key
+
+  if (!apiUrl) {
+    console.error('[notif-waha] api_url WAHA não configurada')
+    return
+  }
+
+  // Buscar sessão conectada
+  const { data: sessao } = await supabase
+    .from('sessoes_whatsapp')
+    .select('session_name')
+    .eq('organizacao_id', organizacaoId)
+    .eq('status', 'connected')
+    .is('deletado_em', null)
+    .limit(1)
+    .single()
+
+  if (!sessao) {
+    console.error('[notif-waha] Nenhuma sessão WhatsApp conectada')
+    return
+  }
+
+  // Formatar numero: remover tudo que não é dígito, adicionar @c.us
+  const numeroLimpo = numeroDestino.replace(/\D/g, '')
+  const chatId = `${numeroLimpo}@c.us`
+
+  // Montar mensagem
+  const campos = Object.entries(dadosContato)
+    .filter(([k]) => !k.startsWith('custom.'))
+    .map(([k, v]) => `*${k.charAt(0).toUpperCase() + k.slice(1)}:* ${v}`)
+    .join('\n')
+
+  const mensagem = `📋 *Nova submissão de formulário*\n\n` +
+    `📝 *Formulário:* ${nomeFormulario}\n` +
+    `📊 *Pipeline:* ${funilNome}\n\n` +
+    `${campos}\n\n` +
+    `_Enviado automaticamente pelo CRM Renove_`
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`
+
+  const resp = await fetch(`${apiUrl}/api/sendText`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      chatId,
+      text: mensagem,
+      session: sessao.session_name,
+    }),
+  })
+
+  const respText = await resp.text()
+  console.log(`[notif-waha] Status: ${resp.status}, Resp: ${respText.substring(0, 200)}`)
+}
+
+// =====================================================
+// Main Handler
+// =====================================================
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -34,7 +319,7 @@ Deno.serve(async (req) => {
     // Buscar formulário com config_botoes
     const { data: formulario, error: formErr } = await supabase
       .from('formularios')
-      .select('id, organizacao_id, config_botoes, funil_id')
+      .select('id, organizacao_id, nome, config_botoes, funil_id')
       .eq('id', formulario_id)
       .single()
 
@@ -61,7 +346,6 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Verificar se deve criar oportunidade
     const configBotoes = (formulario.config_botoes && typeof formulario.config_botoes === 'object')
       ? formulario.config_botoes as Record<string, any>
       : null
@@ -72,18 +356,20 @@ Deno.serve(async (req) => {
       (configBotoes?.whatsapp_cria_oportunidade && configBotoes?.whatsapp_funil_id)
 
     if (!deveCriarOportunidade) {
-      // Marcar como processada sem criar oportunidade
-      await supabase
-        .from('submissoes_formularios')
-        .update({ status: 'processada' })
-        .eq('id', submissao_id)
-
+      await supabase.from('submissoes_formularios').update({ status: 'processada' }).eq('id', submissao_id)
       return new Response(JSON.stringify({ ok: true, mensagem: 'Sem integração configurada' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
     const funilId = configBotoes?.enviar_funil_id || configBotoes?.whatsapp_funil_id || formulario.funil_id
+
+    // Buscar nome do funil para notificações
+    let funilNome = 'N/A'
+    if (funilId) {
+      const { data: funil } = await supabase.from('funis').select('nome').eq('id', funilId).single()
+      if (funil) funilNome = funil.nome
+    }
 
     // Buscar mapeamento dos campos
     const { data: camposForm } = await supabase
@@ -131,7 +417,6 @@ Deno.serve(async (req) => {
     let contatoId: string | null = null
 
     if (dadosContato.email || dadosContato.nome || dadosContato.telefone) {
-      // Buscar contato existente pelo email
       if (dadosContato.email) {
         const { data: contatoExistente } = await supabase
           .from('contatos')
@@ -143,7 +428,6 @@ Deno.serve(async (req) => {
 
         if (contatoExistente) {
           contatoId = contatoExistente.id
-          // Atualizar dados (exceto campos custom.*)
           const dadosUpdate: Record<string, any> = {}
           for (const [k, v] of Object.entries(dadosContato)) {
             if (!k.startsWith('custom.')) dadosUpdate[k] = v
@@ -155,7 +439,6 @@ Deno.serve(async (req) => {
       }
 
       if (!contatoId) {
-        // Criar novo contato
         const dadosInsert: Record<string, any> = {
           organizacao_id: formulario.organizacao_id,
           tipo: 'pessoa',
@@ -177,7 +460,6 @@ Deno.serve(async (req) => {
 
     // Criar oportunidade
     if (contatoId && funilId) {
-      // Buscar etapa de entrada do funil
       const { data: etapaEntrada } = await supabase
         .from('etapas_funil')
         .select('id')
@@ -188,7 +470,6 @@ Deno.serve(async (req) => {
 
       const etapaId = etapaEntrada?.id
 
-      // Gerar título no formato "[Nome] - #[Sequência]"
       const nomeContato = dadosContato.nome || 'Lead'
       const { count: countOportunidades } = await supabase
         .from('oportunidades')
@@ -219,7 +500,6 @@ Deno.serve(async (req) => {
         console.error('Erro ao criar oportunidade:', opErr)
       }
 
-      // Atualizar submissão com IDs
       if (oportunidade) {
         await supabase
           .from('submissoes_formularios')
@@ -235,6 +515,46 @@ Deno.serve(async (req) => {
         .from('submissoes_formularios')
         .update({ status: 'processada' })
         .eq('id', submissao_id)
+    }
+
+    // =====================================================
+    // NOTIFICAÇÕES (fire-and-forget, erros não bloqueiam)
+    // =====================================================
+    const notificacoes: Promise<void>[] = []
+
+    // Notificação por Email
+    if (configBotoes?.enviar_notifica_email && configBotoes?.enviar_email_destino) {
+      console.log('[processar] Disparando notificação por email para:', configBotoes.enviar_email_destino)
+      notificacoes.push(
+        notificarEmail(
+          supabase,
+          formulario.organizacao_id,
+          configBotoes.enviar_email_destino,
+          dadosContato,
+          formulario.nome || 'Formulário',
+          funilNome,
+        ).catch(err => console.error('[notif-email] Erro:', err))
+      )
+    }
+
+    // Notificação por WhatsApp
+    if (configBotoes?.enviar_notifica_whatsapp && configBotoes?.enviar_whatsapp_destino) {
+      console.log('[processar] Disparando notificação WhatsApp para:', configBotoes.enviar_whatsapp_destino)
+      notificacoes.push(
+        notificarWhatsApp(
+          supabase,
+          formulario.organizacao_id,
+          configBotoes.enviar_whatsapp_destino,
+          dadosContato,
+          formulario.nome || 'Formulário',
+          funilNome,
+        ).catch(err => console.error('[notif-waha] Erro:', err))
+      )
+    }
+
+    // Aguardar notificações (mas não falhar se derem erro)
+    if (notificacoes.length > 0) {
+      await Promise.allSettled(notificacoes)
     }
 
     return new Response(JSON.stringify({ ok: true }), {
