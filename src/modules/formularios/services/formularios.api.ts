@@ -37,7 +37,7 @@ supabase.auth.onAuthStateChange(() => {
 // Types
 // =====================================================
 
-export type TipoFormulario = 'inline' | 'popup' | 'landing_page' | 'newsletter' | 'multi_step'
+export type TipoFormulario = 'inline' | 'popup' | 'newsletter' | 'multi_step'
 export type StatusFormulario = 'rascunho' | 'publicado' | 'arquivado'
 
 // AIDEV-NOTE: Configurações globais do multi-step
