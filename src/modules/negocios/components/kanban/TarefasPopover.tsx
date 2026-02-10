@@ -8,7 +8,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { CheckSquare, Square, Loader2 } from 'lucide-react'
+import { CheckSquare, Square, Loader2, ClipboardList } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
 
@@ -241,8 +241,9 @@ export function TarefasPopover({ oportunidadeId, totalPendentes, totalTarefas, t
               {gruposEtapa.map(([etapaKey, grupo], idx) => (
                 <div key={etapaKey}>
                   {/* Separador de etapa */}
-                  <div className={`px-3 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider bg-muted/50 ${idx > 0 ? 'border-t border-border' : ''}`}>
-                    📋 {grupo.nome}
+                  <div className={`flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider bg-muted/50 ${idx > 0 ? 'border-t border-border' : ''}`}>
+                    <ClipboardList className="w-3 h-3" />
+                    <span>{grupo.nome}</span>
                   </div>
                   {grupo.tarefas.map(tarefa => (
                     <div
