@@ -162,13 +162,19 @@ export function EmailsPage() {
 
   // Auto-marcar como lido ao selecionar + adicionar ao histórico
   useEffect(() => {
-    if (selectedEmail) {
+    if (selectedEmail && selectedEmail.id) {
       if (!selectedEmail.lido) {
         atualizarEmail.mutate({ id: selectedEmail.id, payload: { lido: true } })
       }
-      historico.adicionar(selectedEmail)
+      // AIDEV-NOTE: Adiciona ao histórico local sempre que um email é visualizado
+      historico.adicionar({
+        id: selectedEmail.id,
+        de_nome: selectedEmail.de_nome,
+        de_email: selectedEmail.de_email,
+        assunto: selectedEmail.assunto,
+      })
     }
-  }, [selectedEmail?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedEmail?.id, historico.adicionar, atualizarEmail]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reset page ao mudar pasta/busca/filtros
   useEffect(() => {
