@@ -608,6 +608,8 @@ async function salvarConfigPopup(formularioId: string, payload: Partial<ConfigPo
 // Config Newsletter
 // =====================================================
 
+export type NewsletterTemplate = 'simples' | 'hero_topo' | 'hero_lateral' | 'so_imagem'
+
 export interface ConfigNewsletter {
   id: string
   formulario_id: string
@@ -624,6 +626,9 @@ export interface ConfigNewsletter {
   provedor_externo?: string | null
   id_lista_externa?: string | null
   ref_api_key_externa?: string | null
+  newsletter_layout?: NewsletterTemplate | null
+  newsletter_imagem_url?: string | null
+  newsletter_imagem_link?: string | null
 }
 
 async function buscarConfigNewsletter(formularioId: string): Promise<ConfigNewsletter | null> {

@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useFormulario } from '../hooks/useFormularios'
-import { useConfigPopup, useSalvarConfigPopup } from '../hooks/useFormularioConfig'
+import { useConfigPopup, useSalvarConfigPopup, useConfigNewsletter, useSalvarConfigNewsletter } from '../hooks/useFormularioConfig'
 import {
   useCamposFormulario,
   useCriarCampo,
@@ -33,6 +33,8 @@ import { EstiloContainerForm } from '../components/estilos/EstiloContainerForm'
 import { EstiloCamposForm } from '../components/estilos/EstiloCamposForm'
 import { BotaoConfigPanel } from '../components/config/BotaoConfigPanel'
 import { PopupLayoutSelector, type PopupTemplate } from '../components/config/PopupLayoutSelector'
+import { NewsletterLayoutSelector } from '../components/config/NewsletterLayoutSelector'
+import type { NewsletterTemplate } from '../services/formularios.api'
 import { EditorTabsCompartilhar } from '../components/editor/EditorTabsCompartilhar'
 import { EditorTabsConfig } from '../components/editor/EditorTabsConfig'
 import { EditorTabsAnalytics } from '../components/editor/EditorTabsAnalytics'
@@ -54,6 +56,7 @@ export function FormularioEditorPage() {
   const { data: formulario, isLoading: loadingForm } = useFormulario(id || null)
   const { data: campos = [], isLoading: loadingCampos } = useCamposFormulario(id || null)
   const { data: configPopup } = useConfigPopup(formulario?.tipo === 'popup' ? (id || null) : null)
+  const { data: configNewsletter } = useConfigNewsletter(formulario?.tipo === 'newsletter' ? (id || null) : null)
   const criarCampo = useCriarCampo(id || '')
   const atualizarCampo = useAtualizarCampo(id || '')
   const excluirCampo = useExcluirCampo(id || '')
@@ -75,9 +78,15 @@ export function FormularioEditorPage() {
 
   // Popup layout - local state for immediate reactivity
   const salvarConfigPopup = useSalvarConfigPopup(id || '')
+  const salvarConfigNewsletter = useSalvarConfigNewsletter(id || '')
   const [localPopupTemplate, setLocalPopupTemplate] = useState<PopupTemplate>('so_campos')
   const [localPopupImagemUrl, setLocalPopupImagemUrl] = useState<string | null>(null)
   const [localPopupImagemLink, setLocalPopupImagemLink] = useState<string | null>(null)
+
+  // Newsletter layout - local state for immediate reactivity
+  const [localNewsletterTemplate, setLocalNewsletterTemplate] = useState<NewsletterTemplate>('simples')
+  const [localNewsletterImagemUrl, setLocalNewsletterImagemUrl] = useState<string | null>(null)
+  const [localNewsletterImagemLink, setLocalNewsletterImagemLink] = useState<string | null>(null)
 
   // Sync from server when formulario/configPopup changes
   useEffect(() => {
@@ -93,6 +102,14 @@ export function FormularioEditorPage() {
       setLocalPopupImagemLink((configPopup as any).popup_imagem_link || null)
     }
   }, [configPopup])
+
+  useEffect(() => {
+    if (configNewsletter) {
+      setLocalNewsletterTemplate((configNewsletter.newsletter_layout as NewsletterTemplate) || 'simples')
+      setLocalNewsletterImagemUrl(configNewsletter.newsletter_imagem_url || null)
+      setLocalNewsletterImagemLink(configNewsletter.newsletter_imagem_link || null)
+    }
+  }, [configNewsletter])
 
   useEffect(() => {
     if (estilos) {
@@ -359,6 +376,28 @@ export function FormularioEditorPage() {
                         />
                       </div>
                     )}
+                    {formulario.tipo === 'newsletter' && (
+                      <div className="mb-4 pb-3 border-b border-border">
+                        <NewsletterLayoutSelector
+                          formularioId={formulario.id}
+                          template={localNewsletterTemplate}
+                          imagemUrl={localNewsletterImagemUrl}
+                          imagemLink={localNewsletterImagemLink}
+                          onChangeTemplate={(t) => {
+                            setLocalNewsletterTemplate(t)
+                            salvarConfigNewsletter.mutate({ newsletter_layout: t })
+                          }}
+                          onChangeImagemUrl={(url) => {
+                            setLocalNewsletterImagemUrl(url)
+                            salvarConfigNewsletter.mutate({ newsletter_imagem_url: url, newsletter_layout: localNewsletterTemplate })
+                          }}
+                          onChangeImagemLink={(link) => {
+                            setLocalNewsletterImagemLink(link)
+                            salvarConfigNewsletter.mutate({ newsletter_imagem_link: link })
+                          }}
+                        />
+                      </div>
+                    )}
                     <CamposPaleta />
                   </div>
                 </div>
@@ -395,6 +434,11 @@ export function FormularioEditorPage() {
                   template: localPopupTemplate,
                   imagemUrl: localPopupImagemUrl,
                   imagemLink: localPopupImagemLink,
+                } : null}
+                newsletterLayout={formulario.tipo === 'newsletter' ? {
+                  template: localNewsletterTemplate,
+                  imagemUrl: localNewsletterImagemUrl,
+                  imagemLink: localNewsletterImagemLink,
                 } : null}
                 onUpdateCampoLabel={handleUpdateCampoLabel}
                 onUpdateBotaoTexto={handleUpdateBotaoTexto}

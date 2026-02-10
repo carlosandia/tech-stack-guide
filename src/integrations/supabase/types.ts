@@ -975,6 +975,9 @@ export type Database = {
           id: string
           id_lista_externa: string | null
           mostrar_checkbox_consentimento: boolean | null
+          newsletter_imagem_link: string | null
+          newsletter_imagem_url: string | null
+          newsletter_layout: string
           nome_lista: string | null
           provedor_externo: string | null
           ref_api_key_externa: string | null
@@ -994,6 +997,9 @@ export type Database = {
           id?: string
           id_lista_externa?: string | null
           mostrar_checkbox_consentimento?: boolean | null
+          newsletter_imagem_link?: string | null
+          newsletter_imagem_url?: string | null
+          newsletter_layout?: string
           nome_lista?: string | null
           provedor_externo?: string | null
           ref_api_key_externa?: string | null
@@ -1013,6 +1019,9 @@ export type Database = {
           id?: string
           id_lista_externa?: string | null
           mostrar_checkbox_consentimento?: boolean | null
+          newsletter_imagem_link?: string | null
+          newsletter_imagem_url?: string | null
+          newsletter_layout?: string
           nome_lista?: string | null
           provedor_externo?: string | null
           ref_api_key_externa?: string | null

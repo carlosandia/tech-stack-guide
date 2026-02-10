@@ -13,7 +13,7 @@ import { Monitor, Tablet, Smartphone, Paintbrush, Eye, EyeOff, Code, Info } from
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
-import type { CampoFormulario, Formulario, EstiloContainer, EstiloCampos, EstiloBotao, EstiloCabecalho } from '../../services/formularios.api'
+import type { CampoFormulario, Formulario, EstiloContainer, EstiloCampos, EstiloBotao, EstiloCabecalho, NewsletterTemplate } from '../../services/formularios.api'
 import type { ConfigBotoes } from '../config/ConfigBotoesEnvioForm'
 import type { PopupTemplate } from '../config/PopupLayoutSelector'
 import { CampoItem } from '../campos/CampoItem'
@@ -60,6 +60,8 @@ interface Props {
   configBotoes?: ConfigBotoes | null
   // Popup layout
   popupLayout?: { template: PopupTemplate; imagemUrl: string | null; imagemLink?: string | null } | null
+  // Newsletter layout
+  newsletterLayout?: { template: NewsletterTemplate; imagemUrl: string | null; imagemLink?: string | null } | null
   // Inline editing
   onUpdateCampoLabel?: (campoId: string, newLabel: string) => void
   onUpdateBotaoTexto?: (tipo: 'enviar' | 'whatsapp', newTexto: string) => void
@@ -90,6 +92,7 @@ export function FormPreview({
   cssCustomizado,
   configBotoes,
   popupLayout,
+  newsletterLayout,
   onUpdateCampoLabel,
   onUpdateBotaoTexto,
 }: Props) {
@@ -342,16 +345,29 @@ export function FormPreview({
             </button>
           )}
 
-          {/* Popup layout wrapper */}
+          {/* Layout wrapper (popup + newsletter) */}
           {(() => {
-            const tpl = popupLayout?.template || 'so_campos'
-            const imgUrl = popupLayout?.imagemUrl
-            const imgLink = popupLayout?.imagemLink
-            const hasImage = tpl !== 'so_campos'
             const isPopup = formulario.tipo === 'popup'
+            const isNewsletter = formulario.tipo === 'newsletter'
+
+            // Determine layout config based on type
+            const tpl = isPopup
+              ? (popupLayout?.template || 'so_campos')
+              : isNewsletter
+                ? (newsletterLayout?.template || 'simples')
+                : 'so_campos'
+            const imgUrl = isPopup ? popupLayout?.imagemUrl : isNewsletter ? newsletterLayout?.imagemUrl : null
+            const imgLink = isPopup ? popupLayout?.imagemLink : isNewsletter ? newsletterLayout?.imagemLink : null
+
+            // Normalize: newsletter 'simples' = no image, 'hero_topo' = image top, 'hero_lateral' = lateral 50/50, 'so_imagem' = only image
+            const hasImage = isPopup
+              ? tpl !== 'so_campos'
+              : isNewsletter
+                ? tpl !== 'simples'
+                : false
 
             // Image element or placeholder (wrapped in link if imgLink is set)
-            const rawImage = hasImage && isPopup ? (
+            const rawImage = hasImage ? (
               imgUrl ? (
                 <img src={imgUrl} alt="" className="w-full h-full object-cover" />
               ) : (
@@ -369,7 +385,7 @@ export function FormPreview({
 
             // Form content (header + fields + buttons)
             const formContent = (
-              <div className={cn(tpl === 'imagem_fundo' && isPopup && hasImage && 'relative z-10')}>
+              <div>
                 {/* Form header - only logo and description, no title */}
                 <div className="mb-6 text-center">
                   {estiloCabecalho?.logo_url && (
@@ -460,83 +476,119 @@ export function FormPreview({
               </div>
             )
 
-            // If not popup or no special layout, render form content directly
-            if (!isPopup || !hasImage) return formContent
+            // No special layout needed - render form content directly
+            if (!hasImage) return formContent
 
-            // Layout: so_imagem (full image, no form)
+            const negMargin = { margin: `-${estiloContainer?.padding || '24px'}` }
+
+            // so_imagem (popup or newsletter)
             if (tpl === 'so_imagem') {
               return (
-                <div className="-m-6 rounded-lg overflow-hidden" style={{ margin: `-${estiloContainer?.padding || '24px'}` }}>
+                <div className="-m-6 rounded-lg overflow-hidden" style={negMargin}>
                   <div className="min-h-[300px]">{imageEl}</div>
                 </div>
               )
             }
 
-            // Apply layout templates
-            if (tpl === 'imagem_esquerda') {
-              return (
-                <div className="flex min-h-[300px] -m-6 rounded-lg overflow-hidden" style={{ margin: `-${estiloContainer?.padding || '24px'}` }}>
-                  <div
-                    className={cn('w-2/5 flex-shrink-0 transition-all', dragOverImage && 'ring-2 ring-dashed ring-primary ring-inset')}
-                    onDragEnter={handleImageDragEnter}
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleImageDragLeave}
-                    onDrop={handleImageDrop}
-                  >{imageEl}</div>
-                  <div className="w-3/5 p-6 overflow-auto">{formContent}</div>
-                </div>
-              )
+            // Popup-specific layouts
+            if (isPopup) {
+              if (tpl === 'imagem_esquerda') {
+                return (
+                  <div className="flex min-h-[300px] -m-6 rounded-lg overflow-hidden" style={negMargin}>
+                    <div
+                      className={cn('w-2/5 flex-shrink-0 transition-all', dragOverImage && 'ring-2 ring-dashed ring-primary ring-inset')}
+                      onDragEnter={handleImageDragEnter}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleImageDragLeave}
+                      onDrop={handleImageDrop}
+                    >{imageEl}</div>
+                    <div className="w-3/5 p-6 overflow-auto">{formContent}</div>
+                  </div>
+                )
+              }
+              if (tpl === 'imagem_direita') {
+                return (
+                  <div className="flex min-h-[300px] -m-6 rounded-lg overflow-hidden" style={negMargin}>
+                    <div className="w-3/5 p-6 overflow-auto">{formContent}</div>
+                    <div
+                      className={cn('w-2/5 flex-shrink-0 transition-all', dragOverImage && 'ring-2 ring-dashed ring-primary ring-inset')}
+                      onDragEnter={handleImageDragEnter}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleImageDragLeave}
+                      onDrop={handleImageDrop}
+                    >{imageEl}</div>
+                  </div>
+                )
+              }
+              if (tpl === 'imagem_topo') {
+                return (
+                  <div className="flex flex-col -m-6 rounded-lg overflow-hidden" style={negMargin}>
+                    <div
+                      className={cn('h-48 flex-shrink-0 transition-all', dragOverImage && 'ring-2 ring-dashed ring-primary ring-inset')}
+                      onDragEnter={handleImageDragEnter}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleImageDragLeave}
+                      onDrop={handleImageDrop}
+                    >{imageEl}</div>
+                    <div className="p-6 overflow-auto">{formContent}</div>
+                  </div>
+                )
+              }
+              if (tpl === 'imagem_fundo') {
+                return (
+                  <div className="relative min-h-[350px] -m-6 rounded-lg overflow-hidden" style={negMargin}>
+                    <div className="absolute inset-0">{imageEl}</div>
+                    <div className="absolute inset-0 bg-black/40" />
+                    <div className="relative z-10 p-6">{formContent}</div>
+                  </div>
+                )
+              }
+              if (tpl === 'imagem_lateral_full') {
+                return (
+                  <div className="flex min-h-[350px] -m-6 rounded-lg overflow-hidden" style={negMargin}>
+                    <div
+                      className={cn('w-1/2 flex-shrink-0 transition-all', dragOverImage && 'ring-2 ring-dashed ring-primary ring-inset')}
+                      onDragEnter={handleImageDragEnter}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleImageDragLeave}
+                      onDrop={handleImageDrop}
+                    >{imageEl}</div>
+                    <div className="w-1/2 p-6 overflow-auto">{formContent}</div>
+                  </div>
+                )
+              }
             }
-            if (tpl === 'imagem_direita') {
-              return (
-                <div className="flex min-h-[300px] -m-6 rounded-lg overflow-hidden" style={{ margin: `-${estiloContainer?.padding || '24px'}` }}>
-                  <div className="w-3/5 p-6 overflow-auto">{formContent}</div>
-                  <div
-                    className={cn('w-2/5 flex-shrink-0 transition-all', dragOverImage && 'ring-2 ring-dashed ring-primary ring-inset')}
-                    onDragEnter={handleImageDragEnter}
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleImageDragLeave}
-                    onDrop={handleImageDrop}
-                  >{imageEl}</div>
-                </div>
-              )
-            }
-            if (tpl === 'imagem_topo') {
-              return (
-                <div className="flex flex-col -m-6 rounded-lg overflow-hidden" style={{ margin: `-${estiloContainer?.padding || '24px'}` }}>
-                  <div
-                    className={cn('h-48 flex-shrink-0 transition-all', dragOverImage && 'ring-2 ring-dashed ring-primary ring-inset')}
-                    onDragEnter={handleImageDragEnter}
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleImageDragLeave}
-                    onDrop={handleImageDrop}
-                  >{imageEl}</div>
-                  <div className="p-6 overflow-auto">{formContent}</div>
-                </div>
-              )
-            }
-            if (tpl === 'imagem_fundo') {
-              return (
-                <div className="relative min-h-[350px] -m-6 rounded-lg overflow-hidden" style={{ margin: `-${estiloContainer?.padding || '24px'}` }}>
-                  <div className="absolute inset-0">{imageEl}</div>
-                  <div className="absolute inset-0 bg-black/40" />
-                  <div className="relative z-10 p-6">{formContent}</div>
-                </div>
-              )
-            }
-            if (tpl === 'imagem_lateral_full') {
-              return (
-                <div className="flex min-h-[350px] -m-6 rounded-lg overflow-hidden" style={{ margin: `-${estiloContainer?.padding || '24px'}` }}>
-                  <div
-                    className={cn('w-1/2 flex-shrink-0 transition-all', dragOverImage && 'ring-2 ring-dashed ring-primary ring-inset')}
-                    onDragEnter={handleImageDragEnter}
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleImageDragLeave}
-                    onDrop={handleImageDrop}
-                  >{imageEl}</div>
-                  <div className="w-1/2 p-6 overflow-auto">{formContent}</div>
-                </div>
-              )
+
+            // Newsletter-specific layouts
+            if (isNewsletter) {
+              if (tpl === 'hero_topo') {
+                return (
+                  <div className="flex flex-col -m-6 rounded-lg overflow-hidden" style={negMargin}>
+                    <div
+                      className={cn('h-48 flex-shrink-0 transition-all', dragOverImage && 'ring-2 ring-dashed ring-primary ring-inset')}
+                      onDragEnter={handleImageDragEnter}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleImageDragLeave}
+                      onDrop={handleImageDrop}
+                    >{imageEl}</div>
+                    <div className="p-6 overflow-auto">{formContent}</div>
+                  </div>
+                )
+              }
+              if (tpl === 'hero_lateral') {
+                return (
+                  <div className="flex min-h-[350px] -m-6 rounded-lg overflow-hidden" style={negMargin}>
+                    <div
+                      className={cn('w-1/2 flex-shrink-0 transition-all', dragOverImage && 'ring-2 ring-dashed ring-primary ring-inset')}
+                      onDragEnter={handleImageDragEnter}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleImageDragLeave}
+                      onDrop={handleImageDrop}
+                    >{imageEl}</div>
+                    <div className="w-1/2 p-6 overflow-auto">{formContent}</div>
+                  </div>
+                )
+              }
             }
 
             return formContent

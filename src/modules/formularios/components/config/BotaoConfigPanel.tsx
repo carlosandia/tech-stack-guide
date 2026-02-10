@@ -200,7 +200,7 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
     if (error) {
       toast.error('Erro ao salvar configuração')
     } else {
-      toast.success('Configuração salva')
+      // AIDEV-NOTE: toast removido aqui para evitar duplicação quando chamado via EstiloPopover.handleSaveAll
       queryClient.invalidateQueries({ queryKey: ['formularios', formularioId] })
       onConfigChange?.(config)
     }
