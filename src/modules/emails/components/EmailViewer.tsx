@@ -111,8 +111,15 @@ function decodeQuotedPrintableString(str: string): string {
       bytes.push(parseInt(raw.substring(i + 1, i + 3), 16))
       i += 3
     } else {
-      bytes.push(raw.charCodeAt(i))
-      i++
+      // AIDEV-NOTE: Encode multi-byte chars properly (emojis, acentos)
+      const code = raw.codePointAt(i)!
+      if (code > 127) {
+        const encoded = new TextEncoder().encode(String.fromCodePoint(code))
+        for (const b of encoded) bytes.push(b)
+      } else {
+        bytes.push(code)
+      }
+      i += code > 0xFFFF ? 2 : 1
     }
   }
   return new TextDecoder('utf-8').decode(new Uint8Array(bytes))
