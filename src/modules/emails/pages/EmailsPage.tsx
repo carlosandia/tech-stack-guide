@@ -15,6 +15,8 @@ import { ComposeEmailModal, type ComposerMode } from '../components/ComposeEmail
 import { AssinaturaModal } from '../components/AssinaturaModal'
 import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
 import { EmailsMetricasPanel } from '../components/EmailsMetricasPanel'
+import { EmailHistoricoPopover } from '../components/EmailHistoricoPopover'
+import { useEmailHistorico } from '../hooks/useEmailHistorico'
 import type { EmailFiltros } from '../components/EmailFilters'
 import {
   useEmails,
@@ -62,6 +64,9 @@ export function EmailsPage() {
     try { return localStorage.getItem('emails_metricas_visiveis') === 'true' } catch { return false }
   })
 
+  // Histórico de emails visualizados
+  const historico = useEmailHistorico()
+
   // Toolbar actions
   const { setActions } = useAppToolbar()
 
@@ -73,33 +78,7 @@ export function EmailsPage() {
     })
   }, [])
 
-  useEffect(() => {
-    setActions(
-      <div className="flex items-center gap-1.5">
-        <button
-          onClick={toggleMetricas}
-          className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-md border text-sm font-medium transition-colors ${
-            metricasVisiveis
-              ? 'bg-primary/10 text-primary border-primary/30'
-              : 'border-border text-muted-foreground hover:bg-accent hover:text-foreground'
-          }`}
-          title="Métricas"
-        >
-          <BarChart3 className="w-4 h-4" />
-          <span className="hidden sm:inline">Métricas</span>
-        </button>
-        <button
-          onClick={() => setAssinaturaOpen(true)}
-          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-border text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-          title="Assinatura"
-        >
-          <Settings2 className="w-4 h-4" />
-          <span className="hidden sm:inline">Assinatura</span>
-        </button>
-      </div>
-    )
-    return () => setActions(null)
-  }, [setActions, metricasVisiveis, toggleMetricas])
+  
 
   const isDrafts = pasta === 'drafts'
 
@@ -181,10 +160,13 @@ export function EmailsPage() {
   // Auto-sync IMAP a cada 2 minutos (silencioso)
   useAutoSyncEmails()
 
-  // Auto-marcar como lido ao selecionar
+  // Auto-marcar como lido ao selecionar + adicionar ao histórico
   useEffect(() => {
-    if (selectedEmail && !selectedEmail.lido) {
-      atualizarEmail.mutate({ id: selectedEmail.id, payload: { lido: true } })
+    if (selectedEmail) {
+      if (!selectedEmail.lido) {
+        atualizarEmail.mutate({ id: selectedEmail.id, payload: { lido: true } })
+      }
+      historico.adicionar(selectedEmail)
     }
   }, [selectedEmail?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -227,6 +209,40 @@ export function EmailsPage() {
     },
     [isDrafts, rascunhosData, openComposer]
   )
+
+  // Toolbar actions - must be after handleSelect declaration
+  useEffect(() => {
+    setActions(
+      <div className="flex items-center gap-1.5">
+        <EmailHistoricoPopover
+          items={historico.items}
+          onSelect={handleSelect}
+          onLimpar={historico.limpar}
+        />
+        <button
+          onClick={toggleMetricas}
+          className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-md border text-sm font-medium transition-colors ${
+            metricasVisiveis
+              ? 'bg-primary/10 text-primary border-primary/30'
+              : 'border-border text-muted-foreground hover:bg-accent hover:text-foreground'
+          }`}
+          title="Métricas"
+        >
+          <BarChart3 className="w-4 h-4" />
+          <span className="hidden sm:inline">Métricas</span>
+        </button>
+        <button
+          onClick={() => setAssinaturaOpen(true)}
+          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-border text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+          title="Assinatura"
+        >
+          <Settings2 className="w-4 h-4" />
+          <span className="hidden sm:inline">Assinatura</span>
+        </button>
+      </div>
+    )
+    return () => setActions(null)
+  }, [setActions, metricasVisiveis, toggleMetricas, historico.items, historico.limpar, handleSelect])
 
   const handleToggleFavorito = useCallback(
     (id: string, favorito: boolean) => {
