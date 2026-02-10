@@ -615,7 +615,7 @@ function RenderBotoes({
   const showWhatsApp = tipoBotao === 'whatsapp' || tipoBotao === 'ambos'
 
   const enviarBtn = showEnviar ? (
-    <div className="relative group/botao-enviar">
+    <div className="relative group/botao-enviar w-full">
       {!showFinalPreview && onSelectStyleElement && (
         <button
           type="button"
@@ -660,7 +660,7 @@ function RenderBotoes({
   ) : null
 
   const whatsAppBtn = showWhatsApp ? (
-    <div className="relative group/botao-whatsapp">
+    <div className="relative group/botao-whatsapp w-full">
       {!showFinalPreview && onSelectStyleElement && (
         <button
           type="button"
