@@ -650,7 +650,8 @@ function RenderBotoes({
         type="button"
         className={cn(
           'rounded-md text-sm font-semibold transition-all',
-          !estiloBotao && 'w-full bg-primary text-primary-foreground py-2.5',
+          (!estiloBotao || estiloBotao.largura === 'full') && 'w-full',
+          !estiloBotao && 'bg-primary text-primary-foreground py-2.5',
           !showFinalPreview && selectedStyleElement === 'botao' && 'outline outline-2 outline-dashed outline-primary outline-offset-2'
         )}
         style={estiloBotao ? buttonStyle : undefined}
@@ -695,6 +696,7 @@ function RenderBotoes({
         type="button"
         className={cn(
           'rounded-md text-sm font-semibold transition-all flex items-center justify-center gap-2',
+          (estiloBotao?.whatsapp_largura === 'full' || tipoBotao === 'ambos') && 'w-full',
           !showFinalPreview && selectedStyleElement === 'botao_whatsapp' && 'outline outline-2 outline-dashed outline-primary outline-offset-2'
         )}
         style={{
