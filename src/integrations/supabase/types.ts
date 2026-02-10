@@ -1945,6 +1945,51 @@ export type Database = {
           },
         ]
       }
+      email_aberturas: {
+        Row: {
+          criado_em: string
+          email_id: string
+          id: string
+          ip: string | null
+          organizacao_id: string
+          tracking_id: string
+          user_agent: string | null
+        }
+        Insert: {
+          criado_em?: string
+          email_id: string
+          id?: string
+          ip?: string | null
+          organizacao_id: string
+          tracking_id: string
+          user_agent?: string | null
+        }
+        Update: {
+          criado_em?: string
+          email_id?: string
+          id?: string
+          ip?: string | null
+          organizacao_id?: string
+          tracking_id?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_aberturas_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "emails_recebidos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_aberturas_organizacao_id_fkey"
+            columns: ["organizacao_id"]
+            isOneToOne: false
+            referencedRelation: "organizacoes_saas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       emails_assinaturas: {
         Row: {
           assinatura_html: string | null
