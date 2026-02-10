@@ -394,9 +394,16 @@ export interface EstiloContainer {
   background_color?: string
   border_radius?: string
   padding?: string
+  padding_top?: string
+  padding_right?: string
+  padding_bottom?: string
+  padding_left?: string
   sombra?: string
   max_width?: string
   font_family?: string
+  border_width?: string
+  border_color?: string
+  border_style?: string
 }
 
 export interface EstiloCabecalho {
@@ -414,6 +421,7 @@ export interface EstiloCampos {
   input_background?: string
   input_border_color?: string
   input_border_radius?: string
+  input_border_width?: string
   input_texto_cor?: string
   input_placeholder_cor?: string
   erro_cor?: string
