@@ -122,6 +122,35 @@ export function FormularioEditorPage() {
     }
   }, [estilos])
 
+  // AIDEV-NOTE: Auto-save estilos com debounce de 1s
+  const estilosInitialized = useRef(false)
+  const estilosDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    // Skip until estilos are loaded from server
+    if (!estilos) return
+    if (!estilosInitialized.current) {
+      estilosInitialized.current = true
+      return
+    }
+
+    if (estilosDebounceRef.current) clearTimeout(estilosDebounceRef.current)
+    estilosDebounceRef.current = setTimeout(() => {
+      salvarEstilos.mutate({
+        container,
+        cabecalho,
+        campos: camposEstilo,
+        botao,
+        pagina,
+        css_customizado: cssCustomizado || null,
+      })
+    }, 1000)
+
+    return () => {
+      if (estilosDebounceRef.current) clearTimeout(estilosDebounceRef.current)
+    }
+  }, [container, cabecalho, camposEstilo, botao, pagina, cssCustomizado])
+
   const [activeTab, setActiveTab] = useState<EditorTab>('campos')
   const [selectedCampoId, setSelectedCampoId] = useState<string | null>(null)
   const [showPaleta, setShowPaleta] = useState(true)
@@ -470,9 +499,6 @@ export function FormularioEditorPage() {
                 open={!!selectedStyleElement}
                 onClose={() => setSelectedStyleElement(null)}
                 titulo={panelTitle}
-                onSave={handleSaveEstilos}
-                isSaving={salvarEstilos.isPending}
-                onSaveConfig={(selectedStyleElement === 'botao' || selectedStyleElement === 'botao_whatsapp') ? async () => { await botaoSaveConfigRef.current?.() } : undefined}
               >
                 {selectedStyleElement === 'container' && (
                   <EstiloContainerForm value={container} onChange={setContainer} />

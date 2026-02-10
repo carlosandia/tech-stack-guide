@@ -803,14 +803,14 @@ function RenderBotoes({
         type="button"
         className={cn(
           'rounded-md text-sm font-semibold transition-all flex items-center justify-center gap-2',
-          (estiloBotao?.whatsapp_largura === 'full' || tipoBotao === 'ambos') && 'w-full',
+          'w-full',
           !showFinalPreview && selectedStyleElement === 'botao_whatsapp' && 'outline outline-2 outline-dashed outline-primary outline-offset-2'
         )}
         style={{
           backgroundColor: estiloBotao?.whatsapp_background || '#25D366',
           color: estiloBotao?.whatsapp_texto_cor || '#FFFFFF',
           borderRadius: estiloBotao?.whatsapp_border_radius || estiloBotao?.border_radius || '6px',
-          width: tipoBotao === 'ambos' ? '100%' : (estiloBotao?.whatsapp_largura === 'full' ? '100%' : estiloBotao?.whatsapp_largura === '50%' ? '50%' : 'auto'),
+          width: (estiloBotao?.whatsapp_largura || 'full') === 'full' ? '100%' : estiloBotao?.whatsapp_largura === '50%' ? '50%' : 'auto',
           height: estiloBotao?.whatsapp_altura || undefined,
           padding: estiloBotao?.whatsapp_padding || (estiloBotao?.whatsapp_altura ? '0 20px' : '10px 20px'),
           margin: estiloBotao?.whatsapp_margin || undefined,

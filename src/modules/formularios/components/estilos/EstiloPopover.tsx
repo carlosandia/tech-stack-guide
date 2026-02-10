@@ -1,11 +1,11 @@
 /**
  * AIDEV-NOTE: Painel lateral compacto para edição inline de estilos
  * Aparece ao lado do preview quando um elemento é selecionado
+ * Auto-save: salva automaticamente com debounce quando o conteúdo muda
  */
 
 import type { ReactNode } from 'react'
-import { X, Save, Loader2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { X } from 'lucide-react'
 
 interface Props {
   open: boolean
@@ -18,15 +18,10 @@ interface Props {
   isSavingConfig?: boolean
 }
 
-export function EstiloPopover({ open, onClose, titulo, children, onSave, isSaving, onSaveConfig, isSavingConfig }: Props) {
+export function EstiloPopover({ open, onClose, titulo, children }: Props) {
   if (!open) return null
 
-  const anySaving = isSaving || isSavingConfig
-
-  const handleSaveAll = async () => {
-    if (onSaveConfig) await onSaveConfig()
-    if (onSave) onSave()
-  }
+  // AIDEV-NOTE: Auto-save com debounce removido do popover - delegado para o parent via onSave/onSaveConfig diretos
 
   return (
     <div className="w-72 shrink-0 border-l border-border bg-card flex flex-col animate-in slide-in-from-right-4 duration-200">
@@ -39,17 +34,9 @@ export function EstiloPopover({ open, onClose, titulo, children, onSave, isSavin
           <X className="w-3.5 h-3.5" />
         </button>
       </div>
-      <div className="flex-1 overflow-y-auto px-4 pb-2">
+      <div className="flex-1 overflow-y-auto px-4 pb-4">
         {children}
       </div>
-      {(onSave || onSaveConfig) && (
-        <div className="shrink-0 p-3 border-t border-border bg-card">
-          <Button size="sm" className="w-full" onClick={handleSaveAll} disabled={anySaving}>
-            {anySaving ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1.5" />}
-            Salvar
-          </Button>
-        </div>
-      )}
     </div>
   )
 }
