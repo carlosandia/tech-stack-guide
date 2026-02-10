@@ -6412,7 +6412,7 @@ export type Database = {
           lembrete_enviado: boolean | null
           oportunidade_id: string | null
           organizacao_id: string
-          owner_id: string
+          owner_id: string | null
           prioridade: string | null
           status: string
           tarefa_template_id: string | null
@@ -6435,7 +6435,7 @@ export type Database = {
           lembrete_enviado?: boolean | null
           oportunidade_id?: string | null
           organizacao_id: string
-          owner_id: string
+          owner_id?: string | null
           prioridade?: string | null
           status?: string
           tarefa_template_id?: string | null
@@ -6458,7 +6458,7 @@ export type Database = {
           lembrete_enviado?: boolean | null
           oportunidade_id?: string | null
           organizacao_id?: string
-          owner_id?: string
+          owner_id?: string | null
           prioridade?: string | null
           status?: string
           tarefa_template_id?: string | null
