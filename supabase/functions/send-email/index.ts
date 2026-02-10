@@ -6,6 +6,9 @@ import { createClient } from "npm:@supabase/supabase-js@2";
  * Envia email real usando comandos SMTP diretos
  * SALVA cópia do email enviado na tabela emails_recebidos (pasta=sent)
  * Suporta: anexos via Storage, tracking pixel
+ * 
+ * AIDEV-NOTE: Usa writeAll() para garantir envio completo de mensagens grandes.
+ * O conn.write() do Deno pode não enviar todos os bytes de uma vez.
  */
 
 const corsHeaders = {
@@ -38,6 +41,20 @@ function splitBase64Lines(base64: string): string {
   return lines.join("\r\n");
 }
 
+/**
+ * AIDEV-NOTE: writeAll garante que TODOS os bytes sejam enviados.
+ * conn.write() pode retornar menos bytes que o total — esta função
+ * faz loop até completar o envio.
+ */
+async function writeAll(conn: Deno.TcpConn | Deno.TlsConn, data: Uint8Array): Promise<void> {
+  let offset = 0;
+  while (offset < data.length) {
+    const n = await conn.write(data.subarray(offset));
+    if (n === null || n === 0) throw new Error("Falha ao escrever no socket SMTP");
+    offset += n;
+  }
+}
+
 interface AnexoInfo {
   filename: string;
   storage_path: string;
@@ -59,9 +76,11 @@ async function sendSmtpEmail(config: {
   subject: string;
   body: string;
   bodyType: string;
-  boundary?: string;
   rawMessage?: string;
 }): Promise<{ sucesso: boolean; mensagem: string; messageId?: string }> {
+  // AIDEV-NOTE: Flag para saber se o servidor aceitou o DATA (250 OK)
+  let dataResponseOk = false;
+
   try {
     const useTLS = config.port === 465;
     let conn: Deno.TcpConn | Deno.TlsConn;
@@ -98,7 +117,7 @@ async function sendSmtpEmail(config: {
     const sendCommand = async (cmd: string, timeoutMs = 15000): Promise<string> => {
       const safeLog = cmd.startsWith(btoa("")) ? "[REDACTED]" : cmd;
       console.log(`[SMTP] >>> ${safeLog.substring(0, 100)}`);
-      await conn.write(encoder.encode(cmd + "\r\n"));
+      await writeAll(conn, encoder.encode(cmd + "\r\n"));
       const resp = await readResponse(timeoutMs);
       console.log(`[SMTP] <<< ${resp.substring(0, 200).replace(/\r\n/g, " | ")}`);
       return resp;
@@ -113,10 +132,9 @@ async function sendSmtpEmail(config: {
     }
 
     const realHostname = extractHostnameFromGreeting(greeting, config.host);
-    console.log(`[SMTP] realHostname: ${realHostname}`);
 
     // EHLO
-    const ehloResp1 = await sendCommand("EHLO crmrenove.local");
+    await sendCommand("EHLO crmrenove.local");
 
     // STARTTLS if port 587
     if (config.port === 587) {
@@ -149,8 +167,7 @@ async function sendSmtpEmail(config: {
     }
 
     // MAIL FROM
-    const fromAddr = config.from;
-    const mailFromResp = await sendCommand(`MAIL FROM:<${fromAddr}>`);
+    const mailFromResp = await sendCommand(`MAIL FROM:<${config.from}>`);
     if (!mailFromResp.startsWith("250")) {
       conn.close();
       return { sucesso: false, mensagem: `Servidor rejeitou remetente: ${mailFromResp.substring(0, 100)}` };
@@ -179,24 +196,33 @@ async function sendSmtpEmail(config: {
       }
     }
 
-    // DATA
+    // DATA command
     const dataResp = await sendCommand("DATA");
     if (!dataResp.startsWith("354")) {
       conn.close();
       return { sucesso: false, mensagem: "Servidor não aceitou início de dados" };
     }
 
-    // Se rawMessage foi fornecido (MIME multipart), usa diretamente
+    // AIDEV-NOTE: Envio separado do body — NÃO usa sendCommand.
+    // Escreve diretamente com writeAll para garantir envio completo.
     const message = config.rawMessage || buildSimpleMessage(config);
+    const messageBytes = encoder.encode(message + "\r\n");
+    console.log(`[SMTP] Enviando corpo da mensagem: ${messageBytes.length} bytes`);
 
-    // Timeout maior para DATA com anexos (servidor pode demorar para processar)
+    await writeAll(conn, messageBytes);
+
+    // Ler resposta do servidor após o body (250 OK)
     const dataTimeout = config.rawMessage ? 120000 : 30000;
-    const msgResp = await sendCommand(message, dataTimeout);
+    const msgResp = await readResponse(dataTimeout);
+    console.log(`[SMTP] <<< DATA resp: ${msgResp.substring(0, 200).replace(/\r\n/g, " | ")}`);
+
     if (!msgResp.startsWith("250")) {
       conn.close();
-      return { sucesso: false, mensagem: "Servidor não aceitou a mensagem" };
+      return { sucesso: false, mensagem: `Servidor não aceitou a mensagem: ${msgResp.substring(0, 100)}` };
     }
 
+    // Servidor aceitou o email
+    dataResponseOk = true;
     const messageId = extractMessageId(message);
 
     // QUIT - tolerante a erros TLS (close_notify)
@@ -210,9 +236,9 @@ async function sendSmtpEmail(config: {
     return { sucesso: true, mensagem: "Email enviado com sucesso!", messageId };
   } catch (err) {
     const msg = (err as Error).message;
-    // Se o erro é de TLS close_notify APÓS o 250 OK do DATA, o email foi enviado
-    if (msg.includes("close_notify") || msg.includes("peer closed")) {
-      console.log("[send-email] TLS close_notify após envio - email provavelmente enviado");
+    // AIDEV-NOTE: Só trata close_notify como sucesso se o servidor JÁ respondeu 250 ao DATA
+    if (dataResponseOk && (msg.includes("close_notify") || msg.includes("peer closed"))) {
+      console.log("[send-email] TLS close_notify após 250 OK - email foi enviado");
       return { sucesso: true, mensagem: "Email enviado com sucesso!" };
     }
     console.error("[send-email] SMTP error:", msg);
@@ -296,7 +322,6 @@ function buildMimeMessage(config: {
     config.body,
   );
 
-  // Adiciona cada anexo
   for (const anexo of config.anexos) {
     headers.push(
       `--${boundary}`,
@@ -417,7 +442,6 @@ Deno.serve(async (req) => {
     // Injetar tracking pixel no corpo HTML
     let finalBody = emailBody || "";
     if (body_type === "html" || !body_type) {
-      // Insere antes do </body> ou no final
       if (finalBody.includes("</body>")) {
         finalBody = finalBody.replace("</body>", `${trackingPixel}</body>`);
       } else {
@@ -425,30 +449,33 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Preparar anexos: download do Storage
+    // AIDEV-NOTE: Download PARALELO de anexos do Storage
     let anexosProcessados: { filename: string; mimeType: string; base64: string }[] = [];
     const hasAnexos = anexos && anexos.length > 0;
 
     if (hasAnexos) {
-      for (const anexo of anexos!) {
+      const downloads = anexos!.map(async (anexo) => {
         const { data: fileData, error: downloadError } = await supabaseAdmin.storage
           .from("email-anexos")
           .download(anexo.storage_path);
 
         if (downloadError || !fileData) {
           console.error("[send-email] Erro download anexo:", anexo.filename, downloadError);
-          continue;
+          return null;
         }
 
         const arrayBuffer = await fileData.arrayBuffer();
         const base64 = uint8ArrayToBase64(new Uint8Array(arrayBuffer));
 
-        anexosProcessados.push({
+        return {
           filename: anexo.filename,
           mimeType: anexo.mimeType,
           base64,
-        });
-      }
+        };
+      });
+
+      const resultados = await Promise.all(downloads);
+      anexosProcessados = resultados.filter((r): r is NonNullable<typeof r> => r !== null);
     }
 
     // Construir e enviar mensagem
