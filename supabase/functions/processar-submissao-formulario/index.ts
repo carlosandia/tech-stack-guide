@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
     // Buscar formulário com config_botoes
     const { data: formulario, error: formErr } = await supabase
       .from('formularios')
-      .select('id, organizacao_id, config_botoes, funil_id, etapa_destino_id')
+      .select('id, organizacao_id, config_botoes, funil_id')
       .eq('id', formulario_id)
       .single()
 
@@ -186,7 +186,7 @@ Deno.serve(async (req) => {
         .is('deletado_em', null)
         .single()
 
-      const etapaId = etapaEntrada?.id || formulario.etapa_destino_id
+      const etapaId = etapaEntrada?.id
 
       // Gerar título no formato "[Nome] - #[Sequência]"
       const nomeContato = dadosContato.nome || 'Lead'
@@ -199,7 +199,7 @@ Deno.serve(async (req) => {
       const sequencia = (countOportunidades || 0) + 1
       const tituloAuto = `${nomeContato} - #${sequencia}`
 
-      const { data: oportunidade } = await supabase
+      const { data: oportunidade, error: opErr } = await supabase
         .from('oportunidades')
         .insert({
           organizacao_id: formulario.organizacao_id,
@@ -207,7 +207,6 @@ Deno.serve(async (req) => {
           etapa_id: etapaId,
           contato_id: contatoId,
           titulo: tituloAuto,
-          origem: 'formulario',
           valor: dadosOportunidade.valor || 0,
           utm_source: submissao.utm_source,
           utm_medium: submissao.utm_medium,
@@ -215,6 +214,10 @@ Deno.serve(async (req) => {
         })
         .select('id')
         .single()
+
+      if (opErr) {
+        console.error('Erro ao criar oportunidade:', opErr)
+      }
 
       // Atualizar submissão com IDs
       if (oportunidade) {
