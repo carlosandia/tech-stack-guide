@@ -56,3 +56,6 @@ verify_jwt = false
 
 [functions.processar-submissao-formulario]
 verify_jwt = false
+
+[functions.processar-sla]
+verify_jwt = false
