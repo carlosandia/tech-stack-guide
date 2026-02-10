@@ -7222,6 +7222,10 @@ export type Database = {
         Args: { p_formulario_id: string }
         Returns: undefined
       }
+      incrementar_visualizacao_formulario: {
+        Args: { p_formulario_id: string }
+        Returns: undefined
+      }
       incrementar_visualizacoes_formulario: {
         Args: { p_formulario_id: string }
         Returns: undefined

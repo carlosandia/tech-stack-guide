@@ -148,11 +148,20 @@ export function EmailViewer({
     try {
       const doc = iframe.contentDocument || iframe.contentWindow?.document
       if (doc?.body) {
-        const h = Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight)
+        const h = Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight, 200)
         iframe.style.height = h + 'px'
       }
     } catch { /* sandbox */ }
   }, [])
+
+  // AIDEV-NOTE: Re-ajustar altura periodicamente para imagens que carregam assincronamente
+  useEffect(() => {
+    if (!email?.corpo_html && !email?.corpo_texto) return
+    const timers = [500, 1000, 2000, 3500].map(ms =>
+      setTimeout(adjustIframeHeight, ms)
+    )
+    return () => timers.forEach(clearTimeout)
+  }, [email?.id, adjustIframeHeight])
 
   // Reset translation when email changes
   useEffect(() => {
@@ -191,13 +200,18 @@ export function EmailViewer({
     }
 
     // Sanitize — keep full document structure, styles, images
-    const sanitized = DOMPurify.sanitize(html, {
+    // AIDEV-NOTE: FORBID_TAGS inclui script+noscript para eliminar erros de "Blocked script execution"
+    let sanitized = DOMPurify.sanitize(html, {
       WHOLE_DOCUMENT: true,
       ADD_TAGS: ['style'],
       ADD_ATTR: ['target'],
-      FORBID_TAGS: ['script'],
-      FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover'],
+      FORBID_TAGS: ['script', 'noscript'],
+      FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'onmouseout', 'onfocus', 'onblur'],
     })
+
+    // Remover scripts residuais que possam ter escapado do DOMPurify
+    sanitized = sanitized.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    sanitized = sanitized.replace(/<noscript\b[^<]*(?:(?!<\/noscript>)<[^<]*)*<\/noscript>/gi, '')
 
     // Inject <base target="_blank"> for links
     if (sanitized.includes('<head>')) {
