@@ -56,7 +56,7 @@ export function ContatoCard({ contatoId, email, nome }: ContatoCardProps) {
     return (
       <div className="flex items-center gap-2 px-4 py-2 border-b border-border/60 bg-muted/20">
         <User className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-        <span className="text-xs text-muted-foreground flex-1 truncate">
+        <span className="text-xs text-muted-foreground truncate">
           Contato não encontrado no CRM
         </span>
         <button
