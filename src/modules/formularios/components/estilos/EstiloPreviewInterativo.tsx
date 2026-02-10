@@ -279,7 +279,7 @@ export function EstiloPreviewInterativo({
         style={{
           display: 'flex',
           flexDirection: 'column',
-          gap: '12px',
+          gap: campos.gap || '12px',
           padding: '4px',
           outline: getOutline('campos'),
           outlineOffset: getOutline('campos') ? '2px' : undefined,

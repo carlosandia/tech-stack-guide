@@ -417,6 +417,7 @@ export interface EstiloCampos {
   input_texto_cor?: string
   input_placeholder_cor?: string
   erro_cor?: string
+  gap?: string
 }
 
 export interface EstiloBotao {
