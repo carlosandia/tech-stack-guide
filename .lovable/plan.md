@@ -1,87 +1,148 @@
 
+# Rodizio SLA com Countdown e Ajustes Visuais no Card
 
-# Correcoes no Modulo de Emails
+## Situacao Atual
 
-## 1. Eliminar "Blocked script execution" no iframe
+1. **Rodizio**: Funciona apenas na CRIACAO da oportunidade (round-robin em `negocios.api.ts`). NAO existe nenhum mecanismo (cron, edge function, scheduler) que verifica periodicamente se o SLA expirou para redistribuir automaticamente.
 
-**Causa raiz:** O DOMPurify remove tags `<script>`, mas emails HTML complexos (como os do WP Mail SMTP) podem conter scripts em formatos que o DOMPurify nao captura totalmente em modo `WHOLE_DOCUMENT`. Alem disso, os regex de limpeza rodam DEPOIS do DOMPurify, mas nao antes - entao o HTML malformado pode confundir o parser.
+2. **Timer no card**: Mostra tempo DECORRIDO estatico (ex: `55/30min`), calculado uma vez no render. Nao atualiza em tempo real (sem `setInterval`).
 
-**Solucao:** Abordagem em 3 camadas no `EmailViewer.tsx`:
-
-1. Executar os regex de remocao de `<script>` ANTES do DOMPurify (pre-limpeza do HTML bruto)
-2. Manter o DOMPurify com FORBID_TAGS como segunda camada
-3. Manter os regex pos-sanitizacao como terceira camada
-4. Adicionar `<meta http-equiv="Content-Security-Policy" content="script-src 'none'">` no `<head>` do iframe para silenciar qualquer warning residual
-
-**Arquivo:** `src/modules/emails/components/EmailViewer.tsx`
-
-No `useMemo` do `cleanHtml`, ANTES da chamada ao DOMPurify:
-```text
-// PRE-LIMPEZA: remover scripts antes do DOMPurify processar
-html = html.replace(/<script\b[\s\S]*?<\/script\s*>/gi, '')
-html = html.replace(/<script\b[^>]*\/>/gi, '') // self-closing
-html = html.replace(/<noscript\b[\s\S]*?<\/noscript\s*>/gi, '')
-```
-
-Na injecao do `<base>`, adicionar tambem o CSP meta tag:
-```text
-const cspMeta = '<meta http-equiv="Content-Security-Policy" content="script-src \'none\'">'
-// Injetar no <head>
-```
+3. **Icones de acoes rapidas**: Tamanho `w-7 h-7` no botao e `w-4 h-4` no icone - um pouco grandes.
 
 ---
 
-## 2. Renomear "Historico" para "Historico de Abertura" e mudar logica
+## O que sera implementado
 
-**O que muda:**
+### 1. Edge Function `processar-sla` (Backend)
 
-- O botao na toolbar passa de "Historico" para "Hist. Abertura"
-- O titulo do popover muda de "Ultimos visualizados" para "Historico de Abertura"
-- A logica muda completamente: em vez de registrar emails que o USUARIO visualizou no CRM, mostra emails ENVIADOS pelo usuario que foram ABERTOS pelo destinatario (dados da tabela `email_aberturas`)
+Criar uma Edge Function que sera chamada periodicamente (via pg_cron ou externamente) para:
 
-**Arquivos afetados:**
+- Buscar todas as `configuracoes_distribuicao` onde `sla_ativo = true` e `modo = 'rodizio'`
+- Para cada config, buscar oportunidades abertas onde `atualizado_em` excedeu o `sla_tempo_minutos`
+- Contar redistribuicoes anteriores no `historico_distribuicao` (motivo = `'sla'`)
+- Se abaixo do `sla_max_redistribuicoes`: redistribuir para proximo membro (round-robin), registrar no historico, atualizar `atualizado_em` (resetar timer)
+- Se atingiu limite: aplicar `sla_acao_limite` (manter_ultimo / retornar_admin / desatribuir)
 
-### `src/modules/emails/hooks/useEmailHistorico.ts`
-- Substituir completamente a logica de localStorage por uma query ao Supabase
-- Consultar `email_aberturas` JOIN `emails_recebidos` para trazer os ultimos 20 emails enviados que tiveram abertura registrada
-- Retornar dados como: nome destinatario, assunto, data da abertura, total de aberturas
+### 2. Cron Job via pg_cron
 
-### `src/modules/emails/components/EmailHistoricoPopover.tsx`
-- Renomear titulo para "Historico de Abertura"
-- Atualizar label do botao para "Hist. Abertura"
-- Ajustar o layout dos itens para mostrar: destinatario, assunto, quantidade de aberturas, data da primeira abertura
-- Remover botao "Limpar historico" (dados vem do banco, nao do localStorage)
+Agendar `pg_cron` para chamar a edge function `processar-sla` a cada 1 minuto (ou 5 minutos) via `pg_net`:
 
-### `src/modules/emails/pages/EmailsPage.tsx`
-- Adaptar a integracao com o hook atualizado (remover `historico.adicionar`, `historico.limpar`)
-- Remover o `useEffect` que adicionava ao historico ao selecionar email (linhas 170-184)
-- Manter apenas o auto-marcar como lido
+```text
+SELECT cron.schedule(
+  'processar-sla',
+  '*/1 * * * *',
+  $$ SELECT net.http_post(...) $$
+);
+```
+
+### 3. Timer Countdown no Card (Frontend)
+
+Alterar `KanbanCard.tsx` para mostrar contagem REGRESSIVA em tempo real:
+
+- Usar `useState` + `useEffect` com `setInterval` de 1 segundo
+- Calcular tempo RESTANTE: `sla_tempo_minutos * 60 - tempoDecorridoSegundos`
+- Formato: `29:59` (minutos:segundos) diminuindo
+- Quando chegar a 0, mostrar tempo negativo ou "Estourado"
+- Manter cores: cinza (normal), amarelo (>= 80%), vermelho pulsante (>= 100%)
+
+### 4. Tempo de Criacao Separado
+
+Adicionar linha separada no card mostrando "ha X min" baseado em `criado_em` (nao `atualizado_em`), usando `formatDistanceToNow`.
+
+### 5. Icones Menores nas Acoes Rapidas
+
+Reduzir botoes de `w-7 h-7` para `w-6 h-6` e icones de `w-4 h-4` para `w-3.5 h-3.5`.
 
 ---
 
 ## Detalhes Tecnicos
 
-### Pre-limpeza de scripts (EmailViewer.tsx)
+### Edge Function `processar-sla`
 
-A ordem de operacoes passa a ser:
-1. Detectar HTML e decodificar quoted-printable (existente)
-2. **NOVO:** Regex pre-limpeza para remover `<script>` e `<noscript>` do HTML bruto
-3. DOMPurify.sanitize com FORBID_TAGS (existente)
-4. Regex pos-sanitizacao (existente)
-5. **NOVO:** Injetar CSP meta tag `script-src 'none'` no head
+**Arquivo:** `supabase/functions/processar-sla/index.ts`
 
-### Hook useEmailHistorico refatorado
+Logica principal:
+1. Autenticar via service_role key
+2. Query: `configuracoes_distribuicao WHERE sla_ativo = true`
+3. Para cada config, query: oportunidades abertas com `atualizado_em < NOW() - sla_tempo_minutos`
+4. Para cada oportunidade excedida:
+   - Contar registros em `historico_distribuicao` com `motivo = 'sla'` para aquela oportunidade
+   - Se count < `sla_max_redistribuicoes`:
+     - Buscar membros ativos do funil (via `funis_membros`)
+     - Calcular proximo via round-robin (posicao_rodizio)
+     - UPDATE oportunidade: `usuario_responsavel_id = novoMembro`, `atualizado_em = NOW()`
+     - INSERT em `historico_distribuicao` com motivo `'sla'`
+     - UPDATE `configuracoes_distribuicao` com nova posicao
+   - Se count >= `sla_max_redistribuicoes`:
+     - Aplicar `sla_acao_limite`
+
+### Migracao SQL (pg_cron + pg_net)
 
 ```text
-// Novo: query Supabase em vez de localStorage
-// Busca emails_recebidos com pasta='sent' e total_aberturas > 0
-// Ordenado por aberto_em DESC, LIMIT 20
-// Retorna: { data, isLoading }
+-- Habilitar extensoes
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+CREATE EXTENSION IF NOT EXISTS pg_net;
+
+-- Agendar execucao a cada minuto
+SELECT cron.schedule(
+  'processar-sla-rodizio',
+  '*/1 * * * *',
+  $$
+  SELECT net.http_post(
+    url := '<SUPABASE_URL>/functions/v1/processar-sla',
+    headers := jsonb_build_object(
+      'Authorization', 'Bearer <SERVICE_ROLE_KEY>',
+      'Content-Type', 'application/json'
+    ),
+    body := '{}'::jsonb
+  );
+  $$
+);
 ```
 
-### Popover atualizado
+### KanbanCard.tsx - Countdown Timer
 
-- Icone: manter History ou trocar para MailOpen
-- Cada item mostra: avatar + nome destinatario + assunto + "Aberto Xx" + data
-- Ao clicar, navega para o email enviado correspondente
+Substituir o calculo estatico por um timer reativo:
 
+```text
+// Estado para countdown em tempo real
+const [agora, setAgora] = useState(Date.now())
+
+useEffect(() => {
+  if (!slaAtivo) return
+  const interval = setInterval(() => setAgora(Date.now()), 1000)
+  return () => clearInterval(interval)
+}, [slaAtivo])
+
+// Calcular tempo restante (countdown)
+const tempoDecorridoSeg = Math.floor((agora - new Date(oportunidade.atualizado_em).getTime()) / 1000)
+const tempoTotalSeg = slaConfig.sla_tempo_minutos * 60
+const tempoRestanteSeg = Math.max(0, tempoTotalSeg - tempoDecorridoSeg)
+const minRestantes = Math.floor(tempoRestanteSeg / 60)
+const segRestantes = tempoRestanteSeg % 60
+const countdownText = tempoRestanteSeg > 0
+  ? `${String(minRestantes).padStart(2, '0')}:${String(segRestantes).padStart(2, '0')}`
+  : 'Estourado'
+```
+
+Layout do footer do card:
+```text
+// Linha 1: Countdown SLA (29:59) 
+// Linha 2: "ha 6min" (tempo desde criacao)
+```
+
+### Reducao dos icones
+
+No footer do card, alterar:
+- Botao: `w-7 h-7` -> `w-6 h-6`
+- Icone: `w-4 h-4` -> `w-3.5 h-3.5`
+
+---
+
+## Arquivos a criar/modificar
+
+| Arquivo | Acao |
+|---------|------|
+| `supabase/functions/processar-sla/index.ts` | Criar edge function de redistribuicao |
+| `supabase/migrations/xxx_cron_processar_sla.sql` | Criar cron job pg_cron |
+| `src/modules/negocios/components/kanban/KanbanCard.tsx` | Countdown timer + tempo criacao + icones menores |
