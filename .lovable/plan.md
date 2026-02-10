@@ -1,98 +1,123 @@
 
-# Plano: Notificacoes por E-mail e WhatsApp apos Submissao de Formulario
+# Plano: Aplicar Regras da Pipeline na Criacao de Oportunidades
 
-## Problema Identificado
+## Problemas Identificados
 
-A Edge Function `processar-submissao-formulario` cria corretamente o contato e a oportunidade, mas **ignora completamente** as configuracoes de notificacao salvas em `config_botoes`:
+Ao analisar o banco de dados e o codigo, identifiquei **3 problemas concretos**:
 
-- `enviar_notifica_email` + `enviar_email_destino` (notificar admin por e-mail)
-- `enviar_notifica_whatsapp` + `enviar_whatsapp_destino` (notificar admin por WhatsApp)
+### 1. Tarefas Automaticas NAO sao criadas via Edge Function
+A funcao `processar-submissao-formulario` cria a oportunidade mas **nao executa** `criarTarefasAutomaticas`. A etapa "Novos Negocios" tem o template "Enviar Proposta Comercial" vinculado, mas as oportunidades criadas via formulario (Vanessa, Gabriel, Gisele, Henrique) nao possuem nenhuma tarefa.
 
-Essas flags estao configuradas e visíveis na UI (conforme screenshot), mas o codigo da Edge Function nunca as le nem executa acao alguma com elas.
+Apenas o frontend (`negociosApi.criarOportunidade`) cria tarefas automaticas, o que significa que oportunidades vindas de formularios ou webhooks ficam sem tarefas.
+
+### 2. Rodizio NAO e aplicado
+A pipeline "Locacao 2026" esta configurada com `modo: rodizio` e tem o membro "Rafael" ativo. Porem, todas as oportunidades criadas via formulario possuem `usuario_responsavel_id: null`. A Edge Function nao consulta a tabela `configuracoes_distribuicao` nem `funis_membros`.
+
+### 3. SLA Timer NAO aparece nos cards
+O card do Kanban mostra "tempo na etapa" (ex: "1 minuto", "7 minutos") usando `atualizado_em`, mas nao tem nenhuma logica de SLA. O SLA esta configurado como 30 minutos, mas o card nao exibe um indicador visual de urgencia quando o tempo esta estourando.
 
 ---
 
 ## Solucao
 
-Adicionar dois blocos de logica na Edge Function `processar-submissao-formulario`, executados **apos** a criacao da oportunidade (ou contato):
+### Parte 1: Edge Function - Rodizio + Tarefas Automaticas
 
-### 1. Notificacao por E-mail (SMTP)
+**Arquivo:** `supabase/functions/processar-submissao-formulario/index.ts`
 
-- Ler `configBotoes.enviar_notifica_email` e `configBotoes.enviar_email_destino`
-- Buscar conexao SMTP ativa da organizacao (tabela `conexoes_email`, status `ativo` ou `conectado`)
-- Montar email com resumo dos dados da submissao (nome, email, telefone, etc.)
-- Enviar via comandos SMTP diretos (reutilizando a mesma logica do `send-email`)
-- Como a Edge Function ja roda com `SERVICE_ROLE_KEY`, nao precisa de autenticacao de usuario
+Apos criar a oportunidade, adicionar dois blocos:
 
-### 2. Notificacao por WhatsApp (WAHA)
+**a) Aplicar Rodizio:**
+1. Buscar `configuracoes_distribuicao` do funil
+2. Se `modo = 'rodizio'`:
+   - Buscar membros ativos em `funis_membros` (e se `pular_inativos`, filtrar `usuarios.ativo = true`)
+   - Se `horario_especifico = true`, verificar se estamos dentro do horario/dias configurados
+   - Determinar proximo membro baseado em `posicao_rodizio`
+   - Atualizar `oportunidades.usuario_responsavel_id` com o membro selecionado
+   - Incrementar `posicao_rodizio` e atualizar `ultimo_usuario_id` na config
+3. Se `fallback_manual = true` e nao ha membros disponiveis, deixar sem responsavel
 
-- Ler `configBotoes.enviar_notifica_whatsapp` e `configBotoes.enviar_whatsapp_destino`
-- Buscar configuracao WAHA em `configuracoes_globais` (plataforma = 'waha')
-- Buscar sessao WhatsApp conectada (status = 'connected') da organizacao em `sessoes_whatsapp`
-- Formatar mensagem com dados do lead
-- Enviar via API WAHA (`POST /api/sendText`) usando a sessao conectada
+**b) Criar Tarefas Automaticas:**
+1. Buscar `funis_etapas_tarefas` vinculadas a etapa de entrada
+2. Para cada template ativo, criar uma tarefa na tabela `tarefas` com:
+   - `oportunidade_id`, `contato_id`, `organizacao_id`
+   - `owner_id` = responsavel atribuido (pelo rodizio ou null)
+   - `data_vencimento` = agora + `dias_prazo` do template
+   - `tarefa_template_id` e `etapa_origem_id` para deduplicacao
+
+### Parte 2: Frontend - Rodizio no Modal de Criacao Manual
+
+**Arquivo:** `src/modules/negocios/services/negocios.api.ts`
+
+Na funcao `criarOportunidade`, quando `usuario_responsavel_id` nao e informado:
+1. Buscar config de distribuicao do funil
+2. Se `modo = 'rodizio'`, aplicar a mesma logica de selecao de membro
+3. Atribuir automaticamente o responsavel antes de inserir
+
+### Parte 3: SLA Timer no Card do Kanban
+
+**Arquivo:** `src/modules/negocios/components/kanban/KanbanCard.tsx`
+
+Alterar a exibicao do tempo na etapa para incluir logica de SLA:
+1. Receber config de SLA como prop (via KanbanBoard que ja busca dados da pipeline)
+2. Calcular tempo decorrido desde `atualizado_em`
+3. Se SLA esta ativo:
+   - Mostrar icone de alerta (amarelo) quando >= 80% do tempo SLA
+   - Mostrar icone vermelho quando SLA estourado
+   - Exibir formato "X/30 min" ao inves de apenas "X minutos"
+
+**Arquivo:** `src/modules/negocios/components/kanban/KanbanBoard.tsx`
+- Buscar `configuracoes_distribuicao` do funil para obter `sla_ativo` e `sla_tempo_minutos`
+- Repassar para `KanbanColumn` e depois para `KanbanCard`
+
+**Arquivo:** `src/modules/negocios/components/kanban/KanbanColumn.tsx`
+- Repassar prop de SLA para os cards
 
 ---
 
 ## Detalhes Tecnicos
 
-### Arquivo modificado
-
-`supabase/functions/processar-submissao-formulario/index.ts`
-
-### Fluxo apos criacao do contato/oportunidade
+### Logica de Rodizio (reutilizavel)
 
 ```text
-+----------------------------+
-| Oportunidade criada?       |
-+----------------------------+
-        |
-        v
-+----------------------------+     +----------------------------+
-| enviar_notifica_email?     |---->| Buscar conexao SMTP        |
-| (config_botoes)            |     | Montar email resumo        |
-+----------------------------+     | Enviar via SMTP            |
-        |                          +----------------------------+
-        v
-+----------------------------+     +----------------------------+
-| enviar_notifica_whatsapp?  |---->| Buscar config WAHA         |
-| (config_botoes)            |     | Buscar sessao conectada    |
-+----------------------------+     | POST /api/sendText         |
-                                   +----------------------------+
+membros = funis_membros WHERE funil_id AND ativo = true
+IF pular_inativos: filtrar usuarios.ativo = true
+IF horario_especifico:
+  - Verificar dia da semana atual IN dias_semana
+  - Verificar hora atual BETWEEN horario_inicio AND horario_fim
+  - Se fora do horario E fallback_manual: nao atribuir
+
+posicao = posicao_rodizio % membros.length
+responsavel = membros[posicao]
+UPDATE configuracoes_distribuicao SET posicao_rodizio = posicao + 1, ultimo_usuario_id = responsavel
+UPDATE oportunidades SET usuario_responsavel_id = responsavel
 ```
 
-### Logica de E-mail SMTP (inline na Edge Function)
+### SLA Visual no Card
 
-1. Buscar `conexoes_email` da organizacao com status IN ('ativo', 'conectado')
-2. Usar credenciais `smtp_host`, `smtp_port`, `smtp_user`, `smtp_pass_encrypted`
-3. Montar mensagem HTML simples:
-   - Assunto: "Nova submissao: [Nome do Contato]"
-   - Corpo: tabela com os campos mapeados e seus valores
-4. Enviar para `enviar_email_destino` usando SMTP direto (mesma tecnica do `send-email`)
-5. Extrair hostname real do greeting para TLS (mesmo padrao ja existente)
+```text
+tempo_decorrido = now() - atualizado_em (em minutos)
+porcentagem = tempo_decorrido / sla_tempo_minutos
 
-### Logica de WhatsApp WAHA
+Se porcentagem < 0.8: cor normal (cinza)
+Se porcentagem >= 0.8 e < 1.0: cor amarela (aviso)
+Se porcentagem >= 1.0: cor vermelha (estourado)
 
-1. Buscar `configuracoes_globais` onde `plataforma = 'waha'` para obter `api_url` e `api_key`
-2. Buscar `sessoes_whatsapp` da organizacao com `status = 'connected'`
-3. Formatar mensagem texto:
-   ```
-   Nova submissao de formulario:
-   Nome: Henrique
-   Email: henrique@email.com
-   Telefone: (13) 99888-7766
-   Pipeline: Locacao 2026
-   ```
-4. Enviar via `POST {api_url}/api/sendText` com `chatId: "55XXXXXXXXXXX@c.us"` e `session: sessao.session_name`
+Formato exibido: "Xmin / 30min" quando SLA ativo
+```
 
-### Tratamento de erros
+### Arquivos Modificados
 
-- Notificacoes sao **fire-and-forget**: falhas nao devem impedir a resposta de sucesso
-- Erros serao logados via `console.error` para depuracao nos logs da Edge Function
-- A submissao continua sendo marcada como `processada` independentemente do resultado das notificacoes
+| Arquivo | Alteracao |
+|---------|-----------|
+| `supabase/functions/processar-submissao-formulario/index.ts` | Adicionar rodizio + tarefas automaticas |
+| `src/modules/negocios/services/negocios.api.ts` | Aplicar rodizio na criacao manual |
+| `src/modules/negocios/components/kanban/KanbanBoard.tsx` | Buscar e repassar config SLA |
+| `src/modules/negocios/components/kanban/KanbanColumn.tsx` | Repassar SLA prop |
+| `src/modules/negocios/components/kanban/KanbanCard.tsx` | Exibir timer SLA visual |
 
 ### Consideracoes
 
-- O envio SMTP sera implementado inline (funcao auxiliar) para evitar dependencia de outra Edge Function
-- O numero de WhatsApp destino sera formatado com `@c.us` automaticamente (ex: `5513988506995@c.us`)
-- Ambas as notificacoes rodam em paralelo (`Promise.allSettled`) para nao atrasar a resposta
+- O rodizio funciona com `posicao_rodizio` atualizado atomicamente para evitar duplicatas em concorrencia
+- Tarefas automaticas usam deduplicacao por `tarefa_template_id + etapa_origem_id`
+- O timer SLA no card e visual apenas (nao redistribui automaticamente - isso requer um cron/scheduled function futuro)
+- A logica de rodizio sera implementada de forma identica na Edge Function e no frontend para consistencia
