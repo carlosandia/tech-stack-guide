@@ -59,7 +59,7 @@ interface Props {
   cssCustomizado?: string
   configBotoes?: ConfigBotoes | null
   // Popup layout
-  popupLayout?: { template: PopupTemplate; imagemUrl: string | null } | null
+  popupLayout?: { template: PopupTemplate; imagemUrl: string | null; imagemLink?: string | null } | null
   // Inline editing
   onUpdateCampoLabel?: (campoId: string, newLabel: string) => void
   onUpdateBotaoTexto?: (tipo: 'enviar' | 'whatsapp', newTexto: string) => void
@@ -346,11 +346,12 @@ export function FormPreview({
           {(() => {
             const tpl = popupLayout?.template || 'so_campos'
             const imgUrl = popupLayout?.imagemUrl
+            const imgLink = popupLayout?.imagemLink
             const hasImage = tpl !== 'so_campos'
             const isPopup = formulario.tipo === 'popup'
 
-            // Image element or placeholder
-            const imageEl = hasImage && isPopup ? (
+            // Image element or placeholder (wrapped in link if imgLink is set)
+            const rawImage = hasImage && isPopup ? (
               imgUrl ? (
                 <img src={imgUrl} alt="" className="w-full h-full object-cover" />
               ) : (
@@ -359,6 +360,12 @@ export function FormPreview({
                 </div>
               )
             ) : null
+
+            const imageEl = rawImage && imgLink && showFinalPreview ? (
+              <a href={imgLink} target="_blank" rel="noopener noreferrer" className="block w-full h-full cursor-pointer">
+                {rawImage}
+              </a>
+            ) : rawImage
 
             // Form content (header + fields + buttons)
             const formContent = (
@@ -455,6 +462,15 @@ export function FormPreview({
 
             // If not popup or no special layout, render form content directly
             if (!isPopup || !hasImage) return formContent
+
+            // Layout: so_imagem (full image, no form)
+            if (tpl === 'so_imagem') {
+              return (
+                <div className="-m-6 rounded-lg overflow-hidden" style={{ margin: `-${estiloContainer?.padding || '24px'}` }}>
+                  <div className="min-h-[300px]">{imageEl}</div>
+                </div>
+              )
+            }
 
             // Apply layout templates
             if (tpl === 'imagem_esquerda') {

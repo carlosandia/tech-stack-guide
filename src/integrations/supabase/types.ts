@@ -1044,6 +1044,7 @@ export type Database = {
           id: string
           mostrar_mobile: boolean | null
           mostrar_uma_vez_sessao: boolean | null
+          popup_imagem_link: string | null
           popup_imagem_posicao: string | null
           popup_imagem_url: string | null
           porcentagem_scroll: number | null
@@ -1064,6 +1065,7 @@ export type Database = {
           id?: string
           mostrar_mobile?: boolean | null
           mostrar_uma_vez_sessao?: boolean | null
+          popup_imagem_link?: string | null
           popup_imagem_posicao?: string | null
           popup_imagem_url?: string | null
           porcentagem_scroll?: number | null
@@ -1084,6 +1086,7 @@ export type Database = {
           id?: string
           mostrar_mobile?: boolean | null
           mostrar_uma_vez_sessao?: boolean | null
+          popup_imagem_link?: string | null
           popup_imagem_posicao?: string | null
           popup_imagem_url?: string | null
           porcentagem_scroll?: number | null

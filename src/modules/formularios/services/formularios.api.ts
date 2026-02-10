@@ -562,6 +562,7 @@ export interface ConfigPopup {
   tipo_animacao: string
   duracao_animacao_ms: number
   popup_imagem_url?: string | null
+  popup_imagem_link?: string | null
   popup_imagem_posicao: string
   posicao: string
 }
