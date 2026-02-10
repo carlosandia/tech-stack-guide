@@ -90,10 +90,13 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
     })
   }, [campo.id])
 
+  const deriveNome = (label: string) =>
+    label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
+
   const handleSave = () => {
     onUpdate({
       label: form.label,
-      nome: form.nome,
+      nome: deriveNome(form.label),
       placeholder: form.placeholder || null,
       texto_ajuda: form.texto_ajuda || null,
       obrigatorio: form.obrigatorio,
@@ -134,9 +137,13 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
         <div className="space-y-1.5">
           <Label className="text-xs">Nome interno</Label>
           <Input
-            value={form.nome}
-            onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))}
-            placeholder="Ex: nome_completo"
+            value={form.label
+              .toLowerCase()
+              .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+              .replace(/[^a-z0-9]+/g, '_')
+              .replace(/^_|_$/g, '')}
+            disabled
+            className="bg-muted text-muted-foreground cursor-not-allowed"
           />
         </div>
 
