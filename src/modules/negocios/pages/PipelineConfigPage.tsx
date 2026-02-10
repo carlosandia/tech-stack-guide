@@ -6,7 +6,7 @@
 
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Layers, LayoutGrid, RefreshCw, Zap, ShieldCheck, CircleDot } from 'lucide-react'
+import { ArrowLeft, Layers, LayoutGrid, RefreshCw, Zap, ShieldCheck, CircleDot, Loader2 } from 'lucide-react'
 import { useFunilComEtapas } from '../hooks/useFunis'
 import { ConfigEtapas } from '../components/config/ConfigEtapas'
 import { ConfigCampos } from '../components/config/ConfigCampos'
@@ -14,7 +14,7 @@ import { ConfigDistribuicao } from '../components/config/ConfigDistribuicao'
 import { ConfigAtividades } from '../components/config/ConfigAtividades'
 import { ConfigQualificacao } from '../components/config/ConfigQualificacao'
 import { ConfigMotivos } from '../components/config/ConfigMotivos'
-import { Loader2 } from 'lucide-react'
+import { GerenciarMembrosPipeline } from '../components/config/GerenciarMembrosPipeline'
 
 type TabId = 'etapas' | 'campos' | 'distribuicao' | 'atividades' | 'qualificacao' | 'motivos'
 
@@ -111,6 +111,8 @@ export default function PipelineConfigPage() {
             {funil.etapas?.length || 0} etapas configuradas
           </p>
         </div>
+
+        <GerenciarMembrosPipeline funilId={funilId} />
       </header>
 
       {/* Body */}
