@@ -7,7 +7,7 @@
  * Inclui seletor de país com bandeira para campos de telefone
  */
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { getMaskForType } from '../../utils/masks'
 import { Monitor, Tablet, Smartphone, Paintbrush, Eye, EyeOff, Code, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -60,6 +60,9 @@ interface Props {
   configBotoes?: ConfigBotoes | null
   // Popup layout
   popupLayout?: { template: PopupTemplate; imagemUrl: string | null } | null
+  // Inline editing
+  onUpdateCampoLabel?: (campoId: string, newLabel: string) => void
+  onUpdateBotaoTexto?: (tipo: 'enviar' | 'whatsapp', newTexto: string) => void
 }
 
 export function FormPreview({
@@ -87,6 +90,8 @@ export function FormPreview({
   cssCustomizado,
   configBotoes,
   popupLayout,
+  onUpdateCampoLabel,
+  onUpdateBotaoTexto,
 }: Props) {
   const [viewport, setViewport] = useState<Viewport>('desktop')
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
@@ -321,7 +326,7 @@ export function FormPreview({
             // Form content (header + fields + buttons)
             const formContent = (
               <div className={cn(tpl === 'imagem_fundo' && isPopup && hasImage && 'relative z-10')}>
-                {/* Form header */}
+                {/* Form header - only logo and description, no title */}
                 <div className="mb-6 text-center">
                   {estiloCabecalho?.logo_url && (
                     <img
@@ -334,12 +339,6 @@ export function FormPreview({
                       }}
                     />
                   )}
-                  <h2
-                    className="text-lg font-semibold"
-                    style={{ color: estiloCabecalho?.titulo_cor || undefined, fontFamily }}
-                  >
-                    {formulario.nome}
-                  </h2>
                   {formulario.descricao && (
                     <p
                       className="text-sm mt-1"
@@ -390,6 +389,7 @@ export function FormPreview({
                               }}
                               onDragLeave={() => {}}
                               onStyleEdit={onSelectStyleElement ? () => onSelectStyleElement('campos') : undefined}
+                              onUpdateLabel={onUpdateCampoLabel ? (newLabel) => onUpdateCampoLabel(campo.id, newLabel) : undefined}
                             />
                             {renderDropZone(index + 1)}
                           </div>
@@ -402,14 +402,15 @@ export function FormPreview({
                 {/* Submit button(s) */}
                 {campos.length > 0 && (
                   <div className="mt-6">
-                    {renderBotoes(
-                      configBotoes,
-                      estiloBotao,
-                      buttonStyle,
-                      showFinalPreview || false,
-                      selectedStyleElement,
-                      onSelectStyleElement,
-                    )}
+                    <RenderBotoes
+                      configBotoes={configBotoes}
+                      estiloBotao={estiloBotao}
+                      buttonStyle={buttonStyle}
+                      showFinalPreview={showFinalPreview || false}
+                      selectedStyleElement={selectedStyleElement}
+                      onSelectStyleElement={onSelectStyleElement}
+                      onUpdateBotaoTexto={onUpdateBotaoTexto}
+                    />
                   </div>
                 )}
               </div>
@@ -501,15 +502,53 @@ function FinalPreviewFields({ campos, estiloCampos, fontFamily }: { campos: Camp
   )
 }
 
-/** Renderiza botões de envio baseado na configuração */
-function renderBotoes(
-  configBotoes: ConfigBotoes | null | undefined,
-  estiloBotao: EstiloBotao | undefined,
-  buttonStyle: React.CSSProperties,
-  showFinalPreview: boolean,
-  selectedStyleElement: SelectedElement | undefined,
-  onSelectStyleElement: ((el: SelectedElement) => void) | undefined,
-) {
+/** Componente de botões com suporte a edição inline do texto */
+function RenderBotoes({
+  configBotoes,
+  estiloBotao,
+  buttonStyle,
+  showFinalPreview,
+  selectedStyleElement,
+  onSelectStyleElement,
+  onUpdateBotaoTexto,
+}: {
+  configBotoes: ConfigBotoes | null | undefined
+  estiloBotao: EstiloBotao | undefined
+  buttonStyle: React.CSSProperties
+  showFinalPreview: boolean
+  selectedStyleElement: SelectedElement | undefined
+  onSelectStyleElement: ((el: SelectedElement) => void) | undefined
+  onUpdateBotaoTexto?: ((tipo: 'enviar' | 'whatsapp', newTexto: string) => void)
+}) {
+  const [editingEnviar, setEditingEnviar] = useState(false)
+  const [editingWhatsApp, setEditingWhatsApp] = useState(false)
+  const [enviarText, setEnviarText] = useState(estiloBotao?.texto || 'Enviar')
+  const [whatsAppText, setWhatsAppText] = useState(estiloBotao?.whatsapp_texto || 'Enviar via WhatsApp')
+  const enviarInputRef = useRef<HTMLInputElement>(null)
+  const whatsAppInputRef = useRef<HTMLInputElement>(null)
+
+  // Sync from props
+  useEffect(() => { setEnviarText(estiloBotao?.texto || 'Enviar') }, [estiloBotao?.texto])
+  useEffect(() => { setWhatsAppText(estiloBotao?.whatsapp_texto || 'Enviar via WhatsApp') }, [estiloBotao?.whatsapp_texto])
+  useEffect(() => { if (editingEnviar && enviarInputRef.current) { enviarInputRef.current.focus(); enviarInputRef.current.select() } }, [editingEnviar])
+  useEffect(() => { if (editingWhatsApp && whatsAppInputRef.current) { whatsAppInputRef.current.focus(); whatsAppInputRef.current.select() } }, [editingWhatsApp])
+
+  const handleEnviarBlur = () => {
+    setEditingEnviar(false)
+    const trimmed = enviarText.trim()
+    if (trimmed && trimmed !== (estiloBotao?.texto || 'Enviar') && onUpdateBotaoTexto) {
+      onUpdateBotaoTexto('enviar', trimmed)
+    }
+  }
+
+  const handleWhatsAppBlur = () => {
+    setEditingWhatsApp(false)
+    const trimmed = whatsAppText.trim()
+    if (trimmed && trimmed !== (estiloBotao?.whatsapp_texto || 'Enviar via WhatsApp') && onUpdateBotaoTexto) {
+      onUpdateBotaoTexto('whatsapp', trimmed)
+    }
+  }
+
   const tipoBotao = configBotoes?.tipo_botao || 'enviar'
   const showEnviar = tipoBotao === 'enviar' || tipoBotao === 'ambos'
   const showWhatsApp = tipoBotao === 'whatsapp' || tipoBotao === 'ambos'
@@ -539,8 +578,22 @@ function renderBotoes(
         )}
         style={estiloBotao ? buttonStyle : undefined}
         onClick={showFinalPreview ? undefined : (e) => { e.stopPropagation(); onSelectStyleElement?.('botao') }}
+        onDoubleClick={!showFinalPreview && onUpdateBotaoTexto ? (e) => { e.stopPropagation(); setEditingEnviar(true) } : undefined}
       >
-        {estiloBotao?.texto || 'Enviar'}
+        {editingEnviar ? (
+          <input
+            ref={enviarInputRef}
+            value={enviarText}
+            onChange={(e) => setEnviarText(e.target.value)}
+            onBlur={handleEnviarBlur}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleEnviarBlur(); if (e.key === 'Escape') { setEnviarText(estiloBotao?.texto || 'Enviar'); setEditingEnviar(false) } }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-transparent text-center border-none outline-none w-full"
+            style={{ color: 'inherit', fontSize: 'inherit', fontWeight: 'inherit', fontFamily: 'inherit' }}
+          />
+        ) : (
+          estiloBotao?.texto || 'Enviar'
+        )}
       </button>
     </div>
   ) : null
@@ -584,9 +637,23 @@ function renderBotoes(
             : 'none',
         }}
         onClick={showFinalPreview ? undefined : (e) => { e.stopPropagation(); onSelectStyleElement?.('botao_whatsapp') }}
+        onDoubleClick={!showFinalPreview && onUpdateBotaoTexto ? (e) => { e.stopPropagation(); setEditingWhatsApp(true) } : undefined}
       >
         <WhatsAppIcon size={16} className="shrink-0" />
-        {estiloBotao?.whatsapp_texto || 'Enviar via WhatsApp'}
+        {editingWhatsApp ? (
+          <input
+            ref={whatsAppInputRef}
+            value={whatsAppText}
+            onChange={(e) => setWhatsAppText(e.target.value)}
+            onBlur={handleWhatsAppBlur}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleWhatsAppBlur(); if (e.key === 'Escape') { setWhatsAppText(estiloBotao?.whatsapp_texto || 'Enviar via WhatsApp'); setEditingWhatsApp(false) } }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-transparent text-center border-none outline-none flex-1"
+            style={{ color: 'inherit', fontSize: 'inherit', fontWeight: 'inherit', fontFamily: 'inherit' }}
+          />
+        ) : (
+          estiloBotao?.whatsapp_texto || 'Enviar via WhatsApp'
+        )}
       </button>
     </div>
   ) : null

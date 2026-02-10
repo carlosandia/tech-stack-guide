@@ -1,8 +1,10 @@
 /**
  * AIDEV-NOTE: Componente de campo individual no preview do formulário
  * Renderiza o campo com aparência real + controles de edição
+ * Suporta edição inline do label via double-click
  */
 
+import { useState, useRef, useEffect } from 'react'
 import { GripVertical, Trash2, Settings, ChevronUp, ChevronDown, Paintbrush, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { CampoFormulario } from '../../services/formularios.api'
@@ -22,6 +24,7 @@ interface Props {
   onDrop: (e: React.DragEvent) => void
   onDragLeave: (e: React.DragEvent) => void
   onStyleEdit?: () => void
+  onUpdateLabel?: (newLabel: string) => void
 }
 
 export function CampoItem({
@@ -37,7 +40,42 @@ export function CampoItem({
   onDrop,
   onDragLeave,
   onStyleEdit,
+  onUpdateLabel,
 }: Props) {
+  const [editingLabel, setEditingLabel] = useState(false)
+  const [labelValue, setLabelValue] = useState(campo.label || campo.nome)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    setLabelValue(campo.label || campo.nome)
+  }, [campo.label, campo.nome])
+
+  useEffect(() => {
+    if (editingLabel && inputRef.current) {
+      inputRef.current.focus()
+      inputRef.current.select()
+    }
+  }, [editingLabel])
+
+  const handleLabelBlur = () => {
+    setEditingLabel(false)
+    const trimmed = labelValue.trim()
+    if (trimmed && trimmed !== (campo.label || campo.nome) && onUpdateLabel) {
+      onUpdateLabel(trimmed)
+    }
+  }
+
+  const handleLabelKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleLabelBlur()
+    }
+    if (e.key === 'Escape') {
+      setLabelValue(campo.label || campo.nome)
+      setEditingLabel(false)
+    }
+  }
+
   return (
     <div
       draggable
@@ -86,15 +124,35 @@ export function CampoItem({
       {/* Field preview */}
       <div className="space-y-1.5 pl-4">
         <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-foreground flex items-center gap-1">
-            {campo.label || campo.nome}
-            {campo.obrigatorio && <span className="text-destructive ml-0.5">*</span>}
-            {campo.texto_ajuda && (
-              <span title={campo.texto_ajuda} className="cursor-help">
-                <Info className="w-3.5 h-3.5 text-muted-foreground" />
-              </span>
-            )}
-          </label>
+          {editingLabel ? (
+            <input
+              ref={inputRef}
+              value={labelValue}
+              onChange={(e) => setLabelValue(e.target.value)}
+              onBlur={handleLabelBlur}
+              onKeyDown={handleLabelKeyDown}
+              onClick={(e) => e.stopPropagation()}
+              className="text-sm font-medium text-foreground bg-transparent border-b border-primary outline-none px-0 py-0 min-w-[60px]"
+              style={{ width: `${Math.max(labelValue.length, 4)}ch` }}
+            />
+          ) : (
+            <label
+              className="text-sm font-medium text-foreground flex items-center gap-1 cursor-text hover:text-primary transition-colors"
+              onDoubleClick={(e) => {
+                e.stopPropagation()
+                if (onUpdateLabel) setEditingLabel(true)
+              }}
+              title={onUpdateLabel ? 'Duplo clique para editar' : undefined}
+            >
+              {campo.label || campo.nome}
+              {campo.obrigatorio && <span className="text-destructive ml-0.5">*</span>}
+              {campo.texto_ajuda && (
+                <span title={campo.texto_ajuda} className="cursor-help">
+                  <Info className="w-3.5 h-3.5 text-muted-foreground" />
+                </span>
+              )}
+            </label>
+          )}
           <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
             {getLabelTipo(campo.tipo)}
           </Badge>
