@@ -1,149 +1,114 @@
 
-# Plano: Blocos/Colunas na Newsletter + LGPD Global + Email de Boas-Vindas + Popup Avancado
+# Plano: Redesign da Aba Configuracoes + Multi-step Avancado
 
-## Escopo Resumido
+## Problema Atual
 
-Sao 4 frentes de trabalho:
+A aba "Configuracoes" usa um grid 2x2 com secoes colapsaveis (accordions) que ficam comprimidas e dificeis de navegar. Configuracoes de Newsletter, Popup, Multi-step, LGPD, Logica e A/B ficam todas misturadas dentro de accordions, resultando em UX ruim com muito scroll e pouca clareza.
 
-1. **Sistema de blocos com colunas para Newsletter** - permitir organizar campos em colunas (1, 2 ou 3) como RD Station/HubSpot
-2. **Campo LGPD disponivel para todos os tipos de formulario** (nao so newsletter)
-3. **Email automatico de boas-vindas** ao submeter newsletter (usando SMTP ja configurado)
-4. **Popup: acoes avancadas de marketing** - frequencia de exibicao, paginas especificas, segmentacao por UTM, botao de fechar customizado
+## Solucao: Navegacao por Abas Verticais (Sidebar + Conteudo)
 
----
+Substituir o grid 2x2 por um layout com **sidebar de navegacao a esquerda** e **area de conteudo full-width a direita**. Cada secao ocupa 100% da area disponivel, sem accordions.
 
-## 1. Sistema de Blocos com Colunas (Newsletter)
-
-### Conceito
-Em vez de campos empilhados verticalmente, o usuario pode agrupar campos em "linhas" com 1 a 3 colunas. Cada linha (bloco) define quantas colunas tem, e os campos sao distribuidos dentro dela.
-
-### Implementacao
-
-**Nova propriedade no campo**: Adicionar `coluna_config` (JSONB) na tabela `campos_formularios` com:
-- `bloco_id`: identificador do bloco/linha (string, ex: "bloco_1")
-- `coluna`: numero da coluna dentro do bloco (1, 2 ou 3)
-- `total_colunas`: quantas colunas o bloco tem (1, 2 ou 3)
-
-**Migracao SQL**:
-```
-ALTER TABLE campos_formularios ADD COLUMN IF NOT EXISTS coluna_config jsonb DEFAULT null;
+```text
++---------------------------+------------------------------------------------+
+| Sidebar (200px)           | Conteudo (flex-1)                              |
+|                           |                                                |
+| > Geral          (ativo)  | [Formulario completo da secao selecionada]     |
+| > LGPD                    |                                                |
+| > Logica                  |                                                |
+| > A/B Testing             |                                                |
+|                           |                                                |
+| Secoes condicionais:      |                                                |
+| > Popup (so se popup)     |                                                |
+| > Newsletter (so se NL)   |                                                |
+| > Etapas (so se multi)    |                                                |
++---------------------------+------------------------------------------------+
 ```
 
-**Componente `BlocoColumnSelector`**: Pequeno controle no `CampoConfigPanel` que permite ao usuario:
-- Definir se o campo pertence a um bloco
-- Escolher 1, 2 ou 3 colunas para o bloco
-- Posicionar o campo na coluna desejada
+### Regras de exibicao dos itens na sidebar:
+- **Geral**: sempre visivel (etapas multi-step ficam aqui quando tipo=multi_step)
+- **LGPD / Consentimento**: sempre visivel
+- **Logica Condicional**: sempre visivel
+- **A/B Testing**: sempre visivel
+- **Popup**: so aparece quando `formulario.tipo === 'popup'`
+- **Newsletter**: so aparece quando `formulario.tipo === 'newsletter'`
+- **Etapas**: so aparece quando `formulario.tipo === 'multi_step'`
 
-**Renderizacao no Preview**: O `FormPreview` agrupa campos pelo `bloco_id` e renderiza cada grupo como um `flex` row com `gap`, distribuindo os campos nas colunas corretas.
+### Design da sidebar:
+- Fundo `bg-muted/30`, borda `border-r border-border`
+- Itens com icone + label, estilo ghost
+- Item ativo: `bg-primary/10 text-primary font-medium border-l-2 border-primary`
+- Largura fixa: `w-48` (192px)
 
-**Renderizacao no Preview Final e Pagina Publica**: Mesma logica de agrupamento.
+## Multi-step: Configuracoes Avancadas por Etapa
 
-### Alternativa mais simples (recomendada para V1)
-Em vez de blocos complexos, utilizar a propriedade `largura` ja existente nos campos. Hoje o campo tem `largura: 'full'`, mas podemos expandir para `'full' | '1/2' | '1/3' | '2/3'`. O preview renderiza campos em sequencia usando `flex-wrap`, e campos com larguras fracionarias ficam lado a lado automaticamente.
+### Aprimoramento do ConfigEtapasForm
 
-Isso e mais intuitivo e nao requer nova estrutura de dados - basta atualizar o `CampoConfigPanel` para oferecer as opcoes de largura e ajustar o `FormPreview` para renderizar com `flex-wrap`.
+Transformar de um simples CRUD de etapas para uma interface profissional de configuracao multi-step:
 
----
+#### Configuracoes Globais do Multi-step (topo da secao "Etapas"):
+- **Indicador de progresso**: tipo (barra, numeros, icones, dots)
+- **Navegacao**: permitir voltar, pular etapas, salvar rascunho
+- **Validacao**: validar por etapa ou so no final
+- **Texto do botao final**: customizavel (ex: "Enviar", "Finalizar")
 
-## 2. Campo LGPD para Todos os Formularios
+#### Configuracoes por Etapa (no card expandido):
+- Titulo e descricao (ja existem)
+- **Icone da etapa**: seletor de icone (lucide)
+- **Logica de pulo**: condicao para pular esta etapa automaticamente
+- **Campos vinculados**: indicador visual de quais campos pertencem a esta etapa
+- Textos dos botoes proximo/anterior (ja existem)
+- Validar antes de avancar (ja existe)
+- **Barra de progresso visivel**: toggle por etapa
 
-### Situacao Atual
-- Ja existe o tipo `checkbox_termos` na paleta de campos (categoria "Especiais")
-- A newsletter ja tem config de consentimento LGPD no `ConfigNewsletterForm`
-- Porem, formularios inline, popup e landing page nao tem acesso facil a isso
+#### Migracoes SQL necessarias:
+Adicionar colunas na tabela `formularios` para config global multi-step:
 
-### Implementacao
-- Adicionar uma secao "LGPD / Consentimento" nas **Configuracoes Gerais** (`EditorTabsConfig`) para **todos os tipos** de formulario (nao so newsletter)
-- Criar campos na tabela `formularios` (ou uma tabela de config generica):
-  - `lgpd_ativo` (boolean)
-  - `lgpd_texto_consentimento` (text)
-  - `lgpd_url_politica` (text)
-  - `lgpd_checkbox_obrigatorio` (boolean)
-- No `FormPreview`, quando `lgpd_ativo = true`, renderizar automaticamente um checkbox de consentimento antes do botao de enviar (sem precisar adicionar manualmente o campo)
-- Na pagina publica, validar que o checkbox foi marcado antes de permitir submissao
-
----
-
-## 3. Email Automatico de Boas-Vindas (Newsletter)
-
-### Contexto
-O sistema ja possui a Edge Function `send-email` que envia emails via SMTP configurado pelo usuario. O `ConfigNewsletterForm` ja tem campos para double opt-in e assunto do email.
-
-### Implementacao
-- Adicionar campo `email_boas_vindas_ativo` (boolean) e `template_boas_vindas` (text/html) na tabela `config_newsletter_formularios`
-- No `ConfigNewsletterForm`, adicionar secao "Email de Boas-Vindas":
-  - Toggle para ativar/desativar
-  - Campo de assunto do email
-  - Editor de texto rico (TipTap, ja disponivel no projeto) para o corpo do email
-  - Botao "Enviar teste" para o proprio email do usuario
-- Quando uma submissao de newsletter e recebida, a logica de pos-envio (que ja existe para criar oportunidades e notificar) tambem chamara a Edge Function `send-email` para enviar o email de boas-vindas ao lead
-
-**Migracao SQL**:
-```
-ALTER TABLE config_newsletter_formularios
-  ADD COLUMN IF NOT EXISTS email_boas_vindas_ativo boolean DEFAULT false,
-  ADD COLUMN IF NOT EXISTS assunto_boas_vindas text DEFAULT 'Bem-vindo!',
-  ADD COLUMN IF NOT EXISTS template_boas_vindas text;
+```sql
+ALTER TABLE public.formularios
+  ADD COLUMN IF NOT EXISTS multi_step_config jsonb DEFAULT '{}';
 ```
 
----
+O JSONB armazena:
+- `tipo_progresso`: 'barra' | 'numeros' | 'icones' | 'dots'
+- `permitir_voltar`: boolean
+- `permitir_pular`: boolean  
+- `salvar_rascunho`: boolean
+- `validar_por_etapa`: boolean
 
-## 4. Popup: Acoes Avancadas de Marketing
-
-### Situacao Atual
-O `ConfigPopupForm` ja implementa: gatilho (saida, tempo, scroll, clique), posicao, animacao, overlay, cookie, mobile.
-
-### O que falta (padroes de CRM avancado)
-
-Adicionar na tabela `config_popup_formularios`:
-- `frequencia_exibicao` (text): 'sempre', 'uma_vez', 'uma_vez_por_dia', 'uma_vez_por_semana', 'personalizado'
-- `max_exibicoes` (integer): numero maximo de vezes que o popup aparece para o mesmo visitante
-- `paginas_alvo` (text[]): lista de URLs/paths onde o popup deve aparecer (se vazio, aparece em todas)
-- `paginas_excluidas` (text[]): URLs onde o popup NAO deve aparecer
-- `utm_filtro` (jsonb): filtrar por UTM source/medium/campaign para segmentar campanhas
-- `mostrar_botao_fechar` (boolean): se o X de fechar aparece
-- `delay_botao_fechar` (integer): atraso em segundos antes de mostrar o botao de fechar (tecnica de marketing para forcar leitura)
-- `ativo_a_partir_de` (timestamptz): data de inicio de exibicao
-- `ativo_ate` (timestamptz): data de fim de exibicao (campanhas temporarias)
-
-**Migracao SQL**:
-```
-ALTER TABLE config_popup_formularios
-  ADD COLUMN IF NOT EXISTS frequencia_exibicao text DEFAULT 'uma_vez',
-  ADD COLUMN IF NOT EXISTS max_exibicoes integer DEFAULT null,
-  ADD COLUMN IF NOT EXISTS paginas_alvo text[] DEFAULT '{}',
-  ADD COLUMN IF NOT EXISTS paginas_excluidas text[] DEFAULT '{}',
-  ADD COLUMN IF NOT EXISTS utm_filtro jsonb DEFAULT null,
-  ADD COLUMN IF NOT EXISTS mostrar_botao_fechar boolean DEFAULT true,
-  ADD COLUMN IF NOT EXISTS delay_botao_fechar integer DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS ativo_a_partir_de timestamptz DEFAULT null,
-  ADD COLUMN IF NOT EXISTS ativo_ate timestamptz DEFAULT null;
-```
-
-**UI no ConfigPopupForm**: Adicionar secoes:
-- "Frequencia de Exibicao" com select e campo de max
-- "Segmentacao" com inputs para paginas alvo/excluidas e filtros UTM
-- "Agendamento" com date pickers para inicio/fim
-- "Botao Fechar" com toggle e delay
-
----
+### Acoes de Marketing para Multi-step:
+- **Progressive Profiling**: ja implementado nos campos (mostrar_para_leads_conhecidos, alternativa_para_campo_id)
+- **Lead Scoring por etapa**: somar pontuacao conforme avanca
+- **Abandono de etapa**: trackear em qual etapa o usuario desistiu (ja feito via submissoes parciais)
+- **Auto-save entre etapas**: salvar progresso parcial
 
 ## Arquivos Alterados
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| **Migracao SQL** | Adicionar colunas em `campos_formularios`, `config_newsletter_formularios`, `config_popup_formularios` e `formularios` |
-| `src/modules/formularios/services/formularios.api.ts` | Atualizar interfaces `ConfigPopup`, `ConfigNewsletter`, `CampoFormulario`, `Formulario` |
-| `src/modules/formularios/components/campos/CampoConfigPanel.tsx` | Adicionar seletor de largura fracionaria (1/2, 1/3, 2/3) |
-| `src/modules/formularios/components/editor/FormPreview.tsx` | Renderizar campos com flex-wrap respeitando larguras fracionarias |
-| `src/modules/formularios/components/editor/EditorTabsConfig.tsx` | Adicionar secao LGPD global |
-| `src/modules/formularios/components/config/ConfigPopupForm.tsx` | Adicionar secoes avancadas de marketing |
-| `src/modules/formularios/components/config/ConfigNewsletterForm.tsx` | Adicionar secao de email de boas-vindas |
-| `src/modules/formularios/components/config/LgpdConfigSection.tsx` | **NOVO** - Componente de config LGPD reutilizavel |
+| `src/modules/formularios/components/editor/EditorTabsConfig.tsx` | Reescrever: remover grid 2x2 com accordions, implementar layout sidebar + conteudo com navegacao vertical |
+| `src/modules/formularios/components/config/ConfigEtapasForm.tsx` | Expandir: adicionar config global multi-step (tipo progresso, navegacao), melhorar cards de etapa com icone e campos vinculados |
+| `src/modules/formularios/services/formularios.api.ts` | Adicionar interface `MultiStepConfig` e campo `multi_step_config` no tipo `Formulario` |
+| `src/modules/formularios/components/config/ConfigPopupForm.tsx` | Sem mudanca no conteudo, apenas sera renderizado dentro da nova sidebar |
+| `src/modules/formularios/components/config/ConfigNewsletterForm.tsx` | Sem mudanca no conteudo |
+| `src/modules/formularios/components/config/LgpdConfigSection.tsx` | Sem mudanca no conteudo |
+| **Migracao SQL** | `ALTER TABLE formularios ADD COLUMN multi_step_config jsonb DEFAULT '{}'` |
 
-## Ordem de Implementacao
+## Detalhes Tecnicos
 
-1. Sistema de larguras fracionarias (colunas) - impacto visual imediato
-2. LGPD global para todos os formularios
-3. Acoes avancadas de marketing no popup
-4. Email automatico de boas-vindas
+### EditorTabsConfig - Nova estrutura:
+```text
+Estado: activeSection (string) controla qual secao esta visivel
+Sidebar: lista de itens filtrada por formulario.tipo
+Conteudo: renderizacao condicional baseada em activeSection
+```
+
+### Responsividade:
+- Desktop (lg+): sidebar fixa + conteudo ao lado
+- Mobile/tablet: sidebar vira tabs horizontais (underline) no topo, conteudo abaixo
+
+### Padrao do Design System:
+- Usa `text-sm font-medium` para labels da sidebar
+- Icones `w-4 h-4` do lucide-react
+- Item ativo com `border-l-2 border-primary` (desktop) ou `border-b-2 border-primary` (mobile)
+- Cores: `text-muted-foreground` inativo, `text-primary` ativo
