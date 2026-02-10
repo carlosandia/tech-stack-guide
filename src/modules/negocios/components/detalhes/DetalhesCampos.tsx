@@ -7,13 +7,15 @@
  */
 
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
-import { DollarSign, User, Calendar, Mail, Phone, Settings2, Check, Building2, RefreshCw, Link2, X, Search, Loader2, ChevronDown, Hash, Type, ToggleLeft, Globe, FileText, Package } from 'lucide-react'
+import { DollarSign, User, Calendar, Mail, Phone, Settings2, Check, Building2, RefreshCw, Link2, X, Search, Loader2, ChevronDown, Hash, Type, ToggleLeft, Globe, FileText, Package, MessageCircle } from 'lucide-react'
 import type { Oportunidade } from '../../services/negocios.api'
 import { negociosApi } from '../../services/negocios.api'
 import { useAtualizarOportunidade, useAtualizarContato, useAvaliarQualificacao } from '../../hooks/useOportunidadeDetalhes'
 import { useCamposDefinicoes, useValoresCampos, SLUG_TO_CONTATO_COLUMN, getValorExibicao } from '../../hooks/useCamposDetalhes'
 import type { CampoDefinicao } from '../../hooks/useCamposDetalhes'
 import { ProdutosOportunidade } from './ProdutosOportunidade'
+import { LigacaoModal } from '../modals/LigacaoModal'
+
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 
@@ -594,6 +596,10 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
                   onSave={() => handleSaveContato(nativeCol, editValue)}
                   onCancel={() => setEditingField(null)}
                   inputType={campo.tipo === 'email' ? 'email' : campo.tipo === 'telefone' ? 'tel' : campo.tipo === 'url' ? 'url' : 'text'}
+                  telefoneActions={campo.tipo === 'telefone' && value ? {
+                    telefone: value,
+                    contatoNome: oportunidade.contato ? [oportunidade.contato.nome, oportunidade.contato.sobrenome].filter(Boolean).join(' ') : undefined,
+                  } : undefined}
                 />
               )
             }
@@ -746,40 +752,86 @@ interface FieldRowProps {
   onSave: () => void
   onCancel: () => void
   inputType?: string
+  telefoneActions?: {
+    telefone: string
+    contatoNome?: string
+  }
 }
 
 function FieldRow({
   icon, label, value, placeholder, isEditing,
   onStartEdit, editValue, onEditChange, onSave, onCancel, inputType = 'text',
+  telefoneActions,
 }: FieldRowProps) {
+  const [ligacaoOpen, setLigacaoOpen] = useState(false)
+
+  const handleWhatsApp = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!telefoneActions) return
+    const phone = telefoneActions.telefone.replace(/\D/g, '')
+    window.open(`https://wa.me/${phone}`, '_blank')
+  }
+
   return (
-    <div className="flex items-start gap-2">
-      <div className="text-muted-foreground mt-1 flex-shrink-0">{icon}</div>
-      <div className="flex-1 min-w-0">
-        <p className="text-[11px] text-muted-foreground mb-0.5">{label}</p>
-        {isEditing ? (
-          <input
-            type={inputType}
-            className="w-full text-sm bg-transparent border-0 border-b border-primary focus:ring-0 p-0 pb-0.5 text-foreground"
-            value={editValue}
-            onChange={(e) => onEditChange(e.target.value)}
-            onBlur={onSave}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') onSave()
-              if (e.key === 'Escape') onCancel()
-            }}
-            autoFocus
-          />
-        ) : (
-          <button
-            type="button"
-            onClick={onStartEdit}
-            className="w-full text-left text-sm text-foreground border-0 border-b border-transparent hover:border-border p-0 pb-0.5 transition-colors truncate"
-          >
-            {value || <span className="text-muted-foreground">{placeholder}</span>}
-          </button>
-        )}
+    <>
+      <div className="flex items-start gap-2">
+        <div className="text-muted-foreground mt-1 flex-shrink-0">{icon}</div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[11px] text-muted-foreground mb-0.5">{label}</p>
+          {isEditing ? (
+            <input
+              type={inputType}
+              className="w-full text-sm bg-transparent border-0 border-b border-primary focus:ring-0 p-0 pb-0.5 text-foreground"
+              value={editValue}
+              onChange={(e) => onEditChange(e.target.value)}
+              onBlur={onSave}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') onSave()
+                if (e.key === 'Escape') onCancel()
+              }}
+              autoFocus
+            />
+          ) : (
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={onStartEdit}
+                className="flex-1 text-left text-sm text-foreground border-0 border-b border-transparent hover:border-border p-0 pb-0.5 transition-colors truncate"
+              >
+                {value || <span className="text-muted-foreground">{placeholder}</span>}
+              </button>
+              {telefoneActions && value && (
+                <div className="flex items-center gap-0.5 flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setLigacaoOpen(true) }}
+                    className="p-1 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded transition-colors"
+                    title="Ligar"
+                  >
+                    <Phone className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleWhatsApp}
+                    className="p-1 text-muted-foreground hover:text-[hsl(var(--success-foreground))] hover:bg-[hsl(var(--success-muted))] rounded transition-colors"
+                    title="WhatsApp"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+
+      {ligacaoOpen && telefoneActions && (
+        <LigacaoModal
+          telefone={telefoneActions.telefone}
+          contatoNome={telefoneActions.contatoNome}
+          onClose={() => setLigacaoOpen(false)}
+        />
+      )}
+    </>
   )
 }

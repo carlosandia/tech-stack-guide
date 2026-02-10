@@ -23,6 +23,7 @@ import type { Oportunidade } from '../../services/negocios.api'
 import { TarefasPopover } from './TarefasPopover'
 import { WhatsAppConversaModal } from './WhatsAppConversaModal'
 import { ComposeEmailModal } from '@/modules/emails/components/ComposeEmailModal'
+import { LigacaoModal } from '../modals/LigacaoModal'
 import { useEnviarEmail, useSalvarRascunho } from '@/modules/emails/hooks/useEmails'
 import { formatDistanceToNow, format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -127,6 +128,7 @@ export function KanbanCard({ oportunidade, onDragStart, onClick, config, isSelec
   const [whatsappOpen, setWhatsappOpen] = useState(false)
   const [emailOpen, setEmailOpen] = useState(false)
   const [emailResetKey, setEmailResetKey] = useState(0)
+  const [ligacaoOpen, setLigacaoOpen] = useState(false)
 
   const enviarEmail = useEnviarEmail()
   const salvarRascunho = useSalvarRascunho()
@@ -268,7 +270,7 @@ export function KanbanCard({ oportunidade, onDragStart, onClick, config, isSelec
     switch (key) {
       case 'telefone':
         if (oportunidade.contato.telefone) {
-          window.open(`tel:${oportunidade.contato.telefone}`, '_blank')
+          setLigacaoOpen(true)
         }
         break
       case 'whatsapp':
@@ -421,6 +423,15 @@ export function KanbanCard({ oportunidade, onDragStart, onClick, config, isSelec
         }}
         resetKey={emailResetKey}
       />
+
+      {/* Ligação Modal */}
+      {ligacaoOpen && oportunidade.contato?.telefone && (
+        <LigacaoModal
+          telefone={oportunidade.contato.telefone}
+          contatoNome={contatoNome}
+          onClose={() => setLigacaoOpen(false)}
+        />
+      )}
     </>
   )
 }

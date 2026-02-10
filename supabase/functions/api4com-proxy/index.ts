@@ -202,6 +202,37 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ conexao }), { headers: corsHeaders })
     }
 
+    // =====================================================
+    // ACTION: test-saved - testar token já salvo no banco
+    // =====================================================
+    if (action === 'test-saved') {
+      const { data: conexao } = await supabaseAdmin
+        .from('conexoes_api4com')
+        .select('access_token_encrypted, api_url')
+        .eq('organizacao_id', usuario.organizacao_id)
+        .is('deletado_em', null)
+        .maybeSingle()
+
+      if (!conexao) {
+        return new Response(JSON.stringify({ valid: false, message: 'Nenhuma conexão API4COM encontrada' }), { headers: corsHeaders })
+      }
+
+      try {
+        const baseUrl = (conexao.api_url || 'https://api.api4com.com.br').replace(/\/$/, '')
+        const response = await fetch(`${baseUrl}/v1/accounts`, {
+          headers: { 'Authorization': `Bearer ${conexao.access_token_encrypted}` },
+        })
+
+        if (response.ok) {
+          return new Response(JSON.stringify({ valid: true }), { headers: corsHeaders })
+        } else {
+          return new Response(JSON.stringify({ valid: false, message: `Token inválido: ${response.status}` }), { headers: corsHeaders })
+        }
+      } catch {
+        return new Response(JSON.stringify({ valid: false, message: 'Erro ao conectar com API4COM' }), { headers: corsHeaders })
+      }
+    }
+
     return new Response(JSON.stringify({ error: 'Ação não reconhecida' }), { status: 400, headers: corsHeaders })
 
   } catch (err) {
