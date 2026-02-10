@@ -4,7 +4,7 @@
  * Inclui pipeline selector ao criar oportunidade, formatação de fonte, SMTP info
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
@@ -200,7 +200,6 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
     if (error) {
       toast.error('Erro ao salvar configuração')
     } else {
-      // AIDEV-NOTE: toast removido aqui para evitar duplicação quando chamado via EstiloPopover.handleSaveAll
       queryClient.invalidateQueries({ queryKey: ['formularios', formularioId] })
       onConfigChange?.(config)
     }
@@ -210,6 +209,25 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
   useEffect(() => {
     onRegisterSave?.(saveConfig)
   })
+
+  // AIDEV-NOTE: Auto-save config/posEnvio com debounce de 1s
+  const configDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const configInitialized = useRef(false)
+
+  useEffect(() => {
+    if (!loaded) return
+    if (!configInitialized.current) {
+      configInitialized.current = true
+      return
+    }
+    if (configDebounceRef.current) clearTimeout(configDebounceRef.current)
+    configDebounceRef.current = setTimeout(() => {
+      saveConfig()
+    }, 1000)
+    return () => {
+      if (configDebounceRef.current) clearTimeout(configDebounceRef.current)
+    }
+  }, [config, posEnvio, loaded])
 
   const updatePosEnvio = (key: string, value: unknown) => {
     setPosEnvio(prev => ({ ...prev, [key]: value }))
