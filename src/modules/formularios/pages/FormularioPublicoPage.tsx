@@ -306,12 +306,13 @@ export function FormularioPublicoPage() {
         )}
 
         {/* Campos */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: `${camposEstilo.gap || '12px'} 0` }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap' }}>
           {campos.map(campo => {
             const larguraMap: Record<string, string> = { full: '100%', '1/2': '50%', '1/3': '33.33%', '2/3': '66.66%', half: '50%', third: '33.33%' }
             const w = larguraMap[campo.largura] || '100%'
+            const fieldMargin = `${camposEstilo.gap_top || camposEstilo.gap || '12'}px ${camposEstilo.gap_right || '0'}px ${camposEstilo.gap_bottom || '0'}px ${camposEstilo.gap_left || '0'}px`
             return (
-              <div key={campo.id} style={{ width: w, paddingRight: w !== '100%' ? '8px' : undefined, boxSizing: 'border-box' as const }}>
+              <div key={campo.id} style={{ width: w, padding: fieldMargin, boxSizing: 'border-box' as const }}>
                 {renderCampoPublico({
                   campo, labelStyle, inputStyle, fontFamily, camposEstilo,
                   valor: valores[campo.id] || '',

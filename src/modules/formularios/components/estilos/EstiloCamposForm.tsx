@@ -112,23 +112,53 @@ export function EstiloCamposForm({ value, onChange }: Props) {
           />
         </div>
 
-        {/* Outros */}
         <SectionLabel>Outros</SectionLabel>
         <ColorField
           label="Cor de Erro"
           value={value.erro_cor || '#EF4444'}
           onChange={(v) => update('erro_cor', v)}
         />
-        <div className="space-y-1.5">
-          <Label className="text-xs">Espaçamento entre Campos</Label>
-          <Input
-            value={value.gap || '12px'}
-            onChange={(e) => update('gap', e.target.value)}
-            placeholder="12px"
-            className="text-xs"
-          />
-          <p className="text-[10px] text-muted-foreground">Distância vertical entre campos (ex: 8px, 12px, 16px, 24px)</p>
+
+        <SectionLabel>Espaçamento entre Campos</SectionLabel>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">Topo</Label>
+            <Input
+              value={value.gap_top || '12'}
+              onChange={(e) => update('gap_top', e.target.value)}
+              placeholder="12"
+              className="text-xs"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">Baixo</Label>
+            <Input
+              value={value.gap_bottom || '0'}
+              onChange={(e) => update('gap_bottom', e.target.value)}
+              placeholder="0"
+              className="text-xs"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">Esquerda</Label>
+            <Input
+              value={value.gap_left || '0'}
+              onChange={(e) => update('gap_left', e.target.value)}
+              placeholder="0"
+              className="text-xs"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">Direita</Label>
+            <Input
+              value={value.gap_right || '0'}
+              onChange={(e) => update('gap_right', e.target.value)}
+              placeholder="0"
+              className="text-xs"
+            />
+          </div>
         </div>
+        <p className="text-[10px] text-muted-foreground">Valores em px (ex: 0, 8, 12, 16)</p>
       </div>
     </div>
   )
