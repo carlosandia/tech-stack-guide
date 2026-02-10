@@ -6401,7 +6401,7 @@ export type Database = {
           canal: string | null
           contato_id: string | null
           criado_em: string
-          criado_por_id: string
+          criado_por_id: string | null
           data_conclusao: string | null
           data_vencimento: string | null
           deletado_em: string | null
@@ -6424,7 +6424,7 @@ export type Database = {
           canal?: string | null
           contato_id?: string | null
           criado_em?: string
-          criado_por_id: string
+          criado_por_id?: string | null
           data_conclusao?: string | null
           data_vencimento?: string | null
           deletado_em?: string | null
@@ -6447,7 +6447,7 @@ export type Database = {
           canal?: string | null
           contato_id?: string | null
           criado_em?: string
-          criado_por_id?: string
+          criado_por_id?: string | null
           data_conclusao?: string | null
           data_vencimento?: string | null
           deletado_em?: string | null
