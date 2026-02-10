@@ -95,7 +95,44 @@ export function FormPreview({
 }: Props) {
   const [viewport, setViewport] = useState<Viewport>('desktop')
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+  const [dragOverImage, setDragOverImage] = useState(false)
   const dragCounter = useRef<Record<number, number>>({})
+  const imageDropCounter = useRef(0)
+
+  // Drag handlers for image area - delegates drop to index 0
+  const handleImageDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    imageDropCounter.current++
+    setDragOverImage(true)
+  }, [])
+
+  const handleImageDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    imageDropCounter.current--
+    if (imageDropCounter.current <= 0) {
+      imageDropCounter.current = 0
+      setDragOverImage(false)
+    }
+  }, [])
+
+  const handleImageDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    imageDropCounter.current = 0
+    setDragOverImage(false)
+
+    const campoTipoData = e.dataTransfer.getData('application/campo-tipo')
+    if (campoTipoData) {
+      onDropNewCampo(e, 0)
+      return
+    }
+    const draggedId = e.dataTransfer.getData('application/campo-id')
+    if (draggedId) {
+      onReorderCampo(draggedId, 0)
+    }
+  }, [onDropNewCampo, onReorderCampo])
 
   const viewportWidths: Record<Viewport, string> = {
     desktop: 'max-w-full',
@@ -423,7 +460,13 @@ export function FormPreview({
             if (tpl === 'imagem_esquerda') {
               return (
                 <div className="flex min-h-[300px] -m-6 rounded-lg overflow-hidden" style={{ margin: `-${estiloContainer?.padding || '24px'}` }}>
-                  <div className="w-2/5 flex-shrink-0">{imageEl}</div>
+                  <div
+                    className={cn('w-2/5 flex-shrink-0 transition-all', dragOverImage && 'ring-2 ring-dashed ring-primary ring-inset')}
+                    onDragEnter={handleImageDragEnter}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleImageDragLeave}
+                    onDrop={handleImageDrop}
+                  >{imageEl}</div>
                   <div className="w-3/5 p-6 overflow-auto">{formContent}</div>
                 </div>
               )
@@ -432,14 +475,26 @@ export function FormPreview({
               return (
                 <div className="flex min-h-[300px] -m-6 rounded-lg overflow-hidden" style={{ margin: `-${estiloContainer?.padding || '24px'}` }}>
                   <div className="w-3/5 p-6 overflow-auto">{formContent}</div>
-                  <div className="w-2/5 flex-shrink-0">{imageEl}</div>
+                  <div
+                    className={cn('w-2/5 flex-shrink-0 transition-all', dragOverImage && 'ring-2 ring-dashed ring-primary ring-inset')}
+                    onDragEnter={handleImageDragEnter}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleImageDragLeave}
+                    onDrop={handleImageDrop}
+                  >{imageEl}</div>
                 </div>
               )
             }
             if (tpl === 'imagem_topo') {
               return (
                 <div className="flex flex-col -m-6 rounded-lg overflow-hidden" style={{ margin: `-${estiloContainer?.padding || '24px'}` }}>
-                  <div className="h-48 flex-shrink-0">{imageEl}</div>
+                  <div
+                    className={cn('h-48 flex-shrink-0 transition-all', dragOverImage && 'ring-2 ring-dashed ring-primary ring-inset')}
+                    onDragEnter={handleImageDragEnter}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleImageDragLeave}
+                    onDrop={handleImageDrop}
+                  >{imageEl}</div>
                   <div className="p-6 overflow-auto">{formContent}</div>
                 </div>
               )
@@ -456,7 +511,13 @@ export function FormPreview({
             if (tpl === 'imagem_lateral_full') {
               return (
                 <div className="flex min-h-[350px] -m-6 rounded-lg overflow-hidden" style={{ margin: `-${estiloContainer?.padding || '24px'}` }}>
-                  <div className="w-1/2 flex-shrink-0">{imageEl}</div>
+                  <div
+                    className={cn('w-1/2 flex-shrink-0 transition-all', dragOverImage && 'ring-2 ring-dashed ring-primary ring-inset')}
+                    onDragEnter={handleImageDragEnter}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleImageDragLeave}
+                    onDrop={handleImageDrop}
+                  >{imageEl}</div>
                   <div className="w-1/2 p-6 overflow-auto">{formContent}</div>
                 </div>
               )
