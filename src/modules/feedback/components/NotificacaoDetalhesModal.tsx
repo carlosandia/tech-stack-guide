@@ -45,8 +45,8 @@ export function NotificacaoDetalhesModal({ notificacao, open, onClose }: Notific
       <div className="fixed inset-0 z-[500] bg-foreground/20 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal */}
-      <div className="fixed inset-0 z-[501] flex items-center justify-center p-4">
-        <div className="bg-background rounded-lg shadow-lg border border-border w-full max-w-md">
+      <div className="fixed inset-0 z-[501] flex items-center justify-center p-4" style={{ margin: 0 }}>
+        <div className="bg-background rounded-lg shadow-lg border border-border w-full max-w-md mx-auto">
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-border">
             <div className="flex items-center gap-2">

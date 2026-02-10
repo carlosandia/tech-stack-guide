@@ -6,10 +6,10 @@
 import { z } from 'zod'
 
 export const TipoFormularioOptions = [
-  { value: 'inline', label: 'Inline (Embutido)' },
+  { value: 'inline', label: 'Padrão' },
   { value: 'popup', label: 'Popup' },
   { value: 'newsletter', label: 'Newsletter' },
-  { value: 'multi_step', label: 'Multi-step' },
+  { value: 'multi_step', label: 'Por Etapas' },
 ] as const
 
 export const StatusFormularioOptions = [
