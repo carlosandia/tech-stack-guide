@@ -25,8 +25,7 @@ import { WhatsAppConversaModal } from './WhatsAppConversaModal'
 import { ComposeEmailModal } from '@/modules/emails/components/ComposeEmailModal'
 import { LigacaoModal } from '../modals/LigacaoModal'
 import { useEnviarEmail, useSalvarRascunho } from '@/modules/emails/hooks/useEmails'
-import { formatDistanceToNow, format } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
+import { format } from 'date-fns'
 
 // =====================================================
 // Types
@@ -162,11 +161,18 @@ export function KanbanCard({ oportunidade, onDragStart, onClick, config, slaConf
     ? `${String(minRestantes).padStart(2, '0')}:${String(segRestantes).padStart(2, '0')}`
     : 'Estourado'
 
-  // Tempo desde a criação (separado do SLA)
-  const tempoCriacao = formatDistanceToNow(new Date(oportunidade.criado_em), {
-    locale: ptBR,
-    addSuffix: true,
-  })
+  // Tempo desde a criação — formato curto (3min, 1h, 2d)
+  const tempoCriacao = (() => {
+    const diffMs = Date.now() - new Date(oportunidade.criado_em).getTime()
+    const diffSeg = Math.floor(diffMs / 1000)
+    if (diffSeg < 60) return `há ${diffSeg}seg`
+    const diffMin = Math.floor(diffSeg / 60)
+    if (diffMin < 60) return `há ${diffMin}min`
+    const diffH = Math.floor(diffMin / 60)
+    if (diffH < 24) return `há ${diffH}h`
+    const diffD = Math.floor(diffH / 24)
+    return `há ${diffD}d`
+  })()
 
   // Renderiza um campo do card baseado na key
   const renderCampo = (key: string) => {
@@ -413,7 +419,7 @@ export function KanbanCard({ oportunidade, onDragStart, onClick, config, slaConf
                     className="w-5 h-5 flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
                     title={acao.label}
                   >
-                    <Icon className="w-3 h-3" />
+                    <Icon className="w-3.5 h-3.5" />
                   </button>
                 )
               })}
