@@ -316,7 +316,7 @@ export function FormularioEditorPage() {
                           }}
                           onChangeImagemUrl={(url) => {
                             setLocalPopupImagemUrl(url)
-                            salvarConfigPopup.mutate({ popup_imagem_url: url })
+                            salvarConfigPopup.mutate({ popup_imagem_url: url, popup_imagem_posicao: localPopupTemplate })
                           }}
                         />
                       </div>

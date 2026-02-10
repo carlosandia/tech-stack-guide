@@ -189,6 +189,7 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
     const boldKey = `${prefix}font_bold` as keyof EstiloBotao
     const italicKey = `${prefix}font_italic` as keyof EstiloBotao
     const underlineKey = `${prefix}font_underline` as keyof EstiloBotao
+    const weightKey = `${prefix}font_weight` as keyof EstiloBotao
 
     return (
       <div className="space-y-1.5">
@@ -225,7 +226,90 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
             <Underline className="w-3.5 h-3.5" />
           </button>
         </div>
+        <div className="mt-1.5">
+          <Label className="text-xs">Peso da Fonte</Label>
+          <Select value={(estiloBotao[weightKey] as string) || '600'} onValueChange={(v) => updateEstilo(weightKey, v)}>
+            <SelectTrigger className="text-xs mt-1"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="300">Light (300)</SelectItem>
+              <SelectItem value="400">Normal (400)</SelectItem>
+              <SelectItem value="500">Medium (500)</SelectItem>
+              <SelectItem value="600">Semibold (600)</SelectItem>
+              <SelectItem value="700">Bold (700)</SelectItem>
+              <SelectItem value="800">Extra Bold (800)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
+    )
+  }
+
+  /** Renders border, padding, margin controls */
+  const renderBorderAndSpacing = (prefix: '' | 'whatsapp_') => {
+    const bwKey = `${prefix}border_width` as keyof EstiloBotao
+    const bcKey = `${prefix}border_color` as keyof EstiloBotao
+    const bsKey = `${prefix}border_style` as keyof EstiloBotao
+    const padKey = `${prefix}padding` as keyof EstiloBotao
+    const marKey = `${prefix}margin` as keyof EstiloBotao
+
+    return (
+      <>
+        {/* Border */}
+        <div className="space-y-1.5">
+          <Label className="text-xs">Borda</Label>
+          <div className="grid grid-cols-3 gap-1.5">
+            <div>
+              <Input
+                value={(estiloBotao[bwKey] as string) || '0px'}
+                onChange={(e) => updateEstilo(bwKey, e.target.value)}
+                placeholder="0px"
+                className="text-xs"
+                title="Espessura"
+              />
+            </div>
+            <div>
+              <Select value={(estiloBotao[bsKey] as string) || 'solid'} onValueChange={(v) => updateEstilo(bsKey, v)}>
+                <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="solid">Sólida</SelectItem>
+                  <SelectItem value="dashed">Tracejada</SelectItem>
+                  <SelectItem value="dotted">Pontilhada</SelectItem>
+                  <SelectItem value="none">Nenhuma</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-1">
+              <input
+                type="color"
+                value={(estiloBotao[bcKey] as string) || '#000000'}
+                onChange={(e) => updateEstilo(bcKey, e.target.value)}
+                className="w-7 h-7 rounded border border-input cursor-pointer flex-shrink-0"
+              />
+            </div>
+          </div>
+        </div>
+        {/* Padding & Margin */}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <Label className="text-xs">Padding</Label>
+            <Input
+              value={(estiloBotao[padKey] as string) || ''}
+              onChange={(e) => updateEstilo(padKey, e.target.value)}
+              placeholder="8px 16px"
+              className="text-xs"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Margin</Label>
+            <Input
+              value={(estiloBotao[marKey] as string) || ''}
+              onChange={(e) => updateEstilo(marKey, e.target.value)}
+              placeholder="0px"
+              className="text-xs"
+            />
+          </div>
+        </div>
+      </>
     )
   }
 
@@ -386,6 +470,7 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
                 />
               </div>
               {renderFontFormatting('whatsapp_')}
+              {renderBorderAndSpacing('whatsapp_')}
             </>
           ) : (
             <>
@@ -483,6 +568,7 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
                 />
               </div>
               {renderFontFormatting('')}
+              {renderBorderAndSpacing('')}
             </>
           )}
 

@@ -117,12 +117,15 @@ export function FormPreview({
     borderRadius: estiloBotao.border_radius || '6px',
     width: estiloBotao.largura === 'full' ? '100%' : estiloBotao.largura === '50%' ? '50%' : 'auto',
     height: estiloBotao.altura || undefined,
-    padding: estiloBotao.altura ? '0 20px' : '10px 20px',
+    padding: estiloBotao.padding || (estiloBotao.altura ? '0 20px' : '10px 20px'),
+    margin: estiloBotao.margin || undefined,
     fontSize: estiloBotao.font_size || '14px',
-    fontWeight: estiloBotao.font_bold ? 700 : 600,
+    fontWeight: estiloBotao.font_weight ? Number(estiloBotao.font_weight) : (estiloBotao.font_bold ? 700 : 600),
     fontStyle: estiloBotao.font_italic ? 'italic' : undefined,
     textDecoration: estiloBotao.font_underline ? 'underline' : undefined,
-    border: 'none',
+    border: estiloBotao.border_width && estiloBotao.border_width !== '0px'
+      ? `${estiloBotao.border_width} ${estiloBotao.border_style || 'solid'} ${estiloBotao.border_color || '#000000'}`
+      : 'none',
   } : {}
 
 
@@ -570,12 +573,15 @@ function renderBotoes(
           borderRadius: estiloBotao?.whatsapp_border_radius || estiloBotao?.border_radius || '6px',
           width: tipoBotao === 'ambos' ? '100%' : (estiloBotao?.whatsapp_largura === 'full' ? '100%' : estiloBotao?.whatsapp_largura === '50%' ? '50%' : 'auto'),
           height: estiloBotao?.whatsapp_altura || undefined,
-          padding: estiloBotao?.whatsapp_altura ? '0 20px' : '10px 20px',
+          padding: estiloBotao?.whatsapp_padding || (estiloBotao?.whatsapp_altura ? '0 20px' : '10px 20px'),
+          margin: estiloBotao?.whatsapp_margin || undefined,
           fontSize: estiloBotao?.whatsapp_font_size || '14px',
-          fontWeight: estiloBotao?.whatsapp_font_bold ? 700 : 600,
+          fontWeight: estiloBotao?.whatsapp_font_weight ? Number(estiloBotao.whatsapp_font_weight) : (estiloBotao?.whatsapp_font_bold ? 700 : 600),
           fontStyle: estiloBotao?.whatsapp_font_italic ? 'italic' : undefined,
           textDecoration: estiloBotao?.whatsapp_font_underline ? 'underline' : undefined,
-          border: 'none',
+          border: estiloBotao?.whatsapp_border_width && estiloBotao.whatsapp_border_width !== '0px'
+            ? `${estiloBotao.whatsapp_border_width} ${estiloBotao.whatsapp_border_style || 'solid'} ${estiloBotao.whatsapp_border_color || '#000000'}`
+            : 'none',
         }}
         onClick={showFinalPreview ? undefined : (e) => { e.stopPropagation(); onSelectStyleElement?.('botao_whatsapp') }}
       >
