@@ -7204,6 +7204,10 @@ export type Database = {
         Args: { p_meta_id: string; p_modo?: string }
         Returns: Json
       }
+      formulario_pertence_ao_tenant: {
+        Args: { _formulario_id: string }
+        Returns: boolean
+      }
       get_current_usuario_id: { Args: never; Returns: string }
       get_user_tenant_id: { Args: never; Returns: string }
       has_app_role: {
