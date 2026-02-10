@@ -408,9 +408,15 @@ export interface EstiloBotao {
   largura?: string
   altura?: string
   font_size?: string
+  font_weight?: string
   font_bold?: boolean
   font_italic?: boolean
   font_underline?: boolean
+  border_width?: string
+  border_color?: string
+  border_style?: string
+  padding?: string
+  margin?: string
   // WhatsApp button styles
   whatsapp_texto?: string
   whatsapp_background?: string
@@ -419,9 +425,15 @@ export interface EstiloBotao {
   whatsapp_largura?: string
   whatsapp_altura?: string
   whatsapp_font_size?: string
+  whatsapp_font_weight?: string
   whatsapp_font_bold?: boolean
   whatsapp_font_italic?: boolean
   whatsapp_font_underline?: boolean
+  whatsapp_border_width?: string
+  whatsapp_border_color?: string
+  whatsapp_border_style?: string
+  whatsapp_padding?: string
+  whatsapp_margin?: string
 }
 
 export interface EstiloPagina {
