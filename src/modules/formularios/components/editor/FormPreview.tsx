@@ -470,6 +470,36 @@ export function FormPreview({
                   </div>
                 )}
 
+                {/* LGPD Consent checkbox - rendered automatically when lgpd_ativo */}
+                {formulario.lgpd_ativo && campos.length > 0 && (
+                  <div className="mt-4 flex items-start gap-2 text-sm" style={{ fontFamily }}>
+                    <input
+                      type="checkbox"
+                      disabled={!!showFinalPreview}
+                      className="mt-0.5 rounded border-input"
+                    />
+                    <span className="text-foreground/80 leading-snug">
+                      {formulario.lgpd_texto_consentimento || 'Ao enviar este formulário, você concorda com nossa Política de Privacidade.'}
+                      {formulario.lgpd_url_politica && (
+                        <>
+                          {' '}
+                          <a
+                            href={formulario.lgpd_url_politica}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary underline hover:text-primary/80"
+                          >
+                            Política de Privacidade
+                          </a>
+                        </>
+                      )}
+                      {formulario.lgpd_checkbox_obrigatorio && (
+                        <span className="text-destructive ml-0.5">*</span>
+                      )}
+                    </span>
+                  </div>
+                )}
+
                 {/* Submit button(s) */}
                 {campos.length > 0 && (
                   <div className="mt-6">
