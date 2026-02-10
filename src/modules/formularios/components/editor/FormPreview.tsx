@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import type { CampoFormulario, Formulario, EstiloContainer, EstiloCampos, EstiloBotao, EstiloCabecalho } from '../../services/formularios.api'
 import type { ConfigBotoes } from '../config/ConfigBotoesEnvioForm'
+import type { PopupTemplate } from '../config/PopupLayoutSelector'
 import { CampoItem } from '../campos/CampoItem'
 import { TermosModal } from '../campos/TermosModal'
 import type { SelectedElement } from '../estilos/EstiloPreviewInterativo'
@@ -57,6 +58,8 @@ interface Props {
   paginaBackgroundColor?: string
   cssCustomizado?: string
   configBotoes?: ConfigBotoes | null
+  // Popup layout
+  popupLayout?: { template: PopupTemplate; imagemUrl: string | null } | null
 }
 
 export function FormPreview({
@@ -83,6 +86,7 @@ export function FormPreview({
   paginaBackgroundColor,
   cssCustomizado,
   configBotoes,
+  popupLayout,
 }: Props) {
   const [viewport, setViewport] = useState<Viewport>('desktop')
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
@@ -293,99 +297,169 @@ export function FormPreview({
             </button>
           )}
 
-          {/* Form header */}
-          <div className="mb-6 text-center">
-            {estiloCabecalho?.logo_url && (
-              <img
-                src={estiloCabecalho.logo_url}
-                alt="Logo"
-                style={{
-                  maxHeight: '40px',
-                  marginBottom: '8px',
-                  display: estiloCabecalho.logo_posicao === 'centro' ? 'inline-block' : 'block',
-                }}
-              />
-            )}
-            <h2
-              className="text-lg font-semibold"
-              style={{ color: estiloCabecalho?.titulo_cor || undefined, fontFamily }}
-            >
-              {formulario.nome}
-            </h2>
-            {formulario.descricao && (
-              <p
-                className="text-sm mt-1"
-                style={{ color: estiloCabecalho?.descricao_cor || undefined, fontFamily }}
-              >
-                {formulario.descricao}
-              </p>
-            )}
-          </div>
+          {/* Popup layout wrapper */}
+          {(() => {
+            const tpl = popupLayout?.template || 'so_campos'
+            const imgUrl = popupLayout?.imagemUrl
+            const hasImage = tpl !== 'so_campos'
+            const isPopup = formulario.tipo === 'popup'
 
-          {/* Fields area */}
-          {showFinalPreview ? (
-            /* Final Preview: render all field types with styles and largura support */
-            <FinalPreviewFields campos={campos} estiloCampos={estiloCampos} fontFamily={fontFamily} />
-          ) : (
-            /* Editor mode: drag-and-drop */
-            <div
-              className={cn(
-                'rounded transition-all relative',
-                selectedStyleElement === 'campos' && 'outline outline-2 outline-dashed outline-primary outline-offset-2'
-              )}
-            >
-              {campos.length === 0 && renderDropZone(0, true)}
-
-              {campos.length > 0 && (
-                <div className="group/campos">
-                  {renderDropZone(0)}
-                  {campos.map((campo, index) => (
-                    <div key={campo.id}>
-                      <CampoItem
-                        campo={campo}
-                        isSelected={selectedCampoId === campo.id}
-                        isDragOver={false}
-                        onSelect={() => onSelectCampo(campo.id)}
-                        onRemove={() => onRemoveCampo(campo.id)}
-                        onMoveUp={index > 0 ? () => onMoveCampo(campo.id, 'up') : undefined}
-                        onMoveDown={index < campos.length - 1 ? () => onMoveCampo(campo.id, 'down') : undefined}
-                        onDragStart={(e) => {
-                          e.dataTransfer.setData('application/campo-id', campo.id)
-                          e.dataTransfer.effectAllowed = 'move'
-                        }}
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={(e) => {
-                          e.preventDefault()
-                          e.stopPropagation()
-                          const draggedId = e.dataTransfer.getData('application/campo-id')
-                          if (draggedId && draggedId !== campo.id) {
-                            onReorderCampo(draggedId, index)
-                          }
-                        }}
-                        onDragLeave={() => {}}
-                        onStyleEdit={onSelectStyleElement ? () => onSelectStyleElement('campos') : undefined}
-                      />
-                      {renderDropZone(index + 1)}
-                    </div>
-                  ))}
+            // Image element or placeholder
+            const imageEl = hasImage && isPopup ? (
+              imgUrl ? (
+                <img src={imgUrl} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-muted text-muted-foreground text-xs">
+                  Adicione uma imagem
                 </div>
-              )}
-            </div>
-          )}
+              )
+            ) : null
 
-          {/* Submit button(s) */}
-          {campos.length > 0 && (
-            <div className="mt-6">
-              {renderBotoes(
-                configBotoes,
-                estiloBotao,
-                buttonStyle,
-                showFinalPreview || false,
-                selectedStyleElement,
-                onSelectStyleElement,
-              )}
-            </div>
-          )}
+            // Form content (header + fields + buttons)
+            const formContent = (
+              <div className={cn(tpl === 'imagem_fundo' && isPopup && hasImage && 'relative z-10')}>
+                {/* Form header */}
+                <div className="mb-6 text-center">
+                  {estiloCabecalho?.logo_url && (
+                    <img
+                      src={estiloCabecalho.logo_url}
+                      alt="Logo"
+                      style={{
+                        maxHeight: '40px',
+                        marginBottom: '8px',
+                        display: estiloCabecalho.logo_posicao === 'centro' ? 'inline-block' : 'block',
+                      }}
+                    />
+                  )}
+                  <h2
+                    className="text-lg font-semibold"
+                    style={{ color: estiloCabecalho?.titulo_cor || undefined, fontFamily }}
+                  >
+                    {formulario.nome}
+                  </h2>
+                  {formulario.descricao && (
+                    <p
+                      className="text-sm mt-1"
+                      style={{ color: estiloCabecalho?.descricao_cor || undefined, fontFamily }}
+                    >
+                      {formulario.descricao}
+                    </p>
+                  )}
+                </div>
+
+                {/* Fields area */}
+                {showFinalPreview ? (
+                  <FinalPreviewFields campos={campos} estiloCampos={estiloCampos} fontFamily={fontFamily} />
+                ) : (
+                  <div
+                    className={cn(
+                      'rounded transition-all relative',
+                      selectedStyleElement === 'campos' && 'outline outline-2 outline-dashed outline-primary outline-offset-2'
+                    )}
+                  >
+                    {campos.length === 0 && renderDropZone(0, true)}
+
+                    {campos.length > 0 && (
+                      <div className="group/campos">
+                        {renderDropZone(0)}
+                        {campos.map((campo, index) => (
+                          <div key={campo.id}>
+                            <CampoItem
+                              campo={campo}
+                              isSelected={selectedCampoId === campo.id}
+                              isDragOver={false}
+                              onSelect={() => onSelectCampo(campo.id)}
+                              onRemove={() => onRemoveCampo(campo.id)}
+                              onMoveUp={index > 0 ? () => onMoveCampo(campo.id, 'up') : undefined}
+                              onMoveDown={index < campos.length - 1 ? () => onMoveCampo(campo.id, 'down') : undefined}
+                              onDragStart={(e) => {
+                                e.dataTransfer.setData('application/campo-id', campo.id)
+                                e.dataTransfer.effectAllowed = 'move'
+                              }}
+                              onDragOver={(e) => e.preventDefault()}
+                              onDrop={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                const draggedId = e.dataTransfer.getData('application/campo-id')
+                                if (draggedId && draggedId !== campo.id) {
+                                  onReorderCampo(draggedId, index)
+                                }
+                              }}
+                              onDragLeave={() => {}}
+                              onStyleEdit={onSelectStyleElement ? () => onSelectStyleElement('campos') : undefined}
+                            />
+                            {renderDropZone(index + 1)}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Submit button(s) */}
+                {campos.length > 0 && (
+                  <div className="mt-6">
+                    {renderBotoes(
+                      configBotoes,
+                      estiloBotao,
+                      buttonStyle,
+                      showFinalPreview || false,
+                      selectedStyleElement,
+                      onSelectStyleElement,
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+
+            // If not popup or no special layout, render form content directly
+            if (!isPopup || !hasImage) return formContent
+
+            // Apply layout templates
+            if (tpl === 'imagem_esquerda') {
+              return (
+                <div className="flex min-h-[300px] -m-6 rounded-lg overflow-hidden" style={{ margin: `-${estiloContainer?.padding || '24px'}` }}>
+                  <div className="w-2/5 flex-shrink-0">{imageEl}</div>
+                  <div className="w-3/5 p-6 overflow-auto">{formContent}</div>
+                </div>
+              )
+            }
+            if (tpl === 'imagem_direita') {
+              return (
+                <div className="flex min-h-[300px] -m-6 rounded-lg overflow-hidden" style={{ margin: `-${estiloContainer?.padding || '24px'}` }}>
+                  <div className="w-3/5 p-6 overflow-auto">{formContent}</div>
+                  <div className="w-2/5 flex-shrink-0">{imageEl}</div>
+                </div>
+              )
+            }
+            if (tpl === 'imagem_topo') {
+              return (
+                <div className="flex flex-col -m-6 rounded-lg overflow-hidden" style={{ margin: `-${estiloContainer?.padding || '24px'}` }}>
+                  <div className="h-48 flex-shrink-0">{imageEl}</div>
+                  <div className="p-6 overflow-auto">{formContent}</div>
+                </div>
+              )
+            }
+            if (tpl === 'imagem_fundo') {
+              return (
+                <div className="relative min-h-[350px] -m-6 rounded-lg overflow-hidden" style={{ margin: `-${estiloContainer?.padding || '24px'}` }}>
+                  <div className="absolute inset-0">{imageEl}</div>
+                  <div className="absolute inset-0 bg-black/40" />
+                  <div className="relative z-10 p-6">{formContent}</div>
+                </div>
+              )
+            }
+            if (tpl === 'imagem_lateral_full') {
+              return (
+                <div className="flex min-h-[350px] -m-6 rounded-lg overflow-hidden" style={{ margin: `-${estiloContainer?.padding || '24px'}` }}>
+                  <div className="w-1/2 flex-shrink-0">{imageEl}</div>
+                  <div className="w-1/2 p-6 overflow-auto">{formContent}</div>
+                </div>
+              )
+            }
+
+            return formContent
+          })()}
         </div>
       </div>
     </div>

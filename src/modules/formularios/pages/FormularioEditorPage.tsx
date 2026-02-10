@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useFormulario } from '../hooks/useFormularios'
+import { useConfigPopup } from '../hooks/useFormularioConfig'
 import {
   useCamposFormulario,
   useCriarCampo,
@@ -51,6 +52,7 @@ export function FormularioEditorPage() {
 
   const { data: formulario, isLoading: loadingForm } = useFormulario(id || null)
   const { data: campos = [], isLoading: loadingCampos } = useCamposFormulario(id || null)
+  const { data: configPopup } = useConfigPopup(formulario?.tipo === 'popup' ? (id || null) : null)
   const criarCampo = useCriarCampo(id || '')
   const atualizarCampo = useAtualizarCampo(id || '')
   const excluirCampo = useExcluirCampo(id || '')
@@ -321,6 +323,10 @@ export function FormularioEditorPage() {
                 paginaBackgroundColor={pagina.background_color}
                 cssCustomizado={cssCustomizado}
                 configBotoes={configBotoes}
+                popupLayout={formulario.tipo === 'popup' && configPopup ? {
+                  template: (configPopup.popup_imagem_posicao as any) || 'so_campos',
+                  imagemUrl: configPopup.popup_imagem_url || null,
+                } : null}
               />
             </div>
 
