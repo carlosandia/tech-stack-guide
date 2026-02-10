@@ -4,7 +4,7 @@
  * captura UTMs e permite submissão
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { getMaskForType } from '../utils/masks'
@@ -376,6 +376,126 @@ interface RenderCampoProps {
   onDdiChange: (ddi: string) => void
 }
 
+// =====================================================
+// Componente Assinatura com Canvas
+// =====================================================
+
+function AssinaturaField(props: {
+  campo: CampoFormulario
+  labelStyle: React.CSSProperties
+  camposEstilo: EstiloCampos
+  valor: string
+  onChange: (v: string) => void
+  renderLabel: () => React.ReactNode
+}) {
+  const { camposEstilo, onChange, renderLabel } = props
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [isDrawing, setIsDrawing] = useState(false)
+  const [hasDrawn, setHasDrawn] = useState(false)
+
+  const getPos = (e: React.MouseEvent | React.TouchEvent) => {
+    const canvas = canvasRef.current
+    if (!canvas) return { x: 0, y: 0 }
+    const rect = canvas.getBoundingClientRect()
+    if ('touches' in e) {
+      return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top }
+    }
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top }
+  }
+
+  const startDraw = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault()
+    const ctx = canvasRef.current?.getContext('2d')
+    if (!ctx) return
+    setIsDrawing(true)
+    setHasDrawn(true)
+    const { x, y } = getPos(e)
+    ctx.beginPath()
+    ctx.moveTo(x, y)
+  }
+
+  const draw = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!isDrawing) return
+    e.preventDefault()
+    const ctx = canvasRef.current?.getContext('2d')
+    if (!ctx) return
+    const { x, y } = getPos(e)
+    ctx.lineWidth = 2
+    ctx.lineCap = 'round'
+    ctx.strokeStyle = '#1F2937'
+    ctx.lineTo(x, y)
+    ctx.stroke()
+  }
+
+  const endDraw = () => {
+    if (!isDrawing) return
+    setIsDrawing(false)
+    const canvas = canvasRef.current
+    if (canvas) {
+      onChange(canvas.toDataURL('image/png'))
+    }
+  }
+
+  const limpar = () => {
+    const canvas = canvasRef.current
+    const ctx = canvas?.getContext('2d')
+    if (canvas && ctx) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      setHasDrawn(false)
+      onChange('')
+    }
+  }
+
+  return (
+    <div>
+      {renderLabel()}
+      <div style={{
+        border: `1px solid ${camposEstilo.input_border_color || '#D1D5DB'}`,
+        borderRadius: '8px',
+        overflow: 'hidden',
+        backgroundColor: '#FFFFFF',
+        position: 'relative',
+      }}>
+        <canvas
+          ref={canvasRef}
+          width={500}
+          height={150}
+          style={{ width: '100%', height: '150px', cursor: 'crosshair', touchAction: 'none', display: 'block' }}
+          onMouseDown={startDraw}
+          onMouseMove={draw}
+          onMouseUp={endDraw}
+          onMouseLeave={endDraw}
+          onTouchStart={startDraw}
+          onTouchMove={draw}
+          onTouchEnd={endDraw}
+        />
+        {!hasDrawn && (
+          <div style={{
+            position: 'absolute', inset: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#9CA3AF', fontSize: '13px', pointerEvents: 'none',
+          }}>
+            ✍️ Desenhe sua assinatura aqui
+          </div>
+        )}
+      </div>
+      {hasDrawn && (
+        <button
+          type="button"
+          onClick={limpar}
+          style={{
+            marginTop: '6px', fontSize: '12px', color: '#6B7280',
+            background: 'none', border: 'none', cursor: 'pointer',
+            textDecoration: 'underline',
+          }}
+        >
+          Limpar assinatura
+        </button>
+      )}
+    </div>
+  )
+}
+
 function renderCampoPublico(props: RenderCampoProps) {
   const { campo, labelStyle, inputStyle, fontFamily, camposEstilo, valor, onChange, ddi, onDdiChange } = props
   const placeholder = campo.placeholder || ''
@@ -701,26 +821,70 @@ function renderCampoPublico(props: RenderCampoProps) {
       )
     }
 
-    // ========== RANKING ==========
+    // ========== RANKING (com botões ↑↓ para reordenar) ==========
     case 'ranking': {
       const opcoes = (campo.opcoes as string[] || [])
-      const ranked = valor ? valor.split('|') : opcoes
+      const ranked = valor ? valor.split('|') : [...opcoes]
+
+      const move = (from: number, to: number) => {
+        const arr = [...ranked]
+        const [item] = arr.splice(from, 1)
+        arr.splice(to, 0, item)
+        onChange(arr.join('|'))
+      }
+
       return (
         <div>
           {renderLabel()}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
             {ranked.map((op, i) => (
-              <div key={i} style={{
+              <div key={`${op}-${i}`} style={{
                 display: 'flex', alignItems: 'center', gap: '8px',
-                padding: '8px 12px', border: `1px solid ${camposEstilo.input_border_color || '#D1D5DB'}`,
-                borderRadius: '6px', backgroundColor: '#F9FAFB', fontSize: '14px', fontFamily,
+                padding: '10px 12px',
+                border: `1px solid ${camposEstilo.input_border_color || '#D1D5DB'}`,
+                borderRadius: '8px',
+                backgroundColor: '#FFFFFF',
+                fontSize: '14px',
+                fontFamily,
+                boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
               }}>
-                <span style={{ color: '#9CA3AF', fontWeight: 600, fontSize: '12px' }}>{i + 1}.</span>
-                {typeof op === 'string' ? op : `Item ${i + 1}`}
+                <span style={{
+                  width: '24px', height: '24px', borderRadius: '50%',
+                  backgroundColor: '#EFF6FF', color: '#3B82F6',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '12px', fontWeight: 700, flexShrink: 0,
+                }}>{i + 1}</span>
+                <span style={{ flex: 1 }}>{typeof op === 'string' ? op : `Item ${i + 1}`}</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <button
+                    type="button"
+                    disabled={i === 0}
+                    onClick={() => move(i, i - 1)}
+                    style={{
+                      width: '24px', height: '20px', border: '1px solid #D1D5DB', borderRadius: '4px',
+                      backgroundColor: i === 0 ? '#F3F4F6' : '#FFFFFF',
+                      cursor: i === 0 ? 'not-allowed' : 'pointer',
+                      fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: i === 0 ? '#D1D5DB' : '#6B7280',
+                    }}
+                  >▲</button>
+                  <button
+                    type="button"
+                    disabled={i === ranked.length - 1}
+                    onClick={() => move(i, i + 1)}
+                    style={{
+                      width: '24px', height: '20px', border: '1px solid #D1D5DB', borderRadius: '4px',
+                      backgroundColor: i === ranked.length - 1 ? '#F3F4F6' : '#FFFFFF',
+                      cursor: i === ranked.length - 1 ? 'not-allowed' : 'pointer',
+                      fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: i === ranked.length - 1 ? '#D1D5DB' : '#6B7280',
+                    }}
+                  >▼</button>
+                </div>
               </div>
             ))}
           </div>
-          <p style={{ fontSize: '11px', color: '#9CA3AF', marginTop: '4px' }}>Arraste para reordenar (em breve)</p>
+          <p style={{ fontSize: '11px', color: '#9CA3AF', marginTop: '6px' }}>Use as setas para reordenar os itens</p>
         </div>
       )
     }
@@ -765,36 +929,37 @@ function renderCampoPublico(props: RenderCampoProps) {
       )
     }
 
-    // ========== ASSINATURA ==========
+    // ========== ASSINATURA (canvas funcional) ==========
     case 'assinatura':
-      return (
-        <div>
-          {renderLabel()}
-          <div style={{
-            border: `1px solid ${camposEstilo.input_border_color || '#D1D5DB'}`,
-            borderRadius: '8px',
-            height: '120px',
-            backgroundColor: '#FFFFFF',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#9CA3AF',
-            fontSize: '13px',
-            fontFamily,
-          }}>
-            ✍️ Clique para assinar
-          </div>
-        </div>
-      )
+      return <AssinaturaField campo={campo} labelStyle={labelStyle} camposEstilo={camposEstilo} valor={valor} onChange={onChange} renderLabel={renderLabel} />
 
     // ========== SELETOR DE COR ==========
     case 'seletor_cor':
       return (
         <div>
           {renderLabel()}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <input type="color" value={valor || '#3B82F6'} onChange={e => onChange(e.target.value)} style={{ width: '40px', height: '36px', border: 'none', cursor: 'pointer', borderRadius: '4px' }} />
-            <input style={{ ...inputStyle, flex: 1 }} value={valor || '#3B82F6'} onChange={e => onChange(e.target.value)} placeholder="#000000" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <label style={{
+              width: '44px', height: '44px', borderRadius: '8px',
+              border: '2px solid #D1D5DB', cursor: 'pointer',
+              backgroundColor: valor || '#3B82F6',
+              position: 'relative', overflow: 'hidden', flexShrink: 0,
+              boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+            }}>
+              <input
+                type="color"
+                value={valor || '#3B82F6'}
+                onChange={e => onChange(e.target.value)}
+                style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%', height: '100%' }}
+              />
+            </label>
+            <input
+              style={{ ...inputStyle, flex: 1, fontFamily: 'monospace', fontSize: '13px' }}
+              value={valor || '#3B82F6'}
+              onChange={e => onChange(e.target.value)}
+              placeholder="#000000"
+              maxLength={7}
+            />
           </div>
         </div>
       )
