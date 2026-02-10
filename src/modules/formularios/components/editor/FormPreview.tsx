@@ -883,6 +883,22 @@ function renderFinalCampo(
           dangerouslySetInnerHTML={{ __html: campo.valor_padrao || '<p>Bloco HTML</p>' }}
         />
       )
+    case 'imagem_link': {
+      const imgSrc = campo.valor_padrao || ''
+      const linkUrl = campo.placeholder || ''
+      const imgElement = imgSrc ? (
+        <img src={imgSrc} alt={campo.label || 'Imagem'} style={{ width: '100%', maxHeight: '300px', objectFit: 'cover', borderRadius: estiloCampos?.input_border_radius || '6px', cursor: linkUrl ? 'pointer' : 'default' }} />
+      ) : (
+        <div style={{ ...inputStyle, padding: '24px', textAlign: 'center' as const, color: estiloCampos?.input_texto_cor || '#9CA3AF', borderStyle: 'dashed', cursor: 'pointer', display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '24px' }}>🖼️</span>
+          <span style={{ fontSize: '13px' }}>Insira a URL da imagem nas configurações</span>
+        </div>
+      )
+      if (linkUrl && imgSrc) {
+        return <a href={linkUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'block' }}>{imgElement}</a>
+      }
+      return imgElement
+    }
   }
 
   // Campos de input (com suporte a largura)
