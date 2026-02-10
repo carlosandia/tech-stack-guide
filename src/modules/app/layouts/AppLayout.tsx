@@ -115,6 +115,10 @@ function isFormularioEditorRoute(pathname: string): boolean {
   return /^\/app\/formularios\/[^/]+$/.test(pathname)
 }
 
+function isPipelineConfigRoute(pathname: string): boolean {
+  return /^\/app\/negocios\/pipeline\/[^/]+$/.test(pathname)
+}
+
 function AppLayoutInner() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -127,7 +131,8 @@ function AppLayoutInner() {
   const isAdmin = role === 'admin' // used for settings gear visibility
   const pageTitle = getPageTitle(location.pathname)
   const isEditorRoute = isFormularioEditorRoute(location.pathname)
-  const hideToolbar = isEditorRoute
+  const isPipelineConfig = isPipelineConfigRoute(location.pathname)
+  const hideToolbar = isEditorRoute || isPipelineConfig
   const hideHeader = isEditorRoute
   const visibleItems = menuItems
 
