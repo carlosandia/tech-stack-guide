@@ -1,74 +1,64 @@
 
-# Painel de Metricas para o Modulo de Emails
+# Botao "Historico" com Popover de Emails Visualizados
 
 ## Objetivo
-Adicionar um botao "Metricas" na toolbar do modulo de Emails (mesmo padrao visual do modulo Conversas) que exibe/oculta um painel colapsavel com metricas de marketing e comerciais baseadas nos dados de emails enviados, aberturas, cliques, etc.
+Adicionar um botao "Historico" na toolbar do modulo de Emails que abre um popover/dropdown com uma timeline dos ultimos emails visualizados pelo usuario. Cada item mostra nome do remetente, email e permite clicar para reabrir o email (marcando como lido).
 
-## Metricas a Exibir (10 cards)
+## Como Funciona
 
-| # | Metrica | Fonte de Dados | Cor Condicional |
-|---|---------|----------------|-----------------|
-| 1 | Emails Enviados | `emails_recebidos` pasta=sent no periodo | default |
-| 2 | Emails Recebidos | `emails_recebidos` pasta=inbox no periodo | default |
-| 3 | Taxa de Abertura | `total_aberturas > 0` / total enviados x 100 | verde >= 40%, amarelo >= 20%, vermelho < 20% |
-| 4 | Total Aberturas | soma de `total_aberturas` dos enviados | default |
-| 5 | Sem Resposta | enviados que nao tiveram resposta (sem thread_id match) | vermelho > 10, amarelo > 0, verde = 0 |
-| 6 | Tempo Medio Resposta | diferenca media entre email recebido e resposta enviada | verde <= 30min, amarelo <= 2h, vermelho > 2h |
-| 7 | Com Anexos | emails com `tem_anexos = true` no periodo | default |
-| 8 | Favoritos | emails com `favorito = true` | default |
-| 9 | Rascunhos | contagem de rascunhos ativos | default |
-| 10 | Primeira Abertura (media) | tempo medio entre envio e primeira abertura (`aberto_em - data_email`) | verde <= 1h, amarelo <= 24h, vermelho > 24h |
+O historico sera armazenado localmente no `localStorage` (maximo 20 itens). Toda vez que o usuario seleciona um email para ler, um registro e adicionado ao historico com: id, nome, email, assunto e timestamp. O popover exibe esses registros como uma lista cronologica.
 
 ## Arquivos a Criar
 
-### 1. `src/modules/emails/hooks/useEmailsMetricas.ts`
-- Hook com `useQuery` seguindo o padrao de `useConversasMetricas`
-- Tipos: `PeriodoMetricas`, `EmailsMetricas`
-- Funcao `fetchEmailsMetricas` que consulta `emails_recebidos` e `email_aberturas` via Supabase
-- Filtros: periodo (hoje, 7d, 30d, 60d, 90d)
-- Funcao auxiliar `formatDuracao` (reutilizar do modulo conversas ou duplicar)
+### 1. `src/modules/emails/components/EmailHistoricoPopover.tsx`
+- Botao com icone `History` (lucide) e texto "Historico"
+- Popover manual (mesmo padrao do MoreMenu no EmailViewer: div absoluta + click outside)
+- Lista de ate 20 itens recentes, ordenados do mais recente para o mais antigo
+- Cada item mostra:
+  - Avatar circular com inicial colorida (mesmo `getInitialColor` do EmailViewer)
+  - Nome do remetente (bold)
+  - Email do remetente (muted)
+  - Assunto truncado
+  - Timestamp relativo (ex: "ha 5min", "ha 2h", "ontem")
+  - Botao/area clicavel que dispara `onSelect(id)`
+- Botao "Limpar historico" no rodape
+- Estado vazio: "Nenhum email visualizado recentemente"
+- z-index alto (z-50) e background solido `bg-background`
 
-### 2. `src/modules/emails/components/EmailsMetricasPanel.tsx`
-- Componente visual identico ao `ConversasMetricasPanel`
-- Grid responsivo: 2 cols mobile, 3 tablet, 5 desktop
-- Filtro de periodo via chips
-- Cards com icone, label, valor e cor condicional
-- Animacao `animate-enter` e skeleton loading
+### 2. `src/modules/emails/hooks/useEmailHistorico.ts`
+- Hook que gerencia o historico no localStorage (chave: `emails_historico_visualizados`)
+- Funcoes: `adicionar(email)`, `listar()`, `limpar()`
+- Tipo `HistoricoItem`: `{ id, nome, email, assunto, timestamp }`
+- Limite de 20 itens (FIFO - remove o mais antigo)
+- Deduplicacao: se o mesmo email for aberto novamente, move para o topo
 
 ## Arquivos a Modificar
 
 ### 3. `src/modules/emails/pages/EmailsPage.tsx`
-- Adicionar estado `metricasVisiveis` com persistencia em `localStorage` (chave: `emails_metricas_visiveis`)
-- Adicionar `toggleMetricas` callback
-- Adicionar botao "Metricas" na toolbar (ao lado de "Assinatura"), mesmo estilo do Conversas
-- Renderizar `<EmailsMetricasPanel />` condicionalmente acima do layout de 3 colunas
+- Importar `EmailHistoricoPopover` e `useEmailHistorico`
+- No `useEffect` que marca email como lido (linha 185-189), adicionar chamada para `historico.adicionar(selectedEmail)` quando o email e carregado
+- Adicionar o botao Historico na toolbar (entre Metricas e Assinatura)
+- Passar `onSelect={handleSelect}` para o popover para navegar ao email clicado
 
 ## Detalhes Tecnicos
 
-### Hook `useEmailsMetricas`
-
+### Estrutura do item no historico
 ```text
-Query flow:
-1. Obter usuario autenticado e organizacao_id
-2. Contar emails enviados: pasta = 'sent', data_email >= dataInicio
-3. Contar emails recebidos: pasta = 'inbox', data_email >= dataInicio
-4. Taxa de abertura: enviados com total_aberturas > 0 / total enviados
-5. Total aberturas: SUM(total_aberturas) dos enviados
-6. Tempo medio resposta: calcular via threads (emails com mesmo thread_id)
-7. Sem resposta: enviados sem reply no thread
-8. Com anexos: tem_anexos = true
-9. Favoritos: favorito = true
-10. Rascunhos: contar de emails_rascunhos
-11. Media primeira abertura: AVG(aberto_em - data_email) dos enviados com aberto_em != null
+{
+  id: string           // ID do email
+  nome: string         // de_nome ou de_email
+  email: string        // de_email
+  assunto: string      // assunto do email
+  timestamp: number    // Date.now() de quando foi visualizado
+}
 ```
 
-### Estrutura do painel (mesmo CSS do Conversas)
-- Container: `border-b border-border bg-card/50 px-3 sm:px-4 py-3 animate-enter space-y-3`
-- Chips periodo: `px-2.5 py-1 text-xs rounded-md font-medium`
-- Grid: `grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2`
-- Card: `flex items-center gap-2 px-2.5 py-2 rounded-lg`
+### Layout do popover
+- Largura: `w-80` (320px)
+- Max height: `max-h-96` com scroll
+- Header: "Ultimos visualizados" com icone History
+- Lista: items com hover bg-accent, cursor-pointer
+- Footer: botao "Limpar" discreto
 
-### Botao na toolbar
-- Mesmo estilo do Conversas: icone `BarChart3`, texto "Metricas"
-- Toggle visual com `bg-primary/10 text-primary` quando ativo
-- Posicionado antes do botao "Assinatura"
+### Toolbar - ordem dos botoes
+Historico | Metricas | Assinatura
