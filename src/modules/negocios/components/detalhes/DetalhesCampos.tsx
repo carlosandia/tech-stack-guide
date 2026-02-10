@@ -7,7 +7,9 @@
  */
 
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
-import { DollarSign, User, Calendar, Mail, Phone, Settings2, Check, Building2, RefreshCw, Link2, X, Search, Loader2, ChevronDown, Hash, Type, ToggleLeft, Globe, FileText, Package, MessageCircle } from 'lucide-react'
+import { DollarSign, User, Calendar, Mail, Phone, Settings2, Check, Building2, RefreshCw, Link2, X, Search, Loader2, ChevronDown, Hash, Type, ToggleLeft, Globe, FileText, Package } from 'lucide-react'
+import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
+import { WhatsAppConversaModal } from '../kanban/WhatsAppConversaModal'
 import type { Oportunidade } from '../../services/negocios.api'
 import { negociosApi } from '../../services/negocios.api'
 import { useAtualizarOportunidade, useAtualizarContato, useAvaliarQualificacao } from '../../hooks/useOportunidadeDetalhes'
@@ -599,6 +601,7 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
                   telefoneActions={campo.tipo === 'telefone' && value ? {
                     telefone: value,
                     contatoNome: oportunidade.contato ? [oportunidade.contato.nome, oportunidade.contato.sobrenome].filter(Boolean).join(' ') : undefined,
+                    contatoId: oportunidade.contato?.id,
                   } : undefined}
                 />
               )
@@ -755,6 +758,7 @@ interface FieldRowProps {
   telefoneActions?: {
     telefone: string
     contatoNome?: string
+    contatoId?: string
   }
 }
 
@@ -764,13 +768,7 @@ function FieldRow({
   telefoneActions,
 }: FieldRowProps) {
   const [ligacaoOpen, setLigacaoOpen] = useState(false)
-
-  const handleWhatsApp = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (!telefoneActions) return
-    const phone = telefoneActions.telefone.replace(/\D/g, '')
-    window.open(`https://wa.me/${phone}`, '_blank')
-  }
+  const [whatsappOpen, setWhatsappOpen] = useState(false)
 
   return (
     <>
@@ -812,11 +810,11 @@ function FieldRow({
                   </button>
                   <button
                     type="button"
-                    onClick={handleWhatsApp}
+                    onClick={(e) => { e.stopPropagation(); setWhatsappOpen(true) }}
                     className="p-1 text-muted-foreground hover:text-[hsl(var(--success-foreground))] hover:bg-[hsl(var(--success-muted))] rounded transition-colors"
                     title="WhatsApp"
                   >
-                    <MessageCircle className="w-3.5 h-3.5" />
+                    <WhatsAppIcon className="w-3.5 h-3.5" />
                   </button>
                 </div>
               )}
@@ -830,6 +828,16 @@ function FieldRow({
           telefone={telefoneActions.telefone}
           contatoNome={telefoneActions.contatoNome}
           onClose={() => setLigacaoOpen(false)}
+        />
+      )}
+
+      {whatsappOpen && telefoneActions && (
+        <WhatsAppConversaModal
+          isOpen={whatsappOpen}
+          onClose={() => setWhatsappOpen(false)}
+          contatoId={telefoneActions.contatoId || ''}
+          contatoNome={telefoneActions.contatoNome || ''}
+          telefone={telefoneActions.telefone}
         />
       )}
     </>

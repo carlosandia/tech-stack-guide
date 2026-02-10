@@ -1,12 +1,13 @@
 /**
  * AIDEV-NOTE: Modal de Ligação VoIP
- * Estrutura visual para futuro WebRTC real
- * Inclui placeholders para gravação e insights IA
+ * Verifica conexão API4COM antes de permitir ligar
+ * Som de chamando ao iniciar ligação
  * Conforme Design System 10.5 - ModalBase
  */
 
-import { useState } from 'react'
-import { Phone, PhoneOff, Mic, MicOff, Volume2, Brain, Clock } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Phone, PhoneOff, Mic, MicOff, Volume2, Brain, Clock, AlertCircle } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
 
 interface LigacaoModalProps {
   telefone: string
@@ -17,14 +18,85 @@ interface LigacaoModalProps {
 export function LigacaoModal({ telefone, contatoNome, onClose }: LigacaoModalProps) {
   const [chamando, setChamando] = useState(false)
   const [muted, setMuted] = useState(false)
+  const [api4comConectado, setApi4comConectado] = useState<boolean | null>(null) // null = loading
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+
+  // Verificar se API4COM está conectada
+  useEffect(() => {
+    async function checkApi4com() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) { setApi4comConectado(false); return }
+
+        const orgId = user.user_metadata?.organizacao_id
+        if (!orgId) { setApi4comConectado(false); return }
+
+        const { data } = await supabase
+          .from('conexoes_api4com')
+          .select('id, status')
+          .eq('organizacao_id', orgId)
+          .is('deletado_em', null)
+          .maybeSingle()
+
+        setApi4comConectado(data?.status === 'conectado')
+      } catch {
+        setApi4comConectado(false)
+      }
+    }
+    checkApi4com()
+  }, [])
+
+  // Cleanup audio on unmount
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current = null
+      }
+    }
+  }, [])
 
   const handleLigar = () => {
+    if (!api4comConectado) return
     setChamando(true)
+
+    // Tocar som de chamando
+    try {
+      const ctx = new AudioContext()
+      const playRingTone = () => {
+        // Simular tom de chamada brasileira: 1s de tom, 4s de silêncio
+        const osc = ctx.createOscillator()
+        const gain = ctx.createGain()
+        osc.connect(gain)
+        gain.connect(ctx.destination)
+        osc.frequency.value = 425 // Frequência padrão de ringback brasileiro
+        gain.gain.value = 0.15
+        osc.start()
+        osc.stop(ctx.currentTime + 1)
+        return { osc, gain }
+      }
+
+      let interval: ReturnType<typeof setInterval>
+      playRingTone()
+      interval = setInterval(() => {
+        playRingTone()
+      }, 5000)
+
+      // Store cleanup
+      audioRef.current = { pause: () => { clearInterval(interval); ctx.close() } } as any
+    } catch {
+      // Fallback silencioso se Web Audio API não estiver disponível
+    }
+
     // AIDEV-TODO: Integrar WebRTC/SIP real via libwebphone.js
   }
 
   const handleDesligar = () => {
     setChamando(false)
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current = null
+    }
     onClose()
   }
 
@@ -59,6 +131,21 @@ export function LigacaoModal({ telefone, contatoNome, onClose }: LigacaoModalPro
 
           {/* Controles */}
           <div className="px-6 py-4 space-y-4">
+            {/* Aviso se não tem API4COM */}
+            {api4comConectado === false && (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-[hsl(var(--warning-muted))]">
+                <AlertCircle className="w-4 h-4 text-[hsl(var(--warning-foreground))] flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-medium text-[hsl(var(--warning-foreground))]">
+                    Telefonia não configurada
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Configure a conexão API4COM em Configurações → Conexões para realizar ligações.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Botões de controle */}
             <div className="flex items-center justify-center gap-4">
               {chamando ? (
@@ -89,8 +176,9 @@ export function LigacaoModal({ telefone, contatoNome, onClose }: LigacaoModalPro
               ) : (
                 <button
                   onClick={handleLigar}
-                  className="w-14 h-14 rounded-full bg-[hsl(var(--success))] text-white flex items-center justify-center hover:opacity-90 transition-opacity"
-                  title="Ligar"
+                  disabled={!api4comConectado}
+                  className="w-14 h-14 rounded-full bg-[hsl(var(--success))] text-white flex items-center justify-center hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                  title={api4comConectado ? 'Ligar' : 'Conexão VoIP não configurada'}
                 >
                   <Phone className="w-6 h-6" />
                 </button>
