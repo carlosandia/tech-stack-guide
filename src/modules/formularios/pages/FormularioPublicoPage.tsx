@@ -183,7 +183,8 @@ export function FormularioPublicoPage() {
 
     setEnviando(false)
     if (error) {
-      setErro('Erro ao enviar formulário. Tente novamente.')
+      const posEnvioErr = formulario.config_pos_envio as any
+      setErro(posEnvioErr?.mensagem_erro || 'Erro ao enviar formulário. Tente novamente.')
       return
     }
 
