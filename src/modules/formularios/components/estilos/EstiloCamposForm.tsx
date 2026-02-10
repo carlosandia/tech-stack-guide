@@ -97,6 +97,17 @@ export function EstiloCamposForm({ value, onChange }: Props) {
           value={value.erro_cor || '#EF4444'}
           onChange={(v) => update('erro_cor', v)}
         />
+
+        <div className="space-y-1.5">
+          <Label className="text-xs">Espaçamento entre Campos</Label>
+          <Input
+            value={value.gap || '12px'}
+            onChange={(e) => update('gap', e.target.value)}
+            placeholder="12px"
+            className="text-xs"
+          />
+          <p className="text-[10px] text-muted-foreground">Distância vertical entre cada campo (ex: 8px, 12px, 16px, 24px)</p>
+        </div>
       </div>
     </div>
   )

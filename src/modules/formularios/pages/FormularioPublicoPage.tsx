@@ -297,7 +297,7 @@ export function FormularioPublicoPage() {
         )}
 
         {/* Campos */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px 0' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: `${camposEstilo.gap || '12px'} 0` }}>
           {campos.map(campo => {
             const larguraMap: Record<string, string> = { full: '100%', '1/2': '50%', '1/3': '33.33%', '2/3': '66.66%', half: '50%', third: '33.33%' }
             const w = larguraMap[campo.largura] || '100%'

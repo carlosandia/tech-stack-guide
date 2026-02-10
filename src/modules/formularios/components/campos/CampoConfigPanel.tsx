@@ -135,19 +135,6 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
         </div>
 
         <div className="space-y-1.5">
-          <Label className="text-xs">Nome interno</Label>
-          <Input
-            value={form.label
-              .toLowerCase()
-              .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-              .replace(/[^a-z0-9]+/g, '_')
-              .replace(/^_|_$/g, '')}
-            disabled
-            className="bg-muted text-muted-foreground cursor-not-allowed"
-          />
-        </div>
-
-        <div className="space-y-1.5">
           <Label className="text-xs">Placeholder</Label>
           <Input
             value={form.placeholder}
@@ -163,15 +150,6 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
             onChange={(e) => setForm((f) => ({ ...f, texto_ajuda: e.target.value }))}
             placeholder="Instrução para o usuário"
             rows={2}
-          />
-        </div>
-
-        <div className="space-y-1.5">
-          <Label className="text-xs">Valor Padrão</Label>
-          <Input
-            value={form.valor_padrao}
-            onChange={(e) => setForm((f) => ({ ...f, valor_padrao: e.target.value }))}
-            placeholder="Valor inicial"
           />
         </div>
 
