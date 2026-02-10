@@ -99,25 +99,25 @@ export function CampoItem({
 
       <div className="absolute right-2 top-2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
         {onMoveUp && (
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); onMoveUp() }}>
-            <ChevronUp className="w-3 h-3" />
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); onMoveUp() }}>
+            <ChevronUp className="w-4 h-4" />
           </Button>
         )}
         {onMoveDown && (
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); onMoveDown() }}>
-            <ChevronDown className="w-3 h-3" />
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); onMoveDown() }}>
+            <ChevronDown className="w-4 h-4" />
           </Button>
         )}
-        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); onSelect() }}>
-          <Settings className="w-3 h-3" />
+        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); onSelect() }}>
+          <Settings className="w-4 h-4" />
         </Button>
         {onStyleEdit && (
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); onStyleEdit() }} title="Editar estilos dos campos">
-            <Paintbrush className="w-3 h-3" />
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); onStyleEdit() }} title="Editar estilos dos campos">
+            <Paintbrush className="w-4 h-4" />
           </Button>
         )}
-        <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); onRemove() }}>
-          <Trash2 className="w-3 h-3" />
+        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); onRemove() }}>
+          <Trash2 className="w-4 h-4" />
         </Button>
       </div>
 
