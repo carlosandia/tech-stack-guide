@@ -382,9 +382,10 @@ Deno.serve(async (req) => {
     // Buscar mapeamento dos campos
     const { data: camposForm } = await supabase
       .from('campos_formularios')
-      .select('nome, mapeamento_campo')
+      .select('nome, mapeamento_campo, ordem')
       .eq('formulario_id', formulario_id)
       .not('mapeamento_campo', 'is', null)
+      .order('ordem', { ascending: true })
 
     if (!camposForm || camposForm.length === 0) {
       await supabase.from('submissoes_formularios').update({ status: 'processada' }).eq('id', submissao_id)
