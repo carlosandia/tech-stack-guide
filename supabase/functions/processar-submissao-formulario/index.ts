@@ -533,15 +533,20 @@ Deno.serve(async (req) => {
             // Verificar horário específico
             let dentroDoHorario = true
             if (configDist.horario_especifico) {
-              const agora = new Date()
-              const diaSemana = agora.getDay() // 0=domingo
-              const horaAtual = `${String(agora.getHours()).padStart(2, '0')}:${String(agora.getMinutes()).padStart(2, '0')}`
+              // AIDEV-NOTE: Converter UTC para horário de Brasília (UTC-3)
+              const agoraUTC = new Date()
+              const agora = new Date(agoraUTC.getTime() - 3 * 60 * 60 * 1000)
+              const diaSemana = agora.getUTCDay() // 0=domingo
+              const horaAtual = `${String(agora.getUTCHours()).padStart(2, '0')}:${String(agora.getUTCMinutes()).padStart(2, '0')}`
 
               if (configDist.dias_semana && !configDist.dias_semana.includes(diaSemana)) {
                 dentroDoHorario = false
               }
               if (configDist.horario_inicio && configDist.horario_fim) {
-                if (horaAtual < configDist.horario_inicio || horaAtual > configDist.horario_fim) {
+                // Normalizar formato (remover segundos se presente: "18:00:00" -> "18:00")
+                const inicio = configDist.horario_inicio.substring(0, 5)
+                const fim = configDist.horario_fim.substring(0, 5)
+                if (horaAtual < inicio || horaAtual > fim) {
                   dentroDoHorario = false
                 }
               }
@@ -641,7 +646,7 @@ Deno.serve(async (req) => {
                     tipo: template.tipo || 'tarefa',
                     canal: template.canal || null,
                     prioridade: template.prioridade || 'media',
-                    owner_id: responsavelId,
+                    owner_id: responsavelId || null,
                     status: 'pendente',
                     data_vencimento: dataVencimento,
                     tarefa_template_id: template.id,
