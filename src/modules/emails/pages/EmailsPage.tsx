@@ -5,7 +5,7 @@
  * Rascunhos: lê de emails_rascunhos e abre no composer ao clicar
  */
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Settings2, BarChart3 } from 'lucide-react'
 import { useAppToolbar } from '@/modules/app/contexts/AppToolbarContext'
 import { EmailSidebar } from '../components/EmailSidebar'
@@ -16,7 +16,7 @@ import { AssinaturaModal } from '../components/AssinaturaModal'
 import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
 import { EmailsMetricasPanel } from '../components/EmailsMetricasPanel'
 import { EmailHistoricoPopover } from '../components/EmailHistoricoPopover'
-import { useEmailHistorico } from '../hooks/useEmailHistorico'
+import { useEmailHistoricoAberturas } from '../hooks/useEmailHistorico'
 import type { EmailFiltros } from '../components/EmailFilters'
 import {
   useEmails,
@@ -65,7 +65,7 @@ export function EmailsPage() {
   })
 
   // Histórico de emails visualizados
-  const historico = useEmailHistorico()
+  const historico = useEmailHistoricoAberturas()
 
   // Toolbar actions
   const { setActions } = useAppToolbar()
@@ -160,26 +160,10 @@ export function EmailsPage() {
   // Auto-sync IMAP a cada 2 minutos (silencioso)
   useAutoSyncEmails()
 
-  // AIDEV-NOTE: Refs estáveis para evitar loop infinito (mutation e historico mudam a cada render)
-  const atualizarEmailRef = useRef(atualizarEmail.mutate)
-  atualizarEmailRef.current = atualizarEmail.mutate
-
-  const historicoAdicionarRef = useRef(historico.adicionar)
-  historicoAdicionarRef.current = historico.adicionar
-
-  // Auto-marcar como lido ao selecionar + adicionar ao histórico
+  // Auto-marcar como lido ao selecionar
   useEffect(() => {
-    if (selectedEmail && selectedEmail.id) {
-      if (!selectedEmail.lido) {
-        atualizarEmailRef.current({ id: selectedEmail.id, payload: { lido: true } })
-      }
-      // AIDEV-NOTE: Adiciona ao histórico local sempre que um email é visualizado
-      historicoAdicionarRef.current({
-        id: selectedEmail.id,
-        de_nome: selectedEmail.de_nome,
-        de_email: selectedEmail.de_email,
-        assunto: selectedEmail.assunto,
-      })
+    if (selectedEmail && selectedEmail.id && !selectedEmail.lido) {
+      atualizarEmail.mutate({ id: selectedEmail.id, payload: { lido: true } })
     }
   }, [selectedEmail?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -228,9 +212,9 @@ export function EmailsPage() {
     setActions(
       <div className="flex items-center gap-1.5">
         <EmailHistoricoPopover
-          items={historico.items}
+          items={historico.data || []}
+          isLoading={historico.isLoading}
           onSelect={handleSelect}
-          onLimpar={historico.limpar}
         />
         <button
           onClick={toggleMetricas}
@@ -255,7 +239,7 @@ export function EmailsPage() {
       </div>
     )
     return () => setActions(null)
-  }, [setActions, metricasVisiveis, toggleMetricas, historico.items, historico.limpar, handleSelect])
+  }, [setActions, metricasVisiveis, toggleMetricas, historico.data, historico.isLoading, handleSelect])
 
   const handleToggleFavorito = useCallback(
     (id: string, favorito: boolean) => {
