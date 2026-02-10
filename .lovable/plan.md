@@ -1,123 +1,126 @@
 
-# Plano: Aplicar Regras da Pipeline na Criacao de Oportunidades
 
-## Problemas Identificados
+# Plano: Corrigir Metricas de Formularios e Visualizacao de Emails
 
-Ao analisar o banco de dados e o codigo, identifiquei **3 problemas concretos**:
+## Problema 1: Metricas de Formularios
 
-### 1. Tarefas Automaticas NAO sao criadas via Edge Function
-A funcao `processar-submissao-formulario` cria a oportunidade mas **nao executa** `criarTarefasAutomaticas`. A etapa "Novos Negocios" tem o template "Enviar Proposta Comercial" vinculado, mas as oportunidades criadas via formulario (Vanessa, Gabriel, Gisele, Henrique) nao possuem nenhuma tarefa.
+**Causa raiz:** A pagina publica (`/f/:slug`) NAO registra nenhum evento de analytics. A tabela `eventos_analytics_formularios` esta completamente vazia. O formulario "Teste E2E Inline" tem `total_submissoes: 8` (incrementado pela Edge Function), mas `total_visualizacoes: 0` e zero eventos de funil/desempenho.
 
-Apenas o frontend (`negociosApi.criarOportunidade`) cria tarefas automaticas, o que significa que oportunidades vindas de formularios ou webhooks ficam sem tarefas.
+A pagina publica precisa rastrear 3 tipos de eventos:
+- **visualizacao** -- quando a pagina carrega
+- **inicio** -- quando o usuario interage pela primeira vez com um campo
+- **submissao** -- quando envia o formulario
 
-### 2. Rodizio NAO e aplicado
-A pipeline "Locacao 2026" esta configurada com `modo: rodizio` e tem o membro "Rafael" ativo. Porem, todas as oportunidades criadas via formulario possuem `usuario_responsavel_id: null`. A Edge Function nao consulta a tabela `configuracoes_distribuicao` nem `funis_membros`.
+E opcionalmente para desempenho por campo:
+- **foco_campo** / **saida_campo** -- ao entrar/sair de campos
 
-### 3. SLA Timer NAO aparece nos cards
-O card do Kanban mostra "tempo na etapa" (ex: "1 minuto", "7 minutos") usando `atualizado_em`, mas nao tem nenhuma logica de SLA. O SLA esta configurado como 30 minutos, mas o card nao exibe um indicador visual de urgencia quando o tempo esta estourando.
+## Problema 2: Emails nao abrindo
+
+**Causa raiz:** O iframe usa `sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"` sem `allow-scripts`. Emails com conteudo HTML que depende de JavaScript (como newsletters do WP Mail SMTP) geram multiplos erros "Blocked script execution" no console, podendo travar o ajuste de altura do iframe e bloquear a renderizacao visual.
 
 ---
 
 ## Solucao
 
-### Parte 1: Edge Function - Rodizio + Tarefas Automaticas
+### Parte 1: Tracking de Analytics na Pagina Publica
 
-**Arquivo:** `supabase/functions/processar-submissao-formulario/index.ts`
+**Arquivo:** `src/modules/formularios/pages/FormularioPublicoPage.tsx`
 
-Apos criar a oportunidade, adicionar dois blocos:
+Adicionar rastreamento de eventos em 3 pontos:
 
-**a) Aplicar Rodizio:**
-1. Buscar `configuracoes_distribuicao` do funil
-2. Se `modo = 'rodizio'`:
-   - Buscar membros ativos em `funis_membros` (e se `pular_inativos`, filtrar `usuarios.ativo = true`)
-   - Se `horario_especifico = true`, verificar se estamos dentro do horario/dias configurados
-   - Determinar proximo membro baseado em `posicao_rodizio`
-   - Atualizar `oportunidades.usuario_responsavel_id` com o membro selecionado
-   - Incrementar `posicao_rodizio` e atualizar `ultimo_usuario_id` na config
-3. Se `fallback_manual = true` e nao ha membros disponiveis, deixar sem responsavel
+**a) Visualizacao (ao carregar o formulario):**
+Apos o `setFormulario(form)`, inserir na tabela `eventos_analytics_formularios`:
+```text
+{ formulario_id, tipo_evento: 'visualizacao', organizacao_id }
+```
+Tambem incrementar `total_visualizacoes` na tabela `formularios` via RPC ou update direto.
 
-**b) Criar Tarefas Automaticas:**
-1. Buscar `funis_etapas_tarefas` vinculadas a etapa de entrada
-2. Para cada template ativo, criar uma tarefa na tabela `tarefas` com:
-   - `oportunidade_id`, `contato_id`, `organizacao_id`
-   - `owner_id` = responsavel atribuido (pelo rodizio ou null)
-   - `data_vencimento` = agora + `dias_prazo` do template
-   - `tarefa_template_id` e `etapa_origem_id` para deduplicacao
+**b) Inicio (primeira interacao com campo):**
+Usar um ref `jaIniciou` para disparar apenas uma vez, no primeiro `handleChange`:
+```text
+{ formulario_id, tipo_evento: 'inicio', organizacao_id }
+```
 
-### Parte 2: Frontend - Rodizio no Modal de Criacao Manual
+**c) Submissao (apos enviar com sucesso):**
+Apos a insercao bem-sucedida da submissao:
+```text
+{ formulario_id, tipo_evento: 'submissao', organizacao_id }
+```
+Tambem recalcular `taxa_conversao` = `(total_submissoes / total_visualizacoes) * 100`.
 
-**Arquivo:** `src/modules/negocios/services/negocios.api.ts`
+**d) Desempenho por campo (opcional, melhora a tab "Desempenho por Campo"):**
+Adicionar onFocus/onBlur nos campos para registrar `foco_campo` e `saida_campo` com `dados_evento: { campo_id }` e `tempo_no_campo_segundos`.
 
-Na funcao `criarOportunidade`, quando `usuario_responsavel_id` nao e informado:
-1. Buscar config de distribuicao do funil
-2. Se `modo = 'rodizio'`, aplicar a mesma logica de selecao de membro
-3. Atribuir automaticamente o responsavel antes de inserir
+### Parte 2: RLS para tabela de eventos
 
-### Parte 3: SLA Timer no Card do Kanban
+Verificar/criar politica RLS que permita `anon` fazer INSERT na tabela `eventos_analytics_formularios`, ja que os eventos vem da pagina publica.
 
-**Arquivo:** `src/modules/negocios/components/kanban/KanbanCard.tsx`
+### Parte 3: Correcao do Email Viewer
 
-Alterar a exibicao do tempo na etapa para incluir logica de SLA:
-1. Receber config de SLA como prop (via KanbanBoard que ja busca dados da pipeline)
-2. Calcular tempo decorrido desde `atualizado_em`
-3. Se SLA esta ativo:
-   - Mostrar icone de alerta (amarelo) quando >= 80% do tempo SLA
-   - Mostrar icone vermelho quando SLA estourado
-   - Exibir formato "X/30 min" ao inves de apenas "X minutos"
+**Arquivo:** `src/modules/emails/components/EmailViewer.tsx`
 
-**Arquivo:** `src/modules/negocios/components/kanban/KanbanBoard.tsx`
-- Buscar `configuracoes_distribuicao` do funil para obter `sla_ativo` e `sla_tempo_minutos`
-- Repassar para `KanbanColumn` e depois para `KanbanCard`
+Duas correcoes:
 
-**Arquivo:** `src/modules/negocios/components/kanban/KanbanColumn.tsx`
-- Repassar prop de SLA para os cards
+**a) Remover scripts do HTML antes de renderizar:**
+No `useMemo` que gera `cleanHtml`, apos o `DOMPurify.sanitize`, adicionar remocao explicita de tags `<script>` e atributos `on*` que possam ter passado. Isso evita os erros no console.
+
+**b) Melhorar o ajuste de altura do iframe:**
+Adicionar um `ResizeObserver` ou `setInterval` temporario para recalcular a altura apos o conteudo carregar (imagens carregando assincronamente podem mudar a altura).
+
+**c) Tratar o erro de sandbox graciosamente:**
+No DOMPurify config, garantir que `FORBID_TAGS: ['script']` esta removendo scripts ANTES de passar ao srcDoc, eliminando os erros de "Blocked script execution".
 
 ---
 
 ## Detalhes Tecnicos
 
-### Logica de Rodizio (reutilizavel)
+### Eventos de Analytics - Estrutura do insert
 
 ```text
-membros = funis_membros WHERE funil_id AND ativo = true
-IF pular_inativos: filtrar usuarios.ativo = true
-IF horario_especifico:
-  - Verificar dia da semana atual IN dias_semana
-  - Verificar hora atual BETWEEN horario_inicio AND horario_fim
-  - Se fora do horario E fallback_manual: nao atribuir
-
-posicao = posicao_rodizio % membros.length
-responsavel = membros[posicao]
-UPDATE configuracoes_distribuicao SET posicao_rodizio = posicao + 1, ultimo_usuario_id = responsavel
-UPDATE oportunidades SET usuario_responsavel_id = responsavel
+supabase.from('eventos_analytics_formularios').insert({
+  formulario_id: string,
+  organizacao_id: string,
+  tipo_evento: 'visualizacao' | 'inicio' | 'submissao' | 'foco_campo' | 'saida_campo',
+  dados_evento: { campo_id?: string } | null,
+  tempo_no_campo_segundos: number | null,
+  ip_address: null,
+  user_agent: navigator.userAgent,
+})
 ```
 
-### SLA Visual no Card
+### Incremento de contadores
 
 ```text
-tempo_decorrido = now() - atualizado_em (em minutos)
-porcentagem = tempo_decorrido / sla_tempo_minutos
+// Ao visualizar:
+UPDATE formularios SET total_visualizacoes = total_visualizacoes + 1 WHERE id = X
 
-Se porcentagem < 0.8: cor normal (cinza)
-Se porcentagem >= 0.8 e < 1.0: cor amarela (aviso)
-Se porcentagem >= 1.0: cor vermelha (estourado)
-
-Formato exibido: "Xmin / 30min" quando SLA ativo
+// Ao submeter (ja existe na Edge Function, mas garantir taxa):
+UPDATE formularios SET taxa_conversao = 
+  CASE WHEN total_visualizacoes > 0 
+    THEN ROUND((total_submissoes::numeric / total_visualizacoes) * 100, 2)
+    ELSE 0 END
+WHERE id = X
 ```
+
+### DOMPurify - Config corrigida
+
+```text
+DOMPurify.sanitize(html, {
+  WHOLE_DOCUMENT: true,
+  ADD_TAGS: ['style'],
+  ADD_ATTR: ['target'],
+  FORBID_TAGS: ['script', 'noscript'],
+  FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover'],
+})
+```
+
+O `FORBID_TAGS: ['script']` ja existe, mas pode nao estar funcionando para scripts inline em `<body>`. Garantir a remocao manual pos-sanitizacao.
 
 ### Arquivos Modificados
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `supabase/functions/processar-submissao-formulario/index.ts` | Adicionar rodizio + tarefas automaticas |
-| `src/modules/negocios/services/negocios.api.ts` | Aplicar rodizio na criacao manual |
-| `src/modules/negocios/components/kanban/KanbanBoard.tsx` | Buscar e repassar config SLA |
-| `src/modules/negocios/components/kanban/KanbanColumn.tsx` | Repassar SLA prop |
-| `src/modules/negocios/components/kanban/KanbanCard.tsx` | Exibir timer SLA visual |
+| `src/modules/formularios/pages/FormularioPublicoPage.tsx` | Adicionar tracking de visualizacao, inicio e submissao |
+| `src/modules/emails/components/EmailViewer.tsx` | Remover scripts residuais + melhorar ajuste de altura |
+| Migracao SQL (se necessario) | RLS para `anon` INSERT em `eventos_analytics_formularios` |
 
-### Consideracoes
-
-- O rodizio funciona com `posicao_rodizio` atualizado atomicamente para evitar duplicatas em concorrencia
-- Tarefas automaticas usam deduplicacao por `tarefa_template_id + etapa_origem_id`
-- O timer SLA no card e visual apenas (nao redistribui automaticamente - isso requer um cron/scheduled function futuro)
-- A logica de rodizio sera implementada de forma identica na Edge Function e no frontend para consistencia
