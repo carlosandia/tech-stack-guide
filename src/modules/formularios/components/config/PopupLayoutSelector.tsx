@@ -16,6 +16,7 @@ import { toast } from 'sonner'
 
 export type PopupTemplate =
   | 'so_campos'
+  | 'so_imagem'
   | 'imagem_esquerda'
   | 'imagem_direita'
   | 'imagem_topo'
@@ -26,12 +27,15 @@ interface Props {
   formularioId: string
   template: PopupTemplate
   imagemUrl: string | null
+  imagemLink?: string | null
   onChangeTemplate: (t: PopupTemplate) => void
   onChangeImagemUrl: (url: string | null) => void
+  onChangeImagemLink?: (link: string | null) => void
 }
 
 const TEMPLATES: { value: PopupTemplate; label: string }[] = [
   { value: 'so_campos', label: 'Sem imagem' },
+  { value: 'so_imagem', label: 'Só imagem' },
   { value: 'imagem_esquerda', label: 'Imagem à esquerda' },
   { value: 'imagem_direita', label: 'Imagem à direita' },
   { value: 'imagem_topo', label: 'Imagem no topo' },
@@ -56,6 +60,12 @@ function MiniPreview({ template, active }: { template: PopupTemplate; active: bo
             <rect x="10" y="18" width="60" height="6" rx="1" className="fill-muted-foreground/30" />
             <rect x="10" y="28" width="60" height="6" rx="1" className="fill-muted-foreground/30" />
             <rect x="20" y="42" width="40" height="10" rx="2" className="fill-primary/60" />
+          </>
+        )}
+        {template === 'so_imagem' && (
+          <>
+            <rect x="0" y="0" width="80" height="60" className="fill-primary/20" />
+            <rect x="28" y="20" width="24" height="18" rx="2" className="fill-primary/40" />
           </>
         )}
         {template === 'imagem_esquerda' && (
@@ -113,9 +123,10 @@ function MiniPreview({ template, active }: { template: PopupTemplate; active: bo
 
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 
-export function PopupLayoutSelector({ formularioId, template, imagemUrl, onChangeTemplate, onChangeImagemUrl }: Props) {
+export function PopupLayoutSelector({ formularioId, template, imagemUrl, imagemLink, onChangeTemplate, onChangeImagemUrl, onChangeImagemLink }: Props) {
   const [modo, setModo] = useState<'upload' | 'url'>(imagemUrl?.startsWith('http') ? 'url' : 'upload')
   const [urlInput, setUrlInput] = useState(imagemUrl || '')
+  const [linkInput, setLinkInput] = useState(imagemLink || '')
   const [uploading, setUploading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -271,6 +282,22 @@ export function PopupLayoutSelector({ formularioId, template, imagemUrl, onChang
               >
                 <Trash2 className="w-3 h-3" />
               </Button>
+            </div>
+          )}
+
+          {/* Link da imagem */}
+          {onChangeImagemLink && (
+            <div className="space-y-1">
+              <Label className="text-xs">Link da imagem (ao clicar)</Label>
+              <Input
+                value={linkInput}
+                onChange={(e) => setLinkInput(e.target.value)}
+                onBlur={() => onChangeImagemLink(linkInput.trim() || null)}
+                placeholder="https://seusite.com (opcional)"
+                className="text-xs"
+                type="url"
+              />
+              <p className="text-[10px] text-muted-foreground">Se preenchido, a imagem será clicável e abrirá este link.</p>
             </div>
           )}
         </div>

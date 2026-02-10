@@ -77,6 +77,7 @@ export function FormularioEditorPage() {
   const salvarConfigPopup = useSalvarConfigPopup(id || '')
   const [localPopupTemplate, setLocalPopupTemplate] = useState<PopupTemplate>('so_campos')
   const [localPopupImagemUrl, setLocalPopupImagemUrl] = useState<string | null>(null)
+  const [localPopupImagemLink, setLocalPopupImagemLink] = useState<string | null>(null)
 
   // Sync from server when formulario/configPopup changes
   useEffect(() => {
@@ -89,6 +90,7 @@ export function FormularioEditorPage() {
     if (configPopup) {
       setLocalPopupTemplate((configPopup.popup_imagem_posicao as PopupTemplate) || 'so_campos')
       setLocalPopupImagemUrl(configPopup.popup_imagem_url || null)
+      setLocalPopupImagemLink((configPopup as any).popup_imagem_link || null)
     }
   }, [configPopup])
 
@@ -341,6 +343,7 @@ export function FormularioEditorPage() {
                           formularioId={formulario.id}
                           template={localPopupTemplate}
                           imagemUrl={localPopupImagemUrl}
+                          imagemLink={localPopupImagemLink}
                           onChangeTemplate={(t) => {
                             setLocalPopupTemplate(t)
                             salvarConfigPopup.mutate({ popup_imagem_posicao: t })
@@ -348,6 +351,10 @@ export function FormularioEditorPage() {
                           onChangeImagemUrl={(url) => {
                             setLocalPopupImagemUrl(url)
                             salvarConfigPopup.mutate({ popup_imagem_url: url, popup_imagem_posicao: localPopupTemplate })
+                          }}
+                          onChangeImagemLink={(link) => {
+                            setLocalPopupImagemLink(link)
+                            salvarConfigPopup.mutate({ popup_imagem_link: link } as any)
                           }}
                         />
                       </div>
@@ -387,6 +394,7 @@ export function FormularioEditorPage() {
                 popupLayout={formulario.tipo === 'popup' ? {
                   template: localPopupTemplate,
                   imagemUrl: localPopupImagemUrl,
+                  imagemLink: localPopupImagemLink,
                 } : null}
                 onUpdateCampoLabel={handleUpdateCampoLabel}
                 onUpdateBotaoTexto={handleUpdateBotaoTexto}

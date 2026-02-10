@@ -64,6 +64,7 @@ export function ConfigPopupForm({ formularioId }: Props) {
     duracao_animacao_ms: 300,
     posicao: 'centro',
     popup_imagem_url: null,
+    popup_imagem_link: null,
     popup_imagem_posicao: 'so_campos',
   })
 
@@ -83,6 +84,7 @@ export function ConfigPopupForm({ formularioId }: Props) {
         duracao_animacao_ms: config.duracao_animacao_ms,
         posicao: config.posicao,
         popup_imagem_url: config.popup_imagem_url || null,
+        popup_imagem_link: (config as any).popup_imagem_link || null,
         popup_imagem_posicao: config.popup_imagem_posicao || 'so_campos',
       })
     }
@@ -103,8 +105,10 @@ export function ConfigPopupForm({ formularioId }: Props) {
         formularioId={formularioId}
         template={(form.popup_imagem_posicao as PopupTemplate) || 'so_campos'}
         imagemUrl={form.popup_imagem_url || null}
+        imagemLink={(form as any).popup_imagem_link || null}
         onChangeTemplate={(t) => update('popup_imagem_posicao', t)}
         onChangeImagemUrl={(url) => update('popup_imagem_url', url)}
+        onChangeImagemLink={(link) => update('popup_imagem_link', link)}
       />
 
       <div className="space-y-3">
