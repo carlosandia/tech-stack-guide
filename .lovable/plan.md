@@ -1,83 +1,87 @@
 
 
-# Corrigir Erros de Console no Modulo de Emails
+# Correcoes no Modulo de Emails
 
-## Problema 1: "Maximum update depth exceeded" (Loop Infinito)
+## 1. Eliminar "Blocked script execution" no iframe
 
-**Causa raiz identificada:** No `EmailsPage.tsx`, linha 164-177, o `useEffect` que auto-marca emails como lidos tem `atualizarEmail` nas dependencias. Como `atualizarEmail` e um objeto de mutation do TanStack Query que ganha uma nova referencia a cada render, isso cria um ciclo infinito:
+**Causa raiz:** O DOMPurify remove tags `<script>`, mas emails HTML complexos (como os do WP Mail SMTP) podem conter scripts em formatos que o DOMPurify nao captura totalmente em modo `WHOLE_DOCUMENT`. Alem disso, os regex de limpeza rodam DEPOIS do DOMPurify, mas nao antes - entao o HTML malformado pode confundir o parser.
 
+**Solucao:** Abordagem em 3 camadas no `EmailViewer.tsx`:
+
+1. Executar os regex de remocao de `<script>` ANTES do DOMPurify (pre-limpeza do HTML bruto)
+2. Manter o DOMPurify com FORBID_TAGS como segunda camada
+3. Manter os regex pos-sanitizacao como terceira camada
+4. Adicionar `<meta http-equiv="Content-Security-Policy" content="script-src 'none'">` no `<head>` do iframe para silenciar qualquer warning residual
+
+**Arquivo:** `src/modules/emails/components/EmailViewer.tsx`
+
+No `useMemo` do `cleanHtml`, ANTES da chamada ao DOMPurify:
 ```text
-render -> useEffect dispara -> atualizarEmail.mutate() -> optimistic update altera cache -> re-render -> novo atualizarEmail -> useEffect dispara novamente -> loop
+// PRE-LIMPEZA: remover scripts antes do DOMPurify processar
+html = html.replace(/<script\b[\s\S]*?<\/script\s*>/gi, '')
+html = html.replace(/<script\b[^>]*\/>/gi, '') // self-closing
+html = html.replace(/<noscript\b[\s\S]*?<\/noscript\s*>/gi, '')
 ```
 
-**Correcao:** Remover `atualizarEmail` do array de dependencias e usar uma ref estavel para chamar o mutate. Assim o efeito so dispara quando `selectedEmail?.id` muda de fato.
-
-**Arquivo:** `src/modules/emails/pages/EmailsPage.tsx`
-
-Alteracoes:
-1. Criar um `useRef` para armazenar a funcao `atualizarEmail.mutate`
-2. Atualizar o ref a cada render (sem causar re-execucao do efeito)
-3. No `useEffect` da linha 164, usar o ref em vez do objeto mutacao diretamente
-4. Remover `atualizarEmail` e `historico.adicionar` das dependencias, deixando apenas `selectedEmail?.id`
-
-Codigo corrigido (conceito):
+Na injecao do `<base>`, adicionar tambem o CSP meta tag:
 ```text
-const atualizarEmailRef = useRef(atualizarEmail.mutate)
-atualizarEmailRef.current = atualizarEmail.mutate
-
-const historicoAdicionarRef = useRef(historico.adicionar)
-historicoAdicionarRef.current = historico.adicionar
-
-useEffect(() => {
-  if (selectedEmail && selectedEmail.id) {
-    if (!selectedEmail.lido) {
-      atualizarEmailRef.current({ id: selectedEmail.id, payload: { lido: true } })
-    }
-    historicoAdicionarRef.current({
-      id: selectedEmail.id,
-      de_nome: selectedEmail.de_nome,
-      de_email: selectedEmail.de_email,
-      assunto: selectedEmail.assunto,
-    })
-  }
-}, [selectedEmail?.id]) // apenas o ID como dependencia
+const cspMeta = '<meta http-equiv="Content-Security-Policy" content="script-src \'none\'">'
+// Injetar no <head>
 ```
 
 ---
 
-## Problema 2: "Blocked script execution in about:srcdoc"
+## 2. Renomear "Historico" para "Historico de Abertura" e mudar logica
 
-**Causa raiz:** Emails HTML vindos de provedores como Gmail/WP Mail SMTP contem tags `<script>` e referencias a CDNs (ex: `cdn.tailwindcss.com`). O DOMPurify ja usa `FORBID_TAGS: ['script', 'noscript']`, mas existem 2 problemas remanescentes:
+**O que muda:**
 
-1. **`<link>` tags** que carregam JavaScript (ex: `<link rel="preload" as="script">`) nao sao filtradas
-2. **Inline event handlers** em atributos como `onresize`, `oninput` etc nao estao na lista de FORBID_ATTR
-3. **O regex de limpeza pos-sanitizacao** pode nao capturar todos os padroes (scripts multiline, etc)
+- O botao na toolbar passa de "Historico" para "Hist. Abertura"
+- O titulo do popover muda de "Ultimos visualizados" para "Historico de Abertura"
+- A logica muda completamente: em vez de registrar emails que o USUARIO visualizou no CRM, mostra emails ENVIADOS pelo usuario que foram ABERTOS pelo destinatario (dados da tabela `email_aberturas`)
 
-**Correcao no arquivo:** `src/modules/emails/components/EmailViewer.tsx`
+**Arquivos afetados:**
 
-Alteracoes no `useMemo` que gera `cleanHtml`:
+### `src/modules/emails/hooks/useEmailHistorico.ts`
+- Substituir completamente a logica de localStorage por uma query ao Supabase
+- Consultar `email_aberturas` JOIN `emails_recebidos` para trazer os ultimos 20 emails enviados que tiveram abertura registrada
+- Retornar dados como: nome destinatario, assunto, data da abertura, total de aberturas
 
-1. Expandir `FORBID_ATTR` para cobrir TODOS os event handlers HTML conhecidos
-2. Adicionar regex para remover `<link>` tags que referenciam scripts
-3. Adicionar regex para remover comentarios HTML condicionais do IE que podem conter scripts
-4. Remover qualquer referencia a `cdn.tailwindcss.com` do HTML do email (causa o warning especifico no console)
+### `src/modules/emails/components/EmailHistoricoPopover.tsx`
+- Renomear titulo para "Historico de Abertura"
+- Atualizar label do botao para "Hist. Abertura"
+- Ajustar o layout dos itens para mostrar: destinatario, assunto, quantidade de aberturas, data da primeira abertura
+- Remover botao "Limpar historico" (dados vem do banco, nao do localStorage)
 
-Codigo adicional apos o DOMPurify.sanitize:
-```text
-// Remover link tags que carregam scripts
-sanitized = sanitized.replace(/<link\b[^>]*\bas\s*=\s*["']?script["']?[^>]*>/gi, '')
-
-// Remover referencia ao tailwindcss CDN (causa warning no console)
-sanitized = sanitized.replace(/<script[^>]*cdn\.tailwindcss\.com[^>]*>[\s\S]*?<\/script>/gi, '')
-sanitized = sanitized.replace(/<link[^>]*cdn\.tailwindcss\.com[^>]*>/gi, '')
-```
+### `src/modules/emails/pages/EmailsPage.tsx`
+- Adaptar a integracao com o hook atualizado (remover `historico.adicionar`, `historico.limpar`)
+- Remover o `useEffect` que adicionava ao historico ao selecionar email (linhas 170-184)
+- Manter apenas o auto-marcar como lido
 
 ---
 
-## Resumo de Arquivos Modificados
+## Detalhes Tecnicos
 
-| Arquivo | Alteracao |
-|---------|-----------|
-| `src/modules/emails/pages/EmailsPage.tsx` | Corrigir loop infinito usando refs estaveis para mutation e historico |
-| `src/modules/emails/components/EmailViewer.tsx` | Expandir sanitizacao para eliminar todos os scripts residuais |
+### Pre-limpeza de scripts (EmailViewer.tsx)
+
+A ordem de operacoes passa a ser:
+1. Detectar HTML e decodificar quoted-printable (existente)
+2. **NOVO:** Regex pre-limpeza para remover `<script>` e `<noscript>` do HTML bruto
+3. DOMPurify.sanitize com FORBID_TAGS (existente)
+4. Regex pos-sanitizacao (existente)
+5. **NOVO:** Injetar CSP meta tag `script-src 'none'` no head
+
+### Hook useEmailHistorico refatorado
+
+```text
+// Novo: query Supabase em vez de localStorage
+// Busca emails_recebidos com pasta='sent' e total_aberturas > 0
+// Ordenado por aberto_em DESC, LIMIT 20
+// Retorna: { data, isLoading }
+```
+
+### Popover atualizado
+
+- Icone: manter History ou trocar para MailOpen
+- Cada item mostra: avatar + nome destinatario + assunto + "Aberto Xx" + data
+- Ao clicar, navega para o email enviado correspondente
 
