@@ -21,9 +21,9 @@ import {
   Phone,
   AtSign,
   User,
+  
 } from 'lucide-react'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
-import { WhatsAppPipelineConfig } from './WhatsAppPipelineConfig'
 import type { Integracao, PlataformaIntegracao } from '../../services/configuracoes.api'
 
 interface ConexaoCardProps {
@@ -32,6 +32,7 @@ interface ConexaoCardProps {
   onConectar: (plataforma: PlataformaIntegracao) => void
   onDesconectar: (plataforma: PlataformaIntegracao, id: string) => void
   onSincronizar: (id: string) => void
+  onConfigurar?: (plataforma: PlataformaIntegracao) => void
   isLoading?: boolean
 }
 
@@ -260,6 +261,7 @@ export function ConexaoCard({
   onConectar,
   onDesconectar,
   onSincronizar,
+  onConfigurar,
   isLoading,
 }: ConexaoCardProps) {
   const [confirmDesconectar, setConfirmDesconectar] = useState(false)
@@ -284,7 +286,7 @@ export function ConexaoCard({
 
           <p className="text-xs text-muted-foreground mb-3">{config.descricao}</p>
 
-          {/* Detalhes específicos por plataforma quando conectado */}
+          {/* Detalhes específicos por plataforma quando conectado (info mínima) */}
           {conectado && integracao && (
             <div className="space-y-2 mb-3">
               <PlataformaDetails integracao={integracao} />
@@ -298,11 +300,6 @@ export function ConexaoCard({
                   {integracao.ultimo_erro}
                 </p>
               )}
-
-              {/* WhatsApp: Configuração de pipeline para pré-oportunidades */}
-              {plataforma === 'whatsapp' && integracao.waha_session_id && (
-                <WhatsAppPipelineConfig sessaoId={integracao.waha_session_id} />
-              )}
             </div>
           )}
 
@@ -310,6 +307,16 @@ export function ConexaoCard({
           <div className="flex items-center gap-2">
             {conectado && integracao ? (
               <>
+                {/* Botão Configurar */}
+                {onConfigurar && (
+                  <button
+                    onClick={() => onConfigurar(plataforma)}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                  >
+                    Configurar
+                  </button>
+                )}
+
                 <button
                   onClick={() => onSincronizar(integracao.id)}
                   disabled={isLoading}

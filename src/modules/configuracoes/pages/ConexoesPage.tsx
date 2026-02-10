@@ -17,6 +17,8 @@ import { InstagramConexaoModal } from '../components/integracoes/InstagramConexa
 import { MetaAdsConexaoModal } from '../components/integracoes/MetaAdsConexaoModal'
 import { GoogleCalendarConexaoModal } from '../components/integracoes/GoogleCalendarConexaoModal'
 import { Api4comConexaoModal } from '../components/integracoes/Api4comConexaoModal'
+import { WhatsAppConfigModal } from '../components/integracoes/WhatsAppConfigModal'
+import { Api4comConfigModal } from '../components/integracoes/Api4comConfigModal'
 import type { PlataformaIntegracao, Integracao } from '../services/configuracoes.api'
 
 const PLATAFORMAS: PlataformaIntegracao[] = ['whatsapp', 'instagram', 'meta_ads', 'google', 'email', 'api4com']
@@ -28,6 +30,7 @@ export function ConexoesPage() {
   const sincronizar = useSincronizarIntegracao()
   const [searchParams, setSearchParams] = useSearchParams()
   const [modalAberto, setModalAberto] = useState<PlataformaIntegracao | null>(null)
+  const [configAberto, setConfigAberto] = useState<PlataformaIntegracao | null>(null)
 
   useEffect(() => {
     setSubtitle('Gerencie conexões com plataformas externas')
@@ -74,6 +77,10 @@ export function ConexoesPage() {
     sincronizar.mutate(id)
   }
 
+  const handleConfigurar = (plataforma: PlataformaIntegracao) => {
+    setConfigAberto(plataforma)
+  }
+
   const handleModalSuccess = () => {
     setModalAberto(null)
     refetch()
@@ -113,6 +120,7 @@ export function ConexoesPage() {
             onConectar={handleConectar}
             onDesconectar={handleDesconectar}
             onSincronizar={handleSincronizar}
+            onConfigurar={handleConfigurar}
             isLoading={
               desconectar.isPending ||
               sincronizar.isPending
@@ -121,7 +129,7 @@ export function ConexoesPage() {
         ))}
       </div>
 
-      {/* Modais */}
+      {/* Modais de conexão */}
       {modalAberto === 'whatsapp' && (
         <WhatsAppQrCodeModal
           onClose={() => setModalAberto(null)}
@@ -158,6 +166,22 @@ export function ConexoesPage() {
         <Api4comConexaoModal
           onClose={() => setModalAberto(null)}
           onSuccess={handleModalSuccess}
+        />
+      )}
+
+      {/* Modais de configuração */}
+      {configAberto === 'whatsapp' && integracoesPorPlataforma['whatsapp'] && (
+        <WhatsAppConfigModal
+          integracao={integracoesPorPlataforma['whatsapp']}
+          onClose={() => setConfigAberto(null)}
+        />
+      )}
+
+      {configAberto === 'api4com' && integracoesPorPlataforma['api4com'] && (
+        <Api4comConfigModal
+          integracao={integracoesPorPlataforma['api4com']}
+          onClose={() => setConfigAberto(null)}
+          onDesconectar={handleDesconectar}
         />
       )}
     </div>
