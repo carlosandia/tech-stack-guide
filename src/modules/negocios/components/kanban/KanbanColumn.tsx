@@ -73,7 +73,7 @@ export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardCli
   return (
     <div
       className={`
-        flex flex-col min-w-[272px] w-[272px] ${bgClass} rounded-lg border ${borderClass}
+        flex flex-col min-w-[288px] w-[288px] ${bgClass} rounded-lg border ${borderClass}
         transition-all duration-200
         ${isDragOver ? 'ring-2 ring-primary/40 bg-primary/5' : ''}
       `}
