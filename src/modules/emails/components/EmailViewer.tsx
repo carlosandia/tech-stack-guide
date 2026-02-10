@@ -206,9 +206,18 @@ export function EmailViewer({
       html = decodeQuotedPrintableString(html)
     }
 
+    // AIDEV-NOTE: PRE-LIMPEZA — remover scripts ANTES do DOMPurify para evitar "Blocked script execution"
+    html = html.replace(/<script\b[\s\S]*?<\/script\s*>/gi, '')
+    html = html.replace(/<script\b[^>]*\/>/gi, '')
+    html = html.replace(/<noscript\b[\s\S]*?<\/noscript\s*>/gi, '')
+    // Remover link tags que carregam scripts
+    html = html.replace(/<link\b[^>]*\bas\s*=\s*["']?script["']?[^>]*\/?>/gi, '')
+    // Remover referências ao tailwindcss CDN
+    html = html.replace(/<link[^>]*cdn\.tailwindcss\.com[^>]*\/?>/gi, '')
+    // Remover comentários condicionais do IE
+    html = html.replace(/<!--\[if[\s\S]*?<!\[endif\]-->/gi, '')
+
     // Sanitize — keep full document structure, styles, images
-    // AIDEV-NOTE: FORBID_TAGS inclui script+noscript para eliminar erros de "Blocked script execution"
-    // AIDEV-NOTE: Lista completa de event handlers HTML para prevenir XSS
     const ALL_EVENT_HANDLERS = [
       'onerror','onload','onclick','ondblclick','onmouseover','onmouseout','onmouseenter',
       'onmouseleave','onmousedown','onmouseup','onmousemove','onfocus','onblur','onchange',
@@ -228,25 +237,18 @@ export function EmailViewer({
       FORBID_ATTR: ALL_EVENT_HANDLERS,
     })
 
-    // Remover scripts residuais que possam ter escapado do DOMPurify
+    // POS-LIMPEZA: segurança extra para qualquer resíduo
     sanitized = sanitized.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
     sanitized = sanitized.replace(/<noscript\b[^<]*(?:(?!<\/noscript>)<[^<]*)*<\/noscript>/gi, '')
 
-    // Remover link tags que carregam scripts
-    sanitized = sanitized.replace(/<link\b[^>]*\bas\s*=\s*["']?script["']?[^>]*\/?>/gi, '')
+    // AIDEV-NOTE: CSP meta tag para silenciar warnings residuais no iframe sandbox
+    const cspMeta = '<meta http-equiv="Content-Security-Policy" content="script-src \'none\'">'
 
-    // Remover referências ao tailwindcss CDN (causa warning "Blocked script execution")
-    sanitized = sanitized.replace(/<script[^>]*cdn\.tailwindcss\.com[^>]*>[\s\S]*?<\/script>/gi, '')
-    sanitized = sanitized.replace(/<link[^>]*cdn\.tailwindcss\.com[^>]*\/?>/gi, '')
-
-    // Remover comentários condicionais do IE que podem conter scripts
-    sanitized = sanitized.replace(/<!--\[if[\s\S]*?<!\[endif\]-->/gi, '')
-
-    // Inject <base target="_blank"> for links
+    // Inject <base target="_blank"> + CSP
     if (sanitized.includes('<head>')) {
-      return sanitized.replace('<head>', '<head><base target="_blank">')
+      return sanitized.replace('<head>', `<head>${cspMeta}<base target="_blank">`)
     }
-    return `<head><base target="_blank"></head>${sanitized}`
+    return `<head>${cspMeta}<base target="_blank"></head>${sanitized}`
   }, [email?.corpo_html, email?.corpo_texto])
 
   if (isLoading) {

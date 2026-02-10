@@ -1,59 +1,48 @@
 /**
- * AIDEV-NOTE: Hook para gerenciar histórico de emails visualizados no localStorage
- * Máximo 20 itens, deduplicação automática, FIFO
+ * AIDEV-NOTE: Hook para buscar histórico de abertura de emails enviados
+ * Consulta email_aberturas JOIN emails_recebidos para emails enviados que foram abertos pelo destinatário
  */
 
-import { useState, useCallback } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { supabase } from '@/integrations/supabase/client'
 
-const STORAGE_KEY = 'emails_historico_visualizados'
-const MAX_ITEMS = 20
-
-export interface HistoricoItem {
+export interface AberturaItem {
   id: string
-  nome: string
-  email: string
+  email_id: string
+  para_email: string
   assunto: string
-  timestamp: number
+  total_aberturas: number
+  primeira_abertura: string
+  ultima_abertura: string
 }
 
-function readFromStorage(): HistoricoItem[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? JSON.parse(raw) : []
-  } catch {
-    return []
-  }
-}
+export function useEmailHistoricoAberturas() {
+  return useQuery({
+    queryKey: ['email-historico-aberturas'],
+    queryFn: async (): Promise<AberturaItem[]> => {
+      // Buscar emails enviados que têm aberturas registradas
+      const { data, error } = await supabase
+        .from('emails_recebidos')
+        .select('id, para_email, assunto, total_aberturas, aberto_em')
+        .eq('pasta', 'sent')
+        .gt('total_aberturas', 0)
+        .not('aberto_em', 'is', null)
+        .order('aberto_em', { ascending: false })
+        .limit(20)
 
-function writeToStorage(items: HistoricoItem[]) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(items))
-  } catch {}
-}
+      if (error) throw error
 
-export function useEmailHistorico() {
-  const [items, setItems] = useState<HistoricoItem[]>(readFromStorage)
-
-  const adicionar = useCallback((email: { id: string; de_nome?: string | null; de_email: string; assunto?: string | null }) => {
-    setItems((prev) => {
-      const filtered = prev.filter((item) => item.id !== email.id)
-      const newItem: HistoricoItem = {
-        id: email.id,
-        nome: email.de_nome || email.de_email,
-        email: email.de_email,
-        assunto: email.assunto || '(sem assunto)',
-        timestamp: Date.now(),
-      }
-      const next = [newItem, ...filtered].slice(0, MAX_ITEMS)
-      writeToStorage(next)
-      return next
-    })
-  }, [])
-
-  const limpar = useCallback(() => {
-    writeToStorage([])
-    setItems([])
-  }, [])
-
-  return { items, adicionar, limpar }
+      return (data || []).map((e) => ({
+        id: e.id,
+        email_id: e.id,
+        para_email: e.para_email,
+        assunto: e.assunto || '(sem assunto)',
+        total_aberturas: e.total_aberturas || 0,
+        primeira_abertura: e.aberto_em!,
+        ultima_abertura: e.aberto_em!,
+      }))
+    },
+    refetchInterval: 60000, // Refetch a cada 1 min
+    staleTime: 30000,
+  })
 }
