@@ -203,6 +203,37 @@ export function FormularioEditorPage() {
     [selectedCampoId, atualizarCampo]
   )
 
+  const handleUpdateCampoLabel = useCallback(
+    (campoId: string, newLabel: string) => {
+      atualizarCampo.mutate({ campoId, payload: { label: newLabel } })
+    },
+    [atualizarCampo]
+  )
+
+  const handleUpdateBotaoTexto = useCallback(
+    (tipo: 'enviar' | 'whatsapp', newTexto: string) => {
+      if (tipo === 'enviar') {
+        setBotao(prev => ({ ...prev, texto: newTexto }))
+      } else {
+        setBotao(prev => ({ ...prev, whatsapp_texto: newTexto }))
+      }
+      // Auto-save estilos
+      setTimeout(() => {
+        salvarEstilos.mutate({
+          container,
+          cabecalho,
+          campos: camposEstilo,
+          botao: tipo === 'enviar'
+            ? { ...botao, texto: newTexto }
+            : { ...botao, whatsapp_texto: newTexto },
+          pagina,
+          css_customizado: cssCustomizado || null,
+        })
+      }, 0)
+    },
+    [salvarEstilos, container, cabecalho, camposEstilo, botao, pagina, cssCustomizado]
+  )
+
   const handleRemoveCampo = useCallback(
     (campoId: string) => {
       excluirCampo.mutate(campoId)
@@ -357,6 +388,8 @@ export function FormularioEditorPage() {
                   template: localPopupTemplate,
                   imagemUrl: localPopupImagemUrl,
                 } : null}
+                onUpdateCampoLabel={handleUpdateCampoLabel}
+                onUpdateBotaoTexto={handleUpdateBotaoTexto}
               />
             </div>
 
