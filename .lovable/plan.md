@@ -1,40 +1,46 @@
 
+# Plano: Correcoes de Botao e Notificacoes
 
-# Plano: Corrigir Drop Zone no Layout de Popup com Imagem
+## 3 Problemas Identificados e Solucoes
 
-## Problema Identificado
+### 1. Botao nao ocupa largura total no preview
 
-Nos layouts de popup com imagem lateral (ex: `imagem_esquerda`, `imagem_lateral_full`), o formulario e suas drop zones ficam confinados em um `div` com largura parcial (`w-3/5` ou `w-1/2`). Quando o usuario arrasta um campo da paleta, a drop zone so e ativada se o cursor estiver exatamente sobre essa area menor, nao sobre a imagem. Isso causa confusao pois visualmente parece que a drop zone deveria cobrir toda a largura.
+**Causa**: O `<button>` dentro de `RenderBotoes` tem `width: 100%` via style, mas o `div` wrapper (`relative group/botao-enviar` e `relative group/botao-whatsapp`) nao tem `w-full`, limitando a largura do botao ao conteudo.
 
-Alem disso, o `formContent` (que contem as drop zones) e criado como uma variavel JSX e depois inserido dentro do wrapper do layout de popup. Isso causa um problema de "dupla renderizacao" conceitual: as drop zones sao corretamente posicionadas, mas o espaco visual disponivel e reduzido.
+**Solucao**: Adicionar `w-full` no `div` wrapper de ambos os botoes (linhas ~618 e ~663 de `FormPreview.tsx`).
 
-## Solucao
+### 2. SMTP nao esta sendo encontrado (mostra "Nenhum e-mail SMTP configurado")
 
-Tornar a area da imagem tambem receptiva a drops, delegando o evento para a drop zone mais proxima (a primeira, indice 0). Assim, quando o usuario arrastar um campo sobre a area da imagem, o drop sera aceito e o campo sera inserido no inicio do formulario.
+**Causa**: O codigo em `BotaoConfigPanel.tsx` (linha 144) consulta `conexoes_email` filtrando por `.eq('status', 'conectado')`, porem o valor real armazenado no banco e `'ativo'` (confirmado via query direta).
 
-## Alteracoes Tecnicas
+**Solucao**: Alterar o filtro na linha 144 de `BotaoConfigPanel.tsx` para aceitar ambos os status:
+```
+.in('status', ['conectado', 'ativo'])
+```
 
-### 1. `FormPreview.tsx` - Tornar area da imagem drop-friendly
+### 3. Implementar "Notificar por WhatsApp"
 
-Nos templates `imagem_esquerda`, `imagem_direita`, `imagem_lateral_full`, `imagem_topo`:
+**Causa**: Atualmente a aba Configuracao do botao WhatsApp nao tem opcao de "Notificar por WhatsApp" (apenas "Notificar por e-mail"). O usuario quer que, ao ativar essa opcao, o sistema puxe a conexao WAHA existente (tabela `sessoes_whatsapp`).
 
-- Adicionar `onDragOver`, `onDragEnter`, `onDragLeave` e `onDrop` no `div` que contem o `imageEl`
-- Esses eventos delegam para o indice 0 (primeira posicao dos campos), permitindo que o usuario solte campos sobre a imagem e eles sejam inseridos no formulario
-- Adicionar feedback visual (borda tracejada) quando estiver arrastando sobre a area da imagem
+**Solucao**:
+- Adicionar campos `enviar_notifica_whatsapp`, `enviar_whatsapp_destino`, `whatsapp_notifica_whatsapp` e `whatsapp_whatsapp_destino` na interface `ConfigBotoes`
+- No `BotaoConfigPanel.tsx`:
+  - Carregar sessao WhatsApp conectada da tabela `sessoes_whatsapp` (filtro `status = 'connected'`)
+  - Adicionar Switch "Notificar por WhatsApp" em ambas as secoes (Enviar e WhatsApp)
+  - Quando ativo, mostrar input do numero de destino e info da conexao WAHA (numero conectado)
+  - Exibir aviso se nao houver conexao WhatsApp ativa
+- Atualizar `ConfigBotoesEnvioForm.tsx` para incluir os novos campos no tipo e valores padrao
 
-### 2. `FormPreview.tsx` - Expandir area receptiva do formContent wrapper
+## Arquivos Alterados
 
-- No `div` que envolve o `formContent` dentro dos layouts, adicionar `min-height` e garantir que o `overflow` nao corte a area de drop
-- Garantir que a drop zone no topo (indice 0) tenha altura minima suficiente para ser facilmente acessivel
+| Arquivo | Alteracao |
+|---------|-----------|
+| `src/modules/formularios/components/editor/FormPreview.tsx` | Adicionar `w-full` nos wrappers dos botoes |
+| `src/modules/formularios/components/config/BotaoConfigPanel.tsx` | Corrigir filtro SMTP (`ativo`), adicionar notificacao WhatsApp com busca de sessao WAHA |
+| `src/modules/formularios/components/config/ConfigBotoesEnvioForm.tsx` | Adicionar campos de notificacao WhatsApp no tipo `ConfigBotoes` |
 
-### 3. Simplificar nesting desnecessario
+## Detalhes Tecnicos
 
-- Revisar se ha `div`s extras que limitam a area clicavel/arrastavel sem necessidade
-- O `formContent` ja tem wrappers como `group/campos` que podem ser simplificados para reduzir aninhamento
-
-## Resultado Esperado
-
-- Arrastar um campo sobre a area da imagem do popup tambem ativa a drop zone
-- A drop zone fica visualmente centralizada e alinhada com a area de campos
-- A experiencia de drag-and-drop funciona de forma consistente independentemente do layout de popup selecionado
-
+- Tabela `sessoes_whatsapp`: filtrar por `status = 'connected'` e mesma `organizacao_id`
+- Exibir numero conectado (`phone_number`) e nome (`phone_name`) como info da conexao
+- Mesmo padrao visual do SMTP info (icone + texto "Enviando via: numero")
