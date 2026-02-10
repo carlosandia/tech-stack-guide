@@ -11,6 +11,13 @@ import type { CampoFormulario } from '../../services/formularios.api'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 
+function parseTituloConfig(valorPadrao: string | null | undefined): { alinhamento: string; cor: string; tamanho: string } {
+  const defaults = { alinhamento: 'left', cor: '#374151', tamanho: '18' }
+  if (!valorPadrao) return defaults
+  try { const p = JSON.parse(valorPadrao); return { alinhamento: p.alinhamento || defaults.alinhamento, cor: p.cor || defaults.cor, tamanho: p.tamanho || defaults.tamanho } } catch { return defaults }
+}
+
+
 interface Props {
   campo: CampoFormulario
   isSelected: boolean
@@ -297,8 +304,10 @@ function renderFieldPreview(campo: CampoFormulario) {
         </div>
       )
 
-    case 'titulo':
-      return <p className="text-lg font-semibold text-foreground">{placeholder || 'Título da seção'}</p>
+    case 'titulo': {
+      const tc = parseTituloConfig(campo.valor_padrao)
+      return <p className="font-semibold text-foreground" style={{ fontSize: `${tc.tamanho}px`, textAlign: tc.alinhamento as any, color: tc.cor }}>{placeholder || 'Título da seção'}</p>
+    }
 
     case 'paragrafo':
       return <p className="text-sm text-muted-foreground">{placeholder || 'Texto descritivo do parágrafo.'}</p>

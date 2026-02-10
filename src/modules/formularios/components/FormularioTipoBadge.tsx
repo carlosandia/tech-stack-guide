@@ -8,10 +8,10 @@ import { FileText, MessageSquare, Mail, Layers } from 'lucide-react'
 import type { TipoFormulario } from '../services/formularios.api'
 
 const tipoConfig: Record<TipoFormulario, { label: string; icon: typeof FileText }> = {
-  inline: { label: 'Inline', icon: FileText },
+  inline: { label: 'Padrão', icon: FileText },
   popup: { label: 'Popup', icon: MessageSquare },
   newsletter: { label: 'Newsletter', icon: Mail },
-  multi_step: { label: 'Multi-step', icon: Layers },
+  multi_step: { label: 'Por Etapas', icon: Layers },
 }
 
 interface Props {

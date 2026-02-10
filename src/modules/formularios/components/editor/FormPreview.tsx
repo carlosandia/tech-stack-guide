@@ -30,6 +30,12 @@ const SOMBRA_MAP: Record<string, string> = {
   xl: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)',
 }
 
+function parseTituloConfig(valorPadrao: string | null | undefined): { alinhamento: string; cor: string; tamanho: string } {
+  const defaults = { alinhamento: 'left', cor: '#374151', tamanho: '18' }
+  if (!valorPadrao) return defaults
+  try { const p = JSON.parse(valorPadrao); return { alinhamento: p.alinhamento || defaults.alinhamento, cor: p.cor || defaults.cor, tamanho: p.tamanho || defaults.tamanho } } catch { return defaults }
+}
+
 // AIDEV-NOTE: TAMANHO_BOTAO removido - agora usamos altura livre definida pelo usuário
 
 interface Props {
@@ -1038,12 +1044,14 @@ function renderFinalCampo(
 
   // Campos de layout (sem wrapper de largura)
   switch (campo.tipo) {
-    case 'titulo':
+    case 'titulo': {
+      const tc = parseTituloConfig(campo.valor_padrao)
       return (
-        <h3 style={{ ...labelStyle, fontSize: '18px', fontWeight: 600, marginBottom: 0 }}>
+        <h3 style={{ ...labelStyle, fontSize: `${tc.tamanho}px`, fontWeight: 600, marginBottom: 0, textAlign: tc.alinhamento as any, color: tc.cor }}>
           {placeholder || campo.label || 'Título da seção'}
         </h3>
       )
+    }
     case 'paragrafo':
       return (
         <p style={{ color: estiloCampos?.label_cor || '#6B7280', fontSize: '14px', margin: 0, fontFamily }}>

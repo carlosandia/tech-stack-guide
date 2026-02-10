@@ -2,11 +2,12 @@
  * AIDEV-NOTE: Painel lateral de configuração do campo selecionado
  * Permite editar label, placeholder, obrigatório, validações, mapeamento
  * Inclui campos customizados globais (pessoa/empresa) no mapeamento
+ * Auto-save com debounce de 800ms
  */
 
-import { useEffect, useState, useMemo } from 'react'
-import { X, Plus, Loader2 } from 'lucide-react'
-import { toast } from 'sonner'
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
+import { X, Plus, Loader2, AlignLeft, AlignCenter, AlignRight } from 'lucide-react'
+
 import { useQueryClient } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -60,6 +61,22 @@ const LARGURAS = [
   { value: '2/3', label: 'Dois Terços (66%)' },
 ]
 
+// AIDEV-NOTE: Helper para parsear JSON do campo titulo (alinhamento, cor, tamanho)
+function parseTituloConfig(valorPadrao: string | null | undefined): { alinhamento: string; cor: string; tamanho: string } {
+  const defaults = { alinhamento: 'left', cor: '#374151', tamanho: '18' }
+  if (!valorPadrao) return defaults
+  try {
+    const parsed = JSON.parse(valorPadrao)
+    return {
+      alinhamento: parsed.alinhamento || defaults.alinhamento,
+      cor: parsed.cor || defaults.cor,
+      tamanho: parsed.tamanho || defaults.tamanho,
+    }
+  } catch {
+    return defaults
+  }
+}
+
 interface Props {
   campo: CampoFormulario
   onUpdate: (payload: Partial<CampoFormulario>) => void
@@ -82,7 +99,6 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
   const MAPEAMENTOS = useMemo(() => {
     const items: MapeamentoItem[] = [...MAPEAMENTOS_PADRAO]
 
-    // Add custom pessoa fields
     const listaPessoa = Array.isArray(camposPessoa) ? camposPessoa : (camposPessoa?.campos || [])
     const customPessoa = listaPessoa.filter((c: any) => !c.sistema && !c.deletado_em)
     for (const cp of customPessoa) {
@@ -117,6 +133,15 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
     valor_padrao: campo.valor_padrao || '',
   })
 
+  const needsOptions = ['selecao', 'selecao_multipla', 'radio', 'ranking'].includes(campo.tipo)
+  const [opcoesText, setOpcoesText] = useState(
+    (campo.opcoes as string[] || []).join('\n')
+  )
+
+  // Titulo config state
+  const isTitulo = campo.tipo === 'titulo'
+  const [tituloConfig, setTituloConfig] = useState(() => parseTituloConfig(campo.valor_padrao))
+
   // Reset when campo changes
   useEffect(() => {
     setForm({
@@ -129,13 +154,19 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
       largura: campo.largura || 'full',
       valor_padrao: campo.valor_padrao || '',
     })
+    setOpcoesText((campo.opcoes as string[] || []).join('\n'))
+    setTituloConfig(parseTituloConfig(campo.valor_padrao))
   }, [campo.id])
 
   const deriveNome = (label: string) =>
     label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
 
-  const handleSave = () => {
-    onUpdate({
+  // AIDEV-NOTE: Auto-save com debounce de 800ms
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isFirstRender = useRef(true)
+
+  const buildPayload = useCallback(() => {
+    const payload: Partial<CampoFormulario> = {
       label: form.label,
       nome: deriveNome(form.label),
       placeholder: form.placeholder || null,
@@ -143,17 +174,45 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
       obrigatorio: form.obrigatorio,
       mapeamento_campo: form.mapeamento_campo || null,
       largura: form.largura,
-      valor_padrao: form.valor_padrao || null,
-    })
-  }
-
-  const needsOptions = ['selecao', 'selecao_multipla', 'radio', 'ranking'].includes(campo.tipo)
-  const [opcoesText, setOpcoesText] = useState(
-    (campo.opcoes as string[] || []).join('\n')
-  )
+      valor_padrao: isTitulo ? JSON.stringify(tituloConfig) : (form.valor_padrao || null),
+    }
+    if (needsOptions) {
+      const opcoes = opcoesText.split('\n').map((o) => o.trim()).filter(Boolean)
+      ;(payload as any).opcoes = opcoes
+    }
+    return payload
+  }, [form, tituloConfig, opcoesText, isTitulo, needsOptions])
 
   useEffect(() => {
-    setOpcoesText((campo.opcoes as string[] || []).join('\n'))
+    // Skip first render to avoid saving on mount
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return
+    }
+
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      onUpdate(buildPayload())
+    }, 800)
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
+  }, [form, tituloConfig, opcoesText])
+
+  // Flush on unmount or campo change
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current)
+        // Flush pending save is not needed here since campo is changing
+      }
+    }
+  }, [campo.id])
+
+  // Reset first render flag on campo change
+  useEffect(() => {
+    isFirstRender.current = true
   }, [campo.id])
 
   return (
@@ -175,24 +234,88 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
           />
         </div>
 
-        <div className="space-y-1.5">
-          <Label className="text-xs">Placeholder</Label>
-          <Input
-            value={form.placeholder}
-            onChange={(e) => setForm((f) => ({ ...f, placeholder: e.target.value }))}
-            placeholder="Texto de exemplo"
-          />
-        </div>
+        {/* Configurações especiais para campo Título */}
+        {isTitulo && (
+          <div className="space-y-3 border-t border-border pt-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Estilo do Título</p>
+            
+            <div className="space-y-1.5">
+              <Label className="text-xs">Alinhamento</Label>
+              <div className="flex gap-1">
+                {([
+                  { value: 'left', icon: AlignLeft, label: 'Esquerda' },
+                  { value: 'center', icon: AlignCenter, label: 'Centro' },
+                  { value: 'right', icon: AlignRight, label: 'Direita' },
+                ] as const).map(({ value, icon: Icon, label }) => (
+                  <Button
+                    key={value}
+                    type="button"
+                    variant={tituloConfig.alinhamento === value ? 'default' : 'outline'}
+                    size="sm"
+                    className="flex-1 h-8"
+                    onClick={() => setTituloConfig(prev => ({ ...prev, alinhamento: value }))}
+                    title={label}
+                  >
+                    <Icon className="w-4 h-4" />
+                  </Button>
+                ))}
+              </div>
+            </div>
 
-        <div className="space-y-1.5">
-          <Label className="text-xs">Texto de Ajuda</Label>
-          <Textarea
-            value={form.texto_ajuda}
-            onChange={(e) => setForm((f) => ({ ...f, texto_ajuda: e.target.value }))}
-            placeholder="Instrução para o usuário"
-            rows={2}
-          />
-        </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Cor do Texto</Label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={tituloConfig.cor}
+                  onChange={(e) => setTituloConfig(prev => ({ ...prev, cor: e.target.value }))}
+                  className="w-8 h-8 rounded border border-input cursor-pointer"
+                />
+                <Input
+                  value={tituloConfig.cor}
+                  onChange={(e) => setTituloConfig(prev => ({ ...prev, cor: e.target.value }))}
+                  className="flex-1 h-8 text-xs font-mono"
+                  placeholder="#374151"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs">Tamanho da Fonte (px)</Label>
+              <Input
+                type="number"
+                min={12}
+                max={72}
+                value={tituloConfig.tamanho}
+                onChange={(e) => setTituloConfig(prev => ({ ...prev, tamanho: e.target.value }))}
+                className="h-8"
+              />
+            </div>
+          </div>
+        )}
+
+        {!isTitulo && (
+          <>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Placeholder</Label>
+              <Input
+                value={form.placeholder}
+                onChange={(e) => setForm((f) => ({ ...f, placeholder: e.target.value }))}
+                placeholder="Texto de exemplo"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs">Texto de Ajuda</Label>
+              <Textarea
+                value={form.texto_ajuda}
+                onChange={(e) => setForm((f) => ({ ...f, texto_ajuda: e.target.value }))}
+                placeholder="Instrução para o usuário"
+                rows={2}
+              />
+            </div>
+          </>
+        )}
 
         <div className="flex items-center gap-2">
           <input
@@ -312,11 +435,9 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
                         entidade: criarCampoEntidade,
                         tipo: novoCampoTipo as CriarCampoPayload['tipo'],
                       })
-                      // Invalidate campos queries so new field appears immediately
                       await queryClient.invalidateQueries({
                         queryKey: ['configuracoes', 'campos', criarCampoEntidade],
                       })
-                      // Auto-mapear para o novo campo
                       const mapeamento = `custom.${criarCampoEntidade}.${slug}`
                       setForm((f) => ({ ...f, mapeamento_campo: mapeamento }))
                       setShowCriarCampo(false)
@@ -409,29 +530,6 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
           </div>
         )}
       </div>
-
-      <Button
-        onClick={() => {
-          if (needsOptions) {
-            const opcoes = opcoesText.split('\n').map((o) => o.trim()).filter(Boolean)
-            onUpdate({
-              ...form,
-              placeholder: form.placeholder || null,
-              texto_ajuda: form.texto_ajuda || null,
-              mapeamento_campo: form.mapeamento_campo || null,
-              valor_padrao: form.valor_padrao || null,
-              opcoes: opcoes as any,
-            } as any)
-          } else {
-            handleSave()
-          }
-          toast.success('Alterações salvas com sucesso')
-        }}
-        className="w-full"
-        size="sm"
-      >
-        Salvar Alterações
-      </Button>
     </div>
   )
 }
