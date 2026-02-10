@@ -76,6 +76,11 @@ export function FormularioPublicoPage() {
   const [enderecoValues, setEnderecoValues] = useState<Record<string, { rua: string; numero: string; complemento: string }>>({})
   const [buscandoCep, setBuscandoCep] = useState<Record<string, boolean>>({})
 
+  // AIDEV-NOTE: Refs para tracking de analytics - evitar duplicatas
+  const jaRegistrouVisualizacao = useRef(false)
+  const jaRegistrouInicio = useRef(false)
+  const focoTimestamps = useRef<Record<string, number>>({})
+
   // Captura UTMs
   const utms = {
     utm_source: searchParams.get('utm_source') || '',
@@ -122,15 +127,75 @@ export function FormularioPublicoPage() {
       setCampos((camposRes.data || []) as unknown as CampoFormulario[])
       setEstilos(estilosRes.data as EstiloFormulario | null)
       setLoading(false)
+
+      // AIDEV-NOTE: Registrar evento de visualização (analytics)
+      if (!jaRegistrouVisualizacao.current) {
+        jaRegistrouVisualizacao.current = true
+        // Incrementar contador via RPC (SECURITY DEFINER)
+        supabase.rpc('incrementar_visualizacao_formulario', { p_formulario_id: form.id }).then(() => {})
+        // Registrar evento granular
+        supabase.from('eventos_analytics_formularios').insert({
+          formulario_id: form.id,
+          organizacao_id: form.organizacao_id,
+          tipo_evento: 'visualizacao',
+          user_agent: navigator.userAgent,
+        }).then(() => {})
+      }
     }
     load()
   }, [slug])
 
+  // AIDEV-NOTE: Registrar evento de início na primeira interação com campo
+  const registrarInicio = useCallback(() => {
+    if (jaRegistrouInicio.current || !formulario) return
+    jaRegistrouInicio.current = true
+    supabase.from('eventos_analytics_formularios').insert({
+      formulario_id: formulario.id,
+      organizacao_id: formulario.organizacao_id,
+      tipo_evento: 'inicio',
+      user_agent: navigator.userAgent,
+    }).then(() => {})
+  }, [formulario])
+
+  // AIDEV-NOTE: Tracking de foco/saída de campos via event delegation
+  const handleFormFocus = useCallback((e: React.FocusEvent) => {
+    registrarInicio()
+    const target = e.target as HTMLElement
+    const fieldWrapper = target.closest('[data-campo-id]')
+    if (!fieldWrapper || !formulario) return
+    const campoId = fieldWrapper.getAttribute('data-campo-id')!
+    focoTimestamps.current[campoId] = Date.now()
+    supabase.from('eventos_analytics_formularios').insert({
+      formulario_id: formulario.id,
+      organizacao_id: formulario.organizacao_id,
+      tipo_evento: 'foco_campo',
+      dados_evento: { campo_id: campoId },
+    }).then(() => {})
+  }, [formulario, registrarInicio])
+
+  const handleFormBlur = useCallback((e: React.FocusEvent) => {
+    const target = e.target as HTMLElement
+    const fieldWrapper = target.closest('[data-campo-id]')
+    if (!fieldWrapper || !formulario) return
+    const campoId = fieldWrapper.getAttribute('data-campo-id')!
+    const inicio = focoTimestamps.current[campoId]
+    const tempo = inicio ? Math.round((Date.now() - inicio) / 1000) : null
+    delete focoTimestamps.current[campoId]
+    supabase.from('eventos_analytics_formularios').insert({
+      formulario_id: formulario.id,
+      organizacao_id: formulario.organizacao_id,
+      tipo_evento: 'saida_campo',
+      dados_evento: { campo_id: campoId },
+      tempo_no_campo_segundos: tempo,
+    }).then(() => {})
+  }, [formulario])
+
   const handleChange = useCallback((campoId: string, tipo: string, rawValue: string) => {
+    registrarInicio()
     const mask = getMaskForType(tipo)
     const value = mask ? mask(rawValue) : rawValue
     setValores(prev => ({ ...prev, [campoId]: value }))
-  }, [])
+  }, [registrarInicio])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -203,6 +268,14 @@ export function FormularioPublicoPage() {
         body: JSON.stringify({ submissao_id: submissaoData.id, formulario_id: formulario.id }),
       }).catch(err => console.error('Erro ao processar integração:', err))
     }
+
+    // AIDEV-NOTE: Registrar evento de submissão (analytics)
+    supabase.from('eventos_analytics_formularios').insert({
+      formulario_id: formulario.id,
+      organizacao_id: formulario.organizacao_id,
+      tipo_evento: 'submissao',
+      user_agent: navigator.userAgent,
+    }).then(() => {})
 
     setEnviado(true)
 
@@ -295,6 +368,8 @@ export function FormularioPublicoPage() {
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: pagina.background_color || '#F3F4F6', padding: '16px' }}>
       <form
         onSubmit={handleSubmit}
+        onFocus={handleFormFocus}
+        onBlur={handleFormBlur}
         style={{
           backgroundColor: container.background_color || '#FFFFFF',
           borderRadius: container.border_radius || '8px',
@@ -329,7 +404,7 @@ export function FormularioPublicoPage() {
             const w = larguraMap[campo.largura] || '100%'
             const fieldMargin = `${camposEstilo.gap_top || camposEstilo.gap || '12'}px ${camposEstilo.gap_right || '0'}px ${camposEstilo.gap_bottom || '0'}px ${camposEstilo.gap_left || '0'}px`
             return (
-              <div key={campo.id} style={{ width: w, padding: fieldMargin, boxSizing: 'border-box' as const }}>
+              <div key={campo.id} data-campo-id={campo.id} style={{ width: w, padding: fieldMargin, boxSizing: 'border-box' as const }}>
                 {renderCampoPublico({
                   campo, labelStyle, inputStyle, fontFamily, camposEstilo,
                   valor: valores[campo.id] || '',
