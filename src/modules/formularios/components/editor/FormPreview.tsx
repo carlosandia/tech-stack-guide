@@ -338,7 +338,7 @@ export function FormPreview({
               )}
               title="Editar estilos do container"
             >
-              <Paintbrush className="w-3 h-3" />
+              <Paintbrush className="w-4 h-4" />
             </button>
           )}
 

@@ -5,6 +5,7 @@
 
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
@@ -44,20 +45,31 @@ export function EstiloContainerForm({ value, onChange }: Props) {
     <div className="space-y-4">
 
       <div className="space-y-3">
-        <div className="space-y-1.5">
+      <div className="space-y-1.5">
           <Label className="text-xs">Cor de Fundo</Label>
           <div className="flex items-center gap-2">
             <input
               type="color"
-              value={value.background_color || '#FFFFFF'}
+              value={value.background_color === 'transparent' ? '#FFFFFF' : (value.background_color || '#FFFFFF')}
               onChange={(e) => update('background_color', e.target.value)}
               className="w-8 h-8 rounded border border-input cursor-pointer"
+              disabled={value.background_color === 'transparent'}
             />
             <Input
               value={value.background_color || '#FFFFFF'}
               onChange={(e) => update('background_color', e.target.value)}
+              placeholder="#FFFFFF ou transparent"
               className="flex-1 text-xs"
             />
+            <Button
+              type="button"
+              variant={value.background_color === 'transparent' ? 'default' : 'outline'}
+              size="sm"
+              className="text-xs px-2 h-8 shrink-0"
+              onClick={() => update('background_color', value.background_color === 'transparent' ? '#FFFFFF' : 'transparent')}
+            >
+              Transparente
+            </Button>
           </div>
         </div>
 
