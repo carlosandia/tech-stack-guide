@@ -20,6 +20,10 @@ interface FormularioPublico {
   config_botoes: Record<string, unknown> | null
   config_pos_envio: Record<string, unknown> | null
   organizacao_id: string
+  lgpd_ativo: boolean | null
+  lgpd_texto_consentimento: string | null
+  lgpd_url_politica: string | null
+  lgpd_checkbox_obrigatorio: boolean | null
 }
 
 const SOMBRA_MAP: Record<string, string> = {
@@ -66,6 +70,7 @@ export function FormularioPublicoPage() {
   const [valores, setValores] = useState<Record<string, string>>({})
   const [enviando, setEnviando] = useState(false)
   const [enviado, setEnviado] = useState(false)
+  const [lgpdAceito, setLgpdAceito] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [ddiSelecionado, setDdiSelecionado] = useState<Record<string, string>>({})
 
@@ -85,7 +90,7 @@ export function FormularioPublicoPage() {
       setLoading(true)
       const { data: form, error: formErr } = await supabase
         .from('formularios')
-        .select('id, nome, slug, descricao, config_botoes, config_pos_envio, organizacao_id')
+        .select('id, nome, slug, descricao, config_botoes, config_pos_envio, organizacao_id, lgpd_ativo, lgpd_texto_consentimento, lgpd_url_politica, lgpd_checkbox_obrigatorio')
         .eq('slug', currentSlug)
         .eq('status', 'publicado')
         .is('deletado_em', null)
@@ -130,6 +135,13 @@ export function FormularioPublicoPage() {
     if (!formulario) return
     setEnviando(true)
     setErro(null)
+
+    // Validar LGPD obrigatório
+    if (formulario.lgpd_ativo && formulario.lgpd_checkbox_obrigatorio && !lgpdAceito) {
+      setErro('Você precisa aceitar os termos de consentimento para enviar.')
+      setEnviando(false)
+      return
+    }
 
     const layoutTypes = ['titulo', 'paragrafo', 'divisor', 'espacador', 'oculto', 'bloco_html', 'imagem_link']
     const obrigatorios = campos.filter(c => c.obrigatorio && !layoutTypes.includes(c.tipo))
@@ -272,16 +284,17 @@ export function FormularioPublicoPage() {
           fontFamily,
         }}
       >
-        {/* Cabeçalho */}
-        <div style={{ marginBottom: '24px', textAlign: 'center' as const }}>
-          {cabecalho.logo_url && (
-            <img src={cabecalho.logo_url} alt="Logo" style={{ maxHeight: '40px', marginBottom: '8px', display: 'inline-block' }} />
-          )}
-          <h2 style={{ fontSize: cabecalho.titulo_tamanho || '24px', fontWeight: 600, color: cabecalho.titulo_cor || '#1F2937', fontFamily }}>{formulario.nome}</h2>
-          {formulario.descricao && (
-            <p style={{ color: cabecalho.descricao_cor || '#6B7280', fontSize: cabecalho.descricao_tamanho || '14px', marginTop: '4px', fontFamily }}>{formulario.descricao}</p>
-          )}
-        </div>
+        {/* Cabeçalho - só logo e descrição, sem título do formulário */}
+        {(cabecalho.logo_url || formulario.descricao) && (
+          <div style={{ marginBottom: '24px', textAlign: 'center' as const }}>
+            {cabecalho.logo_url && (
+              <img src={cabecalho.logo_url} alt="Logo" style={{ maxHeight: '40px', marginBottom: '8px', display: 'inline-block' }} />
+            )}
+            {formulario.descricao && (
+              <p style={{ color: cabecalho.descricao_cor || '#6B7280', fontSize: cabecalho.descricao_tamanho || '14px', marginTop: '4px', fontFamily }}>{formulario.descricao}</p>
+            )}
+          </div>
+        )}
 
         {/* Campos */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px 0' }}>
@@ -301,6 +314,37 @@ export function FormularioPublicoPage() {
             )
           })}
         </div>
+
+        {/* LGPD Consentimento */}
+        {formulario.lgpd_ativo && (
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginTop: '12px', fontSize: '13px', fontFamily }}>
+            <input
+              type="checkbox"
+              checked={lgpdAceito}
+              onChange={e => setLgpdAceito(e.target.checked)}
+              style={{ marginTop: '2px', width: '16px', height: '16px', accentColor: '#3B82F6', flexShrink: 0 }}
+            />
+            <span style={{ color: '#4B5563', lineHeight: '1.4' }}>
+              {formulario.lgpd_texto_consentimento || 'Ao enviar este formulário, você concorda com nossa Política de Privacidade.'}
+              {formulario.lgpd_url_politica && (
+                <>
+                  {' '}
+                  <a
+                    href={formulario.lgpd_url_politica}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: '#3B82F6', textDecoration: 'underline' }}
+                  >
+                    Ver política
+                  </a>
+                </>
+              )}
+              {formulario.lgpd_checkbox_obrigatorio && (
+                <span style={{ color: '#EF4444', marginLeft: '2px' }}>*</span>
+              )}
+            </span>
+          </div>
+        )}
 
         {/* Erro */}
         {erro && (
