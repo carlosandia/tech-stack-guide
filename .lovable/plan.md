@@ -1,88 +1,74 @@
 
-# Correção: Email Lento e Não Entregue
+# Painel de Metricas para o Modulo de Emails
 
-## Causa Raiz Identificada
+## Objetivo
+Adicionar um botao "Metricas" na toolbar do modulo de Emails (mesmo padrao visual do modulo Conversas) que exibe/oculta um painel colapsavel com metricas de marketing e comerciais baseadas nos dados de emails enviados, aberturas, cliques, etc.
 
-O problema está na função `conn.write()` do Deno. Quando o corpo da mensagem MIME (com anexo base64) é grande (~100KB+), o `conn.write()` pode **não enviar todos os bytes de uma vez** -- ele retorna quantos bytes foram escritos, mas o código ignora esse retorno.
+## Metricas a Exibir (10 cards)
 
-**O que acontece:**
-1. O servidor SMTP aceita o comando DATA (responde 354)
-2. O código tenta enviar toda a mensagem MIME (~100KB) com um único `conn.write()`
-3. Apenas parte dos bytes é enviada
-4. O servidor SMTP fica esperando o restante da mensagem (incluindo o terminador `\r\n.\r\n`)
-5. Após ~60 segundos sem receber o terminador, o servidor fecha a conexão
-6. O código captura o erro "close_notify" e **falsamente reporta sucesso**
+| # | Metrica | Fonte de Dados | Cor Condicional |
+|---|---------|----------------|-----------------|
+| 1 | Emails Enviados | `emails_recebidos` pasta=sent no periodo | default |
+| 2 | Emails Recebidos | `emails_recebidos` pasta=inbox no periodo | default |
+| 3 | Taxa de Abertura | `total_aberturas > 0` / total enviados x 100 | verde >= 40%, amarelo >= 20%, vermelho < 20% |
+| 4 | Total Aberturas | soma de `total_aberturas` dos enviados | default |
+| 5 | Sem Resposta | enviados que nao tiveram resposta (sem thread_id match) | vermelho > 10, amarelo > 0, verde = 0 |
+| 6 | Tempo Medio Resposta | diferenca media entre email recebido e resposta enviada | verde <= 30min, amarelo <= 2h, vermelho > 2h |
+| 7 | Com Anexos | emails com `tem_anexos = true` no periodo | default |
+| 8 | Favoritos | emails com `favorito = true` | default |
+| 9 | Rascunhos | contagem de rascunhos ativos | default |
+| 10 | Primeira Abertura (media) | tempo medio entre envio e primeira abertura (`aberto_em - data_email`) | verde <= 1h, amarelo <= 24h, vermelho > 24h |
 
-Resultado: o email nunca é entregue, mas o sistema diz "Email enviado com sucesso!"
+## Arquivos a Criar
 
-## Correções
+### 1. `src/modules/emails/hooks/useEmailsMetricas.ts`
+- Hook com `useQuery` seguindo o padrao de `useConversasMetricas`
+- Tipos: `PeriodoMetricas`, `EmailsMetricas`
+- Funcao `fetchEmailsMetricas` que consulta `emails_recebidos` e `email_aberturas` via Supabase
+- Filtros: periodo (hoje, 7d, 30d, 60d, 90d)
+- Funcao auxiliar `formatDuracao` (reutilizar do modulo conversas ou duplicar)
 
-### 1. Implementar `writeAll` para garantir envio completo
+### 2. `src/modules/emails/components/EmailsMetricasPanel.tsx`
+- Componente visual identico ao `ConversasMetricasPanel`
+- Grid responsivo: 2 cols mobile, 3 tablet, 5 desktop
+- Filtro de periodo via chips
+- Cards com icone, label, valor e cor condicional
+- Animacao `animate-enter` e skeleton loading
 
-Criar uma função auxiliar que faz loop no `conn.write()` até que todos os bytes sejam enviados:
+## Arquivos a Modificar
+
+### 3. `src/modules/emails/pages/EmailsPage.tsx`
+- Adicionar estado `metricasVisiveis` com persistencia em `localStorage` (chave: `emails_metricas_visiveis`)
+- Adicionar `toggleMetricas` callback
+- Adicionar botao "Metricas" na toolbar (ao lado de "Assinatura"), mesmo estilo do Conversas
+- Renderizar `<EmailsMetricasPanel />` condicionalmente acima do layout de 3 colunas
+
+## Detalhes Tecnicos
+
+### Hook `useEmailsMetricas`
 
 ```text
-writeAll(conn, data):
-  offset = 0
-  while offset < data.length:
-    bytesWritten = conn.write(data[offset:])
-    offset += bytesWritten
+Query flow:
+1. Obter usuario autenticado e organizacao_id
+2. Contar emails enviados: pasta = 'sent', data_email >= dataInicio
+3. Contar emails recebidos: pasta = 'inbox', data_email >= dataInicio
+4. Taxa de abertura: enviados com total_aberturas > 0 / total enviados
+5. Total aberturas: SUM(total_aberturas) dos enviados
+6. Tempo medio resposta: calcular via threads (emails com mesmo thread_id)
+7. Sem resposta: enviados sem reply no thread
+8. Com anexos: tem_anexos = true
+9. Favoritos: favorito = true
+10. Rascunhos: contar de emails_rascunhos
+11. Media primeira abertura: AVG(aberto_em - data_email) dos enviados com aberto_em != null
 ```
 
-### 2. Separar envio do DATA body do `sendCommand`
+### Estrutura do painel (mesmo CSS do Conversas)
+- Container: `border-b border-border bg-card/50 px-3 sm:px-4 py-3 animate-enter space-y-3`
+- Chips periodo: `px-2.5 py-1 text-xs rounded-md font-medium`
+- Grid: `grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2`
+- Card: `flex items-center gap-2 px-2.5 py-2 rounded-lg`
 
-O DATA body não deve passar pelo `sendCommand` genérico (que loga, adiciona `\r\n`, etc). Em vez disso:
-- Usar `sendCommand("DATA")` apenas para o comando DATA
-- Escrever o corpo da mensagem diretamente com `writeAll`
-- Ler a resposta 250 separadamente
-
-### 3. Não tratar close_notify como sucesso
-
-Atualmente, qualquer erro "close_notify" é tratado como sucesso. Corrigir para:
-- Adicionar flag `dataAccepted` que só fica `true` após receber 250 no DATA
-- No catch de close_notify, só reportar sucesso se `dataAccepted === true`
-
-### 4. Download paralelo de anexos
-
-Atualmente, os anexos são baixados sequencialmente do Storage. Usar `Promise.all` para baixar em paralelo, economizando tempo.
-
----
-
-## Detalhes Técnicos
-
-### Arquivo: `supabase/functions/send-email/index.ts`
-
-**Nova função `writeAll`:**
-```typescript
-async function writeAll(conn, data: Uint8Array) {
-  let offset = 0;
-  while (offset < data.length) {
-    const n = await conn.write(data.subarray(offset));
-    if (n === null || n === 0) throw new Error("Falha ao escrever no socket");
-    offset += n;
-  }
-}
-```
-
-**Refatorar envio do DATA body (dentro de `sendSmtpEmail`):**
-- Após receber 354, escrever a mensagem diretamente com `writeAll(conn, encoder.encode(message + "\r\n"))`
-- Ler resposta com `readResponse(dataTimeout)` 
-- Logar apenas tamanho da mensagem (não o conteúdo inteiro)
-
-**Flag de controle para close_notify:**
-- Adicionar `let dataResponseOk = false` antes do bloco try
-- Setar `dataResponseOk = true` após receber 250 do DATA
-- No catch: só retornar sucesso se `dataResponseOk`
-
-**Download paralelo de anexos:**
-```typescript
-const downloads = anexos.map(async (anexo) => {
-  const { data, error } = await supabaseAdmin.storage
-    .from("email-anexos").download(anexo.storage_path);
-  // ... processar
-});
-const resultados = await Promise.all(downloads);
-```
-
-**Substituir `sendCommand` no `conn.write`:**
-- Trocar `await conn.write(encoder.encode(cmd + "\r\n"))` por `await writeAll(conn, encoder.encode(cmd + "\r\n"))` em todos os pontos
+### Botao na toolbar
+- Mesmo estilo do Conversas: icone `BarChart3`, texto "Metricas"
+- Toggle visual com `bg-primary/10 text-primary` quando ativo
+- Posicionado antes do botao "Assinatura"
