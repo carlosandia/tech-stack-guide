@@ -15,7 +15,9 @@ import { OportunidadeBulkActions } from './OportunidadeBulkActions'
 import { toast } from 'sonner'
 import { useMoverEtapa, useExcluirOportunidadesEmMassa, useMoverOportunidadesEmMassa } from '../../hooks/useKanban'
 import { useConfigCard } from '@/modules/configuracoes/hooks/useRegras'
-import type { CardConfig } from './KanbanCard'
+import { useQuery } from '@tanstack/react-query'
+import { supabase } from '@/lib/supabase'
+import type { CardConfig, SlaConfig } from './KanbanCard'
 
 interface KanbanBoardProps {
   data: KanbanData
@@ -37,6 +39,25 @@ export function KanbanBoard({ data, isLoading, onDropGanhoPerda, onCardClick }: 
     camposVisiveis: Array.isArray(configCard.campos_visiveis) ? configCard.campos_visiveis : undefined as any,
     acoesRapidas: Array.isArray((configCard as any).acoes_rapidas) ? (configCard as any).acoes_rapidas : undefined as any,
   } : undefined
+
+  // AIDEV-NOTE: Buscar config de SLA da pipeline (RF-06)
+  const { data: slaConfig } = useQuery<SlaConfig | null>({
+    queryKey: ['configuracoes_distribuicao', data?.funil?.id],
+    queryFn: async () => {
+      if (!data?.funil?.id) return null
+      const { data: config } = await supabase
+        .from('configuracoes_distribuicao')
+        .select('sla_ativo, sla_tempo_minutos')
+        .eq('funil_id', data.funil.id)
+        .single()
+      if (!config) return null
+      return {
+        sla_ativo: config.sla_ativo ?? false,
+        sla_tempo_minutos: config.sla_tempo_minutos ?? 30,
+      }
+    },
+    enabled: !!data?.funil?.id,
+  })
 
   const handleToggleSelect = useCallback((id: string) => {
     setSelectedIds(prev => {
@@ -178,6 +199,7 @@ export function KanbanBoard({ data, isLoading, onDropGanhoPerda, onCardClick }: 
               onDrop={handleDrop}
               onCardClick={onCardClick}
               cardConfig={cardConfig}
+              slaConfig={slaConfig || undefined}
               selectedIds={selectedIds}
               onToggleSelect={handleToggleSelect}
             />

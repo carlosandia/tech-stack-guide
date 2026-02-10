@@ -37,11 +37,17 @@ export interface CardConfig {
   acoesRapidas: string[]
 }
 
+export interface SlaConfig {
+  sla_ativo: boolean
+  sla_tempo_minutos: number
+}
+
 interface KanbanCardProps {
   oportunidade: Oportunidade
   onDragStart: (e: React.DragEvent, oportunidade: Oportunidade) => void
   onClick: (oportunidade: Oportunidade) => void
   config?: CardConfig
+  slaConfig?: SlaConfig
   isSelected?: boolean
   onToggleSelect?: (id: string) => void
 }
@@ -117,7 +123,7 @@ const ACOES_ICONS: Record<string, { icon: React.ElementType; label: string }> = 
 // Component
 // =====================================================
 
-export function KanbanCard({ oportunidade, onDragStart, onClick, config, isSelected, onToggleSelect }: KanbanCardProps) {
+export function KanbanCard({ oportunidade, onDragStart, onClick, config, slaConfig, isSelected, onToggleSelect }: KanbanCardProps) {
   const { camposVisiveis, acoesRapidas } = config || DEFAULT_CONFIG
   const qualificacao = getQualificacaoLabel(oportunidade)
   const tarefasPendentes = (oportunidade as any)._tarefas_pendentes ?? 0
@@ -137,6 +143,14 @@ export function KanbanCard({ oportunidade, onDragStart, onClick, config, isSelec
     locale: ptBR,
     addSuffix: false,
   })
+
+  // AIDEV-NOTE: Lógica visual de SLA (RF-06)
+  const tempoDecorridoMs = Date.now() - new Date(oportunidade.atualizado_em).getTime()
+  const tempoDecorridoMin = Math.floor(tempoDecorridoMs / 60000)
+  const slaAtivo = slaConfig?.sla_ativo && slaConfig.sla_tempo_minutos > 0
+  const slaPorcentagem = slaAtivo ? tempoDecorridoMin / slaConfig!.sla_tempo_minutos : 0
+  const slaStatus = !slaAtivo ? 'normal' : slaPorcentagem >= 1 ? 'estourado' : slaPorcentagem >= 0.8 ? 'aviso' : 'normal'
+  const slaColorClass = slaStatus === 'estourado' ? 'text-destructive' : slaStatus === 'aviso' ? 'text-yellow-500' : 'text-muted-foreground'
 
   // Renderiza um campo do card baseado na key
   const renderCampo = (key: string) => {
@@ -360,9 +374,13 @@ export function KanbanCard({ oportunidade, onDragStart, onClick, config, isSelec
         </div>
 
         <div className="flex items-center justify-between px-3 py-2 border-t border-border/50 bg-muted/30">
-          <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-            <Clock className="w-3 h-3" />
-            <span>{tempoNaEtapa}</span>
+          <div className={`flex items-center gap-1 text-[11px] ${slaColorClass}`}>
+            <Clock className={`w-3 h-3 ${slaStatus === 'estourado' ? 'animate-pulse' : ''}`} />
+            <span>
+              {slaAtivo
+                ? `${tempoDecorridoMin}/${slaConfig!.sla_tempo_minutos}min`
+                : tempoNaEtapa}
+            </span>
           </div>
 
           {acoesRapidas.length > 0 && (

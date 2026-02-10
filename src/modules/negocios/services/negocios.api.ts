@@ -518,6 +518,70 @@ export const negociosApi = {
     const organizacaoId = await getOrganizacaoId()
     const userId = await getUsuarioId()
 
+    // AIDEV-NOTE: Aplicar rodízio quando responsável não é informado (RF-06)
+    let responsavelFinal = payload.usuario_responsavel_id || userId
+    if (!payload.usuario_responsavel_id) {
+      try {
+        const { data: configDist } = await supabase
+          .from('configuracoes_distribuicao')
+          .select('*')
+          .eq('funil_id', payload.funil_id)
+          .single()
+
+        if (configDist && configDist.modo === 'rodizio') {
+          let dentroDoHorario = true
+          if (configDist.horario_especifico) {
+            const agora = new Date()
+            const diaSemana = agora.getDay()
+            const horaAtual = `${String(agora.getHours()).padStart(2, '0')}:${String(agora.getMinutes()).padStart(2, '0')}`
+            if (configDist.dias_semana && !configDist.dias_semana.includes(diaSemana)) dentroDoHorario = false
+            if (configDist.horario_inicio && configDist.horario_fim) {
+              if (horaAtual < configDist.horario_inicio || horaAtual > configDist.horario_fim) dentroDoHorario = false
+            }
+          }
+
+          if (dentroDoHorario) {
+            const { data: membros } = await supabase
+              .from('funis_membros')
+              .select('usuario_id')
+              .eq('funil_id', payload.funil_id)
+              .eq('ativo', true)
+
+            if (membros && membros.length > 0) {
+              let membrosFiltrados = membros
+              if (configDist.pular_inativos) {
+                const { data: ativos } = await supabase
+                  .from('usuarios')
+                  .select('id')
+                  .in('id', membros.map(m => m.usuario_id))
+                  .eq('status', 'ativo')
+                if (ativos) {
+                  const ativosSet = new Set(ativos.map(u => u.id))
+                  membrosFiltrados = membros.filter(m => ativosSet.has(m.usuario_id))
+                }
+              }
+
+              if (membrosFiltrados.length > 0) {
+                const posicao = (configDist.posicao_rodizio || 0) % membrosFiltrados.length
+                responsavelFinal = membrosFiltrados[posicao].usuario_id
+
+                // Incrementar posição
+                await supabase
+                  .from('configuracoes_distribuicao')
+                  .update({
+                    posicao_rodizio: (configDist.posicao_rodizio || 0) + 1,
+                    ultimo_usuario_id: responsavelFinal,
+                  })
+                  .eq('id', configDist.id)
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[rodizio] Erro ao aplicar distribuição:', err)
+      }
+    }
+
     const insertData: Record<string, unknown> = {
       organizacao_id: organizacaoId,
       funil_id: payload.funil_id,
@@ -527,7 +591,7 @@ export const negociosApi = {
       valor: payload.valor || null,
       recorrente: payload.recorrente || false,
       periodo_recorrencia: payload.periodo_recorrencia || null,
-      usuario_responsavel_id: payload.usuario_responsavel_id || userId,
+      usuario_responsavel_id: responsavelFinal,
       previsao_fechamento: payload.previsao_fechamento || null,
       observacoes: payload.observacoes || null,
       criado_por: userId,

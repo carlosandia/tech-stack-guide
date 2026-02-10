@@ -7,7 +7,7 @@
 import { useState } from 'react'
 import type { EtapaFunil, Oportunidade } from '../../services/negocios.api'
 import { KanbanCard } from './KanbanCard'
-import type { CardConfig } from './KanbanCard'
+import type { CardConfig, SlaConfig } from './KanbanCard'
 
 interface KanbanColumnProps {
   etapa: EtapaFunil & {
@@ -20,6 +20,7 @@ interface KanbanColumnProps {
   onDrop: (e: React.DragEvent, etapaId: string, tipoEtapa: string) => void
   onCardClick: (oportunidade: Oportunidade) => void
   cardConfig?: CardConfig
+  slaConfig?: SlaConfig
   selectedIds?: Set<string>
   onToggleSelect?: (id: string) => void
 }
@@ -47,7 +48,7 @@ function getColumnBorderColor(tipo: string): string {
   }
 }
 
-export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardClick, cardConfig, selectedIds, onToggleSelect }: KanbanColumnProps) {
+export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardClick, cardConfig, slaConfig, selectedIds, onToggleSelect }: KanbanColumnProps) {
   const [isDragOver, setIsDragOver] = useState(false)
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -113,6 +114,7 @@ export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardCli
               onDragStart={onDragStart}
               onClick={onCardClick}
               config={cardConfig}
+              slaConfig={slaConfig}
               isSelected={selectedIds?.has(op.id)}
               onToggleSelect={onToggleSelect}
             />
