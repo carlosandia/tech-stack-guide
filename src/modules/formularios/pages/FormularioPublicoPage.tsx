@@ -1271,15 +1271,15 @@ function renderBotoesPublico(
   ) : null
 
   if (tipoBotao === 'ambos') {
-    // AIDEV-NOTE: 100% (full) = cada botão em sua própria linha; 50% = lado a lado
+    // AIDEV-NOTE: 50% = lado a lado (cada um 50%); full/auto = empilhados (cada um 100%)
     const larguraEnviar = estiloBotao?.largura || 'full'
     const larguraWhatsApp = estiloBotao?.whatsapp_largura || 'full'
-    const ladoALado = larguraEnviar === '50%' || larguraWhatsApp === '50%'
+    const ladoALado = larguraEnviar === '50%' && larguraWhatsApp === '50%'
 
     return (
       <div style={{ display: 'flex', gap: '8px', flexDirection: ladoALado ? 'row' : 'column' }}>
-        <div style={ladoALado ? { flex: 1 } : { width: '100%' }}>{enviarBtn}</div>
-        <div style={ladoALado ? { flex: 1 } : { width: '100%' }}>{whatsAppBtn}</div>
+        <div style={{ width: ladoALado ? '50%' : '100%' }}>{enviarBtn}</div>
+        <div style={{ width: ladoALado ? '50%' : '100%' }}>{whatsAppBtn}</div>
       </div>
     )
   }

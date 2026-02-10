@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Send, Bold, Italic, Underline, Mail, MessageCircle } from 'lucide-react'
+import { Bold, Italic, Underline, Mail, MessageCircle } from 'lucide-react'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
@@ -659,65 +659,61 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
             </Select>
           </div>
 
-          {/* Enviar config */}
-          {(config.tipo_botao === 'enviar' || config.tipo_botao === 'ambos') && (
-            <div className="space-y-2 p-2 rounded border border-border bg-muted/30">
-              <p className="text-xs font-medium flex items-center gap-1.5">
-                <Send className="w-3 h-3" /> Enviar
-              </p>
-              <div className="flex items-center justify-between">
-                <Label className="text-[11px]">Criar oportunidade</Label>
-                <Switch
-                  checked={config.enviar_cria_oportunidade}
-                  onCheckedChange={(v) => updateConfig('enviar_cria_oportunidade', v)}
-                />
-              </div>
-              {config.enviar_cria_oportunidade && renderPipelineSelector('enviar_funil_id')}
-              <div className="flex items-center justify-between">
-                <Label className="text-[11px]">Notificar e-mail</Label>
-                <Switch
-                  checked={config.enviar_notifica_email}
-                  onCheckedChange={(v) => updateConfig('enviar_notifica_email', v)}
-                />
-              </div>
-              {config.enviar_notifica_email && (
-                <>
-                  <Input
-                    value={config.enviar_email_destino}
-                    onChange={(e) => updateConfig('enviar_email_destino', e.target.value)}
-                    placeholder="email@empresa.com"
-                    className="text-xs"
-                    type="email"
-                  />
-               {renderSmtpInfo()}
-                </>
-              )}
-              <div className="flex items-center justify-between">
-                <Label className="text-[11px]">Notificar WhatsApp</Label>
-                <Switch
-                  checked={config.enviar_notifica_whatsapp}
-                  onCheckedChange={(v) => updateConfig('enviar_notifica_whatsapp', v)}
-                />
-              </div>
-              {config.enviar_notifica_whatsapp && (
-                <>
-                  <Input
-                    value={config.enviar_whatsapp_destino}
-                    onChange={(e) => updateConfig('enviar_whatsapp_destino', e.target.value)}
-                    placeholder="5511999999999"
-                    className="text-xs"
-                  />
-                  {renderWahaInfo()}
-                </>
-              )}
+          {/* AIDEV-NOTE: Ações globais (criar oportunidade, notificar) aparecem uma única vez */}
+          <div className="space-y-2 p-2 rounded border border-border bg-muted/30">
+            <p className="text-xs font-medium">Ações ao Submeter</p>
+            <div className="flex items-center justify-between">
+              <Label className="text-[11px]">Criar oportunidade</Label>
+              <Switch
+                checked={config.enviar_cria_oportunidade}
+                onCheckedChange={(v) => updateConfig('enviar_cria_oportunidade', v)}
+              />
             </div>
-          )}
+            {config.enviar_cria_oportunidade && renderPipelineSelector('enviar_funil_id')}
+            <div className="flex items-center justify-between">
+              <Label className="text-[11px]">Notificar e-mail</Label>
+              <Switch
+                checked={config.enviar_notifica_email}
+                onCheckedChange={(v) => updateConfig('enviar_notifica_email', v)}
+              />
+            </div>
+            {config.enviar_notifica_email && (
+              <>
+                <Input
+                  value={config.enviar_email_destino}
+                  onChange={(e) => updateConfig('enviar_email_destino', e.target.value)}
+                  placeholder="email@empresa.com"
+                  className="text-xs"
+                  type="email"
+                />
+                {renderSmtpInfo()}
+              </>
+            )}
+            <div className="flex items-center justify-between">
+              <Label className="text-[11px]">Notificar WhatsApp</Label>
+              <Switch
+                checked={config.enviar_notifica_whatsapp}
+                onCheckedChange={(v) => updateConfig('enviar_notifica_whatsapp', v)}
+              />
+            </div>
+            {config.enviar_notifica_whatsapp && (
+              <>
+                <Input
+                  value={config.enviar_whatsapp_destino}
+                  onChange={(e) => updateConfig('enviar_whatsapp_destino', e.target.value)}
+                  placeholder="5511999999999"
+                  className="text-xs"
+                />
+                {renderWahaInfo()}
+              </>
+            )}
+          </div>
 
-          {/* WhatsApp config */}
+          {/* WhatsApp-specific config (número e template) */}
           {(config.tipo_botao === 'whatsapp' || config.tipo_botao === 'ambos') && (
             <div className="space-y-2 p-2 rounded border border-border bg-muted/30">
               <p className="text-xs font-medium flex items-center gap-1.5">
-                <WhatsAppIcon size={12} /> WhatsApp
+                <WhatsAppIcon size={12} /> Configuração WhatsApp
               </p>
               <div className="space-y-1">
                 <Label className="text-[11px]">Número (com DDI)</Label>
@@ -728,51 +724,6 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
                   className="text-xs"
                 />
               </div>
-              <div className="flex items-center justify-between">
-                <Label className="text-[11px]">Criar oportunidade</Label>
-                <Switch
-                  checked={config.whatsapp_cria_oportunidade}
-                  onCheckedChange={(v) => updateConfig('whatsapp_cria_oportunidade', v)}
-                />
-              </div>
-              {config.whatsapp_cria_oportunidade && renderPipelineSelector('whatsapp_funil_id')}
-              <div className="flex items-center justify-between">
-                <Label className="text-[11px]">Notificar e-mail</Label>
-                <Switch
-                  checked={config.whatsapp_notifica_email}
-                  onCheckedChange={(v) => updateConfig('whatsapp_notifica_email', v)}
-                />
-              </div>
-              {config.whatsapp_notifica_email && (
-                <>
-                  <Input
-                    value={config.whatsapp_email_destino}
-                    onChange={(e) => updateConfig('whatsapp_email_destino', e.target.value)}
-                    placeholder="email@empresa.com"
-                    className="text-xs"
-                    type="email"
-                  />
-                  {renderSmtpInfo()}
-                </>
-              )}
-              <div className="flex items-center justify-between">
-                <Label className="text-[11px]">Notificar WhatsApp</Label>
-                <Switch
-                  checked={config.whatsapp_notifica_whatsapp}
-                  onCheckedChange={(v) => updateConfig('whatsapp_notifica_whatsapp', v)}
-                />
-              </div>
-              {config.whatsapp_notifica_whatsapp && (
-                <>
-                  <Input
-                    value={config.whatsapp_whatsapp_destino}
-                    onChange={(e) => updateConfig('whatsapp_whatsapp_destino', e.target.value)}
-                    placeholder="5511999999999"
-                    className="text-xs"
-                  />
-                  {renderWahaInfo()}
-                </>
-              )}
               <div className="space-y-1">
                 <Label className="text-[11px]">Template mensagem</Label>
                 <Textarea
