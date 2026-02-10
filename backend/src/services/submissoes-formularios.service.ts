@@ -282,9 +282,21 @@ export async function submeterFormulario(
   await supabase.rpc('incrementar_submissoes_formulario', { p_formulario_id: formulario.id })
 
   // Integracao com pipeline (se configurado)
-  if (formulario.funil_id && formulario.etapa_id) {
+  // Verificar config_botoes para funil_id se nao houver direto
+  const configBotoes = (formulario.config_botoes && typeof formulario.config_botoes === 'object')
+    ? formulario.config_botoes as Record<string, any>
+    : null
+
+  const deveCriarOportunidade =
+    (formulario.funil_id) ||
+    (configBotoes?.enviar_cria_oportunidade && configBotoes?.enviar_funil_id) ||
+    (configBotoes?.whatsapp_cria_oportunidade && configBotoes?.whatsapp_funil_id)
+
+  if (deveCriarOportunidade) {
+    // Determinar funil_id: prioridade config_botoes > campo direto
+    const funilIdFinal = configBotoes?.enviar_funil_id || configBotoes?.whatsapp_funil_id || formulario.funil_id
     try {
-      await criarLeadDaSubmissao(formulario, submissao, payload)
+      await criarLeadDaSubmissao(formulario, submissao, payload, funilIdFinal)
     } catch (err) {
       console.error('Erro ao criar lead da submissao:', err)
       // Nao falhar a submissao por erro de integracao
@@ -316,7 +328,8 @@ export async function submeterFormulario(
 async function criarLeadDaSubmissao(
   formulario: any,
   submissao: any,
-  payload: SubmeterFormularioPublicoPayload
+  payload: SubmeterFormularioPublicoPayload,
+  funilIdOverride?: string
 ) {
   // Buscar mapeamento dos campos
   const { data: camposForm } = await supabase
@@ -328,52 +341,78 @@ async function criarLeadDaSubmissao(
   if (!camposForm || camposForm.length === 0) return
 
   // Extrair dados mapeados
+  // Aceitar prefixos: contato.*, pessoa.*, empresa.*
   const dadosContato: Record<string, any> = {}
+  const dadosEmpresa: Record<string, any> = {}
   const dadosOportunidade: Record<string, any> = {}
 
   for (const campo of camposForm) {
     const valor = payload.dados[campo.nome]
-    if (valor === undefined) continue
+    if (valor === undefined || !campo.mapeamento_campo || campo.mapeamento_campo === 'nenhum') continue
 
-    if (campo.mapeamento_campo.startsWith('contato.')) {
-      const key = campo.mapeamento_campo.replace('contato.', '')
+    const mapeamento = campo.mapeamento_campo as string
+
+    if (mapeamento.startsWith('contato.') || mapeamento.startsWith('pessoa.')) {
+      const key = mapeamento.replace(/^(contato|pessoa)\./, '')
       dadosContato[key] = valor
-    } else if (campo.mapeamento_campo.startsWith('oportunidade.')) {
-      const key = campo.mapeamento_campo.replace('oportunidade.', '')
+    } else if (mapeamento.startsWith('empresa.')) {
+      const key = mapeamento.replace('empresa.', '')
+      dadosEmpresa[key] = valor
+    } else if (mapeamento.startsWith('oportunidade.')) {
+      const key = mapeamento.replace('oportunidade.', '')
       dadosOportunidade[key] = valor
+    } else if (mapeamento.startsWith('custom.pessoa.')) {
+      // Campos customizados de pessoa - armazenar para uso futuro
+      dadosContato[mapeamento] = valor
+    } else if (mapeamento.startsWith('custom.empresa.')) {
+      dadosEmpresa[mapeamento] = valor
     }
   }
 
   // Criar ou buscar contato
   let contatoId: string | null = null
 
-  if (dadosContato.email) {
-    // Buscar contato existente pelo email
-    const { data: contatoExistente } = await supabase
-      .from('contatos')
-      .select('id')
-      .eq('organizacao_id', formulario.organizacao_id)
-      .eq('email', dadosContato.email)
-      .is('deletado_em', null)
-      .single()
-
-    if (contatoExistente) {
-      contatoId = contatoExistente.id
-      // Atualizar dados do contato
-      await supabase
+  if (dadosContato.email || dadosContato.nome || dadosContato.telefone) {
+    // Buscar contato existente pelo email (se disponível)
+    if (dadosContato.email) {
+      const { data: contatoExistente } = await supabase
         .from('contatos')
-        .update(dadosContato)
-        .eq('id', contatoId)
-    } else {
-      // Criar novo contato
+        .select('id')
+        .eq('organizacao_id', formulario.organizacao_id)
+        .eq('email', dadosContato.email)
+        .is('deletado_em', null)
+        .single()
+
+      if (contatoExistente) {
+        contatoId = contatoExistente.id
+        // Filtrar campos custom.* antes de atualizar
+        const dadosUpdate: Record<string, any> = {}
+        for (const [k, v] of Object.entries(dadosContato)) {
+          if (!k.startsWith('custom.')) dadosUpdate[k] = v
+        }
+        if (Object.keys(dadosUpdate).length > 0) {
+          await supabase
+            .from('contatos')
+            .update(dadosUpdate)
+            .eq('id', contatoId)
+        }
+      }
+    }
+
+    if (!contatoId) {
+      // Criar novo contato - filtrar campos custom.*
+      const dadosInsert: Record<string, any> = {
+        organizacao_id: formulario.organizacao_id,
+        tipo: 'pessoa',
+        origem: 'formulario',
+      }
+      for (const [k, v] of Object.entries(dadosContato)) {
+        if (!k.startsWith('custom.')) dadosInsert[k] = v
+      }
+
       const { data: novoContato } = await supabase
         .from('contatos')
-        .insert({
-          organizacao_id: formulario.organizacao_id,
-          tipo: 'pessoa',
-          origem: 'formulario',
-          ...dadosContato,
-        })
+        .insert(dadosInsert)
         .select('id')
         .single()
 
@@ -383,16 +422,39 @@ async function criarLeadDaSubmissao(
 
   // Criar oportunidade
   if (contatoId) {
+    const funilId = funilIdOverride || formulario.funil_id
+    if (!funilId) return
+
+    // Buscar etapa de entrada do funil
+    const { data: etapaEntrada } = await supabase
+      .from('etapas_funil')
+      .select('id')
+      .eq('funil_id', funilId)
+      .eq('tipo', 'entrada')
+      .is('deletado_em', null)
+      .single()
+
+    const etapaId = etapaEntrada?.id || formulario.etapa_id
+
+    // Gerar título no formato "[Nome] - #[Sequência]" (mesmo padrão do modal)
+    const nomeContato = dadosContato.nome || 'Lead'
+    const { count: countOportunidades } = await supabase
+      .from('oportunidades')
+      .select('id', { count: 'exact', head: true })
+      .eq('contato_id', contatoId)
+      .is('deletado_em', null)
+
+    const sequencia = (countOportunidades || 0) + 1
+    const tituloAuto = `${nomeContato} - #${sequencia}`
+
     const { data: oportunidade } = await supabase
       .from('oportunidades')
       .insert({
         organizacao_id: formulario.organizacao_id,
-        funil_id: formulario.funil_id,
-        etapa_id: formulario.etapa_id,
+        funil_id: funilId,
+        etapa_id: etapaId,
         contato_id: contatoId,
-        titulo: dadosContato.nome
-          ? `${dadosContato.nome} - ${formulario.nome}`
-          : `Lead - ${formulario.nome}`,
+        titulo: tituloAuto,
         origem: 'formulario',
         valor: dadosOportunidade.valor || 0,
         utm_source: payload.utm_source,
