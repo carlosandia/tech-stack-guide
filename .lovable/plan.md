@@ -1,108 +1,98 @@
 
-# Plano: Melhorias em Conexoes, Card VoIP e Modal de Detalhes
+# Plano: Notificacoes por E-mail e WhatsApp apos Submissao de Formulario
 
-## Resumo
+## Problema Identificado
 
-4 frentes de trabalho: (1) cards de conexao com info minima + modal de configuracao avancada, (2) validacao end-to-end da API4COM, (3) icone de ligacao no Kanban abrindo modal VoIP, (4) acoes de ligar/WhatsApp no campo telefone do modal de detalhes.
+A Edge Function `processar-submissao-formulario` cria corretamente o contato e a oportunidade, mas **ignora completamente** as configuracoes de notificacao salvas em `config_botoes`:
 
----
+- `enviar_notifica_email` + `enviar_email_destino` (notificar admin por e-mail)
+- `enviar_notifica_whatsapp` + `enviar_whatsapp_destino` (notificar admin por WhatsApp)
 
-## 1. Cards de Conexao - Info Minima + Modal de Configuracao
-
-**Problema atual:** Quando conectado, o card do WhatsApp mostra tudo inline (pipeline config, toggle, etc). Para API4COM conectado, mostra pouca info. O usuario quer um card compacto com info basica e um clique para abrir modal com configuracoes avancadas.
-
-**Solucao:**
-
-### 1.1 ConexaoCard.tsx - Simplificar para info minima
-- Card conectado mostra: icone, nome, status badge, descricao, detalhes basicos (telefone, email, etc), ultimo sync
-- Remover o `WhatsAppPipelineConfig` inline do card
-- Adicionar botao "Configurar" (icone Settings2) ao lado de Sincronizar/Desconectar
-- Ao clicar "Configurar", abre modal especifico da plataforma
-
-### 1.2 Criar Api4comConfigModal.tsx - Modal de configuracao avancada
-- Usa `ModalBase` do design system
-- Conteudo:
-  - Status da conexao (conectado/erro)
-  - URL da API configurada
-  - Data de conexao
-  - Toggle "Criar solicitacoes automaticamente" (mesmo padrao do WhatsApp)
-  - Selector de pipeline de destino
-  - Botao "Testar Conexao" para validar token salvo
-  - Botao "Desconectar"
-
-### 1.3 Criar WhatsAppConfigModal.tsx - Modal de configuracao avancada
-- Move o conteudo de `WhatsAppPipelineConfig` para dentro de um modal
-- Toggle de criar solicitacoes automaticamente + pipeline selector
-- Info da sessao (telefone, nome da sessao)
-
-### 1.4 Criar EmailConfigModal.tsx - Modal de configuracao
-- Mostra tipo (Gmail OAuth / SMTP Manual), email configurado, status
+Essas flags estao configuradas e visíveis na UI (conforme screenshot), mas o codigo da Edge Function nunca as le nem executa acao alguma com elas.
 
 ---
 
-## 2. Validacao da API4COM End-to-End
+## Solucao
 
-**Verificacoes:**
-- Edge Function `api4com-proxy` ja existe com actions: validate, save, validate-extension, save-extension, get-extension, get-status
-- Tabela `conexoes_api4com` ja existe no schema
-- Fluxo: Admin clica "Conectar API4COM" -> Modal pede token -> Testa via edge function -> Salva no banco
-- No novo modal de config, adicionar botao "Testar Conexao" que chama action `get-status` + `validate` com token salvo
+Adicionar dois blocos de logica na Edge Function `processar-submissao-formulario`, executados **apos** a criacao da oportunidade (ou contato):
 
-**Ajuste necessario:**
-- A edge function `api4com-proxy` no action `validate` recebe o token no body. Para testar uma conexao JA salva, criar nova action `test-saved` que busca o token do banco e valida.
+### 1. Notificacao por E-mail (SMTP)
 
----
+- Ler `configBotoes.enviar_notifica_email` e `configBotoes.enviar_email_destino`
+- Buscar conexao SMTP ativa da organizacao (tabela `conexoes_email`, status `ativo` ou `conectado`)
+- Montar email com resumo dos dados da submissao (nome, email, telefone, etc.)
+- Enviar via comandos SMTP diretos (reutilizando a mesma logica do `send-email`)
+- Como a Edge Function ja roda com `SERVICE_ROLE_KEY`, nao precisa de autenticacao de usuario
 
-## 3. Icone de Ligacao no KanbanCard -> Modal VoIP
+### 2. Notificacao por WhatsApp (WAHA)
 
-**Problema atual:** O icone de telefone no card faz `window.open('tel:...')` - comportamento basico do navegador.
-
-**Solucao:**
-
-### 3.1 Criar LigacaoModal.tsx
-- Modal flutuante com:
-  - Numero de destino (pre-preenchido do contato)
-  - Botao "Ligar" (futuro: integracao WebRTC real)
-  - Area para gravacao (futuro: player de audio)
-  - Placeholder para "Insights de IA" (futuro)
-- Por enquanto, sem integracao WebRTC real - serve como estrutura visual
-
-### 3.2 Atualizar KanbanCard.tsx
-- No `handleAcaoRapida`, case `telefone`: abrir `LigacaoModal` em vez de `window.open('tel:...')`
-
----
-
-## 4. Acoes no Campo Telefone do Modal de Detalhes
-
-**Problema atual:** O campo Telefone em `DetalhesCampos.tsx` usa o componente `FieldRow` generico - clique edita o valor. Nao tem acao para ligar ou abrir WhatsApp.
-
-**Solucao:**
-
-### 4.1 Atualizar FieldRow para telefone
-- Quando o campo for do tipo `telefone` e tiver valor preenchido, exibir icones de acao ao lado:
-  - Icone de telefone (Phone) -> abre `LigacaoModal`
-  - Icone de WhatsApp -> abre WhatsApp (link direto ou modal de conversa)
-- O clique no texto continua editando inline normalmente
-- Os icones aparecem como botoes pequenos a direita do valor
+- Ler `configBotoes.enviar_notifica_whatsapp` e `configBotoes.enviar_whatsapp_destino`
+- Buscar configuracao WAHA em `configuracoes_globais` (plataforma = 'waha')
+- Buscar sessao WhatsApp conectada (status = 'connected') da organizacao em `sessoes_whatsapp`
+- Formatar mensagem com dados do lead
+- Enviar via API WAHA (`POST /api/sendText`) usando a sessao conectada
 
 ---
 
 ## Detalhes Tecnicos
 
-### Arquivos a criar:
-1. `src/modules/configuracoes/components/integracoes/Api4comConfigModal.tsx`
-2. `src/modules/configuracoes/components/integracoes/WhatsAppConfigModal.tsx`
-3. `src/modules/negocios/components/modals/LigacaoModal.tsx`
+### Arquivo modificado
 
-### Arquivos a editar:
-1. `ConexaoCard.tsx` - Simplificar card, adicionar botao "Configurar", remover WhatsAppPipelineConfig inline
-2. `KanbanCard.tsx` - Mudar acao telefone para abrir LigacaoModal
-3. `DetalhesCampos.tsx` - Adicionar icones de acao no campo telefone
-4. `api4com-proxy/index.ts` - Adicionar action `test-saved` para validar token ja salvo
+`supabase/functions/processar-submissao-formulario/index.ts`
 
-### Padrao do Design System seguido:
-- Modal usa `ModalBase` (z-[400]/[401], shadow-lg, rounded-lg)
-- Botoes text-xs font-medium rounded-md
-- Cores semanticas (success-muted, destructive, primary)
-- Icones Lucide 16px (w-4 h-4) ou 14px (w-3.5 h-3.5)
-- Espacamento p-6 para conteudo, gap-3 para grupos
+### Fluxo apos criacao do contato/oportunidade
+
+```text
++----------------------------+
+| Oportunidade criada?       |
++----------------------------+
+        |
+        v
++----------------------------+     +----------------------------+
+| enviar_notifica_email?     |---->| Buscar conexao SMTP        |
+| (config_botoes)            |     | Montar email resumo        |
++----------------------------+     | Enviar via SMTP            |
+        |                          +----------------------------+
+        v
++----------------------------+     +----------------------------+
+| enviar_notifica_whatsapp?  |---->| Buscar config WAHA         |
+| (config_botoes)            |     | Buscar sessao conectada    |
++----------------------------+     | POST /api/sendText         |
+                                   +----------------------------+
+```
+
+### Logica de E-mail SMTP (inline na Edge Function)
+
+1. Buscar `conexoes_email` da organizacao com status IN ('ativo', 'conectado')
+2. Usar credenciais `smtp_host`, `smtp_port`, `smtp_user`, `smtp_pass_encrypted`
+3. Montar mensagem HTML simples:
+   - Assunto: "Nova submissao: [Nome do Contato]"
+   - Corpo: tabela com os campos mapeados e seus valores
+4. Enviar para `enviar_email_destino` usando SMTP direto (mesma tecnica do `send-email`)
+5. Extrair hostname real do greeting para TLS (mesmo padrao ja existente)
+
+### Logica de WhatsApp WAHA
+
+1. Buscar `configuracoes_globais` onde `plataforma = 'waha'` para obter `api_url` e `api_key`
+2. Buscar `sessoes_whatsapp` da organizacao com `status = 'connected'`
+3. Formatar mensagem texto:
+   ```
+   Nova submissao de formulario:
+   Nome: Henrique
+   Email: henrique@email.com
+   Telefone: (13) 99888-7766
+   Pipeline: Locacao 2026
+   ```
+4. Enviar via `POST {api_url}/api/sendText` com `chatId: "55XXXXXXXXXXX@c.us"` e `session: sessao.session_name`
+
+### Tratamento de erros
+
+- Notificacoes sao **fire-and-forget**: falhas nao devem impedir a resposta de sucesso
+- Erros serao logados via `console.error` para depuracao nos logs da Edge Function
+- A submissao continua sendo marcada como `processada` independentemente do resultado das notificacoes
+
+### Consideracoes
+
+- O envio SMTP sera implementado inline (funcao auxiliar) para evitar dependencia de outra Edge Function
+- O numero de WhatsApp destino sera formatado com `@c.us` automaticamente (ex: `5513988506995@c.us`)
+- Ambas as notificacoes rodam em paralelo (`Promise.allSettled`) para nao atrasar a resposta
