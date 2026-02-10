@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useFormulario } from '../hooks/useFormularios'
-import { useConfigPopup } from '../hooks/useFormularioConfig'
+import { useConfigPopup, useSalvarConfigPopup } from '../hooks/useFormularioConfig'
 import {
   useCamposFormulario,
   useCriarCampo,
@@ -32,6 +32,7 @@ import { EstiloPopover } from '../components/estilos/EstiloPopover'
 import { EstiloContainerForm } from '../components/estilos/EstiloContainerForm'
 import { EstiloCamposForm } from '../components/estilos/EstiloCamposForm'
 import { BotaoConfigPanel } from '../components/config/BotaoConfigPanel'
+import { PopupLayoutSelector, type PopupTemplate } from '../components/config/PopupLayoutSelector'
 import { EditorTabsCompartilhar } from '../components/editor/EditorTabsCompartilhar'
 import { EditorTabsConfig } from '../components/editor/EditorTabsConfig'
 import { EditorTabsAnalytics } from '../components/editor/EditorTabsAnalytics'
@@ -72,12 +73,24 @@ export function FormularioEditorPage() {
   const [localConfigBotoes, setLocalConfigBotoes] = useState<any>(null)
   const configBotoes = localConfigBotoes ?? (formulario?.config_botoes as any) ?? null
 
-  // Sync from server when formulario changes
+  // Popup layout - local state for immediate reactivity
+  const salvarConfigPopup = useSalvarConfigPopup(id || '')
+  const [localPopupTemplate, setLocalPopupTemplate] = useState<PopupTemplate>('so_campos')
+  const [localPopupImagemUrl, setLocalPopupImagemUrl] = useState<string | null>(null)
+
+  // Sync from server when formulario/configPopup changes
   useEffect(() => {
     if (formulario?.config_botoes) {
       setLocalConfigBotoes(formulario.config_botoes as any)
     }
   }, [formulario?.config_botoes])
+
+  useEffect(() => {
+    if (configPopup) {
+      setLocalPopupTemplate((configPopup.popup_imagem_posicao as PopupTemplate) || 'so_campos')
+      setLocalPopupImagemUrl(configPopup.popup_imagem_url || null)
+    }
+  }, [configPopup])
 
   useEffect(() => {
     if (estilos) {
@@ -291,6 +304,23 @@ export function FormularioEditorPage() {
                   )}
                 >
                   <div className="p-3">
+                    {formulario.tipo === 'popup' && (
+                      <div className="mb-4 pb-3 border-b border-border">
+                        <PopupLayoutSelector
+                          formularioId={formulario.id}
+                          template={localPopupTemplate}
+                          imagemUrl={localPopupImagemUrl}
+                          onChangeTemplate={(t) => {
+                            setLocalPopupTemplate(t)
+                            salvarConfigPopup.mutate({ popup_imagem_posicao: t })
+                          }}
+                          onChangeImagemUrl={(url) => {
+                            setLocalPopupImagemUrl(url)
+                            salvarConfigPopup.mutate({ popup_imagem_url: url })
+                          }}
+                        />
+                      </div>
+                    )}
                     <CamposPaleta />
                   </div>
                 </div>
@@ -323,9 +353,9 @@ export function FormularioEditorPage() {
                 paginaBackgroundColor={pagina.background_color}
                 cssCustomizado={cssCustomizado}
                 configBotoes={configBotoes}
-                popupLayout={formulario.tipo === 'popup' && configPopup ? {
-                  template: (configPopup.popup_imagem_posicao as any) || 'so_campos',
-                  imagemUrl: configPopup.popup_imagem_url || null,
+                popupLayout={formulario.tipo === 'popup' ? {
+                  template: localPopupTemplate,
+                  imagemUrl: localPopupImagemUrl,
                 } : null}
               />
             </div>
