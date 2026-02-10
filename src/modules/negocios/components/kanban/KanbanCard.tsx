@@ -389,21 +389,16 @@ export function KanbanCard({ oportunidade, onDragStart, onClick, config, slaConf
           )}
         </div>
 
-        <div className="flex items-center justify-between px-3 py-2 border-t border-border/50 bg-muted/30">
-          <div className="flex flex-col gap-0.5">
-            <div className={`flex items-center gap-1 text-[11px] ${slaColorClass}`}>
-              <Clock className={`w-3 h-3 ${slaStatus === 'estourado' ? 'animate-pulse' : ''}`} />
-              <span>
-                {slaAtivo ? countdownText : tempoCriacao}
-              </span>
-            </div>
-            {slaAtivo && (
-              <span className="text-[10px] text-muted-foreground ml-4">{tempoCriacao}</span>
-            )}
+        <div className="flex items-center justify-between px-3 py-1.5 border-t border-border/50 bg-muted/30">
+          <div className={`flex items-center gap-1 text-[10px] ${slaColorClass} min-w-0`}>
+            <Clock className={`w-2.5 h-2.5 flex-shrink-0 ${slaStatus === 'estourado' ? 'animate-pulse' : ''}`} />
+            <span className="truncate">
+              {slaAtivo ? `${countdownText} · ${tempoCriacao}` : tempoCriacao}
+            </span>
           </div>
 
           {acoesRapidas.length > 0 && (
-            <div className="flex items-center gap-0.5" onDragStart={(e) => e.stopPropagation()} draggable={false}>
+            <div className="flex items-center gap-0" onDragStart={(e) => e.stopPropagation()} draggable={false}>
               {acoesRapidas.map((key) => {
                 const acao = ACOES_ICONS[key]
                 if (!acao) return null
@@ -415,10 +410,10 @@ export function KanbanCard({ oportunidade, onDragStart, onClick, config, slaConf
                     draggable={false}
                     onMouseDown={(e) => e.stopPropagation()}
                     onClick={(e) => handleAcaoRapida(e, key)}
-                    className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                    className="w-5 h-5 flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
                     title={acao.label}
                   >
-                    <Icon className="w-3.5 h-3.5" />
+                    <Icon className="w-3 h-3" />
                   </button>
                 )
               })}
