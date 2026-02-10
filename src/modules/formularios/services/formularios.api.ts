@@ -40,6 +40,19 @@ supabase.auth.onAuthStateChange(() => {
 export type TipoFormulario = 'inline' | 'popup' | 'landing_page' | 'newsletter' | 'multi_step'
 export type StatusFormulario = 'rascunho' | 'publicado' | 'arquivado'
 
+// AIDEV-NOTE: Configurações globais do multi-step
+export interface MultiStepConfig {
+  tipo_progresso?: 'barra' | 'numeros' | 'icones' | 'dots'
+  permitir_voltar?: boolean
+  permitir_pular?: boolean
+  salvar_rascunho?: boolean
+  validar_por_etapa?: boolean
+  texto_botao_final?: string
+  auto_save?: boolean
+  lead_scoring_por_etapa?: boolean
+  trackear_abandono?: boolean
+}
+
 export interface Formulario {
   id: string
   organizacao_id: string
@@ -67,6 +80,8 @@ export interface Formulario {
   lgpd_texto_consentimento?: string | null
   lgpd_url_politica?: string | null
   lgpd_checkbox_obrigatorio?: boolean
+  // AIDEV-NOTE: Multi-step config global
+  multi_step_config?: MultiStepConfig | null
   criado_em: string
   atualizado_em: string
   deletado_em?: string | null
