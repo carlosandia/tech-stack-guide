@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Settings2 } from 'lucide-react'
+import { Settings2, BarChart3 } from 'lucide-react'
 import { useAppToolbar } from '@/modules/app/contexts/AppToolbarContext'
 import { EmailSidebar } from '../components/EmailSidebar'
 import { EmailList } from '../components/EmailList'
@@ -14,6 +14,7 @@ import { EmailViewer } from '../components/EmailViewer'
 import { ComposeEmailModal, type ComposerMode } from '../components/ComposeEmailModal'
 import { AssinaturaModal } from '../components/AssinaturaModal'
 import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
+import { EmailsMetricasPanel } from '../components/EmailsMetricasPanel'
 import type { EmailFiltros } from '../components/EmailFilters'
 import {
   useEmails,
@@ -57,13 +58,36 @@ export function EmailsPage() {
   // Modais
   const [assinaturaOpen, setAssinaturaOpen] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<{ ids: string[] } | null>(null)
+  const [metricasVisiveis, setMetricasVisiveis] = useState(() => {
+    try { return localStorage.getItem('emails_metricas_visiveis') === 'true' } catch { return false }
+  })
 
   // Toolbar actions
   const { setActions } = useAppToolbar()
 
+  const toggleMetricas = useCallback(() => {
+    setMetricasVisiveis((v) => {
+      const next = !v
+      try { localStorage.setItem('emails_metricas_visiveis', String(next)) } catch {}
+      return next
+    })
+  }, [])
+
   useEffect(() => {
     setActions(
       <div className="flex items-center gap-1.5">
+        <button
+          onClick={toggleMetricas}
+          className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-md border text-sm font-medium transition-colors ${
+            metricasVisiveis
+              ? 'bg-primary/10 text-primary border-primary/30'
+              : 'border-border text-muted-foreground hover:bg-accent hover:text-foreground'
+          }`}
+          title="Métricas"
+        >
+          <BarChart3 className="w-4 h-4" />
+          <span className="hidden sm:inline">Métricas</span>
+        </button>
         <button
           onClick={() => setAssinaturaOpen(true)}
           className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-border text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
@@ -75,7 +99,7 @@ export function EmailsPage() {
       </div>
     )
     return () => setActions(null)
-  }, [setActions]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [setActions, metricasVisiveis, toggleMetricas])
 
   const isDrafts = pasta === 'drafts'
 
@@ -322,7 +346,11 @@ export function EmailsPage() {
   )
 
   return (
-    <div className="flex h-full bg-background">
+    <div className="flex flex-col h-full bg-background">
+      {/* Painel de Métricas */}
+      {metricasVisiveis && <EmailsMetricasPanel />}
+
+      <div className="flex flex-1 min-h-0">
       {/* Gmail-style Sidebar - hidden on mobile */}
       <div className="hidden lg:flex">
         <EmailSidebar
@@ -410,6 +438,7 @@ export function EmailsPage() {
         isLoading={deletarEmail.isPending || acaoLote.isPending}
         count={pendingDelete?.ids.length}
       />
+      </div>
     </div>
   )
 }
