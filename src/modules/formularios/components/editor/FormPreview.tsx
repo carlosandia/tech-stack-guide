@@ -845,15 +845,15 @@ function RenderBotoes({
   ) : null
 
   if (tipoBotao === 'ambos') {
-    // AIDEV-NOTE: 100% (full) = cada botão em sua própria linha; 50% = lado a lado
+    // AIDEV-NOTE: 50% = lado a lado (cada um 50%); full/auto = empilhados (cada um 100%)
     const larguraEnviar = estiloBotao?.largura || 'full'
     const larguraWhatsApp = estiloBotao?.whatsapp_largura || 'full'
-    const ladoALado = larguraEnviar === '50%' || larguraWhatsApp === '50%'
+    const ladoALado = larguraEnviar === '50%' && larguraWhatsApp === '50%'
 
     return (
       <div className={cn('flex gap-2', ladoALado ? 'flex-row' : 'flex-col')}>
-        <div className={ladoALado ? 'flex-1' : 'w-full'}>{enviarBtn}</div>
-        <div className={ladoALado ? 'flex-1' : 'w-full'}>{whatsAppBtn}</div>
+        <div style={{ width: ladoALado ? '50%' : '100%' }}>{enviarBtn}</div>
+        <div style={{ width: ladoALado ? '50%' : '100%' }}>{whatsAppBtn}</div>
       </div>
     )
   }
