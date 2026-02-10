@@ -4,9 +4,11 @@
  */
 
 import { useState, useEffect } from 'react'
-import { Loader2, MessageCircle } from 'lucide-react'
+import { Loader2, Send } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { ChatWindow } from '@/modules/conversas/components/ChatWindow'
+import { useCriarConversa } from '@/modules/conversas/hooks/useConversas'
+import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import type { Conversa } from '@/modules/conversas/services/conversas.api'
 
 interface WhatsAppConversaModalProps {
@@ -21,6 +23,9 @@ export function WhatsAppConversaModal({ isOpen, onClose, contatoId, contatoNome,
   const [conversa, setConversa] = useState<Conversa | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  const [mensagem, setMensagem] = useState('')
+  const [iniciando, setIniciando] = useState(false)
+  const criarConversa = useCriarConversa()
 
   useEffect(() => {
     if (!isOpen) return
@@ -83,13 +88,70 @@ export function WhatsAppConversaModal({ isOpen, onClose, contatoId, contatoNome,
               <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
           ) : notFound ? (
-            <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
-              <MessageCircle className="w-12 h-12 opacity-20" />
-              <p className="text-sm font-medium">Nenhuma conversa encontrada</p>
+            <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground px-6">
+              <div className="w-16 h-16 rounded-full bg-[#25D366]/10 flex items-center justify-center">
+                <WhatsAppIcon size={32} className="text-[#25D366] opacity-60" />
+              </div>
+              <p className="text-sm font-medium text-foreground">Nenhuma conversa encontrada</p>
               <p className="text-xs text-center max-w-xs">
-                Não foi encontrada nenhuma conversa WhatsApp com {contatoNome} ({telefone}).
-                Inicie uma conversa pelo módulo Conversas.
+                Envie uma mensagem para iniciar uma conversa com {contatoNome} via WhatsApp.
               </p>
+              <div className="w-full max-w-sm space-y-3">
+                <textarea
+                  value={mensagem}
+                  onChange={(e) => setMensagem(e.target.value)}
+                  placeholder="Digite a primeira mensagem..."
+                  rows={3}
+                  className="w-full px-3 py-2 text-sm border border-input rounded-md bg-background resize-none focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
+                />
+                <button
+                  onClick={async () => {
+                    if (!mensagem.trim()) return
+                    setIniciando(true)
+                    try {
+                      const dados: any = {
+                        canal: 'whatsapp' as const,
+                        mensagem_inicial: mensagem.trim(),
+                      }
+                      if (contatoId) {
+                        dados.contato_id = contatoId
+                      } else if (telefone) {
+                        const phoneClean = telefone.replace(/\D/g, '')
+                        dados.telefone = phoneClean.startsWith('+') ? phoneClean : `+${phoneClean}`
+                      }
+                      criarConversa.mutate(dados, {
+                        onSuccess: (data) => {
+                          setMensagem('')
+                          setNotFound(false)
+                          // Re-fetch conversa
+                          setLoading(true)
+                          setTimeout(async () => {
+                            const { data: conv } = await supabase
+                              .from('conversas')
+                              .select('*, contato:contatos!conversas_contato_id_fkey(id, nome, nome_fantasia, email, telefone)')
+                              .eq('id', data.id)
+                              .maybeSingle()
+                            if (conv) setConversa(conv as any)
+                            setLoading(false)
+                          }, 1000)
+                        },
+                        onError: () => setIniciando(false),
+                      })
+                    } catch {
+                      setIniciando(false)
+                    }
+                  }}
+                  disabled={!mensagem.trim() || iniciando}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-md bg-[#25D366] text-white hover:bg-[#25D366]/90 disabled:opacity-50 transition-colors"
+                >
+                  {iniciando ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4" />
+                  )}
+                  {iniciando ? 'Enviando...' : 'Iniciar Conversa'}
+                </button>
+              </div>
             </div>
           ) : conversa ? (
             <ChatWindow
