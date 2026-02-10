@@ -64,29 +64,37 @@ Deno.serve(async (req) => {
       const tempoLimite = new Date()
       tempoLimite.setMinutes(tempoLimite.getMinutes() - slaMinutos)
 
-      // 3. Buscar oportunidades com SLA estourado
+      // 3. Buscar oportunidades com SLA estourado (com OU sem responsável)
       const { data: oportunidades, error: opError } = await supabase
         .from('oportunidades')
         .select('id, usuario_responsavel_id, contato_id, titulo')
         .eq('organizacao_id', config.organizacao_id)
         .eq('funil_id', config.funil_id)
-        .not('usuario_responsavel_id', 'is', null)
         .is('fechado_em', null)
         .is('deletado_em', null)
         .lt('atualizado_em', tempoLimite.toISOString())
 
-      if (opError || !oportunidades || oportunidades.length === 0) {
+      if (opError) {
+        logs.push(`Funil ${config.funil_id}: erro ao buscar oportunidades: ${opError.message}`)
         continue
       }
 
-      // 4. Buscar membros ativos do funil
-      const { data: membros } = await supabase
+      if (!oportunidades || oportunidades.length === 0) {
+        continue
+      }
+
+      // 4. Buscar membros ativos do funil (sem ordenar por campo inexistente)
+      const { data: membros, error: membrosError } = await supabase
         .from('funis_membros')
         .select('usuario_id')
         .eq('organizacao_id', config.organizacao_id)
         .eq('funil_id', config.funil_id)
         .eq('ativo', true)
-        .order('ordem', { ascending: true })
+
+      if (membrosError) {
+        logs.push(`Funil ${config.funil_id}: erro ao buscar membros: ${membrosError.message}`)
+        continue
+      }
 
       if (!membros || membros.length === 0) {
         logs.push(`Funil ${config.funil_id}: sem membros ativos`)
@@ -131,7 +139,7 @@ Deno.serve(async (req) => {
               logs.push(`Op ${op.id}: retornada ao admin ${admin.id}`)
             }
           }
-          // 'manter_ultimo' — não faz nada, apenas reseta o timer
+          // 'manter_ultimo' — reseta o timer
           if (acaoLimite === 'manter_ultimo') {
             await supabase
               .from('oportunidades')
@@ -144,21 +152,26 @@ Deno.serve(async (req) => {
         // 6. Round-robin: calcular próximo membro (diferente do atual)
         const responsavelAtual = op.usuario_responsavel_id
         let tentativas = 0
-        let proximoUsuarioId = responsavelAtual
+        let proximoUsuarioId: string
 
-        while (tentativas < usuariosIds.length) {
+        // Avançar posição do rodízio
+        posicaoAtual = (posicaoAtual + 1) % usuariosIds.length
+        proximoUsuarioId = usuariosIds[posicaoAtual]
+
+        // Se o próximo é o mesmo que o atual, tentar o seguinte
+        while (proximoUsuarioId === responsavelAtual && tentativas < usuariosIds.length - 1) {
           posicaoAtual = (posicaoAtual + 1) % usuariosIds.length
           proximoUsuarioId = usuariosIds[posicaoAtual]
           tentativas++
-          if (proximoUsuarioId !== responsavelAtual) break
         }
 
-        // Se só tem 1 membro, manter e resetar timer
+        // Se só tem 1 membro e é o mesmo, apenas resetar timer
         if (proximoUsuarioId === responsavelAtual && usuariosIds.length <= 1) {
           await supabase
             .from('oportunidades')
             .update({ atualizado_em: new Date().toISOString() })
             .eq('id', op.id)
+          logs.push(`Op ${op.id}: único membro, timer resetado`)
           continue
         }
 
@@ -187,7 +200,7 @@ Deno.serve(async (req) => {
         })
 
         totalRedistribuidas++
-        logs.push(`Op ${op.id}: ${responsavelAtual} → ${proximoUsuarioId}`)
+        logs.push(`Op ${op.id}: ${responsavelAtual || 'null'} → ${proximoUsuarioId}`)
       }
 
       // 9. Atualizar posição do rodízio na config
