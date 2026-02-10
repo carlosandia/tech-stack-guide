@@ -138,11 +138,11 @@ export function CampoItem({
           ) : (
             <label
               className="text-sm font-medium text-foreground flex items-center gap-1 cursor-text hover:text-primary transition-colors"
-              onDoubleClick={(e) => {
+              onClick={(e) => {
                 e.stopPropagation()
                 if (onUpdateLabel) setEditingLabel(true)
               }}
-              title={onUpdateLabel ? 'Duplo clique para editar' : undefined}
+              title={onUpdateLabel ? 'Clique para editar' : undefined}
             >
               {campo.label || campo.nome}
               {campo.obrigatorio && <span className="text-destructive ml-0.5">*</span>}
