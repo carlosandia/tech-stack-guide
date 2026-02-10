@@ -5,7 +5,7 @@
  * Rascunhos: lê de emails_rascunhos e abre no composer ao clicar
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Settings2, BarChart3 } from 'lucide-react'
 import { useAppToolbar } from '@/modules/app/contexts/AppToolbarContext'
 import { EmailSidebar } from '../components/EmailSidebar'
@@ -160,21 +160,28 @@ export function EmailsPage() {
   // Auto-sync IMAP a cada 2 minutos (silencioso)
   useAutoSyncEmails()
 
+  // AIDEV-NOTE: Refs estáveis para evitar loop infinito (mutation e historico mudam a cada render)
+  const atualizarEmailRef = useRef(atualizarEmail.mutate)
+  atualizarEmailRef.current = atualizarEmail.mutate
+
+  const historicoAdicionarRef = useRef(historico.adicionar)
+  historicoAdicionarRef.current = historico.adicionar
+
   // Auto-marcar como lido ao selecionar + adicionar ao histórico
   useEffect(() => {
     if (selectedEmail && selectedEmail.id) {
       if (!selectedEmail.lido) {
-        atualizarEmail.mutate({ id: selectedEmail.id, payload: { lido: true } })
+        atualizarEmailRef.current({ id: selectedEmail.id, payload: { lido: true } })
       }
       // AIDEV-NOTE: Adiciona ao histórico local sempre que um email é visualizado
-      historico.adicionar({
+      historicoAdicionarRef.current({
         id: selectedEmail.id,
         de_nome: selectedEmail.de_nome,
         de_email: selectedEmail.de_email,
         assunto: selectedEmail.assunto,
       })
     }
-  }, [selectedEmail?.id, historico.adicionar, atualizarEmail]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedEmail?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reset page ao mudar pasta/busca/filtros
   useEffect(() => {
