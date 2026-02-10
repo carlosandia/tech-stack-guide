@@ -1,66 +1,88 @@
 
-# Correcoes: Pipelines, Salvamento de Estilos, CSS e Pos-Envio
+# Correção: Email Lento e Não Entregue
 
-## Problemas Identificados
+## Causa Raiz Identificada
 
-### 1. Pipelines nao encontradas
-O codigo atual busca `user?.user_metadata?.tenant_id` para obter o `organizacao_id`, mas o restante do sistema usa a tabela `usuarios` com `auth_id` para buscar `organizacao_id`. Os pipelines existem (Vendas 2026, Locacao 2026), mas a query falha porque `tenant_id` do metadata esta indefinido.
+O problema está na função `conn.write()` do Deno. Quando o corpo da mensagem MIME (com anexo base64) é grande (~100KB+), o `conn.write()` pode **não enviar todos os bytes de uma vez** -- ele retorna quantos bytes foram escritos, mas o código ignora esse retorno.
 
-### 2. Estilos nao salvam (botao Salvar nao visivel / nao persiste)
-Quando o usuario altera largura, altura, fonte etc. no painel do botao, as mudancas sao feitas via `onChangeEstilo` que atualiza o state local `botao` no `FormularioEditorPage`. Porem, o botao "Salvar Estilos" esta na toolbar do preview e so aparece no modo "Visualizar Final". As alteracoes de estilo feitas no painel lateral nao tem um botao proprio de salvar - o usuario precisa clicar em "Salvar Estilos" na toolbar superior, o que nao e obvio. Alem disso, na aba "Estilo" do BotaoConfigPanel nao existe nenhum botao de salvar (diferente das abas Config e Pos-Envio que tem).
+**O que acontece:**
+1. O servidor SMTP aceita o comando DATA (responde 354)
+2. O código tenta enviar toda a mensagem MIME (~100KB) com um único `conn.write()`
+3. Apenas parte dos bytes é enviada
+4. O servidor SMTP fica esperando o restante da mensagem (incluindo o terminador `\r\n.\r\n`)
+5. Após ~60 segundos sem receber o terminador, o servidor fecha a conexão
+6. O código captura o erro "close_notify" e **falsamente reporta sucesso**
 
-### 3. CSS Customizado
-O CSS customizado e injetado via `<style dangerouslySetInnerHTML>` no preview final. Funciona, mas so se o usuario aplicar classes corretas (ex: `.form-container`). Preciso verificar se as classes estao sendo aplicadas no container.
+Resultado: o email nunca é entregue, mas o sistema diz "Email enviado com sucesso!"
 
-### 4. Pos-Envio - Redirecionar apenas para Enviar
-A aba Pos-Envio mostra opcao de redirecionar URL para todos os casos, mas deveria ser apenas para o botao Enviar. O botao WhatsApp redireciona para o WhatsApp com a mensagem formatada.
+## Correções
+
+### 1. Implementar `writeAll` para garantir envio completo
+
+Criar uma função auxiliar que faz loop no `conn.write()` até que todos os bytes sejam enviados:
+
+```text
+writeAll(conn, data):
+  offset = 0
+  while offset < data.length:
+    bytesWritten = conn.write(data[offset:])
+    offset += bytesWritten
+```
+
+### 2. Separar envio do DATA body do `sendCommand`
+
+O DATA body não deve passar pelo `sendCommand` genérico (que loga, adiciona `\r\n`, etc). Em vez disso:
+- Usar `sendCommand("DATA")` apenas para o comando DATA
+- Escrever o corpo da mensagem diretamente com `writeAll`
+- Ler a resposta 250 separadamente
+
+### 3. Não tratar close_notify como sucesso
+
+Atualmente, qualquer erro "close_notify" é tratado como sucesso. Corrigir para:
+- Adicionar flag `dataAccepted` que só fica `true` após receber 250 no DATA
+- No catch de close_notify, só reportar sucesso se `dataAccepted === true`
+
+### 4. Download paralelo de anexos
+
+Atualmente, os anexos são baixados sequencialmente do Storage. Usar `Promise.all` para baixar em paralelo, economizando tempo.
 
 ---
 
-## Solucao
+## Detalhes Técnicos
 
-### Arquivo: `BotaoConfigPanel.tsx`
+### Arquivo: `supabase/functions/send-email/index.ts`
 
-**Pipeline fix** - Substituir a busca de `tenant_id` do user_metadata por query na tabela `usuarios`:
+**Nova função `writeAll`:**
+```typescript
+async function writeAll(conn, data: Uint8Array) {
+  let offset = 0;
+  while (offset < data.length) {
+    const n = await conn.write(data.subarray(offset));
+    if (n === null || n === 0) throw new Error("Falha ao escrever no socket");
+    offset += n;
+  }
+}
 ```
-const { data: usr } = await supabase
-  .from('usuarios')
-  .select('organizacao_id')
-  .eq('auth_id', user.id)
-  .maybeSingle()
-if (!usr?.organizacao_id) return
-// usar usr.organizacao_id no lugar de tenantId
+
+**Refatorar envio do DATA body (dentro de `sendSmtpEmail`):**
+- Após receber 354, escrever a mensagem diretamente com `writeAll(conn, encoder.encode(message + "\r\n"))`
+- Ler resposta com `readResponse(dataTimeout)` 
+- Logar apenas tamanho da mensagem (não o conteúdo inteiro)
+
+**Flag de controle para close_notify:**
+- Adicionar `let dataResponseOk = false` antes do bloco try
+- Setar `dataResponseOk = true` após receber 250 do DATA
+- No catch: só retornar sucesso se `dataResponseOk`
+
+**Download paralelo de anexos:**
+```typescript
+const downloads = anexos.map(async (anexo) => {
+  const { data, error } = await supabaseAdmin.storage
+    .from("email-anexos").download(anexo.storage_path);
+  // ... processar
+});
+const resultados = await Promise.all(downloads);
 ```
 
-**Botao Salvar na aba Estilo** - Adicionar um botao "Salvar Estilos" no final da aba Estilo que chama `onSaveEstilos` (nova prop). Isso garante que alteracoes de largura, altura, fonte etc. sejam persistidas sem o usuario precisar procurar o botao na toolbar.
-
-**Nova prop `onSaveEstilos`** - Receber callback do `FormularioEditorPage` para disparar o `handleSaveEstilos`.
-
-**Pos-Envio ajustado** - Adicionar texto explicativo na aba Pos-Envio: "Estas configuracoes se aplicam ao botao Enviar. O botao WhatsApp redireciona automaticamente para o WhatsApp." Manter a opcao de URL de redirecionamento apenas no contexto do botao Enviar.
-
-### Arquivo: `FormularioEditorPage.tsx`
-
-- Passar `onSaveEstilos={handleSaveEstilos}` e `isSavingEstilos={salvarEstilos.isPending}` para o `BotaoConfigPanel`.
-
-### Arquivo: `FormPreview.tsx`
-
-- Garantir que o container do formulario no preview final tenha `className="form-container"` para que o CSS customizado funcione corretamente com seletores como `.form-container { ... }`.
-
----
-
-## Detalhes Tecnicos
-
-### Mudancas por arquivo:
-
-1. **`src/modules/formularios/components/config/BotaoConfigPanel.tsx`**:
-   - Corrigir `loadFunis`: trocar `user_metadata.tenant_id` por query em `usuarios` com `auth_id`
-   - Corrigir `loadSmtp`: mesma correcao
-   - Adicionar props `onSaveEstilos` e `isSavingEstilos`
-   - Adicionar botao "Salvar Estilos" ao final da aba `estilo`
-   - Ajustar aba `pos_envio` com nota sobre WhatsApp
-
-2. **`src/modules/formularios/pages/FormularioEditorPage.tsx`**:
-   - Passar `onSaveEstilos` e `isSavingEstilos` para `BotaoConfigPanel`
-
-3. **`src/modules/formularios/components/editor/FormPreview.tsx`**:
-   - Adicionar `className="form-container"` ao div do formulario no preview final para CSS customizado
+**Substituir `sendCommand` no `conn.write`:**
+- Trocar `await conn.write(encoder.encode(cmd + "\r\n"))` por `await writeAll(conn, encoder.encode(cmd + "\r\n"))` em todos os pontos
