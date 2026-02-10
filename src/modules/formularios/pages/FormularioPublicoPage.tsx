@@ -322,8 +322,12 @@ export function FormularioPublicoPage() {
                       const resp = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`)
                       const data = await resp.json()
                       if (!data.erro) {
-                        // Auto-fill separate endereco, cidade, estado fields
-                        const endCampo = campos.find(c => c.tipo === 'endereco')
+                        // Auto-fill separate endereco, cidade, estado, pais fields
+                        // Find fields AFTER this CEP in the form order
+                        const cepIdx = campos.findIndex(c => c.id === campo.id)
+                        const camposApos = campos.slice(cepIdx + 1)
+                        
+                        const endCampo = camposApos.find(c => c.tipo === 'endereco')
                         if (endCampo) {
                           setEnderecoValues(prev => ({
                             ...prev,
@@ -331,11 +335,11 @@ export function FormularioPublicoPage() {
                           }))
                           setValores(prev => ({ ...prev, [endCampo.id]: data.logradouro || '' }))
                         }
-                        const cidadeCampo = campos.find(c => c.tipo === 'cidade')
+                        const cidadeCampo = camposApos.find(c => c.tipo === 'cidade')
                         if (cidadeCampo) setValores(prev => ({ ...prev, [cidadeCampo.id]: data.localidade || '' }))
-                        const estadoCampo = campos.find(c => c.tipo === 'estado')
+                        const estadoCampo = camposApos.find(c => c.tipo === 'estado')
                         if (estadoCampo) setValores(prev => ({ ...prev, [estadoCampo.id]: data.uf || '' }))
-                        const paisCampo = campos.find(c => c.tipo === 'pais')
+                        const paisCampo = camposApos.find(c => c.tipo === 'pais')
                         if (paisCampo) setValores(prev => ({ ...prev, [paisCampo.id]: 'Brasil' }))
                       }
                     } catch { /* silently fail */ }
