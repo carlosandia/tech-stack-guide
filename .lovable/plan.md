@@ -1,101 +1,40 @@
 
-# Editor de Layout para Popup com Templates Pre-definidos
 
-## Objetivo
-Transformar o editor de formularios tipo "popup" para suportar layouts visuais com imagem + campos, usando templates pre-definidos. O usuario escolhe um template de layout (ex: imagem a esquerda, campos a direita) e configura a imagem via upload ou URL externa.
+# Plano: Corrigir Drop Zone no Layout de Popup com Imagem
 
-## Templates de Layout Disponíveis (6 opcoes)
+## Problema Identificado
 
-```text
-1. "so_campos"          - Layout padrao, apenas campos (sem imagem)
-2. "imagem_esquerda"    - Imagem ocupa 40% a esquerda, campos 60% a direita
-3. "imagem_direita"     - Campos 60% a esquerda, imagem 40% a direita
-4. "imagem_topo"        - Imagem no topo (altura fixa), campos abaixo
-5. "imagem_fundo"       - Imagem de fundo cobrindo o popup inteiro, campos sobrepostos com overlay
-6. "imagem_lateral_full"- Imagem lateral 50% altura total, campos 50%
-```
+Nos layouts de popup com imagem lateral (ex: `imagem_esquerda`, `imagem_lateral_full`), o formulario e suas drop zones ficam confinados em um `div` com largura parcial (`w-3/5` ou `w-1/2`). Quando o usuario arrasta um campo da paleta, a drop zone so e ativada se o cursor estiver exatamente sobre essa area menor, nao sobre a imagem. Isso causa confusao pois visualmente parece que a drop zone deveria cobrir toda a largura.
 
-## Dados (ja existentes no banco)
+Alem disso, o `formContent` (que contem as drop zones) e criado como uma variavel JSX e depois inserido dentro do wrapper do layout de popup. Isso causa um problema de "dupla renderizacao" conceitual: as drop zones sao corretamente posicionadas, mas o espaco visual disponivel e reduzido.
 
-A tabela `config_popup_formularios` ja possui:
-- `popup_imagem_url` (text, nullable) - URL da imagem
-- `popup_imagem_posicao` (varchar) - sera usado para guardar o template escolhido
+## Solucao
 
-Nao e necessaria nenhuma migracao SQL.
+Tornar a area da imagem tambem receptiva a drops, delegando o evento para a drop zone mais proxima (a primeira, indice 0). Assim, quando o usuario arrastar um campo sobre a area da imagem, o drop sera aceito e o campo sera inserido no inicio do formulario.
 
-## Storage
+## Alteracoes Tecnicas
 
-Sera criado um bucket `formularios` no Supabase Storage via migracao SQL para uploads de imagens dos popups. Politica RLS: usuarios autenticados podem fazer upload e leitura.
+### 1. `FormPreview.tsx` - Tornar area da imagem drop-friendly
 
-## Arquivos a Criar
+Nos templates `imagem_esquerda`, `imagem_direita`, `imagem_lateral_full`, `imagem_topo`:
 
-### 1. `src/modules/formularios/components/config/PopupLayoutSelector.tsx`
-- Grade visual com 6 mini-previews dos templates
-- Cada template representado por um card clicavel com icone/diagrama SVG inline
-- O template ativo fica destacado com borda primary
-- Abaixo do seletor de template, campo de imagem (upload + URL):
-  - Toggle: "Upload" | "URL externa"
-  - Upload: input file com preview da imagem, compressao via `compressMedia.ts`
-  - URL: input text com preview ao perder foco
-  - Botao "Remover imagem"
+- Adicionar `onDragOver`, `onDragEnter`, `onDragLeave` e `onDrop` no `div` que contem o `imageEl`
+- Esses eventos delegam para o indice 0 (primeira posicao dos campos), permitindo que o usuario solte campos sobre a imagem e eles sejam inseridos no formulario
+- Adicionar feedback visual (borda tracejada) quando estiver arrastando sobre a area da imagem
 
-### 2. Migracao SQL para bucket de storage
-- Criar bucket `formularios` (publico)
-- RLS: authenticated pode INSERT, SELECT; proprietario pode DELETE
+### 2. `FormPreview.tsx` - Expandir area receptiva do formContent wrapper
 
-## Arquivos a Modificar
+- No `div` que envolve o `formContent` dentro dos layouts, adicionar `min-height` e garantir que o `overflow` nao corte a area de drop
+- Garantir que a drop zone no topo (indice 0) tenha altura minima suficiente para ser facilmente acessivel
 
-### 3. `src/modules/formularios/components/config/ConfigPopupForm.tsx`
-- Importar e renderizar `PopupLayoutSelector` no topo do formulario
-- Passar `popup_imagem_url` e `popup_imagem_posicao` como props
-- Callbacks para atualizar o form state local
+### 3. Simplificar nesting desnecessario
 
-### 4. `src/modules/formularios/components/editor/FormPreview.tsx`
-- Quando `formulario.tipo === 'popup'`, buscar config popup e aplicar o layout correspondente
-- Para cada template, o preview envolve o container do formulario em uma estrutura diferente:
-  - `imagem_esquerda`: flex-row com div imagem (40%) + div campos (60%)
-  - `imagem_direita`: flex-row com div campos (60%) + div imagem (40%)
-  - `imagem_topo`: flex-col com div imagem (altura fixa 200px) + div campos
-  - `imagem_fundo`: div relativa com imagem absoluta + overlay + campos
-  - `imagem_lateral_full`: flex-row 50/50
-  - `so_campos`: sem alteracao (layout atual)
-- A imagem usa `object-cover` e `rounded` seguindo o container
+- Revisar se ha `div`s extras que limitam a area clicavel/arrastavel sem necessidade
+- O `formContent` ja tem wrappers como `group/campos` que podem ser simplificados para reduzir aninhamento
 
-### 5. `src/modules/formularios/pages/FormularioEditorPage.tsx`
-- Buscar `configPopup` via hook `useConfigPopup` quando `formulario.tipo === 'popup'`
-- Passar `configPopup` como prop para `FormPreview`
+## Resultado Esperado
 
-## Detalhes Tecnicos
+- Arrastar um campo sobre a area da imagem do popup tambem ativa a drop zone
+- A drop zone fica visualmente centralizada e alinhada com a area de campos
+- A experiencia de drag-and-drop funciona de forma consistente independentemente do layout de popup selecionado
 
-### Seletor de Template (mini-previews)
-Cada template sera representado por um bloco com:
-- Fundo `bg-muted` com divisoes visuais simples (retangulos coloridos)
-- Label abaixo: "Sem imagem", "Imagem a esquerda", etc.
-- Grid: `grid grid-cols-3 gap-2`
-- Tamanho: ~80x60px cada mini-preview
-
-### Upload de Imagem
-- Usa `compressMedia.ts` existente para compressao client-side
-- Upload para `formularios/{formularioId}/popup-image.{ext}` no Supabase Storage
-- Preview inline com `max-h-32 object-cover rounded`
-- Limite: aceita JPG, PNG, WebP
-
-### Renderizacao do Layout no Preview
-O componente `FormPreview` recebera uma nova prop `popupLayout` com:
-```text
-{
-  template: 'so_campos' | 'imagem_esquerda' | 'imagem_direita' | 'imagem_topo' | 'imagem_fundo' | 'imagem_lateral_full'
-  imagemUrl: string | null
-}
-```
-
-O wrapper do container sera condicional:
-- Se template tem imagem e imagemUrl existe: renderiza o layout correspondente
-- Se template tem imagem mas imagemUrl e null: mostra placeholder cinza com texto "Adicione uma imagem"
-- Se template e `so_campos`: renderiza normalmente sem alteracao
-
-### Estrutura CSS dos Templates
-- `imagem_esquerda/direita`: `flex` com imagem `w-2/5` e campos `w-3/5`
-- `imagem_topo`: `flex-col` com imagem `h-48` e campos flex-1
-- `imagem_fundo`: `relative` com imagem absolute inset-0 + overlay `bg-black/40`
-- `imagem_lateral_full`: `flex` com ambos `w-1/2`
