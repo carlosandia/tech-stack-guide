@@ -185,7 +185,7 @@ async function notificarEmail(
 
   const bodyHtml = `
     <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
-      <h2 style="color:#1a1a2e">📋 Nova Submissão de Formulário</h2>
+      <h2 style="color:#1a1a2e">🎯 Nova Oportunidade Criada</h2>
       <p><strong>Formulário:</strong> ${nomeFormulario}</p>
       <p><strong>Pipeline:</strong> ${funilNome}</p>
       <table style="width:100%;border-collapse:collapse;margin:16px 0">
@@ -204,7 +204,7 @@ async function notificarEmail(
     from: conexao.email,
     fromName: conexao.nome_remetente || 'CRM Renove',
     to: emailDestino,
-    subject: `Nova submissão: ${nomeContato}`,
+    subject: `Nova oportunidade: ${nomeContato}`,
     bodyHtml,
   })
 
@@ -267,7 +267,7 @@ async function notificarWhatsApp(
     .map(([k, v]) => `*${k.charAt(0).toUpperCase() + k.slice(1)}:* ${v}`)
     .join('\n')
 
-  const mensagem = `📋 *Nova submissão de formulário*\n\n` +
+  const mensagem = `🎯 *Nova Oportunidade Criada*\n\n` +
     `📝 *Formulário:* ${nomeFormulario}\n` +
     `📊 *Pipeline:* ${funilNome}\n\n` +
     `${campos}\n\n` +
@@ -276,7 +276,7 @@ async function notificarWhatsApp(
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   }
-  if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`
+  if (apiKey) headers['X-Api-Key'] = apiKey
 
   const resp = await fetch(`${apiUrl}/api/sendText`, {
     method: 'POST',
@@ -319,7 +319,7 @@ Deno.serve(async (req) => {
     // Buscar formulário com config_botoes
     const { data: formulario, error: formErr } = await supabase
       .from('formularios')
-      .select('id, organizacao_id, nome, config_botoes, funil_id')
+      .select('id, organizacao_id, nome, config_botoes, funil_id, total_submissoes')
       .eq('id', formulario_id)
       .single()
 
@@ -345,6 +345,14 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
+
+    // AIDEV-NOTE: Incrementar contador de submissões do formulário
+    const novoTotal = (formulario.total_submissoes || 0) + 1
+    await supabase
+      .from('formularios')
+      .update({ total_submissoes: novoTotal })
+      .eq('id', formulario_id)
+    console.log('[processar] total_submissoes atualizado para', novoTotal)
 
     const configBotoes = (formulario.config_botoes && typeof formulario.config_botoes === 'object')
       ? formulario.config_botoes as Record<string, any>
