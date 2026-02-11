@@ -1,76 +1,111 @@
 
 
-# Plano de Melhorias no Editor de Formularios e Modal de Notificacoes
+# Plano: Configuracoes de Layout para Paragrafo e demais campos
 
-## 1. Centralizar Modal de Notificacoes na tela
+## Resumo
 
-O modal `NotificacaoDetalhesModal.tsx` ja usa `items-center justify-center` no container flex, mas pela screenshot aparece deslocado ao topo. Vamos garantir que o modal esteja corretamente centralizado verticalmente, removendo qualquer interferencia de posicionamento.
+O campo "Paragrafo" vai ganhar os mesmos controles visuais que o "Titulo" (alinhamento, cor, tamanho da fonte). Alem disso, os campos de layout "Divisor", "Espacador" e "Bloco HTML" ganharao configuracoes proprias e funcionais.
 
-## 2. Renomear tipos de formulario para portugues
+---
 
-Alterar os labels exibidos em toda a interface:
+## 1. Paragrafo - mesmas configs do Titulo
 
-| Valor interno (sem alterar) | Label atual | Novo label |
-|---|---|---|
-| `inline` | Inline / Inline (Embutido) | Padrao |
-| `multi_step` | Multi-step | Por Etapas |
+O painel de configuracao (`CampoConfigPanel`) passara a tratar `paragrafo` da mesma forma que `titulo`, exibindo:
+- **Alinhamento** (esquerda, centro, direita)
+- **Cor do texto** (input color + hex)
+- **Tamanho da fonte** (px)
 
-Arquivos afetados:
-- `src/modules/formularios/schemas/formulario.schema.ts` - `TipoFormularioOptions`
-- `src/modules/formularios/components/FormularioTipoBadge.tsx` - `tipoConfig`
-
-Os valores internos (`inline`, `multi_step`) no banco permanecem inalterados.
-
-## 3. Configuracoes avancadas para campo "Titulo" (layout)
-
-Quando um campo do tipo `titulo` for selecionado no editor, o `CampoConfigPanel` exibira controles adicionais:
-- **Alinhamento**: esquerda / centro / direita (salvo no campo `texto_ajuda` ou em um campo JSON existente, reutilizando `valor_padrao` como JSON com as configs extras)
-- **Cor do texto**: input de cor hex
-- **Tamanho da fonte**: input numerico (px)
-
-Esses valores serao armazenados em um JSON no campo `valor_padrao` do campo titulo (ex: `{"alinhamento":"center","cor":"#333","tamanho":"24px"}`).
+Os valores serao armazenados em JSON no campo `valor_padrao`, identico ao titulo.
 
 Arquivos afetados:
-- `CampoConfigPanel.tsx` - adicionar secao condicional para `tipo === 'titulo'`
-- `FormPreview.tsx` - aplicar estilos do JSON no render do titulo
-- `EstiloPreviewInterativo.tsx` - mesmo ajuste no preview interativo
-- `FormularioPublicoPage.tsx` - aplicar na pagina publica
-- `CampoItem.tsx` - aplicar no item da paleta/preview
+- `CampoConfigPanel.tsx` - expandir condicao `isTitulo` para incluir `paragrafo` (renomear para `isLayoutTexto` ou similar)
+- `FormPreview.tsx` - aplicar `parseTituloConfig` no render do paragrafo
+- `CampoItem.tsx` - aplicar estilos no preview do paragrafo na paleta
+- `FormularioPublicoPage.tsx` - aplicar estilos no render publico do paragrafo
 
-## 4. Auto-save no CampoConfigPanel (sem botao "Salvar")
+## 2. Divisor - configuracoes proprias
 
-Remover o botao "Salvar Alteracoes" e implementar salvamento automatico com debounce:
-- Cada alteracao de campo (label, placeholder, obrigatorio, largura, mapeamento, opcoes, etc.) dispara um `onUpdate` automatico apos ~800ms de inatividade
-- Utilizar `useEffect` com debounce sobre o estado `form` para chamar `onUpdate` automaticamente
-- O `handleUpdateCampo` ja faz `atualizarCampo.mutate()` diretamente, entao basta remover o botao e disparar automaticamente
-- Remover o toast "Alteracoes salvas" a cada keystroke (feedback visual sutil opcional)
+Controles no painel:
+- **Cor da linha** (input color)
+- **Espessura** (1px a 5px)
+- **Estilo** (solido, tracejado, pontilhado)
 
-Arquivo afetado:
-- `CampoConfigPanel.tsx` - adicionar debounce + remover botao
+Armazenamento: JSON em `valor_padrao` com `{"cor":"#D1D5DB","espessura":"1","estilo":"solid"}`
+
+Arquivos afetados:
+- `CampoConfigPanel.tsx` - secao condicional para `divisor`
+- `FormPreview.tsx` - aplicar estilos no `<hr>`
+- `CampoItem.tsx` - aplicar estilos no preview
+- `FormularioPublicoPage.tsx` - aplicar estilos no render publico
+
+## 3. Espacador - configuracao propria
+
+Controle no painel:
+- **Altura** (input numerico, de 8px a 120px, padrao 16px)
+
+Armazenamento: JSON em `valor_padrao` com `{"altura":"16"}`
+
+Arquivos afetados: mesmos 4 arquivos
+
+## 4. Bloco HTML - configuracao propria
+
+Controle no painel:
+- **Conteudo HTML** (textarea grande para colar HTML)
+
+Ja usa `valor_padrao` como string HTML direta, entao nao precisa de JSON - apenas exibir um textarea adequado no painel.
+
+Arquivo afetado: `CampoConfigPanel.tsx` - secao condicional para `bloco_html`
+
+## 5. Remocao de campos irrelevantes para tipos de layout
+
+Para campos de layout (`titulo`, `paragrafo`, `divisor`, `espacador`, `bloco_html`), ocultar configs que nao fazem sentido:
+- Placeholder (ja oculto para titulo, agora tambem para divisor, espacador)
+- Texto de ajuda (idem)
+- Obrigatorio (nao faz sentido para layout)
+- Mapeamento para contato (idem)
+- Largura (manter apenas para titulo e paragrafo)
 
 ---
 
 ## Detalhes tecnicos
 
-### Debounce no CampoConfigPanel
-```text
-form state changes -> useEffect com setTimeout(800ms) -> onUpdate(payload)
-```
-Cada mudanca reinicia o timer. Ao desmontar o componente ou trocar de campo, faz flush imediato do debounce pendente.
+### Helper generico de parsing
 
-### JSON do campo Titulo em `valor_padrao`
+Renomear `parseTituloConfig` para `parseLayoutConfig` e expandir para suportar todos os campos:
+
 ```text
-{
-  "alinhamento": "left" | "center" | "right",
-  "cor": "#374151",
-  "tamanho": "18"
-}
+parseLayoutConfig(valorPadrao, tipo):
+  - titulo/paragrafo: { alinhamento, cor, tamanho }
+  - divisor: { cor, espessura, estilo }
+  - espacador: { altura }
+  - bloco_html: valor_padrao usado como string direta (sem parse)
 ```
-Parsing seguro com fallback para valores padrao caso o JSON seja invalido ou vazio.
+
+### Logica no CampoConfigPanel
+
+```text
+const isTextoLayout = tipo === 'titulo' || tipo === 'paragrafo'
+const isDivisor = tipo === 'divisor'
+const isEspacador = tipo === 'espacador'
+const isBlocoHtml = tipo === 'bloco_html'
+const isLayoutField = isTextoLayout || isDivisor || isEspacador || isBlocoHtml
+
+- Se isLayoutField: ocultar placeholder, texto_ajuda, obrigatorio, mapeamento
+- Se isTextoLayout: mostrar alinhamento + cor + tamanho
+- Se isDivisor: mostrar cor da linha + espessura + estilo
+- Se isEspacador: mostrar altura
+- Se isBlocoHtml: mostrar textarea de HTML
+- Largura: mostrar para titulo, paragrafo, imagem_link; ocultar para divisor, espacador, bloco_html
+```
+
+### buildPayload atualizado
+
+O `valor_padrao` sera serializado como JSON para titulo, paragrafo, divisor e espacador. Para bloco_html, sera a string HTML direta.
 
 ### Sequencia de implementacao
-1. Modal de notificacoes (correcao simples de CSS)
-2. Renomear labels dos tipos (2 arquivos, mudanca de strings)
-3. Campo titulo com alinhamento/cor/tamanho (4-5 arquivos)
-4. Auto-save com debounce no CampoConfigPanel (1 arquivo)
+
+1. Refatorar `CampoConfigPanel.tsx` (helper + secoes condicionais + ocultar campos irrelevantes)
+2. Atualizar `FormPreview.tsx` (aplicar estilos de paragrafo, divisor, espacador)
+3. Atualizar `CampoItem.tsx` (preview na paleta)
+4. Atualizar `FormularioPublicoPage.tsx` (render publico)
 
