@@ -296,7 +296,7 @@ export const negociosApi = {
       .select('*')
       .eq('funil_id', funilId)
       .is('deletado_em', null)
-      .order('criado_em', { ascending: false })
+      .order('posicao', { ascending: true })
 
     // ISOLAMENTO: Members só veem suas próprias oportunidades
     if (currentUserRole === 'member' && currentUserId) {
@@ -463,8 +463,8 @@ export const negociosApi = {
     }
   },
 
-  // Mover oportunidade para outra etapa
-  moverEtapa: async (oportunidadeId: string, etapaDestinoId: string): Promise<void> => {
+  // Mover oportunidade para outra etapa (com persistência de posição)
+  moverEtapa: async (oportunidadeId: string, etapaDestinoId: string, dropIndex?: number): Promise<void> => {
     // Buscar dados da oportunidade para criar tarefas automáticas
     const { data: opData } = await supabase
       .from('oportunidades')
@@ -472,12 +472,39 @@ export const negociosApi = {
       .eq('id', oportunidadeId)
       .single()
 
+    // Atualizar etapa
     const { error } = await supabase
       .from('oportunidades')
       .update({ etapa_id: etapaDestinoId } as any)
       .eq('id', oportunidadeId)
 
     if (error) throw new Error(error.message)
+
+    // AIDEV-NOTE: Recalcular posições na etapa destino para persistir a ordem do drop
+    try {
+      // Buscar todas as oportunidades da etapa destino ordenadas por posicao atual
+      const { data: opsDestino } = await supabase
+        .from('oportunidades')
+        .select('id')
+        .eq('etapa_id', etapaDestinoId)
+        .is('deletado_em', null)
+        .neq('id', oportunidadeId)
+        .order('posicao', { ascending: true })
+
+      const listaOrdenada = (opsDestino || []).map(o => o.id)
+
+      // Inserir o card movido na posição correta
+      const idx = (dropIndex !== undefined && dropIndex >= 0) ? dropIndex : listaOrdenada.length
+      listaOrdenada.splice(idx, 0, oportunidadeId)
+
+      // Atualizar posições em batch
+      const updates = listaOrdenada.map((id, i) =>
+        supabase.from('oportunidades').update({ posicao: i + 1 } as any).eq('id', id)
+      )
+      await Promise.all(updates)
+    } catch (err) {
+      console.error('Erro ao recalcular posições:', err)
+    }
 
     // Criar tarefas automáticas da nova etapa
     if (opData) {

@@ -60,8 +60,8 @@ export function useMoverEtapa() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ oportunidadeId, etapaDestinoId }: { oportunidadeId: string; etapaDestinoId: string; dropIndex?: number }) =>
-      negociosApi.moverEtapa(oportunidadeId, etapaDestinoId),
+    mutationFn: ({ oportunidadeId, etapaDestinoId, dropIndex }: { oportunidadeId: string; etapaDestinoId: string; dropIndex?: number }) =>
+      negociosApi.moverEtapa(oportunidadeId, etapaDestinoId, dropIndex),
 
     // AIDEV-NOTE: Optimistic update para drag-and-drop fluido com posição
     onMutate: async ({ oportunidadeId, etapaDestinoId, dropIndex }) => {
