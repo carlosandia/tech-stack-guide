@@ -1,8 +1,10 @@
 /**
  * AIDEV-NOTE: Formulário de configuração visual do container
  * Cor de fundo, padding por lado, borda (espessura, cor, raio), sombra, max-width, font
+ * Suporta overrides responsivos para padding e max-width
  */
 
+import { useState } from 'react'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -14,6 +16,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import type { EstiloContainer } from '../../services/formularios.api'
+import { ResponsiveField } from './ResponsiveField'
+import type { DeviceType } from './DeviceSwitcher'
 
 const SOMBRAS = [
   { value: 'none', label: 'Nenhuma' },
@@ -45,8 +49,26 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 }
 
 export function EstiloContainerForm({ value, onChange }: Props) {
+  const [device, setDevice] = useState<DeviceType>('desktop')
+
   const update = (key: keyof EstiloContainer, val: string) => {
     onChange({ ...value, [key]: val })
+  }
+
+  const getKey = (base: string): keyof EstiloContainer => {
+    if (device === 'desktop') return base as keyof EstiloContainer
+    return `${base}_${device}` as keyof EstiloContainer
+  }
+
+  const getVal = (base: string, fallback: string): string => {
+    if (device === 'desktop') return (value[base as keyof EstiloContainer] as string) || fallback
+    const override = value[`${base}_${device}` as keyof EstiloContainer] as string | undefined
+    return override || ''
+  }
+
+  const getPlaceholder = (base: string, fallback: string): string => {
+    if (device === 'desktop') return fallback
+    return (value[base as keyof EstiloContainer] as string) || fallback
   }
 
   return (
@@ -82,15 +104,22 @@ export function EstiloContainerForm({ value, onChange }: Props) {
           </div>
         </div>
 
-        <div className="space-y-1.5">
-          <Label className="text-xs">Largura Máxima</Label>
+        {/* Responsive: Largura Máxima */}
+        <ResponsiveField
+          label="Largura Máxima"
+          device={device}
+          onDeviceChange={setDevice}
+          desktopValue={value.max_width || '600px'}
+          tabletValue={value.max_width_tablet}
+          mobileValue={value.max_width_mobile}
+        >
           <Input
-            value={value.max_width || '600px'}
-            onChange={(e) => update('max_width', e.target.value)}
-            placeholder="600px"
+            value={getVal('max_width', '600px')}
+            onChange={(e) => update(getKey('max_width'), e.target.value)}
+            placeholder={getPlaceholder('max_width', '600px')}
             className="text-xs"
           />
-        </div>
+        </ResponsiveField>
 
         <div className="space-y-1.5">
           <Label className="text-xs">Fonte</Label>
@@ -106,45 +135,35 @@ export function EstiloContainerForm({ value, onChange }: Props) {
           </Select>
         </div>
 
-        {/* Padding */}
+        {/* Responsive: Padding */}
         <SectionLabel>Espaçamento Interno (Padding)</SectionLabel>
         <div className="grid grid-cols-2 gap-2">
-          <div className="space-y-1">
-            <Label className="text-[10px] text-muted-foreground">Topo</Label>
-            <Input
-              value={value.padding_top || '24'}
-              onChange={(e) => update('padding_top', e.target.value)}
-              placeholder="24"
-              className="text-xs"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-[10px] text-muted-foreground">Baixo</Label>
-            <Input
-              value={value.padding_bottom || '24'}
-              onChange={(e) => update('padding_bottom', e.target.value)}
-              placeholder="24"
-              className="text-xs"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-[10px] text-muted-foreground">Esquerda</Label>
-            <Input
-              value={value.padding_left || '24'}
-              onChange={(e) => update('padding_left', e.target.value)}
-              placeholder="24"
-              className="text-xs"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-[10px] text-muted-foreground">Direita</Label>
-            <Input
-              value={value.padding_right || '24'}
-              onChange={(e) => update('padding_right', e.target.value)}
-              placeholder="24"
-              className="text-xs"
-            />
-          </div>
+          {(['padding_top', 'padding_bottom', 'padding_left', 'padding_right'] as const).map((field) => {
+            const labels: Record<string, string> = {
+              padding_top: 'Topo',
+              padding_bottom: 'Baixo',
+              padding_left: 'Esquerda',
+              padding_right: 'Direita',
+            }
+            return (
+              <ResponsiveField
+                key={field}
+                label={labels[field]}
+                device={device}
+                onDeviceChange={setDevice}
+                desktopValue={value[field] || '24'}
+                tabletValue={value[`${field}_tablet` as keyof EstiloContainer] as string | undefined}
+                mobileValue={value[`${field}_mobile` as keyof EstiloContainer] as string | undefined}
+              >
+                <Input
+                  value={getVal(field, '24')}
+                  onChange={(e) => update(getKey(field), e.target.value)}
+                  placeholder={getPlaceholder(field, '24')}
+                  className="text-xs"
+                />
+              </ResponsiveField>
+            )
+          })}
         </div>
         <p className="text-[10px] text-muted-foreground">Valores em px (ex: 0, 10, 24)</p>
 

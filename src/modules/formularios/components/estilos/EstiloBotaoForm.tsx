@@ -2,8 +2,10 @@
  * AIDEV-NOTE: Formulário de configuração visual do botão de submit
  * Texto, cores, altura, largura, border-radius, formatação de fonte
  * Labels user-friendly sem termos técnicos
+ * Suporta overrides responsivos (Desktop/Tablet/Mobile) para largura, altura e font_size
  */
 
+import { useState } from 'react'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Bold, Italic, Underline } from 'lucide-react'
@@ -16,6 +18,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import type { EstiloBotao } from '../../services/formularios.api'
+import { ResponsiveField } from './ResponsiveField'
+import type { DeviceType } from './DeviceSwitcher'
 
 export interface EstiloBotaoWhatsApp {
   whatsapp_texto?: string
@@ -34,8 +38,28 @@ interface Props {
 }
 
 export function EstiloBotaoForm({ value, onChange }: Props) {
+  const [device, setDevice] = useState<DeviceType>('desktop')
+
   const update = (key: keyof EstiloBotao, val: string | boolean) => {
     onChange({ ...value, [key]: val })
+  }
+
+  /** Get the correct key for current device */
+  const getKey = (base: string): keyof EstiloBotao => {
+    if (device === 'desktop') return base as keyof EstiloBotao
+    return `${base}_${device}` as keyof EstiloBotao
+  }
+
+  /** Get value for current device (falls back to desktop) */
+  const getVal = (base: string, fallback: string): string => {
+    if (device === 'desktop') return (value[base as keyof EstiloBotao] as string) || fallback
+    const override = value[`${base}_${device}` as keyof EstiloBotao] as string | undefined
+    return override || ''
+  }
+
+  const getPlaceholder = (base: string, fallback: string): string => {
+    if (device === 'desktop') return fallback
+    return (value[base as keyof EstiloBotao] as string) || fallback
   }
 
   return (
@@ -104,12 +128,19 @@ export function EstiloBotaoForm({ value, onChange }: Props) {
           </div>
         </div>
 
+        {/* Responsive: Largura + Altura */}
         <div className="grid grid-cols-2 gap-2">
-          <div className="space-y-1.5">
-            <Label className="text-xs">Largura</Label>
-            <Select value={value.largura || 'full'} onValueChange={(v) => update('largura', v)}>
+          <ResponsiveField
+            label="Largura"
+            device={device}
+            onDeviceChange={setDevice}
+            desktopValue={value.largura || 'full'}
+            tabletValue={value.largura_tablet}
+            mobileValue={value.largura_mobile}
+          >
+            <Select value={getVal('largura', 'full')} onValueChange={(v) => update(getKey('largura'), v)}>
               <SelectTrigger className="text-xs">
-                <SelectValue />
+                <SelectValue placeholder={getPlaceholder('largura', 'Largura Total')} />
               </SelectTrigger>
               <SelectContent>
                 {LARGURAS.map((l) => (
@@ -117,28 +148,43 @@ export function EstiloBotaoForm({ value, onChange }: Props) {
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Altura</Label>
+          </ResponsiveField>
+
+          <ResponsiveField
+            label="Altura"
+            device={device}
+            onDeviceChange={setDevice}
+            desktopValue={value.altura || ''}
+            tabletValue={value.altura_tablet}
+            mobileValue={value.altura_mobile}
+          >
             <Input
-              value={value.altura || ''}
-              onChange={(e) => update('altura', e.target.value)}
-              placeholder="Auto"
+              value={getVal('altura', '')}
+              onChange={(e) => update(getKey('altura'), e.target.value)}
+              placeholder={getPlaceholder('altura', 'Auto')}
               className="text-xs"
             />
-          </div>
+          </ResponsiveField>
         </div>
 
         <div className="grid grid-cols-2 gap-2">
-          <div className="space-y-1.5">
-            <Label className="text-xs">Tamanho da Fonte</Label>
+          {/* Responsive: Font Size */}
+          <ResponsiveField
+            label="Tamanho da Fonte"
+            device={device}
+            onDeviceChange={setDevice}
+            desktopValue={value.font_size || '14px'}
+            tabletValue={value.font_size_tablet}
+            mobileValue={value.font_size_mobile}
+          >
             <Input
-              value={value.font_size || '14px'}
-              onChange={(e) => update('font_size', e.target.value)}
-              placeholder="14px"
+              value={getVal('font_size', '14px')}
+              onChange={(e) => update(getKey('font_size'), e.target.value)}
+              placeholder={getPlaceholder('font_size', '14px')}
               className="text-xs"
             />
-          </div>
+          </ResponsiveField>
+
           <div className="space-y-1.5">
             <Label className="text-xs">Cantos Arredondados</Label>
             <Input

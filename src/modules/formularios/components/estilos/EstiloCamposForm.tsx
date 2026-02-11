@@ -1,11 +1,15 @@
 /**
  * AIDEV-NOTE: Formulário de configuração visual dos campos/inputs
  * Layout compacto em grid 2 colunas, seguindo padrão do EstiloBotaoForm
+ * Suporta overrides responsivos para input_height e label_tamanho
  */
 
+import { useState } from 'react'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import type { EstiloCampos } from '../../services/formularios.api'
+import { ResponsiveField } from './ResponsiveField'
+import type { DeviceType } from './DeviceSwitcher'
 
 interface Props {
   value: EstiloCampos
@@ -56,8 +60,26 @@ function SmallInput({ label, value, onChange, placeholder }: { label: string; va
 }
 
 export function EstiloCamposForm({ value, onChange }: Props) {
+  const [device, setDevice] = useState<DeviceType>('desktop')
+
   const update = (key: keyof EstiloCampos, val: string) => {
     onChange({ ...value, [key]: val })
+  }
+
+  const getKey = (base: string): keyof EstiloCampos => {
+    if (device === 'desktop') return base as keyof EstiloCampos
+    return `${base}_${device}` as keyof EstiloCampos
+  }
+
+  const getVal = (base: string, fallback: string): string => {
+    if (device === 'desktop') return (value[base as keyof EstiloCampos] as string) || fallback
+    const override = value[`${base}_${device}` as keyof EstiloCampos] as string | undefined
+    return override || ''
+  }
+
+  const getPlaceholder = (base: string, fallback: string): string => {
+    if (device === 'desktop') return fallback
+    return (value[base as keyof EstiloCampos] as string) || fallback
   }
 
   return (
@@ -71,12 +93,22 @@ export function EstiloCamposForm({ value, onChange }: Props) {
           value={value.label_cor || '#374151'}
           onChange={(v) => update('label_cor', v)}
         />
-        <SmallInput
+        {/* Responsive: Tamanho da Fonte do Label */}
+        <ResponsiveField
           label="Tamanho da Fonte"
-          value={value.label_tamanho || '14px'}
-          onChange={(v) => update('label_tamanho', v)}
-          placeholder="14px"
-        />
+          device={device}
+          onDeviceChange={setDevice}
+          desktopValue={value.label_tamanho || '14px'}
+          tabletValue={value.label_tamanho_tablet}
+          mobileValue={value.label_tamanho_mobile}
+        >
+          <Input
+            value={getVal('label_tamanho', '14px')}
+            onChange={(e) => update(getKey('label_tamanho'), e.target.value)}
+            placeholder={getPlaceholder('label_tamanho', '14px')}
+            className="h-7 text-xs px-2"
+          />
+        </ResponsiveField>
       </div>
       <div>
         <Label className="text-[10px] text-muted-foreground">Peso da Fonte</Label>
@@ -148,14 +180,23 @@ export function EstiloCamposForm({ value, onChange }: Props) {
         />
       </div>
 
-      {/* Tamanho */}
+      {/* Responsive: Tamanho / Altura */}
       <SectionLabel>Tamanho</SectionLabel>
-      <SmallInput
+      <ResponsiveField
         label="Altura do Campo"
-        value={value.input_height || '40px'}
-        onChange={(v) => update('input_height', v)}
-        placeholder="40px"
-      />
+        device={device}
+        onDeviceChange={setDevice}
+        desktopValue={value.input_height || '40px'}
+        tabletValue={value.input_height_tablet}
+        mobileValue={value.input_height_mobile}
+      >
+        <Input
+          value={getVal('input_height', '40px')}
+          onChange={(e) => update(getKey('input_height'), e.target.value)}
+          placeholder={getPlaceholder('input_height', '40px')}
+          className="h-7 text-xs px-2"
+        />
+      </ResponsiveField>
 
       {/* Destaque ao clicar */}
       <SectionLabel>Destaque ao Clicar</SectionLabel>
