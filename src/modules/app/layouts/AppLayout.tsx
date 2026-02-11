@@ -20,7 +20,7 @@ import {
   X,
   ChevronDown,
 } from 'lucide-react'
-import { EmailBadge } from '@/modules/emails/components/EmailBadge'
+
 
 /**
  * AIDEV-NOTE: Layout principal do CRM para Admin e Member
@@ -202,7 +202,6 @@ function AppLayoutInner() {
             >
               <item.icon className="w-5 h-5" />
               {item.label}
-              {item.path === '/app/emails' && <EmailBadge />}
             </NavLink>
           ))}
           {/* Configurações link — admin only in mobile drawer */}
@@ -269,7 +268,6 @@ function AppLayoutInner() {
                     icon={item.icon}
                   >
                     {item.label}
-                    {item.path === '/app/emails' && <EmailBadge />}
                   </NavItem>
                 ))}
               </nav>
