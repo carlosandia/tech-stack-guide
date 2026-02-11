@@ -1,81 +1,67 @@
 
 
-## Persistir Posicao do Drop no Kanban
+## Correcoes e Melhorias no Kanban e Modal de Detalhes
 
-### Problema raiz
-A tabela `oportunidades` nao possui coluna para armazenar a ordem dos cards dentro de cada etapa. Atualmente a query ordena por `criado_em DESC` (linha 299 do `negocios.api.ts`), entao qualquer refetch do banco desfaz o posicionamento feito pelo usuario.
+### 1. Tags nao aparecendo no modal de detalhes
 
-O optimistic update funciona visualmente, mas o `onSettled` do TanStack Query invalida o cache e refaz a busca ao banco, que retorna na ordem de criacao — descartando a posicao de drop.
+**Problema**: O componente `TagsSection` esta renderizado (linha 700-702 do `DetalhesCampos.tsx`), mas provavelmente a query `contatos_segmentos` nao retorna dados por falta de filtro de `organizacao_id` ou RLS. Vou investigar e corrigir a query para garantir que os segmentos vinculados ao contato sejam carregados corretamente. Tambem verificarei se a tabela `contatos_segmentos` possui RLS que bloqueia a leitura.
 
-### Solucao
-
-Adicionar uma coluna `posicao` na tabela `oportunidades` e atualizar toda a cadeia para persistir e respeitar essa ordem.
+**Acao**: Debugar a query da `TagsSection` (linhas 86-96) — adicionar `.eq('organizacao_id', ...)` se necessario e garantir que `segmentosApi.listar()` tambem retorna dados. Se o problema for apenas visual (z-index, overflow hidden do pai), corrigir o CSS.
 
 ---
 
-### Passo 1 — Migration: adicionar coluna `posicao`
+### 2. Aumentar icone do Historico
 
-```sql
-ALTER TABLE oportunidades
-  ADD COLUMN IF NOT EXISTS posicao integer NOT NULL DEFAULT 0;
-
--- Indice para performance na ordenacao dentro de cada etapa
-CREATE INDEX IF NOT EXISTS idx_oportunidades_etapa_posicao
-  ON oportunidades (etapa_id, posicao ASC)
-  WHERE deletado_em IS NULL;
-
--- Inicializar posicoes existentes baseado em criado_em (mais antigo = menor posicao)
-WITH ranked AS (
-  SELECT id, ROW_NUMBER() OVER (PARTITION BY etapa_id ORDER BY criado_em ASC) as rn
-  FROM oportunidades
-  WHERE deletado_em IS NULL
-)
-UPDATE oportunidades SET posicao = ranked.rn
-FROM ranked WHERE oportunidades.id = ranked.id;
-```
+**Acao**: No `DetalhesHistorico.tsx`, aumentar os icones dos eventos na timeline:
+- Circulo do icone: de `w-5 h-5` para `w-6 h-6` (linha 273)
+- Icone interno: de `w-3 h-3` para `w-3.5 h-3.5` (linha 30)
 
 ---
 
-### Passo 2 — `negocios.api.ts`: ordenar por `posicao` e atualizar `moverEtapa`
+### 3. Menu de 3 pontos no header das etapas do Kanban
 
-**Alterar `carregarKanban`** (linha 299):
-- Trocar `.order('criado_em', { ascending: false })` por `.order('posicao', { ascending: true })`
+Adicionar um icone `MoreVertical` (3 pontos verticais) no header de cada `KanbanColumn` (exceto `SolicitacoesColumn`). Ao clicar, abre um `DropdownMenu` com 3 opcoes:
 
-**Alterar `moverEtapa`** (linhas 467-498):
-- Receber `dropIndex` como parametro opcional
-- Apos mover para a nova etapa, recalcular posicoes:
-  1. Buscar oportunidades da etapa destino ordenadas por `posicao`
-  2. Inserir o card movido na posicao `dropIndex`
-  3. Atualizar as posicoes de todos os cards da etapa destino em batch
+#### 3.1 Selecionar todos os cards
+- Seleciona todas as oportunidades da etapa usando `onToggleSelect`
+- Necessita de uma nova prop `onSelectAll(etapaId: string)` no `KanbanColumn`, propagada do `KanbanBoard`
 
-**Logica de reordenacao:**
-```text
-1. Buscar todas ops da etapa destino (exceto a movida) ORDER BY posicao
-2. Inserir a movida na posicao dropIndex (ou no final se nao informado)
-3. Para cada op na lista, UPDATE posicao = indice + 1
-```
+#### 3.2 Ordenar cards da etapa
+- Sub-opcoes: Padrao (Manual), Data de criacao, Valor, Alfabetico (Titulo)
+- Reordena localmente os cards da etapa e persiste as novas posicoes via batch update de `posicao`
+- Necessita de uma nova prop `onSortColumn(etapaId: string, criterio: string)` propagada do `KanbanBoard`
 
----
+#### 3.3 Mover etapa para esquerda/direita
+- Sub-opcoes: Esquerda e Direita
+- Desabilitado para etapas padrao (tipo `entrada`, `ganho`, `perda`)
+- Apenas etapas com tipo `normal` podem ser movidas
+- Utiliza a API existente `pipelineConfigApi.reordenarEtapas()` para persistir a nova ordem
+- Necessita de uma nova prop `onMoveColumn(etapaId: string, direcao: 'esquerda' | 'direita')` propagada do `KanbanBoard`
 
-### Passo 3 — `useKanban.ts`: repassar dropIndex para a API
+### Detalhes Tecnicos
 
-**Alterar `useMoverEtapa`** (linha 63-64):
-- Incluir `dropIndex` no `mutationFn` para que seja repassado a `negociosApi.moverEtapa`
-
----
-
-### Passo 4 — `criarOportunidade`: posicao inicial
-
-Quando uma nova oportunidade e criada, ela deve receber `posicao = 0` (ou o proximo disponivel na etapa). A abordagem mais simples: inserir com `posicao = 0` e depois fazer um UPDATE para empurrar as demais +1 (ou inserir no final com `MAX(posicao) + 1`).
-
----
-
-### Resumo dos arquivos alterados
+**Arquivos alterados:**
 
 | Arquivo | Alteracao |
 |---|---|
-| Migration SQL | Adicionar coluna `posicao`, indice, inicializar dados |
-| `src/modules/negocios/services/negocios.api.ts` | Ordenar por `posicao`, `moverEtapa` recebe `dropIndex` e atualiza posicoes |
-| `src/modules/negocios/hooks/useKanban.ts` | Passar `dropIndex` ao `mutationFn` |
+| `DetalhesCampos.tsx` | Debugar/corrigir TagsSection (query ou CSS) |
+| `DetalhesHistorico.tsx` | Aumentar icones da timeline |
+| `KanbanColumn.tsx` | Adicionar DropdownMenu com 3 opcoes no header |
+| `KanbanBoard.tsx` | Adicionar handlers para selectAll, sortColumn, moveColumn e propagar como props |
 
-Nenhum outro arquivo precisa mudar — `KanbanBoard` e `KanbanColumn` ja repassam o `dropIndex` corretamente.
+**Componentes utilizados:**
+- `DropdownMenu` do Radix (ja disponivel em `src/components/ui/dropdown-menu.tsx`)
+- Icones Lucide: `MoreVertical`, `CheckSquare`, `ArrowUpDown`, `ArrowLeft`, `ArrowRight`
+
+**Logica de mover etapa:**
+1. Encontrar indice atual da etapa no array `data.etapas`
+2. Trocar `ordem` com a etapa adjacente (esquerda = indice-1, direita = indice+1)
+3. Chamar `pipelineConfigApi.reordenarEtapas()` com as novas ordens
+4. Invalidar query do kanban para refletir a mudanca
+
+**Logica de ordenar cards:**
+1. Clonar array de oportunidades da etapa
+2. Ordenar pelo criterio selecionado (criado_em, valor, titulo)
+3. Atualizar `posicao` de cada card sequencialmente via batch update
+4. Invalidar cache do kanban
+
