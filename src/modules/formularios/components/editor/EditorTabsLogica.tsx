@@ -67,7 +67,7 @@ export function EditorTabsLogica({ formulario }: Props) {
   }
 
   return (
-    <div className="h-full overflow-y-auto p-4 space-y-4 max-w-2xl mx-auto">
+    <div className="h-full overflow-y-auto p-4 lg:p-6 space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Zap className="w-4 h-4 text-primary" />

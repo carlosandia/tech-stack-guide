@@ -177,7 +177,9 @@ export function FormPreview({
   const containerStyle: React.CSSProperties = estiloContainer ? {
     backgroundColor: estiloContainer.background_color || '#FFFFFF',
     borderRadius: estiloContainer.border_radius || '8px',
-    padding: estiloContainer.padding || '24px',
+    padding: estiloContainer.padding_top
+      ? `${estiloContainer.padding_top}px ${estiloContainer.padding_right || '24'}px ${estiloContainer.padding_bottom || '24'}px ${estiloContainer.padding_left || '24'}px`
+      : (estiloContainer.padding || '24px'),
     fontFamily,
     boxShadow: SOMBRA_MAP[estiloContainer.sombra || 'md'] || SOMBRA_MAP.md,
   } : { fontFamily: "'Inter', system-ui, sans-serif" }
@@ -588,7 +590,10 @@ export function FormPreview({
             // No special layout needed - render form content directly
             if (!hasImage) return formContent
 
-            const negMargin = { margin: `-${estiloContainer?.padding || '24px'}` }
+            const computedPadding = estiloContainer?.padding_top
+              ? `${estiloContainer.padding_top}px ${estiloContainer.padding_right || '24'}px ${estiloContainer.padding_bottom || '24'}px ${estiloContainer.padding_left || '24'}px`
+              : (estiloContainer?.padding || '24px')
+            const negMargin = { margin: `-${computedPadding}` }
 
             // so_imagem (popup or newsletter)
             if (tpl === 'so_imagem') {
