@@ -18,7 +18,7 @@ export function EditorTabsCompartilhar({ formulario }: Props) {
   const baseUrl = window.location.origin
 
   return (
-    <div className="h-full overflow-y-auto p-4 space-y-6 max-w-3xl mx-auto">
+    <div className="h-full overflow-y-auto p-4 lg:p-6 space-y-6">
       {/* Compartilhamento */}
       <div>
         <h2 className="text-base font-semibold text-foreground mb-3">Compartilhar</h2>
