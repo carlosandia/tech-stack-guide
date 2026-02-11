@@ -10,6 +10,9 @@ import { AddNodeButton } from './AddNodeButton'
 export interface DelayNodeData {
   duracao?: number
   unidade?: 'minutos' | 'horas' | 'dias'
+  modo_delay?: 'relativo' | 'agendado'
+  data_agendada?: string
+  hora_agendada?: string
   onAddNode?: (type: 'acao' | 'condicao' | 'delay' | 'validacao', sourceNodeId: string, sourceHandle?: string) => void
   [key: string]: unknown
 }
@@ -17,9 +20,14 @@ export interface DelayNodeData {
 export const DelayNode = memo(({ id, data, selected }: NodeProps) => {
   const nodeData = data as DelayNodeData
 
-  const label = nodeData.duracao
-    ? `${nodeData.duracao} ${nodeData.unidade || 'minutos'}`
-    : 'Configurar tempo'
+  const isAgendado = nodeData.modo_delay === 'agendado'
+  const label = isAgendado
+    ? (nodeData.data_agendada
+        ? `${nodeData.data_agendada}${nodeData.hora_agendada ? ` às ${nodeData.hora_agendada}` : ''}`
+        : 'Agendar data/hora')
+    : (nodeData.duracao
+        ? `${nodeData.duracao} ${nodeData.unidade || 'minutos'}`
+        : 'Configurar tempo')
 
   return (
     <div className="flex flex-col items-center">
