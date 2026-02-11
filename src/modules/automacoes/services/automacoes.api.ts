@@ -1,0 +1,170 @@
+/**
+ * AIDEV-NOTE: API service para o módulo de Automações (PRD-12)
+ * CRUD de automações e consulta de logs via Supabase
+ */
+
+import { supabase } from '@/integrations/supabase/client'
+import type { Automacao, CriarAutomacaoInput, LogAutomacao, Acao, Condicao } from '../schemas/automacoes.schema'
+
+// =====================================================
+// Automações CRUD
+// =====================================================
+
+export async function listarAutomacoes(): Promise<Automacao[]> {
+  const { data, error } = await (supabase
+    .from('automacoes') as any)
+    .select('*')
+    .is('deletado_em', null)
+    .order('criado_em', { ascending: false })
+
+  if (error) throw error
+  return (data || []).map(mapAutomacao)
+}
+
+export async function obterAutomacao(id: string): Promise<Automacao> {
+  const { data, error } = await (supabase
+    .from('automacoes') as any)
+    .select('*')
+    .eq('id', id)
+    .is('deletado_em', null)
+    .single()
+
+  if (error) throw error
+  return mapAutomacao(data)
+}
+
+export async function criarAutomacao(input: CriarAutomacaoInput): Promise<Automacao> {
+  const { data: usuario } = await supabase
+    .from('usuarios')
+    .select('id, organizacao_id')
+    .eq('auth_id', (await supabase.auth.getUser()).data.user?.id ?? '')
+    .single()
+
+  if (!usuario) throw new Error('Usuário não encontrado')
+
+  const { data, error } = await (supabase
+    .from('automacoes') as any)
+    .insert({
+      organizacao_id: usuario.organizacao_id,
+      nome: input.nome,
+      descricao: input.descricao || null,
+      trigger_tipo: input.trigger_tipo,
+      trigger_config: input.trigger_config,
+      condicoes: input.condicoes,
+      acoes: input.acoes,
+      criado_por: usuario.id,
+      ativo: false,
+    })
+    .select()
+    .single()
+
+  if (error) throw error
+  return mapAutomacao(data)
+}
+
+export async function atualizarAutomacao(
+  id: string,
+  payload: Partial<{
+    nome: string
+    descricao: string | null
+    ativo: boolean
+    trigger_tipo: string
+    trigger_config: Record<string, unknown>
+    condicoes: Condicao[]
+    acoes: Acao[]
+  }>
+): Promise<Automacao> {
+  const updatePayload: Record<string, unknown> = { ...payload }
+  if (payload.condicoes) {
+    updatePayload.condicoes = payload.condicoes as unknown as Record<string, unknown>[]
+  }
+  if (payload.acoes) {
+    updatePayload.acoes = payload.acoes as unknown as Record<string, unknown>[]
+  }
+
+  const { data, error } = await (supabase
+    .from('automacoes') as any)
+    .update(updatePayload)
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) throw error
+  return mapAutomacao(data)
+}
+
+export async function excluirAutomacao(id: string): Promise<void> {
+  const { error } = await (supabase
+    .from('automacoes') as any)
+    .update({ deletado_em: new Date().toISOString() })
+    .eq('id', id)
+
+  if (error) throw error
+}
+
+// =====================================================
+// Logs
+// =====================================================
+
+export async function listarLogs(
+  automacaoId?: string,
+  limit = 50,
+  status?: string
+): Promise<LogAutomacao[]> {
+  let query = (supabase
+    .from('log_automacoes') as any)
+    .select('*')
+    .order('criado_em', { ascending: false })
+    .limit(limit)
+
+  if (automacaoId) query = query.eq('automacao_id', automacaoId)
+  if (status) query = query.eq('status', status)
+
+  const { data, error } = await query
+
+  if (error) throw error
+  return (data || []).map(mapLog)
+}
+
+// =====================================================
+// Helpers
+// =====================================================
+
+function mapAutomacao(row: Record<string, unknown>): Automacao {
+  return {
+    id: row.id as string,
+    organizacao_id: row.organizacao_id as string,
+    nome: row.nome as string,
+    descricao: row.descricao as string | null,
+    ativo: row.ativo as boolean,
+    trigger_tipo: row.trigger_tipo as string,
+    trigger_config: (row.trigger_config || {}) as Record<string, unknown>,
+    condicoes: (Array.isArray(row.condicoes) ? row.condicoes : []) as Condicao[],
+    acoes: (Array.isArray(row.acoes) ? row.acoes : []) as Acao[],
+    max_execucoes_hora: row.max_execucoes_hora as number,
+    total_execucoes: row.total_execucoes as number,
+    total_erros: row.total_erros as number,
+    ultima_execucao_em: row.ultima_execucao_em as string | null,
+    criado_por: row.criado_por as string | null,
+    criado_em: row.criado_em as string,
+    atualizado_em: row.atualizado_em as string,
+    deletado_em: row.deletado_em as string | null,
+  }
+}
+
+function mapLog(row: Record<string, unknown>): LogAutomacao {
+  return {
+    id: row.id as string,
+    organizacao_id: row.organizacao_id as string,
+    automacao_id: row.automacao_id as string,
+    trigger_tipo: row.trigger_tipo as string,
+    entidade_tipo: row.entidade_tipo as string | null,
+    entidade_id: row.entidade_id as string | null,
+    status: row.status as string,
+    acoes_executadas: (Array.isArray(row.acoes_executadas) ? row.acoes_executadas : []) as unknown[],
+    erro_mensagem: row.erro_mensagem as string | null,
+    dados_trigger: row.dados_trigger as Record<string, unknown> | null,
+    duracao_ms: row.duracao_ms as number | null,
+    criado_em: row.criado_em as string,
+  }
+}
