@@ -5,7 +5,7 @@
  */
 
 import { useState, useRef, useEffect } from 'react'
-import { GripVertical, Trash2, Settings, ChevronUp, ChevronDown, Paintbrush, Info } from 'lucide-react'
+import { Trash2, Settings, ChevronDown, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { CampoFormulario } from '../../services/formularios.api'
 import { Button } from '@/components/ui/button'
@@ -37,13 +37,10 @@ interface Props {
   isDragOver?: boolean
   onSelect: () => void
   onRemove: () => void
-  onMoveUp?: () => void
-  onMoveDown?: () => void
   onDragStart: (e: React.DragEvent) => void
   onDragOver: (e: React.DragEvent) => void
   onDrop: (e: React.DragEvent) => void
   onDragLeave: (e: React.DragEvent) => void
-  onStyleEdit?: () => void
   onUpdateLabel?: (newLabel: string) => void
 }
 
@@ -53,13 +50,10 @@ export function CampoItem({
   isDragOver,
   onSelect,
   onRemove,
-  onMoveUp,
-  onMoveDown,
   onDragStart,
   onDragOver,
   onDrop,
   onDragLeave,
-  onStyleEdit,
   onUpdateLabel,
 }: Props) {
   const [editingLabel, setEditingLabel] = useState(false)
@@ -112,37 +106,18 @@ export function CampoItem({
         isDragOver && 'border-primary border-dashed bg-primary/10'
       )}
     >
-      {/* Drag handle + Controls */}
-      <div className="absolute -left-0.5 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
-        <GripVertical className="w-4 h-4 text-muted-foreground cursor-grab active:cursor-grabbing" />
-      </div>
-
+      {/* Controls - only gear (opens config sidebar) and delete */}
       <div className="absolute right-2 top-2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-        {onMoveUp && (
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); onMoveUp() }}>
-            <ChevronUp className="w-4 h-4" />
-          </Button>
-        )}
-        {onMoveDown && (
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); onMoveDown() }}>
-            <ChevronDown className="w-4 h-4" />
-          </Button>
-        )}
         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); onSelect() }}>
           <Settings className="w-4 h-4" />
         </Button>
-        {onStyleEdit && (
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); onStyleEdit() }} title="Editar estilos dos campos">
-            <Paintbrush className="w-4 h-4" />
-          </Button>
-        )}
         <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); onRemove() }}>
           <Trash2 className="w-4 h-4" />
         </Button>
       </div>
 
       {/* Field preview */}
-      <div className="space-y-1.5 pl-4">
+      <div className="space-y-1.5">
         <div className="flex items-center gap-2">
           {editingLabel ? (
             <input
