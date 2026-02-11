@@ -11,7 +11,7 @@ import { getMaskForType } from '../utils/masks'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import DOMPurify from 'dompurify'
 import type { CampoFormulario, EstiloFormulario, EstiloContainer, EstiloCampos, EstiloBotao, EstiloCabecalho } from '../services/formularios.api'
-import { generateFormResponsiveCss } from '../utils/responsiveStyles'
+import { generateFormResponsiveCss, generateColunasResponsiveCss } from '../utils/responsiveStyles'
 
 interface FormularioPublico {
   id: string
@@ -384,12 +384,26 @@ export function FormularioPublicoPage() {
     fontFamily,
   }
 
-  const responsiveCss = generateFormResponsiveCss(
+  let responsiveCss = generateFormResponsiveCss(
     formulario.id,
     botao as unknown as Record<string, unknown>,
     container as unknown as Record<string, unknown>,
     camposEstilo as unknown as Record<string, unknown>,
   )
+  // AIDEV-NOTE: Gerar CSS responsivo para cada bloco de colunas
+  for (const c of campos) {
+    if (c.tipo === 'bloco_colunas') {
+      try {
+        const p = JSON.parse(c.valor_padrao || '{}')
+        responsiveCss += generateColunasResponsiveCss(c.id, {
+          colunas: parseInt(p.colunas) || 2,
+          larguras: p.larguras || '50%,50%',
+          larguras_tablet: p.larguras_tablet,
+          larguras_mobile: p.larguras_mobile,
+        })
+      } catch { /* skip */ }
+    }
+  }
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: pagina.background_color || '#F3F4F6', padding: '16px' }}>
@@ -440,7 +454,7 @@ export function FormularioPublicoPage() {
 
               return (
                 <div key={campo.id} style={{ width: '100%', padding: `${camposEstilo.gap_top || camposEstilo.gap || '12'}px 0` }}>
-                  <div style={{ display: 'flex', gap: `${colConfig.gap}px` }}>
+                  <div data-bloco-id={campo.id} style={{ display: 'flex', gap: `${colConfig.gap}px` }}>
                     {Array.from({ length: colConfig.colunas }).map((_, colIdx) => {
                       const children = campos
                         .filter(c => c.pai_campo_id === campo.id && c.coluna_indice === colIdx)
@@ -448,7 +462,7 @@ export function FormularioPublicoPage() {
                       const width = colConfig.larguras[colIdx] || `${Math.floor(100 / colConfig.colunas)}%`
 
                       return (
-                        <div key={colIdx} style={{ width, display: 'flex', flexWrap: 'wrap' }}>
+                        <div key={colIdx} className={`col-${colIdx}`} style={{ width, display: 'flex', flexWrap: 'wrap' }}>
                           {children.map(child => {
                             const childLarguraMap: Record<string, string> = { full: '100%', '1/2': '50%', '1/3': '33.33%', '2/3': '66.66%', half: '50%', third: '33.33%' }
                             const cw = childLarguraMap[child.largura] || '100%'
