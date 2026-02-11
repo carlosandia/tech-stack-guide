@@ -1,48 +1,42 @@
 
-# Remover Botoes da Paleta + Ajustar BotaoConfigPanel
+# Adicionar Controles Responsivos nos Estilos dos Botoes
 
 ## Resumo
 
-Reverter a logica de botoes-como-campos. Botoes voltam a ser controlados exclusivamente pelo `BotaoConfigPanel` via `tipo_botao`. Remover categoria "Botao" da paleta, remover icone de lixeira dos botoes no preview, inverter ordem das abas, e mostrar estilos condicionalmente ao tipo selecionado.
+Os campos de Largura, Altura e Tamanho da Fonte nos estilos dos botoes (Enviar e WhatsApp) atualmente usam inputs simples sem opcao de override por dispositivo. O tipo `EstiloBotao` e a funcao `generateFormResponsiveCss` ja suportam os sufixos `_tablet` e `_mobile`, mas o painel de estilo nao expoe esses controles. A mudanca e adicionar o `DeviceSwitcher` nesses campos, igual ao que ja funciona no `EstiloBotaoForm.tsx` e nos blocos de colunas.
 
 ## Mudancas
 
-### 1. CamposPaleta.tsx
-- Remover os dois itens `botao_enviar` e `botao_whatsapp` do array `TIPOS_CAMPO`
-- Remover a categoria `'botao'` de `CATEGORIAS`
-- Remover prop `botoesAdicionados` e toda logica de disabled/singleton
-- Remover imports nao utilizados (`MousePointerClick`, `WhatsAppIcon`)
+### 1. BotaoConfigPanel.tsx - renderEstiloEnviar()
 
-### 2. BotaoConfigPanel.tsx
-- **Inverter abas**: "Configuracao" na esquerda, "Estilo" na direita
-- **Tab Estilo**: Mostrar estilos conforme `config.tipo_botao`:
-  - `enviar` → apenas `renderEstiloEnviar()`
-  - `whatsapp` → apenas `renderEstiloWhatsApp()`
-  - `ambos` → ambos os renders (Enviar + separador + WhatsApp)
-- Tab default muda para `'config'` ao inves de `'estilo'`
+Substituir os inputs simples de **Largura**, **Altura** e **Tamanho** por campos com `ResponsiveField` + `DeviceSwitcher`:
 
-### 3. FormPreview.tsx (RenderBotoes)
-- Remover prop `onRemoveBotao` e todo o codigo do botao `Trash2` nos botoes enviar e whatsapp
-- Manter apenas o icone de engrenagem (Settings)
+- **Largura**: Select com opcoes (100%, 50%, auto) + DeviceSwitcher. Campos: `largura`, `largura_tablet`, `largura_mobile`
+- **Altura**: Input + DeviceSwitcher. Campos: `altura`, `altura_tablet`, `altura_mobile`
+- **Tamanho da Fonte**: Input + DeviceSwitcher. Campos: `font_size`, `font_size_tablet`, `font_size_mobile`
 
-### 4. FormularioEditorPage.tsx
-- Remover `derivedTipoBotao` (nao mais derivado dos campos)
-- `effectiveConfigBotoes` usa `configBotoes` direto, sem override de `tipo_botao`
-- Remover `botoesAdicionados` prop do `CamposPaleta`
-- Remover validacao de duplicidade de botoes em `handleDropNewCampo` e `handleAddCampoFromPaleta`
-- Remover `isSelectedCampoBotao` e o bloco condicional que abre `BotaoConfigPanel` para campos de botao
-- O BotaoConfigPanel so abre via `selectedStyleElement === 'botao'` ou `'botao_whatsapp'` (clicando no botao no preview)
+Adicionar estado `const [device, setDevice] = useState<DeviceType>('desktop')` e helpers `getKey`/`getVal`/`getPlaceholder` (mesmo padrao do `EstiloBotaoForm.tsx`).
 
-### 5. FormularioPublicoPage.tsx
-- Remover filtragem de campos `botao_enviar`/`botao_whatsapp` (eles nao existirao mais como campos)
-- Voltar a usar `configBotoes.tipo_botao` direto do formulario
+### 2. BotaoConfigPanel.tsx - renderEstiloWhatsApp()
+
+Mesma logica responsiva para os campos do botao WhatsApp:
+
+- **Largura**: `whatsapp_largura`, `whatsapp_largura_tablet`, `whatsapp_largura_mobile`
+- **Altura**: `whatsapp_altura`, `whatsapp_altura_tablet`, `whatsapp_altura_mobile`
+- **Tamanho da Fonte**: `whatsapp_font_size`, `whatsapp_font_size_tablet`, `whatsapp_font_size_mobile`
+
+### 3. Nenhuma mudanca necessaria em:
+
+- `EstiloBotao` (tipo) - ja tem todos os campos `_tablet`/`_mobile`
+- `responsiveStyles.ts` - `generateFormResponsiveCss` ja gera media queries para todos esses campos
+- `FormPreview.tsx` / `FormularioPublicoPage.tsx` - ja consomem o CSS responsivo gerado
 
 ## Arquivos alterados
 
 | Arquivo | Alteracao |
 |---|---|
-| `CamposPaleta.tsx` | Remover categoria Botao e props associadas |
-| `BotaoConfigPanel.tsx` | Inverter abas, estilos condicionais por tipo_botao |
-| `FormPreview.tsx` | Remover Trash2 dos botoes |
-| `FormularioEditorPage.tsx` | Remover logica de botoes-como-campos |
-| `FormularioPublicoPage.tsx` | Simplificar filtragem de campos |
+| `BotaoConfigPanel.tsx` | Importar `ResponsiveField` e `DeviceSwitcher`, adicionar estado de device, usar `ResponsiveField` nos campos de Largura, Altura e Tamanho da Fonte para ambos os botoes |
+
+## Resultado
+
+O usuario podera clicar nos icones Desktop/Tablet/Mobile ao lado de Largura, Altura e Tamanho nos estilos dos botoes e definir valores diferentes por viewport. As bolinhas indicadoras de override (amarela para tablet, azul para mobile) aparecerao quando houver valores customizados, exatamente como ja funciona nos blocos de colunas.
