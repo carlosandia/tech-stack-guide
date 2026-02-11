@@ -156,7 +156,8 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
   const isDivisor = campo.tipo === 'divisor'
   const isEspacador = campo.tipo === 'espacador'
   const isBlocoHtml = campo.tipo === 'bloco_html'
-  const isLayoutField = isTextoLayout || isDivisor || isEspacador || isBlocoHtml
+  const isBlocoColunas = campo.tipo === 'bloco_colunas'
+  const isLayoutField = isTextoLayout || isDivisor || isEspacador || isBlocoHtml || isBlocoColunas
   const [layoutConfig, setLayoutConfig] = useState<Record<string, string>>(() => parseLayoutConfig(campo.valor_padrao, campo.tipo) as Record<string, string>)
 
   // Reset when campo changes
@@ -191,7 +192,7 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
       obrigatorio: form.obrigatorio,
       mapeamento_campo: form.mapeamento_campo || null,
       largura: form.largura,
-      valor_padrao: (isTextoLayout || isDivisor || isEspacador) ? JSON.stringify(layoutConfig) : (form.valor_padrao || null),
+      valor_padrao: (isTextoLayout || isDivisor || isEspacador || isBlocoColunas) ? JSON.stringify(layoutConfig) : (form.valor_padrao || null),
     }
     if (needsOptions) {
       const opcoes = opcoesText.split('\n').map((o) => o.trim()).filter(Boolean)
@@ -393,6 +394,91 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
           </div>
         )}
 
+        {/* AIDEV-NOTE: Configurações do Bloco de Colunas */}
+        {isBlocoColunas && (
+          <div className="space-y-3 border-t border-border pt-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Configuração de Colunas</p>
+            
+            <div className="space-y-1.5">
+              <Label className="text-xs">Número de Colunas</Label>
+              <Select
+                value={layoutConfig.colunas || '2'}
+                onValueChange={(v) => {
+                  const num = parseInt(v)
+                  const larguras = Array(num).fill(`${Math.floor(100 / num)}%`).join(',')
+                  setLayoutConfig(prev => ({ ...prev, colunas: v, larguras }))
+                }}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="2">2 Colunas</SelectItem>
+                  <SelectItem value="3">3 Colunas</SelectItem>
+                  <SelectItem value="4">4 Colunas</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs">Proporção</Label>
+              {(() => {
+                const numCols = parseInt(layoutConfig.colunas || '2')
+                const presets: Record<number, { label: string; value: string }[]> = {
+                  2: [
+                    { label: '50/50', value: '50%,50%' },
+                    { label: '33/67', value: '33%,67%' },
+                    { label: '67/33', value: '67%,33%' },
+                    { label: '25/75', value: '25%,75%' },
+                    { label: '75/25', value: '75%,25%' },
+                  ],
+                  3: [
+                    { label: '33/33/33', value: '33%,33%,34%' },
+                    { label: '25/50/25', value: '25%,50%,25%' },
+                    { label: '50/25/25', value: '50%,25%,25%' },
+                  ],
+                  4: [
+                    { label: '25/25/25/25', value: '25%,25%,25%,25%' },
+                  ],
+                }
+                return (
+                  <div className="flex flex-wrap gap-1.5">
+                    {(presets[numCols] || []).map(p => (
+                      <button
+                        key={p.value}
+                        type="button"
+                        onClick={() => setLayoutConfig(prev => ({ ...prev, larguras: p.value }))}
+                        className={cn(
+                          'px-2 py-1 text-[11px] rounded border transition-colors',
+                          layoutConfig.larguras === p.value
+                            ? 'bg-primary text-primary-foreground border-primary'
+                            : 'border-border hover:border-primary/50 hover:bg-accent'
+                        )}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                )
+              })()}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs">Espaço entre Colunas</Label>
+              <Select
+                value={layoutConfig.gap || '16'}
+                onValueChange={(v) => setLayoutConfig(prev => ({ ...prev, gap: v }))}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">Nenhum</SelectItem>
+                  <SelectItem value="8">Pequeno (8px)</SelectItem>
+                  <SelectItem value="16">Médio (16px)</SelectItem>
+                  <SelectItem value="24">Grande (24px)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
+
         {!isLayoutField && (
           <>
             <div className="space-y-1.5">
@@ -429,8 +515,8 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
           </div>
         )}
 
-        {/* Largura: mostrar para titulo, paragrafo, imagem_link e campos normais; ocultar para divisor, espacador, bloco_html */}
-        {!isDivisor && !isEspacador && !isBlocoHtml && (
+        {/* Largura: mostrar para titulo, paragrafo, imagem_link e campos normais; ocultar para divisor, espacador, bloco_html, bloco_colunas */}
+        {!isDivisor && !isEspacador && !isBlocoHtml && !isBlocoColunas && (
           <div className="space-y-1.5">
             <Label className="text-xs">Tamanho na Tela</Label>
             <Select value={form.largura} onValueChange={(v) => setForm((f) => ({ ...f, largura: v }))}>
