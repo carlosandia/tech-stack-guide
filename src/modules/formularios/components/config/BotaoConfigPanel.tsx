@@ -590,7 +590,7 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
               </>
             )}
             <div className="flex items-center justify-between">
-              <Label className="text-[11px]">Notificar WhatsApp</Label>
+              <Label className="text-[11px]">Avisar por WhatsApp</Label>
               <Switch
                 checked={config.enviar_notifica_whatsapp}
                 onCheckedChange={(v) => updateConfig('enviar_notifica_whatsapp', v)}
@@ -601,9 +601,10 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
                 <Input
                   value={config.enviar_whatsapp_destino}
                   onChange={(e) => updateConfig('enviar_whatsapp_destino', e.target.value)}
-                  placeholder="5511999999999"
+                  placeholder={config.whatsapp_numero || '5511999999999'}
                   className="text-xs"
                 />
+                <p className="text-[10px] text-muted-foreground">Você recebe um aviso quando alguém preencher. Deixe vazio para usar o número do destinatário.</p>
                 {renderWahaInfo()}
               </>
             )}
@@ -613,16 +614,17 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
           {(config.tipo_botao === 'whatsapp' || config.tipo_botao === 'ambos') && (
             <div className="space-y-2 p-2 rounded border border-border bg-muted/30">
               <p className="text-xs font-medium flex items-center gap-1.5">
-                <WhatsAppIcon size={12} /> Configuração WhatsApp
+                <WhatsAppIcon size={12} /> Redirecionamento WhatsApp
               </p>
               <div className="space-y-1">
-                <Label className="text-[11px]">Número (com DDI)</Label>
+                <Label className="text-[11px]">Número do Destinatário</Label>
                 <Input
                   value={config.whatsapp_numero}
                   onChange={(e) => updateConfig('whatsapp_numero', e.target.value)}
                   placeholder="5511999999999"
                   className="text-xs"
                 />
+                <p className="text-[10px] text-muted-foreground">Para onde o visitante será redirecionado ao clicar no botão.</p>
               </div>
               <div className="space-y-1">
                 <Label className="text-[11px]">Template mensagem</Label>
