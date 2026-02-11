@@ -153,15 +153,32 @@ export function KanbanBoard({ data, isLoading, onDropGanhoPerda, onCardClick }: 
       ;(el as HTMLElement).style.opacity = '1'
     })
 
-    // AIDEV-NOTE: Se mesma etapa, permitir reordenação (não ignorar)
+    // AIDEV-NOTE: Se mesma etapa, permitir reordenação com ajuste de off-by-one
     if (oportunidade.etapa_id === etapaDestinoId) {
       if (dropIndex === undefined) {
         draggedOpRef.current = null
         return
       }
+      // Encontrar índice atual do card na etapa
+      const etapaAtual = data?.etapas?.find(e => e.id === etapaDestinoId)
+      const indexOriginal = etapaAtual?.oportunidades?.findIndex(op => op.id === oportunidade.id) ?? -1
+      
+      // Se o card vem de uma posição anterior ao dropIndex, a API remove primeiro
+      // e o splice fica uma posição à frente — corrigir decrementando
+      let adjustedIndex = dropIndex
+      if (indexOriginal !== -1 && indexOriginal < dropIndex) {
+        adjustedIndex = dropIndex - 1
+      }
+      
+      // Se não mudou de posição, ignorar
+      if (indexOriginal === adjustedIndex) {
+        draggedOpRef.current = null
+        return
+      }
+
       // Reordenar na mesma etapa via mutação
       moverEtapa.mutate(
-        { oportunidadeId: oportunidade.id, etapaDestinoId, dropIndex },
+        { oportunidadeId: oportunidade.id, etapaDestinoId, dropIndex: adjustedIndex },
         {
           onError: () => {
             toast.error('Erro ao reordenar oportunidade')
