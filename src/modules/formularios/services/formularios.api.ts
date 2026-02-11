@@ -298,6 +298,9 @@ export interface CampoFormulario {
   mostrar_para_leads_conhecidos?: boolean | null
   alternativa_para_campo_id?: string | null
   prioridade_profiling?: number | null
+  // AIDEV-NOTE: Suporte a blocos de colunas
+  pai_campo_id?: string | null
+  coluna_indice?: number | null
   criado_em: string
   atualizado_em: string
 }
@@ -332,6 +335,9 @@ async function criarCampo(
     ordem: payload.ordem ?? 0,
     etapa_numero: payload.etapa_numero || 1,
     valor_padrao: payload.valor_padrao,
+    // AIDEV-NOTE: Suporte a blocos de colunas
+    pai_campo_id: payload.pai_campo_id || null,
+    coluna_indice: payload.coluna_indice ?? null,
   } as any
 
   const { data, error } = await supabase

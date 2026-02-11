@@ -17,6 +17,7 @@ import type { CampoFormulario, Formulario, EstiloContainer, EstiloCampos, Estilo
 import type { ConfigBotoes } from '../config/ConfigBotoesEnvioForm'
 import type { PopupTemplate } from '../config/PopupLayoutSelector'
 import { CampoItem } from '../campos/CampoItem'
+import { BlocoColunasEditor } from '../campos/BlocoColunasEditor'
 import { TermosModal } from '../campos/TermosModal'
 import type { SelectedElement } from '../estilos/EstiloPreviewInterativo'
 
@@ -60,6 +61,9 @@ interface Props {
   onMoveCampo: (id: string, direcao: 'up' | 'down') => void
   onReorderCampo: (dragId: string, targetIndex: number) => void
   onDropNewCampo: (e: React.DragEvent, index: number) => void
+  onDropNewCampoInColuna?: (e: React.DragEvent, index: number, paiCampoId: string, colunaIndice: number) => void
+  onReorderCampoInColuna?: (dragId: string, targetIndex: number, paiCampoId: string, colunaIndice: number) => void
+  onMoveCampoToColuna?: (campoId: string, paiCampoId: string, colunaIndice: number) => void
   estiloContainer?: EstiloContainer
   estiloCampos?: EstiloCampos
   estiloBotao?: EstiloBotao
@@ -95,6 +99,9 @@ export function FormPreview({
   onMoveCampo,
   onReorderCampo,
   onDropNewCampo,
+  onDropNewCampoInColuna,
+  onReorderCampoInColuna,
+  onMoveCampoToColuna,
   estiloContainer,
   estiloCampos,
   estiloBotao,

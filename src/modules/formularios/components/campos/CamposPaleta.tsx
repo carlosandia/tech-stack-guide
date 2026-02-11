@@ -10,7 +10,7 @@ import {
   CreditCard, Building2, MapPin, Paperclip, Image, Star,
   SlidersHorizontal, Minus, Space, Code, CheckSquare,
   FileAudio, FileVideo, Pen, BarChart3, MessageSquare, Search,
-  Palette, Map
+  Palette, Map, Columns
 } from 'lucide-react'
 
 export interface TipoCampoPaleta {
@@ -77,6 +77,7 @@ export const TIPOS_CAMPO: TipoCampoPaleta[] = [
   { tipo: 'divisor', label: 'Divisor', icon: Minus, categoria: 'layout' },
   { tipo: 'espacador', label: 'Espaçador', icon: Space, categoria: 'layout' },
   { tipo: 'bloco_html', label: 'Bloco HTML', icon: Code, categoria: 'layout' },
+  { tipo: 'bloco_colunas', label: 'Colunas', icon: Columns, categoria: 'layout' },
 ]
 
 const CATEGORIAS = [

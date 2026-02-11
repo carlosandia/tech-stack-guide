@@ -310,6 +310,7 @@ export type Database = {
         Row: {
           alternativa_para_campo_id: string | null
           atualizado_em: string
+          coluna_indice: number | null
           condicional_ativo: boolean
           condicional_campo_id: string | null
           condicional_operador: string | null
@@ -326,6 +327,7 @@ export type Database = {
           obrigatorio: boolean
           opcoes: Json | null
           ordem: number
+          pai_campo_id: string | null
           placeholder: string | null
           prefill_ativo: boolean | null
           prefill_chave: string | null
@@ -341,6 +343,7 @@ export type Database = {
         Insert: {
           alternativa_para_campo_id?: string | null
           atualizado_em?: string
+          coluna_indice?: number | null
           condicional_ativo?: boolean
           condicional_campo_id?: string | null
           condicional_operador?: string | null
@@ -357,6 +360,7 @@ export type Database = {
           obrigatorio?: boolean
           opcoes?: Json | null
           ordem?: number
+          pai_campo_id?: string | null
           placeholder?: string | null
           prefill_ativo?: boolean | null
           prefill_chave?: string | null
@@ -372,6 +376,7 @@ export type Database = {
         Update: {
           alternativa_para_campo_id?: string | null
           atualizado_em?: string
+          coluna_indice?: number | null
           condicional_ativo?: boolean
           condicional_campo_id?: string | null
           condicional_operador?: string | null
@@ -388,6 +393,7 @@ export type Database = {
           obrigatorio?: boolean
           opcoes?: Json | null
           ordem?: number
+          pai_campo_id?: string | null
           placeholder?: string | null
           prefill_ativo?: boolean | null
           prefill_chave?: string | null
@@ -420,6 +426,13 @@ export type Database = {
             columns: ["formulario_id"]
             isOneToOne: false
             referencedRelation: "formularios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campos_formularios_pai_campo_id_fkey"
+            columns: ["pai_campo_id"]
+            isOneToOne: false
+            referencedRelation: "campos_formularios"
             referencedColumns: ["id"]
           },
         ]
