@@ -43,6 +43,7 @@ export function AutomacoesPage() {
     selectedNodeId: _selectedNodeId,
     setSelectedNodeId,
     selectedNode,
+    addNodeFromSource,
   } = useFlowState()
 
   // Set toolbar
@@ -140,6 +141,7 @@ export function AutomacoesPage() {
               onConnect={onConnect}
               onNodeClick={setSelectedNodeId}
               onAddNode={handleAddNode}
+              onAddNodeFromSource={addNodeFromSource}
               onSave={handleSave}
               isSaving={atualizarMutation.isPending}
             />
