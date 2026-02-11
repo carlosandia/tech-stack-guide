@@ -10,7 +10,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { getMaskForType } from '../../utils/masks'
 import { generateFormResponsiveCss, generateColunasResponsiveCss, resolveValue } from '../../utils/responsiveStyles'
-import { Monitor, Tablet, Smartphone, Settings, Eye, EyeOff, Code, Info } from 'lucide-react'
+import { Monitor, Tablet, Smartphone, Settings, Eye, EyeOff, Code, Info, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
@@ -630,6 +630,10 @@ export function FormPreview({
                       onSelectStyleElement={onSelectStyleElement}
                       onUpdateBotaoTexto={onUpdateBotaoTexto}
                       viewport={viewport}
+                      onRemoveBotao={!showFinalPreview ? (tipo) => {
+                        const campo = campos.find(c => c.tipo === tipo)
+                        if (campo) onRemoveCampo(campo.id)
+                      } : undefined}
                     />
                   </div>
                 )}
@@ -871,6 +875,7 @@ function RenderBotoes({
   onSelectStyleElement,
   onUpdateBotaoTexto,
   viewport,
+  onRemoveBotao,
 }: {
   configBotoes: ConfigBotoes | null | undefined
   estiloBotao: EstiloBotao | undefined
@@ -880,6 +885,7 @@ function RenderBotoes({
   onSelectStyleElement: ((el: SelectedElement) => void) | undefined
   onUpdateBotaoTexto?: ((tipo: 'enviar' | 'whatsapp', newTexto: string) => void)
   viewport?: Viewport
+  onRemoveBotao?: (tipo: 'botao_enviar' | 'botao_whatsapp') => void
 }) {
   const rvBtn = useCallback((field: string): string | undefined => {
     if (!estiloBotao) return undefined
@@ -921,18 +927,32 @@ function RenderBotoes({
   const enviarBtn = showEnviar ? (
     <div className="relative group/botao-enviar">
       {!showFinalPreview && onSelectStyleElement && (
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); onSelectStyleElement('botao') }}
-          className={cn(
-            'absolute right-1 top-1/2 -translate-y-1/2 z-10 p-1 rounded-full border bg-card shadow-sm transition-opacity',
-            'opacity-0 group-hover/botao-enviar:opacity-100',
-            selectedStyleElement === 'botao' ? 'opacity-100 border-primary text-primary' : 'border-border text-muted-foreground hover:text-primary hover:border-primary'
+        <div className={cn(
+          'absolute right-1 top-1/2 -translate-y-1/2 z-10 flex items-center gap-0.5 transition-opacity',
+          'opacity-0 group-hover/botao-enviar:opacity-100',
+        )}>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onSelectStyleElement('botao') }}
+            className={cn(
+              'p-1 rounded-full border bg-card shadow-sm',
+              selectedStyleElement === 'botao' ? 'border-primary text-primary' : 'border-border text-muted-foreground hover:text-primary hover:border-primary'
+            )}
+            title="Configurar botão Enviar"
+          >
+            <Settings className="w-3.5 h-3.5" />
+          </button>
+          {onRemoveBotao && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onRemoveBotao('botao_enviar') }}
+              className="p-1 rounded-full border border-border bg-card shadow-sm text-destructive hover:border-destructive"
+              title="Remover botão Enviar"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
           )}
-          title="Editar estilos do botão Enviar"
-        >
-          <Settings className="w-3.5 h-3.5" />
-        </button>
+        </div>
       )}
       <button
         type="button"
@@ -966,18 +986,32 @@ function RenderBotoes({
   const whatsAppBtn = showWhatsApp ? (
     <div className="relative group/botao-whatsapp">
       {!showFinalPreview && onSelectStyleElement && (
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); onSelectStyleElement('botao_whatsapp') }}
-          className={cn(
-            'absolute right-1 top-1/2 -translate-y-1/2 z-10 p-1 rounded-full border bg-card shadow-sm transition-opacity',
-            'opacity-0 group-hover/botao-whatsapp:opacity-100',
-            selectedStyleElement === 'botao_whatsapp' ? 'opacity-100 border-primary text-primary' : 'border-border text-muted-foreground hover:text-primary hover:border-primary'
+        <div className={cn(
+          'absolute right-1 top-1/2 -translate-y-1/2 z-10 flex items-center gap-0.5 transition-opacity',
+          'opacity-0 group-hover/botao-whatsapp:opacity-100',
+        )}>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onSelectStyleElement('botao_whatsapp') }}
+            className={cn(
+              'p-1 rounded-full border bg-card shadow-sm',
+              selectedStyleElement === 'botao_whatsapp' ? 'border-primary text-primary' : 'border-border text-muted-foreground hover:text-primary hover:border-primary'
+            )}
+            title="Configurar botão WhatsApp"
+          >
+            <Settings className="w-3.5 h-3.5" />
+          </button>
+          {onRemoveBotao && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onRemoveBotao('botao_whatsapp') }}
+              className="p-1 rounded-full border border-border bg-card shadow-sm text-destructive hover:border-destructive"
+              title="Remover botão WhatsApp"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
           )}
-          title="Editar estilos do botão WhatsApp"
-        >
-          <Settings className="w-3.5 h-3.5" />
-        </button>
+        </div>
       )}
       <button
         type="button"

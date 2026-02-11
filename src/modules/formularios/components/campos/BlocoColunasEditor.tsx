@@ -199,12 +199,12 @@ export function BlocoColunasEditor({
             Bloco {config.colunas} Colunas ({larguras.join(' / ')})
           </span>
         </div>
-        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); onSelect() }}>
-            <Settings className="w-3 h-3" />
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); onSelect() }}>
+            <Settings className="w-4 h-4" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={(e) => { e.stopPropagation(); onRemove() }}>
-            <Trash2 className="w-3 h-3" />
+          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); onRemove() }}>
+            <Trash2 className="w-4 h-4" />
           </Button>
         </div>
       </div>

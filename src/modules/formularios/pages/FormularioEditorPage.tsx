@@ -540,7 +540,10 @@ export function FormularioEditorPage() {
                         />
                       </div>
                     )}
-                    <CamposPaleta onAddCampo={handleAddCampoFromPaleta} />
+                    <CamposPaleta
+                      onAddCampo={handleAddCampoFromPaleta}
+                      botoesAdicionados={campos.filter(c => c.tipo === 'botao_enviar' || c.tipo === 'botao_whatsapp').map(c => c.tipo)}
+                    />
                   </div>
                 </div>
               </>
