@@ -14,8 +14,12 @@ import type { CampoFormulario } from '../../services/formularios.api'
 interface ColunasConfig {
   colunas: number
   larguras: string // "50%,50%" ou "33%,67%"
+  larguras_tablet?: string
+  larguras_mobile?: string
   gap: string // px
 }
+
+type DeviceViewport = 'desktop' | 'tablet' | 'mobile'
 
 function parseColunasConfig(valorPadrao?: string | null): ColunasConfig {
   const defaults: ColunasConfig = { colunas: 2, larguras: '50%,50%', gap: '16' }
@@ -25,11 +29,23 @@ function parseColunasConfig(valorPadrao?: string | null): ColunasConfig {
     return {
       colunas: parseInt(p.colunas) || 2,
       larguras: p.larguras || defaults.larguras,
+      larguras_tablet: p.larguras_tablet,
+      larguras_mobile: p.larguras_mobile,
       gap: p.gap || '16',
     }
   } catch {
     return defaults
   }
+}
+
+function resolveColLarguras(config: ColunasConfig, viewport: DeviceViewport): string[] {
+  let raw = config.larguras
+  if (viewport === 'tablet' && config.larguras_tablet) {
+    raw = config.larguras_tablet
+  } else if (viewport === 'mobile') {
+    raw = config.larguras_mobile || Array(config.colunas).fill('100%').join(',')
+  }
+  return raw.split(',').map(l => l.trim())
 }
 
 interface Props {
@@ -49,6 +65,7 @@ interface Props {
   onDrop: (e: React.DragEvent) => void
   onDragLeave: (e: React.DragEvent) => void
   onUpdateLabel?: (campoId: string, newLabel: string) => void
+  viewport?: DeviceViewport
 }
 
 export function BlocoColunasEditor({
@@ -68,9 +85,10 @@ export function BlocoColunasEditor({
   onDrop,
   onDragLeave,
   onUpdateLabel,
+  viewport = 'desktop',
 }: Props) {
   const config = parseColunasConfig(bloco.valor_padrao)
-  const larguras = config.larguras.split(',').map(l => l.trim())
+  const larguras = resolveColLarguras(config, viewport)
   const [dragOverColuna, setDragOverColuna] = useState<{ col: number; index: number } | null>(null)
   const dragCounters = useRef<Record<string, number>>({})
 
@@ -178,7 +196,7 @@ export function BlocoColunasEditor({
           <GripVertical className="w-3.5 h-3.5 text-muted-foreground cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100" />
           <Columns className="w-3.5 h-3.5 text-muted-foreground" />
           <span className="text-[11px] font-medium text-muted-foreground">
-            Bloco {config.colunas} Colunas ({config.larguras.replace(/,/g, ' / ')})
+            Bloco {config.colunas} Colunas ({larguras.join(' / ')})
           </span>
         </div>
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -192,7 +210,7 @@ export function BlocoColunasEditor({
       </div>
 
       {/* Columns */}
-      <div className="flex" style={{ gap: `${config.gap}px` }}>
+      <div className="flex flex-wrap" style={{ gap: `${config.gap}px` }}>
         {Array.from({ length: config.colunas }).map((_, colIndex) => {
           const children = getChildrenForColumn(colIndex)
           const width = larguras[colIndex] || `${Math.floor(100 / config.colunas)}%`
