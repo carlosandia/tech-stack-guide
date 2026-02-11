@@ -15,7 +15,7 @@ interface Props {
 type EmbedType = 'inline' | 'modal' | 'sidebar'
 
 const EMBED_LABELS: Record<EmbedType, string> = {
-  inline: 'Inline (embutido)',
+  inline: 'Padrão (embutido)',
   modal: 'Modal (popup)',
   sidebar: 'Sidebar (lateral)',
 }
