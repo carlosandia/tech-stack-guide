@@ -1,54 +1,81 @@
 
 
-## Correcoes: Zona de Drop Estilo Trello + Salvar Posicao ao Soltar
+## Persistir Posicao do Drop no Kanban
 
-### Problema 1 — Posicao de drop nao e salva
-Quando o card e solto, o `dropIndex` calculado pela `KanbanColumn` nao e repassado para o `KanbanBoard`. O `handleDrop` do board simplesmente adiciona o card no **final** da coluna destino (optimistic update usa `[...oportunidades, cardMovido]`). O indice de posicao e calculado visualmente mas descartado no momento do drop.
+### Problema raiz
+A tabela `oportunidades` nao possui coluna para armazenar a ordem dos cards dentro de cada etapa. Atualmente a query ordena por `criado_em DESC` (linha 299 do `negocios.api.ts`), entao qualquer refetch do banco desfaz o posicionamento feito pelo usuario.
 
-### Problema 2 — Zona de drop visual fraca
-Atualmente a zona de drop e apenas uma linha fina (`h-0.5 bg-primary`). O usuario quer um placeholder estilo Trello: um bloco com fundo cinza escuro que "abre espaco" entre os cards, simulando o tamanho do card que sera inserido.
-
----
+O optimistic update funciona visualmente, mas o `onSettled` do TanStack Query invalida o cache e refaz a busca ao banco, que retorna na ordem de criacao — descartando a posicao de drop.
 
 ### Solucao
 
-**Arquivo: `KanbanColumn.tsx`**
-- Alterar a assinatura de `onDrop` para incluir o indice: `onDrop(e, etapaId, tipoEtapa, dropIndex)`
-- Trocar o indicador visual de `h-0.5 bg-primary rounded-full` para um bloco placeholder estilo Trello: `h-[72px] bg-muted-foreground/10 rounded-lg border-2 border-dashed border-muted-foreground/20` — um retangulo cinza com borda tracejada que simula o espaco de um card
-
-**Arquivo: `KanbanBoard.tsx`**
-- Atualizar `handleDrop` para receber o 4o parametro `dropIndex?: number`
-- Atualizar a tipagem de `onDrop` na interface de `KanbanColumn` para incluir `dropIndex`
-- No optimistic update do `useMoverEtapa`, ao inserir o card na etapa destino, usar `splice(dropIndex, 0, card)` ao inves de append no final
-
-**Arquivo: `useKanban.ts`**
-- Nao precisa mudar — o optimistic update ja esta no `onMutate` do `useMoverEtapa`, basta o `KanbanBoard` fazer o `setQueriesData` com a posicao correta antes de chamar `mutate`
-- Na verdade, como o `onMutate` generico nao sabe o indice, a abordagem sera: fazer o reposicionamento manual no cache **antes** de chamar `mutate`, e no `onMutate` apenas cancelar queries e salvar snapshot (sem mover novamente)
-
-**Ajuste de abordagem (mais simples):**
-- O `KanbanBoard.handleDrop` recebe o `dropIndex`
-- Antes de chamar `moverEtapa.mutate`, faz o `queryClient.setQueriesData` diretamente inserindo o card na posicao correta
-- O `useMoverEtapa.onMutate` ja faz o move generico (append), mas como o cache ja foi atualizado pelo board, o onMutate vai encontrar o card ja na posicao correta na etapa destino e nao duplicar (pois remove da origem e nao encontra mais)
-
-**Abordagem final mais limpa:**
-- Passar o `dropIndex` como parte dos parametros do `mutate` em `useMoverEtapa`
-- No `onMutate`, usar o `dropIndex` para inserir na posicao correta ao inves de fazer append
+Adicionar uma coluna `posicao` na tabela `oportunidades` e atualizar toda a cadeia para persistir e respeitar essa ordem.
 
 ---
 
-### Detalhes tecnicos
+### Passo 1 — Migration: adicionar coluna `posicao`
 
-#### Mudancas em `useKanban.ts`
-- Adicionar `dropIndex?: number` ao tipo do `mutationFn` params
-- No `onMutate`, trocar `[...etapa.oportunidades, oportunidadeMovida]` por logica com `splice` quando `dropIndex` for informado
+```sql
+ALTER TABLE oportunidades
+  ADD COLUMN IF NOT EXISTS posicao integer NOT NULL DEFAULT 0;
 
-#### Mudancas em `KanbanColumn.tsx`  
-- Tipagem de `onDrop`: `(e, etapaId, tipoEtapa, dropIndex?: number) => void`
-- No `handleDrop`, passar `dropIndex` atual: `onDrop(e, etapa.id, etapa.tipo, dropIndex ?? undefined)`
-- Trocar o indicador visual para placeholder estilo Trello:
-  - Bloco com altura fixa (~72px), fundo `bg-muted-foreground/10`, bordas `border-dashed`, cantos arredondados
+-- Indice para performance na ordenacao dentro de cada etapa
+CREATE INDEX IF NOT EXISTS idx_oportunidades_etapa_posicao
+  ON oportunidades (etapa_id, posicao ASC)
+  WHERE deletado_em IS NULL;
 
-#### Mudancas em `KanbanBoard.tsx`
-- `handleDrop` recebe 4o param `dropIndex`
-- Passa `dropIndex` no objeto do `mutate`: `{ oportunidadeId, etapaDestinoId, dropIndex }`
+-- Inicializar posicoes existentes baseado em criado_em (mais antigo = menor posicao)
+WITH ranked AS (
+  SELECT id, ROW_NUMBER() OVER (PARTITION BY etapa_id ORDER BY criado_em ASC) as rn
+  FROM oportunidades
+  WHERE deletado_em IS NULL
+)
+UPDATE oportunidades SET posicao = ranked.rn
+FROM ranked WHERE oportunidades.id = ranked.id;
+```
 
+---
+
+### Passo 2 — `negocios.api.ts`: ordenar por `posicao` e atualizar `moverEtapa`
+
+**Alterar `carregarKanban`** (linha 299):
+- Trocar `.order('criado_em', { ascending: false })` por `.order('posicao', { ascending: true })`
+
+**Alterar `moverEtapa`** (linhas 467-498):
+- Receber `dropIndex` como parametro opcional
+- Apos mover para a nova etapa, recalcular posicoes:
+  1. Buscar oportunidades da etapa destino ordenadas por `posicao`
+  2. Inserir o card movido na posicao `dropIndex`
+  3. Atualizar as posicoes de todos os cards da etapa destino em batch
+
+**Logica de reordenacao:**
+```text
+1. Buscar todas ops da etapa destino (exceto a movida) ORDER BY posicao
+2. Inserir a movida na posicao dropIndex (ou no final se nao informado)
+3. Para cada op na lista, UPDATE posicao = indice + 1
+```
+
+---
+
+### Passo 3 — `useKanban.ts`: repassar dropIndex para a API
+
+**Alterar `useMoverEtapa`** (linha 63-64):
+- Incluir `dropIndex` no `mutationFn` para que seja repassado a `negociosApi.moverEtapa`
+
+---
+
+### Passo 4 — `criarOportunidade`: posicao inicial
+
+Quando uma nova oportunidade e criada, ela deve receber `posicao = 0` (ou o proximo disponivel na etapa). A abordagem mais simples: inserir com `posicao = 0` e depois fazer um UPDATE para empurrar as demais +1 (ou inserir no final com `MAX(posicao) + 1`).
+
+---
+
+### Resumo dos arquivos alterados
+
+| Arquivo | Alteracao |
+|---|---|
+| Migration SQL | Adicionar coluna `posicao`, indice, inicializar dados |
+| `src/modules/negocios/services/negocios.api.ts` | Ordenar por `posicao`, `moverEtapa` recebe `dropIndex` e atualiza posicoes |
+| `src/modules/negocios/hooks/useKanban.ts` | Passar `dropIndex` ao `mutationFn` |
+
+Nenhum outro arquivo precisa mudar — `KanbanBoard` e `KanbanColumn` ja repassam o `dropIndex` corretamente.
