@@ -8,11 +8,18 @@ import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { GitBranch } from 'lucide-react'
 import { AddNodeButton } from './AddNodeButton'
 
+interface CondicaoRegra {
+  campo: string
+  operador: string
+  valor: string
+}
+
 export interface CondicaoNodeData {
   campo?: string
   operador?: string
   valor?: string
   label?: string
+  regras?: CondicaoRegra[]
   onAddNode?: (type: 'acao' | 'condicao' | 'delay' | 'validacao', sourceNodeId: string, sourceHandle?: string) => void
   [key: string]: unknown
 }
@@ -52,6 +59,11 @@ export const CondicaoNode = memo(({ id, data, selected }: NodeProps) => {
           {nodeData.operador && (
             <p className="text-xs text-muted-foreground mt-0.5">
               {nodeData.operador} {nodeData.valor || ''}
+            </p>
+          )}
+          {Array.isArray(nodeData.regras) && nodeData.regras.length > 1 && (
+            <p className="text-[10px] text-yellow-600/80 mt-1">
+              +{nodeData.regras.length - 1} condição(ões) AND
             </p>
           )}
         </div>
