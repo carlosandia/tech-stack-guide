@@ -5,7 +5,7 @@
  */
 
 import { useState, useRef, useEffect } from 'react'
-import { Trash2, Download, ArrowRightLeft, Tag, Plus, Minus, AlertTriangle } from 'lucide-react'
+import { Trash2, Download, ArrowRightLeft, Tag, Plus, Minus, AlertTriangle, X } from 'lucide-react'
 import type { EtapaFunil } from '../../services/negocios.api'
 import { useSegmentos, useSegmentarLote } from '@/modules/contatos/hooks/useSegmentos'
 
@@ -217,9 +217,10 @@ export function OportunidadeBulkActions({
 
       <button
         onClick={onClearSelection}
-        className="text-sm text-background/60 hover:text-background transition-colors"
+        className="flex items-center justify-center w-7 h-7 rounded-md text-background/60 hover:text-background hover:bg-background/10 transition-colors"
+        title="Fechar e desselecionar"
       >
-        Limpar
+        <X className="w-4 h-4" />
       </button>
     </div>
   )

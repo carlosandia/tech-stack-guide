@@ -41,9 +41,9 @@ export function SolicitacoesColumn({ funilId }: SolicitacoesColumnProps) {
               <span className="flex-shrink-0 text-xs font-medium text-warning-foreground bg-warning-muted rounded-full px-1.5 py-0.5 min-w-[20px] text-center">
                 {total}
               </span>
+              <span className="text-[10px] text-muted-foreground">WhatsApp</span>
             </div>
           </div>
-          <p className="text-[10px] text-muted-foreground mt-0.5">WhatsApp</p>
         </div>
 
         {/* Cards */}
