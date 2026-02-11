@@ -1,111 +1,65 @@
 
+# Plano: Reorganizar EstiloCamposForm - Layout Compacto
 
-# Plano: Configuracoes de Layout para Paragrafo e demais campos
+## Objetivo
+Reorganizar o painel de estilos dos campos/inputs para ficar compacto, facil de ler e usar, seguindo o mesmo padrao visual do painel de botoes (grids de 2 colunas, secoes claras).
 
-## Resumo
+## Mudancas
 
-O campo "Paragrafo" vai ganhar os mesmos controles visuais que o "Titulo" (alinhamento, cor, tamanho da fonte). Alem disso, os campos de layout "Divisor", "Espacador" e "Bloco HTML" ganharao configuracoes proprias e funcionais.
+### 1. Reorganizacao do Layout (EstiloCamposForm.tsx)
 
----
-
-## 1. Paragrafo - mesmas configs do Titulo
-
-O painel de configuracao (`CampoConfigPanel`) passara a tratar `paragrafo` da mesma forma que `titulo`, exibindo:
-- **Alinhamento** (esquerda, centro, direita)
-- **Cor do texto** (input color + hex)
-- **Tamanho da fonte** (px)
-
-Os valores serao armazenados em JSON no campo `valor_padrao`, identico ao titulo.
-
-Arquivos afetados:
-- `CampoConfigPanel.tsx` - expandir condicao `isTitulo` para incluir `paragrafo` (renomear para `isLayoutTexto` ou similar)
-- `FormPreview.tsx` - aplicar `parseTituloConfig` no render do paragrafo
-- `CampoItem.tsx` - aplicar estilos no preview do paragrafo na paleta
-- `FormularioPublicoPage.tsx` - aplicar estilos no render publico do paragrafo
-
-## 2. Divisor - configuracoes proprias
-
-Controles no painel:
-- **Cor da linha** (input color)
-- **Espessura** (1px a 5px)
-- **Estilo** (solido, tracejado, pontilhado)
-
-Armazenamento: JSON em `valor_padrao` com `{"cor":"#D1D5DB","espessura":"1","estilo":"solid"}`
-
-Arquivos afetados:
-- `CampoConfigPanel.tsx` - secao condicional para `divisor`
-- `FormPreview.tsx` - aplicar estilos no `<hr>`
-- `CampoItem.tsx` - aplicar estilos no preview
-- `FormularioPublicoPage.tsx` - aplicar estilos no render publico
-
-## 3. Espacador - configuracao propria
-
-Controle no painel:
-- **Altura** (input numerico, de 8px a 120px, padrao 16px)
-
-Armazenamento: JSON em `valor_padrao` com `{"altura":"16"}`
-
-Arquivos afetados: mesmos 4 arquivos
-
-## 4. Bloco HTML - configuracao propria
-
-Controle no painel:
-- **Conteudo HTML** (textarea grande para colar HTML)
-
-Ja usa `valor_padrao` como string HTML direta, entao nao precisa de JSON - apenas exibir um textarea adequado no painel.
-
-Arquivo afetado: `CampoConfigPanel.tsx` - secao condicional para `bloco_html`
-
-## 5. Remocao de campos irrelevantes para tipos de layout
-
-Para campos de layout (`titulo`, `paragrafo`, `divisor`, `espacador`, `bloco_html`), ocultar configs que nao fazem sentido:
-- Placeholder (ja oculto para titulo, agora tambem para divisor, espacador)
-- Texto de ajuda (idem)
-- Obrigatorio (nao faz sentido para layout)
-- Mapeamento para contato (idem)
-- Largura (manter apenas para titulo e paragrafo)
-
----
-
-## Detalhes tecnicos
-
-### Helper generico de parsing
-
-Renomear `parseTituloConfig` para `parseLayoutConfig` e expandir para suportar todos os campos:
+Novo layout compacto com grids de 2 colunas:
 
 ```text
-parseLayoutConfig(valorPadrao, tipo):
-  - titulo/paragrafo: { alinhamento, cor, tamanho }
-  - divisor: { cor, espessura, estilo }
-  - espacador: { altura }
-  - bloco_html: valor_padrao usado como string direta (sem parse)
+LABEL
+  [Cor ____] [Tamanho ____]     <- grid 2 colunas
+  [Peso ____v]                  <- novo: peso da fonte (Normal, Semibold, Bold)
+
+CORES DO INPUT
+  [Fundo ____] [Texto ____]     <- grid 2 colunas
+  [Placeholder ____]            <- linha unica (label mais longo)
+
+BORDA DO INPUT
+  [Arredondamento __] [Espessura __]  <- grid 2 colunas
+  [Estilo ____v] [Cor ____]           <- grid 2 colunas (novo: estilo solid/dashed/dotted)
+
+DIMENSOES
+  [Altura ____]                 <- novo: altura do input (px)
+
+FOCO
+  [Cor do Foco ____]            <- novo: cor do ring ao focar no input
+
+ERRO
+  [Cor de Erro ____]
+
+ESPACAMENTO
+  [Topo __] [Baixo __]          <- grid 2 colunas (ja existe)
+  [Esquerda __] [Direita __]    <- grid 2 colunas (ja existe)
 ```
 
-### Logica no CampoConfigPanel
+### 2. Novos campos adicionados ao EstiloCampos
 
-```text
-const isTextoLayout = tipo === 'titulo' || tipo === 'paragrafo'
-const isDivisor = tipo === 'divisor'
-const isEspacador = tipo === 'espacador'
-const isBlocoHtml = tipo === 'bloco_html'
-const isLayoutField = isTextoLayout || isDivisor || isEspacador || isBlocoHtml
+Para dar autonomia total ao usuario, adicionar na interface `EstiloCampos` em `formularios.api.ts`:
+- `label_font_weight` - peso da fonte do label (normal, 500, 600, 700)
+- `input_height` - altura do input
+- `input_border_style` - estilo da borda (solid, dashed, dotted)
+- `input_focus_color` - cor do ring de foco
 
-- Se isLayoutField: ocultar placeholder, texto_ajuda, obrigatorio, mapeamento
-- Se isTextoLayout: mostrar alinhamento + cor + tamanho
-- Se isDivisor: mostrar cor da linha + espessura + estilo
-- Se isEspacador: mostrar altura
-- Se isBlocoHtml: mostrar textarea de HTML
-- Largura: mostrar para titulo, paragrafo, imagem_link; ocultar para divisor, espacador, bloco_html
-```
+### 3. Componente ColorField compacto
 
-### buildPayload atualizado
+O `ColorField` atual ocupa muito espaco vertical (label em cima, color+input embaixo). Nova versao compacta: label acima e color picker menor (w-6 h-6) inline com o input hex.
 
-O `valor_padrao` sera serializado como JSON para titulo, paragrafo, divisor e espacador. Para bloco_html, sera a string HTML direta.
+### 4. Aplicacao dos novos estilos
 
-### Sequencia de implementacao
+Atualizar `FormPreview.tsx` e `FormularioPublicoPage.tsx` para aplicar os novos estilos:
+- `input_height` no style do input
+- `input_border_style` no style do input
+- `input_focus_color` como ring color customizado
+- `label_font_weight` no style do label
 
-1. Refatorar `CampoConfigPanel.tsx` (helper + secoes condicionais + ocultar campos irrelevantes)
-2. Atualizar `FormPreview.tsx` (aplicar estilos de paragrafo, divisor, espacador)
-3. Atualizar `CampoItem.tsx` (preview na paleta)
-4. Atualizar `FormularioPublicoPage.tsx` (render publico)
+## Arquivos afetados
 
+1. **`src/modules/formularios/services/formularios.api.ts`** - adicionar novos campos na interface EstiloCampos
+2. **`src/modules/formularios/components/estilos/EstiloCamposForm.tsx`** - reescrever com layout compacto em grid
+3. **`src/modules/formularios/components/editor/FormPreview.tsx`** - aplicar novos estilos nos inputs
+4. **`src/modules/formularios/pages/FormularioPublicoPage.tsx`** - aplicar novos estilos nos inputs da pagina publica
