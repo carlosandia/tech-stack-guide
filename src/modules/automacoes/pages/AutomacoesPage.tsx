@@ -99,7 +99,7 @@ export function AutomacoesPage() {
   }, [selectedAutoId, nodes, edges, atualizarMutation])
 
   // Handle add node
-  const handleAddNode = useCallback((type: 'acao' | 'condicao' | 'delay', position?: { x: number; y: number }) => {
+  const handleAddNode = useCallback((type: 'acao' | 'condicao' | 'delay' | 'validacao', position?: { x: number; y: number }) => {
     addNode(type, position)
   }, [addNode])
 

@@ -9,6 +9,7 @@ import { TriggerConfig } from './TriggerConfig'
 import { AcaoConfig } from './AcaoConfig'
 import { CondicaoConfig } from './CondicaoConfig'
 import { DelayConfig } from './DelayConfig'
+import { ValidacaoConfig } from './ValidacaoConfig'
 
 interface NodeConfigPanelProps {
   node: Node
@@ -32,7 +33,8 @@ export function NodeConfigPanel({ node, onClose, onUpdate, onDelete }: NodeConfi
           {node.type === 'trigger' ? 'Gatilho' :
            node.type === 'condicao' ? 'Condição' :
            node.type === 'acao' ? 'Ação' :
-           node.type === 'delay' ? 'Delay' : 'Nó'}
+           node.type === 'delay' ? 'Delay' :
+           node.type === 'validacao' ? 'Validação' : 'Nó'}
         </h3>
         <div className="flex items-center gap-1">
           {!isTrigger && (
@@ -66,6 +68,9 @@ export function NodeConfigPanel({ node, onClose, onUpdate, onDelete }: NodeConfi
         )}
         {node.type === 'delay' && (
           <DelayConfig data={node.data as Record<string, unknown>} onUpdate={handleUpdate} />
+        )}
+        {node.type === 'validacao' && (
+          <ValidacaoConfig data={node.data as Record<string, unknown>} onUpdate={handleUpdate} />
         )}
       </div>
     </aside>
