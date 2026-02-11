@@ -418,12 +418,16 @@ export interface EstiloCabecalho {
 export interface EstiloCampos {
   label_cor?: string
   label_tamanho?: string
+  label_font_weight?: string
   input_background?: string
   input_border_color?: string
   input_border_radius?: string
   input_border_width?: string
+  input_border_style?: string
   input_texto_cor?: string
   input_placeholder_cor?: string
+  input_height?: string
+  input_focus_color?: string
   erro_cor?: string
   gap?: string
   gap_top?: string
