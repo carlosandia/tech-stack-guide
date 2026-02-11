@@ -497,8 +497,9 @@ export function FormPreview({
                     {campos.length === 0 && renderDropZone(0, true)}
 
                     {campos.length > 0 && (() => {
-                      // AIDEV-NOTE: Filtrar campos top-level (sem pai) para renderizar no nível raiz
-                      const topLevelCampos = campos.filter(c => !c.pai_campo_id)
+                      // AIDEV-NOTE: Filtrar campos top-level (sem pai) e excluir botões (renderizados no rodapé)
+                      const BUTTON_TYPES = ['botao_enviar', 'botao_whatsapp']
+                      const topLevelCampos = campos.filter(c => !c.pai_campo_id && !BUTTON_TYPES.includes(c.tipo))
 
                       return (
                         <div className="group/campos">
@@ -779,7 +780,7 @@ function FinalPreviewFields({ campos, estiloCampos, fontFamily, viewport = 'desk
 
   return (
     <div style={{ fontSize: 0, display: 'flex', flexWrap: 'wrap', gap: '0 8px' }}>
-      {campos.filter(c => !c.pai_campo_id).map((campo) => {
+      {campos.filter(c => !c.pai_campo_id && c.tipo !== 'botao_enviar' && c.tipo !== 'botao_whatsapp').map((campo) => {
         // AIDEV-NOTE: Renderizar bloco de colunas no preview final
         if (campo.tipo === 'bloco_colunas') {
           const colConfig = (() => {

@@ -8,6 +8,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { PanelLeft, PanelRight, Loader2, LayoutGrid, Settings2, Share2, BarChart3 } from 'lucide-react'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -163,6 +164,19 @@ export function FormularioEditorPage() {
   const botaoSaveConfigRef = useRef<(() => Promise<void>) | null>(null)
 
   const selectedCampo = campos.find((c) => c.id === selectedCampoId)
+  const isSelectedCampoBotao = selectedCampo?.tipo === 'botao_enviar' || selectedCampo?.tipo === 'botao_whatsapp'
+
+  // AIDEV-NOTE: Derivar tipo_botao automaticamente dos campos presentes
+  const derivedTipoBotao = (() => {
+    const hasEnviar = campos.some(c => c.tipo === 'botao_enviar')
+    const hasWhatsApp = campos.some(c => c.tipo === 'botao_whatsapp')
+    if (hasEnviar && hasWhatsApp) return 'ambos'
+    if (hasWhatsApp) return 'whatsapp'
+    return 'enviar'
+  })()
+
+  // Sync derived tipo_botao to configBotoes
+  const effectiveConfigBotoes = configBotoes ? { ...configBotoes, tipo_botao: derivedTipoBotao } : { tipo_botao: derivedTipoBotao }
 
   const handleSaveEstilos = () => {
     salvarEstilos.mutate({
@@ -187,6 +201,16 @@ export function FormularioEditorPage() {
       const campoTipoData = e.dataTransfer.getData('application/campo-tipo')
       if (!campoTipoData) return
       const tipoCampo = JSON.parse(campoTipoData)
+
+      // AIDEV-NOTE: Validação de duplicidade para botões
+      if (tipoCampo.tipo === 'botao_enviar' || tipoCampo.tipo === 'botao_whatsapp') {
+        const jaExiste = campos.some(c => c.tipo === tipoCampo.tipo)
+        if (jaExiste) {
+          toast.error(tipoCampo.tipo === 'botao_enviar' ? 'Apenas um botão de enviar é permitido' : 'Apenas um botão de WhatsApp é permitido')
+          return
+        }
+      }
+
       const label = tipoCampo.label || tipoCampo.tipo
       const nome = tipoCampo.tipo + '_' + Date.now().toString(36)
       const newCampoPayload = {
@@ -212,6 +236,15 @@ export function FormularioEditorPage() {
   // AIDEV-NOTE: Adicionar campo ao clicar no + da paleta (adiciona no final)
   const handleAddCampoFromPaleta = useCallback(
     (tipoCampo: TipoCampoPaleta) => {
+      // Validação de duplicidade para botões
+      if (tipoCampo.tipo === 'botao_enviar' || tipoCampo.tipo === 'botao_whatsapp') {
+        const jaExiste = campos.some(c => c.tipo === tipoCampo.tipo)
+        if (jaExiste) {
+          toast.error(tipoCampo.tipo === 'botao_enviar' ? 'Apenas um botão de enviar é permitido' : 'Apenas um botão de WhatsApp é permitido')
+          return
+        }
+      }
+
       const label = tipoCampo.label || tipoCampo.tipo
       const nome = tipoCampo.tipo + '_' + Date.now().toString(36)
       const index = campos.length
@@ -541,7 +574,7 @@ export function FormularioEditorPage() {
                 isSaving={salvarEstilos.isPending}
                 paginaBackgroundColor={pagina.background_color}
                 cssCustomizado={cssCustomizado}
-                configBotoes={configBotoes}
+                configBotoes={effectiveConfigBotoes}
                 popupLayout={formulario.tipo === 'popup' ? {
                   template: localPopupTemplate,
                   imagemUrl: localPopupImagemUrl,
@@ -558,7 +591,7 @@ export function FormularioEditorPage() {
             </div>
 
             {/* Config panel - hidden in final preview */}
-            {!showFinalPreview && selectedCampo && !selectedStyleElement && (
+            {!showFinalPreview && selectedCampo && !selectedStyleElement && !isSelectedCampoBotao && (
               <CampoSidebarPanel
                 campo={selectedCampo}
                 onUpdate={handleUpdateCampo}
@@ -567,6 +600,24 @@ export function FormularioEditorPage() {
                 estiloCampos={camposEstilo}
                 onChangeEstiloCampos={setCamposEstilo}
               />
+            )}
+
+            {/* Button campo sidebar - opens BotaoConfigPanel */}
+            {!showFinalPreview && selectedCampo && isSelectedCampoBotao && !selectedStyleElement && (
+              <EstiloPopover
+                open={true}
+                onClose={() => { setSelectedCampoId(null); setShowConfig(false) }}
+                titulo={selectedCampo.tipo === 'botao_whatsapp' ? 'Botão WhatsApp' : 'Botão Enviar'}
+              >
+                <BotaoConfigPanel
+                  formularioId={formulario.id}
+                  tipo={selectedCampo.tipo === 'botao_whatsapp' ? 'botao_whatsapp' : 'botao'}
+                  estiloBotao={botao}
+                  onChangeEstilo={setBotao}
+                  onConfigChange={setLocalConfigBotoes}
+                  onRegisterSave={(fn) => { botaoSaveConfigRef.current = fn }}
+                />
+              </EstiloPopover>
             )}
 
             {/* Style panel - hidden in final preview */}
