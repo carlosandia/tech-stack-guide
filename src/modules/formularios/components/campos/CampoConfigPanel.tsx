@@ -61,20 +61,33 @@ const LARGURAS = [
   { value: '2/3', label: 'Dois Terços (66%)' },
 ]
 
-// AIDEV-NOTE: Helper para parsear JSON do campo titulo (alinhamento, cor, tamanho)
-function parseTituloConfig(valorPadrao: string | null | undefined): { alinhamento: string; cor: string; tamanho: string } {
-  const defaults = { alinhamento: 'left', cor: '#374151', tamanho: '18' }
-  if (!valorPadrao) return defaults
-  try {
-    const parsed = JSON.parse(valorPadrao)
-    return {
-      alinhamento: parsed.alinhamento || defaults.alinhamento,
-      cor: parsed.cor || defaults.cor,
-      tamanho: parsed.tamanho || defaults.tamanho,
-    }
-  } catch {
-    return defaults
+// AIDEV-NOTE: Helper genérico para parsear JSON de campos de layout
+function parseLayoutConfig(valorPadrao: string | null | undefined, tipo: string) {
+  if (tipo === 'titulo' || tipo === 'paragrafo') {
+    const defaults = { alinhamento: 'left', cor: '#374151', tamanho: tipo === 'titulo' ? '18' : '14' }
+    if (!valorPadrao) return defaults
+    try {
+      const p = JSON.parse(valorPadrao)
+      return { alinhamento: p.alinhamento || defaults.alinhamento, cor: p.cor || defaults.cor, tamanho: p.tamanho || defaults.tamanho }
+    } catch { return defaults }
   }
+  if (tipo === 'divisor') {
+    const defaults = { cor: '#D1D5DB', espessura: '1', estilo: 'solid' }
+    if (!valorPadrao) return defaults
+    try {
+      const p = JSON.parse(valorPadrao)
+      return { cor: p.cor || defaults.cor, espessura: p.espessura || defaults.espessura, estilo: p.estilo || defaults.estilo }
+    } catch { return defaults }
+  }
+  if (tipo === 'espacador') {
+    const defaults = { altura: '16' }
+    if (!valorPadrao) return defaults
+    try {
+      const p = JSON.parse(valorPadrao)
+      return { altura: p.altura || defaults.altura }
+    } catch { return defaults }
+  }
+  return {}
 }
 
 interface Props {
@@ -138,9 +151,13 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
     (campo.opcoes as string[] || []).join('\n')
   )
 
-  // Titulo config state
-  const isTitulo = campo.tipo === 'titulo'
-  const [tituloConfig, setTituloConfig] = useState(() => parseTituloConfig(campo.valor_padrao))
+  // Layout config state
+  const isTextoLayout = campo.tipo === 'titulo' || campo.tipo === 'paragrafo'
+  const isDivisor = campo.tipo === 'divisor'
+  const isEspacador = campo.tipo === 'espacador'
+  const isBlocoHtml = campo.tipo === 'bloco_html'
+  const isLayoutField = isTextoLayout || isDivisor || isEspacador || isBlocoHtml
+  const [layoutConfig, setLayoutConfig] = useState<Record<string, string>>(() => parseLayoutConfig(campo.valor_padrao, campo.tipo) as Record<string, string>)
 
   // Reset when campo changes
   useEffect(() => {
@@ -155,7 +172,7 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
       valor_padrao: campo.valor_padrao || '',
     })
     setOpcoesText((campo.opcoes as string[] || []).join('\n'))
-    setTituloConfig(parseTituloConfig(campo.valor_padrao))
+    setLayoutConfig(parseLayoutConfig(campo.valor_padrao, campo.tipo) as Record<string, string>)
   }, [campo.id])
 
   const deriveNome = (label: string) =>
@@ -174,14 +191,14 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
       obrigatorio: form.obrigatorio,
       mapeamento_campo: form.mapeamento_campo || null,
       largura: form.largura,
-      valor_padrao: isTitulo ? JSON.stringify(tituloConfig) : (form.valor_padrao || null),
+      valor_padrao: (isTextoLayout || isDivisor || isEspacador) ? JSON.stringify(layoutConfig) : (form.valor_padrao || null),
     }
     if (needsOptions) {
       const opcoes = opcoesText.split('\n').map((o) => o.trim()).filter(Boolean)
       ;(payload as any).opcoes = opcoes
     }
     return payload
-  }, [form, tituloConfig, opcoesText, isTitulo, needsOptions])
+  }, [form, layoutConfig, opcoesText, isTextoLayout, isDivisor, isEspacador, needsOptions])
 
   useEffect(() => {
     // Skip first render to avoid saving on mount
@@ -198,7 +215,7 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [form, tituloConfig, opcoesText])
+  }, [form, layoutConfig, opcoesText])
 
   // Flush on unmount or campo change
   useEffect(() => {
@@ -234,10 +251,10 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
           />
         </div>
 
-        {/* Configurações especiais para campo Título */}
-        {isTitulo && (
+        {/* Configurações de estilo para campos de layout texto (título/parágrafo) */}
+        {isTextoLayout && (
           <div className="space-y-3 border-t border-border pt-3">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Estilo do Título</p>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Estilo do {campo.tipo === 'titulo' ? 'Título' : 'Parágrafo'}</p>
             
             <div className="space-y-1.5">
               <Label className="text-xs">Alinhamento</Label>
@@ -250,10 +267,10 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
                   <Button
                     key={value}
                     type="button"
-                    variant={tituloConfig.alinhamento === value ? 'default' : 'outline'}
+                    variant={layoutConfig.alinhamento === value ? 'default' : 'outline'}
                     size="sm"
                     className="flex-1 h-8"
-                    onClick={() => setTituloConfig(prev => ({ ...prev, alinhamento: value }))}
+                    onClick={() => setLayoutConfig((prev: Record<string, string>) => ({ ...prev, alinhamento: value }))}
                     title={label}
                   >
                     <Icon className="w-4 h-4" />
@@ -267,13 +284,13 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
               <div className="flex items-center gap-2">
                 <input
                   type="color"
-                  value={tituloConfig.cor}
-                  onChange={(e) => setTituloConfig(prev => ({ ...prev, cor: e.target.value }))}
+                  value={layoutConfig.cor || '#374151'}
+                  onChange={(e) => setLayoutConfig((prev: Record<string, string>) => ({ ...prev, cor: e.target.value }))}
                   className="w-8 h-8 rounded border border-input cursor-pointer"
                 />
                 <Input
-                  value={tituloConfig.cor}
-                  onChange={(e) => setTituloConfig(prev => ({ ...prev, cor: e.target.value }))}
+                  value={layoutConfig.cor || '#374151'}
+                  onChange={(e) => setLayoutConfig((prev: Record<string, string>) => ({ ...prev, cor: e.target.value }))}
                   className="flex-1 h-8 text-xs font-mono"
                   placeholder="#374151"
                 />
@@ -286,15 +303,97 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
                 type="number"
                 min={12}
                 max={72}
-                value={tituloConfig.tamanho}
-                onChange={(e) => setTituloConfig(prev => ({ ...prev, tamanho: e.target.value }))}
+                value={layoutConfig.tamanho || (campo.tipo === 'titulo' ? '18' : '14')}
+                onChange={(e) => setLayoutConfig((prev: Record<string, string>) => ({ ...prev, tamanho: e.target.value }))}
                 className="h-8"
               />
             </div>
           </div>
         )}
 
-        {!isTitulo && (
+        {/* Configurações do Divisor */}
+        {isDivisor && (
+          <div className="space-y-3 border-t border-border pt-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Estilo do Divisor</p>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Cor da Linha</Label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={layoutConfig.cor || '#D1D5DB'}
+                  onChange={(e) => setLayoutConfig((prev: Record<string, string>) => ({ ...prev, cor: e.target.value }))}
+                  className="w-8 h-8 rounded border border-input cursor-pointer"
+                />
+                <Input
+                  value={layoutConfig.cor || '#D1D5DB'}
+                  onChange={(e) => setLayoutConfig((prev: Record<string, string>) => ({ ...prev, cor: e.target.value }))}
+                  className="flex-1 h-8 text-xs font-mono"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Espessura (px)</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={5}
+                  value={layoutConfig.espessura || '1'}
+                  onChange={(e) => setLayoutConfig((prev: Record<string, string>) => ({ ...prev, espessura: e.target.value }))}
+                  className="h-8"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Estilo</Label>
+                <Select value={layoutConfig.estilo || 'solid'} onValueChange={(v) => setLayoutConfig((prev: Record<string, string>) => ({ ...prev, estilo: v }))}>
+                  <SelectTrigger className="h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="solid">Sólido</SelectItem>
+                    <SelectItem value="dashed">Tracejado</SelectItem>
+                    <SelectItem value="dotted">Pontilhado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Configurações do Espaçador */}
+        {isEspacador && (
+          <div className="space-y-3 border-t border-border pt-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Estilo do Espaçador</p>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Altura (px)</Label>
+              <Input
+                type="number"
+                min={8}
+                max={120}
+                value={layoutConfig.altura || '16'}
+                onChange={(e) => setLayoutConfig((prev: Record<string, string>) => ({ ...prev, altura: e.target.value }))}
+                className="h-8"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Configurações do Bloco HTML */}
+        {isBlocoHtml && (
+          <div className="space-y-3 border-t border-border pt-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Conteúdo HTML</p>
+            <Textarea
+              value={form.valor_padrao}
+              onChange={(e) => setForm((f) => ({ ...f, valor_padrao: e.target.value }))}
+              rows={8}
+              placeholder="<p>Seu conteúdo HTML aqui</p>"
+              className="font-mono text-xs"
+            />
+            <p className="text-[10px] text-muted-foreground">Cole HTML personalizado. Será sanitizado antes da exibição.</p>
+          </div>
+        )}
+
+        {!isLayoutField && (
           <>
             <div className="space-y-1.5">
               <Label className="text-xs">Placeholder</Label>
@@ -317,31 +416,37 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
           </>
         )}
 
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            id="obrigatorio"
-            checked={form.obrigatorio}
-            onChange={(e) => setForm((f) => ({ ...f, obrigatorio: e.target.checked }))}
-            className="rounded border-input"
-          />
-          <Label htmlFor="obrigatorio" className="text-xs cursor-pointer">Obrigatório</Label>
-        </div>
+        {!isLayoutField && (
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="obrigatorio"
+              checked={form.obrigatorio}
+              onChange={(e) => setForm((f) => ({ ...f, obrigatorio: e.target.checked }))}
+              className="rounded border-input"
+            />
+            <Label htmlFor="obrigatorio" className="text-xs cursor-pointer">Obrigatório</Label>
+          </div>
+        )}
 
-        <div className="space-y-1.5">
-          <Label className="text-xs">Largura</Label>
-          <Select value={form.largura} onValueChange={(v) => setForm((f) => ({ ...f, largura: v }))}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {LARGURAS.map((l) => (
-                <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {/* Largura: mostrar para titulo, paragrafo, imagem_link e campos normais; ocultar para divisor, espacador, bloco_html */}
+        {!isDivisor && !isEspacador && !isBlocoHtml && (
+          <div className="space-y-1.5">
+            <Label className="text-xs">Largura</Label>
+            <Select value={form.largura} onValueChange={(v) => setForm((f) => ({ ...f, largura: v }))}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {LARGURAS.map((l) => (
+                  <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
+        {!isLayoutField && (
         <div className="space-y-1.5">
           <Label className="text-xs">Mapear para Contato</Label>
           <Select
@@ -470,6 +575,7 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
             </div>
           )}
         </div>
+        )}
 
         {needsOptions && (
           <div className="space-y-1.5">

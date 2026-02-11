@@ -11,10 +11,23 @@ import type { CampoFormulario } from '../../services/formularios.api'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 
-function parseTituloConfig(valorPadrao: string | null | undefined): { alinhamento: string; cor: string; tamanho: string } {
-  const defaults = { alinhamento: 'left', cor: '#374151', tamanho: '18' }
-  if (!valorPadrao) return defaults
-  try { const p = JSON.parse(valorPadrao); return { alinhamento: p.alinhamento || defaults.alinhamento, cor: p.cor || defaults.cor, tamanho: p.tamanho || defaults.tamanho } } catch { return defaults }
+function parseLayoutConfig(valorPadrao: string | null | undefined, tipo: string): Record<string, string> {
+  if (tipo === 'titulo' || tipo === 'paragrafo') {
+    const defaults = { alinhamento: 'left', cor: '#374151', tamanho: tipo === 'titulo' ? '18' : '14' }
+    if (!valorPadrao) return defaults
+    try { const p = JSON.parse(valorPadrao); return { alinhamento: p.alinhamento || defaults.alinhamento, cor: p.cor || defaults.cor, tamanho: p.tamanho || defaults.tamanho } } catch { return defaults }
+  }
+  if (tipo === 'divisor') {
+    const defaults = { cor: '#D1D5DB', espessura: '1', estilo: 'solid' }
+    if (!valorPadrao) return defaults
+    try { const p = JSON.parse(valorPadrao); return { cor: p.cor || defaults.cor, espessura: p.espessura || defaults.espessura, estilo: p.estilo || defaults.estilo } } catch { return defaults }
+  }
+  if (tipo === 'espacador') {
+    const defaults = { altura: '16' }
+    if (!valorPadrao) return defaults
+    try { const p = JSON.parse(valorPadrao); return { altura: p.altura || defaults.altura } } catch { return defaults }
+  }
+  return {}
 }
 
 
@@ -305,18 +318,24 @@ function renderFieldPreview(campo: CampoFormulario) {
       )
 
     case 'titulo': {
-      const tc = parseTituloConfig(campo.valor_padrao)
+      const tc = parseLayoutConfig(campo.valor_padrao, 'titulo')
       return <p className="font-semibold text-foreground" style={{ fontSize: `${tc.tamanho}px`, textAlign: tc.alinhamento as any, color: tc.cor }}>{placeholder || 'Título da seção'}</p>
     }
 
-    case 'paragrafo':
-      return <p className="text-sm text-muted-foreground">{placeholder || 'Texto descritivo do parágrafo.'}</p>
+    case 'paragrafo': {
+      const pc = parseLayoutConfig(campo.valor_padrao, 'paragrafo')
+      return <p className="text-muted-foreground" style={{ fontSize: `${pc.tamanho}px`, textAlign: pc.alinhamento as any, color: pc.cor }}>{placeholder || 'Texto descritivo do parágrafo.'}</p>
+    }
 
-    case 'divisor':
-      return <hr className="border-border" />
+    case 'divisor': {
+      const dc = parseLayoutConfig(campo.valor_padrao, 'divisor')
+      return <hr style={{ border: 'none', borderTop: `${dc.espessura}px ${dc.estilo} ${dc.cor}` }} />
+    }
 
-    case 'espacador':
-      return <div className="h-6" />
+    case 'espacador': {
+      const ec = parseLayoutConfig(campo.valor_padrao, 'espacador')
+      return <div style={{ height: `${ec.altura}px` }} />
+    }
 
     case 'bloco_html':
       return (
