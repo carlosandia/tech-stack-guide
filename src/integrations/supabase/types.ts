@@ -225,6 +225,84 @@ export type Database = {
         }
         Relationships: []
       }
+      automacoes: {
+        Row: {
+          acoes: Json
+          ativo: boolean
+          atualizado_em: string
+          condicoes: Json
+          criado_em: string
+          criado_por: string | null
+          deletado_em: string | null
+          descricao: string | null
+          execucoes_ultima_hora: number
+          id: string
+          max_execucoes_hora: number
+          nome: string
+          organizacao_id: string
+          total_erros: number
+          total_execucoes: number
+          trigger_config: Json
+          trigger_tipo: string
+          ultima_execucao_em: string | null
+        }
+        Insert: {
+          acoes?: Json
+          ativo?: boolean
+          atualizado_em?: string
+          condicoes?: Json
+          criado_em?: string
+          criado_por?: string | null
+          deletado_em?: string | null
+          descricao?: string | null
+          execucoes_ultima_hora?: number
+          id?: string
+          max_execucoes_hora?: number
+          nome: string
+          organizacao_id: string
+          total_erros?: number
+          total_execucoes?: number
+          trigger_config?: Json
+          trigger_tipo: string
+          ultima_execucao_em?: string | null
+        }
+        Update: {
+          acoes?: Json
+          ativo?: boolean
+          atualizado_em?: string
+          condicoes?: Json
+          criado_em?: string
+          criado_por?: string | null
+          deletado_em?: string | null
+          descricao?: string | null
+          execucoes_ultima_hora?: number
+          id?: string
+          max_execucoes_hora?: number
+          nome?: string
+          organizacao_id?: string
+          total_erros?: number
+          total_execucoes?: number
+          trigger_config?: Json
+          trigger_tipo?: string
+          ultima_execucao_em?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automacoes_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automacoes_organizacao_id_fkey"
+            columns: ["organizacao_id"]
+            isOneToOne: false
+            referencedRelation: "organizacoes_saas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campos_customizados: {
         Row: {
           ativo: boolean | null
@@ -2951,6 +3029,50 @@ export type Database = {
           },
         ]
       }
+      eventos_automacao: {
+        Row: {
+          criado_em: string
+          dados: Json
+          entidade_id: string
+          entidade_tipo: string
+          id: string
+          organizacao_id: string
+          processado: boolean
+          processado_em: string | null
+          tipo: string
+        }
+        Insert: {
+          criado_em?: string
+          dados?: Json
+          entidade_id: string
+          entidade_tipo: string
+          id?: string
+          organizacao_id: string
+          processado?: boolean
+          processado_em?: string | null
+          tipo: string
+        }
+        Update: {
+          criado_em?: string
+          dados?: Json
+          entidade_id?: string
+          entidade_tipo?: string
+          id?: string
+          organizacao_id?: string
+          processado?: boolean
+          processado_em?: string | null
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eventos_automacao_organizacao_id_fkey"
+            columns: ["organizacao_id"]
+            isOneToOne: false
+            referencedRelation: "organizacoes_saas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       eventos_pendentes: {
         Row: {
           atualizado_em: string
@@ -2997,6 +3119,76 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "eventos_pendentes_organizacao_id_fkey"
+            columns: ["organizacao_id"]
+            isOneToOne: false
+            referencedRelation: "organizacoes_saas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      execucoes_pendentes_automacao: {
+        Row: {
+          acao_index: number
+          automacao_id: string
+          criado_em: string
+          dados_contexto: Json
+          executado_em: string | null
+          executar_em: string
+          id: string
+          log_id: string | null
+          max_tentativas: number
+          organizacao_id: string
+          status: string
+          tentativas: number
+          ultimo_erro: string | null
+        }
+        Insert: {
+          acao_index: number
+          automacao_id: string
+          criado_em?: string
+          dados_contexto?: Json
+          executado_em?: string | null
+          executar_em: string
+          id?: string
+          log_id?: string | null
+          max_tentativas?: number
+          organizacao_id: string
+          status?: string
+          tentativas?: number
+          ultimo_erro?: string | null
+        }
+        Update: {
+          acao_index?: number
+          automacao_id?: string
+          criado_em?: string
+          dados_contexto?: Json
+          executado_em?: string | null
+          executar_em?: string
+          id?: string
+          log_id?: string | null
+          max_tentativas?: number
+          organizacao_id?: string
+          status?: string
+          tentativas?: number
+          ultimo_erro?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "execucoes_pendentes_automacao_automacao_id_fkey"
+            columns: ["automacao_id"]
+            isOneToOne: false
+            referencedRelation: "automacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "execucoes_pendentes_automacao_log_id_fkey"
+            columns: ["log_id"]
+            isOneToOne: false
+            referencedRelation: "log_automacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "execucoes_pendentes_automacao_organizacao_id_fkey"
             columns: ["organizacao_id"]
             isOneToOne: false
             referencedRelation: "organizacoes_saas"
@@ -4076,6 +4268,66 @@ export type Database = {
           },
           {
             foreignKeyName: "links_compartilhamento_formularios_organizacao_id_fkey"
+            columns: ["organizacao_id"]
+            isOneToOne: false
+            referencedRelation: "organizacoes_saas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      log_automacoes: {
+        Row: {
+          acoes_executadas: Json | null
+          automacao_id: string
+          criado_em: string
+          dados_trigger: Json | null
+          duracao_ms: number | null
+          entidade_id: string | null
+          entidade_tipo: string | null
+          erro_mensagem: string | null
+          id: string
+          organizacao_id: string
+          status: string
+          trigger_tipo: string
+        }
+        Insert: {
+          acoes_executadas?: Json | null
+          automacao_id: string
+          criado_em?: string
+          dados_trigger?: Json | null
+          duracao_ms?: number | null
+          entidade_id?: string | null
+          entidade_tipo?: string | null
+          erro_mensagem?: string | null
+          id?: string
+          organizacao_id: string
+          status?: string
+          trigger_tipo: string
+        }
+        Update: {
+          acoes_executadas?: Json | null
+          automacao_id?: string
+          criado_em?: string
+          dados_trigger?: Json | null
+          duracao_ms?: number | null
+          entidade_id?: string | null
+          entidade_tipo?: string | null
+          erro_mensagem?: string | null
+          id?: string
+          organizacao_id?: string
+          status?: string
+          trigger_tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "log_automacoes_automacao_id_fkey"
+            columns: ["automacao_id"]
+            isOneToOne: false
+            referencedRelation: "automacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "log_automacoes_organizacao_id_fkey"
             columns: ["organizacao_id"]
             isOneToOne: false
             referencedRelation: "organizacoes_saas"

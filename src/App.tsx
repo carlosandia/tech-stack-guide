@@ -17,6 +17,7 @@ import { FormularioPublicoPage } from '@/modules/formularios/pages/FormularioPub
 import { PlanosPage, TrialCadastroPage, CheckoutSucessoPage, OnboardingPage } from '@/modules/public'
 import { BlockedPage } from '@/modules/blocked'
 import { ConfiguracoesLayout, CamposPage, ProdutosPage, MotivosPage, TarefasTemplatesPage, EtapasTemplatesPage, RegrasPage, ConfigCardPage, ConexoesPage, WebhooksEntradaPage, WebhooksSaidaPage, MembrosPage, EquipesPage, PerfisPermissaoPage, MetasPage, ConfigGeralPage } from '@/modules/configuracoes'
+import { AutomacoesPage } from '@/modules/automacoes'
 import { ContatosPage } from '@/modules/contatos'
 import { NegociosPage, PipelineConfigPage } from '@/modules/negocios'
 import { TarefasPage } from '@/modules/tarefas'
@@ -114,6 +115,7 @@ function App() {
         <Route path="perfis" element={<PerfisPermissaoPage />} />
         <Route path="metas" element={<MetasPage />} />
         <Route path="config-geral" element={<ConfigGeralPage />} />
+        <Route path="automacoes" element={<AutomacoesPage />} />
       </Route>
 
       {/* Rotas Super Admin */}
