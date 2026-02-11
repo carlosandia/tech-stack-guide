@@ -5,6 +5,8 @@
  */
 
 import { useState, useEffect, useRef } from 'react'
+import { ResponsiveField } from '../estilos/ResponsiveField'
+import type { DeviceType } from '../estilos/DeviceSwitcher'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
@@ -75,6 +77,7 @@ interface Props {
 
 export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEstilo, onConfigChange, onRegisterSave }: Props) {
   const [tab, setTab] = useState<TabType>('config')
+  const [device, setDevice] = useState<DeviceType>('desktop')
   const [config, setConfig] = useState<ConfigBotoes>(CONFIG_PADRAO)
   const [loaded, setLoaded] = useState(false)
   const [funis, setFunis] = useState<FunilOption[]>([])
@@ -237,6 +240,24 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
     onChangeEstilo({ ...estiloBotao, [key]: val })
   }
 
+  /** Get the correct key for current device */
+  const getKey = (base: string): keyof EstiloBotao => {
+    if (device === 'desktop') return base as keyof EstiloBotao
+    return `${base}_${device}` as keyof EstiloBotao
+  }
+
+  /** Get value for current device (falls back to desktop) */
+  const getVal = (base: string, fallback: string): string => {
+    if (device === 'desktop') return (estiloBotao[base as keyof EstiloBotao] as string) || fallback
+    const override = estiloBotao[`${base}_${device}` as keyof EstiloBotao] as string | undefined
+    return override || ''
+  }
+
+  const getPlaceholder = (base: string, fallback: string): string => {
+    if (device === 'desktop') return fallback
+    return (estiloBotao[base as keyof EstiloBotao] as string) || fallback
+  }
+
   const isWhatsApp = tipo === 'botao_whatsapp'
 
   /** Color picker row helper */
@@ -266,30 +287,59 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
       </div>
       {renderColorRow('Cor do Texto', 'texto_cor', '#FFFFFF')}
 
-      {/* Dimensões - 2 colunas */}
+      {/* Dimensões responsivas - 2 colunas */}
       <div className="grid grid-cols-2 gap-2">
-        <div className="space-y-1">
-          <Label className="text-xs">Largura</Label>
-          <Select value={estiloBotao.largura || 'full'} onValueChange={(v) => updateEstilo('largura', v)}>
-            <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
+        <ResponsiveField
+          label="Largura"
+          device={device}
+          onDeviceChange={setDevice}
+          desktopValue={estiloBotao.largura || 'full'}
+          tabletValue={estiloBotao.largura_tablet}
+          mobileValue={estiloBotao.largura_mobile}
+        >
+          <Select value={getVal('largura', 'full')} onValueChange={(v) => updateEstilo(getKey('largura'), v)}>
+            <SelectTrigger className="text-xs"><SelectValue placeholder={getPlaceholder('largura', '100%')} /></SelectTrigger>
             <SelectContent>
               <SelectItem value="full">100%</SelectItem>
               <SelectItem value="50%">50%</SelectItem>
+              <SelectItem value="auto">Auto</SelectItem>
             </SelectContent>
           </Select>
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs">Altura</Label>
-          <Input value={estiloBotao.altura || ''} onChange={(e) => updateEstilo('altura', e.target.value)} placeholder="Auto" className="text-xs" />
-        </div>
+        </ResponsiveField>
+        <ResponsiveField
+          label="Altura"
+          device={device}
+          onDeviceChange={setDevice}
+          desktopValue={estiloBotao.altura || ''}
+          tabletValue={estiloBotao.altura_tablet}
+          mobileValue={estiloBotao.altura_mobile}
+        >
+          <Input
+            value={getVal('altura', '')}
+            onChange={(e) => updateEstilo(getKey('altura'), e.target.value)}
+            placeholder={getPlaceholder('altura', 'Auto')}
+            className="text-xs"
+          />
+        </ResponsiveField>
       </div>
 
       {/* Tipografia */}
       <div className="grid grid-cols-2 gap-2">
-        <div className="space-y-1">
-          <Label className="text-xs">Tamanho</Label>
-          <Input value={estiloBotao.font_size || '14px'} onChange={(e) => updateEstilo('font_size', e.target.value)} className="text-xs" />
-        </div>
+        <ResponsiveField
+          label="Tamanho"
+          device={device}
+          onDeviceChange={setDevice}
+          desktopValue={estiloBotao.font_size || '14px'}
+          tabletValue={estiloBotao.font_size_tablet}
+          mobileValue={estiloBotao.font_size_mobile}
+        >
+          <Input
+            value={getVal('font_size', '14px')}
+            onChange={(e) => updateEstilo(getKey('font_size'), e.target.value)}
+            placeholder={getPlaceholder('font_size', '14px')}
+            className="text-xs"
+          />
+        </ResponsiveField>
         <div className="space-y-1">
           <Label className="text-xs">Peso</Label>
           <Select value={(estiloBotao.font_weight as string) || '600'} onValueChange={(v) => updateEstilo('font_weight', v)}>
@@ -365,30 +415,59 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
         {renderColorRow('Cor do Texto', 'whatsapp_texto_cor', '#FFFFFF')}
       </div>
 
-      {/* Dimensões */}
+      {/* Dimensões responsivas */}
       <div className="grid grid-cols-2 gap-2">
-        <div className="space-y-1">
-          <Label className="text-xs">Largura</Label>
-          <Select value={estiloBotao.whatsapp_largura || 'full'} onValueChange={(v) => updateEstilo('whatsapp_largura', v)}>
-            <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
+        <ResponsiveField
+          label="Largura"
+          device={device}
+          onDeviceChange={setDevice}
+          desktopValue={estiloBotao.whatsapp_largura || 'full'}
+          tabletValue={estiloBotao.whatsapp_largura_tablet as string | undefined}
+          mobileValue={estiloBotao.whatsapp_largura_mobile as string | undefined}
+        >
+          <Select value={getVal('whatsapp_largura', 'full')} onValueChange={(v) => updateEstilo(getKey('whatsapp_largura'), v)}>
+            <SelectTrigger className="text-xs"><SelectValue placeholder={getPlaceholder('whatsapp_largura', '100%')} /></SelectTrigger>
             <SelectContent>
               <SelectItem value="full">100%</SelectItem>
               <SelectItem value="50%">50%</SelectItem>
+              <SelectItem value="auto">Auto</SelectItem>
             </SelectContent>
           </Select>
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs">Altura</Label>
-          <Input value={estiloBotao.whatsapp_altura || ''} onChange={(e) => updateEstilo('whatsapp_altura', e.target.value)} placeholder="Auto" className="text-xs" />
-        </div>
+        </ResponsiveField>
+        <ResponsiveField
+          label="Altura"
+          device={device}
+          onDeviceChange={setDevice}
+          desktopValue={estiloBotao.whatsapp_altura || ''}
+          tabletValue={estiloBotao.whatsapp_altura_tablet as string | undefined}
+          mobileValue={estiloBotao.whatsapp_altura_mobile as string | undefined}
+        >
+          <Input
+            value={getVal('whatsapp_altura', '')}
+            onChange={(e) => updateEstilo(getKey('whatsapp_altura'), e.target.value)}
+            placeholder={getPlaceholder('whatsapp_altura', 'Auto')}
+            className="text-xs"
+          />
+        </ResponsiveField>
       </div>
 
       {/* Tipografia */}
       <div className="grid grid-cols-2 gap-2">
-        <div className="space-y-1">
-          <Label className="text-xs">Tamanho</Label>
-          <Input value={estiloBotao.whatsapp_font_size || '14px'} onChange={(e) => updateEstilo('whatsapp_font_size', e.target.value)} className="text-xs" />
-        </div>
+        <ResponsiveField
+          label="Tamanho"
+          device={device}
+          onDeviceChange={setDevice}
+          desktopValue={estiloBotao.whatsapp_font_size || '14px'}
+          tabletValue={estiloBotao.whatsapp_font_size_tablet as string | undefined}
+          mobileValue={estiloBotao.whatsapp_font_size_mobile as string | undefined}
+        >
+          <Input
+            value={getVal('whatsapp_font_size', '14px')}
+            onChange={(e) => updateEstilo(getKey('whatsapp_font_size'), e.target.value)}
+            placeholder={getPlaceholder('whatsapp_font_size', '14px')}
+            className="text-xs"
+          />
+        </ResponsiveField>
         <div className="space-y-1">
           <Label className="text-xs">Peso</Label>
           <Select value={(estiloBotao.whatsapp_font_weight as string) || '600'} onValueChange={(v) => updateEstilo('whatsapp_font_weight', v)}>
