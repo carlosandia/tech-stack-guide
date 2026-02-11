@@ -2,9 +2,10 @@
  * AIDEV-NOTE: Coluna individual do Kanban (uma etapa)
  * Header com cor da etapa via borderTop
  * Scroll vertical interno para cards
+ * Drop zones visuais entre cards para feedback de posição
  */
 
-import { useState } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import type { EtapaFunil, Oportunidade } from '../../services/negocios.api'
 import { KanbanCard } from './KanbanCard'
 import type { CardConfig, SlaConfig } from './KanbanCard'
@@ -50,6 +51,8 @@ function getColumnBorderColor(tipo: string): string {
 
 export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardClick, cardConfig, slaConfig, selectedIds, onToggleSelect }: KanbanColumnProps) {
   const [isDragOver, setIsDragOver] = useState(false)
+  const [dropIndex, setDropIndex] = useState<number | null>(null)
+  const cardsContainerRef = useRef<HTMLDivElement>(null)
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
@@ -57,18 +60,98 @@ export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardCli
     onDragOver(e)
   }
 
-  const handleDragLeave = () => {
+  const handleDragLeave = (e: React.DragEvent) => {
+    // Só limpa se realmente saiu da coluna (não para elementos filhos)
+    const relatedTarget = e.relatedTarget as Node | null
+    const currentTarget = e.currentTarget as Node
+    if (relatedTarget && currentTarget.contains(relatedTarget)) return
     setIsDragOver(false)
+    setDropIndex(null)
   }
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
     setIsDragOver(false)
+    setDropIndex(null)
     onDrop(e, etapa.id, etapa.tipo)
   }
 
+  // AIDEV-NOTE: Calcula o índice de drop baseado na posição do cursor em relação aos cards
+  const handleCardAreaDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    const container = cardsContainerRef.current
+    if (!container) return
+
+    const cards = container.querySelectorAll('[data-kanban-card]')
+    if (cards.length === 0) {
+      setDropIndex(0)
+      return
+    }
+
+    const mouseY = e.clientY
+    let newIndex = cards.length // default: no final
+
+    for (let i = 0; i < cards.length; i++) {
+      const rect = cards[i].getBoundingClientRect()
+      const midY = rect.top + rect.height / 2
+      if (mouseY < midY) {
+        newIndex = i
+        break
+      }
+    }
+
+    setDropIndex(newIndex)
+  }, [])
+
+  const handleCardAreaDragLeave = useCallback((e: React.DragEvent) => {
+    const relatedTarget = e.relatedTarget as Node | null
+    const currentTarget = e.currentTarget as Node
+    if (relatedTarget && currentTarget.contains(relatedTarget)) return
+    setDropIndex(null)
+  }, [])
+
   const bgClass = getColumnBg(etapa.tipo)
   const borderClass = getColumnBorderColor(etapa.tipo)
+
+  // Renderiza cards com drop indicators entre eles
+  const renderCardsWithDropZones = () => {
+    const elements: React.ReactNode[] = []
+
+    etapa.oportunidades.forEach((op, index) => {
+      // Drop indicator antes do card
+      if (dropIndex === index) {
+        elements.push(
+          <div key={`drop-${index}`} className="h-0.5 bg-primary rounded-full mx-1 transition-all duration-150" />
+        )
+      }
+
+      elements.push(
+        <div key={op.id} data-kanban-card>
+          <KanbanCard
+            oportunidade={op}
+            onDragStart={onDragStart}
+            onClick={onCardClick}
+            config={cardConfig}
+            slaConfig={slaConfig}
+            etapaTipo={etapa.tipo}
+            isSelected={selectedIds?.has(op.id)}
+            onToggleSelect={onToggleSelect}
+          />
+        </div>
+      )
+    })
+
+    // Drop indicator no final
+    if (dropIndex === etapa.oportunidades.length) {
+      elements.push(
+        <div key="drop-end" className="h-0.5 bg-primary rounded-full mx-1 transition-all duration-150" />
+      )
+    }
+
+    return elements
+  }
 
   return (
     <div
@@ -100,25 +183,19 @@ export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardCli
         )}
       </div>
 
-      {/* Cards com scroll vertical */}
-      <div className="flex-1 overflow-y-auto min-h-0 px-2 pb-2 space-y-2">
+      {/* Cards com scroll vertical e drop zones */}
+      <div
+        ref={cardsContainerRef}
+        className="flex-1 overflow-y-auto min-h-0 px-2 pb-2 space-y-2"
+        onDragOver={handleCardAreaDragOver}
+        onDragLeave={handleCardAreaDragLeave}
+      >
         {etapa.oportunidades.length === 0 ? (
           <div className="flex items-center justify-center py-8 text-xs text-muted-foreground">
             {isDragOver ? 'Solte aqui' : 'Nenhuma oportunidade'}
           </div>
         ) : (
-          etapa.oportunidades.map(op => (
-            <KanbanCard
-              key={op.id}
-              oportunidade={op}
-              onDragStart={onDragStart}
-              onClick={onCardClick}
-              config={cardConfig}
-              slaConfig={slaConfig}
-              isSelected={selectedIds?.has(op.id)}
-              onToggleSelect={onToggleSelect}
-            />
-          ))
+          renderCardsWithDropZones()
         )}
       </div>
     </div>
