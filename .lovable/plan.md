@@ -1,74 +1,48 @@
 
-
-# Botoes como Campos + Simplificacao das Abas
+# Remover Botoes da Paleta + Ajustar BotaoConfigPanel
 
 ## Resumo
 
-Transformar os botoes (Enviar e WhatsApp) em campos da paleta com categoria propria "Botao", mantendo-os sempre no rodape do formulario. Simplificar o painel lateral para apenas 2 abas (Estilo e Configuracao), movendo Pos-Envio para dentro de Configuracao.
+Reverter a logica de botoes-como-campos. Botoes voltam a ser controlados exclusivamente pelo `BotaoConfigPanel` via `tipo_botao`. Remover categoria "Botao" da paleta, remover icone de lixeira dos botoes no preview, inverter ordem das abas, e mostrar estilos condicionalmente ao tipo selecionado.
 
 ## Mudancas
 
-### 1. Paleta de Campos (`CamposPaleta.tsx`)
+### 1. CamposPaleta.tsx
+- Remover os dois itens `botao_enviar` e `botao_whatsapp` do array `TIPOS_CAMPO`
+- Remover a categoria `'botao'` de `CATEGORIAS`
+- Remover prop `botoesAdicionados` e toda logica de disabled/singleton
+- Remover imports nao utilizados (`MousePointerClick`, `WhatsAppIcon`)
 
-Adicionar nova categoria "Botao" com dois tipos:
-- `botao_enviar` - "Botao Enviar" (icone: MousePointerClick ou similar)
-- `botao_whatsapp` - "Botao WhatsApp" (icone: WhatsApp)
+### 2. BotaoConfigPanel.tsx
+- **Inverter abas**: "Configuracao" na esquerda, "Estilo" na direita
+- **Tab Estilo**: Mostrar estilos conforme `config.tipo_botao`:
+  - `enviar` → apenas `renderEstiloEnviar()`
+  - `whatsapp` → apenas `renderEstiloWhatsApp()`
+  - `ambos` → ambos os renders (Enviar + separador + WhatsApp)
+- Tab default muda para `'config'` ao inves de `'estilo'`
 
-A categoria "Botao" aparece apos "Layout" na paleta.
+### 3. FormPreview.tsx (RenderBotoes)
+- Remover prop `onRemoveBotao` e todo o codigo do botao `Trash2` nos botoes enviar e whatsapp
+- Manter apenas o icone de engrenagem (Settings)
 
-**Validacao**: No `onAddCampo` e no drop, verificar se ja existe um campo do mesmo tipo nos campos atuais. Se ja existir, exibir `toast.error('Apenas um botao de enviar e permitido')` e bloquear a adicao.
+### 4. FormularioEditorPage.tsx
+- Remover `derivedTipoBotao` (nao mais derivado dos campos)
+- `effectiveConfigBotoes` usa `configBotoes` direto, sem override de `tipo_botao`
+- Remover `botoesAdicionados` prop do `CamposPaleta`
+- Remover validacao de duplicidade de botoes em `handleDropNewCampo` e `handleAddCampoFromPaleta`
+- Remover `isSelectedCampoBotao` e o bloco condicional que abre `BotaoConfigPanel` para campos de botao
+- O BotaoConfigPanel so abre via `selectedStyleElement === 'botao'` ou `'botao_whatsapp'` (clicando no botao no preview)
 
-### 2. BotaoConfigPanel - Remover aba "Pos-Envio"
-
-- Remover a terceira aba "Pos-Envio"
-- Mover todo o conteudo de pos-envio (mensagem sucesso, mensagem erro, acao apos envio, URL redirecionamento, tempo) para o final da aba "Configuracao", dentro de uma secao com titulo "Pos-Envio" e borda sutil
-- Manter apenas 2 abas: **Estilo** | **Configuracao**
-
-### 3. Renderizacao no Preview e Pagina Publica
-
-**Logica de filtragem:**
-- Na area de campos (editor e preview), filtrar campos do tipo `botao_enviar` e `botao_whatsapp` para NAO renderiza-los inline entre os campos
-- No rodape (area `mt-6` apos os campos), renderizar os botoes encontrados na lista de campos
-
-**Mapeamento de dados:**
-- Quando um campo `botao_enviar` ou `botao_whatsapp` e selecionado no editor, abrir o `BotaoConfigPanel` no sidebar direito (ao inves do `CampoSidebarPanel`)
-- Os estilos e config do botao continuam sendo salvos no `estiloBotao` e `config_botoes` existentes (nao muda o storage)
-
-**Determinacao do `tipo_botao`:**
-- O `configBotoes.tipo_botao` sera derivado automaticamente dos campos presentes:
-  - Se ha `botao_enviar` e `botao_whatsapp`: `ambos`
-  - Se ha so `botao_enviar`: `enviar`
-  - Se ha so `botao_whatsapp`: `whatsapp`
-  - Se nenhum: nao renderizar botoes
-
-### 4. Selecao de campo-botao no editor
-
-Quando o usuario clica na engrenagem de um campo `botao_enviar` ou `botao_whatsapp` no preview:
-- O sidebar direito abre com `BotaoConfigPanel` ao inves de `CampoSidebarPanel`
-- O tipo passado para o BotaoConfigPanel e determinado pelo tipo do campo selecionado
-
-### 5. Validacao ao adicionar campo
-
-Em `FormularioEditorPage.tsx`:
-- No `handleDropNewCampo` e `handleAddCampoFromPaleta`, verificar se o tipo sendo adicionado e `botao_enviar` ou `botao_whatsapp`
-- Se ja existir um campo desse tipo, bloquear com `toast.error`
-- Na criacao inicial do formulario, adicionar automaticamente um campo `botao_enviar` com ordem 9999 (garante que fica no final)
+### 5. FormularioPublicoPage.tsx
+- Remover filtragem de campos `botao_enviar`/`botao_whatsapp` (eles nao existirao mais como campos)
+- Voltar a usar `configBotoes.tipo_botao` direto do formulario
 
 ## Arquivos alterados
 
 | Arquivo | Alteracao |
 |---|---|
-| `CamposPaleta.tsx` | Adicionar categoria "Botao" com 2 tipos |
-| `BotaoConfigPanel.tsx` | Remover aba Pos-Envio, mover conteudo para Configuracao |
-| `FormPreview.tsx` | Filtrar campos de botao da area de campos, renderizar no rodape |
-| `FormularioEditorPage.tsx` | Validacao de duplicidade, abrir BotaoConfigPanel para campos de botao |
-| `FormularioPublicoPage.tsx` | Filtrar campos de botao e renderizar no rodape |
-| `CampoItem.tsx` | Renderizar campos de botao com visual de botao (preview do botao) |
-
-## Comportamento final
-
-- Usuario arrasta "Botao Enviar" da paleta para o formulario - ele aparece sempre no rodape
-- Se tentar adicionar segundo botao do mesmo tipo, recebe erro
-- Ao clicar na engrenagem do botao, abre sidebar com 2 abas (Estilo + Configuracao com pos-envio embutido)
-- Formularios existentes continuam funcionando (botoes atuais sao mantidos via `configBotoes`)
-
+| `CamposPaleta.tsx` | Remover categoria Botao e props associadas |
+| `BotaoConfigPanel.tsx` | Inverter abas, estilos condicionais por tipo_botao |
+| `FormPreview.tsx` | Remover Trash2 dos botoes |
+| `FormularioEditorPage.tsx` | Remover logica de botoes-como-campos |
+| `FormularioPublicoPage.tsx` | Simplificar filtragem de campos |
