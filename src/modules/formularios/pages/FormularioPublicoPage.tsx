@@ -795,8 +795,20 @@ function renderCampoPublico(props: RenderCampoProps) {
     case 'bloco_html':
       return <div style={{ fontSize: '14px', fontFamily }} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(campo.valor_padrao || '') }} />
     case 'imagem_link': {
-      const imgUrl = campo.valor_padrao || ''
-      const linkUrl = campo.placeholder || ''
+      let imgUrl = ''
+      let linkUrl = ''
+      try {
+        const parsed = JSON.parse(campo.valor_padrao || '{}')
+        // Responsive: pick best image for current screen via CSS picture element approach
+        // For simplicity, use desktop fallback
+        const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
+        const isTablet = typeof window !== 'undefined' && window.innerWidth >= 768 && window.innerWidth < 1024
+        imgUrl = (isMobile && parsed.url_mobile) || (isTablet && parsed.url_tablet) || parsed.url_desktop || parsed.url_tablet || parsed.url_mobile || ''
+        linkUrl = parsed.redirect_url || ''
+      } catch {
+        imgUrl = campo.valor_padrao || ''
+        linkUrl = campo.placeholder || ''
+      }
       if (!imgUrl) return null
       const img = <img src={imgUrl} alt={campo.label} style={{ width: '100%', borderRadius: '8px', display: 'block' }} />
       return linkUrl ? <a href={linkUrl} target="_blank" rel="noopener noreferrer">{img}</a> : img

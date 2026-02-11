@@ -6,7 +6,8 @@
  */
 
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
-import { X, Plus, Loader2, AlignLeft, AlignCenter, AlignRight } from 'lucide-react'
+import { X, Plus, Loader2, AlignLeft, AlignCenter, AlignRight, Upload, Monitor, Tablet, Smartphone } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
 import { DeviceSwitcher, type DeviceType } from '../estilos/DeviceSwitcher'
 
 import { useQueryClient } from '@tanstack/react-query'
@@ -103,6 +104,22 @@ function parseLayoutConfig(valorPadrao: string | null | undefined, tipo: string)
       return result
     } catch { return defaults }
   }
+  if (tipo === 'imagem_link') {
+    const defaults: Record<string, string> = { url_desktop: '', url_tablet: '', url_mobile: '', redirect_url: '' }
+    if (!valorPadrao) return defaults
+    try {
+      const p = JSON.parse(valorPadrao)
+      return {
+        url_desktop: p.url_desktop || p.url || '',
+        url_tablet: p.url_tablet || '',
+        url_mobile: p.url_mobile || '',
+        redirect_url: p.redirect_url || '',
+      }
+    } catch {
+      // Legacy: valor_padrao was a plain URL string
+      return { ...defaults, url_desktop: valorPadrao || '' }
+    }
+  }
   return {}
 }
 
@@ -175,7 +192,8 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className, hideHead
   const isEspacador = campo.tipo === 'espacador'
   const isBlocoHtml = campo.tipo === 'bloco_html'
   const isBlocoColunas = campo.tipo === 'bloco_colunas'
-  const isLayoutField = isTextoLayout || isDivisor || isEspacador || isBlocoHtml || isBlocoColunas
+  const isImagemLink = campo.tipo === 'imagem_link'
+  const isLayoutField = isTextoLayout || isDivisor || isEspacador || isBlocoHtml || isBlocoColunas || isImagemLink
   const [layoutConfig, setLayoutConfig] = useState<Record<string, string>>(() => parseLayoutConfig(campo.valor_padrao, campo.tipo) as Record<string, string>)
 
   // Reset when campo changes
@@ -211,14 +229,14 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className, hideHead
       obrigatorio: form.obrigatorio,
       mapeamento_campo: form.mapeamento_campo || null,
       largura: form.largura,
-      valor_padrao: (isTextoLayout || isDivisor || isEspacador || isBlocoColunas) ? JSON.stringify(layoutConfig) : (form.valor_padrao || null),
+      valor_padrao: (isTextoLayout || isDivisor || isEspacador || isBlocoColunas || isImagemLink) ? JSON.stringify(layoutConfig) : (form.valor_padrao || null),
     }
     if (needsOptions) {
       const opcoes = opcoesText.split('\n').map((o) => o.trim()).filter(Boolean)
       ;(payload as any).opcoes = opcoes
     }
     return payload
-  }, [form, layoutConfig, opcoesText, isTextoLayout, isDivisor, isEspacador, needsOptions])
+  }, [form, layoutConfig, opcoesText, isTextoLayout, isDivisor, isEspacador, isImagemLink, needsOptions])
 
   useEffect(() => {
     // Skip first render to avoid saving on mount
@@ -757,39 +775,87 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className, hideHead
           </div>
         )}
 
-        {campo.tipo === 'imagem_link' && (
-          <div className="space-y-3 border-t border-border pt-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs">URL da Imagem</Label>
-              <Input
-                value={form.valor_padrao}
-                onChange={(e) => setForm((f) => ({ ...f, valor_padrao: e.target.value }))}
-                placeholder="https://exemplo.com/imagem.jpg"
-              />
-              <p className="text-[10px] text-muted-foreground">Cole a URL da imagem que deseja exibir.</p>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">URL de Redirecionamento (ao clicar)</Label>
-              <Input
-                value={form.placeholder}
-                onChange={(e) => setForm((f) => ({ ...f, placeholder: e.target.value }))}
-                placeholder="https://exemplo.com/pagina-destino"
-              />
-              <p className="text-[10px] text-muted-foreground">Quando o usuário clicar na imagem, será redirecionado para esta URL.</p>
-            </div>
-            {form.valor_padrao && (
-              <div className="space-y-1">
-                <Label className="text-xs">Prévia</Label>
-                <img
-                  src={form.valor_padrao}
-                  alt="Prévia"
-                  className="w-full max-h-32 object-cover rounded border border-border"
-                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+        {isImagemLink && (() => {
+          const imgDevices = [
+            { key: 'url_desktop', label: 'Desktop', icon: Monitor },
+            { key: 'url_tablet', label: 'Tablet', icon: Tablet },
+            { key: 'url_mobile', label: 'Mobile', icon: Smartphone },
+          ] as const
+
+          const handleFileUpload = async (deviceKey: string, file: File) => {
+            try {
+              const ext = file.name.split('.').pop() || 'jpg'
+              const path = `formularios/imagens/${campo.id}_${deviceKey}_${Date.now()}.${ext}`
+              const { error } = await supabase.storage.from('formularios').upload(path, file, { upsert: true })
+              if (error) throw error
+              const { data: urlData } = supabase.storage.from('formularios').getPublicUrl(path)
+              setLayoutConfig((prev: Record<string, string>) => ({ ...prev, [deviceKey]: urlData.publicUrl }))
+            } catch (err) {
+              console.error('Erro ao fazer upload:', err)
+            }
+          }
+
+          const previewUrl = layoutConfig.url_desktop || layoutConfig.url_tablet || layoutConfig.url_mobile
+
+          return (
+            <div className="space-y-3 border-t border-border pt-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Imagens por Dispositivo</p>
+
+              {imgDevices.map(({ key, label, icon: DevIcon }) => (
+                <div key={key} className="space-y-1.5">
+                  <Label className="text-xs flex items-center gap-1.5">
+                    <DevIcon className="w-3.5 h-3.5" />
+                    {label}
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={layoutConfig[key] || ''}
+                      onChange={(e) => setLayoutConfig((prev: Record<string, string>) => ({ ...prev, [key]: e.target.value }))}
+                      placeholder={`URL da imagem (${label})`}
+                      className="flex-1 h-8 text-xs"
+                    />
+                    <label className="flex items-center justify-center h-8 w-8 rounded-md border border-input bg-background hover:bg-muted cursor-pointer transition-colors" title="Enviar imagem">
+                      <Upload className="w-3.5 h-3.5 text-muted-foreground" />
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) handleFileUpload(key, file)
+                          e.target.value = ''
+                        }}
+                      />
+                    </label>
+                  </div>
+                </div>
+              ))}
+
+              <div className="space-y-1.5">
+                <Label className="text-xs">URL de Redirecionamento (ao clicar)</Label>
+                <Input
+                  value={layoutConfig.redirect_url || ''}
+                  onChange={(e) => setLayoutConfig((prev: Record<string, string>) => ({ ...prev, redirect_url: e.target.value }))}
+                  placeholder="https://exemplo.com/pagina-destino"
+                  className="h-8 text-xs"
                 />
+                <p className="text-[10px] text-muted-foreground">Quando o usuário clicar na imagem, será redirecionado para esta URL.</p>
               </div>
-            )}
-          </div>
-        )}
+
+              {previewUrl && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Prévia</Label>
+                  <img
+                    src={previewUrl}
+                    alt="Prévia"
+                    className="w-full max-h-32 object-cover rounded border border-border"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                  />
+                </div>
+              )}
+            </div>
+          )
+        })()}
       </div>
     </div>
   )
