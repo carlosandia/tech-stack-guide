@@ -143,7 +143,7 @@ export function KanbanBoard({ data, isLoading, onDropGanhoPerda, onCardClick }: 
     e.dataTransfer.dropEffect = 'move'
   }, [])
 
-  const handleDrop = useCallback((e: React.DragEvent, etapaDestinoId: string, tipoEtapa: string) => {
+  const handleDrop = useCallback((e: React.DragEvent, etapaDestinoId: string, tipoEtapa: string, dropIndex?: number) => {
     e.preventDefault()
 
     const oportunidade = draggedOpRef.current
@@ -165,7 +165,7 @@ export function KanbanBoard({ data, isLoading, onDropGanhoPerda, onCardClick }: 
     }
 
     moverEtapa.mutate(
-      { oportunidadeId: oportunidade.id, etapaDestinoId },
+      { oportunidadeId: oportunidade.id, etapaDestinoId, dropIndex },
       {
         onError: () => {
           toast.error('Erro ao mover oportunidade')

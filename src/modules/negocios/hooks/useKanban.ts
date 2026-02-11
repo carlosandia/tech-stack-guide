@@ -60,18 +60,14 @@ export function useMoverEtapa() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ oportunidadeId, etapaDestinoId }: { oportunidadeId: string; etapaDestinoId: string }) =>
+    mutationFn: ({ oportunidadeId, etapaDestinoId }: { oportunidadeId: string; etapaDestinoId: string; dropIndex?: number }) =>
       negociosApi.moverEtapa(oportunidadeId, etapaDestinoId),
 
-    // AIDEV-NOTE: Optimistic update para drag-and-drop fluido
-    onMutate: async ({ oportunidadeId, etapaDestinoId }) => {
-      // Cancelar queries pendentes para evitar sobrescrita
+    // AIDEV-NOTE: Optimistic update para drag-and-drop fluido com posição
+    onMutate: async ({ oportunidadeId, etapaDestinoId, dropIndex }) => {
       await queryClient.cancelQueries({ queryKey: ['kanban'] })
-
-      // Snapshot de todas as queries do kanban para rollback
       const previousKanbanQueries = queryClient.getQueriesData({ queryKey: ['kanban'] })
 
-      // Atualizar cache imediatamente
       queryClient.setQueriesData({ queryKey: ['kanban'] }, (old: any) => {
         if (!old?.etapas) return old
 
@@ -96,9 +92,16 @@ export function useMoverEtapa() {
 
         const etapasFinais = etapasAtualizadas.map((etapa: any) => {
           if (etapa.id === etapaDestinoId) {
+            const novasOps = [...etapa.oportunidades]
+            // AIDEV-NOTE: Inserir na posição correta (dropIndex) ao invés de append
+            if (dropIndex !== undefined && dropIndex >= 0) {
+              novasOps.splice(dropIndex, 0, oportunidadeMovida)
+            } else {
+              novasOps.push(oportunidadeMovida)
+            }
             return {
               ...etapa,
-              oportunidades: [...etapa.oportunidades, oportunidadeMovida],
+              oportunidades: novasOps,
               total_oportunidades: etapa.total_oportunidades + 1,
               valor_total: etapa.valor_total + (oportunidadeMovida.valor || 0),
             }

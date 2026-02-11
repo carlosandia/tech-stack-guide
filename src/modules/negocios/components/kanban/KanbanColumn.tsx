@@ -18,7 +18,7 @@ interface KanbanColumnProps {
   }
   onDragStart: (e: React.DragEvent, oportunidade: Oportunidade) => void
   onDragOver: (e: React.DragEvent) => void
-  onDrop: (e: React.DragEvent, etapaId: string, tipoEtapa: string) => void
+  onDrop: (e: React.DragEvent, etapaId: string, tipoEtapa: string, dropIndex?: number) => void
   onCardClick: (oportunidade: Oportunidade) => void
   cardConfig?: CardConfig
   slaConfig?: SlaConfig
@@ -71,9 +71,10 @@ export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardCli
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
+    const currentDropIndex = dropIndex
     setIsDragOver(false)
     setDropIndex(null)
-    onDrop(e, etapa.id, etapa.tipo)
+    onDrop(e, etapa.id, etapa.tipo, currentDropIndex ?? undefined)
   }
 
   // AIDEV-NOTE: Calcula o índice de drop baseado na posição do cursor em relação aos cards
@@ -123,7 +124,7 @@ export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardCli
       // Drop indicator antes do card
       if (dropIndex === index) {
         elements.push(
-          <div key={`drop-${index}`} className="h-0.5 bg-primary rounded-full mx-1 transition-all duration-150" />
+          <div key={`drop-${index}`} className="h-[72px] bg-muted-foreground/10 rounded-lg border-2 border-dashed border-muted-foreground/20 transition-all duration-150" />
         )
       }
 
@@ -146,7 +147,7 @@ export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardCli
     // Drop indicator no final
     if (dropIndex === etapa.oportunidades.length) {
       elements.push(
-        <div key="drop-end" className="h-0.5 bg-primary rounded-full mx-1 transition-all duration-150" />
+        <div key="drop-end" className="h-[72px] bg-muted-foreground/10 rounded-lg border-2 border-dashed border-muted-foreground/20 transition-all duration-150" />
       )
     }
 
