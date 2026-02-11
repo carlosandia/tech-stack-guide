@@ -329,17 +329,7 @@ export function FormularioPublicoPage() {
   const cabecalho = (estilos?.cabecalho || {}) as EstiloCabecalho
   const pagina = estilos?.pagina as any || {}
   const configBotoesRaw = formulario.config_botoes as any || {}
-  // AIDEV-NOTE: Derivar tipo_botao dos campos presentes (botao_enviar, botao_whatsapp)
-  const derivedTipoBotao = (() => {
-    const hasEnviar = campos.some(c => c.tipo === 'botao_enviar')
-    const hasWhatsApp = campos.some(c => c.tipo === 'botao_whatsapp')
-    if (hasEnviar && hasWhatsApp) return 'ambos'
-    if (hasWhatsApp) return 'whatsapp'
-    // Fallback to stored value for backward compatibility
-    if (!hasEnviar && !hasWhatsApp) return configBotoesRaw.tipo_botao || 'enviar'
-    return 'enviar'
-  })()
-  const configBotoes = { ...configBotoesRaw, tipo_botao: derivedTipoBotao }
+  const configBotoes = { ...configBotoesRaw, tipo_botao: configBotoesRaw.tipo_botao || 'enviar' }
   const posEnvio = formulario.config_pos_envio as any || {}
   const fontFamily = container.font_family ? `${container.font_family}, 'Inter', system-ui, sans-serif` : "'Inter', system-ui, sans-serif"
 
