@@ -62,7 +62,66 @@ export function useMoverEtapa() {
   return useMutation({
     mutationFn: ({ oportunidadeId, etapaDestinoId }: { oportunidadeId: string; etapaDestinoId: string }) =>
       negociosApi.moverEtapa(oportunidadeId, etapaDestinoId),
-    onSuccess: (_data, variables) => {
+
+    // AIDEV-NOTE: Optimistic update para drag-and-drop fluido
+    onMutate: async ({ oportunidadeId, etapaDestinoId }) => {
+      // Cancelar queries pendentes para evitar sobrescrita
+      await queryClient.cancelQueries({ queryKey: ['kanban'] })
+
+      // Snapshot de todas as queries do kanban para rollback
+      const previousKanbanQueries = queryClient.getQueriesData({ queryKey: ['kanban'] })
+
+      // Atualizar cache imediatamente
+      queryClient.setQueriesData({ queryKey: ['kanban'] }, (old: any) => {
+        if (!old?.etapas) return old
+
+        let oportunidadeMovida: any = null
+        const etapasAtualizadas = old.etapas.map((etapa: any) => {
+          const idx = etapa.oportunidades.findIndex((op: any) => op.id === oportunidadeId)
+          if (idx !== -1) {
+            oportunidadeMovida = { ...etapa.oportunidades[idx], etapa_id: etapaDestinoId }
+            const novasOps = [...etapa.oportunidades]
+            novasOps.splice(idx, 1)
+            return {
+              ...etapa,
+              oportunidades: novasOps,
+              total_oportunidades: etapa.total_oportunidades - 1,
+              valor_total: etapa.valor_total - (oportunidadeMovida.valor || 0),
+            }
+          }
+          return etapa
+        })
+
+        if (!oportunidadeMovida) return old
+
+        const etapasFinais = etapasAtualizadas.map((etapa: any) => {
+          if (etapa.id === etapaDestinoId) {
+            return {
+              ...etapa,
+              oportunidades: [...etapa.oportunidades, oportunidadeMovida],
+              total_oportunidades: etapa.total_oportunidades + 1,
+              valor_total: etapa.valor_total + (oportunidadeMovida.valor || 0),
+            }
+          }
+          return etapa
+        })
+
+        return { ...old, etapas: etapasFinais }
+      })
+
+      return { previousKanbanQueries }
+    },
+
+    onError: (_err, _variables, context) => {
+      // Rollback: restaurar snapshot anterior
+      if (context?.previousKanbanQueries) {
+        for (const [queryKey, data] of context.previousKanbanQueries) {
+          queryClient.setQueryData(queryKey, data)
+        }
+      }
+    },
+
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: ['kanban'] })
       queryClient.invalidateQueries({ queryKey: ['oportunidade', variables.oportunidadeId] })
       queryClient.invalidateQueries({ queryKey: ['historico', variables.oportunidadeId] })
