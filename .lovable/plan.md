@@ -1,127 +1,128 @@
 
-# Automacoes - Builder Visual (estilo N8N)
+# Responsividade por Dispositivo no Editor de Formularios (estilo Elementor)
 
 ## Resumo
 
-Transformar o modulo de Automacoes de uma listagem simples em cards para um **editor visual de fluxos** com canvas interativo, nos conectados por linhas (edges), drag-and-drop para criar e posicionar nos — similar ao N8N, RD Station, Kommo e SprintHub. O modulo sera promovido para rota exclusiva acessivel diretamente pelo header principal do CRM.
+Adicionar um sistema de configuracao responsiva por dispositivo (Desktop / Tablet / Mobile) no editor de formularios, permitindo que o usuario defina valores diferentes para propriedades visuais em cada breakpoint. Inspirado no Elementor Pro, onde um seletor de icones (monitor, tablet, celular) aparece ao lado dos campos que suportam override por dispositivo.
 
-## O que muda
+## Como funciona
 
-1. **Navegacao**: Automacoes sai de `/app/configuracoes/automacoes` e vai para `/app/automacoes`, com link proprio no header do AppLayout (icone Zap)
-2. **UI**: Troca lista de cards por um canvas visual com nos arrastáveis conectados por linhas (edges)
-3. **Biblioteca**: Instalar `@xyflow/react` (React Flow) — a biblioteca padrao de mercado para editores de fluxo em React
-
-## Estrutura de Telas
+O usuario vera 3 icones pequenos (Desktop, Tablet, Mobile) ao lado de campos especificos nos paineis de estilo. Ao clicar em um icone, os valores editados passam a valer apenas para aquele dispositivo. Por padrao, todos os valores sao "Desktop" e sao herdados pelos outros dispositivos, a menos que o usuario defina um override.
 
 ```text
-/app/automacoes
-  +------------------------------------------+
-  | Header do CRM (existente)                |
-  +--------+---------------------------------+
-  | Lista  |  Canvas (React Flow)            |
-  | lateral|                                 |
-  | de     |  [Trigger] ---> [Condicao]      |
-  | fluxos |        |                        |
-  |        |  [Acao 1] ---> [Acao 2]         |
-  |        |        |                        |
-  |        |  [Delay] ---> [Acao 3]          |
-  |        |                                 |
-  +--------+---------------------------------+
+Largura do Botao:
+  [Desktop: 50%]  [Tablet: 50%]  [Mobile: 100%]
+                                         ^
+                              usuario definiu override
 ```
 
-- **Painel lateral esquerdo (240px)**: Lista das automacoes existentes com busca e botao "Nova Automacao"
-- **Area central (canvas)**: Editor visual React Flow com zoom, pan, minimap e grid de fundo
-- **Painel lateral direito (drawer)**: Abre ao clicar em um no para editar suas propriedades (configuracao de trigger, condicao, acao)
+## Campos que recebem responsividade
 
-## Tipos de Nos (Nodes)
-
-| Tipo | Cor/Estilo | Descricao |
-|------|-----------|-----------|
-| **Trigger** | Borda primary, icone Zap | Primeiro no do fluxo, nao removivel |
-| **Condicao** | Borda warning (amarelo) | Filtro condicional com 2 saidas (Sim/Nao) |
-| **Acao** | Borda success (verde) | Acoes como enviar WhatsApp, criar tarefa |
-| **Delay** | Borda info (azul claro) | Aguardar X minutos/horas antes de continuar |
+| Componente | Campos responsiveis |
+|---|---|
+| **Botao (submit e WhatsApp)** | Largura, Altura, Tamanho da Fonte |
+| **Container** | Padding (top/right/bottom/left), Largura Maxima |
+| **Campos (inputs)** | Altura do campo, Tamanho da fonte do titulo |
+| **Bloco de Colunas** | Larguras das colunas (ex: 50/50 no desktop, 100/100 empilhado no mobile) |
+| **Elementos de layout** | Tamanho da fonte de titulos e paragrafos |
 
 ## Detalhamento Tecnico
 
-### 1. Dependencia nova
-- `@xyflow/react` — editor de fluxos com nos, edges, handles, drag-and-drop
+### 1. Estrutura de dados responsiva
 
-### 2. Alteracoes no roteamento (`App.tsx`)
-- Adicionar rota `/app/automacoes` e `/app/automacoes/:id` dentro do bloco `<AppLayout>`
-- Remover rota de automacoes do `ConfiguracoesLayout`
+Cada propriedade responsiva sera armazenada como um objeto com chaves por dispositivo, usando sufixos `_tablet` e `_mobile` no tipo existente. Exemplo para `EstiloBotao`:
 
-### 3. Alteracoes no menu (`AppLayout.tsx`)
-- Adicionar item "Automacoes" (icone `Zap`) no array `menuItems` entre "Formularios" e antes do fim
-
-### 4. Novos arquivos do modulo
-
-```text
-src/modules/automacoes/
-  pages/
-    AutomacoesPage.tsx          -- (reescrever) lista lateral + canvas
-    AutomacaoEditorPage.tsx     -- pagina fullscreen do editor de um fluxo
-  components/
-    AutomacaoSidebar.tsx        -- painel lateral com lista de automacoes
-    FlowCanvas.tsx              -- wrapper do ReactFlow com config
-    nodes/
-      TriggerNode.tsx           -- no customizado de trigger
-      CondicaoNode.tsx          -- no customizado de condicao
-      AcaoNode.tsx              -- no customizado de acao
-      DelayNode.tsx             -- no customizado de delay
-    edges/
-      AnimatedEdge.tsx          -- edge customizada com animacao
-    panels/
-      NodeConfigPanel.tsx       -- painel lateral direito para editar no selecionado
-      TriggerConfig.tsx         -- config do trigger
-      CondicaoConfig.tsx        -- config da condicao
-      AcaoConfig.tsx            -- config da acao
-      DelayConfig.tsx           -- config do delay
-    AddNodeMenu.tsx             -- menu dropdown ao clicar "+" para add novo no
-  hooks/
-    useFlowState.ts             -- gerenciar nos/edges/posicoes no canvas
-    useAutomacaoFlow.ts         -- converter automacao (DB) <-> nodes/edges (React Flow)
-  utils/
-    flowConverter.ts            -- logica de conversao automacao <-> flow
+```typescript
+// Valores existentes continuam sendo o "desktop" (default)
+export interface EstiloBotao {
+  largura?: string          // desktop (valor padrao/existente)
+  largura_tablet?: string   // override tablet (novo)
+  largura_mobile?: string   // override mobile (novo)
+  altura?: string
+  altura_tablet?: string
+  altura_mobile?: string
+  font_size?: string
+  font_size_tablet?: string
+  font_size_mobile?: string
+  // ... demais campos existentes sem alteracao
+}
 ```
 
-### 5. Schema do banco (sem alteracoes)
-A estrutura atual do banco (`automacoes.acoes` como array JSON) ja suporta o modelo de fluxo. As posicoes dos nos serao salvas no campo `trigger_config` (adicionando um campo `flow_positions` no JSON).
+A mesma logica se aplica a `EstiloContainer`, `EstiloCampos` e `EstiloBotao`. Isso evita migration de banco pois os estilos sao salvos como JSONB -- basta adicionar novas chaves no JSON.
 
-### 6. Comportamento do Canvas
+### 2. Componente `DeviceSwitcher`
 
-- **Adicionar no**: Clicar no handle "+" de qualquer no abre menu para escolher tipo (Acao, Condicao, Delay)
-- **Conectar nos**: Arrastar de um handle de saida para um handle de entrada cria uma edge
-- **Mover nos**: Drag livre no canvas com snap-to-grid opcional
-- **Deletar**: Selecionar no e pressionar Delete ou clicar no botao de lixeira
-- **Zoom/Pan**: Scroll para zoom, arrastar fundo para pan
-- **Minimap**: Canto inferior direito com visao geral do fluxo
-- **Salvar**: Botao no toolbar que converte o grafo visual de volta para o formato `acoes[]` e salva via API
+Um componente reutilizavel com 3 icones (Monitor, Tablet, Smartphone) que controla qual dispositivo esta sendo editado:
 
-### 7. Estilizacao dos nos (Design System)
+```text
+[Monitor]  [Tablet]  [Smartphone]
+    ^         
+  ativo (highlight azul)
+```
 
-Cada no seguira o padrao de Card do design system:
-- `rounded-lg`, `border`, `shadow-sm`, padding `p-4`
-- Header com icone + titulo do tipo
-- Body com resumo da config (ex: "Enviar WhatsApp para {{contato.telefone}}")
-- Handles circulares (8px) nas bordas superior (entrada) e inferior (saida)
-- Hover: `shadow-md`, borda mais visivel
-- Selecionado: `ring-2 ring-primary`
+- Arquivo: `src/modules/formularios/components/estilos/DeviceSwitcher.tsx`
+- Icones: `Monitor`, `Tablet`, `Smartphone` do lucide-react
+- Estado controlado pelo pai (lifted state)
 
-### 8. Fluxo de uso
+### 3. Componente `ResponsiveField`
 
-1. Usuario clica em "Automacoes" no header
-2. Ve lista de automacoes existentes no painel lateral
-3. Clica em "Nova Automacao" -> cria uma automacao com no Trigger padrao
-4. No canvas, configura o trigger clicando nele (abre painel direito)
-5. Clica no "+" abaixo do trigger para adicionar Condicao ou Acao
-6. Arrasta e reorganiza os nos
-7. Clica "Salvar" no toolbar
-8. Pode ativar/desativar via toggle no painel lateral
+Um wrapper que envolve qualquer campo de input e adiciona o DeviceSwitcher inline ao lado do label:
 
-### 9. Remocoes
+```text
+Largura  [PC] [Tab] [Mob]
+[___________50%___________]
+```
 
-- Remover `AutomacaoFormModal.tsx` (substituido pelo editor visual)
-- Remover `AutomacaoCard.tsx` (substituido pelo item da sidebar)
-- Remover rota de automacoes do `ConfiguracoesLayout` no `App.tsx`
-- Remover link de automacoes do `ConfigSidebar.tsx`
+- Arquivo: `src/modules/formularios/components/estilos/ResponsiveField.tsx`
+- Recebe: `label`, `device`, `desktopValue`, `tabletValue`, `mobileValue`, `onChange(device, value)`
+- Mostra indicador visual (bolinha azul) quando existe override para tablet/mobile
+
+### 4. Alteracoes nos formularios de estilo
+
+**EstiloBotaoForm.tsx:**
+- Adicionar DeviceSwitcher no topo do componente
+- Campos "Largura", "Altura" e "Tamanho da Fonte" usam ResponsiveField
+- Demais campos (cores, texto, arredondamento) continuam universais
+
+**EstiloContainerForm.tsx:**
+- Campos "Padding" (4 lados) e "Largura Maxima" usam ResponsiveField
+
+**EstiloCamposForm.tsx:**
+- Campos "Altura do Campo" e "Tamanho da Fonte do Titulo" usam ResponsiveField
+
+**BlocoColunasEditor.tsx (config panel):**
+- Larguras das colunas recebem override para tablet/mobile
+- No mobile, colunas empilham verticalmente por padrao
+
+### 5. Renderizacao responsiva (pagina publica e preview)
+
+Na renderizacao (FormPreview e FormularioPublicoPage), os estilos serao resolvidos usando CSS media queries injetadas via tag `<style>` ou inline styles condicionais:
+
+- Criar funcao utilitaria `resolveResponsiveStyle(estilos, campo, breakpoints)` que gera o CSS correto
+- Breakpoints: Desktop >= 1024px, Tablet 768-1023px, Mobile < 768px (conforme design system)
+- Para botoes: gerar classe CSS que aplica `width: 100%` no mobile se configurado
+
+### 6. Preview por dispositivo no editor
+
+O editor ja possui os botoes "Desktop / Tablet / Mobile" no topo (conforme imagens de referencia). A troca de dispositivo no preview:
+- Altera a largura do iframe/container de preview
+- Sincroniza o DeviceSwitcher nos paineis laterais para mostrar os valores do dispositivo ativo
+
+### 7. Arquivos novos
+
+- `src/modules/formularios/components/estilos/DeviceSwitcher.tsx`
+- `src/modules/formularios/components/estilos/ResponsiveField.tsx`
+- `src/modules/formularios/utils/responsiveStyles.ts` (funcao de resolucao de estilos por breakpoint)
+
+### 8. Arquivos alterados
+
+- `src/modules/formularios/services/formularios.api.ts` -- adicionar campos `_tablet` e `_mobile` nas interfaces de tipo
+- `src/modules/formularios/components/estilos/EstiloBotaoForm.tsx` -- usar ResponsiveField nos campos aplicaveis
+- `src/modules/formularios/components/estilos/EstiloContainerForm.tsx` -- usar ResponsiveField no padding e largura maxima
+- `src/modules/formularios/components/estilos/EstiloCamposForm.tsx` -- usar ResponsiveField na altura e tamanho de fonte
+- `src/modules/formularios/components/editor/FormPreview.tsx` -- aplicar estilos responsivos via media queries
+- `src/modules/formularios/pages/FormularioPublicoPage.tsx` -- aplicar estilos responsivos na pagina publica
+
+### 9. Sem alteracao no banco de dados
+
+Os estilos ja sao armazenados como JSONB nas colunas `container`, `cabecalho`, `campos`, `botao` e `pagina` da tabela `estilos_formularios`. As novas chaves (`_tablet`, `_mobile`) serao simplesmente adicionadas ao JSON existente sem necessidade de migration.
