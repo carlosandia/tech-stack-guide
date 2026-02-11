@@ -35,6 +35,7 @@ interface FlowCanvasProps {
   onConnect: OnConnect
   onNodeClick: (nodeId: string) => void
   onAddNode: (type: 'acao' | 'condicao' | 'delay', position?: { x: number; y: number }) => void
+  onAddNodeFromSource: (type: 'acao' | 'condicao' | 'delay', sourceNodeId: string, sourceHandle?: string) => void
   onSave: () => void
   isSaving?: boolean
 }
@@ -47,6 +48,7 @@ export function FlowCanvas({
   onConnect,
   onNodeClick,
   onAddNode,
+  onAddNodeFromSource,
   onSave,
   isSaving,
 }: FlowCanvasProps) {
@@ -58,6 +60,15 @@ export function FlowCanvas({
     acao: AcaoNode,
     delay: DelayNode,
   }), [])
+
+  // Inject onAddNode callback into all node data
+  const nodesWithCallbacks = useMemo(() =>
+    nodes.map(n => ({
+      ...n,
+      data: { ...n.data, onAddNode: onAddNodeFromSource },
+    })),
+    [nodes, onAddNodeFromSource]
+  )
 
   const handleNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
     onNodeClick(node.id)
@@ -75,7 +86,7 @@ export function FlowCanvas({
   return (
     <div className="w-full h-full relative">
       <ReactFlow
-        nodes={nodes}
+        nodes={nodesWithCallbacks}
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}

@@ -6,73 +6,83 @@
 import { memo } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { GitBranch } from 'lucide-react'
+import { AddNodeButton } from './AddNodeButton'
 
 export interface CondicaoNodeData {
   campo?: string
   operador?: string
   valor?: string
   label?: string
+  onAddNode?: (type: 'acao' | 'condicao' | 'delay', sourceNodeId: string, sourceHandle?: string) => void
   [key: string]: unknown
 }
 
-export const CondicaoNode = memo(({ data, selected }: NodeProps) => {
+export const CondicaoNode = memo(({ id, data, selected }: NodeProps) => {
   const nodeData = data as CondicaoNodeData
 
   return (
-    <div
-      className={`
-        bg-white rounded-lg border-2 shadow-sm min-w-[220px] max-w-[280px]
-        transition-all duration-200 cursor-pointer
-        ${selected ? 'ring-2 ring-yellow-500 shadow-md border-yellow-500' : 'border-yellow-400/60 hover:shadow-md hover:border-yellow-500'}
-      `}
-    >
-      {/* Handle de entrada (top) */}
-      <Handle
-        type="target"
-        position={Position.Top}
-        className="!w-3 !h-3 !bg-yellow-500 !border-2 !border-white !-top-1.5"
-      />
+    <div className="flex flex-col items-center">
+      <div
+        className={`
+          bg-white rounded-lg border-2 shadow-sm min-w-[220px] max-w-[280px]
+          transition-all duration-200 cursor-pointer
+          ${selected ? 'ring-2 ring-yellow-500 shadow-md border-yellow-500' : 'border-yellow-400/60 hover:shadow-md hover:border-yellow-500'}
+        `}
+      >
+        {/* Handle de entrada (top) */}
+        <Handle
+          type="target"
+          position={Position.Top}
+          className="!w-3 !h-3 !bg-yellow-500 !border-2 !border-white !-top-1.5"
+        />
 
-      {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-border/50 bg-yellow-50 rounded-t-lg">
-        <div className="w-7 h-7 rounded-md bg-yellow-100 flex items-center justify-center">
-          <GitBranch className="w-4 h-4 text-yellow-600" />
+        {/* Header */}
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-border/50 bg-yellow-50 rounded-t-lg">
+          <div className="w-7 h-7 rounded-md bg-yellow-100 flex items-center justify-center">
+            <GitBranch className="w-4 h-4 text-yellow-600" />
+          </div>
+          <p className="text-xs font-medium text-yellow-700 uppercase tracking-wide">Condição</p>
         </div>
-        <p className="text-xs font-medium text-yellow-700 uppercase tracking-wide">Condição</p>
-      </div>
 
-      {/* Body */}
-      <div className="px-4 py-3">
-        <p className="text-sm font-medium text-foreground truncate">
-          {nodeData.label || nodeData.campo || 'Configurar condição'}
-        </p>
-        {nodeData.operador && (
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {nodeData.operador} {nodeData.valor || ''}
+        {/* Body */}
+        <div className="px-4 py-3">
+          <p className="text-sm font-medium text-foreground truncate">
+            {nodeData.label || nodeData.campo || 'Configurar condição'}
           </p>
-        )}
+          {nodeData.operador && (
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {nodeData.operador} {nodeData.valor || ''}
+            </p>
+          )}
+        </div>
+
+        {/* Handles de saída — Sim (esquerda), Não (direita) */}
+        <div className="flex justify-between px-4 pb-2">
+          <span className="text-[10px] font-medium text-green-600">Sim</span>
+          <span className="text-[10px] font-medium text-red-500">Não</span>
+        </div>
+
+        <Handle
+          type="source"
+          position={Position.Bottom}
+          id="sim"
+          className="!w-3 !h-3 !bg-green-500 !border-2 !border-white !-bottom-1.5"
+          style={{ left: '30%' }}
+        />
+        <Handle
+          type="source"
+          position={Position.Bottom}
+          id="nao"
+          className="!w-3 !h-3 !bg-red-500 !border-2 !border-white !-bottom-1.5"
+          style={{ left: '70%' }}
+        />
       </div>
 
-      {/* Handles de saída — Sim (esquerda), Não (direita) */}
-      <div className="flex justify-between px-4 pb-2">
-        <span className="text-[10px] font-medium text-green-600">Sim</span>
-        <span className="text-[10px] font-medium text-red-500">Não</span>
+      {/* Botões + para cada branch */}
+      <div className="flex gap-16 mt-0">
+        <AddNodeButton nodeId={id} sourceHandle="sim" onAddNode={nodeData.onAddNode} />
+        <AddNodeButton nodeId={id} sourceHandle="nao" onAddNode={nodeData.onAddNode} />
       </div>
-
-      <Handle
-        type="source"
-        position={Position.Bottom}
-        id="sim"
-        className="!w-3 !h-3 !bg-green-500 !border-2 !border-white !-bottom-1.5"
-        style={{ left: '30%' }}
-      />
-      <Handle
-        type="source"
-        position={Position.Bottom}
-        id="nao"
-        className="!w-3 !h-3 !bg-red-500 !border-2 !border-white !-bottom-1.5"
-        style={{ left: '70%' }}
-      />
     </div>
   )
 })

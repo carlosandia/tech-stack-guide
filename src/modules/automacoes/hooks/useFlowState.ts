@@ -34,17 +34,41 @@ export function useFlowState(initialNodes: Node[] = [], initialEdges: Edge[] = [
     }
 
     setNodes(nds => [...nds, newNode])
+    return id
+  }, [nodes, setNodes])
 
-    // Auto-connect to last node if possible
-    if (nodes.length > 0) {
-      const lastNode = nodes[nodes.length - 1]
-      setEdges(eds => addEdge({
-        id: `e-${lastNode.id}-${id}`,
-        source: lastNode.id,
-        target: id,
-        animated: true,
-      }, eds))
+  /**
+   * Adiciona um nó conectado a partir de um nó fonte específico
+   */
+  const addNodeFromSource = useCallback((
+    type: 'acao' | 'condicao' | 'delay',
+    sourceNodeId: string,
+    sourceHandle?: string
+  ) => {
+    const id = `${type}-${Date.now()}`
+
+    // Encontrar posição do nó fonte para posicionar abaixo
+    const sourceNode = nodes.find(n => n.id === sourceNodeId)
+    const offsetX = sourceHandle === 'nao' ? 200 : sourceHandle === 'sim' ? -200 : 0
+    const pos = sourceNode
+      ? { x: sourceNode.position.x + offsetX, y: sourceNode.position.y + 200 }
+      : { x: 250, y: nodes.length * 150 + 100 }
+
+    const newNode: Node = {
+      id,
+      type,
+      position: pos,
+      data: {},
     }
+
+    setNodes(nds => [...nds, newNode])
+    setEdges(eds => addEdge({
+      id: `e-${sourceNodeId}-${sourceHandle || 'default'}-${id}`,
+      source: sourceNodeId,
+      sourceHandle: sourceHandle || undefined,
+      target: id,
+      animated: true,
+    }, eds))
 
     return id
   }, [nodes, setNodes, setEdges])
@@ -72,6 +96,7 @@ export function useFlowState(initialNodes: Node[] = [], initialEdges: Edge[] = [
     onEdgesChange,
     onConnect,
     addNode,
+    addNodeFromSource,
     updateNodeData,
     deleteNode,
     selectedNodeId,
