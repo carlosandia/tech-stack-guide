@@ -237,6 +237,73 @@ export function FormularioEditorPage() {
     [campos, reordenarCampos]
   )
 
+  // AIDEV-NOTE: Handlers para drag-and-drop dentro de blocos de colunas
+  const handleDropNewCampoInColuna = useCallback(
+    (e: React.DragEvent, index: number, paiCampoId: string, colunaIndice: number) => {
+      const campoTipoData = e.dataTransfer.getData('application/campo-tipo')
+      if (!campoTipoData) return
+      const tipoCampo = JSON.parse(campoTipoData)
+      const label = tipoCampo.label || tipoCampo.tipo
+      const nome = tipoCampo.tipo + '_' + Date.now().toString(36)
+
+      // Get children of this column to shift their ordem
+      const colChildren = campos
+        .filter(c => c.pai_campo_id === paiCampoId && c.coluna_indice === colunaIndice)
+        .sort((a, b) => a.ordem - b.ordem)
+
+      const shifted = colChildren
+        .filter(c => c.ordem >= index)
+        .map(c => ({ id: c.id, ordem: c.ordem + 1 }))
+
+      const newPayload = {
+        nome, label, tipo: tipoCampo.tipo, ordem: index, obrigatorio: false, largura: 'full',
+        pai_campo_id: paiCampoId, coluna_indice: colunaIndice,
+      } as Partial<CampoFormulario>
+
+      if (shifted.length > 0) {
+        reordenarCampos.mutate(shifted, {
+          onSuccess: () => criarCampo.mutate(newPayload),
+        })
+      } else {
+        criarCampo.mutate(newPayload)
+      }
+    },
+    [campos, criarCampo, reordenarCampos]
+  )
+
+  const handleReorderCampoInColuna = useCallback(
+    (dragId: string, targetIndex: number, paiCampoId: string, colunaIndice: number) => {
+      const colChildren = campos
+        .filter(c => c.pai_campo_id === paiCampoId && c.coluna_indice === colunaIndice)
+        .sort((a, b) => a.ordem - b.ordem)
+
+      const dragIdx = colChildren.findIndex(c => c.id === dragId)
+      if (dragIdx === -1 || dragIdx === targetIndex || dragIdx === targetIndex - 1) return
+
+      const newOrder = [...colChildren]
+      const [moved] = newOrder.splice(dragIdx, 1)
+      const insertAt = dragIdx < targetIndex ? targetIndex - 1 : targetIndex
+      newOrder.splice(insertAt, 0, moved)
+      reordenarCampos.mutate(newOrder.map((c, i) => ({ id: c.id, ordem: i })))
+    },
+    [campos, reordenarCampos]
+  )
+
+  const handleMoveCampoToColuna = useCallback(
+    (campoId: string, paiCampoId: string, colunaIndice: number) => {
+      const colChildren = campos
+        .filter(c => c.pai_campo_id === paiCampoId && c.coluna_indice === colunaIndice)
+        .sort((a, b) => a.ordem - b.ordem)
+
+      const newOrdem = colChildren.length
+      atualizarCampo.mutate({
+        campoId,
+        payload: { pai_campo_id: paiCampoId, coluna_indice: colunaIndice, ordem: newOrdem },
+      })
+    },
+    [campos, atualizarCampo]
+  )
+
   const handleSelectCampo = useCallback((id: string | null) => {
     setSelectedCampoId(id)
     setSelectedStyleElement(null)
@@ -444,6 +511,9 @@ export function FormularioEditorPage() {
                 onMoveCampo={handleMoveCampo}
                 onReorderCampo={handleReorderCampo}
                 onDropNewCampo={handleDropNewCampo}
+                onDropNewCampoInColuna={handleDropNewCampoInColuna}
+                onReorderCampoInColuna={handleReorderCampoInColuna}
+                onMoveCampoToColuna={handleMoveCampoToColuna}
                 estiloContainer={container}
                 estiloCampos={camposEstilo}
                 estiloBotao={botao}

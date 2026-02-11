@@ -418,7 +418,81 @@ export function FormularioPublicoPage() {
 
         {/* Campos */}
         <div style={{ display: 'flex', flexWrap: 'wrap' }}>
-          {campos.map(campo => {
+          {campos.filter(c => !c.pai_campo_id).map(campo => {
+            // AIDEV-NOTE: Bloco de colunas na página pública
+            if (campo.tipo === 'bloco_colunas') {
+              const colConfig = (() => {
+                try {
+                  const p = JSON.parse(campo.valor_padrao || '{}')
+                  return { colunas: parseInt(p.colunas) || 2, larguras: (p.larguras || '50%,50%').split(',').map((l: string) => l.trim()), gap: p.gap || '16' }
+                } catch { return { colunas: 2, larguras: ['50%', '50%'], gap: '16' } }
+              })()
+
+              return (
+                <div key={campo.id} style={{ width: '100%', padding: `${camposEstilo.gap_top || camposEstilo.gap || '12'}px 0` }}>
+                  <div style={{ display: 'flex', gap: `${colConfig.gap}px` }}>
+                    {Array.from({ length: colConfig.colunas }).map((_, colIdx) => {
+                      const children = campos
+                        .filter(c => c.pai_campo_id === campo.id && c.coluna_indice === colIdx)
+                        .sort((a, b) => a.ordem - b.ordem)
+                      const width = colConfig.larguras[colIdx] || `${Math.floor(100 / colConfig.colunas)}%`
+
+                      return (
+                        <div key={colIdx} style={{ width, display: 'flex', flexWrap: 'wrap' }}>
+                          {children.map(child => {
+                            const childLarguraMap: Record<string, string> = { full: '100%', '1/2': '50%', '1/3': '33.33%', '2/3': '66.66%', half: '50%', third: '33.33%' }
+                            const cw = childLarguraMap[child.largura] || '100%'
+                            const fieldMargin = `${camposEstilo.gap_top || camposEstilo.gap || '12'}px ${camposEstilo.gap_right || '0'}px ${camposEstilo.gap_bottom || '0'}px ${camposEstilo.gap_left || '0'}px`
+                            return (
+                              <div key={child.id} data-campo-id={child.id} style={{ width: cw, padding: fieldMargin, boxSizing: 'border-box' as const }}>
+                                {renderCampoPublico({
+                                  campo: child, labelStyle, inputStyle, fontFamily, camposEstilo,
+                                  valor: valores[child.id] || '',
+                                  onChange: (v) => handleChange(child.id, child.tipo, v),
+                                  ddi: ddiSelecionado[child.id] || '+55',
+                                  onDdiChange: (ddi) => setDdiSelecionado(prev => ({ ...prev, [child.id]: ddi })),
+                                  enderecoValue: enderecoValues[child.id] || { rua: '', numero: '', complemento: '' },
+                                  onEnderecoChange: (val) => setEnderecoValues(prev => ({ ...prev, [child.id]: val })),
+                                  buscandoCepField: buscandoCep[child.id] || false,
+                                  onCepBusca: async (cepVal: string) => {
+                                    const cepLimpo = cepVal.replace(/\D/g, '')
+                                    if (cepLimpo.length !== 8) return
+                                    setBuscandoCep(prev => ({ ...prev, [child.id]: true }))
+                                    try {
+                                      const resp = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`)
+                                      const data = await resp.json()
+                                      if (!data.erro) {
+                                        const cepIdx = campos.findIndex(c => c.id === child.id)
+                                        const camposApos = campos.slice(cepIdx + 1)
+                                        const endCampo = camposApos.find(c => c.tipo === 'endereco')
+                                        if (endCampo) {
+                                          setEnderecoValues(prev => ({ ...prev, [endCampo.id]: { rua: data.logradouro || '', numero: '', complemento: '' } }))
+                                          setValores(prev => ({ ...prev, [endCampo.id]: data.logradouro || '' }))
+                                        }
+                                        const cidadeCampo = camposApos.find(c => c.tipo === 'cidade')
+                                        if (cidadeCampo) setValores(prev => ({ ...prev, [cidadeCampo.id]: data.localidade || '' }))
+                                        const estadoCampo = camposApos.find(c => c.tipo === 'estado')
+                                        if (estadoCampo) setValores(prev => ({ ...prev, [estadoCampo.id]: data.uf || '' }))
+                                        const paisCampo = camposApos.find(c => c.tipo === 'pais')
+                                        if (paisCampo) setValores(prev => ({ ...prev, [paisCampo.id]: 'Brasil' }))
+                                      }
+                                    } catch { /* silently fail */ }
+                                    setBuscandoCep(prev => ({ ...prev, [child.id]: false }))
+                                  },
+                                  allCampos: campos,
+                                  setValores,
+                                })}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            }
+
             const larguraMap: Record<string, string> = { full: '100%', '1/2': '50%', '1/3': '33.33%', '2/3': '66.66%', half: '50%', third: '33.33%' }
             const w = larguraMap[campo.largura] || '100%'
             const fieldMargin = `${camposEstilo.gap_top || camposEstilo.gap || '12'}px ${camposEstilo.gap_right || '0'}px ${camposEstilo.gap_bottom || '0'}px ${camposEstilo.gap_left || '0'}px`
@@ -441,17 +515,11 @@ export function FormularioPublicoPage() {
                       const resp = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`)
                       const data = await resp.json()
                       if (!data.erro) {
-                        // Auto-fill separate endereco, cidade, estado, pais fields
-                        // Find fields AFTER this CEP in the form order
                         const cepIdx = campos.findIndex(c => c.id === campo.id)
                         const camposApos = campos.slice(cepIdx + 1)
-                        
                         const endCampo = camposApos.find(c => c.tipo === 'endereco')
                         if (endCampo) {
-                          setEnderecoValues(prev => ({
-                            ...prev,
-                            [endCampo.id]: { rua: data.logradouro || '', numero: '', complemento: '' }
-                          }))
+                          setEnderecoValues(prev => ({ ...prev, [endCampo.id]: { rua: data.logradouro || '', numero: '', complemento: '' } }))
                           setValores(prev => ({ ...prev, [endCampo.id]: data.logradouro || '' }))
                         }
                         const cidadeCampo = camposApos.find(c => c.tipo === 'cidade')
