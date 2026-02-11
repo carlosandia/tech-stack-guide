@@ -153,7 +153,21 @@ export function KanbanBoard({ data, isLoading, onDropGanhoPerda, onCardClick }: 
       ;(el as HTMLElement).style.opacity = '1'
     })
 
+    // AIDEV-NOTE: Se mesma etapa, permitir reordenação (não ignorar)
     if (oportunidade.etapa_id === etapaDestinoId) {
+      if (dropIndex === undefined) {
+        draggedOpRef.current = null
+        return
+      }
+      // Reordenar na mesma etapa via mutação
+      moverEtapa.mutate(
+        { oportunidadeId: oportunidade.id, etapaDestinoId, dropIndex },
+        {
+          onError: () => {
+            toast.error('Erro ao reordenar oportunidade')
+          },
+        }
+      )
       draggedOpRef.current = null
       return
     }
