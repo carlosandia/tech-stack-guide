@@ -10,15 +10,14 @@ import {
   CreditCard, Building2, MapPin, Paperclip, Image, Star,
   SlidersHorizontal, Minus, Space, Code, CheckSquare,
   FileAudio, FileVideo, Pen, BarChart3, MessageSquare, Search,
-  Palette, Map, Columns, Plus, MousePointerClick
+  Palette, Map, Columns, Plus
 } from 'lucide-react'
-import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 
 export interface TipoCampoPaleta {
   tipo: string
   label: string
   icon: React.ElementType
-  categoria: 'basico' | 'avancado' | 'layout' | 'especial' | 'botao'
+  categoria: 'basico' | 'avancado' | 'layout' | 'especial'
 }
 
 export const TIPOS_CAMPO: TipoCampoPaleta[] = [
@@ -79,10 +78,6 @@ export const TIPOS_CAMPO: TipoCampoPaleta[] = [
   { tipo: 'espacador', label: 'Espaçador', icon: Space, categoria: 'layout' },
   { tipo: 'bloco_html', label: 'Bloco HTML', icon: Code, categoria: 'layout' },
   { tipo: 'bloco_colunas', label: 'Colunas', icon: Columns, categoria: 'layout' },
-
-  // Botões
-  { tipo: 'botao_enviar', label: 'Botão Enviar', icon: MousePointerClick, categoria: 'botao' },
-  { tipo: 'botao_whatsapp', label: 'Botão WhatsApp', icon: WhatsAppIcon as React.ElementType, categoria: 'botao' },
 ]
 
 const CATEGORIAS = [
@@ -90,17 +85,14 @@ const CATEGORIAS = [
   { key: 'avancado', label: 'Avançados' },
   { key: 'especial', label: 'Especiais' },
   { key: 'layout', label: 'Layout' },
-  { key: 'botao', label: 'Botão' },
 ] as const
 
 interface Props {
   className?: string
   onAddCampo?: (tipo: TipoCampoPaleta) => void
-  /** Tipos de botão já adicionados no formulário (para bloquear duplicatas) */
-  botoesAdicionados?: string[]
 }
 
-export function CamposPaleta({ className, onAddCampo, botoesAdicionados = [] }: Props) {
+export function CamposPaleta({ className, onAddCampo }: Props) {
   const handleDragStart = (e: React.DragEvent, tipo: TipoCampoPaleta) => {
     e.dataTransfer.setData('application/campo-tipo', JSON.stringify(tipo))
     e.dataTransfer.effectAllowed = 'copy'
@@ -120,27 +112,20 @@ export function CamposPaleta({ className, onAddCampo, botoesAdicionados = [] }: 
             <div className="grid grid-cols-2 gap-1.5">
               {campos.map((campo) => {
                 const Icon = campo.icon
-                const isBotao = campo.tipo === 'botao_enviar' || campo.tipo === 'botao_whatsapp'
-                const isDisabled = isBotao && botoesAdicionados.includes(campo.tipo)
                 return (
                   <div
                     key={campo.tipo}
-                    draggable={!isDisabled}
-                    onDragStart={isDisabled ? undefined : (e) => handleDragStart(e, campo)}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, campo)}
                     className={cn(
                       'group relative flex items-center gap-2 px-2 py-2 rounded-md border transition-colors text-xs select-none',
-                      isDisabled
-                        ? 'border-border/50 bg-muted/50 cursor-not-allowed opacity-50'
-                        : 'border-border bg-card cursor-grab active:cursor-grabbing hover:border-primary/50 hover:bg-accent'
+                      'border-border bg-card cursor-grab active:cursor-grabbing hover:border-primary/50 hover:bg-accent'
                     )}
-                    title={isDisabled ? `${campo.label} já adicionado` : campo.label}
+                    title={campo.label}
                   >
                     <Icon className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
                     <span className="truncate text-foreground">{campo.label}</span>
-                    {isDisabled && (
-                      <span className="ml-auto text-[9px] text-muted-foreground whitespace-nowrap">Adicionado</span>
-                    )}
-                    {onAddCampo && !isDisabled && (
+                    {onAddCampo && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation()

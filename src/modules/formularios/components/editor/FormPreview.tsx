@@ -10,7 +10,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { getMaskForType } from '../../utils/masks'
 import { generateFormResponsiveCss, generateColunasResponsiveCss, resolveValue } from '../../utils/responsiveStyles'
-import { Monitor, Tablet, Smartphone, Settings, Eye, EyeOff, Code, Info, Trash2 } from 'lucide-react'
+import { Monitor, Tablet, Smartphone, Settings, Eye, EyeOff, Code, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
@@ -630,10 +630,6 @@ export function FormPreview({
                       onSelectStyleElement={onSelectStyleElement}
                       onUpdateBotaoTexto={onUpdateBotaoTexto}
                       viewport={viewport}
-                      onRemoveBotao={!showFinalPreview ? (tipo) => {
-                        const campo = campos.find(c => c.tipo === tipo)
-                        if (campo) onRemoveCampo(campo.id)
-                      } : undefined}
                     />
                   </div>
                 )}
@@ -875,7 +871,6 @@ function RenderBotoes({
   onSelectStyleElement,
   onUpdateBotaoTexto,
   viewport,
-  onRemoveBotao,
 }: {
   configBotoes: ConfigBotoes | null | undefined
   estiloBotao: EstiloBotao | undefined
@@ -885,7 +880,6 @@ function RenderBotoes({
   onSelectStyleElement: ((el: SelectedElement) => void) | undefined
   onUpdateBotaoTexto?: ((tipo: 'enviar' | 'whatsapp', newTexto: string) => void)
   viewport?: Viewport
-  onRemoveBotao?: (tipo: 'botao_enviar' | 'botao_whatsapp') => void
 }) {
   const rvBtn = useCallback((field: string): string | undefined => {
     if (!estiloBotao) return undefined
@@ -942,16 +936,6 @@ function RenderBotoes({
           >
             <Settings className="w-3.5 h-3.5" />
           </button>
-          {onRemoveBotao && (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onRemoveBotao('botao_enviar') }}
-              className="p-1 rounded-full border border-border bg-card shadow-sm text-destructive hover:border-destructive"
-              title="Remover botão Enviar"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          )}
         </div>
       )}
       <button
@@ -1001,16 +985,6 @@ function RenderBotoes({
           >
             <Settings className="w-3.5 h-3.5" />
           </button>
-          {onRemoveBotao && (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onRemoveBotao('botao_whatsapp') }}
-              className="p-1 rounded-full border border-border bg-card shadow-sm text-destructive hover:border-destructive"
-              title="Remover botão WhatsApp"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          )}
         </div>
       )}
       <button

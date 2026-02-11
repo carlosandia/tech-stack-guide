@@ -74,7 +74,7 @@ interface Props {
 }
 
 export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEstilo, onConfigChange, onRegisterSave }: Props) {
-  const [tab, setTab] = useState<TabType>('estilo')
+  const [tab, setTab] = useState<TabType>('config')
   const [config, setConfig] = useState<ConfigBotoes>(CONFIG_PADRAO)
   const [loaded, setLoaded] = useState(false)
   const [funis, setFunis] = useState<FunilOption[]>([])
@@ -502,18 +502,8 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
 
   return (
     <div className="space-y-3">
-      {/* Tab toggle - only 2 tabs */}
+      {/* Tab toggle - Configuração first, Estilo second */}
       <div className="flex border border-border rounded-md overflow-hidden">
-        <button
-          type="button"
-          className={cn(
-            'flex-1 text-xs py-1.5 font-medium transition-colors',
-            tab === 'estilo' ? 'bg-primary text-primary-foreground' : 'bg-muted/50 text-muted-foreground hover:text-foreground'
-          )}
-          onClick={() => setTab('estilo')}
-        >
-          Estilo
-        </button>
         <button
           type="button"
           className={cn(
@@ -524,12 +514,34 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
         >
           Configuração
         </button>
+        <button
+          type="button"
+          className={cn(
+            'flex-1 text-xs py-1.5 font-medium transition-colors',
+            tab === 'estilo' ? 'bg-primary text-primary-foreground' : 'bg-muted/50 text-muted-foreground hover:text-foreground'
+          )}
+          onClick={() => setTab('estilo')}
+        >
+          Estilo
+        </button>
       </div>
 
-      {/* Estilo tab */}
+      {/* Estilo tab - conditional based on tipo_botao */}
       {tab === 'estilo' && (
         <div className="space-y-3">
-          {isWhatsApp ? renderEstiloWhatsApp() : renderEstiloEnviar()}
+          {(config.tipo_botao === 'enviar' || config.tipo_botao === 'ambos') && (
+            <>
+              {config.tipo_botao === 'ambos' && <p className="text-xs font-medium text-foreground">Botão Enviar</p>}
+              {renderEstiloEnviar()}
+            </>
+          )}
+          {config.tipo_botao === 'ambos' && <div className="border-t border-border my-3" />}
+          {(config.tipo_botao === 'whatsapp' || config.tipo_botao === 'ambos') && (
+            <>
+              {config.tipo_botao === 'ambos' && <p className="text-xs font-medium text-foreground">Botão WhatsApp</p>}
+              {renderEstiloWhatsApp()}
+            </>
+          )}
         </div>
       )}
 
