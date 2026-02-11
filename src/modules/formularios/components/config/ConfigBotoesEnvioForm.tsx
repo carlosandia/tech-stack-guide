@@ -177,14 +177,14 @@ export function ConfigBotoesEnvioForm({ formularioId }: Props) {
           </p>
 
           <div className="space-y-1.5">
-            <Label className="text-xs">Número do WhatsApp (com DDI)</Label>
+            <Label className="text-xs">Número do Destinatário</Label>
             <Input
               value={config.whatsapp_numero}
               onChange={(e) => update('whatsapp_numero', e.target.value)}
               placeholder="5511999999999"
               className="text-xs"
             />
-            <p className="text-[10px] text-muted-foreground">Ex: 5511999999999 (sem +, espaços ou traços)</p>
+            <p className="text-[10px] text-muted-foreground">Para onde o visitante será redirecionado. Ex: 5511999999999 (sem +, espaços ou traços)</p>
           </div>
 
           <div className="flex items-center justify-between">
@@ -194,6 +194,27 @@ export function ConfigBotoesEnvioForm({ formularioId }: Props) {
               onCheckedChange={(v) => update('whatsapp_cria_oportunidade', v)}
             />
           </div>
+
+          <div className="flex items-center justify-between">
+            <Label className="text-xs">Avisar por WhatsApp</Label>
+            <Switch
+              checked={config.whatsapp_notifica_whatsapp}
+              onCheckedChange={(v) => update('whatsapp_notifica_whatsapp', v)}
+            />
+          </div>
+
+          {config.whatsapp_notifica_whatsapp && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">Número para aviso</Label>
+              <Input
+                value={config.whatsapp_whatsapp_destino}
+                onChange={(e) => update('whatsapp_whatsapp_destino', e.target.value)}
+                placeholder={config.whatsapp_numero || '5511999999999'}
+                className="text-xs"
+              />
+              <p className="text-[10px] text-muted-foreground">Você recebe um aviso quando alguém preencher. Deixe vazio para usar o número do destinatário acima.</p>
+            </div>
+          )}
 
           <div className="flex items-center justify-between">
             <Label className="text-xs">Notificar por e-mail</Label>
