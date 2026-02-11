@@ -10,7 +10,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { getMaskForType } from '../../utils/masks'
 import { generateFormResponsiveCss, generateColunasResponsiveCss, resolveValue } from '../../utils/responsiveStyles'
-import { Monitor, Tablet, Smartphone, Paintbrush, Eye, EyeOff, Code, Info } from 'lucide-react'
+import { Monitor, Tablet, Smartphone, Settings, Eye, EyeOff, Code, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
@@ -414,7 +414,7 @@ export function FormPreview({
               )}
               title="Editar estilos do container"
             >
-              <Paintbrush className="w-4 h-4" />
+              <Settings className="w-4 h-4" />
             </button>
           )}
 
@@ -558,6 +558,8 @@ export function FormPreview({
                                     isDragOver={false}
                                     onSelect={() => onSelectCampo(campo.id)}
                                     onRemove={() => onRemoveCampo(campo.id)}
+                                    onMoveUp={index > 0 ? () => _onMoveCampo(campo.id, 'up') : undefined}
+                                    onMoveDown={index < topLevelCampos.length - 1 ? () => _onMoveCampo(campo.id, 'down') : undefined}
                                     onDragStart={(e) => {
                                       e.dataTransfer.setData('application/campo-id', campo.id)
                                       e.dataTransfer.effectAllowed = 'move'
@@ -928,7 +930,7 @@ function RenderBotoes({
           )}
           title="Editar estilos do botão Enviar"
         >
-          <Paintbrush className="w-3.5 h-3.5" />
+          <Settings className="w-3.5 h-3.5" />
         </button>
       )}
       <button
@@ -973,7 +975,7 @@ function RenderBotoes({
           )}
           title="Editar estilos do botão WhatsApp"
         >
-          <Paintbrush className="w-3.5 h-3.5" />
+          <Settings className="w-3.5 h-3.5" />
         </button>
       )}
       <button
@@ -1277,8 +1279,17 @@ function renderFinalCampo(
         />
       )
     case 'imagem_link': {
-      const imgSrc = campo.valor_padrao || ''
-      const linkUrl = campo.placeholder || ''
+      let imgSrc = ''
+      let linkUrl = ''
+      try {
+        const parsed = JSON.parse(campo.valor_padrao || '{}')
+        imgSrc = parsed.url_desktop || parsed.url_tablet || parsed.url_mobile || ''
+        linkUrl = parsed.redirect_url || ''
+      } catch {
+        // Legacy: plain URL string
+        imgSrc = campo.valor_padrao || ''
+        linkUrl = campo.placeholder || ''
+      }
       const imgElement = imgSrc ? (
         <img src={imgSrc} alt={campo.label || 'Imagem'} style={{ width: '100%', maxHeight: '300px', objectFit: 'cover', borderRadius: estiloCampos?.input_border_radius || '6px', cursor: linkUrl ? 'pointer' : 'default' }} />
       ) : (

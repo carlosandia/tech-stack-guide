@@ -5,7 +5,7 @@
  */
 
 import { useState, useRef, useEffect } from 'react'
-import { Trash2, Settings, ChevronDown, Info } from 'lucide-react'
+import { Trash2, Settings, ChevronDown, ChevronUp, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { CampoFormulario } from '../../services/formularios.api'
 import { Button } from '@/components/ui/button'
@@ -37,6 +37,8 @@ interface Props {
   isDragOver?: boolean
   onSelect: () => void
   onRemove: () => void
+  onMoveUp?: () => void
+  onMoveDown?: () => void
   onDragStart: (e: React.DragEvent) => void
   onDragOver: (e: React.DragEvent) => void
   onDrop: (e: React.DragEvent) => void
@@ -50,6 +52,8 @@ export function CampoItem({
   isDragOver,
   onSelect,
   onRemove,
+  onMoveUp,
+  onMoveDown,
   onDragStart,
   onDragOver,
   onDrop,
@@ -106,8 +110,18 @@ export function CampoItem({
         isDragOver && 'border-primary border-dashed bg-primary/10'
       )}
     >
-      {/* Controls - only gear (opens config sidebar) and delete */}
+      {/* Controls - move arrows, gear (opens config sidebar) and delete */}
       <div className="absolute right-2 top-2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        {onMoveUp && (
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); onMoveUp() }} title="Mover para cima">
+            <ChevronUp className="w-4 h-4" />
+          </Button>
+        )}
+        {onMoveDown && (
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); onMoveDown() }} title="Mover para baixo">
+            <ChevronDown className="w-4 h-4" />
+          </Button>
+        )}
         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); onSelect() }}>
           <Settings className="w-4 h-4" />
         </Button>
