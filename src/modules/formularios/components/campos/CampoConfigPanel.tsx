@@ -243,7 +243,7 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
 
       <div className="space-y-3">
         <div className="space-y-1.5">
-          <Label className="text-xs">Label</Label>
+          <Label className="text-xs">Nome do Campo</Label>
           <Input
             value={form.label}
             onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))}
@@ -254,10 +254,10 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
         {/* Configurações de estilo para campos de layout texto (título/parágrafo) */}
         {isTextoLayout && (
           <div className="space-y-3 border-t border-border pt-3">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Estilo do {campo.tipo === 'titulo' ? 'Título' : 'Parágrafo'}</p>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Aparência do {campo.tipo === 'titulo' ? 'Título' : 'Parágrafo'}</p>
             
             <div className="space-y-1.5">
-              <Label className="text-xs">Alinhamento</Label>
+              <Label className="text-xs">Posição do Texto</Label>
               <div className="flex gap-1">
                 {([
                   { value: 'left', icon: AlignLeft, label: 'Esquerda' },
@@ -314,7 +314,7 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
         {/* Configurações do Divisor */}
         {isDivisor && (
           <div className="space-y-3 border-t border-border pt-3">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Estilo do Divisor</p>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Aparência da Linha</p>
             <div className="space-y-1.5">
               <Label className="text-xs">Cor da Linha</Label>
               <div className="flex items-center gap-2">
@@ -333,7 +333,7 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1.5">
-                <Label className="text-xs">Espessura (px)</Label>
+                <Label className="text-xs">Grossura (px)</Label>
                 <Input
                   type="number"
                   min={1}
@@ -344,15 +344,15 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Estilo</Label>
+                <Label className="text-xs">Tipo de Linha</Label>
                 <Select value={layoutConfig.estilo || 'solid'} onValueChange={(v) => setLayoutConfig((prev: Record<string, string>) => ({ ...prev, estilo: v }))}>
                   <SelectTrigger className="h-8">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="solid">Sólido</SelectItem>
-                    <SelectItem value="dashed">Tracejado</SelectItem>
-                    <SelectItem value="dotted">Pontilhado</SelectItem>
+                    <SelectItem value="solid">Sólida</SelectItem>
+                    <SelectItem value="dashed">Tracejada</SelectItem>
+                    <SelectItem value="dotted">Pontilhada</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -363,7 +363,7 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
         {/* Configurações do Espaçador */}
         {isEspacador && (
           <div className="space-y-3 border-t border-border pt-3">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Estilo do Espaçador</p>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Tamanho do Espaço</p>
             <div className="space-y-1.5">
               <Label className="text-xs">Altura (px)</Label>
               <Input
@@ -396,7 +396,7 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
         {!isLayoutField && (
           <>
             <div className="space-y-1.5">
-              <Label className="text-xs">Placeholder</Label>
+              <Label className="text-xs">Texto de Exemplo</Label>
               <Input
                 value={form.placeholder}
                 onChange={(e) => setForm((f) => ({ ...f, placeholder: e.target.value }))}
@@ -405,7 +405,7 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs">Texto de Ajuda</Label>
+              <Label className="text-xs">Instrução para o Usuário</Label>
               <Textarea
                 value={form.texto_ajuda}
                 onChange={(e) => setForm((f) => ({ ...f, texto_ajuda: e.target.value }))}
@@ -425,14 +425,14 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
               onChange={(e) => setForm((f) => ({ ...f, obrigatorio: e.target.checked }))}
               className="rounded border-input"
             />
-            <Label htmlFor="obrigatorio" className="text-xs cursor-pointer">Obrigatório</Label>
+            <Label htmlFor="obrigatorio" className="text-xs cursor-pointer">Campo Obrigatório</Label>
           </div>
         )}
 
         {/* Largura: mostrar para titulo, paragrafo, imagem_link e campos normais; ocultar para divisor, espacador, bloco_html */}
         {!isDivisor && !isEspacador && !isBlocoHtml && (
           <div className="space-y-1.5">
-            <Label className="text-xs">Largura</Label>
+            <Label className="text-xs">Tamanho na Tela</Label>
             <Select value={form.largura} onValueChange={(v) => setForm((f) => ({ ...f, largura: v }))}>
               <SelectTrigger>
                 <SelectValue />
@@ -448,7 +448,7 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
 
         {!isLayoutField && (
         <div className="space-y-1.5">
-          <Label className="text-xs">Mapear para Contato</Label>
+          <Label className="text-xs">Salvar Resposta em</Label>
           <Select
             value={form.mapeamento_campo || 'nenhum'}
             onValueChange={(v) => {
