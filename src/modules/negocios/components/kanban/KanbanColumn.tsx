@@ -175,13 +175,13 @@ export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardCli
             <span className="flex-shrink-0 text-xs font-medium text-muted-foreground bg-muted rounded-full px-1.5 py-0.5 min-w-[20px] text-center">
               {etapa.total_oportunidades}
             </span>
+            {etapa.valor_total > 0 && (
+              <span className="text-xs text-muted-foreground">
+                {formatValorResumido(etapa.valor_total)}
+              </span>
+            )}
           </div>
         </div>
-        {etapa.valor_total > 0 && (
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {formatValorResumido(etapa.valor_total)}
-          </p>
-        )}
       </div>
 
       {/* Cards com scroll vertical e drop zones */}
