@@ -447,52 +447,94 @@ export function FormPreview({
                   >
                     {campos.length === 0 && renderDropZone(0, true)}
 
-                    {campos.length > 0 && (
-                      <div className="group/campos">
-                        {renderDropZone(0)}
-                        <div className="flex flex-wrap gap-x-2">
-                          {campos.map((campo, index) => {
-                            // AIDEV-NOTE: Larguras fracionárias - campos lado a lado
-                            const largura = campo.largura || 'full'
-                            const widthClass = largura === '1/2' ? 'w-[calc(50%-4px)]'
-                              : largura === '1/3' ? 'w-[calc(33.333%-5.333px)]'
-                              : largura === '2/3' ? 'w-[calc(66.666%-2.666px)]'
-                              : 'w-full'
+                    {campos.length > 0 && (() => {
+                      // AIDEV-NOTE: Filtrar campos top-level (sem pai) para renderizar no nível raiz
+                      const topLevelCampos = campos.filter(c => !c.pai_campo_id)
 
-                            return (
-                              <div key={campo.id} className={widthClass}>
-                                <CampoItem
-                                  campo={campo}
-                                  isSelected={selectedCampoId === campo.id}
-                                  isDragOver={false}
-                                  onSelect={() => onSelectCampo(campo.id)}
-                                  onRemove={() => onRemoveCampo(campo.id)}
-                                  onMoveUp={index > 0 ? () => onMoveCampo(campo.id, 'up') : undefined}
-                                  onMoveDown={index < campos.length - 1 ? () => onMoveCampo(campo.id, 'down') : undefined}
-                                  onDragStart={(e) => {
-                                    e.dataTransfer.setData('application/campo-id', campo.id)
-                                    e.dataTransfer.effectAllowed = 'move'
-                                  }}
-                                  onDragOver={(e) => e.preventDefault()}
-                                  onDrop={(e) => {
-                                    e.preventDefault()
-                                    e.stopPropagation()
-                                    const draggedId = e.dataTransfer.getData('application/campo-id')
-                                    if (draggedId && draggedId !== campo.id) {
-                                      onReorderCampo(draggedId, index)
-                                    }
-                                  }}
-                                  onDragLeave={() => {}}
-                                  onStyleEdit={onSelectStyleElement ? () => onSelectStyleElement('campos') : undefined}
-                                  onUpdateLabel={onUpdateCampoLabel ? (newLabel) => onUpdateCampoLabel(campo.id, newLabel) : undefined}
-                                />
-                                {renderDropZone(index + 1)}
-                              </div>
-                            )
-                          })}
+                      return (
+                        <div className="group/campos">
+                          {renderDropZone(0)}
+                          <div className="flex flex-wrap gap-x-2">
+                            {topLevelCampos.map((campo, index) => {
+                              // AIDEV-NOTE: Larguras fracionárias - campos lado a lado
+                              const largura = campo.largura || 'full'
+                              const widthClass = largura === '1/2' ? 'w-[calc(50%-4px)]'
+                                : largura === '1/3' ? 'w-[calc(33.333%-5.333px)]'
+                                : largura === '2/3' ? 'w-[calc(66.666%-2.666px)]'
+                                : 'w-full'
+
+                              // Render bloco de colunas
+                              if (campo.tipo === 'bloco_colunas') {
+                                return (
+                                  <div key={campo.id} className="w-full">
+                                    <BlocoColunasEditor
+                                      bloco={campo}
+                                      todosCampos={campos}
+                                      isSelected={selectedCampoId === campo.id}
+                                      selectedCampoId={selectedCampoId}
+                                      onSelect={() => onSelectCampo(campo.id)}
+                                      onRemove={() => onRemoveCampo(campo.id)}
+                                      onSelectCampo={onSelectCampo}
+                                      onRemoveCampo={onRemoveCampo}
+                                      onDropNewCampoInColuna={onDropNewCampoInColuna || (() => {})}
+                                      onReorderCampoInColuna={onReorderCampoInColuna || (() => {})}
+                                      onMoveCampoToColuna={onMoveCampoToColuna || (() => {})}
+                                      onDragStart={(e) => {
+                                        e.dataTransfer.setData('application/campo-id', campo.id)
+                                        e.dataTransfer.effectAllowed = 'move'
+                                      }}
+                                      onDragOver={(e) => e.preventDefault()}
+                                      onDrop={(e) => {
+                                        e.preventDefault()
+                                        e.stopPropagation()
+                                        const draggedId = e.dataTransfer.getData('application/campo-id')
+                                        if (draggedId && draggedId !== campo.id) {
+                                          onReorderCampo(draggedId, index)
+                                        }
+                                      }}
+                                      onDragLeave={() => {}}
+                                      onUpdateLabel={onUpdateCampoLabel}
+                                    />
+                                    {renderDropZone(index + 1)}
+                                  </div>
+                                )
+                              }
+
+                              return (
+                                <div key={campo.id} className={widthClass}>
+                                  <CampoItem
+                                    campo={campo}
+                                    isSelected={selectedCampoId === campo.id}
+                                    isDragOver={false}
+                                    onSelect={() => onSelectCampo(campo.id)}
+                                    onRemove={() => onRemoveCampo(campo.id)}
+                                    onMoveUp={index > 0 ? () => onMoveCampo(campo.id, 'up') : undefined}
+                                    onMoveDown={index < topLevelCampos.length - 1 ? () => onMoveCampo(campo.id, 'down') : undefined}
+                                    onDragStart={(e) => {
+                                      e.dataTransfer.setData('application/campo-id', campo.id)
+                                      e.dataTransfer.effectAllowed = 'move'
+                                    }}
+                                    onDragOver={(e) => e.preventDefault()}
+                                    onDrop={(e) => {
+                                      e.preventDefault()
+                                      e.stopPropagation()
+                                      const draggedId = e.dataTransfer.getData('application/campo-id')
+                                      if (draggedId && draggedId !== campo.id) {
+                                        onReorderCampo(draggedId, index)
+                                      }
+                                    }}
+                                    onDragLeave={() => {}}
+                                    onStyleEdit={onSelectStyleElement ? () => onSelectStyleElement('campos') : undefined}
+                                    onUpdateLabel={onUpdateCampoLabel ? (newLabel) => onUpdateCampoLabel(campo.id, newLabel) : undefined}
+                                  />
+                                  {renderDropZone(index + 1)}
+                                </div>
+                              )
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )
+                    })()}
                   </div>
                 )}
 
