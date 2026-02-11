@@ -27,7 +27,7 @@ interface HistoricoEvento {
 }
 
 function getEventIcon(acao: string) {
-  const iconClass = 'w-3 h-3'
+  const iconClass = 'w-3.5 h-3.5'
   switch (acao) {
     case 'criacao':
       return <Plus className={iconClass} />
@@ -270,7 +270,7 @@ export function DetalhesHistorico({ oportunidadeId }: DetalhesHistoricoProps) {
               const sublabel = getEventSublabel(evento)
               return (
                 <div key={evento.id} className="flex gap-2 py-1.5">
-                  <div className={`flex-shrink-0 mt-0.5 w-5 h-5 rounded-full flex items-center justify-center ${getEventIconBg(evento.acao)}`}>
+                  <div className={`flex-shrink-0 mt-0.5 w-6 h-6 rounded-full flex items-center justify-center ${getEventIconBg(evento.acao)}`}>
                     {getEventIcon(evento.acao)}
                   </div>
                   <div className="flex-1 min-w-0">

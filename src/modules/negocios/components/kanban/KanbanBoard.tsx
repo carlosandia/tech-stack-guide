@@ -4,6 +4,7 @@
  * Inclui coluna "Solicitações" (RF-11) antes das etapas
  * Busca config de cards de /configuracoes/cards e repassa aos cards
  * Suporte a seleção múltipla de cards com bulk actions
+ * Menu de 3 pontos nas colunas: selecionar todos, ordenar, mover etapa
  */
 
 import { useCallback, useMemo, useRef, useState } from 'react'
@@ -15,9 +16,10 @@ import { OportunidadeBulkActions } from './OportunidadeBulkActions'
 import { toast } from 'sonner'
 import { useMoverEtapa, useExcluirOportunidadesEmMassa, useMoverOportunidadesEmMassa } from '../../hooks/useKanban'
 import { useConfigCard } from '@/modules/configuracoes/hooks/useRegras'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import type { CardConfig, SlaConfig } from './KanbanCard'
+import { useReordenarEtapas } from '../../hooks/usePipelineConfig'
 
 interface KanbanBoardProps {
   data: KanbanData
@@ -31,6 +33,8 @@ export function KanbanBoard({ data, isLoading, onDropGanhoPerda, onCardClick }: 
   const moverEtapa = useMoverEtapa()
   const excluirEmMassa = useExcluirOportunidadesEmMassa()
   const moverEmMassa = useMoverOportunidadesEmMassa()
+  const reordenarEtapas = useReordenarEtapas(data?.funil?.id || '')
+  const queryClient = useQueryClient()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   // Buscar configuração de cards
@@ -129,6 +133,77 @@ export function KanbanBoard({ data, isLoading, onDropGanhoPerda, onCardClick }: 
     handleClearSelection()
   }, [data, selectedIds, handleClearSelection])
 
+  // AIDEV-NOTE: Selecionar todos os cards de uma etapa
+  const handleSelectAll = useCallback((etapaId: string) => {
+    const etapa = data?.etapas?.find(e => e.id === etapaId)
+    if (!etapa) return
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      const allSelected = etapa.oportunidades.every(op => next.has(op.id))
+      if (allSelected) {
+        etapa.oportunidades.forEach(op => next.delete(op.id))
+      } else {
+        etapa.oportunidades.forEach(op => next.add(op.id))
+      }
+      return next
+    })
+  }, [data])
+
+  // AIDEV-NOTE: Ordenar cards de uma etapa e persistir posições
+  const handleSortColumn = useCallback(async (etapaId: string, criterio: string) => {
+    const etapa = data?.etapas?.find(e => e.id === etapaId)
+    if (!etapa || etapa.oportunidades.length < 2) return
+
+    const sorted = [...etapa.oportunidades].sort((a, b) => {
+      switch (criterio) {
+        case 'criado_em':
+          return new Date(a.criado_em).getTime() - new Date(b.criado_em).getTime()
+        case 'valor':
+          return (b.valor || 0) - (a.valor || 0)
+        case 'titulo':
+          return (a.titulo || '').localeCompare(b.titulo || '', 'pt-BR')
+        default:
+          return 0
+      }
+    })
+
+    // Batch update posições
+    const updates = sorted.map((op, idx) => 
+      supabase.from('oportunidades').update({ posicao: idx }).eq('id', op.id)
+    )
+    await Promise.all(updates)
+    queryClient.invalidateQueries({ queryKey: ['kanban'] })
+    toast.success('Cards ordenados')
+  }, [data, queryClient])
+
+  // AIDEV-NOTE: Mover etapa para esquerda ou direita (apenas tipo normal)
+  const handleMoveColumn = useCallback((etapaId: string, direcao: 'esquerda' | 'direita') => {
+    if (!data?.etapas) return
+    const idx = data.etapas.findIndex(e => e.id === etapaId)
+    if (idx === -1) return
+
+    const targetIdx = direcao === 'esquerda' ? idx - 1 : idx + 1
+    if (targetIdx < 0 || targetIdx >= data.etapas.length) return
+
+    // Trocar ordens entre as duas etapas
+    const current = data.etapas[idx]
+    const target = data.etapas[targetIdx]
+    
+    reordenarEtapas.mutate(
+      [
+        { id: current.id, ordem: target.ordem ?? targetIdx },
+        { id: target.id, ordem: current.ordem ?? idx },
+      ],
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: ['kanban'] })
+          toast.success('Etapa movida')
+        },
+        onError: () => toast.error('Erro ao mover etapa'),
+      }
+    )
+  }, [data, reordenarEtapas, queryClient])
+
   const handleDragStart = useCallback((e: React.DragEvent, oportunidade: Oportunidade) => {
     draggedOpRef.current = oportunidade
     e.dataTransfer.effectAllowed = 'move'
@@ -159,24 +234,19 @@ export function KanbanBoard({ data, isLoading, onDropGanhoPerda, onCardClick }: 
         draggedOpRef.current = null
         return
       }
-      // Encontrar índice atual do card na etapa
       const etapaAtual = data?.etapas?.find(e => e.id === etapaDestinoId)
       const indexOriginal = etapaAtual?.oportunidades?.findIndex(op => op.id === oportunidade.id) ?? -1
       
-      // Se o card vem de uma posição anterior ao dropIndex, a API remove primeiro
-      // e o splice fica uma posição à frente — corrigir decrementando
       let adjustedIndex = dropIndex
       if (indexOriginal !== -1 && indexOriginal < dropIndex) {
         adjustedIndex = dropIndex - 1
       }
       
-      // Se não mudou de posição, ignorar
       if (indexOriginal === adjustedIndex) {
         draggedOpRef.current = null
         return
       }
 
-      // Reordenar na mesma etapa via mutação
       moverEtapa.mutate(
         { oportunidadeId: oportunidade.id, etapaDestinoId, dropIndex: adjustedIndex },
         {
@@ -205,7 +275,7 @@ export function KanbanBoard({ data, isLoading, onDropGanhoPerda, onCardClick }: 
     )
 
     draggedOpRef.current = null
-  }, [moverEtapa, onDropGanhoPerda])
+  }, [moverEtapa, onDropGanhoPerda, data])
 
   if (isLoading) {
     return (
@@ -221,20 +291,32 @@ export function KanbanBoard({ data, isLoading, onDropGanhoPerda, onCardClick }: 
         <div className="flex gap-3 p-3 sm:p-4 h-full min-w-min">
           <SolicitacoesColumn funilId={data.funil.id} />
 
-          {data.etapas.map(etapa => (
-            <KanbanColumn
-              key={etapa.id}
-              etapa={etapa}
-              onDragStart={handleDragStart}
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
-              onCardClick={onCardClick}
-              cardConfig={cardConfig}
-              slaConfig={slaConfig || undefined}
-              selectedIds={selectedIds}
-              onToggleSelect={handleToggleSelect}
-            />
-          ))}
+          {data.etapas.map((etapa) => {
+            // Determinar se é primeira/última etapa movível (tipo normal)
+            const normalEtapas = data.etapas.filter(e => e.tipo === 'normal')
+            const isFirstNormal = normalEtapas[0]?.id === etapa.id
+            const isLastNormal = normalEtapas[normalEtapas.length - 1]?.id === etapa.id
+
+            return (
+              <KanbanColumn
+                key={etapa.id}
+                etapa={etapa}
+                onDragStart={handleDragStart}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+                onCardClick={onCardClick}
+                cardConfig={cardConfig}
+                slaConfig={slaConfig || undefined}
+                selectedIds={selectedIds}
+                onToggleSelect={handleToggleSelect}
+                onSelectAll={handleSelectAll}
+                onSortColumn={handleSortColumn}
+                onMoveColumn={handleMoveColumn}
+                isFirst={isFirstNormal}
+                isLast={isLastNormal}
+              />
+            )
+          })}
         </div>
       </div>
 
