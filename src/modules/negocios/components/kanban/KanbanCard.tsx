@@ -47,6 +47,7 @@ interface KanbanCardProps {
   onClick: (oportunidade: Oportunidade) => void
   config?: CardConfig
   slaConfig?: SlaConfig
+  etapaTipo?: string
   isSelected?: boolean
   onToggleSelect?: (id: string) => void
 }
@@ -122,7 +123,7 @@ const ACOES_ICONS: Record<string, { icon: React.ElementType; label: string }> = 
 // Component
 // =====================================================
 
-export function KanbanCard({ oportunidade, onDragStart, onClick, config, slaConfig, isSelected, onToggleSelect }: KanbanCardProps) {
+export function KanbanCard({ oportunidade, onDragStart, onClick, config, slaConfig, etapaTipo, isSelected, onToggleSelect }: KanbanCardProps) {
   const { camposVisiveis, acoesRapidas } = config || DEFAULT_CONFIG
   const qualificacao = getQualificacaoLabel(oportunidade)
   const tarefasPendentes = (oportunidade as any)._tarefas_pendentes ?? 0
@@ -138,8 +139,8 @@ export function KanbanCard({ oportunidade, onDragStart, onClick, config, slaConf
   const enviarEmail = useEnviarEmail()
   const salvarRascunho = useSalvarRascunho()
 
-  // AIDEV-NOTE: Countdown reativo de SLA (RF-06)
-  const slaAtivo = slaConfig?.sla_ativo && slaConfig.sla_tempo_minutos > 0
+  // AIDEV-NOTE: Countdown reativo de SLA (RF-06) — só exibe na etapa de entrada
+  const slaAtivo = slaConfig?.sla_ativo && slaConfig.sla_tempo_minutos > 0 && etapaTipo === 'entrada'
   const [agora, setAgora] = useState(Date.now())
 
   useEffect(() => {
