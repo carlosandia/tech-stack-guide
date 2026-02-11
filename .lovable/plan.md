@@ -1,42 +1,27 @@
 
-# Adicionar Controles Responsivos nos Estilos dos Botoes
+
+# Criar documento `melhoriasautomacao.md` na pasta `docs/prds`
 
 ## Resumo
 
-Os campos de Largura, Altura e Tamanho da Fonte nos estilos dos botoes (Enviar e WhatsApp) atualmente usam inputs simples sem opcao de override por dispositivo. O tipo `EstiloBotao` e a funcao `generateFormResponsiveCss` ja suportam os sufixos `_tablet` e `_mobile`, mas o painel de estilo nao expoe esses controles. A mudanca e adicionar o `DeviceSwitcher` nesses campos, igual ao que ja funciona no `EstiloBotaoForm.tsx` e nos blocos de colunas.
+Criar o arquivo `docs/prds/melhoriasautomacao.md` contendo o plano completo de expansao do modulo de automacoes que foi aprovado anteriormente na conversa. O documento seguira o padrao dos demais PRDs da pasta.
 
-## Mudancas
+## Conteudo do arquivo
 
-### 1. BotaoConfigPanel.tsx - renderEstiloEnviar()
+O documento contera todas as secoes do plano aprovado:
 
-Substituir os inputs simples de **Largura**, **Altura** e **Tamanho** por campos com `ResponsiveField` + `DeviceSwitcher`:
+1. **Resumo** — contexto da expansao
+2. **O que ja existe** — tabela do que nao sera duplicado
+3. **Parte 1 — Novas Acoes** — WhatsApp com midia, adicionar nota, alterar status conversa, enviar webhook, email com modelo, campo generico unificado
+4. **Parte 2 — Novo No: Validacao** — tipo visual, operadores, tipos de conteudo, arquivos novos, backend
+5. **Parte 3 — Condicao com Multiplas Regras (AND)** — mudancas no CondicaoConfig, novos campos disponiveis
+6. **Parte 4 — Triggers de Comunicacao** — mensagem_recebida, conversa_criada
+7. **Resumo de Arquivos Alterados** — tabela completa
+8. **Detalhes Tecnicos** — estruturas de dados JSON, ordem de implementacao
 
-- **Largura**: Select com opcoes (100%, 50%, auto) + DeviceSwitcher. Campos: `largura`, `largura_tablet`, `largura_mobile`
-- **Altura**: Input + DeviceSwitcher. Campos: `altura`, `altura_tablet`, `altura_mobile`
-- **Tamanho da Fonte**: Input + DeviceSwitcher. Campos: `font_size`, `font_size_tablet`, `font_size_mobile`
+## Arquivo criado
 
-Adicionar estado `const [device, setDevice] = useState<DeviceType>('desktop')` e helpers `getKey`/`getVal`/`getPlaceholder` (mesmo padrao do `EstiloBotaoForm.tsx`).
-
-### 2. BotaoConfigPanel.tsx - renderEstiloWhatsApp()
-
-Mesma logica responsiva para os campos do botao WhatsApp:
-
-- **Largura**: `whatsapp_largura`, `whatsapp_largura_tablet`, `whatsapp_largura_mobile`
-- **Altura**: `whatsapp_altura`, `whatsapp_altura_tablet`, `whatsapp_altura_mobile`
-- **Tamanho da Fonte**: `whatsapp_font_size`, `whatsapp_font_size_tablet`, `whatsapp_font_size_mobile`
-
-### 3. Nenhuma mudanca necessaria em:
-
-- `EstiloBotao` (tipo) - ja tem todos os campos `_tablet`/`_mobile`
-- `responsiveStyles.ts` - `generateFormResponsiveCss` ja gera media queries para todos esses campos
-- `FormPreview.tsx` / `FormularioPublicoPage.tsx` - ja consomem o CSS responsivo gerado
-
-## Arquivos alterados
-
-| Arquivo | Alteracao |
+| Arquivo | Acao |
 |---|---|
-| `BotaoConfigPanel.tsx` | Importar `ResponsiveField` e `DeviceSwitcher`, adicionar estado de device, usar `ResponsiveField` nos campos de Largura, Altura e Tamanho da Fonte para ambos os botoes |
+| `docs/prds/melhoriasautomacao.md` | **NOVO** — documento completo do plano de melhorias |
 
-## Resultado
-
-O usuario podera clicar nos icones Desktop/Tablet/Mobile ao lado de Largura, Altura e Tamanho nos estilos dos botoes e definir valores diferentes por viewport. As bolinhas indicadoras de override (amarela para tablet, azul para mobile) aparecerao quando houver valores customizados, exatamente como ja funciona nos blocos de colunas.
