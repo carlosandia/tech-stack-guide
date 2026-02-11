@@ -415,27 +415,29 @@ export function FormPreview({
             const formContent = (
               <div>
                 {/* Form header - only logo and description, no title */}
-                <div className="mb-6 text-center">
-                  {estiloCabecalho?.logo_url && (
-                    <img
-                      src={estiloCabecalho.logo_url}
-                      alt="Logo"
-                      style={{
-                        maxHeight: '40px',
-                        marginBottom: '8px',
-                        display: estiloCabecalho.logo_posicao === 'centro' ? 'inline-block' : 'block',
-                      }}
-                    />
-                  )}
-                  {formulario.descricao && (
-                    <p
-                      className="text-sm mt-1"
-                      style={{ color: estiloCabecalho?.descricao_cor || undefined, fontFamily }}
-                    >
-                      {formulario.descricao}
-                    </p>
-                  )}
-                </div>
+                {(estiloCabecalho?.logo_url || formulario.descricao) && (
+                  <div className="mb-6 text-center">
+                    {estiloCabecalho?.logo_url && (
+                      <img
+                        src={estiloCabecalho.logo_url}
+                        alt="Logo"
+                        style={{
+                          maxHeight: '40px',
+                          marginBottom: '8px',
+                          display: estiloCabecalho.logo_posicao === 'centro' ? 'inline-block' : 'block',
+                        }}
+                      />
+                    )}
+                    {formulario.descricao && (
+                      <p
+                        className="text-sm mt-1"
+                        style={{ color: estiloCabecalho?.descricao_cor || undefined, fontFamily }}
+                      >
+                        {formulario.descricao}
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {/* Fields area */}
                 {showFinalPreview ? (
@@ -590,10 +592,11 @@ export function FormPreview({
             // No special layout needed - render form content directly
             if (!hasImage) return formContent
 
-            const computedPadding = estiloContainer?.padding_top
-              ? `${estiloContainer.padding_top}px ${estiloContainer.padding_right || '24'}px ${estiloContainer.padding_bottom || '24'}px ${estiloContainer.padding_left || '24'}px`
-              : (estiloContainer?.padding || '24px')
-            const negMargin = { margin: `-${computedPadding}` }
+            const pTop = estiloContainer?.padding_top || '24'
+            const pRight = estiloContainer?.padding_right || '24'
+            const pBottom = estiloContainer?.padding_bottom || '24'
+            const pLeft = estiloContainer?.padding_left || '24'
+            const negMargin = { margin: `-${pTop}px -${pRight}px -${pBottom}px -${pLeft}px` }
 
             // so_imagem (popup or newsletter)
             if (tpl === 'so_imagem') {
