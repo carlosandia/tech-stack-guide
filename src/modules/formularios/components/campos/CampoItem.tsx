@@ -5,11 +5,12 @@
  */
 
 import { useState, useRef, useEffect } from 'react'
-import { Trash2, Settings, ChevronDown, ChevronUp, Info } from 'lucide-react'
+import { Trash2, Settings, ChevronDown, ChevronUp, Info, MousePointerClick } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { CampoFormulario } from '../../services/formularios.api'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 
 function parseLayoutConfig(valorPadrao: string | null | undefined, tipo: string): Record<string, string> {
   if (tipo === 'titulo' || tipo === 'paragrafo') {
@@ -185,6 +186,7 @@ function getLabelTipo(tipo: string): string {
     cor: 'Cor', ranking: 'Ranking', checkbox_termos: 'Termos', oculto: 'Oculto',
     titulo: 'Título', paragrafo: 'Parágrafo', divisor: 'Divisor', espacador: 'Espaçador',
     bloco_html: 'HTML',
+    botao_enviar: 'Botão', botao_whatsapp: 'WhatsApp',
   }
   return map[tipo] || tipo
 }
@@ -335,6 +337,22 @@ function renderFieldPreview(campo: CampoFormulario) {
 
     case 'oculto':
       return <p className="text-xs text-muted-foreground italic">Campo oculto (não visível para o usuário)</p>
+
+    case 'botao_enviar':
+      return (
+        <button type="button" className="w-full rounded-md bg-primary text-primary-foreground py-2.5 text-sm font-semibold pointer-events-none flex items-center justify-center gap-2">
+          <MousePointerClick className="w-4 h-4" />
+          {campo.placeholder || 'Enviar'}
+        </button>
+      )
+
+    case 'botao_whatsapp':
+      return (
+        <button type="button" className="w-full rounded-md py-2.5 text-sm font-semibold pointer-events-none flex items-center justify-center gap-2" style={{ backgroundColor: '#25D366', color: '#FFFFFF' }}>
+          <WhatsAppIcon size={16} />
+          {campo.placeholder || 'Enviar via WhatsApp'}
+        </button>
+      )
 
     case 'cpf':
       return <div className={baseInputClass}>{placeholder || '000.000.000-00'}</div>

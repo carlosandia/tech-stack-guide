@@ -25,7 +25,7 @@ import type { ConfigBotoes } from './ConfigBotoesEnvioForm'
 import type { EstiloBotao } from '../../services/formularios.api'
 import { useQueryClient } from '@tanstack/react-query'
 
-type TabType = 'estilo' | 'config' | 'pos_envio'
+type TabType = 'estilo' | 'config'
 
 const CONFIG_PADRAO: ConfigBotoes = {
   tipo_botao: 'enviar',
@@ -502,7 +502,7 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
 
   return (
     <div className="space-y-3">
-      {/* Tab toggle */}
+      {/* Tab toggle - only 2 tabs */}
       <div className="flex border border-border rounded-md overflow-hidden">
         <button
           type="button"
@@ -523,16 +523,6 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
           onClick={() => setTab('config')}
         >
           Configuração
-        </button>
-        <button
-          type="button"
-          className={cn(
-            'flex-1 text-xs py-1.5 font-medium transition-colors',
-            tab === 'pos_envio' ? 'bg-primary text-primary-foreground' : 'bg-muted/50 text-muted-foreground hover:text-foreground'
-          )}
-          onClick={() => setTab('pos_envio')}
-        >
-          Pós-Envio
         </button>
       </div>
 
@@ -639,78 +629,71 @@ export function BotaoConfigPanel({ formularioId, tipo, estiloBotao, onChangeEsti
             </div>
           )}
 
-        </div>
-      )}
-
-      {/* Pós-Envio tab */}
-      {tab === 'pos_envio' && loaded && (
-        <div className="space-y-3">
-          {isWhatsApp && (
-            <p className="text-[10px] text-muted-foreground bg-muted/50 p-2 rounded">
-              ℹ O botão WhatsApp redireciona automaticamente para o WhatsApp com os campos formatados. As configurações abaixo se aplicam apenas ao botão <strong>Enviar</strong>.
-            </p>
-          )}
-          <div className="space-y-1.5">
-            <Label className="text-xs">Mensagem de Sucesso</Label>
-            <Textarea
-              value={posEnvio.mensagem_sucesso}
-              onChange={(e) => updatePosEnvio('mensagem_sucesso', e.target.value)}
-              placeholder="Formulário enviado com sucesso!"
-              className="text-xs"
-              rows={2}
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-xs">Mensagem de Erro</Label>
-            <Textarea
-              value={posEnvio.mensagem_erro}
-              onChange={(e) => updatePosEnvio('mensagem_erro', e.target.value)}
-              placeholder="Ocorreu um erro ao enviar."
-              className="text-xs"
-              rows={2}
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-xs">Ação após envio bem-sucedido</Label>
-            <Select value={posEnvio.tipo_acao_sucesso} onValueChange={(v) => updatePosEnvio('tipo_acao_sucesso', v)}>
-              <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="mensagem">Mostrar mensagem</SelectItem>
-                <SelectItem value="redirecionar">Redirecionar para URL</SelectItem>
-                <SelectItem value="ambos">Mensagem + Redirecionar</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {(posEnvio.tipo_acao_sucesso === 'redirecionar' || posEnvio.tipo_acao_sucesso === 'ambos') && (
+          {/* Pós-Envio section inside Config tab */}
+          <div className="space-y-2 p-2 rounded border border-border bg-muted/30">
+            <p className="text-xs font-medium">Pós-Envio</p>
+            {isWhatsApp && (
+              <p className="text-[10px] text-muted-foreground bg-muted/50 p-2 rounded">
+                ℹ O botão WhatsApp redireciona automaticamente. As configurações abaixo se aplicam apenas ao botão <strong>Enviar</strong>.
+              </p>
+            )}
             <div className="space-y-1.5">
-              <Label className="text-xs">URL de Redirecionamento</Label>
-              <Input
-                value={posEnvio.url_redirecionamento}
-                onChange={(e) => updatePosEnvio('url_redirecionamento', e.target.value)}
-                placeholder="https://seusite.com/obrigado"
+              <Label className="text-[11px]">Mensagem de Sucesso</Label>
+              <Textarea
+                value={posEnvio.mensagem_sucesso}
+                onChange={(e) => updatePosEnvio('mensagem_sucesso', e.target.value)}
+                placeholder="Formulário enviado com sucesso!"
                 className="text-xs"
-                type="url"
+                rows={2}
               />
             </div>
-          )}
-
-          {posEnvio.tipo_acao_sucesso === 'ambos' && (
             <div className="space-y-1.5">
-              <Label className="text-xs">Tempo antes de redirecionar (s)</Label>
-              <Input
-                value={posEnvio.tempo_redirecionamento}
-                onChange={(e) => updatePosEnvio('tempo_redirecionamento', Number(e.target.value) || 3)}
+              <Label className="text-[11px]">Mensagem de Erro</Label>
+              <Textarea
+                value={posEnvio.mensagem_erro}
+                onChange={(e) => updatePosEnvio('mensagem_erro', e.target.value)}
+                placeholder="Ocorreu um erro ao enviar."
                 className="text-xs"
-                type="number"
-                min={1}
-                max={30}
+                rows={2}
               />
             </div>
-          )}
-
+            <div className="space-y-1.5">
+              <Label className="text-[11px]">Ação após envio</Label>
+              <Select value={posEnvio.tipo_acao_sucesso} onValueChange={(v) => updatePosEnvio('tipo_acao_sucesso', v)}>
+                <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="mensagem">Mostrar mensagem</SelectItem>
+                  <SelectItem value="redirecionar">Redirecionar para URL</SelectItem>
+                  <SelectItem value="ambos">Mensagem + Redirecionar</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {(posEnvio.tipo_acao_sucesso === 'redirecionar' || posEnvio.tipo_acao_sucesso === 'ambos') && (
+              <div className="space-y-1.5">
+                <Label className="text-[11px]">URL de Redirecionamento</Label>
+                <Input
+                  value={posEnvio.url_redirecionamento}
+                  onChange={(e) => updatePosEnvio('url_redirecionamento', e.target.value)}
+                  placeholder="https://seusite.com/obrigado"
+                  className="text-xs"
+                  type="url"
+                />
+              </div>
+            )}
+            {posEnvio.tipo_acao_sucesso === 'ambos' && (
+              <div className="space-y-1.5">
+                <Label className="text-[11px]">Tempo antes de redirecionar (s)</Label>
+                <Input
+                  value={posEnvio.tempo_redirecionamento}
+                  onChange={(e) => updatePosEnvio('tempo_redirecionamento', Number(e.target.value) || 3)}
+                  className="text-xs"
+                  type="number"
+                  min={1}
+                  max={30}
+                />
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

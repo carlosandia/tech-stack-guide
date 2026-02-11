@@ -226,7 +226,7 @@ export function FormularioPublicoPage() {
       return
     }
 
-    const layoutTypes = ['titulo', 'paragrafo', 'divisor', 'espacador', 'oculto', 'bloco_html', 'imagem_link']
+    const layoutTypes = ['titulo', 'paragrafo', 'divisor', 'espacador', 'oculto', 'bloco_html', 'imagem_link', 'botao_enviar', 'botao_whatsapp']
     const obrigatorios = campos.filter(c => c.obrigatorio && !layoutTypes.includes(c.tipo))
     for (const campo of obrigatorios) {
       if (!valores[campo.id]?.trim()) {
@@ -328,7 +328,18 @@ export function FormularioPublicoPage() {
   const botao = (estilos?.botao || {}) as EstiloBotao
   const cabecalho = (estilos?.cabecalho || {}) as EstiloCabecalho
   const pagina = estilos?.pagina as any || {}
-  const configBotoes = formulario.config_botoes as any || {}
+  const configBotoesRaw = formulario.config_botoes as any || {}
+  // AIDEV-NOTE: Derivar tipo_botao dos campos presentes (botao_enviar, botao_whatsapp)
+  const derivedTipoBotao = (() => {
+    const hasEnviar = campos.some(c => c.tipo === 'botao_enviar')
+    const hasWhatsApp = campos.some(c => c.tipo === 'botao_whatsapp')
+    if (hasEnviar && hasWhatsApp) return 'ambos'
+    if (hasWhatsApp) return 'whatsapp'
+    // Fallback to stored value for backward compatibility
+    if (!hasEnviar && !hasWhatsApp) return configBotoesRaw.tipo_botao || 'enviar'
+    return 'enviar'
+  })()
+  const configBotoes = { ...configBotoesRaw, tipo_botao: derivedTipoBotao }
   const posEnvio = formulario.config_pos_envio as any || {}
   const fontFamily = container.font_family ? `${container.font_family}, 'Inter', system-ui, sans-serif` : "'Inter', system-ui, sans-serif"
 
@@ -440,9 +451,9 @@ export function FormularioPublicoPage() {
           </div>
         )}
 
-        {/* Campos */}
+        {/* Campos - excluir botões (renderizados no rodapé) */}
         <div style={{ display: 'flex', flexWrap: 'wrap' }}>
-          {campos.filter(c => !c.pai_campo_id).map(campo => {
+          {campos.filter(c => !c.pai_campo_id && c.tipo !== 'botao_enviar' && c.tipo !== 'botao_whatsapp').map(campo => {
             // AIDEV-NOTE: Bloco de colunas na página pública
             if (campo.tipo === 'bloco_colunas') {
               const colConfig = (() => {

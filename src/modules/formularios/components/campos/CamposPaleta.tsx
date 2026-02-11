@@ -10,14 +10,15 @@ import {
   CreditCard, Building2, MapPin, Paperclip, Image, Star,
   SlidersHorizontal, Minus, Space, Code, CheckSquare,
   FileAudio, FileVideo, Pen, BarChart3, MessageSquare, Search,
-  Palette, Map, Columns, Plus
+  Palette, Map, Columns, Plus, MousePointerClick
 } from 'lucide-react'
+import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 
 export interface TipoCampoPaleta {
   tipo: string
   label: string
   icon: React.ElementType
-  categoria: 'basico' | 'avancado' | 'layout' | 'especial'
+  categoria: 'basico' | 'avancado' | 'layout' | 'especial' | 'botao'
 }
 
 export const TIPOS_CAMPO: TipoCampoPaleta[] = [
@@ -78,6 +79,10 @@ export const TIPOS_CAMPO: TipoCampoPaleta[] = [
   { tipo: 'espacador', label: 'Espaçador', icon: Space, categoria: 'layout' },
   { tipo: 'bloco_html', label: 'Bloco HTML', icon: Code, categoria: 'layout' },
   { tipo: 'bloco_colunas', label: 'Colunas', icon: Columns, categoria: 'layout' },
+
+  // Botões
+  { tipo: 'botao_enviar', label: 'Botão Enviar', icon: MousePointerClick, categoria: 'botao' },
+  { tipo: 'botao_whatsapp', label: 'Botão WhatsApp', icon: WhatsAppIcon as React.ElementType, categoria: 'botao' },
 ]
 
 const CATEGORIAS = [
@@ -85,6 +90,7 @@ const CATEGORIAS = [
   { key: 'avancado', label: 'Avançados' },
   { key: 'especial', label: 'Especiais' },
   { key: 'layout', label: 'Layout' },
+  { key: 'botao', label: 'Botão' },
 ] as const
 
 interface Props {
