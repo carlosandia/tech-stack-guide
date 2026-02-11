@@ -454,12 +454,18 @@ export function FormularioPublicoPage() {
 
               return (
                 <div key={campo.id} style={{ width: '100%', padding: `${camposEstilo.gap_top || camposEstilo.gap || '12'}px 0` }}>
-                  <div data-bloco-id={campo.id} style={{ display: 'flex', gap: `${colConfig.gap}px` }}>
+                  <div data-bloco-id={campo.id} style={{ display: 'flex', flexWrap: 'wrap', gap: `${colConfig.gap}px` }}>
                     {Array.from({ length: colConfig.colunas }).map((_, colIdx) => {
                       const children = campos
                         .filter(c => c.pai_campo_id === campo.id && c.coluna_indice === colIdx)
                         .sort((a, b) => a.ordem - b.ordem)
-                      const width = colConfig.larguras[colIdx] || `${Math.floor(100 / colConfig.colunas)}%`
+                      const rawW = colConfig.larguras[colIdx] || `${Math.floor(100 / colConfig.colunas)}%`
+                      // AIDEV-NOTE: Compensar o gap no cálculo da largura
+                      const gapPx = parseInt(colConfig.gap) || 16
+                      const totalGap = gapPx * (colConfig.colunas - 1)
+                      const width = rawW.endsWith('%')
+                        ? `calc(${rawW} - ${totalGap * parseFloat(rawW) / 100}px)`
+                        : rawW
 
                       return (
                         <div key={colIdx} className={`col-${colIdx}`} style={{ width, display: 'flex', flexWrap: 'wrap' }}>

@@ -211,9 +211,15 @@ export function BlocoColunasEditor({
 
       {/* Columns */}
       <div className="flex flex-wrap" style={{ gap: `${config.gap}px` }}>
-        {Array.from({ length: config.colunas }).map((_, colIndex) => {
+      {Array.from({ length: config.colunas }).map((_, colIndex) => {
           const children = getChildrenForColumn(colIndex)
-          const width = larguras[colIndex] || `${Math.floor(100 / config.colunas)}%`
+          const rawWidth = larguras[colIndex] || `${Math.floor(100 / config.colunas)}%`
+          // AIDEV-NOTE: Compensar o gap no cálculo da largura para evitar overflow
+          const gapPx = parseInt(config.gap) || 16
+          const totalGap = gapPx * (config.colunas - 1)
+          const width = rawWidth.endsWith('%')
+            ? `calc(${rawWidth} - ${totalGap * parseFloat(rawWidth) / 100}px)`
+            : rawWidth
 
           return (
             <div

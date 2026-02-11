@@ -130,7 +130,7 @@ export function FormPreview({
   selectedCampoId,
   onSelectCampo,
   onRemoveCampo,
-  onMoveCampo,
+  onMoveCampo: _onMoveCampo,
   onReorderCampo,
   onDropNewCampo,
   onDropNewCampoInColuna,
@@ -558,8 +558,6 @@ export function FormPreview({
                                     isDragOver={false}
                                     onSelect={() => onSelectCampo(campo.id)}
                                     onRemove={() => onRemoveCampo(campo.id)}
-                                    onMoveUp={index > 0 ? () => onMoveCampo(campo.id, 'up') : undefined}
-                                    onMoveDown={index < topLevelCampos.length - 1 ? () => onMoveCampo(campo.id, 'down') : undefined}
                                     onDragStart={(e) => {
                                       e.dataTransfer.setData('application/campo-id', campo.id)
                                       e.dataTransfer.effectAllowed = 'move'
@@ -574,7 +572,6 @@ export function FormPreview({
                                       }
                                     }}
                                     onDragLeave={() => {}}
-                                    onStyleEdit={onSelectStyleElement ? () => onSelectStyleElement('campos') : undefined}
                                     onUpdateLabel={onUpdateCampoLabel ? (newLabel) => onUpdateCampoLabel(campo.id, newLabel) : undefined}
                                   />
                                   {renderDropZone(index + 1)}
@@ -807,7 +804,13 @@ function FinalPreviewFields({ campos, estiloCampos, fontFamily, viewport = 'desk
                   const children = campos
                     .filter(c => c.pai_campo_id === campo.id && c.coluna_indice === colIdx)
                     .sort((a, b) => a.ordem - b.ordem)
-                  const w = colConfig.larguras[colIdx] || `${Math.floor(100 / colConfig.colunas)}%`
+                  const rawW = colConfig.larguras[colIdx] || `${Math.floor(100 / colConfig.colunas)}%`
+                  // AIDEV-NOTE: Compensar o gap no cálculo da largura
+                  const gapPx = parseInt(colConfig.gap) || 16
+                  const totalGap = gapPx * (colConfig.colunas - 1)
+                  const w = rawW.endsWith('%')
+                    ? `calc(${rawW} - ${totalGap * parseFloat(rawW) / 100}px)`
+                    : rawW
 
                   return (
                     <div key={colIdx} className={`col-${colIdx}`} style={{ width: w, display: 'flex', flexWrap: 'wrap' }}>
