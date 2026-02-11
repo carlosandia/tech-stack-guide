@@ -4942,6 +4942,7 @@ export type Database = {
           observacoes: string | null
           organizacao_id: string
           periodo_recorrencia: string | null
+          posicao: number
           previsao_fechamento: string | null
           qualificado_mql: boolean | null
           qualificado_mql_em: string | null
@@ -4974,6 +4975,7 @@ export type Database = {
           observacoes?: string | null
           organizacao_id: string
           periodo_recorrencia?: string | null
+          posicao?: number
           previsao_fechamento?: string | null
           qualificado_mql?: boolean | null
           qualificado_mql_em?: string | null
@@ -5006,6 +5008,7 @@ export type Database = {
           observacoes?: string | null
           organizacao_id?: string
           periodo_recorrencia?: string | null
+          posicao?: number
           previsao_fechamento?: string | null
           qualificado_mql?: boolean | null
           qualificado_mql_em?: string | null
