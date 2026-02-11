@@ -1,8 +1,9 @@
 /**
  * AIDEV-NOTE: Configuração do nó Ação
+ * Reorganizado com categorias do PRD Melhorias (Parte 7)
  */
 
-import { ACAO_TIPOS } from '../../schemas/automacoes.schema'
+import { ACAO_TIPOS, ACAO_CATEGORIAS } from '../../schemas/automacoes.schema'
 
 interface AcaoConfigProps {
   data: Record<string, unknown>
@@ -12,14 +13,6 @@ interface AcaoConfigProps {
 export function AcaoConfig({ data, onUpdate }: AcaoConfigProps) {
   const currentTipo = data.tipo as string
 
-  const categorias = [...new Set(ACAO_TIPOS.map(a => a.categoria))]
-
-  const catLabels: Record<string, string> = {
-    notificacao: 'Notificação',
-    crm: 'CRM',
-    controle: 'Controle',
-  }
-
   return (
     <div className="space-y-4">
       <div>
@@ -27,13 +20,13 @@ export function AcaoConfig({ data, onUpdate }: AcaoConfigProps) {
         <p className="text-xs text-muted-foreground mb-2">O que deve acontecer?</p>
       </div>
 
-      {categorias.map(cat => {
-        const acoes = ACAO_TIPOS.filter(a => a.categoria === cat && a.tipo !== 'aguardar')
+      {ACAO_CATEGORIAS.map(cat => {
+        const acoes = ACAO_TIPOS.filter(a => a.categoria === cat.key && a.tipo !== 'aguardar')
         if (acoes.length === 0) return null
         return (
-          <div key={cat}>
+          <div key={cat.key}>
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
-              {catLabels[cat] || cat}
+              {cat.label}
             </p>
             <div className="space-y-1">
               {acoes.map(a => (
