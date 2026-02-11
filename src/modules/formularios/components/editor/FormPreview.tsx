@@ -9,6 +9,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { getMaskForType } from '../../utils/masks'
+import { generateFormResponsiveCss } from '../../utils/responsiveStyles'
 import { Monitor, Tablet, Smartphone, Paintbrush, Eye, EyeOff, Code, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -50,7 +51,23 @@ function parseLayoutConfig(valorPadrao: string | null | undefined, tipo: string)
   return {}
 }
 
-// AIDEV-NOTE: TAMANHO_BOTAO removido - agora usamos altura livre definida pelo usuário
+/** AIDEV-NOTE: Componente helper para injetar CSS responsivo via media queries */
+function ResponsiveCssInjector({ formId, botao, container, campos }: {
+  formId: string
+  botao?: EstiloBotao
+  container?: EstiloContainer
+  campos?: EstiloCampos
+}) {
+  const css = generateFormResponsiveCss(
+    formId,
+    botao as unknown as Record<string, unknown>,
+    container as unknown as Record<string, unknown>,
+    campos as unknown as Record<string, unknown>,
+  )
+  if (!css) return null
+  return <style dangerouslySetInnerHTML={{ __html: css }} />
+}
+
 
 interface Props {
   formulario: Formulario
@@ -202,6 +219,7 @@ export function FormPreview({
   } : {}
 
 
+
   const handleContainerClick = useCallback((e: React.MouseEvent) => {
     if (e.target === e.currentTarget && onSelectStyleElement) {
       onSelectStyleElement('container')
@@ -332,10 +350,11 @@ export function FormPreview({
           }
         }}
       >
-        {/* Inject custom CSS */}
+        {/* Inject custom CSS + responsive overrides */}
         {cssCustomizado && (
           <style dangerouslySetInnerHTML={{ __html: cssCustomizado }} />
         )}
+        <ResponsiveCssInjector formId={formulario.id} botao={estiloBotao} container={estiloContainer} campos={estiloCampos} />
 
         <div
           className={cn(
@@ -353,6 +372,7 @@ export function FormPreview({
           style={containerStyle}
           onClick={showFinalPreview ? undefined : handleContainerClick}
           data-form-container
+          data-form-id={formulario.id}
         >
           {/* Style edit trigger for container - only in editor mode */}
           {!showFinalPreview && onSelectStyleElement && (
@@ -868,7 +888,7 @@ function RenderBotoes({
       <button
         type="button"
         className={cn(
-          'rounded-md text-sm font-semibold transition-all w-full',
+          'rounded-md text-sm font-semibold transition-all w-full form-btn-submit',
           !estiloBotao && 'bg-primary text-primary-foreground py-2.5',
           !showFinalPreview && selectedStyleElement === 'botao' && 'outline outline-2 outline-dashed outline-primary outline-offset-2'
         )}
@@ -913,7 +933,7 @@ function RenderBotoes({
       <button
         type="button"
         className={cn(
-          'rounded-md text-sm font-semibold transition-all flex items-center justify-center gap-2 w-full',
+          'rounded-md text-sm font-semibold transition-all flex items-center justify-center gap-2 w-full form-btn-whatsapp',
           !showFinalPreview && selectedStyleElement === 'botao_whatsapp' && 'outline outline-2 outline-dashed outline-primary outline-offset-2'
         )}
         style={{

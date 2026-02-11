@@ -404,8 +404,19 @@ export interface EstiloContainer {
   padding_right?: string
   padding_bottom?: string
   padding_left?: string
+  // AIDEV-NOTE: Overrides responsivos (tablet/mobile)
+  padding_top_tablet?: string
+  padding_right_tablet?: string
+  padding_bottom_tablet?: string
+  padding_left_tablet?: string
+  padding_top_mobile?: string
+  padding_right_mobile?: string
+  padding_bottom_mobile?: string
+  padding_left_mobile?: string
   sombra?: string
   max_width?: string
+  max_width_tablet?: string
+  max_width_mobile?: string
   font_family?: string
   border_width?: string
   border_color?: string
@@ -424,6 +435,8 @@ export interface EstiloCabecalho {
 export interface EstiloCampos {
   label_cor?: string
   label_tamanho?: string
+  label_tamanho_tablet?: string
+  label_tamanho_mobile?: string
   label_font_weight?: string
   input_background?: string
   input_border_color?: string
@@ -433,6 +446,8 @@ export interface EstiloCampos {
   input_texto_cor?: string
   input_placeholder_cor?: string
   input_height?: string
+  input_height_tablet?: string
+  input_height_mobile?: string
   input_focus_color?: string
   erro_cor?: string
   gap?: string
@@ -449,8 +464,14 @@ export interface EstiloBotao {
   hover_background?: string
   border_radius?: string
   largura?: string
+  largura_tablet?: string
+  largura_mobile?: string
   altura?: string
+  altura_tablet?: string
+  altura_mobile?: string
   font_size?: string
+  font_size_tablet?: string
+  font_size_mobile?: string
   font_weight?: string
   font_bold?: boolean
   font_italic?: boolean
@@ -466,8 +487,14 @@ export interface EstiloBotao {
   whatsapp_texto_cor?: string
   whatsapp_border_radius?: string
   whatsapp_largura?: string
+  whatsapp_largura_tablet?: string
+  whatsapp_largura_mobile?: string
   whatsapp_altura?: string
+  whatsapp_altura_tablet?: string
+  whatsapp_altura_mobile?: string
   whatsapp_font_size?: string
+  whatsapp_font_size_tablet?: string
+  whatsapp_font_size_mobile?: string
   whatsapp_font_weight?: string
   whatsapp_font_bold?: boolean
   whatsapp_font_italic?: boolean

@@ -11,6 +11,7 @@ import { getMaskForType } from '../utils/masks'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import DOMPurify from 'dompurify'
 import type { CampoFormulario, EstiloFormulario, EstiloContainer, EstiloCampos, EstiloBotao, EstiloCabecalho } from '../services/formularios.api'
+import { generateFormResponsiveCss } from '../utils/responsiveStyles'
 
 interface FormularioPublico {
   id: string
@@ -383,12 +384,21 @@ export function FormularioPublicoPage() {
     fontFamily,
   }
 
+  const responsiveCss = generateFormResponsiveCss(
+    formulario.id,
+    botao as unknown as Record<string, unknown>,
+    container as unknown as Record<string, unknown>,
+    camposEstilo as unknown as Record<string, unknown>,
+  )
+
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: pagina.background_color || '#F3F4F6', padding: '16px' }}>
+      {responsiveCss && <style dangerouslySetInnerHTML={{ __html: responsiveCss }} />}
       <form
         onSubmit={handleSubmit}
         onFocus={handleFormFocus}
         onBlur={handleFormBlur}
+        data-form-id={formulario.id}
         style={{
           backgroundColor: container.background_color || '#FFFFFF',
           borderRadius: container.border_radius || '8px',
@@ -1345,13 +1355,13 @@ function renderBotoesPublico(
   }
 
   const enviarBtn = showEnviar ? (
-    <button type="submit" style={btnEnviarStyle} disabled={enviando}>
+    <button type="submit" className="form-btn-submit" style={btnEnviarStyle} disabled={enviando}>
       {enviando ? 'Enviando...' : (estiloBotao.texto || 'Enviar')}
     </button>
   ) : null
 
   const whatsAppBtn = showWhatsApp ? (
-    <button type="button" style={btnWhatsAppStyle} onClick={handleWhatsApp}>
+    <button type="button" className="form-btn-whatsapp" style={btnWhatsAppStyle} onClick={handleWhatsApp}>
       <WhatsAppIcon size={16} />
       {estiloBotao.whatsapp_texto || 'Enviar via WhatsApp'}
     </button>
