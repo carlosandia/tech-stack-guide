@@ -13,7 +13,6 @@ import {
   Layers,
   Scale,
   LayoutGrid,
-  Zap,
 } from 'lucide-react'
 
 /**
@@ -78,7 +77,6 @@ export const sidebarGroups: SidebarGroup[] = [
       { label: 'Etapas', path: '/app/configuracoes/etapas', icon: Layers },
       { label: 'Qualificação', path: '/app/configuracoes/regras', icon: Scale },
       { label: 'Cards', path: '/app/configuracoes/cards', icon: LayoutGrid, adminOnly: true },
-      { label: 'Automações', path: '/app/configuracoes/automacoes', icon: Zap, adminOnly: true },
     ],
   },
 ]

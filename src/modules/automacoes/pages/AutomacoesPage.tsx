@@ -1,180 +1,159 @@
 /**
- * AIDEV-NOTE: Página principal de Automações (PRD-12)
- * Listagem com cards, toggle ativo/inativo, criação e edição
- * Conforme Design System e padrão ConfiguracoesLayout
+ * AIDEV-NOTE: Página principal de Automações - Builder Visual (PRD-12)
+ * Layout: Sidebar lateral + Canvas React Flow + Painel de config
+ * Rota: /app/automacoes (acesso direto pelo header)
  */
 
-import { useState, useEffect } from 'react'
-import { Plus, Loader2, Zap, History } from 'lucide-react'
+import { useState, useCallback, useEffect } from 'react'
+import { ReactFlowProvider } from '@xyflow/react'
 import { useAuth } from '@/providers/AuthProvider'
-import { useConfigToolbar } from '@/modules/configuracoes/contexts/ConfigToolbarContext'
-import { useAutomacoes, useToggleAutomacao, useExcluirAutomacao } from '../hooks/useAutomacoes'
-import { AutomacaoCard } from '../components/AutomacaoCard'
-import { AutomacaoFormModal } from '../components/AutomacaoFormModal'
-import { LogsTable } from '../components/LogsTable'
-import type { Automacao } from '../schemas/automacoes.schema'
+import { useAppToolbar } from '@/modules/app/contexts/AppToolbarContext'
+import { useAutomacoes, useToggleAutomacao, useCriarAutomacao, useAtualizarAutomacao } from '../hooks/useAutomacoes'
+import { AutomacaoSidebar } from '../components/AutomacaoSidebar'
+import { FlowCanvas } from '../components/FlowCanvas'
+import { NodeConfigPanel } from '../components/panels/NodeConfigPanel'
+import { useFlowState } from '../hooks/useFlowState'
+import { automacaoToFlow, flowToAutomacao } from '../utils/flowConverter'
+import { toast } from 'sonner'
+import { Zap } from 'lucide-react'
 
 export function AutomacoesPage() {
   const { role } = useAuth()
   const isAdmin = role === 'admin'
-  const { setActions, setSubtitle } = useConfigToolbar()
+  const { setActions, setSubtitle } = useAppToolbar()
 
-  const [modalAberto, setModalAberto] = useState(false)
-  const [automacaoEditando, setAutomacaoEditando] = useState<Automacao | null>(null)
-  const [logsAutomacaoId, setLogsAutomacaoId] = useState<string | null>(null)
-  const [filtroStatus, setFiltroStatus] = useState<'todas' | 'ativas' | 'inativas'>('todas')
-
-  const { data: automacoes, isLoading, error } = useAutomacoes()
+  const { data: automacoes, isLoading } = useAutomacoes()
   const toggleMutation = useToggleAutomacao()
-  const excluirMutation = useExcluirAutomacao()
+  const criarMutation = useCriarAutomacao()
+  const atualizarMutation = useAtualizarAutomacao()
 
+  const [selectedAutoId, setSelectedAutoId] = useState<string | undefined>()
+
+  const {
+    nodes,
+    edges,
+    setNodes,
+    setEdges,
+    onNodesChange,
+    onEdgesChange,
+    onConnect,
+    addNode,
+    updateNodeData,
+    deleteNode,
+    selectedNodeId: _selectedNodeId,
+    setSelectedNodeId,
+    selectedNode,
+  } = useFlowState()
+
+  // Set toolbar
   useEffect(() => {
-    setSubtitle('Automatize ações com base em eventos do CRM')
-    setActions(
-      isAdmin ? (
-        <button
-          onClick={() => { setAutomacaoEditando(null); setModalAberto(true) }}
-          className="flex items-center gap-1.5 px-3 h-8 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-all duration-200"
-        >
-          <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">Nova Automação</span>
-        </button>
-      ) : null
+    setSubtitle(
+      <span className="text-xs text-muted-foreground hidden sm:inline">
+        Editor visual de fluxos de automação
+      </span>
     )
+    setActions(null)
     return () => { setActions(null); setSubtitle(null) }
-  }, [isAdmin, setActions, setSubtitle])
+  }, [setActions, setSubtitle])
 
-  const handleEdit = (id: string) => {
-    const a = automacoes?.find(x => x.id === id)
-    if (a) {
-      setAutomacaoEditando(a)
-      setModalAberto(true)
+  // Load automacao into canvas when selected
+  const handleSelectAutomacao = useCallback((id: string) => {
+    setSelectedAutoId(id)
+    setSelectedNodeId(null)
+    const auto = automacoes?.find(a => a.id === id)
+    if (auto) {
+      const { nodes: flowNodes, edges: flowEdges } = automacaoToFlow(auto)
+      setNodes(flowNodes)
+      setEdges(flowEdges)
     }
-  }
+  }, [automacoes, setNodes, setEdges, setSelectedNodeId])
 
-  const handleToggle = (id: string, ativo: boolean) => {
-    toggleMutation.mutate({ id, ativo })
-  }
+  // New automacao
+  const handleNewAutomacao = useCallback(() => {
+    if (!isAdmin) return
+    criarMutation.mutate({
+      nome: `Automação ${(automacoes?.length || 0) + 1}`,
+      trigger_tipo: 'oportunidade_criada',
+      trigger_config: {},
+      condicoes: [],
+      acoes: [{ tipo: 'criar_notificacao', config: {} }],
+    }, {
+      onSuccess: (data) => {
+        setSelectedAutoId(data.id)
+        const { nodes: flowNodes, edges: flowEdges } = automacaoToFlow(data)
+        setNodes(flowNodes)
+        setEdges(flowEdges)
+      },
+    })
+  }, [isAdmin, automacoes, criarMutation, setNodes, setEdges])
 
-  const handleDelete = (id: string) => {
-    if (confirm('Tem certeza que deseja excluir esta automação?')) {
-      excluirMutation.mutate(id)
+  // Save flow back to DB
+  const handleSave = useCallback(() => {
+    if (!selectedAutoId) {
+      toast.error('Selecione uma automação para salvar')
+      return
     }
-  }
+    const payload = flowToAutomacao(nodes, edges)
+    atualizarMutation.mutate({ id: selectedAutoId, payload })
+  }, [selectedAutoId, nodes, edges, atualizarMutation])
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-16">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-      </div>
-    )
-  }
+  // Handle add node
+  const handleAddNode = useCallback((type: 'acao' | 'condicao' | 'delay', position?: { x: number; y: number }) => {
+    addNode(type, position)
+  }, [addNode])
 
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16 text-center">
-        <p className="text-sm text-destructive">Erro ao carregar automações</p>
-        <p className="text-xs text-muted-foreground mt-1">
-          {error instanceof Error ? error.message : 'Verifique sua conexão'}
-        </p>
-      </div>
-    )
-  }
-
-  const lista = automacoes || []
-  const filtrada = filtroStatus === 'todas'
-    ? lista
-    : filtroStatus === 'ativas'
-      ? lista.filter(a => a.ativo)
-      : lista.filter(a => !a.ativo)
+  // Empty state when no automacao selected
+  const showEmptyCanvas = !selectedAutoId
 
   return (
-    <div className="space-y-6">
-      {/* Info box */}
-      <div className="flex items-start gap-3 px-4 py-3 rounded-lg bg-primary/5 border border-primary/20">
-        <Zap className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
-        <div>
-          <p className="text-sm font-medium text-foreground">Motor de Automações</p>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Crie fluxos automatizados com <strong>Gatilho → Condição → Ação</strong>. Envie WhatsApp, e-mails,
-            crie tarefas, altere responsáveis e muito mais — tudo automaticamente.
-          </p>
-        </div>
+    <div className="flex h-full overflow-hidden">
+      {/* Sidebar */}
+      <AutomacaoSidebar
+        automacoes={automacoes || []}
+        isLoading={isLoading}
+        selectedId={selectedAutoId}
+        onSelect={handleSelectAutomacao}
+        onNew={handleNewAutomacao}
+        onToggle={(id, ativo) => toggleMutation.mutate({ id, ativo })}
+        isAdmin={isAdmin}
+      />
+
+      {/* Canvas area */}
+      <div className="flex-1 relative bg-muted/30">
+        {showEmptyCanvas ? (
+          <div className="flex flex-col items-center justify-center h-full text-center px-4">
+            <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mb-4">
+              <Zap className="w-8 h-8 text-primary" />
+            </div>
+            <h2 className="text-lg font-semibold text-foreground mb-1">Editor de Automações</h2>
+            <p className="text-sm text-muted-foreground max-w-sm">
+              Selecione uma automação na lista lateral ou crie uma nova para começar a montar seu fluxo visual.
+            </p>
+          </div>
+        ) : (
+          <ReactFlowProvider>
+            <FlowCanvas
+              nodes={nodes}
+              edges={edges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onConnect={onConnect}
+              onNodeClick={setSelectedNodeId}
+              onAddNode={handleAddNode}
+              onSave={handleSave}
+              isSaving={atualizarMutation.isPending}
+            />
+          </ReactFlowProvider>
+        )}
       </div>
 
-      {/* Filtros */}
-      {lista.length > 0 && (
-        <div className="flex items-center gap-1.5">
-          {(['todas', 'ativas', 'inativas'] as const).map(f => (
-            <button
-              key={f}
-              onClick={() => setFiltroStatus(f)}
-              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-                filtroStatus === f
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground hover:bg-accent'
-              }`}
-            >
-              {f === 'todas' ? `Todas (${lista.length})` :
-               f === 'ativas' ? `Ativas (${lista.filter(a => a.ativo).length})` :
-               `Inativas (${lista.filter(a => !a.ativo).length})`}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Lista */}
-      {filtrada.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mb-4">
-            <Zap className="w-6 h-6 text-muted-foreground" />
-          </div>
-          <p className="text-sm text-muted-foreground">
-            {lista.length === 0 ? 'Nenhuma automação criada' : 'Nenhuma automação encontrada'}
-          </p>
-          {isAdmin && lista.length === 0 && (
-            <p className="text-xs text-muted-foreground mt-1">
-              Clique em &quot;Nova Automação&quot; para começar
-            </p>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-1.5">
-          {filtrada.map(automacao => (
-            <div key={automacao.id} className="group relative">
-              <AutomacaoCard
-                automacao={automacao}
-                onEdit={handleEdit}
-                onToggle={handleToggle}
-                onDelete={handleDelete}
-                isAdmin={isAdmin}
-              />
-              {/* Botão de logs */}
-              <button
-                onClick={() => setLogsAutomacaoId(automacao.id)}
-                className="absolute right-20 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors opacity-0 group-hover:opacity-100"
-                title="Ver histórico"
-              >
-                <History className="w-4 h-4" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Modal de criação/edição */}
-      {modalAberto && (
-        <AutomacaoFormModal
-          automacao={automacaoEditando}
-          onClose={() => { setModalAberto(false); setAutomacaoEditando(null) }}
-        />
-      )}
-
-      {/* Modal de logs */}
-      {logsAutomacaoId && (
-        <LogsTable
-          automacaoId={logsAutomacaoId}
-          onClose={() => setLogsAutomacaoId(null)}
+      {/* Config panel */}
+      {selectedNode && (
+        <NodeConfigPanel
+          node={selectedNode}
+          onClose={() => setSelectedNodeId(null)}
+          onUpdate={updateNodeData}
+          onDelete={deleteNode}
         />
       )}
     </div>
