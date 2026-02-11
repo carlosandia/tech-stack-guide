@@ -62,3 +62,6 @@ verify_jwt = false
 
 [functions.processar-eventos-automacao]
 verify_jwt = false
+
+[functions.processar-delays-automacao]
+verify_jwt = false
