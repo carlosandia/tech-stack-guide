@@ -1039,20 +1039,25 @@ function renderFinalCampo(
   const labelStyle: React.CSSProperties = {
     color: estiloCampos?.label_cor || '#374151',
     fontSize: estiloCampos?.label_tamanho || '14px',
-    fontWeight: 500,
+    fontWeight: (estiloCampos?.label_font_weight || '500') as any,
     display: 'block',
     marginBottom: '4px',
     fontFamily,
   }
 
+  const borderWidth = estiloCampos?.input_border_width || '1'
+  const borderStyle = estiloCampos?.input_border_style || 'solid'
+  const borderColor = estiloCampos?.input_border_color || '#D1D5DB'
+
   const inputStyle: React.CSSProperties = {
     width: '100%',
     backgroundColor: estiloCampos?.input_background || '#F9FAFB',
-    border: `1px solid ${estiloCampos?.input_border_color || '#D1D5DB'}`,
+    border: `${borderWidth}px ${borderStyle} ${borderColor}`,
     borderRadius: estiloCampos?.input_border_radius || '6px',
     color: estiloCampos?.input_texto_cor || '#1F2937',
     padding: '8px 12px',
     fontSize: '14px',
+    height: estiloCampos?.input_height || '40px',
     outline: 'none',
     fontFamily,
   }

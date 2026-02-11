@@ -361,14 +361,19 @@ export function FormularioPublicoPage() {
     )
   }
 
+  const borderWidth = camposEstilo.input_border_width || '1'
+  const borderStyleVal = camposEstilo.input_border_style || 'solid'
+  const borderColor = camposEstilo.input_border_color || '#D1D5DB'
+
   const inputStyle: React.CSSProperties = {
     width: '100%',
     backgroundColor: camposEstilo.input_background || '#F9FAFB',
-    border: `${camposEstilo.input_border_width || '1'}px solid ${camposEstilo.input_border_color || '#D1D5DB'}`,
+    border: `${borderWidth}px ${borderStyleVal} ${borderColor}`,
     borderRadius: camposEstilo.input_border_radius || '6px',
     color: camposEstilo.input_texto_cor || '#1F2937',
     padding: '8px 12px',
     fontSize: '14px',
+    height: camposEstilo.input_height || '40px',
     outline: 'none',
     fontFamily,
     boxSizing: 'border-box' as const,
@@ -377,7 +382,7 @@ export function FormularioPublicoPage() {
   const labelStyle: React.CSSProperties = {
     color: camposEstilo.label_cor || '#374151',
     fontSize: camposEstilo.label_tamanho || '14px',
-    fontWeight: 500,
+    fontWeight: (camposEstilo.label_font_weight || '500') as any,
     display: 'block',
     marginBottom: '4px',
     fontFamily,
