@@ -25,7 +25,7 @@ import { useEstilosFormulario, useSalvarEstilos } from '../hooks/useFormularioEs
 import { ESTILO_PADRAO } from '../services/formularios.api'
 import { EditorHeader } from '../components/editor/EditorHeader'
 import { CamposPaleta, type TipoCampoPaleta } from '../components/campos/CamposPaleta'
-import { CampoConfigPanel } from '../components/campos/CampoConfigPanel'
+import { CampoSidebarPanel } from '../components/campos/CampoSidebarPanel'
 import { FormPreview } from '../components/editor/FormPreview'
 import { type SelectedElement } from '../components/estilos/EstiloPreviewInterativo'
 import { EstiloPopover } from '../components/estilos/EstiloPopover'
@@ -559,21 +559,14 @@ export function FormularioEditorPage() {
 
             {/* Config panel - hidden in final preview */}
             {!showFinalPreview && selectedCampo && !selectedStyleElement && (
-              <div
-                className={cn(
-                  'border-l border-border bg-card overflow-y-auto flex-shrink-0 transition-all duration-200',
-                  'hidden lg:block lg:w-72',
-                  showConfig && 'block absolute inset-y-0 right-0 w-72 z-20 shadow-lg lg:relative lg:shadow-none'
-                )}
-              >
-                <div className="p-3">
-                  <CampoConfigPanel
-                    campo={selectedCampo}
-                    onUpdate={handleUpdateCampo}
-                    onClose={() => { setSelectedCampoId(null); setShowConfig(false) }}
-                  />
-                </div>
-              </div>
+              <CampoSidebarPanel
+                campo={selectedCampo}
+                onUpdate={handleUpdateCampo}
+                onClose={() => { setSelectedCampoId(null); setShowConfig(false) }}
+                showConfig={showConfig}
+                estiloCampos={camposEstilo}
+                onChangeEstiloCampos={setCamposEstilo}
+              />
             )}
 
             {/* Style panel - hidden in final preview */}

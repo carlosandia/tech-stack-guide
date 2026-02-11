@@ -111,9 +111,10 @@ interface Props {
   onUpdate: (payload: Partial<CampoFormulario>) => void
   onClose: () => void
   className?: string
+  hideHeader?: boolean
 }
 
-export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props) {
+export function CampoConfigPanel({ campo, onUpdate, onClose, className, hideHeader }: Props) {
   const queryClient = useQueryClient()
   const criarCampoMutation = useCriarCampo()
   const { data: camposPessoa } = useCampos('pessoa')
@@ -253,12 +254,14 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
 
   return (
     <div className={cn('space-y-4 overflow-y-auto', className)}>
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-foreground">Configurar Campo</h3>
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
-          <X className="w-4 h-4" />
-        </Button>
-      </div>
+      {!hideHeader && (
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-foreground">Configurar Campo</h3>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
+      )}
 
       <div className="space-y-3">
         <div className="space-y-1.5">
