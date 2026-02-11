@@ -3,12 +3,22 @@
  * Header com cor da etapa via borderTop
  * Scroll vertical interno para cards
  * Drop zones visuais entre cards para feedback de posição
+ * Menu de 3 pontos com selecionar todos, ordenar e mover etapa
  */
 
 import { useState, useCallback, useRef } from 'react'
+import { MoreVertical, CheckSquare, ArrowUpDown, ArrowLeft, ArrowRight } from 'lucide-react'
 import type { EtapaFunil, Oportunidade } from '../../services/negocios.api'
 import { KanbanCard } from './KanbanCard'
 import type { CardConfig, SlaConfig } from './KanbanCard'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from '@/components/ui/dropdown-menu'
 
 interface KanbanColumnProps {
   etapa: EtapaFunil & {
@@ -24,6 +34,11 @@ interface KanbanColumnProps {
   slaConfig?: SlaConfig
   selectedIds?: Set<string>
   onToggleSelect?: (id: string) => void
+  onSelectAll?: (etapaId: string) => void
+  onSortColumn?: (etapaId: string, criterio: string) => void
+  onMoveColumn?: (etapaId: string, direcao: 'esquerda' | 'direita') => void
+  isFirst?: boolean
+  isLast?: boolean
 }
 
 function formatValorResumido(valor: number): string {
@@ -49,7 +64,12 @@ function getColumnBorderColor(tipo: string): string {
   }
 }
 
-export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardClick, cardConfig, slaConfig, selectedIds, onToggleSelect }: KanbanColumnProps) {
+// AIDEV-NOTE: Etapas padrão não podem ser movidas (entrada, ganho, perda)
+function canMoveEtapa(tipo: string): boolean {
+  return tipo === 'normal'
+}
+
+export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardClick, cardConfig, slaConfig, selectedIds, onToggleSelect, onSelectAll, onSortColumn, onMoveColumn, isFirst, isLast }: KanbanColumnProps) {
   const [isDragOver, setIsDragOver] = useState(false)
   const [dropIndex, setDropIndex] = useState<number | null>(null)
   const cardsContainerRef = useRef<HTMLDivElement>(null)
@@ -61,7 +81,6 @@ export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardCli
   }
 
   const handleDragLeave = (e: React.DragEvent) => {
-    // Só limpa se realmente saiu da coluna (não para elementos filhos)
     const relatedTarget = e.relatedTarget as Node | null
     const currentTarget = e.currentTarget as Node
     if (relatedTarget && currentTarget.contains(relatedTarget)) return
@@ -92,7 +111,7 @@ export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardCli
     }
 
     const mouseY = e.clientY
-    let newIndex = cards.length // default: no final
+    let newIndex = cards.length
 
     for (let i = 0; i < cards.length; i++) {
       const rect = cards[i].getBoundingClientRect()
@@ -115,13 +134,12 @@ export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardCli
 
   const bgClass = getColumnBg(etapa.tipo)
   const borderClass = getColumnBorderColor(etapa.tipo)
+  const movable = canMoveEtapa(etapa.tipo)
 
-  // Renderiza cards com drop indicators entre eles
   const renderCardsWithDropZones = () => {
     const elements: React.ReactNode[] = []
 
     etapa.oportunidades.forEach((op, index) => {
-      // Drop indicator antes do card
       if (dropIndex === index) {
         elements.push(
           <div key={`drop-${index}`} className="h-[72px] bg-muted-foreground/10 rounded-lg border-2 border-dashed border-muted-foreground/20 transition-all duration-150" />
@@ -144,7 +162,6 @@ export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardCli
       )
     })
 
-    // Drop indicator no final
     if (dropIndex === etapa.oportunidades.length) {
       elements.push(
         <div key="drop-end" className="h-[72px] bg-muted-foreground/10 rounded-lg border-2 border-dashed border-muted-foreground/20 transition-all duration-150" />
@@ -181,6 +198,60 @@ export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardCli
               </span>
             )}
           </div>
+
+          {/* Menu 3 pontos */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="p-1 text-muted-foreground hover:text-foreground hover:bg-accent rounded transition-colors">
+                <MoreVertical className="w-4 h-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuLabel className="text-xs">Ações da etapa</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => onSelectAll?.(etapa.id)}
+                disabled={etapa.oportunidades.length === 0}
+              >
+                <CheckSquare className="w-4 h-4 mr-2" />
+                Selecionar todos
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-xs">Ordenar por</DropdownMenuLabel>
+              <DropdownMenuItem onClick={() => onSortColumn?.(etapa.id, 'criado_em')}>
+                <ArrowUpDown className="w-4 h-4 mr-2" />
+                Data de criação
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onSortColumn?.(etapa.id, 'valor')}>
+                <ArrowUpDown className="w-4 h-4 mr-2" />
+                Valor
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onSortColumn?.(etapa.id, 'titulo')}>
+                <ArrowUpDown className="w-4 h-4 mr-2" />
+                Alfabético
+              </DropdownMenuItem>
+              {movable && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel className="text-xs">Mover etapa</DropdownMenuLabel>
+                  <DropdownMenuItem
+                    onClick={() => onMoveColumn?.(etapa.id, 'esquerda')}
+                    disabled={isFirst}
+                  >
+                    <ArrowLeft className="w-4 h-4 mr-2" />
+                    Mover para esquerda
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => onMoveColumn?.(etapa.id, 'direita')}
+                    disabled={isLast}
+                  >
+                    <ArrowRight className="w-4 h-4 mr-2" />
+                    Mover para direita
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
