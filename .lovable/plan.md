@@ -1,87 +1,74 @@
 
 
-# Responsividade no Bloco de Colunas
+# Botoes como Campos + Simplificacao das Abas
 
-## Problema
+## Resumo
 
-Atualmente o bloco de colunas usa `display: flex` com larguras fixas (ex: 33%/67%). No mobile, as colunas ficam espremidas lado a lado, estourando os campos (como visto na terceira imagem).
+Transformar os botoes (Enviar e WhatsApp) em campos da paleta com categoria propria "Botao", mantendo-os sempre no rodape do formulario. Simplificar o painel lateral para apenas 2 abas (Estilo e Configuracao), movendo Pos-Envio para dentro de Configuracao.
 
-## Solucao (padrao de mercado - Elementor/WPBakery)
+## Mudancas
 
-Adicionar campos `larguras_tablet` e `larguras_mobile` no JSON de configuracao do bloco (`valor_padrao`). O padrao de mercado e simples:
+### 1. Paleta de Campos (`CamposPaleta.tsx`)
 
-- **Desktop**: mantem a proporcao escolhida (ex: 33%/67%)
-- **Tablet**: herda do desktop ou override (ex: 50%/50%)
-- **Mobile**: por padrao empilha em 100%/100% (cada coluna vira uma linha)
+Adicionar nova categoria "Botao" com dois tipos:
+- `botao_enviar` - "Botao Enviar" (icone: MousePointerClick ou similar)
+- `botao_whatsapp` - "Botao WhatsApp" (icone: WhatsApp)
 
-O usuario pode customizar por dispositivo no painel de configuracao.
+A categoria "Botao" aparece apos "Layout" na paleta.
 
-## O que muda
+**Validacao**: No `onAddCampo` e no drop, verificar se ja existe um campo do mesmo tipo nos campos atuais. Se ja existir, exibir `toast.error('Apenas um botao de enviar e permitido')` e bloquear a adicao.
 
-### 1. Painel de configuracao (`CampoConfigPanel.tsx`)
+### 2. BotaoConfigPanel - Remover aba "Pos-Envio"
 
-Adicionar um `DeviceSwitcher` na secao "Configuracao de Colunas". Quando o usuario selecionar Tablet ou Mobile, os botoes de proporcao editam `larguras_tablet` ou `larguras_mobile` no JSON. Indicadores visuais (bolinhas) mostram quando ha override.
+- Remover a terceira aba "Pos-Envio"
+- Mover todo o conteudo de pos-envio (mensagem sucesso, mensagem erro, acao apos envio, URL redirecionamento, tempo) para o final da aba "Configuracao", dentro de uma secao com titulo "Pos-Envio" e borda sutil
+- Manter apenas 2 abas: **Estilo** | **Configuracao**
 
-```text
-Proporcao  [Desktop] [Tablet] [Mobile]
-  [50/50]  [33/67]  [67/33]  [25/75]
+### 3. Renderizacao no Preview e Pagina Publica
 
-(No Mobile, preset adicional: [100 empilhado])
-```
+**Logica de filtragem:**
+- Na area de campos (editor e preview), filtrar campos do tipo `botao_enviar` e `botao_whatsapp` para NAO renderiza-los inline entre os campos
+- No rodape (area `mt-6` apos os campos), renderizar os botoes encontrados na lista de campos
 
-### 2. Estrutura de dados (`valor_padrao` JSON)
+**Mapeamento de dados:**
+- Quando um campo `botao_enviar` ou `botao_whatsapp` e selecionado no editor, abrir o `BotaoConfigPanel` no sidebar direito (ao inves do `CampoSidebarPanel`)
+- Os estilos e config do botao continuam sendo salvos no `estiloBotao` e `config_botoes` existentes (nao muda o storage)
 
-```json
-{
-  "colunas": 2,
-  "larguras": "33%,67%",
-  "larguras_tablet": "50%,50%",
-  "larguras_mobile": "100%,100%",
-  "gap": "16"
-}
-```
+**Determinacao do `tipo_botao`:**
+- O `configBotoes.tipo_botao` sera derivado automaticamente dos campos presentes:
+  - Se ha `botao_enviar` e `botao_whatsapp`: `ambos`
+  - Se ha so `botao_enviar`: `enviar`
+  - Se ha so `botao_whatsapp`: `whatsapp`
+  - Se nenhum: nao renderizar botoes
 
-Nenhuma migration de banco necessaria -- e o mesmo campo JSONB existente.
+### 4. Selecao de campo-botao no editor
 
-### 3. Renderizacao responsiva (FormPreview + FormularioPublicoPage)
+Quando o usuario clica na engrenagem de um campo `botao_enviar` ou `botao_whatsapp` no preview:
+- O sidebar direito abre com `BotaoConfigPanel` ao inves de `CampoSidebarPanel`
+- O tipo passado para o BotaoConfigPanel e determinado pelo tipo do campo selecionado
 
-Gerar CSS com media queries usando a funcao `generateResponsiveCss` ja existente em `responsiveStyles.ts`. Cada bloco de colunas recebe um `data-bloco-id` unico e o CSS gerado:
+### 5. Validacao ao adicionar campo
 
-```css
-/* Desktop: inline styles normais (33%/67%) */
-
-/* Tablet */
-@media (min-width: 768px) and (max-width: 1023px) {
-  [data-bloco-id="abc123"] { flex-wrap: wrap; }
-  [data-bloco-id="abc123"] > .col-0 { width: 50% !important; }
-  [data-bloco-id="abc123"] > .col-1 { width: 50% !important; }
-}
-
-/* Mobile */
-@media (max-width: 767px) {
-  [data-bloco-id="abc123"] { flex-wrap: wrap; }
-  [data-bloco-id="abc123"] > .col-0 { width: 100% !important; }
-  [data-bloco-id="abc123"] > .col-1 { width: 100% !important; }
-}
-```
-
-### 4. Default inteligente para Mobile
-
-Quando `larguras_mobile` nao estiver definido, o sistema usara automaticamente `100%` para cada coluna (empilhamento vertical). Isso resolve o problema da imagem 3 imediatamente, mesmo para blocos ja existentes.
+Em `FormularioEditorPage.tsx`:
+- No `handleDropNewCampo` e `handleAddCampoFromPaleta`, verificar se o tipo sendo adicionado e `botao_enviar` ou `botao_whatsapp`
+- Se ja existir um campo desse tipo, bloquear com `toast.error`
+- Na criacao inicial do formulario, adicionar automaticamente um campo `botao_enviar` com ordem 9999 (garante que fica no final)
 
 ## Arquivos alterados
 
 | Arquivo | Alteracao |
 |---|---|
-| `CampoConfigPanel.tsx` | Adicionar DeviceSwitcher na secao de colunas + presets por dispositivo |
-| `FormPreview.tsx` | Gerar tag `<style>` com media queries para cada bloco de colunas |
-| `FormularioPublicoPage.tsx` | Mesma logica de media queries na pagina publica |
-| `responsiveStyles.ts` | Adicionar funcao `generateColunasResponsiveCss(blocoId, config)` |
-| `BlocoColunasEditor.tsx` | Sem alteracao (editor mostra sempre desktop) |
+| `CamposPaleta.tsx` | Adicionar categoria "Botao" com 2 tipos |
+| `BotaoConfigPanel.tsx` | Remover aba Pos-Envio, mover conteudo para Configuracao |
+| `FormPreview.tsx` | Filtrar campos de botao da area de campos, renderizar no rodape |
+| `FormularioEditorPage.tsx` | Validacao de duplicidade, abrir BotaoConfigPanel para campos de botao |
+| `FormularioPublicoPage.tsx` | Filtrar campos de botao e renderizar no rodape |
+| `CampoItem.tsx` | Renderizar campos de botao com visual de botao (preview do botao) |
 
 ## Comportamento final
 
-- Blocos existentes sem config mobile: empilham automaticamente no mobile (100% cada coluna)
-- Usuario pode personalizar proporcoes por dispositivo no painel lateral
-- Preview no editor muda ao clicar Desktop/Tablet/Mobile no topo
+- Usuario arrasta "Botao Enviar" da paleta para o formulario - ele aparece sempre no rodape
+- Se tentar adicionar segundo botao do mesmo tipo, recebe erro
+- Ao clicar na engrenagem do botao, abre sidebar com 2 abas (Estilo + Configuracao com pos-envio embutido)
+- Formularios existentes continuam funcionando (botoes atuais sao mantidos via `configBotoes`)
 
