@@ -63,23 +63,23 @@ export function EstiloCamposForm({ value, onChange }: Props) {
   return (
     <div className="space-y-3">
 
-      {/* Label */}
-      <SectionLabel>Label</SectionLabel>
+      {/* Título do campo */}
+      <SectionLabel>Título do Campo</SectionLabel>
       <div className="grid grid-cols-2 gap-2">
         <ColorField
-          label="Cor"
+          label="Cor do Título"
           value={value.label_cor || '#374151'}
           onChange={(v) => update('label_cor', v)}
         />
         <SmallInput
-          label="Tamanho"
+          label="Tamanho da Fonte"
           value={value.label_tamanho || '14px'}
           onChange={(v) => update('label_tamanho', v)}
           placeholder="14px"
         />
       </div>
       <div>
-        <Label className="text-[10px] text-muted-foreground">Peso</Label>
+        <Label className="text-[10px] text-muted-foreground">Peso da Fonte</Label>
         <select
           value={value.label_font_weight || '500'}
           onChange={(e) => update('label_font_weight', e.target.value)}
@@ -88,12 +88,12 @@ export function EstiloCamposForm({ value, onChange }: Props) {
           <option value="normal">Normal</option>
           <option value="500">Médio</option>
           <option value="600">Semibold</option>
-          <option value="700">Bold</option>
+          <option value="700">Negrito</option>
         </select>
       </div>
 
-      {/* Cores do Input */}
-      <SectionLabel>Cores do Input</SectionLabel>
+      {/* Cores do campo de entrada */}
+      <SectionLabel>Cores do Campo</SectionLabel>
       <div className="grid grid-cols-2 gap-2">
         <ColorField
           label="Fundo"
@@ -107,16 +107,16 @@ export function EstiloCamposForm({ value, onChange }: Props) {
         />
       </div>
       <ColorField
-        label="Placeholder"
+        label="Texto de Exemplo"
         value={value.input_placeholder_cor || '#9CA3AF'}
         onChange={(v) => update('input_placeholder_cor', v)}
       />
 
       {/* Borda */}
-      <SectionLabel>Borda do Input</SectionLabel>
+      <SectionLabel>Borda do Campo</SectionLabel>
       <div className="grid grid-cols-2 gap-2">
         <SmallInput
-          label="Arredondamento"
+          label="Cantos"
           value={value.input_border_radius || '6px'}
           onChange={(v) => update('input_border_radius', v)}
           placeholder="6px"
@@ -130,51 +130,51 @@ export function EstiloCamposForm({ value, onChange }: Props) {
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
-          <Label className="text-[10px] text-muted-foreground">Estilo</Label>
+          <Label className="text-[10px] text-muted-foreground">Tipo de Linha</Label>
           <select
             value={value.input_border_style || 'solid'}
             onChange={(e) => update('input_border_style', e.target.value)}
             className="w-full h-7 text-xs px-2 rounded-md border border-input bg-background"
           >
-            <option value="solid">Sólido</option>
-            <option value="dashed">Tracejado</option>
-            <option value="dotted">Pontilhado</option>
+            <option value="solid">Sólida</option>
+            <option value="dashed">Tracejada</option>
+            <option value="dotted">Pontilhada</option>
           </select>
         </div>
         <ColorField
-          label="Cor"
+          label="Cor da Borda"
           value={value.input_border_color || '#D1D5DB'}
           onChange={(v) => update('input_border_color', v)}
         />
       </div>
 
-      {/* Dimensões */}
-      <SectionLabel>Dimensões</SectionLabel>
+      {/* Tamanho */}
+      <SectionLabel>Tamanho</SectionLabel>
       <SmallInput
-        label="Altura do Input"
+        label="Altura do Campo"
         value={value.input_height || '40px'}
         onChange={(v) => update('input_height', v)}
         placeholder="40px"
       />
 
-      {/* Foco */}
-      <SectionLabel>Foco</SectionLabel>
+      {/* Destaque ao clicar */}
+      <SectionLabel>Destaque ao Clicar</SectionLabel>
       <ColorField
-        label="Cor do Ring"
+        label="Cor do Contorno"
         value={value.input_focus_color || '#3B82F6'}
         onChange={(v) => update('input_focus_color', v)}
       />
 
-      {/* Erro */}
-      <SectionLabel>Erro</SectionLabel>
+      {/* Mensagem de erro */}
+      <SectionLabel>Mensagem de Erro</SectionLabel>
       <ColorField
-        label="Cor de Erro"
+        label="Cor do Erro"
         value={value.erro_cor || '#EF4444'}
         onChange={(v) => update('erro_cor', v)}
       />
 
       {/* Espaçamento */}
-      <SectionLabel>Espaçamento</SectionLabel>
+      <SectionLabel>Espaçamento entre Campos</SectionLabel>
       <div className="grid grid-cols-2 gap-2">
         <SmallInput
           label="Topo"
