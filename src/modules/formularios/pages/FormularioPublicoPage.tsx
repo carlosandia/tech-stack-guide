@@ -155,9 +155,8 @@ export function FormularioPublicoPage() {
         // Registrar evento granular
         supabase.from('eventos_analytics_formularios').insert({
           formulario_id: form.id,
-          organizacao_id: form.organizacao_id,
           tipo_evento: 'visualizacao',
-          user_agent: navigator.userAgent,
+          navegador: navigator.userAgent,
         }).then(() => {})
       }
     }
@@ -170,9 +169,8 @@ export function FormularioPublicoPage() {
     jaRegistrouInicio.current = true
     supabase.from('eventos_analytics_formularios').insert({
       formulario_id: formulario.id,
-      organizacao_id: formulario.organizacao_id,
       tipo_evento: 'inicio',
-      user_agent: navigator.userAgent,
+      navegador: navigator.userAgent,
     }).then(() => {})
   }, [formulario])
 
@@ -186,7 +184,6 @@ export function FormularioPublicoPage() {
     focoTimestamps.current[campoId] = Date.now()
     supabase.from('eventos_analytics_formularios').insert({
       formulario_id: formulario.id,
-      organizacao_id: formulario.organizacao_id,
       tipo_evento: 'foco_campo',
       dados_evento: { campo_id: campoId },
     }).then(() => {})
@@ -202,7 +199,6 @@ export function FormularioPublicoPage() {
     delete focoTimestamps.current[campoId]
     supabase.from('eventos_analytics_formularios').insert({
       formulario_id: formulario.id,
-      organizacao_id: formulario.organizacao_id,
       tipo_evento: 'saida_campo',
       dados_evento: { campo_id: campoId },
       tempo_no_campo_segundos: tempo,
@@ -291,9 +287,8 @@ export function FormularioPublicoPage() {
     // AIDEV-NOTE: Registrar evento de submissão (analytics)
     supabase.from('eventos_analytics_formularios').insert({
       formulario_id: formulario.id,
-      organizacao_id: formulario.organizacao_id,
       tipo_evento: 'submissao',
-      user_agent: navigator.userAgent,
+      navegador: navigator.userAgent,
     }).then(() => {})
 
     setEnviado(true)
