@@ -9,7 +9,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { getMaskForType } from '../../utils/masks'
-import { generateFormResponsiveCss } from '../../utils/responsiveStyles'
+import { generateFormResponsiveCss, generateColunasResponsiveCss } from '../../utils/responsiveStyles'
 import { Monitor, Tablet, Smartphone, Paintbrush, Eye, EyeOff, Code, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -52,18 +52,35 @@ function parseLayoutConfig(valorPadrao: string | null | undefined, tipo: string)
 }
 
 /** AIDEV-NOTE: Componente helper para injetar CSS responsivo via media queries */
-function ResponsiveCssInjector({ formId, botao, container, campos }: {
+function ResponsiveCssInjector({ formId, botao, container, campos, allCampos }: {
   formId: string
   botao?: EstiloBotao
   container?: EstiloContainer
   campos?: EstiloCampos
+  allCampos?: CampoFormulario[]
 }) {
-  const css = generateFormResponsiveCss(
+  let css = generateFormResponsiveCss(
     formId,
     botao as unknown as Record<string, unknown>,
     container as unknown as Record<string, unknown>,
     campos as unknown as Record<string, unknown>,
   )
+  // AIDEV-NOTE: Gerar CSS responsivo para cada bloco de colunas
+  if (allCampos) {
+    for (const c of allCampos) {
+      if (c.tipo === 'bloco_colunas') {
+        try {
+          const p = JSON.parse(c.valor_padrao || '{}')
+          css += generateColunasResponsiveCss(c.id, {
+            colunas: parseInt(p.colunas) || 2,
+            larguras: p.larguras || '50%,50%',
+            larguras_tablet: p.larguras_tablet,
+            larguras_mobile: p.larguras_mobile,
+          })
+        } catch { /* skip */ }
+      }
+    }
+  }
   if (!css) return null
   return <style dangerouslySetInnerHTML={{ __html: css }} />
 }
@@ -354,7 +371,7 @@ export function FormPreview({
         {cssCustomizado && (
           <style dangerouslySetInnerHTML={{ __html: cssCustomizado }} />
         )}
-        <ResponsiveCssInjector formId={formulario.id} botao={estiloBotao} container={estiloContainer} campos={estiloCampos} />
+        <ResponsiveCssInjector formId={formulario.id} botao={estiloBotao} container={estiloContainer} campos={estiloCampos} allCampos={campos} />
 
         <div
           className={cn(
@@ -765,7 +782,7 @@ function FinalPreviewFields({ campos, estiloCampos, fontFamily }: { campos: Camp
 
           return (
             <div key={campo.id} style={{ fontSize: '14px', marginBottom: '12px', width: '100%' }}>
-              <div style={{ display: 'flex', gap: `${colConfig.gap}px` }}>
+              <div data-bloco-id={campo.id} style={{ display: 'flex', gap: `${colConfig.gap}px` }}>
                 {Array.from({ length: colConfig.colunas }).map((_, colIdx) => {
                   const children = campos
                     .filter(c => c.pai_campo_id === campo.id && c.coluna_indice === colIdx)
@@ -773,7 +790,7 @@ function FinalPreviewFields({ campos, estiloCampos, fontFamily }: { campos: Camp
                   const w = colConfig.larguras[colIdx] || `${Math.floor(100 / colConfig.colunas)}%`
 
                   return (
-                    <div key={colIdx} style={{ width: w, display: 'flex', flexWrap: 'wrap' }}>
+                    <div key={colIdx} className={`col-${colIdx}`} style={{ width: w, display: 'flex', flexWrap: 'wrap' }}>
                       {children.map(child => {
                         const childWidth = child.largura === '1/2' ? 'calc(50% - 4px)' : child.largura === '1/3' ? 'calc(33.333% - 5.333px)' : child.largura === '2/3' ? 'calc(66.666% - 2.666px)' : '100%'
                         return (

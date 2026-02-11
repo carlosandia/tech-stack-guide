@@ -69,6 +69,39 @@ export function larguraToCSS(val: string): string {
   return val
 }
 
+/**
+ * AIDEV-NOTE: Gera CSS responsivo para blocos de colunas
+ * Default inteligente: se larguras_mobile não definido, empilha 100%
+ */
+export function generateColunasResponsiveCss(
+  blocoId: string,
+  config: { colunas: number; larguras: string; larguras_tablet?: string; larguras_mobile?: string }
+): string {
+  const selector = `[data-bloco-id="${blocoId}"]`
+  let css = ''
+
+  // Tablet
+  if (config.larguras_tablet) {
+    const widths = config.larguras_tablet.split(',').map(l => l.trim())
+    css += `@media (min-width: 768px) and (max-width: 1023px) {\n  ${selector} { flex-wrap: wrap; }\n`
+    widths.forEach((w, i) => {
+      css += `  ${selector} > .col-${i} { width: ${w} !important; }\n`
+    })
+    css += `}\n`
+  }
+
+  // Mobile - default to 100% each column (stacking) if not specified
+  const mobileLarguras = config.larguras_mobile || Array(config.colunas).fill('100%').join(',')
+  const mobileWidths = mobileLarguras.split(',').map(l => l.trim())
+  css += `@media (max-width: 767px) {\n  ${selector} { flex-wrap: wrap; }\n`
+  mobileWidths.forEach((w, i) => {
+    css += `  ${selector} > .col-${i} { width: ${w} !important; }\n`
+  })
+  css += `}\n`
+
+  return css
+}
+
 /** Generate all responsive CSS for a form */
 export function generateFormResponsiveCss(
   formId: string,

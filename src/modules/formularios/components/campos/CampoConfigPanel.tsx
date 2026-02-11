@@ -7,6 +7,7 @@
 
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { X, Plus, Loader2, AlignLeft, AlignCenter, AlignRight } from 'lucide-react'
+import { DeviceSwitcher, type DeviceType } from '../estilos/DeviceSwitcher'
 
 import { useQueryClient } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
@@ -87,6 +88,21 @@ function parseLayoutConfig(valorPadrao: string | null | undefined, tipo: string)
       return { altura: p.altura || defaults.altura }
     } catch { return defaults }
   }
+  if (tipo === 'bloco_colunas') {
+    const defaults: Record<string, string> = { colunas: '2', larguras: '50%,50%', gap: '16' }
+    if (!valorPadrao) return defaults
+    try {
+      const p = JSON.parse(valorPadrao)
+      const result: Record<string, string> = {
+        colunas: String(p.colunas || 2),
+        larguras: p.larguras || defaults.larguras,
+        gap: p.gap || defaults.gap,
+      }
+      if (p.larguras_tablet) result.larguras_tablet = p.larguras_tablet
+      if (p.larguras_mobile) result.larguras_mobile = p.larguras_mobile
+      return result
+    } catch { return defaults }
+  }
   return {}
 }
 
@@ -107,6 +123,7 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
   const [criarCampoEntidade, setCriarCampoEntidade] = useState<'pessoa' | 'empresa'>('pessoa')
   const [novoCampoNome, setNovoCampoNome] = useState('')
   const [novoCampoTipo, setNovoCampoTipo] = useState('texto')
+  const [colDevice, setColDevice] = useState<DeviceType>('desktop')
 
   // Build dynamic mapping list with custom fields
   const MAPEAMENTOS = useMemo(() => {
@@ -174,6 +191,7 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
     })
     setOpcoesText((campo.opcoes as string[] || []).join('\n'))
     setLayoutConfig(parseLayoutConfig(campo.valor_padrao, campo.tipo) as Record<string, string>)
+    setColDevice('desktop')
   }, [campo.id])
 
   const deriveNome = (label: string) =>
@@ -394,90 +412,138 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className }: Props)
           </div>
         )}
 
-        {/* AIDEV-NOTE: Configurações do Bloco de Colunas */}
-        {isBlocoColunas && (
-          <div className="space-y-3 border-t border-border pt-3">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Configuração de Colunas</p>
-            
-            <div className="space-y-1.5">
-              <Label className="text-xs">Número de Colunas</Label>
-              <Select
-                value={layoutConfig.colunas || '2'}
-                onValueChange={(v) => {
-                  const num = parseInt(v)
-                  const larguras = Array(num).fill(`${Math.floor(100 / num)}%`).join(',')
-                  setLayoutConfig(prev => ({ ...prev, colunas: v, larguras }))
-                }}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="2">2 Colunas</SelectItem>
-                  <SelectItem value="3">3 Colunas</SelectItem>
-                  <SelectItem value="4">4 Colunas</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+        {/* AIDEV-NOTE: Configurações do Bloco de Colunas com responsividade */}
+        {isBlocoColunas && (() => {
+          const numCols = parseInt(layoutConfig.colunas || '2')
+          const presets: Record<number, { label: string; value: string }[]> = {
+            2: [
+              { label: '50/50', value: '50%,50%' },
+              { label: '33/67', value: '33%,67%' },
+              { label: '67/33', value: '67%,33%' },
+              { label: '25/75', value: '25%,75%' },
+              { label: '75/25', value: '75%,25%' },
+            ],
+            3: [
+              { label: '33/33/33', value: '33%,33%,34%' },
+              { label: '25/50/25', value: '25%,50%,25%' },
+              { label: '50/25/25', value: '50%,25%,25%' },
+            ],
+            4: [
+              { label: '25/25/25/25', value: '25%,25%,25%,25%' },
+            ],
+          }
 
-            <div className="space-y-1.5">
-              <Label className="text-xs">Proporção</Label>
-              {(() => {
-                const numCols = parseInt(layoutConfig.colunas || '2')
-                const presets: Record<number, { label: string; value: string }[]> = {
-                  2: [
-                    { label: '50/50', value: '50%,50%' },
-                    { label: '33/67', value: '33%,67%' },
-                    { label: '67/33', value: '67%,33%' },
-                    { label: '25/75', value: '25%,75%' },
-                    { label: '75/25', value: '75%,25%' },
-                  ],
-                  3: [
-                    { label: '33/33/33', value: '33%,33%,34%' },
-                    { label: '25/50/25', value: '25%,50%,25%' },
-                    { label: '50/25/25', value: '50%,25%,25%' },
-                  ],
-                  4: [
-                    { label: '25/25/25/25', value: '25%,25%,25%,25%' },
-                  ],
-                }
-                return (
-                  <div className="flex flex-wrap gap-1.5">
-                    {(presets[numCols] || []).map(p => (
-                      <button
-                        key={p.value}
-                        type="button"
-                        onClick={() => setLayoutConfig(prev => ({ ...prev, larguras: p.value }))}
-                        className={cn(
-                          'px-2 py-1 text-[11px] rounded border transition-colors',
-                          layoutConfig.larguras === p.value
-                            ? 'bg-primary text-primary-foreground border-primary'
-                            : 'border-border hover:border-primary/50 hover:bg-accent'
-                        )}
-                      >
-                        {p.label}
-                      </button>
-                    ))}
+          // Mobile gets a stacking preset
+          const mobilePresets: Record<number, { label: string; value: string }[]> = {
+            2: [
+              { label: '100 (empilhado)', value: '100%,100%' },
+              { label: '50/50', value: '50%,50%' },
+            ],
+            3: [
+              { label: '100 (empilhado)', value: '100%,100%,100%' },
+              { label: '33/33/33', value: '33%,33%,34%' },
+            ],
+            4: [
+              { label: '100 (empilhado)', value: '100%,100%,100%,100%' },
+              { label: '50/50/50/50', value: '50%,50%,50%,50%' },
+            ],
+          }
+
+          const larguraField = colDevice === 'desktop' ? 'larguras' : `larguras_${colDevice}`
+          const currentPresets = colDevice === 'mobile'
+            ? [...(mobilePresets[numCols] || []), ...(presets[numCols] || [])]
+            : (presets[numCols] || [])
+          const currentValue = layoutConfig[larguraField] || (colDevice === 'mobile' ? Array(numCols).fill('100%').join(',') : layoutConfig.larguras)
+
+          const hasTabletOverride = !!layoutConfig.larguras_tablet
+          const hasMobileOverride = !!layoutConfig.larguras_mobile
+
+          return (
+            <div className="space-y-3 border-t border-border pt-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Configuração de Colunas</p>
+              
+              <div className="space-y-1.5">
+                <Label className="text-xs">Número de Colunas</Label>
+                <Select
+                  value={layoutConfig.colunas || '2'}
+                  onValueChange={(v) => {
+                    const num = parseInt(v)
+                    const larguras = Array(num).fill(`${Math.floor(100 / num)}%`).join(',')
+                    setLayoutConfig(prev => ({ ...prev, colunas: v, larguras }))
+                  }}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="2">2 Colunas</SelectItem>
+                    <SelectItem value="3">3 Colunas</SelectItem>
+                    <SelectItem value="4">4 Colunas</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between gap-1">
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-xs">Proporção</Label>
+                    {(hasTabletOverride || hasMobileOverride) && (
+                      <div className="flex items-center gap-0.5">
+                        {hasTabletOverride && <span className="w-1.5 h-1.5 rounded-full bg-amber-500" title="Override tablet definido" />}
+                        {hasMobileOverride && <span className="w-1.5 h-1.5 rounded-full bg-primary" title="Override mobile definido" />}
+                      </div>
+                    )}
                   </div>
-                )
-              })()}
-            </div>
+                  <DeviceSwitcher value={colDevice} onChange={setColDevice} />
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {currentPresets.map(p => (
+                    <button
+                      key={p.value}
+                      type="button"
+                      onClick={() => setLayoutConfig(prev => ({ ...prev, [larguraField]: p.value }))}
+                      className={cn(
+                        'px-2 py-1 text-[11px] rounded border transition-colors',
+                        currentValue === p.value
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'border-border hover:border-primary/50 hover:bg-accent'
+                      )}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+                {colDevice !== 'desktop' && layoutConfig[larguraField] && (
+                  <button
+                    type="button"
+                    onClick={() => setLayoutConfig(prev => {
+                      const next = { ...prev }
+                      delete next[larguraField]
+                      return next
+                    })}
+                    className="text-[10px] text-muted-foreground hover:text-destructive underline"
+                  >
+                    Limpar override de {colDevice === 'tablet' ? 'tablet' : 'mobile'}
+                  </button>
+                )}
+              </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs">Espaço entre Colunas</Label>
-              <Select
-                value={layoutConfig.gap || '16'}
-                onValueChange={(v) => setLayoutConfig(prev => ({ ...prev, gap: v }))}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="0">Nenhum</SelectItem>
-                  <SelectItem value="8">Pequeno (8px)</SelectItem>
-                  <SelectItem value="16">Médio (16px)</SelectItem>
-                  <SelectItem value="24">Grande (24px)</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Espaço entre Colunas</Label>
+                <Select
+                  value={layoutConfig.gap || '16'}
+                  onValueChange={(v) => setLayoutConfig(prev => ({ ...prev, gap: v }))}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">Nenhum</SelectItem>
+                    <SelectItem value="8">Pequeno (8px)</SelectItem>
+                    <SelectItem value="16">Médio (16px)</SelectItem>
+                    <SelectItem value="24">Grande (24px)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-          </div>
-        )}
+          )
+        })()}
 
         {!isLayoutField && (
           <>
