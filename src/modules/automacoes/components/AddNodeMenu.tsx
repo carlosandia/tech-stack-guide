@@ -2,17 +2,18 @@
  * AIDEV-NOTE: Menu dropdown para adicionar novos nós ao fluxo
  */
 
-import { Play, GitBranch, Timer } from 'lucide-react'
+import { Play, GitBranch, Timer, ShieldCheck } from 'lucide-react'
 
 interface AddNodeMenuProps {
   position: { x: number; y: number }
-  onAdd: (type: 'acao' | 'condicao' | 'delay') => void
+  onAdd: (type: 'acao' | 'condicao' | 'delay' | 'validacao') => void
   onClose: () => void
 }
 
 const options = [
   { type: 'acao' as const, label: 'Ação', icon: Play, color: 'text-green-600', bg: 'bg-green-50 hover:bg-green-100' },
   { type: 'condicao' as const, label: 'Condição', icon: GitBranch, color: 'text-yellow-600', bg: 'bg-yellow-50 hover:bg-yellow-100' },
+  { type: 'validacao' as const, label: 'Validação', icon: ShieldCheck, color: 'text-violet-600', bg: 'bg-violet-50 hover:bg-violet-100' },
   { type: 'delay' as const, label: 'Delay', icon: Timer, color: 'text-blue-500', bg: 'bg-blue-50 hover:bg-blue-100' },
 ]
 

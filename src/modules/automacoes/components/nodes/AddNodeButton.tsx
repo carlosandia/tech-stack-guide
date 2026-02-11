@@ -4,17 +4,20 @@
  */
 
 import { useState, useCallback } from 'react'
-import { Plus, Play, GitBranch, Timer } from 'lucide-react'
+import { Plus, Play, GitBranch, Timer, ShieldCheck } from 'lucide-react'
+
+type NodeType = 'acao' | 'condicao' | 'delay' | 'validacao'
 
 interface AddNodeButtonProps {
   nodeId: string
   sourceHandle?: string
-  onAddNode?: (type: 'acao' | 'condicao' | 'delay', sourceNodeId: string, sourceHandle?: string) => void
+  onAddNode?: (type: NodeType, sourceNodeId: string, sourceHandle?: string) => void
 }
 
 const options = [
   { type: 'acao' as const, label: 'Ação', icon: Play, color: 'text-green-600', bg: 'hover:bg-green-50' },
   { type: 'condicao' as const, label: 'Condição', icon: GitBranch, color: 'text-yellow-600', bg: 'hover:bg-yellow-50' },
+  { type: 'validacao' as const, label: 'Validação', icon: ShieldCheck, color: 'text-violet-600', bg: 'hover:bg-violet-50' },
   { type: 'delay' as const, label: 'Delay', icon: Timer, color: 'text-blue-500', bg: 'hover:bg-blue-50' },
 ]
 
@@ -26,7 +29,7 @@ export function AddNodeButton({ nodeId, sourceHandle, onAddNode }: AddNodeButton
     setOpen(prev => !prev)
   }, [])
 
-  const handleSelect = useCallback((type: 'acao' | 'condicao' | 'delay') => {
+  const handleSelect = useCallback((type: NodeType) => {
     onAddNode?.(type, nodeId, sourceHandle)
     setOpen(false)
   }, [onAddNode, nodeId, sourceHandle])

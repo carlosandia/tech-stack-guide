@@ -13,7 +13,7 @@ export interface CondicaoNodeData {
   operador?: string
   valor?: string
   label?: string
-  onAddNode?: (type: 'acao' | 'condicao' | 'delay', sourceNodeId: string, sourceHandle?: string) => void
+  onAddNode?: (type: 'acao' | 'condicao' | 'delay' | 'validacao', sourceNodeId: string, sourceHandle?: string) => void
   [key: string]: unknown
 }
 

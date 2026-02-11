@@ -24,6 +24,7 @@ import { TriggerNode } from './nodes/TriggerNode'
 import { CondicaoNode } from './nodes/CondicaoNode'
 import { AcaoNode } from './nodes/AcaoNode'
 import { DelayNode } from './nodes/DelayNode'
+import { ValidacaoNode } from './nodes/ValidacaoNode'
 import { AddNodeMenu } from './AddNodeMenu'
 import { Plus, Save, Loader2 } from 'lucide-react'
 
@@ -34,8 +35,8 @@ interface FlowCanvasProps {
   onEdgesChange: OnEdgesChange
   onConnect: OnConnect
   onNodeClick: (nodeId: string) => void
-  onAddNode: (type: 'acao' | 'condicao' | 'delay', position?: { x: number; y: number }) => void
-  onAddNodeFromSource: (type: 'acao' | 'condicao' | 'delay', sourceNodeId: string, sourceHandle?: string) => void
+  onAddNode: (type: 'acao' | 'condicao' | 'delay' | 'validacao', position?: { x: number; y: number }) => void
+  onAddNodeFromSource: (type: 'acao' | 'condicao' | 'delay' | 'validacao', sourceNodeId: string, sourceHandle?: string) => void
   onSave: () => void
   isSaving?: boolean
 }
@@ -59,6 +60,7 @@ export function FlowCanvas({
     condicao: CondicaoNode,
     acao: AcaoNode,
     delay: DelayNode,
+    validacao: ValidacaoNode,
   }), [])
 
   // Inject onAddNode callback into all node data
@@ -116,6 +118,7 @@ export function FlowCanvas({
             if (n.type === 'condicao') return '#eab308'
             if (n.type === 'acao') return '#22c55e'
             if (n.type === 'delay') return '#60a5fa'
+            if (n.type === 'validacao') return '#8b5cf6'
             return '#94a3b8'
           }}
           maskColor="rgba(0,0,0,0.08)"

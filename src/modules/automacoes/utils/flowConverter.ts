@@ -52,7 +52,8 @@ export function automacaoToFlow(automacao: Automacao): { nodes: Node[]; edges: E
   // Ações como nós
   automacao.acoes.forEach((acao, i) => {
     const isDelay = acao.tipo === 'aguardar'
-    const nodeType = isDelay ? 'delay' : 'acao'
+    const isValidacao = acao.tipo === 'validacao'
+    const nodeType = isValidacao ? 'validacao' : isDelay ? 'delay' : 'acao'
     const acaoId = `${nodeType}-${i}`
 
     nodes.push({
@@ -62,7 +63,9 @@ export function automacaoToFlow(automacao: Automacao): { nodes: Node[]; edges: E
         x: 250,
         y: 200 + automacao.condicoes.length * 150 + (i + 1) * 150,
       },
-      data: isDelay
+      data: isValidacao
+        ? { condicoes: acao.config?.condicoes || [] }
+        : isDelay
         ? { duracao: acao.config?.duracao, unidade: acao.config?.unidade }
         : { tipo: acao.tipo, config: acao.config },
     })
@@ -99,6 +102,7 @@ export function flowToAutomacao(
   const condNodes = nodes.filter(n => n.type === 'condicao')
   const acaoNodes = nodes.filter(n => n.type === 'acao')
   const delayNodes = nodes.filter(n => n.type === 'delay')
+  const validacaoNodes = nodes.filter(n => n.type === 'validacao')
 
   // Salvar posições
   const flowPositions: FlowPositions = {}
@@ -125,6 +129,13 @@ export function flowToAutomacao(
       config: {
         duracao: n.data.duracao,
         unidade: n.data.unidade || 'minutos',
+      },
+    })),
+    // AIDEV-NOTE: Nós de validação são serializados como ações especiais para persistência
+    ...validacaoNodes.map(n => ({
+      tipo: 'validacao',
+      config: {
+        condicoes: n.data.condicoes || [],
       },
     })),
   ]

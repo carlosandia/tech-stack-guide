@@ -10,7 +10,7 @@ import { AddNodeButton } from './AddNodeButton'
 export interface DelayNodeData {
   duracao?: number
   unidade?: 'minutos' | 'horas' | 'dias'
-  onAddNode?: (type: 'acao' | 'condicao' | 'delay', sourceNodeId: string, sourceHandle?: string) => void
+  onAddNode?: (type: 'acao' | 'condicao' | 'delay' | 'validacao', sourceNodeId: string, sourceHandle?: string) => void
   [key: string]: unknown
 }
 

@@ -22,7 +22,7 @@ export function useFlowState(initialNodes: Node[] = [], initialEdges: Edge[] = [
     [setEdges]
   )
 
-  const addNode = useCallback((type: 'acao' | 'condicao' | 'delay', position?: { x: number; y: number }) => {
+  const addNode = useCallback((type: 'acao' | 'condicao' | 'delay' | 'validacao', position?: { x: number; y: number }) => {
     const id = `${type}-${Date.now()}`
     const pos = position || { x: 250, y: nodes.length * 150 + 100 }
 
@@ -41,7 +41,7 @@ export function useFlowState(initialNodes: Node[] = [], initialEdges: Edge[] = [
    * Adiciona um nó conectado a partir de um nó fonte específico
    */
   const addNodeFromSource = useCallback((
-    type: 'acao' | 'condicao' | 'delay',
+    type: 'acao' | 'condicao' | 'delay' | 'validacao',
     sourceNodeId: string,
     sourceHandle?: string
   ) => {

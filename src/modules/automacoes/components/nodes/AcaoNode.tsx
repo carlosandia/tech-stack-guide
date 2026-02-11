@@ -11,7 +11,7 @@ import { AddNodeButton } from './AddNodeButton'
 export interface AcaoNodeData {
   tipo?: string
   config?: Record<string, unknown>
-  onAddNode?: (type: 'acao' | 'condicao' | 'delay', sourceNodeId: string, sourceHandle?: string) => void
+  onAddNode?: (type: 'acao' | 'condicao' | 'delay' | 'validacao', sourceNodeId: string, sourceHandle?: string) => void
   [key: string]: unknown
 }
 
