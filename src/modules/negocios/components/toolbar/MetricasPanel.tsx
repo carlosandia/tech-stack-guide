@@ -77,11 +77,12 @@ function calcularMetricas(data: KanbanData): Metrica[] {
   // Valores
   const valorTotal = abertas.reduce((sum, o) => sum + (o.valor || 0), 0)
   const valorGanho = ganhas.reduce((sum, o) => sum + (o.valor || 0), 0)
-  const ticketMedio = abertas.length > 0
-    ? valorTotal / abertas.length
+  // Ticket Médio = valor médio das oportunidades GANHAS
+  const ticketMedio = ganhas.length > 0
+    ? valorGanho / ganhas.length
     : 0
 
-  // Taxa de conversão
+  // Taxa de conversão = ganhas / (ganhas + perdidas)
   const finalizadas = ganhas.length + perdidas.length
   const taxaConversao = finalizadas > 0
     ? Math.round((ganhas.length / finalizadas) * 100)
@@ -94,12 +95,13 @@ function calcularMetricas(data: KanbanData): Metrica[] {
     return sum + (o.valor || 0) * prob
   }, 0)
 
-  // Tempo médio (dias desde criação das abertas)
+  // Tempo médio = ciclo de venda das oportunidades GANHAS (da criação até fechamento)
   const agora = new Date()
-  const tempoTotal = abertas.reduce((sum, o) => {
-    return sum + differenceInDays(agora, new Date(o.criado_em))
+  const tempoTotalGanhas = ganhas.reduce((sum, o) => {
+    const fechamento = o.fechado_em ? new Date(o.fechado_em) : agora
+    return sum + differenceInDays(fechamento, new Date(o.criado_em))
   }, 0)
-  const tempoMedio = abertas.length > 0 ? Math.round(tempoTotal / abertas.length) : 0
+  const tempoMedio = ganhas.length > 0 ? Math.round(tempoTotalGanhas / ganhas.length) : 0
 
   // Stagnadas (>7 dias sem atualização)
   const stagnadas = abertas.filter(o => {
