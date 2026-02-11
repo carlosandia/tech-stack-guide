@@ -109,7 +109,7 @@ export function CamposPaleta({ className, onAddCampo }: Props) {
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-1">
               {cat.label}
             </p>
-            <div className="grid grid-cols-2 gap-1.5">
+            <div className="grid grid-cols-2 gap-1.5 pr-1 pt-1">
               {campos.map((campo) => {
                 const Icon = campo.icon
                 return (

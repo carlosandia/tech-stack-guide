@@ -462,8 +462,8 @@ export function FormularioEditorPage() {
                 <div
                   className={cn(
                     'border-r border-border bg-card overflow-y-auto flex-shrink-0 transition-all duration-200',
-                    'hidden lg:block lg:w-64',
-                    showPaleta && 'block absolute inset-y-0 left-0 w-64 z-20 shadow-lg lg:relative lg:shadow-none'
+                    'hidden lg:block lg:w-[272px]',
+                    showPaleta && 'block absolute inset-y-0 left-0 w-[272px] z-20 shadow-lg lg:relative lg:shadow-none'
                   )}
                 >
                   <div className="p-3">
