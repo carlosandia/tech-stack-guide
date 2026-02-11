@@ -9,7 +9,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { getMaskForType } from '../../utils/masks'
-import { generateFormResponsiveCss, generateColunasResponsiveCss } from '../../utils/responsiveStyles'
+import { generateFormResponsiveCss, generateColunasResponsiveCss, resolveValue } from '../../utils/responsiveStyles'
 import { Monitor, Tablet, Smartphone, Paintbrush, Eye, EyeOff, Code, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -208,25 +208,33 @@ export function FormPreview({
     ? `${estiloContainer.font_family}, 'Inter', system-ui, sans-serif`
     : "'Inter', system-ui, sans-serif"
 
+  // AIDEV-NOTE: Helper para resolver valores responsivos baseado no viewport selecionado
+  const rv = useCallback((obj: Record<string, unknown> | undefined, field: string): string | undefined => {
+    if (!obj) return undefined
+    return resolveValue(obj, field, viewport)
+  }, [viewport])
+
   const containerStyle: React.CSSProperties = estiloContainer ? {
     backgroundColor: estiloContainer.background_color || '#FFFFFF',
     borderRadius: estiloContainer.border_radius || '8px',
-    padding: estiloContainer.padding_top
-      ? `${estiloContainer.padding_top}px ${estiloContainer.padding_right || '24'}px ${estiloContainer.padding_bottom || '24'}px ${estiloContainer.padding_left || '24'}px`
+    padding: (rv(estiloContainer as any, 'padding_top') || estiloContainer.padding_top)
+      ? `${rv(estiloContainer as any, 'padding_top') || '24'}px ${rv(estiloContainer as any, 'padding_right') || '24'}px ${rv(estiloContainer as any, 'padding_bottom') || '24'}px ${rv(estiloContainer as any, 'padding_left') || '24'}px`
       : (estiloContainer.padding || '24px'),
     fontFamily,
+    maxWidth: rv(estiloContainer as any, 'max_width') || estiloContainer.max_width || undefined,
     boxShadow: SOMBRA_MAP[estiloContainer.sombra || 'md'] || SOMBRA_MAP.md,
   } : { fontFamily: "'Inter', system-ui, sans-serif" }
 
+  const resolvedBtnLargura = rv(estiloBotao as any, 'largura') || estiloBotao?.largura
   const buttonStyle: React.CSSProperties = estiloBotao ? {
     backgroundColor: estiloBotao.background_color || '#3B82F6',
     color: estiloBotao.texto_cor || '#FFFFFF',
     borderRadius: estiloBotao.border_radius || '6px',
-    width: (!estiloBotao.largura || estiloBotao.largura === 'full') ? '100%' : estiloBotao.largura,
-    height: estiloBotao.altura || undefined,
-    padding: estiloBotao.padding || (estiloBotao.altura ? '0 20px' : '10px 20px'),
+    width: (!resolvedBtnLargura || resolvedBtnLargura === 'full') ? '100%' : resolvedBtnLargura,
+    height: rv(estiloBotao as any, 'altura') || estiloBotao.altura || undefined,
+    padding: estiloBotao.padding || ((rv(estiloBotao as any, 'altura') || estiloBotao.altura) ? '0 20px' : '10px 20px'),
     margin: estiloBotao.margin || undefined,
-    fontSize: estiloBotao.font_size || '14px',
+    fontSize: rv(estiloBotao as any, 'font_size') || estiloBotao.font_size || '14px',
     fontWeight: estiloBotao.font_weight ? Number(estiloBotao.font_weight) : (estiloBotao.font_bold ? 700 : 600),
     fontStyle: estiloBotao.font_italic ? 'italic' : undefined,
     textDecoration: estiloBotao.font_underline ? 'underline' : undefined,
@@ -478,7 +486,7 @@ export function FormPreview({
 
                 {/* Fields area */}
                 {showFinalPreview ? (
-                  <FinalPreviewFields campos={campos} estiloCampos={estiloCampos} fontFamily={fontFamily} />
+                  <FinalPreviewFields campos={campos} estiloCampos={estiloCampos} fontFamily={fontFamily} viewport={viewport} />
                 ) : (
                   <div
                     className={cn(
@@ -535,6 +543,7 @@ export function FormPreview({
                                       }}
                                       onDragLeave={() => {}}
                                       onUpdateLabel={onUpdateCampoLabel}
+                                      viewport={viewport}
                                     />
                                     {renderDropZone(index + 1)}
                                   </div>
@@ -620,6 +629,7 @@ export function FormPreview({
                       selectedStyleElement={selectedStyleElement}
                       onSelectStyleElement={onSelectStyleElement}
                       onUpdateBotaoTexto={onUpdateBotaoTexto}
+                      viewport={viewport}
                     />
                   </div>
                 )}
@@ -754,7 +764,7 @@ export function FormPreview({
 }
 
 /** Wrapper com estado para campos no preview final (suporta máscaras interativas) */
-function FinalPreviewFields({ campos, estiloCampos, fontFamily }: { campos: CampoFormulario[], estiloCampos: EstiloCampos | undefined, fontFamily: string }) {
+function FinalPreviewFields({ campos, estiloCampos, fontFamily, viewport = 'desktop' }: { campos: CampoFormulario[], estiloCampos: EstiloCampos | undefined, fontFamily: string, viewport?: Viewport }) {
   const [valores, setValores] = useState<Record<string, string>>({})
   const [paises, setPaises] = useState<Record<string, { code: string; ddi: string; flag: string }>>({})
 
@@ -776,13 +786,23 @@ function FinalPreviewFields({ campos, estiloCampos, fontFamily }: { campos: Camp
           const colConfig = (() => {
             try {
               const p = JSON.parse(campo.valor_padrao || '{}')
-              return { colunas: parseInt(p.colunas) || 2, larguras: (p.larguras || '50%,50%').split(',').map((l: string) => l.trim()), gap: p.gap || '16' }
+              // AIDEV-NOTE: Resolver larguras baseado no viewport selecionado
+              const desktopLarguras = (p.larguras || '50%,50%').split(',').map((l: string) => l.trim())
+              const numCols = parseInt(p.colunas) || 2
+              let resolvedLarguras = desktopLarguras
+              if (viewport === 'tablet' && p.larguras_tablet) {
+                resolvedLarguras = p.larguras_tablet.split(',').map((l: string) => l.trim())
+              } else if (viewport === 'mobile') {
+                const mobileLarguras = p.larguras_mobile || Array(numCols).fill('100%').join(',')
+                resolvedLarguras = mobileLarguras.split(',').map((l: string) => l.trim())
+              }
+              return { colunas: numCols, larguras: resolvedLarguras, gap: p.gap || '16' }
             } catch { return { colunas: 2, larguras: ['50%', '50%'], gap: '16' } }
           })()
 
           return (
             <div key={campo.id} style={{ fontSize: '14px', marginBottom: '12px', width: '100%' }}>
-              <div data-bloco-id={campo.id} style={{ display: 'flex', gap: `${colConfig.gap}px` }}>
+              <div data-bloco-id={campo.id} style={{ display: 'flex', flexWrap: 'wrap', gap: `${colConfig.gap}px` }}>
                 {Array.from({ length: colConfig.colunas }).map((_, colIdx) => {
                   const children = campos
                     .filter(c => c.pai_campo_id === campo.id && c.coluna_indice === colIdx)
@@ -844,6 +864,7 @@ function RenderBotoes({
   selectedStyleElement,
   onSelectStyleElement,
   onUpdateBotaoTexto,
+  viewport,
 }: {
   configBotoes: ConfigBotoes | null | undefined
   estiloBotao: EstiloBotao | undefined
@@ -852,7 +873,12 @@ function RenderBotoes({
   selectedStyleElement: SelectedElement | undefined
   onSelectStyleElement: ((el: SelectedElement) => void) | undefined
   onUpdateBotaoTexto?: ((tipo: 'enviar' | 'whatsapp', newTexto: string) => void)
+  viewport?: Viewport
 }) {
+  const rvBtn = useCallback((field: string): string | undefined => {
+    if (!estiloBotao) return undefined
+    return resolveValue(estiloBotao as unknown as Record<string, unknown>, field, viewport || 'desktop')
+  }, [estiloBotao, viewport])
   const [editingEnviar, setEditingEnviar] = useState(false)
   const [editingWhatsApp, setEditingWhatsApp] = useState(false)
   const [enviarText, setEnviarText] = useState(estiloBotao?.texto || 'Enviar')
@@ -958,10 +984,10 @@ function RenderBotoes({
           color: estiloBotao?.whatsapp_texto_cor || '#FFFFFF',
           borderRadius: estiloBotao?.whatsapp_border_radius || estiloBotao?.border_radius || '6px',
           width: '100%',
-          height: estiloBotao?.whatsapp_altura || undefined,
-          padding: estiloBotao?.whatsapp_padding || (estiloBotao?.whatsapp_altura ? '0 20px' : '10px 20px'),
+          height: rvBtn('whatsapp_altura') || estiloBotao?.whatsapp_altura || undefined,
+          padding: estiloBotao?.whatsapp_padding || ((rvBtn('whatsapp_altura') || estiloBotao?.whatsapp_altura) ? '0 20px' : '10px 20px'),
           margin: estiloBotao?.whatsapp_margin || undefined,
-          fontSize: estiloBotao?.whatsapp_font_size || '14px',
+          fontSize: rvBtn('whatsapp_font_size') || estiloBotao?.whatsapp_font_size || '14px',
           fontWeight: estiloBotao?.whatsapp_font_weight ? Number(estiloBotao.whatsapp_font_weight) : (estiloBotao?.whatsapp_font_bold ? 700 : 600),
           fontStyle: estiloBotao?.whatsapp_font_italic ? 'italic' : undefined,
           textDecoration: estiloBotao?.whatsapp_font_underline ? 'underline' : undefined,
@@ -995,8 +1021,8 @@ function RenderBotoes({
   const resolveWrapperWidth = (largura?: string) => (!largura || largura === 'full') ? '100%' : largura
 
   if (tipoBotao === 'ambos') {
-    const larguraEnviar = estiloBotao?.largura || 'full'
-    const larguraWhatsApp = estiloBotao?.whatsapp_largura || 'full'
+    const larguraEnviar = rvBtn('largura') || estiloBotao?.largura || 'full'
+    const larguraWhatsApp = rvBtn('whatsapp_largura') || estiloBotao?.whatsapp_largura || 'full'
     const ladoALado = larguraEnviar === '50%' && larguraWhatsApp === '50%'
 
     return (
@@ -1009,10 +1035,12 @@ function RenderBotoes({
 
   // Single button: wrapper controls width
   if (enviarBtn) {
-    return <div style={{ width: resolveWrapperWidth(estiloBotao?.largura) }}>{enviarBtn}</div>
+    const w = rvBtn('largura') || estiloBotao?.largura
+    return <div style={{ width: resolveWrapperWidth(w) }}>{enviarBtn}</div>
   }
   if (whatsAppBtn) {
-    return <div style={{ width: resolveWrapperWidth(estiloBotao?.whatsapp_largura) }}>{whatsAppBtn}</div>
+    const w = rvBtn('whatsapp_largura') || estiloBotao?.whatsapp_largura
+    return <div style={{ width: resolveWrapperWidth(w) }}>{whatsAppBtn}</div>
   }
   return null
 
