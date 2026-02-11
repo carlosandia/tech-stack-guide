@@ -30,10 +30,23 @@ const SOMBRA_MAP: Record<string, string> = {
   xl: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)',
 }
 
-function parseTituloConfig(valorPadrao: string | null | undefined): { alinhamento: string; cor: string; tamanho: string } {
-  const defaults = { alinhamento: 'left', cor: '#374151', tamanho: '18' }
-  if (!valorPadrao) return defaults
-  try { const p = JSON.parse(valorPadrao); return { alinhamento: p.alinhamento || defaults.alinhamento, cor: p.cor || defaults.cor, tamanho: p.tamanho || defaults.tamanho } } catch { return defaults }
+function parseLayoutConfig(valorPadrao: string | null | undefined, tipo: string): Record<string, string> {
+  if (tipo === 'titulo' || tipo === 'paragrafo') {
+    const defaults = { alinhamento: 'left', cor: '#374151', tamanho: tipo === 'titulo' ? '18' : '14' }
+    if (!valorPadrao) return defaults
+    try { const p = JSON.parse(valorPadrao); return { alinhamento: p.alinhamento || defaults.alinhamento, cor: p.cor || defaults.cor, tamanho: p.tamanho || defaults.tamanho } } catch { return defaults }
+  }
+  if (tipo === 'divisor') {
+    const defaults = { cor: '#D1D5DB', espessura: '1', estilo: 'solid' }
+    if (!valorPadrao) return defaults
+    try { const p = JSON.parse(valorPadrao); return { cor: p.cor || defaults.cor, espessura: p.espessura || defaults.espessura, estilo: p.estilo || defaults.estilo } } catch { return defaults }
+  }
+  if (tipo === 'espacador') {
+    const defaults = { altura: '16' }
+    if (!valorPadrao) return defaults
+    try { const p = JSON.parse(valorPadrao); return { altura: p.altura || defaults.altura } } catch { return defaults }
+  }
+  return {}
 }
 
 // AIDEV-NOTE: TAMANHO_BOTAO removido - agora usamos altura livre definida pelo usuário
@@ -1059,23 +1072,29 @@ function renderFinalCampo(
   // Campos de layout (sem wrapper de largura)
   switch (campo.tipo) {
     case 'titulo': {
-      const tc = parseTituloConfig(campo.valor_padrao)
+      const tc = parseLayoutConfig(campo.valor_padrao, 'titulo')
       return (
         <h3 style={{ ...labelStyle, fontSize: `${tc.tamanho}px`, fontWeight: 600, marginBottom: 0, textAlign: tc.alinhamento as any, color: tc.cor }}>
           {placeholder || campo.label || 'Título da seção'}
         </h3>
       )
     }
-    case 'paragrafo':
+    case 'paragrafo': {
+      const pc = parseLayoutConfig(campo.valor_padrao, 'paragrafo')
       return (
-        <p style={{ color: estiloCampos?.label_cor || '#6B7280', fontSize: '14px', margin: 0, fontFamily }}>
+        <p style={{ fontSize: `${pc.tamanho}px`, margin: 0, fontFamily, textAlign: pc.alinhamento as any, color: pc.cor }}>
           {placeholder || campo.label || 'Texto descritivo'}
         </p>
       )
-    case 'divisor':
-      return <hr style={{ border: 'none', borderTop: `1px solid ${estiloCampos?.input_border_color || '#D1D5DB'}` }} />
-    case 'espacador':
-      return <div style={{ height: '16px' }} />
+    }
+    case 'divisor': {
+      const dc = parseLayoutConfig(campo.valor_padrao, 'divisor')
+      return <hr style={{ border: 'none', borderTop: `${dc.espessura}px ${dc.estilo} ${dc.cor}` }} />
+    }
+    case 'espacador': {
+      const ec = parseLayoutConfig(campo.valor_padrao, 'espacador')
+      return <div style={{ height: `${ec.altura}px` }} />
+    }
     case 'oculto':
       return null
     case 'bloco_html':
