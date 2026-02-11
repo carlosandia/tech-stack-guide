@@ -725,7 +725,49 @@ function FinalPreviewFields({ campos, estiloCampos, fontFamily }: { campos: Camp
 
   return (
     <div style={{ fontSize: 0, display: 'flex', flexWrap: 'wrap', gap: '0 8px' }}>
-      {campos.map((campo) => {
+      {campos.filter(c => !c.pai_campo_id).map((campo) => {
+        // AIDEV-NOTE: Renderizar bloco de colunas no preview final
+        if (campo.tipo === 'bloco_colunas') {
+          const colConfig = (() => {
+            try {
+              const p = JSON.parse(campo.valor_padrao || '{}')
+              return { colunas: parseInt(p.colunas) || 2, larguras: (p.larguras || '50%,50%').split(',').map((l: string) => l.trim()), gap: p.gap || '16' }
+            } catch { return { colunas: 2, larguras: ['50%', '50%'], gap: '16' } }
+          })()
+
+          return (
+            <div key={campo.id} style={{ fontSize: '14px', marginBottom: '12px', width: '100%' }}>
+              <div style={{ display: 'flex', gap: `${colConfig.gap}px` }}>
+                {Array.from({ length: colConfig.colunas }).map((_, colIdx) => {
+                  const children = campos
+                    .filter(c => c.pai_campo_id === campo.id && c.coluna_indice === colIdx)
+                    .sort((a, b) => a.ordem - b.ordem)
+                  const w = colConfig.larguras[colIdx] || `${Math.floor(100 / colConfig.colunas)}%`
+
+                  return (
+                    <div key={colIdx} style={{ width: w, display: 'flex', flexWrap: 'wrap' }}>
+                      {children.map(child => {
+                        const childWidth = child.largura === '1/2' ? 'calc(50% - 4px)' : child.largura === '1/3' ? 'calc(33.333% - 5.333px)' : child.largura === '2/3' ? 'calc(66.666% - 2.666px)' : '100%'
+                        return (
+                          <div key={child.id} style={{ fontSize: '14px', marginBottom: '12px', width: childWidth }}>
+                            {renderFinalCampo(
+                              child, estiloCampos, fontFamily,
+                              valores[child.id] || '',
+                              (v) => handleChange(child.id, child.tipo, v),
+                              paises[child.id] || { code: 'BR', ddi: '55', flag: '🇧🇷' },
+                              (p) => handlePaisChange(child.id, p),
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        }
+
         const largura = campo.largura || 'full'
         const width = largura === '1/2' ? 'calc(50% - 4px)'
           : largura === '1/3' ? 'calc(33.333% - 5.333px)'

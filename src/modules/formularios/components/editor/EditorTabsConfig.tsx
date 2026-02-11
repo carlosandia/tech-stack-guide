@@ -83,8 +83,8 @@ export function EditorTabsConfig({ formulario }: Props) {
       </div>
 
       {/* Conteúdo */}
-      <div className="flex-1 overflow-y-auto p-4">
-        <div className="max-w-3xl">
+      <div className="flex-1 overflow-y-auto p-4 lg:p-6">
+        <div className="w-full max-w-none">
           {activeSection === 'geral' && (
             <ConfigGeralForm formulario={formulario} />
           )}
