@@ -24,7 +24,7 @@ import {
 import { useEstilosFormulario, useSalvarEstilos } from '../hooks/useFormularioEstilos'
 import { ESTILO_PADRAO } from '../services/formularios.api'
 import { EditorHeader } from '../components/editor/EditorHeader'
-import { CamposPaleta } from '../components/campos/CamposPaleta'
+import { CamposPaleta, type TipoCampoPaleta } from '../components/campos/CamposPaleta'
 import { CampoConfigPanel } from '../components/campos/CampoConfigPanel'
 import { FormPreview } from '../components/editor/FormPreview'
 import { type SelectedElement } from '../components/estilos/EstiloPreviewInterativo'
@@ -207,6 +207,19 @@ export function FormularioEditorPage() {
       })
     },
     [criarCampo, campos, reordenarCampos]
+  )
+
+  // AIDEV-NOTE: Adicionar campo ao clicar no + da paleta (adiciona no final)
+  const handleAddCampoFromPaleta = useCallback(
+    (tipoCampo: TipoCampoPaleta) => {
+      const label = tipoCampo.label || tipoCampo.tipo
+      const nome = tipoCampo.tipo + '_' + Date.now().toString(36)
+      const index = campos.length
+      criarCampo.mutate({
+        nome, label, tipo: tipoCampo.tipo, ordem: index, obrigatorio: false, largura: 'full',
+      } as Partial<CampoFormulario>)
+    },
+    [criarCampo, campos]
   )
 
   const handleMoveCampo = useCallback(
@@ -494,7 +507,7 @@ export function FormularioEditorPage() {
                         />
                       </div>
                     )}
-                    <CamposPaleta />
+                    <CamposPaleta onAddCampo={handleAddCampoFromPaleta} />
                   </div>
                 </div>
               </>
