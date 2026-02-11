@@ -60,16 +60,32 @@ Deno.serve(async (req) => {
       const maxRedist = config.sla_max_redistribuicoes || 3
       const acaoLimite = config.sla_acao_limite || 'manter_ultimo'
 
+      // AIDEV-NOTE: SLA/rodízio só se aplica à etapa de entrada do funil
+      // Quando o card sai da etapa de entrada, o rodízio para de funcionar
+      const { data: etapaEntrada, error: etapaError } = await supabase
+        .from('etapas_funil')
+        .select('id')
+        .eq('funil_id', config.funil_id)
+        .eq('tipo', 'entrada')
+        .is('deletado_em', null)
+        .maybeSingle()
+
+      if (etapaError || !etapaEntrada) {
+        logs.push(`Funil ${config.funil_id}: etapa de entrada não encontrada`)
+        continue
+      }
+
       // 2. Calcular timestamp limite
       const tempoLimite = new Date()
       tempoLimite.setMinutes(tempoLimite.getMinutes() - slaMinutos)
 
-      // 3. Buscar oportunidades com SLA estourado (com OU sem responsável)
+      // 3. Buscar apenas oportunidades NA ETAPA DE ENTRADA com SLA estourado
       const { data: oportunidades, error: opError } = await supabase
         .from('oportunidades')
         .select('id, usuario_responsavel_id, contato_id, titulo')
         .eq('organizacao_id', config.organizacao_id)
         .eq('funil_id', config.funil_id)
+        .eq('etapa_id', etapaEntrada.id)
         .is('fechado_em', null)
         .is('deletado_em', null)
         .lt('atualizado_em', tempoLimite.toISOString())
@@ -115,11 +131,11 @@ Deno.serve(async (req) => {
         const redistAnterior = count || 0
 
         if (redistAnterior >= maxRedist) {
-          // Atingiu limite — aplicar ação
+          // AIDEV-NOTE: Atingiu limite de redistribuições — rodízio PARA definitivamente
           if (acaoLimite === 'desatribuir') {
             await supabase
               .from('oportunidades')
-              .update({ usuario_responsavel_id: null, atualizado_em: new Date().toISOString() })
+              .update({ usuario_responsavel_id: null })
               .eq('id', op.id)
             logs.push(`Op ${op.id}: desatribuída (limite atingido)`)
           } else if (acaoLimite === 'retornar_admin') {
@@ -134,18 +150,13 @@ Deno.serve(async (req) => {
             if (admin) {
               await supabase
                 .from('oportunidades')
-                .update({ usuario_responsavel_id: admin.id, atualizado_em: new Date().toISOString() })
+                .update({ usuario_responsavel_id: admin.id })
                 .eq('id', op.id)
               logs.push(`Op ${op.id}: retornada ao admin ${admin.id}`)
             }
           }
-          // 'manter_ultimo' — reseta o timer
-          if (acaoLimite === 'manter_ultimo') {
-            await supabase
-              .from('oportunidades')
-              .update({ atualizado_em: new Date().toISOString() })
-              .eq('id', op.id)
-          }
+          // 'manter_ultimo' — NÃO reseta timer, rodízio para de funcionar
+          logs.push(`Op ${op.id}: limite de ${maxRedist} redistribuições atingido, rodízio parado`)
           continue
         }
 
