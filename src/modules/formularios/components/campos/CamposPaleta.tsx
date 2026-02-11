@@ -96,9 +96,11 @@ const CATEGORIAS = [
 interface Props {
   className?: string
   onAddCampo?: (tipo: TipoCampoPaleta) => void
+  /** Tipos de botão já adicionados no formulário (para bloquear duplicatas) */
+  botoesAdicionados?: string[]
 }
 
-export function CamposPaleta({ className, onAddCampo }: Props) {
+export function CamposPaleta({ className, onAddCampo, botoesAdicionados = [] }: Props) {
   const handleDragStart = (e: React.DragEvent, tipo: TipoCampoPaleta) => {
     e.dataTransfer.setData('application/campo-tipo', JSON.stringify(tipo))
     e.dataTransfer.effectAllowed = 'copy'
@@ -118,19 +120,27 @@ export function CamposPaleta({ className, onAddCampo }: Props) {
             <div className="grid grid-cols-2 gap-1.5">
               {campos.map((campo) => {
                 const Icon = campo.icon
+                const isBotao = campo.tipo === 'botao_enviar' || campo.tipo === 'botao_whatsapp'
+                const isDisabled = isBotao && botoesAdicionados.includes(campo.tipo)
                 return (
                   <div
                     key={campo.tipo}
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, campo)}
-                    className="group relative flex items-center gap-2 px-2 py-2 rounded-md border border-border bg-card
-                               cursor-grab active:cursor-grabbing hover:border-primary/50 hover:bg-accent
-                               transition-colors text-xs select-none"
-                    title={campo.label}
+                    draggable={!isDisabled}
+                    onDragStart={isDisabled ? undefined : (e) => handleDragStart(e, campo)}
+                    className={cn(
+                      'group relative flex items-center gap-2 px-2 py-2 rounded-md border transition-colors text-xs select-none',
+                      isDisabled
+                        ? 'border-border/50 bg-muted/50 cursor-not-allowed opacity-50'
+                        : 'border-border bg-card cursor-grab active:cursor-grabbing hover:border-primary/50 hover:bg-accent'
+                    )}
+                    title={isDisabled ? `${campo.label} já adicionado` : campo.label}
                   >
                     <Icon className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
                     <span className="truncate text-foreground">{campo.label}</span>
-                    {onAddCampo && (
+                    {isDisabled && (
+                      <span className="ml-auto text-[9px] text-muted-foreground whitespace-nowrap">Adicionado</span>
+                    )}
+                    {onAddCampo && !isDisabled && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
