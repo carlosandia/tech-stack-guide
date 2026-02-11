@@ -86,6 +86,7 @@ function App() {
         <Route path="emails" element={<EmailsPage />} />
         <Route path="formularios" element={<FormulariosPage />} />
         <Route path="formularios/:id" element={<FormularioEditorPage />} />
+        <Route path="automacoes" element={<AutomacoesPage />} />
       </Route>
 
       {/* Configuracoes - PRD-05 (layout próprio com header/toolbar) */}
@@ -115,7 +116,6 @@ function App() {
         <Route path="perfis" element={<PerfisPermissaoPage />} />
         <Route path="metas" element={<MetasPage />} />
         <Route path="config-geral" element={<ConfigGeralPage />} />
-        <Route path="automacoes" element={<AutomacoesPage />} />
       </Route>
 
       {/* Rotas Super Admin */}

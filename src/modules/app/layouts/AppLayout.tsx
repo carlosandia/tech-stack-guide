@@ -13,6 +13,7 @@ import {
   CheckSquare,
   Mail,
   FileText,
+  Zap,
   Settings,
   LogOut,
   Menu,
@@ -65,6 +66,11 @@ const menuItems = [
     path: '/app/formularios',
     icon: FileText,
   },
+  {
+    label: 'Automações',
+    path: '/app/automacoes',
+    icon: Zap,
+  },
 ]
 
 function NavItem({
@@ -108,6 +114,7 @@ function getPageTitle(pathname: string): string {
   if (pathname.startsWith('/app/tarefas')) return 'Tarefas'
   if (pathname.startsWith('/app/configuracoes')) return 'Configurações'
   if (pathname.startsWith('/app/formularios')) return 'Formulários'
+  if (pathname.startsWith('/app/automacoes')) return 'Automações'
   return 'CRM'
 }
 
