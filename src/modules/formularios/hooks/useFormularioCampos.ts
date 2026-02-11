@@ -20,12 +20,58 @@ export function useCriarCampo(formularioId: string) {
   return useMutation({
     mutationFn: (payload: Partial<CampoFormulario>) =>
       formulariosApi.criarCampo(formularioId, payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['formularios', formularioId, 'campos'] })
-      toast.success('Campo adicionado')
+    onMutate: async (payload) => {
+      await queryClient.cancelQueries({ queryKey: ['formularios', formularioId, 'campos'] })
+      const previous = queryClient.getQueryData<CampoFormulario[]>(['formularios', formularioId, 'campos'])
+      // AIDEV-NOTE: Optimistic add — gera ID temporário para UI instantânea
+      const optimistic: CampoFormulario = {
+        id: `temp-${Date.now()}`,
+        formulario_id: formularioId,
+        nome: payload.nome || '',
+        label: payload.label || '',
+        tipo: payload.tipo || 'texto',
+        ordem: payload.ordem ?? (previous?.length || 0),
+        obrigatorio: payload.obrigatorio ?? false,
+        largura: payload.largura || 'full',
+        placeholder: payload.placeholder || null,
+        texto_ajuda: payload.texto_ajuda || null,
+        valor_padrao: payload.valor_padrao || null,
+        opcoes: payload.opcoes || null,
+        validacoes: payload.validacoes || null,
+        mapeamento_campo: payload.mapeamento_campo || null,
+        condicional_ativo: false,
+        condicional_campo_id: null,
+        condicional_operador: null,
+        condicional_valor: null,
+        pai_campo_id: payload.pai_campo_id || null,
+        coluna_indice: payload.coluna_indice ?? null,
+        etapa_numero: payload.etapa_numero ?? null,
+        criado_em: new Date().toISOString(),
+        atualizado_em: new Date().toISOString(),
+        mostrar_para_leads_conhecidos: null,
+        alternativa_para_campo_id: null,
+        prefill_ativo: null,
+        prefill_fonte: null,
+        prefill_chave: null,
+        prioridade_profiling: null,
+        valor_pontuacao: null,
+        regras_pontuacao: null,
+      } as CampoFormulario
+      const updated = [...(previous || []), optimistic].sort((a, b) => a.ordem - b.ordem)
+      queryClient.setQueryData(['formularios', formularioId, 'campos'], updated)
+      return { previous }
     },
-    onError: (err: any) => {
-      toast.error(err?.message || 'Erro ao adicionar campo')
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(['formularios', formularioId, 'campos'], context.previous)
+      }
+      toast.error('Erro ao adicionar campo')
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['formularios', formularioId, 'campos'] })
+    },
+    onSuccess: () => {
+      toast.success('Campo adicionado')
     },
   })
 }
@@ -64,11 +110,24 @@ export function useReordenarCampos(formularioId: string) {
   return useMutation({
     mutationFn: (campos: { id: string; ordem: number }[]) =>
       formulariosApi.reordenarCampos(formularioId, campos),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['formularios', formularioId, 'campos'] })
+    onMutate: async (novaOrdem) => {
+      await queryClient.cancelQueries({ queryKey: ['formularios', formularioId, 'campos'] })
+      const previous = queryClient.getQueryData<CampoFormulario[]>(['formularios', formularioId, 'campos'])
+      if (previous) {
+        const orderMap = new Map(novaOrdem.map(c => [c.id, c.ordem]))
+        const updated = previous.map(c => orderMap.has(c.id) ? { ...c, ordem: orderMap.get(c.id)! } : c).sort((a, b) => a.ordem - b.ordem)
+        queryClient.setQueryData(['formularios', formularioId, 'campos'], updated)
+      }
+      return { previous }
     },
-    onError: (err: any) => {
-      toast.error(err?.message || 'Erro ao reordenar campos')
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(['formularios', formularioId, 'campos'], context.previous)
+      }
+      toast.error('Erro ao reordenar campos')
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['formularios', formularioId, 'campos'] })
     },
   })
 }
