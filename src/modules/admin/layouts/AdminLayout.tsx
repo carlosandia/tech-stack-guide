@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import renoveLogo from '@/assets/renove-logo.png'
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/providers/AuthProvider'
 import { ToolbarProvider, useToolbar } from '../contexts/ToolbarContext'
@@ -144,10 +145,7 @@ function AdminLayoutInner() {
         {/* Drawer header */}
         <div className="flex h-14 items-center justify-between px-4 border-b border-gray-200/60">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-sm">R</span>
-            </div>
-            <span className="font-semibold text-lg text-gray-900">CRM Renove</span>
+            <img src={renoveLogo} alt="Renove" className="h-7" />
           </div>
           <button
             className="p-1 hover:bg-gray-100/70 rounded-md"
@@ -206,12 +204,8 @@ function AdminLayoutInner() {
 
             {/* Logo */}
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-sm">R</span>
-              </div>
-              <span className="hidden sm:block font-semibold text-lg text-gray-900">
-                CRM Renove
-              </span>
+              <img src={renoveLogo} alt="Renove" className="hidden sm:block h-7" />
+              <img src={renoveLogo} alt="Renove" className="sm:hidden h-6" />
             </div>
 
             {/* Desktop Navigation */}
