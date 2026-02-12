@@ -118,14 +118,7 @@ export function AutomacoesPage() {
   }, [isAdmin, automacoes, criarMutation, setNodes, setEdges])
 
   // Save flow back to DB
-  const handleSave = useCallback(() => {
-    if (!selectedAutoId) {
-      toast.error('Selecione uma automação para salvar')
-      return
-    }
-    const payload = flowToAutomacao(nodes, edges)
-    atualizarMutation.mutate({ id: selectedAutoId, payload })
-  }, [selectedAutoId, nodes, edges, atualizarMutation])
+  // AIDEV-NOTE: Save manual removido — auto-save com debounce ativo
 
   // Rename automacao
   const handleRename = useCallback((id: string, nome: string) => {
