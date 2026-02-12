@@ -1,63 +1,140 @@
 
 
-# Plano: Receber TODAS as mensagens (Grupos, Canais, fromMe)
+# Plano: Login Split-Screen com Banner Configuravel
 
-## Problema Identificado
+## Resumo
 
-No arquivo `supabase/functions/waha-webhook/index.ts`, **linha 296-302**, existe um bloqueio explícito:
+Redesenhar a pagina de login no estilo Pipefy (formulario a esquerda, banner a direita) com imagens configuráveis pelo Super Admin para Desktop, Tablet e Mobile.
 
-```typescript
-if (isFromMe && (isGroup || isChannel)) {
-  console.log("[waha-webhook] Skipping fromMe in group/channel");
-  return ... // DESCARTA a mensagem
+---
+
+## 1. Banco de Dados
+
+Inserir nova entrada na tabela `configuracoes_globais` existente:
+
+```text
+plataforma: 'login_banner'
+configuracoes: {
+  "desktop_image_url": "",
+  "tablet_image_url": "",
+  "mobile_image_url": "",
+  "link_url": "",
+  "background_color": "#F8FAFC"
 }
 ```
 
-Isso significa que **qualquer mensagem enviada por você** em grupos ou canais é ignorada. E no caso de canais do WhatsApp (como "Fast Tennis"), todas as mensagens são enviadas pelo administrador do canal, ou seja, o WAHA pode interpretar como `fromMe` dependendo da configuracao, ou simplesmente nao ter `participant` no payload, fazendo o webhook descartar.
+Adicionar policy RLS para permitir leitura anonima (SELECT) desta plataforma especifica, para que a tela de login (sem auth) consiga buscar o banner.
 
-Adicionalmente, na linha 410-416, mensagens de grupo sem `participant` tambem sao descartadas.
+---
 
-## Solucao
+## 2. Storage
 
-### 1. Remover bloqueio de `fromMe` em grupos/canais
+Criar bucket publico `login-banner` para armazenar as imagens enviadas pelo Super Admin.
 
-Em vez de descartar, processar normalmente. Para evitar criar contato duplicado do proprio numero, usar o `participant` (quem enviou no grupo) como contato, e quando for `fromMe`, marcar a mensagem como `from_me: true` mas ainda persistir.
+---
 
-### 2. Tratar canais sem `participant`
+## 3. Pagina de Configuracoes Globais (Super Admin)
 
-Canais (`@newsletter`) geralmente nao enviam `participant`. Nesses casos, usar o ID do canal como `chatId` e criar um contato generico representando o canal em si.
+Adicionar nova aba **"Login Banner"** na pagina `ConfiguracoesGlobaisPage.tsx`:
 
-### 3. Tratar grupos sem `participant`
+- 3 campos de upload com preview: Desktop (960x1080px), Tablet (768x1024px), Mobile (390x300px)
+- Campo de cor de fundo fallback (hex)
+- Campo opcional de link (URL de redirecionamento ao clicar no banner)
+- Botao "Salvar"
 
-Quando um grupo nao tiver `participant` (ex: mensagens de sistema, notificacoes), em vez de descartar, registrar com um contato generico do grupo.
+Arquivos afetados:
+- `src/modules/admin/pages/ConfiguracoesGlobaisPage.tsx` - adicionar tab "Login Banner" e componente de upload
+- `src/modules/admin/services/admin.api.ts` - nenhuma mudanca (ja suporta qualquer plataforma)
 
-## Detalhes Tecnicos
+---
 
-### Arquivo: `supabase/functions/waha-webhook/index.ts`
+## 4. Tela de Login - Redesign
 
-**Mudanca 1 - Remover bloqueio fromMe (linhas 295-302):**
-- Remover o `if (isFromMe && (isGroup || isChannel)) return`
-- Para `fromMe` em grupos: usar o numero do proprio usuario (da sessao) como remetente, mas manter `from_me: true` na mensagem
-- Para `fromMe` em canais: mesmo tratamento
+### Layout Desktop (>= 1024px)
 
-**Mudanca 2 - Grupos sem participant (linhas 410-416):**
-- Em vez de retornar "No participant", usar um fallback:
-  - Se `fromMe`, buscar o phone_number da sessao do usuario
-  - Senao, usar o ID do grupo como identificador e criar um contato generico "Participante desconhecido"
+```text
++----------------------------+----------------------------+
+|                            |                            |
+|     [Logo Renove]          |                            |
+|                            |       [Banner Desktop]     |
+|  Bem-vindo ao Renove       |       (object-cover)       |
+|                            |                            |
+|  [Email]                   |                            |
+|  [Senha]                   |                            |
+|  [x] Lembrar 30 dias       |                            |
+|  [    Entrar    ]          |                            |
+|  Esqueci minha senha       |                            |
+|                            |                            |
++----------------------------+----------------------------+
+```
 
-**Mudanca 3 - Canais sem participant (linhas 311-359):**
-- Para canais, o `participant` quase nunca vem. O comportamento atual ja tenta usar `rawFrom.replace("@newsletter", "")` como fallback, mas pode falhar se `fromMe` bloqueia antes
-- Com a remocao do bloqueio da Mudanca 1, canais passarao a funcionar
+- Esquerda (50%): fundo branco, formulario centralizado
+- Direita (50%): banner com `object-cover`, cor de fundo fallback
 
-### Resumo das alteracoes
+### Layout Tablet (768px - 1023px)
 
-| O que muda | Onde | Impacto |
-|---|---|---|
-| Remove bloqueio fromMe grupo/canal | Linha 296-302 | Mensagens enviadas por voce em grupos/canais serao salvas |
-| Fallback para grupo sem participant | Linha 410-416 | Mensagens de sistema/notificacao de grupo nao serao perdidas |
-| Nenhuma mudanca no frontend | - | O frontend ja lista todos os tipos de conversa |
+- Mesmo split 50/50 usando imagem de tablet
+- Se nao houver imagem tablet, usa desktop como fallback
 
-### Nenhuma mudanca de banco necessaria
+### Layout Mobile (< 768px)
 
-A tabela `conversas` ja suporta `tipo` = "grupo", "canal", "individual". A tabela `mensagens` ja tem `from_me`. Nao ha migracao necessaria.
+- Coluna unica
+- Banner mobile exibido no topo (altura ~200px), oculto se nao configurado
+- Formulario abaixo
+
+---
+
+## 5. Hook `useLoginBanner`
+
+Novo arquivo `src/modules/auth/hooks/useLoginBanner.ts`:
+
+- Query anonima na tabela `configuracoes_globais` filtrando `plataforma = 'login_banner'`
+- `staleTime` longo (5 minutos) para cache
+- Retorna URLs das imagens e cor de fundo
+
+---
+
+## 6. Arquivos a Criar/Modificar
+
+| Arquivo | Acao |
+|---------|------|
+| Migration SQL | INSERT login_banner + bucket + RLS policy anon SELECT |
+| `src/modules/auth/hooks/useLoginBanner.ts` | Criar: hook para buscar config publica |
+| `src/modules/auth/pages/LoginPage.tsx` | Modificar: layout split com banner responsivo |
+| `src/modules/admin/pages/ConfiguracoesGlobaisPage.tsx` | Modificar: adicionar aba Login Banner com uploads |
+| `src/modules/admin/components/LoginBannerConfig.tsx` | Criar: componente de configuracao com upload |
+
+---
+
+## 7. Detalhes Tecnicos
+
+### RLS para acesso anonimo
+
+```text
+Policy: "Anon pode ler login_banner"
+ON configuracoes_globais
+FOR SELECT
+TO anon
+USING (plataforma = 'login_banner')
+```
+
+### Upload de imagens
+
+- Upload via Supabase Storage SDK para bucket `login-banner`
+- Nomes fixos: `desktop.webp`, `tablet.webp`, `mobile.webp` (sobrescreve ao trocar)
+- Compressao client-side usando `compressImage` existente em `src/shared/utils/compressMedia.ts`
+- Salva URL publica no JSONB
+
+### Responsividade no Login
+
+- Tailwind: `hidden lg:flex` para painel direito no desktop
+- `hidden md:flex lg:hidden` para tablet
+- `md:hidden` para mobile banner no topo
+- Imagens com `object-cover` e `w-full h-full`
+
+### Tamanhos recomendados (exibidos na UI de config)
+
+- Desktop: 960 x 1080px
+- Tablet: 768 x 1024px
+- Mobile: 390 x 300px
 
