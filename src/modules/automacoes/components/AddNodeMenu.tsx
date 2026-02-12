@@ -22,7 +22,7 @@ export function AddNodeMenu({ position, onAdd, onClose }: AddNodeMenuProps) {
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
       <div
-        className="absolute z-50 bg-white rounded-lg shadow-lg border border-border p-1.5 min-w-[160px]"
+        className="absolute z-[9999] bg-white rounded-lg shadow-lg border border-border p-1.5 min-w-[160px]"
         style={{ left: position.x, top: position.y }}
       >
         <p className="text-xs font-medium text-muted-foreground px-2.5 py-1.5 uppercase tracking-wide">

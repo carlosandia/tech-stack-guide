@@ -4,7 +4,7 @@
  */
 
 import { ACAO_TIPOS, ACAO_CATEGORIAS, VARIAVEIS_DINAMICAS } from '../../schemas/automacoes.schema'
-import { ChevronDown, ChevronUp, Variable } from 'lucide-react'
+import { ChevronDown, ChevronUp, ChevronRight, Variable } from 'lucide-react'
 import { useState } from 'react'
 
 interface AcaoConfigProps {
@@ -300,6 +300,17 @@ function CamposContextuais({ tipo, data, onUpdate }: { tipo: string; data: Recor
 
 export function AcaoConfig({ data, onUpdate }: AcaoConfigProps) {
   const currentTipo = (data.tipo as string) || ''
+  // Apenas "comunicacao" expandida por padrão
+  const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set(['comunicacao']))
+
+  const toggleCat = (key: string) => {
+    setExpandedCats(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
 
   return (
     <div className="space-y-4">
@@ -311,28 +322,36 @@ export function AcaoConfig({ data, onUpdate }: AcaoConfigProps) {
       {ACAO_CATEGORIAS.map(cat => {
         const acoes = ACAO_TIPOS.filter(a => a.categoria === cat.key && a.tipo !== 'aguardar')
         if (acoes.length === 0) return null
+        const isExpanded = expandedCats.has(cat.key)
         return (
           <div key={cat.key}>
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
+            <button
+              type="button"
+              onClick={() => toggleCat(cat.key)}
+              className="flex items-center gap-1 w-full text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5 hover:text-foreground transition-colors"
+            >
+              {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
               {cat.label}
-            </p>
-            <div className="space-y-1">
-              {acoes.map(a => (
-                <button
-                  key={a.tipo}
-                  onClick={() => onUpdate({ ...data, tipo: a.tipo, config: a.tipo === currentTipo ? (data.config || {}) : {} })}
-                  className={`
-                    w-full text-left px-3 py-2 rounded-md text-sm transition-colors
-                    ${currentTipo === a.tipo
-                      ? 'bg-green-50 text-green-700 border border-green-300'
-                      : 'hover:bg-accent text-foreground border border-transparent'
-                    }
-                  `}
-                >
-                  {a.label}
-                </button>
-              ))}
-            </div>
+            </button>
+            {isExpanded && (
+              <div className="space-y-1">
+                {acoes.map(a => (
+                  <button
+                    key={a.tipo}
+                    onClick={() => onUpdate({ ...data, tipo: a.tipo, config: a.tipo === currentTipo ? (data.config || {}) : {} })}
+                    className={`
+                      w-full text-left px-3 py-2 rounded-md text-sm transition-colors
+                      ${currentTipo === a.tipo
+                        ? 'bg-green-50 text-green-700 border border-green-300'
+                        : 'hover:bg-accent text-foreground border border-transparent'
+                      }
+                    `}
+                  >
+                    {a.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )
       })}

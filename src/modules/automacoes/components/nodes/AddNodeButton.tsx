@@ -57,7 +57,7 @@ export function AddNodeButton({ nodeId, sourceHandle, onAddNode }: AddNodeButton
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setOpen(false) }} />
-          <div className="absolute top-full mt-1 z-50 bg-white rounded-lg shadow-lg border border-border p-1 min-w-[150px]">
+          <div className="absolute bottom-full mb-1 z-[9999] bg-white rounded-lg shadow-lg border border-border p-1 min-w-[150px]">
             <p className="text-[10px] font-semibold text-muted-foreground px-2.5 py-1 uppercase tracking-wider">
               Adicionar
             </p>
