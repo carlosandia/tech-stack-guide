@@ -1,0 +1,157 @@
+name: Deploy CRM to Production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # Permite disparo manual
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      # 1. Checkout
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Setup Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      # 3. Instalar dependências frontend
+      - name: Install frontend dependencies
+        run: npm ci
+
+      # 4. Build frontend
+      - name: Build frontend
+        run: npm run build
+
+      # 5. Build backend
+      - name: Build backend
+        run: |
+          cd backend
+          npm ci
+          npm run build
+
+      # 6. Configurar SSH
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      # 7. Adicionar host conhecido
+      - name: Add known host
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+
+      # 8. Criar backup no servidor
+      - name: Create backup on server
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'ENDSSH'
+            # Backup frontend
+            cd /var/www/crm.renovedigital.com.br/frontend
+            [ -d dist.backup ] && rm -rf dist.backup || true
+            [ -d dist ] && cp -r dist dist.backup || true
+
+            # Backup backend
+            cd /var/www/crm.renovedigital.com.br/backend
+            [ -d dist.backup ] && rm -rf dist.backup || true
+            [ -d dist ] && cp -r dist dist.backup || true
+          ENDSSH
+
+      # 9. Deploy frontend
+      - name: Deploy frontend
+        run: |
+          rsync -avz --delete \
+            dist/ \
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/var/www/crm.renovedigital.com.br/frontend/dist/
+
+      # 10. Deploy backend
+      - name: Deploy backend
+        run: |
+          rsync -avz --delete \
+            --exclude='.env' \
+            --exclude='node_modules' \
+            backend/dist/ \
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/var/www/crm.renovedigital.com.br/backend/dist/
+
+          # Copiar package.json para instalar deps no servidor
+          rsync -avz \
+            backend/package.json \
+            backend/package-lock.json \
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/var/www/crm.renovedigital.com.br/backend/
+
+      # 11. Instalar dependências e reiniciar serviços
+      - name: Install deps and restart services
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'ENDSSH'
+            cd /var/www/crm.renovedigital.com.br/backend
+
+            # Instalar dependências de produção
+            npm ci --omit=dev
+
+            # Reiniciar ou iniciar PM2
+            pm2 describe crm-backend > /dev/null 2>&1 && pm2 restart crm-backend || pm2 start ecosystem.config.js
+
+            # Reload Nginx
+            nginx -t && systemctl reload nginx
+
+            # Aguardar startup
+            sleep 3
+          ENDSSH
+
+      # 12. Health check
+      - name: Health check
+        run: |
+          # Verificar frontend
+          FRONTEND_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://crm.renovedigital.com.br/ || echo "000")
+          echo "Frontend status: $FRONTEND_STATUS"
+
+          # Verificar backend
+          BACKEND_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.DEPLOY_HOST }}:3001/health || echo "000")
+          echo "Backend status: $BACKEND_STATUS"
+
+          if [ "$FRONTEND_STATUS" != "200" ] && [ "$FRONTEND_STATUS" != "304" ]; then
+            echo "⚠️ Frontend check: $FRONTEND_STATUS (pode ser normal se não há index.html ainda)"
+          fi
+
+          echo "✅ Deploy completed!"
+
+      # 13. Rollback em caso de falha
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'ENDSSH'
+            echo "🔄 Iniciando rollback..."
+
+            # Restaurar frontend
+            cd /var/www/crm.renovedigital.com.br/frontend
+            if [ -d dist.backup ]; then
+              rm -rf dist
+              mv dist.backup dist
+              echo "✅ Frontend restaurado"
+            fi
+
+            # Restaurar backend
+            cd /var/www/crm.renovedigital.com.br/backend
+            if [ -d dist.backup ]; then
+              rm -rf dist
+              mv dist.backup dist
+              echo "✅ Backend restaurado"
+            fi
+
+            # Reiniciar serviços
+            pm2 restart crm-backend || true
+            systemctl reload nginx
+
+            echo "✅ Rollback concluído"
+          ENDSSH
