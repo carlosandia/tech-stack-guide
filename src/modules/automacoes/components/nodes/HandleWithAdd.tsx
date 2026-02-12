@@ -101,7 +101,7 @@ export function HandleWithAdd({ nodeId, handleId, color, icon, top, onAddNode }:
         onMouseDown={handleMouseDown}
       />
 
-      {/* Ícone visual sobreposto — clicável, propaga para o handle */}
+      {/* Ícone visual sobreposto — click abre popover */}
       {IconComponent && (
         <div
           ref={handleRef}
@@ -111,8 +111,11 @@ export function HandleWithAdd({ nodeId, handleId, color, icon, top, onAddNode }:
             right: -10,
             transform: 'translateY(-50%)',
           }}
-          onMouseDown={handleMouseDown}
-          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation()
+            setOpen(prev => !prev)
+          }}
         >
           <div className={`w-5 h-5 rounded-full ${iconBg} border-2 border-white flex items-center justify-center shadow-sm`}>
             <IconComponent className="w-3 h-3 text-white" />
