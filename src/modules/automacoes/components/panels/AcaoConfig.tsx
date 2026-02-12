@@ -6,6 +6,8 @@
 import { ACAO_TIPOS, ACAO_CATEGORIAS, VARIAVEIS_DINAMICAS } from '../../schemas/automacoes.schema'
 import { ChevronDown, ChevronUp, ChevronRight, Variable } from 'lucide-react'
 import { useState } from 'react'
+import { useCampos } from '@/modules/configuracoes/hooks/useCampos'
+import type { Entidade } from '@/modules/configuracoes/services/configuracoes.api'
 
 interface AcaoConfigProps {
   data: Record<string, unknown>
@@ -49,6 +51,46 @@ function VariavelInserter({ onInsert }: { onInsert: (v: string) => void }) {
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+// AIDEV-NOTE: GAP 9 — Sub-componente para carregar campos dinâmicos via hook
+function CamposDinamicosSelect({ entidade, config, updateConfig, appendToConfig }: {
+  entidade: Entidade
+  config: Record<string, string>
+  updateConfig: (patch: Record<string, string>) => void
+  appendToConfig: (field: string, value: string) => void
+}) {
+  const { data, isLoading } = useCampos(entidade)
+  const campos = data?.campos || []
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className="text-xs font-medium text-muted-foreground">Campo</label>
+        {isLoading ? (
+          <p className="text-xs text-muted-foreground mt-1">Carregando campos...</p>
+        ) : (
+          <select
+            value={config.campo || ''}
+            onChange={e => updateConfig({ campo: e.target.value })}
+            className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+          >
+            <option value="">Selecione um campo...</option>
+            {campos.map(c => (
+              <option key={c.id} value={c.slug}>
+                {c.nome}{c.sistema ? ' (sistema)' : ''}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+      <div>
+        <label className="text-xs font-medium text-muted-foreground">Novo valor</label>
+        <input type="text" value={config.valor || ''} onChange={e => updateConfig({ valor: e.target.value })} placeholder="Valor a definir" className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
+        <VariavelInserter onInsert={v => appendToConfig('valor', v)} />
+      </div>
     </div>
   )
 }
@@ -216,19 +258,17 @@ function CamposContextuais({ tipo, data, onUpdate }: { tipo: string; data: Recor
       )
 
     case 'atualizar_campo_contato':
-    case 'atualizar_campo_oportunidade':
+    case 'atualizar_campo_oportunidade': {
+      const entidadeCampo: Entidade = tipo === 'atualizar_campo_contato' ? 'pessoa' : 'oportunidade'
       return (
-        <div className="space-y-3">
-          <div>
-            <label className="text-xs font-medium text-muted-foreground">Nome do campo</label>
-            <input type="text" value={config.campo || ''} onChange={e => updateConfig({ campo: e.target.value })} placeholder="Ex: status, segmento..." className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground">Novo valor</label>
-            <input type="text" value={config.valor || ''} onChange={e => updateConfig({ valor: e.target.value })} placeholder="Valor a definir" className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
-          </div>
-        </div>
+        <CamposDinamicosSelect
+          entidade={entidadeCampo}
+          config={config}
+          updateConfig={updateConfig}
+          appendToConfig={appendToConfig}
+        />
       )
+    }
 
     case 'adicionar_segmento':
     case 'remover_segmento':
