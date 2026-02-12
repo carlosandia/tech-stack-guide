@@ -5,7 +5,7 @@ import { useBlockedRedirect } from '@/hooks/useBlockedRedirect'
 import { AppToolbarProvider, useAppToolbar } from '../contexts/AppToolbarContext'
 import { FeedbackButton } from '@/modules/feedback/components/FeedbackButton'
 import { NotificacoesSino } from '@/modules/feedback/components/NotificacoesSino'
-import renoveLogo from '@/assets/renove-logo.png'
+import renoveLogo from '@/assets/logotipo-renove.svg'
 import {
   LayoutDashboard,
   Users,
