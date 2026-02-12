@@ -60,7 +60,7 @@ export function FunilEtapaSelect({
   })
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" onMouseDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
       <div>
         <label className="text-xs font-medium text-muted-foreground">{labelFunil}</label>
         {loadingFunis ? (
@@ -69,17 +69,21 @@ export function FunilEtapaSelect({
           <select
             value={funilId}
             onChange={e => {
-              onFunilChange(e.target.value)
-              // Limpar etapa ao trocar funil
+              const val = e.target.value
+              onFunilChange(val)
               if (onEtapaChange) onEtapaChange('')
             }}
-            className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+            onMouseDown={e => e.stopPropagation()}
+            className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
           >
             <option value="">Selecione uma pipeline...</option>
-            {funis?.map(f => (
+            {(funis || []).map(f => (
               <option key={f.id} value={f.id}>{f.nome}</option>
             ))}
           </select>
+        )}
+        {!loadingFunis && (funis || []).length === 0 && (
+          <p className="text-[11px] text-amber-600 mt-1">Nenhuma pipeline encontrada. Crie uma em Negócios.</p>
         )}
       </div>
 
@@ -92,10 +96,11 @@ export function FunilEtapaSelect({
             <select
               value={etapaId || ''}
               onChange={e => onEtapaChange?.(e.target.value)}
-              className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+              onMouseDown={e => e.stopPropagation()}
+              className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
             >
               <option value="">Selecione uma etapa...</option>
-              {etapas?.map(e => (
+              {(etapas || []).map(e => (
                 <option key={e.id} value={e.id}>{e.nome}</option>
               ))}
             </select>
