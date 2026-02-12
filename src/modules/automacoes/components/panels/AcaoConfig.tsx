@@ -8,6 +8,9 @@ import { ChevronDown, ChevronUp, ChevronRight, Variable } from 'lucide-react'
 import { useState } from 'react'
 import { useCampos } from '@/modules/configuracoes/hooks/useCampos'
 import type { Entidade } from '@/modules/configuracoes/services/configuracoes.api'
+import { StatusConexao } from './StatusConexao'
+import { FunilEtapaSelect } from './FunilEtapaSelect'
+import { MediaUploader } from './MediaUploader'
 
 interface AcaoConfigProps {
   data: Record<string, unknown>
@@ -108,14 +111,18 @@ function CamposContextuais({ tipo, data, onUpdate }: { tipo: string; data: Recor
     case 'enviar_whatsapp':
       return (
         <div className="space-y-3">
+          <StatusConexao
+            tipo="whatsapp"
+            conexaoTipo={config.conexao_tipo}
+            onConexaoTipoChange={v => updateConfig({ conexao_tipo: v })}
+          />
           <div>
             <label className="text-xs font-medium text-muted-foreground">Número de destino</label>
             <input type="text" value={config.destino || ''} onChange={e => updateConfig({ destino: e.target.value })} placeholder="{{contato.telefone}}" className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
           </div>
-          {/* AIDEV-NOTE: GAP 1 — Tipo de mídia para WhatsApp */}
           <div>
             <label className="text-xs font-medium text-muted-foreground">Tipo de conteúdo</label>
-            <select value={config.midia_tipo || 'texto'} onChange={e => updateConfig({ midia_tipo: e.target.value })} className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary">
+            <select value={config.midia_tipo || 'texto'} onChange={e => updateConfig({ midia_tipo: e.target.value, midia_url: '' })} className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary">
               <option value="texto">Texto</option>
               <option value="imagem">Imagem</option>
               <option value="audio">Áudio</option>
@@ -123,11 +130,11 @@ function CamposContextuais({ tipo, data, onUpdate }: { tipo: string; data: Recor
             </select>
           </div>
           {config.midia_tipo && config.midia_tipo !== 'texto' && (
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">URL da mídia</label>
-              <input type="url" value={config.midia_url || ''} onChange={e => updateConfig({ midia_url: e.target.value })} placeholder="https://exemplo.com/arquivo.png" className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
-              <p className="text-[11px] text-muted-foreground mt-1">URL pública do arquivo a ser enviado.</p>
-            </div>
+            <MediaUploader
+              tipo={config.midia_tipo as 'imagem' | 'audio' | 'documento'}
+              midiaUrl={config.midia_url || ''}
+              onUrlChange={url => updateConfig({ midia_url: url })}
+            />
           )}
           <div>
             <label className="text-xs font-medium text-muted-foreground">{config.midia_tipo && config.midia_tipo !== 'texto' ? 'Legenda' : 'Mensagem'}</label>
@@ -140,6 +147,11 @@ function CamposContextuais({ tipo, data, onUpdate }: { tipo: string; data: Recor
     case 'enviar_email':
       return (
         <div className="space-y-3">
+          <StatusConexao
+            tipo="email"
+            conexaoTipo={config.conexao_tipo}
+            onConexaoTipoChange={v => updateConfig({ conexao_tipo: v })}
+          />
           <div>
             <label className="text-xs font-medium text-muted-foreground">Para</label>
             <input type="text" value={config.para || ''} onChange={e => updateConfig({ para: e.target.value })} placeholder="{{contato.email}}" className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
@@ -153,7 +165,6 @@ function CamposContextuais({ tipo, data, onUpdate }: { tipo: string; data: Recor
             <textarea value={config.corpo || ''} onChange={e => updateConfig({ corpo: e.target.value })} rows={4} placeholder="Conteúdo do email..." className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground resize-none" />
             <VariavelInserter onInsert={v => appendToConfig('corpo', v)} />
           </div>
-          {/* AIDEV-NOTE: GAP 8 — Checkbox apenas contato principal */}
           <label className="flex items-center gap-2 text-xs text-foreground cursor-pointer">
             <input type="checkbox" checked={config.apenas_contato_principal === 'true'} onChange={e => updateConfig({ apenas_contato_principal: e.target.checked ? 'true' : 'false' })} className="rounded border-border" />
             Aplicar apenas ao contato principal
@@ -179,14 +190,13 @@ function CamposContextuais({ tipo, data, onUpdate }: { tipo: string; data: Recor
     case 'mover_etapa':
       return (
         <div className="space-y-3">
-          <div>
-            <label className="text-xs font-medium text-muted-foreground">Funil</label>
-            <input type="text" value={config.funil_id || ''} onChange={e => updateConfig({ funil_id: e.target.value })} placeholder="ID do funil" className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground">Etapa destino</label>
-            <input type="text" value={config.etapa_id || ''} onChange={e => updateConfig({ etapa_id: e.target.value })} placeholder="ID da etapa" className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
-          </div>
+          <FunilEtapaSelect
+            funilId={config.funil_id || ''}
+            etapaId={config.etapa_id || ''}
+            onFunilChange={id => updateConfig({ funil_id: id })}
+            onEtapaChange={id => updateConfig({ etapa_id: id })}
+            labelEtapa="Etapa destino"
+          />
         </div>
       )
 
@@ -217,10 +227,13 @@ function CamposContextuais({ tipo, data, onUpdate }: { tipo: string; data: Recor
             <input type="text" value={config.titulo || ''} onChange={e => updateConfig({ titulo: e.target.value })} placeholder="Oportunidade de {{contato.nome}}" className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
             <VariavelInserter onInsert={v => appendToConfig('titulo', v)} />
           </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground">Funil</label>
-            <input type="text" value={config.funil_id || ''} onChange={e => updateConfig({ funil_id: e.target.value })} placeholder="ID do funil" className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
-          </div>
+          <FunilEtapaSelect
+            funilId={config.funil_id || ''}
+            etapaId={config.etapa_id || ''}
+            onFunilChange={id => updateConfig({ funil_id: id })}
+            onEtapaChange={id => updateConfig({ etapa_id: id })}
+            labelEtapa="Etapa inicial (opcional)"
+          />
           <div>
             <label className="text-xs font-medium text-muted-foreground">Valor (R$)</label>
             <input type="number" min={0} value={config.valor || ''} onChange={e => updateConfig({ valor: e.target.value })} placeholder="0" className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
@@ -249,6 +262,13 @@ function CamposContextuais({ tipo, data, onUpdate }: { tipo: string; data: Recor
     case 'adicionar_nota':
       return (
         <div className="space-y-3">
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Tipo da nota</label>
+            <select value={config.tipo || 'texto'} onChange={e => updateConfig({ tipo: e.target.value })} className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary">
+              <option value="texto">Texto</option>
+              <option value="audio">Áudio</option>
+            </select>
+          </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground">Conteúdo da nota</label>
             <textarea value={config.conteudo || ''} onChange={e => updateConfig({ conteudo: e.target.value })} rows={3} placeholder="Nota automática..." className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground resize-none" />
@@ -306,11 +326,13 @@ function CamposContextuais({ tipo, data, onUpdate }: { tipo: string; data: Recor
           <p className="text-xs text-muted-foreground">
             Distribui automaticamente entre os membros usando a configuração de rodízio (Round Robin) do funil selecionado.
           </p>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground">Funil de referência</label>
-            <input type="text" value={config.funil_id || ''} onChange={e => updateConfig({ funil_id: e.target.value })} placeholder="ID do funil (usa config de distribuição)" className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
-            <p className="text-[11px] text-muted-foreground mt-1">Usa a configuração de distribuição cadastrada no funil (posição de rodízio, membros ativos, etc.).</p>
-          </div>
+          <FunilEtapaSelect
+            funilId={config.funil_id || ''}
+            onFunilChange={id => updateConfig({ funil_id: id })}
+            mostrarEtapa={false}
+            labelFunil="Funil de referência"
+          />
+          <p className="text-[11px] text-muted-foreground">Usa a configuração de distribuição cadastrada no funil (posição de rodízio, membros ativos, etc.).</p>
           <div>
             <label className="text-xs font-medium text-muted-foreground">Pular inativos?</label>
             <select value={config.pular_inativos || 'true'} onChange={e => updateConfig({ pular_inativos: e.target.value })} className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary">
