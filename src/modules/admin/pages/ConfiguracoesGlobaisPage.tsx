@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { LoginBannerConfig } from '../components/LoginBannerConfig'
 import { Save, RefreshCw, CheckCircle, XCircle, Loader2, Eye, EyeOff, ToggleLeft, ToggleRight } from 'lucide-react'
 import { toast } from 'sonner'
 import { useConfigGlobais, useUpdateConfigGlobal, useTestarConfigGlobal } from '../hooks/useConfigGlobal'
@@ -17,7 +18,7 @@ import type { ConfigGlobal } from '../services/admin.api'
  * - Email (SMTP)
  */
 
-type PlataformaId = 'meta' | 'google' | 'waha' | 'stripe' | 'email'
+type PlataformaId = 'meta' | 'google' | 'waha' | 'stripe' | 'email' | 'login_banner'
 
 const PLATAFORMAS = [
   { id: 'meta' as const, label: 'Meta', descricao: 'Facebook e Instagram' },
@@ -25,6 +26,7 @@ const PLATAFORMAS = [
   { id: 'waha' as const, label: 'WhatsApp', descricao: 'WAHA API' },
   { id: 'stripe' as const, label: 'Stripe', descricao: 'Pagamentos' },
   { id: 'email' as const, label: 'Email', descricao: 'SMTP' },
+  { id: 'login_banner' as const, label: 'Login Banner', descricao: 'Banner da tela de login' },
 ]
 
 export function ConfiguracoesGlobaisPage() {
@@ -85,10 +87,14 @@ export function ConfiguracoesGlobaisPage() {
 
       {/* Content */}
       <div className="bg-card rounded-lg border border-border p-6">
-        <ConfigPlataformaForm
-          plataforma={activeTab}
-          config={configAtual}
-        />
+        {activeTab === 'login_banner' ? (
+          <LoginBannerConfig />
+        ) : (
+          <ConfigPlataformaForm
+            plataforma={activeTab}
+            config={configAtual}
+          />
+        )}
       </div>
     </div>
   )
