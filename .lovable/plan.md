@@ -1,137 +1,167 @@
 
-# Atualizar PRD de Melhorias do Modulo de Automacoes
 
-## Resumo
+# Auditoria Final: Gaps entre PRD e Implementacao
 
-Adicionar ao documento `docs/prds/melhoriasautomacao.md` novas funcionalidades identificadas a partir da referencia do RD Station que ainda NAO constam no PRD atual e que sao implementaveis com os modulos existentes do CRM (contatos, negocios, conversas, tarefas, formularios, emails).
+## Gaps Identificados
 
----
+### GAP 1 — WhatsApp com Midia (PRD 1.1) - NAO IMPLEMENTADO
 
-## O que ja esta no PRD (nao sera duplicado)
+O PRD especifica que `enviar_whatsapp` deve suportar envio de midia (audio, imagem, documento) com campos `midia_url` e `midia_tipo`.
 
-- WhatsApp com midia, Nota em oportunidade, Status conversa, Webhook, Email com modelo, Campo generico
-- Validacao (no novo), Condicao AND, Triggers mensagem_recebida e conversa_criada
+**Status atual:** O `AcaoConfig.tsx` so tem campos `destino` e `mensagem`. O backend (Edge Function) so envia texto via `send-text`.
 
-## Novos itens a adicionar ao PRD
-
-### Parte 5 — Novos Triggers (inspirados no RD Station)
-
-| Trigger | Descricao | Categoria |
-|---|---|---|
-| `contato_entrou_segmento` | Quando contato entra em lista de segmentacao | contatos |
-| `oportunidade_qualificada` | Quando oportunidade e marcada como MQL ou SQL | oportunidades |
-| `campo_contato_alterado` | Quando um campo especifico do contato muda (config: qual campo) | contatos |
-| `email_recebido` | Quando um email e recebido vinculado a oportunidade | comunicacao |
-| `conversa_finalizada` | Quando conversa WhatsApp e marcada como resolvida/fechada | comunicacao |
-
-Nota: `contato_entrou_segmento` e similar a `contato_segmento_adicionado` que ja existe no schema mas com outro nome. Verificar se e o mesmo — se for, apenas manter o existente. `campo_contato_alterado` e diferente de `contato_atualizado` porque permite configurar QUAL campo especifico dispara o trigger.
-
-### Parte 6 — Novas Acoes
-
-#### 6.1 Criar Oportunidade
-Nova acao `criar_oportunidade` — cria uma nova oportunidade no CRM automaticamente.
-- Config: `funil_id` (select de funis), `etapa_id` (select de etapas do funil selecionado), `titulo` (com variaveis), `valor` (opcional), `responsavel_id` (select de usuarios ou "manter atual")
-- Util quando: formulario preenchido, contato qualificado, mensagem recebida
-
-#### 6.2 Adicionar/Remover Tag (Segmento)
-A acao `adicionar_segmento` ja existe. Adicionar a acao inversa:
-- Nova acao `remover_segmento` — remove contato de um segmento
-- Config: `segmento_id` (select de segmentos da organizacao)
-
-#### 6.3 Marcar Oportunidade como Ganha/Perdida
-Nova acao `marcar_resultado_oportunidade` — fecha a oportunidade com resultado.
-- Config: `resultado` (select: ganho ou perda), `motivo_id` (select de motivos_resultado)
-- Move automaticamente para etapa de ganho/perda do funil
-
-#### 6.4 Alterar Status do Contato
-Nova acao `alterar_status_contato` — atualiza o campo `status` do contato.
-- Config: `status` (select: ativo, inativo, etc.)
-
-#### 6.5 Distribuir para Responsavel (Round Robin)
-Nova acao `distribuir_responsavel` — distribui o contato/oportunidade entre responsaveis usando a configuracao de distribuicao existente do funil.
-- Config: `funil_id` (usa a config de distribuicao ja cadastrada em `configuracoes_distribuicao`)
-- Aproveita a logica de round-robin que ja existe no modulo de negocios
-
-#### 6.6 Delay com Data/Hora Especifica
-Expandir a acao `aguardar` existente para suportar dois modos:
-- **Modo tempo** (ja existe): aguardar X minutos/horas/dias
-- **Modo agendado** (novo): aguardar ate uma data/hora especifica ou ate um dia da semana + horario
-- Config adicional: `modo` (tempo | agendado), `data_hora` ou `dia_semana` + `horario`
-
-### Parte 7 — Melhorias na Organizacao da UI de Acoes
-
-Reorganizar as categorias do `AcaoConfig.tsx` para ficar mais intuitiva (inspirado na organizacao do RD Station):
-
-| Categoria | Acoes |
-|---|---|
-| Comunicacao | Enviar WhatsApp, Enviar Email, Notificacao interna |
-| CRM | Criar Oportunidade, Criar Tarefa, Mover para Etapa, Marcar Resultado, Adicionar Nota |
-| Gerenciar Contato | Alterar Campo, Adicionar Segmento, Remover Segmento, Alterar Status Contato |
-| Responsavel | Alterar Responsavel, Distribuir (Round Robin) |
-| Controle | Aguardar (delay), Aguardar ate data/hora |
-| Integracoes | Enviar Webhook, Alterar Status Conversa |
-
-Isso implica renomear o campo `categoria` em `ACAO_TIPOS` no schema para refletir os novos agrupamentos.
+**Correcao:**
+- `AcaoConfig.tsx`: Adicionar select de tipo de midia (`texto`, `audio`, `imagem`, `documento`) e campo `midia_url` condicional
+- `processar-eventos-automacao`: Expandir case `enviar_whatsapp` para usar action `send-image`/`send-file` do WAHA quando `midia_tipo` estiver presente
+- `processar-delays-automacao`: Mesma expansao
 
 ---
 
-## Resumo de itens NOVOS adicionados (nao duplicados)
+### GAP 2 — Delay Agendado no Backend - NAO PROCESSADO
 
-| Item | Tipo | Ja existia? |
-|---|---|---|
-| `oportunidade_qualificada` | Trigger | Nao |
-| `campo_contato_alterado` | Trigger | Nao |
-| `email_recebido` | Trigger | Nao |
-| `conversa_finalizada` | Trigger | Nao |
-| `criar_oportunidade` | Acao | Nao |
-| `remover_segmento` | Acao | Nao |
-| `marcar_resultado_oportunidade` | Acao | Nao |
-| `alterar_status_contato` | Acao | Nao |
-| `distribuir_responsavel` | Acao | Nao |
-| Delay com data/hora | Expansao do delay | Nao |
-| Reorganizacao de categorias UI | UX | Nao |
+O `DelayConfig.tsx` ja suporta modo `agendado` com `data_agendada` e `hora_agendada`, e o `flowConverter.ts` serializa corretamente. Porem as Edge Functions NAO tratam o modo agendado.
 
-## Detalhes tecnicos adicionais
+**Status atual:** Ambas as Edge Functions calculam `executar_em` apenas com `minutos` (modo relativo). Quando `modo_delay === 'agendado'`, o campo `minutos` fica `undefined` e o delay usa o fallback de 5 minutos.
 
-### Novo trigger campo_contato_alterado (trigger_config)
-```text
-{
-  "campo_monitorado": "email",
-  "valor_esperado": "" // opcional, se vazio dispara em qualquer mudanca
-}
-```
+**Correcao:**
+- `processar-eventos-automacao` (linha ~213): Antes de calcular `executarEm`, verificar se `acao.config.modo_delay === 'agendado'` e usar `data_agendada + hora_agendada` diretamente como `executar_em`
+- `processar-delays-automacao` (linha ~90): Mesma logica no encadeamento de delays
 
-### Nova acao criar_oportunidade (config)
-```text
-{
-  "funil_id": "uuid",
-  "etapa_id": "uuid",
-  "titulo": "{{contato.nome}} - Novo negocio",
-  "valor": "0",
-  "responsavel_id": "uuid" // ou "manter_atual"
-}
-```
+---
 
-### Nova acao marcar_resultado_oportunidade (config)
-```text
-{
-  "resultado": "ganho" | "perda",
-  "motivo_id": "uuid-do-motivo"
-}
-```
+### GAP 3 — Dia da Semana no Delay Agendado (PRD 6.6) - NAO IMPLEMENTADO
 
-### Delay agendado (config expandida)
-```text
-{
-  "modo": "agendado",
-  "dia_semana": "segunda", // ou null para data fixa
-  "horario": "09:00",
-  "data_hora": "2025-03-01T09:00:00" // se modo data fixa
-}
-```
+O PRD especifica que o delay agendado deve suportar `dia_semana` + `horario` (ex: "proximo segunda as 09:00"). O `DelayConfig.tsx` atual so tem `data` e `hora`, sem opcao de dia da semana.
 
-## Arquivo alterado
+**Correcao:**
+- `DelayConfig.tsx`: Adicionar um sub-modo dentro de "agendado" — "Data fixa" vs "Dia da semana". Se dia da semana, exibir select com dias (segunda a domingo) + input de horario
+- `flowConverter.ts`: Serializar `dia_semana` e `horario`
+- Backend: Calcular proximo dia da semana a partir de `Date.now()` quando `dia_semana` estiver preenchido
 
-| Arquivo | Alteracao |
-|---|---|
-| `docs/prds/melhoriasautomacao.md` | Adicionar Partes 5, 6 e 7 ao final do documento sem alterar o conteudo existente |
+---
+
+### GAP 4 — Condições AND: Apenas primeira regra salva no DB
+
+O `flowConverter.ts` (linha 130-136) ao serializar condicoes com multiplas regras AND, salva **apenas a primeira regra** no array `condicoes[]`. As regras adicionais sao perdidas na persistencia.
+
+**Correcao:**
+- `flowConverter.ts`: Quando houver `regras[]`, mapear TODAS as regras para o array de `condicoes`, nao so a primeira
+- Isso ja e compativel com o backend que usa `.every()` no array
+
+---
+
+### GAP 5 — Validacao no Backend - CASE FALTANDO
+
+O PRD Parte 2 especifica que o backend deve ter um case `validacao` no `avaliarCondicoes` que usa `evento.dados.ultima_resposta`. Nenhuma das Edge Functions tem logica para processar acoes do tipo `validacao`.
+
+**Status atual:** `validacao` e serializado como acao no `flowConverter` mas o backend trata como acao desconhecida (`default: console.warn`).
+
+**Correcao:**
+- `processar-eventos-automacao`: Adicionar case `validacao` que avalia `evento.dados.ultima_resposta` contra as condicoes de validacao (regex, contem, formato telefone/email, faixa numerica). Se match, continuar fluxo normalmente. Se nao match, pular para a proxima acao conectada via handle "nenhuma" (requer refatoracao da logica sequencial para suportar branching)
+
+> **Nota importante:** Este e o gap mais complexo. O motor atual processa acoes sequencialmente, sem suporte a branching. Para validacao funcionar com 2 saidas (Match/Nenhuma), o backend precisaria de uma refatoracao para processar o fluxo como grafo (usando edges) em vez de array linear. Isso e uma mudanca arquitetural significativa.
+
+---
+
+### GAP 6 — Trigger `campo_contato_alterado` sem config no TriggerConfig
+
+O trigger `campo_contato_alterado` exige configuracao de `campo_monitorado` e `valor_esperado` no `trigger_config`. O `TriggerConfig.tsx` nao tem campos condicionais — ele apenas lista os triggers para selecao.
+
+**Correcao:**
+- `TriggerConfig.tsx`: Quando o trigger selecionado for `campo_contato_alterado`, exibir campos extras: select de campo monitorado (nome, email, telefone, status) e input opcional de valor esperado
+
+---
+
+### GAP 7 — Trigger `email_recebido` sem trigger SQL
+
+O PRD Parte 5 menciona criar um trigger SQL na tabela `emails_recebidos` (INSERT) para emitir o evento `email_recebido`. A migration aplicada criou triggers para `conversa_finalizada` e `oportunidade_qualificada`, mas NAO criou trigger para `email_recebido`.
+
+**Correcao:**
+- Nova migration SQL: Criar funcao `emitir_evento_email_recebido()` e trigger na tabela de emails (INSERT) para inserir em `eventos_automacao` com tipo `email_recebido`
+
+---
+
+### GAP 8 — Enviar Email com Modelo (PRD 1.5) - PARCIAL
+
+O PRD menciona selecao de modelo pre-cadastrado e checkbox "Aplicar apenas ao contato principal". Esses campos nao existem no `AcaoConfig.tsx` para `enviar_email`.
+
+**Correcao (parcial — modelos_email ainda nao existe como tabela):**
+- `AcaoConfig.tsx` (`enviar_email`): Adicionar checkbox "Apenas contato principal" que salva `config.apenas_contato_principal`
+- Quando a tabela `modelos_email` for criada futuramente, adicionar select de modelos
+
+---
+
+### GAP 9 — Campo Generico UX Unificada (PRD 1.6) - NAO IMPLEMENTADO
+
+O PRD pede unificar `atualizar_campo_oportunidade` e `atualizar_campo_contato` em uma UX mais clara com:
+1. Select de entidade (Oportunidade ou Contato)
+2. Select de campo carregado dinamicamente dos `campos_customizados`
+3. Input de valor com suporte a variaveis
+
+**Status atual:** Os dois cases existem separados no `AcaoConfig` com inputs de texto simples (sem carregar campos reais).
+
+**Correcao:**
+- `AcaoConfig.tsx`: Para ambos os cases, usar um hook para carregar `campos_customizados` da organizacao e renderizar como select em vez de input de texto livre
+
+---
+
+## Resumo de Prioridade
+
+| Gap | Impacto | Complexidade | Prioridade |
+|---|---|---|---|
+| GAP 4 — Condicoes AND perdendo regras | Critico (dados perdidos) | Baixa | 1 |
+| GAP 2 — Delay agendado no backend | Alto (feature quebrada) | Baixa | 2 |
+| GAP 1 — WhatsApp com midia | Medio | Baixa | 3 |
+| GAP 6 — Config do trigger campo_contato | Medio | Baixa | 4 |
+| GAP 3 — Dia da semana no delay | Medio | Media | 5 |
+| GAP 7 — Trigger SQL email_recebido | Medio | Baixa | 6 |
+| GAP 5 — Validacao no backend | Alto (arquitetural) | Alta | 7 |
+| GAP 9 — Campos customizados dinamicos | Baixo (UX) | Media | 8 |
+| GAP 8 — Email com modelo | Baixo (futuro) | Baixa | 9 |
+
+---
+
+## Plano de Implementacao
+
+### Bloco A — Correcoes Criticas (Gaps 4, 2)
+
+**Arquivo: `src/modules/automacoes/utils/flowConverter.ts`**
+- Corrigir `flowToAutomacao` para mapear TODAS as regras AND para o array `condicoes[]`, nao apenas a primeira
+
+**Arquivos: `supabase/functions/processar-eventos-automacao/index.ts` e `processar-delays-automacao/index.ts`**
+- No case `aguardar`, verificar `acao.config.modo_delay`. Se `'agendado'`, construir `executar_em` a partir de `data_agendada` + `hora_agendada` em vez de calcular com `minutos`
+
+### Bloco B — Features Frontend Faltantes (Gaps 1, 6, 3)
+
+**Arquivo: `src/modules/automacoes/components/panels/AcaoConfig.tsx`**
+- Case `enviar_whatsapp`: Adicionar select de tipo de midia e campo condicional `midia_url`
+
+**Arquivo: `src/modules/automacoes/components/panels/TriggerConfig.tsx`**
+- Renderizar campos extras quando trigger = `campo_contato_alterado`: select de campo monitorado + input de valor esperado
+
+**Arquivo: `src/modules/automacoes/components/panels/DelayConfig.tsx`**
+- No modo agendado, adicionar sub-opcao "Dia da semana" com select (segunda-domingo) + horario
+
+### Bloco C — Backend Complementar (Gaps 1, 3, 7)
+
+**Arquivos: ambas Edge Functions**
+- `enviar_whatsapp`: Detectar `config.midia_tipo` e usar action correspondente do WAHA (`send-image`, `send-file`)
+- `aguardar` agendado por dia da semana: Calcular proximo dia da semana
+
+**Migration SQL:**
+- Criar trigger na tabela de emails para emitir `email_recebido`
+
+### Bloco D — Melhoria UX (Gaps 8, 9)
+
+- Adicionar checkbox "apenas contato principal" no enviar_email
+- Carregar campos customizados dinamicamente no atualizar_campo (quando hook/dados estiverem disponiveis)
+
+### Bloco E — Validacao Backend (Gap 5) — Fase Futura
+
+Este gap requer uma refatoracao arquitetural significativa. O motor atual processa acoes como array linear. Para suportar branching (2 saidas do no de validacao), o backend precisaria:
+1. Receber o grafo completo (nodes + edges) em vez de apenas `acoes[]`
+2. Processar o fluxo seguindo edges em vez de iterando array
+3. Isso impacta toda a logica de `executarAutomacao` e `processar-delays`
+
+Recomendacao: implementar em uma fase separada dedicada a refatoracao do motor para suporte a grafos.
+
