@@ -38,7 +38,8 @@ export const TRIGGER_TIPOS = [
   // Formulários
   { tipo: 'formulario_submetido', label: 'Formulário preenchido', categoria: 'formularios', icon: 'FileText' },
   // Comunicação
-  { tipo: 'mensagem_recebida', label: 'Mensagem recebida (WhatsApp/Instagram)', categoria: 'comunicacao', icon: 'MessageSquare' },
+  { tipo: 'mensagem_recebida_whatsapp', label: 'Mensagem recebida (WhatsApp)', categoria: 'comunicacao', icon: 'MessageSquare' },
+  { tipo: 'mensagem_recebida_instagram', label: 'Mensagem recebida (Instagram)', categoria: 'comunicacao', icon: 'MessageSquare' },
   { tipo: 'conversa_criada', label: 'Nova conversa iniciada', categoria: 'comunicacao', icon: 'MessagesSquare' },
   { tipo: 'email_recebido', label: 'Email recebido', categoria: 'comunicacao', icon: 'MailOpen' },
   { tipo: 'conversa_finalizada', label: 'Conversa finalizada', categoria: 'comunicacao', icon: 'CheckSquare' },

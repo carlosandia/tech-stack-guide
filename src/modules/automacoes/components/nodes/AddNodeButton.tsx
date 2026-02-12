@@ -35,9 +35,9 @@ export function AddNodeButton({ nodeId, sourceHandle, onAddNode }: AddNodeButton
   }, [onAddNode, nodeId, sourceHandle])
 
   return (
-    <div className="flex items-center relative" style={{ pointerEvents: 'all' }}>
+    <div className="flex items-center relative ml-3" style={{ pointerEvents: 'all' }}>
       {/* Linha tracejada horizontal */}
-      <div className="h-px w-6 border-t-2 border-dashed border-border" />
+      <div className="h-px w-5 border-t-2 border-dashed border-border" />
 
       {/* Botão + */}
       <button
