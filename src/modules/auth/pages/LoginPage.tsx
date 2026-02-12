@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import renoveLogo from '@/assets/renove-logo.png'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { LoginForm } from '../components/LoginForm'
 import { useAuth } from '@/providers/AuthProvider'
@@ -79,19 +80,8 @@ export function LoginPage() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-muted to-muted/50 px-4">
       {/* Logo */}
-      <div className="mb-8">
-        <img
-          src="/logo.svg"
-          alt="CRM Renove"
-          className="h-14"
-          onError={(e) => {
-            // Fallback se logo nao existir
-            e.currentTarget.style.display = 'none'
-          }}
-        />
-        <h1 className="text-3xl font-bold text-foreground mt-2">
-          CRM Renove
-        </h1>
+      <div className="mb-8 flex flex-col items-center">
+        <img src={renoveLogo} alt="Renove" className="h-12" />
       </div>
 
       {/* Card de Login */}

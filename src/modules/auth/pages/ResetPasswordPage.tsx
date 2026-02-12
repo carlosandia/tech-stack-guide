@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import renoveLogo from '@/assets/renove-logo.png'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -137,17 +138,7 @@ export function ResetPasswordPage() {
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-background to-muted px-4">
       {/* Logo */}
       <div className="mb-8 text-center">
-        <img
-          src="/logo.svg"
-          alt="CRM Renove"
-          className="h-14 mx-auto"
-          onError={(e) => {
-            e.currentTarget.style.display = 'none'
-          }}
-        />
-        <h1 className="text-3xl font-bold text-foreground mt-2">
-          CRM Renove
-        </h1>
+        <img src={renoveLogo} alt="Renove" className="h-12 mx-auto" />
       </div>
 
       {/* Card */}
