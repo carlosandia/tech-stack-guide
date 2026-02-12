@@ -8,7 +8,7 @@ import { useState, useCallback, useEffect } from 'react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { useAuth } from '@/providers/AuthProvider'
 import { useAppToolbar } from '@/modules/app/contexts/AppToolbarContext'
-import { useAutomacoes, useToggleAutomacao, useCriarAutomacao, useAtualizarAutomacao } from '../hooks/useAutomacoes'
+import { useAutomacoes, useToggleAutomacao, useCriarAutomacao, useAtualizarAutomacao, useExcluirAutomacao } from '../hooks/useAutomacoes'
 import { AutomacaoSidebar } from '../components/AutomacaoSidebar'
 import { FlowCanvas } from '../components/FlowCanvas'
 import { NodeConfigPanel } from '../components/panels/NodeConfigPanel'
@@ -26,6 +26,7 @@ export function AutomacoesPage() {
   const toggleMutation = useToggleAutomacao()
   const criarMutation = useCriarAutomacao()
   const atualizarMutation = useAtualizarAutomacao()
+  const excluirMutation = useExcluirAutomacao()
 
   const [selectedAutoId, setSelectedAutoId] = useState<string | undefined>()
 
@@ -98,6 +99,29 @@ export function AutomacoesPage() {
     atualizarMutation.mutate({ id: selectedAutoId, payload })
   }, [selectedAutoId, nodes, edges, atualizarMutation])
 
+  // Rename automacao
+  const handleRename = useCallback((id: string, nome: string) => {
+    atualizarMutation.mutate({ id, payload: { nome } })
+  }, [atualizarMutation])
+
+  // Delete automacao
+  const handleDeleteAutomacao = useCallback((id: string) => {
+    excluirMutation.mutate(id, {
+      onSuccess: () => {
+        if (selectedAutoId === id) {
+          setSelectedAutoId(undefined)
+          setNodes([])
+          setEdges([])
+        }
+      },
+    })
+  }, [excluirMutation, selectedAutoId, setNodes, setEdges])
+
+  // Delete edge
+  const handleDeleteEdge = useCallback((edgeId: string) => {
+    setEdges(eds => eds.filter(e => e.id !== edgeId))
+  }, [setEdges])
+
   // Handle add node
   const handleAddNode = useCallback((type: 'acao' | 'condicao' | 'delay' | 'validacao', position?: { x: number; y: number }) => {
     addNode(type, position)
@@ -116,6 +140,8 @@ export function AutomacoesPage() {
         onSelect={handleSelectAutomacao}
         onNew={handleNewAutomacao}
         onToggle={(id, ativo) => toggleMutation.mutate({ id, ativo })}
+        onRename={handleRename}
+        onDelete={handleDeleteAutomacao}
         isAdmin={isAdmin}
       />
 
@@ -142,6 +168,8 @@ export function AutomacoesPage() {
               onNodeClick={setSelectedNodeId}
               onAddNode={handleAddNode}
               onAddNodeFromSource={addNodeFromSource}
+              onDeleteEdge={handleDeleteEdge}
+              onDeleteNode={deleteNode}
               onSave={handleSave}
               isSaving={atualizarMutation.isPending}
             />

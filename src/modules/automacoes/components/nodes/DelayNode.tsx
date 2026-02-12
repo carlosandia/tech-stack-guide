@@ -4,7 +4,7 @@
 
 import { memo } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { Timer } from 'lucide-react'
+import { Timer, Trash2 } from 'lucide-react'
 import { AddNodeButton } from './AddNodeButton'
 
 export interface DelayNodeData {
@@ -14,6 +14,7 @@ export interface DelayNodeData {
   data_agendada?: string
   hora_agendada?: string
   onAddNode?: (type: 'acao' | 'condicao' | 'delay' | 'validacao', sourceNodeId: string, sourceHandle?: string) => void
+  onDeleteNode?: (nodeId: string) => void
   [key: string]: unknown
 }
 
@@ -29,15 +30,29 @@ export const DelayNode = memo(({ id, data, selected }: NodeProps) => {
         ? `${nodeData.duracao} ${nodeData.unidade || 'minutos'}`
         : 'Configurar tempo')
 
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    nodeData.onDeleteNode?.(id)
+  }
+
   return (
-    <div className="flex flex-col items-center">
+    <div className="flex flex-col items-center group/node">
       <div
         className={`
-          bg-white rounded-lg border-2 shadow-sm min-w-[220px] max-w-[280px]
+          relative bg-white rounded-lg border-2 shadow-sm min-w-[220px] max-w-[280px]
           transition-all duration-200 cursor-pointer
           ${selected ? 'ring-2 ring-blue-400 shadow-md border-blue-400' : 'border-blue-300/60 hover:shadow-md hover:border-blue-400'}
         `}
       >
+        {/* Botão excluir */}
+        <button
+          onClick={handleDelete}
+          className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-white border border-border shadow-sm flex items-center justify-center opacity-0 group-hover/node:opacity-100 hover:bg-destructive hover:border-destructive hover:text-white text-muted-foreground transition-all duration-200 z-10"
+          title="Excluir nó"
+        >
+          <Trash2 className="w-3 h-3" />
+        </button>
+
         {/* Handle de entrada */}
         <Handle
           type="target"

@@ -1,6 +1,6 @@
 /**
  * AIDEV-NOTE: Wrapper do ReactFlow com configuração de canvas
- * Grid de fundo, minimap, controles e nós customizados
+ * Grid de fundo, minimap, controles, nós customizados e edges com botão X
  */
 
 import { useCallback, useMemo, useState } from 'react'
@@ -10,12 +10,17 @@ import {
   Controls,
   MiniMap,
   BackgroundVariant,
+  BaseEdge,
+  EdgeLabelRenderer,
+  getBezierPath,
   type Node,
   type Edge,
+  type EdgeProps,
   type OnNodesChange,
   type OnEdgesChange,
   type OnConnect,
   type NodeTypes,
+  type EdgeTypes,
   Panel,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
@@ -26,7 +31,56 @@ import { AcaoNode } from './nodes/AcaoNode'
 import { DelayNode } from './nodes/DelayNode'
 import { ValidacaoNode } from './nodes/ValidacaoNode'
 import { AddNodeMenu } from './AddNodeMenu'
-import { Plus, Save, Loader2 } from 'lucide-react'
+import { Plus, Save, Loader2, X } from 'lucide-react'
+
+// AIDEV-NOTE: Edge customizada com botão X no hover
+function DeletableEdge({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  style = {},
+  markerEnd,
+  data,
+}: EdgeProps) {
+  const [edgePath, labelX, labelY] = getBezierPath({
+    sourceX,
+    sourceY,
+    sourcePosition,
+    targetX,
+    targetY,
+    targetPosition,
+  })
+
+  const onDeleteClick = data?.onDelete as ((edgeId: string) => void) | undefined
+
+  return (
+    <>
+      <BaseEdge path={edgePath} markerEnd={markerEnd} style={style} />
+      <EdgeLabelRenderer>
+        <div
+          style={{
+            position: 'absolute',
+            transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+            pointerEvents: 'all',
+          }}
+          className="group/edge"
+        >
+          <button
+            onClick={() => onDeleteClick?.(id)}
+            className="w-5 h-5 rounded-full bg-white border border-border shadow-sm flex items-center justify-center opacity-0 group-hover/edge:opacity-100 hover:!opacity-100 hover:bg-destructive hover:border-destructive hover:text-white text-muted-foreground transition-all duration-200"
+            title="Desconectar"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        </div>
+      </EdgeLabelRenderer>
+    </>
+  )
+}
 
 interface FlowCanvasProps {
   nodes: Node[]
@@ -37,6 +91,8 @@ interface FlowCanvasProps {
   onNodeClick: (nodeId: string) => void
   onAddNode: (type: 'acao' | 'condicao' | 'delay' | 'validacao', position?: { x: number; y: number }) => void
   onAddNodeFromSource: (type: 'acao' | 'condicao' | 'delay' | 'validacao', sourceNodeId: string, sourceHandle?: string) => void
+  onDeleteEdge: (edgeId: string) => void
+  onDeleteNode: (nodeId: string) => void
   onSave: () => void
   isSaving?: boolean
 }
@@ -50,6 +106,8 @@ export function FlowCanvas({
   onNodeClick,
   onAddNode,
   onAddNodeFromSource,
+  onDeleteEdge,
+  onDeleteNode,
   onSave,
   isSaving,
 }: FlowCanvasProps) {
@@ -63,13 +121,27 @@ export function FlowCanvas({
     validacao: ValidacaoNode,
   }), [])
 
-  // Inject onAddNode callback into all node data
+  const edgeTypes: EdgeTypes = useMemo(() => ({
+    deletable: DeletableEdge,
+  }), [])
+
+  // Inject callbacks into node data
   const nodesWithCallbacks = useMemo(() =>
     nodes.map(n => ({
       ...n,
-      data: { ...n.data, onAddNode: onAddNodeFromSource },
+      data: { ...n.data, onAddNode: onAddNodeFromSource, onDeleteNode },
     })),
-    [nodes, onAddNodeFromSource]
+    [nodes, onAddNodeFromSource, onDeleteNode]
+  )
+
+  // Inject onDelete callback into edge data and set type
+  const edgesWithCallbacks = useMemo(() =>
+    edges.map(e => ({
+      ...e,
+      type: 'deletable',
+      data: { ...e.data, onDelete: onDeleteEdge },
+    })),
+    [edges, onDeleteEdge]
   )
 
   const handleNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
@@ -89,7 +161,7 @@ export function FlowCanvas({
     <div className="w-full h-full relative">
       <ReactFlow
         nodes={nodesWithCallbacks}
-        edges={edges}
+        edges={edgesWithCallbacks}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
@@ -97,6 +169,7 @@ export function FlowCanvas({
         onPaneClick={handlePaneClick}
         onContextMenu={handleContextMenu}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         fitView
         fitViewOptions={{ padding: 0.3 }}
         deleteKeyCode={['Backspace', 'Delete']}

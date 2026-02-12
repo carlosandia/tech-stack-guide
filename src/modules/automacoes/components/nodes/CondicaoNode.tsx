@@ -5,7 +5,7 @@
 
 import { memo } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { GitBranch } from 'lucide-react'
+import { GitBranch, Trash2 } from 'lucide-react'
 import { AddNodeButton } from './AddNodeButton'
 
 interface CondicaoRegra {
@@ -21,21 +21,36 @@ export interface CondicaoNodeData {
   label?: string
   regras?: CondicaoRegra[]
   onAddNode?: (type: 'acao' | 'condicao' | 'delay' | 'validacao', sourceNodeId: string, sourceHandle?: string) => void
+  onDeleteNode?: (nodeId: string) => void
   [key: string]: unknown
 }
 
 export const CondicaoNode = memo(({ id, data, selected }: NodeProps) => {
   const nodeData = data as CondicaoNodeData
 
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    nodeData.onDeleteNode?.(id)
+  }
+
   return (
-    <div className="flex flex-col items-center">
+    <div className="flex flex-col items-center group/node">
       <div
         className={`
-          bg-white rounded-lg border-2 shadow-sm min-w-[220px] max-w-[280px]
+          relative bg-white rounded-lg border-2 shadow-sm min-w-[220px] max-w-[280px]
           transition-all duration-200 cursor-pointer
           ${selected ? 'ring-2 ring-yellow-500 shadow-md border-yellow-500' : 'border-yellow-400/60 hover:shadow-md hover:border-yellow-500'}
         `}
       >
+        {/* Botão excluir */}
+        <button
+          onClick={handleDelete}
+          className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-white border border-border shadow-sm flex items-center justify-center opacity-0 group-hover/node:opacity-100 hover:bg-destructive hover:border-destructive hover:text-white text-muted-foreground transition-all duration-200 z-10"
+          title="Excluir nó"
+        >
+          <Trash2 className="w-3 h-3" />
+        </button>
+
         {/* Handle de entrada (top) */}
         <Handle
           type="target"
