@@ -89,7 +89,7 @@ export const CondicaoNode = memo(({ id, data, selected }: NodeProps) => {
           handleId="sim"
           color="yellow"
           icon="check"
-          style={{ top: '35%' }}
+          top="35%"
           onAddNode={nodeData.onAddNode}
         />
         <HandleWithAdd
@@ -97,7 +97,7 @@ export const CondicaoNode = memo(({ id, data, selected }: NodeProps) => {
           handleId="nao"
           color="yellow"
           icon="x"
-          style={{ top: '65%' }}
+          top="65%"
           onAddNode={nodeData.onAddNode}
         />
       </div>

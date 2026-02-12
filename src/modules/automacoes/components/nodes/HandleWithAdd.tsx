@@ -2,6 +2,10 @@
  * AIDEV-NOTE: Handle unificado que combina saída do React Flow + menu de adicionar nó
  * - Click simples: abre popover para adicionar nó
  * - Click + arrastar: puxa linha de conexão (comportamento nativo do Handle)
+ * 
+ * Para nós com ícone (check/x), o handle fica invisível e o ícone colorido
+ * é renderizado por cima como overlay visual (pointer-events: none).
+ * Para nós sem ícone, o handle fica visível com a cor da categoria.
  */
 
 import { useState, useCallback, useRef } from 'react'
@@ -13,12 +17,10 @@ type NodeType = 'acao' | 'condicao' | 'delay' | 'validacao'
 interface HandleWithAddProps {
   nodeId: string
   handleId?: string
-  /** Cor do handle: 'primary' | 'green' | 'blue' | 'yellow' | 'violet' */
   color: string
-  /** Ícone sobreposto: 'check' | 'x' | none */
   icon?: 'check' | 'x'
-  /** Posição vertical (para nós com múltiplas saídas) */
-  style?: React.CSSProperties
+  /** top % para posicionamento vertical (ex: '35%', '65%') */
+  top?: string
   onAddNode?: (type: NodeType, sourceNodeId: string, sourceHandle?: string) => void
 }
 
@@ -29,27 +31,31 @@ const options = [
   { type: 'delay' as const, label: 'Delay', icon: Timer, color: 'text-blue-500', bg: 'hover:bg-blue-50' },
 ]
 
-const colorMap: Record<string, { bg: string; border: string }> = {
-  primary: { bg: '!bg-primary', border: '!border-white' },
-  green: { bg: '!bg-green-500', border: '!border-white' },
-  blue: { bg: '!bg-blue-400', border: '!border-white' },
-  yellow: { bg: '!bg-yellow-500', border: '!border-white' },
-  violet: { bg: '!bg-violet-500', border: '!border-white' },
+const colorMap: Record<string, string> = {
+  primary: '!bg-primary',
+  green: '!bg-green-500',
+  blue: '!bg-blue-400',
+  yellow: '!bg-yellow-500',
+  violet: '!bg-violet-500',
 }
 
-export function HandleWithAdd({ nodeId, handleId, color, icon, style, onAddNode }: HandleWithAddProps) {
+export function HandleWithAdd({ nodeId, handleId, color, icon, top, onAddNode }: HandleWithAddProps) {
   const [open, setOpen] = useState(false)
   const isDragging = useRef(false)
   const mouseDownPos = useRef<{ x: number; y: number } | null>(null)
+  const handleRef = useRef<HTMLDivElement>(null)
 
-  const colors = colorMap[color] || colorMap.primary
+  const bgClass = colorMap[color] || colorMap.primary
+  const hasIcon = !!icon
+  const IconComponent = icon === 'check' ? Check : icon === 'x' ? X : null
+  const iconBg = icon === 'check' ? 'bg-green-500' : 'bg-red-500'
 
   // Detecta se foi drag (>5px) ou click
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     mouseDownPos.current = { x: e.clientX, y: e.clientY }
     isDragging.current = false
 
-    const handleMouseMove = (ev: MouseEvent) => {
+    const onMove = (ev: MouseEvent) => {
       if (!mouseDownPos.current) return
       const dx = ev.clientX - mouseDownPos.current.x
       const dy = ev.clientY - mouseDownPos.current.y
@@ -58,19 +64,17 @@ export function HandleWithAdd({ nodeId, handleId, color, icon, style, onAddNode 
       }
     }
 
-    const handleMouseUp = () => {
-      window.removeEventListener('mousemove', handleMouseMove)
-      window.removeEventListener('mouseup', handleMouseUp)
-
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
       if (!isDragging.current) {
-        // Foi click simples — abre menu
         setOpen(prev => !prev)
       }
       mouseDownPos.current = null
     }
 
-    window.addEventListener('mousemove', handleMouseMove)
-    window.addEventListener('mouseup', handleMouseUp)
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
   }, [])
 
   const handleSelect = useCallback((type: NodeType) => {
@@ -78,31 +82,33 @@ export function HandleWithAdd({ nodeId, handleId, color, icon, style, onAddNode 
     setOpen(false)
   }, [onAddNode, nodeId, handleId])
 
-  // Ícone sobreposto (check/x) ou nenhum
-  const IconComponent = icon === 'check' ? Check : icon === 'x' ? X : null
-  const iconBg = icon === 'check' ? 'bg-green-500' : 'bg-red-500'
+  // Estilo de posição vertical do handle (para nós com múltiplas saídas)
+  const handleStyle: React.CSSProperties = top ? { top } : {}
 
   return (
-    <div className="relative" style={style}>
-      {/* Handle real do React Flow — tamanho aumentado para facilitar interação */}
+    <>
+      {/* Handle real do React Flow */}
       <Handle
         type="source"
         position={Position.Right}
         id={handleId}
-        className={`!w-5 !h-5 ${colors.bg} ${colors.border} !border-2 !-right-2.5 !cursor-pointer`}
-        style={style}
+        className={`
+          !border-2 !border-white !-right-2.5 !cursor-pointer !z-10
+          ${hasIcon ? '!w-5 !h-5 !bg-transparent !border-0' : `!w-5 !h-5 ${bgClass}`}
+        `}
+        style={handleStyle}
         onMouseDown={handleMouseDown}
       />
 
-      {/* Ícone visual sobreposto (não bloqueia interação do handle) */}
+      {/* Ícone visual sobreposto para handles com check/x */}
       {IconComponent && (
         <div
-          className="absolute pointer-events-none"
+          ref={handleRef}
+          className="absolute pointer-events-none z-20"
           style={{
-            top: '50%',
+            top: top || '50%',
             right: -10,
             transform: 'translateY(-50%)',
-            ...(style?.top ? { top: style.top } : {}),
           }}
         >
           <div className={`w-5 h-5 rounded-full ${iconBg} border-2 border-white flex items-center justify-center shadow-sm`}>
@@ -117,7 +123,11 @@ export function HandleWithAdd({ nodeId, handleId, color, icon, style, onAddNode 
           <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setOpen(false) }} />
           <div
             className="absolute z-[9999] bg-white rounded-lg shadow-lg border border-border p-1 min-w-[150px]"
-            style={{ left: 'calc(100% + 12px)', top: '50%', transform: 'translateY(-50%)' }}
+            style={{
+              right: -170,
+              top: top || '50%',
+              transform: 'translateY(-50%)',
+            }}
           >
             <p className="text-[10px] font-semibold text-muted-foreground px-2.5 py-1 uppercase tracking-wider">
               Adicionar
@@ -138,6 +148,6 @@ export function HandleWithAdd({ nodeId, handleId, color, icon, style, onAddNode 
           </div>
         </>
       )}
-    </div>
+    </>
   )
 }
