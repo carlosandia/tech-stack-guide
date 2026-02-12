@@ -1,38 +1,46 @@
 
-# Correcao: Select de Pipeline nao funciona
+# Correcao: Campos Dinamicos no Select de Automacoes
 
-## Causa Raiz
+## Problema
+O select de "Atualizar campo (Contato)" exibe uma categoria "Endereco" separada, que nao existe no sistema global de campos (`/configuracoes/campos`). O sistema tem apenas 3 categorias: **Pessoa**, **Empresa** e **Oportunidade**.
 
-Dentro de `FunilEtapaSelect`, ao selecionar um funil, duas callbacks sao chamadas sequencialmente:
+## O que existe hoje no banco (`campos_customizados`)
+- **Pessoa (sistema):** Nome, Sobrenome, Email, Telefone, Cargo, LinkedIn
+- **Pessoa (custom):** resultado pessoa
+- **Empresa (sistema):** Nome Fantasia, Razao Social, CNPJ, Email, Telefone, Website, Segmento de Mercado, Porte
+- **Empresa (custom):** resultado empresa, teste
+- **Oportunidade (custom):** resultado oportunidade
 
-```
-onFunilChange(val)     --> updateConfig({ funil_id: val })
-onEtapaChange('')      --> updateConfig({ etapa_id: '' })
-```
-
-Ambas usam o mesmo closure de `config` (estado antigo). A segunda chamada recria o objeto config SEM o `funil_id` que a primeira definiu, sobrescrevendo a selecao. Resultado: o valor volta a string vazia imediatamente apos selecionar.
+Os campos de endereco (CEP, logradouro, etc.) sao colunas diretas da tabela `contatos`, nao sao campos customizados. Pertencem logicamente ao contato (pessoa).
 
 ## Solucao
 
-**1. Mudar `FunilEtapaSelect.tsx`**: Remover a chamada separada a `onEtapaChange('')` dentro do `onChange` do funil. O reset da etapa sera responsabilidade do parent.
+Refatorar o `CamposDinamicosSelect` em `AcaoConfig.tsx` para:
 
-**2. Mudar todos os locais em `AcaoConfig.tsx`** onde `onFunilChange` e usado: combinar ambos os campos em um unico `updateConfig`:
+1. **Remover o array hardcoded `CAMPOS_ENDERECO`** como grupo separado
+2. **Mover os campos de endereco para dentro do grupo "Pessoa"**, pois sao colunas da tabela contatos que se aplicam a pessoas
+3. **Remover os arrays hardcoded `CAMPOS_CONTATO_PESSOA` e `CAMPOS_CONTATO_EMPRESA`** e substituir pela consulta real ao banco via `useCampos`
+4. **Para contato:** Usar os campos do `campos_customizados` (sistema + custom) de `pessoa` e `empresa`, adicionando os campos de endereco e campos extras da tabela (`status`, `origem`, `observacoes`) no grupo Pessoa
+5. **Para oportunidade:** Manter campos hardcoded da tabela `oportunidades` (titulo, valor, etc.) + carregar customizados da entidade `oportunidade`
 
-```typescript
-onFunilChange={id => updateConfig({ funil_id: id, etapa_id: '' })}
-```
+## Estrutura final do select
 
-Isso garante que `funil_id` e `etapa_id` sejam atualizados atomicamente, sem race condition.
+**Atualizar campo (Contato):**
+- **Pessoa**: Nome, Sobrenome, Email, Telefone, Cargo, LinkedIn, Status, Origem, Observacoes, CEP, Logradouro, Numero, Complemento, Bairro, Cidade, Estado + campos custom de pessoa
+- **Empresa**: Nome Fantasia, Razao Social, CNPJ, Email, Telefone, Website, Segmento, Porte + campos custom de empresa
 
-## Arquivos Alterados
+**Atualizar campo (Oportunidade):**
+- **Oportunidade**: Titulo, Valor, Tipo valor, Moeda, Previsao fechamento, Observacoes, Recorrente, etc.
+- **UTM**: UTM Source, Campaign, Medium, Term, Content
+- **Customizados**: campos custom da entidade oportunidade
 
-| Arquivo | Alteracao |
-|---|---|
-| `FunilEtapaSelect.tsx` | Remover `if (onEtapaChange) onEtapaChange('')` do onChange do funil |
-| `AcaoConfig.tsx` | Nos cases `mover_etapa`, `criar_oportunidade` e `distribuir_responsavel`, alterar `onFunilChange` para incluir `etapa_id: ''` no mesmo updateConfig |
+## Detalhes tecnicos
 
-## Detalhes Tecnicos
+### Arquivo alterado
+`src/modules/automacoes/components/panels/AcaoConfig.tsx` - funcao `CamposDinamicosSelect`
 
-- O problema nao e de cache, z-index ou evento bloqueado
-- E uma race condition classica de closures stale no React
-- A correcao e pontual e nao afeta nenhuma outra funcionalidade
+### Logica
+- Carregar `useCampos('pessoa')`, `useCampos('empresa')`, `useCampos('oportunidade')` conforme a entidade
+- Para contato: separar em 2 optgroups (Pessoa e Empresa), colocando campos sistema do banco + campos extras da tabela contatos (endereco, status, origem) + campos custom
+- Para oportunidade: manter hardcoded os campos da tabela oportunidades (nao estao em campos_customizados) + adicionar optgroup de customizados da entidade oportunidade
+- Nao altera banco, nao altera outros modulos, apenas refatora a logica de montagem do select
