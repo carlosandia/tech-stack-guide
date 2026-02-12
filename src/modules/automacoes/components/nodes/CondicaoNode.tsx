@@ -1,6 +1,6 @@
 /**
  * AIDEV-NOTE: Nó customizado de Condição com 2 saídas (Sim/Não)
- * Borda warning (amarelo)
+ * Handles horizontais: entrada à esquerda, saídas à direita
  */
 
 import { memo } from 'react'
@@ -34,7 +34,7 @@ export const CondicaoNode = memo(({ id, data, selected }: NodeProps) => {
   }
 
   return (
-    <div className="flex flex-col items-center group/node">
+    <div className="flex items-center group/node">
       <div
         className={`
           relative bg-white rounded-lg border-2 shadow-sm min-w-[220px] max-w-[280px]
@@ -51,11 +51,11 @@ export const CondicaoNode = memo(({ id, data, selected }: NodeProps) => {
           <Trash2 className="w-3 h-3" />
         </button>
 
-        {/* Handle de entrada (top) */}
+        {/* Handle de entrada (left) */}
         <Handle
           type="target"
-          position={Position.Top}
-          className="!w-3 !h-3 !bg-yellow-500 !border-2 !border-white !-top-1.5"
+          position={Position.Left}
+          className="!w-3 !h-3 !bg-yellow-500 !border-2 !border-white !-left-1.5"
         />
 
         {/* Header */}
@@ -83,30 +83,30 @@ export const CondicaoNode = memo(({ id, data, selected }: NodeProps) => {
           )}
         </div>
 
-        {/* Handles de saída — Sim (esquerda), Não (direita) */}
-        <div className="flex justify-between px-4 pb-2">
-          <span className="text-[10px] font-medium text-green-600">Sim</span>
-          <span className="text-[10px] font-medium text-red-500">Não</span>
+        {/* Labels + Handles de saída — Sim (top-right), Não (bottom-right) */}
+        <div className="absolute right-0 top-0 bottom-0 flex flex-col justify-around pr-1">
+          <span className="text-[10px] font-medium text-green-600 translate-x-5">Sim</span>
+          <span className="text-[10px] font-medium text-red-500 translate-x-5">Não</span>
         </div>
 
         <Handle
           type="source"
-          position={Position.Bottom}
+          position={Position.Right}
           id="sim"
-          className="!w-3 !h-3 !bg-green-500 !border-2 !border-white !-bottom-1.5"
-          style={{ left: '30%' }}
+          className="!w-3 !h-3 !bg-green-500 !border-2 !border-white !-right-1.5"
+          style={{ top: '35%' }}
         />
         <Handle
           type="source"
-          position={Position.Bottom}
+          position={Position.Right}
           id="nao"
-          className="!w-3 !h-3 !bg-red-500 !border-2 !border-white !-bottom-1.5"
-          style={{ left: '70%' }}
+          className="!w-3 !h-3 !bg-red-500 !border-2 !border-white !-right-1.5"
+          style={{ top: '65%' }}
         />
       </div>
 
-      {/* Botões + para cada branch */}
-      <div className="flex gap-16 mt-0">
+      {/* Botões + para cada branch à direita */}
+      <div className="flex flex-col gap-8 ml-0">
         <AddNodeButton nodeId={id} sourceHandle="sim" onAddNode={nodeData.onAddNode} />
         <AddNodeButton nodeId={id} sourceHandle="nao" onAddNode={nodeData.onAddNode} />
       </div>

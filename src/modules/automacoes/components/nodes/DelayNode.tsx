@@ -1,5 +1,5 @@
 /**
- * AIDEV-NOTE: Nó customizado de Delay (azul claro)
+ * AIDEV-NOTE: Nó customizado de Delay (azul claro) com handles horizontais
  */
 
 import { memo } from 'react'
@@ -36,7 +36,7 @@ export const DelayNode = memo(({ id, data, selected }: NodeProps) => {
   }
 
   return (
-    <div className="flex flex-col items-center group/node">
+    <div className="flex items-center group/node">
       <div
         className={`
           relative bg-white rounded-lg border-2 shadow-sm min-w-[220px] max-w-[280px]
@@ -53,11 +53,11 @@ export const DelayNode = memo(({ id, data, selected }: NodeProps) => {
           <Trash2 className="w-3 h-3" />
         </button>
 
-        {/* Handle de entrada */}
+        {/* Handle de entrada (left) */}
         <Handle
           type="target"
-          position={Position.Top}
-          className="!w-3 !h-3 !bg-blue-400 !border-2 !border-white !-top-1.5"
+          position={Position.Left}
+          className="!w-3 !h-3 !bg-blue-400 !border-2 !border-white !-left-1.5"
         />
 
         {/* Header */}
@@ -75,15 +75,15 @@ export const DelayNode = memo(({ id, data, selected }: NodeProps) => {
           </p>
         </div>
 
-        {/* Handle de saída */}
+        {/* Handle de saída (right) */}
         <Handle
           type="source"
-          position={Position.Bottom}
-          className="!w-3 !h-3 !bg-blue-400 !border-2 !border-white !-bottom-1.5"
+          position={Position.Right}
+          className="!w-3 !h-3 !bg-blue-400 !border-2 !border-white !-right-1.5"
         />
       </div>
 
-      {/* Botão + abaixo do nó */}
+      {/* Botão + à direita do nó */}
       <AddNodeButton nodeId={id} onAddNode={nodeData.onAddNode} />
     </div>
   )

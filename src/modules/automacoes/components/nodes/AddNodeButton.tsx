@@ -1,6 +1,6 @@
 /**
- * AIDEV-NOTE: Botão "+" que aparece abaixo do handle de saída de cada nó
- * Ao clicar, mostra menu inline para escolher tipo de nó (Ação, Condição, Delay)
+ * AIDEV-NOTE: Botão "+" que aparece à direita do handle de saída de cada nó (horizontal)
+ * Ao clicar, mostra menu inline para escolher tipo de nó
  */
 
 import { useState, useCallback } from 'react'
@@ -35,9 +35,9 @@ export function AddNodeButton({ nodeId, sourceHandle, onAddNode }: AddNodeButton
   }, [onAddNode, nodeId, sourceHandle])
 
   return (
-    <div className="flex flex-col items-center relative" style={{ pointerEvents: 'all' }}>
-      {/* Linha tracejada */}
-      <div className="w-px h-6 border-l-2 border-dashed border-border" />
+    <div className="flex items-center relative" style={{ pointerEvents: 'all' }}>
+      {/* Linha tracejada horizontal */}
+      <div className="h-px w-6 border-t-2 border-dashed border-border" />
 
       {/* Botão + */}
       <button
@@ -57,7 +57,7 @@ export function AddNodeButton({ nodeId, sourceHandle, onAddNode }: AddNodeButton
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setOpen(false) }} />
-          <div className="absolute bottom-full mb-1 z-[9999] bg-white rounded-lg shadow-lg border border-border p-1 min-w-[150px]">
+          <div className="absolute left-full ml-1 z-[9999] bg-white rounded-lg shadow-lg border border-border p-1 min-w-[150px]">
             <p className="text-[10px] font-semibold text-muted-foreground px-2.5 py-1 uppercase tracking-wider">
               Adicionar
             </p>

@@ -1,6 +1,6 @@
 /**
- * AIDEV-NOTE: Nó customizado de Validação (roxo/violeta) com 2 saídas (Match / Nenhuma)
- * Avalia conteúdo textual de respostas de mensagens
+ * AIDEV-NOTE: Nó customizado de Validação (roxo/violeta) com handles horizontais
+ * 2 saídas à direita (Match / Nenhuma)
  */
 
 import { memo } from 'react'
@@ -30,7 +30,7 @@ export const ValidacaoNode = memo(({ id, data, selected }: NodeProps) => {
   }
 
   return (
-    <div className="flex flex-col items-center group/node">
+    <div className="flex items-center group/node">
       <div
         className={`
           relative bg-white rounded-lg border-2 shadow-sm min-w-[220px] max-w-[280px]
@@ -47,11 +47,11 @@ export const ValidacaoNode = memo(({ id, data, selected }: NodeProps) => {
           <Trash2 className="w-3 h-3" />
         </button>
 
-        {/* Handle de entrada */}
+        {/* Handle de entrada (left) */}
         <Handle
           type="target"
-          position={Position.Top}
-          className="!w-3 !h-3 !bg-violet-500 !border-2 !border-white !-top-1.5"
+          position={Position.Left}
+          className="!w-3 !h-3 !bg-violet-500 !border-2 !border-white !-left-1.5"
         />
 
         {/* Header */}
@@ -74,30 +74,30 @@ export const ValidacaoNode = memo(({ id, data, selected }: NodeProps) => {
           )}
         </div>
 
-        {/* Labels de saída — Match (esquerda), Nenhuma (direita) */}
-        <div className="flex justify-between px-4 pb-2">
-          <span className="text-[10px] font-medium text-green-600">Match</span>
-          <span className="text-[10px] font-medium text-red-500">Nenhuma</span>
+        {/* Labels de saída à direita */}
+        <div className="absolute right-0 top-0 bottom-0 flex flex-col justify-around pr-1">
+          <span className="text-[10px] font-medium text-green-600 translate-x-5">Match</span>
+          <span className="text-[10px] font-medium text-red-500 translate-x-5">Nenhuma</span>
         </div>
 
         <Handle
           type="source"
-          position={Position.Bottom}
+          position={Position.Right}
           id="match"
-          className="!w-3 !h-3 !bg-green-500 !border-2 !border-white !-bottom-1.5"
-          style={{ left: '30%' }}
+          className="!w-3 !h-3 !bg-green-500 !border-2 !border-white !-right-1.5"
+          style={{ top: '35%' }}
         />
         <Handle
           type="source"
-          position={Position.Bottom}
+          position={Position.Right}
           id="nenhuma"
-          className="!w-3 !h-3 !bg-red-500 !border-2 !border-white !-bottom-1.5"
-          style={{ left: '70%' }}
+          className="!w-3 !h-3 !bg-red-500 !border-2 !border-white !-right-1.5"
+          style={{ top: '65%' }}
         />
       </div>
 
-      {/* Botões + para cada branch */}
-      <div className="flex gap-16 mt-0">
+      {/* Botões + para cada branch à direita */}
+      <div className="flex flex-col gap-8 ml-0">
         <AddNodeButton nodeId={id} sourceHandle="match" onAddNode={nodeData.onAddNode} />
         <AddNodeButton nodeId={id} sourceHandle="nenhuma" onAddNode={nodeData.onAddNode} />
       </div>

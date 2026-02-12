@@ -59,6 +59,23 @@ function DeletableEdge({
 
   return (
     <>
+      {/* Invisible wider path for hover detection */}
+      <path
+        d={edgePath}
+        fill="none"
+        stroke="transparent"
+        strokeWidth={20}
+        className="react-flow__edge-interaction"
+        style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
+        onMouseEnter={(e) => {
+          const btn = e.currentTarget.parentElement?.querySelector('[data-edge-delete]') as HTMLElement
+          if (btn) btn.style.opacity = '1'
+        }}
+        onMouseLeave={(e) => {
+          const btn = e.currentTarget.parentElement?.querySelector('[data-edge-delete]') as HTMLElement
+          if (btn) btn.style.opacity = '0'
+        }}
+      />
       <BaseEdge path={edgePath} markerEnd={markerEnd} style={style} />
       <EdgeLabelRenderer>
         <div
@@ -67,11 +84,14 @@ function DeletableEdge({
             transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
             pointerEvents: 'all',
           }}
-          className="group/edge"
         >
           <button
+            data-edge-delete
             onClick={() => onDeleteClick?.(id)}
-            className="w-5 h-5 rounded-full bg-white border border-border shadow-sm flex items-center justify-center opacity-0 group-hover/edge:opacity-100 hover:!opacity-100 hover:bg-destructive hover:border-destructive hover:text-white text-muted-foreground transition-all duration-200"
+            onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+            onMouseLeave={(e) => e.currentTarget.style.opacity = '0'}
+            style={{ opacity: 0, transition: 'opacity 200ms, background-color 200ms, border-color 200ms, color 200ms' }}
+            className="w-5 h-5 rounded-full bg-white border border-border shadow-sm flex items-center justify-center hover:bg-destructive hover:border-destructive hover:text-white text-muted-foreground"
             title="Desconectar"
           >
             <X className="w-3 h-3" />
