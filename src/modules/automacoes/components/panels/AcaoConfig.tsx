@@ -5,7 +5,7 @@
 
 import { ACAO_TIPOS, ACAO_CATEGORIAS, VARIAVEIS_DINAMICAS } from '../../schemas/automacoes.schema'
 import { ChevronDown, ChevronUp, ChevronRight, Variable, X, Search, User } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/integrations/supabase/client'
 import { useCampos } from '@/modules/configuracoes/hooks/useCampos'
@@ -477,12 +477,24 @@ function CamposDinamicosSelect({ entidade, config, updateConfig, appendToConfig 
 
 // AIDEV-NOTE: Campos contextuais renderizados de acordo com o tipo de ação selecionada
 function CamposContextuais({ tipo, data, onUpdate }: { tipo: string; data: Record<string, unknown>; onUpdate: (d: Record<string, unknown>) => void }) {
+  // AIDEV-NOTE: useRef para evitar stale closure ao colapsar/expandir categorias
+  const dataRef = useRef(data)
+  dataRef.current = data
+
   const config = (data.config as Record<string, string>) || {}
-  const updateConfig = (patch: Record<string, string>) => onUpdate({ ...data, config: { ...config, ...patch } })
-  const appendToConfig = (field: string, value: string) => {
-    const current = config[field] || ''
+
+  const updateConfig = useCallback((patch: Record<string, string>) => {
+    const latest = dataRef.current
+    const latestConfig = (latest.config as Record<string, string>) || {}
+    onUpdate({ ...latest, config: { ...latestConfig, ...patch } })
+  }, [onUpdate])
+
+  const appendToConfig = useCallback((field: string, value: string) => {
+    const latest = dataRef.current
+    const latestConfig = (latest.config as Record<string, string>) || {}
+    const current = latestConfig[field] || ''
     updateConfig({ [field]: current + value })
-  }
+  }, [updateConfig])
 
   switch (tipo) {
     case 'enviar_whatsapp':
