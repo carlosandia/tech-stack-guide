@@ -87,8 +87,30 @@ Deno.serve(async (req) => {
       for (const acao of acoesRestantes) {
         // Se encontrar outro delay, criar nova execução pendente
         if (acao.tipo === "aguardar") {
-          const minutos = Number(acao.config?.minutos) || 5;
-          const novoExecutarEm = new Date(Date.now() + minutos * 60 * 1000).toISOString();
+          // AIDEV-NOTE: Suportar modo agendado (fix GAP 2) e dia da semana (GAP 3)
+          let novoExecutarEm: string;
+          const cfg = acao.config || {};
+          if (cfg.modo_delay === "agendado") {
+            if (cfg.dia_semana !== undefined && cfg.dia_semana !== null && cfg.dia_semana !== '') {
+              const diaSemana = Number(cfg.dia_semana);
+              const horario = String(cfg.horario || "09:00");
+              const [h, m] = horario.split(":").map(Number);
+              const agora = new Date();
+              const diff = (diaSemana - agora.getDay() + 7) % 7 || 7;
+              const alvo = new Date(agora);
+              alvo.setDate(agora.getDate() + diff);
+              alvo.setHours(h || 9, m || 0, 0, 0);
+              if (alvo <= agora) alvo.setDate(alvo.getDate() + 7);
+              novoExecutarEm = alvo.toISOString();
+            } else {
+              const dataStr = String(cfg.data_agendada || "");
+              const horaStr = String(cfg.hora_agendada || "09:00");
+              novoExecutarEm = dataStr ? new Date(`${dataStr}T${horaStr}:00`).toISOString() : new Date(Date.now() + 5 * 60000).toISOString();
+            }
+          } else {
+            const minutos = Number(cfg.minutos) || 5;
+            novoExecutarEm = new Date(Date.now() + minutos * 60 * 1000).toISOString();
+          }
           const novoIndex = pendente.acao_index + acoesLog.length + 1;
 
           await supabase.from("execucoes_pendentes_automacao").insert({
@@ -381,6 +403,7 @@ async function executarAcao(
       break;
     }
 
+    // AIDEV-NOTE: GAP 1 — WhatsApp com suporte a mídia
     case "enviar_whatsapp": {
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -391,14 +414,24 @@ async function executarAcao(
       const { data: sessao } = await supabase.from("sessoes_whatsapp").select("session_name")
         .eq("organizacao_id", organizacaoId).eq("status", "conectado").limit(1).single();
       if (!sessao) throw new Error("Sem sessão WhatsApp ativa");
+
+      const chatId = `${tel.replace(/\D/g, "")}@c.us`;
+      const mensagem = substituirVariaveis(String(config.mensagem || ""), dados);
+      const midiaTipo = config.midia_tipo as string;
+      const midiaUrl = config.midia_url ? substituirVariaveis(String(config.midia_url), dados) : null;
+
+      let wahaPayload: Record<string, unknown>;
+      if (midiaTipo && midiaTipo !== "texto" && midiaUrl) {
+        const action = midiaTipo === "imagem" ? "send-image" : "send-file";
+        wahaPayload = { action, sessionName: sessao.session_name, chatId, file: { url: midiaUrl }, caption: mensagem || undefined };
+      } else {
+        wahaPayload = { action: "send-text", sessionName: sessao.session_name, chatId, text: mensagem };
+      }
+
       const resp = await fetch(`${supabaseUrl}/functions/v1/waha-proxy`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
-        body: JSON.stringify({
-          action: "send-text", sessionName: sessao.session_name,
-          chatId: `${tel.replace(/\D/g, "")}@c.us`,
-          text: substituirVariaveis(String(config.mensagem || ""), dados),
-        }),
+        body: JSON.stringify(wahaPayload),
       });
       if (!resp.ok) throw new Error(`WhatsApp falhou: ${await resp.text()}`);
       break;
