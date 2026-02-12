@@ -127,8 +127,9 @@ export function FlowCanvas({
         {/* Toolbar do canvas */}
         <Panel position="top-right" className="flex items-center gap-2">
           <button
-            onClick={() => {
-              setAddMenu({ x: 310, y: 10 })
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect()
+              setAddMenu({ x: rect.left - 260, y: rect.bottom + 8 - 80 })
             }}
             className="flex items-center gap-1.5 px-3 py-2 bg-white border border-border rounded-lg shadow-sm text-sm font-medium text-foreground hover:bg-accent transition-colors"
           >

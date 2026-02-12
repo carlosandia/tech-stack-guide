@@ -26,7 +26,7 @@ export const TRIGGER_TIPOS = [
   { tipo: 'oportunidade_perdida', label: 'Oportunidade perdida', categoria: 'oportunidades', icon: 'XCircle' },
   { tipo: 'oportunidade_responsavel_alterado', label: 'Responsável alterado', categoria: 'oportunidades', icon: 'UserCheck' },
   { tipo: 'oportunidade_valor_alterado', label: 'Valor alterado', categoria: 'oportunidades', icon: 'DollarSign' },
-  { tipo: 'oportunidade_qualificada', label: 'Oportunidade qualificada (MQL/SQL)', categoria: 'oportunidades', icon: 'Award' },
+  { tipo: 'oportunidade_qualificada', label: 'Oportunidade qualificada (MQL)', categoria: 'oportunidades', icon: 'Award' },
   // Contatos
   { tipo: 'contato_criado', label: 'Contato criado', categoria: 'contatos', icon: 'UserPlus' },
   { tipo: 'contato_atualizado', label: 'Contato atualizado', categoria: 'contatos', icon: 'UserCog' },
