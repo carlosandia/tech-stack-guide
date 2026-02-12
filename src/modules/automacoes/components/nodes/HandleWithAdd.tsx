@@ -52,6 +52,7 @@ export function HandleWithAdd({ nodeId, handleId, color, icon, top, onAddNode }:
 
   // Detecta se foi drag (>5px) ou click
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
     mouseDownPos.current = { x: e.clientX, y: e.clientY }
     isDragging.current = false
 
@@ -100,16 +101,18 @@ export function HandleWithAdd({ nodeId, handleId, color, icon, top, onAddNode }:
         onMouseDown={handleMouseDown}
       />
 
-      {/* Ícone visual sobreposto para handles com check/x */}
+      {/* Ícone visual sobreposto — clicável, propaga para o handle */}
       {IconComponent && (
         <div
           ref={handleRef}
-          className="absolute pointer-events-none z-20"
+          className="absolute z-20 cursor-pointer"
           style={{
             top: top || '50%',
             right: -10,
             transform: 'translateY(-50%)',
           }}
+          onMouseDown={handleMouseDown}
+          onClick={(e) => e.stopPropagation()}
         >
           <div className={`w-5 h-5 rounded-full ${iconBg} border-2 border-white flex items-center justify-center shadow-sm`}>
             <IconComponent className="w-3 h-3 text-white" />
