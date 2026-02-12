@@ -145,78 +145,105 @@ function MembroSelector({ selectedIds, onChange, label }: {
 }
 
 // AIDEV-NOTE: GAP 9 — Sub-componente para carregar campos dinâmicos via hook
-// Agora carrega campos de oportunidade + contato (pessoa E empresa) + customizados
+// Carrega campos do banco (sistema + custom) agrupados em Pessoa, Empresa e Oportunidade
+// Campos de endereço, status, origem e observações são colunas diretas da tabela contatos
+// e são adicionados ao grupo Pessoa como "extras da tabela"
 function CamposDinamicosSelect({ entidade, config, updateConfig, appendToConfig }: {
   entidade: 'oportunidade' | 'contato'
   config: Record<string, string>
   updateConfig: (patch: Record<string, string>) => void
   appendToConfig: (field: string, value: string) => void
 }) {
-  // Campos do sistema das tabelas
-  const CAMPOS_OPORTUNIDADE = [
+  // Campos hardcoded da tabela oportunidades (não existem em campos_customizados)
+  const CAMPOS_OPORTUNIDADE_TABELA = [
     { slug: 'titulo', nome: 'Título', grupo: 'Oportunidade' },
     { slug: 'valor', nome: 'Valor', grupo: 'Oportunidade' },
     { slug: 'tipo_valor', nome: 'Tipo de valor', grupo: 'Oportunidade' },
     { slug: 'moeda', nome: 'Moeda', grupo: 'Oportunidade' },
     { slug: 'previsao_fechamento', nome: 'Previsão de fechamento', grupo: 'Oportunidade' },
     { slug: 'observacoes', nome: 'Observações', grupo: 'Oportunidade' },
-    { slug: 'utm_source', nome: 'UTM Source', grupo: 'UTM' },
-    { slug: 'utm_campaign', nome: 'UTM Campaign', grupo: 'UTM' },
-    { slug: 'utm_medium', nome: 'UTM Medium', grupo: 'UTM' },
-    { slug: 'utm_term', nome: 'UTM Term', grupo: 'UTM' },
-    { slug: 'utm_content', nome: 'UTM Content', grupo: 'UTM' },
     { slug: 'recorrente', nome: 'Recorrente', grupo: 'Oportunidade' },
     { slug: 'periodo_recorrencia', nome: 'Período recorrência', grupo: 'Oportunidade' },
     { slug: 'modo_valor', nome: 'Modo valor', grupo: 'Oportunidade' },
     { slug: 'qualificado_mql', nome: 'Qualificado MQL', grupo: 'Oportunidade' },
     { slug: 'qualificado_sql', nome: 'Qualificado SQL', grupo: 'Oportunidade' },
+    { slug: 'utm_source', nome: 'UTM Source', grupo: 'UTM' },
+    { slug: 'utm_campaign', nome: 'UTM Campaign', grupo: 'UTM' },
+    { slug: 'utm_medium', nome: 'UTM Medium', grupo: 'UTM' },
+    { slug: 'utm_term', nome: 'UTM Term', grupo: 'UTM' },
+    { slug: 'utm_content', nome: 'UTM Content', grupo: 'UTM' },
   ]
 
-  const CAMPOS_CONTATO_PESSOA = [
-    { slug: 'nome', nome: 'Nome', grupo: 'Pessoa' },
-    { slug: 'sobrenome', nome: 'Sobrenome', grupo: 'Pessoa' },
-    { slug: 'email', nome: 'Email', grupo: 'Pessoa' },
-    { slug: 'telefone', nome: 'Telefone', grupo: 'Pessoa' },
-    { slug: 'cargo', nome: 'Cargo', grupo: 'Pessoa' },
-    { slug: 'linkedin_url', nome: 'LinkedIn', grupo: 'Pessoa' },
-    { slug: 'status', nome: 'Status', grupo: 'Pessoa' },
-    { slug: 'origem', nome: 'Origem', grupo: 'Pessoa' },
-    { slug: 'observacoes', nome: 'Observações', grupo: 'Pessoa' },
+  // Campos extras da tabela contatos que não existem em campos_customizados
+  // Pertencem logicamente ao grupo Pessoa
+  const CAMPOS_EXTRAS_PESSOA = [
+    { slug: 'status', nome: 'Status' },
+    { slug: 'origem', nome: 'Origem' },
+    { slug: 'observacoes', nome: 'Observações' },
+    { slug: 'endereco_cep', nome: 'CEP' },
+    { slug: 'endereco_logradouro', nome: 'Logradouro' },
+    { slug: 'endereco_numero', nome: 'Número' },
+    { slug: 'endereco_complemento', nome: 'Complemento' },
+    { slug: 'endereco_bairro', nome: 'Bairro' },
+    { slug: 'endereco_cidade', nome: 'Cidade' },
+    { slug: 'endereco_estado', nome: 'Estado' },
   ]
 
-  const CAMPOS_CONTATO_EMPRESA = [
-    { slug: 'nome_fantasia', nome: 'Nome Fantasia', grupo: 'Empresa' },
-    { slug: 'razao_social', nome: 'Razão Social', grupo: 'Empresa' },
-    { slug: 'cnpj', nome: 'CNPJ', grupo: 'Empresa' },
-    { slug: 'website', nome: 'Website', grupo: 'Empresa' },
-    { slug: 'segmento', nome: 'Segmento', grupo: 'Empresa' },
-    { slug: 'porte', nome: 'Porte', grupo: 'Empresa' },
-  ]
-
-  const CAMPOS_ENDERECO = [
-    { slug: 'endereco_cep', nome: 'CEP', grupo: 'Endereço' },
-    { slug: 'endereco_logradouro', nome: 'Logradouro', grupo: 'Endereço' },
-    { slug: 'endereco_numero', nome: 'Número', grupo: 'Endereço' },
-    { slug: 'endereco_complemento', nome: 'Complemento', grupo: 'Endereço' },
-    { slug: 'endereco_bairro', nome: 'Bairro', grupo: 'Endereço' },
-    { slug: 'endereco_cidade', nome: 'Cidade', grupo: 'Endereço' },
-    { slug: 'endereco_estado', nome: 'Estado', grupo: 'Endereço' },
-  ]
-
-  // Campos customizados
+  // Buscar campos do banco via useCampos (sistema + custom)
   const entidadePessoa: Entidade = 'pessoa'
   const entidadeEmpresa: Entidade = 'empresa'
-  const { data: camposPessoa } = useCampos(entidade === 'contato' ? entidadePessoa : entidadePessoa)
-  const { data: camposEmpresa } = useCampos(entidade === 'contato' ? entidadeEmpresa : entidadeEmpresa)
+  const entidadeOportunidade: Entidade = 'oportunidade'
+  const { data: camposPessoa } = useCampos(entidadePessoa)
+  const { data: camposEmpresa } = useCampos(entidadeEmpresa)
+  const { data: camposOportunidade } = useCampos(entidadeOportunidade)
 
-  const camposCustomPessoa = (camposPessoa?.campos || []).filter(c => !c.sistema)
-  const camposCustomEmpresa = (camposEmpresa?.campos || []).filter(c => !c.sistema)
+  const todosCamposPessoa = camposPessoa?.campos || []
+  const todosCamposEmpresa = camposEmpresa?.campos || []
+  const todosCamposOportunidade = camposOportunidade?.campos || []
 
-  const camposSistema = entidade === 'oportunidade'
-    ? CAMPOS_OPORTUNIDADE
-    : [...CAMPOS_CONTATO_PESSOA, ...CAMPOS_CONTATO_EMPRESA, ...CAMPOS_ENDERECO]
+  if (entidade === 'contato') {
+    return (
+      <div className="space-y-3">
+        <div>
+          <label className="text-xs font-medium text-muted-foreground">Campo</label>
+          <select
+            value={config.campo || ''}
+            onChange={e => updateConfig({ campo: e.target.value })}
+            className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+          >
+            <option value="">Selecione um campo...</option>
+            {/* Grupo Pessoa: campos do banco + extras da tabela */}
+            <optgroup label="Pessoa">
+              {todosCamposPessoa.map(c => (
+                <option key={c.id} value={c.sistema ? c.slug : `custom:pessoa:${c.slug}`}>
+                  {c.nome}
+                </option>
+              ))}
+              {CAMPOS_EXTRAS_PESSOA.map(c => (
+                <option key={`extra_${c.slug}`} value={c.slug}>{c.nome}</option>
+              ))}
+            </optgroup>
+            {/* Grupo Empresa: campos do banco */}
+            <optgroup label="Empresa">
+              {todosCamposEmpresa.map(c => (
+                <option key={c.id} value={c.sistema ? c.slug : `custom:empresa:${c.slug}`}>
+                  {c.nome}
+                </option>
+              ))}
+            </optgroup>
+          </select>
+        </div>
+        <div>
+          <label className="text-xs font-medium text-muted-foreground">Novo valor</label>
+          <input type="text" value={config.valor || ''} onChange={e => updateConfig({ valor: e.target.value })} placeholder="Valor a definir" className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
+          <VariavelInserter onInsert={v => appendToConfig('valor', v)} />
+        </div>
+      </div>
+    )
+  }
 
-  const grupos = [...new Set(camposSistema.map(c => c.grupo))]
+  // Entidade = oportunidade
+  const gruposOp = [...new Set(CAMPOS_OPORTUNIDADE_TABELA.map(c => c.grupo))]
 
   return (
     <div className="space-y-3">
@@ -228,25 +255,17 @@ function CamposDinamicosSelect({ entidade, config, updateConfig, appendToConfig 
           className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary"
         >
           <option value="">Selecione um campo...</option>
-          {grupos.map(grupo => (
+          {gruposOp.map(grupo => (
             <optgroup key={grupo} label={grupo}>
-              {camposSistema.filter(c => c.grupo === grupo).map(c => (
+              {CAMPOS_OPORTUNIDADE_TABELA.filter(c => c.grupo === grupo).map(c => (
                 <option key={c.slug} value={c.slug}>{c.nome}</option>
               ))}
             </optgroup>
           ))}
-          {/* Campos customizados */}
-          {entidade === 'contato' && camposCustomPessoa.length > 0 && (
-            <optgroup label="Customizados (Pessoa)">
-              {camposCustomPessoa.map(c => (
-                <option key={`custom_pessoa_${c.slug}`} value={`custom:pessoa:${c.slug}`}>{c.nome}</option>
-              ))}
-            </optgroup>
-          )}
-          {entidade === 'contato' && camposCustomEmpresa.length > 0 && (
-            <optgroup label="Customizados (Empresa)">
-              {camposCustomEmpresa.map(c => (
-                <option key={`custom_empresa_${c.slug}`} value={`custom:empresa:${c.slug}`}>{c.nome}</option>
+          {todosCamposOportunidade.length > 0 && (
+            <optgroup label="Customizados">
+              {todosCamposOportunidade.map(c => (
+                <option key={c.id} value={`custom:oportunidade:${c.slug}`}>{c.nome}</option>
               ))}
             </optgroup>
           )}
