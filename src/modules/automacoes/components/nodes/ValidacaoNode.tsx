@@ -80,7 +80,7 @@ export const ValidacaoNode = memo(({ id, data, selected }: NodeProps) => {
           handleId="match"
           color="violet"
           icon="check"
-          style={{ top: '35%' }}
+          top="35%"
           onAddNode={nodeData.onAddNode}
         />
         <HandleWithAdd
@@ -88,7 +88,7 @@ export const ValidacaoNode = memo(({ id, data, selected }: NodeProps) => {
           handleId="nenhuma"
           color="violet"
           icon="x"
-          style={{ top: '65%' }}
+          top="65%"
           onAddNode={nodeData.onAddNode}
         />
       </div>
