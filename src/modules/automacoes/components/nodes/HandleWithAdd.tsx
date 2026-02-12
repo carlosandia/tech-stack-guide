@@ -55,13 +55,14 @@ export function HandleWithAdd({ nodeId, handleId, color, icon, top, onAddNode }:
       if (handleRef.current?.contains(target)) return
       setOpen(false)
     }
-    // Delay to avoid catching the same click that opened it
     const timer = setTimeout(() => {
-      window.addEventListener('mousedown', onClickOutside)
-    }, 0)
+      window.addEventListener('mousedown', onClickOutside, true)
+      window.addEventListener('click', onClickOutside, true)
+    }, 10)
     return () => {
       clearTimeout(timer)
-      window.removeEventListener('mousedown', onClickOutside)
+      window.removeEventListener('mousedown', onClickOutside, true)
+      window.removeEventListener('click', onClickOutside, true)
     }
   }, [open])
 
