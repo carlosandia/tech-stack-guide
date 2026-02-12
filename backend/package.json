@@ -20,6 +20,7 @@
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.3",
     "nodemailer": "^8.0.0",
+    "tsx": "^4.15.0",
     "winston": "^3.13.0",
     "zod": "^3.23.0"
   },
@@ -31,7 +32,6 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20.14.0",
     "@types/nodemailer": "^7.0.9",
-    "tsx": "^4.15.0",
     "typescript": "~5.5.3"
   }
 }

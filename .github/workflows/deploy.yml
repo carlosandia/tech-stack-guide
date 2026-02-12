@@ -62,10 +62,10 @@ jobs:
             [ -d dist.backup ] && rm -rf dist.backup || true
             [ -d dist ] && cp -r dist dist.backup || true
 
-            # Backup backend
+            # Backup backend src
             cd /var/www/crm.renovedigital.com.br/backend
-            [ -d dist.backup ] && rm -rf dist.backup || true
-            [ -d dist ] && cp -r dist dist.backup || true
+            [ -d src.backup ] && rm -rf src.backup || true
+            [ -d src ] && cp -r src src.backup || true
           ENDSSH
 
       # 9. Deploy frontend
@@ -78,16 +78,20 @@ jobs:
       # 10. Deploy backend
       - name: Deploy backend
         run: |
+          # Copiar src (usando tsx em produção)
           rsync -avz --delete \
             --exclude='.env' \
             --exclude='node_modules' \
-            backend/dist/ \
-            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/var/www/crm.renovedigital.com.br/backend/dist/
+            --exclude='dist' \
+            backend/src/ \
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/var/www/crm.renovedigital.com.br/backend/src/
 
-          # Copiar package.json para instalar deps no servidor
+          # Copiar package.json, tsconfig e ecosystem
           rsync -avz \
             backend/package.json \
             backend/package-lock.json \
+            backend/tsconfig.json \
+            backend/ecosystem.config.cjs \
             ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/var/www/crm.renovedigital.com.br/backend/
 
       # 11. Instalar dependências e reiniciar serviços
@@ -96,17 +100,21 @@ jobs:
           ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'ENDSSH'
             cd /var/www/crm.renovedigital.com.br/backend
 
-            # Instalar dependências de produção
-            npm ci --omit=dev
+            # Instalar dependências (inclui tsx como dep de produção)
+            npm ci
 
-            # Reiniciar ou iniciar PM2
-            pm2 describe crm-backend > /dev/null 2>&1 && pm2 restart crm-backend || pm2 start ecosystem.config.js
+            # Parar processo antigo se existir
+            pm2 delete crm-backend 2>/dev/null || true
+
+            # Iniciar com novo ecosystem usando tsx
+            pm2 start ecosystem.config.cjs
+            pm2 save
 
             # Reload Nginx
             nginx -t && systemctl reload nginx
 
             # Aguardar startup
-            sleep 3
+            sleep 5
           ENDSSH
 
       # 12. Health check
@@ -141,11 +149,11 @@ jobs:
               echo "✅ Frontend restaurado"
             fi
 
-            # Restaurar backend
+            # Restaurar backend src
             cd /var/www/crm.renovedigital.com.br/backend
-            if [ -d dist.backup ]; then
-              rm -rf dist
-              mv dist.backup dist
+            if [ -d src.backup ]; then
+              rm -rf src
+              mv src.backup src
               echo "✅ Backend restaurado"
             fi
 
