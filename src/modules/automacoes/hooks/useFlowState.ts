@@ -49,9 +49,9 @@ export function useFlowState(initialNodes: Node[] = [], initialEdges: Edge[] = [
 
     // Encontrar posição do nó fonte para posicionar abaixo
     const sourceNode = nodes.find(n => n.id === sourceNodeId)
-    const offsetX = sourceHandle === 'nao' ? 200 : sourceHandle === 'sim' ? -200 : 0
+    const offsetY = sourceHandle === 'nao' || sourceHandle === 'nenhuma' ? 150 : sourceHandle === 'sim' || sourceHandle === 'match' ? -150 : 0
     const pos = sourceNode
-      ? { x: sourceNode.position.x + offsetX, y: sourceNode.position.y + 200 }
+      ? { x: sourceNode.position.x + 350, y: sourceNode.position.y + offsetY }
       : { x: 250, y: nodes.length * 150 + 100 }
 
     const newNode: Node = {

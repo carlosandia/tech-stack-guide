@@ -1,6 +1,6 @@
 /**
  * AIDEV-NOTE: Nó customizado de Trigger para o canvas React Flow
- * Primeiro nó do fluxo. Borda primary. Botão de excluir visível no hover.
+ * Handles horizontais: saída à direita. Botão de excluir visível no hover.
  */
 
 import { memo } from 'react'
@@ -27,7 +27,7 @@ export const TriggerNode = memo(({ id, data, selected }: NodeProps) => {
   }
 
   return (
-    <div className="flex flex-col items-center group/node">
+    <div className="flex items-center group/node">
       <div
         className={`
           relative bg-white rounded-lg border-2 shadow-sm min-w-[220px] max-w-[280px]
@@ -64,15 +64,15 @@ export const TriggerNode = memo(({ id, data, selected }: NodeProps) => {
           )}
         </div>
 
-        {/* Handle de saída (bottom) */}
+        {/* Handle de saída (right) */}
         <Handle
           type="source"
-          position={Position.Bottom}
-          className="!w-3 !h-3 !bg-primary !border-2 !border-white !-bottom-1.5"
+          position={Position.Right}
+          className="!w-3 !h-3 !bg-primary !border-2 !border-white !-right-1.5"
         />
       </div>
 
-      {/* Botão + abaixo do nó */}
+      {/* Botão + à direita do nó */}
       <AddNodeButton nodeId={id} onAddNode={nodeData.onAddNode} />
     </div>
   )
