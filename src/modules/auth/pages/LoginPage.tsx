@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import renoveLogo from '@/assets/renove-logo.png'
+import renoveLogo from '@/assets/logotipo-renove.svg'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { LoginForm } from '../components/LoginForm'
 import { useAuth } from '@/providers/AuthProvider'
