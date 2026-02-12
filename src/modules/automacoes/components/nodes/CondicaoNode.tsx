@@ -5,8 +5,8 @@
 
 import { memo } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { GitBranch, Trash2, Check, X } from 'lucide-react'
-import { AddNodeButton } from './AddNodeButton'
+import { GitBranch, Trash2 } from 'lucide-react'
+import { HandleWithAdd } from './HandleWithAdd'
 
 interface CondicaoRegra {
   campo: string
@@ -83,38 +83,23 @@ export const CondicaoNode = memo(({ id, data, selected }: NodeProps) => {
           )}
         </div>
 
-        {/* Handles de saída com ícones Check/X */}
-        <Handle
-          type="source"
-          position={Position.Right}
-          id="sim"
-          className="!w-0 !h-0 !bg-transparent !border-0 !-right-1.5"
+        {/* Handles unificados de saída com ícones Check/X */}
+        <HandleWithAdd
+          nodeId={id}
+          handleId="sim"
+          color="yellow"
+          icon="check"
           style={{ top: '35%' }}
+          onAddNode={nodeData.onAddNode}
         />
-        <div className="absolute pointer-events-none" style={{ top: '35%', right: -10, transform: 'translateY(-50%)' }}>
-          <div className="w-5 h-5 rounded-full bg-green-500 border-2 border-white flex items-center justify-center shadow-sm">
-            <Check className="w-3 h-3 text-white" />
-          </div>
-        </div>
-
-        <Handle
-          type="source"
-          position={Position.Right}
-          id="nao"
-          className="!w-0 !h-0 !bg-transparent !border-0 !-right-1.5"
+        <HandleWithAdd
+          nodeId={id}
+          handleId="nao"
+          color="yellow"
+          icon="x"
           style={{ top: '65%' }}
+          onAddNode={nodeData.onAddNode}
         />
-        <div className="absolute pointer-events-none" style={{ top: '65%', right: -10, transform: 'translateY(-50%)' }}>
-          <div className="w-5 h-5 rounded-full bg-red-500 border-2 border-white flex items-center justify-center shadow-sm">
-            <X className="w-3 h-3 text-white" />
-          </div>
-        </div>
-      </div>
-
-      {/* Botões + para cada branch à direita */}
-      <div className="flex flex-col gap-8 ml-0">
-        <AddNodeButton nodeId={id} sourceHandle="sim" onAddNode={nodeData.onAddNode} />
-        <AddNodeButton nodeId={id} sourceHandle="nao" onAddNode={nodeData.onAddNode} />
       </div>
     </div>
   )

@@ -6,7 +6,7 @@ import { memo } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { Play, Trash2 } from 'lucide-react'
 import { ACAO_TIPOS } from '../../schemas/automacoes.schema'
-import { AddNodeButton } from './AddNodeButton'
+import { HandleWithAdd } from './HandleWithAdd'
 
 export interface AcaoNodeData {
   tipo?: string
@@ -70,16 +70,9 @@ export const AcaoNode = memo(({ id, data, selected }: NodeProps) => {
           )}
         </div>
 
-        {/* Handle de saída (right) */}
-        <Handle
-          type="source"
-          position={Position.Right}
-          className="!w-3 !h-3 !bg-green-500 !border-2 !border-white !-right-1.5"
-        />
+        {/* Handle unificado de saída */}
+        <HandleWithAdd nodeId={id} color="green" onAddNode={nodeData.onAddNode} />
       </div>
-
-      {/* Botão + à direita do nó */}
-      <AddNodeButton nodeId={id} onAddNode={nodeData.onAddNode} />
     </div>
   )
 })
