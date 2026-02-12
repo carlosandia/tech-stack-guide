@@ -788,6 +788,12 @@ function CamposContextuais({ tipo, data, onUpdate }: { tipo: string; data: Recor
 }
 
 export function AcaoConfig({ data, onUpdate }: AcaoConfigProps) {
+  // AIDEV-NOTE: Refs para evitar stale closure no onClick dos tipos e repasse para CamposContextuais
+  const dataRef = useRef(data)
+  dataRef.current = data
+  const onUpdateRef = useRef(onUpdate)
+  onUpdateRef.current = onUpdate
+
   const currentTipo = (data.tipo as string) || ''
 
   // AIDEV-NOTE: Auto-expandir a categoria que contém o tipo selecionado
@@ -835,7 +841,7 @@ export function AcaoConfig({ data, onUpdate }: AcaoConfigProps) {
                     key={a.tipo}
                     onClick={() => {
                       if (a.tipo === currentTipo) return // já selecionado, não reseta config
-                      onUpdate({ ...data, tipo: a.tipo, config: {} })
+                      onUpdateRef.current({ ...dataRef.current, tipo: a.tipo, config: {} })
                     }}
                     className={`
                       w-full text-left px-3 py-2 rounded-md text-sm transition-colors
@@ -858,7 +864,7 @@ export function AcaoConfig({ data, onUpdate }: AcaoConfigProps) {
       {currentTipo && (
         <div className="pt-3 border-t border-border">
           <p className="text-xs font-semibold text-foreground mb-3 uppercase tracking-wide">Configuração</p>
-          <CamposContextuais tipo={currentTipo} data={data} onUpdate={onUpdate} />
+          <CamposContextuais tipo={currentTipo} data={data} onUpdate={onUpdateRef.current} />
         </div>
       )}
     </div>
