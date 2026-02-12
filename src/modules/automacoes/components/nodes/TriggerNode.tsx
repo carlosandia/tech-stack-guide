@@ -4,10 +4,10 @@
  */
 
 import { memo } from 'react'
-import { Handle, Position, type NodeProps } from '@xyflow/react'
+import { type NodeProps } from '@xyflow/react'
 import { Zap, Trash2 } from 'lucide-react'
 import { TRIGGER_TIPOS } from '../../schemas/automacoes.schema'
-import { AddNodeButton } from './AddNodeButton'
+import { HandleWithAdd } from './HandleWithAdd'
 
 export interface TriggerNodeData {
   trigger_tipo?: string
@@ -64,16 +64,9 @@ export const TriggerNode = memo(({ id, data, selected }: NodeProps) => {
           )}
         </div>
 
-        {/* Handle de saída (right) */}
-        <Handle
-          type="source"
-          position={Position.Right}
-          className="!w-3 !h-3 !bg-primary !border-2 !border-white !-right-1.5"
-        />
+        {/* Handle unificado de saída */}
+        <HandleWithAdd nodeId={id} color="primary" onAddNode={nodeData.onAddNode} />
       </div>
-
-      {/* Botão + à direita do nó */}
-      <AddNodeButton nodeId={id} onAddNode={nodeData.onAddNode} />
     </div>
   )
 })
