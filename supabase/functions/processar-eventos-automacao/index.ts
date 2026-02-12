@@ -306,8 +306,8 @@ async function executarAcao(
         oportunidade_id: evento.entidade_tipo === "oportunidade" ? evento.entidade_id : null,
         owner_id: config.responsavel_id || null,
         status: "pendente",
-        data_vencimento: config.dias_prazo
-          ? new Date(Date.now() + Number(config.dias_prazo) * 86400000).toISOString()
+        data_vencimento: config.dias_prazo || config.prazo_dias
+          ? new Date(Date.now() + Number(config.dias_prazo || config.prazo_dias) * 86400000).toISOString()
           : null,
       });
       console.log(`[automacao] Tarefa criada para ${evento.entidade_id}`);
@@ -315,23 +315,25 @@ async function executarAcao(
     }
 
     case "mover_etapa": {
-      if (evento.entidade_tipo === "oportunidade" && config.etapa_destino_id) {
+      const etapaId = config.etapa_destino_id || config.etapa_id;
+      if (evento.entidade_tipo === "oportunidade" && etapaId) {
         await supabase
           .from("oportunidades")
-          .update({ etapa_id: config.etapa_destino_id })
+          .update({ etapa_id: etapaId })
           .eq("id", evento.entidade_id);
-        console.log(`[automacao] Oportunidade ${evento.entidade_id} movida para etapa ${config.etapa_destino_id}`);
+        console.log(`[automacao] Oportunidade ${evento.entidade_id} movida para etapa ${etapaId}`);
       }
       break;
     }
 
     case "alterar_responsavel": {
-      if (evento.entidade_tipo === "oportunidade" && config.novo_responsavel_id) {
+      const novoResp = config.novo_responsavel_id || config.usuario_id;
+      if (evento.entidade_tipo === "oportunidade" && novoResp) {
         await supabase
           .from("oportunidades")
-          .update({ usuario_responsavel_id: config.novo_responsavel_id })
+          .update({ usuario_responsavel_id: novoResp })
           .eq("id", evento.entidade_id);
-        console.log(`[automacao] Responsável alterado para ${config.novo_responsavel_id}`);
+        console.log(`[automacao] Responsável alterado para ${novoResp}`);
       }
       break;
     }
@@ -340,71 +342,297 @@ async function executarAcao(
       if (evento.entidade_tipo === "oportunidade" && config.campo && config.valor !== undefined) {
         const updateData: Record<string, unknown> = {};
         updateData[String(config.campo)] = config.valor;
-        await supabase
-          .from("oportunidades")
-          .update(updateData)
-          .eq("id", evento.entidade_id);
+        await supabase.from("oportunidades").update(updateData).eq("id", evento.entidade_id);
         console.log(`[automacao] Campo ${config.campo} atualizado na oportunidade ${evento.entidade_id}`);
       }
       break;
     }
 
     case "atualizar_campo_contato": {
-      if (evento.entidade_tipo === "contato" && config.campo && config.valor !== undefined) {
+      const contatoId = evento.entidade_tipo === "contato" ? evento.entidade_id : (evento.dados.contato_id as string);
+      if (contatoId && config.campo && config.valor !== undefined) {
         const updateData: Record<string, unknown> = {};
         updateData[String(config.campo)] = config.valor;
-        await supabase
-          .from("contatos")
-          .update(updateData)
-          .eq("id", evento.entidade_id);
-        console.log(`[automacao] Campo ${config.campo} atualizado no contato ${evento.entidade_id}`);
+        await supabase.from("contatos").update(updateData).eq("id", contatoId);
+        console.log(`[automacao] Campo ${config.campo} atualizado no contato ${contatoId}`);
       }
       break;
     }
 
     case "adicionar_segmento": {
-      if (config.segmento_id) {
+      if (config.segmento_id || config.segmento) {
         const contatoId = evento.entidade_tipo === "contato"
           ? evento.entidade_id
           : (evento.dados.contato_id as string);
-
         if (contatoId) {
-          await supabase.from("contatos_segmentos").insert({
-            organizacao_id: organizacaoId,
-            contato_id: contatoId,
-            segmento_id: config.segmento_id,
-          });
-          console.log(`[automacao] Segmento ${config.segmento_id} adicionado ao contato ${contatoId}`);
+          // Se recebeu nome do segmento em vez de ID, buscar o ID
+          let segId = config.segmento_id as string;
+          if (!segId && config.segmento) {
+            const { data: seg } = await supabase
+              .from("segmentos")
+              .select("id")
+              .eq("organizacao_id", organizacaoId)
+              .eq("nome", config.segmento)
+              .limit(1)
+              .single();
+            segId = seg?.id;
+          }
+          if (segId) {
+            await supabase.from("contatos_segmentos").insert({
+              organizacao_id: organizacaoId,
+              contato_id: contatoId,
+              segmento_id: segId,
+            });
+            console.log(`[automacao] Segmento adicionado ao contato ${contatoId}`);
+          }
         }
       }
       break;
     }
 
+    // AIDEV-NOTE: Nova ação — remover segmento do contato
+    case "remover_segmento": {
+      const contatoId = evento.entidade_tipo === "contato"
+        ? evento.entidade_id
+        : (evento.dados.contato_id as string);
+      if (contatoId && (config.segmento_id || config.segmento)) {
+        let segId = config.segmento_id as string;
+        if (!segId && config.segmento) {
+          const { data: seg } = await supabase
+            .from("segmentos")
+            .select("id")
+            .eq("organizacao_id", organizacaoId)
+            .eq("nome", config.segmento)
+            .limit(1)
+            .single();
+          segId = seg?.id;
+        }
+        if (segId) {
+          await supabase.from("contatos_segmentos")
+            .delete()
+            .eq("contato_id", contatoId)
+            .eq("segmento_id", segId)
+            .eq("organizacao_id", organizacaoId);
+          console.log(`[automacao] Segmento removido do contato ${contatoId}`);
+        }
+      }
+      break;
+    }
+
+    // AIDEV-NOTE: Nova ação — alterar status do contato
+    case "alterar_status_contato": {
+      const contatoId = evento.entidade_tipo === "contato"
+        ? evento.entidade_id
+        : (evento.dados.contato_id as string);
+      if (contatoId && config.status) {
+        await supabase.from("contatos")
+          .update({ status: config.status })
+          .eq("id", contatoId);
+        console.log(`[automacao] Status do contato ${contatoId} alterado para ${config.status}`);
+      }
+      break;
+    }
+
+    // AIDEV-NOTE: Nova ação — criar oportunidade
+    case "criar_oportunidade": {
+      const contatoId = evento.entidade_tipo === "contato"
+        ? evento.entidade_id
+        : (evento.dados.contato_id as string);
+
+      // Resolver funil e etapa de entrada
+      let funilId = config.funil_id as string;
+      let etapaId: string | null = null;
+
+      if (funilId) {
+        const { data: etapaEntrada } = await supabase
+          .from("etapas_funil")
+          .select("id")
+          .eq("funil_id", funilId)
+          .eq("tipo", "entrada")
+          .limit(1)
+          .single();
+        etapaId = etapaEntrada?.id || null;
+      }
+
+      const titulo = config.titulo
+        ? substituirVariaveis(String(config.titulo), evento.dados)
+        : `Oportunidade automática`;
+
+      await supabase.from("oportunidades").insert({
+        organizacao_id: organizacaoId,
+        titulo,
+        contato_id: contatoId || null,
+        funil_id: funilId || null,
+        etapa_id: etapaId,
+        valor: config.valor ? Number(config.valor) : 0,
+      });
+      console.log(`[automacao] Oportunidade criada: ${titulo}`);
+      break;
+    }
+
+    // AIDEV-NOTE: Nova ação — marcar resultado (ganho/perda)
+    case "marcar_resultado_oportunidade": {
+      if (evento.entidade_tipo === "oportunidade" && config.resultado) {
+        const isGanho = config.resultado === "ganho";
+        const updateData: Record<string, unknown> = {
+          fechado_em: new Date().toISOString(),
+        };
+
+        // Buscar etapa do tipo correspondente
+        const { data: opp } = await supabase
+          .from("oportunidades")
+          .select("funil_id")
+          .eq("id", evento.entidade_id)
+          .single();
+
+        if (opp?.funil_id) {
+          const { data: etapaFinal } = await supabase
+            .from("etapas_funil")
+            .select("id")
+            .eq("funil_id", opp.funil_id)
+            .eq("tipo", isGanho ? "ganho" : "perda")
+            .limit(1)
+            .single();
+          if (etapaFinal) updateData.etapa_id = etapaFinal.id;
+        }
+
+        await supabase.from("oportunidades")
+          .update(updateData)
+          .eq("id", evento.entidade_id);
+        console.log(`[automacao] Oportunidade ${evento.entidade_id} marcada como ${config.resultado}`);
+      }
+      break;
+    }
+
+    // AIDEV-NOTE: Nova ação — adicionar nota na oportunidade
+    case "adicionar_nota": {
+      if (evento.entidade_tipo === "oportunidade") {
+        const conteudo = config.conteudo
+          ? substituirVariaveis(String(config.conteudo), evento.dados)
+          : "Nota automática";
+
+        await supabase.from("anotacoes_oportunidades").insert({
+          organizacao_id: organizacaoId,
+          oportunidade_id: evento.entidade_id,
+          conteudo,
+          tipo: "texto",
+          usuario_id: evento.dados.usuario_responsavel_id || evento.dados.criado_por || null,
+        });
+        console.log(`[automacao] Nota adicionada à oportunidade ${evento.entidade_id}`);
+      }
+      break;
+    }
+
+    // AIDEV-NOTE: Nova ação — distribuir responsável (Round Robin)
+    case "distribuir_responsavel": {
+      if (evento.entidade_tipo === "oportunidade") {
+        const pularInativos = config.pular_inativos !== "false";
+
+        // Buscar membros ativos da organização
+        const query = supabase
+          .from("usuarios")
+          .select("id")
+          .eq("organizacao_id", organizacaoId)
+          .is("deletado_em", null);
+
+        if (pularInativos) {
+          query.eq("ativo", true);
+        }
+
+        const { data: membros } = await query.order("id");
+        if (membros && membros.length > 0) {
+          // Buscar posição do rodízio da configuração de distribuição
+          const { data: distConfig } = await supabase
+            .from("configuracoes_distribuicao")
+            .select("posicao_rodizio")
+            .eq("organizacao_id", organizacaoId)
+            .limit(1)
+            .single();
+
+          const pos = (distConfig?.posicao_rodizio || 0) % membros.length;
+          const membroSelecionado = membros[pos];
+
+          await supabase.from("oportunidades")
+            .update({ usuario_responsavel_id: membroSelecionado.id })
+            .eq("id", evento.entidade_id);
+
+          // Atualizar posição do rodízio
+          if (distConfig) {
+            await supabase.from("configuracoes_distribuicao")
+              .update({ posicao_rodizio: pos + 1 })
+              .eq("organizacao_id", organizacaoId);
+          }
+
+          console.log(`[automacao] Round Robin: ${membroSelecionado.id} atribuído à oportunidade ${evento.entidade_id}`);
+        }
+      }
+      break;
+    }
+
+    // AIDEV-NOTE: Nova ação — enviar webhook
+    case "enviar_webhook": {
+      const url = config.url as string;
+      if (!url) throw new Error("URL do webhook não configurada");
+
+      const metodo = (config.metodo as string) || "POST";
+      let payload: string;
+
+      if (config.payload) {
+        payload = substituirVariaveis(String(config.payload), evento.dados);
+      } else {
+        payload = JSON.stringify({
+          evento: evento.tipo,
+          entidade_tipo: evento.entidade_tipo,
+          entidade_id: evento.entidade_id,
+          dados: evento.dados,
+          organizacao_id: organizacaoId,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const resp = await fetch(url, {
+        method: metodo,
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+      });
+
+      if (!resp.ok) {
+        const errText = await resp.text();
+        throw new Error(`Webhook falhou (${resp.status}): ${errText}`);
+      }
+      console.log(`[automacao] Webhook enviado para ${url}`);
+      break;
+    }
+
+    // AIDEV-NOTE: Nova ação — alterar status da conversa
+    case "alterar_status_conversa": {
+      if (evento.entidade_tipo === "conversa" && config.status) {
+        await supabase.from("conversas")
+          .update({ status: config.status, status_alterado_em: new Date().toISOString() })
+          .eq("id", evento.entidade_id);
+        console.log(`[automacao] Status da conversa ${evento.entidade_id} alterado para ${config.status}`);
+      }
+      break;
+    }
+
     case "criar_notificacao": {
-      // AIDEV-NOTE: Notificação interna simples via log (tabela de notificações pode ser criada futuramente)
-      console.log(`[automacao] Notificação: ${substituirVariaveis(String(config.mensagem || ""), evento.dados)}`);
+      console.log(`[automacao] Notificação: ${substituirVariaveis(String(config.mensagem || config.titulo || ""), evento.dados)}`);
       break;
     }
 
     case "enviar_email": {
-      // Chama a Edge Function send-email existente
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-      const destinatario = config.destinatario
-        ? substituirVariaveis(String(config.destinatario), evento.dados)
+      const destinatario = (config.destinatario || config.para)
+        ? substituirVariaveis(String(config.destinatario || config.para), evento.dados)
         : (evento.dados.email as string);
 
-      if (!destinatario) {
-        throw new Error("Destinatário de email não encontrado");
-      }
+      if (!destinatario) throw new Error("Destinatário de email não encontrado");
 
       const resp = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${serviceKey}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
         body: JSON.stringify({
           organizacao_id: organizacaoId,
           destinatario,
@@ -423,21 +651,17 @@ async function executarAcao(
     }
 
     case "enviar_whatsapp": {
-      // Chama waha-proxy para enviar mensagem
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-      const telefone = config.telefone
-        ? substituirVariaveis(String(config.telefone), evento.dados)
+      const telefone = (config.telefone || config.destino)
+        ? substituirVariaveis(String(config.telefone || config.destino), evento.dados)
         : (evento.dados.telefone as string);
 
-      if (!telefone) {
-        throw new Error("Telefone não encontrado para envio de WhatsApp");
-      }
+      if (!telefone) throw new Error("Telefone não encontrado para envio de WhatsApp");
 
       const mensagem = substituirVariaveis(String(config.mensagem || ""), evento.dados);
 
-      // Buscar sessão WhatsApp ativa da organização
       const { data: sessao } = await supabase
         .from("sessoes_whatsapp")
         .select("session_name")
@@ -446,16 +670,11 @@ async function executarAcao(
         .limit(1)
         .single();
 
-      if (!sessao) {
-        throw new Error("Nenhuma sessão WhatsApp ativa encontrada");
-      }
+      if (!sessao) throw new Error("Nenhuma sessão WhatsApp ativa encontrada");
 
       const resp = await fetch(`${supabaseUrl}/functions/v1/waha-proxy`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${serviceKey}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
         body: JSON.stringify({
           action: "send-text",
           sessionName: sessao.session_name,
