@@ -19,6 +19,10 @@ import {
   AtribuirLoteSchema,
   MesclarContatosSchema,
   SegmentarLoteSchema,
+  type MesclarContatosPayload,
+  type AtribuirLotePayload,
+  type DeleteLotePayload,
+  type SegmentarLotePayload,
 } from '../schemas/contatos.js'
 import { VincularSegmentosSchema } from '../schemas/segmentos.js'
 
@@ -189,7 +193,7 @@ router.post('/mesclar', requireAdmin, async (req: Request, res: Response) => {
   try {
     const organizacaoId = getOrganizacaoId(req)
     const userId = getUserId(req)
-    const payload = MesclarContatosSchema.parse(req.body)
+    const payload = MesclarContatosSchema.parse(req.body) as MesclarContatosPayload
     const result = await contatosService.mesclarContatos(organizacaoId, userId, payload)
     res.json(result)
   } catch (error: any) {
@@ -208,7 +212,7 @@ router.post('/mesclar', requireAdmin, async (req: Request, res: Response) => {
 router.post('/lote/segmentos', async (req: Request, res: Response) => {
   try {
     const organizacaoId = getOrganizacaoId(req)
-    const payload = SegmentarLoteSchema.parse(req.body)
+    const payload = SegmentarLoteSchema.parse(req.body) as SegmentarLotePayload
     const result = await segmentosService.segmentarLote(organizacaoId, payload)
     res.json(result)
   } catch (error: any) {
@@ -269,7 +273,7 @@ router.patch('/:id', async (req: Request, res: Response) => {
 router.patch('/lote/atribuir', requireAdmin, async (req: Request, res: Response) => {
   try {
     const organizacaoId = getOrganizacaoId(req)
-    const payload = AtribuirLoteSchema.parse(req.body)
+    const payload = AtribuirLoteSchema.parse(req.body) as AtribuirLotePayload
     const result = await contatosService.atribuirLote(organizacaoId, payload)
     res.json(result)
   } catch (error: any) {
@@ -290,7 +294,7 @@ router.delete('/lote', async (req: Request, res: Response) => {
     const organizacaoId = getOrganizacaoId(req)
     const userId = getUserId(req)
     const role = getUserRole(req) as any
-    const payload = DeleteLoteSchema.parse(req.body)
+    const payload = DeleteLoteSchema.parse(req.body) as DeleteLotePayload
     const result = await contatosService.excluirLote(organizacaoId, userId, role, payload)
     res.json(result)
   } catch (error: any) {

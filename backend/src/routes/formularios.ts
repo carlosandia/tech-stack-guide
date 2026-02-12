@@ -41,6 +41,7 @@ import {
   AtualizarWebhookFormularioSchema,
   RegistrarEventoSchema,
   FiltroAnalyticsSchema,
+  type ReordenarRegrasCondicionaisPayload,
 } from '../schemas/formularios.js'
 
 const router = Router()
@@ -480,7 +481,7 @@ router.put('/:id/etapas', requireAdmin, async (req: Request, res: Response) => {
 router.put('/:id/regras-condicionais/reordenar', requireAdmin, async (req: Request, res: Response) => {
   try {
     const organizacaoId = getOrganizacaoId(req)
-    const payload = ReordenarRegrasCondicionaisSchema.parse(req.body)
+    const payload = ReordenarRegrasCondicionaisSchema.parse(req.body) as ReordenarRegrasCondicionaisPayload
     await logicaCondicionalService.reordenarRegrasCondicionais(organizacaoId, req.params.id, payload.regras)
     res.json({ success: true })
   } catch (error) {

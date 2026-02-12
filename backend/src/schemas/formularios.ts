@@ -66,6 +66,8 @@ export const FormularioSchema = z.object({
   meta_titulo: z.string().nullable().optional(),
   meta_descricao: z.string().nullable().optional(),
   og_image_url: z.string().nullable().optional(),
+  config_botoes: z.record(z.unknown()).nullable().optional(),
+  config_pos_envio: z.record(z.unknown()).nullable().optional(),
   total_visualizacoes: z.number(),
   total_submissoes: z.number(),
   taxa_conversao: z.number(),
@@ -548,7 +550,10 @@ export const ReordenarRegrasCondicionaisSchema = z.object({
     ordem_regra: z.number().int().min(0),
   })),
 })
-export type ReordenarRegrasCondicionaisPayload = z.infer<typeof ReordenarRegrasCondicionaisSchema>
+
+export type ReordenarRegrasCondicionaisPayload = {
+  regras: Array<{ id: string; ordem_regra: number }>
+}
 
 // =====================================================
 // CONFIG PROGRESSIVE PROFILING

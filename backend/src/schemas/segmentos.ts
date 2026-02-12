@@ -35,7 +35,11 @@ export const CriarSegmentoSchema = z.object({
   descricao: z.string().optional(),
 })
 
-export type CriarSegmentoPayload = z.infer<typeof CriarSegmentoSchema>
+export type CriarSegmentoPayload = {
+  nome: string
+  cor: string
+  descricao?: string
+}
 
 // =====================================================
 // Schemas de Request - Atualizar Segmento

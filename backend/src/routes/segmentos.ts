@@ -9,7 +9,7 @@
 import { Router, Request, Response, NextFunction } from 'express'
 import { z } from 'zod'
 import segmentosService from '../services/segmentos.service.js'
-import { CriarSegmentoSchema, AtualizarSegmentoSchema } from '../schemas/segmentos.js'
+import { CriarSegmentoSchema, AtualizarSegmentoSchema, type CriarSegmentoPayload } from '../schemas/segmentos.js'
 
 const router = Router()
 
@@ -52,7 +52,7 @@ router.post('/', requireAdmin, async (req: Request, res: Response) => {
   try {
     const organizacaoId = getOrganizacaoId(req)
     const userId = getUserId(req)
-    const payload = CriarSegmentoSchema.parse(req.body)
+    const payload = CriarSegmentoSchema.parse(req.body) as CriarSegmentoPayload
     const segmento = await segmentosService.criarSegmento(organizacaoId, userId, payload)
     res.status(201).json(segmento)
   } catch (error: any) {

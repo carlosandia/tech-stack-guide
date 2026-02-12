@@ -248,7 +248,11 @@ export const MesclarContatosSchema = z.object({
   campos_mesclar: z.array(z.string()).optional(), // Campos a copiar do contato_mesclar
 })
 
-export type MesclarContatosPayload = z.infer<typeof MesclarContatosSchema>
+export type MesclarContatosPayload = {
+  contato_manter_id: string
+  contato_mesclar_id: string
+  campos_mesclar?: string[]
+}
 
 // =====================================================
 // Schemas para Acoes em Massa (PRD-06 RF-016)
@@ -262,7 +266,10 @@ export const DeleteLoteSchema = z.object({
   tipo: TipoContatoEnum,
 })
 
-export type DeleteLotePayload = z.infer<typeof DeleteLoteSchema>
+export type DeleteLotePayload = {
+  ids: string[]
+  tipo: 'pessoa' | 'empresa'
+}
 
 export const AtribuirLoteSchema = z.object({
   ids: z
@@ -272,7 +279,10 @@ export const AtribuirLoteSchema = z.object({
   owner_id: z.string().uuid().nullable(), // null para remover atribuicao
 })
 
-export type AtribuirLotePayload = z.infer<typeof AtribuirLoteSchema>
+export type AtribuirLotePayload = {
+  ids: string[]
+  owner_id: string | null
+}
 
 export const SegmentarLoteSchema = z.object({
   ids: z
@@ -283,7 +293,11 @@ export const SegmentarLoteSchema = z.object({
   remover: z.array(z.string().uuid()).default([]),
 })
 
-export type SegmentarLotePayload = z.infer<typeof SegmentarLoteSchema>
+export type SegmentarLotePayload = {
+  ids: string[]
+  adicionar: string[]
+  remover: string[]
+}
 
 export const ExportarSelecionadosSchema = z.object({
   ids: z.array(z.string().uuid()).min(1, 'Selecione pelo menos um contato'),
