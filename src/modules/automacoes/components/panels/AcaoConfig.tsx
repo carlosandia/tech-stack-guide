@@ -70,8 +70,25 @@ function CamposContextuais({ tipo, data, onUpdate }: { tipo: string; data: Recor
             <label className="text-xs font-medium text-muted-foreground">Número de destino</label>
             <input type="text" value={config.destino || ''} onChange={e => updateConfig({ destino: e.target.value })} placeholder="{{contato.telefone}}" className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
           </div>
+          {/* AIDEV-NOTE: GAP 1 — Tipo de mídia para WhatsApp */}
           <div>
-            <label className="text-xs font-medium text-muted-foreground">Mensagem</label>
+            <label className="text-xs font-medium text-muted-foreground">Tipo de conteúdo</label>
+            <select value={config.midia_tipo || 'texto'} onChange={e => updateConfig({ midia_tipo: e.target.value })} className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary">
+              <option value="texto">Texto</option>
+              <option value="imagem">Imagem</option>
+              <option value="audio">Áudio</option>
+              <option value="documento">Documento</option>
+            </select>
+          </div>
+          {config.midia_tipo && config.midia_tipo !== 'texto' && (
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">URL da mídia</label>
+              <input type="url" value={config.midia_url || ''} onChange={e => updateConfig({ midia_url: e.target.value })} placeholder="https://exemplo.com/arquivo.png" className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
+              <p className="text-[11px] text-muted-foreground mt-1">URL pública do arquivo a ser enviado.</p>
+            </div>
+          )}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">{config.midia_tipo && config.midia_tipo !== 'texto' ? 'Legenda' : 'Mensagem'}</label>
             <textarea value={config.mensagem || ''} onChange={e => updateConfig({ mensagem: e.target.value })} placeholder="Olá {{contato.nome}}, ..." rows={4} className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground resize-none" />
             <VariavelInserter onInsert={v => appendToConfig('mensagem', v)} />
           </div>
@@ -94,6 +111,11 @@ function CamposContextuais({ tipo, data, onUpdate }: { tipo: string; data: Recor
             <textarea value={config.corpo || ''} onChange={e => updateConfig({ corpo: e.target.value })} rows={4} placeholder="Conteúdo do email..." className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground resize-none" />
             <VariavelInserter onInsert={v => appendToConfig('corpo', v)} />
           </div>
+          {/* AIDEV-NOTE: GAP 8 — Checkbox apenas contato principal */}
+          <label className="flex items-center gap-2 text-xs text-foreground cursor-pointer">
+            <input type="checkbox" checked={config.apenas_contato_principal === 'true'} onChange={e => updateConfig({ apenas_contato_principal: e.target.checked ? 'true' : 'false' })} className="rounded border-border" />
+            Aplicar apenas ao contato principal
+          </label>
         </div>
       )
 

@@ -210,8 +210,31 @@ async function executarAutomacao(
 
     // Ação de delay: criar execução pendente e parar
     if (acao.tipo === "aguardar") {
-      const minutos = Number(acao.config.minutos) || 5;
-      const executarEm = new Date(Date.now() + minutos * 60 * 1000).toISOString();
+      // AIDEV-NOTE: Suportar modo agendado (fix GAP 2) e dia da semana (GAP 3)
+      let executarEm: string;
+      if (acao.config.modo_delay === "agendado") {
+        if (acao.config.dia_semana !== undefined && acao.config.dia_semana !== null && acao.config.dia_semana !== '') {
+          // Calcular próximo dia da semana
+          const diaSemana = Number(acao.config.dia_semana); // 0=dom, 1=seg, ..., 6=sab
+          const horario = String(acao.config.horario || "09:00");
+          const [h, m] = horario.split(":").map(Number);
+          const agora = new Date();
+          const diff = (diaSemana - agora.getDay() + 7) % 7 || 7; // próximo ocorrência
+          const alvo = new Date(agora);
+          alvo.setDate(agora.getDate() + diff);
+          alvo.setHours(h || 9, m || 0, 0, 0);
+          if (alvo <= agora) alvo.setDate(alvo.getDate() + 7);
+          executarEm = alvo.toISOString();
+        } else {
+          // Data fixa
+          const dataStr = String(acao.config.data_agendada || "");
+          const horaStr = String(acao.config.hora_agendada || "09:00");
+          executarEm = dataStr ? new Date(`${dataStr}T${horaStr}:00`).toISOString() : new Date(Date.now() + 5 * 60000).toISOString();
+        }
+      } else {
+        const minutos = Number(acao.config.minutos) || 5;
+        executarEm = new Date(Date.now() + minutos * 60 * 1000).toISOString();
+      }
 
       // Criar log parcial
       const logId = await registrarLog(supabase, automacao, evento, "aguardando", acoesExecutadas, null, startMs);
@@ -650,6 +673,7 @@ async function executarAcao(
       break;
     }
 
+    // AIDEV-NOTE: GAP 1 — WhatsApp com suporte a mídia
     case "enviar_whatsapp": {
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -661,6 +685,8 @@ async function executarAcao(
       if (!telefone) throw new Error("Telefone não encontrado para envio de WhatsApp");
 
       const mensagem = substituirVariaveis(String(config.mensagem || ""), evento.dados);
+      const midiaTipo = config.midia_tipo as string;
+      const midiaUrl = config.midia_url ? substituirVariaveis(String(config.midia_url), evento.dados) : null;
 
       const { data: sessao } = await supabase
         .from("sessoes_whatsapp")
@@ -672,22 +698,40 @@ async function executarAcao(
 
       if (!sessao) throw new Error("Nenhuma sessão WhatsApp ativa encontrada");
 
+      const chatId = `${telefone.replace(/\D/g, "")}@c.us`;
+      let wahaPayload: Record<string, unknown>;
+
+      if (midiaTipo && midiaTipo !== "texto" && midiaUrl) {
+        // Enviar mídia
+        const action = midiaTipo === "imagem" ? "send-image" : "send-file";
+        wahaPayload = {
+          action,
+          sessionName: sessao.session_name,
+          chatId,
+          file: { url: midiaUrl },
+          caption: mensagem || undefined,
+        };
+      } else {
+        // Enviar texto simples
+        wahaPayload = {
+          action: "send-text",
+          sessionName: sessao.session_name,
+          chatId,
+          text: mensagem,
+        };
+      }
+
       const resp = await fetch(`${supabaseUrl}/functions/v1/waha-proxy`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
-        body: JSON.stringify({
-          action: "send-text",
-          sessionName: sessao.session_name,
-          chatId: `${telefone.replace(/\D/g, "")}@c.us`,
-          text: mensagem,
-        }),
+        body: JSON.stringify(wahaPayload),
       });
 
       if (!resp.ok) {
         const errText = await resp.text();
         throw new Error(`Erro ao enviar WhatsApp: ${errText}`);
       }
-      console.log(`[automacao] WhatsApp enviado para ${telefone}`);
+      console.log(`[automacao] WhatsApp (${midiaTipo || 'texto'}) enviado para ${telefone}`);
       break;
     }
 

@@ -123,22 +123,21 @@ export function flowToAutomacao(
     flow_positions: flowPositions,
   }
 
-  const condicoes: Condicao[] = condNodes.map(n => {
-    // AIDEV-NOTE: Suporta tanto regras AND quanto formato legado
+  // AIDEV-NOTE: Mapear TODAS as regras AND para o array de condições (fix GAP 4)
+  const condicoes: Condicao[] = condNodes.flatMap(n => {
     const regras = n.data.regras as Array<{ campo: string; operador: string; valor?: string }> | undefined
     if (Array.isArray(regras) && regras.length > 0) {
-      // Retorna a primeira regra como condição principal (backend processa array completo via trigger_config)
-      return {
-        campo: regras[0].campo || '',
-        operador: (regras[0].operador as Condicao['operador']) || 'igual',
-        valor: regras[0].valor,
-      }
+      return regras.map(r => ({
+        campo: r.campo || '',
+        operador: (r.operador as Condicao['operador']) || 'igual',
+        valor: r.valor,
+      }))
     }
-    return {
+    return [{
       campo: (n.data.campo as string) || '',
       operador: (n.data.operador as Condicao['operador']) || 'igual',
       valor: n.data.valor,
-    }
+    }]
   })
 
   const acoes: Acao[] = [
@@ -146,15 +145,18 @@ export function flowToAutomacao(
       tipo: (n.data.tipo as string) || '',
       config: (n.data.config as Record<string, unknown>) || {},
     })),
+    // AIDEV-NOTE: Serializar delay com suporte a dia_semana e horario (GAP 3)
     ...delayNodes.map(n => ({
       tipo: 'aguardar',
       config: {
         duracao: n.data.duracao,
         unidade: n.data.unidade || 'minutos',
         modo_delay: n.data.modo_delay || 'relativo',
+        sub_modo: n.data.sub_modo,
         data_agendada: n.data.data_agendada,
         hora_agendada: n.data.hora_agendada,
-        // Converter para minutos para compatibilidade com o motor
+        dia_semana: n.data.dia_semana,
+        horario: n.data.horario,
         minutos: n.data.modo_delay === 'agendado'
           ? undefined
           : calcularMinutos(n.data.duracao as number, (n.data.unidade as string) || 'minutos'),

@@ -70,6 +70,43 @@ export function TriggerConfig({ data, onUpdate }: TriggerConfigProps) {
           </div>
         )
       })}
+
+      {/* AIDEV-NOTE: GAP 6 — Campos extras para trigger campo_contato_alterado */}
+      {currentTipo === 'campo_contato_alterado' && (
+        <div className="pt-3 border-t border-border space-y-3">
+          <p className="text-xs font-semibold text-foreground uppercase tracking-wide">Configuração do gatilho</p>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Campo monitorado</label>
+            <select
+              value={((data.trigger_config as Record<string, unknown>)?.campo_monitorado as string) || ''}
+              onChange={e => onUpdate({
+                ...data,
+                trigger_config: { ...(data.trigger_config as Record<string, unknown> || {}), campo_monitorado: e.target.value }
+              })}
+              className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              <option value="">Qualquer campo</option>
+              <option value="nome">Nome</option>
+              <option value="email">Email</option>
+              <option value="telefone">Telefone</option>
+              <option value="status">Status</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Valor esperado (opcional)</label>
+            <input
+              type="text"
+              value={((data.trigger_config as Record<string, unknown>)?.valor_esperado as string) || ''}
+              onChange={e => onUpdate({
+                ...data,
+                trigger_config: { ...(data.trigger_config as Record<string, unknown> || {}), valor_esperado: e.target.value }
+              })}
+              placeholder="Filtrar por valor específico"
+              className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
