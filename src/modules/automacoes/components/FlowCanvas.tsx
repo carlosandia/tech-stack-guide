@@ -31,7 +31,7 @@ import { AcaoNode } from './nodes/AcaoNode'
 import { DelayNode } from './nodes/DelayNode'
 import { ValidacaoNode } from './nodes/ValidacaoNode'
 import { AddNodeMenu } from './AddNodeMenu'
-import { Plus, Save, Loader2, X } from 'lucide-react'
+import { Plus, X } from 'lucide-react'
 
 // AIDEV-NOTE: Edge customizada com botão X no hover
 function DeletableEdge({
@@ -107,8 +107,6 @@ interface FlowCanvasProps {
   onAddNodeFromSource: (type: 'acao' | 'condicao' | 'delay' | 'validacao', sourceNodeId: string, sourceHandle?: string) => void
   onDeleteEdge: (edgeId: string) => void
   onDeleteNode: (nodeId: string) => void
-  onSave: () => void
-  isSaving?: boolean
 }
 
 export function FlowCanvas({
@@ -122,8 +120,6 @@ export function FlowCanvas({
   onAddNodeFromSource,
   onDeleteEdge,
   onDeleteNode,
-  onSave,
-  isSaving,
 }: FlowCanvasProps) {
   const [addMenu, setAddMenu] = useState<{ x: number; y: number } | null>(null)
 
