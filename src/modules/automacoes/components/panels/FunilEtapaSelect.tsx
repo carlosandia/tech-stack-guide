@@ -69,9 +69,7 @@ export function FunilEtapaSelect({
           <select
             value={funilId}
             onChange={e => {
-              const val = e.target.value
-              onFunilChange(val)
-              if (onEtapaChange) onEtapaChange('')
+              onFunilChange(e.target.value)
             }}
             onMouseDown={e => e.stopPropagation()}
             className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"

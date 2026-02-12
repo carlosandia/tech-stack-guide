@@ -356,9 +356,9 @@ function CamposContextuais({ tipo, data, onUpdate }: { tipo: string; data: Recor
           <FunilEtapaSelect
             funilId={config.funil_id || ''}
             etapaId={config.etapa_id || ''}
-            onFunilChange={id => updateConfig({ funil_id: id })}
-            onEtapaChange={id => updateConfig({ etapa_id: id })}
-            labelEtapa="Etapa destino"
+            onFunilChange={id => updateConfig({ funil_id: id, etapa_id: '' })}
+             onEtapaChange={id => updateConfig({ etapa_id: id })}
+             labelEtapa="Etapa destino"
           />
         </div>
       )
@@ -393,9 +393,9 @@ function CamposContextuais({ tipo, data, onUpdate }: { tipo: string; data: Recor
           <FunilEtapaSelect
             funilId={config.funil_id || ''}
             etapaId={config.etapa_id || ''}
-            onFunilChange={id => updateConfig({ funil_id: id })}
-            onEtapaChange={id => updateConfig({ etapa_id: id })}
-            labelEtapa="Etapa inicial (opcional)"
+            onFunilChange={id => updateConfig({ funil_id: id, etapa_id: '' })}
+             onEtapaChange={id => updateConfig({ etapa_id: id })}
+             labelEtapa="Etapa inicial (opcional)"
           />
           <div>
             <label className="text-xs font-medium text-muted-foreground">Valor (R$)</label>
@@ -494,7 +494,7 @@ function CamposContextuais({ tipo, data, onUpdate }: { tipo: string; data: Recor
           </p>
           <FunilEtapaSelect
             funilId={config.funil_id || ''}
-            onFunilChange={id => updateConfig({ funil_id: id })}
+            onFunilChange={id => updateConfig({ funil_id: id, etapa_id: '' })}
             mostrarEtapa={false}
             labelFunil="Funil de referência"
           />
