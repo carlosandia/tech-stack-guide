@@ -4,7 +4,7 @@
  * Rota: /app/automacoes (acesso direto pelo header)
  */
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { useAuth } from '@/providers/AuthProvider'
 import { useAppToolbar } from '@/modules/app/contexts/AppToolbarContext'
@@ -47,6 +47,32 @@ export function AutomacoesPage() {
     addNodeFromSource,
   } = useFlowState()
 
+  // AIDEV-NOTE: Auto-save com debounce — persiste no banco automaticamente
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const nodesRef = useRef(nodes)
+  nodesRef.current = nodes
+  const edgesRef = useRef(edges)
+  edgesRef.current = edges
+  const initialLoadRef = useRef(true)
+
+  useEffect(() => {
+    if (!selectedAutoId) return
+    if (nodes.length < 1) return
+    // Pular o primeiro render após carregar automação (evita salvar estado que acabou de carregar)
+    if (initialLoadRef.current) {
+      initialLoadRef.current = false
+      return
+    }
+
+    clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(() => {
+      const payload = flowToAutomacao(nodesRef.current, edgesRef.current)
+      atualizarMutation.mutate({ id: selectedAutoId, payload, silent: true })
+    }, 1000)
+
+    return () => clearTimeout(saveTimerRef.current)
+  }, [nodes, edges, selectedAutoId])
+
   // Set toolbar
   useEffect(() => {
     setSubtitle(
@@ -62,6 +88,7 @@ export function AutomacoesPage() {
   const handleSelectAutomacao = useCallback((id: string) => {
     setSelectedAutoId(id)
     setSelectedNodeId(null)
+    initialLoadRef.current = true
     const auto = automacoes?.find(a => a.id === id)
     if (auto) {
       const { nodes: flowNodes, edges: flowEdges } = automacaoToFlow(auto)
@@ -81,6 +108,7 @@ export function AutomacoesPage() {
       acoes: [{ tipo: 'criar_notificacao', config: {} }],
     }, {
       onSuccess: (data) => {
+        initialLoadRef.current = true
         setSelectedAutoId(data.id)
         const { nodes: flowNodes, edges: flowEdges } = automacaoToFlow(data)
         setNodes(flowNodes)

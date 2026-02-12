@@ -50,10 +50,13 @@ export function useAtualizarAutomacao() {
         condicoes: Condicao[]
         acoes: Acao[]
       }>
+      silent?: boolean
     }) => api.atualizarAutomacao(id, payload),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       qc.invalidateQueries({ queryKey: QUERY_KEY })
-      toast.success('Automação atualizada')
+      if (!variables.silent) {
+        toast.success('Automação atualizada')
+      }
     },
     onError: () => toast.error('Erro ao atualizar automação'),
   })

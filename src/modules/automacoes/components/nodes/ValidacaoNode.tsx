@@ -5,7 +5,7 @@
 
 import { memo } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { ShieldCheck, Trash2 } from 'lucide-react'
+import { ShieldCheck, Trash2, Check, X } from 'lucide-react'
 import { VALIDACAO_OPERADORES } from '../../schemas/automacoes.schema'
 import { AddNodeButton } from './AddNodeButton'
 
@@ -74,26 +74,32 @@ export const ValidacaoNode = memo(({ id, data, selected }: NodeProps) => {
           )}
         </div>
 
-        {/* Labels de saída à direita */}
-        <div className="absolute right-0 top-0 bottom-0 flex flex-col justify-around pr-1">
-          <span className="text-[10px] font-medium text-green-600 translate-x-5">Match</span>
-          <span className="text-[10px] font-medium text-red-500 translate-x-5">Nenhuma</span>
+        {/* Handles de saída com ícones Check/X */}
+        <Handle
+          type="source"
+          position={Position.Right}
+          id="match"
+          className="!w-0 !h-0 !bg-transparent !border-0 !-right-1.5"
+          style={{ top: '35%' }}
+        />
+        <div className="absolute pointer-events-none" style={{ top: '35%', right: -10, transform: 'translateY(-50%)' }}>
+          <div className="w-5 h-5 rounded-full bg-green-500 border-2 border-white flex items-center justify-center shadow-sm">
+            <Check className="w-3 h-3 text-white" />
+          </div>
         </div>
 
         <Handle
           type="source"
           position={Position.Right}
-          id="match"
-          className="!w-3 !h-3 !bg-green-500 !border-2 !border-white !-right-1.5"
-          style={{ top: '35%' }}
-        />
-        <Handle
-          type="source"
-          position={Position.Right}
           id="nenhuma"
-          className="!w-3 !h-3 !bg-red-500 !border-2 !border-white !-right-1.5"
+          className="!w-0 !h-0 !bg-transparent !border-0 !-right-1.5"
           style={{ top: '65%' }}
         />
+        <div className="absolute pointer-events-none" style={{ top: '65%', right: -10, transform: 'translateY(-50%)' }}>
+          <div className="w-5 h-5 rounded-full bg-red-500 border-2 border-white flex items-center justify-center shadow-sm">
+            <X className="w-3 h-3 text-white" />
+          </div>
+        </div>
       </div>
 
       {/* Botões + para cada branch à direita */}
