@@ -31,7 +31,7 @@ import { AcaoNode } from './nodes/AcaoNode'
 import { DelayNode } from './nodes/DelayNode'
 import { ValidacaoNode } from './nodes/ValidacaoNode'
 import { AddNodeMenu } from './AddNodeMenu'
-import { Plus, Save, Loader2, X } from 'lucide-react'
+import { Plus, X } from 'lucide-react'
 
 // AIDEV-NOTE: Edge customizada com botão X no hover
 function DeletableEdge({
@@ -107,8 +107,6 @@ interface FlowCanvasProps {
   onAddNodeFromSource: (type: 'acao' | 'condicao' | 'delay' | 'validacao', sourceNodeId: string, sourceHandle?: string) => void
   onDeleteEdge: (edgeId: string) => void
   onDeleteNode: (nodeId: string) => void
-  onSave: () => void
-  isSaving?: boolean
 }
 
 export function FlowCanvas({
@@ -122,8 +120,6 @@ export function FlowCanvas({
   onAddNodeFromSource,
   onDeleteEdge,
   onDeleteNode,
-  onSave,
-  isSaving,
 }: FlowCanvasProps) {
   const [addMenu, setAddMenu] = useState<{ x: number; y: number } | null>(null)
 
@@ -222,14 +218,6 @@ export function FlowCanvas({
           >
             <Plus className="w-4 h-4" />
             Adicionar
-          </button>
-          <button
-            onClick={onSave}
-            disabled={isSaving}
-            className="flex items-center gap-1.5 px-3 py-2 bg-primary text-primary-foreground rounded-lg shadow-sm text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
-          >
-            {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            Salvar
           </button>
         </Panel>
       </ReactFlow>

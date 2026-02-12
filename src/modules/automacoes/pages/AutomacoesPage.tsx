@@ -14,7 +14,7 @@ import { FlowCanvas } from '../components/FlowCanvas'
 import { NodeConfigPanel } from '../components/panels/NodeConfigPanel'
 import { useFlowState } from '../hooks/useFlowState'
 import { automacaoToFlow, flowToAutomacao } from '../utils/flowConverter'
-import { toast } from 'sonner'
+
 import { Zap } from 'lucide-react'
 
 export function AutomacoesPage() {
@@ -118,14 +118,7 @@ export function AutomacoesPage() {
   }, [isAdmin, automacoes, criarMutation, setNodes, setEdges])
 
   // Save flow back to DB
-  const handleSave = useCallback(() => {
-    if (!selectedAutoId) {
-      toast.error('Selecione uma automação para salvar')
-      return
-    }
-    const payload = flowToAutomacao(nodes, edges)
-    atualizarMutation.mutate({ id: selectedAutoId, payload })
-  }, [selectedAutoId, nodes, edges, atualizarMutation])
+  // AIDEV-NOTE: Save manual removido — auto-save com debounce ativo
 
   // Rename automacao
   const handleRename = useCallback((id: string, nome: string) => {
@@ -198,8 +191,6 @@ export function AutomacoesPage() {
               onAddNodeFromSource={addNodeFromSource}
               onDeleteEdge={handleDeleteEdge}
               onDeleteNode={deleteNode}
-              onSave={handleSave}
-              isSaving={atualizarMutation.isPending}
             />
           </ReactFlowProvider>
         )}
