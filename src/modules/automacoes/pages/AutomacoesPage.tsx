@@ -198,8 +198,6 @@ export function AutomacoesPage() {
               onAddNodeFromSource={addNodeFromSource}
               onDeleteEdge={handleDeleteEdge}
               onDeleteNode={deleteNode}
-              onSave={handleSave}
-              isSaving={atualizarMutation.isPending}
             />
           </ReactFlowProvider>
         )}

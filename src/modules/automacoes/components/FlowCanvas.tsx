@@ -219,14 +219,6 @@ export function FlowCanvas({
             <Plus className="w-4 h-4" />
             Adicionar
           </button>
-          <button
-            onClick={onSave}
-            disabled={isSaving}
-            className="flex items-center gap-1.5 px-3 py-2 bg-primary text-primary-foreground rounded-lg shadow-sm text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
-          >
-            {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            Salvar
-          </button>
         </Panel>
       </ReactFlow>
 
