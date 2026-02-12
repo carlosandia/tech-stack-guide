@@ -406,7 +406,7 @@ export function FormularioEditorPage() {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-3">
         <p className="text-sm text-muted-foreground">Formulário não encontrado</p>
-        <Button variant="outline" size="sm" onClick={() => navigate('/app/formularios')}>
+        <Button variant="outline" size="sm" onClick={() => navigate('/formularios')}>
           Voltar
         </Button>
       </div>

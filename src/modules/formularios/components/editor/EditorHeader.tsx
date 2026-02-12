@@ -34,7 +34,7 @@ export function EditorHeader({ formulario, tabs, activeTab, onTabChange }: Props
     <div className="flex items-center border-b border-border bg-card px-4 py-1.5 gap-4 min-h-[44px]">
       {/* Left: Back + Name + Badges */}
       <div className="flex items-center gap-2 min-w-0 shrink-0">
-        <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0" onClick={() => navigate('/app/formularios')}>
+        <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0" onClick={() => navigate('/formularios')}>
           <ArrowLeft className="w-4 h-4" />
         </Button>
         <h1 className="text-sm font-semibold text-foreground truncate">{formulario.nome}</h1>

@@ -201,7 +201,7 @@ export function ContatosPage() {
     setSubtitle(
       <div className="flex items-center gap-1">
         <button
-          onClick={() => navigate('/app/contatos/pessoas')}
+          onClick={() => navigate('/contatos/pessoas')}
           className={`flex items-center gap-1.5 px-2.5 py-1 text-sm font-medium rounded-md transition-all duration-200 whitespace-nowrap ${
             tipo === 'pessoa'
               ? 'border border-primary/40 bg-primary/5 text-primary'
@@ -215,7 +215,7 @@ export function ContatosPage() {
           )}
         </button>
         <button
-          onClick={() => navigate('/app/contatos/empresas')}
+          onClick={() => navigate('/contatos/empresas')}
           className={`flex items-center gap-1.5 px-2.5 py-1 text-sm font-medium rounded-md transition-all duration-200 whitespace-nowrap ${
             tipo === 'empresa'
               ? 'border border-primary/40 bg-primary/5 text-primary'

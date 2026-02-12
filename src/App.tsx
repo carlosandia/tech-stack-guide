@@ -34,7 +34,7 @@ import { EmailsPage } from '@/modules/emails'
  * /redefinir-senha - Redefinicao de senha
  *
  * Rotas protegidas:
- * /app/* - CRM (Admin e Member) com AppLayout
+ * /* - CRM (Admin e Member) com AppLayout (sem prefixo /app)
  * /admin/* - Super Admin
  */
 
@@ -67,31 +67,30 @@ function App() {
        <Route path="/redefinir-senha" element={<ResetPasswordPage />} />
        <Route path="/auth/set-password" element={<SetPasswordPage />} />
 
-      {/* Rotas do CRM (Admin/Member) com AppLayout */}
+      {/* Rotas do CRM (Admin/Member) com AppLayout - sem prefixo /app */}
       <Route
-        path="/app"
         element={
           isAuthenticated && (role === 'admin' || role === 'member')
             ? <AppLayout />
             : <Navigate to="/login" replace />
         }
       >
-        <Route index element={<AppDashboardPage />} />
-        <Route path="contatos" element={<ContatosPage />} />
-        <Route path="contatos/:tipo" element={<ContatosPage />} />
-        <Route path="negocios" element={<NegociosPage />} />
-        <Route path="negocios/pipeline/:id" element={<PipelineConfigPage />} />
-        <Route path="tarefas" element={<TarefasPage />} />
-        <Route path="conversas" element={<ConversasPage />} />
-        <Route path="emails" element={<EmailsPage />} />
-        <Route path="formularios" element={<FormulariosPage />} />
-        <Route path="formularios/:id" element={<FormularioEditorPage />} />
-        <Route path="automacoes" element={<AutomacoesPage />} />
+        <Route path="/dashboard" element={<AppDashboardPage />} />
+        <Route path="/contatos" element={<ContatosPage />} />
+        <Route path="/contatos/:tipo" element={<ContatosPage />} />
+        <Route path="/negocios" element={<NegociosPage />} />
+        <Route path="/negocios/pipeline/:id" element={<PipelineConfigPage />} />
+        <Route path="/tarefas" element={<TarefasPage />} />
+        <Route path="/conversas" element={<ConversasPage />} />
+        <Route path="/emails" element={<EmailsPage />} />
+        <Route path="/formularios" element={<FormulariosPage />} />
+        <Route path="/formularios/:id" element={<FormularioEditorPage />} />
+        <Route path="/automacoes" element={<AutomacoesPage />} />
       </Route>
 
       {/* Configuracoes - PRD-05 (layout próprio com header/toolbar) */}
       <Route
-        path="/app/configuracoes"
+        path="/configuracoes"
         element={
           isAuthenticated && (role === 'admin' || role === 'member')
             ? <ConfiguracoesLayout />
@@ -141,7 +140,7 @@ function App() {
         isAuthenticated
           ? role === 'super_admin'
             ? <Navigate to="/admin" replace />
-            : <Navigate to="/app" replace />
+            : <Navigate to="/dashboard" replace />
           : <Navigate to="/login" replace />
       } />
 

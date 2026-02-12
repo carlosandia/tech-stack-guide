@@ -41,7 +41,7 @@ export const sidebarGroups: SidebarGroup[] = [
     label: 'Geral',
     adminOnly: true,
     items: [
-      { label: 'Config Geral', path: '/app/configuracoes/config-geral', icon: Settings, adminOnly: true },
+      { label: 'Config Geral', path: '/configuracoes/config-geral', icon: Settings, adminOnly: true },
     ],
   },
   {
@@ -49,10 +49,10 @@ export const sidebarGroups: SidebarGroup[] = [
     label: 'Equipe',
     adminOnly: true,
     items: [
-      { label: 'Membros', path: '/app/configuracoes/membros', icon: Users },
-      { label: 'Equipes', path: '/app/configuracoes/equipes', icon: Users },
-      { label: 'Perfis', path: '/app/configuracoes/perfis', icon: Users },
-      { label: 'Metas', path: '/app/configuracoes/metas', icon: Target },
+      { label: 'Membros', path: '/configuracoes/membros', icon: Users },
+      { label: 'Equipes', path: '/configuracoes/equipes', icon: Users },
+      { label: 'Perfis', path: '/configuracoes/perfis', icon: Users },
+      { label: 'Metas', path: '/configuracoes/metas', icon: Target },
     ],
   },
   {
@@ -60,9 +60,9 @@ export const sidebarGroups: SidebarGroup[] = [
     label: 'Conexões',
     adminOnly: true,
     items: [
-      { label: 'Conexões', path: '/app/configuracoes/conexoes', icon: Plug },
-      { label: 'Webhooks Entrada', path: '/app/configuracoes/webhooks-entrada', icon: ArrowDownToLine },
-      { label: 'Webhooks Saída', path: '/app/configuracoes/webhooks-saida', icon: Send },
+      { label: 'Conexões', path: '/configuracoes/conexoes', icon: Plug },
+      { label: 'Webhooks Entrada', path: '/configuracoes/webhooks-entrada', icon: ArrowDownToLine },
+      { label: 'Webhooks Saída', path: '/configuracoes/webhooks-saida', icon: Send },
     ],
   },
   {
@@ -70,21 +70,21 @@ export const sidebarGroups: SidebarGroup[] = [
     label: 'Pipeline',
     adminOnly: false,
     items: [
-      { label: 'Campos', path: '/app/configuracoes/campos', icon: Settings2 },
-      { label: 'Produtos', path: '/app/configuracoes/produtos', icon: Package },
-      { label: 'Motivos', path: '/app/configuracoes/motivos', icon: Flag },
-      { label: 'Tarefas', path: '/app/configuracoes/tarefas', icon: ListChecks },
-      { label: 'Etapas', path: '/app/configuracoes/etapas', icon: Layers },
-      { label: 'Qualificação', path: '/app/configuracoes/regras', icon: Scale },
-      { label: 'Cards', path: '/app/configuracoes/cards', icon: LayoutGrid, adminOnly: true },
+      { label: 'Campos', path: '/configuracoes/campos', icon: Settings2 },
+      { label: 'Produtos', path: '/configuracoes/produtos', icon: Package },
+      { label: 'Motivos', path: '/configuracoes/motivos', icon: Flag },
+      { label: 'Tarefas', path: '/configuracoes/tarefas', icon: ListChecks },
+      { label: 'Etapas', path: '/configuracoes/etapas', icon: Layers },
+      { label: 'Qualificação', path: '/configuracoes/regras', icon: Scale },
+      { label: 'Cards', path: '/configuracoes/cards', icon: LayoutGrid, adminOnly: true },
     ],
   },
 ]
 
 /** Mapeamento de títulos de página (quando diferente do label do menu) */
 const pageTitleOverrides: Record<string, string> = {
-  '/app/configuracoes/regras': 'Regras de Qualificação',
-  '/app/configuracoes/cards': 'Cards da Oportunidade',
+  '/configuracoes/regras': 'Regras de Qualificação',
+  '/configuracoes/cards': 'Cards da Oportunidade',
 }
 
 /** Retorna o título da página com base no pathname */

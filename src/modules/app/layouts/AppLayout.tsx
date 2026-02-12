@@ -33,43 +33,43 @@ import {
 const menuItems = [
   {
     label: 'Dashboard',
-    path: '/app',
+    path: '/dashboard',
     icon: LayoutDashboard,
     exact: true,
   },
   {
     label: 'Contatos',
-    path: '/app/contatos',
+    path: '/contatos',
     icon: Users,
   },
   {
     label: 'Negócios',
-    path: '/app/negocios',
+    path: '/negocios',
     icon: Briefcase,
   },
   {
     label: 'Conversas',
-    path: '/app/conversas',
+    path: '/conversas',
     icon: MessageSquare,
   },
   {
     label: 'Emails',
-    path: '/app/emails',
+    path: '/emails',
     icon: Mail,
   },
   {
     label: 'Tarefas',
-    path: '/app/tarefas',
+    path: '/tarefas',
     icon: CheckSquare,
   },
   {
     label: 'Formulários',
-    path: '/app/formularios',
+    path: '/formularios',
     icon: FileText,
   },
   {
     label: 'Automações',
-    path: '/app/automacoes',
+    path: '/automacoes',
     icon: Zap,
   },
 ]
@@ -107,24 +107,24 @@ function NavItem({
 }
 
 function getPageTitle(pathname: string): string {
-  if (pathname === '/app') return 'Dashboard'
-  if (pathname.startsWith('/app/contatos')) return 'Contatos'
-  if (pathname.startsWith('/app/negocios')) return 'Negócios'
-  if (pathname.startsWith('/app/conversas')) return 'Conversas'
-  if (pathname.startsWith('/app/emails')) return 'Emails'
-  if (pathname.startsWith('/app/tarefas')) return 'Tarefas'
-  if (pathname.startsWith('/app/configuracoes')) return 'Configurações'
-  if (pathname.startsWith('/app/formularios')) return 'Formulários'
-  if (pathname.startsWith('/app/automacoes')) return 'Automações'
+  if (pathname === '/dashboard') return 'Dashboard'
+  if (pathname.startsWith('/contatos')) return 'Contatos'
+  if (pathname.startsWith('/negocios')) return 'Negócios'
+  if (pathname.startsWith('/conversas')) return 'Conversas'
+  if (pathname.startsWith('/emails')) return 'Emails'
+  if (pathname.startsWith('/tarefas')) return 'Tarefas'
+  if (pathname.startsWith('/configuracoes')) return 'Configurações'
+  if (pathname.startsWith('/formularios')) return 'Formulários'
+  if (pathname.startsWith('/automacoes')) return 'Automações'
   return 'CRM'
 }
 
 function isFormularioEditorRoute(pathname: string): boolean {
-  return /^\/app\/formularios\/[^/]+$/.test(pathname)
+  return /^\/formularios\/[^/]+$/.test(pathname)
 }
 
 function isPipelineConfigRoute(pathname: string): boolean {
-  return /^\/app\/negocios\/pipeline\/[^/]+$/.test(pathname)
+  return /^\/negocios\/pipeline\/[^/]+$/.test(pathname)
 }
 
 function AppLayoutInner() {
@@ -205,7 +205,7 @@ function AppLayoutInner() {
           {/* Configurações link — admin only in mobile drawer */}
           {isAdmin && (
             <NavLink
-              to="/app/configuracoes"
+              to="/configuracoes"
               onClick={() => setDrawerOpen(false)}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200 ${
@@ -272,7 +272,7 @@ function AppLayoutInner() {
               {/* Settings gear icon — admin only */}
               {isAdmin && (
                 <NavLink
-                  to="/app/configuracoes"
+                  to="/configuracoes"
                   className={({ isActive }) =>
                     `p-2 rounded-md transition-colors ${
                       isActive

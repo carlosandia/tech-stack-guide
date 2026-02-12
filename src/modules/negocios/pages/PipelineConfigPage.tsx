@@ -57,7 +57,7 @@ export default function PipelineConfigPage() {
         <div className="text-center">
           <p className="text-sm text-muted-foreground mb-4">Pipeline não encontrada</p>
           <button
-            onClick={() => navigate('/app/negocios')}
+            onClick={() => navigate('/negocios')}
             className="text-sm text-primary hover:underline"
           >
             Voltar para Negócios
@@ -91,7 +91,7 @@ export default function PipelineConfigPage() {
       {/* Header */}
       <header className="h-14 border-b border-border bg-card flex items-center px-4 gap-3 flex-shrink-0">
         <button
-          onClick={() => navigate('/app/negocios')}
+          onClick={() => navigate('/negocios')}
           className="p-2 rounded-md hover:bg-accent text-muted-foreground transition-all duration-200"
           title="Voltar"
         >
