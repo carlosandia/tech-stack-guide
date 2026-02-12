@@ -1,10 +1,10 @@
 /**
  * AIDEV-NOTE: Painel lateral com lista de automações existentes
- * Inclui busca, toggle ativo/inativo, e botão "Nova Automação"
+ * Inclui busca, toggle ativo/inativo, edição inline do nome, e botão excluir
  */
 
-import { useState } from 'react'
-import { Plus, Search, Zap, Loader2 } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { Plus, Search, Zap, Loader2, Trash2 } from 'lucide-react'
 import type { Automacao } from '../schemas/automacoes.schema'
 
 interface AutomacaoSidebarProps {
@@ -14,6 +14,8 @@ interface AutomacaoSidebarProps {
   onSelect: (id: string) => void
   onNew: () => void
   onToggle: (id: string, ativo: boolean) => void
+  onRename: (id: string, nome: string) => void
+  onDelete: (id: string) => void
   isAdmin: boolean
 }
 
@@ -24,13 +26,46 @@ export function AutomacaoSidebar({
   onSelect,
   onNew,
   onToggle,
+  onRename,
+  onDelete,
   isAdmin,
 }: AutomacaoSidebarProps) {
   const [busca, setBusca] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editValue, setEditValue] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const filtradas = automacoes.filter(a =>
     a.nome.toLowerCase().includes(busca.toLowerCase())
   )
+
+  useEffect(() => {
+    if (editingId && inputRef.current) {
+      inputRef.current.focus()
+      inputRef.current.select()
+    }
+  }, [editingId])
+
+  const handleStartEdit = (e: React.MouseEvent, a: Automacao) => {
+    e.stopPropagation()
+    setEditingId(a.id)
+    setEditValue(a.nome)
+  }
+
+  const handleFinishEdit = (id: string) => {
+    const trimmed = editValue.trim()
+    if (trimmed && trimmed !== automacoes.find(a => a.id === id)?.nome) {
+      onRename(id, trimmed)
+    }
+    setEditingId(null)
+  }
+
+  const handleDeleteClick = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation()
+    if (window.confirm('Tem certeza que deseja excluir esta automação?')) {
+      onDelete(id)
+    }
+  }
 
   return (
     <aside className="w-60 flex-shrink-0 bg-white border-r border-border flex flex-col h-full">
@@ -92,20 +127,52 @@ export function AutomacaoSidebar({
               `}
             >
               <div className="flex items-center justify-between">
-                <span className="font-medium truncate flex-1">{a.nome}</span>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onToggle(a.id, !a.ativo) }}
-                  className={`
-                    ml-2 w-8 h-4 rounded-full relative transition-colors flex-shrink-0
-                    ${a.ativo ? 'bg-green-500' : 'bg-muted-foreground/30'}
-                  `}
-                  title={a.ativo ? 'Desativar' : 'Ativar'}
-                >
-                  <div className={`
-                    absolute top-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform
-                    ${a.ativo ? 'left-4' : 'left-0.5'}
-                  `} />
-                </button>
+                {editingId === a.id ? (
+                  <input
+                    ref={inputRef}
+                    value={editValue}
+                    onChange={e => setEditValue(e.target.value)}
+                    onBlur={() => handleFinishEdit(a.id)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') handleFinishEdit(a.id)
+                      if (e.key === 'Escape') setEditingId(null)
+                    }}
+                    onClick={e => e.stopPropagation()}
+                    className="font-medium truncate flex-1 bg-white border border-primary rounded px-1.5 py-0.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                ) : (
+                  <span
+                    className="font-medium truncate flex-1 cursor-text hover:underline decoration-dotted underline-offset-2"
+                    onClick={e => handleStartEdit(e, a)}
+                    title="Clique para renomear"
+                  >
+                    {a.nome}
+                  </span>
+                )}
+                <div className="flex items-center gap-1 ml-1">
+                  {isAdmin && (
+                    <button
+                      onClick={(e) => handleDeleteClick(e, a.id)}
+                      className="p-0.5 rounded opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all"
+                      title="Excluir"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onToggle(a.id, !a.ativo) }}
+                    className={`
+                      w-8 h-4 rounded-full relative transition-colors flex-shrink-0
+                      ${a.ativo ? 'bg-green-500' : 'bg-muted-foreground/30'}
+                    `}
+                    title={a.ativo ? 'Desativar' : 'Ativar'}
+                  >
+                    <div className={`
+                      absolute top-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform
+                      ${a.ativo ? 'left-4' : 'left-0.5'}
+                    `} />
+                  </button>
+                </div>
               </div>
               {a.descricao && (
                 <p className="text-xs text-muted-foreground mt-0.5 truncate">{a.descricao}</p>

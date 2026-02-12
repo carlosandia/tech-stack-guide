@@ -5,13 +5,14 @@
 
 import { memo } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { ShieldCheck } from 'lucide-react'
+import { ShieldCheck, Trash2 } from 'lucide-react'
 import { VALIDACAO_OPERADORES } from '../../schemas/automacoes.schema'
 import { AddNodeButton } from './AddNodeButton'
 
 export interface ValidacaoNodeData {
   condicoes?: Array<{ operador?: string; tipo_conteudo?: string; valor?: string }>
   onAddNode?: (type: 'acao' | 'condicao' | 'delay' | 'validacao', sourceNodeId: string, sourceHandle?: string) => void
+  onDeleteNode?: (nodeId: string) => void
   [key: string]: unknown
 }
 
@@ -23,15 +24,29 @@ export const ValidacaoNode = memo(({ id, data, selected }: NodeProps) => {
     ? VALIDACAO_OPERADORES.find(o => o.value === primeiraCondicao.operador)
     : null
 
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    nodeData.onDeleteNode?.(id)
+  }
+
   return (
-    <div className="flex flex-col items-center">
+    <div className="flex flex-col items-center group/node">
       <div
         className={`
-          bg-white rounded-lg border-2 shadow-sm min-w-[220px] max-w-[280px]
+          relative bg-white rounded-lg border-2 shadow-sm min-w-[220px] max-w-[280px]
           transition-all duration-200 cursor-pointer
           ${selected ? 'ring-2 ring-violet-500 shadow-md border-violet-500' : 'border-violet-400/60 hover:shadow-md hover:border-violet-500'}
         `}
       >
+        {/* Botão excluir */}
+        <button
+          onClick={handleDelete}
+          className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-white border border-border shadow-sm flex items-center justify-center opacity-0 group-hover/node:opacity-100 hover:bg-destructive hover:border-destructive hover:text-white text-muted-foreground transition-all duration-200 z-10"
+          title="Excluir nó"
+        >
+          <Trash2 className="w-3 h-3" />
+        </button>
+
         {/* Handle de entrada */}
         <Handle
           type="target"

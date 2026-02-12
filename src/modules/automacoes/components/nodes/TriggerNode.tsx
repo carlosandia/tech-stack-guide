@@ -1,11 +1,11 @@
 /**
  * AIDEV-NOTE: Nó customizado de Trigger para o canvas React Flow
- * Primeiro nó do fluxo, não removível. Borda primary.
+ * Primeiro nó do fluxo. Borda primary. Botão de excluir visível no hover.
  */
 
 import { memo } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { Zap } from 'lucide-react'
+import { Zap, Trash2 } from 'lucide-react'
 import { TRIGGER_TIPOS } from '../../schemas/automacoes.schema'
 import { AddNodeButton } from './AddNodeButton'
 
@@ -13,6 +13,7 @@ export interface TriggerNodeData {
   trigger_tipo?: string
   trigger_config?: Record<string, unknown>
   onAddNode?: (type: 'acao' | 'condicao' | 'delay' | 'validacao', sourceNodeId: string, sourceHandle?: string) => void
+  onDeleteNode?: (nodeId: string) => void
   [key: string]: unknown
 }
 
@@ -20,15 +21,29 @@ export const TriggerNode = memo(({ id, data, selected }: NodeProps) => {
   const nodeData = data as TriggerNodeData
   const triggerInfo = TRIGGER_TIPOS.find(t => t.tipo === nodeData.trigger_tipo)
 
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    nodeData.onDeleteNode?.(id)
+  }
+
   return (
-    <div className="flex flex-col items-center">
+    <div className="flex flex-col items-center group/node">
       <div
         className={`
-          bg-white rounded-lg border-2 shadow-sm min-w-[220px] max-w-[280px]
+          relative bg-white rounded-lg border-2 shadow-sm min-w-[220px] max-w-[280px]
           transition-all duration-200 cursor-pointer
           ${selected ? 'ring-2 ring-primary shadow-md border-primary' : 'border-primary/60 hover:shadow-md hover:border-primary'}
         `}
       >
+        {/* Botão excluir */}
+        <button
+          onClick={handleDelete}
+          className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-white border border-border shadow-sm flex items-center justify-center opacity-0 group-hover/node:opacity-100 hover:bg-destructive hover:border-destructive hover:text-white text-muted-foreground transition-all duration-200 z-10"
+          title="Excluir nó"
+        >
+          <Trash2 className="w-3 h-3" />
+        </button>
+
         {/* Header */}
         <div className="flex items-center gap-2 px-4 py-3 border-b border-border/50 bg-primary/5 rounded-t-lg">
           <div className="w-7 h-7 rounded-md bg-primary/10 flex items-center justify-center">
