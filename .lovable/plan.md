@@ -1,29 +1,32 @@
-# Auditoria Final: Gaps entre PRD e Implementacao — STATUS
 
-## Blocos Implementados
 
-### ✅ Bloco A — Correcoes Criticas (Gaps 4, 2) — CONCLUÍDO
-- `flowConverter.ts`: Corrigido para mapear TODAS as regras AND via `flatMap`
-- Edge Functions: Delay agendado agora usa `data_agendada + hora_agendada` ou `dia_semana + horario`
+# Plano: GAP 9 — Campos Customizados Dinamicos nas Acoes de Automacao
 
-### ✅ Bloco B — Features Frontend (Gaps 1, 6, 3) — CONCLUÍDO
-- `AcaoConfig.tsx`: WhatsApp com select de mídia (texto/imagem/áudio/documento) + campo `midia_url`
-- `TriggerConfig.tsx`: Campos extras para `campo_contato_alterado` (campo monitorado + valor esperado)
-- `DelayConfig.tsx`: Sub-modo "Dia da semana" com select segunda-domingo + horário
+## Status dos GAPs
 
-### ✅ Bloco C — Backend Complementar (Gaps 1, 3, 7) — CONCLUÍDO
-- Edge Functions: `enviar_whatsapp` com suporte a `send-image`/`send-file` via WAHA
-- Edge Functions: `aguardar` com cálculo de próximo dia da semana
-- Migration SQL: Trigger `trg_emitir_evento_email_recebido` na tabela `emails_recebidos`
+- **GAP 5 (Validacao com branching):** JA CORRIGIDO. O `flowConverter.ts` faz traversal por edges com `match_acoes`/`nenhuma_acoes`, e as Edge Functions possuem o case `validacao` com `avaliarValidacao`.
+- **GAP 9 (Campos customizados dinamicos):** PENDENTE. Os cases `atualizar_campo_contato` e `atualizar_campo_oportunidade` no `AcaoConfig.tsx` usam inputs de texto livre para "Nome do campo" em vez de carregar campos reais do banco.
 
-### ✅ Bloco D — Melhoria UX (Gaps 8, 9 parcial) — CONCLUÍDO
-- `AcaoConfig.tsx`: Checkbox "Apenas contato principal" no enviar_email
-- GAP 9 (campos customizados dinâmicos): Pendente para quando hook de campos estiver disponível
+## O que sera feito
 
-### ✅ Bloco E — Validação Backend (Gap 5) — CONCLUÍDO
-- `flowConverter.ts`: Refatorado para traversar grafo via edges, embutindo `match_acoes` e `nenhuma_acoes` no config da validação
-- `automacaoToFlow`: Reconstrução recursiva de branches a partir do DB
-- `processar-eventos-automacao`: Case `validacao` com avaliação de `ultima_resposta` (regex, contém, formato, faixa numérica) e execução do branch correto
-- `processar-delays-automacao`: Mesma lógica + suporte a `branch_acoes_restantes` no contexto de delays
+### Arquivo: `src/modules/automacoes/components/panels/AcaoConfig.tsx`
 
-## Todos os GAPs Resolvidos ✅
+**Alteracao no case `atualizar_campo_contato` / `atualizar_campo_oportunidade` (linhas 218-231):**
+
+1. Importar o hook `useCampos` de `@/modules/configuracoes/hooks/useCampos`
+2. Substituir o input de texto livre "Nome do campo" por um `<select>` que carrega os campos customizados da entidade correspondente:
+   - `atualizar_campo_contato` carrega `useCampos('pessoa')`
+   - `atualizar_campo_oportunidade` carrega `useCampos('oportunidade')`
+3. Cada opcao do select exibe `campo.nome` e salva `campo.slug` no `config.campo`
+4. Manter o input de "Novo valor" com suporte a variaveis dinamicas (adicionar `VariavelInserter`)
+
+### Detalhes Tecnicos
+
+- O hook `useCampos` ja existe em `src/modules/configuracoes/hooks/useCampos.ts` e retorna `{ campos: CampoCustomizado[], total: number }`
+- O `CamposContextuais` e uma funcao interna (nao componente top-level), entao precisaremos chamar o hook no componente pai (`AcaoConfig`) e passar os dados via props, ou extrair o case para um sub-componente
+- Abordagem: Criar um sub-componente `CamposDinamicos` que usa o hook internamente, respeitando as regras de hooks do React
+
+### Resultado esperado
+
+Em vez de digitar manualmente o nome do campo, o usuario vera um dropdown com todos os campos cadastrados (sistema + customizados) para a entidade correta, com UX consistente com o resto do sistema.
+
