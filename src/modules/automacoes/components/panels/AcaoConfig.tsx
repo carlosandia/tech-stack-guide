@@ -777,8 +777,14 @@ function CamposContextuais({ tipo, data, onUpdate }: { tipo: string; data: Recor
 
 export function AcaoConfig({ data, onUpdate }: AcaoConfigProps) {
   const currentTipo = (data.tipo as string) || ''
-  // Apenas "comunicacao" expandida por padrão
-  const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set(['comunicacao']))
+
+  // AIDEV-NOTE: Auto-expandir a categoria que contém o tipo selecionado
+  const currentCategoria = ACAO_TIPOS.find(a => a.tipo === currentTipo)?.categoria
+  const [expandedCats, setExpandedCats] = useState<Set<string>>(() => {
+    const initial = new Set(['comunicacao'])
+    if (currentCategoria) initial.add(currentCategoria)
+    return initial
+  })
 
   const toggleCat = (key: string) => {
     setExpandedCats(prev => {
@@ -815,7 +821,10 @@ export function AcaoConfig({ data, onUpdate }: AcaoConfigProps) {
                 {acoes.map(a => (
                   <button
                     key={a.tipo}
-                    onClick={() => onUpdate({ ...data, tipo: a.tipo, config: a.tipo === currentTipo ? (data.config || {}) : {} })}
+                    onClick={() => {
+                      if (a.tipo === currentTipo) return // já selecionado, não reseta config
+                      onUpdate({ ...data, tipo: a.tipo, config: {} })
+                    }}
                     className={`
                       w-full text-left px-3 py-2 rounded-md text-sm transition-colors
                       ${currentTipo === a.tipo
