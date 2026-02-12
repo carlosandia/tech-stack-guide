@@ -8,7 +8,7 @@
  * Para nós sem ícone, o handle fica visível com a cor da categoria.
  */
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { Handle, Position } from '@xyflow/react'
 import { Play, GitBranch, Timer, ShieldCheck, Check, X } from 'lucide-react'
 
@@ -44,6 +44,26 @@ export function HandleWithAdd({ nodeId, handleId, color, icon, top, onAddNode }:
   const isDragging = useRef(false)
   const mouseDownPos = useRef<{ x: number; y: number } | null>(null)
   const handleRef = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  // Fechar popover ao clicar fora (global listener)
+  useEffect(() => {
+    if (!open) return
+    const onClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (menuRef.current?.contains(target)) return
+      if (handleRef.current?.contains(target)) return
+      setOpen(false)
+    }
+    // Delay to avoid catching the same click that opened it
+    const timer = setTimeout(() => {
+      window.addEventListener('mousedown', onClickOutside)
+    }, 0)
+    return () => {
+      clearTimeout(timer)
+      window.removeEventListener('mousedown', onClickOutside)
+    }
+  }, [open])
 
   const bgClass = colorMap[color] || colorMap.primary
   const hasIcon = !!icon
@@ -125,34 +145,33 @@ export function HandleWithAdd({ nodeId, handleId, color, icon, top, onAddNode }:
 
       {/* Menu dropdown */}
       {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setOpen(false) }} />
-          <div
-            className="absolute z-[9999] bg-white rounded-lg shadow-lg border border-border p-1 min-w-[150px]"
-            style={{
-              right: -170,
-              top: top || '50%',
-              transform: 'translateY(-50%)',
-            }}
-          >
-            <p className="text-[10px] font-semibold text-muted-foreground px-2.5 py-1 uppercase tracking-wider">
-              Adicionar
-            </p>
-            {options.map(opt => {
-              const Icon = opt.icon
-              return (
-                <button
-                  key={opt.type}
-                  onClick={(e) => { e.stopPropagation(); handleSelect(opt.type) }}
-                  className={`flex items-center gap-2 w-full px-2.5 py-1.5 rounded-md text-sm font-medium transition-colors ${opt.bg}`}
-                >
-                  <Icon className={`w-3.5 h-3.5 ${opt.color}`} />
-                  <span className="text-foreground">{opt.label}</span>
-                </button>
-              )
-            })}
-          </div>
-        </>
+        <div
+          ref={menuRef}
+          className="absolute z-[9999] bg-white rounded-lg shadow-lg border border-border p-1 min-w-[150px]"
+          style={{
+            right: -170,
+            top: top || '50%',
+            transform: 'translateY(-50%)',
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <p className="text-[10px] font-semibold text-muted-foreground px-2.5 py-1 uppercase tracking-wider">
+            Adicionar
+          </p>
+          {options.map(opt => {
+            const Icon = opt.icon
+            return (
+              <button
+                key={opt.type}
+                onClick={(e) => { e.stopPropagation(); handleSelect(opt.type) }}
+                className={`flex items-center gap-2 w-full px-2.5 py-1.5 rounded-md text-sm font-medium transition-colors ${opt.bg}`}
+              >
+                <Icon className={`w-3.5 h-3.5 ${opt.color}`} />
+                <span className="text-foreground">{opt.label}</span>
+              </button>
+            )
+          })}
+        </div>
       )}
     </>
   )
