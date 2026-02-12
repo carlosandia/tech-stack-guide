@@ -46,6 +46,7 @@ function DeletableEdge({
   markerEnd,
   data,
 }: EdgeProps) {
+  const [hovered, setHovered] = useState(false)
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
     sourceY,
@@ -64,17 +65,11 @@ function DeletableEdge({
         d={edgePath}
         fill="none"
         stroke="transparent"
-        strokeWidth={20}
+        strokeWidth={30}
         className="react-flow__edge-interaction"
         style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
-        onMouseEnter={(e) => {
-          const btn = e.currentTarget.parentElement?.querySelector('[data-edge-delete]') as HTMLElement
-          if (btn) btn.style.opacity = '1'
-        }}
-        onMouseLeave={(e) => {
-          const btn = e.currentTarget.parentElement?.querySelector('[data-edge-delete]') as HTMLElement
-          if (btn) btn.style.opacity = '0'
-        }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
       />
       <BaseEdge path={edgePath} markerEnd={markerEnd} style={style} />
       <EdgeLabelRenderer>
@@ -84,13 +79,12 @@ function DeletableEdge({
             transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
             pointerEvents: 'all',
           }}
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
         >
           <button
-            data-edge-delete
             onClick={() => onDeleteClick?.(id)}
-            onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
-            onMouseLeave={(e) => e.currentTarget.style.opacity = '0'}
-            style={{ opacity: 0, transition: 'opacity 200ms, background-color 200ms, border-color 200ms, color 200ms' }}
+            style={{ opacity: hovered ? 1 : 0, transition: 'opacity 200ms, background-color 200ms, border-color 200ms, color 200ms' }}
             className="w-5 h-5 rounded-full bg-white border border-border shadow-sm flex items-center justify-center hover:bg-destructive hover:border-destructive hover:text-white text-muted-foreground"
             title="Desconectar"
           >
