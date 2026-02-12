@@ -19,11 +19,12 @@ export function StatusConexao({ tipo, conexaoTipo, onConexaoTipoChange }: Status
     queryKey: ['automacao-conexao-status', tipo],
     queryFn: async () => {
       if (tipo === 'whatsapp') {
+        // AIDEV-NOTE: WhatsApp usa tabela sessoes_whatsapp, status 'connected'
         const { data } = await supabase
-          .from('integracoes')
-          .select('id, status, plataforma')
-          .eq('plataforma', 'whatsapp')
-          .eq('status', 'conectado')
+          .from('sessoes_whatsapp')
+          .select('id, status, phone_number')
+          .eq('status', 'connected')
+          .is('deletado_em', null)
           .limit(1)
         return (data && data.length > 0)
       } else {

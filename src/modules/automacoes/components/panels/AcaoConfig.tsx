@@ -4,8 +4,10 @@
  */
 
 import { ACAO_TIPOS, ACAO_CATEGORIAS, VARIAVEIS_DINAMICAS } from '../../schemas/automacoes.schema'
-import { ChevronDown, ChevronUp, ChevronRight, Variable } from 'lucide-react'
+import { ChevronDown, ChevronUp, ChevronRight, Variable, X, Search, User } from 'lucide-react'
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { supabase } from '@/integrations/supabase/client'
 import { useCampos } from '@/modules/configuracoes/hooks/useCampos'
 import type { Entidade } from '@/modules/configuracoes/services/configuracoes.api'
 import { StatusConexao } from './StatusConexao'
@@ -58,40 +60,201 @@ function VariavelInserter({ onInsert }: { onInsert: (v: string) => void }) {
   )
 }
 
+// AIDEV-NOTE: Seletor de membros com badges (multi-select)
+function MembroSelector({ selectedIds, onChange, label }: {
+  selectedIds: string[]
+  onChange: (ids: string[]) => void
+  label?: string
+}) {
+  const [search, setSearch] = useState('')
+  const { data: membros } = useQuery({
+    queryKey: ['automacao-membros-tenant'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('usuarios')
+        .select('id, nome, sobrenome, role, status')
+        .eq('status', 'ativo')
+        .is('deletado_em', null)
+        .order('nome')
+      return data || []
+    },
+    staleTime: 60_000,
+  })
+
+  const filtered = (membros || []).filter(m =>
+    !selectedIds.includes(m.id) &&
+    `${m.nome} ${m.sobrenome || ''}`.toLowerCase().includes(search.toLowerCase())
+  )
+
+  const selectedMembros = (membros || []).filter(m => selectedIds.includes(m.id))
+
+  return (
+    <div>
+      <label className="text-xs font-medium text-muted-foreground">{label || 'Responsável(is)'}</label>
+      {/* Badges dos selecionados */}
+      {selectedMembros.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mt-1.5 mb-2">
+          {selectedMembros.map(m => (
+            <span
+              key={m.id}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-primary/10 text-primary border border-primary/20"
+            >
+              <User className="w-3 h-3" />
+              {m.nome} {m.sobrenome || ''}
+              <button
+                type="button"
+                onClick={() => onChange(selectedIds.filter(id => id !== m.id))}
+                className="ml-0.5 hover:text-destructive transition-colors"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      {/* Busca */}
+      <div className="relative">
+        <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-muted-foreground" />
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Buscar membro..."
+          className="w-full pl-8 pr-3 py-2 text-sm border border-border rounded-md bg-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+        />
+      </div>
+      {/* Lista */}
+      {(search || selectedIds.length === 0) && filtered.length > 0 && (
+        <div className="mt-1 max-h-32 overflow-y-auto border border-border rounded-md bg-background">
+          {filtered.map(m => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => onChange([...selectedIds, m.id])}
+              className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent transition-colors text-left"
+            >
+              <User className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+              <span className="truncate">{m.nome} {m.sobrenome || ''}</span>
+              <span className="text-[10px] text-muted-foreground ml-auto">{m.role}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // AIDEV-NOTE: GAP 9 — Sub-componente para carregar campos dinâmicos via hook
+// Agora carrega campos de oportunidade + contato (pessoa E empresa) + customizados
 function CamposDinamicosSelect({ entidade, config, updateConfig, appendToConfig }: {
-  entidade: Entidade
+  entidade: 'oportunidade' | 'contato'
   config: Record<string, string>
   updateConfig: (patch: Record<string, string>) => void
   appendToConfig: (field: string, value: string) => void
 }) {
-  const { data, isLoading } = useCampos(entidade)
-  const campos = data?.campos || []
+  // Campos do sistema das tabelas
+  const CAMPOS_OPORTUNIDADE = [
+    { slug: 'titulo', nome: 'Título', grupo: 'Oportunidade' },
+    { slug: 'valor', nome: 'Valor', grupo: 'Oportunidade' },
+    { slug: 'tipo_valor', nome: 'Tipo de valor', grupo: 'Oportunidade' },
+    { slug: 'moeda', nome: 'Moeda', grupo: 'Oportunidade' },
+    { slug: 'previsao_fechamento', nome: 'Previsão de fechamento', grupo: 'Oportunidade' },
+    { slug: 'observacoes', nome: 'Observações', grupo: 'Oportunidade' },
+    { slug: 'utm_source', nome: 'UTM Source', grupo: 'UTM' },
+    { slug: 'utm_campaign', nome: 'UTM Campaign', grupo: 'UTM' },
+    { slug: 'utm_medium', nome: 'UTM Medium', grupo: 'UTM' },
+    { slug: 'utm_term', nome: 'UTM Term', grupo: 'UTM' },
+    { slug: 'utm_content', nome: 'UTM Content', grupo: 'UTM' },
+    { slug: 'recorrente', nome: 'Recorrente', grupo: 'Oportunidade' },
+    { slug: 'periodo_recorrencia', nome: 'Período recorrência', grupo: 'Oportunidade' },
+    { slug: 'modo_valor', nome: 'Modo valor', grupo: 'Oportunidade' },
+    { slug: 'qualificado_mql', nome: 'Qualificado MQL', grupo: 'Oportunidade' },
+    { slug: 'qualificado_sql', nome: 'Qualificado SQL', grupo: 'Oportunidade' },
+  ]
+
+  const CAMPOS_CONTATO_PESSOA = [
+    { slug: 'nome', nome: 'Nome', grupo: 'Pessoa' },
+    { slug: 'sobrenome', nome: 'Sobrenome', grupo: 'Pessoa' },
+    { slug: 'email', nome: 'Email', grupo: 'Pessoa' },
+    { slug: 'telefone', nome: 'Telefone', grupo: 'Pessoa' },
+    { slug: 'cargo', nome: 'Cargo', grupo: 'Pessoa' },
+    { slug: 'linkedin_url', nome: 'LinkedIn', grupo: 'Pessoa' },
+    { slug: 'status', nome: 'Status', grupo: 'Pessoa' },
+    { slug: 'origem', nome: 'Origem', grupo: 'Pessoa' },
+    { slug: 'observacoes', nome: 'Observações', grupo: 'Pessoa' },
+  ]
+
+  const CAMPOS_CONTATO_EMPRESA = [
+    { slug: 'nome_fantasia', nome: 'Nome Fantasia', grupo: 'Empresa' },
+    { slug: 'razao_social', nome: 'Razão Social', grupo: 'Empresa' },
+    { slug: 'cnpj', nome: 'CNPJ', grupo: 'Empresa' },
+    { slug: 'website', nome: 'Website', grupo: 'Empresa' },
+    { slug: 'segmento', nome: 'Segmento', grupo: 'Empresa' },
+    { slug: 'porte', nome: 'Porte', grupo: 'Empresa' },
+  ]
+
+  const CAMPOS_ENDERECO = [
+    { slug: 'endereco_cep', nome: 'CEP', grupo: 'Endereço' },
+    { slug: 'endereco_logradouro', nome: 'Logradouro', grupo: 'Endereço' },
+    { slug: 'endereco_numero', nome: 'Número', grupo: 'Endereço' },
+    { slug: 'endereco_complemento', nome: 'Complemento', grupo: 'Endereço' },
+    { slug: 'endereco_bairro', nome: 'Bairro', grupo: 'Endereço' },
+    { slug: 'endereco_cidade', nome: 'Cidade', grupo: 'Endereço' },
+    { slug: 'endereco_estado', nome: 'Estado', grupo: 'Endereço' },
+  ]
+
+  // Campos customizados
+  const entidadePessoa: Entidade = 'pessoa'
+  const entidadeEmpresa: Entidade = 'empresa'
+  const { data: camposPessoa } = useCampos(entidade === 'contato' ? entidadePessoa : entidadePessoa)
+  const { data: camposEmpresa } = useCampos(entidade === 'contato' ? entidadeEmpresa : entidadeEmpresa)
+
+  const camposCustomPessoa = (camposPessoa?.campos || []).filter(c => !c.sistema)
+  const camposCustomEmpresa = (camposEmpresa?.campos || []).filter(c => !c.sistema)
+
+  const camposSistema = entidade === 'oportunidade'
+    ? CAMPOS_OPORTUNIDADE
+    : [...CAMPOS_CONTATO_PESSOA, ...CAMPOS_CONTATO_EMPRESA, ...CAMPOS_ENDERECO]
+
+  const grupos = [...new Set(camposSistema.map(c => c.grupo))]
 
   return (
     <div className="space-y-3">
       <div>
         <label className="text-xs font-medium text-muted-foreground">Campo</label>
-        {isLoading ? (
-          <p className="text-xs text-muted-foreground mt-1">Carregando campos...</p>
-        ) : (
-          <select
-            value={config.campo || ''}
-            onChange={e => updateConfig({ campo: e.target.value })}
-            className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary"
-          >
-            <option value="">Selecione um campo...</option>
-            {campos.map(c => (
-              <option key={c.id} value={c.slug}>
-                {c.nome}{c.sistema ? ' (sistema)' : ''}
-              </option>
-            ))}
-          </select>
-        )}
+        <select
+          value={config.campo || ''}
+          onChange={e => updateConfig({ campo: e.target.value })}
+          className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+        >
+          <option value="">Selecione um campo...</option>
+          {grupos.map(grupo => (
+            <optgroup key={grupo} label={grupo}>
+              {camposSistema.filter(c => c.grupo === grupo).map(c => (
+                <option key={c.slug} value={c.slug}>{c.nome}</option>
+              ))}
+            </optgroup>
+          ))}
+          {/* Campos customizados */}
+          {entidade === 'contato' && camposCustomPessoa.length > 0 && (
+            <optgroup label="Customizados (Pessoa)">
+              {camposCustomPessoa.map(c => (
+                <option key={`custom_pessoa_${c.slug}`} value={`custom:pessoa:${c.slug}`}>{c.nome}</option>
+              ))}
+            </optgroup>
+          )}
+          {entidade === 'contato' && camposCustomEmpresa.length > 0 && (
+            <optgroup label="Customizados (Empresa)">
+              {camposCustomEmpresa.map(c => (
+                <option key={`custom_empresa_${c.slug}`} value={`custom:empresa:${c.slug}`}>{c.nome}</option>
+              ))}
+            </optgroup>
+          )}
+        </select>
       </div>
       <div>
         <label className="text-xs font-medium text-muted-foreground">Novo valor</label>
-        <input type="text" value={config.valor || ''} onChange={e => updateConfig({ valor: e.target.value })} placeholder="Valor a definir" className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
+        <input type="text" value={config.valor || ''} onChange={e => updateConfig({ valor: e.target.value })} placeholder="Valor a definir" className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
         <VariavelInserter onInsert={v => appendToConfig('valor', v)} />
       </div>
     </div>
@@ -279,7 +442,7 @@ function CamposContextuais({ tipo, data, onUpdate }: { tipo: string; data: Recor
 
     case 'atualizar_campo_contato':
     case 'atualizar_campo_oportunidade': {
-      const entidadeCampo: Entidade = tipo === 'atualizar_campo_contato' ? 'pessoa' : 'oportunidade'
+      const entidadeCampo = tipo === 'atualizar_campo_contato' ? 'contato' as const : 'oportunidade' as const
       return (
         <CamposDinamicosSelect
           entidade={entidadeCampo}
@@ -312,13 +475,16 @@ function CamposContextuais({ tipo, data, onUpdate }: { tipo: string; data: Recor
         </div>
       )
 
-    case 'alterar_responsavel':
+    case 'alterar_responsavel': {
+      const ids = config.usuario_ids ? (config.usuario_ids as string).split(',').filter(Boolean) : (config.usuario_id ? [config.usuario_id] : [])
       return (
-        <div>
-          <label className="text-xs font-medium text-muted-foreground">Responsável (ID do usuário)</label>
-          <input type="text" value={config.usuario_id || ''} onChange={e => updateConfig({ usuario_id: e.target.value })} placeholder="ID do novo responsável" className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
-        </div>
+        <MembroSelector
+          selectedIds={ids}
+          onChange={newIds => updateConfig({ usuario_ids: newIds.join(','), usuario_id: newIds[0] || '' })}
+          label="Novo(s) responsável(is)"
+        />
       )
+    }
 
     case 'distribuir_responsavel':
       return (
