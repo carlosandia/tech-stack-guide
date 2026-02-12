@@ -6,7 +6,7 @@
 import { ACAO_TIPOS, ACAO_CATEGORIAS, VARIAVEIS_DINAMICAS } from '../../schemas/automacoes.schema'
 import { ChevronDown, ChevronUp, ChevronRight, Variable, X, Search, User } from 'lucide-react'
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/integrations/supabase/client'
 import { useCampos } from '@/modules/configuracoes/hooks/useCampos'
 import type { Entidade } from '@/modules/configuracoes/services/configuracoes.api'
@@ -144,13 +144,18 @@ function MembroSelector({ selectedIds, onChange, label }: {
   )
 }
 
-// AIDEV-NOTE: Sub-componente para selecionar segmentos existentes do banco
+// AIDEV-NOTE: Sub-componente para selecionar segmentos existentes do banco ou criar novo
 function SegmentoSelect({ segmentoId, onChange, modo }: {
   segmentoId: string
   segmentoNome?: string
   onChange: (id: string, nome: string) => void
   modo: 'adicionar' | 'remover'
 }) {
+  const [criando, setCriando] = useState(false)
+  const [novoNome, setNovoNome] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  const queryClient = useQueryClient()
+
   const { data: segmentos } = useQuery({
     queryKey: ['automacao-segmentos'],
     queryFn: async () => {
@@ -164,8 +169,39 @@ function SegmentoSelect({ segmentoId, onChange, modo }: {
     staleTime: 60_000,
   })
 
+  const criarSegmento = async () => {
+    if (!novoNome.trim()) return
+    setSalvando(true)
+    try {
+      // Obter organizacao_id do usuario logado
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Não autenticado')
+      const { data: usr } = await supabase.from('usuarios').select('organizacao_id').eq('auth_id', user.id).maybeSingle()
+      if (!usr?.organizacao_id) throw new Error('Organização não encontrada')
+
+      const cores = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#06b6d4']
+      const corAleatoria = cores[Math.floor(Math.random() * cores.length)]
+
+      const { data: novo, error } = await supabase
+        .from('segmentos')
+        .insert({ organizacao_id: usr.organizacao_id, nome: novoNome.trim(), cor: corAleatoria })
+        .select('id, nome')
+        .single()
+
+      if (error) throw error
+      queryClient.invalidateQueries({ queryKey: ['automacao-segmentos'] })
+      onChange(novo.id, novo.nome)
+      setNovoNome('')
+      setCriando(false)
+    } catch (err) {
+      console.error('[SegmentoSelect] Erro ao criar:', err)
+    } finally {
+      setSalvando(false)
+    }
+  }
+
   return (
-    <div>
+    <div className="space-y-2">
       <label className="text-xs font-medium text-muted-foreground">
         {modo === 'adicionar' ? 'Segmento a adicionar' : 'Segmento a remover'}
       </label>
@@ -175,17 +211,50 @@ function SegmentoSelect({ segmentoId, onChange, modo }: {
           const seg = (segmentos || []).find(s => s.id === e.target.value)
           onChange(e.target.value, seg?.nome || '')
         }}
-        className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+        className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary"
       >
         <option value="">Selecione um segmento...</option>
         {(segmentos || []).map(s => (
           <option key={s.id} value={s.id}>{s.nome}</option>
         ))}
       </select>
-      {(segmentos || []).length === 0 && (
-        <p className="text-[11px] text-muted-foreground mt-1">
-          Nenhum segmento encontrado. Crie segmentos em Contatos → Segmentos.
-        </p>
+
+      {/* Criar novo segmento inline */}
+      {!criando ? (
+        <button
+          type="button"
+          onClick={() => setCriando(true)}
+          className="flex items-center gap-1 text-[11px] text-primary hover:text-primary/80 transition-colors"
+        >
+          <span className="text-lg leading-none">+</span> Criar novo segmento
+        </button>
+      ) : (
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={novoNome}
+            onChange={e => setNovoNome(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && criarSegmento()}
+            placeholder="Nome do segmento..."
+            autoFocus
+            className="flex-1 px-3 py-1.5 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
+          />
+          <button
+            type="button"
+            onClick={criarSegmento}
+            disabled={salvando || !novoNome.trim()}
+            className="px-3 py-1.5 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+          >
+            {salvando ? '...' : 'Criar'}
+          </button>
+          <button
+            type="button"
+            onClick={() => { setCriando(false); setNovoNome('') }}
+            className="px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
       )}
     </div>
   )
@@ -572,16 +641,29 @@ function CamposContextuais({ tipo, data, onUpdate }: { tipo: string; data: Recor
         <div className="space-y-3">
           <div>
             <label className="text-xs font-medium text-muted-foreground">Tipo da nota</label>
-            <select value={config.tipo || 'texto'} onChange={e => updateConfig({ tipo: e.target.value })} className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary">
+            <select value={config.tipo || 'texto'} onChange={e => updateConfig({ tipo: e.target.value })} className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary">
               <option value="texto">Texto</option>
               <option value="audio">Áudio</option>
             </select>
           </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground">Conteúdo da nota</label>
-            <textarea value={config.conteudo || ''} onChange={e => updateConfig({ conteudo: e.target.value })} rows={3} placeholder="Nota automática..." className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground resize-none" />
-            <VariavelInserter onInsert={v => appendToConfig('conteudo', v)} />
-          </div>
+          {config.tipo === 'audio' ? (
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">Áudio da nota</label>
+              <div className="mt-1">
+                <MediaUploader
+                  tipo="audio"
+                  midiaUrl={config.audio_url || ''}
+                  onUrlChange={url => updateConfig({ audio_url: url })}
+                />
+              </div>
+            </div>
+          ) : (
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">Conteúdo da nota</label>
+              <textarea value={config.conteudo || ''} onChange={e => updateConfig({ conteudo: e.target.value })} rows={3} placeholder="Nota automática..." className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground resize-none" />
+              <VariavelInserter onInsert={v => appendToConfig('conteudo', v)} />
+            </div>
+          )}
         </div>
       )
 
