@@ -14,7 +14,7 @@ import { FlowCanvas } from '../components/FlowCanvas'
 import { NodeConfigPanel } from '../components/panels/NodeConfigPanel'
 import { useFlowState } from '../hooks/useFlowState'
 import { automacaoToFlow, flowToAutomacao } from '../utils/flowConverter'
-import { toast } from 'sonner'
+
 import { Zap } from 'lucide-react'
 
 export function AutomacoesPage() {
