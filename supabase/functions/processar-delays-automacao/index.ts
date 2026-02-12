@@ -80,11 +80,77 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      // AIDEV-NOTE: GAP 5 — Verificar se há branch_acoes_restantes no contexto (vindo de validação)
+      const branchAcoesRestantes = ctx.branch_acoes_restantes as Array<{ tipo: string; config: Record<string, unknown> }> | undefined;
+      const acoesParaExecutar = branchAcoesRestantes || acoesRestantes;
+
       // Executar ações restantes
       const acoesLog: Array<{ tipo: string; status: string; erro?: string }> = [];
       let temErro = false;
 
-      for (const acao of acoesRestantes) {
+      for (const acao of acoesParaExecutar) {
+        // AIDEV-NOTE: GAP 5 — Validação com branching
+        if (acao.tipo === "validacao") {
+          const ultimaResposta = String((ctx.evento_dados as Record<string, unknown>)?.ultima_resposta || "");
+          const validacaoCondicoes = (acao.config?.condicoes || []) as Array<{ operador: string; tipo_conteudo?: string; valor?: string; valor_min?: number; valor_max?: number }>;
+          const isMatch = avaliarValidacao(validacaoCondicoes, ultimaResposta);
+
+          const branchAcoes = isMatch
+            ? (acao.config?.match_acoes || []) as Array<{ tipo: string; config: Record<string, unknown> }>
+            : (acao.config?.nenhuma_acoes || []) as Array<{ tipo: string; config: Record<string, unknown> }>;
+
+          acoesLog.push({ tipo: "validacao", status: isMatch ? "match" : "nenhuma" });
+
+          // Executar ações do branch
+          for (const branchAcao of branchAcoes) {
+            if (branchAcao.tipo === "aguardar") {
+              const branchIdx = branchAcoes.indexOf(branchAcao);
+              const restantes = branchAcoes.slice(branchIdx + 1);
+              let novoExec: string;
+              const cfg = branchAcao.config || {};
+              if (cfg.modo_delay === "agendado") {
+                if (cfg.dia_semana !== undefined && cfg.dia_semana !== null && cfg.dia_semana !== '') {
+                  const ds = Number(cfg.dia_semana);
+                  const hr = String(cfg.horario || "09:00");
+                  const [h, m] = hr.split(":").map(Number);
+                  const now = new Date();
+                  const diff = (ds - now.getDay() + 7) % 7 || 7;
+                  const alvo = new Date(now);
+                  alvo.setDate(now.getDate() + diff);
+                  alvo.setHours(h || 9, m || 0, 0, 0);
+                  if (alvo <= now) alvo.setDate(alvo.getDate() + 7);
+                  novoExec = alvo.toISOString();
+                } else {
+                  const ds = String(cfg.data_agendada || "");
+                  const hs = String(cfg.hora_agendada || "09:00");
+                  novoExec = ds ? new Date(`${ds}T${hs}:00`).toISOString() : new Date(Date.now() + 5 * 60000).toISOString();
+                }
+              } else {
+                novoExec = new Date(Date.now() + (Number(cfg.minutos) || 5) * 60000).toISOString();
+              }
+              await supabase.from("execucoes_pendentes_automacao").insert({
+                organizacao_id: automacao.organizacao_id,
+                automacao_id: automacao.id,
+                log_id: pendente.log_id,
+                acao_index: 0,
+                dados_contexto: { ...ctx, branch_acoes_restantes: restantes },
+                executar_em: novoExec,
+              });
+              acoesLog.push({ tipo: "aguardar", status: "pendente" });
+              break;
+            }
+            try {
+              await executarAcao(supabase, branchAcao, ctx, automacao.organizacao_id);
+              acoesLog.push({ tipo: branchAcao.tipo, status: "sucesso" });
+            } catch (err) {
+              const erroMsg = err instanceof Error ? err.message : String(err);
+              acoesLog.push({ tipo: branchAcao.tipo, status: "erro", erro: erroMsg });
+              temErro = true;
+            }
+          }
+          break; // Após branch, não continuar array principal
+        }
+
         // Se encontrar outro delay, criar nova execução pendente
         if (acao.tipo === "aguardar") {
           // AIDEV-NOTE: Suportar modo agendado (fix GAP 2) e dia da semana (GAP 3)
@@ -440,6 +506,41 @@ async function executarAcao(
     default:
       console.warn(`[delay] Ação desconhecida: ${acao.tipo}`);
   }
+}
+
+// AIDEV-NOTE: GAP 5 — Avaliar condições de validação
+function avaliarValidacao(
+  condicoes: Array<{ operador: string; tipo_conteudo?: string; valor?: string; valor_min?: number; valor_max?: number }>,
+  texto: string
+): boolean {
+  if (!condicoes || condicoes.length === 0) return false;
+  return condicoes.some((cond) => {
+    switch (cond.operador) {
+      case "iguais": return texto === (cond.valor || "");
+      case "desiguais": return texto !== (cond.valor || "");
+      case "contem": return texto.includes(cond.valor || "");
+      case "nao_contem": return !texto.includes(cond.valor || "");
+      case "comprimento": return texto.length === Number(cond.valor || 0);
+      case "expressao_regular":
+        try { return new RegExp(cond.valor || "").test(texto); } catch { return false; }
+      default: break;
+    }
+    if (cond.tipo_conteudo) {
+      switch (cond.tipo_conteudo) {
+        case "numeros": return /^\d+$/.test(texto);
+        case "letras": return /^[a-zA-ZÀ-ÿ\s]+$/.test(texto);
+        case "telefone": return /^[\d\s\-\(\)\+]{8,}$/.test(texto);
+        case "email": return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(texto);
+        case "faixa_numeros": {
+          const num = Number(texto);
+          if (isNaN(num)) return false;
+          return num >= (cond.valor_min ?? -Infinity) && num <= (cond.valor_max ?? Infinity);
+        }
+        default: return false;
+      }
+    }
+    return false;
+  });
 }
 
 function substituirVariaveis(template: string, dados: Record<string, unknown>): string {

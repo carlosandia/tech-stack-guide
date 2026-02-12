@@ -20,5 +20,10 @@
 - `AcaoConfig.tsx`: Checkbox "Apenas contato principal" no enviar_email
 - GAP 9 (campos customizados dinâmicos): Pendente para quando hook de campos estiver disponível
 
-### 🔮 Bloco E — Validacao Backend (Gap 5) — FASE FUTURA
-Requer refatoração arquitetural do motor para suporte a grafos (branching).
+### ✅ Bloco E — Validação Backend (Gap 5) — CONCLUÍDO
+- `flowConverter.ts`: Refatorado para traversar grafo via edges, embutindo `match_acoes` e `nenhuma_acoes` no config da validação
+- `automacaoToFlow`: Reconstrução recursiva de branches a partir do DB
+- `processar-eventos-automacao`: Case `validacao` com avaliação de `ultima_resposta` (regex, contém, formato, faixa numérica) e execução do branch correto
+- `processar-delays-automacao`: Mesma lógica + suporte a `branch_acoes_restantes` no contexto de delays
+
+## Todos os GAPs Resolvidos ✅

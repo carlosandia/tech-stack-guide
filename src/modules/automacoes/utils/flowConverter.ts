@@ -1,6 +1,10 @@
 /**
  * AIDEV-NOTE: Converte automação (DB) <-> nodes/edges (React Flow)
  * Salva posições no campo trigger_config.flow_positions
+ * 
+ * Suporte a branching: nós de Validação possuem 2 saídas (match/nenhuma).
+ * Na serialização, as ações de cada branch são embutidas no config da validação
+ * como `match_acoes` e `nenhuma_acoes`, permitindo o backend executar sem grafo.
  */
 
 import type { Node, Edge } from '@xyflow/react'
@@ -20,9 +24,99 @@ export interface FlowPositions {
   [nodeId: string]: { x: number; y: number }
 }
 
-/**
- * Converte uma automação do banco para nós e edges do React Flow
- */
+// =====================================================
+// Helper: Serializar um nó para Acao
+// =====================================================
+
+function nodeToAcao(node: Node): Acao | null {
+  if (node.type === 'trigger' || node.type === 'condicao') return null
+
+  if (node.type === 'delay') {
+    return {
+      tipo: 'aguardar',
+      config: {
+        duracao: node.data.duracao,
+        unidade: node.data.unidade || 'minutos',
+        modo_delay: node.data.modo_delay || 'relativo',
+        sub_modo: node.data.sub_modo,
+        data_agendada: node.data.data_agendada,
+        hora_agendada: node.data.hora_agendada,
+        dia_semana: node.data.dia_semana,
+        horario: node.data.horario,
+        minutos: node.data.modo_delay === 'agendado'
+          ? undefined
+          : calcularMinutos(node.data.duracao as number, (node.data.unidade as string) || 'minutos'),
+      },
+    }
+  }
+
+  if (node.type === 'acao') {
+    return {
+      tipo: (node.data.tipo as string) || '',
+      config: (node.data.config as Record<string, unknown>) || {},
+    }
+  }
+
+  // Validação é tratada separadamente pelo traversal
+  return null
+}
+
+// =====================================================
+// Helper: Traversar grafo a partir de um nó, coletando ações
+// =====================================================
+
+function traverseBranch(
+  startNodeId: string,
+  sourceHandle: string | undefined,
+  nodesMap: Map<string, Node>,
+  edges: Edge[],
+): Acao[] {
+  const acoes: Acao[] = []
+
+  // Encontrar a edge que sai do startNodeId com o sourceHandle específico
+  let currentEdge = edges.find(
+    e => e.source === startNodeId && (sourceHandle ? e.sourceHandle === sourceHandle : !e.sourceHandle)
+  )
+
+  while (currentEdge) {
+    const targetNode = nodesMap.get(currentEdge.target)
+    if (!targetNode) break
+
+    if (targetNode.type === 'validacao') {
+      // Recursivamente coletar branches da validação
+      const matchAcoes = traverseBranch(targetNode.id, 'match', nodesMap, edges)
+      const nenhumaAcoes = traverseBranch(targetNode.id, 'nenhuma', nodesMap, edges)
+
+      acoes.push({
+        tipo: 'validacao',
+        config: {
+          condicoes: targetNode.data.condicoes || [],
+          match_acoes: matchAcoes,
+          nenhuma_acoes: nenhumaAcoes,
+        },
+      })
+      // Não continuar sequencialmente após validação (branches divergem)
+      break
+    }
+
+    const acao = nodeToAcao(targetNode)
+    if (acao) {
+      acoes.push(acao)
+    }
+
+    // Seguir para o próximo nó (sem sourceHandle específico)
+    currentEdge = edges.find(
+      e => e.source === targetNode.id && !e.sourceHandle
+    )
+  }
+
+  return acoes
+}
+
+// =====================================================
+// DB -> React Flow
+// =====================================================
+
 export function automacaoToFlow(automacao: Automacao): { nodes: Node[]; edges: Edge[] } {
   const positions = (automacao.trigger_config?.flow_positions as FlowPositions) || {}
   const nodes: Node[] = []
@@ -59,48 +153,100 @@ export function automacaoToFlow(automacao: Automacao): { nodes: Node[]; edges: E
     lastNodeId = condId
   })
 
-  // Ações como nós
-  automacao.acoes.forEach((acao, i) => {
-    const isDelay = acao.tipo === 'aguardar'
-    const isValidacao = acao.tipo === 'validacao'
-    const nodeType = isValidacao ? 'validacao' : isDelay ? 'delay' : 'acao'
-    const acaoId = `${nodeType}-${i}`
+  // Reconstruir ações (com suporte a branches de validação)
+  let nodeIndex = 0
+  const baseY = 200 + automacao.condicoes.length * 150
 
-    nodes.push({
-      id: acaoId,
-      type: nodeType,
-      position: positions[acaoId] || {
-        x: 250,
-        y: 200 + automacao.condicoes.length * 150 + (i + 1) * 150,
-      },
-      data: isValidacao
-        ? { condicoes: acao.config?.condicoes || [] }
-        : isDelay
-        ? { duracao: acao.config?.duracao, unidade: acao.config?.unidade }
-        : { tipo: acao.tipo, config: acao.config },
-    })
+  function reconstructActions(
+    acoes: Acao[],
+    parentId: string,
+    parentHandle: string | undefined,
+    startY: number,
+    xOffset: number,
+  ): { lastId: string; nextY: number } {
+    let prevId = parentId
+    let prevHandle = parentHandle
+    let currentY = startY
 
-    // Conectar do nó de condição "sim" se existir, senão do último
-    const sourceHandle = lastNodeId.startsWith('condicao') ? 'sim' : undefined
-    edges.push({
-      id: `e-${lastNodeId}-${acaoId}`,
-      source: lastNodeId,
-      sourceHandle,
-      target: acaoId,
-      animated: true,
-    })
-    lastNodeId = acaoId
-  })
+    for (const acao of acoes) {
+      const isDelay = acao.tipo === 'aguardar'
+      const isValidacao = acao.tipo === 'validacao'
+      const nodeType = isValidacao ? 'validacao' : isDelay ? 'delay' : 'acao'
+      const acaoId = `${nodeType}-${nodeIndex++}`
+
+      if (isValidacao) {
+        // Criar nó de validação
+        nodes.push({
+          id: acaoId,
+          type: 'validacao',
+          position: positions[acaoId] || { x: 250 + xOffset, y: currentY },
+          data: { condicoes: acao.config?.condicoes || [] },
+        })
+        edges.push({
+          id: `e-${prevId}-${acaoId}`,
+          source: prevId,
+          sourceHandle: prevHandle,
+          target: acaoId,
+          animated: true,
+        })
+        currentY += 150
+
+        // Reconstruir branches
+        const matchAcoes = (acao.config?.match_acoes || []) as Acao[]
+        const nenhumaAcoes = (acao.config?.nenhuma_acoes || []) as Acao[]
+
+        if (matchAcoes.length > 0) {
+          const result = reconstructActions(matchAcoes, acaoId, 'match', currentY, xOffset - 150)
+          currentY = result.nextY
+        }
+        if (nenhumaAcoes.length > 0) {
+          const result = reconstructActions(nenhumaAcoes, acaoId, 'nenhuma', currentY, xOffset + 150)
+          currentY = result.nextY
+        }
+
+        prevId = acaoId
+        prevHandle = undefined
+      } else {
+        nodes.push({
+          id: acaoId,
+          type: nodeType,
+          position: positions[acaoId] || { x: 250 + xOffset, y: currentY },
+          data: isDelay
+            ? { duracao: acao.config?.duracao, unidade: acao.config?.unidade, modo_delay: acao.config?.modo_delay, sub_modo: acao.config?.sub_modo, data_agendada: acao.config?.data_agendada, hora_agendada: acao.config?.hora_agendada, dia_semana: acao.config?.dia_semana, horario: acao.config?.horario }
+            : { tipo: acao.tipo, config: acao.config },
+        })
+
+        const sourceHandle = prevHandle || (prevId.startsWith('condicao') ? 'sim' : undefined)
+        edges.push({
+          id: `e-${prevId}-${acaoId}`,
+          source: prevId,
+          sourceHandle: sourceHandle,
+          target: acaoId,
+          animated: true,
+        })
+
+        currentY += 150
+        prevId = acaoId
+        prevHandle = undefined
+      }
+    }
+
+    return { lastId: prevId, nextY: currentY }
+  }
+
+  const sourceHandle = lastNodeId.startsWith('condicao') ? 'sim' : undefined
+  reconstructActions(automacao.acoes, lastNodeId, sourceHandle, baseY + 150, 0)
 
   return { nodes, edges }
 }
 
-/**
- * Converte nós e edges do React Flow de volta para o formato do banco
- */
+// =====================================================
+// React Flow -> DB
+// =====================================================
+
 export function flowToAutomacao(
   nodes: Node[],
-  _edges: Edge[],
+  edges: Edge[],
   existingAutomacao?: Partial<Automacao>
 ): {
   trigger_tipo: string
@@ -110,9 +256,6 @@ export function flowToAutomacao(
 } {
   const triggerNode = nodes.find(n => n.type === 'trigger')
   const condNodes = nodes.filter(n => n.type === 'condicao')
-  const acaoNodes = nodes.filter(n => n.type === 'acao')
-  const delayNodes = nodes.filter(n => n.type === 'delay')
-  const validacaoNodes = nodes.filter(n => n.type === 'validacao')
 
   // Salvar posições
   const flowPositions: FlowPositions = {}
@@ -140,36 +283,32 @@ export function flowToAutomacao(
     }]
   })
 
-  const acoes: Acao[] = [
-    ...acaoNodes.map(n => ({
-      tipo: (n.data.tipo as string) || '',
-      config: (n.data.config as Record<string, unknown>) || {},
-    })),
-    // AIDEV-NOTE: Serializar delay com suporte a dia_semana e horario (GAP 3)
-    ...delayNodes.map(n => ({
-      tipo: 'aguardar',
-      config: {
-        duracao: n.data.duracao,
-        unidade: n.data.unidade || 'minutos',
-        modo_delay: n.data.modo_delay || 'relativo',
-        sub_modo: n.data.sub_modo,
-        data_agendada: n.data.data_agendada,
-        hora_agendada: n.data.hora_agendada,
-        dia_semana: n.data.dia_semana,
-        horario: n.data.horario,
-        minutos: n.data.modo_delay === 'agendado'
-          ? undefined
-          : calcularMinutos(n.data.duracao as number, (n.data.unidade as string) || 'minutos'),
-      },
-    })),
-    // AIDEV-NOTE: Nós de validação são serializados como ações especiais para persistência
-    ...validacaoNodes.map(n => ({
-      tipo: 'validacao',
-      config: {
-        condicoes: n.data.condicoes || [],
-      },
-    })),
-  ]
+  // AIDEV-NOTE: GAP 5 — Traversar grafo via edges para serializar com branches
+  const nodesMap = new Map(nodes.map(n => [n.id, n]))
+
+  // Encontrar o último nó de condição (ou trigger) como ponto de partida das ações
+  let startNodeId = triggerNode?.id || 'trigger-0'
+  let startHandle: string | undefined = undefined
+
+  if (condNodes.length > 0) {
+    // Encontrar o último nó de condição na cadeia
+    let lastCond = condNodes[0]
+    for (const cn of condNodes) {
+      const hasOutgoing = edges.some(e => e.source === cn.id && (e.sourceHandle === 'sim' || !e.sourceHandle))
+      const targetOfOutgoing = edges.find(e => e.source === cn.id && (e.sourceHandle === 'sim' || !e.sourceHandle))
+      if (targetOfOutgoing) {
+        const target = nodesMap.get(targetOfOutgoing.target)
+        if (target && target.type !== 'condicao') {
+          lastCond = cn
+        }
+      }
+      if (!hasOutgoing) lastCond = cn
+    }
+    startNodeId = lastCond.id
+    startHandle = 'sim'
+  }
+
+  const acoes = traverseBranch(startNodeId, startHandle, nodesMap, edges)
 
   return {
     trigger_tipo: (triggerNode?.data?.trigger_tipo as string) || existingAutomacao?.trigger_tipo || '',

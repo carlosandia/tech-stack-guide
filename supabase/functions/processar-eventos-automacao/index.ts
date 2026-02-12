@@ -208,6 +208,85 @@ async function executarAutomacao(
   for (let i = 0; i < automacao.acoes.length; i++) {
     const acao = automacao.acoes[i];
 
+    // AIDEV-NOTE: GAP 5 — Validação com branching (match/nenhuma)
+    if (acao.tipo === "validacao") {
+      const ultimaResposta = String(evento.dados.ultima_resposta || "");
+      const validacaoCondicoes = (acao.config.condicoes || []) as Array<{ operador: string; tipo_conteudo?: string; valor?: string; valor_min?: number; valor_max?: number }>;
+      const isMatch = avaliarValidacao(validacaoCondicoes, ultimaResposta);
+
+      const branchAcoes = isMatch
+        ? (acao.config.match_acoes || []) as Array<{ tipo: string; config: Record<string, unknown> }>
+        : (acao.config.nenhuma_acoes || []) as Array<{ tipo: string; config: Record<string, unknown> }>;
+
+      acoesExecutadas.push({ tipo: "validacao", status: isMatch ? "match" : "nenhuma" });
+
+      // Executar ações do branch selecionado
+      for (const branchAcao of branchAcoes) {
+        if (branchAcao.tipo === "aguardar") {
+          // Delay dentro de branch: criar execução pendente com ações restantes do branch
+          const branchIdx = branchAcoes.indexOf(branchAcao);
+          const restantes = branchAcoes.slice(branchIdx + 1);
+          let executarEm: string;
+          const cfg = branchAcao.config || {};
+          if (cfg.modo_delay === "agendado") {
+            if (cfg.dia_semana !== undefined && cfg.dia_semana !== null && cfg.dia_semana !== '') {
+              const diaSemana = Number(cfg.dia_semana);
+              const horario = String(cfg.horario || "09:00");
+              const [h, m] = horario.split(":").map(Number);
+              const now = new Date();
+              const diff = (diaSemana - now.getDay() + 7) % 7 || 7;
+              const alvo = new Date(now);
+              alvo.setDate(now.getDate() + diff);
+              alvo.setHours(h || 9, m || 0, 0, 0);
+              if (alvo <= now) alvo.setDate(alvo.getDate() + 7);
+              executarEm = alvo.toISOString();
+            } else {
+              const dataStr = String(cfg.data_agendada || "");
+              const horaStr = String(cfg.hora_agendada || "09:00");
+              executarEm = dataStr ? new Date(`${dataStr}T${horaStr}:00`).toISOString() : new Date(Date.now() + 5 * 60000).toISOString();
+            }
+          } else {
+            const minutos = Number(cfg.minutos) || 5;
+            executarEm = new Date(Date.now() + minutos * 60 * 1000).toISOString();
+          }
+          const logId = await registrarLog(supabase, automacao, evento, "aguardando", acoesExecutadas, null, startMs);
+          // Armazenar ações restantes no contexto para o processar-delays retomar
+          await supabase.from("execucoes_pendentes_automacao").insert({
+            organizacao_id: automacao.organizacao_id,
+            automacao_id: automacao.id,
+            log_id: logId,
+            acao_index: 0,
+            dados_contexto: {
+              evento_dados: evento.dados,
+              entidade_tipo: evento.entidade_tipo,
+              entidade_id: evento.entidade_id,
+              branch_acoes_restantes: restantes,
+            },
+            executar_em: executarEm,
+          });
+          await atualizarContadores(supabase, automacao.id, false);
+          return "executado";
+        }
+
+        if (branchAcao.tipo === "validacao") {
+          // Validação aninhada — recursão limitada (não suportada nesta versão)
+          console.warn("[automacao] Validação aninhada não suportada");
+          continue;
+        }
+
+        try {
+          await executarAcao(supabase, branchAcao, evento, automacao.organizacao_id);
+          acoesExecutadas.push({ tipo: branchAcao.tipo, status: "sucesso" });
+        } catch (err) {
+          const erroMsg = err instanceof Error ? err.message : String(err);
+          acoesExecutadas.push({ tipo: branchAcao.tipo, status: "erro", erro: erroMsg });
+          temErro = true;
+        }
+      }
+      // Após executar branch, não continuar o array principal (branches divergem)
+      break;
+    }
+
     // Ação de delay: criar execução pendente e parar
     if (acao.tipo === "aguardar") {
       // AIDEV-NOTE: Suportar modo agendado (fix GAP 2) e dia da semana (GAP 3)
@@ -738,6 +817,65 @@ async function executarAcao(
     default:
       console.warn(`[automacao] Tipo de ação desconhecido: ${acao.tipo}`);
   }
+}
+
+// =====================================================
+// Avaliar condições de Validação (GAP 5)
+// =====================================================
+
+function avaliarValidacao(
+  condicoes: Array<{ operador: string; tipo_conteudo?: string; valor?: string; valor_min?: number; valor_max?: number }>,
+  texto: string
+): boolean {
+  if (!condicoes || condicoes.length === 0) return false;
+
+  return condicoes.some((cond) => {
+    switch (cond.operador) {
+      case "iguais":
+        return texto === (cond.valor || "");
+      case "desiguais":
+        return texto !== (cond.valor || "");
+      case "contem":
+        return texto.includes(cond.valor || "");
+      case "nao_contem":
+        return !texto.includes(cond.valor || "");
+      case "comprimento":
+        return texto.length === Number(cond.valor || 0);
+      case "expressao_regular":
+        try {
+          return new RegExp(cond.valor || "").test(texto);
+        } catch {
+          return false;
+        }
+      default:
+        break;
+    }
+
+    // Tipo de conteúdo
+    if (cond.tipo_conteudo) {
+      switch (cond.tipo_conteudo) {
+        case "numeros":
+          return /^\d+$/.test(texto);
+        case "letras":
+          return /^[a-zA-ZÀ-ÿ\s]+$/.test(texto);
+        case "telefone":
+          return /^[\d\s\-\(\)\+]{8,}$/.test(texto);
+        case "email":
+          return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(texto);
+        case "faixa_numeros": {
+          const num = Number(texto);
+          if (isNaN(num)) return false;
+          const min = cond.valor_min ?? -Infinity;
+          const max = cond.valor_max ?? Infinity;
+          return num >= min && num <= max;
+        }
+        default:
+          return false;
+      }
+    }
+
+    return false;
+  });
 }
 
 // =====================================================
