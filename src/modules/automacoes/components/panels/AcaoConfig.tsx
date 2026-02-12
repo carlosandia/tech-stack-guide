@@ -144,6 +144,132 @@ function MembroSelector({ selectedIds, onChange, label }: {
   )
 }
 
+// AIDEV-NOTE: Sub-componente para selecionar segmentos existentes do banco
+function SegmentoSelect({ segmentoId, onChange, modo }: {
+  segmentoId: string
+  segmentoNome?: string
+  onChange: (id: string, nome: string) => void
+  modo: 'adicionar' | 'remover'
+}) {
+  const { data: segmentos } = useQuery({
+    queryKey: ['automacao-segmentos'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('segmentos')
+        .select('id, nome, cor')
+        .is('deletado_em', null)
+        .order('nome')
+      return data || []
+    },
+    staleTime: 60_000,
+  })
+
+  return (
+    <div>
+      <label className="text-xs font-medium text-muted-foreground">
+        {modo === 'adicionar' ? 'Segmento a adicionar' : 'Segmento a remover'}
+      </label>
+      <select
+        value={segmentoId}
+        onChange={e => {
+          const seg = (segmentos || []).find(s => s.id === e.target.value)
+          onChange(e.target.value, seg?.nome || '')
+        }}
+        className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+      >
+        <option value="">Selecione um segmento...</option>
+        {(segmentos || []).map(s => (
+          <option key={s.id} value={s.id}>{s.nome}</option>
+        ))}
+      </select>
+      {(segmentos || []).length === 0 && (
+        <p className="text-[11px] text-muted-foreground mt-1">
+          Nenhum segmento encontrado. Crie segmentos em Contatos → Segmentos.
+        </p>
+      )}
+    </div>
+  )
+}
+
+// AIDEV-NOTE: Sub-componente para selecionar webhook de saída existente ou usar URL manual
+function WebhookSaidaSelect({ config, updateConfig, appendToConfig }: {
+  config: Record<string, string>
+  updateConfig: (patch: Record<string, string>) => void
+  appendToConfig: (field: string, value: string) => void
+}) {
+  const { data: webhooks } = useQuery({
+    queryKey: ['automacao-webhooks-saida'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('webhooks_saida')
+        .select('id, nome, url, ativo')
+        .eq('ativo', true)
+        .is('deletado_em', null)
+        .order('nome')
+      return data || []
+    },
+    staleTime: 60_000,
+  })
+
+  const handleWebhookSelect = (webhookId: string) => {
+    const wh = (webhooks || []).find(w => w.id === webhookId)
+    if (wh) {
+      updateConfig({ webhook_id: wh.id, url: wh.url, webhook_nome: wh.nome })
+    } else {
+      updateConfig({ webhook_id: '', url: '', webhook_nome: '' })
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      {(webhooks || []).length > 0 && (
+        <div>
+          <label className="text-xs font-medium text-muted-foreground">Webhook de saída</label>
+          <select
+            value={config.webhook_id || ''}
+            onChange={e => handleWebhookSelect(e.target.value)}
+            className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+          >
+            <option value="">Selecione um webhook ou use URL manual...</option>
+            {(webhooks || []).map(w => (
+              <option key={w.id} value={w.id}>{w.nome}</option>
+            ))}
+          </select>
+        </div>
+      )}
+      {!config.webhook_id && (
+        <div>
+          <label className="text-xs font-medium text-muted-foreground">URL do Webhook</label>
+          <input type="url" value={config.url || ''} onChange={e => updateConfig({ url: e.target.value })} placeholder="https://..." className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
+        </div>
+      )}
+      {config.webhook_id && (
+        <p className="text-[11px] text-muted-foreground">
+          URL: <span className="font-mono">{config.url}</span>
+        </p>
+      )}
+      <div>
+        <label className="text-xs font-medium text-muted-foreground">Método</label>
+        <select value={config.metodo || 'POST'} onChange={e => updateConfig({ metodo: e.target.value })} className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary">
+          <option value="POST">POST</option>
+          <option value="PUT">PUT</option>
+          <option value="PATCH">PATCH</option>
+        </select>
+      </div>
+      <div>
+        <label className="text-xs font-medium text-muted-foreground">Payload JSON (opcional)</label>
+        <textarea value={config.payload || ''} onChange={e => updateConfig({ payload: e.target.value })} rows={3} placeholder='{"contato": "{{contato.nome}}"}' className="w-full mt-1 px-3 py-2 text-sm font-mono text-xs border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground resize-none" />
+        <VariavelInserter onInsert={v => appendToConfig('payload', v)} />
+      </div>
+      {(webhooks || []).length === 0 && (
+        <p className="text-[11px] text-muted-foreground">
+          Dica: Configure webhooks de saída em Configurações → Webhooks Saída para reutilizá-los aqui.
+        </p>
+      )}
+    </div>
+  )
+}
+
 // AIDEV-NOTE: GAP 9 — Sub-componente para carregar campos dinâmicos via hook
 // Carrega campos do banco (sistema + custom) agrupados em Pessoa, Empresa e Oportunidade
 // Campos de endereço, status, origem e observações são colunas diretas da tabela contatos
@@ -475,17 +601,19 @@ function CamposContextuais({ tipo, data, onUpdate }: { tipo: string; data: Recor
     case 'adicionar_segmento':
     case 'remover_segmento':
       return (
-        <div>
-          <label className="text-xs font-medium text-muted-foreground">Nome do segmento</label>
-          <input type="text" value={config.segmento || ''} onChange={e => updateConfig({ segmento: e.target.value })} placeholder="Ex: VIP, Inativo..." className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
-        </div>
+        <SegmentoSelect
+          segmentoId={config.segmento_id || ''}
+          segmentoNome={config.segmento || ''}
+          onChange={(id, nome) => updateConfig({ segmento_id: id, segmento: nome })}
+          modo={tipo === 'adicionar_segmento' ? 'adicionar' : 'remover'}
+        />
       )
 
     case 'alterar_status_contato':
       return (
         <div>
           <label className="text-xs font-medium text-muted-foreground">Novo status</label>
-          <select value={config.status || ''} onChange={e => updateConfig({ status: e.target.value })} className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary">
+          <select value={config.status || ''} onChange={e => updateConfig({ status: e.target.value })} className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary">
             <option value="">Selecione...</option>
             <option value="ativo">Ativo</option>
             <option value="inativo">Inativo</option>
@@ -520,7 +648,7 @@ function CamposContextuais({ tipo, data, onUpdate }: { tipo: string; data: Recor
           <p className="text-[11px] text-muted-foreground">Usa a configuração de distribuição cadastrada no funil (posição de rodízio, membros ativos, etc.).</p>
           <div>
             <label className="text-xs font-medium text-muted-foreground">Pular inativos?</label>
-            <select value={config.pular_inativos || 'true'} onChange={e => updateConfig({ pular_inativos: e.target.value })} className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary">
+            <select value={config.pular_inativos || 'true'} onChange={e => updateConfig({ pular_inativos: e.target.value })} className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary">
               <option value="true">Sim</option>
               <option value="false">Não</option>
             </select>
@@ -530,38 +658,31 @@ function CamposContextuais({ tipo, data, onUpdate }: { tipo: string; data: Recor
 
     case 'enviar_webhook':
       return (
-        <div className="space-y-3">
-          <div>
-            <label className="text-xs font-medium text-muted-foreground">URL do Webhook</label>
-            <input type="url" value={config.url || ''} onChange={e => updateConfig({ url: e.target.value })} placeholder="https://..." className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground">Método</label>
-            <select value={config.metodo || 'POST'} onChange={e => updateConfig({ metodo: e.target.value })} className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary">
-              <option value="POST">POST</option>
-              <option value="PUT">PUT</option>
-              <option value="PATCH">PATCH</option>
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground">Payload JSON (opcional)</label>
-            <textarea value={config.payload || ''} onChange={e => updateConfig({ payload: e.target.value })} rows={3} placeholder='{"contato": "{{contato.nome}}"}' className="w-full mt-1 px-3 py-2 text-sm font-mono text-xs border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground resize-none" />
-            <VariavelInserter onInsert={v => appendToConfig('payload', v)} />
-          </div>
-        </div>
+        <WebhookSaidaSelect config={config} updateConfig={updateConfig} appendToConfig={appendToConfig} />
       )
 
     case 'alterar_status_conversa':
       return (
-        <div>
-          <label className="text-xs font-medium text-muted-foreground">Novo status</label>
-          <select value={config.status || ''} onChange={e => updateConfig({ status: e.target.value })} className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary">
-            <option value="">Selecione...</option>
-            <option value="aberta">Aberta</option>
-            <option value="pendente">Pendente</option>
-            <option value="resolvida">Resolvida</option>
-            <option value="fechada">Fechada</option>
-          </select>
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Canal da conversa</label>
+            <select value={config.canal || ''} onChange={e => updateConfig({ canal: e.target.value })} className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary">
+              <option value="">Todos os canais</option>
+              <option value="whatsapp">WhatsApp</option>
+              <option value="instagram">Instagram</option>
+            </select>
+            <p className="text-[11px] text-muted-foreground mt-1">Filtra em qual canal a conversa será alterada. Vazio = qualquer canal.</p>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Novo status</label>
+            <select value={config.status || ''} onChange={e => updateConfig({ status: e.target.value })} className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary">
+              <option value="">Selecione...</option>
+              <option value="aberta">Aberta</option>
+              <option value="pendente">Pendente</option>
+              <option value="resolvida">Resolvida</option>
+              <option value="fechada">Fechada</option>
+            </select>
+          </div>
         </div>
       )
 
