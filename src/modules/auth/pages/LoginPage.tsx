@@ -127,7 +127,7 @@ export function LoginPage() {
       )}
 
       {/* === Lado Esquerdo: Formulário === */}
-      <div className="flex-1 flex flex-col items-center justify-center bg-background px-4 py-8 md:py-0 md:px-8 lg:px-16 min-h-0 md:min-h-screen">
+      <div className="md:w-[38%] flex-shrink-0 flex flex-col items-center justify-center bg-background px-4 py-8 md:py-0 md:px-8 lg:px-16 min-h-0 md:min-h-screen">
         <div className="w-full max-w-[400px] space-y-8">
           {/* Logo */}
           <div className="flex flex-col items-center">
@@ -185,7 +185,7 @@ export function LoginPage() {
 
       {/* === Lado Direito: Banner Desktop/Tablet (>= 768px) === */}
       <div
-        className="hidden md:flex md:w-1/2 lg:w-1/2 items-center justify-center"
+        className="hidden md:flex flex-1 items-center justify-center"
         style={{ backgroundColor: bgColor }}
       >
         {/* Tablet (768-1023px) */}
