@@ -6,6 +6,16 @@
 import type { Node, Edge } from '@xyflow/react'
 import type { Automacao, Acao, Condicao } from '../schemas/automacoes.schema'
 
+// AIDEV-NOTE: Helper para converter duração+unidade em minutos para o motor de execução
+function calcularMinutos(duracao: number, unidade: string): number {
+  if (!duracao) return 5
+  switch (unidade) {
+    case 'horas': return duracao * 60
+    case 'dias': return duracao * 1440
+    default: return duracao
+  }
+}
+
 export interface FlowPositions {
   [nodeId: string]: { x: number; y: number }
 }
@@ -113,11 +123,23 @@ export function flowToAutomacao(
     flow_positions: flowPositions,
   }
 
-  const condicoes: Condicao[] = condNodes.map(n => ({
-    campo: (n.data.campo as string) || '',
-    operador: (n.data.operador as Condicao['operador']) || 'igual',
-    valor: n.data.valor,
-  }))
+  const condicoes: Condicao[] = condNodes.map(n => {
+    // AIDEV-NOTE: Suporta tanto regras AND quanto formato legado
+    const regras = n.data.regras as Array<{ campo: string; operador: string; valor?: string }> | undefined
+    if (Array.isArray(regras) && regras.length > 0) {
+      // Retorna a primeira regra como condição principal (backend processa array completo via trigger_config)
+      return {
+        campo: regras[0].campo || '',
+        operador: (regras[0].operador as Condicao['operador']) || 'igual',
+        valor: regras[0].valor,
+      }
+    }
+    return {
+      campo: (n.data.campo as string) || '',
+      operador: (n.data.operador as Condicao['operador']) || 'igual',
+      valor: n.data.valor,
+    }
+  })
 
   const acoes: Acao[] = [
     ...acaoNodes.map(n => ({
@@ -129,6 +151,13 @@ export function flowToAutomacao(
       config: {
         duracao: n.data.duracao,
         unidade: n.data.unidade || 'minutos',
+        modo_delay: n.data.modo_delay || 'relativo',
+        data_agendada: n.data.data_agendada,
+        hora_agendada: n.data.hora_agendada,
+        // Converter para minutos para compatibilidade com o motor
+        minutos: n.data.modo_delay === 'agendado'
+          ? undefined
+          : calcularMinutos(n.data.duracao as number, (n.data.unidade as string) || 'minutos'),
       },
     })),
     // AIDEV-NOTE: Nós de validação são serializados como ações especiais para persistência

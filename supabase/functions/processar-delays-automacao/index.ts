@@ -188,23 +188,25 @@ async function executarAcao(
         oportunidade_id: entidadeTipo === "oportunidade" ? entidadeId : null,
         owner_id: config.responsavel_id || null,
         status: "pendente",
-        data_vencimento: config.dias_prazo
-          ? new Date(Date.now() + Number(config.dias_prazo) * 86400000).toISOString()
+        data_vencimento: config.dias_prazo || config.prazo_dias
+          ? new Date(Date.now() + Number(config.dias_prazo || config.prazo_dias) * 86400000).toISOString()
           : null,
       });
       break;
     }
 
     case "mover_etapa": {
-      if (entidadeTipo === "oportunidade" && config.etapa_destino_id) {
-        await supabase.from("oportunidades").update({ etapa_id: config.etapa_destino_id }).eq("id", entidadeId);
+      const etapaId = config.etapa_destino_id || config.etapa_id;
+      if (entidadeTipo === "oportunidade" && etapaId) {
+        await supabase.from("oportunidades").update({ etapa_id: etapaId }).eq("id", entidadeId);
       }
       break;
     }
 
     case "alterar_responsavel": {
-      if (entidadeTipo === "oportunidade" && config.novo_responsavel_id) {
-        await supabase.from("oportunidades").update({ usuario_responsavel_id: config.novo_responsavel_id }).eq("id", entidadeId);
+      const novoResp = config.novo_responsavel_id || config.usuario_id;
+      if (entidadeTipo === "oportunidade" && novoResp) {
+        await supabase.from("oportunidades").update({ usuario_responsavel_id: novoResp }).eq("id", entidadeId);
       }
       break;
     }
@@ -219,50 +221,160 @@ async function executarAcao(
     }
 
     case "atualizar_campo_contato": {
-      if (entidadeTipo === "contato" && config.campo) {
+      const cId = entidadeTipo === "contato" ? entidadeId : (dados.contato_id as string);
+      if (cId && config.campo) {
         const u: Record<string, unknown> = {};
         u[String(config.campo)] = config.valor;
-        await supabase.from("contatos").update(u).eq("id", entidadeId);
+        await supabase.from("contatos").update(u).eq("id", cId);
       }
       break;
     }
 
     case "adicionar_segmento": {
-      if (config.segmento_id) {
-        const contatoId = entidadeTipo === "contato" ? entidadeId : (dados.contato_id as string);
-        if (contatoId) {
+      const cId = entidadeTipo === "contato" ? entidadeId : (dados.contato_id as string);
+      if (cId && (config.segmento_id || config.segmento)) {
+        let segId = config.segmento_id as string;
+        if (!segId && config.segmento) {
+          const { data: seg } = await supabase.from("segmentos").select("id")
+            .eq("organizacao_id", organizacaoId).eq("nome", config.segmento).limit(1).single();
+          segId = seg?.id;
+        }
+        if (segId) {
           await supabase.from("contatos_segmentos").insert({
-            organizacao_id: organizacaoId,
-            contato_id: contatoId,
-            segmento_id: config.segmento_id,
+            organizacao_id: organizacaoId, contato_id: cId, segmento_id: segId,
           });
         }
       }
       break;
     }
 
+    case "remover_segmento": {
+      const cId = entidadeTipo === "contato" ? entidadeId : (dados.contato_id as string);
+      if (cId && (config.segmento_id || config.segmento)) {
+        let segId = config.segmento_id as string;
+        if (!segId && config.segmento) {
+          const { data: seg } = await supabase.from("segmentos").select("id")
+            .eq("organizacao_id", organizacaoId).eq("nome", config.segmento).limit(1).single();
+          segId = seg?.id;
+        }
+        if (segId) {
+          await supabase.from("contatos_segmentos").delete()
+            .eq("contato_id", cId).eq("segmento_id", segId).eq("organizacao_id", organizacaoId);
+        }
+      }
+      break;
+    }
+
+    case "alterar_status_contato": {
+      const cId = entidadeTipo === "contato" ? entidadeId : (dados.contato_id as string);
+      if (cId && config.status) {
+        await supabase.from("contatos").update({ status: config.status }).eq("id", cId);
+      }
+      break;
+    }
+
+    case "criar_oportunidade": {
+      const cId = entidadeTipo === "contato" ? entidadeId : (dados.contato_id as string);
+      let etapaId: string | null = null;
+      if (config.funil_id) {
+        const { data: etapa } = await supabase.from("etapas_funil").select("id")
+          .eq("funil_id", config.funil_id).eq("tipo", "entrada").limit(1).single();
+        etapaId = etapa?.id || null;
+      }
+      await supabase.from("oportunidades").insert({
+        organizacao_id: organizacaoId,
+        titulo: config.titulo ? substituirVariaveis(String(config.titulo), dados) : "Oportunidade automática",
+        contato_id: cId || null,
+        funil_id: (config.funil_id as string) || null,
+        etapa_id: etapaId,
+        valor: config.valor ? Number(config.valor) : 0,
+      });
+      break;
+    }
+
+    case "marcar_resultado_oportunidade": {
+      if (entidadeTipo === "oportunidade" && config.resultado) {
+        const isGanho = config.resultado === "ganho";
+        const updateData: Record<string, unknown> = { fechado_em: new Date().toISOString() };
+        const { data: opp } = await supabase.from("oportunidades").select("funil_id").eq("id", entidadeId).single();
+        if (opp?.funil_id) {
+          const { data: etapa } = await supabase.from("etapas_funil").select("id")
+            .eq("funil_id", opp.funil_id).eq("tipo", isGanho ? "ganho" : "perda").limit(1).single();
+          if (etapa) updateData.etapa_id = etapa.id;
+        }
+        await supabase.from("oportunidades").update(updateData).eq("id", entidadeId);
+      }
+      break;
+    }
+
+    case "adicionar_nota": {
+      if (entidadeTipo === "oportunidade") {
+        await supabase.from("anotacoes_oportunidades").insert({
+          organizacao_id: organizacaoId,
+          oportunidade_id: entidadeId,
+          conteudo: config.conteudo ? substituirVariaveis(String(config.conteudo), dados) : "Nota automática",
+          tipo: "texto",
+          usuario_id: (dados.usuario_responsavel_id || dados.criado_por || null) as string,
+        });
+      }
+      break;
+    }
+
+    case "distribuir_responsavel": {
+      if (entidadeTipo === "oportunidade") {
+        const query = supabase.from("usuarios").select("id")
+          .eq("organizacao_id", organizacaoId).is("deletado_em", null);
+        if (config.pular_inativos !== "false") query.eq("ativo", true);
+        const { data: membros } = await query.order("id");
+        if (membros && membros.length > 0) {
+          const { data: dc } = await supabase.from("configuracoes_distribuicao").select("posicao_rodizio")
+            .eq("organizacao_id", organizacaoId).limit(1).single();
+          const pos = (dc?.posicao_rodizio || 0) % membros.length;
+          await supabase.from("oportunidades").update({ usuario_responsavel_id: membros[pos].id }).eq("id", entidadeId);
+          if (dc) await supabase.from("configuracoes_distribuicao").update({ posicao_rodizio: pos + 1 }).eq("organizacao_id", organizacaoId);
+        }
+      }
+      break;
+    }
+
+    case "enviar_webhook": {
+      const url = config.url as string;
+      if (!url) throw new Error("URL do webhook não configurada");
+      const metodo = (config.metodo as string) || "POST";
+      const payload = config.payload
+        ? substituirVariaveis(String(config.payload), dados)
+        : JSON.stringify({ evento_tipo: entidadeTipo, entidade_id: entidadeId, dados, organizacao_id: organizacaoId, timestamp: new Date().toISOString() });
+      const resp = await fetch(url, { method: metodo, headers: { "Content-Type": "application/json" }, body: payload });
+      if (!resp.ok) throw new Error(`Webhook falhou (${resp.status}): ${await resp.text()}`);
+      break;
+    }
+
+    case "alterar_status_conversa": {
+      if (entidadeTipo === "conversa" && config.status) {
+        await supabase.from("conversas").update({ status: config.status, status_alterado_em: new Date().toISOString() }).eq("id", entidadeId);
+      }
+      break;
+    }
+
     case "criar_notificacao": {
-      console.log(`[delay] Notificação: ${substituirVariaveis(String(config.mensagem || ""), dados)}`);
+      console.log(`[delay] Notificação: ${substituirVariaveis(String(config.mensagem || config.titulo || ""), dados)}`);
       break;
     }
 
     case "enviar_email": {
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-      const dest = config.destinatario
-        ? substituirVariaveis(String(config.destinatario), dados)
+      const dest = (config.destinatario || config.para)
+        ? substituirVariaveis(String(config.destinatario || config.para), dados)
         : (dados.email as string);
       if (!dest) throw new Error("Destinatário não encontrado");
-
       const resp = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
         body: JSON.stringify({
-          organizacao_id: organizacaoId,
-          destinatario: dest,
+          organizacao_id: organizacaoId, destinatario: dest,
           assunto: substituirVariaveis(String(config.assunto || "Notificação"), dados),
-          corpo: substituirVariaveis(String(config.corpo || ""), dados),
-          tipo: "automacao",
+          corpo: substituirVariaveis(String(config.corpo || ""), dados), tipo: "automacao",
         }),
       });
       if (!resp.ok) throw new Error(`Email falhou: ${await resp.text()}`);
@@ -272,24 +384,18 @@ async function executarAcao(
     case "enviar_whatsapp": {
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-      const tel = config.telefone ? substituirVariaveis(String(config.telefone), dados) : (dados.telefone as string);
+      const tel = (config.telefone || config.destino)
+        ? substituirVariaveis(String(config.telefone || config.destino), dados)
+        : (dados.telefone as string);
       if (!tel) throw new Error("Telefone não encontrado");
-
-      const { data: sessao } = await supabase
-        .from("sessoes_whatsapp")
-        .select("session_name")
-        .eq("organizacao_id", organizacaoId)
-        .eq("status", "conectado")
-        .limit(1)
-        .single();
+      const { data: sessao } = await supabase.from("sessoes_whatsapp").select("session_name")
+        .eq("organizacao_id", organizacaoId).eq("status", "conectado").limit(1).single();
       if (!sessao) throw new Error("Sem sessão WhatsApp ativa");
-
       const resp = await fetch(`${supabaseUrl}/functions/v1/waha-proxy`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
         body: JSON.stringify({
-          action: "send-text",
-          sessionName: sessao.session_name,
+          action: "send-text", sessionName: sessao.session_name,
           chatId: `${tel.replace(/\D/g, "")}@c.us`,
           text: substituirVariaveis(String(config.mensagem || ""), dados),
         }),
