@@ -3,6 +3,7 @@
  * Abre ao clicar em um nó no canvas
  */
 
+import { useRef, useCallback } from 'react'
 import { X, Trash2 } from 'lucide-react'
 import type { Node } from '@xyflow/react'
 import { TriggerConfig } from './TriggerConfig'
@@ -21,9 +22,15 @@ interface NodeConfigPanelProps {
 export function NodeConfigPanel({ node, onClose, onUpdate, onDelete }: NodeConfigPanelProps) {
   const isTrigger = node.type === 'trigger'
 
-  const handleUpdate = (data: Record<string, unknown>) => {
-    onUpdate(node.id, data)
-  }
+  // AIDEV-NOTE: Ref pattern para handleUpdate estável — evita stale closure e re-renders cascata
+  const nodeIdRef = useRef(node.id)
+  nodeIdRef.current = node.id
+  const onUpdateRef = useRef(onUpdate)
+  onUpdateRef.current = onUpdate
+
+  const handleUpdate = useCallback((data: Record<string, unknown>) => {
+    onUpdateRef.current(nodeIdRef.current, data)
+  }, [])
 
   return (
     <aside className="w-80 flex-shrink-0 bg-white border-l border-border flex flex-col h-full">
