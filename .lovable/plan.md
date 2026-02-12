@@ -1,112 +1,63 @@
 
-# Correcao: Auto-Save + UI CondicaoNode
 
-## Problema Raiz
+# Plano: Receber TODAS as mensagens (Grupos, Canais, fromMe)
 
-Apos investigacao profunda, o problema de persistencia NAO e apenas stale closure — a correcao via `useRef` ja esta aplicada em todos os niveis. O problema real e que **os dados vivem apenas no React state (`nodes` array)** e qualquer re-render inesperado, interacao no canvas (selecao, drag), ou batching do React 18 pode causar perda. A unica forma confiavel de garantir persistencia e **salvar no banco automaticamente**.
+## Problema Identificado
+
+No arquivo `supabase/functions/waha-webhook/index.ts`, **linha 296-302**, existe um bloqueio explícito:
+
+```typescript
+if (isFromMe && (isGroup || isChannel)) {
+  console.log("[waha-webhook] Skipping fromMe in group/channel");
+  return ... // DESCARTA a mensagem
+}
+```
+
+Isso significa que **qualquer mensagem enviada por você** em grupos ou canais é ignorada. E no caso de canais do WhatsApp (como "Fast Tennis"), todas as mensagens são enviadas pelo administrador do canal, ou seja, o WAHA pode interpretar como `fromMe` dependendo da configuracao, ou simplesmente nao ter `participant` no payload, fazendo o webhook descartar.
+
+Adicionalmente, na linha 410-416, mensagens de grupo sem `participant` tambem sao descartadas.
 
 ## Solucao
 
-### Parte 1: Auto-save com debounce (como formularios)
+### 1. Remover bloqueio de `fromMe` em grupos/canais
 
-Ao inves de depender do botao "Salvar" manual, o fluxo sera salvo automaticamente no banco apos cada alteracao, com debounce de 1 segundo para nao sobrecarregar o servidor.
+Em vez de descartar, processar normalmente. Para evitar criar contato duplicado do proprio numero, usar o `participant` (quem enviou no grupo) como contato, e quando for `fromMe`, marcar a mensagem como `from_me: true` mas ainda persistir.
 
-**Arquivo: `src/modules/automacoes/pages/AutomacoesPage.tsx`**
+### 2. Tratar canais sem `participant`
 
-- Adicionar `useRef` para timer de debounce
-- Criar funcao `debouncedSave` que converte nodes/edges para payload e chama `atualizarMutation.mutate`
-- Disparar auto-save quando `nodes` ou `edges` mudam (via `useEffect`)
-- Manter botao "Salvar" como fallback manual, mas o comportamento padrao sera auto-save
-- Adicionar indicador visual sutil ("Salvando..." / "Salvo") no lugar do botao ou ao lado
+Canais (`@newsletter`) geralmente nao enviam `participant`. Nesses casos, usar o ID do canal como `chatId` e criar um contato generico representando o canal em si.
 
-**Logica:**
+### 3. Tratar grupos sem `participant`
 
-```text
-useEffect:
-  - Se nao tem selectedAutoId, ignorar
-  - Se nodes tem menos de 1 no, ignorar (evita salvar estado vazio)
-  - Limpar timer anterior
-  - Setar novo timer (1000ms) que chama flowToAutomacao + atualizarMutation
-  - Cleanup: limpar timer
-  Dependencias: [nodes, edges, selectedAutoId]
-```
-
-### Parte 2: UI do CondicaoNode — Check/X nos handles
-
-**Arquivo: `src/modules/automacoes/components/nodes/CondicaoNode.tsx`**
-
-Substituir os labels de texto "Sim" e "Nao" por icones dentro dos proprios handles:
-
-- Handle verde (sim): icone `Check` (lucide) dentro do circulo
-- Handle vermelho (nao): icone `X` (lucide) dentro do circulo
-- Remover o bloco `<div>` com os `<span>` de texto "Sim" e "Nao"
-- Aumentar levemente o tamanho dos handles para acomodar os icones (de `!w-3 !h-3` para `!w-5 !h-5`)
-- Posicionar os icones com CSS absoluto dentro de `<div>` wrappers ao lado dos handles
-
-**Referencia visual (imagem 2 do usuario):**
-- Circulo vermelho com X para a saida "nao"
-- Circulo verde com check para a saida "sim"
-
-### Parte 3: Mesma mudanca no ValidacaoNode
-
-**Arquivo: `src/modules/automacoes/components/nodes/ValidacaoNode.tsx`**
-
-Aplicar o mesmo padrao visual dos handles:
-- Handle verde (match): icone `Check`
-- Handle vermelho (nenhuma): icone `X`
-- Remover labels de texto "Match" e "Nenhuma"
-
----
+Quando um grupo nao tiver `participant` (ex: mensagens de sistema, notificacoes), em vez de descartar, registrar com um contato generico do grupo.
 
 ## Detalhes Tecnicos
 
-### Auto-save (AutomacoesPage.tsx)
+### Arquivo: `supabase/functions/waha-webhook/index.ts`
 
-```text
-// Ref para debounce timer
-const saveTimerRef = useRef<NodeJS.Timeout>()
+**Mudanca 1 - Remover bloqueio fromMe (linhas 295-302):**
+- Remover o `if (isFromMe && (isGroup || isChannel)) return`
+- Para `fromMe` em grupos: usar o numero do proprio usuario (da sessao) como remetente, mas manter `from_me: true` na mensagem
+- Para `fromMe` em canais: mesmo tratamento
 
-// Refs para evitar stale closure no useEffect
-const nodesRef = useRef(nodes)
-nodesRef.current = nodes
-const edgesRef = useRef(edges)
-edgesRef.current = edges
+**Mudanca 2 - Grupos sem participant (linhas 410-416):**
+- Em vez de retornar "No participant", usar um fallback:
+  - Se `fromMe`, buscar o phone_number da sessao do usuario
+  - Senao, usar o ID do grupo como identificador e criar um contato generico "Participante desconhecido"
 
-useEffect(() => {
-  if (!selectedAutoId) return
-  if (nodes.length < 1) return
+**Mudanca 3 - Canais sem participant (linhas 311-359):**
+- Para canais, o `participant` quase nunca vem. O comportamento atual ja tenta usar `rawFrom.replace("@newsletter", "")` como fallback, mas pode falhar se `fromMe` bloqueia antes
+- Com a remocao do bloqueio da Mudanca 1, canais passarao a funcionar
 
-  clearTimeout(saveTimerRef.current)
-  saveTimerRef.current = setTimeout(() => {
-    const payload = flowToAutomacao(nodesRef.current, edgesRef.current)
-    atualizarMutation.mutate({ id: selectedAutoId, payload })
-  }, 1000)
+### Resumo das alteracoes
 
-  return () => clearTimeout(saveTimerRef.current)
-}, [nodes, edges, selectedAutoId])
-```
+| O que muda | Onde | Impacto |
+|---|---|---|
+| Remove bloqueio fromMe grupo/canal | Linha 296-302 | Mensagens enviadas por voce em grupos/canais serao salvas |
+| Fallback para grupo sem participant | Linha 410-416 | Mensagens de sistema/notificacao de grupo nao serao perdidas |
+| Nenhuma mudanca no frontend | - | O frontend ja lista todos os tipos de conversa |
 
-### CondicaoNode handles
+### Nenhuma mudanca de banco necessaria
 
-```text
-// Ao lado de cada Handle source, um div posicionado com icone:
-<div className="absolute" style={{ top: '35%', right: -6 }}>
-  <div className="w-5 h-5 rounded-full bg-green-500 border-2 border-white flex items-center justify-center">
-    <Check className="w-3 h-3 text-white" />
-  </div>
-</div>
+A tabela `conversas` ja suporta `tipo` = "grupo", "canal", "individual". A tabela `mensagens` ja tem `from_me`. Nao ha migracao necessaria.
 
-<div className="absolute" style={{ top: '65%', right: -6 }}>
-  <div className="w-5 h-5 rounded-full bg-red-500 border-2 border-white flex items-center justify-center">
-    <X className="w-3 h-3 text-white" />
-  </div>
-</div>
-```
-
-Os `Handle` do React Flow serao sobrepostos por esses divs visuais (com `pointer-events-none`) para manter a funcionalidade de conexao.
-
-## Arquivos Modificados
-
-1. `src/modules/automacoes/pages/AutomacoesPage.tsx` — auto-save com debounce
-2. `src/modules/automacoes/components/nodes/CondicaoNode.tsx` — icones check/X nos handles
-3. `src/modules/automacoes/components/nodes/ValidacaoNode.tsx` — icones check/X nos handles
