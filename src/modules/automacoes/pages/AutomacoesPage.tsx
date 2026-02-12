@@ -180,6 +180,7 @@ export function AutomacoesPage() {
       {/* Config panel */}
       {selectedNode && (
         <NodeConfigPanel
+          key={selectedNode.id}
           node={selectedNode}
           onClose={() => setSelectedNodeId(null)}
           onUpdate={updateNodeData}
