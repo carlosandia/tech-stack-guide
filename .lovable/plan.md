@@ -1,32 +1,69 @@
 
 
-# Plano: GAP 9 — Campos Customizados Dinamicos nas Acoes de Automacao
+# Plano de Correcao: Acoes de Automacao (WhatsApp, Email, CRM)
 
-## Status dos GAPs
+## 1. Status de conexao em Enviar WhatsApp e Enviar Email
 
-- **GAP 5 (Validacao com branching):** JA CORRIGIDO. O `flowConverter.ts` faz traversal por edges com `match_acoes`/`nenhuma_acoes`, e as Edge Functions possuem o case `validacao` com `avaliarValidacao`.
-- **GAP 9 (Campos customizados dinamicos):** PENDENTE. Os cases `atualizar_campo_contato` e `atualizar_campo_oportunidade` no `AcaoConfig.tsx` usam inputs de texto livre para "Nome do campo" em vez de carregar campos reais do banco.
+**Problema:** Ao selecionar "Enviar WhatsApp" ou "Enviar Email" nas acoes, o usuario nao sabe se tem uma conexao ativa configurada.
 
-## O que sera feito
+**Solucao:**
+- No case `enviar_whatsapp`: consultar a tabela `integracoes` (where `plataforma = 'whatsapp'` e status `connected`) via Supabase para exibir um badge de status (Conectado/Desconectado) no topo da configuracao.
+- No case `enviar_email`: consultar a tabela `conexoes_email` (where status in `conectado`, `ativo`) para exibir badge similar.
+- Ambos exibirao um alerta sutil quando nao houver conexao ativa, orientando o usuario a configurar em /configuracoes/conexoes.
+- Preparar campo `conexao_tipo` para futuro suporte a WhatsApp API oficial (WAHA vs API Oficial) e Email (SMTP vs Marketing), salvando no config da acao.
 
-### Arquivo: `src/modules/automacoes/components/panels/AcaoConfig.tsx`
+**Arquivo:** `src/modules/automacoes/components/panels/AcaoConfig.tsx`
 
-**Alteracao no case `atualizar_campo_contato` / `atualizar_campo_oportunidade` (linhas 218-231):**
+---
 
-1. Importar o hook `useCampos` de `@/modules/configuracoes/hooks/useCampos`
-2. Substituir o input de texto livre "Nome do campo" por um `<select>` que carrega os campos customizados da entidade correspondente:
-   - `atualizar_campo_contato` carrega `useCampos('pessoa')`
-   - `atualizar_campo_oportunidade` carrega `useCampos('oportunidade')`
-3. Cada opcao do select exibe `campo.nome` e salva `campo.slug` no `config.campo`
-4. Manter o input de "Novo valor" com suporte a variaveis dinamicas (adicionar `VariavelInserter`)
+## 2. Upload de audio/imagem/documento no WhatsApp (substituir URL por upload)
 
-### Detalhes Tecnicos
+**Problema:** Atualmente, para midia (audio, imagem, documento), o usuario precisa colar uma URL publica. Nao pode gravar audio nem anexar arquivo.
 
-- O hook `useCampos` ja existe em `src/modules/configuracoes/hooks/useCampos.ts` e retorna `{ campos: CampoCustomizado[], total: number }`
-- O `CamposContextuais` e uma funcao interna (nao componente top-level), entao precisaremos chamar o hook no componente pai (`AcaoConfig`) e passar os dados via props, ou extrair o case para um sub-componente
-- Abordagem: Criar um sub-componente `CamposDinamicos` que usa o hook internamente, respeitando as regras de hooks do React
+**Solucao:**
+- Para tipos `imagem` e `documento`: adicionar botao "Anexar arquivo" que faz upload para o bucket `chat-media` (ja publico) do Supabase Storage e preenche automaticamente a `midia_url`.
+- Para tipo `audio`: adicionar botao de gravacao usando `MediaRecorder` API (mesmo padrao do modulo /conversas) que grava, faz upload para `chat-media`, e preenche a `midia_url`.
+- Manter o campo URL como fallback manual para quem preferir colar link.
 
-### Resultado esperado
+**Arquivos:**
+- `src/modules/automacoes/components/panels/AcaoConfig.tsx` (adicionar UI de upload/gravacao no case `enviar_whatsapp`)
+- Reutilizar o bucket publico `chat-media` existente
 
-Em vez de digitar manualmente o nome do campo, o usuario vera um dropdown com todos os campos cadastrados (sistema + customizados) para a entidade correta, com UX consistente com o resto do sistema.
+---
+
+## 3. Funis e Etapas dinamicos em "Criar oportunidade" e "Mover para etapa"
+
+**Problema:** Campos "Funil" e "Etapa" usam inputs de texto livre pedindo IDs, dificil para o usuario.
+
+**Solucao:**
+- Criar sub-componente `FunilEtapaSelect` que:
+  1. Consulta `funis` via Supabase (where `arquivado = false` e `deletado_em IS NULL`) para popular dropdown de funis
+  2. Ao selecionar um funil, consulta `etapas_funil` (where `funil_id = selecionado` e `deletado_em IS NULL`, order by `ordem`) para popular dropdown de etapas
+- Aplicar no case `criar_oportunidade`: dropdown de funil (obrigatorio) + etapa inicial (opcional, primeira etapa por padrao)
+- Aplicar no case `mover_etapa`: dropdown de funil + dropdown de etapa destino (obrigatorio)
+- Aplicar no case `distribuir_responsavel`: dropdown de funil de referencia
+
+**Arquivo:** `src/modules/automacoes/components/panels/AcaoConfig.tsx`
+
+---
+
+## 4. Validacao do case "Adicionar nota na oportunidade"
+
+**Analise da tabela `anotacoes_oportunidades`:**
+- Colunas: `id`, `organizacao_id`, `oportunidade_id`, `usuario_id`, `tipo` (varchar), `conteudo` (text), `audio_url`, `audio_duracao_segundos`, `criado_em`
+- O campo `conteudo` ja esta correto para o fluxo
+- **Porem, falta o campo `tipo`** na configuracao -- a tabela aceita tipo (ex: `nota`, `observacao`). Vamos adicionar um select para o tipo da nota.
+- O `oportunidade_id` sera resolvido em runtime pela Edge Function (vem do contexto do trigger), entao nao precisa de campo no formulario.
+
+**Conclusao:** Adicionar campo `tipo` (default `nota`) ao case `adicionar_nota`.
+
+---
+
+## Resumo tecnico de alteracoes
+
+| Arquivo | Alteracao |
+|---|---|
+| `AcaoConfig.tsx` | Sub-componentes: `StatusConexao`, `FunilEtapaSelect`, `MediaUploader`. Refatorar cases `enviar_whatsapp`, `enviar_email`, `criar_oportunidade`, `mover_etapa`, `distribuir_responsavel`, `adicionar_nota` |
+
+Nenhuma migracao de banco necessaria -- todas as tabelas ja existem com as colunas corretas.
 
