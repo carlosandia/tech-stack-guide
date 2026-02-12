@@ -1,97 +1,112 @@
 
-# Correcao Definitiva: Persistencia de Configuracao nas Acoes
+# Correcao: Auto-Save + UI CondicaoNode
 
-## Diagnostico
+## Problema Raiz
 
-O problema esta em **multiplos niveis de stale closure** que se acumulam na cadeia de update:
+Apos investigacao profunda, o problema de persistencia NAO e apenas stale closure — a correcao via `useRef` ja esta aplicada em todos os niveis. O problema real e que **os dados vivem apenas no React state (`nodes` array)** e qualquer re-render inesperado, interacao no canvas (selecao, drag), ou batching do React 18 pode causar perda. A unica forma confiavel de garantir persistencia e **salvar no banco automaticamente**.
 
-### Cadeia de atualizacao (3 niveis):
+## Solucao
 
-```text
-CamposContextuais.updateConfig()
-  -> AcaoConfig.onUpdate (prop)
-    -> NodeConfigPanel.handleUpdate()
-      -> useFlowState.updateNodeData()
-        -> setNodes()
-```
+### Parte 1: Auto-save com debounce (como formularios)
 
-### Nivel 1 - CamposContextuais (ja corrigido)
-O `useRef` para `data` foi adicionado, mas `updateConfig` depende de `onUpdate` via `useCallback([onUpdate])`. Se `onUpdate` mudar referencia, `updateConfig` e recriado, porem o problema nao esta aqui.
+Ao inves de depender do botao "Salvar" manual, o fluxo sera salvo automaticamente no banco apos cada alteracao, com debounce de 1 segundo para nao sobrecarregar o servidor.
 
-### Nivel 2 - NodeConfigPanel.handleUpdate (NAO corrigido - causa principal)
-```text
-const handleUpdate = (data) => {
-    onUpdate(node.id, data)   // <-- `node` capturado do closure!
-}
-```
-`handleUpdate` e recriado a cada render, mas **nao e estavel**. Quando `AcaoConfig` chama `onUpdate`, pode estar usando uma versao de `handleUpdate` que capturou um `node` antigo. Mais criticamente: `handleUpdate` e uma funcao nova a cada render de `NodeConfigPanel`, fazendo com que `AcaoConfig` receba um novo `onUpdate` prop a cada render, disparando re-renders desnecessarios em toda a arvore.
+**Arquivo: `src/modules/automacoes/pages/AutomacoesPage.tsx`**
 
-### Nivel 3 - AcaoConfig (NAO corrigido)
-`AcaoConfig` passa `onUpdate` direto para `CamposContextuais`. Se `AcaoConfig` nao re-renderizar entre a digitacao do usuario e o toggle da categoria, `CamposContextuais` pode estar usando um `onUpdate` que fecha sobre dados antigos.
+- Adicionar `useRef` para timer de debounce
+- Criar funcao `debouncedSave` que converte nodes/edges para payload e chama `atualizarMutation.mutate`
+- Disparar auto-save quando `nodes` ou `edges` mudam (via `useEffect`)
+- Manter botao "Salvar" como fallback manual, mas o comportamento padrao sera auto-save
+- Adicionar indicador visual sutil ("Salvando..." / "Salvo") no lugar do botao ou ao lado
 
-## Solucao: Ref pattern em todos os 3 niveis
-
-### Arquivo 1: `src/modules/automacoes/components/panels/NodeConfigPanel.tsx`
-
-**Mudanca**: Usar `useRef` + `useCallback` para `handleUpdate`:
+**Logica:**
 
 ```text
-// ANTES:
-const handleUpdate = (data: Record<string, unknown>) => {
-    onUpdate(node.id, data)
-}
-
-// DEPOIS:
-const nodeIdRef = useRef(node.id)
-nodeIdRef.current = node.id
-const onUpdateRef = useRef(onUpdate)
-onUpdateRef.current = onUpdate
-
-const handleUpdate = useCallback((data: Record<string, unknown>) => {
-    onUpdateRef.current(nodeIdRef.current, data)
-}, [])
+useEffect:
+  - Se nao tem selectedAutoId, ignorar
+  - Se nodes tem menos de 1 no, ignorar (evita salvar estado vazio)
+  - Limpar timer anterior
+  - Setar novo timer (1000ms) que chama flowToAutomacao + atualizarMutation
+  - Cleanup: limpar timer
+  Dependencias: [nodes, edges, selectedAutoId]
 ```
 
-Isso garante:
-- `handleUpdate` e **estavel** (referencia nunca muda) -- evita re-renders cascata
-- Sempre usa o `node.id` e `onUpdate` mais recentes via ref
+### Parte 2: UI do CondicaoNode — Check/X nos handles
 
-### Arquivo 2: `src/modules/automacoes/components/panels/AcaoConfig.tsx`
+**Arquivo: `src/modules/automacoes/components/nodes/CondicaoNode.tsx`**
 
-**Mudanca**: Adicionar `useRef` para `data` e `onUpdate` no componente `AcaoConfig` (nao apenas em `CamposContextuais`):
+Substituir os labels de texto "Sim" e "Nao" por icones dentro dos proprios handles:
+
+- Handle verde (sim): icone `Check` (lucide) dentro do circulo
+- Handle vermelho (nao): icone `X` (lucide) dentro do circulo
+- Remover o bloco `<div>` com os `<span>` de texto "Sim" e "Nao"
+- Aumentar levemente o tamanho dos handles para acomodar os icones (de `!w-3 !h-3` para `!w-5 !h-5`)
+- Posicionar os icones com CSS absoluto dentro de `<div>` wrappers ao lado dos handles
+
+**Referencia visual (imagem 2 do usuario):**
+- Circulo vermelho com X para a saida "nao"
+- Circulo verde com check para a saida "sim"
+
+### Parte 3: Mesma mudanca no ValidacaoNode
+
+**Arquivo: `src/modules/automacoes/components/nodes/ValidacaoNode.tsx`**
+
+Aplicar o mesmo padrao visual dos handles:
+- Handle verde (match): icone `Check`
+- Handle vermelho (nenhuma): icone `X`
+- Remover labels de texto "Match" e "Nenhuma"
+
+---
+
+## Detalhes Tecnicos
+
+### Auto-save (AutomacoesPage.tsx)
 
 ```text
-export function AcaoConfig({ data, onUpdate }: AcaoConfigProps) {
-  // Refs para evitar stale closure no onClick dos tipos
-  const dataRef = useRef(data)
-  dataRef.current = data
-  const onUpdateRef = useRef(onUpdate)
-  onUpdateRef.current = onUpdate
+// Ref para debounce timer
+const saveTimerRef = useRef<NodeJS.Timeout>()
 
-  // ...
+// Refs para evitar stale closure no useEffect
+const nodesRef = useRef(nodes)
+nodesRef.current = nodes
+const edgesRef = useRef(edges)
+edgesRef.current = edges
 
-  // No onClick dos botoes de tipo:
-  onClick={() => {
-    if (a.tipo === currentTipo) return
-    onUpdateRef.current({ ...dataRef.current, tipo: a.tipo, config: {} })
-  }}
+useEffect(() => {
+  if (!selectedAutoId) return
+  if (nodes.length < 1) return
 
-  // No CamposContextuais:
-  <CamposContextuais tipo={currentTipo} data={data} onUpdate={onUpdateRef.current} />
-}
+  clearTimeout(saveTimerRef.current)
+  saveTimerRef.current = setTimeout(() => {
+    const payload = flowToAutomacao(nodesRef.current, edgesRef.current)
+    atualizarMutation.mutate({ id: selectedAutoId, payload })
+  }, 1000)
+
+  return () => clearTimeout(saveTimerRef.current)
+}, [nodes, edges, selectedAutoId])
 ```
 
-### `CamposContextuais` - ja corrigido (manter)
+### CondicaoNode handles
 
-O `useRef` para `data` e `useCallback` para `updateConfig` ja estao corretos.
+```text
+// Ao lado de cada Handle source, um div posicionado com icone:
+<div className="absolute" style={{ top: '35%', right: -6 }}>
+  <div className="w-5 h-5 rounded-full bg-green-500 border-2 border-white flex items-center justify-center">
+    <Check className="w-3 h-3 text-white" />
+  </div>
+</div>
 
-## Por que isso resolve definitivamente
+<div className="absolute" style={{ top: '65%', right: -6 }}>
+  <div className="w-5 h-5 rounded-full bg-red-500 border-2 border-white flex items-center justify-center">
+    <X className="w-3 h-3 text-white" />
+  </div>
+</div>
+```
 
-1. **NodeConfigPanel.handleUpdate estavel**: referencia nunca muda, elimina re-renders cascata e garante que sempre usa o `node.id` correto
-2. **AcaoConfig com refs**: o click nos botoes de tipo e o repasse para `CamposContextuais` sempre usam dados frescos
-3. **CamposContextuais com refs** (ja implementado): `updateConfig` sempre le dados atuais
+Os `Handle` do React Flow serao sobrepostos por esses divs visuais (com `pointer-events-none`) para manter a funcionalidade de conexao.
 
-## Escopo
+## Arquivos Modificados
 
-- 2 arquivos modificados: `NodeConfigPanel.tsx` e `AcaoConfig.tsx`
-- Apenas adicao de refs e useCallback — zero mudanca de logica ou UI
+1. `src/modules/automacoes/pages/AutomacoesPage.tsx` — auto-save com debounce
+2. `src/modules/automacoes/components/nodes/CondicaoNode.tsx` — icones check/X nos handles
+3. `src/modules/automacoes/components/nodes/ValidacaoNode.tsx` — icones check/X nos handles
