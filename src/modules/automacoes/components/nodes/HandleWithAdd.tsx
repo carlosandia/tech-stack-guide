@@ -94,8 +94,8 @@ export function HandleWithAdd({ nodeId, handleId, color, icon, top, onAddNode }:
         position={Position.Right}
         id={handleId}
         className={`
-          !border-2 !border-white !-right-2.5 !cursor-pointer !z-10
-          ${hasIcon ? '!w-5 !h-5 !bg-transparent !border-0' : `!w-5 !h-5 ${bgClass}`}
+          !cursor-pointer
+          ${hasIcon ? '!w-0 !h-0 !bg-transparent !border-0 !-right-1.5' : `!w-5 !h-5 ${bgClass} !border-2 !border-white !-right-2.5 !z-10`}
         `}
         style={handleStyle}
         onMouseDown={handleMouseDown}
