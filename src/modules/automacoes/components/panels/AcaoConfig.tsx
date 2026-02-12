@@ -304,8 +304,13 @@ function CamposContextuais({ tipo, data, onUpdate }: { tipo: string; data: Recor
       return (
         <div className="space-y-3">
           <p className="text-xs text-muted-foreground">
-            Distribuição automática Round Robin entre os membros ativos do tenant.
+            Distribui automaticamente entre os membros usando a configuração de rodízio (Round Robin) do funil selecionado.
           </p>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Funil de referência</label>
+            <input type="text" value={config.funil_id || ''} onChange={e => updateConfig({ funil_id: e.target.value })} placeholder="ID do funil (usa config de distribuição)" className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
+            <p className="text-[11px] text-muted-foreground mt-1">Usa a configuração de distribuição cadastrada no funil (posição de rodízio, membros ativos, etc.).</p>
+          </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground">Pular inativos?</label>
             <select value={config.pular_inativos || 'true'} onChange={e => updateConfig({ pular_inativos: e.target.value })} className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary">
