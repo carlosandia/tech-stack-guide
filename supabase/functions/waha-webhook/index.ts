@@ -254,7 +254,7 @@ Deno.serve(async (req) => {
     // Find the WhatsApp session
     const { data: sessao, error: sessaoError } = await supabaseAdmin
       .from("sessoes_whatsapp")
-      .select("id, organizacao_id, usuario_id, auto_criar_pre_oportunidade, funil_destino_id")
+      .select("id, organizacao_id, usuario_id, auto_criar_pre_oportunidade, funil_destino_id, phone_number")
       .eq("session_name", sessionName)
       .is("deletado_em", null)
       .maybeSingle();
@@ -292,13 +292,10 @@ Deno.serve(async (req) => {
     const isChannel = rawFrom.includes("@newsletter");
     const participantRaw = payload.participant || payload._data?.participant || null;
 
-    // Skip fromMe in groups/channels (would create contact for our own number)
+    // AIDEV-NOTE: fromMe em grupos/canais agora é processado normalmente.
+    // Mensagens são salvas com from_me=true para exibição correta na UI.
     if (isFromMe && (isGroup || isChannel)) {
-      console.log("[waha-webhook] Skipping fromMe in group/channel");
-      return new Response(
-        JSON.stringify({ ok: true, message: "FromMe group/channel ignored" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      console.log(`[waha-webhook] Processing fromMe in ${isGroup ? "group" : "channel"}: ${rawFrom}`);
     }
 
     let chatId: string;
@@ -408,11 +405,17 @@ Deno.serve(async (req) => {
       }
 
       if (!phoneNumber) {
-        console.log("[waha-webhook] No participant in group message");
-        return new Response(
-          JSON.stringify({ ok: true, message: "No participant" }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        // AIDEV-NOTE: Fallback para mensagens de grupo sem participant
+        // (mensagens de sistema, notificações, ou fromMe sem participant)
+        if (isFromMe && sessao.phone_number) {
+          phoneNumber = sessao.phone_number.replace(/\D/g, "");
+          console.log(`[waha-webhook] Group no participant (fromMe): using session phone ${phoneNumber}`);
+        } else {
+          // Usar o ID do grupo como identificador genérico
+          phoneNumber = rawFrom.replace("@g.us", "");
+          phoneName = phoneName || groupName || "Participante desconhecido";
+          console.log(`[waha-webhook] Group no participant: using group ID as fallback phone=${phoneNumber}`);
+        }
       }
     } else {
       // INDIVIDUAL MESSAGE
