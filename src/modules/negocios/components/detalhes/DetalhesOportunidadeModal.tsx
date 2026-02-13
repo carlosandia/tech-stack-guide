@@ -5,8 +5,8 @@
  * Z-index conforme Design System 10.5
  */
 
-import { useEffect, useRef, useCallback } from 'react'
-import { Loader2 } from 'lucide-react'
+import { useEffect, useRef, useCallback, useState } from 'react'
+import { Loader2, ClipboardList, LayoutList, Clock } from 'lucide-react'
 import { useOportunidade, useExcluirOportunidade, useAvaliarQualificacao } from '../../hooks/useOportunidadeDetalhes'
 import { negociosApi, type EtapaFunil, type Oportunidade } from '../../services/negocios.api'
 import { DetalhesHeader } from './DetalhesHeader'
@@ -101,6 +101,14 @@ export function DetalhesOportunidadeModal({
     })
   }, [oportunidade, excluirOportunidade, onClose])
 
+  const [mobileSection, setMobileSection] = useState<'dados' | 'atividades' | 'historico'>('atividades')
+
+  const MOBILE_SECTIONS = [
+    { id: 'dados' as const, label: 'Dados', icon: ClipboardList },
+    { id: 'atividades' as const, label: 'Atividades', icon: LayoutList },
+    { id: 'historico' as const, label: 'Histórico', icon: Clock },
+  ]
+
   return (
     <>
       {/* Overlay */}
@@ -118,10 +126,12 @@ export function DetalhesOportunidadeModal({
           aria-modal="true"
           className="
             pointer-events-auto
-            bg-background border border-border rounded-lg shadow-lg
+            bg-background border border-border shadow-lg
             flex flex-col
-            w-[calc(100%-16px)] sm:max-w-5xl lg:max-w-7xl
-            max-h-[calc(100dvh-32px)] sm:max-h-[90vh]
+            w-full h-full
+            sm:w-[calc(100%-16px)] sm:max-w-5xl lg:max-w-7xl
+            sm:max-h-[90vh] sm:h-auto
+            sm:rounded-lg
             animate-enter
           "
         >
@@ -141,18 +151,53 @@ export function DetalhesOportunidadeModal({
                 excluindo={excluirOportunidade.isPending}
               />
 
-              {/* Body: 3 colunas desktop, stack mobile */}
+              {/* Mobile section tabs */}
+              <div className="flex-shrink-0 lg:hidden border-b border-border bg-muted/30">
+                <div className="flex">
+                  {MOBILE_SECTIONS.map(section => {
+                    const Icon = section.icon
+                    const isActive = mobileSection === section.id
+                    return (
+                      <button
+                        key={section.id}
+                        type="button"
+                        onClick={() => setMobileSection(section.id)}
+                        className={`
+                          flex-1 flex items-center justify-center gap-1.5 px-2 py-2.5
+                          text-xs font-medium border-b-2 transition-all duration-200
+                          min-h-[44px]
+                          ${isActive
+                            ? 'border-primary text-primary bg-background'
+                            : 'border-transparent text-muted-foreground hover:text-foreground'
+                          }
+                        `}
+                      >
+                        <Icon className="w-4 h-4" />
+                        <span>{section.label}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Body: Desktop 3 cols | Mobile sectioned */}
               <div className="flex-1 overflow-hidden min-h-0 flex flex-col lg:flex-row lg:gap-3 lg:p-3">
-                {/* Bloco 1: Campos (25%) */}
-                <div className="lg:w-[280px] lg:flex-shrink-0 border-b lg:border-b-0 lg:border border-border lg:rounded-lg bg-card overflow-y-auto p-4">
+                {/* Bloco 1: Campos */}
+                <div className={`
+                  lg:w-[280px] lg:flex-shrink-0 lg:border border-border lg:rounded-lg bg-card overflow-y-auto p-4
+                  ${mobileSection === 'dados' ? 'flex-1' : 'hidden lg:block'}
+                `}>
                   <DetalhesCampos
                     oportunidade={oportunidade}
                     membros={membros || []}
                   />
                 </div>
 
-                {/* Bloco 2: Abas (50%) */}
-                <div className="flex-1 min-w-0 flex flex-col overflow-hidden border-b lg:border-b-0 lg:border border-border lg:rounded-lg bg-card">
+                {/* Bloco 2: Abas */}
+                <div className={`
+                  flex-1 min-w-0 flex flex-col overflow-hidden lg:border border-border lg:rounded-lg bg-card
+                  ${mobileSection === 'atividades' ? 'flex-1' : 'hidden lg:flex'}
+                `}>
                   <DetalhesAbas
                     oportunidadeId={oportunidade.id}
                     usuarioAtualId={undefined}
@@ -160,8 +205,11 @@ export function DetalhesOportunidadeModal({
                   />
                 </div>
 
-                {/* Bloco 3: Histórico (25%) */}
-                <div className="lg:w-[260px] lg:flex-shrink-0 lg:border border-border lg:rounded-lg bg-card overflow-y-auto p-4">
+                {/* Bloco 3: Histórico */}
+                <div className={`
+                  lg:w-[260px] lg:flex-shrink-0 lg:border border-border lg:rounded-lg bg-card overflow-y-auto p-4
+                  ${mobileSection === 'historico' ? 'flex-1' : 'hidden lg:block'}
+                `}>
                   <DetalhesHistorico oportunidadeId={oportunidade.id} />
                 </div>
               </div>

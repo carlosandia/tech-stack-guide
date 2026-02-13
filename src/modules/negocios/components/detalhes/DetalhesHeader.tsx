@@ -30,11 +30,11 @@ export function DetalhesHeader({ oportunidade, etapas, onMoverEtapa, onClose, on
 
   return (
     <div className="flex-shrink-0 border-b border-border">
-      {/* Título + Badge + Stepper + Actions — tudo na mesma linha */}
-      <div className="px-4 sm:px-6 py-3 flex items-center gap-3">
+      {/* Row 1: Título + Badge + Actions */}
+      <div className="px-4 sm:px-6 py-3 flex items-center gap-2 sm:gap-3 flex-wrap">
         {/* Título + Badge */}
-        <div className="flex items-center gap-2 flex-shrink-0 min-w-0">
-          <h2 className="text-lg font-semibold text-foreground truncate max-w-[200px] lg:max-w-[280px]">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <h2 className="text-base sm:text-lg font-semibold text-foreground truncate max-w-[160px] sm:max-w-[200px] lg:max-w-[280px]">
             {oportunidade.titulo}
           </h2>
           {qualificacao && (
@@ -44,8 +44,8 @@ export function DetalhesHeader({ oportunidade, etapas, onMoverEtapa, onClose, on
           )}
         </div>
 
-        {/* Stepper de Etapas — inline */}
-        <div className="flex-1 overflow-x-auto min-w-0">
+        {/* Stepper de Etapas — inline on desktop, second row on mobile */}
+        <div className="hidden lg:flex flex-1 overflow-x-auto min-w-0">
           <div className="flex items-center gap-1 min-w-max">
             {etapas.map((etapa, idx) => {
               const isAtual = etapa.id === oportunidade.etapa_id
@@ -102,7 +102,7 @@ export function DetalhesHeader({ oportunidade, etapas, onMoverEtapa, onClose, on
             <button
               type="button"
               onClick={() => setMenuAberto(prev => !prev)}
-              className="p-2 hover:bg-accent rounded-lg transition-all duration-200"
+              className="p-2 hover:bg-accent rounded-lg transition-all duration-200 min-w-[40px] min-h-[40px] flex items-center justify-center"
               aria-label="Ações"
             >
               <MoreVertical className="w-4 h-4 text-muted-foreground" />
@@ -161,11 +161,62 @@ export function DetalhesHeader({ oportunidade, etapas, onMoverEtapa, onClose, on
           <button
             type="button"
             onClick={onClose}
-            className="p-2 hover:bg-accent rounded-lg transition-all duration-200"
+            className="p-2 hover:bg-accent rounded-lg transition-all duration-200 min-w-[40px] min-h-[40px] flex items-center justify-center"
             aria-label="Fechar"
           >
             <X className="w-5 h-5 text-muted-foreground" />
           </button>
+        </div>
+
+        {/* Mobile stepper — second row with horizontal scroll */}
+        <div className="w-full lg:hidden overflow-x-auto -mx-4 px-4 mt-1">
+          <div className="flex items-center gap-1 min-w-max pb-1">
+            {etapas.map((etapa, idx) => {
+              const isAtual = etapa.id === oportunidade.etapa_id
+              const isPassed = idx < etapaAtualIdx
+              const isGanho = etapa.tipo === 'ganho'
+              const isPerda = etapa.tipo === 'perda'
+
+              return (
+                <div key={etapa.id} className="flex items-center">
+                  {idx > 0 && (
+                    <ChevronRight className="w-3 h-3 text-muted-foreground/50 mx-0.5 flex-shrink-0" />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => onMoverEtapa(etapa.id, etapa.tipo)}
+                    disabled={isAtual}
+                    className={`
+                      flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium
+                      transition-all duration-200 whitespace-nowrap min-h-[32px]
+                      ${isAtual
+                        ? 'bg-primary text-primary-foreground shadow-sm'
+                        : isPassed
+                          ? 'bg-primary/10 text-primary hover:bg-primary/20'
+                          : isGanho
+                            ? 'bg-success-muted text-success-foreground hover:bg-success-muted/80'
+                            : isPerda
+                              ? 'bg-destructive/10 text-destructive hover:bg-destructive/20'
+                              : 'bg-muted text-muted-foreground hover:bg-accent'
+                      }
+                      ${isAtual ? 'cursor-default' : 'cursor-pointer'}
+                    `}
+                    title={isAtual ? 'Etapa atual' : `Mover para ${etapa.nome}`}
+                  >
+                    {isPassed ? (
+                      <Check className="w-3 h-3" />
+                    ) : (
+                      <div
+                        className={`w-2 h-2 rounded-full ${isAtual ? 'bg-primary-foreground' : 'border border-current'}`}
+                        style={!isAtual && !isGanho && !isPerda ? { borderColor: etapa.cor || undefined } : undefined}
+                      />
+                    )}
+                    <span>{etapa.nome}</span>
+                  </button>
+                </div>
+              )
+            })}
+          </div>
         </div>
       </div>
     </div>
