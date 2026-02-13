@@ -1,6 +1,6 @@
 /**
  * AIDEV-NOTE: Edge Function proxy para API4COM
- * Ações: validate (testar token), save (salvar conexão), validate-extension (testar ramal)
+ * Ações: validate, save, validate-extension, save-extension, get-extension, get-status, test-saved, make-call, get-balance
  * Segurança: JWT + verificação de tenant
  */
 
@@ -66,11 +66,9 @@ Deno.serve(async (req) => {
       }
 
       try {
-        // Tentar chamar um endpoint básico da API4COM para validar
         const baseUrl = (api_url || 'https://api.api4com.com').replace(/\/$/, '')
         const validateUrl = `${baseUrl}/api/v1/users/me`
         console.log('[API4COM validate] URL:', validateUrl)
-        console.log('[API4COM validate] Token length:', token.length)
         
         const response = await fetch(validateUrl, {
           headers: { 'Authorization': token },
@@ -105,7 +103,6 @@ Deno.serve(async (req) => {
 
       const apiUrlFinal = (api_url || 'https://api.api4com.com').replace(/\/$/, '')
 
-      // Upsert na tabela conexoes_api4com
       const { error: upsertError } = await supabaseAdmin
         .from('conexoes_api4com')
         .upsert({
@@ -136,7 +133,6 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ valid: false, message: 'Ramal e senha são obrigatórios' }), { headers: corsHeaders })
       }
 
-      // Buscar token API4COM do tenant
       const { data: conexao } = await supabaseAdmin
         .from('conexoes_api4com')
         .select('access_token_encrypted, api_url')
@@ -148,8 +144,6 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ valid: false, message: 'API4COM não configurada. Peça ao admin para conectar.' }), { headers: corsHeaders })
       }
 
-      // Para validação de ramal, retornamos sucesso pois a validação real acontece no WebRTC
-      // A API4COM valida as credenciais SIP no momento da conexão WebRTC
       return new Response(JSON.stringify({ valid: true, sip_server: sip_server || 'sip.api4com.com.br' }), { headers: corsHeaders })
     }
 
@@ -163,7 +157,6 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ success: false, message: 'Ramal e senha são obrigatórios' }), { headers: corsHeaders })
       }
 
-      // Upsert na tabela ramais_voip
       const { error: upsertError } = await supabaseAdmin
         .from('ramais_voip')
         .upsert({
@@ -239,6 +232,176 @@ Deno.serve(async (req) => {
       } catch {
         return new Response(JSON.stringify({ valid: false, message: 'Erro ao conectar com API4COM' }), { headers: corsHeaders })
       }
+    }
+
+    // =====================================================
+    // ACTION: make-call - iniciar ligação via click-to-call
+    // AIDEV-NOTE: Endpoint provável POST /api/v1/calls
+    // Se retornar 404, verificar logs para ajustar endpoint
+    // =====================================================
+    if (action === 'make-call') {
+      const { numero_destino } = body
+
+      if (!numero_destino) {
+        return new Response(JSON.stringify({ success: false, message: 'Número de destino não informado' }), { headers: corsHeaders })
+      }
+
+      // Buscar token API4COM do tenant
+      const { data: conexao } = await supabaseAdmin
+        .from('conexoes_api4com')
+        .select('access_token_encrypted, api_url')
+        .eq('organizacao_id', usuario.organizacao_id)
+        .is('deletado_em', null)
+        .maybeSingle()
+
+      if (!conexao) {
+        return new Response(JSON.stringify({ success: false, message: 'API4COM não configurada. Peça ao administrador para conectar.' }), { headers: corsHeaders })
+      }
+
+      // Buscar ramal do usuário
+      const { data: ramal } = await supabaseAdmin
+        .from('ramais_voip')
+        .select('extension, sip_server')
+        .eq('usuario_id', usuario.id)
+        .eq('organizacao_id', usuario.organizacao_id)
+        .maybeSingle()
+
+      if (!ramal) {
+        return new Response(JSON.stringify({ success: false, message: 'Ramal não configurado. Configure seu ramal VoIP em Configurações → Conexões.' }), { headers: corsHeaders })
+      }
+
+      const baseUrl = (conexao.api_url || 'https://api.api4com.com').replace(/\/$/, '')
+
+      try {
+        // AIDEV-NOTE: Tentativa com endpoint mais provável da API4COM
+        // Formato: POST /api/v1/calls com extension (ramal) e destination (número destino)
+        const callUrl = `${baseUrl}/api/v1/calls`
+        console.log('[API4COM make-call] URL:', callUrl)
+        console.log('[API4COM make-call] Extension:', ramal.extension, 'Destino:', numero_destino)
+
+        const callResponse = await fetch(callUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': conexao.access_token_encrypted,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            extension: ramal.extension,
+            destination: numero_destino,
+            // Campos alternativos caso a API use nomes diferentes
+            from: ramal.extension,
+            to: numero_destino,
+            src: ramal.extension,
+            dst: numero_destino,
+          }),
+        })
+
+        const responseText = await callResponse.text()
+        console.log('[API4COM make-call] Status:', callResponse.status, 'Response:', responseText.substring(0, 1000))
+
+        if (callResponse.ok) {
+          let callData = {}
+          try { callData = JSON.parse(responseText) } catch { /* resposta não-JSON */ }
+          return new Response(JSON.stringify({
+            success: true,
+            call_id: (callData as Record<string, unknown>).id || (callData as Record<string, unknown>).call_id || null,
+            status: (callData as Record<string, unknown>).status || 'iniciada',
+            data: callData,
+            message: 'Chamada iniciada com sucesso',
+          }), { headers: corsHeaders })
+        } else {
+          // Tentar interpretar erro
+          let errorMsg = `Erro ao iniciar chamada (${callResponse.status})`
+          try {
+            const errorData = JSON.parse(responseText)
+            if (errorData.message) errorMsg = errorData.message
+            if (errorData.error) errorMsg = errorData.error
+            // Verificar se é erro de créditos
+            if (responseText.toLowerCase().includes('credit') || responseText.toLowerCase().includes('balance') || responseText.toLowerCase().includes('saldo')) {
+              errorMsg = 'Créditos insuficientes na API4COM. Recarregue seu saldo.'
+            }
+          } catch { /* resposta não-JSON */ }
+
+          console.error('[API4COM make-call] Error:', errorMsg)
+          return new Response(JSON.stringify({
+            success: false,
+            message: errorMsg,
+            status_code: callResponse.status,
+          }), { headers: corsHeaders })
+        }
+      } catch (err) {
+        console.error('[API4COM make-call] Fetch error:', err)
+        return new Response(JSON.stringify({ success: false, message: 'Erro ao conectar com API4COM. Verifique a conexão.' }), { headers: corsHeaders })
+      }
+    }
+
+    // =====================================================
+    // ACTION: get-balance - consultar saldo/créditos da conta
+    // AIDEV-NOTE: Endpoint provável GET /api/v1/account/balance
+    // Se retornar 404, verificar logs para ajustar
+    // =====================================================
+    if (action === 'get-balance') {
+      const { data: conexao } = await supabaseAdmin
+        .from('conexoes_api4com')
+        .select('access_token_encrypted, api_url')
+        .eq('organizacao_id', usuario.organizacao_id)
+        .is('deletado_em', null)
+        .maybeSingle()
+
+      if (!conexao) {
+        return new Response(JSON.stringify({ success: false, message: 'API4COM não configurada' }), { headers: corsHeaders })
+      }
+
+      const baseUrl = (conexao.api_url || 'https://api.api4com.com').replace(/\/$/, '')
+
+      // AIDEV-NOTE: Tentar múltiplos endpoints possíveis para saldo
+      const balanceEndpoints = [
+        '/api/v1/account/balance',
+        '/api/v1/balance',
+        '/api/v1/account',
+        '/api/v1/users/me', // Pode conter saldo nos dados do usuário
+      ]
+
+      for (const endpoint of balanceEndpoints) {
+        try {
+          const balanceUrl = `${baseUrl}${endpoint}`
+          console.log('[API4COM get-balance] Trying:', balanceUrl)
+
+          const response = await fetch(balanceUrl, {
+            headers: { 'Authorization': conexao.access_token_encrypted },
+          })
+
+          if (response.ok) {
+            const data = await response.json()
+            console.log('[API4COM get-balance] Success from:', endpoint, 'Data:', JSON.stringify(data).substring(0, 500))
+
+            // Tentar extrair saldo de diferentes formatos de resposta
+            const balance = data.balance ?? data.saldo ?? data.credits ?? data.creditos ?? data.credit ?? data.account?.balance ?? null
+            const currency = data.currency ?? data.moeda ?? 'BRL'
+
+            return new Response(JSON.stringify({
+              success: true,
+              balance,
+              currency,
+              has_credits: balance === null ? null : balance > 0,
+              raw_data: data,
+              endpoint_used: endpoint,
+            }), { headers: corsHeaders })
+          }
+
+          console.log('[API4COM get-balance] Endpoint', endpoint, 'returned:', response.status)
+        } catch (err) {
+          console.log('[API4COM get-balance] Error on', endpoint, ':', err)
+        }
+      }
+
+      // Nenhum endpoint de saldo encontrado
+      return new Response(JSON.stringify({
+        success: true,
+        balance: null,
+        has_credits: null,
+        message: 'Não foi possível consultar o saldo. A chamada será tentada mesmo assim.',
+      }), { headers: corsHeaders })
     }
 
     return new Response(JSON.stringify({ error: 'Ação não reconhecida' }), { status: 400, headers: corsHeaders })

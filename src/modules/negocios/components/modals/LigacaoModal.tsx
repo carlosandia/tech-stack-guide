@@ -1,13 +1,15 @@
 /**
- * AIDEV-NOTE: Modal de Ligação VoIP
- * Verifica conexão API4COM antes de permitir ligar
- * Som de chamando ao iniciar ligação
+ * AIDEV-NOTE: Modal de Ligação VoIP com integração real API4COM
+ * Verifica conexão API4COM + ramal + créditos antes de permitir ligar
+ * Click-to-call via Edge Function api4com-proxy
  * Conforme Design System 10.5 - ModalBase
  */
 
-import { useState, useEffect, useRef } from 'react'
-import { Phone, PhoneOff, Mic, MicOff, Volume2, Brain, Clock, AlertCircle } from 'lucide-react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { Phone, PhoneOff, Clock, AlertCircle, PhoneCall, Loader2, Wallet } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+
+type StatusLigacao = 'idle' | 'verificando' | 'pronto' | 'chamando' | 'conectada' | 'encerrada' | 'erro'
 
 interface LigacaoModalProps {
   telefone: string
@@ -16,103 +18,137 @@ interface LigacaoModalProps {
 }
 
 export function LigacaoModal({ telefone, contatoNome, onClose }: LigacaoModalProps) {
-  const [chamando, setChamando] = useState(false)
-  const [muted, setMuted] = useState(false)
-  const [api4comConectado, setApi4comConectado] = useState<boolean | null>(null) // null = loading
-  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const [status, setStatus] = useState<StatusLigacao>('verificando')
+  const [mensagemErro, setMensagemErro] = useState<string | null>(null)
+  const [, setApi4comConectado] = useState<boolean | null>(null)
+  const [, setRamalConfigurado] = useState<boolean | null>(null)
+  const [saldoInfo, setSaldoInfo] = useState<{ balance: number | null; has_credits: boolean | null } | null>(null)
+  const [duracao, setDuracao] = useState(0)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Verificar se API4COM está conectada
+  // AIDEV-NOTE: Chamada à Edge Function api4com-proxy
+  const chamarProxy = useCallback(async (action: string, extras: Record<string, unknown> = {}) => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.access_token) throw new Error('Sessão expirada')
+
+    const res = await supabase.functions.invoke('api4com-proxy', {
+      body: { action, ...extras },
+    })
+
+    if (res.error) throw new Error(res.error.message || 'Erro na Edge Function')
+    return res.data
+  }, [])
+
+  // Verificar pré-requisitos ao abrir o modal
   useEffect(() => {
-    async function checkApi4com() {
+    async function verificarPreRequisitos() {
+      setStatus('verificando')
       try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) { setApi4comConectado(false); return }
+        // Verificar conexão API4COM, ramal e saldo em paralelo
+        const [statusRes, ramalRes, balanceRes] = await Promise.allSettled([
+          chamarProxy('get-status'),
+          chamarProxy('get-extension'),
+          chamarProxy('get-balance'),
+        ])
 
-        // AIDEV-NOTE: organizacao_id fica na tabela usuarios, nao em user_metadata
-        const { data: usuario } = await supabase
-          .from('usuarios')
-          .select('organizacao_id')
-          .eq('auth_id', user.id)
-          .maybeSingle()
+        // Conexão API4COM
+        const conexao = statusRes.status === 'fulfilled' ? statusRes.value?.conexao : null
+        const conectado = conexao?.status === 'conectado'
+        setApi4comConectado(conectado)
 
-        const orgId = usuario?.organizacao_id
-        if (!orgId) { setApi4comConectado(false); return }
+        // Ramal do usuário
+        const ramal = ramalRes.status === 'fulfilled' ? ramalRes.value?.ramal : null
+        const temRamal = !!ramal?.extension
+        setRamalConfigurado(temRamal)
 
-        const { data } = await supabase
-          .from('conexoes_api4com')
-          .select('id, status')
-          .eq('organizacao_id', orgId)
-          .is('deletado_em', null)
-          .maybeSingle()
+        // Saldo/créditos
+        if (balanceRes.status === 'fulfilled' && balanceRes.value?.success) {
+          setSaldoInfo({
+            balance: balanceRes.value.balance,
+            has_credits: balanceRes.value.has_credits,
+          })
+        }
 
-        setApi4comConectado(data?.status === 'conectado')
-      } catch {
-        setApi4comConectado(false)
+        if (!conectado) {
+          setStatus('erro')
+          setMensagemErro('Telefonia não configurada. Configure a conexão API4COM em Configurações → Conexões.')
+        } else if (!temRamal) {
+          setStatus('erro')
+          setMensagemErro('Ramal não configurado. Configure seu ramal VoIP em Configurações → Conexões → API4COM.')
+        } else if (balanceRes.status === 'fulfilled' && balanceRes.value?.has_credits === false) {
+          setStatus('erro')
+          setMensagemErro('Créditos insuficientes na API4COM. Recarregue seu saldo para realizar ligações.')
+        } else {
+          setStatus('pronto')
+        }
+      } catch (err) {
+        console.error('[LigacaoModal] Erro ao verificar pré-requisitos:', err)
+        setStatus('erro')
+        setMensagemErro('Erro ao verificar configuração de telefonia.')
       }
     }
-    checkApi4com()
-  }, [])
+    verificarPreRequisitos()
+  }, [chamarProxy])
 
-  // Cleanup audio on unmount
+  // Timer de duração
   useEffect(() => {
+    if (status === 'conectada') {
+      setDuracao(0)
+      timerRef.current = setInterval(() => setDuracao(d => d + 1), 1000)
+    } else {
+      if (timerRef.current) {
+        clearInterval(timerRef.current)
+        timerRef.current = null
+      }
+    }
     return () => {
-      if (audioRef.current) {
-        audioRef.current.pause()
-        audioRef.current = null
-      }
+      if (timerRef.current) clearInterval(timerRef.current)
     }
-  }, [])
+  }, [status])
 
-  const handleLigar = () => {
-    if (!api4comConectado) return
-    setChamando(true)
+  const formatDuracao = (s: number) => {
+    const min = Math.floor(s / 60).toString().padStart(2, '0')
+    const sec = (s % 60).toString().padStart(2, '0')
+    return `${min}:${sec}`
+  }
 
-    // Tocar som de chamando
+  const handleLigar = async () => {
+    if (status !== 'pronto') return
+    setStatus('chamando')
+    setMensagemErro(null)
+
     try {
-      const ctx = new AudioContext()
-      const playRingTone = () => {
-        // Simular tom de chamada brasileira: 1s de tom, 4s de silêncio
-        const osc = ctx.createOscillator()
-        const gain = ctx.createGain()
-        osc.connect(gain)
-        gain.connect(ctx.destination)
-        osc.frequency.value = 425 // Frequência padrão de ringback brasileiro
-        gain.gain.value = 0.15
-        osc.start()
-        osc.stop(ctx.currentTime + 1)
-        return { osc, gain }
+      const result = await chamarProxy('make-call', { numero_destino: telefone })
+
+      if (result.success) {
+        // AIDEV-NOTE: A API4COM faz o telefone do ramal tocar e depois conecta ao destino
+        // Consideramos "conectada" quando a API retorna sucesso
+        setStatus('conectada')
+      } else {
+        setStatus('erro')
+        setMensagemErro(result.message || 'Erro ao iniciar a chamada.')
       }
-
-      let interval: ReturnType<typeof setInterval>
-      playRingTone()
-      interval = setInterval(() => {
-        playRingTone()
-      }, 5000)
-
-      // Store cleanup
-      audioRef.current = { pause: () => { clearInterval(interval); ctx.close() } } as any
-    } catch {
-      // Fallback silencioso se Web Audio API não estiver disponível
+    } catch (err) {
+      console.error('[LigacaoModal] Erro ao fazer chamada:', err)
+      setStatus('erro')
+      setMensagemErro(err instanceof Error ? err.message : 'Erro ao conectar com o servidor de telefonia.')
     }
-
-    // AIDEV-TODO: Integrar WebRTC/SIP real via libwebphone.js
   }
 
   const handleDesligar = () => {
-    setChamando(false)
-    if (audioRef.current) {
-      audioRef.current.pause()
-      audioRef.current = null
-    }
-    onClose()
+    setStatus('encerrada')
+    // AIDEV-TODO: Implementar endpoint de encerramento de chamada quando disponível na API4COM
   }
+
+  const podeLigar = status === 'pronto'
+  const emChamada = status === 'chamando' || status === 'conectada'
 
   return (
     <>
       {/* Overlay */}
       <div
         className="fixed inset-0 z-[400] bg-black/80 backdrop-blur-sm animate-fade-in"
-        onClick={onClose}
+        onClick={!emChamada ? onClose : undefined}
         aria-hidden="true"
       />
 
@@ -121,107 +157,171 @@ export function LigacaoModal({ telefone, contatoNome, onClose }: LigacaoModalPro
         <div className="pointer-events-auto bg-card border border-border rounded-lg shadow-lg w-[calc(100%-32px)] sm:max-w-sm animate-enter">
           {/* Header */}
           <div className="px-6 py-4 border-b border-border text-center">
-            <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
-              <Phone className="w-6 h-6 text-primary" />
+            <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3 ${
+              emChamada ? 'bg-[hsl(var(--success))]/10' : 'bg-primary/10'
+            }`}>
+              {status === 'verificando' ? (
+                <Loader2 className="w-6 h-6 text-muted-foreground animate-spin" />
+              ) : emChamada ? (
+                <PhoneCall className="w-6 h-6 text-[hsl(var(--success))] animate-pulse" />
+              ) : (
+                <Phone className="w-6 h-6 text-primary" />
+              )}
             </div>
             {contatoNome && (
               <p className="text-sm font-semibold text-foreground">{contatoNome}</p>
             )}
             <p className="text-xs text-muted-foreground mt-0.5">{telefone}</p>
-            {chamando && (
-              <div className="flex items-center justify-center gap-1.5 mt-2">
-                <Clock className="w-3 h-3 text-primary animate-pulse" />
-                <span className="text-xs text-primary font-medium">Chamando...</span>
-              </div>
-            )}
+
+            {/* Status indicator */}
+            <div className="flex items-center justify-center gap-1.5 mt-2">
+              {status === 'verificando' && (
+                <>
+                  <Loader2 className="w-3 h-3 text-muted-foreground animate-spin" />
+                  <span className="text-xs text-muted-foreground">Verificando configuração...</span>
+                </>
+              )}
+              {status === 'chamando' && (
+                <>
+                  <Clock className="w-3 h-3 text-primary animate-pulse" />
+                  <span className="text-xs text-primary font-medium">Iniciando chamada...</span>
+                </>
+              )}
+              {status === 'conectada' && (
+                <>
+                  <PhoneCall className="w-3 h-3 text-[hsl(var(--success))]" />
+                  <span className="text-xs text-[hsl(var(--success))] font-medium">
+                    Em chamada — {formatDuracao(duracao)}
+                  </span>
+                </>
+              )}
+              {status === 'encerrada' && (
+                <>
+                  <PhoneOff className="w-3 h-3 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground font-medium">
+                    Chamada encerrada — {formatDuracao(duracao)}
+                  </span>
+                </>
+              )}
+              {status === 'pronto' && (
+                <span className="text-xs text-[hsl(var(--success))] font-medium">✓ Pronto para ligar</span>
+              )}
+            </div>
           </div>
 
           {/* Controles */}
           <div className="px-6 py-4 space-y-4">
-            {/* Aviso se não tem API4COM */}
-            {api4comConectado === false && (
-              <div className="flex items-start gap-2 p-3 rounded-lg bg-[hsl(var(--warning-muted))]">
-                <AlertCircle className="w-4 h-4 text-[hsl(var(--warning-foreground))] flex-shrink-0 mt-0.5" />
+            {/* Aviso de erro */}
+            {status === 'erro' && mensagemErro && (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10">
+                <AlertCircle className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-xs font-medium text-[hsl(var(--warning-foreground))]">
-                    Telefonia não configurada
-                  </p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
-                    Configure a conexão API4COM em Configurações → Conexões para realizar ligações.
-                  </p>
+                  <p className="text-xs font-medium text-destructive">Não é possível ligar</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">{mensagemErro}</p>
                 </div>
               </div>
             )}
 
-            {/* Botões de controle */}
+            {/* Info de saldo quando disponível */}
+            {saldoInfo?.balance !== null && saldoInfo?.balance !== undefined && status !== 'erro' && (
+              <div className="flex items-center gap-2 p-2.5 rounded-lg bg-muted/50">
+                <Wallet className="w-3.5 h-3.5 text-muted-foreground" />
+                <span className="text-[11px] text-muted-foreground">
+                  Saldo: <span className="font-medium text-foreground">R$ {Number(saldoInfo.balance).toFixed(2)}</span>
+                </span>
+              </div>
+            )}
+
+            {/* Checklist de pré-requisitos durante verificação */}
+            {status === 'verificando' && (
+              <div className="space-y-2 p-3 rounded-lg bg-muted/50">
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
+                  <span className="text-[11px] text-muted-foreground">Verificando conexão API4COM...</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
+                  <span className="text-[11px] text-muted-foreground">Verificando ramal VoIP...</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
+                  <span className="text-[11px] text-muted-foreground">Verificando créditos...</span>
+                </div>
+              </div>
+            )}
+
+            {/* Checklist completo (pós-verificação, quando pronto) */}
+            {status === 'pronto' && (
+              <div className="space-y-1.5 p-3 rounded-lg bg-muted/50">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-[hsl(var(--success))]">✓</span>
+                  <span className="text-[11px] text-muted-foreground">API4COM conectada</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-[hsl(var(--success))]">✓</span>
+                  <span className="text-[11px] text-muted-foreground">Ramal configurado</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-[hsl(var(--success))]">
+                    {saldoInfo?.has_credits === null ? '—' : '✓'}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {saldoInfo?.has_credits === null ? 'Saldo não disponível (a chamada será tentada)' : 'Créditos disponíveis'}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Botões de ação */}
             <div className="flex items-center justify-center gap-4">
-              {chamando ? (
-                <>
-                  <button
-                    onClick={() => setMuted(!muted)}
-                    className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${
-                      muted ? 'bg-destructive/10 text-destructive' : 'bg-muted text-muted-foreground hover:bg-accent'
-                    }`}
-                    title={muted ? 'Ativar microfone' : 'Mutar'}
-                  >
-                    {muted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-                  </button>
-                  <button
-                    onClick={handleDesligar}
-                    className="w-14 h-14 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center hover:bg-destructive/90 transition-colors"
-                    title="Desligar"
-                  >
-                    <PhoneOff className="w-6 h-6" />
-                  </button>
-                  <button
-                    className="w-12 h-12 rounded-full bg-muted text-muted-foreground flex items-center justify-center hover:bg-accent transition-colors"
-                    title="Volume"
-                  >
-                    <Volume2 className="w-5 h-5" />
-                  </button>
-                </>
+              {emChamada ? (
+                <button
+                  onClick={handleDesligar}
+                  className="w-14 h-14 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center hover:bg-destructive/90 transition-colors"
+                  title="Desligar"
+                >
+                  <PhoneOff className="w-6 h-6" />
+                </button>
+              ) : status === 'encerrada' ? (
+                <button
+                  onClick={() => { setStatus('pronto'); setDuracao(0) }}
+                  className="w-14 h-14 rounded-full bg-[hsl(var(--success))] text-white flex items-center justify-center hover:opacity-90 transition-opacity"
+                  title="Ligar novamente"
+                >
+                  <Phone className="w-6 h-6" />
+                </button>
               ) : (
                 <button
                   onClick={handleLigar}
-                  disabled={!api4comConectado}
+                  disabled={!podeLigar}
                   className="w-14 h-14 rounded-full bg-[hsl(var(--success))] text-white flex items-center justify-center hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
-                  title={api4comConectado ? 'Ligar' : 'Conexão VoIP não configurada'}
+                  title={podeLigar ? 'Ligar' : 'Verificando configuração...'}
                 >
-                  <Phone className="w-6 h-6" />
+                  {status === 'verificando' ? (
+                    <Loader2 className="w-6 h-6 animate-spin" />
+                  ) : (
+                    <Phone className="w-6 h-6" />
+                  )}
                 </button>
               )}
             </div>
 
-            {/* Gravação placeholder */}
-            <div className="bg-muted/50 rounded-lg p-3">
-              <div className="flex items-center gap-2 mb-1.5">
-                <Mic className="w-3.5 h-3.5 text-muted-foreground" />
-                <span className="text-xs font-medium text-muted-foreground">Gravação</span>
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                A gravação ficará disponível após a chamada ser encerrada.
+            {/* Info sobre como funciona o click-to-call */}
+            {(status === 'pronto' || status === 'chamando') && (
+              <p className="text-[11px] text-muted-foreground text-center">
+                Ao clicar em Ligar, seu ramal tocará primeiro. Ao atender, a chamada será conectada ao destino.
               </p>
-            </div>
-
-            {/* Insights IA placeholder */}
-            <div className="bg-primary/5 border border-primary/20 rounded-lg p-3">
-              <div className="flex items-center gap-2 mb-1.5">
-                <Brain className="w-3.5 h-3.5 text-primary" />
-                <span className="text-xs font-medium text-primary">Insights de IA</span>
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                Após a ligação, a IA analisará o conteúdo e gerará resumo, sentimento e próximos passos.
-              </p>
-            </div>
+            )}
           </div>
 
           {/* Footer */}
           <div className="px-6 py-3 border-t border-border">
             <button
               onClick={onClose}
-              className="w-full text-xs font-medium py-2 rounded-md bg-secondary text-secondary-foreground hover:bg-accent transition-colors"
+              disabled={status === 'chamando'}
+              className="w-full text-xs font-medium py-2 rounded-md bg-secondary text-secondary-foreground hover:bg-accent transition-colors disabled:opacity-50"
             >
-              Fechar
+              {emChamada ? 'Encerre a chamada antes de fechar' : 'Fechar'}
             </button>
           </div>
         </div>
