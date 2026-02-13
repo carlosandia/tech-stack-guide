@@ -1072,6 +1072,24 @@ export async function testarConfigGlobal(plataforma: string): Promise<{ sucesso:
     .select('id', { count: 'exact', head: true })
     .is('deletado_em', null)
 
+   // Usuários ativos hoje
+   const hojeInicio = new Date()
+   hojeInicio.setHours(0, 0, 0, 0)
+   const { count: ativosHoje } = await supabase
+     .from('usuarios')
+     .select('id', { count: 'exact', head: true })
+     .is('deletado_em', null)
+     .gte('ultimo_login', hojeInicio.toISOString())
+
+   // Usuários ativos nos últimos 7 dias
+   const seteDiasAtras = new Date()
+   seteDiasAtras.setDate(seteDiasAtras.getDate() - 7)
+   const { count: ativos7d } = await supabase
+     .from('usuarios')
+     .select('id', { count: 'exact', head: true })
+     .is('deletado_em', null)
+     .gte('ultimo_login', seteDiasAtras.toISOString())
+
    // Distribuição por plano (considerando período)
    const { data: planosList } = await supabase
     .from('organizacoes_saas')
@@ -1111,7 +1129,7 @@ export async function testarConfigGlobal(plataforma: string): Promise<{ sucesso:
   return {
     tenants: {
       total: totalOrgs || 0,
-      ativos: statusCounts['ativa'] || 0,
+      ativos: statusCounts['ativo'] || 0,
       trial: statusCounts['trial'] || 0,
       suspensos: statusCounts['suspensa'] || 0,
        novos_7d: novosPeriodo || 0,
@@ -1119,8 +1137,8 @@ export async function testarConfigGlobal(plataforma: string): Promise<{ sucesso:
     },
     usuarios: {
       total: totalUsuarios || 0,
-      ativos_hoje: 0,
-      ativos_7d: 0,
+      ativos_hoje: ativosHoje || 0,
+      ativos_7d: ativos7d || 0,
     },
     financeiro: {
       mrr: 0,
