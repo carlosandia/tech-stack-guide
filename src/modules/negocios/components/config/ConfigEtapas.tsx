@@ -130,7 +130,7 @@ export function ConfigEtapas({ funilId }: Props) {
         {etapasOrdenadas.map((etapa) => (
           <div
             key={etapa.id}
-            className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card transition-all duration-200"
+            className="flex items-center gap-2 sm:gap-3 p-3 rounded-lg border border-border bg-card transition-all duration-200"
           >
             {/* Setas ou Lock */}
             <div className="flex-shrink-0">
@@ -164,46 +164,46 @@ export function ConfigEtapas({ funilId }: Props) {
               style={{ backgroundColor: etapa.cor || '#6B7280' }}
             />
 
-            {/* Name */}
+            {/* Name - com truncate para não sobrepor badge */}
             <div className="flex-1 min-w-0">
-              <span className="text-sm font-medium text-foreground">{etapa.nome}</span>
+              <span className="text-sm font-medium text-foreground truncate block">{etapa.nome}</span>
             </div>
 
-            {/* Badge */}
-            <span className={`
-              px-2 py-0.5 rounded text-xs font-medium flex-shrink-0
-              ${isSistema(etapa)
-                ? 'bg-muted text-muted-foreground'
-                : 'bg-primary/10 text-primary'
-              }
-            `}>
-              {tipoLabel(etapa.tipo)}
-            </span>
+            {/* Badge + Probabilidade + Actions em linha, sem wrap */}
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              <span className={`
+                px-1.5 py-0.5 rounded text-[10px] sm:text-xs font-medium whitespace-nowrap
+                ${isSistema(etapa)
+                  ? 'bg-muted text-muted-foreground'
+                  : 'bg-primary/10 text-primary'
+                }
+              `}>
+                {tipoLabel(etapa.tipo)}
+              </span>
 
-            {/* Probabilidade */}
-            <span className="text-xs text-muted-foreground flex-shrink-0 w-10 text-right">
-              {etapa.probabilidade ?? 0}%
-            </span>
+              <span className="text-xs text-muted-foreground w-8 text-right">
+                {etapa.probabilidade ?? 0}%
+              </span>
 
-            {/* Actions */}
-            {!isSistema(etapa) && (
-              <div className="flex items-center gap-1 flex-shrink-0">
-                <button
-                  onClick={() => { setEditando(etapa); setShowModal(true) }}
-                  className="p-1.5 rounded-md hover:bg-accent text-muted-foreground transition-all duration-200"
-                  title="Editar"
-                >
-                  <Pencil className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={() => excluirEtapa.mutate(etapa.id)}
-                  className="p-1.5 rounded-md hover:bg-destructive/10 text-destructive transition-all duration-200"
-                  title="Excluir"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )}
+              {!isSistema(etapa) && (
+                <>
+                  <button
+                    onClick={() => { setEditando(etapa); setShowModal(true) }}
+                    className="p-1.5 rounded-md hover:bg-accent text-muted-foreground transition-all duration-200"
+                    title="Editar"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => excluirEtapa.mutate(etapa.id)}
+                    className="p-1.5 rounded-md hover:bg-destructive/10 text-destructive transition-all duration-200"
+                    title="Excluir"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         ))}
       </div>

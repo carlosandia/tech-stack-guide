@@ -106,7 +106,7 @@ export function ConfigDistribuicao({ funilId }: Props) {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex-1 overflow-y-auto space-y-6">
+      <div className="flex-1 overflow-y-auto space-y-6 pr-1 sm:pr-2">
       {/* Header */}
       <div>
         <h3 className="text-sm font-semibold text-foreground">Distribuição de Leads</h3>
