@@ -146,7 +146,7 @@ function SelectField({ label, value, onChange, options }: SelectFieldProps) {
 // =====================================================
 
 export function ConfigGeralPage() {
-  const { role } = useAuth()
+  const { role, user } = useAuth()
   const isAdmin = role === 'admin'
   const { setActions, setSubtitle } = useConfigToolbar()
 
@@ -307,7 +307,7 @@ export function ConfigGeralPage() {
       </section>
 
       {/* Widget WhatsApp */}
-      <WidgetWhatsAppConfig value={widgetConfig} onChange={handleWidgetChange} />
+      <WidgetWhatsAppConfig value={widgetConfig} onChange={handleWidgetChange} organizacaoId={user?.organizacao_id || ''} />
 
       {/* Botão salvar (condicional) */}
       {temAlteracoes && (
