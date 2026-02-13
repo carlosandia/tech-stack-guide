@@ -492,19 +492,74 @@ Deno.serve(async (req) => {
       if (isFromMe) {
         let toField = payload.to || payload._data?.to || rawFrom;
         
-        // Resolve @lid to @c.us using remoteJidAlt
+        // AIDEV-NOTE: Resolução @lid robusta com múltiplos fallbacks para GOWS
+        // O WAHA GOWS usa Linked IDs (@lid) internos que precisam ser convertidos
+        // para números reais (@c.us) para encontrar contatos e conversas existentes.
         if (toField.includes("@lid")) {
-          const altJid = payload._data?.key?.remoteJidAlt || payload._data?.to;
-          if (altJid && altJid.includes("@s.whatsapp.net")) {
+          let lidResolved = false;
+          const originalLid = toField;
+
+          // Strategy 1: _data.key.remoteJidAlt (campo padrão GOWS)
+          const altJid = payload._data?.key?.remoteJidAlt;
+          if (!lidResolved && altJid && typeof altJid === "string" && altJid.includes("@s.whatsapp.net")) {
             toField = altJid.replace("@s.whatsapp.net", "@c.us");
-            console.log(`[waha-webhook] Resolved @lid (fromMe to): ${payload.to} -> ${toField}`);
-          } else {
-            // Try extracting number from other fields
-            const altTo = payload._data?.chat?.id?._serialized || payload._data?.chat?.id;
-            if (altTo && !altTo.includes("@lid")) {
-              toField = altTo;
-              console.log(`[waha-webhook] Resolved @lid (fromMe via chat.id): ${payload.to} -> ${toField}`);
+            lidResolved = true;
+            console.log(`[waha-webhook] LID resolved via remoteJidAlt: ${originalLid} -> ${toField}`);
+          }
+
+          // Strategy 2: _data.to field (quando é @s.whatsapp.net)
+          if (!lidResolved) {
+            const dataTo = payload._data?.to;
+            if (dataTo && typeof dataTo === "string" && dataTo.includes("@s.whatsapp.net")) {
+              toField = dataTo.replace("@s.whatsapp.net", "@c.us");
+              lidResolved = true;
+              console.log(`[waha-webhook] LID resolved via _data.to: ${originalLid} -> ${toField}`);
             }
+          }
+
+          // Strategy 3: chat.id
+          if (!lidResolved) {
+            const altTo = payload._data?.chat?.id?._serialized || payload._data?.chat?.id;
+            if (altTo && typeof altTo === "string" && !altTo.includes("@lid")) {
+              toField = altTo;
+              lidResolved = true;
+              console.log(`[waha-webhook] LID resolved via chat.id: ${originalLid} -> ${toField}`);
+            }
+          }
+
+          // Strategy 4: Busca no banco - mensagens anteriores que já mapearam este LID
+          if (!lidResolved) {
+            const lidNumber = originalLid.replace("@lid", "");
+            console.log(`[waha-webhook] LID fallback: searching DB for previous mappings of LID ${lidNumber}`);
+            
+            // Busca mensagens que contenham o LID no message_id e que tenham raw_data com remoteJidAlt
+            const { data: prevMessages } = await supabaseAdmin
+              .from("mensagens")
+              .select("raw_data")
+              .eq("organizacao_id", sessao.organizacao_id)
+              .ilike("message_id", `%${lidNumber}%`)
+              .not("raw_data", "is", null)
+              .order("criado_em", { ascending: false })
+              .limit(10);
+
+            if (prevMessages) {
+              for (const msg of prevMessages) {
+                const rawData = msg.raw_data as Record<string, unknown>;
+                const prevAlt = (rawData?._data as Record<string, unknown>)?.key as Record<string, unknown>;
+                const prevAltJid = prevAlt?.remoteJidAlt as string;
+                if (prevAltJid && typeof prevAltJid === "string" && prevAltJid.includes("@s.whatsapp.net")) {
+                  toField = prevAltJid.replace("@s.whatsapp.net", "@c.us");
+                  lidResolved = true;
+                  console.log(`[waha-webhook] LID resolved via DB lookup: ${originalLid} -> ${toField}`);
+                  break;
+                }
+              }
+            }
+          }
+
+          // Strategy 5: Busca conversa existente vinculada a esta sessão (contato_id based)
+          if (!lidResolved) {
+            console.warn(`[waha-webhook] Could NOT resolve @lid: ${originalLid}. Will attempt contato/conversa fallback later.`);
           }
         }
         
@@ -512,7 +567,7 @@ Deno.serve(async (req) => {
         phoneNumber = toField.replace("@c.us", "").replace("@s.whatsapp.net", "").replace("@lid", "");
         // For fromMe, pushName/notifyName might not be available for the recipient
         phoneName = payload._data?.notifyName || payload.notifyName || null;
-        console.log(`[waha-webhook] fromMe individual: from=${rawFrom}, to=${toField}, chatId=${chatId}`);
+        console.log(`[waha-webhook] fromMe individual: from=${rawFrom}, to=${toField}, chatId=${chatId}, resolved=${!toField.includes("@lid")}`);
       } else {
         let resolvedFrom = rawFrom;
         
@@ -600,8 +655,11 @@ Deno.serve(async (req) => {
       // AIDEV-NOTE: Contatos criados via WhatsApp sempre iniciam como 'pre_lead'
       // para não poluir a listagem de contatos. Só são promovidos a 'novo'
       // quando o usuário aceita a pré-oportunidade ou manualmente.
-      const contatoStatus = "pre_lead";
-      const { data: newContato, error: contatoError } = await supabaseAdmin
+      let contatoStatus = "pre_lead";
+      let newContato;
+      let contatoError;
+      
+      ({ data: newContato, error: contatoError } = await supabaseAdmin
         .from("contatos")
         .insert({
           organizacao_id: sessao.organizacao_id,
@@ -612,10 +670,27 @@ Deno.serve(async (req) => {
           status: contatoStatus,
         })
         .select("id")
-        .single();
+        .single());
+
+      // Correção 3: Fallback para status "novo" se pre_lead falhar (constraint)
+      if (contatoError) {
+        console.warn(`[waha-webhook] pre_lead failed (${contatoError.message}), retrying with status=novo`);
+        ({ data: newContato, error: contatoError } = await supabaseAdmin
+          .from("contatos")
+          .insert({
+            organizacao_id: sessao.organizacao_id,
+            tipo: "pessoa",
+            origem: "whatsapp",
+            nome: contactName,
+            telefone: phoneNumber,
+            status: "novo",
+          })
+          .select("id")
+          .single());
+      }
 
       if (contatoError || !newContato) {
-        console.error(`[waha-webhook] Error creating contato:`, contatoError?.message);
+        console.error(`[waha-webhook] Error creating contato (both statuses failed):`, contatoError?.message);
         return new Response(
           JSON.stringify({ ok: true, message: "Error creating contact" }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -632,14 +707,41 @@ Deno.serve(async (req) => {
     // =====================================================
     let conversaId: string;
 
-    const { data: existingConversa } = await supabaseAdmin
+    // Correção 4: Busca de conversa com fallback por contato_id quando chatId é @lid
+    let existingConversa = null;
+
+    // Tentativa 1: busca por chat_id exato
+    const { data: conversaByChatId } = await supabaseAdmin
       .from("conversas")
-      .select("id, total_mensagens, mensagens_nao_lidas")
+      .select("id, total_mensagens, mensagens_nao_lidas, chat_id")
       .eq("organizacao_id", sessao.organizacao_id)
       .eq("chat_id", chatId)
       .eq("sessao_whatsapp_id", sessao.id)
       .is("deletado_em", null)
       .maybeSingle();
+
+    existingConversa = conversaByChatId;
+
+    // Tentativa 2: se chatId contém @lid e não encontrou, buscar por contato_id + sessao
+    if (!existingConversa && chatId.includes("@lid") && contatoId) {
+      console.log(`[waha-webhook] Conversa not found by @lid chatId, trying fallback by contato_id=${contatoId}`);
+      const { data: conversaByContato } = await supabaseAdmin
+        .from("conversas")
+        .select("id, total_mensagens, mensagens_nao_lidas, chat_id")
+        .eq("organizacao_id", sessao.organizacao_id)
+        .eq("contato_id", contatoId)
+        .eq("sessao_whatsapp_id", sessao.id)
+        .eq("tipo", "individual")
+        .is("deletado_em", null)
+        .maybeSingle();
+
+      if (conversaByContato) {
+        existingConversa = conversaByContato;
+        // Atualiza o chatId para usar o real da conversa encontrada
+        chatId = conversaByContato.chat_id;
+        console.log(`[waha-webhook] ✅ Conversa found via contato fallback: ${conversaByContato.id} (chatId=${chatId})`);
+      }
+    }
 
     if (existingConversa) {
       conversaId = existingConversa.id;
