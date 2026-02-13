@@ -8,6 +8,7 @@ export interface WidgetWhatsAppConfig {
   posicao: 'direita' | 'esquerda'
   usar_formulario: boolean
   campos_formulario: string[] // IDs dos campos_customizados
+  campos_obrigatorios: string[] // IDs dos campos obrigatórios no pré-formulário
   nome_atendente: string
   foto_atendente_url: string
   mensagem_boas_vindas: string
@@ -21,6 +22,7 @@ export const DEFAULT_WIDGET_CONFIG: WidgetWhatsAppConfig = {
   posicao: 'direita',
   usar_formulario: false,
   campos_formulario: [],
+  campos_obrigatorios: [],
   nome_atendente: '',
   foto_atendente_url: '',
   mensagem_boas_vindas: 'Olá! 👋 Como posso te ajudar?',

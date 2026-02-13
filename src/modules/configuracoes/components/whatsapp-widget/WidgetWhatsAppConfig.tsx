@@ -80,9 +80,22 @@ export function WidgetWhatsAppConfig({ value, onChange }: Props) {
   const toggleCampo = (campoId: string) => {
     const atual = config.campos_formulario
     if (atual.includes(campoId)) {
+      // Ao remover campo, remover também dos obrigatórios
       update('campos_formulario', atual.filter(id => id !== campoId))
+      if (config.campos_obrigatorios?.includes(campoId)) {
+        update('campos_obrigatorios', (config.campos_obrigatorios || []).filter(id => id !== campoId))
+      }
     } else {
       update('campos_formulario', [...atual, campoId])
+    }
+  }
+
+  const toggleObrigatorio = (campoId: string) => {
+    const atual = config.campos_obrigatorios || []
+    if (atual.includes(campoId)) {
+      update('campos_obrigatorios', atual.filter(id => id !== campoId))
+    } else {
+      update('campos_obrigatorios', [...atual, campoId])
     }
   }
 
@@ -256,7 +269,7 @@ export function WidgetWhatsAppConfig({ value, onChange }: Props) {
               </div>
 
               {config.usar_formulario && (
-                <div className="border border-border rounded-md p-3 space-y-2">
+                <div className="border border-border rounded-md p-3 space-y-3">
                   <p className="text-xs font-medium text-muted-foreground">Selecione os campos (entidade Pessoa)</p>
                   {campos.length === 0 ? (
                     <p className="text-xs text-muted-foreground italic">Nenhum campo cadastrado em Pessoa</p>
@@ -278,6 +291,34 @@ export function WidgetWhatsAppConfig({ value, onChange }: Props) {
                           </button>
                         )
                       })}
+                    </div>
+                  )}
+
+                  {/* Campos obrigatórios */}
+                  {config.campos_formulario.length > 0 && (
+                    <div className="pt-2 border-t border-border space-y-1.5">
+                      <p className="text-xs font-medium text-muted-foreground">Campos obrigatórios</p>
+                      <div className="flex flex-wrap gap-2">
+                        {config.campos_formulario.map(campoId => {
+                          const campo = campos.find(c => c.id === campoId)
+                          if (!campo) return null
+                          const isObrigatorio = (config.campos_obrigatorios || []).includes(campoId)
+                          return (
+                            <button
+                              key={campoId}
+                              onClick={() => toggleObrigatorio(campoId)}
+                              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                                isObrigatorio
+                                  ? 'border-destructive bg-destructive/10 text-destructive'
+                                  : 'border-border bg-background text-muted-foreground hover:bg-accent'
+                              }`}
+                            >
+                              {campo.nome} {isObrigatorio ? '*' : ''}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">Clique para marcar/desmarcar como obrigatório</p>
                     </div>
                   )}
                 </div>
