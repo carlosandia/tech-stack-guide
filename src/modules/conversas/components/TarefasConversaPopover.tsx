@@ -46,13 +46,19 @@ export function TarefasConversaPopover({ contatoId, contatoNome, canal }: Tarefa
   const [pos, setPos] = useState({ top: 0, right: 0 })
   const btnRef = useRef<HTMLButtonElement>(null)
 
+  // AIDEV-NOTE: Centralizar na tela no mobile para não cortar o dropdown
   const calcPos = useCallback(() => {
-    if (!btnRef.current) return
-    const rect = btnRef.current.getBoundingClientRect()
-    setPos({
-      top: rect.bottom + 4,
-      right: window.innerWidth - rect.right,
-    })
+    const isMobile = window.innerWidth < 640
+    if (isMobile) {
+      // Centralizado na tela
+      setPos({ top: 0, right: 0 })
+    } else if (btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect()
+      setPos({
+        top: rect.bottom + 4,
+        right: window.innerWidth - rect.right,
+      })
+    }
   }, [])
 
   const carregarTarefas = async () => {
@@ -149,17 +155,21 @@ export function TarefasConversaPopover({ contatoId, contatoNome, canal }: Tarefa
       {open && createPortal(
         <>
           <div className="fixed inset-0" style={{ zIndex: 590 }} onClick={() => setOpen(false)} />
+          {/* Mobile: centralizado; Desktop: posicionado pelo botão */}
           <div
-            className="fixed w-80 rounded-lg shadow-lg overflow-hidden border border-border"
+            className={`fixed rounded-lg shadow-xl overflow-hidden border border-border ${
+              window.innerWidth < 640
+                ? 'inset-x-4 top-1/4 w-auto'
+                : 'w-80'
+            }`}
             style={{
               zIndex: 600,
-              top: pos.top,
-              right: pos.right,
-              backgroundColor: 'hsl(var(--card))',
+              ...(window.innerWidth >= 640 ? { top: pos.top, right: pos.right } : {}),
+              backgroundColor: 'white',
             }}
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-3 py-2.5 border-b border-border" style={{ backgroundColor: 'hsl(var(--muted))' }}>
+            <div className="flex items-center justify-between px-3 py-2.5 border-b border-border bg-muted">
               <div>
                 <p className="text-sm font-semibold text-foreground">Tarefas do Contato</p>
                 <p className="text-[11px] text-muted-foreground">
@@ -177,7 +187,7 @@ export function TarefasConversaPopover({ contatoId, contatoNome, canal }: Tarefa
             </div>
 
             {/* Lista */}
-            <div className="max-h-[320px] overflow-y-auto" style={{ backgroundColor: 'hsl(var(--card))' }}>
+            <div className="max-h-[320px] overflow-y-auto bg-white">
               {loading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />

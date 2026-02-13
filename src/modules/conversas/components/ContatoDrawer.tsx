@@ -175,7 +175,7 @@ function OportunidadesContato({ contatoId, navigate }: { contatoId: string; navi
         .from('oportunidades')
         .select(`
           id, titulo, valor, status,
-          etapa:etapas_funil!inner(nome, cor, funil:funis!inner(id, nome))
+          etapa:etapas_funil(nome, cor, funil:funis(id, nome))
         `)
         .eq('contato_id', contatoId)
         .is('deletado_em', null)
