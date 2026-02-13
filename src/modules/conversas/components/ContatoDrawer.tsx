@@ -174,15 +174,19 @@ function OportunidadesContato({ contatoId, navigate }: { contatoId: string; navi
       const { data: ops, error } = await supabase
         .from('oportunidades')
         .select(`
-          id, titulo, valor, status,
-          etapa:etapas_funil(nome, cor, funil:funis(id, nome))
+          id, titulo, valor, fechado_em, motivo_resultado_id,
+          etapa_id, funil_id
         `)
         .eq('contato_id', contatoId)
         .is('deletado_em', null)
         .order('criado_em', { ascending: false })
         .limit(10)
       if (error) throw error
-      return ops || []
+      // Derivar status a partir de fechado_em e motivo_resultado_id
+      return (ops || []).map(op => ({
+        ...op,
+        status: !op.fechado_em ? 'aberta' : (op.motivo_resultado_id ? 'perdida' : 'ganha'),
+      }))
     },
     enabled: !!contatoId,
   })
@@ -205,30 +209,15 @@ function OportunidadesContato({ contatoId, navigate }: { contatoId: string; navi
         <p className="text-xs text-muted-foreground">Nenhuma oportunidade encontrada</p>
       ) : (
         <div className="space-y-1.5">
-          {oportunidades.map((op: any) => {
-            const etapa = op.etapa
-            const funilNome = etapa?.funil?.nome || ''
-            const funilId = etapa?.funil?.id || ''
-            return (
+          {oportunidades.map((op: any) => (
               <button
                 key={op.id}
-                onClick={() => navigate(`/app/negocios?funil=${funilId}&oportunidade=${op.id}`)}
+                onClick={() => navigate(`/app/negocios?funil=${op.funil_id}&oportunidade=${op.id}`)}
                 className="w-full p-2.5 rounded-md text-left hover:bg-accent/50 transition-all duration-200 border border-border/30 group"
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-medium text-foreground truncate">{op.titulo}</span>
                   <ExternalLink className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
-                </div>
-                <div className="flex items-center gap-2 mt-1">
-                  {funilNome && (
-                    <span className="text-[10px] text-muted-foreground truncate">{funilNome}</span>
-                  )}
-                  {etapa?.nome && (
-                    <>
-                      <span className="text-[10px] text-muted-foreground">·</span>
-                      <span className="text-[10px] text-muted-foreground truncate">{etapa.nome}</span>
-                    </>
-                  )}
                 </div>
                 <div className="flex items-center gap-2 mt-1">
                   {op.valor != null && (
@@ -241,8 +230,7 @@ function OportunidadesContato({ contatoId, navigate }: { contatoId: string; navi
                   </span>
                 </div>
               </button>
-            )
-          })}
+          ))}
         </div>
       )}
     </SectionCollapsible>
