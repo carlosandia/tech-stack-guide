@@ -835,10 +835,11 @@ Deno.serve(async (req) => {
           );
         }
 
-        console.log(`[waha-proxy] Fetching poll votes for ${pollMsgId}, session: ${sessionId}`);
+        console.log(`[waha-proxy] Consulting poll votes for ${pollMsgId}, session: ${sessionId}`);
 
-        // AIDEV-NOTE: Primeiro, consultar o engine real da sessao WAHA para evitar falso positivo NOWEB
-        let engineName = "NOWEB"; // default pessimista
+        // AIDEV-NOTE: Consultar o engine real da sessao WAHA para distinguir NOWEB vs GOWS/WEBJS
+        // A resposta da WAHA tem engine como objeto: {"engine": {"engine": "GOWS"}}
+        let engineName = "UNKNOWN";
         try {
           const sessionInfoResp = await fetch(`${baseUrl}/api/sessions/${sessionId}`, {
             method: "GET",
@@ -846,10 +847,19 @@ Deno.serve(async (req) => {
           });
           if (sessionInfoResp.ok) {
             const sessionInfo = await sessionInfoResp.json().catch(() => ({}));
-            engineName = (sessionInfo?.engine || sessionInfo?.config?.engine || "NOWEB").toUpperCase();
-            console.log(`[waha-proxy] Session engine detected: ${engineName}`);
+            // engine pode ser string "GOWS" ou objeto {"engine": "GOWS"}
+            const rawEngine = sessionInfo?.engine;
+            if (typeof rawEngine === 'string') {
+              engineName = rawEngine.toUpperCase();
+            } else if (rawEngine && typeof rawEngine === 'object' && rawEngine.engine) {
+              engineName = String(rawEngine.engine).toUpperCase();
+            } else if (sessionInfo?.config?.engine) {
+              const cfgEngine = sessionInfo.config.engine;
+              engineName = (typeof cfgEngine === 'string' ? cfgEngine : String(cfgEngine)).toUpperCase();
+            }
+            console.log(`[waha-proxy] Session engine detected: ${engineName} (raw: ${JSON.stringify(rawEngine)})`);
           } else {
-            console.warn(`[waha-proxy] Could not fetch session info (${sessionInfoResp.status}), assuming NOWEB`);
+            console.warn(`[waha-proxy] Could not fetch session info (${sessionInfoResp.status}), engine unknown`);
           }
         } catch (engineErr) {
           console.warn(`[waha-proxy] Error fetching session engine:`, engineErr);
@@ -857,174 +867,66 @@ Deno.serve(async (req) => {
 
         const isNoweb = engineName === "NOWEB";
 
-        // Try WAHA poll votes endpoint
+        // AIDEV-NOTE: A WAHA nao tem endpoint GET para buscar votos de enquete.
+        // Votos chegam via webhook poll.vote e sao salvos no banco pelo waha-webhook.
+        // Estrategia: buscar votos do banco de dados (poll_options da mensagem).
         try {
-          const pollVotesResp = await fetch(`${baseUrl}/api/${sessionId}/polls/${encodeURIComponent(pollMsgId)}/votes`, {
-            method: "GET",
-            headers: { "X-Api-Key": apiKey },
-          });
+          // Buscar a mensagem da enquete no banco
+          const { data: pollMsg } = await supabaseAdmin
+            .from("mensagens")
+            .select("id, poll_options, poll_votes_raw")
+            .eq("message_id", pollMsgId)
+            .eq("organizacao_id", organizacaoId)
+            .maybeSingle();
 
-          const pollVotesData = await pollVotesResp.json().catch(() => null);
-          console.log(`[waha-proxy] Poll votes response: ${pollVotesResp.status}, engine: ${engineName}`, JSON.stringify(pollVotesData).substring(0, 500));
+          let targetMsg = pollMsg;
+          if (!targetMsg && pollMsgId.includes('_')) {
+            const shortId = pollMsgId.split('_').pop();
+            const { data: ilikeMsg } = await supabaseAdmin
+              .from("mensagens")
+              .select("id, poll_options, poll_votes_raw")
+              .ilike("message_id", `%_${shortId}`)
+              .eq("organizacao_id", organizacaoId)
+              .maybeSingle();
+            targetMsg = ilikeMsg;
+          }
 
-          if (pollVotesResp.ok && pollVotesData) {
-            // Check if WAHA returned empty/encrypted votes
-            const votes = pollVotesData.votes || pollVotesData || [];
-            const hasActualVotes = Array.isArray(votes) && votes.length > 0 && votes.some((v: Record<string, unknown>) => {
-              const voters = v.voters || v.chatIds || [];
-              return (Array.isArray(voters) && voters.length > 0) || (v.count && (v.count as number) > 0);
-            });
-
-            if (!hasActualVotes) {
-              if (isNoweb) {
-                // Limitacao real do NOWEB - votos sao encriptados
-                console.log(`[waha-proxy] Poll votes empty + engine NOWEB - real limitation`);
-                return new Response(
-                  JSON.stringify({ 
-                    ok: false, 
-                    engine_limitation: true,
-                    error: "Votos de enquete não disponíveis com engine NOWEB. Verifique diretamente no WhatsApp." 
-                  }),
-                  { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-                );
-              } else {
-                // Engine GOWS/WEBJS - ninguem votou ainda, retornar 0 votos normalmente
-                console.log(`[waha-proxy] Poll votes empty + engine ${engineName} - 0 votes (normal)`);
-                
-                // Buscar opcoes atuais do banco para retornar com 0 votos
-                if (pollConversaId) {
-                  const { data: pollMsg } = await supabaseAdmin
-                    .from("mensagens")
-                    .select("id, poll_options")
-                    .eq("message_id", pollMsgId)
-                    .eq("organizacao_id", organizacaoId)
-                    .maybeSingle();
-
-                  let targetMsg = pollMsg;
-                  if (!targetMsg && pollMsgId.includes('_')) {
-                    const shortId = pollMsgId.split('_').pop();
-                    const { data: ilikeMsg } = await supabaseAdmin
-                      .from("mensagens")
-                      .select("id, poll_options")
-                      .ilike("message_id", `%_${shortId}`)
-                      .eq("organizacao_id", organizacaoId)
-                      .maybeSingle();
-                    targetMsg = ilikeMsg;
-                  }
-
-                  if (targetMsg?.poll_options) {
-                    const zeroOptions = (targetMsg.poll_options as Array<{ text: string; votes: number }>).map(opt => ({
-                      ...opt,
-                      votes: 0,
-                    }));
-                    return new Response(
-                      JSON.stringify({ ok: true, poll_options: zeroOptions }),
-                      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-                    );
-                  }
-                }
-
-                return new Response(
-                  JSON.stringify({ ok: true, data: pollVotesData }),
-                  { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-                );
-              }
-            }
-
-            // Update poll_options in the database
-            if (pollConversaId) {
-              // Find the poll message in DB
-              const { data: pollMsg } = await supabaseAdmin
-                .from("mensagens")
-                .select("id, poll_options")
-                .eq("message_id", pollMsgId)
-                .eq("organizacao_id", organizacaoId)
-                .maybeSingle();
-
-              // Also try ilike for short IDs
-              let targetMsg = pollMsg;
-              if (!targetMsg && pollMsgId.includes('_')) {
-                const shortId = pollMsgId.split('_').pop();
-                const { data: ilikeMsg } = await supabaseAdmin
-                  .from("mensagens")
-                  .select("id, poll_options")
-                  .ilike("message_id", `%_${shortId}`)
-                  .eq("organizacao_id", organizacaoId)
-                  .maybeSingle();
-                targetMsg = ilikeMsg;
-              }
-
-              if (targetMsg && targetMsg.poll_options) {
-                // Parse WAHA response to update vote counts
-                const currentOptions = targetMsg.poll_options as Array<{ text: string; votes: number }>;
-
-                // Build vote count map from WAHA response
-                const voteCounts: Record<string, number> = {};
-                if (Array.isArray(votes)) {
-                  for (const v of votes) {
-                    const optName = v.optionName || v.name || v.option || '';
-                    const voters = v.voters || v.chatIds || [];
-                    voteCounts[optName] = Array.isArray(voters) ? voters.length : (v.count || 0);
-                  }
-                }
-
-                const updatedOptions = currentOptions.map(opt => ({
-                  ...opt,
-                  votes: voteCounts[opt.text] ?? opt.votes,
-                }));
-
-                await supabaseAdmin
-                  .from("mensagens")
-                  .update({ poll_options: updatedOptions, atualizado_em: new Date().toISOString() })
-                  .eq("id", targetMsg.id);
-
-                console.log(`[waha-proxy] ✅ Poll votes updated in DB for ${targetMsg.id}`);
-
-                return new Response(
-                  JSON.stringify({ ok: true, poll_options: updatedOptions, raw: pollVotesData }),
-                  { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-                );
-              }
-            }
-
+          if (!targetMsg?.poll_options) {
             return new Response(
-              JSON.stringify({ ok: true, data: pollVotesData }),
-              { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+              JSON.stringify({ ok: false, error: "Mensagem de enquete não encontrada no banco." }),
+              { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
             );
           }
 
-          // Endpoint retornou erro - verificar engine para decidir mensagem
-          if (isNoweb) {
+          const currentOptions = targetMsg.poll_options as Array<{ text: string; votes: number }>;
+          const hasAnyVotes = currentOptions.some(opt => (opt.votes || 0) > 0);
+
+          // Se NOWEB e sem votos, pode ser limitacao real
+          if (isNoweb && !hasAnyVotes) {
+            console.log(`[waha-proxy] Engine NOWEB + 0 votes - showing limitation warning`);
             return new Response(
               JSON.stringify({ 
                 ok: false, 
                 engine_limitation: true,
-                error: "Votos de enquete não disponíveis com engine NOWEB. Verifique diretamente no WhatsApp.",
-                status: pollVotesResp.status 
-              }),
-              { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
-          } else {
-            // Engine suporta votos mas deu erro real
-            return new Response(
-              JSON.stringify({ 
-                ok: false, 
-                engine_limitation: false,
-                error: `Erro ao consultar votos (status ${pollVotesResp.status}). Tente novamente.`,
-                status: pollVotesResp.status 
+                error: "Votos de enquete não disponíveis com engine NOWEB. Verifique diretamente no WhatsApp." 
               }),
               { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
             );
           }
+
+          // Para qualquer outro engine (GOWS, WEBJS, etc), retornar os votos do banco normalmente
+          // Votos sao atualizados em tempo real via webhook poll.vote
+          console.log(`[waha-proxy] ✅ Returning poll votes from DB (engine: ${engineName}):`, JSON.stringify(currentOptions));
+          return new Response(
+            JSON.stringify({ ok: true, poll_options: currentOptions, engine: engineName }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
         } catch (e) {
-          console.error(`[waha-proxy] Error fetching poll votes:`, e);
+          console.error(`[waha-proxy] Error consulting poll votes:`, e);
           return new Response(
             JSON.stringify({ 
               ok: false, 
-              engine_limitation: isNoweb,
-              error: isNoweb 
-                ? "Votos de enquete não disponíveis com engine NOWEB. Verifique diretamente no WhatsApp."
-                : "Erro ao consultar votos. Tente novamente."
+              error: "Erro ao consultar votos. Tente novamente."
             }),
             { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
