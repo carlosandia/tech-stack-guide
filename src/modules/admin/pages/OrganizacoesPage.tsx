@@ -300,7 +300,7 @@ function OrganizacaoRow({
   navigate: ReturnType<typeof useNavigate>
 }) {
   return (
-    <tr className="hover:bg-accent/50">
+    <tr className="hover:bg-accent/50 cursor-pointer" onClick={() => navigate(`/admin/organizacoes/${org.id}`)}>
       <td className="px-6 py-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-muted rounded-lg flex items-center justify-center flex-shrink-0">
@@ -345,7 +345,7 @@ function OrganizacaoRow({
       <td className="px-6 py-4">
         <span className="text-sm text-muted-foreground">{formatDate(org.criado_em)}</span>
       </td>
-      <td className="px-6 py-4 text-right">
+      <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
         <OrganizacaoActionsMenu
           open={menuAberto === org.id}
           onOpenChange={(open) => setMenuAberto(open ? org.id : null)}
