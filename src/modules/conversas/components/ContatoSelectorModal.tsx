@@ -1,10 +1,10 @@
 /**
  * AIDEV-NOTE: Modal de busca e seleção de contato para enviar vCard (PRD-09)
- * Busca contatos do CRM, gera vCard e retorna para envio
+ * Exibe contatos recentes ao abrir e permite buscar contatos específicos
  */
 
-import { useState, useCallback } from 'react'
-import { Search, X, User, Send } from 'lucide-react'
+import { useState, useCallback, useEffect } from 'react'
+import { Search, X, User, Send, Users, Clock } from 'lucide-react'
 import { conversasApi, type ConversaContato } from '../services/conversas.api'
 
 interface ContatoSelectorModalProps {
@@ -18,11 +18,8 @@ function gerarVCard(contato: ConversaContato): string {
   const firstName = parts[0] || ''
   const lastName = parts.slice(1).join(' ') || ''
 
-  // Limpar telefone: remover espaços, traços, parênteses
   const telefoneLimpo = contato.telefone?.replace(/[\s\-\(\)\.]/g, '') || ''
-  // Extrair apenas dígitos para o waid
   const waid = telefoneLimpo.replace(/\D/g, '')
-  // Garantir que o número tenha + no início
   const telFormatado = telefoneLimpo.startsWith('+') ? telefoneLimpo : `+${telefoneLimpo}`
 
   let vcard = 'BEGIN:VCARD\nVERSION:3.0\n'
@@ -38,8 +35,25 @@ function gerarVCard(contato: ConversaContato): string {
 export function ContatoSelectorModal({ onSelect, onClose }: ContatoSelectorModalProps) {
   const [busca, setBusca] = useState('')
   const [resultados, setResultados] = useState<ConversaContato[]>([])
+  const [recentes, setRecentes] = useState<ConversaContato[]>([])
   const [loading, setLoading] = useState(false)
+  const [loadingRecentes, setLoadingRecentes] = useState(true)
   const [selecionado, setSelecionado] = useState<ConversaContato | null>(null)
+
+  // Carregar contatos recentes ao abrir
+  useEffect(() => {
+    const carregarRecentes = async () => {
+      try {
+        const contatos = await conversasApi.buscarContatos('')
+        setRecentes(contatos.slice(0, 8))
+      } catch (err) {
+        console.error('[ContatoSelector] Erro ao carregar recentes:', err)
+      } finally {
+        setLoadingRecentes(false)
+      }
+    }
+    carregarRecentes()
+  }, [])
 
   const handleBuscar = useCallback(async (termo: string) => {
     setBusca(termo)
@@ -63,6 +77,34 @@ export function ContatoSelectorModal({ onSelect, onClose }: ContatoSelectorModal
     const vcard = gerarVCard(selecionado)
     onSelect(selecionado, vcard)
   }, [selecionado, onSelect])
+
+  const contatosExibidos = busca.length >= 2 ? resultados : recentes
+  const mostrandoRecentes = busca.length < 2
+  const isLoading = busca.length >= 2 ? loading : loadingRecentes
+
+  const renderContato = (contato: ConversaContato) => (
+    <button
+      key={contato.id}
+      onClick={() => setSelecionado(contato)}
+      className={`w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-accent/50 transition-colors ${
+        selecionado?.id === contato.id ? 'bg-primary/5 ring-1 ring-inset ring-primary/20' : ''
+      }`}
+    >
+      <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${
+        selecionado?.id === contato.id ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
+      }`}>
+        <User className="w-4 h-4" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-foreground truncate">
+          {contato.nome || contato.nome_fantasia || 'Sem nome'}
+        </p>
+        <p className="text-xs text-muted-foreground truncate">
+          {[contato.telefone, contato.email].filter(Boolean).join(' · ') || 'Sem informações'}
+        </p>
+      </div>
+    </button>
+  )
 
   return (
     <>
@@ -94,38 +136,34 @@ export function ContatoSelectorModal({ onSelect, onClose }: ContatoSelectorModal
           </div>
         </div>
 
+        {/* Section label */}
+        {mostrandoRecentes && contatosExibidos.length > 0 && (
+          <div className="flex items-center gap-2 px-4 pt-3 pb-1">
+            <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Contatos recentes</span>
+          </div>
+        )}
+        {!mostrandoRecentes && contatosExibidos.length > 0 && (
+          <div className="flex items-center gap-2 px-4 pt-3 pb-1">
+            <Users className="w-3.5 h-3.5 text-muted-foreground" />
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              {contatosExibidos.length} resultado{contatosExibidos.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+        )}
+
         {/* Results */}
-        <div className="max-h-[300px] overflow-y-auto">
-          {loading ? (
+        <div className="max-h-[300px] overflow-y-auto divide-y divide-border/30">
+          {isLoading ? (
             <div className="flex items-center justify-center py-8">
               <div className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
             </div>
-          ) : resultados.length === 0 ? (
+          ) : contatosExibidos.length === 0 ? (
             <div className="text-center py-8 text-sm text-muted-foreground">
-              {busca.length >= 2 ? 'Nenhum contato encontrado' : 'Digite para buscar contatos'}
+              {busca.length >= 2 ? 'Nenhum contato encontrado' : 'Nenhum contato disponível'}
             </div>
           ) : (
-            resultados.map((contato) => (
-              <button
-                key={contato.id}
-                onClick={() => setSelecionado(contato)}
-                className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-accent/50 transition-colors border-b border-border/30 last:border-0 ${
-                  selecionado?.id === contato.id ? 'bg-primary/5 border-l-2 border-l-primary' : ''
-                }`}
-              >
-                <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-                  <User className="w-4 h-4 text-muted-foreground" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">
-                    {contato.nome || contato.nome_fantasia || 'Sem nome'}
-                  </p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {[contato.telefone, contato.email].filter(Boolean).join(' · ')}
-                  </p>
-                </div>
-              </button>
-            ))
+            contatosExibidos.map(renderContato)
           )}
         </div>
 

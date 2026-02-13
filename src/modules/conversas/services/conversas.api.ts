@@ -1229,13 +1229,19 @@ export const conversasApi = {
   async buscarContatos(busca: string): Promise<ConversaContato[]> {
     const organizacaoId = await getOrganizacaoId()
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('contatos')
       .select('id, nome, nome_fantasia, email, telefone')
       .eq('organizacao_id', organizacaoId)
       .is('deletado_em', null)
-      .or(`nome.ilike.%${busca}%,nome_fantasia.ilike.%${busca}%,email.ilike.%${busca}%,telefone.ilike.%${busca}%`)
-      .limit(10)
+
+    if (busca.length >= 2) {
+      query = query.or(`nome.ilike.%${busca}%,nome_fantasia.ilike.%${busca}%,email.ilike.%${busca}%,telefone.ilike.%${busca}%`)
+    }
+
+    const { data, error } = await query
+      .order('atualizado_em', { ascending: false })
+      .limit(busca.length >= 2 ? 10 : 8)
 
     if (error) throw new Error(error.message)
     return (data || []) as ConversaContato[]
