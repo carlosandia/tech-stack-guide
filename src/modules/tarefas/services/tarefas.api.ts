@@ -341,12 +341,11 @@ export const tarefasApi = {
       concluidasQuery = concluidasQuery.lte('data_conclusao', params.data_fim)
     }
 
-    // Tempo médio: buscar concluídas com datas para calcular
+    // Tempo médio: buscar TODAS concluídas com datas para calcular
     let tempoQuery = supabase
       .from('tarefas')
       .select('criado_em, data_conclusao')
       .eq('organizacao_id', organizacaoId)
-      .not('oportunidade_id', 'is', null)
       .is('deletado_em', null)
       .eq('status', 'concluida')
       .not('data_conclusao', 'is', null)
