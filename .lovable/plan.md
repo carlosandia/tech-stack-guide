@@ -1,75 +1,40 @@
 
+# Fundo cinza como regra global dos modulos
 
-# Correcao: Votos de Enquete + Mensagem Clara sobre Engine NOWEB
+## Objetivo
+Aplicar o fundo cinza claro (`hsl(220, 10%, 95%)`) como padrao para a area de conteudo de todos os modulos, mantendo header e toolbar com fundo branco. Isso cria coerencia visual entre o Kanban (que ja usa esse fundo) e os demais modulos como Contatos, Dashboard, etc.
 
-## Diagnostico
+## O que muda
 
-Os logs confirmam que a sessao WhatsApp esta usando **engine NOWEB**. Com NOWEB:
-- A WAHA dispara `poll.vote.failed` (nao `poll.vote`)
-- Os `selectedOptions` chegam vazios `[]`
-- Isso e uma limitacao real do protocolo - votos sao criptografados ponta-a-ponta
+### 1. AppLayout - Fundo cinza na area de conteudo (`main`)
+Alterar o `<main>` no `AppLayout.tsx` para aplicar o fundo cinza globalmente, em vez de cada modulo definir o seu:
 
-A mensagem "Sem dados de votos disponiveis" esta correta, mas e confusa para o usuario.
+- **Antes:** `<main className="flex-1 overflow-hidden">`
+- **Depois:** `<main className="flex-1 overflow-hidden" style={{ backgroundColor: 'hsl(220, 10%, 95%)' }}>`
 
-## Problemas a corrigir
+Isso garante que **todos** os modulos herdem o fundo cinza automaticamente.
 
-### 1. Webhook nao foi deployado corretamente
-O log mostra formato de log antigo (`messageId=...` ao inves de `pollId=...`), indicando que o ultimo deploy do `waha-webhook` nao refletiu as alteracoes. Precisa redeployar.
+### 2. KanbanBoard - Remover fundo inline duplicado
+O `KanbanBoard.tsx` ja define `backgroundColor: 'hsl(220, 10%, 95%)'` inline. Como o `main` agora trata disso, remover o style inline do wrapper do Kanban para evitar duplicacao.
 
-### 2. Mensagem de erro pouco informativa na UI
-Quando o engine e NOWEB, mostrar uma mensagem clara explicando que precisa trocar para GOWS/WEBJS, ao inves de apenas "Sem dados de votos disponiveis".
+### 3. MetricasPanel - Remover fundo inline duplicado
+O `MetricasPanel.tsx` tambem define o mesmo fundo inline. Remover para herdar do `main`.
 
-### 3. Tratar `poll.vote.failed` corretamente no webhook
-Quando o evento e `poll.vote.failed`, nao tentar processar como voto valido. Registrar o fato e retornar sem erro.
+### 4. ContatosPage - Ajustar paginacao
+A barra de paginacao na `ContatosPage` usa `bg-background` (branco puro). Manter assim para contraste com o fundo cinza -- sem alteracao necessaria.
 
-## Alteracoes
+## Resultado visual
+- **Header (nav top):** branco com backdrop blur (sem mudanca)
+- **Toolbar:** cinza sutil `bg-gray-50/50` (sem mudanca)
+- **Area de conteudo (main):** fundo cinza `hsl(220, 10%, 95%)` em todos os modulos
+- **Cards/tabelas:** brancos sobre fundo cinza, criando hierarquia visual
 
-### Arquivo: `supabase/functions/waha-webhook/index.ts`
-- Separar tratamento de `poll.vote` (sucesso) de `poll.vote.failed` (falha)
-- Quando `poll.vote.failed`, logar e retornar sem tentar atualizar votos
+## Detalhes tecnicos
 
-### Arquivo: `src/modules/conversas/components/ChatMessageBubble.tsx`
-- Quando `engine_limitation` for true, mostrar mensagem especifica:
-  "Votos nao disponiveis com engine NOWEB. Troque para GOWS nas configuracoes para habilitar."
-- Quando houver 0 votos sem limitacao, mostrar normalmente "0 votos"
-- Esconder o botao "Mostrar votos" quando engine for NOWEB (nao tem sentido clicar)
+| Arquivo | Alteracao |
+|---------|-----------|
+| `src/modules/app/layouts/AppLayout.tsx` | Adicionar `style={{ backgroundColor: 'hsl(220, 10%, 95%)' }}` no `<main>` (linha 348) |
+| `src/modules/negocios/components/kanban/KanbanBoard.tsx` | Remover `style={{ backgroundColor: ... }}` do wrapper (linha 218) |
+| `src/modules/negocios/components/toolbar/MetricasPanel.tsx` | Remover `style={{ backgroundColor: ... }}` do container (linha 140) |
 
-### Arquivo: `supabase/functions/waha-proxy/index.ts`
-- Retornar o nome do engine na resposta para a UI poder exibir
-- Quando NOWEB, retornar `engine_limitation: true` com mensagem descritiva
-
-### Redeploy
-- Forcar redeploy de `waha-webhook` e `waha-proxy`
-
-## Detalhes Tecnicos
-
-### Webhook - separar poll.vote de poll.vote.failed:
-```text
-if (body.event === "poll.vote") {
-  // Processar voto normalmente (GOWS/WEBJS)
-  // Buscar mensagem por poll.id, atualizar poll_options
-}
-
-if (body.event === "poll.vote.failed") {
-  // NOWEB - votos criptografados
-  // Apenas logar e retornar sem erro
-  return { ok: true, message: "Poll vote failed (NOWEB limitation)" }
-}
-```
-
-### UI - mensagem clara no PollContent:
-```text
-Quando engine_limitation === true:
-  Mostrar banner: "Votos nao disponiveis com engine NOWEB"
-  Subtexto: "Troque para GOWS nas configuracoes de WhatsApp"
-  Esconder botao "Mostrar votos"
-
-Quando votos normais (GOWS/WEBJS):
-  Mostrar contagem normalmente
-```
-
-## Arquivos modificados
-1. `supabase/functions/waha-webhook/index.ts` - Separar poll.vote/poll.vote.failed
-2. `supabase/functions/waha-proxy/index.ts` - Melhorar resposta com info de engine
-3. `src/modules/conversas/components/ChatMessageBubble.tsx` - Mensagem informativa na UI
-
+Total: 3 arquivos, alteracoes minimas e sem impacto funcional.
