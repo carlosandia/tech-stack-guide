@@ -316,7 +316,7 @@ function AppLayoutInner() {
               {userMenuOpen && (
                 <>
                   <div
-                    className="fixed inset-0 z-[150]"
+                    className="fixed inset-0 z-[199]"
                     onClick={() => setUserMenuOpen(false)}
                   />
                   <div className="absolute right-0 mt-1 w-56 bg-white rounded-md shadow-lg border border-border py-1 z-[200]">
