@@ -16,7 +16,7 @@ export function WidgetWhatsAppPreview({ config, camposNomes }: Props) {
     .filter(Boolean)
 
   return (
-    <div className="relative bg-muted/50 rounded-lg border border-border p-6 min-h-[480px] flex items-end" style={{ justifyContent: config.posicao === 'esquerda' ? 'flex-start' : 'flex-end' }}>
+    <div className="relative bg-muted/50 rounded-lg border border-border p-4 sm:p-6 min-h-[400px] sm:min-h-[480px] flex items-end overflow-hidden" style={{ justifyContent: config.posicao === 'esquerda' ? 'flex-start' : 'flex-end' }}>
       {/* Label */}
       <div className="absolute top-3 left-3 text-xs text-muted-foreground font-medium">
         Preview do Widget
@@ -25,7 +25,7 @@ export function WidgetWhatsAppPreview({ config, camposNomes }: Props) {
       <div className="flex flex-col items-end gap-3" style={{ alignItems: config.posicao === 'esquerda' ? 'flex-start' : 'flex-end' }}>
         {/* Chat Window */}
         {config.usar_formulario && (
-          <div className="w-[300px] bg-white rounded-2xl shadow-xl overflow-hidden border border-border">
+          <div className="w-[260px] sm:w-[300px] bg-white rounded-2xl shadow-xl overflow-hidden border border-border">
             {/* Header */}
             <div className="flex items-center gap-3 px-4 py-3" style={{ background: '#075E54' }}>
               {config.foto_atendente_url ? (

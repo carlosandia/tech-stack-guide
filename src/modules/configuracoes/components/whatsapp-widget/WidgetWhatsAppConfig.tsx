@@ -88,12 +88,12 @@ export function WidgetWhatsAppConfig({ value, onChange }: Props) {
 
   return (
     <section className="bg-card rounded-lg border border-border p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: '#25D366' }}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: '#25D366' }}>
             <MessageSquare className="w-5 h-5 text-white" />
           </div>
-          <div>
+          <div className="min-w-0">
             <h2 className="text-base font-semibold text-foreground">WhatsApp no Website</h2>
             <p className="text-xs text-muted-foreground">Adicione um botão flutuante de WhatsApp no seu site</p>
           </div>
@@ -102,7 +102,7 @@ export function WidgetWhatsAppConfig({ value, onChange }: Props) {
         {/* Toggle Ativar */}
         <button
           onClick={() => update('ativo', !config.ativo)}
-          className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${config.ativo ? 'bg-primary' : 'bg-muted'}`}
+          className={`relative w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${config.ativo ? 'bg-primary' : 'bg-muted'}`}
         >
           <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${config.ativo ? 'translate-x-5' : 'translate-x-0'}`} />
         </button>
