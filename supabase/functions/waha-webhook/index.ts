@@ -164,9 +164,26 @@ Deno.serve(async (req) => {
     // =====================================================
     // HANDLE poll.vote EVENT (poll vote updates)
     // =====================================================
-    if (body.event === "poll.vote" || body.event === "poll.vote.failed") {
+    // =====================================================
+    // HANDLE poll.vote.failed EVENT (NOWEB limitation)
+    // =====================================================
+    if (body.event === "poll.vote.failed") {
       const payload = body.payload;
-      console.log(`[waha-webhook] ${body.event} event received:`, JSON.stringify(payload).substring(0, 500));
+      console.log(`[waha-webhook] poll.vote.failed (NOWEB limitation):`, JSON.stringify(payload).substring(0, 500));
+      // AIDEV-NOTE: NOWEB nao consegue decriptar votos (E2E encryption).
+      // Apenas logar e retornar sem tentar atualizar votos no banco.
+      return new Response(
+        JSON.stringify({ ok: true, message: "Poll vote failed (NOWEB engine limitation - votes are encrypted)" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // =====================================================
+    // HANDLE poll.vote EVENT (GOWS/WEBJS - votos reais)
+    // =====================================================
+    if (body.event === "poll.vote") {
+      const payload = body.payload;
+      console.log(`[waha-webhook] poll.vote event received:`, JSON.stringify(payload).substring(0, 500));
 
       if (payload) {
         // WAHA poll.vote payload structure: 
@@ -177,7 +194,7 @@ Deno.serve(async (req) => {
         const pollMessageId = poll?.id?._serialized || poll?.id || vote?.parentMessage?.id?._serialized || vote?.parentMessage?.id || null;
         const selectedOptions = vote?.selectedOptions || vote?.options || [];
 
-        console.log(`[waha-webhook] Poll vote: pollId=${pollMessageId}, voteId=${vote?.id}, options=${JSON.stringify(selectedOptions)}, event=${body.event}`);
+        console.log(`[waha-webhook] Poll vote: pollId=${pollMessageId}, voteId=${vote?.id}, options=${JSON.stringify(selectedOptions)}`);
 
         if (pollMessageId) {
           // Find the session to get organizacao_id
