@@ -52,14 +52,14 @@ export function EditorHeader({ formulario, tabs, activeTab, onTabChange }: Props
               key={key}
               onClick={() => onTabChange?.(key)}
               className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors whitespace-nowrap border-b-2',
+                'flex items-center gap-1.5 px-2 sm:px-3 py-1.5 text-sm font-medium transition-colors whitespace-nowrap border-b-2',
                 activeTab === key
                   ? 'border-primary text-foreground'
                   : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground/30'
               )}
             >
               <Icon className="w-3.5 h-3.5" />
-              {label}
+              <span className="hidden sm:inline">{label}</span>
             </button>
           ))}
         </div>

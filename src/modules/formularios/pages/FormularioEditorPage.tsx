@@ -7,8 +7,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { PanelLeft, PanelRight, Loader2, LayoutGrid, Settings2, Share2, BarChart3 } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { Loader2, LayoutGrid, Settings2, Share2, BarChart3, Plus, SlidersHorizontal, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -153,8 +152,10 @@ export function FormularioEditorPage() {
 
   const [activeTab, setActiveTab] = useState<EditorTab>('campos')
   const [selectedCampoId, setSelectedCampoId] = useState<string | null>(null)
-  const [showPaleta, setShowPaleta] = useState(true)
   const [showConfig, setShowConfig] = useState(false)
+  // Mobile overlays
+  const [mobilePaletaOpen, setMobilePaletaOpen] = useState(false)
+  const [mobileConfigOpen, setMobileConfigOpen] = useState(false)
 
   // Style editing state
   const [showFinalPreview, setShowFinalPreview] = useState(false)
@@ -436,35 +437,9 @@ export function FormularioEditorPage() {
             {/* Paleta - hidden in final preview */}
             {!showFinalPreview && (
               <>
-                {/* Mobile toggle buttons */}
-                <div className="lg:hidden absolute top-2 left-2 z-10 flex gap-1">
-                  <Button
-                    variant={showPaleta ? 'default' : 'outline'}
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => { setShowPaleta(!showPaleta); if (!showPaleta) setShowConfig(false) }}
-                  >
-                    <PanelLeft className="w-4 h-4" />
-                  </Button>
-                  {selectedCampo && (
-                    <Button
-                      variant={showConfig ? 'default' : 'outline'}
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => { setShowConfig(!showConfig); if (!showConfig) setShowPaleta(false) }}
-                    >
-                      <PanelRight className="w-4 h-4" />
-                    </Button>
-                  )}
-                </div>
-
-                {/* Paleta */}
+                {/* Desktop paleta - only visible on lg+ */}
                 <div
-                  className={cn(
-                    'border-r border-border bg-card overflow-y-auto flex-shrink-0 transition-all duration-200',
-                    'hidden lg:block lg:w-[272px]',
-                    showPaleta && 'block absolute inset-y-0 left-0 w-[272px] z-20 shadow-lg lg:relative lg:shadow-none'
-                  )}
+                  className="border-r border-border bg-card overflow-y-auto flex-shrink-0 transition-all duration-200 hidden lg:block lg:w-[272px]"
                 >
                   <div className="p-3">
                     {formulario.tipo === 'popup' && (
@@ -611,11 +586,11 @@ export function FormularioEditorPage() {
               </EstiloPopover>
             )}
 
-            {/* Mobile overlay */}
-            {!showFinalPreview && (showPaleta || showConfig) && (
+            {/* Mobile overlay for style panel */}
+            {!showFinalPreview && selectedStyleElement && (
               <div
                 className="lg:hidden fixed inset-0 bg-foreground/20 z-10"
-                onClick={() => { setShowPaleta(false); setShowConfig(false) }}
+                onClick={() => setSelectedStyleElement(null)}
               />
             )}
           </div>
@@ -640,6 +615,108 @@ export function FormularioEditorPage() {
                 className="font-mono text-xs"
               />
             </div>
+           )}
+
+          {/* Mobile bottom bar - only on campos tab */}
+          {!showFinalPreview && (
+            <div className="lg:hidden flex items-center gap-2 p-2 border-t border-border bg-card shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1 h-9 text-xs"
+                onClick={() => setMobilePaletaOpen(true)}
+              >
+                <Plus className="w-3.5 h-3.5 mr-1.5" />
+                Campos
+              </Button>
+              <Button
+                variant={selectedCampo ? 'default' : 'outline'}
+                size="sm"
+                className="flex-1 h-9 text-xs"
+                disabled={!selectedCampo}
+                onClick={() => selectedCampo && setMobileConfigOpen(true)}
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5 mr-1.5" />
+                Configurar
+              </Button>
+            </div>
+          )}
+
+          {/* Mobile paleta overlay */}
+          {mobilePaletaOpen && (
+            <div className="lg:hidden fixed inset-0 z-30 bg-card flex flex-col animate-in slide-in-from-bottom-4 duration-200">
+              <div className="flex items-center justify-between p-3 border-b border-border">
+                <h3 className="text-sm font-semibold text-foreground">Adicionar Campo</h3>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setMobilePaletaOpen(false)}>
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-3">
+                {formulario.tipo === 'popup' && (
+                  <div className="mb-4 pb-3 border-b border-border">
+                    <PopupLayoutSelector
+                      formularioId={formulario.id}
+                      template={localPopupTemplate}
+                      imagemUrl={localPopupImagemUrl}
+                      imagemLink={localPopupImagemLink}
+                      onChangeTemplate={(t) => {
+                        setLocalPopupTemplate(t)
+                        salvarConfigPopup.mutate({ popup_imagem_posicao: t })
+                      }}
+                      onChangeImagemUrl={(url) => {
+                        setLocalPopupImagemUrl(url)
+                        salvarConfigPopup.mutate({ popup_imagem_url: url, popup_imagem_posicao: localPopupTemplate })
+                      }}
+                      onChangeImagemLink={(link) => {
+                        setLocalPopupImagemLink(link)
+                        salvarConfigPopup.mutate({ popup_imagem_link: link } as any)
+                      }}
+                    />
+                  </div>
+                )}
+                {formulario.tipo === 'newsletter' && (
+                  <div className="mb-4 pb-3 border-b border-border">
+                    <NewsletterLayoutSelector
+                      formularioId={formulario.id}
+                      template={localNewsletterTemplate}
+                      imagemUrl={localNewsletterImagemUrl}
+                      imagemLink={localNewsletterImagemLink}
+                      onChangeTemplate={(t) => {
+                        setLocalNewsletterTemplate(t)
+                        salvarConfigNewsletter.mutate({ newsletter_layout: t })
+                      }}
+                      onChangeImagemUrl={(url) => {
+                        setLocalNewsletterImagemUrl(url)
+                        salvarConfigNewsletter.mutate({ newsletter_imagem_url: url, newsletter_layout: localNewsletterTemplate })
+                      }}
+                      onChangeImagemLink={(link) => {
+                        setLocalNewsletterImagemLink(link)
+                        salvarConfigNewsletter.mutate({ newsletter_imagem_link: link })
+                      }}
+                    />
+                  </div>
+                )}
+                <CamposPaleta
+                  onAddCampo={(tipo) => {
+                    handleAddCampoFromPaleta(tipo)
+                    setMobilePaletaOpen(false)
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Mobile config overlay */}
+          {mobileConfigOpen && selectedCampo && (
+            <CampoSidebarPanel
+              campo={selectedCampo}
+              onUpdate={handleUpdateCampo}
+              onClose={() => { setMobileConfigOpen(false) }}
+              showConfig={true}
+              estiloCampos={camposEstilo}
+              onChangeEstiloCampos={setCamposEstilo}
+              fullscreen
+            />
           )}
         </div>
       )}
