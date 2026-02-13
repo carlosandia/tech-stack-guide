@@ -30,6 +30,63 @@ import { toast } from 'sonner'
 import { NovaOportunidadeModal } from '@/modules/negocios/components/modals/NovaOportunidadeModal'
 import type { Conversa, ConversaContato, Mensagem } from '../services/conversas.api'
 
+// AIDEV-NOTE: Mapeamento de extensão para MIME type correto - evita que DOCX chegue como PDF no WhatsApp
+function getMimeTypeFromExtension(filename: string): string {
+  const ext = filename.split('.').pop()?.toLowerCase()
+  const map: Record<string, string> = {
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    doc: 'application/msword',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    xls: 'application/vnd.ms-excel',
+    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    ppt: 'application/vnd.ms-powerpoint',
+    pdf: 'application/pdf',
+    csv: 'text/csv',
+    txt: 'text/plain',
+    zip: 'application/zip',
+    rar: 'application/x-rar-compressed',
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    gif: 'image/gif',
+    webp: 'image/webp',
+    mp4: 'video/mp4',
+    mp3: 'audio/mpeg',
+    ogg: 'audio/ogg',
+    webm: 'audio/webm',
+  }
+  return map[ext || ''] || ''
+}
+
+function getCorrectMimeType(file: File): string {
+  // Prefer file.type if it's specific (not empty or generic)
+  if (file.type && file.type !== 'application/octet-stream') return file.type
+  // Fallback: infer from extension
+  return getMimeTypeFromExtension(file.name) || 'application/octet-stream'
+}
+
+// AIDEV-NOTE: Ícone por tipo de arquivo para UI de progresso múltiplo
+function getFileIcon(filename: string): string {
+  const ext = filename.split('.').pop()?.toLowerCase() || ''
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(ext)) return '🖼️'
+  if (['mp4', 'avi', 'mov', 'mkv', 'webm'].includes(ext)) return '🎥'
+  if (['mp3', 'ogg', 'wav', 'aac', 'flac'].includes(ext)) return '🎵'
+  if (['pdf'].includes(ext)) return '📕'
+  if (['doc', 'docx'].includes(ext)) return '📄'
+  if (['xls', 'xlsx', 'csv'].includes(ext)) return '📊'
+  if (['ppt', 'pptx'].includes(ext)) return '📎'
+  if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return '📦'
+  return '📁'
+}
+
+interface UploadItem {
+  id: string
+  filename: string
+  progress: number
+  icon: string
+  fading?: boolean
+}
+
 interface ChatWindowProps {
   conversa: Conversa
   onBack: () => void
@@ -140,12 +197,20 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
     alterarStatus.mutate({ id: conversa.id, status })
   }
 
-  // Upload progress state
-  const [uploadProgress, setUploadProgress] = useState<{ filename: string; progress: number } | null>(null)
+  // Upload progress state - supports multiple simultaneous uploads
+  const [uploads, setUploads] = useState<UploadItem[]>([])
 
   const handleFileSelected = useCallback(async (file: File, tipo: string) => {
+    const uploadId = `${Date.now()}_${Math.random().toString(36).slice(2)}`
+    const correctMime = getCorrectMimeType(file)
+    const icon = getFileIcon(file.name)
+
+    const updateProgress = (progress: number) => {
+      setUploads(prev => prev.map(u => u.id === uploadId ? { ...u, progress } : u))
+    }
+
     try {
-      setUploadProgress({ filename: file.name, progress: 10 })
+      setUploads(prev => [...prev, { id: uploadId, filename: file.name, progress: 10, icon }])
 
       // Comprimir imagem antes do upload (transparente para não-imagens)
       const processed = await compressImage(file, file.name)
@@ -153,40 +218,46 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
       const ext = finalFile.name.split('.').pop() || 'bin'
       const path = `conversas/${conversa.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
 
-      setUploadProgress({ filename: file.name, progress: 30 })
+      updateProgress(30)
 
       const { error: uploadError } = await supabase.storage
         .from('chat-media')
-        .upload(path, finalFile, { contentType: file.type || 'application/octet-stream' })
+        .upload(path, finalFile, { contentType: correctMime })
 
       if (uploadError) {
-        setUploadProgress(null)
-        toast.error('Erro ao fazer upload do arquivo')
+        setUploads(prev => prev.filter(u => u.id !== uploadId))
+        toast.error(`Erro ao enviar ${file.name}`)
         return
       }
 
-      setUploadProgress({ filename: file.name, progress: 70 })
+      updateProgress(70)
 
       const { data: urlData } = supabase.storage
         .from('chat-media')
         .getPublicUrl(path)
 
-      setUploadProgress({ filename: file.name, progress: 90 })
+      updateProgress(90)
 
       await conversasApi.enviarMedia(conversa.id, {
         tipo,
         media_url: urlData.publicUrl,
         caption: undefined,
         filename: file.name,
-        mimetype: file.type || undefined,
+        mimetype: correctMime,
       })
 
-      setUploadProgress({ filename: file.name, progress: 100 })
-      setTimeout(() => setUploadProgress(null), 600)
-      toast.success('Arquivo enviado')
+      updateProgress(100)
+      // Fade out after completion
+      setTimeout(() => {
+        setUploads(prev => prev.map(u => u.id === uploadId ? { ...u, fading: true } : u))
+        setTimeout(() => {
+          setUploads(prev => prev.filter(u => u.id !== uploadId))
+        }, 300)
+      }, 600)
+      toast.success(`${file.name} enviado`)
     } catch (error: any) {
-      setUploadProgress(null)
-      toast.error(error?.message || 'Erro ao enviar arquivo')
+      setUploads(prev => prev.filter(u => u.id !== uploadId))
+      toast.error(error?.message || `Erro ao enviar ${file.name}`)
     }
   }, [conversa.id])
 
@@ -397,26 +468,28 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
       />
 
       <div className="relative mt-auto">
-        {uploadProgress && (
-          <div className="mx-3 mb-2 flex items-center gap-3 px-3 py-2.5 rounded-lg bg-muted/60 border border-border/40 animate-in fade-in slide-in-from-bottom-2 duration-200">
-            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-              <svg className="w-4 h-4 text-primary animate-spin" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-20" />
-                <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-              </svg>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-foreground truncate">{uploadProgress.filename}</p>
-              <div className="mt-1 h-1.5 rounded-full bg-border/60 overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
-                  style={{ width: `${uploadProgress.progress}%` }}
-                />
+        {uploads.length > 0 && (
+          <div className="mx-3 mb-2 space-y-1.5 max-h-[180px] overflow-y-auto">
+            {uploads.map((item) => (
+              <div
+                key={item.id}
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg bg-muted/60 border border-border/40 animate-in fade-in slide-in-from-bottom-2 duration-200 transition-opacity ${item.fading ? 'opacity-0' : 'opacity-100'}`}
+              >
+                <span className="text-base flex-shrink-0">{item.icon}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-foreground truncate">{item.filename}</p>
+                  <div className="mt-1 h-1.5 rounded-full bg-border/60 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
+                      style={{ width: `${item.progress}%` }}
+                    />
+                  </div>
+                </div>
+                <span className="text-[11px] text-muted-foreground font-medium tabular-nums flex-shrink-0">
+                  {item.progress}%
+                </span>
               </div>
-            </div>
-            <span className="text-[11px] text-muted-foreground font-medium tabular-nums flex-shrink-0">
-              {uploadProgress.progress}%
-            </span>
+            ))}
           </div>
         )}
         <MensagensProntasPopover

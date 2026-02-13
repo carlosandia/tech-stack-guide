@@ -69,16 +69,19 @@ export function AnexosMenu({ isOpen, onClose, onFileSelected, onAudioRecord, onC
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, tipo: string) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const files = e.target.files
+    if (!files || files.length === 0) return
 
-    let detectedTipo = tipo
-    if (file.type.startsWith('image/')) detectedTipo = 'image'
-    else if (file.type.startsWith('video/')) detectedTipo = 'video'
-    else if (file.type.startsWith('audio/')) detectedTipo = 'audio'
-    else detectedTipo = 'document'
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      let detectedTipo = tipo
+      if (file.type.startsWith('image/')) detectedTipo = 'image'
+      else if (file.type.startsWith('video/')) detectedTipo = 'video'
+      else if (file.type.startsWith('audio/')) detectedTipo = 'audio'
+      else detectedTipo = 'document'
 
-    onFileSelected(file, detectedTipo)
+      onFileSelected(file, detectedTipo)
+    }
     onClose()
     e.target.value = ''
   }
@@ -126,7 +129,8 @@ export function AnexosMenu({ isOpen, onClose, onFileSelected, onAudioRecord, onC
         ref={docInputRef}
         type="file"
         className="hidden"
-        accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.zip,.rar,.txt"
+        accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.zip,.rar,.txt,.ppt,.pptx"
+        multiple
         onChange={(e) => handleFileChange(e, 'document')}
       />
       <input
@@ -134,6 +138,7 @@ export function AnexosMenu({ isOpen, onClose, onFileSelected, onAudioRecord, onC
         type="file"
         className="hidden"
         accept="image/*,video/*"
+        multiple
         onChange={(e) => handleFileChange(e, 'image')}
       />
     </>
