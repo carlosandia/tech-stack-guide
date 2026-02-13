@@ -337,7 +337,7 @@ function ContactContent({ mensagem }: { mensagem: Mensagem }) {
   )
 }
 
-function PollContent({ mensagem, conversaId }: { mensagem: Mensagem; conversaId?: string }) {
+function PollContent({ mensagem, conversaId, fotoUrl }: { mensagem: Mensagem; conversaId?: string; fotoUrl?: string | null }) {
   const [loading, setLoading] = useState(false)
   const [options, setOptions] = useState(mensagem.poll_options)
   const [showVoters, setShowVoters] = useState(false)
@@ -475,11 +475,19 @@ function PollContent({ mensagem, conversaId }: { mensagem: Mensagem; conversaId?
 
                       return (
                         <div key={vIdx} className="flex items-center gap-2 py-1">
-                          <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
-                            <span className="text-[10px] font-medium text-primary">
-                              {displayName.slice(-2)}
-                            </span>
-                          </div>
+                          {fotoUrl ? (
+                            <img
+                              src={fotoUrl}
+                              alt=""
+                              className="w-6 h-6 rounded-full object-cover flex-shrink-0"
+                            />
+                          ) : (
+                            <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                              <span className="text-[10px] font-medium text-primary">
+                                {displayName.slice(-2)}
+                              </span>
+                            </div>
+                          )}
                           <span className="text-[12px] text-muted-foreground truncate">{formatted}</span>
                         </div>
                       )
@@ -522,7 +530,7 @@ function renderContent(
     case 'document': return <DocumentContent mensagem={mensagem} />
     case 'location': return <LocationContent mensagem={mensagem} />
     case 'contact': return <ContactContent mensagem={mensagem} />
-    case 'poll': return <PollContent mensagem={mensagem} conversaId={conversaId} />
+    case 'poll': return <PollContent mensagem={mensagem} conversaId={conversaId} fotoUrl={fotoUrl} />
     case 'sticker': return <StickerContent mensagem={mensagem} />
     case 'reaction': return <ReactionContent mensagem={mensagem} />
     default: return <p className="text-sm text-muted-foreground italic">Tipo não suportado</p>
