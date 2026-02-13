@@ -653,6 +653,11 @@ Deno.serve(async (req) => {
           if (mimetype) fileObj.mimetype = mimetype;
           mediaBody.file = fileObj;
           if (mediaCaption) mediaBody.caption = mediaCaption;
+        } else if (endpoint === "sendVoice") {
+          // AIDEV-NOTE: sendVoice precisa do mimetype para WhatsApp identificar corretamente o áudio
+          const fileObj: Record<string, unknown> = { url: media_url };
+          if (mimetype) fileObj.mimetype = mimetype;
+          mediaBody.file = fileObj;
         } else {
           mediaBody.file = { url: media_url };
           if (mediaCaption) mediaBody.caption = mediaCaption;

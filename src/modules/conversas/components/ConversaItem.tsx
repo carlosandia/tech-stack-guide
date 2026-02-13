@@ -4,7 +4,7 @@
  * Inclui menu de contexto (chevron hover) com arquivar, fixar, marcar não lida, apagar
  */
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { format, isToday, isYesterday } from 'date-fns'
 import {
   Camera, Video, Mic, FileText, MapPin, User, BarChart3, Smile,
@@ -93,12 +93,25 @@ function getTipoBadge(tipo: string): { label: string; className: string } | null
 
 export function ConversaItem({ conversa, isActive, onClick, onArquivar, onFixar, onMarcarNaoLida, onApagar }: ConversaItemProps) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
   const nome = conversa.contato?.nome || conversa.contato?.nome_fantasia || conversa.nome || 'Sem nome'
   const fotoUrl = conversa.contato?.foto_url || conversa.foto_url
   const hasUnread = conversa.mensagens_nao_lidas > 0
   const preview = getMessagePreview(conversa)
   const status = statusConfig[conversa.status] || statusConfig.aberta
   const tipoBadge = getTipoBadge(conversa.tipo)
+
+  // AIDEV-NOTE: Fecha o menu ao clicar fora - usa document listener como backup do backdrop
+  useEffect(() => {
+    if (!menuOpen) return
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [menuOpen])
 
   return (
     <div className="relative group">
@@ -183,24 +196,21 @@ export function ConversaItem({ conversa, isActive, onClick, onArquivar, onFixar,
         </div>
       </button>
 
-      {/* Context menu trigger (chevron on hover) */}
-      <div className="absolute right-2 top-3 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+      {/* Context menu trigger + popover */}
+      <div ref={menuRef} className="absolute right-2 top-3 z-10">
         <button
           onClick={(e) => {
             e.stopPropagation()
             setMenuOpen(!menuOpen)
           }}
-          className="p-1 rounded bg-background/90 border border-border/50 shadow-sm hover:bg-accent transition-colors"
+          className={`p-1 rounded bg-background/90 border border-border/50 shadow-sm hover:bg-accent transition-all ${menuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
         >
           <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
         </button>
-      </div>
 
-      {/* Context menu popover */}
-      {menuOpen && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
-          <div className="absolute right-2 top-10 w-48 bg-popover border border-border rounded-md shadow-lg py-1 z-50">
+        {/* Context menu popover */}
+        {menuOpen && (
+          <div className="absolute right-0 top-8 w-48 bg-popover border border-border rounded-md shadow-lg py-1 z-50">
             <button
               onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onArquivar?.(conversa.id) }}
               className="flex items-center gap-2 w-full px-3 py-2 text-sm text-foreground hover:bg-accent transition-colors"
@@ -235,8 +245,8 @@ export function ConversaItem({ conversa, isActive, onClick, onArquivar, onFixar,
               Apagar conversa
             </button>
           </div>
-        </>
-      )}
+        )}
+      </div>
     </div>
   )
 }
