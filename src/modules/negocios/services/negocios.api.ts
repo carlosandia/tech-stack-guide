@@ -124,12 +124,19 @@ export interface Oportunidade {
     tipo: string
     nome_fantasia?: string | null
     razao_social?: string | null
+    cargo?: string | null
+    cnpj?: string | null
+    linkedin_url?: string | null
+    website?: string | null
+    observacoes?: string | null
+    endereco_logradouro?: string | null
+    endereco_numero?: string | null
+    endereco_bairro?: string | null
+    endereco_cidade?: string | null
+    endereco_estado?: string | null
+    endereco_cep?: string | null
     empresa_id?: string | null
-    empresa?: {
-      id: string
-      nome_fantasia?: string | null
-      razao_social?: string | null
-    } | null
+    empresa?: Record<string, unknown> | null
   } | null
   responsavel?: {
     id: string
@@ -946,22 +953,18 @@ export const negociosApi = {
         .maybeSingle()
 
       if (contato) {
-        let empresa: { id: string; nome_fantasia?: string | null; razao_social?: string | null } | null = null
+        let empresa: Record<string, unknown> | null = null
 
-        // Se é pessoa e tem empresa vinculada, buscar dados da empresa
+        // Se é pessoa e tem empresa vinculada, buscar dados completos da empresa
         if (contato.tipo === 'pessoa' && contato.empresa_id) {
           const { data: empresaData } = await supabase
             .from('contatos')
-            .select('id, nome_fantasia, razao_social')
+            .select('id, nome, nome_fantasia, razao_social, cnpj, email, telefone, website, segmento, porte, observacoes, endereco_logradouro, endereco_numero, endereco_bairro, endereco_cidade, endereco_estado, endereco_cep')
             .eq('id', contato.empresa_id)
             .maybeSingle()
 
           if (empresaData) {
-            empresa = {
-              id: empresaData.id,
-              nome_fantasia: empresaData.nome_fantasia,
-              razao_social: empresaData.razao_social,
-            }
+            empresa = empresaData as Record<string, unknown>
           }
         }
 
@@ -974,6 +977,17 @@ export const negociosApi = {
           tipo: contato.tipo,
           nome_fantasia: contato.nome_fantasia,
           razao_social: contato.razao_social,
+          cargo: contato.cargo,
+          cnpj: contato.cnpj,
+          linkedin_url: contato.linkedin_url,
+          website: contato.website,
+          observacoes: contato.observacoes,
+          endereco_logradouro: contato.endereco_logradouro,
+          endereco_numero: contato.endereco_numero,
+          endereco_bairro: contato.endereco_bairro,
+          endereco_cidade: contato.endereco_cidade,
+          endereco_estado: contato.endereco_estado,
+          endereco_cep: contato.endereco_cep,
           empresa_id: contato.empresa_id,
           empresa,
         }
