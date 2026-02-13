@@ -35,7 +35,10 @@ export function LigacaoModal({ telefone, contatoNome, onClose }: LigacaoModalPro
       body: { action, ...extras },
     })
 
-    if (res.error) throw new Error(res.error.message || 'Erro na Edge Function')
+    if (res.error) {
+      const msg = typeof res.error?.message === 'string' ? res.error.message : JSON.stringify(res.error)
+      throw new Error(msg || 'Erro na Edge Function')
+    }
     return res.data
   }, [])
 
@@ -84,7 +87,8 @@ export function LigacaoModal({ telefone, contatoNome, onClose }: LigacaoModalPro
       } catch (err) {
         console.error('[LigacaoModal] Erro ao verificar pré-requisitos:', err)
         setStatus('erro')
-        setMensagemErro('Erro ao verificar configuração de telefonia.')
+      setMensagemErro('Erro ao verificar configuração de telefonia.')
+      setApi4comConectado(false)
       }
     }
     verificarPreRequisitos()
@@ -126,7 +130,8 @@ export function LigacaoModal({ telefone, contatoNome, onClose }: LigacaoModalPro
         setStatus('conectada')
       } else {
         setStatus('erro')
-        setMensagemErro(result.message || 'Erro ao iniciar a chamada.')
+        const msg = typeof result?.message === 'string' ? result.message : 'Erro ao iniciar a chamada.'
+        setMensagemErro(msg)
       }
     } catch (err) {
       console.error('[LigacaoModal] Erro ao fazer chamada:', err)
