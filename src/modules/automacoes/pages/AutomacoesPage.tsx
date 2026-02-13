@@ -15,7 +15,7 @@ import { NodeConfigPanel } from '../components/panels/NodeConfigPanel'
 import { useFlowState } from '../hooks/useFlowState'
 import { automacaoToFlow, flowToAutomacao } from '../utils/flowConverter'
 
-import { Zap } from 'lucide-react'
+import { Zap, Menu } from 'lucide-react'
 
 export function AutomacoesPage() {
   const { role } = useAuth()
@@ -29,6 +29,7 @@ export function AutomacoesPage() {
   const excluirMutation = useExcluirAutomacao()
 
   const [selectedAutoId, setSelectedAutoId] = useState<string | undefined>()
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
 
   const {
     nodes,
@@ -113,6 +114,7 @@ export function AutomacoesPage() {
         const { nodes: flowNodes, edges: flowEdges } = automacaoToFlow(data)
         setNodes(flowNodes)
         setEdges(flowEdges)
+        setMobileSidebarOpen(false)
       },
     })
   }, [isAdmin, automacoes, criarMutation, setNodes, setEdges])
@@ -153,6 +155,15 @@ export function AutomacoesPage() {
 
   return (
     <div className="flex h-full overflow-hidden">
+      {/* Botão de menu mobile para abrir sidebar */}
+      <button
+        onClick={() => setMobileSidebarOpen(true)}
+        className="fixed bottom-4 left-4 z-[250] sm:hidden p-3 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-colors"
+        title="Abrir automações"
+      >
+        <Menu className="w-5 h-5" />
+      </button>
+
       {/* Sidebar */}
       <AutomacaoSidebar
         automacoes={automacoes || []}
@@ -164,6 +175,8 @@ export function AutomacoesPage() {
         onRename={handleRename}
         onDelete={handleDeleteAutomacao}
         isAdmin={isAdmin}
+        mobileOpen={mobileSidebarOpen}
+        onMobileClose={() => setMobileSidebarOpen(false)}
       />
 
       {/* Canvas area */}
