@@ -24,6 +24,7 @@ interface ChatInputProps {
   disabled?: boolean
   replyingTo?: Mensagem | null
   onCancelReply?: () => void
+  audioSending?: boolean
 }
 
 type InputTab = 'responder' | 'nota'
@@ -31,7 +32,7 @@ type InputTab = 'responder' | 'nota'
 export function ChatInput({
   onSendMessage, onSendNote, onOpenQuickReplies, onFileSelected,
   onAudioSend, onOpenCamera, onOpenContato, onOpenEnquete,
-  isSending, disabled, replyingTo, onCancelReply
+  isSending, disabled, replyingTo, onCancelReply, audioSending
 }: ChatInputProps) {
   const [tab, setTab] = useState<InputTab>('responder')
   const [texto, setTexto] = useState('')
@@ -281,13 +282,20 @@ export function ChatInput({
 
             {/* Send / Mic button */}
             {!isNota && !hasText ? (
-              <button
-                className="p-2 rounded-md bg-muted text-muted-foreground hover:bg-accent hover:text-foreground transition-all duration-200 flex-shrink-0 mb-0.5"
-                title="Gravar áudio"
-                onClick={() => setIsRecording(true)}
-              >
-                <Mic className="w-4 h-4" />
-              </button>
+              audioSending ? (
+                <div className="flex items-center gap-1.5 px-2 pb-1 text-muted-foreground">
+                  <div className="w-4 h-4 border-2 border-muted-foreground/40 border-t-primary rounded-full animate-spin" />
+                  <span className="text-[11px]">Enviando...</span>
+                </div>
+              ) : (
+                <button
+                  className="p-2 rounded-md bg-muted text-muted-foreground hover:bg-accent hover:text-foreground transition-all duration-200 flex-shrink-0 mb-0.5"
+                  title="Gravar áudio"
+                  onClick={() => setIsRecording(true)}
+                >
+                  <Mic className="w-4 h-4" />
+                </button>
+              )
             ) : (
               <button
                 onClick={handleSend}

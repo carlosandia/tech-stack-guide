@@ -340,6 +340,7 @@ function ContactContent({ mensagem }: { mensagem: Mensagem }) {
 function PollContent({ mensagem, conversaId }: { mensagem: Mensagem; conversaId?: string }) {
   const [loading, setLoading] = useState(false)
   const [options, setOptions] = useState(mensagem.poll_options)
+  const [showVoters, setShowVoters] = useState(false)
 
   const handleRefresh = async () => {
     if (!conversaId || !mensagem.message_id) return
@@ -361,23 +362,78 @@ function PollContent({ mensagem, conversaId }: { mensagem: Mensagem; conversaId?
     }
   }
 
+  const currentOptions = options || mensagem.poll_options || []
+  const totalVotes = currentOptions.reduce((sum, o) => sum + (o.votes || 0), 0)
+  const allowMultiple = mensagem.poll_allow_multiple
+
   return (
-    <div className="space-y-2 min-w-[220px]">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-medium">{mensagem.poll_question}</p>
+    <div className="min-w-[240px] max-w-[320px]">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-2 mb-1">
+        <p className="text-sm font-semibold text-foreground leading-snug">{mensagem.poll_question}</p>
         {conversaId && (
           <button onClick={handleRefresh} disabled={loading}
-            className="p-1 rounded hover:bg-accent/50 text-muted-foreground hover:text-foreground transition-colors" title="Atualizar votos">
+            className="p-1 rounded-full hover:bg-accent/50 text-muted-foreground hover:text-foreground transition-colors flex-shrink-0 mt-0.5"
+            title="Atualizar votos">
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           </button>
         )}
       </div>
-      {(options || mensagem.poll_options)?.map((opt, idx) => (
-        <div key={idx} className="flex items-center justify-between py-1 px-2 rounded bg-background/50 text-xs">
-          <span>{opt.text}</span>
-          <span className="text-muted-foreground">{opt.votes}</span>
+
+      {/* Subtitle */}
+      <div className="flex items-center gap-1 mb-3">
+        <div className="w-4 h-4 rounded-full bg-[hsl(var(--primary))] flex items-center justify-center flex-shrink-0">
+          <Check className="w-2.5 h-2.5 text-primary-foreground" />
         </div>
-      ))}
+        <span className="text-[11px] text-muted-foreground">
+          {allowMultiple ? 'Selecione uma ou mais opções' : 'Selecione uma opção'}
+        </span>
+      </div>
+
+      {/* Options */}
+      <div className="space-y-0 border border-border/40 rounded-lg overflow-hidden bg-background/50">
+        {currentOptions.map((opt, idx) => {
+          const percent = totalVotes > 0 ? Math.round((opt.votes || 0) / totalVotes * 100) : 0
+          return (
+            <div key={idx} className={`relative ${idx > 0 ? 'border-t border-border/30' : ''}`}>
+              {/* Progress bar background */}
+              {totalVotes > 0 && (
+                <div
+                  className="absolute inset-0 bg-primary/10 transition-all duration-500"
+                  style={{ width: `${percent}%` }}
+                />
+              )}
+              <div className="relative flex items-center gap-2.5 px-3 py-2.5">
+                {/* Radio circle */}
+                <div className={`w-[18px] h-[18px] rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
+                  (opt.votes || 0) > 0 ? 'border-primary bg-primary' : 'border-muted-foreground/40'
+                }`}>
+                  {(opt.votes || 0) > 0 && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
+                </div>
+                {/* Option text */}
+                <span className="flex-1 text-[13px] text-foreground">{opt.text}</span>
+                {/* Vote count */}
+                <span className="text-[12px] text-muted-foreground font-medium flex-shrink-0">
+                  {opt.votes || 0}
+                </span>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Footer */}
+      <button
+        onClick={() => setShowVoters(!showVoters)}
+        className="w-full mt-2 pt-1 text-center text-[11px] text-primary hover:text-primary/80 font-medium transition-colors"
+      >
+        {showVoters ? 'Ocultar votos' : 'Mostrar votos'}
+      </button>
+      {totalVotes > 0 && (
+        <p className="text-center text-[10px] text-muted-foreground mt-0.5">
+          {totalVotes} {totalVotes === 1 ? 'voto' : 'votos'}
+        </p>
+      )}
     </div>
   )
 }
