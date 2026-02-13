@@ -157,11 +157,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     // Verifica sessao existente
     supabase.auth.getSession().then(async ({ data: { session: existingSession } }) => {
-      // Se "Lembrar por 30 dias" não foi marcado, limpa sessão ao reabrir navegador
+      // Lógica de "Lembrar por 30 dias":
+      // - Se rememberMe === 'true' → mantém sessão sempre
+      // - Se rememberMe === 'false' → limpa sessão apenas em nova aba/browser
+      // - Se rememberMe é null (primeiro acesso) → mantém sessão (não quebrar login)
       const rememberMe = localStorage.getItem('rememberMe')
-      const isNewBrowserSession = !sessionStorage.getItem('activeSession')
+      const hadActiveSession = sessionStorage.getItem('activeSession')
 
-      if (existingSession && rememberMe === 'false' && isNewBrowserSession) {
+      if (existingSession && rememberMe === 'false' && !hadActiveSession) {
         // Usuário não marcou "lembrar" e é uma nova sessão do navegador
         await supabase.auth.signOut()
         setSession(null)
@@ -170,7 +173,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return
       }
 
-      // Marca sessão ativa no sessionStorage (limpa automaticamente ao fechar browser)
+      // Marca sessão ativa (limpa automaticamente ao fechar browser/aba)
       if (existingSession) {
         sessionStorage.setItem('activeSession', 'true')
       }
