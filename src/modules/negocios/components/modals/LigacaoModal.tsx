@@ -2,7 +2,7 @@
  * AIDEV-NOTE: Modal de Ligação VoIP com integração real API4COM
  * Verifica conexão API4COM + ramal + créditos antes de permitir ligar
  * Click-to-call via Edge Function api4com-proxy
- * Painel de informações da oportunidade para consulta durante a chamada
+ * Painel de informações dinâmico sincronizado com campos_customizados do banco
  * Conforme Design System 10.5 - ModalBase
  */
 
@@ -10,12 +10,14 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   Phone, PhoneOff, Clock, AlertCircle, PhoneCall, Loader2, Wallet,
   DollarSign, User, Calendar, Mail, Building2, Globe, Briefcase, RefreshCw,
-  MapPin, FileText, Pencil, Check, X, Plus, Search
+  FileText, Pencil, Check, X, Plus, Search
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useOportunidade, useAtualizarOportunidade, useAtualizarContato } from '../../hooks/useOportunidadeDetalhes'
 import { useProdutosOportunidade, useAdicionarProdutoOp, useBuscarProdutosCatalogo } from '../../hooks/useDetalhes'
 import { useSegmentos, useSegmentarLote } from '@/modules/contatos/hooks/useSegmentos'
+
+import { useCampos } from '@/modules/configuracoes/hooks/useCampos'
 import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
 
@@ -413,6 +415,32 @@ function ProdutosEditaveis({ oportunidadeId }: { oportunidadeId: string }) {
 }
 
 // =====================================================
+// Mapeamento slug → ícone e máscara
+// =====================================================
+
+const SLUG_ICON_MAP: Record<string, React.ElementType> = {
+  nome: User, sobrenome: User, email: Mail, telefone: Phone,
+  cargo: Briefcase, linkedin: Globe, website: Globe,
+  nome_fantasia: Building2, razao_social: Building2, cnpj: Briefcase,
+  segmento: Briefcase, segmento_de_mercado: Briefcase, porte: Briefcase,
+}
+
+const SLUG_MASK_MAP: Record<string, MaskType> = {
+  telefone: 'telefone', cnpj: 'cnpj',
+}
+
+const SLUG_TO_CONTATO_COL: Record<string, string> = {
+  nome: 'nome', sobrenome: 'sobrenome', email: 'email', telefone: 'telefone',
+  cargo: 'cargo', linkedin: 'linkedin_url',
+}
+
+const SLUG_TO_EMPRESA_COL: Record<string, string> = {
+  nome_fantasia: 'nome_fantasia', razao_social: 'razao_social', cnpj: 'cnpj',
+  email: 'email', telefone: 'telefone', website: 'website',
+  segmento: 'segmento', segmento_de_mercado: 'segmento', porte: 'porte',
+}
+
+// =====================================================
 // Painel de Informações (coluna direita)
 // =====================================================
 
@@ -420,6 +448,54 @@ function PainelInformacoes({ oportunidadeId }: { oportunidadeId: string }) {
   const { data: op, isLoading } = useOportunidade(oportunidadeId)
   const atualizarOp = useAtualizarOportunidade()
   const atualizarContato = useAtualizarContato()
+
+  // Campos dinâmicos do banco
+  const { data: camposPessoa } = useCampos('pessoa')
+  const { data: camposEmpresa } = useCampos('empresa')
+  const { data: camposOportunidade } = useCampos('oportunidade')
+
+  // Valores de campos customizados
+  const contato = op?.contato as any
+  const empresa = contato?.empresa as any || null
+
+  const { data: valoresContatoCustom } = useQuery({
+    queryKey: ['valores-custom-contato', contato?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('valores_campos_customizados')
+        .select('campo_id, valor_texto, valor_numero, valor_data, valor_booleano, valor_json')
+        .eq('entidade_tipo', 'contato')
+        .eq('entidade_id', contato.id)
+      return data || []
+    },
+    enabled: !!contato?.id,
+  })
+
+  const { data: valoresEmpresaCustom } = useQuery({
+    queryKey: ['valores-custom-empresa', empresa?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('valores_campos_customizados')
+        .select('campo_id, valor_texto, valor_numero, valor_data, valor_booleano, valor_json')
+        .eq('entidade_tipo', 'contato')
+        .eq('entidade_id', empresa.id)
+      return data || []
+    },
+    enabled: !!empresa?.id,
+  })
+
+  const { data: valoresOpCustom } = useQuery({
+    queryKey: ['valores-custom-oportunidade', oportunidadeId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('valores_campos_customizados')
+        .select('campo_id, valor_texto, valor_numero, valor_data, valor_booleano, valor_json')
+        .eq('entidade_tipo', 'oportunidade')
+        .eq('entidade_id', oportunidadeId)
+      return data || []
+    },
+    enabled: !!oportunidadeId,
+  })
 
   if (isLoading) {
     return (
@@ -430,13 +506,9 @@ function PainelInformacoes({ oportunidadeId }: { oportunidadeId: string }) {
   }
 
   if (!op) {
-    return (
-      <p className="text-xs text-muted-foreground text-center py-4">Dados não encontrados</p>
-    )
+    return <p className="text-xs text-muted-foreground text-center py-4">Dados não encontrados</p>
   }
 
-  const contato = op.contato as any
-  const empresa = contato?.empresa as any || null
   const responsavel = op.responsavel
 
   const saveOpField = (field: string) => (value: string) => {
@@ -457,21 +529,26 @@ function PainelInformacoes({ oportunidadeId }: { oportunidadeId: string }) {
     atualizarContato.mutate({ id: empresa.id, payload: { [field]: value || null } })
   }
 
-  const enderecoContato = contato ? [
-    contato.endereco_logradouro,
-    contato.endereco_numero,
-    contato.endereco_bairro,
-    contato.endereco_cidade,
-    contato.endereco_estado,
-  ].filter(Boolean).join(', ') : null
+  const saveCustomField = (entidadeTipo: string, entidadeId: string, campoId: string) => async (value: string) => {
+    await supabase.from('valores_campos_customizados').upsert({
+      campo_id: campoId,
+      entidade_tipo: entidadeTipo,
+      entidade_id: entidadeId,
+      organizacao_id: (op as any).organizacao_id,
+      valor_texto: value || null,
+    } as any, { onConflict: 'campo_id,entidade_tipo,entidade_id' })
+  }
 
-  const enderecoEmpresa = empresa ? [
-    empresa.endereco_logradouro,
-    empresa.endereco_numero,
-    empresa.endereco_bairro,
-    empresa.endereco_cidade,
-    empresa.endereco_estado,
-  ].filter(Boolean).join(', ') : null
+  const getCustomValue = (valores: any[] | undefined, campoId: string) => {
+    if (!valores) return null
+    const v = valores.find((x: any) => x.campo_id === campoId)
+    return v?.valor_texto || v?.valor_numero?.toString() || null
+  }
+
+  // Campos de pessoa (sistema + custom)
+  const pessoaCampos = camposPessoa?.campos?.filter((c: any) => c.ativo !== false) || []
+  const empresaCampos = camposEmpresa?.campos?.filter((c: any) => c.ativo !== false) || []
+  const opCampos = camposOportunidade?.campos?.filter((c: any) => c.ativo !== false && !c.sistema) || []
 
   return (
     <div className="space-y-1 overflow-y-auto max-h-[480px] pr-1">
@@ -488,6 +565,16 @@ function PainelInformacoes({ oportunidadeId }: { oportunidadeId: string }) {
           <EditableInfoRow icon={User} label="Responsável" value={responsavel ? `${responsavel.nome}${responsavel.sobrenome ? ` ${responsavel.sobrenome}` : ''}` : null} />
           <EditableInfoRow icon={Calendar} label="Previsão" value={formatData(op.previsao_fechamento)} onSave={saveOpField('previsao_fechamento')} />
           <EditableInfoRow icon={FileText} label="Observações" value={op.observacoes} onSave={saveOpField('observacoes')} />
+          {/* Campos custom de oportunidade */}
+          {opCampos.map((campo: any) => (
+            <EditableInfoRow
+              key={campo.id}
+              icon={FileText}
+              label={campo.nome}
+              value={getCustomValue(valoresOpCustom, campo.id)}
+              onSave={saveCustomField('oportunidade', oportunidadeId, campo.id)}
+            />
+          ))}
         </div>
       </div>
 
@@ -509,45 +596,86 @@ function PainelInformacoes({ oportunidadeId }: { oportunidadeId: string }) {
         <ProdutosEditaveis oportunidadeId={oportunidadeId} />
       </div>
 
-      {/* Seção Contato */}
+      {/* Seção Contato - campos dinâmicos */}
       {contato && (
         <div className="pb-3">
           <h4 className="text-[11px] text-primary font-bold uppercase tracking-wider mb-2.5 border-b border-primary/20 pb-1.5">
             Contato
           </h4>
           <div className="space-y-1.5 pl-0.5">
-            <EditableInfoRow icon={User} label="Nome" value={[contato.nome, contato.sobrenome].filter(Boolean).join(' ') || null} onSave={saveContatoField('nome')} />
-            <EditableInfoRow icon={Mail} label="Email" value={contato.email} onSave={saveContatoField('email')} />
-            <EditableInfoRow icon={Phone} label="Telefone" value={contato.telefone} onSave={saveContatoField('telefone')} mask="telefone" />
-            <EditableInfoRow icon={Briefcase} label="Cargo" value={contato.cargo} onSave={saveContatoField('cargo')} />
-            <EditableInfoRow icon={Globe} label="LinkedIn" value={contato.linkedin_url} isLink onSave={saveContatoField('linkedin_url')} />
-            <EditableInfoRow icon={Globe} label="Website" value={contato.website} isLink onSave={saveContatoField('website')} />
-            {enderecoContato && (
-              <EditableInfoRow icon={MapPin} label="Endereço" value={enderecoContato} />
-            )}
-            <EditableInfoRow icon={FileText} label="Obs." value={contato.observacoes} onSave={saveContatoField('observacoes')} />
+            {pessoaCampos.map((campo: any) => {
+              const Icon = SLUG_ICON_MAP[campo.slug] || FileText
+              const mask = SLUG_MASK_MAP[campo.slug]
+              const isLink = campo.tipo === 'url'
+
+              if (campo.sistema) {
+                const col = SLUG_TO_CONTATO_COL[campo.slug]
+                const value = col ? contato[col] : null
+                return (
+                  <EditableInfoRow
+                    key={campo.id}
+                    icon={Icon}
+                    label={campo.nome}
+                    value={value}
+                    isLink={isLink}
+                    mask={mask}
+                    onSave={col ? saveContatoField(col) : undefined}
+                  />
+                )
+              } else {
+                return (
+                  <EditableInfoRow
+                    key={campo.id}
+                    icon={FileText}
+                    label={campo.nome}
+                    value={getCustomValue(valoresContatoCustom, campo.id)}
+                    onSave={saveCustomField('contato', contato.id, campo.id)}
+                  />
+                )
+              }
+            })}
           </div>
         </div>
       )}
 
-      {/* Seção Empresa vinculada */}
+      {/* Seção Empresa - campos dinâmicos */}
       {empresa && (
         <div className="pb-2">
           <h4 className="text-[11px] text-primary font-bold uppercase tracking-wider mb-2.5 border-b border-primary/20 pb-1.5">
             Empresa
           </h4>
           <div className="space-y-1.5 pl-0.5">
-            <EditableInfoRow icon={Building2} label="Fantasia" value={empresa.nome_fantasia} onSave={saveEmpresaField('nome_fantasia')} />
-            <EditableInfoRow icon={Building2} label="Razão Social" value={empresa.razao_social} onSave={saveEmpresaField('razao_social')} />
-            <EditableInfoRow icon={Briefcase} label="CNPJ" value={empresa.cnpj} onSave={saveEmpresaField('cnpj')} mask="cnpj" />
-            <EditableInfoRow icon={Mail} label="Email" value={empresa.email} onSave={saveEmpresaField('email')} />
-            <EditableInfoRow icon={Phone} label="Telefone" value={empresa.telefone} onSave={saveEmpresaField('telefone')} mask="telefone" />
-            <EditableInfoRow icon={Globe} label="Website" value={empresa.website} isLink onSave={saveEmpresaField('website')} />
-            <EditableInfoRow icon={Briefcase} label="Segmento" value={empresa.segmento} onSave={saveEmpresaField('segmento')} />
-            <EditableInfoRow icon={Briefcase} label="Porte" value={empresa.porte} onSave={saveEmpresaField('porte')} />
-            {enderecoEmpresa && (
-              <EditableInfoRow icon={MapPin} label="Endereço" value={enderecoEmpresa} />
-            )}
+            {empresaCampos.map((campo: any) => {
+              const Icon = SLUG_ICON_MAP[campo.slug] || FileText
+              const mask = SLUG_MASK_MAP[campo.slug]
+              const isLink = campo.tipo === 'url'
+
+              if (campo.sistema) {
+                const col = SLUG_TO_EMPRESA_COL[campo.slug]
+                const value = col ? empresa[col] : null
+                return (
+                  <EditableInfoRow
+                    key={campo.id}
+                    icon={Icon}
+                    label={campo.nome}
+                    value={value}
+                    isLink={isLink}
+                    mask={mask}
+                    onSave={col ? saveEmpresaField(col) : undefined}
+                  />
+                )
+              } else {
+                return (
+                  <EditableInfoRow
+                    key={campo.id}
+                    icon={FileText}
+                    label={campo.nome}
+                    value={getCustomValue(valoresEmpresaCustom, campo.id)}
+                    onSave={saveCustomField('contato', empresa.id, campo.id)}
+                  />
+                )
+              }
+            })}
           </div>
         </div>
       )}
