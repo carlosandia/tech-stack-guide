@@ -12,6 +12,7 @@ import { PipelineSelector } from './PipelineSelector'
 import { FiltrosPopover, type FiltrosKanban } from './FiltrosPopover'
 import { PeriodoSelector, type PeriodoFiltro } from './PeriodoSelector'
 import { FiltrarMetricasPopover, type MetricasVisiveis } from './FiltrarMetricasPopover'
+import { MetaToolbarIndicator } from './MetaToolbarIndicator'
 import type { Funil } from '../../services/negocios.api'
 
 interface NegociosToolbarProps {
@@ -118,6 +119,9 @@ export function NegociosToolbar({
   useEffect(() => {
     setActions(
       <div className="flex items-center gap-1 sm:gap-1.5">
+        {/* Meta indicator */}
+        <MetaToolbarIndicator />
+
         {/* Filtros */}
         <FiltrosPopover
           filtros={filtros}

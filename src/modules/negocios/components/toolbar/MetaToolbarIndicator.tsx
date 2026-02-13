@@ -1,0 +1,240 @@
+/**
+ * AIDEV-NOTE: Indicador de Meta na toolbar do Kanban
+ * Exibe barra de progresso compacta e popover com detalhes por vendedor
+ * Puxa dados de metas configuradas em /configuracoes/metas
+ */
+
+import { useState, useMemo } from 'react'
+import { Target, ChevronDown, Building2, User, Trophy } from 'lucide-react'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import { useMetasEmpresa, useRanking } from '@/modules/configuracoes/hooks/useMetas'
+import { getMetricaLabel, getMetricaUnidade } from '@/modules/configuracoes/schemas/metas.schema'
+import type { MetaComProgresso } from '@/modules/configuracoes/services/configuracoes.api'
+
+function formatValorMeta(valor: number, unidade: string): string {
+  if (unidade === 'R$') {
+    if (valor >= 1_000_000) return `R$ ${(valor / 1_000_000).toFixed(1)}M`
+    if (valor >= 1_000) return `R$ ${(valor / 1_000).toFixed(1)}K`
+    return `R$ ${valor.toFixed(0)}`
+  }
+  if (unidade === '%') return `${valor.toFixed(0)}%`
+  return String(valor)
+}
+
+function getProgressColor(pct: number): string {
+  if (pct >= 100) return 'bg-success'
+  if (pct >= 70) return 'bg-success'
+  if (pct >= 40) return 'bg-warning'
+  return 'bg-destructive'
+}
+
+function getStatusLabel(pct: number): { text: string; color: string } {
+  if (pct >= 100) return { text: 'Atingida', color: 'text-success' }
+  if (pct >= 70) return { text: 'No caminho', color: 'text-success' }
+  if (pct >= 40) return { text: 'Atenção', color: 'text-warning' }
+  return { text: 'Em risco', color: 'text-destructive' }
+}
+
+function MetaProgressItem({ meta }: { meta: MetaComProgresso }) {
+  const pct = meta.progresso?.percentual_atingido || 0
+  const valorAtual = meta.progresso?.valor_atual || 0
+  const unidade = getMetricaUnidade(meta.metrica)
+  const status = getStatusLabel(pct)
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5 min-w-0">
+          {meta.tipo === 'empresa' ? (
+            <Building2 className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+          ) : (
+            <User className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+          )}
+          <span className="text-sm font-medium text-foreground truncate">
+            {meta.nome || getMetricaLabel(meta.metrica)}
+          </span>
+        </div>
+        <span className={`text-xs font-medium ${status.color} flex-shrink-0`}>
+          {status.text}
+        </span>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-muted-foreground whitespace-nowrap">
+          {getMetricaLabel(meta.metrica)}
+        </span>
+        <span className="text-xs font-medium text-foreground ml-auto whitespace-nowrap">
+          {formatValorMeta(valorAtual, unidade)} / {formatValorMeta(meta.valor_meta, unidade)}
+        </span>
+      </div>
+
+      <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all duration-500 ${getProgressColor(pct)}`}
+          style={{ width: `${Math.min(pct, 100)}%` }}
+        />
+      </div>
+
+      <p className="text-[10px] text-muted-foreground text-right">{Math.round(pct)}% concluído</p>
+    </div>
+  )
+}
+
+export function MetaToolbarIndicator() {
+  const { data: empresaData } = useMetasEmpresa()
+  const { data: rankingData } = useRanking()
+  const [visao, setVisao] = useState<'empresa' | 'individual'>('empresa')
+
+  // Meta principal da empresa (primeira ativa)
+  const metaPrincipal = useMemo(() => {
+    if (!empresaData?.metas?.length) return null
+    return empresaData.metas[0]
+  }, [empresaData])
+
+  const pctPrincipal = metaPrincipal?.progresso?.percentual_atingido || 0
+  const valorAtualPrincipal = metaPrincipal?.progresso?.valor_atual || 0
+  const unidadePrincipal = metaPrincipal ? getMetricaUnidade(metaPrincipal.metrica) : 'R$'
+
+  if (!metaPrincipal) return null
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          className="flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-accent transition-colors group"
+          title="Meta de vendas"
+        >
+          <Target className="w-4 h-4 text-primary flex-shrink-0" />
+          <div className="flex items-center gap-2">
+            <div className="w-20 h-1.5 bg-muted rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${getProgressColor(pctPrincipal)}`}
+                style={{ width: `${Math.min(pctPrincipal, 100)}%` }}
+              />
+            </div>
+            <span className="text-xs font-medium text-foreground whitespace-nowrap">
+              {formatValorMeta(valorAtualPrincipal, unidadePrincipal)}
+            </span>
+          </div>
+          <ChevronDown className="w-3 h-3 text-muted-foreground group-hover:text-foreground transition-colors" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-[380px] p-0" sideOffset={8}>
+        {/* Tabs */}
+        <div className="flex border-b border-border">
+          <button
+            onClick={() => setVisao('empresa')}
+            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-colors ${
+              visao === 'empresa'
+                ? 'text-primary border-b-2 border-primary'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Building2 className="w-3.5 h-3.5" />
+            Empresa
+          </button>
+          <button
+            onClick={() => setVisao('individual')}
+            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-colors ${
+              visao === 'individual'
+                ? 'text-primary border-b-2 border-primary'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <User className="w-3.5 h-3.5" />
+            Individual
+          </button>
+        </div>
+
+        <div className="p-4 space-y-4 max-h-[400px] overflow-y-auto">
+          {visao === 'empresa' ? (
+            <>
+              {/* Resumo */}
+              {empresaData?.resumo && (
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { label: 'Total', value: empresaData.resumo.total_metas },
+                    { label: 'Atingidas', value: empresaData.resumo.metas_atingidas },
+                    { label: 'Média', value: `${Math.round(empresaData.resumo.media_atingimento)}%` },
+                    { label: 'Em Risco', value: empresaData.resumo.metas_em_risco },
+                  ].map(s => (
+                    <div key={s.label} className="bg-muted/50 rounded-lg px-3 py-2">
+                      <p className="text-[10px] text-muted-foreground">{s.label}</p>
+                      <p className="text-sm font-semibold text-foreground">{s.value}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Lista de metas da empresa */}
+              {empresaData?.metas?.map(meta => (
+                <MetaProgressItem key={meta.id} meta={meta} />
+              ))}
+
+              {(!empresaData?.metas || empresaData.metas.length === 0) && (
+                <div className="text-center py-6">
+                  <Target className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">Nenhuma meta configurada</p>
+                  <p className="text-xs text-muted-foreground mt-1">Configure em Configurações → Metas</p>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              {/* Ranking de vendedores */}
+              <div className="flex items-center gap-1.5 mb-2">
+                <Trophy className="w-4 h-4 text-warning" />
+                <h4 className="text-sm font-semibold text-foreground">Ranking do Período</h4>
+              </div>
+
+              {rankingData?.ranking?.length ? (
+                <div className="space-y-3">
+                  {rankingData.ranking.map((item) => (
+                    <div key={item.usuario_id} className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className="text-xs font-bold text-muted-foreground w-4 text-center">
+                          {item.posicao <= 3 ? ['🥇', '🥈', '🥉'][item.posicao - 1] : `${item.posicao}º`}
+                        </span>
+                        {item.avatar_url ? (
+                          <img src={item.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover" />
+                        ) : (
+                          <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center">
+                            <span className="text-[10px] font-semibold text-primary">
+                              {item.usuario_nome.charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-foreground truncate">{item.usuario_nome}</p>
+                        <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden mt-1">
+                          <div
+                            className={`h-full rounded-full transition-all ${getProgressColor(item.percentual_meta)}`}
+                            style={{ width: `${Math.min(item.percentual_meta, 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                      <span className={`text-xs font-semibold flex-shrink-0 ${getStatusLabel(item.percentual_meta).color}`}>
+                        {Math.round(item.percentual_meta)}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-6">
+                  <User className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">Nenhuma meta individual</p>
+                  <p className="text-xs text-muted-foreground mt-1">Configure metas individuais para os vendedores</p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
