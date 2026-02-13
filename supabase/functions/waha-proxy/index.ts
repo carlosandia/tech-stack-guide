@@ -618,12 +618,13 @@ Deno.serve(async (req) => {
       // ENVIAR MÍDIA VIA WAHA
       // =====================================================
       case "enviar_media": {
-        const { chat_id: mediaChatId, media_url, caption: mediaCaption, filename, media_type } = body as {
+        const { chat_id: mediaChatId, media_url, caption: mediaCaption, filename, media_type, mimetype } = body as {
           chat_id?: string;
           media_url?: string;
           caption?: string;
           filename?: string;
           media_type?: string;
+          mimetype?: string;
         };
 
         if (!mediaChatId || !media_url) {
@@ -647,8 +648,10 @@ Deno.serve(async (req) => {
         };
 
         if (endpoint === "sendFile") {
-          mediaBody.file = { url: media_url };
-          if (filename) mediaBody.file = { url: media_url, filename };
+          const fileObj: Record<string, unknown> = { url: media_url };
+          if (filename) fileObj.filename = filename;
+          if (mimetype) fileObj.mimetype = mimetype;
+          mediaBody.file = fileObj;
           if (mediaCaption) mediaBody.caption = mediaCaption;
         } else {
           mediaBody.file = { url: media_url };

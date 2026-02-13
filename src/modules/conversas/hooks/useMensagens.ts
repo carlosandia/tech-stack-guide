@@ -44,7 +44,7 @@ export function useEnviarMedia() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ conversaId, dados }: { conversaId: string; dados: { tipo: string; media_url: string; caption?: string; filename?: string } }) =>
+    mutationFn: ({ conversaId, dados }: { conversaId: string; dados: { tipo: string; media_url: string; caption?: string; filename?: string; mimetype?: string } }) =>
       conversasApi.enviarMedia(conversaId, dados),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['mensagens', variables.conversaId] })
