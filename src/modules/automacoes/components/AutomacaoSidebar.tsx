@@ -4,7 +4,7 @@
  */
 
 import { useState, useRef, useEffect } from 'react'
-import { Plus, Search, Zap, Loader2, Trash2 } from 'lucide-react'
+import { Plus, Search, Zap, Loader2, Trash2, X } from 'lucide-react'
 import type { Automacao } from '../schemas/automacoes.schema'
 
 interface AutomacaoSidebarProps {
@@ -17,6 +17,8 @@ interface AutomacaoSidebarProps {
   onRename: (id: string, nome: string) => void
   onDelete: (id: string) => void
   isAdmin: boolean
+  mobileOpen?: boolean
+  onMobileClose?: () => void
 }
 
 export function AutomacaoSidebar({
@@ -29,6 +31,8 @@ export function AutomacaoSidebar({
   onRename,
   onDelete,
   isAdmin,
+  mobileOpen,
+  onMobileClose,
 }: AutomacaoSidebarProps) {
   const [busca, setBusca] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -67,8 +71,13 @@ export function AutomacaoSidebar({
     }
   }
 
-  return (
-    <aside className="w-60 flex-shrink-0 bg-white border-r border-border flex flex-col h-full">
+  const handleItemSelect = (id: string) => {
+    onSelect(id)
+    onMobileClose?.()
+  }
+
+  const sidebarContent = (
+    <>
       {/* Header */}
       <div className="p-3 border-b border-border space-y-2">
         <div className="flex items-center justify-between">
@@ -76,15 +85,27 @@ export function AutomacaoSidebar({
             <Zap className="w-4 h-4 text-primary" />
             <span className="text-sm font-semibold text-foreground">Automações</span>
           </div>
-          {isAdmin && (
-            <button
-              onClick={onNew}
-              className="p-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-              title="Nova Automação"
-            >
-              <Plus className="w-3.5 h-3.5" />
-            </button>
-          )}
+          <div className="flex items-center gap-1">
+            {isAdmin && (
+              <button
+                onClick={onNew}
+                className="p-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                title="Nova Automação"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+            )}
+            {/* Botão fechar no mobile */}
+            {onMobileClose && (
+              <button
+                onClick={onMobileClose}
+                className="p-1.5 rounded-md hover:bg-accent transition-colors sm:hidden"
+                title="Fechar"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Busca */}
@@ -115,11 +136,15 @@ export function AutomacaoSidebar({
           </div>
         ) : (
           filtradas.map(a => (
-            <button
+            // AIDEV-NOTE: Usar div em vez de button para evitar button aninhado (DOM nesting)
+            <div
               key={a.id}
-              onClick={() => onSelect(a.id)}
+              role="button"
+              tabIndex={0}
+              onClick={() => handleItemSelect(a.id)}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') handleItemSelect(a.id) }}
               className={`
-                w-full text-left px-3 py-2.5 rounded-md text-sm transition-all duration-200 group
+                w-full text-left px-3 py-2.5 rounded-md text-sm transition-all duration-200 group cursor-pointer
                 ${selectedId === a.id
                   ? 'bg-primary/5 border border-primary/40 text-primary'
                   : 'border border-transparent hover:bg-accent text-foreground'
@@ -183,10 +208,32 @@ export function AutomacaoSidebar({
                 </span>
                 <span className="text-[10px] text-muted-foreground">{a.total_execucoes} exec.</span>
               </div>
-            </button>
+            </div>
           ))
         )}
       </div>
-    </aside>
+    </>
+  )
+
+  return (
+    <>
+      {/* Desktop sidebar */}
+      <aside className="hidden sm:flex w-60 flex-shrink-0 bg-white border-r border-border flex-col h-full">
+        {sidebarContent}
+      </aside>
+
+      {/* Mobile overlay sidebar */}
+      {mobileOpen && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/40 z-[300] sm:hidden"
+            onClick={onMobileClose}
+          />
+          <aside className="fixed inset-y-0 left-0 w-72 bg-white z-[301] flex flex-col sm:hidden shadow-xl">
+            {sidebarContent}
+          </aside>
+        </>
+      )}
+    </>
   )
 }
