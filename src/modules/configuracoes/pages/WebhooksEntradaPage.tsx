@@ -82,7 +82,7 @@ export function WebhooksEntradaPage() {
   const maskedSecretKey = webhook.secret_key ? '•'.repeat(40) : ''
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 overflow-hidden">
       {/* Header Card */}
       <div className="bg-card border border-border rounded-lg p-6">
         <div className="flex items-start justify-between gap-4">
@@ -126,8 +126,8 @@ export function WebhooksEntradaPage() {
       <div className="space-y-1.5">
         <label className="text-sm font-medium text-foreground">Webhook URL</label>
         <div className="flex items-center gap-2">
-          <div className="flex-1 h-10 px-3 flex items-center rounded-md border border-input bg-muted/50">
-            <code className="text-sm text-foreground font-mono truncate">{webhookUrl}</code>
+          <div className="flex-1 min-w-0 h-10 px-3 flex items-center rounded-md border border-input bg-muted/50 overflow-hidden">
+            <code className="text-sm text-foreground font-mono truncate block">{webhookUrl}</code>
           </div>
           <button
             onClick={() => handleCopy(webhookUrl, 'url')}
@@ -147,8 +147,8 @@ export function WebhooksEntradaPage() {
       </div>
 
       {/* Toggle Habilitado */}
-      <div className="flex items-center justify-between py-3 border-b border-border">
-        <div>
+      <div className="flex items-center justify-between gap-3 py-3 border-b border-border">
+        <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-foreground">Webhook Habilitado</p>
           <p className="text-xs text-muted-foreground mt-0.5">
             Receber leads via webhook de plataformas externas
@@ -173,8 +173,8 @@ export function WebhooksEntradaPage() {
       <div className="space-y-1.5">
         <label className="text-sm font-medium text-foreground">Chave Pública (API Key)</label>
         <div className="flex items-center gap-2">
-          <div className="flex-1 h-10 px-3 flex items-center rounded-md border border-input bg-muted/50 font-mono">
-            <span className="text-sm text-foreground truncate">
+          <div className="flex-1 min-w-0 h-10 px-3 flex items-center rounded-md border border-input bg-muted/50 font-mono overflow-hidden">
+            <span className="text-sm text-foreground truncate block">
               {showApiKey ? (webhook.api_key || '') : maskedApiKey}
             </span>
           </div>
@@ -210,8 +210,8 @@ export function WebhooksEntradaPage() {
       <div className="space-y-1.5">
         <label className="text-sm font-medium text-foreground">Chave Secreta (Secret Key)</label>
         <div className="flex items-center gap-2">
-          <div className="flex-1 h-10 px-3 flex items-center rounded-md border border-input bg-muted/50 font-mono">
-            <span className="text-sm text-foreground truncate">{maskedSecretKey}</span>
+          <div className="flex-1 min-w-0 h-10 px-3 flex items-center rounded-md border border-input bg-muted/50 font-mono overflow-hidden">
+            <span className="text-sm text-foreground truncate block">{maskedSecretKey}</span>
           </div>
           <button
             onClick={() => handleCopy(webhook.secret_key || '', 'secret')}

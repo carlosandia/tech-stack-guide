@@ -226,7 +226,7 @@ export function WebhooksSaidaPage() {
                     )}
 
                     {/* URL */}
-                    <code className="text-xs bg-muted px-2 py-1 rounded text-foreground block truncate mb-2">
+                    <code className="text-xs bg-muted px-2 py-1 rounded text-foreground block truncate mb-2 overflow-hidden">
                       {webhook.url}
                     </code>
 
@@ -244,7 +244,7 @@ export function WebhooksSaidaPage() {
                   </div>
 
                   {/* Ações */}
-                  <div className="flex items-center gap-1 flex-shrink-0">
+                  <div className="flex flex-wrap items-center gap-1 flex-shrink-0">
                     <button
                       onClick={() => handleToggleAtivo(webhook)}
                       className="p-2 text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted"
