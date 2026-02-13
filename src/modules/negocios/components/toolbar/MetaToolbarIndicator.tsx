@@ -200,19 +200,19 @@ export function MetaToolbarIndicator() {
     <Popover>
       <PopoverTrigger asChild>
         <button
-          className="flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-accent transition-colors group"
+          className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-2.5 py-1.5 rounded-md hover:bg-accent transition-colors group"
           title="Meta de vendas"
         >
           <Target className="w-4 h-4 text-primary flex-shrink-0" />
           {metaPrincipal && (
-            <div className="flex items-center gap-2">
-              <div className="w-20 h-1.5 bg-muted rounded-full overflow-hidden">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <div className="w-12 sm:w-20 h-1.5 bg-muted rounded-full overflow-hidden">
                 <div
                   className={`h-full rounded-full transition-all duration-500 ${getProgressColor(pctPrincipal)}`}
                   style={{ width: `${Math.min(pctPrincipal, 100)}%` }}
                 />
               </div>
-              <span className="text-xs font-medium text-foreground whitespace-nowrap">
+              <span className="text-xs font-medium text-foreground whitespace-nowrap hidden sm:inline">
                 {formatValorMeta(valorAtualPrincipal, unidadePrincipal)}
               </span>
             </div>

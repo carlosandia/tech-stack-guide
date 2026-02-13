@@ -391,7 +391,7 @@ function ToolbarWithActions({ pageTitle }: { pageTitle: string }) {
         )}
 
         {/* Right: Actions */}
-        <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0 overflow-x-auto max-w-[calc(100vw-120px)] sm:max-w-none scrollbar-hide">
+        <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap justify-end">
           {actions}
         </div>
       </div>
