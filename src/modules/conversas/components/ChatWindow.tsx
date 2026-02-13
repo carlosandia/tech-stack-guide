@@ -261,7 +261,10 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
     }
   }, [conversa.id])
 
+  const [audioSending, setAudioSending] = useState(false)
+
   const handleAudioSend = useCallback(async (blob: Blob, _duration: number) => {
+    setAudioSending(true)
     try {
       // AIDEV-NOTE: Áudio deve ser enviado como OGG/Opus para compatibilidade com WhatsApp
       const isOgg = blob.type.includes('ogg')
@@ -291,6 +294,8 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
       toast.success('Áudio enviado')
     } catch (error: any) {
       toast.error(error?.message || 'Erro ao enviar áudio')
+    } finally {
+      setAudioSending(false)
     }
   }, [conversa.id])
 
@@ -512,6 +517,7 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
           disabled={conversa.status === 'fechada'}
           replyingTo={replyingTo}
           onCancelReply={() => setReplyingTo(null)}
+          audioSending={audioSending}
         />
       </div>
 
