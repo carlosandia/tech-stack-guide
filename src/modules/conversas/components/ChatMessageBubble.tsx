@@ -434,6 +434,67 @@ function PollContent({ mensagem, conversaId }: { mensagem: Mensagem; conversaId?
           {totalVotes} {totalVotes === 1 ? 'voto' : 'votos'}
         </p>
       )}
+
+      {/* AIDEV-NOTE: Painel de votos estilo WhatsApp com cards por opção e lista de votantes */}
+      {showVoters && (
+        <div className="mt-3 space-y-2">
+          {/* Título da enquete */}
+          <div className="bg-muted/50 rounded-lg px-3 py-2">
+            <p className="text-xs font-semibold text-foreground">{mensagem.poll_question}</p>
+          </div>
+
+          {/* Cards por opção */}
+          {currentOptions.map((opt, idx) => {
+            // Obter votantes desta opção do raw_data.poll_voters
+            const pollVoters = (mensagem.raw_data as Record<string, unknown>)?.poll_voters as Record<string, string[]> | undefined
+            const votersForOption = pollVoters
+              ? Object.entries(pollVoters)
+                  .filter(([, selections]) => selections.includes(opt.text))
+                  .map(([voterId]) => voterId)
+              : []
+
+            return (
+              <div key={idx} className="bg-muted/30 rounded-lg overflow-hidden">
+                {/* Header da opção */}
+                <div className="flex items-center justify-between px-3 py-2 border-b border-border/20">
+                  <span className="text-[13px] font-semibold text-foreground">{opt.text}</span>
+                  <span className="text-[11px] text-muted-foreground font-medium">
+                    {opt.votes || 0} {(opt.votes || 0) === 1 ? 'voto' : 'votos'}
+                  </span>
+                </div>
+
+                {/* Lista de votantes */}
+                {votersForOption.length > 0 ? (
+                  <div className="px-3 py-1.5 space-y-1">
+                    {votersForOption.map((voter, vIdx) => {
+                      // Formatar número do votante para exibição
+                      const displayName = voter.replace('@c.us', '').replace('@s.whatsapp.net', '')
+                      const formatted = displayName.length > 6
+                        ? `+${displayName.slice(0, 2)} ${displayName.slice(2, 4)} ${displayName.slice(4)}`
+                        : displayName
+
+                      return (
+                        <div key={vIdx} className="flex items-center gap-2 py-1">
+                          <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                            <span className="text-[10px] font-medium text-primary">
+                              {displayName.slice(-2)}
+                            </span>
+                          </div>
+                          <span className="text-[12px] text-muted-foreground truncate">{formatted}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (opt.votes || 0) > 0 ? (
+                  <div className="px-3 py-1.5">
+                    <span className="text-[11px] text-muted-foreground italic">Votante(s) não identificado(s)</span>
+                  </div>
+                ) : null}
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
