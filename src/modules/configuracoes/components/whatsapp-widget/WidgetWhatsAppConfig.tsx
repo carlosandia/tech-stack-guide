@@ -5,7 +5,9 @@
  */
 
 import { useState, useRef, useMemo } from 'react'
-import { MessageSquare, Copy, Check, Upload, X } from 'lucide-react'
+import { MessageSquare, Copy, Check, Upload, X, Mail, AlertTriangle, ArrowRight } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useCampos } from '../../hooks/useCampos'
 import { useFunis } from '@/modules/negocios/hooks/useFunis'
@@ -31,6 +33,23 @@ export function WidgetWhatsAppConfig({ value, onChange, organizacaoId }: Props) 
   const [copiado, setCopiado] = useState(false)
   const [uploading, setUploading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  // Buscar conexão de email ativa
+  const { data: conexaoEmail } = useQuery({
+    queryKey: ['conexao-email-widget', organizacaoId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('conexoes_email')
+        .select('id, email, status')
+        .is('deletado_em', null)
+        .in('status', ['conectado', 'ativo'])
+        .limit(1)
+        .maybeSingle()
+      return data
+    },
+    enabled: !!organizacaoId && config.ativo,
+    staleTime: 60_000,
+  })
 
   const update = <K extends keyof WidgetConfig>(key: K, val: WidgetConfig[K]) => {
     onChange({ ...config, [key]: val })
@@ -322,6 +341,68 @@ export function WidgetWhatsAppConfig({ value, onChange, organizacaoId }: Props) 
                       <p className="text-[10px] text-muted-foreground">Clique para marcar/desmarcar como obrigatório</p>
                     </div>
                   )}
+                </div>
+              )}
+            </div>
+
+            {/* Notificação por Email */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground">Notificar e-mail</p>
+                  <p className="text-xs text-muted-foreground">Enviar email quando chegar um novo lead pelo widget</p>
+                </div>
+                <button
+                  onClick={() => {
+                    if (!conexaoEmail && !config.notificar_email) {
+                      toast.error('Conecte uma conta de email em Conexões primeiro')
+                      return
+                    }
+                    const newVal = !config.notificar_email
+                    update('notificar_email', newVal)
+                    if (newVal && conexaoEmail?.email && !config.email_destino) {
+                      update('email_destino', conexaoEmail.email)
+                    }
+                  }}
+                  disabled={!conexaoEmail}
+                  className={`relative w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${
+                    config.notificar_email ? 'bg-primary' : 'bg-muted'
+                  } ${!conexaoEmail ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${
+                    config.notificar_email ? 'translate-x-5' : 'translate-x-0'
+                  }`} />
+                </button>
+              </div>
+
+              {!conexaoEmail && (
+                <div className="flex items-start gap-2 px-3 py-2 rounded-md border border-amber-200 bg-amber-50 text-amber-800">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  <div className="text-xs">
+                    <p>Nenhuma conexão de email ativa.</p>
+                    <Link to="/app/configuracoes/conexoes" className="inline-flex items-center gap-1 font-medium underline underline-offset-2 mt-0.5">
+                      Ir para Conexões <ArrowRight className="w-3 h-3" />
+                    </Link>
+                  </div>
+                </div>
+              )}
+
+              {config.notificar_email && conexaoEmail && (
+                <div className="border border-border rounded-md p-3 space-y-2">
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground block mb-1">Email de destino</label>
+                    <input
+                      type="email"
+                      value={config.email_destino}
+                      onChange={e => update('email_destino', e.target.value)}
+                      placeholder={conexaoEmail.email || 'email@exemplo.com'}
+                      className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm text-foreground"
+                    />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                    <Mail className="w-3 h-3" />
+                    Enviado via <span className="font-medium text-foreground">{conexaoEmail.email}</span>
+                  </p>
                 </div>
               )}
             </div>

@@ -114,7 +114,7 @@ export function generateWidgetScript(organizacaoId: string): string {
       })(inputs[j]);
     }
 
-    // Form submit with validation
+    // Form submit with validation + email notification
     var form=document.getElementById('wa-widget-form');
     if(form)form.addEventListener('submit',function(e){
       e.preventDefault();
@@ -127,7 +127,20 @@ export function generateWidgetScript(organizacaoId: string): string {
       if(!valid)return;
       var fd=new FormData(form);
       var parts=[];
+      var dadosObj={};
+      var inputs=form.querySelectorAll('input[name]');
+      for(var ki=0;ki<inputs.length;ki++){
+        var inp=inputs[ki];
+        var label=inp.getAttribute('data-nome')||inp.name;
+        if(inp.value)dadosObj[label]=inp.value;
+      }
       fd.forEach(function(v){if(v)parts.push(v)});
+      // Enviar dados para o servidor (notificação email fire-and-forget)
+      if(cfg.notificar_email&&cfg.email_destino){
+        try{
+          fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dados:dadosObj,config:cfg})}).catch(function(){});
+        }catch(ex){}
+      }
       var text=parts.length?encodeURIComponent(parts.join(' | ')):'';
       window.open('https://wa.me/'+numero+(text?'?text='+text:''),'_blank');
     });
