@@ -261,6 +261,17 @@ function LocationContent({ mensagem }: { mensagem: Mensagem }) {
   )
 }
 
+// AIDEV-NOTE: Cores de avatar para contatos compartilhados (consistência com ConversaItem)
+const contactAvatarColors = [
+  'bg-blue-500', 'bg-emerald-500', 'bg-orange-500', 'bg-purple-500',
+  'bg-pink-500', 'bg-teal-500', 'bg-indigo-500', 'bg-rose-500',
+]
+
+function getContactAvatarColor(name: string): string {
+  const hash = name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)
+  return contactAvatarColors[hash % contactAvatarColors.length]
+}
+
 function ContactContent({ mensagem }: { mensagem: Mensagem }) {
   // Parse vCard fields
   const vcard = mensagem.vcard || ''
@@ -268,17 +279,37 @@ function ContactContent({ mensagem }: { mensagem: Mensagem }) {
   const phone = vcard.match(/TEL[^:]*:(.*)/)?.[1]?.trim() || ''
   const bizName = vcard.match(/X-WA-BIZ-NAME:(.*)/)?.[1]?.trim() || ''
   const bizDesc = vcard.match(/X-WA-BIZ-DESCRIPTION:([\s\S]*?)(?=\n[A-Z])/)?.[1]?.trim() || ''
+  const photoData = vcard.match(/PHOTO;[^:]*:(.*)/)?.[1]?.trim() || ''
+  const photoUri = vcard.match(/PHOTO;VALUE=URI:(.*)/)?.[1]?.trim() || ''
   const isBiz = !!bizName
+  const contactName = bizName || displayName
+
+  // Extract waid for profile picture URL attempt
+  const waid = vcard.match(/waid=(\d+)/)?.[1] || ''
+
+  // Determine avatar: photo from vCard > colored initials
+  const hasPhoto = !!(photoData || photoUri)
+  const photoSrc = photoUri || (photoData ? `data:image/jpeg;base64,${photoData}` : '')
+  const initials = contactName.split(' ').filter(Boolean).slice(0, 2).map(p => p[0].toUpperCase()).join('')
+  const avatarColor = getContactAvatarColor(contactName)
 
   return (
     <div className="rounded-lg overflow-hidden min-w-[220px] max-w-[280px]">
       {/* Contact card body */}
       <div className="flex items-center gap-3 p-3 bg-muted/40">
-        <div className="w-11 h-11 rounded-full bg-muted flex items-center justify-center flex-shrink-0 border border-border/50">
-          <User className="w-5 h-5 text-muted-foreground" />
-        </div>
+        {hasPhoto ? (
+          <img
+            src={photoSrc}
+            alt={contactName}
+            className="w-11 h-11 rounded-full object-cover flex-shrink-0 border border-border/50"
+          />
+        ) : (
+          <div className={`w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 text-white font-semibold text-sm ${avatarColor}`}>
+            {initials || <User className="w-5 h-5" />}
+          </div>
+        )}
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-foreground truncate">{bizName || displayName}</p>
+          <p className="text-sm font-semibold text-foreground truncate">{contactName}</p>
           {isBiz && (
             <p className="text-[11px] text-muted-foreground">Conta comercial</p>
           )}
@@ -294,10 +325,8 @@ function ContactContent({ mensagem }: { mensagem: Mensagem }) {
       <div className="border-t border-border/50 bg-muted/20">
         <button
           onClick={() => {
-            if (phone) {
-              const cleanPhone = phone.replace(/\D/g, '')
-              window.open(`https://wa.me/${cleanPhone}`, '_blank')
-            }
+            const cleanPhone = (waid || phone).replace(/\D/g, '')
+            if (cleanPhone) window.open(`https://wa.me/${cleanPhone}`, '_blank')
           }}
           className="w-full py-2 text-xs font-medium text-primary hover:bg-primary/5 transition-colors"
         >

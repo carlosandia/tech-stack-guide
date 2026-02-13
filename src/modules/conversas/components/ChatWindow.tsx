@@ -263,9 +263,10 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
 
   const handleAudioSend = useCallback(async (blob: Blob, _duration: number) => {
     try {
+      // AIDEV-NOTE: Áudio deve ser enviado como OGG/Opus para compatibilidade com WhatsApp
       const isOgg = blob.type.includes('ogg')
       const ext = isOgg ? 'ogg' : 'webm'
-      const contentType = isOgg ? 'audio/ogg' : 'audio/webm'
+      const contentType = isOgg ? 'audio/ogg; codecs=opus' : 'audio/webm; codecs=opus'
       const path = `conversas/${conversa.id}/audio_${Date.now()}.${ext}`
 
       const { error: uploadError } = await supabase.storage
@@ -284,6 +285,7 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
       await conversasApi.enviarMedia(conversa.id, {
         tipo: 'audio',
         media_url: urlData.publicUrl,
+        mimetype: contentType,
       })
 
       toast.success('Áudio enviado')
