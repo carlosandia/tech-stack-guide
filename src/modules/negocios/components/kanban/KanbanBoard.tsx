@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useMemo, useRef, useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { ChevronRight, Loader2 } from 'lucide-react'
 import type { Oportunidade, KanbanData } from '../../services/negocios.api'
 import { KanbanColumn } from './KanbanColumn'
 import { SolicitacoesColumn } from './SolicitacoesColumn'
@@ -287,34 +287,38 @@ export function KanbanBoard({ data, isLoading, onDropGanhoPerda, onCardClick }: 
 
   return (
     <>
-      <div className="flex-1 overflow-x-auto overflow-y-hidden" style={{ backgroundColor: 'hsl(220, 10%, 90%)' }}>
-        <div className="flex gap-3 p-3 sm:p-4 h-full min-w-min">
+      <div className="flex-1 overflow-x-auto overflow-y-hidden" style={{ backgroundColor: 'hsl(220, 10%, 93%)' }}>
+        <div className="flex gap-0 px-3 sm:px-4 pt-0 pb-3 h-full min-w-min">
           <SolicitacoesColumn funilId={data.funil.id} />
 
           {data.etapas.map((etapa) => {
-            // Determinar se é primeira/última etapa movível (tipo normal)
             const normalEtapas = data.etapas.filter(e => e.tipo === 'normal')
             const isFirstNormal = normalEtapas[0]?.id === etapa.id
             const isLastNormal = normalEtapas[normalEtapas.length - 1]?.id === etapa.id
 
             return (
-              <KanbanColumn
-                key={etapa.id}
-                etapa={etapa}
-                onDragStart={handleDragStart}
-                onDragOver={handleDragOver}
-                onDrop={handleDrop}
-                onCardClick={onCardClick}
-                cardConfig={cardConfig}
-                slaConfig={slaConfig || undefined}
-                selectedIds={selectedIds}
-                onToggleSelect={handleToggleSelect}
-                onSelectAll={handleSelectAll}
-                onSortColumn={handleSortColumn}
-                onMoveColumn={handleMoveColumn}
-                isFirst={isFirstNormal}
-                isLast={isLastNormal}
-              />
+              <div key={etapa.id} className="flex items-stretch">
+                {/* Seta sutil entre colunas */}
+                <div className="flex items-start pt-3 px-0.5">
+                  <ChevronRight className="w-4 h-4 text-muted-foreground/40" />
+                </div>
+                <KanbanColumn
+                  etapa={etapa}
+                  onDragStart={handleDragStart}
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
+                  onCardClick={onCardClick}
+                  cardConfig={cardConfig}
+                  slaConfig={slaConfig || undefined}
+                  selectedIds={selectedIds}
+                  onToggleSelect={handleToggleSelect}
+                  onSelectAll={handleSelectAll}
+                  onSortColumn={handleSortColumn}
+                  onMoveColumn={handleMoveColumn}
+                  isFirst={isFirstNormal}
+                  isLast={isLastNormal}
+                />
+              </div>
             )
           })}
         </div>
