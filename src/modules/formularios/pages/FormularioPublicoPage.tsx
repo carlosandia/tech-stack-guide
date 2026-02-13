@@ -249,48 +249,36 @@ export function FormularioPublicoPage() {
       }
     })
 
-    // Inserir submissão no Supabase
-    const { data: submissaoData, error } = await supabase
-      .from('submissoes_formularios')
-      .insert({
-        formulario_id: formulario.id,
-        organizacao_id: formulario.organizacao_id,
-        dados: dadosCampos,
-        utm_source: utms.utm_source || null,
-        utm_medium: utms.utm_medium || null,
-        utm_campaign: utms.utm_campaign || null,
-        ip_address: null,
-        user_agent: navigator.userAgent,
-      })
-      .select('id')
-      .single()
-
-    setEnviando(false)
-    if (error) {
-      const posEnvioErr = formulario.config_pos_envio as any
-      setErro(posEnvioErr?.mensagem_erro || 'Erro ao enviar formulário. Tente novamente.')
-      return
-    }
-
-    // Processar integração (criar contato + oportunidade) via Edge Function - fire and forget
-    // AIDEV-NOTE: Usa fetch direto pois supabase.functions.invoke pode falhar em contexto anônimo
-    if (submissaoData?.id) {
-      fetch('https://ybzhlsalbnxwkfszkloa.supabase.co/functions/v1/processar-submissao-formulario', {
+    // AIDEV-NOTE: Envia tudo via edge function (service_role) para evitar 401 em contexto público
+    try {
+      const resp = await fetch('https://ybzhlsalbnxwkfszkloa.supabase.co/functions/v1/processar-submissao-formulario', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inliemhsc2FsYm54d2tmc3prbG9hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMDExNzAsImV4cCI6MjA4NTc3NzE3MH0.NyxN8T0XCpnFSF_-0grGGcvhSbwOif0qxxlC_PshA9M',
         },
-        body: JSON.stringify({ submissao_id: submissaoData.id, formulario_id: formulario.id }),
-      }).catch(err => console.error('Erro ao processar integração:', err))
-    }
+        body: JSON.stringify({
+          formulario_id: formulario.id,
+          dados: dadosCampos,
+          utm_source: utms.utm_source || null,
+          utm_medium: utms.utm_medium || null,
+          utm_campaign: utms.utm_campaign || null,
+          user_agent: navigator.userAgent,
+        }),
+      })
 
-    // AIDEV-NOTE: Registrar evento de submissão (analytics)
-    supabase.from('eventos_analytics_formularios').insert({
-      formulario_id: formulario.id,
-      tipo_evento: 'submissao',
-      navegador: navigator.userAgent,
-    }).then(() => {})
+      setEnviando(false)
+      if (!resp.ok) {
+        const posEnvioErr = formulario.config_pos_envio as any
+        setErro(posEnvioErr?.mensagem_erro || 'Erro ao enviar formulário. Tente novamente.')
+        return
+      }
+    } catch (err) {
+      setEnviando(false)
+      const posEnvioErr = formulario.config_pos_envio as any
+      setErro(posEnvioErr?.mensagem_erro || 'Erro ao enviar formulário. Tente novamente.')
+      return
+    }
 
     setEnviado(true)
 
