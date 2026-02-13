@@ -302,10 +302,15 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { submissao_id, formulario_id } = await req.json()
+    const body = await req.json()
 
-    if (!submissao_id || !formulario_id) {
-      return new Response(JSON.stringify({ error: 'submissao_id e formulario_id são obrigatórios' }), {
+    // AIDEV-NOTE: Suporta dois modos de chamada:
+    // 1. Legado: { submissao_id, formulario_id } — busca submissão existente
+    // 2. Novo (público): { formulario_id, dados, utm_source, utm_medium, utm_campaign, user_agent } — cria submissão
+    const { submissao_id: existingSubmissaoId, formulario_id, dados, utm_source, utm_medium, utm_campaign, user_agent } = body
+
+    if (!formulario_id) {
+      return new Response(JSON.stringify({ error: 'formulario_id é obrigatório' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
@@ -331,20 +336,72 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Buscar submissão
-    const { data: submissao, error: subErr } = await supabase
-      .from('submissoes_formularios')
-      .select('id, dados, utm_source, utm_medium, utm_campaign')
-      .eq('id', submissao_id)
-      .single()
+    let submissao_id = existingSubmissaoId
+    let submissaoDados: Record<string, any> = {}
+    let submissaoUtm = { utm_source: null as string | null, utm_medium: null as string | null, utm_campaign: null as string | null }
 
-    if (subErr || !submissao) {
-      console.error('Submissão não encontrada:', subErr)
-      return new Response(JSON.stringify({ error: 'Submissão não encontrada' }), {
-        status: 404,
+    if (dados && !existingSubmissaoId) {
+      // Modo novo: criar submissão via service_role (sem RLS)
+      const { data: novaSubmissao, error: insErr } = await supabase
+        .from('submissoes_formularios')
+        .insert({
+          formulario_id: formulario.id,
+          organizacao_id: formulario.organizacao_id,
+          dados,
+          utm_source: utm_source || null,
+          utm_medium: utm_medium || null,
+          utm_campaign: utm_campaign || null,
+          ip_address: null,
+          user_agent: user_agent || null,
+        })
+        .select('id, dados, utm_source, utm_medium, utm_campaign')
+        .single()
+
+      if (insErr || !novaSubmissao) {
+        console.error('Erro ao criar submissão:', insErr)
+        return new Response(JSON.stringify({ error: 'Erro ao salvar submissão' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      submissao_id = novaSubmissao.id
+      submissaoDados = novaSubmissao.dados as Record<string, any>
+      submissaoUtm = { utm_source: novaSubmissao.utm_source, utm_medium: novaSubmissao.utm_medium, utm_campaign: novaSubmissao.utm_campaign }
+      console.log('[processar] Submissão criada via edge function:', submissao_id)
+
+      // Registrar evento analytics (fire-and-forget)
+      supabase.from('eventos_analytics_formularios').insert({
+        formulario_id: formulario.id,
+        tipo_evento: 'submissao',
+        navegador: user_agent || null,
+      }).then(() => {})
+    } else if (existingSubmissaoId) {
+      // Modo legado: buscar submissão existente
+      const { data: submissao, error: subErr } = await supabase
+        .from('submissoes_formularios')
+        .select('id, dados, utm_source, utm_medium, utm_campaign')
+        .eq('id', existingSubmissaoId)
+        .single()
+
+      if (subErr || !submissao) {
+        console.error('Submissão não encontrada:', subErr)
+        return new Response(JSON.stringify({ error: 'Submissão não encontrada' }), {
+          status: 404,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      submissaoDados = submissao.dados as Record<string, any>
+      submissaoUtm = { utm_source: submissao.utm_source, utm_medium: submissao.utm_medium, utm_campaign: submissao.utm_campaign }
+    } else {
+      return new Response(JSON.stringify({ error: 'Informe submissao_id ou dados' }), {
+        status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
+
+    // Alias para manter compatibilidade com o resto do código
+    const submissao = { id: submissao_id, dados: submissaoDados, ...submissaoUtm }
 
     // AIDEV-NOTE: Incrementar contador de submissões do formulário
     const novoTotal = (formulario.total_submissoes || 0) + 1
