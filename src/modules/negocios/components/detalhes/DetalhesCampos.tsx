@@ -745,6 +745,7 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
                     contatoNome: oportunidade.contato ? [oportunidade.contato.nome, oportunidade.contato.sobrenome].filter(Boolean).join(' ') : undefined,
                     contatoId: oportunidade.contato?.id,
                   } : undefined}
+                  oportunidadeId={oportunidade.id}
                 />
               )
             }
@@ -902,12 +903,13 @@ interface FieldRowProps {
     contatoNome?: string
     contatoId?: string
   }
+  oportunidadeId?: string
 }
 
 function FieldRow({
   icon, label, value, placeholder, isEditing,
   onStartEdit, editValue, onEditChange, onSave, onCancel, inputType = 'text',
-  telefoneActions,
+  telefoneActions, oportunidadeId,
 }: FieldRowProps) {
   const [ligacaoOpen, setLigacaoOpen] = useState(false)
   const [whatsappOpen, setWhatsappOpen] = useState(false)
@@ -969,7 +971,7 @@ function FieldRow({
         <LigacaoModal
           telefone={telefoneActions.telefone}
           contatoNome={telefoneActions.contatoNome}
-          oportunidadeId={oportunidade.id}
+          oportunidadeId={oportunidadeId}
           onClose={() => setLigacaoOpen(false)}
         />
       )}
