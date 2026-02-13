@@ -29,11 +29,11 @@ interface Metrica {
 }
 
 const COR_CLASSES: Record<string, string> = {
-  default: 'text-foreground bg-muted/35 shadow-none',
-  success: 'text-success bg-muted/35 shadow-none',
-  warning: 'text-warning bg-muted/35 shadow-none',
-  destructive: 'text-destructive bg-muted/35 shadow-none',
-  primary: 'text-primary bg-muted/35 shadow-none',
+  default: 'text-foreground bg-card/80 shadow-none',
+  success: 'text-success bg-card/80 shadow-none',
+  warning: 'text-warning bg-card/80 shadow-none',
+  destructive: 'text-destructive bg-card/80 shadow-none',
+  primary: 'text-primary bg-card/80 shadow-none',
 }
 
 const ICON_COR_CLASSES: Record<string, string> = {
