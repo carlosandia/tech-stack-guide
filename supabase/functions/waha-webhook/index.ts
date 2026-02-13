@@ -1064,6 +1064,18 @@ Deno.serve(async (req) => {
     // STEP 4: Pre-opportunity (if enabled, only for individual)
     // =====================================================
     if (!isFromMe && !isGroup && !isChannel && sessao.auto_criar_pre_oportunidade && sessao.funil_destino_id) {
+      // AIDEV-NOTE: Checar se telefone está bloqueado antes de criar pré-oportunidade
+      const { data: bloqueado } = await supabaseAdmin
+        .from("contatos_bloqueados_pre_op")
+        .select("id")
+        .eq("organizacao_id", sessao.organizacao_id)
+        .eq("phone_number", phoneNumber)
+        .maybeSingle();
+
+      if (bloqueado) {
+        console.log(`[waha-webhook] Phone ${phoneNumber} blocked for pre-op, skipping`);
+      } else {
+
       const { data: existingPreOp } = await supabaseAdmin
         .from("pre_oportunidades")
         .select("id, total_mensagens")
@@ -1100,6 +1112,7 @@ Deno.serve(async (req) => {
             total_mensagens: 1,
           });
       }
+      } // end else (not blocked)
     }
 
     // =====================================================

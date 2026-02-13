@@ -1,9 +1,11 @@
 /**
  * AIDEV-NOTE: Modal para rejeitar pré-oportunidade (RF-11)
+ * Motivo é opcional. Switch para bloquear futuras criações de card.
  */
 
 import { useState, useEffect, useRef } from 'react'
 import { X, Loader2 } from 'lucide-react'
+import { Switch } from '@/components/ui/switch'
 import type { PreOportunidadeCard } from '../../services/pre-oportunidades.api'
 import { useRejeitarPreOportunidade } from '../../hooks/usePreOportunidades'
 import { toast } from 'sonner'
@@ -17,6 +19,7 @@ export function RejeitarPreOportunidadeModal({ preOp, onClose }: RejeitarPreOpor
   const modalRef = useRef<HTMLDivElement>(null)
   const rejeitar = useRejeitarPreOportunidade()
   const [motivo, setMotivo] = useState('')
+  const [bloquear, setBloquear] = useState(false)
 
   useEffect(() => {
     const handle = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -29,13 +32,14 @@ export function RejeitarPreOportunidadeModal({ preOp, onClose }: RejeitarPreOpor
   }, [onClose])
 
   const handleRejeitar = async () => {
-    if (!motivo.trim()) {
-      toast.error('Informe o motivo da rejeição')
-      return
-    }
-
     try {
-      await rejeitar.mutateAsync({ preOpId: preOp.id, motivo: motivo.trim() })
+      await rejeitar.mutateAsync({
+        preOpId: preOp.id,
+        motivo: motivo.trim() || undefined,
+        bloquear,
+        phoneNumber: preOp.phone_number,
+        phoneName: preOp.phone_name || undefined,
+      })
       toast.success('Solicitação rejeitada')
       onClose()
     } catch (err: any) {
@@ -65,7 +69,7 @@ export function RejeitarPreOportunidadeModal({ preOp, onClose }: RejeitarPreOpor
 
             <div>
               <label className="text-sm font-medium text-foreground mb-1 block">
-                Motivo da rejeição <span className="text-destructive">*</span>
+                Motivo da rejeição <span className="text-muted-foreground text-xs">(opcional)</span>
               </label>
               <textarea
                 value={motivo}
@@ -75,6 +79,16 @@ export function RejeitarPreOportunidadeModal({ preOp, onClose }: RejeitarPreOpor
                 className="w-full text-sm bg-background border border-input rounded-md px-3 py-2 placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
                 autoFocus
               />
+            </div>
+
+            <div className="flex items-center justify-between gap-3 p-3 bg-muted/50 rounded-md border border-border">
+              <div className="flex-1">
+                <p className="text-sm font-medium text-foreground">Não criar mais cards dessa pessoa</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Bloqueia futuras solicitações deste número. Pode ser revertido em Configurações &gt; Conexões.
+                </p>
+              </div>
+              <Switch checked={bloquear} onCheckedChange={setBloquear} />
             </div>
           </div>
 
@@ -89,7 +103,7 @@ export function RejeitarPreOportunidadeModal({ preOp, onClose }: RejeitarPreOpor
             <button
               type="button"
               onClick={handleRejeitar}
-              disabled={rejeitar.isPending || !motivo.trim()}
+              disabled={rejeitar.isPending}
               className="px-4 py-2 text-sm font-medium bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 disabled:opacity-50 transition-colors"
             >
               {rejeitar.isPending ? (

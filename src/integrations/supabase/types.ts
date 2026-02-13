@@ -1662,6 +1662,51 @@ export type Database = {
           },
         ]
       }
+      contatos_bloqueados_pre_op: {
+        Row: {
+          bloqueado_por: string | null
+          criado_em: string
+          id: string
+          motivo: string | null
+          organizacao_id: string
+          phone_name: string | null
+          phone_number: string
+        }
+        Insert: {
+          bloqueado_por?: string | null
+          criado_em?: string
+          id?: string
+          motivo?: string | null
+          organizacao_id: string
+          phone_name?: string | null
+          phone_number: string
+        }
+        Update: {
+          bloqueado_por?: string | null
+          criado_em?: string
+          id?: string
+          motivo?: string | null
+          organizacao_id?: string
+          phone_name?: string | null
+          phone_number?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contatos_bloqueados_pre_op_bloqueado_por_fkey"
+            columns: ["bloqueado_por"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contatos_bloqueados_pre_op_organizacao_id_fkey"
+            columns: ["organizacao_id"]
+            isOneToOne: false
+            referencedRelation: "organizacoes_saas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contatos_segmentos: {
         Row: {
           contato_id: string
