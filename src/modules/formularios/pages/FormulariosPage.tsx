@@ -103,13 +103,7 @@ export function FormulariosPage() {
   // Toolbar: subtitle + actions + center filters
   useEffect(() => {
     setSubtitle('Formulários')
-    setActions(
-      <Button onClick={() => setNovoModalOpen(true)} size="sm">
-        <Plus className="w-4 h-4 mr-2" />
-        <span className="hidden sm:inline">Novo Formulário</span>
-        <span className="sm:hidden">Novo</span>
-      </Button>
-    )
+    setActions(null)
     return () => {
       setActions(null)
       setSubtitle('')
@@ -120,21 +114,28 @@ export function FormulariosPage() {
   // Update center content when filters/contadores change
   useEffect(() => {
     setCenterContent(
-      <FormulariosToolbarFilters
-        statusFilter={statusFilter}
-        setStatusFilter={setStatusFilter}
-        tipoFilter={tipoFilter}
-        setTipoFilter={setTipoFilter}
-        busca={busca}
-        setBusca={setBusca}
-        setPagina={setPagina}
-        contadores={contadores}
-      />
+      <div className="flex items-center gap-1">
+        <FormulariosToolbarFilters
+          statusFilter={statusFilter}
+          setStatusFilter={setStatusFilter}
+          tipoFilter={tipoFilter}
+          setTipoFilter={setTipoFilter}
+          busca={busca}
+          setBusca={setBusca}
+          setPagina={setPagina}
+          contadores={contadores}
+        />
+        <Button onClick={() => setNovoModalOpen(true)} size="sm" className="ml-1">
+          <Plus className="w-4 h-4 mr-1" />
+          <span className="hidden sm:inline">Novo</span>
+          <span className="sm:hidden">Novo</span>
+        </Button>
+      </div>
     )
   }, [setCenterContent, statusFilter, tipoFilter, busca, contadores])
 
   const handleEdit = useCallback((id: string) => {
-    navigate(`/app/formularios/${id}`)
+    navigate(`/formularios/${id}`)
   }, [navigate])
 
   const totalPaginas = data ? Math.ceil(data.total / data.por_pagina) : 1

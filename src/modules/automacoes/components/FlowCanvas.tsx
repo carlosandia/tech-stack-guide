@@ -192,10 +192,10 @@ export function FlowCanvas({
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="hsl(var(--border))" />
         <Controls
           showInteractive={false}
-          className="!bg-white !border-border !shadow-sm !rounded-lg"
+          className="!bg-white !border-border !shadow-sm !rounded-lg sm:!bottom-auto sm:!left-auto !bottom-20 !left-3"
         />
         <MiniMap
-          className="!bg-white !border-border !shadow-sm !rounded-lg"
+          className="!bg-white !border-border !shadow-sm !rounded-lg hidden sm:block"
           nodeColor={(n) => {
             if (n.type === 'trigger') return 'hsl(221.2 83.2% 53.3%)'
             if (n.type === 'condicao') return '#eab308'
@@ -208,7 +208,7 @@ export function FlowCanvas({
         />
 
         {/* Toolbar do canvas */}
-        <Panel position="top-right" className="flex items-center gap-2">
+        <Panel position="top-right" className="hidden sm:flex items-center gap-2">
           <button
             onClick={(e) => {
               const rect = e.currentTarget.getBoundingClientRect()
