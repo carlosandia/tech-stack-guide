@@ -77,7 +77,7 @@ export function ConversasPage() {
         <button
           onClick={toggleMetricas}
           className={`
-            flex items-center gap-1.5 p-2 min-w-[44px] min-h-[44px] justify-center text-xs font-medium rounded-md transition-all duration-200
+            flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium rounded-md transition-all duration-200
             ${metricasVisiveis
               ? 'bg-primary/10 text-primary'
               : 'text-muted-foreground hover:text-foreground hover:bg-accent'
