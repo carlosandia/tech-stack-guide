@@ -49,10 +49,14 @@ export function RankingList({ ranking, loading }: Props) {
                 <span className="text-sm font-medium text-muted-foreground">{item.posicao}.</span>
               )}
             </span>
-            <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center flex-shrink-0">
-              <span className="text-xs font-medium text-muted-foreground">
-                {item.usuario_nome?.[0]?.toUpperCase() || '?'}
-              </span>
+            <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden">
+              {item.avatar_url ? (
+                <img src={item.avatar_url} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-xs font-medium text-muted-foreground">
+                  {item.usuario_nome?.[0]?.toUpperCase() || '?'}
+                </span>
+              )}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-foreground truncate">{item.usuario_nome}</p>

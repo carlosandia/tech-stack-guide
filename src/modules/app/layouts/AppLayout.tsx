@@ -141,7 +141,8 @@ function AppLayoutInner() {
   const pageTitle = getPageTitle(location.pathname)
   const isEditorRoute = isFormularioEditorRoute(location.pathname)
   const isPipelineConfig = isPipelineConfigRoute(location.pathname)
-  const hideToolbar = isEditorRoute || isPipelineConfig
+  const isPerfilRoute = location.pathname === '/perfil'
+  const hideToolbar = isEditorRoute || isPipelineConfig || isPerfilRoute
   const hideHeader = isEditorRoute
   const visibleItems = menuItems
 
