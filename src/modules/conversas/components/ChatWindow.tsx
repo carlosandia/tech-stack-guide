@@ -178,6 +178,7 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
         media_url: urlData.publicUrl,
         caption: undefined,
         filename: file.name,
+        mimetype: file.type || undefined,
       })
 
       setUploadProgress({ filename: file.name, progress: 100 })

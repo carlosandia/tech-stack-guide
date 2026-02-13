@@ -886,7 +886,7 @@ export const conversasApi = {
   /**
    * Envia mídia. Se é WhatsApp com sessão, envia via WAHA API.
    */
-  async enviarMedia(conversaId: string, dados: { tipo: string; media_url: string; caption?: string; filename?: string }): Promise<Mensagem> {
+  async enviarMedia(conversaId: string, dados: { tipo: string; media_url: string; caption?: string; filename?: string; mimetype?: string }): Promise<Mensagem> {
     const organizacaoId = await getOrganizacaoId()
 
     // Buscar dados da conversa
@@ -916,6 +916,7 @@ export const conversasApi = {
             media_type: dados.tipo,
             caption: dados.caption,
             filename: dados.filename,
+            mimetype: dados.mimetype,
           },
         })
 
@@ -944,6 +945,7 @@ export const conversasApi = {
         has_media: true,
         media_url: dados.media_url,
         media_filename: dados.filename || null,
+        media_mimetype: dados.mimetype || null,
         ack: wahaMessageId ? 1 : 0,
       })
       .select('*')
