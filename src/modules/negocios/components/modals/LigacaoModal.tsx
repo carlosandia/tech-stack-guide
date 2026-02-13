@@ -28,7 +28,14 @@ export function LigacaoModal({ telefone, contatoNome, onClose }: LigacaoModalPro
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) { setApi4comConectado(false); return }
 
-        const orgId = user.user_metadata?.organizacao_id
+        // AIDEV-NOTE: organizacao_id fica na tabela usuarios, nao em user_metadata
+        const { data: usuario } = await supabase
+          .from('usuarios')
+          .select('organizacao_id')
+          .eq('auth_id', user.id)
+          .maybeSingle()
+
+        const orgId = usuario?.organizacao_id
         if (!orgId) { setApi4comConectado(false); return }
 
         const { data } = await supabase
