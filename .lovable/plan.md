@@ -1,140 +1,90 @@
 
+# Plano: Corrigir DOCX como PDF + Upload Multiplo Simultaneo
 
-# Plano: Login Split-Screen com Banner Configuravel
+## Problema 1: DOCX chegando como PDF no WhatsApp
 
-## Resumo
+**Causa raiz identificada:** O browser pode retornar `file.type` vazio ou incorreto para arquivos `.docx`. Quando isso acontece, o fallback `'application/octet-stream'` e usado no upload ao Storage, e o WAHA interpreta o arquivo como PDF baseado no conteudo binario.
 
-Redesenhar a pagina de login no estilo Pipefy (formulario a esquerda, banner a direita) com imagens configuráveis pelo Super Admin para Desktop, Tablet e Mobile.
+**Solucao:** Criar um mapeamento de extensao para MIME type correto, garantindo que o mimetype seja sempre o correto independentemente do que o browser reporta. Esse mapeamento sera usado tanto no upload ao Storage quanto no envio ao WAHA.
+
+### Arquivos alterados:
+- **`src/modules/conversas/components/ChatWindow.tsx`** - Adicionar funcao `getMimeTypeFromExtension(filename)` que mapeia extensoes comuns (docx, xlsx, pdf, etc.) para o MIME type correto. Usar esse valor no `contentType` do upload E no campo `mimetype` do `enviarMedia`.
+
+```
+Mapeamento:
+.docx -> application/vnd.openxmlformats-officedocument.wordprocessingml.document
+.doc  -> application/msword
+.xlsx -> application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+.xls  -> application/vnd.ms-excel
+.csv  -> text/csv
+.pdf  -> application/pdf
+.txt  -> text/plain
+.zip  -> application/zip
+.rar  -> application/x-rar-compressed
+```
+
+Logica: usar `file.type` se nao estiver vazio, senao inferir da extensao.
 
 ---
 
-## 1. Banco de Dados
+## Problema 2: Upload de multiplos arquivos simultaneos
 
-Inserir nova entrada na tabela `configuracoes_globais` existente:
+**Estado atual:** O file input aceita apenas 1 arquivo (`files?.[0]`), e o state de progresso e um unico objeto.
 
-```text
-plataforma: 'login_banner'
-configuracoes: {
-  "desktop_image_url": "",
-  "tablet_image_url": "",
-  "mobile_image_url": "",
-  "link_url": "",
-  "background_color": "#F8FAFC"
+### Alteracoes:
+
+#### `src/modules/conversas/components/AnexosMenu.tsx`
+- Adicionar atributo `multiple` nos inputs de arquivo (documento e midia)
+- Alterar `handleFileChange` para iterar sobre todos os arquivos de `e.target.files` e chamar `onFileSelected` para cada um
+
+#### `src/modules/conversas/components/ChatInput.tsx`
+- Alterar a prop `onFileSelected` para tambem aceitar multiplos arquivos no paste (iterar `clipboardData.files`)
+
+#### `src/modules/conversas/components/ChatWindow.tsx`
+- Trocar o state `uploadProgress` de objeto unico para um **Map/array** de uploads simultaneos:
+  ```
+  uploadProgress: { id: string; filename: string; progress: number }[]
+  ```
+- Cada chamada de `handleFileSelected` gera um ID unico e adiciona ao array
+- O progresso de cada arquivo e atualizado independentemente
+- A UI renderiza todos os uploads ativos empilhados acima do input
+
+#### UI de progresso multiplo:
+- Cada item de upload mostra: icone do tipo (baseado na extensao), nome truncado, barra de progresso, percentual
+- Itens completados (100%) desaparecem apos 600ms com animacao fade-out
+- Maximo visual de ~4 itens empilhados com scroll se necessario
+
+---
+
+## Detalhes Tecnicos
+
+### Funcao `getMimeTypeFromExtension`:
+```typescript
+function getMimeTypeFromExtension(filename: string): string {
+  const ext = filename.split('.').pop()?.toLowerCase()
+  const map: Record<string, string> = {
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    doc: 'application/msword',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    xls: 'application/vnd.ms-excel',
+    pdf: 'application/pdf',
+    csv: 'text/csv',
+    txt: 'text/plain',
+    zip: 'application/zip',
+    rar: 'application/x-rar-compressed',
+  }
+  return map[ext || ''] || ''
 }
 ```
 
-Adicionar policy RLS para permitir leitura anonima (SELECT) desta plataforma especifica, para que a tela de login (sem auth) consiga buscar o banner.
+### Fluxo do upload corrigido:
+1. Arquivo selecionado -> detectar mimetype correto (file.type ou extensao)
+2. Upload ao Storage com contentType correto
+3. Enviar ao WAHA com mimetype correto
+4. WhatsApp identifica o tipo corretamente
 
----
-
-## 2. Storage
-
-Criar bucket publico `login-banner` para armazenar as imagens enviadas pelo Super Admin.
-
----
-
-## 3. Pagina de Configuracoes Globais (Super Admin)
-
-Adicionar nova aba **"Login Banner"** na pagina `ConfiguracoesGlobaisPage.tsx`:
-
-- 3 campos de upload com preview: Desktop (960x1080px), Tablet (768x1024px), Mobile (390x300px)
-- Campo de cor de fundo fallback (hex)
-- Campo opcional de link (URL de redirecionamento ao clicar no banner)
-- Botao "Salvar"
-
-Arquivos afetados:
-- `src/modules/admin/pages/ConfiguracoesGlobaisPage.tsx` - adicionar tab "Login Banner" e componente de upload
-- `src/modules/admin/services/admin.api.ts` - nenhuma mudanca (ja suporta qualquer plataforma)
-
----
-
-## 4. Tela de Login - Redesign
-
-### Layout Desktop (>= 1024px)
-
-```text
-+----------------------------+----------------------------+
-|                            |                            |
-|     [Logo Renove]          |                            |
-|                            |       [Banner Desktop]     |
-|  Bem-vindo ao Renove       |       (object-cover)       |
-|                            |                            |
-|  [Email]                   |                            |
-|  [Senha]                   |                            |
-|  [x] Lembrar 30 dias       |                            |
-|  [    Entrar    ]          |                            |
-|  Esqueci minha senha       |                            |
-|                            |                            |
-+----------------------------+----------------------------+
-```
-
-- Esquerda (50%): fundo branco, formulario centralizado
-- Direita (50%): banner com `object-cover`, cor de fundo fallback
-
-### Layout Tablet (768px - 1023px)
-
-- Mesmo split 50/50 usando imagem de tablet
-- Se nao houver imagem tablet, usa desktop como fallback
-
-### Layout Mobile (< 768px)
-
-- Coluna unica
-- Banner mobile exibido no topo (altura ~200px), oculto se nao configurado
-- Formulario abaixo
-
----
-
-## 5. Hook `useLoginBanner`
-
-Novo arquivo `src/modules/auth/hooks/useLoginBanner.ts`:
-
-- Query anonima na tabela `configuracoes_globais` filtrando `plataforma = 'login_banner'`
-- `staleTime` longo (5 minutos) para cache
-- Retorna URLs das imagens e cor de fundo
-
----
-
-## 6. Arquivos a Criar/Modificar
-
-| Arquivo | Acao |
-|---------|------|
-| Migration SQL | INSERT login_banner + bucket + RLS policy anon SELECT |
-| `src/modules/auth/hooks/useLoginBanner.ts` | Criar: hook para buscar config publica |
-| `src/modules/auth/pages/LoginPage.tsx` | Modificar: layout split com banner responsivo |
-| `src/modules/admin/pages/ConfiguracoesGlobaisPage.tsx` | Modificar: adicionar aba Login Banner com uploads |
-| `src/modules/admin/components/LoginBannerConfig.tsx` | Criar: componente de configuracao com upload |
-
----
-
-## 7. Detalhes Tecnicos
-
-### RLS para acesso anonimo
-
-```text
-Policy: "Anon pode ler login_banner"
-ON configuracoes_globais
-FOR SELECT
-TO anon
-USING (plataforma = 'login_banner')
-```
-
-### Upload de imagens
-
-- Upload via Supabase Storage SDK para bucket `login-banner`
-- Nomes fixos: `desktop.webp`, `tablet.webp`, `mobile.webp` (sobrescreve ao trocar)
-- Compressao client-side usando `compressImage` existente em `src/shared/utils/compressMedia.ts`
-- Salva URL publica no JSONB
-
-### Responsividade no Login
-
-- Tailwind: `hidden lg:flex` para painel direito no desktop
-- `hidden md:flex lg:hidden` para tablet
-- `md:hidden` para mobile banner no topo
-- Imagens com `object-cover` e `w-full h-full`
-
-### Tamanhos recomendados (exibidos na UI de config)
-
-- Desktop: 960 x 1080px
-- Tablet: 768 x 1024px
-- Mobile: 390 x 300px
-
+### Fluxo multiplo:
+1. Usuario seleciona N arquivos
+2. Para cada arquivo, `handleFileSelected` e chamado (sem await entre eles - paralelo)
+3. Cada upload tem seu proprio item de progresso na UI
+4. Todos rodam simultaneamente
