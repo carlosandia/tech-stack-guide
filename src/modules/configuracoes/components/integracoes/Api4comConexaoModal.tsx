@@ -16,7 +16,7 @@ interface Api4comConexaoModalProps {
 
 export function Api4comConexaoModal({ onClose, onSuccess }: Api4comConexaoModalProps) {
   const [token, setToken] = useState('')
-  const [apiUrl, setApiUrl] = useState('https://api.api4com.com')
+  const [apiUrl] = useState('https://api.api4com.com')
   const [showToken, setShowToken] = useState(false)
   const [step, setStep] = useState<'form' | 'testing' | 'success' | 'error'>('form')
   const [errorMsg, setErrorMsg] = useState('')
@@ -132,10 +132,13 @@ export function Api4comConexaoModal({ onClose, onSuccess }: Api4comConexaoModalP
             <div className="text-xs text-muted-foreground space-y-1">
               <p className="font-medium text-foreground">Como obter o token:</p>
               <ol className="list-decimal list-inside space-y-0.5">
-                <li>Acesse <strong>app.api4com.com</strong></li>
+                <li>Acesse <strong>app.api4com.com</strong> (seu painel)</li>
                 <li>No menu lateral, vá em <strong>3 - Tokens de acesso</strong></li>
                 <li>Copie ou crie um token (recomendado: sem expiração, ttl=-1)</li>
               </ol>
+              <p className="mt-1.5 text-[11px] text-destructive/80 font-medium">
+                ⚠️ A URL da API é sempre <strong>api.api4com.com</strong>. Não confunda com a URL do seu painel (ex: renovedigital.api4com.com).
+              </p>
             </div>
           </div>
         </div>
@@ -174,15 +177,11 @@ export function Api4comConexaoModal({ onClose, onSuccess }: Api4comConexaoModalP
             <input
               type="url"
               value={apiUrl}
-              onChange={(e) => {
-                setApiUrl(e.target.value)
-                if (step !== 'form') setStep('form')
-              }}
-              placeholder="https://api.api4com.com"
-              className="w-full px-3 py-2 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
+              readOnly
+              className="w-full px-3 py-2 text-sm bg-muted border border-border rounded-md text-muted-foreground cursor-not-allowed"
             />
             <p className="text-[11px] text-muted-foreground mt-1">
-              Altere apenas se usar URL personalizada
+              URL fixa da API REST — não alterar
             </p>
           </div>
         </div>
