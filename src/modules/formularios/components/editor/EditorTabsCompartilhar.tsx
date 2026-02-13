@@ -68,6 +68,9 @@ export function EditorTabsCompartilhar({ formulario }: Props) {
               <Button size="sm" className="h-8 text-xs gap-1" onClick={handleSaveSlug}>
                 <Check className="w-3 h-3" /> Salvar
               </Button>
+              <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setSlugValue(formulario.slug); setEditingSlug(false) }}>
+                Cancelar
+              </Button>
             </div>
             <p className="flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400">
               <AlertTriangle className="w-3 h-3 shrink-0" />
