@@ -41,19 +41,21 @@ export function PipelineSelector({
   const containerRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
-  // Click outside
+  // Click outside — ignora quando modal de confirmação está aberto
   useEffect(() => {
     if (!open) return
     const handler = (e: MouseEvent) => {
+      // AIDEV-NOTE: Se confirmDelete está ativo, o modal é um Portal fora do containerRef.
+      // Ignorar click-outside para não fechar antes do click no botão "Excluir".
+      if (confirmDelete) return
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setOpen(false)
         setBusca('')
-        setConfirmDelete(null)
       }
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
-  }, [open])
+  }, [open, confirmDelete])
 
   // Focus search on open
   useEffect(() => {
@@ -96,16 +98,14 @@ export function PipelineSelector({
     }
   }
 
-  const handleConfirmExcluir = async () => {
+  const handleConfirmExcluir = () => {
     if (!confirmDelete) return
     const funilId = confirmDelete.funilId
+    // Chamar onExcluir ANTES de limpar estado para garantir que execute
+    onExcluir?.(funilId)
     setConfirmDelete(null)
     setOpen(false)
     setBusca('')
-    // Usar setTimeout para garantir que o callback execute após o React atualizar o DOM
-    setTimeout(() => {
-      onExcluir?.(funilId)
-    }, 50)
   }
 
   return (

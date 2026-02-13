@@ -78,7 +78,7 @@ export function ConfigHeader({ onMenuClick }: ConfigHeaderProps) {
           {userMenuOpen && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setUserMenuOpen(false)} />
-              <div className="absolute right-0 mt-1 w-56 bg-card rounded-md shadow-lg border border-border py-1 z-50">
+              <div className="absolute right-0 mt-1 w-56 bg-white rounded-md shadow-lg border border-border py-1 z-[200]">
                 <div className="px-3 py-2 border-b border-gray-200/60">
                   <p className="text-sm font-medium text-foreground">{user?.nome || 'Usuário'}</p>
                   <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
