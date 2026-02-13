@@ -65,3 +65,6 @@ verify_jwt = false
 
 [functions.processar-delays-automacao]
 verify_jwt = false
+
+[functions.widget-formulario-config]
+verify_jwt = false
