@@ -92,6 +92,7 @@ interface Props {
   selectedCampoId: string | null
   onSelectCampo: (id: string | null) => void
   onRemoveCampo: (id: string) => void
+  onDuplicateCampo?: (campoId: string) => void
   onMoveCampo: (id: string, direcao: 'up' | 'down') => void
   onReorderCampo: (dragId: string, targetIndex: number) => void
   onDropNewCampo: (e: React.DragEvent, index: number) => void
@@ -155,6 +156,7 @@ export function FormPreview({
   newsletterLayout,
   onUpdateCampoLabel,
   onUpdateBotaoTexto,
+  onDuplicateCampo,
 }: Props) {
   const [viewport, setViewport] = useState<Viewport>('desktop')
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
@@ -544,6 +546,7 @@ export function FormPreview({
                                       }}
                                       onDragLeave={() => {}}
                                       onUpdateLabel={onUpdateCampoLabel}
+                                      onDuplicateCampo={onDuplicateCampo}
                                       viewport={viewport}
                                     />
                                     {renderDropZone(index + 1)}
@@ -576,6 +579,7 @@ export function FormPreview({
                                     }}
                                     onDragLeave={() => {}}
                                     onUpdateLabel={onUpdateCampoLabel ? (newLabel) => onUpdateCampoLabel(campo.id, newLabel) : undefined}
+                                    onDuplicate={onDuplicateCampo ? () => onDuplicateCampo(campo.id) : undefined}
                                   />
                                   {renderDropZone(index + 1)}
                                 </div>

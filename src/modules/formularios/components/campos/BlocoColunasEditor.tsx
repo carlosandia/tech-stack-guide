@@ -65,6 +65,7 @@ interface Props {
   onDrop: (e: React.DragEvent) => void
   onDragLeave: (e: React.DragEvent) => void
   onUpdateLabel?: (campoId: string, newLabel: string) => void
+  onDuplicateCampo?: (campoId: string) => void
   viewport?: DeviceViewport
 }
 
@@ -85,6 +86,7 @@ export function BlocoColunasEditor({
   onDrop,
   onDragLeave,
   onUpdateLabel,
+  onDuplicateCampo,
   viewport = 'desktop',
 }: Props) {
   const config = parseColunasConfig(bloco.valor_padrao)
@@ -255,6 +257,7 @@ export function BlocoColunasEditor({
                         }}
                         onDragLeave={() => {}}
                         onUpdateLabel={onUpdateLabel ? (newLabel) => onUpdateLabel(child.id, newLabel) : undefined}
+                        onDuplicate={onDuplicateCampo ? () => onDuplicateCampo(child.id) : undefined}
                       />
                       {renderColumnDropZone(colIndex, idx + 1)}
                     </div>
