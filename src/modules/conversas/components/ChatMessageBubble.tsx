@@ -229,10 +229,10 @@ function DocumentContent({ mensagem }: { mensagem: Mensagem }) {
     <button
       onClick={handleDownload}
       disabled={downloading}
-      className="flex items-center gap-2 p-2 rounded-md bg-background/50 border border-border/50 hover:bg-accent/50 transition-colors min-w-[200px] text-left"
+      className="flex items-center gap-2 p-2 rounded-md bg-background/50 border border-border/50 hover:bg-accent/50 transition-colors w-full max-w-[280px] text-left overflow-hidden"
     >
       {getDocumentIcon(mensagem.media_filename)}
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 overflow-hidden">
         <p className="text-xs font-medium truncate">{mensagem.media_filename || 'Documento'}</p>
         {mensagem.media_size && (
           <p className="text-[11px] text-muted-foreground">
