@@ -198,18 +198,15 @@ export function FormularioEditorPage() {
         nome, label, tipo: tipoCampo.tipo, ordem: index, obrigatorio: false, largura: 'full',
       } as Partial<CampoFormulario>
 
-      if (campos.length === 0) {
-        criarCampo.mutate(newCampoPayload)
-        return
+      // AIDEV-NOTE: Criar campo imediatamente (optimistic) — reordenar em paralelo
+      if (campos.length > 0) {
+        const shifted = campos.map((c) => ({
+          id: c.id,
+          ordem: c.ordem >= index ? c.ordem + 1 : c.ordem,
+        }))
+        reordenarCampos.mutate(shifted)
       }
-
-      const shifted = campos.map((c) => ({
-        id: c.id,
-        ordem: c.ordem >= index ? c.ordem + 1 : c.ordem,
-      }))
-      reordenarCampos.mutate(shifted, {
-        onSuccess: () => criarCampo.mutate(newCampoPayload),
-      })
+      criarCampo.mutate(newCampoPayload)
     },
     [criarCampo, campos, reordenarCampos]
   )
@@ -278,13 +275,11 @@ export function FormularioEditorPage() {
         pai_campo_id: paiCampoId, coluna_indice: colunaIndice,
       } as Partial<CampoFormulario>
 
+      // AIDEV-NOTE: Criar campo imediatamente (optimistic) — reordenar em paralelo
       if (shifted.length > 0) {
-        reordenarCampos.mutate(shifted, {
-          onSuccess: () => criarCampo.mutate(newPayload),
-        })
-      } else {
-        criarCampo.mutate(newPayload)
+        reordenarCampos.mutate(shifted)
       }
+      criarCampo.mutate(newPayload)
     },
     [campos, criarCampo, reordenarCampos]
   )
