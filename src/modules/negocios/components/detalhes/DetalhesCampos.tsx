@@ -789,7 +789,7 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
                 {oportunidade.contato?.empresa ? (
                   <div className="flex items-center gap-1.5">
                     <p className="text-sm text-foreground truncate flex-1">
-                      {oportunidade.contato.empresa.nome_fantasia || oportunidade.contato.empresa.razao_social || '—'}
+                      {(oportunidade.contato.empresa as any)?.nome_fantasia || (oportunidade.contato.empresa as any)?.razao_social || '—'}
                     </p>
                     <button
                       onClick={() => setShowEmpresaSearch(true)}
