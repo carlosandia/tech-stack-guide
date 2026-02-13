@@ -66,9 +66,9 @@ Deno.serve(async (req) => {
 
       try {
         // Tentar chamar um endpoint básico da API4COM para validar
-        const baseUrl = (api_url || 'https://api.api4com.com.br').replace(/\/$/, '')
-        const response = await fetch(`${baseUrl}/v1/accounts`, {
-          headers: { 'Authorization': `Bearer ${token}` },
+        const baseUrl = (api_url || 'https://api.api4com.com').replace(/\/$/, '')
+        const response = await fetch(`${baseUrl}/api/v1/users/me`, {
+          headers: { 'Authorization': token },
         })
 
         if (response.ok) {
@@ -95,7 +95,7 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ success: false, message: 'Token não informado' }), { headers: corsHeaders })
       }
 
-      const apiUrlFinal = (api_url || 'https://api.api4com.com.br').replace(/\/$/, '')
+      const apiUrlFinal = (api_url || 'https://api.api4com.com').replace(/\/$/, '')
 
       // Upsert na tabela conexoes_api4com
       const { error: upsertError } = await supabaseAdmin
@@ -218,9 +218,9 @@ Deno.serve(async (req) => {
       }
 
       try {
-        const baseUrl = (conexao.api_url || 'https://api.api4com.com.br').replace(/\/$/, '')
-        const response = await fetch(`${baseUrl}/v1/accounts`, {
-          headers: { 'Authorization': `Bearer ${conexao.access_token_encrypted}` },
+        const baseUrl = (conexao.api_url || 'https://api.api4com.com').replace(/\/$/, '')
+        const response = await fetch(`${baseUrl}/api/v1/users/me`, {
+          headers: { 'Authorization': conexao.access_token_encrypted },
         })
 
         if (response.ok) {
