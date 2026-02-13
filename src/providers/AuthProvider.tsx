@@ -155,29 +155,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
     )
 
-    // Verifica sessao existente
+    // AIDEV-NOTE: Sessão sempre mantida - sem lógica de expiração por aba/browser
+    // O Supabase Auth já gerencia refresh tokens automaticamente
     supabase.auth.getSession().then(async ({ data: { session: existingSession } }) => {
-      // Lógica de "Lembrar por 30 dias":
-      // - Se rememberMe === 'true' → mantém sessão sempre
-      // - Se rememberMe === 'false' → limpa sessão apenas em nova aba/browser
-      // - Se rememberMe é null (primeiro acesso) → mantém sessão (não quebrar login)
-      const rememberMe = localStorage.getItem('rememberMe')
-      const hadActiveSession = sessionStorage.getItem('activeSession')
-
-      if (existingSession && rememberMe === 'false' && !hadActiveSession) {
-        // Usuário não marcou "lembrar" e é uma nova sessão do navegador
-        await supabase.auth.signOut()
-        setSession(null)
-        setUser(null)
-        setLoading(false)
-        return
-      }
-
-      // Marca sessão ativa (limpa automaticamente ao fechar browser/aba)
-      if (existingSession) {
-        sessionStorage.setItem('activeSession', 'true')
-      }
-
       setSession(existingSession)
       
       if (existingSession?.user) {
@@ -194,11 +174,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [fetchUserData])
 
   // Login
-  const signIn = async (email: string, password: string, lembrar = false) => {
+  const signIn = async (email: string, password: string, _lembrar = false) => {
     try {
-      // Salva preferência de persistência
-      localStorage.setItem('rememberMe', lembrar ? 'true' : 'false')
-
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email.toLowerCase(),
         password,
@@ -209,9 +186,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
 
       if (data.user) {
-        // Marca sessão ativa no browser
-        sessionStorage.setItem('activeSession', 'true')
-        
         const userData = await fetchUserData(data.user)
         
         if (userData) {
