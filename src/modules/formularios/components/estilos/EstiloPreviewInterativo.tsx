@@ -192,7 +192,6 @@ export function EstiloPreviewInterativo({
           </div>
         )
       case 'selecao':
-      case 'selecao_multipla':
         return (
           <div>
             <span style={labelStyle}>
@@ -201,6 +200,28 @@ export function EstiloPreviewInterativo({
             <select style={{ ...inputStyle, appearance: 'auto' }} disabled>
               <option>{placeholder || 'Selecione...'}</option>
             </select>
+          </div>
+        )
+      case 'selecao_multipla':
+        return (
+          <div>
+            <span style={labelStyle}>
+              {campo.label}{campo.obrigatorio ? ' *' : ''}
+            </span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
+              {(campo.opcoes as string[] || ['Opção 1', 'Opção 2']).slice(0, 4).map((op, i) => (
+                <label key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: '8px',
+                  padding: '8px 12px',
+                  border: `1px solid ${campos.input_border_color || '#D1D5DB'}`,
+                  borderRadius: '6px', cursor: 'default',
+                  backgroundColor: '#FFFFFF', fontSize: '14px', fontFamily,
+                }}>
+                  <input type="checkbox" disabled style={{ width: '16px', height: '16px', accentColor: '#3B82F6', flexShrink: 0 }} />
+                  {typeof op === 'string' ? op : `Opção ${i + 1}`}
+                </label>
+              ))}
+            </div>
           </div>
         )
       case 'radio':
