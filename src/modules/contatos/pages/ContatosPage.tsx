@@ -211,7 +211,7 @@ export function ContatosPage() {
           <Users2 className="w-3.5 h-3.5 hidden sm:block" />
           Pessoas
           {totalPessoas !== null && (
-            <span className="text-xs ml-0.5 opacity-70">{totalPessoas}</span>
+            <span className="text-xs ml-0.5 opacity-70 hidden sm:inline">{totalPessoas}</span>
           )}
         </button>
         <button
@@ -225,7 +225,7 @@ export function ContatosPage() {
           <Building2 className="w-3.5 h-3.5 hidden sm:block" />
           Empresas
           {totalEmpresas !== null && (
-            <span className="text-xs ml-0.5 opacity-70">{totalEmpresas}</span>
+            <span className="text-xs ml-0.5 opacity-70 hidden sm:inline">{totalEmpresas}</span>
           )}
         </button>
       </div>
