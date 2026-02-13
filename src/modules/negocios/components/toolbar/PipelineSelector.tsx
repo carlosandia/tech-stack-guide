@@ -101,7 +101,7 @@ export function PipelineSelector({
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full mt-1 w-72 bg-card border border-border rounded-lg shadow-lg z-[60] py-1 animate-enter">
+        <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 w-72 bg-card border border-border rounded-lg shadow-lg z-[60] py-1 animate-enter">
           {/* Busca */}
           <div className="px-3 py-2">
             <div className="relative">
