@@ -1,90 +1,85 @@
 
-# Plano: Corrigir DOCX como PDF + Upload Multiplo Simultaneo
 
-## Problema 1: DOCX chegando como PDF no WhatsApp
+# Plano: Enquete estilo WhatsApp + Loading de audio + Correcoes
 
-**Causa raiz identificada:** O browser pode retornar `file.type` vazio ou incorreto para arquivos `.docx`. Quando isso acontece, o fallback `'application/octet-stream'` e usado no upload ao Storage, e o WAHA interpreta o arquivo como PDF baseado no conteudo binario.
+## Prioridade 1: UI da Enquete (PollContent) estilo WhatsApp
 
-**Solucao:** Criar um mapeamento de extensao para MIME type correto, garantindo que o mimetype seja sempre o correto independentemente do que o browser reporta. Esse mapeamento sera usado tanto no upload ao Storage quanto no envio ao WAHA.
+**Estado atual:** A enquete mostra opcoes como linhas simples com texto e numero de votos, sem estilizacao.
 
-### Arquivos alterados:
-- **`src/modules/conversas/components/ChatWindow.tsx`** - Adicionar funcao `getMimeTypeFromExtension(filename)` que mapeia extensoes comuns (docx, xlsx, pdf, etc.) para o MIME type correto. Usar esse valor no `contentType` do upload E no campo `mimetype` do `enviarMedia`.
+**Redesign baseado na referencia do WhatsApp (imagem enviada):**
 
-```
-Mapeamento:
-.docx -> application/vnd.openxmlformats-officedocument.wordprocessingml.document
-.doc  -> application/msword
-.xlsx -> application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
-.xls  -> application/vnd.ms-excel
-.csv  -> text/csv
-.pdf  -> application/pdf
-.txt  -> text/plain
-.zip  -> application/zip
-.rar  -> application/x-rar-compressed
-```
+Arquivo: `src/modules/conversas/components/ChatMessageBubble.tsx` (funcao `PollContent`, linhas 340-383)
 
-Logica: usar `file.type` se nao estiver vazio, senao inferir da extensao.
+Novo layout:
+- Titulo da pergunta em negrito (font-semibold, text-sm)
+- Subtitulo "Selecione uma opcao" com icone de check verde (ou "Permitir multiplas respostas" se aplicavel)
+- Cada opcao com:
+  - Circulo vazio (radio button visual) a esquerda
+  - Texto da opcao
+  - Contagem de votos a direita
+  - Barra de progresso sutil abaixo (proporcional ao total de votos, cor `primary/20`)
+- Separador fino entre opcoes
+- Rodape "Mostrar votos" como botao com borda superior, alinhado ao centro
+- Botao de refresh (RefreshCw) no canto superior direito do card
+
+Cores: fundo `bg-muted/30`, bordas `border-border/50`, barra de progresso `bg-primary/20`, texto principal `text-foreground`, votos `text-muted-foreground`
 
 ---
 
-## Problema 2: Upload de multiplos arquivos simultaneos
+## Prioridade 2: Loading visual ao enviar audio
 
-**Estado atual:** O file input aceita apenas 1 arquivo (`files?.[0]`), e o state de progresso e um unico objeto.
+**Estado atual:** Apos gravar e clicar em enviar, nao ha nenhum feedback visual. O usuario nao sabe se esta enviando.
 
-### Alteracoes:
+Arquivo: `src/modules/conversas/components/ChatWindow.tsx` (funcao `handleAudioSend`, linhas 264-295)
 
-#### `src/modules/conversas/components/AnexosMenu.tsx`
-- Adicionar atributo `multiple` nos inputs de arquivo (documento e midia)
-- Alterar `handleFileChange` para iterar sobre todos os arquivos de `e.target.files` e chamar `onFileSelected` para cada um
+Alteracoes:
+- Adicionar estado `audioSending: boolean` no ChatWindow
+- Antes do upload, setar `audioSending = true`
+- Apos conclusao (sucesso ou erro), setar `audioSending = false`
+- Passar `audioSending` para o `ChatInput` como prop
 
-#### `src/modules/conversas/components/ChatInput.tsx`
-- Alterar a prop `onFileSelected` para tambem aceitar multiplos arquivos no paste (iterar `clipboardData.files`)
+Arquivo: `src/modules/conversas/components/ChatInput.tsx`
+- Receber prop `audioSending?: boolean`
+- Quando `audioSending` for true e nao estiver gravando, mostrar um indicador sutil no lugar do botao de microfone:
+  - Spinner pequeno animado (animate-spin) com texto "Enviando..." em cor muted
+  - Ou uma barra de progresso minimalista acima do input
 
-#### `src/modules/conversas/components/ChatWindow.tsx`
-- Trocar o state `uploadProgress` de objeto unico para um **Map/array** de uploads simultaneos:
-  ```
-  uploadProgress: { id: string; filename: string; progress: number }[]
-  ```
-- Cada chamada de `handleFileSelected` gera um ID unico e adiciona ao array
-- O progresso de cada arquivo e atualizado independentemente
-- A UI renderiza todos os uploads ativos empilhados acima do input
+---
 
-#### UI de progresso multiplo:
-- Cada item de upload mostra: icone do tipo (baseado na extensao), nome truncado, barra de progresso, percentual
-- Itens completados (100%) desaparecem apos 600ms com animacao fade-out
-- Maximo visual de ~4 itens empilhados com scroll se necessario
+## Prioridade 3: Audio via webhook (ja funcionando)
+
+**Analise dos logs:** O audio JA esta sendo enviado via WAHA com sucesso (status 201, `sendVoice`). O request retornou `message_id` valido e o WhatsApp recebeu o audio conforme confirmado nos logs do edge function.
+
+Possivel causa da percepcao do usuario: a falta de feedback visual (prioridade 2) fez parecer que nao estava funcionando. Nenhuma alteracao de codigo necessaria aqui.
 
 ---
 
 ## Detalhes Tecnicos
 
-### Funcao `getMimeTypeFromExtension`:
-```typescript
-function getMimeTypeFromExtension(filename: string): string {
-  const ext = filename.split('.').pop()?.toLowerCase()
-  const map: Record<string, string> = {
-    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    doc: 'application/msword',
-    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    xls: 'application/vnd.ms-excel',
-    pdf: 'application/pdf',
-    csv: 'text/csv',
-    txt: 'text/plain',
-    zip: 'application/zip',
-    rar: 'application/x-rar-compressed',
-  }
-  return map[ext || ''] || ''
-}
+### PollContent redesenhado (pseudo-estrutura):
+```text
++------------------------------------------+
+| Pergunta da enquete?            [refresh] |
+| (check) Selecione uma opcao              |
+|                                          |
+| (o) opcao 1                          0   |
+| [========                           ]    |
+| ---------------------------------------- |
+| (o) opcao 2                          0   |
+| [========                           ]    |
+| ---------------------------------------- |
+|          Mostrar votos                   |
++------------------------------------------+
 ```
 
-### Fluxo do upload corrigido:
-1. Arquivo selecionado -> detectar mimetype correto (file.type ou extensao)
-2. Upload ao Storage com contentType correto
-3. Enviar ao WAHA com mimetype correto
-4. WhatsApp identifica o tipo corretamente
+### Estado de loading do audio:
+```text
+Estado normal:     [mic icon]
+Enviando audio:    [spinner] Enviando...
+```
 
-### Fluxo multiplo:
-1. Usuario seleciona N arquivos
-2. Para cada arquivo, `handleFileSelected` e chamado (sem await entre eles - paralelo)
-3. Cada upload tem seu proprio item de progresso na UI
-4. Todos rodam simultaneamente
+### Arquivos modificados:
+1. `src/modules/conversas/components/ChatMessageBubble.tsx` - Redesign completo do PollContent
+2. `src/modules/conversas/components/ChatWindow.tsx` - Estado `audioSending` + passagem para ChatInput
+3. `src/modules/conversas/components/ChatInput.tsx` - Receber e exibir estado de envio de audio
+
