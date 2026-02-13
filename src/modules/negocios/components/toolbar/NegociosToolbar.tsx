@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useState, useRef } from 'react'
-import { Search, Plus, X, MoreVertical, BarChart3 } from 'lucide-react'
+import { Search, Plus, X, BarChart3 } from 'lucide-react'
 import { useAppToolbar } from '@/modules/app/contexts/AppToolbarContext'
 import { PipelineSelector } from './PipelineSelector'
 import { FiltrosPopover, type FiltrosKanban } from './FiltrosPopover'
@@ -60,12 +60,10 @@ export function NegociosToolbar({
   onMetricasVisiveisChange,
   funilAtivoId,
 }: NegociosToolbarProps) {
-  const { setSubtitle, setActions } = useAppToolbar()
+  const { setCenterContent, setActions } = useAppToolbar()
   const [searchOpen, setSearchOpen] = useState(false)
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const searchContainerRef = useRef<HTMLDivElement>(null)
-  const menuContainerRef = useRef<HTMLDivElement>(null)
 
   // Click outside for search
   useEffect(() => {
@@ -79,18 +77,6 @@ export function NegociosToolbar({
     return () => document.removeEventListener('mousedown', handler)
   }, [searchOpen])
 
-  // Click outside for mobile menu
-  useEffect(() => {
-    if (!mobileMenuOpen) return
-    const handler = (e: MouseEvent) => {
-      if (menuContainerRef.current && !menuContainerRef.current.contains(e.target as Node)) {
-        setMobileMenuOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [mobileMenuOpen])
-
   // Focus search input on open
   useEffect(() => {
     if (searchOpen) {
@@ -98,9 +84,9 @@ export function NegociosToolbar({
     }
   }, [searchOpen])
 
-  // Inject subtitle (PipelineSelector)
+  // Inject subtitle (PipelineSelector) as center content
   useEffect(() => {
-    setSubtitle(
+    setCenterContent(
       <PipelineSelector
         funis={funis}
         funilAtivo={funilAtivo}
@@ -112,8 +98,8 @@ export function NegociosToolbar({
         isAdmin={isAdmin}
       />
     )
-    return () => setSubtitle(null)
-  }, [funis, funilAtivo, onSelectFunil, onNovaPipeline, onArquivar, onDesarquivar, onExcluir, isAdmin, setSubtitle])
+    return () => setCenterContent(null)
+  }, [funis, funilAtivo, onSelectFunil, onNovaPipeline, onArquivar, onDesarquivar, onExcluir, isAdmin, setCenterContent])
 
   // Inject actions
   useEffect(() => {
@@ -218,36 +204,10 @@ export function NegociosToolbar({
           <Plus className="w-4 h-4" />
         </button>
 
-        {/* Mobile overflow menu */}
-        <div className="relative sm:hidden" ref={menuContainerRef}>
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 rounded-md hover:bg-accent text-muted-foreground transition-all duration-200"
-          >
-            <MoreVertical className="w-4 h-4" />
-          </button>
-
-          {mobileMenuOpen && (
-            <div className="absolute right-0 top-full mt-1 w-48 bg-card border border-border rounded-lg shadow-lg z-[60] py-1 animate-enter">
-              {isAdmin && (
-                <button
-                  onClick={() => {
-                    setMobileMenuOpen(false)
-                    onNovaPipeline()
-                  }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-accent transition-all duration-200"
-                >
-                  <Plus className="w-4 h-4" />
-                  Nova Pipeline
-                </button>
-              )}
-            </div>
-          )}
-        </div>
       </div>
     )
     return () => setActions(null)
-  }, [busca, searchOpen, mobileMenuOpen, isAdmin, setActions, onNovaOportunidade, onNovaPipeline, onBuscaChange, filtros, onFiltrosChange, periodo, onPeriodoChange, metricasVisivel, onToggleMetricas, metricasVisiveis, onMetricasVisiveisChange, funilAtivoId])
+  }, [busca, searchOpen, isAdmin, setActions, onNovaOportunidade, onBuscaChange, filtros, onFiltrosChange, periodo, onPeriodoChange, metricasVisivel, onToggleMetricas, metricasVisiveis, onMetricasVisiveisChange, funilAtivoId])
 
   return null // Renderiza via context
 }
