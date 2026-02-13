@@ -452,13 +452,13 @@ Deno.serve(async (req) => {
     }
 
     // Extrair dados mapeados
-    const dados = submissao.dados as Record<string, any>
+    const dadosMapeados = submissao.dados as Record<string, any>
     const dadosContato: Record<string, any> = {}
     const dadosEmpresa: Record<string, any> = {}
     const dadosOportunidade: Record<string, any> = {}
 
     for (const campo of camposForm) {
-      const valor = dados[campo.nome]
+      const valor = dadosMapeados[campo.nome]
       if (valor === undefined || !campo.mapeamento_campo || campo.mapeamento_campo === 'nenhum') continue
 
       const mapeamento = campo.mapeamento_campo as string
