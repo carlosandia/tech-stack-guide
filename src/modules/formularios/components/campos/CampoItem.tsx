@@ -45,6 +45,7 @@ interface Props {
   onDrop: (e: React.DragEvent) => void
   onDragLeave: (e: React.DragEvent) => void
   onUpdateLabel?: (newLabel: string) => void
+  onUpdatePlaceholder?: (newPlaceholder: string) => void
   onDuplicate?: () => void
 }
 
@@ -61,6 +62,7 @@ export function CampoItem({
   onDrop,
   onDragLeave,
   onUpdateLabel,
+  onUpdatePlaceholder,
   onDuplicate,
 }: Props) {
   const [editingLabel, setEditingLabel] = useState(false)
@@ -174,7 +176,7 @@ export function CampoItem({
             {getLabelTipo(campo.tipo)}
           </Badge>
         </div>
-        {renderFieldPreview(campo)}
+        {renderFieldPreview(campo, onUpdatePlaceholder)}
       </div>
     </div>
   )
@@ -198,7 +200,62 @@ function getLabelTipo(tipo: string): string {
   return map[tipo] || tipo
 }
 
-function renderFieldPreview(campo: CampoFormulario) {
+function BotaoInlineEdit({ campo, onUpdateLabel, icon, defaultText, className, style }: {
+  campo: CampoFormulario
+  onUpdateLabel?: (v: string) => void
+  icon: React.ReactNode
+  defaultText: string
+  className?: string
+  style?: React.CSSProperties
+}) {
+  const [editing, setEditing] = useState(false)
+  const [text, setText] = useState(campo.placeholder || defaultText)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => { setText(campo.placeholder || defaultText) }, [campo.placeholder, defaultText])
+  useEffect(() => { if (editing && inputRef.current) { inputRef.current.focus(); inputRef.current.select() } }, [editing])
+
+  const commit = () => {
+    setEditing(false)
+    const trimmed = text.trim()
+    if (trimmed && trimmed !== (campo.placeholder || defaultText) && onUpdateLabel) {
+      onUpdateLabel(trimmed)
+    }
+  }
+
+  if (editing) {
+    return (
+      <div className={cn('w-full rounded-md py-2.5 text-sm font-semibold flex items-center justify-center gap-2', className)} style={style}>
+        {icon}
+        <input
+          ref={inputRef}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit() } if (e.key === 'Escape') { setText(campo.placeholder || defaultText); setEditing(false) } }}
+          onClick={(e) => e.stopPropagation()}
+          className="bg-transparent border-b border-current outline-none text-center min-w-[60px]"
+          style={{ width: `${Math.max(text.length, 4)}ch`, color: 'inherit' }}
+        />
+      </div>
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      className={cn('w-full rounded-md py-2.5 text-sm font-semibold flex items-center justify-center gap-2 cursor-text', className)}
+      style={style}
+      onClick={(e) => { e.stopPropagation(); if (onUpdateLabel) setEditing(true) }}
+      title="Clique para editar o texto"
+    >
+      {icon}
+      {campo.placeholder || defaultText}
+    </button>
+  )
+}
+
+function renderFieldPreview(campo: CampoFormulario, onUpdateLabel?: (v: string) => void) {
   const placeholder = campo.placeholder || ''
   const baseInputClass = 'w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground pointer-events-none'
 
@@ -346,20 +403,10 @@ function renderFieldPreview(campo: CampoFormulario) {
       return <p className="text-xs text-muted-foreground italic">Campo oculto (não visível para o usuário)</p>
 
     case 'botao_enviar':
-      return (
-        <button type="button" className="w-full rounded-md bg-primary text-primary-foreground py-2.5 text-sm font-semibold pointer-events-none flex items-center justify-center gap-2">
-          <MousePointerClick className="w-4 h-4" />
-          {campo.placeholder || 'Enviar'}
-        </button>
-      )
+      return <BotaoInlineEdit campo={campo} onUpdateLabel={onUpdateLabel} icon={<MousePointerClick className="w-4 h-4" />} defaultText="Enviar" className="bg-primary text-primary-foreground" />
 
     case 'botao_whatsapp':
-      return (
-        <button type="button" className="w-full rounded-md py-2.5 text-sm font-semibold pointer-events-none flex items-center justify-center gap-2" style={{ backgroundColor: '#25D366', color: '#FFFFFF' }}>
-          <WhatsAppIcon size={16} />
-          {campo.placeholder || 'Enviar via WhatsApp'}
-        </button>
-      )
+      return <BotaoInlineEdit campo={campo} onUpdateLabel={onUpdateLabel} icon={<WhatsAppIcon size={16} />} defaultText="Enviar via WhatsApp" style={{ backgroundColor: '#25D366', color: '#FFFFFF' }} />
 
     case 'cpf':
       return <div className={baseInputClass}>{placeholder || '000.000.000-00'}</div>

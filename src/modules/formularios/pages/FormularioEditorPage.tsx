@@ -338,6 +338,13 @@ export function FormularioEditorPage() {
     [atualizarCampo]
   )
 
+  const handleUpdateCampoPlaceholder = useCallback(
+    (campoId: string, newPlaceholder: string) => {
+      atualizarCampo.mutate({ campoId, payload: { placeholder: newPlaceholder } })
+    },
+    [atualizarCampo]
+  )
+
   const handleUpdateBotaoTexto = useCallback(
     (tipo: 'enviar' | 'whatsapp', newTexto: string) => {
       if (tipo === 'enviar') {
@@ -559,6 +566,7 @@ export function FormularioEditorPage() {
                   imagemLink: localNewsletterImagemLink,
                 } : null}
                 onUpdateCampoLabel={handleUpdateCampoLabel}
+                onUpdateCampoPlaceholder={handleUpdateCampoPlaceholder}
                 onUpdateBotaoTexto={handleUpdateBotaoTexto}
               />
             </div>

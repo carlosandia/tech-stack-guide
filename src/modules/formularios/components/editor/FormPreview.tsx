@@ -122,6 +122,7 @@ interface Props {
   newsletterLayout?: { template: NewsletterTemplate; imagemUrl: string | null; imagemLink?: string | null } | null
   // Inline editing
   onUpdateCampoLabel?: (campoId: string, newLabel: string) => void
+  onUpdateCampoPlaceholder?: (campoId: string, newPlaceholder: string) => void
   onUpdateBotaoTexto?: (tipo: 'enviar' | 'whatsapp', newTexto: string) => void
 }
 
@@ -155,6 +156,7 @@ export function FormPreview({
   popupLayout,
   newsletterLayout,
   onUpdateCampoLabel,
+  onUpdateCampoPlaceholder,
   onUpdateBotaoTexto,
   onDuplicateCampo,
 }: Props) {
@@ -546,6 +548,7 @@ export function FormPreview({
                                       }}
                                       onDragLeave={() => {}}
                                       onUpdateLabel={onUpdateCampoLabel}
+                                      onUpdatePlaceholder={onUpdateCampoPlaceholder}
                                       onDuplicateCampo={onDuplicateCampo}
                                       viewport={viewport}
                                     />
@@ -579,6 +582,7 @@ export function FormPreview({
                                     }}
                                     onDragLeave={() => {}}
                                     onUpdateLabel={onUpdateCampoLabel ? (newLabel) => onUpdateCampoLabel(campo.id, newLabel) : undefined}
+                                    onUpdatePlaceholder={onUpdateCampoPlaceholder ? (newP) => onUpdateCampoPlaceholder(campo.id, newP) : undefined}
                                     onDuplicate={onDuplicateCampo ? () => onDuplicateCampo(campo.id) : undefined}
                                   />
                                   {renderDropZone(index + 1)}
