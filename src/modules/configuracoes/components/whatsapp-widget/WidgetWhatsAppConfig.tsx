@@ -242,14 +242,14 @@ export function WidgetWhatsAppConfig({ value, onChange }: Props) {
 
             {/* Pré-Formulário */}
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-foreground">Pré-formulário</p>
                   <p className="text-xs text-muted-foreground">Coletar dados antes de redirecionar ao WhatsApp</p>
                 </div>
                 <button
                   onClick={() => update('usar_formulario', !config.usar_formulario)}
-                  className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${config.usar_formulario ? 'bg-primary' : 'bg-muted'}`}
+                  className={`relative w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${config.usar_formulario ? 'bg-primary' : 'bg-muted'}`}
                 >
                   <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${config.usar_formulario ? 'translate-x-5' : 'translate-x-0'}`} />
                 </button>

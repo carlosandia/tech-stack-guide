@@ -16,7 +16,7 @@ export function WidgetWhatsAppPreview({ config, camposNomes }: Props) {
     .filter(Boolean)
 
   return (
-    <div className="relative bg-muted/50 rounded-lg border border-border p-4 sm:p-6 min-h-[400px] sm:min-h-[480px] flex items-end overflow-hidden" style={{ justifyContent: config.posicao === 'esquerda' ? 'flex-start' : 'flex-end' }}>
+    <div className="relative bg-muted/50 rounded-lg border border-border p-4 sm:p-6 min-h-[520px] sm:min-h-[540px] flex items-end overflow-hidden" style={{ justifyContent: config.posicao === 'esquerda' ? 'flex-start' : 'flex-end' }}>
       {/* Label */}
       <div className="absolute top-3 left-3 text-xs text-muted-foreground font-medium">
         Preview do Widget
