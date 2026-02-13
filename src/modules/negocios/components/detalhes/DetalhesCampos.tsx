@@ -969,6 +969,7 @@ function FieldRow({
         <LigacaoModal
           telefone={telefoneActions.telefone}
           contatoNome={telefoneActions.contatoNome}
+          oportunidadeId={oportunidade.id}
           onClose={() => setLigacaoOpen(false)}
         />
       )}

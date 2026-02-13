@@ -472,6 +472,7 @@ export function KanbanCard({ oportunidade, onDragStart, onClick, config, slaConf
         <LigacaoModal
           telefone={oportunidade.contato.telefone}
           contatoNome={contatoNome}
+          oportunidadeId={oportunidade.id}
           onClose={() => setLigacaoOpen(false)}
         />
       )}
