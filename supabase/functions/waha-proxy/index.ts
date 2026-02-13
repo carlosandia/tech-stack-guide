@@ -654,10 +654,10 @@ Deno.serve(async (req) => {
           mediaBody.file = fileObj;
           if (mediaCaption) mediaBody.caption = mediaCaption;
         } else if (endpoint === "sendVoice") {
-          // AIDEV-NOTE: sendVoice precisa do mimetype para WhatsApp identificar corretamente o áudio
-          const fileObj: Record<string, unknown> = { url: media_url };
-          if (mimetype) fileObj.mimetype = mimetype;
-          mediaBody.file = fileObj;
+          // AIDEV-NOTE: NAO passar mimetype para sendVoice - WAHA GOWS precisa
+          // auto-detectar o formato e converter para OGG/Opus automaticamente.
+          // Passar mimetype webm faz o WAHA pular a conversao e o WhatsApp rejeita.
+          mediaBody.file = { url: media_url };
         } else {
           mediaBody.file = { url: media_url };
           if (mediaCaption) mediaBody.caption = mediaCaption;
