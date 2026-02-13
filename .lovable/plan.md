@@ -1,74 +1,75 @@
 
 
-# Corrigir consulta de votos de enquete (falso positivo NOWEB)
+# Correcao: Votos de Enquete + Mensagem Clara sobre Engine NOWEB
 
-## Problema
+## Diagnostico
 
-O botao "Mostrar votos" sempre retorna "Votos de enquete nao disponiveis com engine NOWEB", mesmo que o usuario esteja usando o engine GOWS. Isso acontece porque:
+Os logs confirmam que a sessao WhatsApp esta usando **engine NOWEB**. Com NOWEB:
+- A WAHA dispara `poll.vote.failed` (nao `poll.vote`)
+- Os `selectedOptions` chegam vazios `[]`
+- Isso e uma limitacao real do protocolo - votos sao criptografados ponta-a-ponta
 
-1. A logica no `waha-proxy` trata **qualquer resposta vazia** como "limitacao NOWEB"
-2. Se ninguem votou ainda, a resposta tambem vem vazia -- o que e normal, nao e limitacao de engine
-3. O sistema nao sabe qual engine esta sendo usado (nao ha coluna `engine` na tabela `sessoes_whatsapp`)
+A mensagem "Sem dados de votos disponiveis" esta correta, mas e confusa para o usuario.
 
-## Solucao
+## Problemas a corrigir
 
-### 1. Consultar o engine real da sessao WAHA antes de decidir
+### 1. Webhook nao foi deployado corretamente
+O log mostra formato de log antigo (`messageId=...` ao inves de `pollId=...`), indicando que o ultimo deploy do `waha-webhook` nao refletiu as alteracoes. Precisa redeployar.
 
-No `waha-proxy/index.ts`, no case `consultar_votos_enquete`:
+### 2. Mensagem de erro pouco informativa na UI
+Quando o engine e NOWEB, mostrar uma mensagem clara explicando que precisa trocar para GOWS/WEBJS, ao inves de apenas "Sem dados de votos disponiveis".
 
-- Antes de consultar os votos, fazer um GET em `/api/sessions/{sessionId}` para obter informacoes da sessao, incluindo o campo `engine` retornado pela WAHA API
-- Usar essa informacao para distinguir entre:
-  - **Votos vazios + engine NOWEB** -> mostrar aviso de limitacao
-  - **Votos vazios + engine GOWS/WEBJS** -> mostrar "0 votos" normalmente (ninguem votou ainda)
-  - **Endpoint retornou erro (404/501)** -> verificar engine para decidir mensagem
+### 3. Tratar `poll.vote.failed` corretamente no webhook
+Quando o evento e `poll.vote.failed`, nao tentar processar como voto valido. Registrar o fato e retornar sem erro.
 
-### 2. Tratar resposta vazia corretamente
+## Alteracoes
 
-Quando a WAHA retorna uma lista de opcoes sem votantes:
-- Se engine = NOWEB: manter o aviso de limitacao (NOWEB realmente nao suporta votos)
-- Se engine != NOWEB (GOWS, WEBJS, etc): retornar os votos como 0 normalmente e atualizar o banco
+### Arquivo: `supabase/functions/waha-webhook/index.ts`
+- Separar tratamento de `poll.vote` (sucesso) de `poll.vote.failed` (falha)
+- Quando `poll.vote.failed`, logar e retornar sem tentar atualizar votos
 
-### 3. Melhorar mensagem na UI
+### Arquivo: `src/modules/conversas/components/ChatMessageBubble.tsx`
+- Quando `engine_limitation` for true, mostrar mensagem especifica:
+  "Votos nao disponiveis com engine NOWEB. Troque para GOWS nas configuracoes para habilitar."
+- Quando houver 0 votos sem limitacao, mostrar normalmente "0 votos"
+- Esconder o botao "Mostrar votos" quando engine for NOWEB (nao tem sentido clicar)
 
-No `ChatMessageBubble.tsx`, quando `engine_limitation` for true:
-- Mostrar "Votos nao disponiveis com engine NOWEB" (manter como esta)
-- Quando os votos vierem como 0 sem limitacao, mostrar normalmente com "0 votos"
+### Arquivo: `supabase/functions/waha-proxy/index.ts`
+- Retornar o nome do engine na resposta para a UI poder exibir
+- Quando NOWEB, retornar `engine_limitation: true` com mensagem descritiva
+
+### Redeploy
+- Forcar redeploy de `waha-webhook` e `waha-proxy`
 
 ## Detalhes Tecnicos
 
-### Arquivo: `supabase/functions/waha-proxy/index.ts`
-
-No case `consultar_votos_enquete` (linhas 825-953):
-
+### Webhook - separar poll.vote de poll.vote.failed:
 ```text
-// Antes de consultar votos, verificar engine da sessao
-const sessionInfoResp = await fetch(`${baseUrl}/api/sessions/${sessionId}`, {
-  headers: { "X-Api-Key": apiKey }
-});
-const sessionInfo = await sessionInfoResp.json().catch(() => ({}));
-const engineName = (sessionInfo?.engine || sessionInfo?.config?.engine || "NOWEB").toUpperCase();
+if (body.event === "poll.vote") {
+  // Processar voto normalmente (GOWS/WEBJS)
+  // Buscar mensagem por poll.id, atualizar poll_options
+}
 
-// Ao verificar votos vazios:
-if (!hasActualVotes) {
-  if (engineName === "NOWEB") {
-    // Limitacao real do NOWEB
-    return { engine_limitation: true, error: "..." }
-  } else {
-    // Ninguem votou ainda - retornar 0 votos normalmente
-    return { ok: true, poll_options: currentOptions } // todas com votes: 0
-  }
+if (body.event === "poll.vote.failed") {
+  // NOWEB - votos criptografados
+  // Apenas logar e retornar sem erro
+  return { ok: true, message: "Poll vote failed (NOWEB limitation)" }
 }
 ```
 
-Quando o endpoint retorna erro (status != 200):
-- Se engine NOWEB: retornar `engine_limitation: true`
-- Se engine GOWS/WEBJS: retornar erro real ao inves de assumir limitacao
+### UI - mensagem clara no PollContent:
+```text
+Quando engine_limitation === true:
+  Mostrar banner: "Votos nao disponiveis com engine NOWEB"
+  Subtexto: "Troque para GOWS nas configuracoes de WhatsApp"
+  Esconder botao "Mostrar votos"
 
-### Arquivo: `src/modules/conversas/components/ChatMessageBubble.tsx`
-
-Nenhuma alteracao necessaria -- a UI ja trata `engine_limitation` vs votos normais corretamente.
+Quando votos normais (GOWS/WEBJS):
+  Mostrar contagem normalmente
+```
 
 ## Arquivos modificados
-
-1. `supabase/functions/waha-proxy/index.ts` -- Adicionar consulta de engine + logica condicional
+1. `supabase/functions/waha-webhook/index.ts` - Separar poll.vote/poll.vote.failed
+2. `supabase/functions/waha-proxy/index.ts` - Melhorar resposta com info de engine
+3. `src/modules/conversas/components/ChatMessageBubble.tsx` - Mensagem informativa na UI
 
