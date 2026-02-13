@@ -114,7 +114,7 @@ export function FormulariosPage() {
   // Update center content when filters/contadores change
   useEffect(() => {
     setCenterContent(
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 w-full justify-center lg:justify-end">
         <FormulariosToolbarFilters
           statusFilter={statusFilter}
           setStatusFilter={setStatusFilter}

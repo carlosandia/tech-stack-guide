@@ -13,29 +13,17 @@ interface Props {
   baseUrl: string
 }
 
-type EmbedType = 'inline' | 'modal' | 'sidebar' | 'iframe'
+type EmbedType = 'inline' | 'modal' | 'sidebar'
 
 const EMBED_LABELS: Record<EmbedType, string> = {
   inline: 'Padrão (embutido)',
   modal: 'Modal (popup)',
   sidebar: 'Sidebar (lateral)',
-  iframe: 'iFrame (legado)',
 }
 
 const SUPABASE_URL = 'https://ybzhlsalbnxwkfszkloa.supabase.co'
 
-function generateEmbedCode(slug: string, baseUrl: string, type: EmbedType): string {
-  if (type === 'iframe') {
-    const url = `${baseUrl}/f/${slug}`
-    return `<iframe 
-  src="${url}" 
-  width="100%" 
-  height="600" 
-  frameborder="0" 
-  style="border:none;max-width:600px;margin:0 auto;display:block;">
-</iframe>`
-  }
-
+function generateEmbedCode(slug: string, _baseUrl: string, type: EmbedType): string {
   const configApi = `${SUPABASE_URL}/functions/v1/widget-formulario-config?slug=${slug}`
   const submitApi = `${SUPABASE_URL}/functions/v1/processar-submissao-formulario`
 
@@ -352,6 +340,10 @@ export function EmbedCodeCard({ slug, baseUrl }: Props) {
           {copied ? 'Copiado' : 'Copiar'}
         </Button>
       </div>
+
+      <p className="text-[11px] text-muted-foreground leading-tight">
+        💡 O script é dinâmico — alterações no formulário refletem automaticamente no site. Pode levar até 1 minuto para atualizar.
+      </p>
     </div>
   )
 }
