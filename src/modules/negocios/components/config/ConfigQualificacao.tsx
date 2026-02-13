@@ -61,7 +61,7 @@ export function ConfigQualificacao({ funilId }: Props) {
           className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-all duration-200"
         >
           <Plus className="w-4 h-4" />
-          Adicionar Regra
+          Adicionar
         </button>
       </div>
 
