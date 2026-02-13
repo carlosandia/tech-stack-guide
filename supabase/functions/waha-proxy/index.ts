@@ -837,6 +837,26 @@ Deno.serve(async (req) => {
 
         console.log(`[waha-proxy] Fetching poll votes for ${pollMsgId}, session: ${sessionId}`);
 
+        // AIDEV-NOTE: Primeiro, consultar o engine real da sessao WAHA para evitar falso positivo NOWEB
+        let engineName = "NOWEB"; // default pessimista
+        try {
+          const sessionInfoResp = await fetch(`${baseUrl}/api/sessions/${sessionId}`, {
+            method: "GET",
+            headers: { "X-Api-Key": apiKey },
+          });
+          if (sessionInfoResp.ok) {
+            const sessionInfo = await sessionInfoResp.json().catch(() => ({}));
+            engineName = (sessionInfo?.engine || sessionInfo?.config?.engine || "NOWEB").toUpperCase();
+            console.log(`[waha-proxy] Session engine detected: ${engineName}`);
+          } else {
+            console.warn(`[waha-proxy] Could not fetch session info (${sessionInfoResp.status}), assuming NOWEB`);
+          }
+        } catch (engineErr) {
+          console.warn(`[waha-proxy] Error fetching session engine:`, engineErr);
+        }
+
+        const isNoweb = engineName === "NOWEB";
+
         // Try WAHA poll votes endpoint
         try {
           const pollVotesResp = await fetch(`${baseUrl}/api/${sessionId}/polls/${encodeURIComponent(pollMsgId)}/votes`, {
@@ -845,10 +865,10 @@ Deno.serve(async (req) => {
           });
 
           const pollVotesData = await pollVotesResp.json().catch(() => null);
-          console.log(`[waha-proxy] Poll votes response: ${pollVotesResp.status}`, JSON.stringify(pollVotesData).substring(0, 500));
+          console.log(`[waha-proxy] Poll votes response: ${pollVotesResp.status}, engine: ${engineName}`, JSON.stringify(pollVotesData).substring(0, 500));
 
           if (pollVotesResp.ok && pollVotesData) {
-            // Check if WAHA returned empty/encrypted votes (NOWEB engine limitation)
+            // Check if WAHA returned empty/encrypted votes
             const votes = pollVotesData.votes || pollVotesData || [];
             const hasActualVotes = Array.isArray(votes) && votes.length > 0 && votes.some((v: Record<string, unknown>) => {
               const voters = v.voters || v.chatIds || [];
@@ -856,16 +876,59 @@ Deno.serve(async (req) => {
             });
 
             if (!hasActualVotes) {
-              // NOWEB engine limitation - votes are encrypted and can't be decrypted
-              console.log(`[waha-proxy] Poll votes empty/encrypted - NOWEB engine limitation`);
-              return new Response(
-                JSON.stringify({ 
-                  ok: false, 
-                  engine_limitation: true,
-                  error: "Votos de enquete não disponíveis com engine NOWEB. Verifique diretamente no WhatsApp." 
-                }),
-                { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-              );
+              if (isNoweb) {
+                // Limitacao real do NOWEB - votos sao encriptados
+                console.log(`[waha-proxy] Poll votes empty + engine NOWEB - real limitation`);
+                return new Response(
+                  JSON.stringify({ 
+                    ok: false, 
+                    engine_limitation: true,
+                    error: "Votos de enquete não disponíveis com engine NOWEB. Verifique diretamente no WhatsApp." 
+                  }),
+                  { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+                );
+              } else {
+                // Engine GOWS/WEBJS - ninguem votou ainda, retornar 0 votos normalmente
+                console.log(`[waha-proxy] Poll votes empty + engine ${engineName} - 0 votes (normal)`);
+                
+                // Buscar opcoes atuais do banco para retornar com 0 votos
+                if (pollConversaId) {
+                  const { data: pollMsg } = await supabaseAdmin
+                    .from("mensagens")
+                    .select("id, poll_options")
+                    .eq("message_id", pollMsgId)
+                    .eq("organizacao_id", organizacaoId)
+                    .maybeSingle();
+
+                  let targetMsg = pollMsg;
+                  if (!targetMsg && pollMsgId.includes('_')) {
+                    const shortId = pollMsgId.split('_').pop();
+                    const { data: ilikeMsg } = await supabaseAdmin
+                      .from("mensagens")
+                      .select("id, poll_options")
+                      .ilike("message_id", `%_${shortId}`)
+                      .eq("organizacao_id", organizacaoId)
+                      .maybeSingle();
+                    targetMsg = ilikeMsg;
+                  }
+
+                  if (targetMsg?.poll_options) {
+                    const zeroOptions = (targetMsg.poll_options as Array<{ text: string; votes: number }>).map(opt => ({
+                      ...opt,
+                      votes: 0,
+                    }));
+                    return new Response(
+                      JSON.stringify({ ok: true, poll_options: zeroOptions }),
+                      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+                    );
+                  }
+                }
+
+                return new Response(
+                  JSON.stringify({ ok: true, data: pollVotesData }),
+                  { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+                );
+              }
             }
 
             // Update poll_options in the database
@@ -930,23 +993,38 @@ Deno.serve(async (req) => {
             );
           }
 
-          // If endpoint returned error, it's likely a NOWEB limitation
-          return new Response(
-            JSON.stringify({ 
-              ok: false, 
-              engine_limitation: true,
-              error: "Votos de enquete não disponíveis com engine NOWEB. Verifique diretamente no WhatsApp.",
-              status: pollVotesResp.status 
-            }),
-            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+          // Endpoint retornou erro - verificar engine para decidir mensagem
+          if (isNoweb) {
+            return new Response(
+              JSON.stringify({ 
+                ok: false, 
+                engine_limitation: true,
+                error: "Votos de enquete não disponíveis com engine NOWEB. Verifique diretamente no WhatsApp.",
+                status: pollVotesResp.status 
+              }),
+              { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          } else {
+            // Engine suporta votos mas deu erro real
+            return new Response(
+              JSON.stringify({ 
+                ok: false, 
+                engine_limitation: false,
+                error: `Erro ao consultar votos (status ${pollVotesResp.status}). Tente novamente.`,
+                status: pollVotesResp.status 
+              }),
+              { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
         } catch (e) {
           console.error(`[waha-proxy] Error fetching poll votes:`, e);
           return new Response(
             JSON.stringify({ 
               ok: false, 
-              engine_limitation: true,
-              error: "Votos de enquete não disponíveis. Verifique diretamente no WhatsApp." 
+              engine_limitation: isNoweb,
+              error: isNoweb 
+                ? "Votos de enquete não disponíveis com engine NOWEB. Verifique diretamente no WhatsApp."
+                : "Erro ao consultar votos. Tente novamente."
             }),
             { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
