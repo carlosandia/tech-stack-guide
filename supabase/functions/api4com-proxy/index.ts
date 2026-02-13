@@ -67,17 +67,24 @@ Deno.serve(async (req) => {
       try {
         // Tentar chamar um endpoint básico da API4COM para validar
         const baseUrl = (api_url || 'https://api.api4com.com').replace(/\/$/, '')
-        const response = await fetch(`${baseUrl}/api/v1/users/me`, {
+        const validateUrl = `${baseUrl}/api/v1/users/me`
+        console.log('[API4COM validate] URL:', validateUrl)
+        console.log('[API4COM validate] Token length:', token.length)
+        
+        const response = await fetch(validateUrl, {
           headers: { 'Authorization': token },
         })
+
+        const responseText = await response.text()
+        console.log('[API4COM validate] Status:', response.status, 'Response:', responseText.substring(0, 500))
 
         if (response.ok) {
           return new Response(JSON.stringify({ valid: true }), { headers: corsHeaders })
         } else {
-          const errorText = await response.text().catch(() => 'Token inválido')
-          return new Response(JSON.stringify({ valid: false, message: `Token inválido: ${response.status}` }), { headers: corsHeaders })
+          return new Response(JSON.stringify({ valid: false, message: `Token inválido: ${response.status} - ${responseText.substring(0, 200)}` }), { headers: corsHeaders })
         }
       } catch (err) {
+        console.error('[API4COM validate] Fetch error:', err)
         return new Response(JSON.stringify({ valid: false, message: 'Erro ao conectar com API4COM. Verifique a URL.' }), { headers: corsHeaders })
       }
     }
