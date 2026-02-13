@@ -140,26 +140,38 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
     alterarStatus.mutate({ id: conversa.id, status })
   }
 
+  // Upload progress state
+  const [uploadProgress, setUploadProgress] = useState<{ filename: string; progress: number } | null>(null)
+
   const handleFileSelected = useCallback(async (file: File, tipo: string) => {
     try {
+      setUploadProgress({ filename: file.name, progress: 10 })
+
       // Comprimir imagem antes do upload (transparente para não-imagens)
       const processed = await compressImage(file, file.name)
       const finalFile = processed instanceof File ? processed : new File([processed], file.name)
       const ext = finalFile.name.split('.').pop() || 'bin'
       const path = `conversas/${conversa.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
 
+      setUploadProgress({ filename: file.name, progress: 30 })
+
       const { error: uploadError } = await supabase.storage
         .from('chat-media')
-        .upload(path, finalFile)
+        .upload(path, finalFile, { contentType: file.type || 'application/octet-stream' })
 
       if (uploadError) {
+        setUploadProgress(null)
         toast.error('Erro ao fazer upload do arquivo')
         return
       }
 
+      setUploadProgress({ filename: file.name, progress: 70 })
+
       const { data: urlData } = supabase.storage
         .from('chat-media')
         .getPublicUrl(path)
+
+      setUploadProgress({ filename: file.name, progress: 90 })
 
       await conversasApi.enviarMedia(conversa.id, {
         tipo,
@@ -168,8 +180,11 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
         filename: file.name,
       })
 
+      setUploadProgress({ filename: file.name, progress: 100 })
+      setTimeout(() => setUploadProgress(null), 600)
       toast.success('Arquivo enviado')
     } catch (error: any) {
+      setUploadProgress(null)
       toast.error(error?.message || 'Erro ao enviar arquivo')
     }
   }, [conversa.id])
@@ -381,6 +396,28 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
       />
 
       <div className="relative mt-auto">
+        {uploadProgress && (
+          <div className="mx-3 mb-2 flex items-center gap-3 px-3 py-2.5 rounded-lg bg-muted/60 border border-border/40 animate-in fade-in slide-in-from-bottom-2 duration-200">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+              <svg className="w-4 h-4 text-primary animate-spin" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-20" />
+                <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-foreground truncate">{uploadProgress.filename}</p>
+              <div className="mt-1 h-1.5 rounded-full bg-border/60 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
+                  style={{ width: `${uploadProgress.progress}%` }}
+                />
+              </div>
+            </div>
+            <span className="text-[11px] text-muted-foreground font-medium tabular-nums flex-shrink-0">
+              {uploadProgress.progress}%
+            </span>
+          </div>
+        )}
         <MensagensProntasPopover
           isOpen={quickRepliesOpen}
           onClose={() => setQuickRepliesOpen(false)}
