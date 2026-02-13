@@ -71,3 +71,6 @@ verify_jwt = false
 
 [functions.widget-formulario-loader]
 verify_jwt = false
+
+[functions.widget-whatsapp-loader]
+verify_jwt = false
