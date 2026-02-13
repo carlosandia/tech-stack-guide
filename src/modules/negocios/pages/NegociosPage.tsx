@@ -128,7 +128,7 @@ export default function NegociosPage() {
       localStorage.setItem(STORAGE_KEY, novoFunil.id)
       setShowNovaPipeline(false)
       toast.success('Pipeline criado com sucesso!')
-      navigate(`/app/negocios/pipeline/${novoFunil.id}`)
+      navigate(`/negocios/pipeline/${novoFunil.id}`)
     } catch (err: any) {
       toast.error(err.message || 'Erro ao criar pipeline')
     }

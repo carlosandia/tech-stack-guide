@@ -6,6 +6,7 @@
  */
 
 import { useState, useRef, useEffect, useMemo } from 'react'
+import ReactDOM from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { ChevronDown, Plus, Layers, Search, Archive, ArchiveRestore, Trash2, ChevronRight, Settings, AlertTriangle } from 'lucide-react'
 import type { Funil } from '../../services/negocios.api'
@@ -120,54 +121,55 @@ export function PipelineSelector({
       {open && (
         <>
           {/* Confirmação de exclusão (overlay) */}
-          {confirmDelete && (
-            <div
-              className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
-              style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
-              onClick={() => setConfirmDelete(null)}
-            >
+          {confirmDelete && ReactDOM.createPortal(
               <div
-                className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm p-5 space-y-4"
-                onClick={e => e.stopPropagation()}
+                className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+                style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+                onClick={() => setConfirmDelete(null)}
               >
-                <div className="flex items-start gap-3">
-                  <div className="p-2 bg-destructive/10 rounded-lg flex-shrink-0">
-                    <AlertTriangle className="w-5 h-5 text-destructive" />
-                  </div>
-                  <div className="min-w-0">
-                    <h3 className="text-sm font-semibold text-foreground">Excluir pipeline</h3>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Tem certeza que deseja excluir <strong>"{confirmDelete.nome}"</strong>?
-                    </p>
-                    {confirmDelete.count === null ? (
-                      <p className="text-xs text-muted-foreground mt-2">Verificando oportunidades...</p>
-                    ) : confirmDelete.count > 0 ? (
-                      <p className="text-xs text-destructive mt-2 font-medium">
-                        ⚠ Esta pipeline contém {confirmDelete.count} oportunidade{confirmDelete.count > 1 ? 's' : ''} que será{confirmDelete.count > 1 ? 'ão' : ''} excluída{confirmDelete.count > 1 ? 's' : ''}.
+                <div
+                  className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm p-5 space-y-4"
+                  onClick={e => e.stopPropagation()}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 bg-destructive/10 rounded-lg flex-shrink-0">
+                      <AlertTriangle className="w-5 h-5 text-destructive" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-semibold text-foreground">Excluir pipeline</h3>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Tem certeza que deseja excluir <strong>"{confirmDelete.nome}"</strong>?
                       </p>
-                    ) : (
-                      <p className="text-xs text-muted-foreground mt-2">Esta pipeline não possui oportunidades.</p>
-                    )}
-                    <p className="text-xs text-muted-foreground mt-1">Esta ação não pode ser desfeita.</p>
+                      {confirmDelete.count === null ? (
+                        <p className="text-xs text-muted-foreground mt-2">Verificando oportunidades...</p>
+                      ) : confirmDelete.count > 0 ? (
+                        <p className="text-xs text-destructive mt-2 font-medium">
+                          ⚠ Esta pipeline contém {confirmDelete.count} oportunidade{confirmDelete.count > 1 ? 's' : ''} que será{confirmDelete.count > 1 ? 'ão' : ''} excluída{confirmDelete.count > 1 ? 's' : ''}.
+                        </p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground mt-2">Esta pipeline não possui oportunidades.</p>
+                      )}
+                      <p className="text-xs text-muted-foreground mt-1">Esta ação não pode ser desfeita.</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setConfirmDelete(null)}
+                      className="flex-1 px-3 py-2 text-sm font-medium rounded-md border border-border hover:bg-accent transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleConfirmExcluir}
+                      disabled={confirmDelete.count === null}
+                      className="flex-1 px-3 py-2 text-sm font-medium rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors disabled:opacity-50"
+                    >
+                      Excluir
+                    </button>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setConfirmDelete(null)}
-                    className="flex-1 px-3 py-2 text-sm font-medium rounded-md border border-border hover:bg-accent transition-colors"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={handleConfirmExcluir}
-                    disabled={confirmDelete.count === null}
-                    className="flex-1 px-3 py-2 text-sm font-medium rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors disabled:opacity-50"
-                  >
-                    Excluir
-                  </button>
-                </div>
-              </div>
-            </div>
+              </div>,
+            document.body
           )}
 
           {/* Dropdown */}
@@ -217,7 +219,7 @@ export function PipelineSelector({
                       e.stopPropagation()
                       setOpen(false)
                       setBusca('')
-                      navigate(`/app/negocios/pipeline/${funil.id}`)
+                      navigate(`/negocios/pipeline/${funil.id}`)
                     }}
                   />
                 ))}
