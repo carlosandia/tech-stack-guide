@@ -262,18 +262,47 @@ function LocationContent({ mensagem }: { mensagem: Mensagem }) {
 }
 
 function ContactContent({ mensagem }: { mensagem: Mensagem }) {
+  // Parse vCard fields
+  const vcard = mensagem.vcard || ''
+  const displayName = vcard.match(/FN:(.*)/)?.[1]?.trim() || 'Contato'
+  const phone = vcard.match(/TEL[^:]*:(.*)/)?.[1]?.trim() || ''
+  const bizName = vcard.match(/X-WA-BIZ-NAME:(.*)/)?.[1]?.trim() || ''
+  const bizDesc = vcard.match(/X-WA-BIZ-DESCRIPTION:([\s\S]*?)(?=\n[A-Z])/)?.[1]?.trim() || ''
+  const isBiz = !!bizName
+
   return (
-    <div className="flex items-center gap-2 p-2 rounded-md bg-background/50 border border-border/50 min-w-[180px]">
-      <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-        <User className="w-5 h-5 text-muted-foreground" />
+    <div className="rounded-lg overflow-hidden min-w-[220px] max-w-[280px]">
+      {/* Contact card body */}
+      <div className="flex items-center gap-3 p-3 bg-muted/40">
+        <div className="w-11 h-11 rounded-full bg-muted flex items-center justify-center flex-shrink-0 border border-border/50">
+          <User className="w-5 h-5 text-muted-foreground" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-foreground truncate">{bizName || displayName}</p>
+          {isBiz && (
+            <p className="text-[11px] text-muted-foreground">Conta comercial</p>
+          )}
+          {bizDesc && (
+            <p className="text-[11px] text-muted-foreground truncate mt-0.5">{bizDesc.split('\n')[0]}</p>
+          )}
+          {!isBiz && phone && (
+            <p className="text-[11px] text-muted-foreground">{phone}</p>
+          )}
+        </div>
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-xs font-medium">Contato compartilhado</p>
-        {mensagem.vcard && (
-          <p className="text-[11px] text-muted-foreground truncate">
-            {mensagem.vcard.match(/FN:(.*)/)?.[1] || 'vCard'}
-          </p>
-        )}
+      {/* Action button */}
+      <div className="border-t border-border/50 bg-muted/20">
+        <button
+          onClick={() => {
+            if (phone) {
+              const cleanPhone = phone.replace(/\D/g, '')
+              window.open(`https://wa.me/${cleanPhone}`, '_blank')
+            }
+          }}
+          className="w-full py-2 text-xs font-medium text-primary hover:bg-primary/5 transition-colors"
+        >
+          Conversar
+        </button>
       </div>
     </div>
   )

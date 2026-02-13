@@ -643,6 +643,21 @@ Deno.serve(async (req) => {
     // =====================================================
     let wahaType = messageType === "chat" ? "text" : (messageType || "text");
 
+    // AIDEV-NOTE: Detect contact/vCard messages even when WAHA reports type as "chat"
+    // WAHA sometimes sends contact shares with messageType="chat" but includes vCards array
+    // or _data.message.contactMessage in the payload
+    if (
+      (wahaType === "text" || wahaType === "chat") &&
+      (
+        (Array.isArray(payload.vCards) && payload.vCards.length > 0) ||
+        payload._data?.message?.contactMessage ||
+        payload._data?.message?.contactsArrayMessage
+      )
+    ) {
+      wahaType = "contact";
+      console.log(`[waha-webhook] Contact/vCard detected from payload structure (was type: ${messageType})`);
+    }
+
     // If type is "text" but has media, infer correct type from mimetype
     if ((wahaType === "text" || wahaType === "chat") && payload.hasMedia && payload.media?.mimetype) {
       const mime = (payload.media.mimetype as string).toLowerCase();
@@ -809,7 +824,18 @@ Deno.serve(async (req) => {
     // Extract contact (vCard) data
     if (wahaType === "contact" || wahaType === "vcard") {
       messageInsert.tipo = "contact";
-      messageInsert.vcard = payload.vCards?.[0] || payload._data?.body || null;
+      // Try multiple sources for vCard data
+      messageInsert.vcard = payload.vCards?.[0]
+        || payload._data?.message?.contactMessage?.vcard
+        || payload._data?.body
+        || null;
+      // Extract display name from contactMessage if body is empty
+      if (!messageInsert.body) {
+        const displayName = payload._data?.message?.contactMessage?.displayName;
+        if (displayName) {
+          messageInsert.body = `Contato: ${displayName}`;
+        }
+      }
     }
 
     // Extract poll data
