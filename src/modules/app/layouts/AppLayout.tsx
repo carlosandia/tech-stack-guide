@@ -373,8 +373,8 @@ function ToolbarWithActions({ pageTitle }: { pageTitle: string }) {
   const { actions, subtitle, centerContent } = useAppToolbar()
 
   return (
-    <div className="flex-shrink-0 z-50 h-[48px] bg-gray-50/50 backdrop-blur-sm border-b border-gray-200/60">
-      <div className="flex items-center justify-between h-full px-3 sm:px-4 lg:px-6 max-w-[1920px] mx-auto py-1.5 gap-2">
+    <div className="flex-shrink-0 z-50 min-h-[48px] bg-gray-50/50 backdrop-blur-sm border-b border-gray-200/60">
+      <div className="flex items-center justify-between min-h-[48px] px-3 sm:px-4 lg:px-6 max-w-[1920px] mx-auto py-1.5 gap-2 flex-wrap">
         {/* Left: Título + Subtitle */}
         <div className="flex items-center gap-1.5 min-w-0 flex-shrink-0">
           <h1 className="text-sm sm:text-base font-semibold text-foreground whitespace-nowrap hidden sm:block">
@@ -391,7 +391,7 @@ function ToolbarWithActions({ pageTitle }: { pageTitle: string }) {
         )}
 
         {/* Right: Actions */}
-        <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
+        <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0 overflow-x-auto max-w-[calc(100vw-120px)] sm:max-w-none scrollbar-hide">
           {actions}
         </div>
       </div>
