@@ -1,11 +1,12 @@
 /**
  * AIDEV-NOTE: Modal de configuração avançada API4COM
- * Status, testar conexão, pipeline config
+ * Status, testar conexão, configuração de ramal VoIP
+ * Ramal visível para admin e member
  * Conforme Design System 10.5 - ModalBase
  */
 
-import { useState } from 'react'
-import { Phone, Loader2, CheckCircle2, XCircle, Globe } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Phone, Loader2, CheckCircle2, XCircle, Globe, Save } from 'lucide-react'
 
 import { ModalBase } from '../ui/ModalBase'
 import { supabase } from '@/lib/supabase'
@@ -20,6 +21,38 @@ interface Props {
 export function Api4comConfigModal({ integracao, onClose, onDesconectar }: Props) {
   const [testando, setTestando] = useState(false)
   const [testeResult, setTesteResult] = useState<{ valid: boolean; message?: string } | null>(null)
+
+  // Ramal VoIP
+  const [ramalExtension, setRamalExtension] = useState('')
+  const [ramalPassword, setRamalPassword] = useState('')
+  const [ramalSipServer, setRamalSipServer] = useState('sip.api4com.com.br')
+  const [ramalNome, setRamalNome] = useState('')
+  const [ramalCarregado, setRamalCarregado] = useState(false)
+  const [ramalExistente, setRamalExistente] = useState(false)
+  const [salvandoRamal, setSalvandoRamal] = useState(false)
+  const [ramalResult, setRamalResult] = useState<{ success: boolean; message?: string } | null>(null)
+
+  // Carregar ramal existente
+  useEffect(() => {
+    async function carregarRamal() {
+      try {
+        const { data } = await supabase.functions.invoke('api4com-proxy', {
+          body: { action: 'get-extension' },
+        })
+        if (data?.ramal) {
+          setRamalExtension(data.ramal.extension || '')
+          setRamalSipServer(data.ramal.sip_server || 'sip.api4com.com.br')
+          setRamalNome(data.ramal.nome_exibicao || '')
+          setRamalExistente(true)
+        }
+      } catch {
+        // silencioso
+      } finally {
+        setRamalCarregado(true)
+      }
+    }
+    carregarRamal()
+  }, [])
 
   const handleTestarConexao = async () => {
     setTestando(true)
@@ -38,6 +71,40 @@ export function Api4comConfigModal({ integracao, onClose, onDesconectar }: Props
       setTesteResult({ valid: false, message: 'Erro de rede' })
     } finally {
       setTestando(false)
+    }
+  }
+
+  const handleSalvarRamal = async () => {
+    if (!ramalExtension || !ramalPassword) {
+      setRamalResult({ success: false, message: 'Ramal e senha são obrigatórios' })
+      return
+    }
+    setSalvandoRamal(true)
+    setRamalResult(null)
+    try {
+      const { data, error } = await supabase.functions.invoke('api4com-proxy', {
+        body: {
+          action: 'save-extension',
+          extension: ramalExtension,
+          password: ramalPassword,
+          sip_server: ramalSipServer,
+          nome_exibicao: ramalNome || null,
+        },
+      })
+
+      if (error) {
+        setRamalResult({ success: false, message: 'Erro ao salvar ramal' })
+      } else if (data?.success) {
+        setRamalResult({ success: true, message: 'Ramal salvo com sucesso!' })
+        setRamalExistente(true)
+        setRamalPassword('') // Limpar senha após salvar
+      } else {
+        setRamalResult({ success: false, message: data?.message || 'Erro ao salvar ramal' })
+      }
+    } catch {
+      setRamalResult({ success: false, message: 'Erro de rede' })
+    } finally {
+      setSalvandoRamal(false)
     }
   }
 
@@ -79,7 +146,7 @@ export function Api4comConfigModal({ integracao, onClose, onDesconectar }: Props
         </div>
       }
     >
-      <div className="px-4 sm:px-6 py-4 space-y-4">
+      <div className="px-4 sm:px-6 py-4 space-y-5">
         {/* Status */}
         <div className="space-y-2">
           <h4 className="text-xs font-semibold text-foreground">Status da Conexão</h4>
@@ -132,6 +199,105 @@ export function Api4comConfigModal({ integracao, onClose, onDesconectar }: Props
                 <XCircle className="w-3.5 h-3.5" />
               )}
               {testeResult.valid ? 'Conexão válida!' : testeResult.message || 'Token inválido'}
+            </div>
+          )}
+        </div>
+
+        {/* Configuração de Ramal VoIP */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-semibold text-foreground">Meu Ramal VoIP</h4>
+            {ramalExistente && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-[hsl(var(--success-muted))] text-[hsl(var(--success-foreground))]">
+                <CheckCircle2 className="w-2.5 h-2.5" />
+                Configurado
+              </span>
+            )}
+          </div>
+
+          <p className="text-[11px] text-muted-foreground">
+            Configure seu ramal para realizar ligações diretamente pelo CRM. Cada usuário deve configurar seu próprio ramal.
+          </p>
+
+          {ramalCarregado ? (
+            <div className="space-y-2.5">
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-foreground">Ramal *</label>
+                  <input
+                    type="text"
+                    value={ramalExtension}
+                    onChange={(e) => setRamalExtension(e.target.value)}
+                    placeholder="Ex: 1001"
+                    className="w-full text-xs px-2.5 py-1.5 rounded-md border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-foreground">Senha *</label>
+                  <input
+                    type="password"
+                    value={ramalPassword}
+                    onChange={(e) => setRamalPassword(e.target.value)}
+                    placeholder={ramalExistente ? '••••••' : 'Senha do ramal'}
+                    className="w-full text-xs px-2.5 py-1.5 rounded-md border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-foreground">Servidor SIP</label>
+                  <input
+                    type="text"
+                    value={ramalSipServer}
+                    onChange={(e) => setRamalSipServer(e.target.value)}
+                    placeholder="sip.api4com.com.br"
+                    className="w-full text-xs px-2.5 py-1.5 rounded-md border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-foreground">Nome de exibição</label>
+                  <input
+                    type="text"
+                    value={ramalNome}
+                    onChange={(e) => setRamalNome(e.target.value)}
+                    placeholder="Ex: João Silva"
+                    className="w-full text-xs px-2.5 py-1.5 rounded-md border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={handleSalvarRamal}
+                disabled={salvandoRamal || (!ramalPassword && !ramalExistente)}
+                className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                {salvandoRamal ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Save className="w-3.5 h-3.5" />
+                )}
+                {ramalExistente ? 'Atualizar Ramal' : 'Salvar Ramal'}
+              </button>
+
+              {ramalResult && (
+                <div className={`flex items-center gap-1.5 text-xs p-2 rounded-md ${
+                  ramalResult.success
+                    ? 'bg-[hsl(var(--success-muted))] text-[hsl(var(--success-foreground))]'
+                    : 'bg-destructive/10 text-destructive'
+                }`}>
+                  {ramalResult.success ? (
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                  ) : (
+                    <XCircle className="w-3.5 h-3.5" />
+                  )}
+                  {ramalResult.message}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 p-3">
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
+              <span className="text-[11px] text-muted-foreground">Carregando ramal...</span>
             </div>
           )}
         </div>
