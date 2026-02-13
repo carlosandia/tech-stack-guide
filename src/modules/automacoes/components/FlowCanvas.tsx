@@ -192,7 +192,7 @@ export function FlowCanvas({
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="hsl(var(--border))" />
         <Controls
           showInteractive={false}
-          className="!bg-white !border-border !shadow-sm !rounded-lg sm:!bottom-auto sm:!left-auto !bottom-20 !left-3"
+          className="!bg-white !border-border !shadow-sm !rounded-lg sm:!bottom-auto sm:!left-auto !bottom-20 !right-3"
         />
         <MiniMap
           className="!bg-white !border-border !shadow-sm !rounded-lg hidden sm:block"
