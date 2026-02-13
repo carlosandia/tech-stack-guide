@@ -1,40 +1,85 @@
 
-# Fundo cinza como regra global dos modulos
 
-## Objetivo
-Aplicar o fundo cinza claro (`hsl(220, 10%, 95%)`) como padrao para a area de conteudo de todos os modulos, mantendo header e toolbar com fundo branco. Isso cria coerencia visual entre o Kanban (que ja usa esse fundo) e os demais modulos como Contatos, Dashboard, etc.
+# Responsividade: Toolbar de Selecao + Modal de Detalhes da Oportunidade
 
-## O que muda
+## Problema Atual
 
-### 1. AppLayout - Fundo cinza na area de conteudo (`main`)
-Alterar o `<main>` no `AppLayout.tsx` para aplicar o fundo cinza globalmente, em vez de cada modulo definir o seu:
+### 1. Toolbar de Selecao (OportunidadeBulkActions)
+- No mobile, a barra fixa no bottom com todos os botoes lado a lado ultrapassa a largura da tela
+- Os dropdowns (Mover, Tags) abrem para cima mas podem ficar cortados
+- A confirmacao de exclusao expande a barra ainda mais, quebrando o layout
+- Nao segue o Design System (7.7.2): "Bulk actions no mobile = Modo selecao"
 
-- **Antes:** `<main className="flex-1 overflow-hidden">`
-- **Depois:** `<main className="flex-1 overflow-hidden" style={{ backgroundColor: 'hsl(220, 10%, 95%)' }}>`
+### 2. Modal de Detalhes (DetalhesOportunidadeModal)
+- As 3 colunas empilham verticalmente no mobile mas ficam todas dentro de um unico scroll, tornando a navegacao confusa
+- O header com stepper de etapas ocupa muito espaco horizontal
+- As abas mostram apenas icones sem labels no mobile, dificultando a identificacao
+- O historico fica "perdido" no final do scroll, sem forma rapida de acessar
 
-Isso garante que **todos** os modulos herdem o fundo cinza automaticamente.
+---
 
-### 2. KanbanBoard - Remover fundo inline duplicado
-O `KanbanBoard.tsx` ja define `backgroundColor: 'hsl(220, 10%, 95%)'` inline. Como o `main` agora trata disso, remover o style inline do wrapper do Kanban para evitar duplicacao.
+## Proposta de Solucao
 
-### 3. MetricasPanel - Remover fundo inline duplicado
-O `MetricasPanel.tsx` tambem define o mesmo fundo inline. Remover para herdar do `main`.
+### 1. Toolbar de Selecao - Refatoracao Mobile
 
-### 4. ContatosPage - Ajustar paginacao
-A barra de paginacao na `ContatosPage` usa `bg-background` (branco puro). Manter assim para contraste com o fundo cinza -- sem alteracao necessaria.
+**Abordagem:** No mobile (< 768px), simplificar a barra para mostrar apenas o contador + acoes como icones compactos, com os dropdowns abrindo como sheets/modais ao inves de popovers.
 
-## Resultado visual
-- **Header (nav top):** branco com backdrop blur (sem mudanca)
-- **Toolbar:** cinza sutil `bg-gray-50/50` (sem mudanca)
-- **Area de conteudo (main):** fundo cinza `hsl(220, 10%, 95%)` em todos os modulos
-- **Cards/tabelas:** brancos sobre fundo cinza, criando hierarquia visual
+Mudancas no `OportunidadeBulkActions.tsx`:
+- Reduzir padding e gap no mobile (`px-2 py-2 gap-1.5 sm:px-4 sm:py-3 sm:gap-3`)
+- Garantir `max-w-[calc(100vw-32px)]` para nunca ultrapassar a tela
+- Botoes: apenas icones no mobile (ja oculta labels com `hidden sm:inline`, mas o padding ainda e grande)
+- Reduzir padding dos botoes no mobile (`px-2 py-1.5 sm:px-3`)
+- Confirmacao de exclusao: simplificar para apenas "Sim/Nao" inline mais compacto
+- Dropdowns (Mover/Tags): posicionar com `left-1/2 -translate-x-1/2` no mobile para centralizar e nao cortar nas bordas
+- Touch targets minimos de 44px conforme Design System 7.7.3
 
-## Detalhes tecnicos
+### 2. Modal de Detalhes - Redesign Mobile
 
-| Arquivo | Alteracao |
-|---------|-----------|
-| `src/modules/app/layouts/AppLayout.tsx` | Adicionar `style={{ backgroundColor: 'hsl(220, 10%, 95%)' }}` no `<main>` (linha 348) |
-| `src/modules/negocios/components/kanban/KanbanBoard.tsx` | Remover `style={{ backgroundColor: ... }}` do wrapper (linha 218) |
-| `src/modules/negocios/components/toolbar/MetricasPanel.tsx` | Remover `style={{ backgroundColor: ... }}` do container (linha 140) |
+**Abordagem:** No mobile, o modal ocupa tela inteira (fullscreen) e reorganiza o conteudo em abas/secoes navegaveis ao inves de empilhar tudo.
 
-Total: 3 arquivos, alteracoes minimas e sem impacto funcional.
+#### 2.1 Container do Modal (`DetalhesOportunidadeModal.tsx`)
+- Mobile: fullscreen (`inset-0, rounded-none, max-h-full`)
+- Desktop: mantem o comportamento atual com `max-w-7xl`
+- Classes: `w-full h-full sm:w-[calc(100%-16px)] sm:max-w-5xl lg:max-w-7xl sm:max-h-[90vh] sm:rounded-lg`
+
+#### 2.2 Header (`DetalhesHeader.tsx`)
+- Mobile: stepper de etapas em uma segunda linha abaixo do titulo com scroll horizontal
+- Titulo truncado com `max-w-[180px]` no mobile
+- Layout: `flex-wrap` para permitir a quebra de linha no mobile
+- Stepper: `w-full order-last` no mobile, `flex-1` no desktop
+
+#### 2.3 Body - Layout Adaptativo (`DetalhesOportunidadeModal.tsx`)
+- **Mobile:** As 3 secoes (Campos, Abas, Historico) ficam em tabs internas ao inves de empilhadas
+  - Criar um sistema de navegacao mobile com 3 botoes no topo do body: "Dados", "Atividades", "Historico"
+  - Apenas a secao ativa fica visivel, com scroll proprio
+  - Historico fica acessivel com um toque ao inves de rolar ate o final
+- **Desktop (lg+):** Mantem as 3 colunas lado a lado como atualmente
+
+#### 2.4 Abas (`DetalhesAbas.tsx`)
+- Ja oculta labels no mobile com `hidden sm:inline` - manter
+- Garantir que os icones tenham touch target de 44px minimo
+
+---
+
+## Detalhes Tecnicos
+
+### Arquivos a modificar:
+
+1. **`src/modules/negocios/components/kanban/OportunidadeBulkActions.tsx`**
+   - Ajustar classes responsivas do container principal
+   - Reduzir padding/gap dos botoes no mobile
+   - Centralizar dropdowns no mobile
+   - Compactar confirmacao de exclusao
+
+2. **`src/modules/negocios/components/detalhes/DetalhesOportunidadeModal.tsx`**
+   - Modal fullscreen no mobile
+   - Adicionar navegacao por abas mobile (Dados / Atividades / Historico)
+   - Condicionar layout 3-colunas apenas para `lg+`
+
+3. **`src/modules/negocios/components/detalhes/DetalhesHeader.tsx`**
+   - Stepper em segunda linha no mobile com scroll horizontal
+   - Ajustar truncamento e espacamento
+
+### Sem dependencias novas
+Todas as mudancas usam apenas Tailwind CSS responsivo e estado React local.
+
