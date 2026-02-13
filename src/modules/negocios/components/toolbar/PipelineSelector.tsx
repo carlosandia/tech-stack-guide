@@ -96,12 +96,14 @@ export function PipelineSelector({
     }
   }
 
-  const handleConfirmExcluir = () => {
+  const handleConfirmExcluir = async () => {
     if (!confirmDelete) return
-    onExcluir?.(confirmDelete.funilId)
+    const funilId = confirmDelete.funilId
     setConfirmDelete(null)
     setOpen(false)
     setBusca('')
+    // Chamar após fechar para garantir que o callback execute
+    onExcluir?.(funilId)
   }
 
   return (

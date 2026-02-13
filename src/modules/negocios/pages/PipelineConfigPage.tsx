@@ -115,9 +115,35 @@ export default function PipelineConfigPage() {
         <GerenciarMembrosPipeline funilId={funilId} />
       </header>
 
+      {/* Mobile tabs */}
+      <div className="md:hidden border-b border-border bg-card flex-shrink-0 overflow-x-auto">
+        <div className="flex">
+          {NAV_ITEMS.map(item => {
+            const Icon = item.icon
+            const isActive = activeTab === item.id
+            return (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
+                className={`
+                  flex items-center gap-1.5 px-3 py-2.5 text-xs whitespace-nowrap border-b-2 transition-all duration-200
+                  ${isActive
+                    ? 'text-primary border-primary font-medium'
+                    : 'text-muted-foreground border-transparent hover:text-foreground'
+                  }
+                `}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                {item.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
       {/* Body */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar */}
+        {/* Sidebar - desktop only */}
         <nav className="w-56 border-r border-border bg-card flex-shrink-0 overflow-y-auto hidden md:block">
           <div className="py-3">
             {GROUPS.map(group => {
@@ -155,37 +181,9 @@ export default function PipelineConfigPage() {
           </div>
         </nav>
 
-        {/* Mobile tabs */}
-        <div className="md:hidden border-b border-border bg-card flex-shrink-0 overflow-x-auto">
-          <div className="flex">
-            {NAV_ITEMS.map(item => {
-              const Icon = item.icon
-              const isActive = activeTab === item.id
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveTab(item.id)}
-                  className={`
-                    flex items-center gap-1.5 px-3 py-2.5 text-xs whitespace-nowrap border-b-2 transition-all duration-200
-                    ${isActive
-                      ? 'text-primary border-primary font-medium'
-                      : 'text-muted-foreground border-transparent hover:text-foreground'
-                    }
-                  `}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  {item.label}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-
         {/* Content */}
-        <main className="flex-1 overflow-hidden p-4 sm:p-6 flex flex-col">
-          <div className="flex-1 min-h-0">
-            {renderTab()}
-          </div>
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+          {renderTab()}
         </main>
       </div>
     </div>
