@@ -342,6 +342,11 @@ function PollContent({ mensagem, conversaId }: { mensagem: Mensagem; conversaId?
   const [options, setOptions] = useState(mensagem.poll_options)
   const [showVoters, setShowVoters] = useState(false)
 
+  // AIDEV-NOTE: Sincronizar estado local com props quando Realtime/cache invalidation atualizar os dados
+  useEffect(() => {
+    setOptions(mensagem.poll_options)
+  }, [mensagem.poll_options])
+
   const handleRefresh = async () => {
     if (!conversaId || !mensagem.message_id) return
     setLoading(true)
