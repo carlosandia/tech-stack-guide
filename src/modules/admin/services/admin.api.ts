@@ -586,27 +586,44 @@ export async function obterLimitesOrganizacao(id: string): Promise<LimitesUso> {
     .eq('organizacao_id', id)
     .is('deletado_em', null)
 
-  // Contar contatos
+  // Contar contatos (pessoas)
   const { count: contatosCount } = await supabase
     .from('contatos')
     .select('*', { count: 'exact', head: true })
     .eq('organizacao_id', id)
     .is('deletado_em', null)
 
-  // Buscar limites da organização
+  // Buscar limites da organização + plano associado
   const { data: org } = await supabase
     .from('organizacoes_saas')
-    .select('limite_usuarios, limite_oportunidades, limite_storage_mb')
+    .select('limite_usuarios, limite_oportunidades, limite_storage_mb, plano')
     .eq('id', id)
     .single()
 
+  // Buscar limites do plano (limite_contatos e limite_storage_mb vêm do plano)
+  let limiteContatos: number | null = null
+  let limiteStoragePlano: number | null = null
+  if (org?.plano) {
+    const { data: plano } = await supabase
+      .from('planos')
+      .select('limite_contatos, limite_storage_mb')
+      .eq('nome', org.plano)
+      .maybeSingle()
+    limiteContatos = plano?.limite_contatos ?? null
+    limiteStoragePlano = plano?.limite_storage_mb ?? null
+  }
+
   const limiteUsuarios = org?.limite_usuarios ?? 5
   const limiteOp = org?.limite_oportunidades ?? null
-  const limiteStorage = org?.limite_storage_mb ?? 500
+  const limiteStorage = limiteStoragePlano ?? org?.limite_storage_mb ?? 500
 
   const usadoUsuarios = usuariosCount || 0
   const usadoOp = opCount || 0
   const usadoContatos = contatosCount || 0
+
+  // Calcular storage usado (soma dos buckets de documentos e áudio da org)
+  // AIDEV-NOTE: Storage real requer listagem de arquivos por org, placeholder por enquanto
+  const storageUsadoMb = 0
 
   return {
     usuarios: {
@@ -620,14 +637,14 @@ export async function obterLimitesOrganizacao(id: string): Promise<LimitesUso> {
       percentual: limiteOp ? (usadoOp / limiteOp) * 100 : null,
     },
     storage: {
-      usado_mb: 0,
+      usado_mb: storageUsadoMb,
       limite_mb: limiteStorage,
-      percentual: limiteStorage ? 0 : null,
+      percentual: limiteStorage ? (storageUsadoMb / limiteStorage) * 100 : null,
     },
     contatos: {
       usado: usadoContatos,
-      limite: null,
-      percentual: null,
+      limite: limiteContatos,
+      percentual: limiteContatos ? (usadoContatos / limiteContatos) * 100 : null,
     },
   }
 }

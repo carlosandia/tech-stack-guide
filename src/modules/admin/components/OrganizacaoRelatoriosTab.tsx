@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { supabase } from '@/integrations/supabase/client'
 import { 
   TrendingUp, 
   Target, 
@@ -17,13 +18,7 @@ import {
 /**
  * AIDEV-NOTE: Tab de Relatorios da Organizacao
  * Conforme PRD-14 - RF-015, RF-016
- *
- * Exibe 15 metricas em 5 categorias:
- * - Oportunidades
- * - Conversao
- * - Financeiro
- * - Atividades
- * - Performance
+ * Dados reais do banco de dados
  */
 
 interface Props {
@@ -61,48 +56,136 @@ interface MetricasTenant {
   }
 }
 
+async function fetchMetricasReais(orgId: string): Promise<MetricasTenant> {
+  // Oportunidades
+  const { data: ops } = await supabase
+    .from('oportunidades')
+    .select('id, valor, fechado_em, motivo_resultado_id, criado_em, etapa_id')
+    .eq('organizacao_id', orgId)
+    .is('deletado_em', null)
+
+  const allOps = ops || []
+  const abertas = allOps.filter(o => !o.fechado_em)
+  const ganhas = allOps.filter(o => o.fechado_em && !o.motivo_resultado_id)
+  const perdidas = allOps.filter(o => o.fechado_em && o.motivo_resultado_id)
+
+  const valorGanho = ganhas.reduce((sum, o) => sum + (o.valor || 0), 0)
+  const valorPipeline = abertas.reduce((sum, o) => sum + (o.valor || 0), 0)
+  const ticketMedio = ganhas.length > 0 ? valorGanho / ganhas.length : 0
+
+  // Taxa de conversão
+  const totalFechados = ganhas.length + perdidas.length
+  const taxaGeral = totalFechados > 0 ? (ganhas.length / totalFechados) * 100 : 0
+
+  // Tempo médio (dias) das ganhas
+  let tempoMedioDias = 0
+  if (ganhas.length > 0) {
+    const totalDias = ganhas.reduce((sum, o) => {
+      const diff = new Date(o.fechado_em!).getTime() - new Date(o.criado_em).getTime()
+      return sum + diff / (1000 * 60 * 60 * 24)
+    }, 0)
+    tempoMedioDias = Math.round(totalDias / ganhas.length)
+  }
+
+  // Conversão por etapa
+  const { data: etapas } = await supabase
+    .from('etapas_funil')
+    .select('id, nome')
+    .eq('organizacao_id', orgId)
+    .is('deletado_em', null)
+    .order('ordem', { ascending: true })
+
+  const taxaPorEtapa = (etapas || [])
+    .filter(e => !['ganho', 'perda'].includes(e.nome?.toLowerCase() || ''))
+    .map(e => {
+      const opsNaEtapa = allOps.filter(o => o.etapa_id === e.id || !o.fechado_em)
+      const passaram = opsNaEtapa.length
+      return {
+        etapa: e.nome,
+        taxa: allOps.length > 0 ? Math.round((passaram / allOps.length) * 100) : 0,
+      }
+    })
+    .slice(0, 5)
+
+  // Tarefas
+  const { count: totalTarefas } = await supabase
+    .from('tarefas')
+    .select('id', { count: 'exact', head: true })
+    .eq('organizacao_id', orgId)
+    .is('deletado_em', null)
+
+  const { count: tarefasConcluidas } = await supabase
+    .from('tarefas')
+    .select('id', { count: 'exact', head: true })
+    .eq('organizacao_id', orgId)
+    .eq('status', 'concluida')
+    .is('deletado_em', null)
+
+  // Reuniões
+  const { count: reunioes } = await supabase
+    .from('reunioes_oportunidades')
+    .select('id', { count: 'exact', head: true })
+    .eq('organizacao_id', orgId)
+    .is('deletado_em', null)
+
+  // Emails
+  const { count: emails } = await supabase
+    .from('emails_oportunidades')
+    .select('id', { count: 'exact', head: true })
+    .eq('organizacao_id', orgId)
+
+  // Ligações
+  const { count: ligacoes } = await supabase
+    .from('ligacoes')
+    .select('id', { count: 'exact', head: true })
+    .eq('organizacao_id', orgId)
+
+  // Usuários ativos (com login nos últimos 30 dias)
+  const trintaDias = new Date()
+  trintaDias.setDate(trintaDias.getDate() - 30)
+  const { count: usuariosAtivos } = await supabase
+    .from('usuarios')
+    .select('id', { count: 'exact', head: true })
+    .eq('organizacao_id', orgId)
+    .is('deletado_em', null)
+    .gte('ultimo_login', trintaDias.toISOString())
+
+  return {
+    oportunidades: {
+      total: allOps.length,
+      abertas: abertas.length,
+      ganhas: ganhas.length,
+      perdidas: perdidas.length,
+      em_andamento: abertas.length,
+    },
+    conversao: {
+      taxa_geral: Math.round(taxaGeral * 10) / 10,
+      tempo_medio_dias: tempoMedioDias,
+      taxa_por_etapa: taxaPorEtapa,
+    },
+    financeiro: {
+      valor_total_ganho: valorGanho,
+      valor_pipeline: valorPipeline,
+      ticket_medio: ticketMedio,
+    },
+    atividades: {
+      total_tarefas: totalTarefas || 0,
+      tarefas_concluidas: tarefasConcluidas || 0,
+      reunioes_realizadas: reunioes || 0,
+      emails_enviados: emails || 0,
+      ligacoes_realizadas: ligacoes || 0,
+    },
+    performance: {
+      usuarios_ativos: usuariosAtivos || 0,
+      tempo_resposta_horas: 0,
+    },
+  }
+}
+
 export function OrganizacaoRelatoriosTab({ orgId }: Props) {
   const { data: metricas, isLoading, error } = useQuery<MetricasTenant>({
     queryKey: ['admin', 'organizacao', orgId, 'metricas'],
-    queryFn: async () => {
-      // Simula chamada à API - endpoint a ser implementado no backend
-      // Por enquanto retorna dados de exemplo
-      return {
-        oportunidades: {
-          total: 245,
-          abertas: 48,
-          ganhas: 156,
-          perdidas: 41,
-          em_andamento: 78,
-        },
-        conversao: {
-          taxa_geral: 32.5,
-          tempo_medio_dias: 18,
-          taxa_por_etapa: [
-            { etapa: 'Qualificacao', taxa: 85 },
-            { etapa: 'Proposta', taxa: 62 },
-            { etapa: 'Negociacao', taxa: 48 },
-            { etapa: 'Fechamento', taxa: 32.5 },
-          ],
-        },
-        financeiro: {
-          valor_total_ganho: 1250000,
-          valor_pipeline: 890000,
-          ticket_medio: 8013,
-        },
-        atividades: {
-          total_tarefas: 423,
-          tarefas_concluidas: 312,
-          reunioes_realizadas: 89,
-          emails_enviados: 567,
-          ligacoes_realizadas: 234,
-        },
-        performance: {
-          usuarios_ativos: 12,
-          tempo_resposta_horas: 4.2,
-        },
-      }
-    },
+    queryFn: () => fetchMetricasReais(orgId),
   })
 
   const formatCurrency = (value: number) =>
