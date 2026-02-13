@@ -1462,4 +1462,16 @@ export const negociosApi = {
 
     if (error) throw new Error(error.message)
   },
+
+  // Contar oportunidades ativas de um funil
+  contarOportunidadesFunil: async (funilId: string): Promise<number> => {
+    const { count, error } = await supabase
+      .from('oportunidades')
+      .select('*', { count: 'exact', head: true })
+      .eq('funil_id', funilId)
+      .is('deletado_em', null)
+
+    if (error) throw new Error(error.message)
+    return count || 0
+  },
 }
