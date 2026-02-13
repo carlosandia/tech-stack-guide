@@ -11,7 +11,6 @@ import { toast } from 'sonner'
 import { useConfigToolbar } from '../contexts/ConfigToolbarContext'
 import { useIntegracoes, useDesconectarIntegracao, useSincronizarIntegracao } from '../hooks/useIntegracoes'
 import { ConexaoCard } from '../components/integracoes/ConexaoCard'
-import { ContatosBloqueadosSection } from '../components/integracoes/ContatosBloqueadosSection'
 import { WhatsAppQrCodeModal } from '../components/integracoes/WhatsAppQrCodeModal'
 import { EmailConexaoModal } from '../components/integracoes/EmailConexaoModal'
 import { InstagramConexaoModal } from '../components/integracoes/InstagramConexaoModal'
@@ -131,8 +130,7 @@ export function ConexoesPage() {
         ))}
       </div>
 
-      {/* Contatos Bloqueados */}
-      <ContatosBloqueadosSection />
+      {/* Modais de conexão */}
 
       {/* Modais de conexão */}
       {modalAberto === 'whatsapp' && (

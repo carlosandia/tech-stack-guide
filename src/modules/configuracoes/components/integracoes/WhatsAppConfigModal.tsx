@@ -7,6 +7,7 @@
 import { Phone, User } from 'lucide-react'
 import { ModalBase } from '../ui/ModalBase'
 import { WhatsAppPipelineConfig } from './WhatsAppPipelineConfig'
+import { ContatosBloqueadosSection } from './ContatosBloqueadosSection'
 import type { Integracao } from '../../services/configuracoes.api'
 
 interface Props {
@@ -62,6 +63,9 @@ export function WhatsAppConfigModal({ integracao, onClose }: Props) {
             </div>
           </div>
         )}
+
+        {/* Contatos Bloqueados */}
+        <ContatosBloqueadosSection />
       </div>
     </ModalBase>
   )
