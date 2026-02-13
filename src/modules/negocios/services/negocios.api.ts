@@ -894,10 +894,13 @@ export const negociosApi = {
   excluirFunil: async (funilId: string): Promise<void> => {
     const { error } = await supabase
       .from('funis')
-      .update({ deletado_em: new Date().toISOString() } as any)
+      .update({ deletado_em: new Date().toISOString(), ativo: false })
       .eq('id', funilId)
 
-    if (error) throw new Error(error.message)
+    if (error) {
+      console.error('Erro ao excluir funil:', error)
+      throw new Error(error.message)
+    }
   },
 
   // Adicionar membros a uma pipeline

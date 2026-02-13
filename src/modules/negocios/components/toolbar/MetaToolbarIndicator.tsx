@@ -120,7 +120,7 @@ function RankingSection({ ranking, currentUserId }: { ranking: RankingItem[]; cu
         return (
           <div
             key={item.usuario_id}
-            className={`flex items-center gap-3 ${isCurrentUser ? 'bg-primary/5 -mx-1 px-1 py-1 rounded-md' : ''}`}
+            className={`flex items-center gap-3 min-h-[40px] ${isCurrentUser ? 'bg-primary/5 -mx-1 px-1 py-2 rounded-md' : 'py-1'}`}
           >
             <div className="flex items-center gap-2 flex-shrink-0">
               <span className="text-xs font-bold text-muted-foreground w-4 text-center">
@@ -136,17 +136,11 @@ function RankingSection({ ranking, currentUserId }: { ranking: RankingItem[]; cu
                 </div>
               )}
             </div>
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 flex items-center gap-2">
               <p className={`text-sm truncate ${isCurrentUser ? 'font-semibold text-foreground' : 'text-foreground'}`}>
                 {item.usuario_nome}
                 {isCurrentUser && <span className="text-[10px] text-primary ml-1">(você)</span>}
               </p>
-              <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden mt-1">
-                <div
-                  className={`h-full rounded-full transition-all ${getProgressColor(item.percentual_meta)}`}
-                  style={{ width: `${Math.min(item.percentual_meta, 100)}%` }}
-                />
-              </div>
             </div>
             <span className={`text-xs font-semibold flex-shrink-0 ${getStatusLabel(item.percentual_meta).color}`}>
               {Math.round(item.percentual_meta)}%
