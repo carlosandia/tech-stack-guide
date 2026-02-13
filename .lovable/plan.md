@@ -1,70 +1,92 @@
 
-# Correção: Sincronização completa de mensagens do dispositivo WhatsApp para o CRM
+# Rejeitar Lead: Motivo Opcional + Bloqueio de Contato
 
-## Diagnóstico Completo
+## Resumo
 
-Ao analisar os logs do webhook e o banco de dados, identifiquei **3 problemas encadeados** que causam a perda de mensagens enviadas pelo celular (texto, áudio, foto, vídeo, documento, contato, enquete):
+Tres mudancas principais:
+1. Motivo de rejeicao passa a ser **opcional** (nao obrigatorio)
+2. Novo checkbox **"Nao criar mais cards dessa pessoa"** no modal de rejeicao
+3. Gerenciamento de contatos bloqueados em **Configuracoes > Conexoes** (ou secao dedicada)
 
-### Problema 1: Resolução @lid parcialmente funcional
-O WAHA GOWS usa Linked IDs (@lid) internos em vez de números de telefone (@c.us). O código atual tenta resolver via `_data.key.remoteJidAlt`, mas falha em alguns cenários (payload sem esse campo, timing, etc.), resultando em `chatId = 162826672971943@lid` em vez de `5513988506995@c.us`.
+---
 
-**Log real:**
-```
-fromMe individual: from=162826672971943@lid, to=162826672971943@lid, chatId=162826672971943@lid
-```
+## Detalhes Tecnicos
 
-### Problema 2: Constraint `contatos_status_check` rejeita `pre_lead`
-O código insere contatos com `status: "pre_lead"`, mas a constraint no banco só aceita: `novo`, `lead`, `mql`, `sql`, `cliente`, `perdido`. Resultado: **erro fatal que aborta o processamento**.
+### 1. Migracao SQL - Tabela `contatos_bloqueados_pre_op`
 
-**Log real:**
-```
-Error creating contato: new row for relation "contatos" violates check constraint "contatos_status_check"
-```
-
-### Problema 3: Conversa não encontrada com chatId @lid
-Mesmo que a resolução @lid funcione parcialmente, se a conversa original foi criada com `5513988506995@c.us`, uma busca por `162826672971943@lid` nunca vai encontrar a conversa existente.
-
-```text
-Fluxo atual (FALHA):
-1. Webhook recebe mensagem fromMe
-2. payload.to = undefined -> toField = rawFrom = "@lid"
-3. remoteJidAlt disponível MAS resolução falha em alguns casos
-4. chatId = "@lid" (errado)
-5. Busca contato com telefone "162826672971943" -> não existe
-6. Cria contato com status "pre_lead" -> ERRO: contatos_status_check
-7. ABORTA - mensagem perdida para sempre
-```
-
-## Solução (3 correções)
-
-### Correção 1: Migração SQL - Adicionar `pre_lead` na constraint
-Alterar a constraint `contatos_status_check` para incluir `pre_lead` como status válido.
+Nova tabela para armazenar telefones bloqueados por organizacao:
 
 ```sql
-ALTER TABLE contatos DROP CONSTRAINT contatos_status_check;
-ALTER TABLE contatos ADD CONSTRAINT contatos_status_check 
-  CHECK (status IN ('novo', 'lead', 'mql', 'sql', 'cliente', 'perdido', 'pre_lead'));
+CREATE TABLE contatos_bloqueados_pre_op (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organizacao_id UUID NOT NULL REFERENCES organizacoes(id),
+  phone_number VARCHAR NOT NULL,
+  phone_name VARCHAR,
+  motivo TEXT,
+  bloqueado_por UUID REFERENCES usuarios(id),
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX idx_bloqueados_pre_op_org_phone 
+  ON contatos_bloqueados_pre_op(organizacao_id, phone_number);
 ```
 
-### Correção 2: Resolução @lid robusta com múltiplos fallbacks
-No arquivo `supabase/functions/waha-webhook/index.ts`, substituir o bloco de resolução @lid (linhas 492-515) por uma versão com 4 estratégias de fallback:
+Com RLS habilitado para isolamento por organizacao.
 
-1. **remoteJidAlt** (campo padrão GOWS) - já existe mas será reforçado
-2. **_data.to** - fallback secundário
-3. **chat.id** - terceiro fallback
-4. **Busca no banco** (NOVO) - busca mensagens anteriores do mesmo LID que já foram resolvidas, extraindo o número real do `raw_data._data.key.remoteJidAlt`
+### 2. Modal `RejeitarPreOportunidadeModal.tsx`
 
-### Correção 3: Fallback na criação de contato
-Adicionar try/catch com fallback para `status: "novo"` caso `pre_lead` falhe (proteção extra mesmo após a migração).
+- Remover asterisco obrigatorio do label "Motivo da rejeicao"
+- Remover validacao `if (!motivo.trim())` - permitir motivo vazio
+- Remover `disabled={!motivo.trim()}` do botao
+- Adicionar checkbox com Switch: **"Nao criar mais cards dessa pessoa"** (default: false)
+- Passar `bloquear: boolean` junto ao payload de rejeicao
 
-### Correção 4: Busca de conversa com fallback por contato
-Se a busca por `chatId` (que pode ser @lid) não encontrar conversa, fazer uma busca secundária pelo `contato_id` + `sessao_whatsapp_id` para encontrar a conversa existente.
+### 3. API `pre-oportunidades.api.ts`
 
-## Arquivos Alterados
+- Metodo `rejeitar`: aceitar `motivo` como opcional (`string | null`) e novo param `bloquear: boolean`
+- Se `bloquear === true`, inserir registro na tabela `contatos_bloqueados_pre_op`
+- Metodo novo `listarBloqueados()`: listar contatos bloqueados da organizacao
+- Metodo novo `desbloquearContato(id)`: remover registro da tabela
 
-1. **Migração SQL** - Adicionar `pre_lead` à constraint
-2. **`supabase/functions/waha-webhook/index.ts`** - Resolução @lid robusta, fallback de contato, fallback de conversa
+### 4. Hook `usePreOportunidades.ts`
 
-## Resultado Esperado
+- Atualizar `useRejeitarPreOportunidade` para aceitar `motivo?: string` e `bloquear: boolean`
+- Novos hooks: `useBloqueadosPreOp()` e `useDesbloquearPreOp()`
 
-Após as correções, TODAS as mensagens enviadas pelo dispositivo WhatsApp (texto, áudio, foto, vídeo, documento, contato, enquete) serão sincronizadas imediatamente no CRM via webhook, independentemente de o WAHA GOWS usar @lid ou @c.us.
+### 5. Webhook `waha-webhook/index.ts` (STEP 4)
+
+Antes de criar/atualizar pre_oportunidade, verificar se o telefone esta bloqueado:
+
+```typescript
+// Checar bloqueio antes de criar pre-oportunidade
+const { data: bloqueado } = await supabaseAdmin
+  .from("contatos_bloqueados_pre_op")
+  .select("id")
+  .eq("organizacao_id", sessao.organizacao_id)
+  .eq("phone_number", phoneNumber)
+  .maybeSingle();
+
+if (bloqueado) {
+  console.log(`[waha-webhook] Phone ${phoneNumber} blocked, skipping pre-op`);
+  // Nao criar pre-oportunidade, mas continua salvando a mensagem na conversa
+}
+```
+
+### 6. UI de Gerenciamento - Configuracoes > Conexoes
+
+Adicionar uma secao/aba "Contatos Bloqueados" na pagina de Conexoes (ou como sub-item no sidebar de Configuracoes), contendo:
+
+- Lista de contatos bloqueados com: telefone, nome, motivo (se houver), data do bloqueio
+- Botao "Desbloquear" em cada item para remover o bloqueio
+- Estado vazio: "Nenhum contato bloqueado"
+
+---
+
+## Arquivos Modificados
+
+1. **Nova migracao SQL** - criar tabela `contatos_bloqueados_pre_op`
+2. **`src/modules/negocios/components/modals/RejeitarPreOportunidadeModal.tsx`** - motivo opcional + checkbox bloquear
+3. **`src/modules/negocios/services/pre-oportunidades.api.ts`** - rejeitar com bloqueio + CRUD bloqueados
+4. **`src/modules/negocios/hooks/usePreOportunidades.ts`** - novos hooks
+5. **`supabase/functions/waha-webhook/index.ts`** - checar bloqueio no STEP 4
+6. **`src/modules/configuracoes/pages/ConexoesPage.tsx`** - secao de contatos bloqueados (ou nova pagina dedicada)
