@@ -564,7 +564,7 @@ function PainelInformacoes({ oportunidadeId }: { oportunidadeId: string }) {
           )}
           <EditableInfoRow icon={User} label="Responsável" value={responsavel ? `${responsavel.nome}${responsavel.sobrenome ? ` ${responsavel.sobrenome}` : ''}` : null} />
           <EditableInfoRow icon={Calendar} label="Previsão" value={formatData(op.previsao_fechamento)} onSave={saveOpField('previsao_fechamento')} />
-          <EditableInfoRow icon={FileText} label="Observações" value={op.observacoes} onSave={saveOpField('observacoes')} />
+          {/* Campos custom de oportunidade */}
           {/* Campos custom de oportunidade */}
           {opCampos.map((campo: any) => (
             <EditableInfoRow
