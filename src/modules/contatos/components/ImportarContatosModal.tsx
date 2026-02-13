@@ -182,7 +182,7 @@ export function ImportarContatosModal({ open, onClose }: ImportarContatosModalPr
   return (
     <div className="fixed inset-0 z-[500] flex items-center justify-center">
       <div className="fixed inset-0 bg-foreground/20 backdrop-blur-sm" onClick={resetModal} />
-      <div className="relative bg-background rounded-lg shadow-lg w-full max-w-2xl max-h-[85vh] flex flex-col z-10">
+      <div className="relative bg-background rounded-lg shadow-lg w-[calc(100%-32px)] sm:w-full max-w-2xl max-h-[85vh] flex flex-col z-10 mx-4 sm:mx-0">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <div>
