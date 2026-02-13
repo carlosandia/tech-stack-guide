@@ -654,10 +654,11 @@ Deno.serve(async (req) => {
           mediaBody.file = fileObj;
           if (mediaCaption) mediaBody.caption = mediaCaption;
         } else if (endpoint === "sendVoice") {
-          // AIDEV-NOTE: NAO passar mimetype para sendVoice - WAHA GOWS precisa
-          // auto-detectar o formato e converter para OGG/Opus automaticamente.
-          // Passar mimetype webm faz o WAHA pular a conversao e o WhatsApp rejeita.
+          // AIDEV-NOTE: Usar convert=true para forçar WAHA GOWS a converter
+          // qualquer formato (webm, mp3, wav) para OGG/Opus antes de enviar ao WhatsApp.
+          // Sem isso, arquivos webm do Chrome ficam com ack=1 (PENDING) e nunca chegam.
           mediaBody.file = { url: media_url };
+          mediaBody.convert = true;
         } else {
           mediaBody.file = { url: media_url };
           if (mediaCaption) mediaBody.caption = mediaCaption;
