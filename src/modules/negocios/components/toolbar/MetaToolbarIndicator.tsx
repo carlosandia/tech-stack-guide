@@ -220,7 +220,7 @@ export function MetaToolbarIndicator() {
           <ChevronDown className="w-3 h-3 text-muted-foreground group-hover:text-foreground transition-colors" />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-[380px] p-0" sideOffset={8}>
+      <PopoverContent align="center" className="w-[calc(100vw-24px)] sm:w-[380px]" sideOffset={8}>
         {/* Tabs */}
         <div className="flex border-b border-border">
           <button
