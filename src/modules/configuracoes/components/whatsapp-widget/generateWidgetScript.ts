@@ -32,6 +32,18 @@ export function generateWidgetScript(
     }
   }
 
+  // AIDEV-NOTE: Mascaras para campos do formulario
+  const maskAttr = (tipo: string, slug: string) => {
+    const lower = slug.toLowerCase()
+    if (tipo === 'telefone' || lower.includes('telefone') || lower.includes('celular') || lower.includes('whatsapp'))
+      return ` oninput="var v=this.value.replace(/\\\\D/g,'');if(v.length>11)v=v.slice(0,11);if(v.length>10){this.value='('+v.slice(0,2)+') '+v.slice(2,7)+'-'+v.slice(7)}else if(v.length>6){this.value='('+v.slice(0,2)+') '+v.slice(2,6)+'-'+v.slice(6)}else if(v.length>2){this.value='('+v.slice(0,2)+') '+v.slice(2)}else if(v.length>0){this.value='('+v}else{this.value=''}" maxlength="16"`
+    if (lower.includes('cpf'))
+      return ` oninput="var v=this.value.replace(/\\\\D/g,'');if(v.length>11)v=v.slice(0,11);if(v.length>9){this.value=v.slice(0,3)+'.'+v.slice(3,6)+'.'+v.slice(6,9)+'-'+v.slice(9)}else if(v.length>6){this.value=v.slice(0,3)+'.'+v.slice(3,6)+'.'+v.slice(6)}else if(v.length>3){this.value=v.slice(0,3)+'.'+v.slice(3)}else{this.value=v}" maxlength="14"`
+    if (lower.includes('cnpj'))
+      return ` oninput="var v=this.value.replace(/\\\\D/g,'');if(v.length>14)v=v.slice(0,14);if(v.length>12){this.value=v.slice(0,2)+'.'+v.slice(2,5)+'.'+v.slice(5,8)+'/'+v.slice(8,12)+'-'+v.slice(12)}else if(v.length>8){this.value=v.slice(0,2)+'.'+v.slice(2,5)+'.'+v.slice(5,8)+'/'+v.slice(8)}else if(v.length>5){this.value=v.slice(0,2)+'.'+v.slice(2,5)+'.'+v.slice(5)}else if(v.length>2){this.value=v.slice(0,2)+'.'+v.slice(2)}else{this.value=v}" maxlength="18"`
+    return ''
+  }
+
   // AIDEV-NOTE: Campos do formulario - estilos identicos ao preview
   const camposHTML = config.usar_formulario && camposSelecionados.length > 0
     ? camposSelecionados.map(c => `
@@ -39,7 +51,7 @@ export function generateWidgetScript(
             <label style="display:block;font-size:11px;color:#6b7280;margin-bottom:2px">${c.nome}</label>
             <input type="${inputType(c.tipo)}" name="${c.id}" placeholder="${c.placeholder || c.nome}"
               style="width:100%;height:32px;padding:0 12px;border:1px solid #e5e7eb;border-radius:8px;background:#f9fafb;font-size:14px;outline:none;box-sizing:border-box"
-              onfocus="this.style.borderColor='${config.cor_botao}'" onblur="this.style.borderColor='#e5e7eb'" />
+              onfocus="this.style.borderColor='${config.cor_botao}'" onblur="this.style.borderColor='#e5e7eb'"${maskAttr(c.tipo, c.nome)} />
           </div>`).join('')
     : ''
 
@@ -102,7 +114,7 @@ export function generateWidgetScript(
       </div>
       ${formSection.replace(/`/g, "\\`")}
     </div>
-    <button id="wa-widget-btn" onclick="var c=document.getElementById('wa-widget-chat');${config.usar_formulario && camposSelecionados.length > 0 ? "c.style.display=c.style.display==='none'?'block':'none'" : "window.open('https://wa.me/'+cfg.numero,'_blank')"}">
+    <button id="wa-widget-btn" onclick="var c=document.getElementById('wa-widget-chat');${config.usar_formulario && camposSelecionados.length > 0 ? "var vis=window.getComputedStyle(c).display;c.style.display=vis==='none'?'block':'none'" : "window.open('https://wa.me/'+cfg.numero,'_blank')"}">
       ${svgBtn}
     </button>
   \`;
