@@ -232,7 +232,7 @@ export function ExportarContatosModal({
           </div>
 
           {/* Footer */}
-          <div className="flex-shrink-0 px-4 sm:px-6 py-4 border-t border-border bg-card">
+          <div className="flex-shrink-0 px-4 sm:px-6 py-4 border-t border-border bg-card rounded-b-lg">
             <div className="flex justify-end gap-2 sm:gap-3">
               <button
                 onClick={onClose}
