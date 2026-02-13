@@ -1,92 +1,104 @@
 
-# Rejeitar Lead: Motivo Opcional + Bloqueio de Contato
+# Correcoes: Enquete do dispositivo + Icone anexo (+) + Mensagens prontas no popover
 
-## Resumo
-
-Tres mudancas principais:
-1. Motivo de rejeicao passa a ser **opcional** (nao obrigatorio)
-2. Novo checkbox **"Nao criar mais cards dessa pessoa"** no modal de rejeicao
-3. Gerenciamento de contatos bloqueados em **Configuracoes > Conexoes** (ou secao dedicada)
+## 3 Mudancas
 
 ---
 
-## Detalhes Tecnicos
+### 1. Enquete enviada via dispositivo nao aparece no CRM
 
-### 1. Migracao SQL - Tabela `contatos_bloqueados_pre_op`
+**Diagnostico**: A enquete "Eai funfa" FOI recebida pelo webhook e salva no banco, porem como `tipo: "text"` com `body: null` e sem dados de enquete. Motivo:
 
-Nova tabela para armazenar telefones bloqueados por organizacao:
+- O WAHA GOWS envia `payload.type` como `undefined` (o tipo real esta em `_data.Info.Type: "poll"`)
+- Os dados da enquete estao em `_data.Message.pollCreationMessageV3.name` e `.options[].optionName`, nao em `_data.pollOptions` como o codigo espera
+- Resultado: a mensagem e salva como texto vazio, invisivel no chat
 
-```sql
-CREATE TABLE contatos_bloqueados_pre_op (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  organizacao_id UUID NOT NULL REFERENCES organizacoes(id),
-  phone_number VARCHAR NOT NULL,
-  phone_name VARCHAR,
-  motivo TEXT,
-  bloqueado_por UUID REFERENCES usuarios(id),
-  criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
-);
+**Correcao em `supabase/functions/waha-webhook/index.ts`**:
 
-CREATE UNIQUE INDEX idx_bloqueados_pre_op_org_phone 
-  ON contatos_bloqueados_pre_op(organizacao_id, phone_number);
-```
-
-Com RLS habilitado para isolamento por organizacao.
-
-### 2. Modal `RejeitarPreOportunidadeModal.tsx`
-
-- Remover asterisco obrigatorio do label "Motivo da rejeicao"
-- Remover validacao `if (!motivo.trim())` - permitir motivo vazio
-- Remover `disabled={!motivo.trim()}` do botao
-- Adicionar checkbox com Switch: **"Nao criar mais cards dessa pessoa"** (default: false)
-- Passar `bloquear: boolean` junto ao payload de rejeicao
-
-### 3. API `pre-oportunidades.api.ts`
-
-- Metodo `rejeitar`: aceitar `motivo` como opcional (`string | null`) e novo param `bloquear: boolean`
-- Se `bloquear === true`, inserir registro na tabela `contatos_bloqueados_pre_op`
-- Metodo novo `listarBloqueados()`: listar contatos bloqueados da organizacao
-- Metodo novo `desbloquearContato(id)`: remover registro da tabela
-
-### 4. Hook `usePreOportunidades.ts`
-
-- Atualizar `useRejeitarPreOportunidade` para aceitar `motivo?: string` e `bloquear: boolean`
-- Novos hooks: `useBloqueadosPreOp()` e `useDesbloquearPreOp()`
-
-### 5. Webhook `waha-webhook/index.ts` (STEP 4)
-
-Antes de criar/atualizar pre_oportunidade, verificar se o telefone esta bloqueado:
+Adicionar deteccao de `pollCreationMessage` / `pollCreationMessageV3` na secao de inferencia de tipo (apos linha ~829), similar a deteccao de contatos:
 
 ```typescript
-// Checar bloqueio antes de criar pre-oportunidade
-const { data: bloqueado } = await supabaseAdmin
-  .from("contatos_bloqueados_pre_op")
-  .select("id")
-  .eq("organizacao_id", sessao.organizacao_id)
-  .eq("phone_number", phoneNumber)
-  .maybeSingle();
+// Detect poll messages from device (GOWS engine)
+// GOWS sends polls with type undefined, but _data.Message contains pollCreationMessage/V3
+if (wahaType === "text" || wahaType === "chat") {
+  const msg = payload._data?.Message || payload._data?.message || {};
+  if (msg.pollCreationMessageV3 || msg.pollCreationMessage) {
+    wahaType = "poll";
+    const pollMsg = msg.pollCreationMessageV3 || msg.pollCreationMessage;
+    // Store for later extraction
+    payload.__detectedPollData = pollMsg;
+  }
+}
 
-if (bloqueado) {
-  console.log(`[waha-webhook] Phone ${phoneNumber} blocked, skipping pre-op`);
-  // Nao criar pre-oportunidade, mas continua salvando a mensagem na conversa
+// Also check _data.Info.Type as fallback
+if ((wahaType === "text" || wahaType === "chat") && payload._data?.Info?.Type === "poll") {
+  wahaType = "poll";
 }
 ```
 
-### 6. UI de Gerenciamento - Configuracoes > Conexoes
+Atualizar a secao de extracao de dados de enquete (linhas 1011-1018) para tambem buscar de `pollCreationMessageV3`:
 
-Adicionar uma secao/aba "Contatos Bloqueados" na pagina de Conexoes (ou como sub-item no sidebar de Configuracoes), contendo:
+```typescript
+if (wahaType === "poll" || wahaType === "poll_creation") {
+  messageInsert.tipo = "poll";
+  
+  // Source 1: _data.pollOptions (NOWEB engine)
+  // Source 2: pollCreationMessageV3 (GOWS engine - from device)
+  const detectedPoll = payload.__detectedPollData;
+  const gowsPollMsg = payload._data?.Message?.pollCreationMessageV3 
+    || payload._data?.Message?.pollCreationMessage
+    || payload._data?.message?.pollCreationMessageV3
+    || payload._data?.message?.pollCreationMessage;
+  const pollSource = detectedPoll || gowsPollMsg;
+  
+  messageInsert.poll_question = payload._data?.pollName 
+    || pollSource?.name 
+    || payload.body 
+    || null;
+  
+  const pollOpts = payload._data?.pollOptions;
+  if (Array.isArray(pollOpts)) {
+    messageInsert.poll_options = pollOpts.map(opt => ({ text: opt.name || "", votes: 0 }));
+  } else if (pollSource?.options && Array.isArray(pollSource.options)) {
+    messageInsert.poll_options = pollSource.options.map(opt => ({ 
+      text: opt.optionName || opt.name || "", votes: 0 
+    }));
+  }
+  
+  // Set body with poll emoji prefix if missing
+  if (!messageInsert.body && messageInsert.poll_question) {
+    messageInsert.body = `📊 ${messageInsert.poll_question}`;
+  }
+}
+```
 
-- Lista de contatos bloqueados com: telefone, nome, motivo (se houver), data do bloqueio
-- Botao "Desbloquear" em cada item para remover o bloqueio
-- Estado vazio: "Nenhum contato bloqueado"
+---
+
+### 2. Icone de clipe (Paperclip) vira "+" (Plus)
+
+**Correcao em `src/modules/conversas/components/ChatInput.tsx`**:
+
+- Trocar import de `Paperclip` por `Plus` do lucide-react
+- Substituir `<Paperclip>` por `<Plus>` no botao de anexos
+
+---
+
+### 3. Botao de mensagens prontas (Zap) vai para dentro do popover de anexos
+
+**Correcao em `src/modules/conversas/components/ChatInput.tsx`**:
+
+- Remover o botao standalone do `<Zap>` (linhas 224-231)
+- O botao de mensagens prontas sera acionado de dentro do AnexosMenu
+
+**Correcao em `src/modules/conversas/components/AnexosMenu.tsx`**:
+
+- Adicionar nova opcao "Mensagens Prontas" com icone `Zap` no menu de anexos
+- Receber nova prop `onMensagensProntas` e acionar ao clicar
 
 ---
 
 ## Arquivos Modificados
 
-1. **Nova migracao SQL** - criar tabela `contatos_bloqueados_pre_op`
-2. **`src/modules/negocios/components/modals/RejeitarPreOportunidadeModal.tsx`** - motivo opcional + checkbox bloquear
-3. **`src/modules/negocios/services/pre-oportunidades.api.ts`** - rejeitar com bloqueio + CRUD bloqueados
-4. **`src/modules/negocios/hooks/usePreOportunidades.ts`** - novos hooks
-5. **`supabase/functions/waha-webhook/index.ts`** - checar bloqueio no STEP 4
-6. **`src/modules/configuracoes/pages/ConexoesPage.tsx`** - secao de contatos bloqueados (ou nova pagina dedicada)
+1. `supabase/functions/waha-webhook/index.ts` - Deteccao de poll GOWS + extracao de dados
+2. `src/modules/conversas/components/ChatInput.tsx` - Paperclip para Plus, remover Zap standalone
+3. `src/modules/conversas/components/AnexosMenu.tsx` - Adicionar opcao Mensagens Prontas
