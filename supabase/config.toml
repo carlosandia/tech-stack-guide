@@ -68,3 +68,6 @@ verify_jwt = false
 
 [functions.widget-formulario-config]
 verify_jwt = false
+
+[functions.widget-formulario-loader]
+verify_jwt = false
