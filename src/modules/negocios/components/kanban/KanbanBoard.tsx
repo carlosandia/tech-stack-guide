@@ -287,7 +287,7 @@ export function KanbanBoard({ data, isLoading, onDropGanhoPerda, onCardClick }: 
 
   return (
     <>
-      <div className="flex-1 overflow-x-auto overflow-y-hidden" style={{ backgroundColor: 'hsl(220, 10%, 95%)' }}>
+      <div className="flex-1 overflow-x-auto overflow-y-hidden">
         <div className="flex gap-0 px-3 sm:px-4 pt-0 pb-3 h-full min-w-min">
           <SolicitacoesColumn funilId={data.funil.id} />
 
