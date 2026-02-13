@@ -150,13 +150,13 @@ export function MetricasPanel({ data, metricasVisiveis }: MetricasPanelProps) {
   if (metricasFiltradas.length === 0) return null
 
   return (
-    <div className="flex-shrink-0 px-3 sm:px-4 py-3 animate-enter">
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-2">
+    <div className="flex-shrink-0 px-3 sm:px-4 py-2 sm:py-3 animate-enter">
+      <div className="flex overflow-x-auto gap-2 pb-1 sm:pb-0 sm:grid sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 scrollbar-hide">
         {metricasFiltradas.map(m => (
           <div
             key={m.id}
             className={`
-              flex items-center gap-2 px-2.5 py-2 rounded-lg
+              flex items-center gap-2 px-2.5 py-2 rounded-lg flex-shrink-0 min-w-[120px] sm:min-w-0
               ${COR_CLASSES[m.cor]}
               transition-all duration-200
             `}

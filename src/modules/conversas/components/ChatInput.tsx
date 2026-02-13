@@ -108,7 +108,7 @@ export function ChatInput({
       <div className="flex border-b border-border/50">
         <button
           onClick={() => setTab('responder')}
-          className={`flex items-center gap-1.5 px-4 py-2 text-xs font-medium transition-all duration-200 border-b-2 ${
+          className={`flex items-center gap-1 sm:gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 text-xs font-medium transition-all duration-200 border-b-2 ${
             tab === 'responder'
               ? 'border-primary text-primary'
               : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -119,7 +119,7 @@ export function ChatInput({
         </button>
         <button
           onClick={() => setTab('nota')}
-          className={`flex items-center gap-1.5 px-4 py-2 text-xs font-medium transition-all duration-200 border-b-2 ${
+          className={`flex items-center gap-1 sm:gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 text-xs font-medium transition-all duration-200 border-b-2 ${
             tab === 'nota'
               ? 'border-warning text-warning-foreground'
               : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -157,7 +157,7 @@ export function ChatInput({
       )}
 
       {/* Input area */}
-      <div className={`p-3 ${isNota ? 'bg-warning-muted/30' : ''}`}>
+      <div className={`p-2 sm:p-3 ${isNota ? 'bg-warning-muted/30' : ''}`}>
         {isNota && (
           <p className="text-[11px] text-warning-foreground mb-2 flex items-center gap-1">
             <StickyNote className="w-3 h-3" />
@@ -175,16 +175,16 @@ export function ChatInput({
             onCancel={() => setIsRecording(false)}
           />
         ) : (
-          <div className="flex items-end gap-2">
+          <div className="flex items-end gap-1 sm:gap-2">
             {/* Action buttons (only for reply mode) */}
             {!isNota && (
-              <div className="flex items-center gap-0.5 pb-1 relative">
+              <div className="flex items-center gap-0 relative">
                 {/* Emoji picker button */}
                 <div className="relative">
                   <button
                     type="button"
                     onClick={() => setEmojiOpen(!emojiOpen)}
-                    className={`p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md transition-all duration-200 ${
+                    className={`p-1.5 sm:p-2 rounded-md transition-all duration-200 ${
                       emojiOpen ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:text-foreground hover:bg-accent'
                     }`}
                     title="Emojis"
@@ -224,7 +224,7 @@ export function ChatInput({
                 <button
                   type="button"
                   onClick={onOpenQuickReplies}
-                  className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200"
+                  className="p-1.5 sm:p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200"
                   title="Mensagens prontas (/)"
                 >
                   <Zap className="w-4 h-4" />
@@ -233,7 +233,7 @@ export function ChatInput({
                   <button
                     type="button"
                     onClick={() => setAnexosOpen(!anexosOpen)}
-                    className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200"
+                    className="p-1.5 sm:p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200"
                     title="Anexar arquivo"
                   >
                     <Paperclip className="w-4 h-4" />
