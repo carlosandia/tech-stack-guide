@@ -5,7 +5,7 @@
  */
 
 import { useState, useRef, useEffect } from 'react'
-import { Trash2, Settings, ChevronDown, ChevronUp, Info, MousePointerClick } from 'lucide-react'
+import { Trash2, Settings, ChevronDown, ChevronUp, Info, MousePointerClick, Copy } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { CampoFormulario } from '../../services/formularios.api'
 import { Button } from '@/components/ui/button'
@@ -45,6 +45,7 @@ interface Props {
   onDrop: (e: React.DragEvent) => void
   onDragLeave: (e: React.DragEvent) => void
   onUpdateLabel?: (newLabel: string) => void
+  onDuplicate?: () => void
 }
 
 export function CampoItem({
@@ -60,6 +61,7 @@ export function CampoItem({
   onDrop,
   onDragLeave,
   onUpdateLabel,
+  onDuplicate,
 }: Props) {
   const [editingLabel, setEditingLabel] = useState(false)
   const [labelValue, setLabelValue] = useState(campo.label || campo.nome)
@@ -121,6 +123,11 @@ export function CampoItem({
         {onMoveDown && (
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); onMoveDown() }} title="Mover para baixo">
             <ChevronDown className="w-4 h-4" />
+          </Button>
+        )}
+        {onDuplicate && (
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); onDuplicate() }} title="Duplicar campo">
+            <Copy className="w-4 h-4" />
           </Button>
         )}
         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); onSelect() }}>

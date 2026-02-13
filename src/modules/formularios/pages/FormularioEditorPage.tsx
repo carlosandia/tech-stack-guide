@@ -373,6 +373,35 @@ export function FormularioEditorPage() {
     [excluirCampo, selectedCampoId]
   )
 
+  // AIDEV-NOTE: Duplicar campo com todas as configurações
+  const handleDuplicateCampo = useCallback(
+    (campoId: string) => {
+      const original = campos.find((c) => c.id === campoId)
+      if (!original) return
+
+      const nome = original.tipo + '_' + Date.now().toString(36)
+      const newOrdem = original.ordem + 1
+
+      // Shift campos abaixo
+      const shifted = campos
+        .filter((c) => c.ordem >= newOrdem && c.id !== campoId)
+        .map((c) => ({ id: c.id, ordem: c.ordem + 1 }))
+
+      if (shifted.length > 0) {
+        reordenarCampos.mutate(shifted)
+      }
+
+      const { id: _id, criado_em: _c, atualizado_em: _a, formulario_id: _f, ...rest } = original
+      criarCampo.mutate({
+        ...rest,
+        nome,
+        label: `${original.label} (cópia)`,
+        ordem: newOrdem,
+      } as Partial<CampoFormulario>)
+    },
+    [campos, criarCampo, reordenarCampos]
+  )
+
   const handleSelectStyleElement = useCallback((el: SelectedElement) => {
     setSelectedStyleElement(el)
     setSelectedCampoId(null)
@@ -497,6 +526,7 @@ export function FormularioEditorPage() {
                 selectedCampoId={showFinalPreview ? null : selectedCampoId}
                 onSelectCampo={showFinalPreview ? () => {} : handleSelectCampo}
                 onRemoveCampo={handleRemoveCampo}
+                onDuplicateCampo={handleDuplicateCampo}
                 onMoveCampo={handleMoveCampo}
                 onReorderCampo={handleReorderCampo}
                 onDropNewCampo={handleDropNewCampo}
