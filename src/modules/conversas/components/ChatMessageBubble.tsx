@@ -341,6 +341,7 @@ function PollContent({ mensagem, conversaId }: { mensagem: Mensagem; conversaId?
   const [loading, setLoading] = useState(false)
   const [options, setOptions] = useState(mensagem.poll_options)
   const [showVoters, setShowVoters] = useState(false)
+  const [engineLimitation, setEngineLimitation] = useState(false)
 
   const handleRefresh = async () => {
     if (!conversaId || !mensagem.message_id) return
@@ -348,9 +349,10 @@ function PollContent({ mensagem, conversaId }: { mensagem: Mensagem; conversaId?
     try {
       const result = await conversasApi.consultarVotosEnquete(conversaId, mensagem.message_id)
       if (result?.engine_limitation) {
-        toast.info('Votos de enquete não disponíveis com engine NOWEB.', { duration: 5000 })
+        setEngineLimitation(true)
       } else if (result?.poll_options) {
         setOptions(result.poll_options)
+        setEngineLimitation(false)
         toast.success('Votos atualizados')
       } else {
         toast.info('Sem dados de votos disponíveis')
@@ -371,7 +373,7 @@ function PollContent({ mensagem, conversaId }: { mensagem: Mensagem; conversaId?
       {/* Header */}
       <div className="flex items-start justify-between gap-2 mb-1">
         <p className="text-sm font-semibold text-foreground leading-snug">{mensagem.poll_question}</p>
-        {conversaId && (
+        {conversaId && !engineLimitation && (
           <button onClick={handleRefresh} disabled={loading}
             className="p-1 rounded-full hover:bg-accent/50 text-muted-foreground hover:text-foreground transition-colors flex-shrink-0 mt-0.5"
             title="Atualizar votos">
@@ -379,6 +381,18 @@ function PollContent({ mensagem, conversaId }: { mensagem: Mensagem; conversaId?
           </button>
         )}
       </div>
+
+      {/* NOWEB engine limitation banner */}
+      {engineLimitation && (
+        <div className="mb-3 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
+          <p className="text-[12px] font-medium text-amber-700 dark:text-amber-400">
+            Votos não disponíveis com engine NOWEB
+          </p>
+          <p className="text-[11px] text-amber-600/80 dark:text-amber-400/70 mt-0.5">
+            Troque para GOWS nas configurações de WhatsApp para habilitar contagem de votos.
+          </p>
+        </div>
+      )}
 
       {/* Subtitle */}
       <div className="flex items-center gap-1 mb-3">
@@ -413,26 +427,32 @@ function PollContent({ mensagem, conversaId }: { mensagem: Mensagem; conversaId?
                 {/* Option text */}
                 <span className="flex-1 text-[13px] text-foreground">{opt.text}</span>
                 {/* Vote count */}
-                <span className="text-[12px] text-muted-foreground font-medium flex-shrink-0">
-                  {opt.votes || 0}
-                </span>
+                {!engineLimitation && (
+                  <span className="text-[12px] text-muted-foreground font-medium flex-shrink-0">
+                    {opt.votes || 0}
+                  </span>
+                )}
               </div>
             </div>
           )
         })}
       </div>
 
-      {/* Footer */}
-      <button
-        onClick={() => setShowVoters(!showVoters)}
-        className="w-full mt-2 pt-1 text-center text-[11px] text-primary hover:text-primary/80 font-medium transition-colors"
-      >
-        {showVoters ? 'Ocultar votos' : 'Mostrar votos'}
-      </button>
-      {totalVotes > 0 && (
-        <p className="text-center text-[10px] text-muted-foreground mt-0.5">
-          {totalVotes} {totalVotes === 1 ? 'voto' : 'votos'}
-        </p>
+      {/* Footer - hide "Mostrar votos" when NOWEB */}
+      {!engineLimitation && (
+        <>
+          <button
+            onClick={() => setShowVoters(!showVoters)}
+            className="w-full mt-2 pt-1 text-center text-[11px] text-primary hover:text-primary/80 font-medium transition-colors"
+          >
+            {showVoters ? 'Ocultar votos' : 'Mostrar votos'}
+          </button>
+          {totalVotes > 0 && (
+            <p className="text-center text-[10px] text-muted-foreground mt-0.5">
+              {totalVotes} {totalVotes === 1 ? 'voto' : 'votos'}
+            </p>
+          )}
+        </>
       )}
     </div>
   )
