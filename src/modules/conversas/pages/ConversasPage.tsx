@@ -6,6 +6,8 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Plus, BarChart3 } from 'lucide-react'
+import { SelecionarPipelineModal } from '../components/SelecionarPipelineModal'
+import { NovaOportunidadeModal } from '@/modules/negocios/components/modals/NovaOportunidadeModal'
 import { useAppToolbar } from '@/modules/app/contexts/AppToolbarContext'
 import { useConversas, useArquivarConversa, useDesarquivarConversa, useFixarConversa, useMarcarNaoLida, useApagarConversa } from '../hooks/useConversas'
 import { useConversasRealtime } from '../hooks/useConversasRealtime'
@@ -26,6 +28,9 @@ export function ConversasPage() {
   const [novaConversaAberta, setNovaConversaAberta] = useState(false)
   const [filtros, setFiltros] = useState<ListarConversasParams>({})
   const [confirmApagar, setConfirmApagar] = useState<string | null>(null)
+  const [pipelineModalOpen, setPipelineModalOpen] = useState(false)
+  const [oportunidadeModalOpen, setOportunidadeModalOpen] = useState(false)
+  const [funilData, setFunilData] = useState<{ funilId: string; etapaId: string } | null>(null)
   const [metricasVisiveis, setMetricasVisiveis] = useState<boolean>(() => {
     try {
       return localStorage.getItem('conversas_metricas_visiveis') === 'true'
@@ -193,7 +198,7 @@ export function ConversasPage() {
                 onInsertQuickReply={handleInsertQuickReply}
                 onCriarOportunidade={() => {
                   setDrawerAberto(false)
-                  toast.info('Use o botão + no header do chat para criar uma oportunidade')
+                  setPipelineModalOpen(true)
                 }}
               />
             </>
@@ -227,6 +232,40 @@ export function ConversasPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {pipelineModalOpen && (
+        <SelecionarPipelineModal
+          onClose={() => setPipelineModalOpen(false)}
+          onSelect={(funilId, etapaId) => {
+            setFunilData({ funilId, etapaId })
+            setPipelineModalOpen(false)
+            setOportunidadeModalOpen(true)
+          }}
+        />
+      )}
+
+      {oportunidadeModalOpen && funilData && conversaAtiva?.contato && (
+        <NovaOportunidadeModal
+          funilId={funilData.funilId}
+          etapaEntradaId={funilData.etapaId}
+          contatoPreSelecionado={{
+            id: conversaAtiva.contato.id,
+            tipo: 'pessoa' as const,
+            nome: conversaAtiva.contato.nome,
+            email: conversaAtiva.contato.email,
+            telefone: conversaAtiva.contato.telefone,
+          }}
+          onClose={() => {
+            setOportunidadeModalOpen(false)
+            setFunilData(null)
+          }}
+          onSuccess={() => {
+            toast.success('Oportunidade criada com sucesso')
+            setOportunidadeModalOpen(false)
+            setFunilData(null)
+          }}
+        />
       )}
     </div>
   )
