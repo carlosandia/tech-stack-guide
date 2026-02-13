@@ -4,7 +4,7 @@
  */
 
 import { useRef } from 'react'
-import { FileText, Image, Camera, Mic, User, BarChart3, X } from 'lucide-react'
+import { FileText, Image, Camera, Mic, User, BarChart3, Zap, X } from 'lucide-react'
 
 interface AnexosMenuProps {
   isOpen: boolean
@@ -14,6 +14,7 @@ interface AnexosMenuProps {
   onCamera: () => void
   onContato: () => void
   onEnquete: () => void
+  onMensagensProntas: () => void
 }
 
 interface MenuOption {
@@ -23,7 +24,7 @@ interface MenuOption {
   bgColor: string
   accept?: string
   tipo: string
-  action: 'file-doc' | 'file-media' | 'audio' | 'camera' | 'contato' | 'enquete'
+  action: 'file-doc' | 'file-media' | 'audio' | 'camera' | 'contato' | 'enquete' | 'mensagens-prontas'
 }
 
 const menuOptions: MenuOption[] = [
@@ -33,9 +34,10 @@ const menuOptions: MenuOption[] = [
   { icon: Mic, label: 'Áudio', color: '#F97316', bgColor: '#F9731615', tipo: 'audio', action: 'audio' },
   { icon: User, label: 'Contato', color: '#1D4ED8', bgColor: '#1D4ED815', tipo: 'contact', action: 'contato' },
   { icon: BarChart3, label: 'Enquete', color: '#16A34A', bgColor: '#16A34A15', tipo: 'poll', action: 'enquete' },
+  { icon: Zap, label: 'Mensagens Prontas', color: '#EAB308', bgColor: '#EAB30815', tipo: 'quick-reply', action: 'mensagens-prontas' },
 ]
 
-export function AnexosMenu({ isOpen, onClose, onFileSelected, onAudioRecord, onCamera, onContato, onEnquete }: AnexosMenuProps) {
+export function AnexosMenu({ isOpen, onClose, onFileSelected, onAudioRecord, onCamera, onContato, onEnquete, onMensagensProntas }: AnexosMenuProps) {
   const docInputRef = useRef<HTMLInputElement>(null)
   const mediaInputRef = useRef<HTMLInputElement>(null)
 
@@ -63,6 +65,10 @@ export function AnexosMenu({ isOpen, onClose, onFileSelected, onAudioRecord, onC
         break
       case 'enquete':
         onEnquete()
+        onClose()
+        break
+      case 'mensagens-prontas':
+        onMensagensProntas()
         onClose()
         break
     }

@@ -828,6 +828,23 @@ Deno.serve(async (req) => {
       console.log(`[waha-webhook] Contact/vCard detected from payload structure (was type: ${messageType})`);
     }
 
+    // AIDEV-NOTE: Detect poll messages from device (GOWS engine)
+    // GOWS sends polls with type undefined, but _data.Message contains pollCreationMessage/V3
+    if (wahaType === "text" || wahaType === "chat") {
+      const _msg = payload._data?.Message || payload._data?.message || {};
+      if (_msg.pollCreationMessageV3 || _msg.pollCreationMessage) {
+        wahaType = "poll";
+        const pollMsg = _msg.pollCreationMessageV3 || _msg.pollCreationMessage;
+        payload.__detectedPollData = pollMsg;
+        console.log(`[waha-webhook] Poll detected from pollCreationMessage (was type: ${messageType})`);
+      }
+    }
+    // Also check _data.Info.Type as fallback for GOWS
+    if ((wahaType === "text" || wahaType === "chat") && payload._data?.Info?.Type === "poll") {
+      wahaType = "poll";
+      console.log(`[waha-webhook] Poll detected from _data.Info.Type fallback`);
+    }
+
     // If type is "text" but has media, infer correct type from mimetype
     if ((wahaType === "text" || wahaType === "chat") && payload.hasMedia && payload.media?.mimetype) {
       const mime = (payload.media.mimetype as string).toLowerCase();
@@ -1008,13 +1025,36 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Extract poll data
+    // Extract poll data (NOWEB + GOWS engines)
     if (wahaType === "poll" || wahaType === "poll_creation") {
       messageInsert.tipo = "poll";
-      messageInsert.poll_question = payload._data?.pollName || payload.body || null;
+
+      // Source 1: __detectedPollData (set during type inference above)
+      // Source 2: pollCreationMessageV3/pollCreationMessage from _data.Message
+      const detectedPoll = payload.__detectedPollData;
+      const gowsPollMsg = payload._data?.Message?.pollCreationMessageV3
+        || payload._data?.Message?.pollCreationMessage
+        || payload._data?.message?.pollCreationMessageV3
+        || payload._data?.message?.pollCreationMessage;
+      const pollSource = detectedPoll || gowsPollMsg;
+
+      messageInsert.poll_question = payload._data?.pollName
+        || pollSource?.name
+        || payload.body
+        || null;
+
       const pollOpts = payload._data?.pollOptions;
       if (Array.isArray(pollOpts)) {
         messageInsert.poll_options = pollOpts.map((opt: { name?: string }) => ({ text: opt.name || "", votes: 0 }));
+      } else if (pollSource?.options && Array.isArray(pollSource.options)) {
+        messageInsert.poll_options = pollSource.options.map((opt: { optionName?: string; name?: string }) => ({
+          text: opt.optionName || opt.name || "", votes: 0
+        }));
+      }
+
+      // Set body with poll emoji prefix if missing
+      if (!messageInsert.body && messageInsert.poll_question) {
+        messageInsert.body = `📊 ${messageInsert.poll_question}`;
       }
     }
 
