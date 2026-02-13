@@ -152,26 +152,26 @@ export function PerfilPage() {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="max-w-2xl mx-auto px-4 py-8">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {/* Header */}
-        <div className="flex items-center gap-3 mb-8">
+        <div className="flex items-center gap-3 mb-6 sm:mb-8">
           <button
             onClick={() => navigate(-1)}
             className="p-2 rounded-md hover:bg-accent transition-colors"
           >
             <ArrowLeft className="w-5 h-5 text-muted-foreground" />
           </button>
-          <h1 className="text-xl font-semibold text-foreground">Meu Perfil</h1>
+          <h1 className="text-lg sm:text-xl font-semibold text-foreground">Meu Perfil</h1>
         </div>
 
         {/* Avatar */}
-        <div className="flex items-center gap-6 mb-8">
-          <div className="relative group">
-            <div className="w-20 h-20 rounded-full overflow-hidden bg-muted flex items-center justify-center border-2 border-border">
+        <div className="flex items-center gap-4 sm:gap-6 mb-6 sm:mb-8">
+          <div className="relative group flex-shrink-0">
+            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden bg-muted flex items-center justify-center border-2 border-border">
               {avatarUrl ? (
                 <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
               ) : (
-                <span className="text-2xl font-semibold text-muted-foreground">{initials}</span>
+                <span className="text-xl sm:text-2xl font-semibold text-muted-foreground">{initials}</span>
               )}
             </div>
             <button
@@ -193,14 +193,14 @@ export function PerfilPage() {
               className="hidden"
             />
           </div>
-          <div>
-            <p className="text-lg font-medium text-foreground">{nome} {sobrenome}</p>
-            <p className="text-sm text-muted-foreground">{user?.email}</p>
+          <div className="min-w-0">
+            <p className="text-base sm:text-lg font-medium text-foreground truncate">{nome} {sobrenome}</p>
+            <p className="text-sm text-muted-foreground truncate">{user?.email}</p>
           </div>
         </div>
 
         {/* Dados pessoais */}
-        <div className="bg-card rounded-lg border border-border p-6 mb-6">
+        <div className="bg-card rounded-lg border border-border p-4 sm:p-6 mb-4 sm:mb-6">
           <h2 className="text-base font-semibold text-foreground mb-4">Dados Pessoais</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -209,7 +209,7 @@ export function PerfilPage() {
                 type="text"
                 value={nome}
                 onChange={(e) => setNome(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                className="w-full px-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
               />
             </div>
             <div>
@@ -218,7 +218,7 @@ export function PerfilPage() {
                 type="text"
                 value={sobrenome}
                 onChange={(e) => setSobrenome(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                className="w-full px-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
               />
             </div>
             <div>
@@ -227,7 +227,7 @@ export function PerfilPage() {
                 type="email"
                 value={user?.email || ''}
                 disabled
-                className="w-full px-3 py-2 text-sm border border-border rounded-md bg-muted text-muted-foreground cursor-not-allowed"
+                className="w-full px-3 py-2 text-sm border border-input rounded-md bg-muted text-muted-foreground cursor-not-allowed"
               />
             </div>
             <div>
@@ -237,7 +237,7 @@ export function PerfilPage() {
                 value={telefone}
                 onChange={handleTelefoneChange}
                 placeholder="(00) 00000-0000"
-                className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                className="w-full px-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
               />
             </div>
           </div>
@@ -245,7 +245,7 @@ export function PerfilPage() {
             <button
               onClick={handleSalvarPerfil}
               disabled={saving}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90 rounded-md transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90 rounded-md shadow-sm transition-colors disabled:opacity-50"
             >
               {saving && <Loader2 className="w-4 h-4 animate-spin" />}
               Salvar
@@ -253,10 +253,10 @@ export function PerfilPage() {
           </div>
         </div>
 
-        {/* Alterar senha - tudo em uma linha */}
-        <div className="bg-card rounded-lg border border-border p-6">
+        {/* Alterar senha */}
+        <div className="bg-card rounded-lg border border-border p-4 sm:p-6">
           <h2 className="text-base font-semibold text-foreground mb-4">Alterar Senha</h2>
-          <div className="flex flex-col sm:flex-row items-end gap-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3">
             <div className="flex-1 w-full">
               <label className="block text-sm font-medium text-foreground mb-1">Nova Senha</label>
               <div className="relative">
@@ -265,7 +265,7 @@ export function PerfilPage() {
                   value={novaSenha}
                   onChange={(e) => setNovaSenha(e.target.value)}
                   placeholder="Mínimo 8 caracteres"
-                  className="w-full px-3 py-2 pr-10 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                  className="w-full px-3 py-2 pr-10 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                 />
                 <button
                   type="button"
@@ -278,18 +278,27 @@ export function PerfilPage() {
             </div>
             <div className="flex-1 w-full">
               <label className="block text-sm font-medium text-foreground mb-1">Confirmar Senha</label>
-              <input
-                type={showSenha ? 'text' : 'password'}
-                value={confirmarSenha}
-                onChange={(e) => setConfirmarSenha(e.target.value)}
-                placeholder="Repita a nova senha"
-                className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
-              />
+              <div className="relative">
+                <input
+                  type={showSenha ? 'text' : 'password'}
+                  value={confirmarSenha}
+                  onChange={(e) => setConfirmarSenha(e.target.value)}
+                  placeholder="Repita a nova senha"
+                  className="w-full px-3 py-2 pr-10 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowSenha(!showSenha)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showSenha ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
             <button
               onClick={handleAlterarSenha}
               disabled={savingSenha || !novaSenha || novaSenha !== confirmarSenha || novaSenha.length < 8}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90 rounded-md transition-colors disabled:opacity-50 whitespace-nowrap flex-shrink-0"
+              className="flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90 rounded-md shadow-sm transition-colors disabled:opacity-50 whitespace-nowrap flex-shrink-0 w-full sm:w-auto"
             >
               {savingSenha && <Loader2 className="w-4 h-4 animate-spin" />}
               Alterar Senha
