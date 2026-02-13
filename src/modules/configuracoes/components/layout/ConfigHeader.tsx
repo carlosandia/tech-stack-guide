@@ -65,10 +65,14 @@ export function ConfigHeader({ onMenuClick }: ConfigHeaderProps) {
             onClick={() => setUserMenuOpen(!userMenuOpen)}
             className="flex items-center gap-2 p-2 hover:bg-accent rounded-md transition-all duration-200"
           >
-            <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center">
-              <span className="text-sm font-medium text-muted-foreground">
-                {user?.nome?.[0]?.toUpperCase() || 'U'}
-              </span>
+            <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center overflow-hidden">
+              {user?.avatar_url ? (
+                <img src={user.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-sm font-medium text-muted-foreground">
+                  {user?.nome?.[0]?.toUpperCase() || 'U'}
+                </span>
+              )}
             </div>
             <span className="hidden sm:block text-sm font-medium text-foreground max-w-[150px] truncate">
               {user?.nome || 'Usuário'}
