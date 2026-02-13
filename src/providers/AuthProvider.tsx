@@ -156,7 +156,25 @@ export function AuthProvider({ children }: AuthProviderProps) {
     )
 
     // Verifica sessao existente
-    supabase.auth.getSession().then(({ data: { session: existingSession } }) => {
+    supabase.auth.getSession().then(async ({ data: { session: existingSession } }) => {
+      // Se "Lembrar por 30 dias" não foi marcado, limpa sessão ao reabrir navegador
+      const rememberMe = localStorage.getItem('rememberMe')
+      const isNewBrowserSession = !sessionStorage.getItem('activeSession')
+
+      if (existingSession && rememberMe === 'false' && isNewBrowserSession) {
+        // Usuário não marcou "lembrar" e é uma nova sessão do navegador
+        await supabase.auth.signOut()
+        setSession(null)
+        setUser(null)
+        setLoading(false)
+        return
+      }
+
+      // Marca sessão ativa no sessionStorage (limpa automaticamente ao fechar browser)
+      if (existingSession) {
+        sessionStorage.setItem('activeSession', 'true')
+      }
+
       setSession(existingSession)
       
       if (existingSession?.user) {
@@ -173,8 +191,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [fetchUserData])
 
   // Login
-  const signIn = async (email: string, password: string, _lembrar = false) => {
+  const signIn = async (email: string, password: string, lembrar = false) => {
     try {
+      // Salva preferência de persistência
+      localStorage.setItem('rememberMe', lembrar ? 'true' : 'false')
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email.toLowerCase(),
         password,
@@ -185,6 +206,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
 
       if (data.user) {
+        // Marca sessão ativa no browser
+        sessionStorage.setItem('activeSession', 'true')
+        
         const userData = await fetchUserData(data.user)
         
         if (userData) {
