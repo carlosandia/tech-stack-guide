@@ -837,39 +837,9 @@ Deno.serve(async (req) => {
 
         console.log(`[waha-proxy] Consulting poll votes for ${pollMsgId}, session: ${sessionId}`);
 
-        // AIDEV-NOTE: Consultar o engine real da sessao WAHA para distinguir NOWEB vs GOWS/WEBJS
-        // A resposta da WAHA tem engine como objeto: {"engine": {"engine": "GOWS"}}
-        let engineName = "UNKNOWN";
-        try {
-          const sessionInfoResp = await fetch(`${baseUrl}/api/sessions/${sessionId}`, {
-            method: "GET",
-            headers: { "X-Api-Key": apiKey },
-          });
-          if (sessionInfoResp.ok) {
-            const sessionInfo = await sessionInfoResp.json().catch(() => ({}));
-            // engine pode ser string "GOWS" ou objeto {"engine": "GOWS"}
-            const rawEngine = sessionInfo?.engine;
-            if (typeof rawEngine === 'string') {
-              engineName = rawEngine.toUpperCase();
-            } else if (rawEngine && typeof rawEngine === 'object' && rawEngine.engine) {
-              engineName = String(rawEngine.engine).toUpperCase();
-            } else if (sessionInfo?.config?.engine) {
-              const cfgEngine = sessionInfo.config.engine;
-              engineName = (typeof cfgEngine === 'string' ? cfgEngine : String(cfgEngine)).toUpperCase();
-            }
-            console.log(`[waha-proxy] Session engine detected: ${engineName} (raw: ${JSON.stringify(rawEngine)})`);
-          } else {
-            console.warn(`[waha-proxy] Could not fetch session info (${sessionInfoResp.status}), engine unknown`);
-          }
-        } catch (engineErr) {
-          console.warn(`[waha-proxy] Error fetching session engine:`, engineErr);
-        }
-
-        const isNoweb = engineName === "NOWEB";
-
-        // AIDEV-NOTE: A WAHA nao tem endpoint GET para buscar votos de enquete.
-        // Votos chegam via webhook poll.vote e sao salvos no banco pelo waha-webhook.
-        // Estrategia: buscar votos do banco de dados (poll_options da mensagem).
+        // AIDEV-NOTE: Buscar votos do banco de dados (poll_options da mensagem).
+        // WAHA não tem endpoint GET para votos - eles só chegam via webhook poll.vote.
+        // Não precisamos mais detectar engine - apenas retornar o que temos no banco.
         try {
           // Buscar a mensagem da enquete no banco
           const { data: pollMsg } = await supabaseAdmin
@@ -901,24 +871,13 @@ Deno.serve(async (req) => {
           const currentOptions = targetMsg.poll_options as Array<{ text: string; votes: number }>;
           const hasAnyVotes = currentOptions.some(opt => (opt.votes || 0) > 0);
 
-          // Se NOWEB e sem votos, pode ser limitacao real
-          if (isNoweb && !hasAnyVotes) {
-            console.log(`[waha-proxy] Engine NOWEB + 0 votes - showing limitation warning`);
-            return new Response(
-              JSON.stringify({ 
-                ok: false, 
-                engine_limitation: true,
-                error: "Votos de enquete não disponíveis com engine NOWEB. Verifique diretamente no WhatsApp." 
-              }),
-              { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
-          }
-
-          // Para qualquer outro engine (GOWS, WEBJS, etc), retornar os votos do banco normalmente
-          // Votos sao atualizados em tempo real via webhook poll.vote
-          console.log(`[waha-proxy] ✅ Returning poll votes from DB (engine: ${engineName}):`, JSON.stringify(currentOptions));
+          console.log(`[waha-proxy] ✅ Returning poll votes from DB: ${JSON.stringify(currentOptions)}, hasVotes: ${hasAnyVotes}`);
           return new Response(
-            JSON.stringify({ ok: true, poll_options: currentOptions, engine: engineName }),
+            JSON.stringify({ 
+              ok: true, 
+              poll_options: currentOptions,
+              has_votes: hasAnyVotes,
+            }),
             { headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         } catch (e) {
