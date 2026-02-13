@@ -100,14 +100,14 @@ interface ToggleItemProps {
 
 function ToggleItem({ label, desc, checked, onChange }: ToggleItemProps) {
   return (
-    <div className="flex items-center justify-between py-2">
-      <div>
+    <div className="flex items-center justify-between gap-3 py-2">
+      <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-foreground">{label}</p>
         <p className="text-xs text-muted-foreground">{desc}</p>
       </div>
       <button
         onClick={onChange}
-        className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${
+        className={`relative w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${
           checked ? 'bg-primary' : 'bg-muted'
         }`}
       >
