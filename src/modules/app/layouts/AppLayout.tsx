@@ -385,7 +385,7 @@ function ToolbarWithActions({ pageTitle }: { pageTitle: string }) {
 
         {/* Center: Optional content */}
         {centerContent && (
-          <div className="flex items-center gap-2 flex-1 justify-center min-w-0 sm:mx-4">
+          <div className="flex items-center gap-2 flex-1 justify-center sm:justify-start min-w-0 sm:mx-4">
             {centerContent}
           </div>
         )}
