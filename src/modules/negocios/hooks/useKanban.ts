@@ -161,7 +161,61 @@ export function useFecharOportunidade() {
       motivoId?: string
       observacoes?: string
     }) => negociosApi.fecharOportunidade(oportunidadeId, tipo, etapaDestinoId, motivoId, observacoes),
-    onSuccess: () => {
+
+    // AIDEV-NOTE: Optimistic update — remove card do kanban imediatamente
+    onMutate: async ({ oportunidadeId, etapaDestinoId }) => {
+      await queryClient.cancelQueries({ queryKey: ['kanban'] })
+      const previousKanbanQueries = queryClient.getQueriesData({ queryKey: ['kanban'] })
+
+      queryClient.setQueriesData({ queryKey: ['kanban'] }, (old: any) => {
+        if (!old?.etapas) return old
+
+        let oportunidadeMovida: any = null
+        const etapasAtualizadas = old.etapas.map((etapa: any) => {
+          const idx = etapa.oportunidades.findIndex((op: any) => op.id === oportunidadeId)
+          if (idx !== -1) {
+            oportunidadeMovida = { ...etapa.oportunidades[idx], etapa_id: etapaDestinoId }
+            const novasOps = [...etapa.oportunidades]
+            novasOps.splice(idx, 1)
+            return {
+              ...etapa,
+              oportunidades: novasOps,
+              total_oportunidades: etapa.total_oportunidades - 1,
+              valor_total: etapa.valor_total - (oportunidadeMovida.valor || 0),
+            }
+          }
+          return etapa
+        })
+
+        if (!oportunidadeMovida) return old
+
+        // Mover para etapa destino (ganho/perdido)
+        const etapasFinais = etapasAtualizadas.map((etapa: any) => {
+          if (etapa.id === etapaDestinoId) {
+            return {
+              ...etapa,
+              oportunidades: [...etapa.oportunidades, oportunidadeMovida],
+              total_oportunidades: etapa.total_oportunidades + 1,
+              valor_total: etapa.valor_total + (oportunidadeMovida.valor || 0),
+            }
+          }
+          return etapa
+        })
+
+        return { ...old, etapas: etapasFinais }
+      })
+
+      return { previousKanbanQueries }
+    },
+    onError: (_err, _vars, context) => {
+      // Rollback em caso de erro
+      if (context?.previousKanbanQueries) {
+        context.previousKanbanQueries.forEach(([queryKey, data]) => {
+          queryClient.setQueryData(queryKey, data)
+        })
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['kanban'] })
       queryClient.invalidateQueries({ queryKey: ['historico'] })
     },
