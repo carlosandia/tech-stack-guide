@@ -1437,7 +1437,7 @@ function renderBotoesPublico(
     const ladoALado = larguraEnviar === '50%' && larguraWhatsApp === '50%'
 
     return (
-      <div style={{ display: 'flex', gap: '8px', flexDirection: ladoALado ? 'row' : 'column' }}>
+      <div className="form-btns-wrapper" style={{ display: 'flex', gap: '8px', flexDirection: ladoALado ? 'row' : 'column' }}>
         <div style={{ width: ladoALado ? '50%' : '100%' }}>{enviarBtn}</div>
         <div style={{ width: ladoALado ? '50%' : '100%' }}>{whatsAppBtn}</div>
       </div>

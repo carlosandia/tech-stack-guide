@@ -44,11 +44,11 @@ export function generateResponsiveCss(
 
     if (tabletVal) {
       const v = transform ? transform(tabletVal) : tabletVal
-      tabletRules.push(`  ${prop}: ${v};`)
+      tabletRules.push(`  ${prop}: ${v} !important;`)
     }
     if (mobileVal) {
       const v = transform ? transform(mobileVal) : mobileVal
-      mobileRules.push(`  ${prop}: ${v};`)
+      mobileRules.push(`  ${prop}: ${v} !important;`)
     }
   }
 
@@ -83,7 +83,7 @@ export function generateColunasResponsiveCss(
   // Tablet
   if (config.larguras_tablet) {
     const widths = config.larguras_tablet.split(',').map(l => l.trim())
-    css += `@media (min-width: 768px) and (max-width: 1023px) {\n  ${selector} { flex-wrap: wrap; }\n`
+    css += `@media (min-width: 768px) and (max-width: 1023px) {\n  ${selector} { flex-wrap: wrap !important; }\n`
     widths.forEach((w, i) => {
       css += `  ${selector} > .col-${i} { width: ${w} !important; }\n`
     })
@@ -93,7 +93,7 @@ export function generateColunasResponsiveCss(
   // Mobile - default to 100% each column (stacking) if not specified
   const mobileLarguras = config.larguras_mobile || Array(config.colunas).fill('100%').join(',')
   const mobileWidths = mobileLarguras.split(',').map(l => l.trim())
-  css += `@media (max-width: 767px) {\n  ${selector} { flex-wrap: wrap; }\n`
+  css += `@media (max-width: 767px) {\n  ${selector} { flex-wrap: wrap !important; }\n`
   mobileWidths.forEach((w, i) => {
     css += `  ${selector} > .col-${i} { width: ${w} !important; }\n`
   })
@@ -123,6 +123,23 @@ export function generateFormResponsiveCss(
       { prop: 'height', field: 'whatsapp_altura', estilos: botao },
       { prop: 'font-size', field: 'whatsapp_font_size', estilos: botao },
     ])
+    // Responsive: botões wrapper - empilhar no mobile se necessário
+    const mLargura = botao.largura_mobile as string | undefined
+    const mWLargura = botao.whatsapp_largura_mobile as string | undefined
+    if (mLargura || mWLargura) {
+      const shouldStack = larguraToCSS(mLargura || botao.largura as string || 'full') === '100%' || larguraToCSS(mWLargura || botao.whatsapp_largura as string || 'full') === '100%'
+      if (shouldStack) {
+        css += `@media (max-width: 767px) {\n  ${prefix} .form-btns-wrapper { flex-direction: column !important; }\n  ${prefix} .form-btns-wrapper > div { width: 100% !important; }\n}\n`
+      }
+    }
+    const tLargura = botao.largura_tablet as string | undefined
+    const tWLargura = botao.whatsapp_largura_tablet as string | undefined
+    if (tLargura || tWLargura) {
+      const shouldStack = larguraToCSS(tLargura || botao.largura as string || 'full') === '100%' || larguraToCSS(tWLargura || botao.whatsapp_largura as string || 'full') === '100%'
+      if (shouldStack) {
+        css += `@media (min-width: 768px) and (max-width: 1023px) {\n  ${prefix} .form-btns-wrapper { flex-direction: column !important; }\n  ${prefix} .form-btns-wrapper > div { width: 100% !important; }\n}\n`
+      }
+    }
   }
 
   if (container) {
