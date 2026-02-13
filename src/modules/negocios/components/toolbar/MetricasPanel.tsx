@@ -150,7 +150,7 @@ export function MetricasPanel({ data, metricasVisiveis }: MetricasPanelProps) {
   if (metricasFiltradas.length === 0) return null
 
   return (
-    <div className="flex-shrink-0 border-b border-border bg-muted/50 px-3 sm:px-4 py-3 animate-enter">
+    <div className="flex-shrink-0 border-b border-border px-3 sm:px-4 py-3 animate-enter" style={{ backgroundColor: 'hsl(220, 10%, 90%)' }}>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-2">
         {metricasFiltradas.map(m => (
           <div
