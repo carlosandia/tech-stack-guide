@@ -121,9 +121,13 @@ export function PipelineSelector({
         <>
           {/* Confirmação de exclusão (overlay) */}
           {confirmDelete && (
-            <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4" onClick={() => setConfirmDelete(null)}>
+            <div
+              className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+              style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+              onClick={() => setConfirmDelete(null)}
+            >
               <div
-                className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm p-5 space-y-4 animate-enter"
+                className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm p-5 space-y-4"
                 onClick={e => e.stopPropagation()}
               >
                 <div className="flex items-start gap-3">
