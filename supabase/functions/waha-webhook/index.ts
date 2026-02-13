@@ -218,7 +218,7 @@ Deno.serve(async (req) => {
             // Tentativa 1: match exato
             const { data: exactMatch } = await supabaseAdmin
               .from("mensagens")
-              .select("id, poll_options, message_id")
+              .select("id, poll_options, message_id, raw_data")
               .eq("message_id", pollMessageId)
               .eq("organizacao_id", sessao.organizacao_id)
               .eq("tipo", "poll")
@@ -234,11 +234,11 @@ Deno.serve(async (req) => {
                 console.log(`[waha-webhook] Exact match failed, trying hash search: %${hash}`);
                 const { data: hashMatch } = await supabaseAdmin
                   .from("mensagens")
-                  .select("id, poll_options, message_id")
-                  .eq("organizacao_id", sessao.organizacao_id)
-                  .eq("tipo", "poll")
-                  .like("message_id", `%${hash}`)
-                  .maybeSingle();
+              .select("id, poll_options, message_id, raw_data")
+              .eq("organizacao_id", sessao.organizacao_id)
+              .eq("tipo", "poll")
+              .like("message_id", `%${hash}`)
+              .maybeSingle();
                 pollMsg = hashMatch;
               }
             }
@@ -249,11 +249,11 @@ Deno.serve(async (req) => {
               console.log(`[waha-webhook] GOWS format detected (no underscore), searching by hash: %${pollMessageId}`);
               const { data: gowsMatch } = await supabaseAdmin
                 .from("mensagens")
-                .select("id, poll_options, message_id")
-                .eq("organizacao_id", sessao.organizacao_id)
-                .eq("tipo", "poll")
-                .like("message_id", `%${pollMessageId}`)
-                .maybeSingle();
+              .select("id, poll_options, message_id, raw_data")
+              .eq("organizacao_id", sessao.organizacao_id)
+              .eq("tipo", "poll")
+              .like("message_id", `%${pollMessageId}`)
+              .maybeSingle();
               pollMsg = gowsMatch;
             }
 
@@ -261,18 +261,31 @@ Deno.serve(async (req) => {
               console.log(`[waha-webhook] Found poll message: ${pollMsg.id} (message_id: ${pollMsg.message_id})`);
               const currentOptions = pollMsg.poll_options as Array<{ text: string; votes: number }>;
               
-              // AIDEV-NOTE: Conforme docs WAHA, selectedOptions contém TODAS as opções selecionadas
-              // pelo usuário naquele momento. Devemos marcar 1 para selecionadas, 0 para não.
-              // Para múltiplos votantes, incrementamos quando selecionado.
+              // AIDEV-NOTE: Armazenar seleções por votante e recalcular totais.
+              // Cada poll.vote do WAHA contém TODAS as opções selecionadas por aquele votante.
+              // Substituímos (não incrementamos) para evitar contagem duplicada.
+              const voterId = vote?.from || vote?.id?.split('_')[1] || 'unknown';
+              const existingRawData = (pollMsg.raw_data || {}) as Record<string, unknown>;
+              const pollVoters = ((existingRawData.poll_voters || {}) as Record<string, string[]>);
+              
+              // SUBSTITUIR seleção deste votante (não incrementar)
+              pollVoters[voterId] = selectedOptions;
+              
+              // Recalcular totais a partir de todos os votantes
               const updatedOptions = currentOptions.map(opt => {
-                const wasSelected = selectedOptions.some(optName => optName === opt.text);
-                return { ...opt, votes: wasSelected ? (opt.votes || 0) + 1 : opt.votes };
+                const voteCount = Object.values(pollVoters).filter(
+                  (selections: string[]) => selections.includes(opt.text)
+                ).length;
+                return { ...opt, votes: voteCount };
               });
+
+              console.log(`[waha-webhook] Voter ${voterId} selected: ${JSON.stringify(selectedOptions)}. All voters: ${JSON.stringify(pollVoters)}`);
 
               const { error: updateError } = await supabaseAdmin
                 .from("mensagens")
                 .update({
                   poll_options: updatedOptions,
+                  raw_data: { ...existingRawData, poll_voters: pollVoters },
                   atualizado_em: new Date().toISOString(),
                 })
                 .eq("id", pollMsg.id);
