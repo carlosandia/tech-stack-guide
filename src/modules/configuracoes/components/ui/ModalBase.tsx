@@ -15,6 +15,7 @@
  */
 
 import { useEffect, useRef, useId, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { X, Plus, Pencil } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -102,11 +103,11 @@ export function ModalBase({
   const badgeBg = variant === 'create' ? 'bg-primary/10' : 'bg-accent'
   const badgeColor = variant === 'create' ? 'text-primary' : 'text-muted-foreground'
 
-  return (
+  return createPortal(
     <>
       {/* Overlay */}
       <div
-        className="fixed inset-0 z-[400] bg-black/80 backdrop-blur-sm animate-fade-in"
+        className="fixed inset-0 z-[400] bg-black/80 backdrop-blur-sm"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -166,6 +167,7 @@ export function ModalBase({
           </div>
         </div>
       </div>
-    </>
+    </>,
+    document.body
   )
 }
