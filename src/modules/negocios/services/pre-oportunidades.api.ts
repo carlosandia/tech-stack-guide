@@ -94,13 +94,35 @@ export const preOportunidadesApi = {
     if (error) throw new Error(error.message)
 
     const agora = Date.now()
-    return (data || []).map(item => ({
+    const items = (data || []).map(item => ({
       ...item,
       total_mensagens: item.total_mensagens ?? 0,
       tempo_espera_minutos: Math.round(
         (agora - new Date(item.criado_em).getTime()) / 60000
       ),
     }))
+
+    // AIDEV-NOTE: Buscar fotos de perfil das conversas para pré-oportunidades sem foto
+    const semFoto = items.filter(i => !i.profile_picture_url)
+    if (semFoto.length > 0) {
+      const phones = semFoto.map(i => `${i.phone_number}@c.us`)
+      const { data: conversas } = await supabase
+        .from('conversas')
+        .select('chat_id, foto_url')
+        .in('chat_id', phones)
+        .not('foto_url', 'is', null)
+
+      if (conversas && conversas.length > 0) {
+        const fotoMap = new Map(conversas.map(c => [c.chat_id.replace('@c.us', ''), c.foto_url]))
+        for (const item of items) {
+          if (!item.profile_picture_url) {
+            item.profile_picture_url = fotoMap.get(item.phone_number) || null
+          }
+        }
+      }
+    }
+
+    return items
   },
 
   /**

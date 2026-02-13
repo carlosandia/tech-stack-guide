@@ -35,7 +35,7 @@ export function SolicitacaoCard({ preOp, onClick, onWhatsApp }: SolicitacaoCardP
   const isUrgente = preOp.tempo_espera_minutos > 60
 
   return (
-    <div className="w-full text-left bg-card border border-border rounded-lg shadow-sm p-3 hover:shadow-md transition-all duration-200">
+    <div className="w-full text-left bg-card rounded-lg shadow-sm p-3 hover:shadow-md transition-all duration-200">
       {/* Header: Nome/Telefone + WhatsApp icon */}
       <div className="flex items-center gap-2 mb-2">
         <button type="button" onClick={() => onClick(preOp)} className="flex items-center gap-2 min-w-0 flex-1">
