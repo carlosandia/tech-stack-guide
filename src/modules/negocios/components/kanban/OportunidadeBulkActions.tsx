@@ -74,16 +74,16 @@ export function OportunidadeBulkActions({
   const etapasMoviveis = etapas.filter(e => e.tipo !== 'ganho' && e.tipo !== 'perda')
 
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] bg-foreground text-background rounded-lg shadow-xl px-4 py-3 flex items-center gap-3 animate-in slide-in-from-bottom-4">
-      <span className="text-sm font-medium whitespace-nowrap">
-        {selectedCount} selecionado{selectedCount > 1 ? 's' : ''}
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] bg-foreground text-background rounded-lg shadow-xl px-2 py-2 sm:px-4 sm:py-3 flex items-center gap-1.5 sm:gap-3 animate-in slide-in-from-bottom-4 max-w-[calc(100vw-32px)]">
+      <span className="text-xs sm:text-sm font-medium whitespace-nowrap">
+        {selectedCount} sel.
       </span>
 
       <div className="w-px h-5 bg-background/20" />
 
       <button
         onClick={onExportar}
-        className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md hover:bg-background/10 transition-colors"
+        className="flex items-center justify-center gap-1.5 min-w-[36px] min-h-[36px] sm:min-w-0 sm:min-h-0 px-2 py-1.5 sm:px-3 text-sm rounded-md hover:bg-background/10 transition-colors"
         title="Exportar selecionados"
       >
         <Download className="w-4 h-4" />
@@ -95,7 +95,7 @@ export function OportunidadeBulkActions({
         <button
           onClick={() => { setShowMover(!showMover); setShowTags(false) }}
           disabled={isMoving}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md hover:bg-background/10 transition-colors disabled:opacity-50"
+          className="flex items-center justify-center gap-1.5 min-w-[36px] min-h-[36px] sm:min-w-0 sm:min-h-0 px-2 py-1.5 sm:px-3 text-sm rounded-md hover:bg-background/10 transition-colors disabled:opacity-50"
           title="Mover de etapa"
         >
           <ArrowRightLeft className="w-4 h-4" />
@@ -103,7 +103,7 @@ export function OportunidadeBulkActions({
         </button>
 
         {showMover && (
-          <div className="absolute bottom-full mb-2 left-0 w-52 bg-background rounded-lg shadow-lg border border-border py-1 z-50">
+          <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 sm:left-0 sm:translate-x-0 w-52 bg-background rounded-lg shadow-lg border border-border py-1 z-50">
             <div className="px-3 py-2 border-b border-border">
               <p className="text-sm font-medium text-foreground">Mover para:</p>
             </div>
@@ -126,7 +126,7 @@ export function OportunidadeBulkActions({
         <button
           onClick={() => { setShowTags(!showTags); setShowMover(false) }}
           disabled={segmentarLote.isPending}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md hover:bg-background/10 transition-colors disabled:opacity-50"
+          className="flex items-center justify-center gap-1.5 min-w-[36px] min-h-[36px] sm:min-w-0 sm:min-h-0 px-2 py-1.5 sm:px-3 text-sm rounded-md hover:bg-background/10 transition-colors disabled:opacity-50"
           title="Segmentar"
         >
           <Tag className="w-4 h-4" />
@@ -134,7 +134,7 @@ export function OportunidadeBulkActions({
         </button>
 
         {showTags && (
-          <div className="absolute bottom-full mb-2 left-0 w-60 bg-background rounded-lg shadow-lg border border-border py-1 z-50 max-h-64 overflow-y-auto">
+          <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 sm:left-0 sm:translate-x-0 w-60 bg-background rounded-lg shadow-lg border border-border py-1 z-50 max-h-64 overflow-y-auto">
             <div className="px-3 py-2 border-b border-border">
               <p className="text-sm font-medium text-foreground">
                 Segmentar {selectedCount} oportunidade(s):
@@ -187,22 +187,22 @@ export function OportunidadeBulkActions({
       {!showConfirmDelete ? (
         <button
           onClick={() => setShowConfirmDelete(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md text-destructive hover:bg-destructive/20 transition-colors"
+          className="flex items-center justify-center gap-1.5 min-w-[36px] min-h-[36px] sm:min-w-0 sm:min-h-0 px-2 py-1.5 sm:px-3 text-sm rounded-md text-destructive hover:bg-destructive/20 transition-colors"
           title="Excluir selecionados"
         >
           <Trash2 className="w-4 h-4" />
           <span className="hidden sm:inline">Excluir</span>
         </button>
       ) : (
-        <div className="flex items-center gap-1.5">
-          <AlertTriangle className="w-4 h-4 text-destructive" />
-          <span className="text-xs text-destructive">Confirmar?</span>
+        <div className="flex items-center gap-1">
+          <AlertTriangle className="w-4 h-4 text-destructive hidden sm:block" />
+          <span className="text-xs text-destructive hidden sm:inline">Confirmar?</span>
           <button
             onClick={() => { onExcluir(); setShowConfirmDelete(false) }}
             disabled={isDeleting}
             className="px-2 py-1 text-xs rounded bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors disabled:opacity-50"
           >
-            {isDeleting ? 'Excluindo...' : 'Sim'}
+            {isDeleting ? '...' : 'Sim'}
           </button>
           <button
             onClick={() => setShowConfirmDelete(false)}
