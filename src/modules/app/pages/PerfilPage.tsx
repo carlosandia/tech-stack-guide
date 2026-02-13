@@ -12,6 +12,13 @@ import { Camera, Loader2, Eye, EyeOff, ArrowLeft } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { compressImage } from '@/shared/utils/compressMedia'
 
+function formatPhone(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 11)
+  if (digits.length <= 2) return digits.length ? `(${digits}` : ''
+  if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
+}
+
 export function PerfilPage() {
   const { user, refreshUser, session } = useAuth()
   const navigate = useNavigate()
@@ -25,7 +32,6 @@ export function PerfilPage() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
 
   // Senha
-  const [_senhaAtual, setSenhaAtual] = useState('')
   const [novaSenha, setNovaSenha] = useState('')
   const [confirmarSenha, setConfirmarSenha] = useState('')
   const [showSenha, setShowSenha] = useState(false)
@@ -40,12 +46,16 @@ export function PerfilPage() {
       .select('telefone')
       .eq('id', user.id)
       .single()
-    if (data?.telefone) setTelefone(data.telefone)
+    if (data?.telefone) setTelefone(formatPhone(data.telefone))
     setTelefoneLoaded(true)
   }, [user?.id, telefoneLoaded])
 
   // Carregar dados ao montar
   useState(() => { loadTelefone() })
+
+  const handleTelefoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setTelefone(formatPhone(e.target.value))
+  }
 
   const handleUploadFoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -95,7 +105,7 @@ export function PerfilPage() {
         .update({
           nome: nome.trim(),
           sobrenome: sobrenome.trim() || null,
-          telefone: telefone.trim() || null,
+          telefone: telefone.replace(/\D/g, '') || null,
         })
         .eq('id', user.id)
 
@@ -123,13 +133,11 @@ export function PerfilPage() {
       const { error } = await supabase.auth.updateUser({ password: novaSenha })
       if (error) throw error
 
-      // Atualizar senha_alterada_em
       await supabase
         .from('usuarios')
         .update({ senha_alterada_em: new Date().toISOString() })
         .eq('id', user!.id)
 
-      setSenhaAtual('')
       setNovaSenha('')
       setConfirmarSenha('')
       toast.success('Senha alterada com sucesso')
@@ -227,7 +235,7 @@ export function PerfilPage() {
               <input
                 type="tel"
                 value={telefone}
-                onChange={(e) => setTelefone(e.target.value)}
+                onChange={handleTelefoneChange}
                 placeholder="(00) 00000-0000"
                 className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
               />
@@ -245,28 +253,30 @@ export function PerfilPage() {
           </div>
         </div>
 
-        {/* Alterar senha */}
+        {/* Alterar senha - tudo em uma linha */}
         <div className="bg-card rounded-lg border border-border p-6">
           <h2 className="text-base font-semibold text-foreground mb-4">Alterar Senha</h2>
-          <div className="space-y-4 max-w-sm">
-            <div className="relative">
+          <div className="flex flex-col sm:flex-row items-end gap-3">
+            <div className="flex-1 w-full">
               <label className="block text-sm font-medium text-foreground mb-1">Nova Senha</label>
-              <input
-                type={showSenha ? 'text' : 'password'}
-                value={novaSenha}
-                onChange={(e) => setNovaSenha(e.target.value)}
-                placeholder="Mínimo 8 caracteres"
-                className="w-full px-3 py-2 pr-10 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
-              />
-              <button
-                type="button"
-                onClick={() => setShowSenha(!showSenha)}
-                className="absolute right-3 top-8 text-muted-foreground hover:text-foreground"
-              >
-                {showSenha ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
+              <div className="relative">
+                <input
+                  type={showSenha ? 'text' : 'password'}
+                  value={novaSenha}
+                  onChange={(e) => setNovaSenha(e.target.value)}
+                  placeholder="Mínimo 8 caracteres"
+                  className="w-full px-3 py-2 pr-10 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowSenha(!showSenha)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showSenha ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
-            <div>
+            <div className="flex-1 w-full">
               <label className="block text-sm font-medium text-foreground mb-1">Confirmar Senha</label>
               <input
                 type={showSenha ? 'text' : 'password'}
@@ -276,33 +286,31 @@ export function PerfilPage() {
                 className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
               />
             </div>
-            {novaSenha && (
-              <div className="text-xs space-y-1">
-                <p className={novaSenha.length >= 8 ? 'text-success' : 'text-destructive'}>
-                  {novaSenha.length >= 8 ? '✓' : '✗'} Mínimo 8 caracteres
-                </p>
-                <p className={/[A-Z]/.test(novaSenha) ? 'text-success' : 'text-destructive'}>
-                  {/[A-Z]/.test(novaSenha) ? '✓' : '✗'} Uma letra maiúscula
-                </p>
-                <p className={/[0-9]/.test(novaSenha) ? 'text-success' : 'text-destructive'}>
-                  {/[0-9]/.test(novaSenha) ? '✓' : '✗'} Um número
-                </p>
-                <p className={novaSenha === confirmarSenha && confirmarSenha ? 'text-success' : 'text-muted-foreground'}>
-                  {novaSenha === confirmarSenha && confirmarSenha ? '✓' : '✗'} Senhas coincidem
-                </p>
-              </div>
-            )}
-            <div className="flex justify-end">
-              <button
-                onClick={handleAlterarSenha}
-                disabled={savingSenha || !novaSenha || novaSenha !== confirmarSenha}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90 rounded-md transition-colors disabled:opacity-50"
-              >
-                {savingSenha && <Loader2 className="w-4 h-4 animate-spin" />}
-                Alterar Senha
-              </button>
-            </div>
+            <button
+              onClick={handleAlterarSenha}
+              disabled={savingSenha || !novaSenha || novaSenha !== confirmarSenha || novaSenha.length < 8}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90 rounded-md transition-colors disabled:opacity-50 whitespace-nowrap flex-shrink-0"
+            >
+              {savingSenha && <Loader2 className="w-4 h-4 animate-spin" />}
+              Alterar Senha
+            </button>
           </div>
+          {novaSenha && (
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs mt-3">
+              <p className={novaSenha.length >= 8 ? 'text-[hsl(var(--success-foreground))]' : 'text-destructive'}>
+                {novaSenha.length >= 8 ? '✓' : '✗'} Mín. 8 caracteres
+              </p>
+              <p className={/[A-Z]/.test(novaSenha) ? 'text-[hsl(var(--success-foreground))]' : 'text-destructive'}>
+                {/[A-Z]/.test(novaSenha) ? '✓' : '✗'} Maiúscula
+              </p>
+              <p className={/[0-9]/.test(novaSenha) ? 'text-[hsl(var(--success-foreground))]' : 'text-destructive'}>
+                {/[0-9]/.test(novaSenha) ? '✓' : '✗'} Número
+              </p>
+              <p className={novaSenha === confirmarSenha && confirmarSenha ? 'text-[hsl(var(--success-foreground))]' : 'text-muted-foreground'}>
+                {novaSenha === confirmarSenha && confirmarSenha ? '✓' : '✗'} Coincidem
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>
