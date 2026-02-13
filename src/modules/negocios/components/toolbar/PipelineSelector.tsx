@@ -102,8 +102,10 @@ export function PipelineSelector({
     setConfirmDelete(null)
     setOpen(false)
     setBusca('')
-    // Chamar após fechar para garantir que o callback execute
-    onExcluir?.(funilId)
+    // Usar setTimeout para garantir que o callback execute após o React atualizar o DOM
+    setTimeout(() => {
+      onExcluir?.(funilId)
+    }, 50)
   }
 
   return (
