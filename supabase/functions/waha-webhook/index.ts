@@ -180,24 +180,30 @@ Deno.serve(async (req) => {
 
     // =====================================================
     // HANDLE poll.vote EVENT (GOWS/WEBJS - votos reais)
+    // AIDEV-NOTE: O payload do poll.vote tem formatos diferentes por engine:
+    // - NOWEB/WEBJS: poll.id = "true_chatId_HASH"
+    // - GOWS: poll.id pode ser apenas "HASH" ou formato diferente
+    // A busca precisa ser flexível para encontrar a mensagem no banco.
+    // Votos são SUBSTITUIDOS (não incrementados) conforme docs WAHA.
     // =====================================================
     if (body.event === "poll.vote") {
       const payload = body.payload;
-      console.log(`[waha-webhook] poll.vote event received:`, JSON.stringify(payload).substring(0, 500));
+      console.log(`[waha-webhook] poll.vote event received:`, JSON.stringify(payload).substring(0, 800));
 
       if (payload) {
-        // WAHA poll.vote payload structure: 
-        // { vote: { id, selectedOptions, timestamp, from }, poll: { id, to, from, fromMe } }
-        // AIDEV-NOTE: O ID da mensagem da enquete esta em payload.poll.id, NAO em payload.vote.id
         const vote = payload.vote || {};
         const poll = payload.poll || {};
-        const pollMessageId = poll?.id?._serialized || poll?.id || vote?.parentMessage?.id?._serialized || vote?.parentMessage?.id || null;
-        const selectedOptions = vote?.selectedOptions || vote?.options || [];
+        // AIDEV-NOTE: poll.id é o ID da mensagem da enquete original
+        const pollMessageId = poll?.id?._serialized || poll?.id || null;
+        // selectedOptions pode ser array de strings OU array de objetos {name/text}
+        const selectedOptions: string[] = (vote?.selectedOptions || vote?.options || []).map(
+          (so: string | { name?: string; text?: string }) => typeof so === 'string' ? so : (so.name || so.text || '')
+        );
+        const voteTimestamp = vote?.timestamp || null;
 
-        console.log(`[waha-webhook] Poll vote: pollId=${pollMessageId}, voteId=${vote?.id}, options=${JSON.stringify(selectedOptions)}`);
+        console.log(`[waha-webhook] Poll vote: pollId=${pollMessageId}, selectedOptions=${JSON.stringify(selectedOptions)}, timestamp=${voteTimestamp}`);
 
         if (pollMessageId) {
-          // Find the session to get organizacao_id
           const { data: sessao } = await supabaseAdmin
             .from("sessoes_whatsapp")
             .select("id, organizacao_id")
@@ -206,20 +212,60 @@ Deno.serve(async (req) => {
             .maybeSingle();
 
           if (sessao) {
-            // Find the poll message
-            const { data: pollMsg } = await supabaseAdmin
+            // Busca flexível: tenta match exato primeiro, depois busca pelo hash do ID
+            let pollMsg = null;
+            
+            // Tentativa 1: match exato
+            const { data: exactMatch } = await supabaseAdmin
               .from("mensagens")
-              .select("id, poll_options")
+              .select("id, poll_options, message_id")
               .eq("message_id", pollMessageId)
               .eq("organizacao_id", sessao.organizacao_id)
+              .eq("tipo", "poll")
               .maybeSingle();
+            
+            pollMsg = exactMatch;
+
+            // Tentativa 2: extrair o hash final e buscar por LIKE
+            if (!pollMsg) {
+              const parts = pollMessageId.split("_");
+              const hash = parts[parts.length - 1]; // Último segmento é o hash único
+              if (hash && hash.length >= 10) {
+                console.log(`[waha-webhook] Exact match failed, trying hash search: %${hash}`);
+                const { data: hashMatch } = await supabaseAdmin
+                  .from("mensagens")
+                  .select("id, poll_options, message_id")
+                  .eq("organizacao_id", sessao.organizacao_id)
+                  .eq("tipo", "poll")
+                  .like("message_id", `%${hash}`)
+                  .maybeSingle();
+                pollMsg = hashMatch;
+              }
+            }
+
+            // Tentativa 3: para GOWS, o pollMessageId pode ser só o hash.
+            // Buscar onde message_id termina com esse hash
+            if (!pollMsg && !pollMessageId.includes("_")) {
+              console.log(`[waha-webhook] GOWS format detected (no underscore), searching by hash: %${pollMessageId}`);
+              const { data: gowsMatch } = await supabaseAdmin
+                .from("mensagens")
+                .select("id, poll_options, message_id")
+                .eq("organizacao_id", sessao.organizacao_id)
+                .eq("tipo", "poll")
+                .like("message_id", `%${pollMessageId}`)
+                .maybeSingle();
+              pollMsg = gowsMatch;
+            }
 
             if (pollMsg && pollMsg.poll_options) {
+              console.log(`[waha-webhook] Found poll message: ${pollMsg.id} (message_id: ${pollMsg.message_id})`);
               const currentOptions = pollMsg.poll_options as Array<{ text: string; votes: number }>;
+              
+              // AIDEV-NOTE: Conforme docs WAHA, selectedOptions contém TODAS as opções selecionadas
+              // pelo usuário naquele momento. Devemos marcar 1 para selecionadas, 0 para não.
+              // Para múltiplos votantes, incrementamos quando selecionado.
               const updatedOptions = currentOptions.map(opt => {
-                const wasSelected = selectedOptions.some((so: { name?: string; text?: string }) =>
-                  (so.name || so.text) === opt.text
-                );
+                const wasSelected = selectedOptions.some(optName => optName === opt.text);
                 return { ...opt, votes: wasSelected ? (opt.votes || 0) + 1 : opt.votes };
               });
 
@@ -234,11 +280,13 @@ Deno.serve(async (req) => {
               if (updateError) {
                 console.error(`[waha-webhook] Error updating poll votes:`, updateError.message);
               } else {
-                console.log(`[waha-webhook] ✅ Poll votes updated for message ${pollMsg.id}`);
+                console.log(`[waha-webhook] ✅ Poll votes updated for message ${pollMsg.id}: ${JSON.stringify(updatedOptions)}`);
               }
             } else {
-              console.log(`[waha-webhook] Poll message not found: ${pollMessageId}`);
+              console.log(`[waha-webhook] Poll message NOT found for any search strategy. pollId=${pollMessageId}`);
             }
+          } else {
+            console.log(`[waha-webhook] Session not found for poll.vote: ${sessionName}`);
           }
         }
       }
