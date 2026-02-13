@@ -32,6 +32,12 @@ function getProgressColor(pct: number): string {
   return 'bg-destructive'
 }
 
+function getDiasRestantesMes(): number {
+  const hoje = new Date()
+  const ultimoDia = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0)
+  return ultimoDia.getDate() - hoje.getDate()
+}
+
 function getStatusLabel(pct: number): { text: string; color: string } {
   if (pct >= 100) return { text: 'Atingida', color: 'text-success' }
   if (pct >= 70) return { text: 'No caminho', color: 'text-success' }
@@ -44,6 +50,7 @@ function MetaProgressItem({ meta }: { meta: MetaComProgresso }) {
   const valorAtual = meta.progresso?.valor_atual || 0
   const unidade = getMetricaUnidade(meta.metrica)
   const status = getStatusLabel(pct)
+  const diasRestantes = getDiasRestantesMes()
 
   return (
     <div className="space-y-1.5">
@@ -79,7 +86,14 @@ function MetaProgressItem({ meta }: { meta: MetaComProgresso }) {
         />
       </div>
 
-      <p className="text-[10px] text-muted-foreground text-right">{Math.round(pct)}% concluído</p>
+      <div className="flex items-center justify-between mt-0.5">
+        <span className="text-[10px] text-muted-foreground">
+          {diasRestantes} {diasRestantes === 1 ? 'dia restante' : 'dias restantes'} no mês
+        </span>
+        <span className={`text-[10px] font-medium ${status.color}`}>
+          {Math.round(pct)}% da meta
+        </span>
+      </div>
     </div>
   )
 }
