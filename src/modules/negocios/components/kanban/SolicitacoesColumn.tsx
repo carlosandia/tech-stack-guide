@@ -29,7 +29,7 @@ export function SolicitacoesColumn({ funilId }: SolicitacoesColumnProps) {
 
   return (
     <>
-      <div className="flex flex-col min-w-[288px] w-[288px] bg-warning/5 rounded-lg border border-warning/20">
+      <div className="flex flex-col min-w-[288px] w-[288px] bg-transparent rounded-lg">
         {/* Header */}
         <div className="flex-shrink-0 px-3 py-2.5 rounded-t-lg">
           <div className="flex items-center justify-between">

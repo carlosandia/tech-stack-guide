@@ -48,20 +48,12 @@ function formatValorResumido(valor: number): string {
   return `R$ ${valor.toFixed(0)}`
 }
 
-function getColumnBg(tipo: string): string {
-  switch (tipo) {
-    case 'ganho': return 'bg-success/5'
-    case 'perda': return 'bg-destructive/5'
-    default: return 'bg-muted/30'
-  }
+function getColumnBg(_tipo: string): string {
+  return 'bg-transparent'
 }
 
-function getColumnBorderColor(tipo: string): string {
-  switch (tipo) {
-    case 'ganho': return 'border-success/20'
-    case 'perda': return 'border-destructive/20'
-    default: return 'border-border'
-  }
+function getColumnBorderColor(_tipo: string): string {
+  return 'border-transparent'
 }
 
 // AIDEV-NOTE: Etapas padrão não podem ser movidas (entrada, ganho, perda)
@@ -142,7 +134,7 @@ export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardCli
     etapa.oportunidades.forEach((op, index) => {
       if (dropIndex === index) {
         elements.push(
-          <div key={`drop-${index}`} className="h-[72px] bg-muted-foreground/10 rounded-lg border-2 border-dashed border-muted-foreground/20 transition-all duration-150" />
+          <div key={`drop-${index}`} className="h-[72px] bg-primary/5 rounded-lg border-2 border-dashed border-primary/30 transition-all duration-150" />
         )
       }
 
@@ -164,7 +156,7 @@ export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardCli
 
     if (dropIndex === etapa.oportunidades.length) {
       elements.push(
-        <div key="drop-end" className="h-[72px] bg-muted-foreground/10 rounded-lg border-2 border-dashed border-muted-foreground/20 transition-all duration-150" />
+        <div key="drop-end" className="h-[72px] bg-primary/5 rounded-lg border-2 border-dashed border-primary/30 transition-all duration-150" />
       )
     }
 
@@ -176,7 +168,7 @@ export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardCli
       className={`
         flex flex-col min-w-[288px] w-[288px] ${bgClass} rounded-lg border ${borderClass}
         transition-all duration-200
-        ${isDragOver ? 'ring-2 ring-primary/40 bg-primary/5' : ''}
+        ${isDragOver ? 'bg-primary/5' : ''}
       `}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}

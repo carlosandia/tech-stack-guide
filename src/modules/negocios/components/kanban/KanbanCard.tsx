@@ -340,10 +340,10 @@ export function KanbanCard({ oportunidade, onDragStart, onClick, config, slaConf
           onClick(oportunidade)
         }}
         className={`
-          group/card bg-card border rounded-lg shadow-sm
+          group/card bg-card rounded-lg shadow-sm
           hover:shadow-md cursor-grab active:cursor-grabbing
           transition-all duration-200 select-none overflow-hidden
-          ${isSelected ? 'border-primary ring-1 ring-primary/40' : 'border-border'}
+          ${isSelected ? 'border border-primary ring-1 ring-primary/40' : 'border-0'}
         `}
       >
         <div className="px-3 pt-3 pb-2">
