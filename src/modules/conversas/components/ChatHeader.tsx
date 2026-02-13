@@ -165,30 +165,30 @@ export function ChatHeader({ conversa, onBack, onOpenDrawer, onAlterarStatus, on
 
   return (
     <>
-      <div className="flex-shrink-0 h-14 bg-white/80 backdrop-blur-md border-b border-border/60 flex items-center justify-between px-3 gap-2">
+      <div className="flex-shrink-0 h-14 bg-white/80 backdrop-blur-md border-b border-border/60 flex items-center justify-between px-2 sm:px-3 gap-1 sm:gap-2">
         {/* Left: Back + Avatar + Info */}
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
           <button
             onClick={onBack}
-            className="lg:hidden p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md hover:bg-accent transition-all duration-200"
+            className="lg:hidden p-1.5 sm:p-2 min-w-[36px] min-h-[36px] sm:min-w-[44px] sm:min-h-[44px] flex items-center justify-center rounded-md hover:bg-accent transition-all duration-200 flex-shrink-0"
           >
             <ArrowLeft className="w-5 h-5 text-foreground" />
           </button>
 
           <button
             onClick={onOpenDrawer}
-            className="flex items-center gap-2.5 min-w-0 hover:opacity-80 transition-opacity"
+            className="flex items-center gap-2 min-w-0 hover:opacity-80 transition-opacity flex-1"
           >
             {fotoUrl ? (
-              <img src={fotoUrl} alt={nome} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+              <img src={fotoUrl} alt={nome} className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover flex-shrink-0" />
             ) : (
-              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <span className="text-sm font-semibold text-primary">{getInitials(nome)}</span>
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                <span className="text-xs sm:text-sm font-semibold text-primary">{getInitials(nome)}</span>
               </div>
             )}
             <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="text-sm font-semibold text-foreground truncate">{nome}</span>
+              <div className="flex items-center gap-1 sm:gap-1.5">
+                <span className="text-xs sm:text-sm font-semibold text-foreground truncate max-w-[80px] sm:max-w-[200px]">{nome}</span>
                 {conversa.canal === 'whatsapp' ? (
                   <WhatsAppIcon size={14} className="text-[#25D366] flex-shrink-0" />
                 ) : (
@@ -203,22 +203,17 @@ export function ChatHeader({ conversa, onBack, onOpenDrawer, onAlterarStatus, on
                     <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
                   </svg>
                 )}
-                {conversa.tipo !== 'individual' && (
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700 flex-shrink-0">
-                    {conversa.tipo === 'grupo' ? 'Grupo' : 'Canal'}
-                  </span>
-                )}
               </div>
-              <p className="text-[11px] text-muted-foreground text-left">Clique para info do contato</p>
+              <p className="text-[10px] sm:text-[11px] text-muted-foreground text-left hidden sm:block">Clique para info do contato</p>
             </div>
           </button>
         </div>
 
         {/* Right: Actions + Status + Menu */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
           <button
             onClick={onToggleBusca}
-            className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md hover:bg-accent transition-all duration-200"
+            className="p-1.5 sm:p-2 min-w-[36px] min-h-[36px] sm:min-w-[44px] sm:min-h-[44px] flex items-center justify-center rounded-md hover:bg-accent transition-all duration-200"
             title="Buscar na conversa"
           >
             <Search className="w-4 h-4 text-muted-foreground" />
@@ -233,14 +228,14 @@ export function ChatHeader({ conversa, onBack, onOpenDrawer, onAlterarStatus, on
           {onCriarOportunidade && (
             <button
               onClick={onCriarOportunidade}
-              className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md hover:bg-accent transition-all duration-200"
+              className="hidden sm:flex p-2 min-w-[44px] min-h-[44px] items-center justify-center rounded-md hover:bg-accent transition-all duration-200"
               title="Nova oportunidade"
             >
               <Plus className="w-4 h-4 text-muted-foreground" />
             </button>
           )}
 
-          <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${statusInfo.className}`}>
+          <span className={`px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-medium whitespace-nowrap ${statusInfo.className}`}>
             {statusInfo.label}
           </span>
 

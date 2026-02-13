@@ -80,7 +80,7 @@ export function WhatsAppConversaModal({ isOpen, onClose, contatoId, contatoNome,
   return (
     <>
       <div className="fixed inset-0 z-[500] bg-foreground/30" onClick={onClose} />
-      <div className="fixed inset-4 md:inset-8 lg:inset-y-8 lg:left-[15%] lg:right-[15%] z-[501] bg-background border border-border rounded-xl shadow-2xl flex flex-col overflow-hidden">
+      <div className="fixed inset-0 sm:inset-4 md:inset-8 lg:inset-y-8 lg:left-[15%] lg:right-[15%] z-[501] bg-background sm:border sm:border-border sm:rounded-xl shadow-2xl flex flex-col overflow-hidden">
         {/* Content - ChatWindow provides its own header */}
         <div className="flex-1 overflow-hidden flex flex-col">
           {loading ? (
