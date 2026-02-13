@@ -1006,16 +1006,64 @@ function renderCampoPublico(props: RenderCampoProps) {
 
     // ========== SELECT ==========
     case 'selecao':
-    case 'selecao_multipla':
       return (
         <div>
           {renderLabel()}
-          <select style={{ ...inputStyle, appearance: 'auto' }} value={valor} onChange={e => onChange(e.target.value)} multiple={campo.tipo === 'selecao_multipla'}>
+          <select style={{ ...inputStyle, appearance: 'auto' }} value={valor} onChange={e => onChange(e.target.value)}>
             <option value="">{placeholder || 'Selecione...'}</option>
             {(campo.opcoes as string[] || []).map((op, i) => <option key={i} value={op}>{typeof op === 'string' ? op : `Opção ${i + 1}`}</option>)}
           </select>
         </div>
       )
+
+    // ========== MULTI SELECT (checkboxes) ==========
+    case 'selecao_multipla': {
+      const selectedValues = valor ? valor.split('|') : []
+      const toggleValue = (v: string) => {
+        const newVals = selectedValues.includes(v)
+          ? selectedValues.filter(s => s !== v)
+          : [...selectedValues, v]
+        onChange(newVals.join('|'))
+      }
+      return (
+        <div>
+          {renderLabel()}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
+            {(campo.opcoes as string[] || []).map((op, i) => {
+              const label = typeof op === 'string' ? op : `Opção ${i + 1}`
+              const isChecked = selectedValues.includes(label)
+              return (
+                <label
+                  key={i}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px 12px',
+                    border: `1px solid ${isChecked ? '#3B82F6' : (camposEstilo.input_border_color || '#D1D5DB')}`,
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    backgroundColor: isChecked ? '#EFF6FF' : '#FFFFFF',
+                    fontSize: '14px',
+                    fontFamily,
+                    transition: 'all 0.15s',
+                  }}
+                  onClick={() => toggleValue(label)}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={() => {}}
+                    style={{ width: '16px', height: '16px', accentColor: '#3B82F6', flexShrink: 0 }}
+                  />
+                  {label}
+                </label>
+              )
+            })}
+          </div>
+        </div>
+      )
+    }
 
     // ========== RADIO ==========
     case 'radio':
