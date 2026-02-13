@@ -159,6 +159,47 @@ function AudioContent({ mensagem, isMe, fotoUrl }: { mensagem: Mensagem; isMe?: 
   )
 }
 
+function getDocumentIcon(filename?: string | null) {
+  const ext = (filename || '').split('.').pop()?.toLowerCase()
+  switch (ext) {
+    case 'pdf':
+      return (
+        <div className="w-9 h-9 rounded-lg bg-red-500/10 flex items-center justify-center flex-shrink-0">
+          <span className="text-[10px] font-bold text-red-500 uppercase">PDF</span>
+        </div>
+      )
+    case 'doc':
+    case 'docx':
+      return (
+        <div className="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+          <FileText className="w-5 h-5 text-blue-500" />
+        </div>
+      )
+    case 'xls':
+    case 'xlsx':
+    case 'csv':
+      return (
+        <div className="w-9 h-9 rounded-lg bg-green-500/10 flex items-center justify-center flex-shrink-0">
+          <FileText className="w-5 h-5 text-green-500" />
+        </div>
+      )
+    case 'zip':
+    case 'rar':
+    case '7z':
+      return (
+        <div className="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+          <FileText className="w-5 h-5 text-amber-500" />
+        </div>
+      )
+    default:
+      return (
+        <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+          <FileText className="w-5 h-5 text-primary" />
+        </div>
+      )
+  }
+}
+
 function DocumentContent({ mensagem }: { mensagem: Mensagem }) {
   const [downloading, setDownloading] = useState(false)
 
@@ -190,7 +231,7 @@ function DocumentContent({ mensagem }: { mensagem: Mensagem }) {
       disabled={downloading}
       className="flex items-center gap-2 p-2 rounded-md bg-background/50 border border-border/50 hover:bg-accent/50 transition-colors min-w-[200px] text-left"
     >
-      <FileText className="w-8 h-8 text-primary flex-shrink-0" />
+      {getDocumentIcon(mensagem.media_filename)}
       <div className="flex-1 min-w-0">
         <p className="text-xs font-medium truncate">{mensagem.media_filename || 'Documento'}</p>
         {mensagem.media_size && (
