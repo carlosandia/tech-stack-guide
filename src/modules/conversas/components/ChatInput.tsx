@@ -57,12 +57,14 @@ export function ChatInput({
     const files = e.clipboardData?.files
     if (files && files.length > 0) {
       e.preventDefault()
-      const file = files[0]
-      const tipo = file.type.startsWith('image/') ? 'image'
-        : file.type.startsWith('video/') ? 'video'
-        : file.type.startsWith('audio/') ? 'audio'
-        : 'document'
-      onFileSelected(file, tipo)
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        const tipo = file.type.startsWith('image/') ? 'image'
+          : file.type.startsWith('video/') ? 'video'
+          : file.type.startsWith('audio/') ? 'audio'
+          : 'document'
+        onFileSelected(file, tipo)
+      }
     }
     // Text paste is handled natively
   }, [onFileSelected])
