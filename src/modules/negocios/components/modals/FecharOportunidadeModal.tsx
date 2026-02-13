@@ -2,10 +2,11 @@
  * AIDEV-NOTE: Modal para fechar oportunidade como Ganho ou Perda
  * Conforme PRD-07 RF-09
  * Usa ModalBase (size="sm") com cor semântica
+ * Bloqueia submit se exigir_motivo_resultado está ativo e nenhum motivo foi selecionado
  */
 
 import { useState, useEffect } from 'react'
-import { Loader2, Trophy, XCircle } from 'lucide-react'
+import { Loader2, Trophy, XCircle, AlertCircle } from 'lucide-react'
 import { ModalBase } from '@/modules/configuracoes/components/ui/ModalBase'
 import { supabase } from '@/lib/supabase'
 import { useFecharOportunidade } from '../../hooks/useKanban'
@@ -40,6 +41,7 @@ export function FecharOportunidadeModal({
   const [motivoSelecionado, setMotivoSelecionado] = useState<string | null>(null)
   const [observacoes, setObservacoes] = useState('')
   const [carregandoMotivos, setCarregandoMotivos] = useState(true)
+  const [exigirMotivo, setExigirMotivo] = useState(false)
 
   const fecharOp = useFecharOportunidade()
 
@@ -50,11 +52,24 @@ export function FecharOportunidadeModal({
     ? `Parabéns! Marcar "${oportunidade.titulo}" como ganha.`
     : `Marcar "${oportunidade.titulo}" como perdida.`
 
-  // Carregar motivos vinculados ao funil ou motivos padrão do tipo
+  // AIDEV-NOTE: Motivo é obrigatório se exigir_motivo_resultado está ativo E existem motivos cadastrados
+  const motivoObrigatorioAtivo = exigirMotivo && motivos.length > 0
+  const submitBloqueado = motivoObrigatorioAtivo && !motivoSelecionado
+
+  // Carregar motivos vinculados ao funil + config de exigir motivo
   useEffect(() => {
     async function carregarMotivos() {
       try {
-        // Primeiro, tentar buscar motivos vinculados ao funil
+        // Buscar config do funil (exigir_motivo_resultado)
+        const { data: funilData } = await supabase
+          .from('funis')
+          .select('exigir_motivo_resultado')
+          .eq('id', funilId)
+          .single()
+
+        setExigirMotivo(funilData?.exigir_motivo_resultado ?? false)
+
+        // Buscar motivos vinculados ao funil
         const { data: vinculados } = await supabase
           .from('funis_motivos')
           .select('motivo_id')
@@ -71,7 +86,6 @@ export function FecharOportunidadeModal({
           .is('deletado_em', null)
           .order('ordem', { ascending: true })
 
-        // Se existem motivos vinculados ao funil, filtrar por eles
         if (motivoIds.length > 0) {
           query = query.in('id', motivoIds)
         }
@@ -91,6 +105,11 @@ export function FecharOportunidadeModal({
   }, [funilId, tipo])
 
   const handleSubmit = async () => {
+    if (submitBloqueado) {
+      toast.error('Selecione um motivo para continuar')
+      return
+    }
+
     fecharOp.mutate(
       {
         oportunidadeId: oportunidade.id,
@@ -130,7 +149,7 @@ export function FecharOportunidadeModal({
           </button>
           <button
             onClick={handleSubmit}
-            disabled={fecharOp.isPending}
+            disabled={fecharOp.isPending || submitBloqueado}
             className={`
               inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium
               transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed
@@ -156,6 +175,9 @@ export function FecharOportunidadeModal({
           <div>
             <label className="block text-sm font-medium text-foreground mb-2">
               Motivo {isGanho ? 'do ganho' : 'da perda'}
+              {motivoObrigatorioAtivo && (
+                <span className="text-destructive ml-1">*</span>
+              )}
             </label>
             <div className="space-y-2">
               {motivos.map(motivo => (
@@ -213,6 +235,12 @@ export function FecharOportunidadeModal({
                 </label>
               ))}
             </div>
+            {submitBloqueado && (
+              <div className="flex items-center gap-1.5 mt-2 text-destructive">
+                <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                <span className="text-xs">Selecione um motivo para continuar</span>
+              </div>
+            )}
           </div>
         ) : (
           <div className="bg-muted/50 rounded-md p-3">
