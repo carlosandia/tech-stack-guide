@@ -166,15 +166,18 @@ Deno.serve(async (req) => {
     // =====================================================
     if (body.event === "poll.vote" || body.event === "poll.vote.failed") {
       const payload = body.payload;
-      console.log(`[waha-webhook] poll.vote event received:`, JSON.stringify(payload).substring(0, 500));
+      console.log(`[waha-webhook] ${body.event} event received:`, JSON.stringify(payload).substring(0, 500));
 
       if (payload) {
-        // WAHA poll.vote payload structure: { vote: { id, selectedOptions, timestamp } }
-        const vote = payload.vote || payload;
-        const pollMessageId = vote?.parentMessage?.id?._serialized || vote?.parentMessage?.id || vote?.id?._serialized || vote?.id || null;
+        // WAHA poll.vote payload structure: 
+        // { vote: { id, selectedOptions, timestamp, from }, poll: { id, to, from, fromMe } }
+        // AIDEV-NOTE: O ID da mensagem da enquete esta em payload.poll.id, NAO em payload.vote.id
+        const vote = payload.vote || {};
+        const poll = payload.poll || {};
+        const pollMessageId = poll?.id?._serialized || poll?.id || vote?.parentMessage?.id?._serialized || vote?.parentMessage?.id || null;
         const selectedOptions = vote?.selectedOptions || vote?.options || [];
 
-        console.log(`[waha-webhook] Poll vote: messageId=${pollMessageId}, options=${JSON.stringify(selectedOptions)}`);
+        console.log(`[waha-webhook] Poll vote: pollId=${pollMessageId}, voteId=${vote?.id}, options=${JSON.stringify(selectedOptions)}, event=${body.event}`);
 
         if (pollMessageId) {
           // Find the session to get organizacao_id
