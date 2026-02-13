@@ -5,7 +5,7 @@
  */
 
 import { useState, useRef, useCallback, type KeyboardEvent, type ClipboardEvent } from 'react'
-import { Send, Zap, StickyNote, MessageSquare, Paperclip, Mic, Smile, X } from 'lucide-react'
+import { Send, StickyNote, MessageSquare, Plus, Mic, Smile, X } from 'lucide-react'
 import { AnexosMenu } from './AnexosMenu'
 import { AudioRecorder } from './AudioRecorder'
 import { EmojiPicker } from './EmojiPicker'
@@ -221,22 +221,14 @@ export function ChatInput({
                     </>
                   )}
                 </div>
-                <button
-                  type="button"
-                  onClick={onOpenQuickReplies}
-                  className="p-1.5 sm:p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200"
-                  title="Mensagens prontas (/)"
-                >
-                  <Zap className="w-4 h-4" />
-                </button>
                 <div className="relative">
                   <button
                     type="button"
                     onClick={() => setAnexosOpen(!anexosOpen)}
                     className="p-1.5 sm:p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200"
-                    title="Anexar arquivo"
+                    title="Anexar / Mensagens prontas"
                   >
-                    <Paperclip className="w-4 h-4" />
+                    <Plus className="w-4 h-4" />
                   </button>
                   <AnexosMenu
                     isOpen={anexosOpen}
@@ -246,6 +238,7 @@ export function ChatInput({
                     onCamera={() => { setAnexosOpen(false); onOpenCamera() }}
                     onContato={() => { setAnexosOpen(false); onOpenContato() }}
                     onEnquete={() => { setAnexosOpen(false); onOpenEnquete() }}
+                    onMensagensProntas={() => { setAnexosOpen(false); onOpenQuickReplies() }}
                   />
                 </div>
               </div>
