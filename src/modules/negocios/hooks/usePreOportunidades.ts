@@ -44,11 +44,38 @@ export function useRejeitarPreOportunidade() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ preOpId, motivo }: { preOpId: string; motivo: string }) =>
-      preOportunidadesApi.rejeitar(preOpId, motivo),
+    mutationFn: ({ preOpId, motivo, bloquear, phoneNumber, phoneName }: {
+      preOpId: string
+      motivo?: string
+      bloquear?: boolean
+      phoneNumber?: string
+      phoneName?: string
+    }) => preOportunidadesApi.rejeitar(preOpId, { motivo, bloquear, phoneNumber, phoneName }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pre-oportunidades'] })
       queryClient.invalidateQueries({ queryKey: ['pre-oportunidades-contagem'] })
+      queryClient.invalidateQueries({ queryKey: ['bloqueados-pre-op'] })
+    },
+  })
+}
+
+// Contatos Bloqueados
+
+export function useBloqueadosPreOp() {
+  return useQuery({
+    queryKey: ['bloqueados-pre-op'],
+    queryFn: () => preOportunidadesApi.listarBloqueados(),
+    staleTime: 60 * 1000,
+  })
+}
+
+export function useDesbloquearPreOp() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: string) => preOportunidadesApi.desbloquearContato(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bloqueados-pre-op'] })
     },
   })
 }

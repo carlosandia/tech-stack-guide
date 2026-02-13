@@ -269,14 +269,20 @@ export const preOportunidadesApi = {
   },
 
   /**
-   * Rejeitar pré-oportunidade
+   * Rejeitar pré-oportunidade (motivo opcional, com opção de bloqueio)
    */
-  rejeitar: async (preOpId: string, motivo: string): Promise<void> => {
+  rejeitar: async (preOpId: string, payload: {
+    motivo?: string
+    bloquear?: boolean
+    phoneNumber?: string
+    phoneName?: string
+  }): Promise<void> => {
+    const organizacaoId = await getOrganizacaoId()
     const userId = await getUsuarioId()
 
     const { data: preOp } = await supabase
       .from('pre_oportunidades')
-      .select('status')
+      .select('status, phone_number, phone_name')
       .eq('id', preOpId)
       .single()
 
@@ -287,11 +293,52 @@ export const preOportunidadesApi = {
       .from('pre_oportunidades')
       .update({
         status: 'rejeitado',
-        motivo_rejeicao: motivo,
+        motivo_rejeicao: payload.motivo || null,
         processado_por: userId,
         processado_em: new Date().toISOString(),
       } as any)
       .eq('id', preOpId)
+
+    if (error) throw new Error(error.message)
+
+    // Bloquear contato se solicitado
+    if (payload.bloquear) {
+      const phone = payload.phoneNumber || preOp.phone_number
+      const { error: blockError } = await supabase
+        .from('contatos_bloqueados_pre_op')
+        .upsert({
+          organizacao_id: organizacaoId,
+          phone_number: phone,
+          phone_name: payload.phoneName || preOp.phone_name || null,
+          motivo: payload.motivo || null,
+          bloqueado_por: userId,
+        } as any, { onConflict: 'organizacao_id,phone_number' })
+
+      if (blockError) console.error('Erro ao bloquear contato:', blockError)
+    }
+  },
+
+  /**
+   * Listar contatos bloqueados da organização
+   */
+  listarBloqueados: async () => {
+    const { data, error } = await supabase
+      .from('contatos_bloqueados_pre_op')
+      .select('*')
+      .order('criado_em', { ascending: false })
+
+    if (error) throw new Error(error.message)
+    return data || []
+  },
+
+  /**
+   * Desbloquear contato (remover do bloqueio)
+   */
+  desbloquearContato: async (id: string): Promise<void> => {
+    const { error } = await supabase
+      .from('contatos_bloqueados_pre_op')
+      .delete()
+      .eq('id', id)
 
     if (error) throw new Error(error.message)
   },
