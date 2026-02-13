@@ -19,9 +19,10 @@ import { generateWidgetScript } from './generateWidgetScript'
 interface Props {
   value: WidgetConfig
   onChange: (config: WidgetConfig) => void
+  organizacaoId: string
 }
 
-export function WidgetWhatsAppConfig({ value, onChange }: Props) {
+export function WidgetWhatsAppConfig({ value, onChange, organizacaoId }: Props) {
   const config = { ...DEFAULT_WIDGET_CONFIG, ...value }
   const { data: camposData } = useCampos('pessoa')
   const { data: funis } = useFunis()
@@ -66,11 +67,11 @@ export function WidgetWhatsAppConfig({ value, onChange }: Props) {
   }
 
   const handleCopiarScript = () => {
-    const camposInfo = campos
-      .filter(c => config.campos_formulario.includes(c.id))
-      .map(c => ({ id: c.id, nome: c.nome, tipo: c.tipo, placeholder: c.placeholder }))
-
-    const script = generateWidgetScript(config, camposInfo)
+    if (!organizacaoId) {
+      toast.error('Organização não encontrada')
+      return
+    }
+    const script = generateWidgetScript(organizacaoId)
     navigator.clipboard.writeText(script)
     setCopiado(true)
     toast.success('Script copiado para a área de transferência!')
