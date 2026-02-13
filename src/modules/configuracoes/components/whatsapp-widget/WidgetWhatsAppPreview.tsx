@@ -12,8 +12,8 @@ interface Props {
 
 export function WidgetWhatsAppPreview({ config, camposNomes }: Props) {
   const camposSelecionados = config.campos_formulario
-    .map(id => camposNomes[id])
-    .filter(Boolean)
+    .map(id => ({ id, nome: camposNomes[id] }))
+    .filter(c => c.nome)
 
   return (
     <div className="relative bg-muted/50 rounded-lg border border-border p-4 sm:p-6 min-h-[520px] sm:min-h-[540px] flex items-end overflow-hidden" style={{ justifyContent: config.posicao === 'esquerda' ? 'flex-start' : 'flex-end' }}>
@@ -58,12 +58,17 @@ export function WidgetWhatsAppPreview({ config, camposNomes }: Props) {
             {/* Form */}
             {camposSelecionados.length > 0 && (
               <div className="p-3 border-t border-gray-100 space-y-2">
-                {camposSelecionados.map((nome, i) => (
-                  <div key={i}>
-                    <label className="text-[11px] text-gray-500 block mb-0.5">{nome}</label>
-                    <div className="h-8 rounded-lg border border-gray-200 bg-gray-50" />
-                  </div>
-                ))}
+                {camposSelecionados.map((campo, i) => {
+                  const isObrigatorio = (config.campos_obrigatorios || []).includes(campo.id)
+                  return (
+                    <div key={i}>
+                      <label className="text-[11px] text-gray-500 block mb-0.5">
+                        {campo.nome}{isObrigatorio ? ' *' : ''}
+                      </label>
+                      <div className="h-8 rounded-lg border border-gray-200 bg-gray-50" />
+                    </div>
+                  )
+                })}
                 <button
                   className="w-full py-2.5 rounded-lg text-white text-sm font-semibold flex items-center justify-center gap-2 mt-1"
                   style={{ background: config.cor_botao }}

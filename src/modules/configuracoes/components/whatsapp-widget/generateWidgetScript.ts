@@ -45,14 +45,18 @@ export function generateWidgetScript(
   }
 
   // AIDEV-NOTE: Campos do formulario - estilos identicos ao preview
+  const obrigatorios = config.campos_obrigatorios || []
   const camposHTML = config.usar_formulario && camposSelecionados.length > 0
-    ? camposSelecionados.map(c => `
+    ? camposSelecionados.map(c => {
+        const isReq = obrigatorios.includes(c.id)
+        return `
           <div>
-            <label style="display:block;font-size:11px;color:#6b7280;margin-bottom:2px">${c.nome}</label>
-            <input type="${inputType(c.tipo)}" name="${c.id}" placeholder="${c.placeholder || c.nome}"
+            <label style="display:block;font-size:11px;color:#6b7280;margin-bottom:2px">${c.nome}${isReq ? ' *' : ''}</label>
+            <input type="${inputType(c.tipo)}" name="${c.id}" placeholder="${c.placeholder || c.nome}"${isReq ? ' required' : ''}
               style="width:100%;height:32px;padding:0 12px;border:1px solid #e5e7eb;border-radius:8px;background:#f9fafb;font-size:14px;outline:none;box-sizing:border-box"
               onfocus="this.style.borderColor='${config.cor_botao}'" onblur="this.style.borderColor='#e5e7eb'"${maskAttr(c.tipo, c.nome)} />
-          </div>`).join('')
+          </div>`
+      }).join('')
     : ''
 
   // AIDEV-NOTE: Avatar - identico ao preview (w-9 h-9 = 36px)
@@ -124,6 +128,17 @@ export function generateWidgetScript(
   var f=d.getElementById('wa-widget-form');
   if(f)f.onsubmit=function(e){
     e.preventDefault();
+    var valid=true;
+    var req=f.querySelectorAll('[required]');
+    for(var i=0;i<req.length;i++){
+      if(!req[i].value.trim()){
+        req[i].style.borderColor='#ef4444';
+        valid=false;
+      }else{
+        req[i].style.borderColor='#e5e7eb';
+      }
+    }
+    if(!valid)return;
     var fd=new FormData(f);
     var parts=[];
     fd.forEach(function(v,k){if(v)parts.push(v)});
