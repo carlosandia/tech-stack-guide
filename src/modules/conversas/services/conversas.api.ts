@@ -838,11 +838,19 @@ export const conversasApi = {
 
         if (wahaError) {
           console.error('[conversas.api] Erro ao enviar via WAHA:', wahaError)
+          const errorMsg = wahaError?.message || JSON.stringify(wahaError)
+          if (errorMsg.includes('does not exist')) {
+            throw new Error('SESSION_NOT_FOUND')
+          }
           throw new Error('Erro ao enviar mensagem pelo WhatsApp')
         }
 
         if (wahaResult?.error) {
           console.error('[conversas.api] WAHA retornou erro:', wahaResult.error)
+          const detailsStr = JSON.stringify(wahaResult.details || wahaResult.error || '')
+          if (detailsStr.includes('does not exist')) {
+            throw new Error('SESSION_NOT_FOUND')
+          }
           throw new Error(wahaResult.error)
         }
 
@@ -922,10 +930,18 @@ export const conversasApi = {
 
         if (wahaError) {
           console.error('[conversas.api] Erro ao enviar mídia via WAHA:', wahaError)
+          const errorMsg = wahaError?.message || JSON.stringify(wahaError)
+          if (errorMsg.includes('does not exist')) {
+            throw new Error('SESSION_NOT_FOUND')
+          }
           throw new Error('Erro ao enviar mídia pelo WhatsApp')
         }
 
         if (wahaResult?.error) {
+          const detailsStr = JSON.stringify(wahaResult.details || wahaResult.error || '')
+          if (detailsStr.includes('does not exist')) {
+            throw new Error('SESSION_NOT_FOUND')
+          }
           throw new Error(wahaResult.error)
         }
 

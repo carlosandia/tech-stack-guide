@@ -7,6 +7,16 @@ import { useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-q
 import { conversasApi } from '../services/conversas.api'
 import { toast } from 'sonner'
 
+const SESSION_ERROR_MSG = 'WhatsApp desconectado. Reconecte em Configurações > Conexões.'
+
+function handleWahaError(error: Error, fallback: string) {
+  if (error.message === 'SESSION_NOT_FOUND') {
+    toast.error(SESSION_ERROR_MSG, { duration: 6000 })
+  } else {
+    toast.error(error.message || fallback)
+  }
+}
+
 export function useMensagens(conversaId: string | null) {
   return useInfiniteQuery({
     queryKey: ['mensagens', conversaId],
@@ -35,7 +45,7 @@ export function useEnviarTexto() {
       queryClient.invalidateQueries({ queryKey: ['conversas'] })
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao enviar mensagem')
+      handleWahaError(error, 'Erro ao enviar mensagem')
     },
   })
 }
@@ -51,7 +61,7 @@ export function useEnviarMedia() {
       queryClient.invalidateQueries({ queryKey: ['conversas'] })
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao enviar mídia')
+      handleWahaError(error, 'Erro ao enviar mídia')
     },
   })
 }
@@ -67,7 +77,7 @@ export function useEnviarContato() {
       queryClient.invalidateQueries({ queryKey: ['conversas'] })
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao enviar contato')
+      handleWahaError(error, 'Erro ao enviar contato')
     },
   })
 }
@@ -83,7 +93,7 @@ export function useEnviarEnquete() {
       queryClient.invalidateQueries({ queryKey: ['conversas'] })
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao enviar enquete')
+      handleWahaError(error, 'Erro ao enviar enquete')
     },
   })
 }
