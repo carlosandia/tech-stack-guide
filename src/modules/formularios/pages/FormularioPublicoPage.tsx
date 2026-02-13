@@ -206,6 +206,41 @@ export function FormularioPublicoPage() {
     }).then(() => {})
   }, [formulario])
 
+  // AIDEV-NOTE: Registrar evento de abandono quando o usuário sai sem enviar
+  useEffect(() => {
+    if (!formulario) return
+    const sbUrl = 'https://ybzhlsalbnxwkfszkloa.supabase.co'
+    const sbKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inliemhsc2FsYm54d2tmc3prbG9hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMDExNzAsImV4cCI6MjA4NTc3NzE3MH0.NyxN8T0XCpnFSF_-0grGGcvhSbwOif0qxxlC_PshA9M'
+
+    const registrarAbandono = () => {
+      if (!jaRegistrouInicio.current || enviado) return
+      // Usar fetch com keepalive para garantir envio ao fechar aba
+      fetch(`${sbUrl}/rest/v1/eventos_analytics_formularios`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': sbKey,
+          'Authorization': `Bearer ${sbKey}`,
+          'Prefer': 'return=minimal',
+        },
+        body: JSON.stringify({
+          formulario_id: formulario.id,
+          tipo_evento: 'abandono',
+          navegador: navigator.userAgent,
+        }),
+        keepalive: true,
+      }).catch(() => {})
+    }
+
+    const onVisChange = () => { if (document.visibilityState === 'hidden') registrarAbandono() }
+    window.addEventListener('beforeunload', registrarAbandono)
+    document.addEventListener('visibilitychange', onVisChange)
+    return () => {
+      window.removeEventListener('beforeunload', registrarAbandono)
+      document.removeEventListener('visibilitychange', onVisChange)
+    }
+  }, [formulario, enviado])
+
   const handleChange = useCallback((campoId: string, tipo: string, rawValue: string) => {
     registrarInicio()
     const mask = getMaskForType(tipo)
@@ -281,6 +316,13 @@ export function FormularioPublicoPage() {
     }
 
     setEnviado(true)
+
+    // AIDEV-NOTE: Registrar evento de submissão para analytics/funil
+    supabase.from('eventos_analytics_formularios').insert({
+      formulario_id: formulario.id,
+      tipo_evento: 'submissao',
+      navegador: navigator.userAgent,
+    }).then(() => {})
 
     const posEnvio = formulario.config_pos_envio as any
     if (posEnvio?.tipo_acao_sucesso === 'redirecionar' || posEnvio?.tipo_acao_sucesso === 'ambos') {
