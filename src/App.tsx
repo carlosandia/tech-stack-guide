@@ -11,7 +11,7 @@ import {
   AdminModulosPage,
   AdminEvolucaoPage,
 } from '@/modules/admin'
-import { AppLayout, AppDashboardPage } from '@/modules/app'
+import { AppLayout, AppDashboardPage, PerfilPage } from '@/modules/app'
 import { FormulariosPage, FormularioEditorPage } from '@/modules/formularios'
 import { FormularioPublicoPage } from '@/modules/formularios/pages/FormularioPublicoPage'
 import { PlanosPage, TrialCadastroPage, CheckoutSucessoPage, OnboardingPage } from '@/modules/public'
@@ -76,6 +76,7 @@ function App() {
         }
       >
         <Route path="/dashboard" element={<AppDashboardPage />} />
+        <Route path="/perfil" element={<PerfilPage />} />
         <Route path="/contatos" element={<ContatosPage />} />
         <Route path="/contatos/:tipo" element={<ContatosPage />} />
         <Route path="/negocios" element={<NegociosPage />} />
