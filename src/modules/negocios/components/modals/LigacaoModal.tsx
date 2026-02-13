@@ -10,11 +10,12 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   Phone, PhoneOff, Clock, AlertCircle, PhoneCall, Loader2, Wallet,
   DollarSign, User, Calendar, Mail, Building2, Globe, Briefcase, RefreshCw,
-  MapPin, FileText, Tag, Package, Pencil, Check, X
+  MapPin, FileText, Pencil, Check, X, Plus, Search
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useOportunidade, useAtualizarOportunidade, useAtualizarContato } from '../../hooks/useOportunidadeDetalhes'
-import { useProdutosOportunidade } from '../../hooks/useDetalhes'
+import { useProdutosOportunidade, useAdicionarProdutoOp, useBuscarProdutosCatalogo } from '../../hooks/useDetalhes'
+import { useSegmentos, useSegmentarLote } from '@/modules/contatos/hooks/useSegmentos'
 import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
 
@@ -46,17 +47,57 @@ function formatData(dateStr: string | null | undefined): string {
 }
 
 // =====================================================
+// Máscaras de input
+// =====================================================
+
+function maskTelefone(v: string): string {
+  const digits = v.replace(/\D/g, '').slice(0, 11)
+  if (digits.length <= 2) return `(${digits}`
+  if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`
+  if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
+}
+
+function maskCNPJ(v: string): string {
+  const digits = v.replace(/\D/g, '').slice(0, 14)
+  if (digits.length <= 2) return digits
+  if (digits.length <= 5) return `${digits.slice(0, 2)}.${digits.slice(2)}`
+  if (digits.length <= 8) return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5)}`
+  if (digits.length <= 12) return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8)}`
+  return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8, 12)}-${digits.slice(12)}`
+}
+
+function maskCEP(v: string): string {
+  const digits = v.replace(/\D/g, '').slice(0, 8)
+  if (digits.length <= 5) return digits
+  return `${digits.slice(0, 5)}-${digits.slice(5)}`
+}
+
+type MaskType = 'telefone' | 'cnpj' | 'cep' | 'moeda' | undefined
+
+function applyMask(value: string, mask: MaskType): string {
+  if (!mask) return value
+  switch (mask) {
+    case 'telefone': return maskTelefone(value)
+    case 'cnpj': return maskCNPJ(value)
+    case 'cep': return maskCEP(value)
+    case 'moeda': return value // handled separately
+    default: return value
+  }
+}
+
+// =====================================================
 // Campo editável inline
 // =====================================================
 
-function EditableInfoRow({ icon: Icon, label, value, iconColor, isLink, onSave }: {
+function EditableInfoRow({ icon: Icon, label, value, iconColor, isLink, onSave, mask }: {
   icon: React.ElementType
   label: string
   value: string | null | undefined
   iconColor?: string
   isLink?: boolean
   onSave?: (value: string) => void
-  
+  mask?: MaskType
 }) {
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState('')
@@ -70,6 +111,11 @@ function EditableInfoRow({ icon: Icon, label, value, iconColor, isLink, onSave }
     setEditValue(value || '')
     setEditing(true)
     setTimeout(() => inputRef.current?.focus(), 50)
+  }
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value
+    setEditValue(mask ? applyMask(raw, mask) : raw)
   }
 
   const handleSave = () => {
@@ -96,7 +142,7 @@ function EditableInfoRow({ icon: Icon, label, value, iconColor, isLink, onSave }
         <input
           ref={inputRef}
           value={editValue}
-          onChange={(e) => setEditValue(e.target.value)}
+          onChange={handleChange}
           onKeyDown={handleKeyDown}
           onBlur={handleSave}
           className="flex-1 text-xs bg-muted/50 border border-border rounded px-1.5 py-0.5 text-foreground outline-none focus:ring-1 focus:ring-primary/30 min-w-0"
@@ -139,11 +185,17 @@ function EditableInfoRow({ icon: Icon, label, value, iconColor, isLink, onSave }
 }
 
 // =====================================================
-// Tags compactas (somente leitura)
+// Tags com adição/remoção
 // =====================================================
 
-function TagsCompactas({ contatoId }: { contatoId: string }) {
-  const { data: segmentosIds } = useQuery({
+function TagsEditaveis({ contatoId }: { contatoId: string }) {
+  const [showDropdown, setShowDropdown] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const { data: segmentosData } = useSegmentos()
+  const segmentarLote = useSegmentarLote()
+  const segmentos = segmentosData?.segmentos || []
+
+  const { data: segmentosIds, refetch } = useQuery({
     queryKey: ['contato_segmentos', contatoId],
     queryFn: async () => {
       const { data } = await supabase
@@ -155,58 +207,206 @@ function TagsCompactas({ contatoId }: { contatoId: string }) {
     enabled: !!contatoId,
   })
 
-  const { data: segmentos } = useQuery({
-    queryKey: ['segmentos_lista'],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('segmentos')
-        .select('id, nome, cor')
-        .order('nome')
-      return data || []
-    },
-  })
+  useEffect(() => {
+    if (!showDropdown) return
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showDropdown])
 
-  const activeSegmentos = (segmentos || []).filter(s => (segmentosIds || []).includes(s.id))
+  const ids = segmentosIds || []
+  const activeSegmentos = segmentos.filter(s => ids.includes(s.id))
 
-  if (activeSegmentos.length === 0) return null
+  const handleToggle = (segmentoId: string) => {
+    const isActive = ids.includes(segmentoId)
+    segmentarLote.mutate(
+      { ids: [contatoId], adicionar: isActive ? [] : [segmentoId], remover: isActive ? [segmentoId] : [] },
+      { onSuccess: () => refetch() }
+    )
+  }
+
+  const handleRemove = (segmentoId: string) => {
+    segmentarLote.mutate(
+      { ids: [contatoId], adicionar: [], remover: [segmentoId] },
+      { onSuccess: () => refetch() }
+    )
+  }
 
   return (
-    <div className="flex flex-wrap gap-1">
-      {activeSegmentos.map(seg => (
-        <span
-          key={seg.id}
-          className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-medium"
-          style={{ backgroundColor: `${seg.cor}20`, color: seg.cor }}
-        >
-          {seg.nome}
-        </span>
-      ))}
+    <div>
+      <div className="flex flex-wrap gap-1 items-center">
+        {activeSegmentos.length === 0 && (
+          <span className="text-xs text-muted-foreground/50 italic">Nenhuma tag</span>
+        )}
+        {activeSegmentos.map(seg => (
+          <span
+            key={seg.id}
+            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-medium"
+            style={{ backgroundColor: `${seg.cor}20`, color: seg.cor }}
+          >
+            {seg.nome}
+            <button onClick={() => handleRemove(seg.id)} className="hover:opacity-70"><X className="w-2.5 h-2.5" /></button>
+          </span>
+        ))}
+        <div className="relative" ref={dropdownRef}>
+          <button
+            onClick={() => setShowDropdown(!showDropdown)}
+            className="p-0.5 text-muted-foreground hover:text-primary hover:bg-accent rounded transition-all"
+            title="Adicionar tag"
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </button>
+          {showDropdown && (
+            <div className="absolute left-0 top-full mt-1 w-48 bg-card border border-border rounded-lg shadow-lg z-[60] animate-enter max-h-[200px] overflow-y-auto">
+              <div className="px-3 py-1.5 border-b border-border">
+                <span className="text-[10px] font-semibold text-foreground uppercase">Adicionar/Remover</span>
+              </div>
+              {segmentos.length === 0 ? (
+                <p className="px-3 py-3 text-xs text-muted-foreground text-center">Nenhum segmento criado</p>
+              ) : (
+                <div className="py-0.5">
+                  {segmentos.map(seg => {
+                    const isActive = ids.includes(seg.id)
+                    return (
+                      <button
+                        key={seg.id}
+                        onClick={() => handleToggle(seg.id)}
+                        disabled={segmentarLote.isPending}
+                        className="flex items-center gap-2 w-full px-3 py-1 text-xs hover:bg-accent transition-colors"
+                      >
+                        <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 ${
+                          isActive ? 'bg-primary border-primary' : 'border-border'
+                        }`}>
+                          {isActive && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
+                        </div>
+                        <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: seg.cor }} />
+                        <span className="truncate text-foreground">{seg.nome}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
 
 // =====================================================
-// Produtos compactos (somente leitura)
+// Produtos com adição
 // =====================================================
 
-function ProdutosCompactos({ oportunidadeId }: { oportunidadeId: string }) {
+function ProdutosEditaveis({ oportunidadeId }: { oportunidadeId: string }) {
   const { data: produtos } = useProdutosOportunidade(oportunidadeId)
+  const adicionarProduto = useAdicionarProdutoOp()
+  const buscarProdutos = useBuscarProdutosCatalogo()
+  const [showBusca, setShowBusca] = useState(false)
+  const [busca, setBusca] = useState('')
+  const [resultados, setResultados] = useState<any[]>([])
+  const buscaRef = useRef<HTMLDivElement>(null)
 
-  if (!produtos || produtos.length === 0) return null
+  useEffect(() => {
+    if (!showBusca) return
+    const handler = (e: MouseEvent) => {
+      if (buscaRef.current && !buscaRef.current.contains(e.target as Node)) {
+        setShowBusca(false)
+        setBusca('')
+        setResultados([])
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showBusca])
+
+  const handleBuscar = (term: string) => {
+    setBusca(term)
+    if (term.length >= 2) {
+      buscarProdutos.mutate(term, {
+        onSuccess: (data) => setResultados(data || []),
+      })
+    } else {
+      setResultados([])
+    }
+  }
+
+  const handleAdicionar = (produto: any) => {
+    adicionarProduto.mutate({
+      oportunidadeId,
+      produtoId: produto.id,
+      quantidade: 1,
+      precoUnitario: produto.preco || 0,
+      desconto: 0,
+    })
+    setShowBusca(false)
+    setBusca('')
+    setResultados([])
+  }
 
   return (
-    <div className="space-y-1">
-      {produtos.map(p => (
-        <div key={p.id} className="flex items-center justify-between text-xs">
-          <span className="text-foreground truncate flex-1">{p.produto_nome}</span>
-          <span className="text-muted-foreground ml-2 flex-shrink-0">
-            {p.quantidade}x {formatCurrency(p.preco_unitario)}
-          </span>
+    <div>
+      {(!produtos || produtos.length === 0) && !showBusca && (
+        <span className="text-xs text-muted-foreground/50 italic">Nenhum produto</span>
+      )}
+      {produtos && produtos.length > 0 && (
+        <div className="space-y-1 mb-1.5">
+          {produtos.map(p => (
+            <div key={p.id} className="flex items-center justify-between text-xs">
+              <span className="text-foreground truncate flex-1">{p.produto_nome}</span>
+              <span className="text-muted-foreground ml-2 flex-shrink-0">
+                {p.quantidade}x {formatCurrency(p.preco_unitario)}
+              </span>
+            </div>
+          ))}
+          <div className="flex items-center justify-between text-xs font-medium border-t border-border pt-1">
+            <span className="text-muted-foreground">Total</span>
+            <span className="text-foreground">{formatCurrency(produtos.reduce((s, p) => s + p.subtotal, 0))}</span>
+          </div>
         </div>
-      ))}
-      <div className="flex items-center justify-between text-xs font-medium border-t border-border pt-1 mt-1">
-        <span className="text-muted-foreground">Total</span>
-        <span className="text-foreground">{formatCurrency(produtos.reduce((s, p) => s + p.subtotal, 0))}</span>
+      )}
+
+      <div className="relative" ref={buscaRef}>
+        {showBusca ? (
+          <div className="mt-1">
+            <div className="flex items-center gap-1.5 bg-muted/50 border border-border rounded px-2 py-1">
+              <Search className="w-3 h-3 text-muted-foreground" />
+              <input
+                value={busca}
+                onChange={(e) => handleBuscar(e.target.value)}
+                placeholder="Buscar produto..."
+                autoFocus
+                className="flex-1 text-xs bg-transparent outline-none text-foreground placeholder:text-muted-foreground/50 min-w-0"
+              />
+            </div>
+            {resultados.length > 0 && (
+              <div className="absolute left-0 right-0 top-full mt-0.5 bg-card border border-border rounded-lg shadow-lg z-[60] max-h-[150px] overflow-y-auto">
+                {resultados.map((prod: any) => (
+                  <button
+                    key={prod.id}
+                    onClick={() => handleAdicionar(prod)}
+                    className="flex items-center justify-between w-full px-3 py-1.5 text-xs hover:bg-accent transition-colors"
+                  >
+                    <span className="text-foreground truncate">{prod.nome}</span>
+                    <span className="text-muted-foreground ml-2">{formatCurrency(prod.preco)}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowBusca(true)}
+            className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors mt-1"
+          >
+            <Plus className="w-3 h-3" />
+            Adicionar produto
+          </button>
+        )}
       </div>
     </div>
   )
@@ -277,12 +477,11 @@ function PainelInformacoes({ oportunidadeId }: { oportunidadeId: string }) {
     <div className="space-y-1 overflow-y-auto max-h-[480px] pr-1">
       {/* Seção Oportunidade */}
       <div className="pb-3">
-        <h4 className="text-[11px] text-primary font-bold uppercase tracking-wider mb-2.5 flex items-center gap-1.5 border-b border-primary/20 pb-1.5">
-          <DollarSign className="w-3.5 h-3.5" />
+        <h4 className="text-[11px] text-primary font-bold uppercase tracking-wider mb-2.5 border-b border-primary/20 pb-1.5">
           Oportunidade
         </h4>
         <div className="space-y-1.5 pl-0.5">
-          <EditableInfoRow icon={DollarSign} label="Valor" value={formatCurrency(op.valor)} iconColor="hsl(var(--success))" onSave={saveOpField('valor')} />
+          <EditableInfoRow icon={DollarSign} label="Valor" value={formatCurrency(op.valor)} iconColor="hsl(var(--success))" onSave={saveOpField('valor')} mask="moeda" />
           {op.recorrente && (
             <EditableInfoRow icon={RefreshCw} label="MRR" value={`${formatCurrency(op.valor)} / ${op.periodo_recorrencia || 'mensal'}`} />
           )}
@@ -295,43 +494,38 @@ function PainelInformacoes({ oportunidadeId }: { oportunidadeId: string }) {
       {/* Tags */}
       {contato?.id && (
         <div className="pb-3">
-          <h4 className="text-[11px] text-primary font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5 border-b border-primary/20 pb-1.5">
-            <Tag className="w-3.5 h-3.5" />
+          <h4 className="text-[11px] text-primary font-bold uppercase tracking-wider mb-2 border-b border-primary/20 pb-1.5">
             Tags
           </h4>
-          <TagsCompactas contatoId={contato.id} />
+          <TagsEditaveis contatoId={contato.id} />
         </div>
       )}
 
       {/* Produtos */}
       <div className="pb-3">
-        <h4 className="text-[11px] text-primary font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5 border-b border-primary/20 pb-1.5">
-          <Package className="w-3.5 h-3.5" />
+        <h4 className="text-[11px] text-primary font-bold uppercase tracking-wider mb-2 border-b border-primary/20 pb-1.5">
           Produtos
         </h4>
-        <ProdutosCompactos oportunidadeId={oportunidadeId} />
+        <ProdutosEditaveis oportunidadeId={oportunidadeId} />
       </div>
 
       {/* Seção Contato */}
       {contato && (
         <div className="pb-3">
-          <h4 className="text-[11px] text-primary font-bold uppercase tracking-wider mb-2.5 flex items-center gap-1.5 border-b border-primary/20 pb-1.5">
-            <User className="w-3.5 h-3.5" />
+          <h4 className="text-[11px] text-primary font-bold uppercase tracking-wider mb-2.5 border-b border-primary/20 pb-1.5">
             Contato
           </h4>
           <div className="space-y-1.5 pl-0.5">
             <EditableInfoRow icon={User} label="Nome" value={[contato.nome, contato.sobrenome].filter(Boolean).join(' ') || null} onSave={saveContatoField('nome')} />
             <EditableInfoRow icon={Mail} label="Email" value={contato.email} onSave={saveContatoField('email')} />
-            <EditableInfoRow icon={Phone} label="Telefone" value={contato.telefone} onSave={saveContatoField('telefone')} />
+            <EditableInfoRow icon={Phone} label="Telefone" value={contato.telefone} onSave={saveContatoField('telefone')} mask="telefone" />
             <EditableInfoRow icon={Briefcase} label="Cargo" value={contato.cargo} onSave={saveContatoField('cargo')} />
             <EditableInfoRow icon={Globe} label="LinkedIn" value={contato.linkedin_url} isLink onSave={saveContatoField('linkedin_url')} />
             <EditableInfoRow icon={Globe} label="Website" value={contato.website} isLink onSave={saveContatoField('website')} />
             {enderecoContato && (
               <EditableInfoRow icon={MapPin} label="Endereço" value={enderecoContato} />
             )}
-            {contato.observacoes && (
-              <EditableInfoRow icon={FileText} label="Obs." value={contato.observacoes} onSave={saveContatoField('observacoes')} />
-            )}
+            <EditableInfoRow icon={FileText} label="Obs." value={contato.observacoes} onSave={saveContatoField('observacoes')} />
           </div>
         </div>
       )}
@@ -339,16 +533,15 @@ function PainelInformacoes({ oportunidadeId }: { oportunidadeId: string }) {
       {/* Seção Empresa vinculada */}
       {empresa && (
         <div className="pb-2">
-          <h4 className="text-[11px] text-primary font-bold uppercase tracking-wider mb-2.5 flex items-center gap-1.5 border-b border-primary/20 pb-1.5">
-            <Building2 className="w-3.5 h-3.5" />
+          <h4 className="text-[11px] text-primary font-bold uppercase tracking-wider mb-2.5 border-b border-primary/20 pb-1.5">
             Empresa
           </h4>
           <div className="space-y-1.5 pl-0.5">
             <EditableInfoRow icon={Building2} label="Fantasia" value={empresa.nome_fantasia} onSave={saveEmpresaField('nome_fantasia')} />
             <EditableInfoRow icon={Building2} label="Razão Social" value={empresa.razao_social} onSave={saveEmpresaField('razao_social')} />
-            <EditableInfoRow icon={Briefcase} label="CNPJ" value={empresa.cnpj} onSave={saveEmpresaField('cnpj')} />
+            <EditableInfoRow icon={Briefcase} label="CNPJ" value={empresa.cnpj} onSave={saveEmpresaField('cnpj')} mask="cnpj" />
             <EditableInfoRow icon={Mail} label="Email" value={empresa.email} onSave={saveEmpresaField('email')} />
-            <EditableInfoRow icon={Phone} label="Telefone" value={empresa.telefone} onSave={saveEmpresaField('telefone')} />
+            <EditableInfoRow icon={Phone} label="Telefone" value={empresa.telefone} onSave={saveEmpresaField('telefone')} mask="telefone" />
             <EditableInfoRow icon={Globe} label="Website" value={empresa.website} isLink onSave={saveEmpresaField('website')} />
             <EditableInfoRow icon={Briefcase} label="Segmento" value={empresa.segmento} onSave={saveEmpresaField('segmento')} />
             <EditableInfoRow icon={Briefcase} label="Porte" value={empresa.porte} onSave={saveEmpresaField('porte')} />
