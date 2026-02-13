@@ -148,11 +148,11 @@ export function TarefaItem({ tarefa, onConcluir, onClickOportunidade }: TarefaIt
             </span>
           )}
 
-          {/* Badge atrasada */}
+          {/* Badge atrasada + data inline */}
           {isAtrasada && (
             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-destructive/10 text-destructive">
               <AlertTriangle className="w-3 h-3" />
-              ATRASADA
+              ATRASADA · {dataInfo.texto}
             </span>
           )}
 
@@ -201,9 +201,11 @@ export function TarefaItem({ tarefa, onConcluir, onClickOportunidade }: TarefaIt
 
       {/* Direita: data + responsável + botão Concluir */}
       <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-        <span className={`text-xs ${dataInfo.className}`}>
-          {dataInfo.texto}
-        </span>
+        {!isAtrasada && (
+          <span className={`text-xs ${dataInfo.className}`}>
+            {dataInfo.texto}
+          </span>
+        )}
         {tarefa.owner && (
           <span className="flex items-center gap-1 text-xs text-muted-foreground">
             <User className="w-3 h-3" />
