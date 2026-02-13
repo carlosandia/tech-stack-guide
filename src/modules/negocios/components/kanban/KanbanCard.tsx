@@ -233,10 +233,14 @@ export function KanbanCard({ oportunidade, onDragStart, onClick, config, slaConf
           <div key={key} className="flex items-center gap-1.5">
             <UserCircle className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
             <div className="flex items-center gap-1.5">
-              <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
-                <span className="text-[10px] font-medium text-primary">
-                  {oportunidade.responsavel.nome[0]?.toUpperCase()}{oportunidade.responsavel.sobrenome?.[0]?.toUpperCase() || ''}
-                </span>
+              <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                {oportunidade.responsavel.avatar_url ? (
+                  <img src={oportunidade.responsavel.avatar_url} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-[10px] font-medium text-primary">
+                    {oportunidade.responsavel.nome[0]?.toUpperCase()}{oportunidade.responsavel.sobrenome?.[0]?.toUpperCase() || ''}
+                  </span>
+                )}
               </div>
               <span className="text-sm text-muted-foreground truncate">
                 {oportunidade.responsavel.nome} {oportunidade.responsavel.sobrenome?.[0] ? `${oportunidade.responsavel.sobrenome[0]}.` : ''}

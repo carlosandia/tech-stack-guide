@@ -17,6 +17,7 @@ import {
   Zap,
   Settings,
   LogOut,
+  User,
   Menu,
   X,
   ChevronDown,
@@ -295,10 +296,14 @@ function AppLayoutInner() {
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
                 className="flex items-center gap-2 p-2 hover:bg-accent rounded-md transition-all duration-200"
               >
-                <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center">
-                  <span className="text-sm font-medium text-muted-foreground">
-                    {user?.nome?.[0]?.toUpperCase() || 'U'}
-                  </span>
+                <div className="w-8 h-8 rounded-full flex items-center justify-center overflow-hidden bg-muted">
+                  {user?.avatar_url ? (
+                    <img src={user.avatar_url} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-sm font-medium text-muted-foreground">
+                      {user?.nome?.[0]?.toUpperCase() || 'U'}
+                    </span>
+                  )}
                 </div>
                 <span className="hidden sm:block text-sm font-medium text-foreground max-w-[150px] truncate">
                   {user?.nome || 'Usuário'}
@@ -325,6 +330,14 @@ function AppLayoutInner() {
                         {role === 'admin' ? 'Admin' : 'Membro'}
                       </span>
                     </div>
+                    <NavLink
+                      to="/perfil"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-foreground hover:bg-accent"
+                    >
+                      <User className="w-4 h-4" />
+                      Meu Perfil
+                    </NavLink>
                     <button
                       onClick={handleLogout}
                       className="flex items-center gap-2 w-full px-3 py-2 text-sm text-foreground hover:bg-accent"

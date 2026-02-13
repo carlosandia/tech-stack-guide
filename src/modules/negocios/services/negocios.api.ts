@@ -135,6 +135,7 @@ export interface Oportunidade {
     id: string
     nome: string
     sobrenome?: string | null
+    avatar_url?: string | null
   } | null
   etapa?: EtapaFunil | null
 }
@@ -338,7 +339,7 @@ export const negociosApi = {
     const responsavelIds = [...new Set(ops.filter(o => o.usuario_responsavel_id).map(o => o.usuario_responsavel_id!))]
 
     let contatosMap: Record<string, Oportunidade['contato']> = {}
-    let responsaveisMap: Record<string, { id: string; nome: string; sobrenome?: string }> = {}
+    let responsaveisMap: Record<string, { id: string; nome: string; sobrenome?: string; avatar_url?: string | null }> = {}
 
     if (contatoIds.length > 0) {
       const { data: contatos } = await supabase
@@ -365,12 +366,12 @@ export const negociosApi = {
     if (responsavelIds.length > 0) {
       const { data: usuarios } = await supabase
         .from('usuarios')
-        .select('id, nome, sobrenome')
+        .select('id, nome, sobrenome, avatar_url')
         .in('id', responsavelIds)
 
       if (usuarios) {
         for (const u of usuarios) {
-          responsaveisMap[u.id] = { id: u.id, nome: u.nome, sobrenome: u.sobrenome || undefined }
+          responsaveisMap[u.id] = { id: u.id, nome: u.nome, sobrenome: u.sobrenome || undefined, avatar_url: u.avatar_url }
         }
       }
     }
@@ -980,12 +981,12 @@ export const negociosApi = {
     if (op.usuario_responsavel_id) {
       const { data: responsavel } = await supabase
         .from('usuarios')
-        .select('id, nome, sobrenome')
+        .select('id, nome, sobrenome, avatar_url')
         .eq('id', op.usuario_responsavel_id)
         .maybeSingle()
 
       if (responsavel) {
-        op.responsavel = { id: responsavel.id, nome: responsavel.nome, sobrenome: responsavel.sobrenome || undefined }
+        op.responsavel = { id: responsavel.id, nome: responsavel.nome, sobrenome: responsavel.sobrenome || undefined, avatar_url: responsavel.avatar_url }
       }
     }
 
