@@ -102,11 +102,10 @@ function DashboardPage() {
           <Briefcase className="w-6 h-6 text-muted-foreground" />
         </div>
         <h3 className="text-base font-medium text-foreground mb-1">
-          Módulos em desenvolvimento
+          Em breve
         </h3>
         <p className="text-sm text-muted-foreground max-w-md mx-auto">
-          Os módulos de Contatos, Negócios, Conversas e Tarefas serão implementados nas próximas fases.
-          Acesse Configurações para personalizar seu CRM.
+          O dashboard com métricas e resumos será disponibilizado em breve.
         </p>
       </div>
     </div>
