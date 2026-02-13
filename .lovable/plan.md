@@ -1,85 +1,74 @@
 
 
-# Plano: Enquete estilo WhatsApp + Loading de audio + Correcoes
+# Corrigir consulta de votos de enquete (falso positivo NOWEB)
 
-## Prioridade 1: UI da Enquete (PollContent) estilo WhatsApp
+## Problema
 
-**Estado atual:** A enquete mostra opcoes como linhas simples com texto e numero de votos, sem estilizacao.
+O botao "Mostrar votos" sempre retorna "Votos de enquete nao disponiveis com engine NOWEB", mesmo que o usuario esteja usando o engine GOWS. Isso acontece porque:
 
-**Redesign baseado na referencia do WhatsApp (imagem enviada):**
+1. A logica no `waha-proxy` trata **qualquer resposta vazia** como "limitacao NOWEB"
+2. Se ninguem votou ainda, a resposta tambem vem vazia -- o que e normal, nao e limitacao de engine
+3. O sistema nao sabe qual engine esta sendo usado (nao ha coluna `engine` na tabela `sessoes_whatsapp`)
 
-Arquivo: `src/modules/conversas/components/ChatMessageBubble.tsx` (funcao `PollContent`, linhas 340-383)
+## Solucao
 
-Novo layout:
-- Titulo da pergunta em negrito (font-semibold, text-sm)
-- Subtitulo "Selecione uma opcao" com icone de check verde (ou "Permitir multiplas respostas" se aplicavel)
-- Cada opcao com:
-  - Circulo vazio (radio button visual) a esquerda
-  - Texto da opcao
-  - Contagem de votos a direita
-  - Barra de progresso sutil abaixo (proporcional ao total de votos, cor `primary/20`)
-- Separador fino entre opcoes
-- Rodape "Mostrar votos" como botao com borda superior, alinhado ao centro
-- Botao de refresh (RefreshCw) no canto superior direito do card
+### 1. Consultar o engine real da sessao WAHA antes de decidir
 
-Cores: fundo `bg-muted/30`, bordas `border-border/50`, barra de progresso `bg-primary/20`, texto principal `text-foreground`, votos `text-muted-foreground`
+No `waha-proxy/index.ts`, no case `consultar_votos_enquete`:
 
----
+- Antes de consultar os votos, fazer um GET em `/api/sessions/{sessionId}` para obter informacoes da sessao, incluindo o campo `engine` retornado pela WAHA API
+- Usar essa informacao para distinguir entre:
+  - **Votos vazios + engine NOWEB** -> mostrar aviso de limitacao
+  - **Votos vazios + engine GOWS/WEBJS** -> mostrar "0 votos" normalmente (ninguem votou ainda)
+  - **Endpoint retornou erro (404/501)** -> verificar engine para decidir mensagem
 
-## Prioridade 2: Loading visual ao enviar audio
+### 2. Tratar resposta vazia corretamente
 
-**Estado atual:** Apos gravar e clicar em enviar, nao ha nenhum feedback visual. O usuario nao sabe se esta enviando.
+Quando a WAHA retorna uma lista de opcoes sem votantes:
+- Se engine = NOWEB: manter o aviso de limitacao (NOWEB realmente nao suporta votos)
+- Se engine != NOWEB (GOWS, WEBJS, etc): retornar os votos como 0 normalmente e atualizar o banco
 
-Arquivo: `src/modules/conversas/components/ChatWindow.tsx` (funcao `handleAudioSend`, linhas 264-295)
+### 3. Melhorar mensagem na UI
 
-Alteracoes:
-- Adicionar estado `audioSending: boolean` no ChatWindow
-- Antes do upload, setar `audioSending = true`
-- Apos conclusao (sucesso ou erro), setar `audioSending = false`
-- Passar `audioSending` para o `ChatInput` como prop
-
-Arquivo: `src/modules/conversas/components/ChatInput.tsx`
-- Receber prop `audioSending?: boolean`
-- Quando `audioSending` for true e nao estiver gravando, mostrar um indicador sutil no lugar do botao de microfone:
-  - Spinner pequeno animado (animate-spin) com texto "Enviando..." em cor muted
-  - Ou uma barra de progresso minimalista acima do input
-
----
-
-## Prioridade 3: Audio via webhook (ja funcionando)
-
-**Analise dos logs:** O audio JA esta sendo enviado via WAHA com sucesso (status 201, `sendVoice`). O request retornou `message_id` valido e o WhatsApp recebeu o audio conforme confirmado nos logs do edge function.
-
-Possivel causa da percepcao do usuario: a falta de feedback visual (prioridade 2) fez parecer que nao estava funcionando. Nenhuma alteracao de codigo necessaria aqui.
-
----
+No `ChatMessageBubble.tsx`, quando `engine_limitation` for true:
+- Mostrar "Votos nao disponiveis com engine NOWEB" (manter como esta)
+- Quando os votos vierem como 0 sem limitacao, mostrar normalmente com "0 votos"
 
 ## Detalhes Tecnicos
 
-### PollContent redesenhado (pseudo-estrutura):
+### Arquivo: `supabase/functions/waha-proxy/index.ts`
+
+No case `consultar_votos_enquete` (linhas 825-953):
+
 ```text
-+------------------------------------------+
-| Pergunta da enquete?            [refresh] |
-| (check) Selecione uma opcao              |
-|                                          |
-| (o) opcao 1                          0   |
-| [========                           ]    |
-| ---------------------------------------- |
-| (o) opcao 2                          0   |
-| [========                           ]    |
-| ---------------------------------------- |
-|          Mostrar votos                   |
-+------------------------------------------+
+// Antes de consultar votos, verificar engine da sessao
+const sessionInfoResp = await fetch(`${baseUrl}/api/sessions/${sessionId}`, {
+  headers: { "X-Api-Key": apiKey }
+});
+const sessionInfo = await sessionInfoResp.json().catch(() => ({}));
+const engineName = (sessionInfo?.engine || sessionInfo?.config?.engine || "NOWEB").toUpperCase();
+
+// Ao verificar votos vazios:
+if (!hasActualVotes) {
+  if (engineName === "NOWEB") {
+    // Limitacao real do NOWEB
+    return { engine_limitation: true, error: "..." }
+  } else {
+    // Ninguem votou ainda - retornar 0 votos normalmente
+    return { ok: true, poll_options: currentOptions } // todas com votes: 0
+  }
+}
 ```
 
-### Estado de loading do audio:
-```text
-Estado normal:     [mic icon]
-Enviando audio:    [spinner] Enviando...
-```
+Quando o endpoint retorna erro (status != 200):
+- Se engine NOWEB: retornar `engine_limitation: true`
+- Se engine GOWS/WEBJS: retornar erro real ao inves de assumir limitacao
 
-### Arquivos modificados:
-1. `src/modules/conversas/components/ChatMessageBubble.tsx` - Redesign completo do PollContent
-2. `src/modules/conversas/components/ChatWindow.tsx` - Estado `audioSending` + passagem para ChatInput
-3. `src/modules/conversas/components/ChatInput.tsx` - Receber e exibir estado de envio de audio
+### Arquivo: `src/modules/conversas/components/ChatMessageBubble.tsx`
+
+Nenhuma alteracao necessaria -- a UI ja trata `engine_limitation` vs votos normais corretamente.
+
+## Arquivos modificados
+
+1. `supabase/functions/waha-proxy/index.ts` -- Adicionar consulta de engine + logica condicional
 
