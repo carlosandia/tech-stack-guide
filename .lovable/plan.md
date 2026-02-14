@@ -1,66 +1,82 @@
 
-# Correcao: Sincronizacao de etiquetas usando endpoint por chat
 
-## Problema
+# Simplificacao da Sincronizacao de Etiquetas
 
-O endpoint da WAHA `GET /labels/{labelId}/chats` retorna dados em cache/desatualizados. Nos logs, a label 3 (Pagamento pendente) ainda reporta o chat `5513988506995@c.us` mesmo apos a remocao no dispositivo. Isso causa dados stale no CRM.
+## Situacao Atual
 
-## Solucao
+O sistema possui **tres mecanismos** para sincronizar etiquetas:
 
-Substituir a estrategia "chats por label" pela estrategia **"labels por chat"**, consultando `GET /labels/chats/{chatId}` para cada conversa ativa. Este endpoint retorna as labels reais atribuidas a cada chat e tende a ser mais preciso.
+1. **Webhooks** (`waha-webhook`): processam `label.upsert`, `label.chat.added`, `label.chat.deleted` em tempo real -- ja implementado e funcional
+2. **Polling pesado a cada 15s** (`ConversasPage.tsx`): chama `labels_list` no `waha-proxy`, que faz 1 request para cada conversa ativa (ate 500 requests a cada 15s)
+3. **Sync ao focar aba / selecionar conversa**: tambem chama `labels_list` (mesma carga pesada)
 
-## Detalhes tecnicos
+O polling de 15s e extremamente custoso: para 50 conversas ativas, sao 50+ requests HTTP a cada 15 segundos. Alem disso, o `labels_list` faz DELETE ALL + INSERT em batch, o que pode causar "piscar" de etiquetas na interface.
+
+## Proposta: Confiar nos Webhooks + Polling Leve
+
+### 1. Frontend: Reduzir polling de 15s para 60s (health check)
+
+**Arquivo:** `src/modules/conversas/pages/ConversasPage.tsx`
+
+- Mudar o `setInterval` de `15000` para `60000` (60 segundos)
+- Isso torna o polling um "health check" de seguranca, nao o mecanismo principal
+- Manter o sync ao focar aba (visibilitychange) e ao montar a pagina
+
+### 2. Backend `waha-proxy`: Simplificar `labels_list`
 
 **Arquivo:** `supabase/functions/waha-proxy/index.ts`
 
-### Alteracao na action `labels_list` (linhas ~1374-1574)
+A action `labels_list` continuara:
+- Sincronizando as **definicoes de labels** (nomes, cores) via `GET /labels` (1 unico request)
+- Reconfigurar webhooks se necessario (manter logica existente)
 
-Substituir o bloco que itera por label buscando chats (`/labels/{id}/chats`) por um bloco que:
+Mas ao inves de iterar por cada conversa ativa (N requests), usara uma estrategia mais leve:
+- Chamar `GET /labels` para obter as labels e suas propriedades
+- Para cada label retornada pela API, verificar se possui campo `chatIds` ou similar (alguns endpoints WAHA retornam isso)
+- Se nao houver dados de associacao no endpoint simples, **nao faz o full sync de associacoes** -- confia nos webhooks para manter `conversas_labels` atualizado
 
-1. Itera pelas **conversas ativas** (ja carregadas na variavel `conversasAtivas`)
-2. Para cada conversa, chama `GET /labels/chats/{chatId}` para obter as labels reais daquele chat
-3. Monta as associacoes `conversa_id + label_id` a partir da resposta
-4. Mantem o DELETE ALL + INSERT em batch (estrategia atual de full sync)
+Caso o endpoint `GET /labels` retorne a lista de chats por label (alguns engines do WAHA fazem isso), usar esses dados diretamente. Caso contrario, pular o sync de associacoes no polling e confiar 100% nos webhooks.
+
+### 3. Manter Realtime do Supabase
+
+O `useConversasRealtime.ts` ja escuta INSERT/DELETE em `conversas_labels` e `*` em `whatsapp_labels`. Quando o webhook insere/remove uma associacao, o Supabase Realtime invalida o cache automaticamente -- isso ja funciona.
+
+### 4. Remover sync ao selecionar conversa
+
+**Arquivo:** `src/modules/conversas/pages/ConversasPage.tsx`
+
+No `handleSelectConversa`, remover a chamada `sincronizarLabels.mutate()`. Ao selecionar uma conversa, os dados ja estarao atualizados via webhook + realtime. Isso reduz chamadas desnecessarias.
+
+## Resultado Esperado
 
 ```text
-Fluxo atual (problematico):
-  Para cada LABEL → buscar CHATS (endpoint com cache)
-  
-Fluxo proposto (mais preciso):
-  Para cada CONVERSA ATIVA → buscar LABELS (endpoint mais confiavel)
+Antes:
+  - 15s polling → N requests por conversa (50+ requests a cada 15s)
+  - DELETE ALL + INSERT em batch a cada 15s
+  - Visibilidade e selecao de conversa = mais N requests
+
+Depois:
+  - Webhooks em tempo real (latencia < 2s)
+  - Realtime Supabase invalida cache instantaneamente
+  - 60s polling = apenas 1 request GET /labels (definicoes, nao associacoes)
+  - Menor carga no servidor WAHA e no Supabase
 ```
 
-### Logica do novo bloco:
+## Detalhes Tecnicos
 
-```
-1. Manter: delete ALL conversas_labels da org
-2. Manter: mapa dbLabels (waha_label_id → uuid)
-3. NOVO: Para cada conversa ativa (limite 500):
-   a. GET /labels/chats/{chatId}
-   b. Extrair array de label IDs retornados
-   c. Para cada labelId retornado, buscar no mapa dbLabels o UUID
-   d. Adicionar row { organizacao_id, conversa_id, label_id }
-4. Manter: dedup + upsert batch
-```
+### Alteracoes por arquivo:
 
-### Tratamento de @lid
+**`src/modules/conversas/pages/ConversasPage.tsx`:**
+- Linha 110: mudar `15000` para `60000`
+- Linhas 126-131: remover `sincronizarLabels.mutate()` do `handleSelectConversa`
 
-- Se `chatId` termina com `@lid`, tentar resolver via `lidToCusMap` antes de chamar a API
-- Usar o ID resolvido (@c.us) na chamada da API WAHA
+**`supabase/functions/waha-proxy/index.ts`:**
+- Linhas 1374-1507 (bloco de sync "labels per chat"): substituir por um sync simplificado que apenas sincroniza as definicoes de labels sem iterar por cada conversa. O bloco pesado de N requests sera removido.
+- Manter o upsert de definicoes de labels (nomes, cores) que ja existe nas linhas 1361-1372
 
-### Performance
+### Risco e Mitigacao
 
-- Conversas ativas limitadas a 500 (mesmo limite atual)
-- Cada chamada e leve (retorna array pequeno de labels)
-- Para orgs com muitas conversas, isso pode gerar mais requests que a abordagem anterior, mas garante precisao
+- **Risco**: se webhooks falharem, labels ficam dessincronizadas ate o proximo polling (60s)
+- **Mitigacao**: o botao manual "Sincronizar" no LabelsPopover continua funcionando e pode disparar o full sync quando o usuario perceber inconsistencia
+- **Mitigacao extra**: manter no `labels_list` a opcao de full sync, mas so executar quando chamado manualmente (nao no polling automatico)
 
-### Fallback
-
-- Se o endpoint `/labels/chats/{chatId}` falhar para um chat especifico, logar warning e continuar
-- Se retornar array vazio, nenhuma label e associada (comportamento correto)
-
-## Resultado esperado
-
-- Labels removidas no dispositivo serao refletidas imediatamente no proximo sync (15s polling)
-- Eliminacao total do problema de cache do endpoint "chats por label"
-- Melhoria na confiabilidade da sincronizacao bidirecional
