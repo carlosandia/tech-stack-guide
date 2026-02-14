@@ -61,6 +61,7 @@ export function ConversasPage() {
   useLabels() // keep query active for realtime invalidation
   const sincronizarLabels = useSincronizarLabels()
   const labelsSyncRef = useRef(false)
+  const sessionNameRef = useRef<string | null>(null)
 
   const arquivarConversa = useArquivarConversa()
   const desarquivarConversa = useDesarquivarConversa()
@@ -74,11 +75,15 @@ export function ConversasPage() {
     return data.pages.flatMap((p) => p.conversas)
   }, [data])
 
-  // AIDEV-NOTE: Auto-sync labels do WhatsApp uma vez por sessão do navegador
+  // AIDEV-NOTE: Auto-sync labels do WhatsApp - resolve session_name e faz polling a cada 60s
+  // WAHA não envia webhooks label.chat.deleted de forma confiável, então polling é necessário
   useEffect(() => {
-    if (labelsSyncRef.current || conversas.length === 0) return
+    if (conversas.length === 0) return
     const whatsappConversa = conversas.find(c => c.canal === 'whatsapp' && c.sessao_whatsapp_id)
-    if (whatsappConversa) {
+    if (!whatsappConversa) return
+
+    // Resolve session_name uma vez
+    if (!sessionNameRef.current && !labelsSyncRef.current) {
       labelsSyncRef.current = true
       import('@/lib/supabase').then(({ supabase }) => {
         supabase
@@ -88,12 +93,23 @@ export function ConversasPage() {
           .maybeSingle()
           .then(({ data: sessao }) => {
             if (sessao?.session_name) {
+              sessionNameRef.current = sessao.session_name
               sincronizarLabels.mutate(sessao.session_name)
             }
           })
       })
     }
   }, [conversas])
+
+  // AIDEV-NOTE: Polling de labels a cada 60s para compensar webhooks não confiáveis do WAHA
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (sessionNameRef.current && !sincronizarLabels.isPending) {
+        sincronizarLabels.mutate(sessionNameRef.current)
+      }
+    }, 60000)
+    return () => clearInterval(interval)
+  }, [sincronizarLabels])
 
   const conversaAtiva = conversas.find((c) => c.id === conversaAtivaId) || null
 
