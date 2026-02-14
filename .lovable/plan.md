@@ -1,45 +1,66 @@
 
-
-# Correção: Clique nas etiquetas não deve abrir sidebar de info do contato
+# Correcao: Sincronizacao de etiquetas usando endpoint por chat
 
 ## Problema
 
-No `ChatHeader.tsx`, a área de etiquetas (`LabelsPopover`) está renderizada **dentro** de um `<button onClick={onOpenDrawer}>` que engloba todo o avatar + nome + etiquetas (linhas 197-248). Quando o usuário clica nas etiquetas, o evento de clique "sobe" (bubble) até o botão pai, abrindo o sidebar de info do contato ao mesmo tempo.
+O endpoint da WAHA `GET /labels/{labelId}/chats` retorna dados em cache/desatualizados. Nos logs, a label 3 (Pagamento pendente) ainda reporta o chat `5513988506995@c.us` mesmo apos a remocao no dispositivo. Isso causa dados stale no CRM.
 
-## Solução
+## Solucao
 
-Separar a estrutura do header em duas partes clicáveis independentes:
+Substituir a estrategia "chats por label" pela estrategia **"labels por chat"**, consultando `GET /labels/chats/{chatId}` para cada conversa ativa. Este endpoint retorna as labels reais atribuidas a cada chat e tende a ser mais preciso.
 
-1. **Avatar + Nome + Ícone do canal** -- continua abrindo o drawer (onClick={onOpenDrawer})
-2. **Linha de etiquetas** -- fica fora do botão, não propaga clique para o drawer
+## Detalhes tecnicos
 
-### Alteração no arquivo `src/modules/conversas/components/ChatHeader.tsx`
+**Arquivo:** `supabase/functions/waha-proxy/index.ts`
 
-Reestruturar o bloco do botão (linhas 197-248) para que:
-- O `<button onClick={onOpenDrawer}>` contenha apenas o avatar, nome e ícone do canal
-- A linha de etiquetas (`<p>` com `LabelsPopover`) fique **fora** do botão, como um elemento irmão
+### Alteracao na action `labels_list` (linhas ~1374-1574)
 
-```
-Antes (simplificado):
-<button onClick={onOpenDrawer}>        <-- abre drawer
-  <Avatar />
-  <div>
-    <Nome + Ícone Canal />
-    <Etiquetas / LabelsPopover />       <-- clique sobe pro button
-  </div>
-</button>
+Substituir o bloco que itera por label buscando chats (`/labels/{id}/chats`) por um bloco que:
 
-Depois (simplificado):
-<div className="flex items-center gap-2">
-  <button onClick={onOpenDrawer}>      <-- abre drawer
-    <Avatar />
-    <div>
-      <Nome + Ícone Canal />
-    </div>
-  </button>
-  <Etiquetas / LabelsPopover />         <-- independente, não abre drawer
-</div>
+1. Itera pelas **conversas ativas** (ja carregadas na variavel `conversasAtivas`)
+2. Para cada conversa, chama `GET /labels/chats/{chatId}` para obter as labels reais daquele chat
+3. Monta as associacoes `conversa_id + label_id` a partir da resposta
+4. Mantem o DELETE ALL + INSERT em batch (estrategia atual de full sync)
+
+```text
+Fluxo atual (problematico):
+  Para cada LABEL → buscar CHATS (endpoint com cache)
+  
+Fluxo proposto (mais preciso):
+  Para cada CONVERSA ATIVA → buscar LABELS (endpoint mais confiavel)
 ```
 
-Nenhum outro arquivo precisa ser alterado. A correção é pontual e não afeta o restante do comportamento do header.
+### Logica do novo bloco:
 
+```
+1. Manter: delete ALL conversas_labels da org
+2. Manter: mapa dbLabels (waha_label_id → uuid)
+3. NOVO: Para cada conversa ativa (limite 500):
+   a. GET /labels/chats/{chatId}
+   b. Extrair array de label IDs retornados
+   c. Para cada labelId retornado, buscar no mapa dbLabels o UUID
+   d. Adicionar row { organizacao_id, conversa_id, label_id }
+4. Manter: dedup + upsert batch
+```
+
+### Tratamento de @lid
+
+- Se `chatId` termina com `@lid`, tentar resolver via `lidToCusMap` antes de chamar a API
+- Usar o ID resolvido (@c.us) na chamada da API WAHA
+
+### Performance
+
+- Conversas ativas limitadas a 500 (mesmo limite atual)
+- Cada chamada e leve (retorna array pequeno de labels)
+- Para orgs com muitas conversas, isso pode gerar mais requests que a abordagem anterior, mas garante precisao
+
+### Fallback
+
+- Se o endpoint `/labels/chats/{chatId}` falhar para um chat especifico, logar warning e continuar
+- Se retornar array vazio, nenhuma label e associada (comportamento correto)
+
+## Resultado esperado
+
+- Labels removidas no dispositivo serao refletidas imediatamente no proximo sync (15s polling)
+- Eliminacao total do problema de cache do endpoint "chats por label"
+- Melhoria na confiabilidade da sincronizacao bidirecional
