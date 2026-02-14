@@ -92,7 +92,7 @@ function applyMask(value: string, mask: MaskType): string {
 // Campo editável inline
 // =====================================================
 
-function EditableInfoRow({ icon: Icon, label, value, iconColor, isLink, onSave, mask, campoTipo, opcoes }: {
+function EditableInfoRow({ icon: Icon, label, value, iconColor, isLink, onSave, mask, campoTipo, opcoes, rawValue }: {
   icon: React.ElementType
   label: string
   value: string | null | undefined
@@ -102,6 +102,7 @@ function EditableInfoRow({ icon: Icon, label, value, iconColor, isLink, onSave, 
   mask?: MaskType
   campoTipo?: string
   opcoes?: string[]
+  rawValue?: string | null
 }) {
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState('')
@@ -112,10 +113,9 @@ function EditableInfoRow({ icon: Icon, label, value, iconColor, isLink, onSave, 
 
   const handleStartEdit = () => {
     if (!onSave) return
-    // Para multi_select, converter display value (comma) para pipe delimiter
-    if (campoTipo === 'multi_select' && value) {
-      // Se veio como "A, B" converter para "A | B" para edição
-      setEditValue(value.includes('|') ? value : value.split(',').map(s => s.trim()).filter(Boolean).join(' | '))
+    // Para multi_select, usar rawValue (pipe-delimited) para preservar seleções
+    if (campoTipo === 'multi_select') {
+      setEditValue(rawValue || value || '')
     } else {
       setEditValue(value || '')
     }
@@ -696,6 +696,18 @@ function PainelInformacoes({ oportunidadeId }: { oportunidadeId: string }) {
     }
   }
 
+  /** Retorna valor raw (pipe-delimited) para multi_select - usado na edição */
+  const getCustomRawValue = (valores: any[] | undefined, campoId: string, campoTipo?: string) => {
+    if (!valores || campoTipo !== 'multi_select') return null
+    const v = valores.find((x: any) => x.campo_id === campoId)
+    if (!v) return null
+    if (v.valor_json && Array.isArray(v.valor_json)) {
+      return (v.valor_json as string[]).join(' | ')
+    }
+    if (v.valor_texto && v.valor_texto.includes('|')) return v.valor_texto
+    return v.valor_texto || null
+  }
+
   // Campos de pessoa (sistema + custom)
   const pessoaCampos = camposPessoa?.campos?.filter((c: any) => c.ativo !== false) || []
   const empresaCampos = camposEmpresa?.campos?.filter((c: any) => c.ativo !== false) || []
@@ -723,6 +735,7 @@ function PainelInformacoes({ oportunidadeId }: { oportunidadeId: string }) {
               icon={FileText}
               label={campo.nome}
               value={getCustomValue(valoresOpCustom, campo.id, campo.tipo)}
+              rawValue={getCustomRawValue(valoresOpCustom, campo.id, campo.tipo)}
               onSave={saveCustomField('oportunidade', oportunidadeId, campo.id, campo.tipo)}
               campoTipo={campo.tipo}
               opcoes={Array.isArray(campo.opcoes) ? campo.opcoes.map(String) : []}
@@ -782,6 +795,7 @@ function PainelInformacoes({ oportunidadeId }: { oportunidadeId: string }) {
                     icon={FileText}
                     label={campo.nome}
                     value={getCustomValue(valoresContatoCustom, campo.id, campo.tipo)}
+                    rawValue={getCustomRawValue(valoresContatoCustom, campo.id, campo.tipo)}
                     onSave={saveCustomField('pessoa', contato.id, campo.id, campo.tipo)}
                     campoTipo={campo.tipo}
                     opcoes={Array.isArray(campo.opcoes) ? campo.opcoes.map(String) : []}
@@ -826,6 +840,7 @@ function PainelInformacoes({ oportunidadeId }: { oportunidadeId: string }) {
                     icon={FileText}
                     label={campo.nome}
                     value={getCustomValue(valoresEmpresaCustom, campo.id, campo.tipo)}
+                    rawValue={getCustomRawValue(valoresEmpresaCustom, campo.id, campo.tipo)}
                     onSave={saveCustomField('empresa', empresa.id, campo.id, campo.tipo)}
                     campoTipo={campo.tipo}
                     opcoes={Array.isArray(campo.opcoes) ? campo.opcoes.map(String) : []}
