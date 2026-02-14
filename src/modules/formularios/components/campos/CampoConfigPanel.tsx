@@ -651,7 +651,7 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className, hideHead
             <SelectTrigger>
               <SelectValue placeholder="Nenhum" />
             </SelectTrigger>
-            <SelectContent className="max-h-[280px] overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-track]:bg-transparent">
+            <SelectContent>
               {(() => {
                 const grupos = [...new Set(MAPEAMENTOS.map((m) => m.grupo))]
                 return grupos.map((grupo) => {

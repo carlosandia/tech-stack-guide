@@ -580,7 +580,28 @@ export const camposApi = {
       .maybeSingle()
 
     const novaOrdem = ultimoCampo ? (ultimoCampo.ordem ?? 0) + 1 : 0
-    const slug = payload.nome.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
+    let slug = payload.nome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
+
+    // Verificar duplicidade de slug e adicionar sufixo se necessário
+    const { data: existente } = await supabase
+      .from('campos_customizados')
+      .select('id')
+      .eq('organizacao_id', orgId)
+      .eq('entidade', payload.entidade)
+      .eq('slug', slug)
+      .is('deletado_em', null)
+      .maybeSingle()
+
+    if (existente) {
+      const { count } = await supabase
+        .from('campos_customizados')
+        .select('id', { count: 'exact', head: true })
+        .eq('organizacao_id', orgId)
+        .eq('entidade', payload.entidade)
+        .ilike('slug', `${slug}%`)
+        .is('deletado_em', null)
+      slug = `${slug}_${(count || 1) + 1}`
+    }
 
     const { data, error } = await supabase
       .from('campos_customizados')
