@@ -1545,17 +1545,29 @@ Deno.serve(async (req) => {
                 }
               }
 
+              // AIDEV-NOTE: Deduplicar rows antes do upsert - chat_ids diferentes (@lid e @c.us) podem resolver para a mesma conversa_id
+              const uniqueKeys = new Set<string>();
+              const dedupedRows = allNewRows.filter(row => {
+                const key = `${row.conversa_id}:${row.label_id}`;
+                if (uniqueKeys.has(key)) return false;
+                uniqueKeys.add(key);
+                return true;
+              });
+
               // Batch insert all associations
-              if (allNewRows.length > 0) {
+              if (dedupedRows.length > 0) {
+                if (dedupedRows.length !== allNewRows.length) {
+                  console.log(`[waha-proxy] Deduped ${allNewRows.length} → ${dedupedRows.length} label associations`);
+                }
                 const { error: insertErr } = await supabaseAdmin
                   .from("conversas_labels")
-                  .upsert(allNewRows, { onConflict: "conversa_id,label_id" });
+                  .upsert(dedupedRows, { onConflict: "conversa_id,label_id" });
                 if (insertErr) {
                   console.error(`[waha-proxy] Error inserting label associations:`, insertErr.message);
                 }
               }
 
-              console.log(`[waha-proxy] ✅ Synced ${allNewRows.length} label associations across ${dbLabels.length} labels`);
+              console.log(`[waha-proxy] ✅ Synced ${dedupedRows.length} label associations across ${dbLabels.length} labels`);
             }
           } catch (syncErr) {
             console.warn(`[waha-proxy] Failed to sync label-chat associations:`, syncErr);

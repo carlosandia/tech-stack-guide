@@ -611,7 +611,7 @@ function ReactionPicker({ onSelect, position }: {
 // Action Menu (Portal-based)
 // =====================================================
 
-function MessageActionMenu({ mensagem, onDelete, onReply, onCopy, onReact, onForward, onPin }: {
+function MessageActionMenu({ mensagem, onDelete, onReply, onCopy, onReact, onForward, onPin, onOpenChange }: {
   mensagem: Mensagem
   onDelete: (paraTodos: boolean) => void
   onReply?: () => void
@@ -619,10 +619,16 @@ function MessageActionMenu({ mensagem, onDelete, onReply, onCopy, onReact, onFor
   onReact?: () => void
   onForward?: () => void
   onPin?: () => void
+  onOpenChange?: (isOpen: boolean) => void
 }) {
   const [open, setOpen] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null)
+
+  // Notify parent when menu open state changes
+  useEffect(() => {
+    onOpenChange?.(open)
+  }, [open, onOpenChange])
 
   useEffect(() => {
     if (!open) return
@@ -726,7 +732,8 @@ function MessageActionMenu({ mensagem, onDelete, onReply, onCopy, onReact, onFor
         Apagar para mim
       </button>
 
-      {mensagem.from_me && (
+      {/* AIDEV-NOTE: WhatsApp permite "apagar para todos" somente dentro de ~60 horas após o envio */}
+      {mensagem.from_me && (Date.now() - new Date(mensagem.criado_em).getTime()) < 60 * 60 * 60 * 1000 && (
         <button
           onClick={() => { onDelete(true); setOpen(false) }}
           className="flex items-center gap-2.5 w-full px-3 py-2 text-xs hover:bg-accent/50 transition-colors text-destructive"
@@ -765,6 +772,7 @@ export function ChatMessageBubble({
 }: ChatMessageBubbleProps) {
   const [viewerMedia, setViewerMedia] = useState<{ url: string; tipo: 'image' | 'video' } | null>(null)
   const [hovered, setHovered] = useState(false)
+  const [actionMenuOpen, setActionMenuOpen] = useState(false)
   const [showReactionPicker, setShowReactionPicker] = useState(false)
   const [reactionPos, setReactionPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
   const bubbleRef = useRef<HTMLDivElement>(null)
@@ -880,10 +888,10 @@ export function ChatMessageBubble({
       <div
         className={`flex ${isMe ? 'justify-end' : 'justify-start'} mb-1 group/msg`}
         onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
+        onMouseLeave={() => { if (!actionMenuOpen) setHovered(false) }}
       >
         {/* Action menu - LEFT side for SENT messages (isMe) */}
-        {isMe && hovered && onDeleteMessage && (
+        {isMe && (hovered || actionMenuOpen) && onDeleteMessage && (
           <div className="flex items-start pt-1 mr-1">
             <MessageActionMenu
               mensagem={mensagem}
@@ -893,6 +901,7 @@ export function ChatMessageBubble({
               onReact={onReactMessage ? handleReact : undefined}
               onForward={onForwardMessage ? handleForward : undefined}
               onPin={onPinMessage ? handlePin : undefined}
+              onOpenChange={(isOpen) => { setActionMenuOpen(isOpen); if (!isOpen) setHovered(false) }}
             />
           </div>
         )}
@@ -951,7 +960,7 @@ export function ChatMessageBubble({
         </div>
 
         {/* Action menu - RIGHT side for RECEIVED messages (!isMe) */}
-        {!isMe && hovered && onDeleteMessage && (
+        {!isMe && (hovered || actionMenuOpen) && onDeleteMessage && (
           <div className="flex items-start pt-1 ml-1">
             <MessageActionMenu
               mensagem={mensagem}
@@ -961,6 +970,7 @@ export function ChatMessageBubble({
               onReact={onReactMessage ? handleReact : undefined}
               onForward={onForwardMessage ? handleForward : undefined}
               onPin={onPinMessage ? handlePin : undefined}
+              onOpenChange={(isOpen) => { setActionMenuOpen(isOpen); if (!isOpen) setHovered(false) }}
             />
           </div>
         )}
