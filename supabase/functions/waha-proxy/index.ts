@@ -1371,8 +1371,9 @@ Deno.serve(async (req) => {
               }, { onConflict: "organizacao_id,waha_label_id" });
           }
 
-          // AIDEV-NOTE: Sync label-chat associations using INVERTED strategy
-          // Fetch CHATS PER LABEL instead of LABELS PER CHAT (WAHA bug #1370 workaround)
+          // AIDEV-NOTE: Sync label-chat associations using "labels per chat" strategy
+          // Previous strategy (chats per label) returned stale/cached data from WAHA
+          // New strategy: for each active conversation, ask WAHA which labels it has
           try {
             // Get all DB labels for this org
             const { data: dbLabels } = await supabaseAdmin
@@ -1381,7 +1382,10 @@ Deno.serve(async (req) => {
               .eq("organizacao_id", organizacaoId);
 
             if (dbLabels && dbLabels.length > 0) {
-              // Build a map of chat_id -> conversa_id for quick lookup
+              // Build map waha_label_id → DB uuid
+              const labelIdMap = new Map(dbLabels.map(l => [String(l.waha_label_id), l.id]));
+
+              // Get active conversations
               const { data: conversasAtivas } = await supabaseAdmin
                 .from("conversas")
                 .select("id, chat_id")
@@ -1391,13 +1395,7 @@ Deno.serve(async (req) => {
                 .order("ultima_mensagem_em", { ascending: false })
                 .limit(500);
 
-              const chatToConversaMap = new Map(
-                (conversasAtivas || []).map(c => [c.chat_id, c.id])
-              );
-              
               // AIDEV-NOTE: Build @lid → @c.us mapping via WAHA chats API
-              // @lid IDs are internal WhatsApp Link IDs with NO relation to phone numbers
-              // We MUST resolve them via WAHA API
               const lidToCusMap = new Map<string, string>();
               try {
                 const chatsApiResp = await fetch(
@@ -1408,36 +1406,26 @@ Deno.serve(async (req) => {
                   const allChats = await chatsApiResp.json().catch(() => []);
                   for (const chat of (Array.isArray(allChats) ? allChats : [])) {
                     const chatId = chat.id || '';
-                    // Map LID from chat._serialized or chat.lid if available
                     if (chat._serialized && chat._serialized !== chatId) {
                       lidToCusMap.set(chat._serialized, chatId);
                     }
                     if (chat.lid) {
                       lidToCusMap.set(chat.lid, chatId);
-                      // Also try with @lid suffix
                       if (!chat.lid.endsWith('@lid')) {
                         lidToCusMap.set(chat.lid + '@lid', chatId);
                       }
                     }
-                    // Some WAHA versions return id as @lid and have phone in other fields
                     if (chatId.endsWith('@lid') && chat.name) {
-                      // Store lid→id mapping for later resolution
                       lidToCusMap.set(chatId, chatId);
                     }
                   }
-                  console.log(`[waha-proxy] Built lid→c.us map with ${lidToCusMap.size} entries from ${allChats.length} chats`);
-                  // Log a sample for debugging
-                  const sampleEntries = Array.from(lidToCusMap.entries()).slice(0, 5);
-                  console.log(`[waha-proxy] Sample lid→c.us mappings:`, JSON.stringify(sampleEntries));
-                } else {
-                  console.warn(`[waha-proxy] Failed to fetch chats for lid resolution: ${chatsApiResp.status}`);
+                  console.log(`[waha-proxy] Built lid→c.us map with ${lidToCusMap.size} entries`);
                 }
               } catch (chatsFetchErr) {
                 console.warn(`[waha-proxy] Error fetching chats for lid resolution:`, chatsFetchErr);
               }
 
-              // AIDEV-NOTE: Clear ALL label associations for this org (includes soft-deleted conversations)
-              // This prevents orphan labels from showing stale data
+              // AIDEV-NOTE: Clear ALL label associations for this org (full sync)
               await supabaseAdmin
                 .from("conversas_labels")
                 .delete()
@@ -1445,107 +1433,55 @@ Deno.serve(async (req) => {
 
               const allNewRows: Array<{ organizacao_id: string; conversa_id: string; label_id: string }> = [];
 
-              // For each label, fetch which chats have it applied
-              for (const dbLabel of dbLabels) {
+              // AIDEV-NOTE: For each active conversation, fetch its labels from WAHA
+              // This endpoint returns real-time data (no cache issues)
+              for (const conversa of (conversasAtivas || [])) {
                 try {
-                  const chatsResp = await fetch(
-                    `${baseUrl}/api/${sessionId}/labels/${dbLabel.waha_label_id}/chats`,
+                  // Resolve @lid to @c.us for the API call
+                  let apiChatId = conversa.chat_id;
+                  if (apiChatId.endsWith("@lid")) {
+                    const resolved = lidToCusMap.get(apiChatId);
+                    if (resolved) {
+                      apiChatId = resolved;
+                    }
+                  }
+
+                  const labelsForChatResp = await fetch(
+                    `${baseUrl}/api/${sessionId}/labels/chats/${encodeURIComponent(apiChatId)}`,
                     { method: "GET", headers: { "X-Api-Key": apiKey } }
                   );
 
-                  if (chatsResp.ok) {
-                    const chatsData = await chatsResp.json().catch(() => []);
-                    const chatIds: string[] = Array.isArray(chatsData)
-                      ? chatsData.map((c: { id?: string; chatId?: string } | string) =>
-                          typeof c === 'string' ? c : (c.id || c.chatId || ''))
+                  if (labelsForChatResp.ok) {
+                    const labelsForChat = await labelsForChatResp.json().catch(() => []);
+                    // Response can be array of label objects or label IDs
+                    const labelIds: string[] = Array.isArray(labelsForChat)
+                      ? labelsForChat.map((l: { id?: string; labelId?: string } | string | number) => {
+                          if (typeof l === 'string') return l;
+                          if (typeof l === 'number') return String(l);
+                          return String(l.id ?? l.labelId ?? '');
+                        }).filter(Boolean)
                       : [];
 
-                    console.log(`[waha-proxy] Label ${dbLabel.waha_label_id} raw chatIds:`, JSON.stringify(chatIds));
-                    console.log(`[waha-proxy] Label ${dbLabel.waha_label_id} raw chatsData:`, JSON.stringify(chatsData).slice(0, 500));
-                    let matchCount = 0;
-                    for (const chatId of chatIds) {
-                      if (!chatId) continue;
-                      
-                      // Try exact match first
-                      let conversaId = chatToConversaMap.get(chatId);
-                      
-                      // AIDEV-NOTE: If @lid format, resolve to @c.us via WAHA chats mapping
-                      if (!conversaId && chatId.endsWith("@lid")) {
-                        const resolvedCusId = lidToCusMap.get(chatId);
-                        if (resolvedCusId) {
-                          conversaId = chatToConversaMap.get(resolvedCusId);
-                          if (conversaId) {
-                            console.log(`[waha-proxy] Resolved @lid ${chatId} → ${resolvedCusId} → conversa ${conversaId}`);
-                          }
-                        }
-                        // Fallback: try contact check API
-                        if (!conversaId) {
-                          try {
-                            const checkResp = await fetch(
-                              `${baseUrl}/api/${sessionId}/contacts/check-exists`,
-                              {
-                                method: "POST",
-                                headers: { "X-Api-Key": apiKey, "Content-Type": "application/json" },
-                                body: JSON.stringify({ chatId }),
-                              }
-                            );
-                            if (checkResp.ok) {
-                              const checkData = await checkResp.json();
-                              const resolvedId = checkData?.chatId || checkData?.id || checkData?.result?.id;
-                              if (resolvedId && resolvedId !== chatId) {
-                                conversaId = chatToConversaMap.get(resolvedId);
-                                if (conversaId) {
-                                  console.log(`[waha-proxy] Resolved @lid ${chatId} via check-exists → ${resolvedId} → conversa ${conversaId}`);
-                                }
-                              }
-                            }
-                          } catch (_checkErr) {
-                            // silent fallback
-                          }
-                        }
-                        // Fallback 2: resolve @lid via RPC that searches raw_data (JSONB cast to text)
-                        if (!conversaId) {
-                          const lidNumber = chatId.replace("@lid", "");
-                          try {
-                            const { data: rpcResult, error: rpcErr } = await supabaseAdmin
-                              .rpc("resolve_lid_conversa", { p_org_id: organizacaoId, p_lid_number: lidNumber });
-                            if (rpcErr) {
-                              console.log(`[waha-proxy] RPC resolve_lid_conversa failed for ${lidNumber}: ${rpcErr.message}`);
-                            } else if (rpcResult && rpcResult.length > 0) {
-                              conversaId = rpcResult[0].conversa_id;
-                              console.log(`[waha-proxy] Resolved @lid ${chatId} via RPC → conversa ${conversaId}`);
-                            } else {
-                              console.log(`[waha-proxy] No raw_data match for lid ${lidNumber}`);
-                            }
-                          } catch (searchErr) {
-                            console.log(`[waha-proxy] RPC search error for lid ${lidNumber}:`, searchErr);
-                          }
-                        }
-                        if (!conversaId) {
-                          console.log(`[waha-proxy] Could not resolve @lid ${chatId} to any conversa`);
-                        }
-                      }
-                      
-                      if (conversaId) {
+                    for (const wahaLabelId of labelIds) {
+                      const dbLabelUuid = labelIdMap.get(wahaLabelId);
+                      if (dbLabelUuid) {
                         allNewRows.push({
                           organizacao_id: organizacaoId,
-                          conversa_id: conversaId,
-                          label_id: dbLabel.id,
+                          conversa_id: conversa.id,
+                          label_id: dbLabelUuid,
                         });
-                        matchCount++;
                       }
                     }
-                    console.log(`[waha-proxy] Label ${dbLabel.waha_label_id}: ${chatIds.length} chats from WAHA, ${matchCount} matched in DB`);
-                  } else {
-                    const errText = await chatsResp.text();
-                    console.warn(`[waha-proxy] Failed to fetch chats for label ${dbLabel.waha_label_id}: ${chatsResp.status} ${errText}`);
+                  } else if (labelsForChatResp.status !== 404) {
+                    // 404 = chat not found in WAHA, skip silently
+                    console.warn(`[waha-proxy] Failed to fetch labels for chat ${apiChatId}: ${labelsForChatResp.status}`);
                   }
-                } catch (labelErr) {
-                  console.warn(`[waha-proxy] Error fetching chats for label ${dbLabel.waha_label_id}:`, labelErr);
+                } catch (chatLabelErr) {
+                  console.warn(`[waha-proxy] Error fetching labels for chat ${conversa.chat_id}:`, chatLabelErr);
                 }
               }
 
-              // AIDEV-NOTE: Deduplicar rows antes do upsert - chat_ids diferentes (@lid e @c.us) podem resolver para a mesma conversa_id
+              // Deduplicate rows
               const uniqueKeys = new Set<string>();
               const dedupedRows = allNewRows.filter(row => {
                 const key = `${row.conversa_id}:${row.label_id}`;
@@ -1556,9 +1492,6 @@ Deno.serve(async (req) => {
 
               // Batch insert all associations
               if (dedupedRows.length > 0) {
-                if (dedupedRows.length !== allNewRows.length) {
-                  console.log(`[waha-proxy] Deduped ${allNewRows.length} → ${dedupedRows.length} label associations`);
-                }
                 const { error: insertErr } = await supabaseAdmin
                   .from("conversas_labels")
                   .upsert(dedupedRows, { onConflict: "conversa_id,label_id" });
@@ -1567,7 +1500,7 @@ Deno.serve(async (req) => {
                 }
               }
 
-              console.log(`[waha-proxy] ✅ Synced ${dedupedRows.length} label associations across ${dbLabels.length} labels`);
+              console.log(`[waha-proxy] ✅ Synced ${dedupedRows.length} label associations across ${(conversasAtivas || []).length} conversations`);
             }
           } catch (syncErr) {
             console.warn(`[waha-proxy] Failed to sync label-chat associations:`, syncErr);
