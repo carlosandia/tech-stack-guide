@@ -51,12 +51,12 @@ const SelectScrollDownButton = React.forwardRef<
   <SelectPrimitive.ScrollDownButton
     ref={ref}
     className={cn(
-      "flex cursor-default items-center justify-center py-1 text-muted-foreground",
+      "flex cursor-default items-center justify-center py-1.5 text-muted-foreground border-t border-border/50 bg-gradient-to-t from-popover to-transparent",
       className
     )}
     {...props}
   >
-    <ChevronDown className="h-4 w-4" />
+    <ChevronDown className="h-4 w-4 animate-bounce" style={{ animationDuration: '2s' }} />
   </SelectPrimitive.ScrollDownButton>
 ))
 SelectScrollDownButton.displayName = SelectPrimitive.ScrollDownButton.displayName
