@@ -56,11 +56,27 @@ function getWidgetScript(): string {
     if(usarForm){
       for(var i=0;i<campos.length;i++){
         var c=campos[i];
-        var req=obrigatorios.indexOf(c.id)>=0;
-        camposHtml+='<div><label style="display:block;font-size:11px;color:#6b7280;margin-bottom:2px">'+c.nome+(req?' *':'')+'</label>'
-          +'<input type="'+inputType(c.tipo)+'" name="'+c.id+'" placeholder="'+(c.placeholder||c.nome)+'"'+(req?' required':'')
-          +' data-tipo="'+c.tipo+'" data-nome="'+c.nome+'"'
-          +' style="width:100%;height:32px;padding:0 12px;border:1px solid #e5e7eb;border-radius:8px;background:#f9fafb;font-size:14px;outline:none;box-sizing:border-box" /></div>';
+        var req=obrigatorios.indexOf(c.id)>=0||(c.obrigatorio===true);
+        var reqAttr=req?' required':'';
+        var reqLabel=req?' <span style="color:#EF4444">*</span>':'';
+        var labelHtml='<label style="display:block;font-size:11px;color:#6b7280;margin-bottom:2px;font-weight:500">'+c.nome+reqLabel+'</label>';
+        var inputSt='width:100%;height:32px;padding:0 12px;border:1px solid #e5e7eb;border-radius:8px;background:#f9fafb;font-size:14px;outline:none;box-sizing:border-box';
+        var opcoes=c.opcoes||[];
+        if(typeof opcoes==='string'){try{opcoes=JSON.parse(opcoes)}catch(e){opcoes=[]}}
+
+        if(c.tipo==='select'||c.tipo==='selecao'){
+          var optHtml='<option value="">Selecione...</option>';
+          for(var oi=0;oi<opcoes.length;oi++){var ov=typeof opcoes[oi]==='object'?(opcoes[oi].label||opcoes[oi].valor||opcoes[oi]):opcoes[oi];optHtml+='<option value="'+ov+'">'+ov+'</option>'}
+          camposHtml+='<div>'+labelHtml+'<select name="'+c.id+'"'+reqAttr+' data-tipo="'+c.tipo+'" data-nome="'+c.nome+'" style="'+inputSt+';appearance:auto;cursor:pointer">'+optHtml+'</select></div>';
+        } else if(c.tipo==='multi_select'||c.tipo==='selecao_multipla'){
+          var cbHtml='';
+          for(var mi=0;mi<opcoes.length;mi++){var mv=typeof opcoes[mi]==='object'?(opcoes[mi].label||opcoes[mi].valor||opcoes[mi]):opcoes[mi];cbHtml+='<label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid #e5e7eb;border-radius:6px;cursor:pointer;font-size:13px;background:#fff"><input type="checkbox" value="'+mv+'" data-group="'+c.id+'" style="width:14px;height:14px;accent-color:#3B82F6" />'+mv+'</label>'}
+          camposHtml+='<div>'+labelHtml+'<div data-multi="'+c.id+'" style="display:flex;flex-direction:column;gap:4px;margin-top:2px">'+cbHtml+'</div><input type="hidden" name="'+c.id+'" data-tipo="'+c.tipo+'" data-nome="'+c.nome+'"'+reqAttr+' /></div>';
+        } else {
+          camposHtml+='<div>'+labelHtml+'<input type="'+inputType(c.tipo)+'" name="'+c.id+'" placeholder="'+(c.placeholder||c.nome)+'"'+reqAttr
+            +' data-tipo="'+c.tipo+'" data-nome="'+c.nome+'"'
+            +' style="'+inputSt+'" /></div>';
+        }
       }
     }
 
@@ -103,7 +119,7 @@ function getWidgetScript(): string {
       }
     });
 
-    var inputs=root.querySelectorAll('input');
+    var inputs=root.querySelectorAll('input:not([type=checkbox]):not([type=hidden])');
     for(var j=0;j<inputs.length;j++){
       (function(inp){
         inp.addEventListener('focus',function(){this.style.borderColor=cor});
@@ -111,6 +127,29 @@ function getWidgetScript(): string {
         var mk=maskFor(inp.getAttribute('data-tipo'),inp.getAttribute('data-nome'));
         if(mk)mk(inp);
       })(inputs[j]);
+    }
+
+    // Selects focus/blur
+    var selects=root.querySelectorAll('select[name]');
+    for(var sj=0;sj<selects.length;sj++){
+      (function(sel){
+        sel.addEventListener('focus',function(){this.style.borderColor=cor});
+        sel.addEventListener('blur',function(){this.style.borderColor='#e5e7eb'});
+      })(selects[sj]);
+    }
+
+    // Multi-select checkbox -> hidden input sync
+    var multiGroups=root.querySelectorAll('[data-multi]');
+    for(var mg=0;mg<multiGroups.length;mg++){
+      (function(grp){
+        var gname=grp.getAttribute('data-multi');
+        var hidden=root.querySelector('input[type=hidden][name="'+gname+'"]');
+        grp.addEventListener('change',function(){
+          var checked=grp.querySelectorAll('input[type=checkbox]:checked');
+          var vals=[];for(var ci=0;ci<checked.length;ci++)vals.push(checked[ci].value);
+          if(hidden)hidden.value=vals.join('|');
+        });
+      })(multiGroups[mg]);
     }
 
     var form=document.getElementById('wa-widget-form');
@@ -123,16 +162,15 @@ function getWidgetScript(): string {
         else{reqs[k].style.borderColor='#e5e7eb'}
       }
       if(!valid)return;
-      var fd=new FormData(form);
       var parts=[];
       var dadosObj={};
-      var formInputs=form.querySelectorAll('input[name]');
-      for(var ki=0;ki<formInputs.length;ki++){
-        var inp=formInputs[ki];
-        var label=inp.getAttribute('data-nome')||inp.name;
-        if(inp.value)dadosObj[label]=inp.value;
+      var allFields=form.querySelectorAll('input[name],select[name]');
+      for(var ki=0;ki<allFields.length;ki++){
+        var fld=allFields[ki];
+        var label=fld.getAttribute('data-nome')||fld.name;
+        if(fld.value)dadosObj[label]=fld.value;
+        if(fld.value&&fld.type!=='hidden')parts.push(fld.value);
       }
-      fd.forEach(function(v){if(v)parts.push(v)});
       try{
         fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dados:dadosObj,config:cfg})}).catch(function(){});
       }catch(ex){}
