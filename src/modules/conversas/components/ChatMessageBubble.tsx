@@ -891,8 +891,8 @@ export function ChatMessageBubble({
         onMouseLeave={() => { if (!actionMenuOpen) setHovered(false) }}
       >
         {/* Action menu - LEFT side for SENT messages (isMe) */}
-        {isMe && (hovered || actionMenuOpen) && onDeleteMessage && (
-          <div className="flex items-start pt-1 mr-1">
+        {isMe && onDeleteMessage && (
+          <div className={`flex items-start pt-1 mr-1 transition-opacity ${hovered || actionMenuOpen ? 'opacity-100' : 'opacity-0'}`}>
             <MessageActionMenu
               mensagem={mensagem}
               onDelete={handleDelete}
@@ -960,8 +960,8 @@ export function ChatMessageBubble({
         </div>
 
         {/* Action menu - RIGHT side for RECEIVED messages (!isMe) */}
-        {!isMe && (hovered || actionMenuOpen) && onDeleteMessage && (
-          <div className="flex items-start pt-1 ml-1">
+        {!isMe && onDeleteMessage && (
+          <div className={`flex items-start pt-1 ml-1 transition-opacity ${hovered || actionMenuOpen ? 'opacity-100' : 'opacity-0'}`}>
             <MessageActionMenu
               mensagem={mensagem}
               onDelete={handleDelete}
