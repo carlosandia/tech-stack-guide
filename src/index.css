@@ -111,5 +111,6 @@
 }
 
 .select-scroll {
+  overflow-y: auto !important;
   scrollbar-color: hsl(215, 16%, 67%) hsl(220, 13%, 91%) !important;
 }

@@ -79,17 +79,19 @@ const SelectContent = React.forwardRef<
       <SelectScrollUpButton />
       <SelectPrimitive.Viewport
         className={cn(
-          "p-1 select-scroll",
+          "p-1",
           position === "popper" && "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]"
         )}
-        style={{
-          maxHeight: 'min(var(--radix-select-content-available-height, 384px), 384px)',
-          overflowY: 'scroll',
-          scrollbarGutter: 'stable',
-          scrollbarWidth: 'thin',
-        } as React.CSSProperties}
       >
-        {children}
+        <div
+          className="select-scroll"
+          style={{
+            maxHeight: 'min(var(--radix-select-content-available-height, 300px), 300px)',
+            overflowY: 'auto',
+          }}
+        >
+          {children}
+        </div>
       </SelectPrimitive.Viewport>
       <SelectScrollDownButton />
     </SelectPrimitive.Content>
