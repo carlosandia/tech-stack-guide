@@ -654,7 +654,63 @@ Deno.serve(async (req) => {
                       .maybeSingle();
 
                     if (conversaData?.contato_id) {
-                      const contatoId = conversaData.contato_id;
+                      let contatoId = conversaData.contato_id;
+
+                      // AIDEV-NOTE: Resolver contato fantasma @lid → contato real @c.us
+                      const { data: contatoCheck } = await supabaseAdmin
+                        .from("contatos")
+                        .select("id, telefone, nome")
+                        .eq("id", contatoId)
+                        .maybeSingle();
+
+                      if (contatoCheck?.telefone?.endsWith("@lid")) {
+                        console.log(`[waha-webhook] Contato ${contatoId} has @lid phone (${contatoCheck.telefone}), resolving real contact...`);
+                        const lidNumber = contatoCheck.telefone.replace("@lid", "");
+
+                        // Estratégia 1: Buscar via resolve_lid_conversa RPC (mensagens com LID no raw_data)
+                        const { data: resolvedConversa } = await supabaseAdmin
+                          .rpc("resolve_lid_conversa", {
+                            p_org_id: sessao.organizacao_id,
+                            p_lid_number: lidNumber,
+                          });
+
+                        if (resolvedConversa && resolvedConversa.length > 0) {
+                          const realConversaId = resolvedConversa[0].conversa_id;
+                          // Buscar contato_id da conversa real
+                          const { data: realConversaData } = await supabaseAdmin
+                            .from("conversas")
+                            .select("contato_id, chat_id")
+                            .eq("id", realConversaId)
+                            .maybeSingle();
+
+                          if (realConversaData?.contato_id && realConversaData.contato_id !== contatoId) {
+                            console.log(`[waha-webhook] ✅ Resolved @lid contact → real contact ${realConversaData.contato_id} (conversa ${realConversaId}, chat_id ${realConversaData.chat_id})`);
+                            contatoId = realConversaData.contato_id;
+                          }
+                        }
+
+                        // Estratégia 2: Fallback por nome (se RPC não resolveu)
+                        if (contatoId === conversaData.contato_id && contatoCheck.nome) {
+                          const { data: contatoByName } = await supabaseAdmin
+                            .from("contatos")
+                            .select("id, telefone")
+                            .eq("organizacao_id", sessao.organizacao_id)
+                            .eq("nome", contatoCheck.nome)
+                            .not("telefone", "ilike", "%@lid")
+                            .is("deletado_em", null)
+                            .limit(1)
+                            .maybeSingle();
+
+                          if (contatoByName) {
+                            console.log(`[waha-webhook] ✅ Resolved @lid contact by name → real contact ${contatoByName.id} (telefone ${contatoByName.telefone})`);
+                            contatoId = contatoByName.id;
+                          }
+                        }
+
+                        if (contatoId === conversaData.contato_id) {
+                          console.log(`[waha-webhook] ⚠️ Could not resolve @lid contact to real contact, using original`);
+                        }
+                      }
 
                       // 5. Buscar oportunidades existentes do contato no funil
                       const { data: oportunidades } = await supabaseAdmin
