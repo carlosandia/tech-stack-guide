@@ -11,7 +11,7 @@
 
 import { useEffect, useMemo, useState, forwardRef, useRef, useId } from 'react'
 import { useForm, Controller } from 'react-hook-form'
-import { X, User, Building2, Search } from 'lucide-react'
+import { X, User, Building2, Search, Check, ChevronDown } from 'lucide-react'
 import { StatusContatoOptions, OrigemContatoOptions, PorteOptions } from '../schemas/contatos.schema'
 import type { Contato, TipoContato } from '../services/contatos.api'
 import { useCamposConfig } from '../hooks/useCamposConfig'
@@ -190,7 +190,13 @@ export function ContatoFormModal({
 
       camposCustomizados.forEach(c => {
         const key = `custom_${c.slug}`
-        defaults[key] = (contato as any)?.[key] || (contato as any)?.campos_customizados?.[c.slug] || ''
+        let val = (contato as any)?.[key] || (contato as any)?.campos_customizados?.[c.slug] || ''
+        // Normalizar multi_select: arrays ou comma-separated → pipe-delimited
+        if (c.tipo === 'multi_select' && val) {
+          if (Array.isArray(val)) val = val.join(' | ')
+          else if (typeof val === 'string' && val.includes(',') && !val.includes('|')) val = val.split(',').map((s: string) => s.trim()).filter(Boolean).join(' | ')
+        }
+        defaults[key] = val
       })
     } else {
       if (isPessoa) {
@@ -380,36 +386,14 @@ export function ContatoFormModal({
       if (campo.tipo === 'multi_select' && campo.opcoes?.length) {
         return (
           <Controller key={key} name={key} control={form.control}
-            render={({ field }) => {
-              const selectedValues = field.value ? String(field.value).split('|').map((s: string) => s.trim()).filter(Boolean) : []
-              const toggleOption = (opt: string) => {
-                const newSelected = selectedValues.includes(opt)
-                  ? selectedValues.filter((v: string) => v !== opt)
-                  : [...selectedValues, opt]
-                field.onChange(newSelected.join(' | '))
-              }
-              return (
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1.5">{label}</label>
-                  <div className="space-y-1 border border-input rounded-md p-2 bg-background">
-                    {campo.opcoes!.map((opt) => {
-                      const isActive = selectedValues.includes(opt)
-                      return (
-                        <button key={opt} type="button" onClick={() => toggleOption(opt)}
-                          className="flex items-center gap-2 text-sm cursor-pointer hover:bg-accent rounded px-2 py-1 transition-colors w-full text-left">
-                          <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
-                            isActive ? 'bg-primary border-primary' : 'border-input'
-                          }`}>
-                            {isActive && <span className="text-primary-foreground text-xs">✓</span>}
-                          </div>
-                          <span className="text-foreground">{opt}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              )
-            }}
+            render={({ field }) => (
+              <MultiSelectDropdown
+                label={label}
+                opcoes={campo.opcoes!}
+                value={field.value ? String(field.value) : ''}
+                onChange={field.onChange}
+              />
+            )}
           />
         )
       }
@@ -725,3 +709,69 @@ const SelectField = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelec
   )
 )
 SelectField.displayName = 'SelectField'
+
+// Multi-select como dropdown/popover compacto
+function MultiSelectDropdown({ label, opcoes, value, onChange }: {
+  label: string
+  opcoes: string[]
+  value: string
+  onChange: (val: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  const selectedValues = value ? value.split('|').map(s => s.trim()).filter(Boolean) : []
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const toggleOption = (opt: string) => {
+    const newSelected = selectedValues.includes(opt)
+      ? selectedValues.filter(v => v !== opt)
+      : [...selectedValues, opt]
+    onChange(newSelected.join(' | '))
+  }
+
+  const displayText = selectedValues.length > 0
+    ? selectedValues.join(', ')
+    : 'Selecione...'
+
+  return (
+    <div ref={ref} className="relative">
+      <label className="block text-sm font-medium text-foreground mb-1.5">{label}</label>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm text-left flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-ring"
+      >
+        <span className={`truncate ${selectedValues.length === 0 ? 'text-muted-foreground' : 'text-foreground'}`}>
+          {displayText}
+        </span>
+        <ChevronDown className={`w-4 h-4 text-muted-foreground flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute z-[500] left-0 right-0 top-full mt-1 bg-card border border-border rounded-md shadow-lg max-h-[200px] overflow-y-auto">
+          {opcoes.map(opt => {
+            const isActive = selectedValues.includes(opt)
+            return (
+              <button key={opt} type="button" onClick={() => toggleOption(opt)}
+                className="flex items-center gap-2 text-sm w-full px-3 py-2 hover:bg-accent transition-colors text-left">
+                <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
+                  isActive ? 'bg-primary border-primary' : 'border-input'
+                }`}>
+                  {isActive && <Check className="w-3 h-3 text-primary-foreground" />}
+                </div>
+                <span className="text-foreground">{opt}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
