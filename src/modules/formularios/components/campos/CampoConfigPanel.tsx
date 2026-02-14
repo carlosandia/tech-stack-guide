@@ -629,9 +629,9 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className, hideHead
                 const ent = v === '__criar_pessoa__' ? 'pessoa' : 'empresa'
                 // Mapear tipo do formulário para tipo do campo customizado
                 const tipoMap: Record<string, string> = {
-                  texto: 'texto', textarea: 'texto_longo', numero: 'numero',
+                  texto: 'texto', textarea: 'texto_longo', area_texto: 'texto_longo', numero: 'numero',
                   email: 'email', telefone: 'telefone', telefone_br: 'telefone',
-                  data: 'data', data_hora: 'data_hora', url: 'url',
+                  data: 'data', data_hora: 'data_hora', url: 'url', moeda: 'decimal',
                   selecao: 'select', selecao_multipla: 'multi_select',
                   cpf: 'cpf', cnpj: 'cnpj', checkbox: 'booleano',
                 }
