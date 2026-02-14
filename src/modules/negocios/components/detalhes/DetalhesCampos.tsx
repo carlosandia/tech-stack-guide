@@ -683,7 +683,15 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
                 isEditing={editingField === editKey}
                 onStartEdit={() => {
                   setEditingField(editKey)
-                  setEditValue(displayValue)
+                  // Para multi_select, usar valor raw com | como separador para evitar conflito com vírgulas nos valores
+                  if (campo.tipo === 'multi_select' && valor) {
+                    const rawPipe = valor.valor_json && Array.isArray(valor.valor_json)
+                      ? (valor.valor_json as string[]).join(' | ')
+                      : valor.valor_texto || displayValue
+                    setEditValue(rawPipe)
+                  } else {
+                    setEditValue(displayValue)
+                  }
                 }}
                 editValue={editValue}
                 onEditChange={setEditValue}
@@ -769,7 +777,15 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
                 isEditing={editingField === editKey}
                 onStartEdit={() => {
                   setEditingField(editKey)
-                  setEditValue(displayValue)
+                  // Para multi_select, usar valor raw com | como separador
+                  if (campo.tipo === 'multi_select' && valor) {
+                    const rawPipe = valor.valor_json && Array.isArray(valor.valor_json)
+                      ? (valor.valor_json as string[]).join(' | ')
+                      : valor.valor_texto || displayValue
+                    setEditValue(rawPipe)
+                  } else {
+                    setEditValue(displayValue)
+                  }
                 }}
                 editValue={editValue}
                 onEditChange={setEditValue}
@@ -945,7 +961,7 @@ function FieldRow({
 
     // Multi-select (múltipla escolha)
     if (campoTipo === 'multi_select' && opcoes && opcoes.length > 0) {
-      const selectedValues = editValue ? editValue.split(/[|,]/).map(v => v.trim()).filter(Boolean) : []
+      const selectedValues = editValue ? editValue.split('|').map(v => v.trim()).filter(Boolean) : []
       const toggleOption = (opt: string) => {
         const newSelected = selectedValues.includes(opt)
           ? selectedValues.filter(v => v !== opt)
