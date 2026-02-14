@@ -133,6 +133,58 @@ export async function listarContatos(
     }
   }
 
+  // Buscar valores de campos customizados para cada contato
+  let camposCustomMap: Record<string, Record<string, unknown>> = {}
+
+  if (contatoIds.length > 0) {
+    // Buscar definições dos campos para mapear campo_id → slug
+    const { data: camposDefs } = await supabase
+      .from('campos_customizados')
+      .select('id, slug, tipo')
+      .eq('organizacao_id', organizacaoId)
+      .is('deletado_em', null)
+
+    const slugMap = new Map<string, { slug: string; tipo: string }>()
+    for (const cd of camposDefs || []) {
+      slugMap.set(cd.id, { slug: cd.slug, tipo: cd.tipo })
+    }
+
+    // Determinar entidade_tipo baseado no tipo dos contatos
+    const tipoEntidade = filtros.tipo === 'empresa' ? 'empresa' : 'pessoa'
+
+    const { data: valoresCustom } = await supabase
+      .from('valores_campos_customizados')
+      .select('entidade_id, campo_id, valor_texto, valor_numero, valor_data, valor_booleano, valor_json')
+      .eq('entidade_tipo', tipoEntidade)
+      .in('entidade_id', contatoIds)
+
+    if (valoresCustom) {
+      for (const vc of valoresCustom as any[]) {
+        if (!camposCustomMap[vc.entidade_id]) camposCustomMap[vc.entidade_id] = {}
+        const campoInfo = slugMap.get(vc.campo_id)
+        if (!campoInfo) continue
+
+        // Extrair valor correto baseado no tipo
+        let displayValue: unknown = null
+        if (vc.valor_json && Array.isArray(vc.valor_json)) {
+          displayValue = (vc.valor_json as string[]).join(', ')
+        } else if (vc.valor_texto && vc.valor_texto.includes('|')) {
+          displayValue = vc.valor_texto.split('|').map((s: string) => s.trim()).filter(Boolean).join(', ')
+        } else if (vc.valor_texto != null) {
+          displayValue = vc.valor_texto
+        } else if (vc.valor_numero != null) {
+          displayValue = vc.valor_numero
+        } else if (vc.valor_data != null) {
+          displayValue = new Date(vc.valor_data).toLocaleDateString('pt-BR')
+        } else if (vc.valor_booleano != null) {
+          displayValue = vc.valor_booleano ? 'Sim' : 'Não'
+        }
+
+        camposCustomMap[vc.entidade_id][campoInfo.slug] = displayValue
+      }
+    }
+  }
+
   // Buscar nomes dos owners
   const ownerIds = [...new Set(contatos.filter((c) => c.owner_id).map((c) => c.owner_id!))]
   let ownersMap: Record<string, { nome: string; sobrenome?: string }> = {}
@@ -154,6 +206,7 @@ export async function listarContatos(
     ...c,
     segmentos: segmentosMap[c.id] || [],
     owner: c.owner_id ? ownersMap[c.owner_id] || null : null,
+    campos_customizados: camposCustomMap[c.id] || {},
   }))
 
   return {
