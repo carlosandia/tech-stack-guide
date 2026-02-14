@@ -93,9 +93,11 @@ interface ContatoColumnsToggleProps {
   tipo: TipoContato
   columns: ColumnConfig[]
   onChange: (columns: ColumnConfig[]) => void
+  onSave?: (columns: ColumnConfig[]) => void
+  isSaving?: boolean
 }
 
-export function ContatoColumnsToggle({ tipo, columns, onChange }: ContatoColumnsToggleProps) {
+export function ContatoColumnsToggle({ tipo, columns, onChange, onSave, isSaving }: ContatoColumnsToggleProps) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -237,10 +239,19 @@ export function ContatoColumnsToggle({ tipo, columns, onChange }: ContatoColumns
             </div>
           )}
 
-          <div className="px-3 pt-2 border-t border-border">
+          <div className="px-3 pt-2 border-t border-border space-y-1">
+            {onSave && (
+              <button
+                onClick={() => onSave(mergedColumns)}
+                disabled={isSaving}
+                className="w-full text-sm font-medium text-primary hover:underline py-1 disabled:opacity-50"
+              >
+                {isSaving ? 'Salvando...' : 'Salvar Colunas'}
+              </button>
+            )}
             <button
               onClick={handleRestore}
-              className="w-full text-sm text-primary hover:underline py-1"
+              className="w-full text-sm text-muted-foreground hover:text-foreground hover:underline py-1"
             >
               Restaurar Padrão
             </button>
