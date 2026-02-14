@@ -1,50 +1,58 @@
 
 
-# Correcao: Icone (i) informativo no widget embed
+# Correcao: Modal "Ver Termos" no Widget Embedado
 
 ## Problema
-No preview do editor, o campo `texto_ajuda` (Instrucao para o Usuario) aparece como um icone (i) circular ao lado do label, com tooltip ao passar o mouse. No site final (widget embed servido pela Edge Function), o mesmo campo aparece como texto puro abaixo do input -- fora do padrao visual.
+O modal de "Termos de Uso" abre por detras dos elementos do site hospedeiro porque o `z-index: 100000` nao e suficiente em sites com stacking contexts complexos. Alem disso, a fonte do modal nao herda o `fontFamily` do formulario, resultando em estilizacao inconsistente.
 
 ## Solucao
-Alterar o arquivo `supabase/functions/widget-formulario-loader/index.ts` para renderizar `texto_ajuda` como um icone SVG (i) inline ao lado do label com `title` tooltip, igual ao preview.
-
-## O que muda
 
 ### Arquivo: `supabase/functions/widget-formulario-loader/index.ts`
 
-**1. Alterar a renderizacao do label (linha 78)**
+**1. Z-index maximo no overlay e modal dos termos (linha 106)**
 
-Onde hoje cria apenas o texto do label, passar a incluir o icone (i) quando `c.texto_ajuda` existir:
+Alterar o `z-index` do overlay de `100000` para `2147483647` (valor maximo suportado pelos browsers), garantindo que o modal fique sempre por cima de qualquer elemento do site hospedeiro.
+
+**2. Heranca de fonte no modal**
+
+O modal dos termos precisa receber o `fontFamily` do formulario. Atualmente a funcao `renderField` ja recebe `fontFamily` como parametro, porem o modal nao o utiliza. Sera adicionado `font-family` explicito em:
+- Overlay
+- Header do modal (titulo)
+- Body do modal (conteudo dos termos)
+- Botao de fechar
+
+**3. Estilizacao refinada do modal**
+
+Aplicar estilos mais robustos e modernos:
+- `font-family` explicito usando a variavel `fontFamily` do formulario
+- Titulo com `font-family` herdada
+- Corpo com `font-family` herdada e `line-height: 1.6`
+- Overlay com `backdrop-filter: blur(4px)` para efeito de desfoque moderno
+
+## Detalhes tecnicos
+
+Na linha 106 (`checkbox_termos`), o bloco que cria o modal sera atualizado:
 
 ```text
 Antes:
-label.textContent = c.label + (c.obrigatorio ? ' *' : '')
+overlay.style.cssText = '...z-index:100000;...'
+modal title/body sem font-family explicito
 
 Depois:
-label.style.cssText = labelCss + ';display:flex;align-items:center;gap:4px'
-label.innerHTML = c.label + (c.obrigatorio ? ' <span style="color:#EF4444">*</span>' : '')
-+ (c.texto_ajuda
-    ? '<span title="' + c.texto_ajuda + '" style="cursor:help;display:inline-flex">'
-      + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>'
-      + '</span>'
-    : '')
+overlay.style.cssText = '...z-index:2147483647;backdrop-filter:blur(4px);...'
+mTitle.style.cssText = '...font-family:'+fontFamily+';...'
+mBody.style.cssText = '...font-family:'+fontFamily+';...'
+mClose.style.cssText = '...font-family:'+fontFamily+';...'
 ```
 
-**2. Remover os blocos de texto_ajuda como span abaixo do campo**
+A funcao `renderField` ja recebe `fontFamily` como parametro, entao basta referencia-lo dentro do evento de click do link "Ver termos".
 
-Em 4 locais do codigo, o `texto_ajuda` e renderizado como texto abaixo do campo. Esses blocos serao removidos:
+**4. Deploy da Edge Function**
 
-- Linha 85 (telefone internacional) -- remover bloco `if(c.texto_ajuda){...}`
-- Linha 88 (telefone BR) -- remover bloco `if(c.texto_ajuda){...}`
-- Linha 97 (checkbox) -- remover bloco `if(c.texto_ajuda){...}`
-- Linha 125 (fallback geral) -- remover bloco `if(c.texto_ajuda){...}`
+Apos a edicao, redeploy de `widget-formulario-loader`.
 
-**3. Corrigir labels de checkbox/checkbox_termos**
-
-Os tipos `checkbox` e `checkbox_termos` pulam a criacao do label padrao (linha 78). Para esses, o icone (i) sera adicionado inline ao lado do texto do checkbox, usando a mesma logica de SVG + title.
-
-### Resultado final
-- O icone (i) aparecera ao lado do label, identico ao preview
-- Ao passar o mouse, o texto de instrucao aparece como tooltip nativo
-- Sem texto solto abaixo do campo
-- Apos edicao, deploy da Edge Function `widget-formulario-loader`
+## Resultado esperado
+- Modal sempre aparece por cima de todos os elementos do site
+- Fundo escurece com blur sutil
+- Fonte do modal identica a do formulario
+- Funciona corretamente em desktop e mobile
