@@ -91,10 +91,15 @@ export function useConversasRealtime(conversaAtivaId?: string | null) {
           event: 'DELETE',
           schema: 'public',
           table: 'conversas_labels',
-          filter: `organizacao_id=eq.${organizacaoId}`,
         },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ['labels-conversa'] })
+        (payload) => {
+          // AIDEV-NOTE: DELETE com REPLICA IDENTITY FULL envia old row
+          const old = payload.old as any
+          if (old?.conversa_id) {
+            queryClient.invalidateQueries({ queryKey: ['labels-conversa', old.conversa_id] })
+          } else {
+            queryClient.invalidateQueries({ queryKey: ['labels-conversa'] })
+          }
           queryClient.invalidateQueries({ queryKey: ['conversas'] })
         }
       )

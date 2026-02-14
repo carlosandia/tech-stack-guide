@@ -25,6 +25,15 @@ export function LabelsPopover({ conversaId, chatId, sessionName, children }: Lab
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [open, setOpen] = useState(false)
+  const [autoSyncDone, setAutoSyncDone] = useState(false)
+
+  // AIDEV-NOTE: Auto-sync labels ao abrir popover quando lista está vazia
+  useEffect(() => {
+    if (open && !loadingLabels && allLabels.length === 0 && !autoSyncDone && sessionName && !sincronizar.isPending) {
+      setAutoSyncDone(true)
+      sincronizar.mutate(sessionName)
+    }
+  }, [open, loadingLabels, allLabels.length, autoSyncDone, sessionName, sincronizar])
 
   // Sync selected from conversaLabels
   useEffect(() => {
