@@ -92,7 +92,7 @@ function applyMask(value: string, mask: MaskType): string {
 // Campo editável inline
 // =====================================================
 
-function EditableInfoRow({ icon: Icon, label, value, iconColor, isLink, onSave, mask }: {
+function EditableInfoRow({ icon: Icon, label, value, iconColor, isLink, onSave, mask, campoTipo, opcoes }: {
   icon: React.ElementType
   label: string
   value: string | null | undefined
@@ -100,6 +100,8 @@ function EditableInfoRow({ icon: Icon, label, value, iconColor, isLink, onSave, 
   isLink?: boolean
   onSave?: (value: string) => void
   mask?: MaskType
+  campoTipo?: string
+  opcoes?: string[]
 }) {
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState('')
@@ -110,7 +112,13 @@ function EditableInfoRow({ icon: Icon, label, value, iconColor, isLink, onSave, 
 
   const handleStartEdit = () => {
     if (!onSave) return
-    setEditValue(value || '')
+    // Para multi_select, converter display value (comma) para pipe delimiter
+    if (campoTipo === 'multi_select' && value) {
+      // Se veio como "A, B" converter para "A | B" para edição
+      setEditValue(value.includes('|') ? value : value.split(',').map(s => s.trim()).filter(Boolean).join(' | '))
+    } else {
+      setEditValue(value || '')
+    }
     setEditing(true)
     setTimeout(() => inputRef.current?.focus(), 50)
   }
@@ -137,12 +145,104 @@ function EditableInfoRow({ icon: Icon, label, value, iconColor, isLink, onSave, 
   }
 
   if (editing) {
+    // Select (lista suspensa)
+    if (campoTipo === 'select' && opcoes && opcoes.length > 0) {
+      return (
+        <div className="flex items-center gap-2">
+          <Icon className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" style={iconColor ? { color: iconColor } : undefined} />
+          <span className="text-[10px] text-muted-foreground uppercase tracking-wide w-20 flex-shrink-0">{label}</span>
+          <select
+            className="flex-1 text-xs bg-muted/50 border border-border rounded px-1.5 py-0.5 text-foreground outline-none focus:ring-1 focus:ring-primary/30 min-w-0"
+            value={editValue}
+            onChange={(e) => { setEditValue(e.target.value); }}
+            onBlur={handleSave}
+            autoFocus
+          >
+            <option value="">Selecione...</option>
+            {opcoes.map((opt, i) => (
+              <option key={i} value={String(opt)}>{String(opt)}</option>
+            ))}
+          </select>
+          <button onClick={handleSave} className="p-0.5 text-[hsl(var(--success))] hover:opacity-70">
+            <Check className="w-3 h-3" />
+          </button>
+          <button onClick={handleCancel} className="p-0.5 text-destructive hover:opacity-70">
+            <X className="w-3 h-3" />
+          </button>
+        </div>
+      )
+    }
+
+    // Multi-select (múltipla escolha)
+    if (campoTipo === 'multi_select' && opcoes && opcoes.length > 0) {
+      const selectedValues = editValue ? editValue.split('|').map(v => v.trim()).filter(Boolean) : []
+      const toggleOption = (opt: string) => {
+        const newSelected = selectedValues.includes(opt)
+          ? selectedValues.filter(v => v !== opt)
+          : [...selectedValues, opt]
+        setEditValue(newSelected.join(' | '))
+      }
+      return (
+        <div className="flex items-start gap-2">
+          <Icon className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0 mt-0.5" style={iconColor ? { color: iconColor } : undefined} />
+          <span className="text-[10px] text-muted-foreground uppercase tracking-wide w-20 flex-shrink-0 mt-0.5">{label}</span>
+          <div className="flex-1 min-w-0">
+            <div className="space-y-0.5">
+              {opcoes.map((opt, i) => {
+                const isActive = selectedValues.includes(String(opt))
+                return (
+                  <button key={i} type="button" onClick={() => toggleOption(String(opt))}
+                    className="flex items-center gap-2 text-xs cursor-pointer hover:bg-accent rounded px-1 py-0.5 transition-colors w-full text-left">
+                    <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 ${
+                      isActive ? 'bg-primary border-primary' : 'border-input'
+                    }`}>
+                      {isActive && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
+                    </div>
+                    <span className="text-foreground">{String(opt)}</span>
+                  </button>
+                )
+              })}
+            </div>
+            <div className="flex gap-1 mt-1">
+              <button onClick={handleSave} className="text-[10px] text-primary hover:underline">Salvar</button>
+              <button onClick={handleCancel} className="text-[10px] text-muted-foreground hover:underline">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    // Booleano
+    if (campoTipo === 'booleano') {
+      return (
+        <div className="flex items-center gap-2">
+          <Icon className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" style={iconColor ? { color: iconColor } : undefined} />
+          <span className="text-[10px] text-muted-foreground uppercase tracking-wide w-20 flex-shrink-0">{label}</span>
+          <select
+            className="flex-1 text-xs bg-muted/50 border border-border rounded px-1.5 py-0.5 text-foreground outline-none focus:ring-1 focus:ring-primary/30 min-w-0"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onBlur={handleSave}
+            autoFocus
+          >
+            <option value="">Selecione...</option>
+            <option value="true">Sim</option>
+            <option value="false">Não</option>
+          </select>
+          <button onClick={handleSave} className="p-0.5 text-[hsl(var(--success))] hover:opacity-70"><Check className="w-3 h-3" /></button>
+          <button onClick={handleCancel} className="p-0.5 text-destructive hover:opacity-70"><X className="w-3 h-3" /></button>
+        </div>
+      )
+    }
+
+    // Default: input de texto
     return (
       <div className="flex items-center gap-2">
         <Icon className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" style={iconColor ? { color: iconColor } : undefined} />
         <span className="text-[10px] text-muted-foreground uppercase tracking-wide w-20 flex-shrink-0">{label}</span>
         <input
           ref={inputRef}
+          type={campoTipo === 'data' ? 'date' : campoTipo === 'data_hora' ? 'datetime-local' : campoTipo === 'numero' || campoTipo === 'decimal' ? 'number' : campoTipo === 'email' ? 'email' : campoTipo === 'url' ? 'url' : 'text'}
           value={editValue}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
@@ -530,13 +630,25 @@ function PainelInformacoes({ oportunidadeId }: { oportunidadeId: string }) {
   }
 
   const saveCustomField = (entidadeTipo: string, entidadeId: string, campoId: string) => async (value: string) => {
-    await supabase.from('valores_campos_customizados').upsert({
+    // Detectar multi_select pelo pipe delimiter
+    const isMulti = value && value.includes('|')
+    const payload: Record<string, unknown> = {
       campo_id: campoId,
       entidade_tipo: entidadeTipo,
       entidade_id: entidadeId,
       organizacao_id: (op as any).organizacao_id,
-      valor_texto: value || null,
-    } as any, { onConflict: 'campo_id,entidade_tipo,entidade_id' })
+    }
+    if (isMulti) {
+      const arr = value.split('|').map(s => s.trim()).filter(Boolean)
+      payload.valor_json = arr
+      payload.valor_texto = arr.join(' | ')
+    } else {
+      payload.valor_texto = value || null
+    }
+    await supabase.from('valores_campos_customizados').upsert(
+      payload as any,
+      { onConflict: 'campo_id,entidade_tipo,entidade_id' }
+    )
   }
 
   const getCustomValue = (valores: any[] | undefined, campoId: string) => {
@@ -582,6 +694,8 @@ function PainelInformacoes({ oportunidadeId }: { oportunidadeId: string }) {
               label={campo.nome}
               value={getCustomValue(valoresOpCustom, campo.id)}
               onSave={saveCustomField('oportunidade', oportunidadeId, campo.id)}
+              campoTipo={campo.tipo}
+              opcoes={Array.isArray(campo.opcoes) ? campo.opcoes.map(String) : []}
             />
           ))}
         </div>
@@ -639,6 +753,8 @@ function PainelInformacoes({ oportunidadeId }: { oportunidadeId: string }) {
                     label={campo.nome}
                     value={getCustomValue(valoresContatoCustom, campo.id)}
                     onSave={saveCustomField('pessoa', contato.id, campo.id)}
+                    campoTipo={campo.tipo}
+                    opcoes={Array.isArray(campo.opcoes) ? campo.opcoes.map(String) : []}
                   />
                 )
               }
@@ -681,6 +797,8 @@ function PainelInformacoes({ oportunidadeId }: { oportunidadeId: string }) {
                     label={campo.nome}
                     value={getCustomValue(valoresEmpresaCustom, campo.id)}
                     onSave={saveCustomField('empresa', empresa.id, campo.id)}
+                    campoTipo={campo.tipo}
+                    opcoes={Array.isArray(campo.opcoes) ? campo.opcoes.map(String) : []}
                   />
                 )
               }

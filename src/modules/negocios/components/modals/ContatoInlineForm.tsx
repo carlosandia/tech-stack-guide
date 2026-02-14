@@ -169,7 +169,7 @@ export function ContatoInlineForm({ tipo, fields, onChange, onCancel }: ContatoI
     const label = campo.label
     const required = campo.obrigatorio
 
-    if ((campo.tipo === 'select' || campo.tipo === 'multi_select') && campo.opcoes.length > 0) {
+    if (campo.tipo === 'select' && campo.opcoes.length > 0) {
       return (
         <div key={key}>
           <label className="block text-xs font-medium text-foreground mb-1">
@@ -185,6 +185,39 @@ export function ContatoInlineForm({ tipo, fields, onChange, onCancel }: ContatoI
               <option key={opt} value={opt}>{opt}</option>
             ))}
           </select>
+        </div>
+      )
+    }
+
+    if (campo.tipo === 'multi_select' && campo.opcoes.length > 0) {
+      const selectedValues = value ? value.split('|').map((s: string) => s.trim()).filter(Boolean) : []
+      const toggleOption = (opt: string) => {
+        const newSelected = selectedValues.includes(opt)
+          ? selectedValues.filter((v: string) => v !== opt)
+          : [...selectedValues, opt]
+        updateField(key, newSelected.join(' | '))
+      }
+      return (
+        <div key={key}>
+          <label className="block text-xs font-medium text-foreground mb-1">
+            {label}{required && <span className="text-destructive ml-0.5">*</span>}
+          </label>
+          <div className="space-y-0.5 border border-input rounded-md p-2 bg-background">
+            {campo.opcoes.map(opt => {
+              const isActive = selectedValues.includes(opt)
+              return (
+                <button key={opt} type="button" onClick={() => toggleOption(opt)}
+                  className="flex items-center gap-2 text-sm cursor-pointer hover:bg-accent rounded px-1 py-0.5 transition-colors w-full text-left">
+                  <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 ${
+                    isActive ? 'bg-primary border-primary' : 'border-input'
+                  }`}>
+                    {isActive && <span className="text-primary-foreground text-[10px]">✓</span>}
+                  </div>
+                  <span className="text-foreground">{opt}</span>
+                </button>
+              )
+            })}
+          </div>
         </div>
       )
     }
