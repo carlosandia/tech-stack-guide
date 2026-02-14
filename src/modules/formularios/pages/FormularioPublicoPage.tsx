@@ -523,19 +523,19 @@ export function FormularioPublicoPage() {
                                       const resp = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`)
                                       const data = await resp.json()
                                       if (!data.erro) {
-                                        const cepIdx = campos.findIndex(c => c.id === child.id)
-                                        const camposApos = campos.slice(cepIdx + 1)
-                                        const endCampo = camposApos.find(c => c.tipo === 'endereco')
-                                        if (endCampo) {
-                                          setEnderecoValues(prev => ({ ...prev, [endCampo.id]: { rua: data.logradouro || '', numero: '', complemento: '' } }))
-                                          setValores(prev => ({ ...prev, [endCampo.id]: data.logradouro || '' }))
-                                        }
-                                        const cidadeCampo = camposApos.find(c => c.tipo === 'cidade')
-                                        if (cidadeCampo) setValores(prev => ({ ...prev, [cidadeCampo.id]: data.localidade || '' }))
-                                        const estadoCampo = camposApos.find(c => c.tipo === 'estado')
-                                        if (estadoCampo) setValores(prev => ({ ...prev, [estadoCampo.id]: data.uf || '' }))
-                                        const paisCampo = camposApos.find(c => c.tipo === 'pais')
-                                        if (paisCampo) setValores(prev => ({ ...prev, [paisCampo.id]: 'Brasil' }))
+                        const allCampos = campos
+                        const endCampo = allCampos.find(c => c.tipo === 'endereco')
+                        if (endCampo) {
+                          setEnderecoValues(prev => ({ ...prev, [endCampo.id]: { rua: data.logradouro || '', numero: '', complemento: '' } }))
+                          setValores(prev => ({ ...prev, [endCampo.id]: data.logradouro || '' }))
+                        }
+                        const cidadeCampo = allCampos.find(c => c.tipo === 'cidade')
+                        if (cidadeCampo) setValores(prev => ({ ...prev, [cidadeCampo.id]: data.localidade || '' }))
+                        const estadoCampo = allCampos.find(c => c.tipo === 'estado')
+                        if (estadoCampo) setValores(prev => ({ ...prev, [estadoCampo.id]: data.uf || '' }))
+                        const paisCampo = allCampos.find(c => c.tipo === 'pais')
+                        if (paisCampo) setValores(prev => ({ ...prev, [paisCampo.id]: '🇧🇷 BR' }))
+                        setValores(prev => ({ ...prev, [child.id]: cepVal }))
                                       }
                                     } catch { /* silently fail */ }
                                     setBuscandoCep(prev => ({ ...prev, [child.id]: false }))
@@ -576,19 +576,20 @@ export function FormularioPublicoPage() {
                       const resp = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`)
                       const data = await resp.json()
                       if (!data.erro) {
-                        const cepIdx = campos.findIndex(c => c.id === campo.id)
-                        const camposApos = campos.slice(cepIdx + 1)
-                        const endCampo = camposApos.find(c => c.tipo === 'endereco')
+                        const allCampos = campos
+                        const endCampo = allCampos.find(c => c.tipo === 'endereco')
                         if (endCampo) {
                           setEnderecoValues(prev => ({ ...prev, [endCampo.id]: { rua: data.logradouro || '', numero: '', complemento: '' } }))
                           setValores(prev => ({ ...prev, [endCampo.id]: data.logradouro || '' }))
                         }
-                        const cidadeCampo = camposApos.find(c => c.tipo === 'cidade')
+                        const cidadeCampo = allCampos.find(c => c.tipo === 'cidade')
                         if (cidadeCampo) setValores(prev => ({ ...prev, [cidadeCampo.id]: data.localidade || '' }))
-                        const estadoCampo = camposApos.find(c => c.tipo === 'estado')
+                        const estadoCampo = allCampos.find(c => c.tipo === 'estado')
                         if (estadoCampo) setValores(prev => ({ ...prev, [estadoCampo.id]: data.uf || '' }))
-                        const paisCampo = camposApos.find(c => c.tipo === 'pais')
-                        if (paisCampo) setValores(prev => ({ ...prev, [paisCampo.id]: 'Brasil' }))
+                        const paisCampo = allCampos.find(c => c.tipo === 'pais')
+                        if (paisCampo) setValores(prev => ({ ...prev, [paisCampo.id]: '🇧🇷 BR' }))
+                        // Also fill standalone CEP field value
+                        setValores(prev => ({ ...prev, [campo.id]: cepVal }))
                       }
                     } catch { /* silently fail */ }
                     setBuscandoCep(prev => ({ ...prev, [campo.id]: false }))
@@ -1289,19 +1290,25 @@ function renderCampoPublico(props: RenderCampoProps) {
     case 'upload_video':
     case 'upload_audio':
     case 'anexo_arquivo':
-    case 'documento': {
+    case 'documento':
+    case 'arquivo':
+    case 'imagem': {
       const typeMap: Record<string, string> = {
         upload_imagem: 'image/*',
+        imagem: 'image/*',
         upload_video: 'video/*',
         upload_audio: 'audio/*',
         anexo_arquivo: '*/*',
+        arquivo: '*/*',
         documento: '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx',
       }
       const labelMap: Record<string, string> = {
         upload_imagem: 'Selecionar imagem',
+        imagem: 'Selecionar imagem',
         upload_video: 'Selecionar vídeo',
         upload_audio: 'Selecionar áudio',
         anexo_arquivo: 'Selecionar arquivo',
+        arquivo: 'Selecionar arquivo',
         documento: 'Selecionar documento',
       }
       return (
