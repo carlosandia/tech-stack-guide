@@ -4,7 +4,7 @@
  */
 
 import { useState, useMemo } from 'react'
-import { Plus, Pencil, Trash2, Lock, ChevronUp, ChevronDown } from 'lucide-react'
+import { Plus, Pencil, Trash2, Lock, ChevronUp, ChevronDown, Tag } from 'lucide-react'
 import { useEtapasFunil, useCriarEtapa, useAtualizarEtapa, useExcluirEtapa, useReordenarEtapas } from '../../hooks/usePipelineConfig'
 import { EtapaFormModal } from './EtapaFormModal'
 import type { EtapaFunil } from '../../services/pipeline-config.api'
@@ -92,7 +92,7 @@ export function ConfigEtapas({ funilId }: Props) {
     reordenar.mutate(finalList.map((e, i) => ({ id: e.id, ordem: i })))
   }
 
-  const handleSave = async (payload: { nome: string; cor: string; probabilidade: number }) => {
+  const handleSave = async (payload: { nome: string; cor: string; probabilidade: number; etiqueta_whatsapp?: string | null }) => {
     if (editando) {
       await atualizarEtapa.mutateAsync({ etapaId: editando.id, payload })
     } else {
@@ -164,9 +164,15 @@ export function ConfigEtapas({ funilId }: Props) {
               style={{ backgroundColor: etapa.cor || '#6B7280' }}
             />
 
-            {/* Name - com truncate para não sobrepor badge */}
+            {/* Name + etiqueta */}
             <div className="flex-1 min-w-0">
               <span className="text-sm font-medium text-foreground truncate block">{etapa.nome}</span>
+              {(etapa as any).etiqueta_whatsapp && (
+                <span className="text-[10px] text-muted-foreground flex items-center gap-0.5 mt-0.5">
+                  <Tag className="w-2.5 h-2.5" />
+                  {(etapa as any).etiqueta_whatsapp}
+                </span>
+              )}
             </div>
 
             {/* Badge + Probabilidade + Actions em linha, sem wrap */}

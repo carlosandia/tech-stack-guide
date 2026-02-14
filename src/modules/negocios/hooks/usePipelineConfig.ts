@@ -35,7 +35,7 @@ export function useCriarEtapa(funilId: string) {
 export function useAtualizarEtapa(funilId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ etapaId, payload }: { etapaId: string; payload: { nome?: string; cor?: string; probabilidade?: number } }) =>
+    mutationFn: ({ etapaId, payload }: { etapaId: string; payload: { nome?: string; cor?: string; probabilidade?: number; etiqueta_whatsapp?: string | null } }) =>
       pipelineConfigApi.atualizarEtapa(etapaId, payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['pipeline-config', 'etapas', funilId] })

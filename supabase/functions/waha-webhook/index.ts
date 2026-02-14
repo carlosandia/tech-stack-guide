@@ -19,6 +19,68 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-api-key",
 };
 
+// AIDEV-NOTE: Helper para criar oportunidade via automação de etiqueta WhatsApp
+async function criarOportunidadeViaEtiqueta(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  organizacaoId: string,
+  contatoId: string,
+  funilId: string,
+  etapaId: string,
+  etapaNome: string,
+  labelNome: string,
+) {
+  try {
+    // Buscar nome do contato
+    const { data: contato } = await supabaseAdmin
+      .from("contatos")
+      .select("nome, sobrenome, nome_fantasia")
+      .eq("id", contatoId)
+      .maybeSingle();
+
+    const nomeContato = contato?.nome || contato?.nome_fantasia || "Contato";
+
+    // Contar oportunidades existentes para sequência
+    const { count } = await supabaseAdmin
+      .from("oportunidades")
+      .select("id", { count: "exact", head: true })
+      .eq("contato_id", contatoId)
+      .eq("organizacao_id", organizacaoId);
+
+    const sequencia = (count || 0) + 1;
+    const titulo = `${nomeContato} - #${sequencia}`;
+
+    const { data: novaOp, error: createError } = await supabaseAdmin
+      .from("oportunidades")
+      .insert({
+        organizacao_id: organizacaoId,
+        funil_id: funilId,
+        etapa_id: etapaId,
+        contato_id: contatoId,
+        titulo,
+        origem: "whatsapp",
+        valor: 0,
+      })
+      .select("id")
+      .single();
+
+    if (createError) {
+      console.error(`[waha-webhook] Error creating oportunidade via etiqueta:`, createError.message);
+    } else {
+      console.log(`[waha-webhook] ✅ Oportunidade created: "${titulo}" (${novaOp.id}) in etapa "${etapaNome}"`);
+      // Audit log
+      await supabaseAdmin.from("audit_log").insert({
+        organizacao_id: organizacaoId,
+        acao: "criacao_etiqueta",
+        entidade: "oportunidades",
+        entidade_id: novaOp.id,
+        detalhes: { etiqueta: labelNome, etapa_nome: etapaNome, etapa_id: etapaId, titulo, origem: "whatsapp_label" },
+      });
+    }
+  } catch (err) {
+    console.error(`[waha-webhook] Error in criarOportunidadeViaEtiqueta:`, err);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -541,6 +603,122 @@ Deno.serve(async (req) => {
               console.error(`[waha-webhook] Error adding label to chat:`, insertError.message);
             } else {
               console.log(`[waha-webhook] ✅ Label ${labelPayload.labelId} added to chat ${labelPayload.chatId}`);
+            }
+
+            // =====================================================
+            // AIDEV-NOTE: Automação Etiqueta → Etapa (move/cria oportunidade)
+            // Conforme plan: após upsert em conversas_labels, verificar se
+            // o recurso está habilitado e processar movimentação/criação
+            // =====================================================
+            try {
+              // 1. Buscar config da sessão (com campos de etiqueta)
+              const { data: sessaoConfig } = await supabaseAdmin
+                .from("sessoes_whatsapp")
+                .select("etiqueta_move_oportunidade, etiqueta_comportamento_fechada, funil_destino_id")
+                .eq("id", sessao.id)
+                .maybeSingle();
+
+              if (sessaoConfig?.etiqueta_move_oportunidade && sessaoConfig.funil_destino_id) {
+                console.log(`[waha-webhook] Etiqueta automation enabled, processing...`);
+
+                // 2. Buscar nome da label
+                const { data: labelData } = await supabaseAdmin
+                  .from("whatsapp_labels")
+                  .select("nome")
+                  .eq("id", label.id)
+                  .maybeSingle();
+
+                if (labelData?.nome) {
+                  const labelNome = labelData.nome;
+                  console.log(`[waha-webhook] Label name: "${labelNome}"`);
+
+                  // 3. Buscar etapa correspondente (case-insensitive)
+                  const { data: etapaCorrespondente } = await supabaseAdmin
+                    .from("etapas_funil")
+                    .select("id, nome")
+                    .eq("funil_id", sessaoConfig.funil_destino_id)
+                    .is("deletado_em", null)
+                    .ilike("etiqueta_whatsapp", labelNome)
+                    .order("ordem", { ascending: true })
+                    .limit(1)
+                    .maybeSingle();
+
+                  if (etapaCorrespondente) {
+                    console.log(`[waha-webhook] Matched etapa: "${etapaCorrespondente.nome}" (${etapaCorrespondente.id})`);
+
+                    // 4. Buscar contato da conversa
+                    const { data: conversaData } = await supabaseAdmin
+                      .from("conversas")
+                      .select("contato_id")
+                      .eq("id", conversa.id)
+                      .maybeSingle();
+
+                    if (conversaData?.contato_id) {
+                      const contatoId = conversaData.contato_id;
+
+                      // 5. Buscar oportunidades existentes do contato no funil
+                      const { data: oportunidades } = await supabaseAdmin
+                        .from("oportunidades")
+                        .select("id, fechado_em, etapa_id")
+                        .eq("contato_id", contatoId)
+                        .eq("funil_id", sessaoConfig.funil_destino_id)
+                        .is("deletado_em", null)
+                        .order("criado_em", { ascending: false });
+
+                      const abertas = (oportunidades || []).filter(o => !o.fechado_em);
+                      const fechadas = (oportunidades || []).filter(o => o.fechado_em);
+                      const comportamento = sessaoConfig.etiqueta_comportamento_fechada || "criar_nova";
+
+                      if (abertas.length > 0) {
+                        // Mover a oportunidade aberta mais recente para a etapa
+                        const opAberta = abertas[0];
+                        if (opAberta.etapa_id !== etapaCorrespondente.id) {
+                          const { error: moveError } = await supabaseAdmin
+                            .from("oportunidades")
+                            .update({
+                              etapa_id: etapaCorrespondente.id,
+                              atualizado_em: new Date().toISOString(),
+                            })
+                            .eq("id", opAberta.id);
+
+                          if (moveError) {
+                            console.error(`[waha-webhook] Error moving oportunidade:`, moveError.message);
+                          } else {
+                            console.log(`[waha-webhook] ✅ Oportunidade ${opAberta.id} moved to etapa "${etapaCorrespondente.nome}"`);
+                            // Audit log
+                            await supabaseAdmin.from("audit_log").insert({
+                              organizacao_id: sessao.organizacao_id,
+                              acao: "movimentacao_etiqueta",
+                              entidade: "oportunidades",
+                              entidade_id: opAberta.id,
+                              detalhes: { etiqueta: labelNome, etapa_nome: etapaCorrespondente.nome, etapa_id: etapaCorrespondente.id, origem: "whatsapp_label" },
+                            });
+                          }
+                        } else {
+                          console.log(`[waha-webhook] Oportunidade already in correct etapa, skipping`);
+                        }
+                      } else if (fechadas.length > 0) {
+                        // Aplicar regra de comportamento_fechada
+                        if (comportamento === "ignorar") {
+                          console.log(`[waha-webhook] Oportunidade fechada exists, comportamento=ignorar, skipping`);
+                        } else if (comportamento === "criar_nova" || comportamento === "criar_se_fechada") {
+                          // Criar nova oportunidade
+                          await criarOportunidadeViaEtiqueta(supabaseAdmin, sessao.organizacao_id, contatoId, sessaoConfig.funil_destino_id, etapaCorrespondente.id, etapaCorrespondente.nome, labelNome);
+                        }
+                      } else {
+                        // Nenhuma oportunidade existe → criar nova
+                        await criarOportunidadeViaEtiqueta(supabaseAdmin, sessao.organizacao_id, contatoId, sessaoConfig.funil_destino_id, etapaCorrespondente.id, etapaCorrespondente.nome, labelNome);
+                      }
+                    } else {
+                      console.log(`[waha-webhook] No contato_id for conversa ${conversa.id}, skipping etiqueta automation`);
+                    }
+                  } else {
+                    console.log(`[waha-webhook] No etapa matches label "${labelNome}" in funil ${sessaoConfig.funil_destino_id}`);
+                  }
+                }
+              }
+            } catch (etiquetaErr) {
+              console.error(`[waha-webhook] Error in etiqueta automation:`, etiquetaErr);
             }
           } else {
             console.log(`[waha-webhook] label.chat.added: conversa=${!!conversa}, label=${!!label} - skipping`);
