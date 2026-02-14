@@ -25,6 +25,9 @@ import { ImportarContatosModal } from '../components/ImportarContatosModal'
 import { ExportarContatosModal } from '../components/ExportarContatosModal'
 import { ContatoColumnsToggle, getInitialColumns, type ColumnConfig } from '../components/ContatoColumnsToggle'
 import { MobileOverflowMenu } from '../components/MobileOverflowMenu'
+import { useFunis } from '@/modules/negocios/hooks/useFunis'
+import { NovaOportunidadeModal } from '@/modules/negocios/components/modals/NovaOportunidadeModal'
+import { negociosApi } from '@/modules/negocios/services/negocios.api'
 
 import { StatusContatoOptions, OrigemContatoOptions } from '../schemas/contatos.schema'
 import { contatosApi } from '../services/contatos.api'
@@ -82,6 +85,14 @@ export function ContatosPage() {
   const [deleteBloqueado, setDeleteBloqueado] = useState(false)
   const [deleteVinculos, setDeleteVinculos] = useState<Array<{ tipo: string; nome: string; id: string }>>([])
 
+  // Estado para criar oportunidade a partir de contato
+  const [contatoParaOportunidade, setContatoParaOportunidade] = useState<Contato | null>(null)
+  const [showPipelineSelector, setShowPipelineSelector] = useState(false)
+  const [selectedFunilId, setSelectedFunilId] = useState<string | null>(null)
+  const [selectedEtapaEntradaId, setSelectedEtapaEntradaId] = useState<string | null>(null)
+  const [showNovaOportunidadeModal, setShowNovaOportunidadeModal] = useState(false)
+
+  const { data: funisData } = useFunis()
   // Toggle de colunas
   const [columns, setColumns] = useState<ColumnConfig[]>(() => getInitialColumns(tipo))
 
@@ -628,6 +639,10 @@ export function ContatosPage() {
           onView={(c) => { setViewingContato(c); setViewModalOpen(true) }}
           onEdit={(c) => { setEditingContato(c); setFormModalOpen(true) }}
           onDelete={handleInitDelete}
+          onCriarOportunidade={(c) => {
+            setContatoParaOportunidade(c)
+            setShowPipelineSelector(true)
+          }}
         />
 
         {/* Paginação fixa no rodapé */}
@@ -747,6 +762,84 @@ export function ContatosPage() {
         filtros={params}
         selectedIds={selectedIds.size > 0 ? Array.from(selectedIds) : undefined}
       />
+
+      {/* Pipeline Selector Popover para criar oportunidade */}
+      {showPipelineSelector && contatoParaOportunidade && (
+        <>
+          <div className="fixed inset-0 z-[70]" onClick={() => setShowPipelineSelector(false)} />
+          <div className="fixed inset-0 z-[71] flex items-center justify-center">
+            <div className="bg-card border border-border rounded-lg shadow-lg w-80 p-4 space-y-3">
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">Criar Oportunidade</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Selecione a pipeline para <span className="font-medium">{contatoParaOportunidade.nome} {contatoParaOportunidade.sobrenome || ''}</span>
+                </p>
+              </div>
+              <div className="space-y-1 max-h-[200px] overflow-y-auto">
+                {(funisData || []).filter(f => !f.arquivado).map(funil => (
+                  <button
+                    key={funil.id}
+                    onClick={async () => {
+                      try {
+                        const funilComEtapas = await negociosApi.buscarFunilComEtapas(funil.id)
+                        const etapaEntrada = funilComEtapas.etapas.find(e => (e as any).tipo === 'entrada') || funilComEtapas.etapas[0]
+                        if (etapaEntrada) {
+                          setSelectedFunilId(funil.id)
+                          setSelectedEtapaEntradaId(etapaEntrada.id)
+                          setShowPipelineSelector(false)
+                          setShowNovaOportunidadeModal(true)
+                        }
+                      } catch { /* handled */ }
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left rounded-md hover:bg-accent transition-colors"
+                  >
+                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: funil.cor || '#3B82F6' }} />
+                    <span className="truncate">{funil.nome}</span>
+                  </button>
+                ))}
+                {(!funisData || funisData.filter(f => !f.arquivado).length === 0) && (
+                  <p className="text-xs text-muted-foreground text-center py-4">Nenhuma pipeline ativa</p>
+                )}
+              </div>
+              <button
+                onClick={() => setShowPipelineSelector(false)}
+                className="w-full px-3 py-2 text-sm font-medium rounded-md border border-border hover:bg-accent transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Modal de criação de oportunidade pré-preenchido */}
+      {showNovaOportunidadeModal && selectedFunilId && selectedEtapaEntradaId && contatoParaOportunidade && (
+        <NovaOportunidadeModal
+          funilId={selectedFunilId}
+          etapaEntradaId={selectedEtapaEntradaId}
+          contatoPreSelecionado={{
+            id: contatoParaOportunidade.id,
+            tipo: contatoParaOportunidade.tipo,
+            nome: contatoParaOportunidade.nome,
+            sobrenome: contatoParaOportunidade.sobrenome,
+            email: contatoParaOportunidade.email,
+            telefone: contatoParaOportunidade.telefone,
+            empresa: contatoParaOportunidade.empresa || null,
+          }}
+          onClose={() => {
+            setShowNovaOportunidadeModal(false)
+            setContatoParaOportunidade(null)
+            setSelectedFunilId(null)
+            setSelectedEtapaEntradaId(null)
+          }}
+          onSuccess={() => {
+            setShowNovaOportunidadeModal(false)
+            setContatoParaOportunidade(null)
+            setSelectedFunilId(null)
+            setSelectedEtapaEntradaId(null)
+          }}
+        />
+      )}
     </div>
   )
 }

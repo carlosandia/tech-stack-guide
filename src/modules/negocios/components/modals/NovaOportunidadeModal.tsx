@@ -65,6 +65,7 @@ interface ContatoPreSelecionado {
   sobrenome?: string | null
   email?: string | null
   telefone?: string | null
+  empresa?: { id: string; razao_social?: string; nome_fantasia?: string } | null
 }
 
 interface NovaOportunidadeModalProps {
@@ -156,7 +157,7 @@ export function NovaOportunidadeModal({
     }).catch(() => {}).finally(() => setCarregandoProdutos(false))
   }, [])
 
-  // Auto-preencher contato pré-selecionado (ex: vindo de Conversas)
+  // Auto-preencher contato pré-selecionado (ex: vindo de Conversas ou Contatos)
   useEffect(() => {
     if (contatoPreSelecionado?.id) {
       setPessoaSelecionada({
@@ -167,6 +168,15 @@ export function NovaOportunidadeModal({
         email: contatoPreSelecionado.email,
         telefone: contatoPreSelecionado.telefone,
       })
+      // Se tem empresa vinculada, pré-preencher também
+      if (contatoPreSelecionado.empresa?.id) {
+        setShowEmpresa(true)
+        setEmpresaSelecionada({
+          id: contatoPreSelecionado.empresa.id,
+          tipo: 'empresa',
+          nome: contatoPreSelecionado.empresa.nome_fantasia || contatoPreSelecionado.empresa.razao_social || null,
+        })
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
