@@ -10,7 +10,7 @@ import {
   CreditCard, Building2, MapPin, Paperclip, Image, Star,
   SlidersHorizontal, Minus, Space, Code, CheckSquare,
   FileAudio, FileVideo, Pen, BarChart3, MessageSquare, Search,
-  Palette, Map, Columns, Plus
+  Palette, Map, Columns
 } from 'lucide-react'
 
 export interface TipoCampoPaleta {
@@ -117,28 +117,15 @@ export function CamposPaleta({ className, onAddCampo }: Props) {
                     key={campo.tipo}
                     draggable
                     onDragStart={(e) => handleDragStart(e, campo)}
+                    onClick={() => onAddCampo?.(campo)}
                     className={cn(
                       'group relative flex items-center gap-2 px-2 py-2 rounded-md border transition-colors text-xs select-none',
-                      'border-border bg-card cursor-grab active:cursor-grabbing hover:border-primary/50 hover:bg-accent'
+                      'border-border bg-card cursor-pointer hover:border-primary/50 hover:bg-accent active:cursor-grabbing'
                     )}
                     title={campo.label}
                   >
                     <Icon className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
                     <span className="truncate text-foreground">{campo.label}</span>
-                    {onAddCampo && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onAddCampo(campo)
-                        }}
-                        className="absolute -right-1 -top-1 w-4 h-4 rounded-full bg-primary text-primary-foreground
-                                   flex items-center justify-center opacity-0 group-hover:opacity-100
-                                   transition-opacity duration-150 shadow-sm hover:scale-110"
-                        title={`Adicionar ${campo.label}`}
-                      >
-                        <Plus className="w-2.5 h-2.5" />
-                      </button>
-                    )}
                   </div>
                 )
               })}
