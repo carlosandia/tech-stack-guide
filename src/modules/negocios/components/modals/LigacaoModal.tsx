@@ -629,21 +629,39 @@ function PainelInformacoes({ oportunidadeId }: { oportunidadeId: string }) {
     atualizarContato.mutate({ id: empresa.id, payload: { [field]: value || null } })
   }
 
-  const saveCustomField = (entidadeTipo: string, entidadeId: string, campoId: string) => async (value: string) => {
-    // Detectar multi_select pelo pipe delimiter
-    const isMulti = value && value.includes('|')
+  const saveCustomField = (entidadeTipo: string, entidadeId: string, campoId: string, campoTipo?: string) => async (value: string) => {
     const payload: Record<string, unknown> = {
       campo_id: campoId,
       entidade_tipo: entidadeTipo,
       entidade_id: entidadeId,
       organizacao_id: (op as any).organizacao_id,
+      valor_texto: null,
+      valor_numero: null,
+      valor_booleano: null,
+      valor_data: null,
+      valor_json: null,
     }
-    if (isMulti) {
-      const arr = value.split('|').map(s => s.trim()).filter(Boolean)
-      payload.valor_json = arr
-      payload.valor_texto = arr.join(' | ')
-    } else {
-      payload.valor_texto = value || null
+    switch (campoTipo) {
+      case 'numero':
+      case 'decimal':
+        payload.valor_numero = value ? parseFloat(value) : null
+        break
+      case 'booleano':
+        payload.valor_booleano = value === 'true'
+        break
+      case 'data':
+      case 'data_hora':
+        payload.valor_data = value || null
+        break
+      case 'multi_select': {
+        const arr = value ? value.split('|').map(s => s.trim()).filter(Boolean) : []
+        payload.valor_json = arr
+        payload.valor_texto = arr.join(' | ')
+        break
+      }
+      default:
+        payload.valor_texto = value || null
+        break
     }
     await supabase.from('valores_campos_customizados').upsert(
       payload as any,
@@ -651,19 +669,31 @@ function PainelInformacoes({ oportunidadeId }: { oportunidadeId: string }) {
     )
   }
 
-  const getCustomValue = (valores: any[] | undefined, campoId: string) => {
+  const getCustomValue = (valores: any[] | undefined, campoId: string, campoTipo?: string) => {
     if (!valores) return null
     const v = valores.find((x: any) => x.campo_id === campoId)
     if (!v) return null
-    // Multi-select: prefer valor_json array
-    if (v.valor_json && Array.isArray(v.valor_json)) {
-      return (v.valor_json as string[]).join(', ')
+    switch (campoTipo) {
+      case 'booleano':
+        return v.valor_booleano != null ? (v.valor_booleano ? 'Sim' : 'Não') : null
+      case 'numero':
+        return v.valor_numero != null ? String(v.valor_numero) : null
+      case 'decimal':
+        return v.valor_numero != null ? v.valor_numero.toFixed(2) : null
+      case 'data':
+      case 'data_hora':
+        return v.valor_data ? formatData(v.valor_data) : null
+      case 'multi_select':
+        if (v.valor_json && Array.isArray(v.valor_json)) {
+          return (v.valor_json as string[]).join(', ')
+        }
+        if (v.valor_texto && v.valor_texto.includes('|')) {
+          return v.valor_texto.split('|').map((s: string) => s.trim()).filter(Boolean).join(', ')
+        }
+        return v.valor_texto || null
+      default:
+        return v.valor_texto || v.valor_numero?.toString() || null
     }
-    // Fallback: valor_texto com pipe delimiter
-    if (v.valor_texto && v.valor_texto.includes('|')) {
-      return v.valor_texto.split('|').map((s: string) => s.trim()).filter(Boolean).join(', ')
-    }
-    return v?.valor_texto || v?.valor_numero?.toString() || v?.valor_booleano?.toString() || null
   }
 
   // Campos de pessoa (sistema + custom)
@@ -692,8 +722,8 @@ function PainelInformacoes({ oportunidadeId }: { oportunidadeId: string }) {
               key={campo.id}
               icon={FileText}
               label={campo.nome}
-              value={getCustomValue(valoresOpCustom, campo.id)}
-              onSave={saveCustomField('oportunidade', oportunidadeId, campo.id)}
+              value={getCustomValue(valoresOpCustom, campo.id, campo.tipo)}
+              onSave={saveCustomField('oportunidade', oportunidadeId, campo.id, campo.tipo)}
               campoTipo={campo.tipo}
               opcoes={Array.isArray(campo.opcoes) ? campo.opcoes.map(String) : []}
             />
@@ -751,8 +781,8 @@ function PainelInformacoes({ oportunidadeId }: { oportunidadeId: string }) {
                     key={campo.id}
                     icon={FileText}
                     label={campo.nome}
-                    value={getCustomValue(valoresContatoCustom, campo.id)}
-                    onSave={saveCustomField('pessoa', contato.id, campo.id)}
+                    value={getCustomValue(valoresContatoCustom, campo.id, campo.tipo)}
+                    onSave={saveCustomField('pessoa', contato.id, campo.id, campo.tipo)}
                     campoTipo={campo.tipo}
                     opcoes={Array.isArray(campo.opcoes) ? campo.opcoes.map(String) : []}
                   />
@@ -795,8 +825,8 @@ function PainelInformacoes({ oportunidadeId }: { oportunidadeId: string }) {
                     key={campo.id}
                     icon={FileText}
                     label={campo.nome}
-                    value={getCustomValue(valoresEmpresaCustom, campo.id)}
-                    onSave={saveCustomField('empresa', empresa.id, campo.id)}
+                    value={getCustomValue(valoresEmpresaCustom, campo.id, campo.tipo)}
+                    onSave={saveCustomField('empresa', empresa.id, campo.id, campo.tipo)}
                     campoTipo={campo.tipo}
                     opcoes={Array.isArray(campo.opcoes) ? campo.opcoes.map(String) : []}
                   />
