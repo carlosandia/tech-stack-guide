@@ -179,8 +179,7 @@ async function notificarEmail(
   }
 
   const camposHtml = Object.entries(dadosContato)
-    .filter(([k]) => !k.startsWith('custom.'))
-    .map(([k, v]) => `<tr><td style="padding:6px 12px;border:1px solid #ddd;font-weight:600;text-transform:capitalize">${k}</td><td style="padding:6px 12px;border:1px solid #ddd">${v}</td></tr>`)
+    .map(([k, v]) => `<tr><td style="padding:6px 12px;border:1px solid #ddd;font-weight:600">${k}</td><td style="padding:6px 12px;border:1px solid #ddd">${v}</td></tr>`)
     .join('')
 
   const bodyHtml = `
@@ -263,8 +262,7 @@ async function notificarWhatsApp(
 
   // Montar mensagem
   const campos = Object.entries(dadosContato)
-    .filter(([k]) => !k.startsWith('custom.'))
-    .map(([k, v]) => `*${k.charAt(0).toUpperCase() + k.slice(1)}:* ${v}`)
+    .map(([k, v]) => `*${k}:* ${v}`)
     .join('\n')
 
   const mensagem = `🎯 *Nova Oportunidade Criada*\n\n` +
@@ -436,13 +434,15 @@ Deno.serve(async (req) => {
       if (funil) funilNome = funil.nome
     }
 
-    // Buscar mapeamento dos campos
-    const { data: camposForm } = await supabase
+    // Buscar TODOS os campos do formulário (para notificações completas)
+    const { data: todosOsCamposForm } = await supabase
       .from('campos_formularios')
-      .select('nome, mapeamento_campo, ordem')
+      .select('nome, label, mapeamento_campo, ordem, tipo')
       .eq('formulario_id', formulario_id)
-      .not('mapeamento_campo', 'is', null)
       .order('ordem', { ascending: true })
+
+    // Filtrar apenas os que têm mapeamento para criar contato/oportunidade
+    const camposForm = (todosOsCamposForm || []).filter((c: any) => c.mapeamento_campo && c.mapeamento_campo !== 'nenhum')
 
     if (!camposForm || camposForm.length === 0) {
       await supabase.from('submissoes_formularios').update({ status: 'processada' }).eq('id', submissao_id)
@@ -660,7 +660,25 @@ Deno.serve(async (req) => {
 
     // =====================================================
     // NOTIFICAÇÕES (fire-and-forget, erros não bloqueiam)
+    // Monta dict com TODOS os campos preenchidos para notificação completa
     // =====================================================
+    const todosOsCamposNotificacao: Record<string, any> = {}
+    if (todosOsCamposForm && todosOsCamposForm.length > 0) {
+      for (const campo of todosOsCamposForm) {
+        // Pular campos de tipo "titulo" ou sem valor
+        if (campo.tipo === 'titulo' || campo.tipo === 'secao') continue
+        const valor = submissaoDados[campo.nome]
+        if (valor === undefined || valor === null || valor === '') continue
+        // Usar label como chave amigável
+        const label = campo.label || campo.nome
+        todosOsCamposNotificacao[label] = Array.isArray(valor) ? valor.join(', ') : valor
+      }
+    }
+    // Fallback: se não tiver campos, usar dadosContato (compatibilidade)
+    const dadosNotificacao = Object.keys(todosOsCamposNotificacao).length > 0
+      ? todosOsCamposNotificacao
+      : dadosContato
+
     const notificacoes: Promise<void>[] = []
 
     // Notificação por Email
@@ -671,7 +689,7 @@ Deno.serve(async (req) => {
           supabase,
           formulario.organizacao_id,
           configBotoes.enviar_email_destino,
-          dadosContato,
+          dadosNotificacao,
           formulario.nome || 'Formulário',
           funilNome,
         ).catch(err => console.error('[notif-email] Erro:', err))
@@ -686,7 +704,7 @@ Deno.serve(async (req) => {
           supabase,
           formulario.organizacao_id,
           configBotoes.enviar_whatsapp_destino,
-          dadosContato,
+          dadosNotificacao,
           formulario.nome || 'Formulário',
           funilNome,
         ).catch(err => console.error('[notif-waha] Erro:', err))
