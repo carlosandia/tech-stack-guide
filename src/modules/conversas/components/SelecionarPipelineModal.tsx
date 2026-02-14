@@ -57,12 +57,6 @@ export function SelecionarPipelineModal({ onClose, onSelect }: SelecionarPipelin
           return
         }
 
-        // Se só tem 1 pipeline, selecionar diretamente
-        if (funis.length === 1) {
-          await selecionarPipeline(funis[0].id)
-          return
-        }
-
         setPipelines(funis.map(f => ({
           ...f,
           etapa_entrada_id: null,
