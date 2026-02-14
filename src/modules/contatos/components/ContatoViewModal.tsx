@@ -20,6 +20,7 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { DetalhesOportunidadeModal } from '@/modules/negocios/components/detalhes/DetalhesOportunidadeModal'
 
 interface ContatoViewModalProps {
   open: boolean
@@ -32,6 +33,8 @@ interface ContatoViewModalProps {
 export function ContatoViewModal({ open, onClose, contato, onEdit, onDelete }: ContatoViewModalProps) {
   const [activeTab, setActiveTab] = useState<'dados' | 'historico'>('dados')
   const [, setRefreshKey] = useState(0)
+  const [detalhesOpId, setDetalhesOpId] = useState<string | null>(null)
+  const [detalhesOpFunilId, setDetalhesOpFunilId] = useState<string | null>(null)
   const contatoTipo = contato?.tipo || 'pessoa'
   const { getLabel } = useCamposConfig(contatoTipo as 'pessoa' | 'empresa')
   const modalRef = useRef<HTMLDivElement>(null)
@@ -77,6 +80,21 @@ export function ContatoViewModal({ open, onClose, contato, onEdit, onDelete }: C
       return data || []
     },
     enabled: !!contato?.id && open && activeTab === 'historico',
+  })
+
+  // Etapas do funil para o modal de detalhes da oportunidade
+  const { data: etapasDoFunil } = useQuery({
+    queryKey: ['etapas-funil-contato', detalhesOpFunilId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('etapas_funil')
+        .select('*')
+        .eq('funil_id', detalhesOpFunilId!)
+        .is('deletado_em', null)
+        .order('posicao', { ascending: true })
+      return data || []
+    },
+    enabled: !!detalhesOpFunilId,
   })
 
   function getCustomDisplayValue(campoId: string): string | null {
@@ -341,7 +359,8 @@ export function ContatoViewModal({ open, onClose, contato, onEdit, onDelete }: C
                       const funil = op.funil as any
                       const resp = op.responsavel as any
                       return (
-                        <div key={op.id} className="border border-border rounded-lg p-4 hover:bg-accent/30 transition-colors">
+                        <div key={op.id} className="border border-border rounded-lg p-4 hover:bg-accent/30 transition-colors cursor-pointer"
+                          onClick={() => { setDetalhesOpId(op.id); setDetalhesOpFunilId(funil?.id || null) }}>
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2 mb-1">
@@ -399,6 +418,17 @@ export function ContatoViewModal({ open, onClose, contato, onEdit, onDelete }: C
           </div>
         </div>
       </div>
+
+      {/* Modal de detalhes da oportunidade */}
+      {detalhesOpId && detalhesOpFunilId && (
+        <DetalhesOportunidadeModal
+          oportunidadeId={detalhesOpId}
+          funilId={detalhesOpFunilId}
+          etapas={(etapasDoFunil || []) as any}
+          onClose={() => { setDetalhesOpId(null); setDetalhesOpFunilId(null) }}
+          onDropGanhoPerda={() => { setDetalhesOpId(null); setDetalhesOpFunilId(null) }}
+        />
+      )}
     </>
   )
 }
