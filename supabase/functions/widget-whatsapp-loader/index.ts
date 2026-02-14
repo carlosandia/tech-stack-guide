@@ -133,11 +133,9 @@ function getWidgetScript(): string {
         if(inp.value)dadosObj[label]=inp.value;
       }
       fd.forEach(function(v){if(v)parts.push(v)});
-      if(cfg.notificar_email&&cfg.email_destino){
-        try{
-          fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dados:dadosObj,config:cfg})}).catch(function(){});
-        }catch(ex){}
-      }
+      try{
+        fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dados:dadosObj,config:cfg})}).catch(function(){});
+      }catch(ex){}
       var text=parts.length?encodeURIComponent(parts.join(' | ')):'';
       window.open('https://wa.me/'+numero+(text?'?text='+text:''),'_blank');
     });
