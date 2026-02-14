@@ -10,6 +10,7 @@ import {
   Camera, Video, Mic, FileText, MapPin, User, BarChart3, Smile,
   ChevronDown, Archive, ArchiveRestore, Pin, PinOff, Eye, Trash2, BellOff,
 } from 'lucide-react'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import { LabelBadge } from './LabelBadge'
 import type { Conversa } from '../services/conversas.api'
@@ -102,7 +103,7 @@ export function ConversaItem({ conversa, isActive, onClick, onArquivar, onFixar,
   const status = statusConfig[conversa.status] || statusConfig.aberta
   const tipoBadge = getTipoBadge(conversa.tipo)
   const labels = conversa.labels || []
-  const visibleLabels = labels.slice(0, 2)
+  const visibleLabels = labels.slice(0, 1)
   const extraLabelsCount = labels.length - visibleLabels.length
 
   // AIDEV-NOTE: Fecha o menu ao clicar fora - usa document listener como backup do backdrop
@@ -182,9 +183,32 @@ export function ConversaItem({ conversa, isActive, onClick, onArquivar, onFixar,
                 />
               ))}
               {extraLabelsCount > 0 && (
-                <span className="px-1 py-0.5 rounded text-[10px] font-medium text-muted-foreground bg-muted flex-shrink-0">
-                  +{extraLabelsCount}
-                </span>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={(e) => e.stopPropagation()}
+                      className="px-1 py-0.5 rounded text-[10px] font-medium text-muted-foreground bg-muted flex-shrink-0 hover:bg-accent transition-colors cursor-pointer"
+                    >
+                      +{extraLabelsCount}
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    side="bottom"
+                    align="start"
+                    className="w-auto max-w-[200px] p-2 flex flex-wrap gap-1"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {labels.slice(1).map(cl => (
+                      <LabelBadge
+                        key={cl.id}
+                        nome={cl.whatsapp_labels.nome}
+                        corHex={cl.whatsapp_labels.cor_hex}
+                        size="md"
+                      />
+                    ))}
+                  </PopoverContent>
+                </Popover>
               )}
             </div>
             <span className="text-[11px] text-muted-foreground flex-shrink-0">
