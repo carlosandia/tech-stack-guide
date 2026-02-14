@@ -107,8 +107,27 @@ export function ConversasPage() {
       if (sessionNameRef.current && !sincronizarLabels.isPending) {
         sincronizarLabels.mutate(sessionNameRef.current)
       }
-    }, 60000)
+    }, 15000)
     return () => clearInterval(interval)
+  }, [sincronizarLabels])
+
+  // AIDEV-NOTE: Sync imediato ao voltar para a aba do navegador
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && sessionNameRef.current && !sincronizarLabels.isPending) {
+        sincronizarLabels.mutate(sessionNameRef.current)
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [sincronizarLabels])
+
+  // AIDEV-NOTE: Sync ao selecionar uma conversa para garantir etiquetas atualizadas
+  const handleSelectConversa = useCallback((id: string | null) => {
+    setConversaAtivaId(id)
+    if (id && sessionNameRef.current && !sincronizarLabels.isPending) {
+      sincronizarLabels.mutate(sessionNameRef.current)
+    }
   }, [sincronizarLabels])
 
   const conversaAtiva = conversas.find((c) => c.id === conversaAtivaId) || null
@@ -210,7 +229,7 @@ export function ConversasPage() {
           <ConversasList
             conversas={conversas}
             conversaAtivaId={conversaAtivaId}
-            onSelectConversa={setConversaAtivaId}
+            onSelectConversa={handleSelectConversa}
             isLoading={isLoading}
             hasNextPage={hasNextPage}
             isFetchingNextPage={isFetchingNextPage}
