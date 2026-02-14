@@ -1394,18 +1394,45 @@ Deno.serve(async (req) => {
                 (conversasAtivas || []).map(c => [c.chat_id, c.id])
               );
               
-              // AIDEV-NOTE: Build reverse phone map for @lid resolution
-              // Extract phone numbers from @c.us chat_ids for partial matching
-              const phoneToConversaMap = new Map<string, string>();
-              for (const c of (conversasAtivas || [])) {
-                if (c.chat_id.endsWith("@c.us")) {
-                  const phone = c.chat_id.replace("@c.us", "");
-                  // Store last 8 digits as key for partial matching
-                  if (phone.length >= 8) {
-                    phoneToConversaMap.set(phone.slice(-8), c.id);
+              // AIDEV-NOTE: Build @lid → @c.us mapping via WAHA chats API
+              // @lid IDs are internal WhatsApp Link IDs with NO relation to phone numbers
+              // We MUST resolve them via WAHA API
+              const lidToCusMap = new Map<string, string>();
+              try {
+                const chatsApiResp = await fetch(
+                  `${baseUrl}/api/${sessionId}/chats`,
+                  { method: "GET", headers: { "X-Api-Key": apiKey } }
+                );
+                if (chatsApiResp.ok) {
+                  const allChats = await chatsApiResp.json().catch(() => []);
+                  for (const chat of (Array.isArray(allChats) ? allChats : [])) {
+                    const chatId = chat.id || '';
+                    // Map LID from chat._serialized or chat.lid if available
+                    if (chat._serialized && chat._serialized !== chatId) {
+                      lidToCusMap.set(chat._serialized, chatId);
+                    }
+                    if (chat.lid) {
+                      lidToCusMap.set(chat.lid, chatId);
+                      // Also try with @lid suffix
+                      if (!chat.lid.endsWith('@lid')) {
+                        lidToCusMap.set(chat.lid + '@lid', chatId);
+                      }
+                    }
+                    // Some WAHA versions return id as @lid and have phone in other fields
+                    if (chatId.endsWith('@lid') && chat.name) {
+                      // Store lid→id mapping for later resolution
+                      lidToCusMap.set(chatId, chatId);
+                    }
                   }
-                  phoneToConversaMap.set(phone, c.id);
+                  console.log(`[waha-proxy] Built lid→c.us map with ${lidToCusMap.size} entries from ${allChats.length} chats`);
+                  // Log a sample for debugging
+                  const sampleEntries = Array.from(lidToCusMap.entries()).slice(0, 5);
+                  console.log(`[waha-proxy] Sample lid→c.us mappings:`, JSON.stringify(sampleEntries));
+                } else {
+                  console.warn(`[waha-proxy] Failed to fetch chats for lid resolution: ${chatsApiResp.status}`);
                 }
+              } catch (chatsFetchErr) {
+                console.warn(`[waha-proxy] Error fetching chats for lid resolution:`, chatsFetchErr);
               }
 
               // Clear ALL existing label associations for this org's conversations
@@ -1435,6 +1462,8 @@ Deno.serve(async (req) => {
                           typeof c === 'string' ? c : (c.id || c.chatId || ''))
                       : [];
 
+                    console.log(`[waha-proxy] Label ${dbLabel.waha_label_id} raw chatIds:`, JSON.stringify(chatIds));
+                    console.log(`[waha-proxy] Label ${dbLabel.waha_label_id} raw chatsData:`, JSON.stringify(chatsData).slice(0, 500));
                     let matchCount = 0;
                     for (const chatId of chatIds) {
                       if (!chatId) continue;
@@ -1442,17 +1471,60 @@ Deno.serve(async (req) => {
                       // Try exact match first
                       let conversaId = chatToConversaMap.get(chatId);
                       
-                      // AIDEV-NOTE: If @lid format, resolve to @c.us via partial phone match
+                      // AIDEV-NOTE: If @lid format, resolve to @c.us via WAHA chats mapping
                       if (!conversaId && chatId.endsWith("@lid")) {
-                        const lidNumber = chatId.replace("@lid", "");
-                        // Try full number match
-                        conversaId = phoneToConversaMap.get(lidNumber);
-                        // Try last 8 digits match
-                        if (!conversaId && lidNumber.length >= 8) {
-                          conversaId = phoneToConversaMap.get(lidNumber.slice(-8));
+                        const resolvedCusId = lidToCusMap.get(chatId);
+                        if (resolvedCusId) {
+                          conversaId = chatToConversaMap.get(resolvedCusId);
+                          if (conversaId) {
+                            console.log(`[waha-proxy] Resolved @lid ${chatId} → ${resolvedCusId} → conversa ${conversaId}`);
+                          }
                         }
-                        if (conversaId) {
-                          console.log(`[waha-proxy] Resolved @lid ${chatId} to conversa ${conversaId}`);
+                        // Fallback: try contact check API
+                        if (!conversaId) {
+                          try {
+                            const checkResp = await fetch(
+                              `${baseUrl}/api/${sessionId}/contacts/check-exists`,
+                              {
+                                method: "POST",
+                                headers: { "X-Api-Key": apiKey, "Content-Type": "application/json" },
+                                body: JSON.stringify({ chatId }),
+                              }
+                            );
+                            if (checkResp.ok) {
+                              const checkData = await checkResp.json();
+                              const resolvedId = checkData?.chatId || checkData?.id || checkData?.result?.id;
+                              if (resolvedId && resolvedId !== chatId) {
+                                conversaId = chatToConversaMap.get(resolvedId);
+                                if (conversaId) {
+                                  console.log(`[waha-proxy] Resolved @lid ${chatId} via check-exists → ${resolvedId} → conversa ${conversaId}`);
+                                }
+                              }
+                            }
+                          } catch (_checkErr) {
+                            // silent fallback
+                          }
+                        }
+                        // Fallback 2: resolve @lid via RPC that searches raw_data (JSONB cast to text)
+                        if (!conversaId) {
+                          const lidNumber = chatId.replace("@lid", "");
+                          try {
+                            const { data: rpcResult, error: rpcErr } = await supabaseAdmin
+                              .rpc("resolve_lid_conversa", { p_org_id: organizacaoId, p_lid_number: lidNumber });
+                            if (rpcErr) {
+                              console.log(`[waha-proxy] RPC resolve_lid_conversa failed for ${lidNumber}: ${rpcErr.message}`);
+                            } else if (rpcResult && rpcResult.length > 0) {
+                              conversaId = rpcResult[0].conversa_id;
+                              console.log(`[waha-proxy] Resolved @lid ${chatId} via RPC → conversa ${conversaId}`);
+                            } else {
+                              console.log(`[waha-proxy] No raw_data match for lid ${lidNumber}`);
+                            }
+                          } catch (searchErr) {
+                            console.log(`[waha-proxy] RPC search error for lid ${lidNumber}:`, searchErr);
+                          }
+                        }
+                        if (!conversaId) {
+                          console.log(`[waha-proxy] Could not resolve @lid ${chatId} to any conversa`);
                         }
                       }
                       

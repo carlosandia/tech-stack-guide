@@ -7688,6 +7688,12 @@ export type Database = {
         Args: { p_tracking_id: string }
         Returns: undefined
       }
+      resolve_lid_conversa: {
+        Args: { p_lid_number: string; p_org_id: string }
+        Returns: {
+          conversa_id: string
+        }[]
+      }
       set_current_tenant: { Args: { tenant_id: string }; Returns: undefined }
       verificar_cortesias_expiradas: { Args: never; Returns: undefined }
     }
