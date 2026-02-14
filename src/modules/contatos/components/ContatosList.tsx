@@ -298,7 +298,7 @@ function renderCell(col: ColumnConfig, contato: Contato, _tipo: TipoContato, sto
   switch (col.key) {
     // Pessoa fixed
     case 'nome':
-      return <td key={col.key} className="px-4 py-3" onClick={e => e.stopPropagation()}><CellNomePessoa contato={contato} onCriarOportunidade={onCriarOportunidade} /></td>
+      return <td key={col.key} className="px-4 py-3"><CellNomePessoa contato={contato} onCriarOportunidade={onCriarOportunidade} /></td>
     case 'empresa':
       return wrapStop(<CellEmpresaVinculada contato={contato} />)
     case 'segmentacao':
@@ -343,7 +343,11 @@ function renderCell(col: ColumnConfig, contato: Contato, _tipo: TipoContato, sto
     // Custom fields
     default:
       if (col.key.startsWith('custom_')) {
-        const customValue = (contato as any)?.campos_customizados?.[col.key.replace('custom_', '')] ?? null
+        let customValue = (contato as any)?.campos_customizados?.[col.key.replace('custom_', '')] ?? null
+        // Multi-select: converter pipe para vírgula para exibição
+        if (typeof customValue === 'string' && customValue.includes('|')) {
+          customValue = customValue.split('|').map((s: string) => s.trim()).filter(Boolean).join(', ')
+        }
         return <td key={col.key} className="px-4 py-3"><CellSimpleText value={customValue} /></td>
       }
       return <td key={col.key} className="px-4 py-3"><CellSimpleText value="—" /></td>

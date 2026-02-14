@@ -191,12 +191,12 @@ export function ContatoFormModal({
       camposCustomizados.forEach(c => {
         const key = `custom_${c.slug}`
         let val = (contato as any)?.[key] || (contato as any)?.campos_customizados?.[c.slug] || ''
-        // Normalizar multi_select: arrays ou comma-separated → pipe-delimited
-        if (c.tipo === 'multi_select' && val) {
-          if (Array.isArray(val)) val = val.join(' | ')
-          else if (typeof val === 'string' && val.includes(',') && !val.includes('|')) val = val.split(',').map((s: string) => s.trim()).filter(Boolean).join(' | ')
+        // Multi_select: valor já vem como pipe-delimited do enrichment
+        if (c.tipo === 'multi_select' && val && typeof val === 'string' && !val.includes('|') && val.includes(',')) {
+          // Fallback legacy: se ainda vier como comma-separated, não splittar (pode ter vírgula no valor)
+          // Manter como está - o dropdown vai mostrar como opção única
         }
-        defaults[key] = val
+        defaults[key] = typeof val === 'string' ? val : String(val || '')
       })
     } else {
       if (isPessoa) {
