@@ -114,3 +114,25 @@
   overflow-y: auto !important;
   scrollbar-color: hsl(215, 16%, 67%) hsl(220, 13%, 91%) !important;
 }
+
+/* Indicador de mais conteudo no select */
+.select-scroll-wrapper {
+  position: relative;
+}
+
+.select-scroll-wrapper::after {
+  content: '⌄';
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 28px;
+  background: linear-gradient(to top, hsl(var(--popover)) 60%, transparent);
+  color: hsl(var(--muted-foreground));
+  font-size: 16px;
+  pointer-events: none;
+  z-index: 1;
+}
