@@ -524,6 +524,75 @@ Deno.serve(async (req) => {
       }
     }
 
+    // AIDEV-NOTE: Salvar campos customizados de pessoa em valores_campos_customizados
+    if (contatoId) {
+      const customPessoaEntries = Object.entries(dadosContato).filter(([k]) => k.startsWith('custom.pessoa.'))
+      if (customPessoaEntries.length > 0) {
+        // Buscar IDs dos campos customizados pelo slug
+        const slugs = customPessoaEntries.map(([k]) => k.replace('custom.pessoa.', ''))
+        const { data: camposDefs } = await supabase
+          .from('campos_customizados')
+          .select('id, slug, tipo')
+          .eq('organizacao_id', formulario.organizacao_id)
+          .eq('entidade', 'pessoa')
+          .in('slug', slugs)
+          .is('deletado_em', null)
+
+        if (camposDefs && camposDefs.length > 0) {
+          const inserts = []
+          for (const [key, valor] of customPessoaEntries) {
+            const slug = key.replace('custom.pessoa.', '')
+            const campoDef = camposDefs.find((c: any) => c.slug === slug)
+            if (!campoDef || !valor) continue
+
+            const row: Record<string, any> = {
+              organizacao_id: formulario.organizacao_id,
+              campo_id: campoDef.id,
+              entidade_tipo: 'pessoa',
+              entidade_id: contatoId,
+            }
+
+            // Determinar coluna de valor baseado no tipo
+            if (campoDef.tipo === 'numero' || campoDef.tipo === 'decimal') {
+              row.valor_numero = parseFloat(String(valor)) || null
+            } else if (campoDef.tipo === 'booleano') {
+              row.valor_booleano = valor === 'true' || valor === true
+            } else if (campoDef.tipo === 'data' || campoDef.tipo === 'data_hora') {
+              row.valor_data = valor
+            } else if (campoDef.tipo === 'multi_select' || campoDef.tipo === 'selecao_multipla') {
+              // Multi-select pode vir como string delimitada por | ou array
+              const arr = typeof valor === 'string' ? valor.split('|').map((v: string) => v.trim()).filter(Boolean) : valor
+              row.valor_json = arr
+              row.valor_texto = typeof valor === 'string' ? valor : (valor as string[]).join(' | ')
+            } else {
+              row.valor_texto = String(valor)
+            }
+
+            inserts.push(row)
+          }
+
+          if (inserts.length > 0) {
+            // Upsert: delete existing + insert
+            for (const ins of inserts) {
+              const { data: existing } = await supabase
+                .from('valores_campos_customizados')
+                .select('id')
+                .eq('campo_id', ins.campo_id)
+                .eq('entidade_id', ins.entidade_id)
+                .maybeSingle()
+
+              if (existing) {
+                await supabase.from('valores_campos_customizados').update(ins).eq('id', existing.id)
+              } else {
+                await supabase.from('valores_campos_customizados').insert(ins)
+              }
+            }
+            console.log(`Salvos ${inserts.length} campos customizados para contato ${contatoId}`)
+          }
+        }
+      }
+    }
+
     // Criar oportunidade
     if (contatoId && funilId) {
       const { data: etapaEntrada } = await supabase

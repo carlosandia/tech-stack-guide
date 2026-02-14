@@ -222,8 +222,9 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
   const { data: valoresOportunidade } = useValoresCampos('oportunidade', oportunidade.id)
   const { data: valoresPessoa } = useValoresCampos('pessoa', oportunidade.contato?.id)
 
-  // Campos custom de oportunidade (exclui sistema pois oportunidade não tem campos sistema predefinidos)
-  const camposCustomOp = useMemo(() => camposData?.oportunidade || [], [camposData])
+  // Campos custom de oportunidade - exclui campos sistema que já são renderizados nativamente (valor, mrr, responsavel, previsao_fechamento)
+  const SLUGS_NATIVOS_OP = ['valor', 'mrr', 'responsavel', 'previsao_fechamento']
+  const camposCustomOp = useMemo(() => (camposData?.oportunidade || []).filter(c => !c.sistema || !SLUGS_NATIVOS_OP.includes(c.slug)), [camposData])
 
   // Campos de pessoa (sistema + custom)
   const camposPessoa = useMemo(() => camposData?.pessoa || [], [camposData])
