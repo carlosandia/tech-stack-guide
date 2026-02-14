@@ -331,6 +331,12 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
           updateData.valor_data = value || null
           updateData.valor_texto = null
           break
+        case 'multi_select': {
+          const arr = value ? value.split('|').map(s => s.trim()).filter(Boolean) : []
+          updateData.valor_json = arr
+          updateData.valor_texto = arr.join(' | ')
+          break
+        }
         default:
           updateData.valor_texto = value || null
           break
@@ -699,7 +705,7 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
                 onCancel={() => setEditingField(null)}
                 campoTipo={campo.tipo}
                 opcoes={campo.opcoes}
-                inputType={campo.tipo === 'data' || campo.tipo === 'data_hora' ? 'date' : campo.tipo === 'numero' || campo.tipo === 'decimal' ? 'number' : campo.tipo === 'email' ? 'email' : 'text'}
+                inputType={campo.tipo === 'data' ? 'date' : campo.tipo === 'data_hora' ? 'datetime-local' : campo.tipo === 'numero' || campo.tipo === 'decimal' ? 'number' : campo.tipo === 'email' ? 'email' : 'text'}
               />
             )
           })}
@@ -797,7 +803,7 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
                 onCancel={() => setEditingField(null)}
                 campoTipo={campo.tipo}
                 opcoes={campo.opcoes}
-                inputType={campo.tipo === 'data' || campo.tipo === 'data_hora' ? 'date' : campo.tipo === 'numero' || campo.tipo === 'decimal' ? 'number' : campo.tipo === 'email' ? 'email' : 'text'}
+                inputType={campo.tipo === 'data' ? 'date' : campo.tipo === 'data_hora' ? 'datetime-local' : campo.tipo === 'numero' || campo.tipo === 'decimal' ? 'number' : campo.tipo === 'email' ? 'email' : 'text'}
               />
             )
           })}
@@ -988,6 +994,39 @@ function FieldRow({
             <button onClick={onCancel} className="text-[10px] text-muted-foreground hover:underline">Cancelar</button>
           </div>
         </div>
+      )
+    }
+
+    // Booleano (Sim/Não)
+    if (campoTipo === 'booleano') {
+      return (
+        <select
+          className="w-full text-sm bg-transparent border-0 border-b border-primary focus:ring-0 p-0 pb-0.5 text-foreground"
+          value={editValue}
+          onChange={(e) => onEditChange(e.target.value)}
+          onBlur={onSave}
+          autoFocus
+        >
+          <option value="">Selecione...</option>
+          <option value="true">Sim</option>
+          <option value="false">Não</option>
+        </select>
+      )
+    }
+
+    // Texto longo (textarea)
+    if (campoTipo === 'texto_longo') {
+      return (
+        <textarea
+          className="w-full text-sm bg-transparent border-0 border-b border-primary focus:ring-0 p-0 pb-0.5 text-foreground resize-none min-h-[60px]"
+          value={editValue}
+          onChange={(e) => onEditChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') onCancel()
+          }}
+          autoFocus
+          rows={3}
+        />
       )
     }
 
