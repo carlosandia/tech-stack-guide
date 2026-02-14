@@ -1,58 +1,80 @@
 
+# Plano de Correcao: Tipos de Campos em Modo Edicao
 
-# Correcao: Modal "Ver Termos" no Widget Embedado
+## Problemas Identificados
 
-## Problema
-O modal de "Termos de Uso" abre por detras dos elementos do site hospedeiro porque o `z-index: 100000` nao e suficiente em sites com stacking contexts complexos. Alem disso, a fonte do modal nao herda o `fontFamily` do formulario, resultando em estilizacao inconsistente.
+### 1. DetalhesCampos.tsx - FieldRow (modal de detalhes da oportunidade)
+- **Booleano**: Nao tem tratamento no `renderEditField`. Cai no input de texto padrao ao inves de renderizar select Sim/Nao.
+- **data_hora**: Recebe `inputType="date"` (linha 702/800) ao inves de `datetime-local`. O usuario nao consegue editar a hora.
 
-## Solucao
+### 2. DetalhesCampos.tsx - handleSaveCampoCustom
+- **multi_select**: Cai no `default` do switch, salvando apenas `valor_texto`. Nao salva `valor_json` (array). Quando o sistema le de volta, `valor_json` esta null e perde dados.
+- **texto_longo**: Funciona, mas renderiza como input de linha unica ao inves de textarea.
 
-### Arquivo: `supabase/functions/widget-formulario-loader/index.ts`
+### 3. LigacaoModal.tsx - saveCustomField
+- Usa heuristica `value.includes('|')` para detectar multi_select, mas nao trata corretamente `booleano`, `numero`, `decimal`, `data`, `data_hora` - tudo vai para `valor_texto`.
+- Precisa receber o `campoTipo` para salvar na coluna correta.
 
-**1. Z-index maximo no overlay e modal dos termos (linha 106)**
+### 4. LigacaoModal.tsx - getCustomValue
+- Nao formata `booleano` (mostra "true"/"false" ao inves de "Sim"/"Nao").
+- Nao formata datas (mostra ISO string).
 
-Alterar o `z-index` do overlay de `100000` para `2147483647` (valor maximo suportado pelos browsers), garantindo que o modal fique sempre por cima de qualquer elemento do site hospedeiro.
+---
 
-**2. Heranca de fonte no modal**
+## Correcoes Planejadas
 
-O modal dos termos precisa receber o `fontFamily` do formulario. Atualmente a funcao `renderField` ja recebe `fontFamily` como parametro, porem o modal nao o utiliza. Sera adicionado `font-family` explicito em:
-- Overlay
-- Header do modal (titulo)
-- Body do modal (conteudo dos termos)
-- Botao de fechar
+### Arquivo 1: `src/modules/negocios/components/detalhes/DetalhesCampos.tsx`
 
-**3. Estilizacao refinada do modal**
+**FieldRow.renderEditField** - Adicionar tratamento para:
+- `booleano`: Renderizar `<select>` com opcoes "Sim"/"Não" (igual ao LigacaoModal)
+- `texto_longo`: Renderizar `<textarea>` ao inves de input
 
-Aplicar estilos mais robustos e modernos:
-- `font-family` explicito usando a variavel `fontFamily` do formulario
-- Titulo com `font-family` herdada
-- Corpo com `font-family` herdada e `line-height: 1.6`
-- Overlay com `backdrop-filter: blur(4px)` para efeito de desfoque moderno
+**FieldRow props/inputType** - Corrigir nas chamadas:
+- Campos `data_hora` devem receber `inputType="datetime-local"`
 
-## Detalhes tecnicos
+**handleSaveCampoCustom** - Adicionar case `multi_select`:
+- Salvar `valor_texto` como pipe-delimited E `valor_json` como array JSON
+- Garantir que `valor_json` tambem e populado para leitura consistente
 
-Na linha 106 (`checkbox_termos`), o bloco que cria o modal sera atualizado:
+### Arquivo 2: `src/modules/negocios/components/modals/LigacaoModal.tsx`
 
-```text
-Antes:
-overlay.style.cssText = '...z-index:100000;...'
-modal title/body sem font-family explicito
+**saveCustomField** - Refatorar para receber `campoTipo` como parametro:
+- `numero`/`decimal`: salvar em `valor_numero`
+- `booleano`: salvar em `valor_booleano`
+- `data`/`data_hora`: salvar em `valor_data`
+- `multi_select`: salvar em `valor_json` + `valor_texto`
+- Demais: salvar em `valor_texto`
 
-Depois:
-overlay.style.cssText = '...z-index:2147483647;backdrop-filter:blur(4px);...'
-mTitle.style.cssText = '...font-family:'+fontFamily+';...'
-mBody.style.cssText = '...font-family:'+fontFamily+';...'
-mClose.style.cssText = '...font-family:'+fontFamily+';...'
-```
+**getCustomValue** - Receber campo tipo para formatacao:
+- `booleano`: retornar "Sim"/"Nao"
+- `data`/`data_hora`: formatar com `dd/MM/yyyy`
+- `numero`/`decimal`: retornar numero formatado
 
-A funcao `renderField` ja recebe `fontFamily` como parametro, entao basta referencia-lo dentro do evento de click do link "Ver termos".
+**EditableInfoRow** - Ja trata `select`, `multi_select` e `booleano` corretamente. Nenhuma mudanca necessaria.
 
-**4. Deploy da Edge Function**
+### Arquivo 3: `src/modules/contatos/components/ContatoFormModal.tsx`
 
-Apos a edicao, redeploy de `widget-formulario-loader`.
+- Ja trata `select`, `multi_select`, `booleano`, `telefone`, `texto_longo` corretamente.
+- Nenhuma correcao necessaria.
 
-## Resultado esperado
-- Modal sempre aparece por cima de todos os elementos do site
-- Fundo escurece com blur sutil
-- Fonte do modal identica a do formulario
-- Funciona corretamente em desktop e mobile
+### Arquivo 4: `src/modules/negocios/components/modals/ContatoInlineForm.tsx`
+
+- Ja trata todos os tipos corretamente (`select`, `multi_select`, `booleano`, `telefone`, etc.).
+- Nenhuma correcao necessaria.
+
+### Arquivo 5: `src/modules/contatos/components/ContatoViewModal.tsx`
+
+- Modal de visualizacao (somente leitura). Ja formata todos os tipos corretamente.
+- Nenhuma correcao necessaria.
+
+---
+
+## Resumo das Alteracoes
+
+| Arquivo | Correcao | Tipos Afetados |
+|---------|----------|----------------|
+| DetalhesCampos.tsx | FieldRow: add booleano select, texto_longo textarea | booleano, texto_longo |
+| DetalhesCampos.tsx | inputType: data_hora -> datetime-local | data_hora |
+| DetalhesCampos.tsx | handleSaveCampoCustom: add multi_select case com valor_json | multi_select |
+| LigacaoModal.tsx | saveCustomField: tipagem correta por campo | numero, decimal, booleano, data, data_hora, multi_select |
+| LigacaoModal.tsx | getCustomValue: formatacao por tipo | booleano, data, data_hora |
