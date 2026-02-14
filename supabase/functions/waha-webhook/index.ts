@@ -445,19 +445,17 @@ Deno.serve(async (req) => {
           if (!conversa && labelPayload.chatId.endsWith("@lid")) {
             console.log(`[waha-webhook] chatId is @lid format, resolving to @c.us...`);
             
-            // Strategy 1: Search mensagens table for a message containing this LID
+            // Strategy 1: Use resolve_lid_conversa RPC (searches raw_data + filters non-deleted conversas)
             const lidNumber = labelPayload.chatId.replace("@lid", "");
-            const { data: msgWithLid } = await supabaseAdmin
-              .from("mensagens")
-              .select("conversa_id")
-              .eq("organizacao_id", sessao.organizacao_id)
-              .or(`message_id.ilike.%${lidNumber}%,remetente_id.eq.${labelPayload.chatId}`)
-              .limit(1)
-              .maybeSingle();
+            const { data: rpcResult } = await supabaseAdmin
+              .rpc("resolve_lid_conversa", {
+                p_org_id: sessao.organizacao_id,
+                p_lid_number: lidNumber,
+              });
 
-            if (msgWithLid?.conversa_id) {
-              conversa = { id: msgWithLid.conversa_id };
-              console.log(`[waha-webhook] Resolved @lid via mensagens: conversa_id=${conversa.id}`);
+            if (rpcResult && rpcResult.length > 0) {
+              conversa = { id: rpcResult[0].conversa_id };
+              console.log(`[waha-webhook] Resolved @lid via RPC: conversa_id=${conversa.id}`);
             }
 
             // Strategy 2: Try WAHA API to get contact info (which may have @c.us)
