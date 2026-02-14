@@ -307,6 +307,27 @@ export const contatosApi = {
       if (params?.segmento_id) {
         contatos = contatos.filter(c => c.segmentos?.some(s => s.id === params.segmento_id))
       }
+
+      // Enriquecer com total_oportunidades
+      const contatoIdsAll = contatos.map(c => c.id)
+      if (contatoIdsAll.length > 0) {
+        const { data: opsData } = await supabase
+          .from('oportunidades')
+          .select('contato_id')
+          .in('contato_id', contatoIdsAll)
+          .is('deletado_em', null)
+
+        if (opsData) {
+          const opsCount: Record<string, number> = {}
+          for (const op of opsData) {
+            opsCount[op.contato_id] = (opsCount[op.contato_id] || 0) + 1
+          }
+          contatos = contatos.map(c => ({
+            ...c,
+            total_oportunidades: opsCount[c.id] || 0,
+          }))
+        }
+      }
     }
 
     const total = count || 0

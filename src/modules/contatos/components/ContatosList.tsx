@@ -7,7 +7,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { Eye, Pencil, Trash2, MoreHorizontal, Users2 } from 'lucide-react'
+import { Eye, Pencil, Trash2, MoreHorizontal, Users2, Plus } from 'lucide-react'
 import { SegmentoBadge } from './SegmentoBadge'
 import { InlineEmpresaPopover } from './InlineEmpresaPopover'
 import { InlineSegmentoPopover } from './InlineSegmentoPopover'
@@ -48,6 +48,7 @@ interface ContatosListProps {
   onView: (contato: Contato) => void
   onEdit: (contato: Contato) => void
   onDelete: (contato: Contato) => void
+  onCriarOportunidade?: (contato: Contato) => void
 }
 
 export function ContatosList({
@@ -63,6 +64,7 @@ export function ContatosList({
   onView,
   onEdit,
   onDelete,
+  onCriarOportunidade,
 }: ContatosListProps) {
   const allSelected = contatos.length > 0 && contatos.every((c) => selectedIds.has(c.id))
   const isPessoa = tipo === 'pessoa'
@@ -146,6 +148,7 @@ export function ContatosList({
               onView={() => onView(contato)}
               onEdit={() => onEdit(contato)}
               onDelete={() => onDelete(contato)}
+              onCriarOportunidade={onCriarOportunidade ? () => onCriarOportunidade(contato) : undefined}
             />
           ))}
         </tbody>
@@ -156,12 +159,29 @@ export function ContatosList({
 
 // ===== Cell Renderers =====
 
-function CellNomePessoa({ contato }: { contato: Contato }) {
+function CellNomePessoa({ contato, onCriarOportunidade }: { contato: Contato; onCriarOportunidade?: () => void }) {
+  const semOportunidade = contato.total_oportunidades === 0
   return (
-    <div className="min-w-0">
+    <div className="min-w-0 flex items-center gap-2">
       <p className="text-sm font-medium text-foreground truncate">
         {contato.nome} {contato.sobrenome || ''}
       </p>
+      {semOportunidade && (
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 whitespace-nowrap">
+            Sem oportunidade
+          </span>
+          {onCriarOportunidade && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onCriarOportunidade() }}
+              className="p-0.5 rounded hover:bg-primary/10 text-primary transition-colors"
+              title="Criar oportunidade"
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -271,14 +291,14 @@ function CellCriadoEm({ contato }: { contato: Contato }) {
 }
 
 // Decide which cell to render based on column key and tipo
-function renderCell(col: ColumnConfig, contato: Contato, _tipo: TipoContato, stopPropagation: boolean) {
+function renderCell(col: ColumnConfig, contato: Contato, _tipo: TipoContato, stopPropagation: boolean, onCriarOportunidade?: () => void) {
   const wrapStop = (el: React.ReactNode) =>
     stopPropagation ? <td key={col.key} className="px-4 py-3" onClick={e => e.stopPropagation()}>{el}</td> : <td key={col.key} className="px-4 py-3">{el}</td>
 
   switch (col.key) {
     // Pessoa fixed
     case 'nome':
-      return <td key={col.key} className="px-4 py-3"><CellNomePessoa contato={contato} /></td>
+      return <td key={col.key} className="px-4 py-3" onClick={e => e.stopPropagation()}><CellNomePessoa contato={contato} onCriarOportunidade={onCriarOportunidade} /></td>
     case 'empresa':
       return wrapStop(<CellEmpresaVinculada contato={contato} />)
     case 'segmentacao':
@@ -342,6 +362,7 @@ function ContatoRow({
   onView,
   onEdit,
   onDelete,
+  onCriarOportunidade,
 }: {
   contato: Contato
   tipo: TipoContato
@@ -351,6 +372,7 @@ function ContatoRow({
   onView: () => void
   onEdit: () => void
   onDelete: () => void
+  onCriarOportunidade?: () => void
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 })
@@ -396,7 +418,7 @@ function ContatoRow({
         <input type="checkbox" checked={selected} onChange={onToggleSelect} className="rounded border-input" />
       </td>
 
-      {visibleColumns.map(col => renderCell(col, contato, tipo, INTERACTIVE_KEYS.has(col.key)))}
+      {visibleColumns.map(col => renderCell(col, contato, tipo, INTERACTIVE_KEYS.has(col.key), onCriarOportunidade))}
 
       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
         <button
