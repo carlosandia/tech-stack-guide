@@ -712,9 +712,8 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className, hideHead
                   className="h-7 text-xs flex-1"
                   disabled={!novoCampoNome.trim() || criarCampoMutation.isPending}
                   onClick={async () => {
-                    const slug = novoCampoNome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
                     try {
-                      await criarCampoMutation.mutateAsync({
+                      const novoCampo = await criarCampoMutation.mutateAsync({
                         nome: novoCampoNome.trim(),
                         entidade: criarCampoEntidade,
                         tipo: novoCampoTipo as CriarCampoPayload['tipo'],
@@ -722,7 +721,7 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className, hideHead
                       await queryClient.invalidateQueries({
                         queryKey: ['configuracoes', 'campos', criarCampoEntidade],
                       })
-                      const mapeamento = `custom.${criarCampoEntidade}.${slug}`
+                      const mapeamento = `custom.${criarCampoEntidade}.${novoCampo.slug}`
                       setForm((f) => ({ ...f, mapeamento_campo: mapeamento }))
                       setShowCriarCampo(false)
                       setNovoCampoNome('')
