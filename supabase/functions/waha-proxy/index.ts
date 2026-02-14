@@ -897,9 +897,10 @@ Deno.serve(async (req) => {
       // APAGAR MENSAGEM INDIVIDUAL VIA WAHA
       // =====================================================
       case "apagar_mensagem": {
-        const { chat_id: delMsgChatId, message_id: delMsgId } = body as {
+        const { chat_id: delMsgChatId, message_id: delMsgId, para_todos: paraTodos } = body as {
           chat_id?: string;
           message_id?: string;
+          para_todos?: boolean;
         };
 
         if (!delMsgChatId || !delMsgId) {
@@ -909,8 +910,10 @@ Deno.serve(async (req) => {
           );
         }
 
-        console.log(`[waha-proxy] Deleting message ${delMsgId} from ${delMsgChatId}, session: ${sessionId}`);
+        const deleteForAll = paraTodos === true;
+        console.log(`[waha-proxy] Deleting message ${delMsgId} from ${delMsgChatId}, session: ${sessionId}, para_todos: ${deleteForAll}`);
 
+        // Send seen first
         const delMsgResp = await fetch(`${baseUrl}/api/sendSeen`, {
           method: "POST",
           headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
@@ -918,14 +921,24 @@ Deno.serve(async (req) => {
         });
         await delMsgResp.text();
 
-        // Delete message for everyone
-        const deleteResp = await fetch(`${baseUrl}/api/${sessionId}/chats/${encodeURIComponent(delMsgChatId)}/messages/${encodeURIComponent(delMsgId)}`, {
-          method: "DELETE",
-          headers: { "X-Api-Key": apiKey },
-        });
+        let deleteResp: Response;
+        if (deleteForAll) {
+          // AIDEV-NOTE: Delete para todos - usa endpoint DELETE individual
+          deleteResp = await fetch(`${baseUrl}/api/${sessionId}/chats/${encodeURIComponent(delMsgChatId)}/messages/${encodeURIComponent(delMsgId)}`, {
+            method: "DELETE",
+            headers: { "X-Api-Key": apiKey },
+          });
+        } else {
+          // AIDEV-NOTE: Delete para mim - usa endpoint PUT para clear messages localmente no dispositivo
+          deleteResp = await fetch(`${baseUrl}/api/${sessionId}/chats/${encodeURIComponent(delMsgChatId)}/messages`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
+            body: JSON.stringify({ messages: [delMsgId], deleteMedia: true }),
+          });
+        }
 
         const deleteData = await deleteResp.json().catch(() => ({}));
-        console.log(`[waha-proxy] Delete message response: ${deleteResp.status}`, JSON.stringify(deleteData).substring(0, 300));
+        console.log(`[waha-proxy] Delete message response (para_todos=${deleteForAll}): ${deleteResp.status}`, JSON.stringify(deleteData).substring(0, 300));
 
         // Handle NOWEB limitation gracefully (store not enabled or method not implemented)
         if (!deleteResp.ok && isNowebLimitation(deleteResp.status, deleteData)) {

@@ -491,24 +491,23 @@ export const conversasApi = {
   // Ações de Conversa (sincronizadas com WhatsApp)
   // =====================================================
 
-  /** Apagar mensagem individual (soft delete local + WAHA se paraTodos) */
+  /** Apagar mensagem individual (soft delete local + WAHA para mim ou para todos) */
   async apagarMensagem(conversaId: string, mensagemId: string, messageWahaId: string, paraTodos: boolean): Promise<void> {
-    // Se paraTodos, enviar para WAHA (non-blocking)
-    if (paraTodos) {
-      const session = await getConversaWahaSession(conversaId)
-      if (session) {
-        try {
-          await supabase.functions.invoke('waha-proxy', {
-            body: {
-              action: 'apagar_mensagem',
-              session_name: session.sessionName,
-              chat_id: session.chatId,
-              message_id: messageWahaId,
-            },
-          })
-        } catch (e) {
-          console.warn('[conversasApi] WAHA apagar_mensagem falhou (CRM continua):', e)
-        }
+    // AIDEV-NOTE: Sempre envia para WAHA com para_todos flag para sincronizar com dispositivo
+    const session = await getConversaWahaSession(conversaId)
+    if (session) {
+      try {
+        await supabase.functions.invoke('waha-proxy', {
+          body: {
+            action: 'apagar_mensagem',
+            session_name: session.sessionName,
+            chat_id: session.chatId,
+            message_id: messageWahaId,
+            para_todos: paraTodos,
+          },
+        })
+      } catch (e) {
+        console.warn('[conversasApi] WAHA apagar_mensagem falhou (CRM continua):', e)
       }
     }
 
