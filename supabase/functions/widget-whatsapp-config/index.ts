@@ -234,7 +234,7 @@ Deno.serve(async (req) => {
             nome: nomeContato,
             telefone: telefoneContato || null,
             email: emailContato || null,
-            origem: "widget_whatsapp",
+            origem: "whatsapp",
             status: "novo",
           })
           .select("id")
