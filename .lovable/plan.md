@@ -1,83 +1,106 @@
 
-# Correção: Etiquetas dessincronizadas entre sidebar, header e dispositivo
+# Apagar Conversa e Mensagens com Sincronizacao no WhatsApp
 
-## Diagnóstico (3 problemas encontrados)
+## Situacao Atual
 
-### Problema 1: Cache não invalida após sync
-O hook `useSincronizarLabels` no `onSuccess` só invalida a query `['whatsapp-labels']`. Ele NAO invalida `['conversas']` nem `['labels-conversa']`. Resultado: o banco atualiza corretamente mas o frontend continua mostrando dados antigos até o próximo refresh manual.
+Analisando o codigo, encontrei o seguinte:
 
-### Problema 2: Labels órfãs em conversa soft-deleted
-Existe uma conversa duplicada com `chat_id = '162826672971943@lid'` que está soft-deleted (`deletado_em` preenchido). O sync só limpa labels de conversas ativas (filtra `deletado_em IS NULL`), então as labels dessa conversa fantasma nunca são removidas. Dependendo de cache, o frontend pode exibir dados dessa conversa morta.
+| Acao | CRM (local) | WhatsApp (dispositivo) |
+|------|------------|----------------------|
+| Apagar conversa | Soft delete | Ja chama WAHA API (DELETE /chats/{chatId}) |
+| Apagar mensagem para mim | Soft delete local | NAO chama WAHA - so apaga no CRM |
+| Apagar mensagem para todos | Soft delete local | Ja chama WAHA API (DELETE /messages/{id}) |
 
-### Problema 3: Sidebar e Header usam fontes de dados diferentes
-- **Sidebar (ConversaItem)**: usa `conversa.labels` que vem do JOIN na query paginada (cache do React Query)
-- **Header (ChatHeader)**: usa `useLabelsConversa(conversa.id)` que é uma query separada direto na tabela
+## Problema
 
-Quando o cache está desatualizado, os dois mostram dados diferentes.
+"Apagar para mim" faz apenas soft delete no banco de dados do CRM, mas nao comunica ao WhatsApp. A mensagem continua visivel no dispositivo do celular.
 
----
+## O que sera feito
 
-## Plano de Correção
+### 1. Apagar mensagem "para mim" tambem no dispositivo
 
-### 1. Corrigir invalidação de cache no `useSincronizarLabels`
-**Arquivo:** `src/modules/conversas/hooks/useWhatsAppLabels.ts`
+**Arquivo:** `src/modules/conversas/services/conversas.api.ts`
 
-No `onSuccess` da mutation, adicionar invalidação de `['conversas']` e `['labels-conversa']` para que tanto a sidebar quanto o header atualizem após o sync.
+Atualmente o codigo so chama WAHA quando `paraTodos === true`. Sera alterado para SEMPRE chamar WAHA, passando um parametro que diferencia "para mim" vs "para todos".
 
-### 2. Limpar labels de conversas soft-deleted no sync
+```
+// ANTES: so chama WAHA se paraTodos
+if (paraTodos) { ... chamar WAHA ... }
+
+// DEPOIS: sempre chama WAHA, com parametro
+chamar WAHA com { para_todos: paraTodos }
+```
+
+### 2. Nova action no waha-proxy para "apagar para mim"
+
 **Arquivo:** `supabase/functions/waha-proxy/index.ts`
 
-No bloco `labels_list`, ao fazer o DELETE das associações, incluir TODAS as conversas da organização (não apenas as ativas). Isso garante que conversas com `deletado_em` preenchido também tenham suas labels limpas.
+A action `apagar_mensagem` atual sempre deleta "para todos". Sera adicionado um parametro `para_todos` que controla o comportamento:
 
-### 3. Limpar dados órfãos imediatos
-Executar uma migration SQL para remover labels associadas a conversas soft-deleted, limpando os dados sujos que existem agora.
+- `para_todos = true`: usa `DELETE /api/{session}/chats/{chatId}/messages/{messageId}` (apaga para todos, comportamento atual)
+- `para_todos = false`: usa `PUT /api/{session}/chats/{chatId}/messages` com body `{ "messages": [messageId], "deleteMedia": true }` para deletar somente localmente no dispositivo
+
+### 3. Apagar conversa (ja funciona)
+
+O codigo em `conversas.api.ts` (linha 557-578) ja chama a action `apagar_conversa` no waha-proxy, que por sua vez chama `DELETE /api/{session}/chats/{chatId}`. Isso ja funciona corretamente - a conversa e removida tanto do CRM quanto do dispositivo.
 
 ---
 
-## Detalhes Técnicos
+## Detalhes Tecnicos
 
-### Mudança 1 - useWhatsAppLabels.ts
-```typescript
-// ANTES
-onSuccess: () => {
-  queryClient.invalidateQueries({ queryKey: ['whatsapp-labels'] })
-}
+### Mudanca 1 - conversas.api.ts (apagarMensagem)
 
-// DEPOIS
-onSuccess: () => {
-  queryClient.invalidateQueries({ queryKey: ['whatsapp-labels'] })
-  queryClient.invalidateQueries({ queryKey: ['conversas'] })
-  queryClient.invalidateQueries({ queryKey: ['labels-conversa'] })
-}
-```
-
-### Mudança 2 - waha-proxy/index.ts (labels_list)
-No bloco de DELETE, trocar o filtro de conversas ativas para incluir todas as conversas da org:
+Remover a condicional `if (paraTodos)` e sempre enviar para WAHA, passando o parametro:
 
 ```typescript
-// ANTES: só deleta labels de conversas ativas
-const conversaIds = conversasAtivas.map(c => c.id);
-await supabaseAdmin.from("conversas_labels")
-  .delete()
-  .eq("organizacao_id", organizacaoId)
-  .in("conversa_id", conversaIds);
-
-// DEPOIS: deleta TODAS labels da org (inclui soft-deleted)
-await supabaseAdmin.from("conversas_labels")
-  .delete()
-  .eq("organizacao_id", organizacaoId);
+async apagarMensagem(conversaId, mensagemId, messageWahaId, paraTodos) {
+  const session = await getConversaWahaSession(conversaId)
+  if (session) {
+    try {
+      await supabase.functions.invoke('waha-proxy', {
+        body: {
+          action: 'apagar_mensagem',
+          session_name: session.sessionName,
+          chat_id: session.chatId,
+          message_id: messageWahaId,
+          para_todos: paraTodos,
+        },
+      })
+    } catch (e) {
+      console.warn('[conversasApi] WAHA apagar_mensagem falhou:', e)
+    }
+  }
+  // Soft delete local (sempre)
+  await supabase.from('mensagens').update({ deletado_em: ... }).eq('id', mensagemId)
+}
 ```
 
-### Mudança 3 - Migration SQL
-```sql
-DELETE FROM conversas_labels
-WHERE conversa_id IN (
-  SELECT id FROM conversas WHERE deletado_em IS NOT NULL
-);
+### Mudanca 2 - waha-proxy/index.ts (action apagar_mensagem)
+
+Receber `para_todos` e rotear para o endpoint correto:
+
+```typescript
+case "apagar_mensagem": {
+  const { chat_id, message_id, para_todos } = body;
+
+  if (para_todos) {
+    // DELETE para todos (endpoint existente)
+    await fetch(`${baseUrl}/api/${session}/chats/${chatId}/messages/${messageId}`, {
+      method: "DELETE",
+      headers: { "X-Api-Key": apiKey },
+    });
+  } else {
+    // DELETE somente para mim (endpoint WAHA para clear messages)
+    await fetch(`${baseUrl}/api/${session}/chats/${chatId}/messages`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
+      body: JSON.stringify({ messages: [message_id], deleteMedia: true }),
+    });
+  }
+}
 ```
 
-### Ordem de implementação
-1. Migration para limpar dados órfãos
-2. Corrigir waha-proxy (delete abrangente)
-3. Corrigir cache invalidation no hook
-4. Deploy e teste
+### Resumo de arquivos alterados
+
+1. `src/modules/conversas/services/conversas.api.ts` - Remover condicional, sempre chamar WAHA
+2. `supabase/functions/waha-proxy/index.ts` - Adicionar logica de `para_todos` na action existente
