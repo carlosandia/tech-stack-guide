@@ -177,7 +177,7 @@ export function PipelineSelector({
           )}
 
           {/* Dropdown */}
-          <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 w-[calc(100vw-32px)] sm:w-72 bg-card border border-border rounded-lg shadow-lg z-[60] py-1 animate-enter">
+          <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 w-[calc(100vw-32px)] sm:w-80 bg-card border border-border rounded-lg shadow-lg z-[60] py-1 animate-enter overflow-hidden">
             {/* Busca */}
             <div className="px-3 py-2">
               <div className="relative">
@@ -312,24 +312,20 @@ function FunilItem({
   onConfigurar?: (e: React.MouseEvent) => void
 }) {
   return (
-    <div className="relative group flex items-center">
+    <div
+      className={`relative group flex items-center w-full ${
+        isSelected ? 'bg-primary/5' : 'hover:bg-accent'
+      } ${isArquivada ? 'opacity-60' : ''} transition-all duration-200`}
+    >
       <button
         onClick={onSelect}
-        className={`
-          flex-1 flex items-center gap-2.5 px-3 py-2 text-sm text-left min-h-[44px]
-          transition-all duration-200
-          ${isSelected
-            ? 'bg-primary/5 text-primary font-medium'
-            : 'text-foreground hover:bg-accent'
-          }
-          ${isArquivada ? 'opacity-60' : ''}
-        `}
+        className="flex-1 flex items-center gap-2.5 px-3 py-2 text-sm text-left min-h-[44px] min-w-0"
       >
         <div
           className="w-2.5 h-2.5 rounded-full flex-shrink-0"
           style={{ backgroundColor: funil.cor || '#3B82F6' }}
         />
-        <span className="truncate flex-1">{funil.nome}</span>
+        <span className={`truncate flex-1 min-w-0 ${isSelected ? 'text-primary font-medium' : 'text-foreground'}`}>{funil.nome}</span>
         {isArquivada && (
           <Archive className="w-3 h-3 text-muted-foreground flex-shrink-0" />
         )}
