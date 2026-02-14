@@ -1,22 +1,25 @@
 /**
  * AIDEV-NOTE: Barra flutuante de ações em massa para oportunidades do Kanban
  * Segue o padrão visual de ContatoBulkActions
- * Inclui: Exportar, Mover etapa, Segmentar/Tags, Excluir
+ * Inclui: Exportar, Mover etapa (mesma pipeline ou outra), Segmentar/Tags, Excluir
  */
 
 import { useState, useRef, useEffect } from 'react'
-import { Trash2, Download, ArrowRightLeft, Tag, Plus, Minus, AlertTriangle, X } from 'lucide-react'
+import { Trash2, Download, ArrowRightLeft, Tag, Plus, Minus, AlertTriangle, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { EtapaFunil } from '../../services/negocios.api'
 import { useSegmentos, useSegmentarLote } from '@/modules/contatos/hooks/useSegmentos'
+import { useFunis, useFunilComEtapas } from '../../hooks/useFunis'
 
 interface OportunidadeBulkActionsProps {
   selectedCount: number
   selectedIds: string[]
   contatoIds: string[]
   etapas: EtapaFunil[]
+  funilAtualId: string
   onExcluir: () => void
   onExportar: () => void
   onMoverEtapa: (etapaId: string) => void
+  onMoverParaOutraPipeline: (funilId: string, etapaId: string) => void
   onClearSelection: () => void
   isDeleting?: boolean
   isMoving?: boolean
@@ -27,9 +30,11 @@ export function OportunidadeBulkActions({
   selectedIds: _selectedIds,
   contatoIds,
   etapas,
+  funilAtualId,
   onExcluir,
   onExportar,
   onMoverEtapa,
+  onMoverParaOutraPipeline,
   onClearSelection,
   isDeleting,
   isMoving,
@@ -37,12 +42,30 @@ export function OportunidadeBulkActions({
   const [showMover, setShowMover] = useState(false)
   const [showTags, setShowTags] = useState(false)
   const [showConfirmDelete, setShowConfirmDelete] = useState(false)
+  const [selectedPipelineId, setSelectedPipelineId] = useState<string | null>(null)
   const moverRef = useRef<HTMLDivElement>(null)
   const tagsRef = useRef<HTMLDivElement>(null)
 
   const { data: segmentosData } = useSegmentos()
   const segmentarLote = useSegmentarLote()
   const segmentos = segmentosData?.segmentos || []
+
+  // Pipelines disponíveis (excluindo a atual)
+  const { data: funisData } = useFunis()
+  const outrasPipelines = (funisData || []).filter(
+    (f: any) => f.id !== funilAtualId && !f.arquivado
+  )
+
+  // Etapas da pipeline selecionada
+  const { data: funilSelecionado } = useFunilComEtapas(selectedPipelineId)
+  const etapasPipelineSelecionada = funilSelecionado?.etapas?.filter(
+    (e: any) => e.tipo !== 'ganho' && e.tipo !== 'perda'
+  ) || []
+
+  // Reset selectedPipeline quando dropdown fecha
+  useEffect(() => {
+    if (!showMover) setSelectedPipelineId(null)
+  }, [showMover])
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -70,7 +93,7 @@ export function OportunidadeBulkActions({
     )
   }
 
-  // Etapas normais (sem ganho/perda) para mover em massa
+  // Etapas normais (sem ganho/perda) para mover em massa na pipeline atual
   const etapasMoviveis = etapas.filter(e => e.tipo !== 'ganho' && e.tipo !== 'perda')
 
   return (
@@ -103,20 +126,84 @@ export function OportunidadeBulkActions({
         </button>
 
         {showMover && (
-          <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 sm:left-0 sm:translate-x-0 w-52 bg-background rounded-lg shadow-lg border border-border py-1 z-50">
-            <div className="px-3 py-2 border-b border-border">
-              <p className="text-sm font-medium text-foreground">Mover para:</p>
-            </div>
-            {etapasMoviveis.map(etapa => (
-              <button
-                key={etapa.id}
-                onClick={() => { onMoverEtapa(etapa.id); setShowMover(false) }}
-                className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-foreground hover:bg-accent transition-colors"
-              >
-                <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: etapa.cor || '#6B7280' }} />
-                <span className="truncate">{etapa.nome}</span>
-              </button>
-            ))}
+          <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 sm:left-0 sm:translate-x-0 w-56 bg-background rounded-lg shadow-lg border border-border py-1 z-50 max-h-80 overflow-y-auto">
+            {/* Se nenhuma pipeline selecionada: mostrar lista principal */}
+            {!selectedPipelineId ? (
+              <>
+                <div className="px-3 py-2 border-b border-border">
+                  <p className="text-sm font-medium text-foreground">Mover para:</p>
+                </div>
+
+                {/* Seção: Pipeline atual */}
+                <div className="px-3 py-1.5">
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Pipeline atual</p>
+                </div>
+                {etapasMoviveis.map(etapa => (
+                  <button
+                    key={etapa.id}
+                    onClick={() => { onMoverEtapa(etapa.id); setShowMover(false) }}
+                    className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-foreground hover:bg-accent transition-colors"
+                  >
+                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: etapa.cor || '#6B7280' }} />
+                    <span className="truncate">{etapa.nome}</span>
+                  </button>
+                ))}
+
+                {/* Seção: Outra pipeline */}
+                {outrasPipelines.length > 0 && (
+                  <>
+                    <div className="border-t border-border mt-1 pt-1">
+                      <div className="px-3 py-1.5">
+                        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Outra pipeline</p>
+                      </div>
+                      {outrasPipelines.map((funil: any) => (
+                        <button
+                          key={funil.id}
+                          onClick={() => setSelectedPipelineId(funil.id)}
+                          className="flex items-center justify-between gap-2 w-full px-3 py-1.5 text-sm text-foreground hover:bg-accent transition-colors"
+                        >
+                          <span className="truncate">{funil.nome}</span>
+                          <ChevronRight className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </>
+            ) : (
+              /* Sub-tela: etapas da pipeline selecionada */
+              <>
+                <button
+                  onClick={() => setSelectedPipelineId(null)}
+                  className="flex items-center gap-1.5 w-full px-3 py-2 text-sm text-muted-foreground hover:bg-accent transition-colors border-b border-border"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <span>Voltar</span>
+                </button>
+                <div className="px-3 py-1.5">
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider truncate">
+                    {outrasPipelines.find((f: any) => f.id === selectedPipelineId)?.nome}
+                  </p>
+                </div>
+                {etapasPipelineSelecionada.length === 0 ? (
+                  <p className="px-3 py-3 text-xs text-muted-foreground text-center">Carregando...</p>
+                ) : (
+                  etapasPipelineSelecionada.map((etapa: any) => (
+                    <button
+                      key={etapa.id}
+                      onClick={() => {
+                        onMoverParaOutraPipeline(selectedPipelineId!, etapa.id)
+                        setShowMover(false)
+                      }}
+                      className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-foreground hover:bg-accent transition-colors"
+                    >
+                      <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: etapa.cor || '#6B7280' }} />
+                      <span className="truncate">{etapa.nome}</span>
+                    </button>
+                  ))
+                )}
+              </>
+            )}
           </div>
         )}
       </div>

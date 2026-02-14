@@ -1490,6 +1490,16 @@ export const negociosApi = {
     if (error) throw new Error(error.message)
   },
 
+  // Mover oportunidades em massa para outra pipeline (funil + etapa)
+  moverOportunidadesParaOutraPipeline: async (ids: string[], funilDestinoId: string, etapaDestinoId: string): Promise<void> => {
+    const { error } = await supabase
+      .from('oportunidades')
+      .update({ funil_id: funilDestinoId, etapa_id: etapaDestinoId } as any)
+      .in('id', ids)
+
+    if (error) throw new Error(error.message)
+  },
+
   // Contar oportunidades ativas de um funil
   contarOportunidadesFunil: async (funilId: string): Promise<number> => {
     const { count, error } = await supabase
