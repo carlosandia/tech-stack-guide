@@ -35,6 +35,19 @@ export function useCriarFunil() {
   })
 }
 
+export function useAtualizarFunil() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ funilId, nome }: { funilId: string; nome: string }) =>
+      negociosApi.atualizarFunil(funilId, { nome }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['funis'] })
+      queryClient.invalidateQueries({ queryKey: ['funil', variables.funilId] })
+    },
+  })
+}
+
 export function useArquivarFunil() {
   const queryClient = useQueryClient()
 

@@ -877,6 +877,16 @@ export const negociosApi = {
     if (error) throw new Error(error.message)
   },
 
+  // Atualizar nome do funil
+  atualizarFunil: async (funilId: string, payload: { nome: string }): Promise<void> => {
+    const { error } = await supabase
+      .from('funis')
+      .update({ nome: payload.nome, atualizado_em: new Date().toISOString() } as any)
+      .eq('id', funilId)
+
+    if (error) throw new Error(error.message)
+  },
+
   // Arquivar pipeline
   arquivarFunil: async (funilId: string): Promise<void> => {
     const { error } = await supabase
