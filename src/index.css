@@ -89,19 +89,24 @@
 
 /* Force visible scrollbar on Radix Select popovers */
 [data-radix-select-viewport] {
-  scrollbar-width: thin;
-  scrollbar-color: hsl(var(--muted-foreground) / 0.4) transparent;
+  overflow-y: scroll !important;
+  scrollbar-width: thin !important;
+  scrollbar-gutter: stable !important;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.35) hsl(var(--muted) / 0.4) !important;
 }
 
 [data-radix-select-viewport]::-webkit-scrollbar {
-  width: 6px;
+  width: 6px !important;
+  display: block !important;
 }
 
 [data-radix-select-viewport]::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted-foreground) / 0.4);
-  border-radius: 3px;
+  background: hsl(var(--muted-foreground) / 0.35) !important;
+  border-radius: 3px !important;
+  min-height: 30px !important;
 }
 
 [data-radix-select-viewport]::-webkit-scrollbar-track {
-  background: transparent;
+  background: hsl(var(--muted) / 0.4) !important;
+  border-radius: 3px !important;
 }
