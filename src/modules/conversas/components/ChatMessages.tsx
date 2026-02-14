@@ -49,15 +49,23 @@ function getParticipantColor(participant: string): string {
 function getParticipantDisplayName(msg: Mensagem): string {
   const rawData = msg.raw_data as Record<string, unknown> | null
   if (rawData) {
-    const pushName = (rawData._data as Record<string, unknown>)?.pushName as string
+    const _data = rawData._data as Record<string, unknown> | undefined
+    const pushName = _data?.pushName as string
       || rawData.notifyName as string
-      || (rawData._data as Record<string, unknown>)?.notifyName as string
+      || rawData.pushName as string
+      || _data?.notifyName as string
     if (pushName) return pushName
   }
   const participant = msg.participant || msg.from_number
   if (participant) {
-    const cleaned = participant.replace('@c.us', '').replace('@s.whatsapp.net', '')
-    return `+${cleaned}`
+    // AIDEV-NOTE: Limpar @lid, @c.us e @s.whatsapp.net para exibicao
+    const cleaned = participant
+      .replace('@c.us', '')
+      .replace('@s.whatsapp.net', '')
+      .replace('@lid', '')
+    // Se ainda parecer um numero, formatar com +
+    if (/^\d+$/.test(cleaned)) return `+${cleaned}`
+    return cleaned
   }
   return 'Desconhecido'
 }
