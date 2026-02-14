@@ -954,8 +954,7 @@ function RenderBotoes({
           !showFinalPreview && selectedStyleElement === 'botao' && 'outline outline-2 outline-dashed outline-primary outline-offset-2'
         )}
         style={estiloBotao ? { ...buttonStyle, width: '100%' } : undefined}
-        onClick={showFinalPreview ? undefined : (e) => { e.stopPropagation(); onSelectStyleElement?.('botao') }}
-        onDoubleClick={!showFinalPreview && onUpdateBotaoTexto ? (e) => { e.stopPropagation(); setEditingEnviar(true) } : undefined}
+        onClick={showFinalPreview ? undefined : (e) => { e.stopPropagation(); onSelectStyleElement?.('botao'); if (onUpdateBotaoTexto) setEditingEnviar(true) }}
       >
         {editingEnviar ? (
           <input
@@ -1017,8 +1016,7 @@ function RenderBotoes({
             ? `${estiloBotao.whatsapp_border_width} ${estiloBotao.whatsapp_border_style || 'solid'} ${estiloBotao.whatsapp_border_color || '#000000'}`
             : 'none',
         }}
-        onClick={showFinalPreview ? undefined : (e) => { e.stopPropagation(); onSelectStyleElement?.('botao_whatsapp') }}
-        onDoubleClick={!showFinalPreview && onUpdateBotaoTexto ? (e) => { e.stopPropagation(); setEditingWhatsApp(true) } : undefined}
+        onClick={showFinalPreview ? undefined : (e) => { e.stopPropagation(); onSelectStyleElement?.('botao_whatsapp'); if (onUpdateBotaoTexto) setEditingWhatsApp(true) }}
       >
         <WhatsAppIcon size={16} className="shrink-0" />
         {editingWhatsApp ? (
