@@ -4,13 +4,14 @@
  * Conecta ações de contexto: arquivar, fixar, marcar não lida, apagar
  */
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Plus, BarChart3 } from 'lucide-react'
 import { SelecionarPipelineModal } from '../components/SelecionarPipelineModal'
 import { NovaOportunidadeModal } from '@/modules/negocios/components/modals/NovaOportunidadeModal'
 import { useAppToolbar } from '@/modules/app/contexts/AppToolbarContext'
 import { useConversas, useArquivarConversa, useDesarquivarConversa, useFixarConversa, useMarcarNaoLida, useApagarConversa } from '../hooks/useConversas'
 import { useConversasRealtime } from '../hooks/useConversasRealtime'
+import { useLabels, useSincronizarLabels } from '../hooks/useWhatsAppLabels'
 import { ConversasList } from '../components/ConversasList'
 import { FiltrosConversas } from '../components/FiltrosConversas'
 import { ConversaEmpty } from '../components/ConversaEmpty'
@@ -56,6 +57,11 @@ export function ConversasPage() {
   } = useConversas(filtros)
   useConversasRealtime(conversaAtivaId)
 
+  // AIDEV-NOTE: Auto-sync labels do WhatsApp na montagem da página
+  const { data: allLabels = [], isLoading: loadingLabels } = useLabels()
+  const sincronizarLabels = useSincronizarLabels()
+  const labelsSyncRef = useRef(false)
+
   const arquivarConversa = useArquivarConversa()
   const desarquivarConversa = useDesarquivarConversa()
   const fixarConversa = useFixarConversa()
@@ -67,6 +73,28 @@ export function ConversasPage() {
     if (!data?.pages) return []
     return data.pages.flatMap((p) => p.conversas)
   }, [data])
+
+  // Auto-sync labels when page loads and labels are empty
+  useEffect(() => {
+    if (!loadingLabels && allLabels.length === 0 && !labelsSyncRef.current && conversas.length > 0) {
+      const whatsappConversa = conversas.find(c => c.canal === 'whatsapp' && c.sessao_whatsapp_id)
+      if (whatsappConversa) {
+        labelsSyncRef.current = true
+        import('@/lib/supabase').then(({ supabase }) => {
+          supabase
+            .from('sessoes_whatsapp')
+            .select('session_name')
+            .eq('id', whatsappConversa.sessao_whatsapp_id!)
+            .maybeSingle()
+            .then(({ data: sessao }) => {
+              if (sessao?.session_name) {
+                sincronizarLabels.mutate(sessao.session_name)
+              }
+            })
+        })
+      }
+    }
+  }, [loadingLabels, allLabels.length, conversas])
 
   const conversaAtiva = conversas.find((c) => c.id === conversaAtivaId) || null
 
