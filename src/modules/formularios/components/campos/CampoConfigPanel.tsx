@@ -625,13 +625,20 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className, hideHead
           <Select
             value={form.mapeamento_campo || 'nenhum'}
             onValueChange={(v) => {
-              if (v === '__criar_pessoa__') {
-                setCriarCampoEntidade('pessoa')
-                setShowCriarCampo(true)
-                return
-              }
-              if (v === '__criar_empresa__') {
-                setCriarCampoEntidade('empresa')
+              if (v === '__criar_pessoa__' || v === '__criar_empresa__') {
+                const ent = v === '__criar_pessoa__' ? 'pessoa' : 'empresa'
+                setCriarCampoEntidade(ent as 'pessoa' | 'empresa')
+                // Pré-preencher nome com o label do campo do formulário
+                setNovoCampoNome(form.label || '')
+                // Mapear tipo do formulário para tipo do campo customizado
+                const tipoMap: Record<string, string> = {
+                  texto: 'texto', textarea: 'texto_longo', numero: 'numero',
+                  email: 'email', telefone: 'telefone', telefone_br: 'telefone',
+                  data: 'data', data_hora: 'data_hora', url: 'url',
+                  selecao: 'select', selecao_multipla: 'multi_select',
+                  cpf: 'cpf', cnpj: 'cnpj', checkbox: 'booleano',
+                }
+                setNovoCampoTipo(tipoMap[campo.tipo] || 'texto')
                 setShowCriarCampo(true)
                 return
               }
