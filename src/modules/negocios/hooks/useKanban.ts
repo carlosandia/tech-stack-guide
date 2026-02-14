@@ -244,3 +244,16 @@ export function useMoverOportunidadesEmMassa() {
     },
   })
 }
+
+export function useMoverOportunidadesParaOutraPipeline() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ ids, funilDestinoId, etapaDestinoId }: { ids: string[]; funilDestinoId: string; etapaDestinoId: string }) =>
+      negociosApi.moverOportunidadesParaOutraPipeline(ids, funilDestinoId, etapaDestinoId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['kanban'] })
+      queryClient.invalidateQueries({ queryKey: ['funis'] })
+    },
+  })
+}

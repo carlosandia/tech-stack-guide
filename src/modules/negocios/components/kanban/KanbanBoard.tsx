@@ -14,7 +14,7 @@ import { KanbanColumn } from './KanbanColumn'
 import { SolicitacoesColumn } from './SolicitacoesColumn'
 import { OportunidadeBulkActions } from './OportunidadeBulkActions'
 import { toast } from 'sonner'
-import { useMoverEtapa, useExcluirOportunidadesEmMassa, useMoverOportunidadesEmMassa } from '../../hooks/useKanban'
+import { useMoverEtapa, useExcluirOportunidadesEmMassa, useMoverOportunidadesEmMassa, useMoverOportunidadesParaOutraPipeline } from '../../hooks/useKanban'
 import { useConfigCard } from '@/modules/configuracoes/hooks/useRegras'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
@@ -33,6 +33,7 @@ export function KanbanBoard({ data, isLoading, onDropGanhoPerda, onCardClick }: 
   const moverEtapa = useMoverEtapa()
   const excluirEmMassa = useExcluirOportunidadesEmMassa()
   const moverEmMassa = useMoverOportunidadesEmMassa()
+  const moverParaOutraPipeline = useMoverOportunidadesParaOutraPipeline()
   const reordenarEtapas = useReordenarEtapas(data?.funil?.id || '')
   const queryClient = useQueryClient()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -105,6 +106,16 @@ export function KanbanBoard({ data, isLoading, onDropGanhoPerda, onCardClick }: 
       onError: () => toast.error('Erro ao mover oportunidades'),
     })
   }, [selectedIdsArr, moverEmMassa, handleClearSelection])
+
+  const handleMoverParaOutraPipeline = useCallback((funilId: string, etapaId: string) => {
+    moverParaOutraPipeline.mutate({ ids: selectedIdsArr, funilDestinoId: funilId, etapaDestinoId: etapaId }, {
+      onSuccess: () => {
+        toast.success(`${selectedIdsArr.length} oportunidade(s) movida(s) para outra pipeline`)
+        handleClearSelection()
+      },
+      onError: () => toast.error('Erro ao mover oportunidades'),
+    })
+  }, [selectedIdsArr, moverParaOutraPipeline, handleClearSelection])
 
   const handleExportar = useCallback(() => {
     const allOps = data?.etapas?.flatMap(e => e.oportunidades) || []
@@ -329,12 +340,14 @@ export function KanbanBoard({ data, isLoading, onDropGanhoPerda, onCardClick }: 
         selectedIds={selectedIdsArr}
         contatoIds={contatoIds}
         etapas={data.etapas}
+        funilAtualId={data.funil.id}
         onExcluir={handleExcluir}
         onExportar={handleExportar}
         onMoverEtapa={handleMoverEtapa}
+        onMoverParaOutraPipeline={handleMoverParaOutraPipeline}
         onClearSelection={handleClearSelection}
         isDeleting={excluirEmMassa.isPending}
-        isMoving={moverEmMassa.isPending}
+        isMoving={moverEmMassa.isPending || moverParaOutraPipeline.isPending}
       />
     </>
   )
