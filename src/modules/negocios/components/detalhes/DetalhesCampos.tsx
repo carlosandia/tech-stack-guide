@@ -70,6 +70,8 @@ function getCampoIcon(tipo: string) {
     case 'booleano': return ToggleLeft
     case 'data': case 'data_hora': return Calendar
     case 'texto_longo': return FileText
+    case 'select': return ChevronDown
+    case 'multi_select': return Check
     default: return Type
   }
 }
@@ -687,6 +689,8 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
                 onEditChange={setEditValue}
                 onSave={() => handleSaveCampoCustom(campo, oportunidade.id, 'oportunidade', editValue)}
                 onCancel={() => setEditingField(null)}
+                campoTipo={campo.tipo}
+                opcoes={campo.opcoes}
                 inputType={campo.tipo === 'data' || campo.tipo === 'data_hora' ? 'date' : campo.tipo === 'numero' || campo.tipo === 'decimal' ? 'number' : campo.tipo === 'email' ? 'email' : 'text'}
               />
             )
@@ -775,6 +779,8 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
                   }
                 }}
                 onCancel={() => setEditingField(null)}
+                campoTipo={campo.tipo}
+                opcoes={campo.opcoes}
                 inputType={campo.tipo === 'data' || campo.tipo === 'data_hora' ? 'date' : campo.tipo === 'numero' || campo.tipo === 'decimal' ? 'number' : campo.tipo === 'email' ? 'email' : 'text'}
               />
             )
@@ -899,6 +905,8 @@ interface FieldRowProps {
   onSave: () => void
   onCancel: () => void
   inputType?: string
+  campoTipo?: string
+  opcoes?: any[] | null
   telefoneActions?: {
     telefone: string
     contatoNome?: string
@@ -910,10 +918,79 @@ interface FieldRowProps {
 function FieldRow({
   icon, label, value, placeholder, isEditing,
   onStartEdit, editValue, onEditChange, onSave, onCancel, inputType = 'text',
+  campoTipo, opcoes,
   telefoneActions, oportunidadeId,
 }: FieldRowProps) {
   const [ligacaoOpen, setLigacaoOpen] = useState(false)
   const [whatsappOpen, setWhatsappOpen] = useState(false)
+
+  const renderEditField = () => {
+    // Select (lista suspensa)
+    if (campoTipo === 'select' && opcoes && opcoes.length > 0) {
+      return (
+        <select
+          className="w-full text-sm bg-transparent border-0 border-b border-primary focus:ring-0 p-0 pb-0.5 text-foreground"
+          value={editValue}
+          onChange={(e) => { onEditChange(e.target.value); }}
+          onBlur={onSave}
+          autoFocus
+        >
+          <option value="">Selecione...</option>
+          {opcoes.map((opt, i) => (
+            <option key={i} value={String(opt)}>{String(opt)}</option>
+          ))}
+        </select>
+      )
+    }
+
+    // Multi-select (múltipla escolha)
+    if (campoTipo === 'multi_select' && opcoes && opcoes.length > 0) {
+      const selectedValues = editValue ? editValue.split(' | ').map(v => v.trim()).filter(Boolean) : []
+      const toggleOption = (opt: string) => {
+        const newSelected = selectedValues.includes(opt)
+          ? selectedValues.filter(v => v !== opt)
+          : [...selectedValues, opt]
+        onEditChange(newSelected.join(' | '))
+      }
+      return (
+        <div className="space-y-1 py-1">
+          {opcoes.map((opt, i) => {
+            const isActive = selectedValues.includes(String(opt))
+            return (
+              <button key={i} type="button" onClick={() => toggleOption(String(opt))} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-accent rounded px-1 py-0.5 transition-colors w-full text-left">
+                <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 ${
+                  isActive ? 'bg-primary border-primary' : 'border-input'
+                }`}>
+                  {isActive && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
+                </div>
+                <span className="text-foreground">{String(opt)}</span>
+              </button>
+            )
+          })}
+          <div className="flex gap-1 mt-1">
+            <button onClick={onSave} className="text-[10px] text-primary hover:underline">Salvar</button>
+            <button onClick={onCancel} className="text-[10px] text-muted-foreground hover:underline">Cancelar</button>
+          </div>
+        </div>
+      )
+    }
+
+    // Default: input
+    return (
+      <input
+        type={inputType}
+        className="w-full text-sm bg-transparent border-0 border-b border-primary focus:ring-0 p-0 pb-0.5 text-foreground"
+        value={editValue}
+        onChange={(e) => onEditChange(e.target.value)}
+        onBlur={onSave}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') onSave()
+          if (e.key === 'Escape') onCancel()
+        }}
+        autoFocus
+      />
+    )
+  }
 
   return (
     <>
@@ -921,20 +998,7 @@ function FieldRow({
         <div className="text-muted-foreground mt-1 flex-shrink-0">{icon}</div>
         <div className="flex-1 min-w-0">
           <p className="text-[11px] text-muted-foreground mb-0.5">{label}</p>
-          {isEditing ? (
-            <input
-              type={inputType}
-              className="w-full text-sm bg-transparent border-0 border-b border-primary focus:ring-0 p-0 pb-0.5 text-foreground"
-              value={editValue}
-              onChange={(e) => onEditChange(e.target.value)}
-              onBlur={onSave}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') onSave()
-                if (e.key === 'Escape') onCancel()
-              }}
-              autoFocus
-            />
-          ) : (
+          {isEditing ? renderEditField() : (
             <div className="flex items-center gap-1">
               <button
                 type="button"
