@@ -103,11 +103,12 @@ export function ConversasPage() {
 
   // AIDEV-NOTE: Polling de labels a cada 60s para compensar webhooks não confiáveis do WAHA
   useEffect(() => {
+    // AIDEV-NOTE: Polling leve a cada 60s (health check) - webhooks são o mecanismo principal
     const interval = setInterval(() => {
       if (sessionNameRef.current && !sincronizarLabels.isPending) {
         sincronizarLabels.mutate(sessionNameRef.current)
       }
-    }, 15000)
+    }, 60000)
     return () => clearInterval(interval)
   }, [sincronizarLabels])
 
@@ -122,13 +123,10 @@ export function ConversasPage() {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
   }, [sincronizarLabels])
 
-  // AIDEV-NOTE: Sync ao selecionar uma conversa para garantir etiquetas atualizadas
+  // AIDEV-NOTE: Selecionar conversa sem disparar sync - webhooks + realtime mantêm dados atualizados
   const handleSelectConversa = useCallback((id: string | null) => {
     setConversaAtivaId(id)
-    if (id && sessionNameRef.current && !sincronizarLabels.isPending) {
-      sincronizarLabels.mutate(sessionNameRef.current)
-    }
-  }, [sincronizarLabels])
+  }, [])
 
   const conversaAtiva = conversas.find((c) => c.id === conversaAtivaId) || null
 
