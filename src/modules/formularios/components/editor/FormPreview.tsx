@@ -257,10 +257,18 @@ export function FormPreview({
 
   // handleButtonClick removed - buttons now call onSelectStyleElement directly
 
+  // AIDEV-NOTE: Debounced drag index to prevent flickering when hovering near zone edges
+  const dragOverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastStableDragIndex = useRef<number | null>(null)
+
   const handleDragEnter = useCallback((e: React.DragEvent, index: number) => {
     e.preventDefault()
     e.stopPropagation()
     dragCounter.current[index] = (dragCounter.current[index] || 0) + 1
+
+    // Clear any pending timeout and set new index immediately
+    if (dragOverTimeout.current) clearTimeout(dragOverTimeout.current)
+    lastStableDragIndex.current = index
     setDragOverIndex(index)
   }, [])
 
@@ -275,13 +283,25 @@ export function FormPreview({
     dragCounter.current[index] = (dragCounter.current[index] || 0) - 1
     if (dragCounter.current[index] <= 0) {
       dragCounter.current[index] = 0
-      setDragOverIndex((prev) => (prev === index ? null : prev))
+      // Delay clearing to prevent flicker when moving between adjacent zones
+      if (dragOverTimeout.current) clearTimeout(dragOverTimeout.current)
+      dragOverTimeout.current = setTimeout(() => {
+        setDragOverIndex((prev) => (prev === index ? null : prev))
+      }, 80)
+    }
+  }, [])
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (dragOverTimeout.current) clearTimeout(dragOverTimeout.current)
     }
   }, [])
 
   const handleDrop = useCallback((e: React.DragEvent, index: number) => {
     e.preventDefault()
     e.stopPropagation()
+    if (dragOverTimeout.current) clearTimeout(dragOverTimeout.current)
     dragCounter.current = {}
     setDragOverIndex(null)
 
@@ -303,23 +323,42 @@ export function FormPreview({
       onDragOver={handleDragOver}
       onDragLeave={(e) => handleDragLeave(e, index)}
       onDrop={(e) => handleDrop(e, index)}
-      className={cn(
-        'transition-all rounded-md',
-        dragOverIndex === index
-          ? 'border-2 border-dashed border-primary bg-primary/5 py-4 text-center my-1'
-          : isEmpty
-            ? 'border-2 border-dashed border-border py-8 text-center'
-            : 'py-1',
-      )}
+      className="relative"
+      style={{ zIndex: dragOverIndex === index ? 10 : undefined }}
     >
-      {dragOverIndex === index && (
-        <p className="text-xs text-primary font-medium">Soltar aqui</p>
-      )}
-      {isEmpty && dragOverIndex !== index && (
-        <p className="text-sm text-muted-foreground">
-          Arraste campos da paleta para cá
-        </p>
-      )}
+      {/* Invisible hit area — tall enough for easy targeting, no layout shift */}
+      <div
+        className={cn(
+          'relative transition-all',
+          isEmpty
+            ? 'py-8'
+            : dragOverIndex === index
+              ? 'py-3'
+              : 'py-[6px]',
+        )}
+      >
+        {/* Active indicator line */}
+        {dragOverIndex === index && !isEmpty && (
+          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex items-center gap-2 px-2">
+            <div className="flex-1 h-[2px] bg-primary rounded-full" />
+            <span className="text-[10px] text-primary font-medium whitespace-nowrap px-1.5 py-0.5 bg-primary/10 rounded">
+              Soltar aqui
+            </span>
+            <div className="flex-1 h-[2px] bg-primary rounded-full" />
+          </div>
+        )}
+        {/* Empty state */}
+        {isEmpty && dragOverIndex !== index && (
+          <p className="text-sm text-muted-foreground text-center">
+            Arraste campos da paleta para cá
+          </p>
+        )}
+        {isEmpty && dragOverIndex === index && (
+          <div className="border-2 border-dashed border-primary bg-primary/5 rounded-md py-4 text-center">
+            <p className="text-xs text-primary font-medium">Soltar aqui</p>
+          </div>
+        )}
+      </div>
     </div>
   )
 
