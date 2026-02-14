@@ -1,48 +1,45 @@
 
 
-# Sincronizacao mais rapida de etiquetas WhatsApp -> CRM
+# Correção: Clique nas etiquetas não deve abrir sidebar de info do contato
 
-## O que sera feito
+## Problema
 
-Tres alteracoes no arquivo `src/modules/conversas/pages/ConversasPage.tsx`:
+No `ChatHeader.tsx`, a área de etiquetas (`LabelsPopover`) está renderizada **dentro** de um `<button onClick={onOpenDrawer}>` que engloba todo o avatar + nome + etiquetas (linhas 197-248). Quando o usuário clica nas etiquetas, o evento de clique "sobe" (bubble) até o botão pai, abrindo o sidebar de info do contato ao mesmo tempo.
 
-### 1. Reduzir polling de 60s para 15s
-Linha 110: alterar `60000` para `15000`. Isso reduz a espera maxima de 1 minuto para 15 segundos.
+## Solução
 
-### 2. Sync imediato ao voltar para a aba
-Adicionar um novo `useEffect` logo apos o polling que escuta o evento `visibilitychange` do navegador. Quando o usuario volta para a aba do CRM, dispara `sincronizarLabels.mutate()` imediatamente.
+Separar a estrutura do header em duas partes clicáveis independentes:
 
-### 3. Sync ao clicar em uma conversa
-Adicionar logica no `setConversaAtivaId` para disparar sync de labels quando o usuario seleciona uma conversa, garantindo que as etiquetas estejam atualizadas ao abrir o chat.
+1. **Avatar + Nome + Ícone do canal** -- continua abrindo o drawer (onClick={onOpenDrawer})
+2. **Linha de etiquetas** -- fica fora do botão, não propaga clique para o drawer
 
-## Detalhes tecnicos
+### Alteração no arquivo `src/modules/conversas/components/ChatHeader.tsx`
 
-**Arquivo:** `src/modules/conversas/pages/ConversasPage.tsx`
+Reestruturar o bloco do botão (linhas 197-248) para que:
+- O `<button onClick={onOpenDrawer}>` contenha apenas o avatar, nome e ícone do canal
+- A linha de etiquetas (`<p>` com `LabelsPopover`) fique **fora** do botão, como um elemento irmão
 
-Alteracao 1 - Linha 110:
-```typescript
-// De:
-}, 60000)
-// Para:
-}, 15000)
+```
+Antes (simplificado):
+<button onClick={onOpenDrawer}>        <-- abre drawer
+  <Avatar />
+  <div>
+    <Nome + Ícone Canal />
+    <Etiquetas / LabelsPopover />       <-- clique sobe pro button
+  </div>
+</button>
+
+Depois (simplificado):
+<div className="flex items-center gap-2">
+  <button onClick={onOpenDrawer}>      <-- abre drawer
+    <Avatar />
+    <div>
+      <Nome + Ícone Canal />
+    </div>
+  </button>
+  <Etiquetas / LabelsPopover />         <-- independente, não abre drawer
+</div>
 ```
 
-Alteracao 2 - Novo useEffect apos linha 112:
-```typescript
-useEffect(() => {
-  const handleVisibilityChange = () => {
-    if (document.visibilityState === 'visible' && sessionNameRef.current && !sincronizarLabels.isPending) {
-      sincronizarLabels.mutate(sessionNameRef.current)
-    }
-  }
-  document.addEventListener('visibilitychange', handleVisibilityChange)
-  return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
-}, [sincronizarLabels])
-```
-
-## Resultado esperado
-
-- Demora maxima para ver etiqueta alterada no dispositivo: **15 segundos** (antes era 60s)
-- Ao alternar de aba e voltar ao CRM: **atualizacao imediata**
-- Nenhum impacto em performance (a chamada WAHA e leve)
+Nenhum outro arquivo precisa ser alterado. A correção é pontual e não afeta o restante do comportamento do header.
 
