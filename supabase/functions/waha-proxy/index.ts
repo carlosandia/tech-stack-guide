@@ -1410,7 +1410,12 @@ Deno.serve(async (req) => {
               
               if (delErr) console.error(`[waha-proxy] Error deleting old associations:`, delErr.message);
 
-              const allNewRows: Array<{ organizacao_id: string; conversa_id: string; label_id: string }> = [];
+              // AIDEV-NOTE: Track source of each association (@lid vs @c.us)
+              // When a conversa has labels from BOTH @lid and @c.us sources, 
+              // prefer @lid data (current WAHA format) over @c.us (potentially stale)
+              interface LabelRow { organizacao_id: string; conversa_id: string; label_id: string; source: 'lid' | 'cus' }
+              const allNewRows: LabelRow[] = [];
+              const conversasWithLidLabels = new Set<string>(); // conversaIds that got labels via @lid
 
               // For each label, get its associated chats
               for (const dbLabel of dbLabels) {
@@ -1425,7 +1430,6 @@ Deno.serve(async (req) => {
                     let chatsForLabel: unknown;
                     try { chatsForLabel = JSON.parse(rawBody); } catch { chatsForLabel = []; }
 
-                    // AIDEV-NOTE: Response can be array of chat objects {id, name} or array of chat IDs
                     let chatIds: string[] = [];
                     if (Array.isArray(chatsForLabel)) {
                       chatIds = chatsForLabel.map((c: unknown) => {
@@ -1444,10 +1448,11 @@ Deno.serve(async (req) => {
 
                     for (const chatId of chatIds) {
                       let conversaId = chatIdToConversaId.get(chatId);
+                      let source: 'lid' | 'cus' = 'cus';
                       
-                      // AIDEV-NOTE: Resolver @lid para conversa via RPC quando chatId não faz match direto
-                      // WAHA GOWS retorna @lid para algumas labels, mas conversas armazenam @c.us
+                      // AIDEV-NOTE: Resolver @lid para conversa via RPC
                       if (!conversaId && chatId.endsWith('@lid')) {
+                        source = 'lid';
                         const lidNumber = chatId.replace('@lid', '');
                         try {
                           const { data: resolvedRows } = await supabaseAdmin
@@ -1456,7 +1461,6 @@ Deno.serve(async (req) => {
                             conversaId = resolvedRows[0].conversa_id;
                             console.log(`[waha-proxy] Resolved @lid ${lidNumber} → conversa ${conversaId}`);
                           } else {
-                            // Fallback: try matching by phone number substring in chat_id
                             for (const [cId, cDbId] of chatIdToConversaId.entries()) {
                               if (cId.includes(lidNumber.slice(-8))) {
                                 conversaId = cDbId;
@@ -1471,10 +1475,14 @@ Deno.serve(async (req) => {
                       }
                       
                       if (conversaId) {
+                        if (source === 'lid') {
+                          conversasWithLidLabels.add(conversaId);
+                        }
                         allNewRows.push({
                           organizacao_id: organizacaoId,
                           conversa_id: conversaId,
                           label_id: dbLabel.id,
+                          source,
                         });
                       }
                     }
@@ -1487,19 +1495,35 @@ Deno.serve(async (req) => {
                 }
               }
 
+              // AIDEV-NOTE: Filtrar associações stale do @c.us
+              // Se uma conversa tem labels via @lid (formato atual), descartar labels que vieram
+              // apenas via @c.us (formato antigo/stale) para essa mesma conversa
+              const filteredRows = allNewRows.filter(row => {
+                if (row.source === 'cus' && conversasWithLidLabels.has(row.conversa_id)) {
+                  console.log(`[waha-proxy] Discarding stale @c.us label for conversa ${row.conversa_id}, label ${row.label_id}`);
+                  return false;
+                }
+                return true;
+              });
+
               // Dedup + insert
               const uniqueKeys = new Set<string>();
-              const dedupedRows = allNewRows.filter(row => {
+              const dedupedRows = filteredRows.filter(row => {
                 const key = `${row.conversa_id}:${row.label_id}`;
                 if (uniqueKeys.has(key)) return false;
                 uniqueKeys.add(key);
                 return true;
               });
 
-              if (dedupedRows.length > 0) {
+              // Strip 'source' field before inserting — not a DB column
+              const insertRows = dedupedRows.map(({ organizacao_id, conversa_id, label_id }) => ({
+                organizacao_id, conversa_id, label_id,
+              }));
+
+              if (insertRows.length > 0) {
                 const { error: insertErr } = await supabaseAdmin
                   .from("conversas_labels")
-                  .upsert(dedupedRows, { onConflict: "conversa_id,label_id" });
+                  .upsert(insertRows, { onConflict: "conversa_id,label_id" });
                 if (insertErr) {
                   console.error(`[waha-proxy] Error inserting label associations:`, insertErr.message);
                 }
