@@ -1,87 +1,49 @@
 
+# Correção: Rodízio SLA redistribuindo infinitamente
 
-# Salvar Configuracao de Colunas no Banco de Dados
+## Problema Raiz
 
-## Resumo
+A edge function `processar-sla/index.ts` insere registros na tabela `historico_distribuicao` usando nomes de colunas **incorretos**:
 
-Adicionar um botao "Salvar Colunas" acima do "Restaurar Padrao" no popover de colunas. Ao clicar, a configuracao atual de colunas visiveis sera persistida no banco (por usuario + tipo de contato), e ao carregar a pagina, o sistema buscara essa configuracao salva ao inves de usar apenas o localStorage.
+- Usa `usuario_origem_id` mas a coluna real é `usuario_anterior_id`
+- Usa `usuario_destino_id` mas a coluna real é `usuario_novo_id`
+- Usa `funil_id` mas essa coluna **não existe** na tabela
 
-## Etapas
+Como o insert falha silenciosamente (sem try/catch nesse trecho), o contador de redistribuições por SLA (`count where motivo='sla'`) retorna sempre 0. Resultado: o limite de 3 redistribuições nunca é atingido e o rodízio continua para sempre.
 
-### 1. Criar tabela no banco de dados
+Evidência do audit_log: a oportunidade "Regiane - #1" foi redistribuída **dezenas de vezes** desde as 02:30 do dia 13/02, alternando entre os 2 vendedores a cada 30 minutos.
 
-Criar a tabela `preferencias_colunas_contatos` com a seguinte estrutura:
+**Nota importante:** O sistema NÃO está criando novas oportunidades. As oportunidades "Teste - #2" e "Teste - #3" foram criadas manualmente. O bug real é que o rodízio nunca para de redistribuir a mesma oportunidade.
 
-- `id` (uuid, PK, default gen_random_uuid())
-- `usuario_id` (uuid, FK para usuarios.id, NOT NULL)
-- `tipo` (varchar, 'pessoa' ou 'empresa', NOT NULL)
-- `colunas` (jsonb, NOT NULL) -- array de ColumnConfig
-- `criado_em` (timestamptz, default now())
-- `atualizado_em` (timestamptz, default now())
-- Constraint UNIQUE em (usuario_id, tipo)
-- RLS habilitado: usuario so acessa seus proprios registros
+## Correção
 
-### 2. Criar service de preferencias
+### Arquivo: `supabase/functions/processar-sla/index.ts` (linhas 204-211)
 
-Novo arquivo `src/modules/contatos/services/preferenciasColunasContatos.ts`:
+Corrigir os nomes das colunas no insert do historico_distribuicao:
 
-- `salvarPreferenciaColunas(tipo, colunas)` -- upsert via Supabase
-- `buscarPreferenciaColunas(tipo)` -- select por usuario logado e tipo
-
-### 3. Criar hook `usePreferenciaColunas`
-
-Novo arquivo `src/modules/contatos/hooks/usePreferenciaColunas.ts`:
-
-- Usa `useQuery` para buscar preferencia salva no banco
-- Usa `useMutation` para salvar/atualizar
-- Integra com `useAuth` para pegar o `user.id`
-
-### 4. Alterar `ContatoColumnsToggle.tsx`
-
-- Adicionar botao "Salvar Colunas" acima do "Restaurar Padrao"
-- Botao chama a mutation de salvar
-- Exibir toast de confirmacao ao salvar com sucesso
-
-### 5. Alterar `ContatosPage.tsx`
-
-- Usar o hook `usePreferenciaColunas` para carregar colunas salvas no banco ao inicializar
-- Prioridade: banco > localStorage > default
-
----
-
-## Detalhes Tecnicos
-
-### Migracao SQL
-
-```sql
-CREATE TABLE preferencias_colunas_contatos (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  usuario_id uuid NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
-  tipo varchar(20) NOT NULL CHECK (tipo IN ('pessoa', 'empresa')),
-  colunas jsonb NOT NULL,
-  criado_em timestamptz DEFAULT now(),
-  atualizado_em timestamptz DEFAULT now(),
-  UNIQUE(usuario_id, tipo)
-);
-
-ALTER TABLE preferencias_colunas_contatos ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Usuarios acessam suas proprias preferencias"
-  ON preferencias_colunas_contatos
-  FOR ALL
-  USING (usuario_id = (SELECT id FROM usuarios WHERE auth_id = auth.uid()))
-  WITH CHECK (usuario_id = (SELECT id FROM usuarios WHERE auth_id = auth.uid()));
+De:
+```typescript
+await supabase.from('historico_distribuicao').insert({
+  organizacao_id: config.organizacao_id,
+  oportunidade_id: op.id,
+  funil_id: config.funil_id,          // coluna inexistente
+  usuario_origem_id: responsavelAtual, // nome errado
+  usuario_destino_id: proximoUsuarioId, // nome errado
+  motivo: 'sla',
+})
 ```
 
-### Botao no popover
+Para:
+```typescript
+await supabase.from('historico_distribuicao').insert({
+  organizacao_id: config.organizacao_id,
+  oportunidade_id: op.id,
+  usuario_anterior_id: responsavelAtual,
+  usuario_novo_id: proximoUsuarioId,
+  motivo: 'sla',
+})
+```
 
-O botao "Salvar Colunas" sera estilizado como botao primario (text-primary, hover:underline) posicionado logo acima do "Restaurar Padrao", separado por borda superior, seguindo o design system.
+### Após o deploy
 
-### Fluxo
-
-1. Usuario abre popover de colunas
-2. Marca/desmarca colunas (funciona como hoje via localStorage)
-3. Clica em "Salvar Colunas" para persistir no banco
-4. Toast: "Configuracao de colunas salva com sucesso"
-5. Proximo acesso: sistema carrega do banco automaticamente
-
+O historico_distribuicao passará a registrar corretamente cada redistribuição por SLA. Quando o contador atingir o limite configurado (3), o rodízio parará conforme esperado, aplicando a ação configurada ("Manter com último vendedor").
