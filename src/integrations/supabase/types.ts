@@ -5934,6 +5934,41 @@ export type Database = {
           },
         ]
       }
+      preferencias_colunas_contatos: {
+        Row: {
+          atualizado_em: string | null
+          colunas: Json
+          criado_em: string | null
+          id: string
+          tipo: string
+          usuario_id: string
+        }
+        Insert: {
+          atualizado_em?: string | null
+          colunas: Json
+          criado_em?: string | null
+          id?: string
+          tipo: string
+          usuario_id: string
+        }
+        Update: {
+          atualizado_em?: string | null
+          colunas?: Json
+          criado_em?: string | null
+          id?: string
+          tipo?: string
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "preferencias_colunas_contatos_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       preferencias_metricas: {
         Row: {
           atualizado_em: string

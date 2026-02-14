@@ -23,7 +23,8 @@ import { SegmentosManager } from '../components/SegmentosManager'
 import { DuplicatasModal } from '../components/DuplicatasModal'
 import { ImportarContatosModal } from '../components/ImportarContatosModal'
 import { ExportarContatosModal } from '../components/ExportarContatosModal'
-import { ContatoColumnsToggle, getInitialColumns, type ColumnConfig } from '../components/ContatoColumnsToggle'
+import { ContatoColumnsToggle, getInitialColumns, getDefaultColumns, type ColumnConfig } from '../components/ContatoColumnsToggle'
+import { usePreferenciaColunas } from '../hooks/usePreferenciaColunas'
 import { MobileOverflowMenu } from '../components/MobileOverflowMenu'
 import { useFunis } from '@/modules/negocios/hooks/useFunis'
 import { NovaOportunidadeModal } from '@/modules/negocios/components/modals/NovaOportunidadeModal'
@@ -93,8 +94,28 @@ export function ContatosPage() {
   const [showNovaOportunidadeModal, setShowNovaOportunidadeModal] = useState(false)
 
   const { data: funisData } = useFunis()
-  // Toggle de colunas
+  // Toggle de colunas + preferências do banco
+  const { colunaSalva, isLoading: isLoadingPrefs, salvar: salvarColunas, isSaving } = usePreferenciaColunas(tipo)
   const [columns, setColumns] = useState<ColumnConfig[]>(() => getInitialColumns(tipo))
+
+  // Carregar colunas do banco quando disponíveis (prioridade: banco > localStorage > default)
+  const prefsLoadedRef = useRef(false)
+  useEffect(() => {
+    if (isLoadingPrefs || prefsLoadedRef.current) return
+    if (colunaSalva && colunaSalva.length > 0) {
+      // Merge com defaults para garantir colunas fixas e novas
+      const defaults = getDefaultColumns(tipo)
+      const savedKeys = new Set(colunaSalva.map((c: ColumnConfig) => c.key))
+      const missing = defaults.filter(d => !savedKeys.has(d.key))
+      const merged = [...colunaSalva, ...missing].map((c: ColumnConfig) => {
+        const defaultCol = defaults.find(d => d.key === c.key)
+        if (defaultCol?.fixed) return { ...c, fixed: true, visible: true, group: 'fixed' as const }
+        return c
+      })
+      setColumns(merged)
+      prefsLoadedRef.current = true
+    }
+  }, [colunaSalva, isLoadingPrefs, tipo])
 
   // Segmentos para filtro
   const { data: segmentosData } = useSegmentos()
@@ -182,6 +203,7 @@ export function ContatosPage() {
     setSelectedIds(new Set())
     setPage(1)
     setColumns(getInitialColumns(tipo))
+    prefsLoadedRef.current = false
     setResponsavelFilter('')
     setDataInicioFilter('')
     setDataFimFilter('')
@@ -329,7 +351,7 @@ export function ContatosPage() {
           )}
 
           {/* Colunas */}
-          <ContatoColumnsToggle tipo={tipo} columns={columns} onChange={setColumns} />
+          <ContatoColumnsToggle tipo={tipo} columns={columns} onChange={setColumns} onSave={salvarColunas} isSaving={isSaving} />
 
           {/* Separador */}
           <div className="w-px h-5 bg-border mx-0.5" />
