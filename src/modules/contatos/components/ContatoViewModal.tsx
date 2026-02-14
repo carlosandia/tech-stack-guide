@@ -9,12 +9,15 @@
  */
 
 import { useEffect, useRef, useId, useState, useCallback } from 'react'
-import { X, Pencil, Trash2, Building2, User, Briefcase } from 'lucide-react'
+import { X, Pencil, Trash2, Building2, User, Briefcase, DollarSign, Calendar, Loader2 } from 'lucide-react'
 import { SegmentoBadge } from './SegmentoBadge'
 import { ContatoViewFieldsToggle, isViewFieldVisible } from './ContatoViewFieldsToggle'
 import type { Contato } from '../services/contatos.api'
 import { StatusContatoOptions, OrigemContatoOptions } from '../schemas/contatos.schema'
 import { useCamposConfig } from '../hooks/useCamposConfig'
+import { useCampos } from '@/modules/configuracoes/hooks/useCampos'
+import { useQuery } from '@tanstack/react-query'
+import { supabase } from '@/lib/supabase'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
@@ -37,6 +40,63 @@ export function ContatoViewModal({ open, onClose, contato, onEdit, onDelete }: C
   const handleVisibilityChange = useCallback(() => {
     setRefreshKey(k => k + 1)
   }, [])
+
+  // Campos customizados dinâmicos
+  const { data: camposData } = useCampos(contatoTipo as 'pessoa' | 'empresa')
+  const camposCustom = (camposData?.campos || []).filter((c: any) => !c.sistema && c.ativo !== false)
+
+  // Valores dos campos customizados
+  const { data: valoresCustom } = useQuery({
+    queryKey: ['valores-custom-contato-view', contato?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('valores_campos_customizados')
+        .select('campo_id, valor_texto, valor_numero, valor_data, valor_booleano, valor_json')
+        .eq('entidade_tipo', contatoTipo)
+        .eq('entidade_id', contato!.id)
+      return data || []
+    },
+    enabled: !!contato?.id && open,
+  })
+
+  // Oportunidades vinculadas para o histórico
+  const { data: oportunidades, isLoading: loadingOps } = useQuery({
+    queryKey: ['oportunidades-contato', contato?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('oportunidades')
+        .select(`
+          id, titulo, valor, criado_em, fechado_em, motivo_resultado_id,
+          etapa:etapas_funil!oportunidades_etapa_id_fkey(id, nome, cor, tipo),
+          funil:funis!oportunidades_funil_id_fkey(id, nome),
+          responsavel:usuarios!oportunidades_usuario_responsavel_id_fkey(id, nome, sobrenome)
+        `)
+        .eq('contato_id', contato!.id)
+        .is('deletado_em', null)
+        .order('criado_em', { ascending: false })
+      return data || []
+    },
+    enabled: !!contato?.id && open && activeTab === 'historico',
+  })
+
+  function getCustomDisplayValue(campoId: string): string | null {
+    if (!valoresCustom) return null
+    const v = valoresCustom.find((x: any) => x.campo_id === campoId)
+    if (!v) return null
+    if (v.valor_json && Array.isArray(v.valor_json)) {
+      return (v.valor_json as string[]).join(', ')
+    }
+    if (v.valor_texto && v.valor_texto.includes('|')) {
+      return v.valor_texto.split('|').map((s: string) => s.trim()).filter(Boolean).join(', ')
+    }
+    if (v.valor_texto != null) return v.valor_texto
+    if (v.valor_numero != null) return v.valor_numero.toString()
+    if (v.valor_data != null) {
+      try { return format(new Date(v.valor_data), 'dd/MM/yyyy') } catch { return v.valor_data }
+    }
+    if (v.valor_booleano != null) return v.valor_booleano ? 'Sim' : 'Não'
+    return null
+  }
 
   // ESC to close + focus trap
   useEffect(() => {
@@ -96,6 +156,13 @@ export function ContatoViewModal({ open, onClose, contato, onEdit, onDelete }: C
   const atualizadoEm = contato.atualizado_em
     ? format(new Date(contato.atualizado_em), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
     : null
+
+  // Helper: derivar status da oportunidade
+  function getOpStatus(op: any): { label: string; color: string } {
+    if (op.fechado_em && !op.motivo_resultado_id) return { label: 'Ganha', color: 'bg-green-100 text-green-700' }
+    if (op.fechado_em && op.motivo_resultado_id) return { label: 'Perdida', color: 'bg-red-100 text-red-700' }
+    return { label: 'Aberta', color: 'bg-blue-100 text-blue-700' }
+  }
 
   return (
     <>
@@ -184,7 +251,7 @@ export function ContatoViewModal({ open, onClose, contato, onEdit, onDelete }: C
                   </div>
                 )}
 
-                {/* Campos do contato */}
+                {/* Campos do contato (sistema) */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {isPessoa ? (
                     <>
@@ -211,6 +278,15 @@ export function ContatoViewModal({ open, onClose, contato, onEdit, onDelete }: C
                   )}
                   {isVisible('status', true) && <Field label="Status" value={statusLabel} />}
                   {isVisible('origem') && <Field label="Origem" value={origemLabel} />}
+
+                  {/* Campos customizados dinâmicos */}
+                  {camposCustom.map((campo: any) => (
+                    <Field
+                      key={campo.id}
+                      label={campo.nome}
+                      value={getCustomDisplayValue(campo.id)}
+                    />
+                  ))}
                 </div>
 
                 {isVisible('observacoes') && contato.observacoes && (
@@ -247,16 +323,69 @@ export function ContatoViewModal({ open, onClose, contato, onEdit, onDelete }: C
             )}
 
             {activeTab === 'historico' && (
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <Briefcase className="w-10 h-10 text-muted-foreground/40 mb-3" />
-                <p className="text-sm text-muted-foreground">
-                  {contato.total_oportunidades
-                    ? `${contato.total_oportunidades} oportunidade(s) vinculada(s)`
-                    : 'Nenhuma oportunidade vinculada'}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  O histórico completo estará disponível no módulo de Negócios.
-                </p>
+              <div>
+                {loadingOps ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                  </div>
+                ) : !oportunidades || oportunidades.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <Briefcase className="w-10 h-10 text-muted-foreground/40 mb-3" />
+                    <p className="text-sm text-muted-foreground">Nenhuma oportunidade vinculada</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {oportunidades.map((op: any) => {
+                      const status = getOpStatus(op)
+                      const etapa = op.etapa as any
+                      const funil = op.funil as any
+                      const resp = op.responsavel as any
+                      return (
+                        <div key={op.id} className="border border-border rounded-lg p-4 hover:bg-accent/30 transition-colors">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <h4 className="text-sm font-semibold text-foreground truncate">{op.titulo}</h4>
+                                <span className={`inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-semibold flex-shrink-0 ${status.color}`}>
+                                  {status.label}
+                                </span>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                                {funil && (
+                                  <span>{funil.nome}</span>
+                                )}
+                                {etapa && (
+                                  <span className="flex items-center gap-1">
+                                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: etapa.cor || '#6B7280' }} />
+                                    {etapa.nome}
+                                  </span>
+                                )}
+                                {resp && (
+                                  <span className="flex items-center gap-1">
+                                    <User className="w-3 h-3" />
+                                    {resp.nome} {resp.sobrenome || ''}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="text-right flex-shrink-0">
+                              {op.valor != null && (
+                                <div className="flex items-center gap-1 text-sm font-semibold text-foreground">
+                                  <DollarSign className="w-3.5 h-3.5 text-[hsl(var(--success))]" />
+                                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(op.valor)}
+                                </div>
+                              )}
+                              <div className="flex items-center gap-1 text-[10px] text-muted-foreground mt-0.5">
+                                <Calendar className="w-3 h-3" />
+                                {format(new Date(op.criado_em), 'dd/MM/yyyy')}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -284,7 +413,7 @@ function Field({ label, value, isLink }: { label: string; value?: string | null;
             {value}
           </a>
         ) : (
-          <p className="text-sm text-foreground">{value}</p>
+          <p className="text-sm text-foreground break-words">{value}</p>
         )
       ) : (
         <p className="text-sm text-muted-foreground/50">—</p>
