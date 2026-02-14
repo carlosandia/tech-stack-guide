@@ -1,83 +1,50 @@
 
-# Script Embed Dinamico para Formularios
 
-## Problema Atual
-Os formularios sao embedados via **iframe**, o que causa:
-- Redirecionamento preso dentro do container (nao redireciona a pagina toda)
-- Problemas de CORS/RLS no envio
-- Nao e o padrao de mercado para CRMs (HubSpot, RD Station usam script)
+# Correcao: Icone (i) informativo no widget embed
+
+## Problema
+No preview do editor, o campo `texto_ajuda` (Instrucao para o Usuario) aparece como um icone (i) circular ao lado do label, com tooltip ao passar o mouse. No site final (widget embed servido pela Edge Function), o mesmo campo aparece como texto puro abaixo do input -- fora do padrao visual.
 
 ## Solucao
-Criar um script embed dinamico (igual ao widget WhatsApp) que:
-1. Faz fetch da configuracao do formulario via Edge Function publica
-2. Renderiza o formulario diretamente no DOM do site
-3. Envia dados via Edge Function existente (`processar-submissao-formulario`)
-4. Qualquer alteracao no formulario reflete automaticamente sem trocar o script
+Alterar o arquivo `supabase/functions/widget-formulario-loader/index.ts` para renderizar `texto_ajuda` como um icone SVG (i) inline ao lado do label com `title` tooltip, igual ao preview.
 
-## Arquitetura
+## O que muda
 
-O script gerado sera algo como:
+### Arquivo: `supabase/functions/widget-formulario-loader/index.ts`
+
+**1. Alterar a renderizacao do label (linha 78)**
+
+Onde hoje cria apenas o texto do label, passar a incluir o icone (i) quando `c.texto_ajuda` existir:
+
 ```text
-<script data-form-slug="meu-formulario" 
-  src="https://ybzhlsalbnxwkfszkloa.supabase.co/functions/v1/widget-formulario?slug=meu-formulario">
-</script>
+Antes:
+label.textContent = c.label + (c.obrigatorio ? ' *' : '')
+
+Depois:
+label.style.cssText = labelCss + ';display:flex;align-items:center;gap:4px'
+label.innerHTML = c.label + (c.obrigatorio ? ' <span style="color:#EF4444">*</span>' : '')
++ (c.texto_ajuda
+    ? '<span title="' + c.texto_ajuda + '" style="cursor:help;display:inline-flex">'
+      + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>'
+      + '</span>'
+    : '')
 ```
 
-Ou um loader inline que faz fetch e renderiza.
+**2. Remover os blocos de texto_ajuda como span abaixo do campo**
 
-## Etapas de Implementacao
+Em 4 locais do codigo, o `texto_ajuda` e renderizado como texto abaixo do campo. Esses blocos serao removidos:
 
-### 1. Nova Edge Function: `widget-formulario-config`
-- Rota publica (sem auth)
-- Recebe `?slug=xxx` como parametro
-- Retorna: dados do formulario, campos, estilos, config de botoes, config pos-envio, LGPD
-- Usa `service_role` para ler dados
+- Linha 85 (telefone internacional) -- remover bloco `if(c.texto_ajuda){...}`
+- Linha 88 (telefone BR) -- remover bloco `if(c.texto_ajuda){...}`
+- Linha 97 (checkbox) -- remover bloco `if(c.texto_ajuda){...}`
+- Linha 125 (fallback geral) -- remover bloco `if(c.texto_ajuda){...}`
 
-### 2. Atualizar `generateEmbedCode` em `EmbedCodeCard.tsx`
-- Substituir os 3 tipos de embed (inline, modal, sidebar) de iframe para script dinamico
-- **Inline**: script que renderiza o formulario num `div` no local onde o script e inserido
-- **Modal**: script que cria um botao e ao clicar abre o formulario como overlay
-- **Sidebar**: script que cria painel lateral com o formulario
-- O script faz fetch para `widget-formulario-config`, monta os campos, labels, mascaras e estilos
-- Submit envia para `processar-submissao-formulario` (edge function existente)
-- Pos-envio: mostra mensagem de sucesso OU faz `window.location.href` (redireciona a pagina toda)
+**3. Corrigir labels de checkbox/checkbox_termos**
 
-### 3. Logica do Script Embed
-O script gerado tera:
-- Fetch da config do formulario (campos, estilos, validacoes, LGPD)
-- Renderizacao dos campos com tipos corretos (text, email, tel, number, etc.)
-- Mascaras para telefone, CPF, CNPJ, CEP
-- Validacao de campos obrigatorios
-- Checkbox LGPD quando ativo
-- Envio via fetch para a edge function de submissao
-- Mensagem de sucesso ou redirecionamento real da pagina
-- Captura de UTMs da URL atual do site
+Os tipos `checkbox` e `checkbox_termos` pulam a criacao do label padrao (linha 78). Para esses, o icone (i) sera adicionado inline ao lado do texto do checkbox, usando a mesma logica de SVG + title.
 
-### 4. Manter iframe como opcao alternativa
-- Adicionar uma 4a opcao "iframe" para quem preferir o metodo tradicional
-- Os 3 tipos principais (inline, modal, sidebar) usarao script dinamico
-
-## Detalhes Tecnicos
-
-### Edge Function `widget-formulario-config`
-```text
-GET /widget-formulario-config?slug=meu-formulario
-
-Response:
-{
-  formulario: { id, nome, descricao, config_botoes, config_pos_envio, lgpd_* },
-  campos: [{ id, nome, label, tipo, obrigatorio, placeholder, ordem, ... }],
-  estilos: { container, campos, botao, cabecalho }
-}
-```
-
-### Arquivos a criar/modificar:
-1. **Criar**: `supabase/functions/widget-formulario-config/index.ts` - Edge function publica
-2. **Modificar**: `src/modules/formularios/components/compartilhar/EmbedCodeCard.tsx` - Gerar script dinamico ao inves de iframe
-3. **Modificar**: `supabase/config.toml` - Adicionar `verify_jwt = false` para a nova function
-
-### Seguranca
-- A edge function retorna apenas dados publicos (config visual, campos, labels)
-- Nao expoe dados de submissoes ou dados internos
-- O envio usa a edge function existente que ja tem validacao propria
-- O slug e publico por natureza (ja esta na URL do formulario)
+### Resultado final
+- O icone (i) aparecera ao lado do label, identico ao preview
+- Ao passar o mouse, o texto de instrucao aparece como tooltip nativo
+- Sem texto solto abaixo do campo
+- Apos edicao, deploy da Edge Function `widget-formulario-loader`
