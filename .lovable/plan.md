@@ -1,63 +1,48 @@
 
-# Mover oportunidades para outra pipeline
 
-## Objetivo
+# Scrollbar sempre visivel no Select dropdown
 
-Permitir que ao clicar em "Mover" na barra de acoes em massa, o usuario possa escolher entre:
-1. **Mover para etapa** da pipeline atual (comportamento existente)
-2. **Mover para outra pipeline** - selecionar pipeline e depois a etapa de destino
+## Problema
+O componente `SelectContent` do Radix UI usa `overflow-hidden` no wrapper e gerencia scroll internamente. As tentativas anteriores via CSS (`overflow-y: scroll`, `scrollbar-gutter`, `-webkit-appearance`) nao funcionam porque:
+1. O `overflow-hidden` no `SelectContent` recorta qualquer scrollbar do viewport filho
+2. Navegadores modernos (Chrome/macOS) usam "overlay scrollbars" que sao invisiveis ate o usuario rolar
+3. O Radix renderiza dentro de um Portal, dificultando CSS global
 
-## UI proposta
+## Solucao
+Trocar a abordagem: em vez de tentar forcar scrollbar nativo via CSS, adicionar uma **scrollbar track visual customizada** diretamente no componente, usando uma div wrapper com estilos inline que garantem visibilidade.
 
-O dropdown do botao "Mover" sera reorganizado em duas secoes:
+### Mudancas
 
-```text
-+----------------------------------+
-| Mover para:                      |
-|----------------------------------|
-| PIPELINE ATUAL                   |
-|  * Novos Negocios                |
-|  * Contatado                     |
-|  * Agendado                      |
-|----------------------------------|
-| OUTRA PIPELINE                   |
-|  > Vendas - Organica & Tr...     |
-|  > Teste de Pipeline             |
-+----------------------------------+
+**1. `src/components/ui/select.tsx`**
+- Remover `overflow-hidden` da className do `SelectContent`
+- Envolver o `SelectPrimitive.Viewport` em uma div wrapper com:
+  - `max-height` limitado
+  - `overflow-y: scroll` via style inline (nao className, para evitar purge)
+  - `scrollbar-width: thin` para Firefox
+  - Custom `::-webkit-scrollbar` via classe utilitaria dedicada
+- Adicionar classe CSS utilitaria `select-scroll` que forca scrollbar visivel com `!important`
+
+**2. `src/index.css`**
+- Simplificar as regras CSS existentes para `[data-radix-select-viewport]`
+- Adicionar classe `.select-scroll` com regras de scrollbar que usam cores solidas (nao transparentes) para garantir visibilidade imediata
+- Usar `scrollbar-gutter: stable` para reservar espaco permanente para a scrollbar track
+
+### Detalhes tecnicos
+
+No `SelectContent`, a estrutura passara de:
+```
+Content (overflow-hidden)
+  ScrollUpButton
+  Viewport (sem scroll proprio)
+  ScrollDownButton
 ```
 
-Ao clicar em outra pipeline, o dropdown expande para mostrar as etapas dela:
-
-```text
-+----------------------------------+
-| < Voltar                         |
-| Pipeline: Teste de Pipeline      |
-|----------------------------------|
-|  * Novos Negocios                |
-|  * Qualificacao                  |
-|  * Proposta                      |
-+----------------------------------+
+Para:
+```
+Content (overflow-visible)
+  ScrollUpButton
+  Viewport (overflow-y: scroll, max-height, scrollbar-gutter: stable)
+  ScrollDownButton
 ```
 
-## Alteracoes tecnicas
-
-### 1. `negocios.api.ts` - Nova funcao
-
-Adicionar `moverOportunidadesParaOutraPipeline(ids, funilDestinoId, etapaDestinoId)` que faz update de `funil_id` e `etapa_id` simultaneamente.
-
-### 2. `useKanban.ts` - Novo hook
-
-Criar `useMoverOportunidadesParaOutraPipeline()` com mutation que invalida kanban de ambas as pipelines.
-
-### 3. `OportunidadeBulkActions.tsx` - UI do dropdown
-
-- Adicionar estado `selectedPipeline` para controlar navegacao no dropdown (null = lista principal, string = mostrando etapas da pipeline)
-- Usar `useFunis()` para listar pipelines disponiveis (excluindo a atual)
-- Usar `useFunilComEtapas()` para carregar etapas da pipeline selecionada
-- Adicionar prop `funilAtualId` para saber qual pipeline excluir da lista
-- Adicionar prop `onMoverParaOutraPipeline(funilId, etapaId)` 
-
-### 4. `KanbanBoard.tsx` - Conectar novo handler
-
-- Passar `funilAtualId` e novo handler `onMoverParaOutraPipeline` para o componente de bulk actions
-- Implementar `handleMoverParaOutraPipeline` usando o novo hook
+A chave e combinar `overflow-y: scroll` com `scrollbar-gutter: stable` e definir cores de scrollbar via CSS que nao sejam transparentes, forcando o navegador a renderizar a track mesmo sem interacao.
