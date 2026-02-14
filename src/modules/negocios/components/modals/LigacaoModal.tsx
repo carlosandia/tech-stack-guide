@@ -174,7 +174,7 @@ function EditableInfoRow({ icon: Icon, label, value, iconColor, isLink, onSave, 
             {displayValue}
           </a>
         ) : (
-          <span className={`text-xs truncate ${isEmpty ? 'text-muted-foreground/50 italic' : 'text-foreground'}`}>
+          <span className={`text-xs ${isEmpty ? 'text-muted-foreground/50 italic truncate' : 'text-foreground break-words'}`}>
             {isEmpty ? 'Não preenchido' : displayValue}
           </span>
         )}

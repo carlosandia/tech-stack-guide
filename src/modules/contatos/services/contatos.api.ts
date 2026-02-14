@@ -102,6 +102,7 @@ export interface Contato {
   owner?: { nome: string; sobrenome?: string } | null
   total_oportunidades?: number
   pessoas?: Array<{ id: string; nome: string; sobrenome?: string; email?: string; telefone?: string; cargo?: string; status: string }>
+  campos_customizados?: Record<string, unknown>
 }
 
 export interface Segmento {
@@ -306,6 +307,59 @@ export const contatosApi = {
       // Filtrar por segmento_id (pós-query se necessário)
       if (params?.segmento_id) {
         contatos = contatos.filter(c => c.segmentos?.some(s => s.id === params.segmento_id))
+      }
+
+      // Enriquecer com campos customizados
+      {
+        const contatoIdsForCustom = contatos.map(c => c.id)
+        const tipoEntidade = params?.tipo === 'empresa' ? 'empresa' : 'pessoa'
+
+        // Buscar definições dos campos para mapear campo_id → slug
+        const { data: camposDefs } = await supabase
+          .from('campos_customizados')
+          .select('id, slug, tipo')
+          .is('deletado_em', null)
+
+        const slugMap = new Map<string, { slug: string; tipo: string }>()
+        for (const cd of camposDefs || []) {
+          slugMap.set(cd.id, { slug: cd.slug, tipo: cd.tipo })
+        }
+
+        const { data: valoresCustom } = await supabase
+          .from('valores_campos_customizados')
+          .select('entidade_id, campo_id, valor_texto, valor_numero, valor_data, valor_booleano, valor_json')
+          .eq('entidade_tipo', tipoEntidade)
+          .in('entidade_id', contatoIdsForCustom)
+
+        if (valoresCustom) {
+          const camposCustomMap: Record<string, Record<string, unknown>> = {}
+          for (const vc of valoresCustom as any[]) {
+            if (!camposCustomMap[vc.entidade_id]) camposCustomMap[vc.entidade_id] = {}
+            const campoInfo = slugMap.get(vc.campo_id)
+            if (!campoInfo) continue
+
+            let displayValue: unknown = null
+            if (vc.valor_json && Array.isArray(vc.valor_json)) {
+              displayValue = (vc.valor_json as string[]).join(', ')
+            } else if (vc.valor_texto && vc.valor_texto.includes('|')) {
+              displayValue = vc.valor_texto.split('|').map((s: string) => s.trim()).filter(Boolean).join(', ')
+            } else if (vc.valor_texto != null) {
+              displayValue = vc.valor_texto
+            } else if (vc.valor_numero != null) {
+              displayValue = vc.valor_numero
+            } else if (vc.valor_data != null) {
+              displayValue = new Date(vc.valor_data).toLocaleDateString('pt-BR')
+            } else if (vc.valor_booleano != null) {
+              displayValue = vc.valor_booleano ? 'Sim' : 'Não'
+            }
+
+            camposCustomMap[vc.entidade_id][campoInfo.slug] = displayValue
+          }
+          contatos = contatos.map(c => ({
+            ...c,
+            campos_customizados: camposCustomMap[c.id] || {},
+          }))
+        }
       }
 
       // Enriquecer com total_oportunidades
