@@ -1,106 +1,72 @@
 
-# Apagar Conversa e Mensagens com Sincronizacao no WhatsApp
+# Correção de 3 Problemas: Popover, Labels e Apagar Mensagem
 
-## Situacao Atual
+## Problema 1: Menu de ações fecha ao mover o mouse (popover abre pra cima)
 
-Analisando o codigo, encontrei o seguinte:
+O menu de ações da mensagem (Responder, Copiar, Apagar...) só aparece quando o mouse está sobre a mensagem (`hovered=true`). Quando o menu abre para cima (pouco espaço abaixo), o mouse precisa sair da área da mensagem para alcançar o menu, causando `hovered=false` e desmontando o componente inteiro -- incluindo o menu que está em um portal.
 
-| Acao | CRM (local) | WhatsApp (dispositivo) |
-|------|------------|----------------------|
-| Apagar conversa | Soft delete | Ja chama WAHA API (DELETE /chats/{chatId}) |
-| Apagar mensagem para mim | Soft delete local | NAO chama WAHA - so apaga no CRM |
-| Apagar mensagem para todos | Soft delete local | Ja chama WAHA API (DELETE /messages/{id}) |
+**Correção:** Quando o menu estiver aberto, manter o componente `MessageActionMenu` visível independente do `hovered`. Adicionar um estado `menuOpen` no componente pai que impede o desmonte.
 
-## Problema
+**Arquivo:** `src/modules/conversas/components/ChatMessageBubble.tsx`
 
-"Apagar para mim" faz apenas soft delete no banco de dados do CRM, mas nao comunica ao WhatsApp. A mensagem continua visivel no dispositivo do celular.
+- Adicionar estado `actionMenuOpen` no `ChatMessageBubble`
+- Passar callback `onOpenChange` para `MessageActionMenu`
+- Alterar condição de renderização de `hovered && onDeleteMessage` para `(hovered || actionMenuOpen) && onDeleteMessage`
 
-## O que sera feito
+## Problema 2: Etiquetas sumiram (erro de duplicata no upsert)
 
-### 1. Apagar mensagem "para mim" tambem no dispositivo
-
-**Arquivo:** `src/modules/conversas/services/conversas.api.ts`
-
-Atualmente o codigo so chama WAHA quando `paraTodos === true`. Sera alterado para SEMPRE chamar WAHA, passando um parametro que diferencia "para mim" vs "para todos".
-
+Os logs mostram claramente o erro:
 ```
-// ANTES: so chama WAHA se paraTodos
-if (paraTodos) { ... chamar WAHA ... }
-
-// DEPOIS: sempre chama WAHA, com parametro
-chamar WAHA com { para_todos: paraTodos }
+Error inserting label associations: ON CONFLICT DO UPDATE command cannot affect row a second time
 ```
 
-### 2. Nova action no waha-proxy para "apagar para mim"
+O chat `162826672971943@lid` e `5513988506995@c.us` resolvem para a MESMA conversa no banco. Isso gera duas linhas com o mesmo par `(conversa_id, label_id)` no array `allNewRows`. O PostgreSQL rejeita o upsert inteiro quando há duplicatas no mesmo batch.
+
+Resultado: o DELETE limpa todas as labels, mas o INSERT falha -- ficando com 0 labels.
+
+**Correção:** Deduplicar o array `allNewRows` antes do upsert, usando um Set com chave composta `conversa_id:label_id`.
 
 **Arquivo:** `supabase/functions/waha-proxy/index.ts`
 
-A action `apagar_mensagem` atual sempre deleta "para todos". Sera adicionado um parametro `para_todos` que controla o comportamento:
+```typescript
+// Antes do upsert, deduplicar
+const uniqueKey = new Set<string>();
+const dedupedRows = allNewRows.filter(row => {
+  const key = `${row.conversa_id}:${row.label_id}`;
+  if (uniqueKey.has(key)) return false;
+  uniqueKey.add(key);
+  return true;
+});
+// Usar dedupedRows no upsert
+```
 
-- `para_todos = true`: usa `DELETE /api/{session}/chats/{chatId}/messages/{messageId}` (apaga para todos, comportamento atual)
-- `para_todos = false`: usa `PUT /api/{session}/chats/{chatId}/messages` com body `{ "messages": [messageId], "deleteMedia": true }` para deletar somente localmente no dispositivo
+## Problema 3: "Apagar para todos" sem limite de tempo
 
-### 3. Apagar conversa (ja funciona)
+O WhatsApp permite "apagar para todos" somente dentro de aproximadamente 60 horas apos o envio. A UI mostra essa opcao sempre que a mensagem for do usuario, sem validar o tempo.
 
-O codigo em `conversas.api.ts` (linha 557-578) ja chama a action `apagar_conversa` no waha-proxy, que por sua vez chama `DELETE /api/{session}/chats/{chatId}`. Isso ja funciona corretamente - a conversa e removida tanto do CRM quanto do dispositivo.
+**Correção:** Calcular a diferença entre agora e `mensagem.criado_em`. Se ultrapassar 60 horas, esconder o botao "Apagar para todos".
+
+**Arquivo:** `src/modules/conversas/components/ChatMessageBubble.tsx`
+
+```typescript
+// Dentro de MessageActionMenu, calcular se pode apagar para todos
+const MAX_DELETE_FOR_ALL_MS = 60 * 60 * 60 * 1000; // ~60 horas
+const canDeleteForAll = mensagem.from_me && 
+  (Date.now() - new Date(mensagem.criado_em).getTime()) < MAX_DELETE_FOR_ALL_MS;
+```
 
 ---
 
-## Detalhes Tecnicos
+## Resumo de Arquivos
 
-### Mudanca 1 - conversas.api.ts (apagarMensagem)
+| Arquivo | Mudanca |
+|---------|---------|
+| `src/modules/conversas/components/ChatMessageBubble.tsx` | Corrigir hover/desmonte do menu + limite temporal do "Apagar para todos" |
+| `supabase/functions/waha-proxy/index.ts` | Deduplicar rows antes do upsert de labels |
 
-Remover a condicional `if (paraTodos)` e sempre enviar para WAHA, passando o parametro:
+## Ordem de Implementacao
 
-```typescript
-async apagarMensagem(conversaId, mensagemId, messageWahaId, paraTodos) {
-  const session = await getConversaWahaSession(conversaId)
-  if (session) {
-    try {
-      await supabase.functions.invoke('waha-proxy', {
-        body: {
-          action: 'apagar_mensagem',
-          session_name: session.sessionName,
-          chat_id: session.chatId,
-          message_id: messageWahaId,
-          para_todos: paraTodos,
-        },
-      })
-    } catch (e) {
-      console.warn('[conversasApi] WAHA apagar_mensagem falhou:', e)
-    }
-  }
-  // Soft delete local (sempre)
-  await supabase.from('mensagens').update({ deletado_em: ... }).eq('id', mensagemId)
-}
-```
-
-### Mudanca 2 - waha-proxy/index.ts (action apagar_mensagem)
-
-Receber `para_todos` e rotear para o endpoint correto:
-
-```typescript
-case "apagar_mensagem": {
-  const { chat_id, message_id, para_todos } = body;
-
-  if (para_todos) {
-    // DELETE para todos (endpoint existente)
-    await fetch(`${baseUrl}/api/${session}/chats/${chatId}/messages/${messageId}`, {
-      method: "DELETE",
-      headers: { "X-Api-Key": apiKey },
-    });
-  } else {
-    // DELETE somente para mim (endpoint WAHA para clear messages)
-    await fetch(`${baseUrl}/api/${session}/chats/${chatId}/messages`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
-      body: JSON.stringify({ messages: [message_id], deleteMedia: true }),
-    });
-  }
-}
-```
-
-### Resumo de arquivos alterados
-
-1. `src/modules/conversas/services/conversas.api.ts` - Remover condicional, sempre chamar WAHA
-2. `supabase/functions/waha-proxy/index.ts` - Adicionar logica de `para_todos` na action existente
+1. Corrigir deduplicacao de labels no waha-proxy (causa raiz das labels sumidas)
+2. Deploy da edge function
+3. Corrigir popover que fecha ao mover mouse
+4. Adicionar limite de tempo no "Apagar para todos"
