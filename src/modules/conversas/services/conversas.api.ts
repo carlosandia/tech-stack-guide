@@ -75,6 +75,17 @@ export interface UltimaMensagemPreview {
   criado_em: string
 }
 
+export interface WhatsAppLabelPreview {
+  id: string
+  nome: string
+  cor_hex: string | null
+}
+
+export interface ConversaLabelPreview {
+  id: string
+  whatsapp_labels: WhatsAppLabelPreview
+}
+
 export interface Conversa {
   id: string
   organizacao_id: string
@@ -100,6 +111,7 @@ export interface Conversa {
   atualizado_em: string
   contato?: ConversaContato
   ultima_mensagem?: UltimaMensagemPreview | null
+  labels?: ConversaLabelPreview[]
 }
 
 export interface ListarConversasParams {
@@ -239,7 +251,8 @@ export const conversasApi = {
       .from('conversas')
       .select(`
         *,
-        contato:contatos!conversas_contato_id_fkey(id, nome, nome_fantasia, email, telefone)
+        contato:contatos!conversas_contato_id_fkey(id, nome, nome_fantasia, email, telefone),
+        labels:conversas_labels(id, whatsapp_labels(id, nome, cor_hex))
       `, { count: 'exact' })
       .eq('organizacao_id', organizacaoId)
       .is('deletado_em', null)

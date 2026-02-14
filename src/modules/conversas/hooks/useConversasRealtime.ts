@@ -70,6 +70,47 @@ export function useConversasRealtime(conversaAtivaId?: string | null) {
           queryClient.invalidateQueries({ queryKey: ['mensagens', mensagemAtualizada.conversa_id] })
         }
       )
+      // AIDEV-NOTE: Escuta INSERT/DELETE em conversas_labels para atualizar etiquetas em tempo real
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'conversas_labels',
+          filter: `organizacao_id=eq.${organizacaoId}`,
+        },
+        (payload) => {
+          const novaLabel = payload.new as any
+          queryClient.invalidateQueries({ queryKey: ['labels-conversa', novaLabel.conversa_id] })
+          queryClient.invalidateQueries({ queryKey: ['conversas'] })
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'conversas_labels',
+          filter: `organizacao_id=eq.${organizacaoId}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['labels-conversa'] })
+          queryClient.invalidateQueries({ queryKey: ['conversas'] })
+        }
+      )
+      // AIDEV-NOTE: Escuta INSERT/UPDATE em whatsapp_labels para atualizar cache de labels
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'whatsapp_labels',
+          filter: `organizacao_id=eq.${organizacaoId}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['whatsapp-labels'] })
+        }
+      )
       .subscribe()
 
     return () => {

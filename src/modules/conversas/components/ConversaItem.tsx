@@ -11,6 +11,7 @@ import {
   ChevronDown, Archive, ArchiveRestore, Pin, PinOff, Eye, Trash2, BellOff,
 } from 'lucide-react'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
+import { LabelBadge } from './LabelBadge'
 import type { Conversa } from '../services/conversas.api'
 
 interface ConversaItemProps {
@@ -100,6 +101,9 @@ export function ConversaItem({ conversa, isActive, onClick, onArquivar, onFixar,
   const preview = getMessagePreview(conversa)
   const status = statusConfig[conversa.status] || statusConfig.aberta
   const tipoBadge = getTipoBadge(conversa.tipo)
+  const labels = conversa.labels || []
+  const visibleLabels = labels.slice(0, 2)
+  const extraLabelsCount = labels.length - visibleLabels.length
 
   // AIDEV-NOTE: Fecha o menu ao clicar fora - usa document listener como backup do backdrop
   useEffect(() => {
@@ -168,6 +172,18 @@ export function ConversaItem({ conversa, isActive, onClick, onArquivar, onFixar,
               {tipoBadge && (
                 <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium flex-shrink-0 ${tipoBadge.className}`}>
                   {tipoBadge.label}
+                </span>
+              )}
+              {visibleLabels.map(cl => (
+                <LabelBadge
+                  key={cl.id}
+                  nome={cl.whatsapp_labels.nome}
+                  corHex={cl.whatsapp_labels.cor_hex}
+                />
+              ))}
+              {extraLabelsCount > 0 && (
+                <span className="px-1 py-0.5 rounded text-[10px] font-medium text-muted-foreground bg-muted flex-shrink-0">
+                  +{extraLabelsCount}
                 </span>
               )}
             </div>

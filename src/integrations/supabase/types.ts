@@ -1867,6 +1867,52 @@ export type Database = {
           },
         ]
       }
+      conversas_labels: {
+        Row: {
+          conversa_id: string
+          criado_em: string
+          id: string
+          label_id: string
+          organizacao_id: string
+        }
+        Insert: {
+          conversa_id: string
+          criado_em?: string
+          id?: string
+          label_id: string
+          organizacao_id: string
+        }
+        Update: {
+          conversa_id?: string
+          criado_em?: string
+          id?: string
+          label_id?: string
+          organizacao_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversas_labels_conversa_id_fkey"
+            columns: ["conversa_id"]
+            isOneToOne: false
+            referencedRelation: "conversas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversas_labels_label_id_fkey"
+            columns: ["label_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_labels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversas_labels_organizacao_id_fkey"
+            columns: ["organizacao_id"]
+            isOneToOne: false
+            referencedRelation: "organizacoes_saas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       custom_audience_membros: {
         Row: {
           audience_id: string
@@ -7512,6 +7558,47 @@ export type Database = {
             columns: ["webhook_id"]
             isOneToOne: false
             referencedRelation: "webhooks_saida"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_labels: {
+        Row: {
+          atualizado_em: string
+          cor_codigo: number | null
+          cor_hex: string | null
+          criado_em: string
+          id: string
+          nome: string
+          organizacao_id: string
+          waha_label_id: string
+        }
+        Insert: {
+          atualizado_em?: string
+          cor_codigo?: number | null
+          cor_hex?: string | null
+          criado_em?: string
+          id?: string
+          nome: string
+          organizacao_id: string
+          waha_label_id: string
+        }
+        Update: {
+          atualizado_em?: string
+          cor_codigo?: number | null
+          cor_hex?: string | null
+          criado_em?: string
+          id?: string
+          nome?: string
+          organizacao_id?: string
+          waha_label_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_labels_organizacao_id_fkey"
+            columns: ["organizacao_id"]
+            isOneToOne: false
+            referencedRelation: "organizacoes_saas"
             referencedColumns: ["id"]
           },
         ]
