@@ -74,25 +74,24 @@ export function ConversasPage() {
     return data.pages.flatMap((p) => p.conversas)
   }, [data])
 
-  // AIDEV-NOTE: Auto-sync labels do WhatsApp sempre ao carregar a página
+  // AIDEV-NOTE: Auto-sync labels do WhatsApp uma vez por sessão do navegador
   useEffect(() => {
-    if (!labelsSyncRef.current && conversas.length > 0) {
-      const whatsappConversa = conversas.find(c => c.canal === 'whatsapp' && c.sessao_whatsapp_id)
-      if (whatsappConversa) {
-        labelsSyncRef.current = true
-        import('@/lib/supabase').then(({ supabase }) => {
-          supabase
-            .from('sessoes_whatsapp')
-            .select('session_name')
-            .eq('id', whatsappConversa.sessao_whatsapp_id!)
-            .maybeSingle()
-            .then(({ data: sessao }) => {
-              if (sessao?.session_name) {
-                sincronizarLabels.mutate(sessao.session_name)
-              }
-            })
-        })
-      }
+    if (labelsSyncRef.current || conversas.length === 0) return
+    const whatsappConversa = conversas.find(c => c.canal === 'whatsapp' && c.sessao_whatsapp_id)
+    if (whatsappConversa) {
+      labelsSyncRef.current = true
+      import('@/lib/supabase').then(({ supabase }) => {
+        supabase
+          .from('sessoes_whatsapp')
+          .select('session_name')
+          .eq('id', whatsappConversa.sessao_whatsapp_id!)
+          .maybeSingle()
+          .then(({ data: sessao }) => {
+            if (sessao?.session_name) {
+              sincronizarLabels.mutate(sessao.session_name)
+            }
+          })
+      })
     }
   }, [conversas])
 

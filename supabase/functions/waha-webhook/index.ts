@@ -375,12 +375,70 @@ Deno.serve(async (req) => {
             .maybeSingle();
 
           // Find label by waha_label_id
-          const { data: label } = await supabaseAdmin
+          let { data: label } = await supabaseAdmin
             .from("whatsapp_labels")
             .select("id")
             .eq("waha_label_id", String(labelPayload.labelId))
             .eq("organizacao_id", sessao.organizacao_id)
             .maybeSingle();
+
+          // AIDEV-NOTE: Auto-create label if it doesn't exist in DB yet
+          // This handles the case where webhook arrives before manual sync
+          if (!label) {
+            console.log(`[waha-webhook] Label ${labelPayload.labelId} not in DB, auto-creating...`);
+            try {
+              // Get WAHA config to fetch label details
+              const { data: wahaConfig } = await supabaseAdmin
+                .from("configuracoes_globais")
+                .select("configuracoes")
+                .eq("plataforma", "waha")
+                .maybeSingle();
+
+              const config = wahaConfig?.configuracoes as Record<string, string> | null;
+              const wahaApiUrl = config?.api_url?.replace(/\/+$/, "");
+              const wahaApiKey = config?.api_key;
+
+              if (wahaApiUrl && wahaApiKey) {
+                const labelResp = await fetch(
+                  `${wahaApiUrl}/api/${sessionName}/labels`,
+                  { method: "GET", headers: { "X-Api-Key": wahaApiKey } }
+                );
+
+                if (labelResp.ok) {
+                  const allLabels = await labelResp.json().catch(() => []);
+                  const wahaLabel = Array.isArray(allLabels)
+                    ? allLabels.find((l: { id?: string | number }) => String(l.id) === String(labelPayload.labelId))
+                    : null;
+
+                  if (wahaLabel) {
+                    const { data: insertedLabel, error: insertLabelErr } = await supabaseAdmin
+                      .from("whatsapp_labels")
+                      .upsert({
+                        organizacao_id: sessao.organizacao_id,
+                        waha_label_id: String(wahaLabel.id),
+                        nome: wahaLabel.name || `Label ${wahaLabel.id}`,
+                        cor_hex: wahaLabel.colorHex || null,
+                        cor_codigo: wahaLabel.color ?? null,
+                        atualizado_em: new Date().toISOString(),
+                      }, { onConflict: "organizacao_id,waha_label_id" })
+                      .select("id")
+                      .maybeSingle();
+
+                    if (!insertLabelErr && insertedLabel) {
+                      label = insertedLabel;
+                      console.log(`[waha-webhook] ✅ Auto-created label: ${wahaLabel.name} (${wahaLabel.id})`);
+                    } else {
+                      console.error(`[waha-webhook] Failed to auto-create label:`, insertLabelErr?.message);
+                    }
+                  } else {
+                    console.log(`[waha-webhook] Label ${labelPayload.labelId} not found in WAHA API response`);
+                  }
+                }
+              }
+            } catch (autoCreateErr) {
+              console.error(`[waha-webhook] Error auto-creating label:`, autoCreateErr);
+            }
+          }
 
           if (conversa && label) {
             const { error: insertError } = await supabaseAdmin

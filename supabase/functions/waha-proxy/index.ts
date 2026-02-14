@@ -1268,6 +1268,7 @@ Deno.serve(async (req) => {
         console.log(`[waha-proxy] Listing labels for session: ${sessionId}`);
 
         // AIDEV-NOTE: Reconfigure webhooks to ensure label.* events are registered
+        // Uses PUT first, then verifies, then stop+start fallback if needed
         try {
           const currentSessionResp = await fetch(`${baseUrl}/api/sessions/${sessionId}`, {
             method: "GET",
@@ -1277,11 +1278,11 @@ Deno.serve(async (req) => {
             const sessionData = await currentSessionResp.json();
             const currentWebhooks = sessionData?.config?.webhooks || [];
             const hasLabelEvents = currentWebhooks.some((wh: { events?: string[] }) => 
-              wh.events?.includes("label.upsert")
+              wh.events?.includes("label.upsert") && wh.events?.includes("label.chat.added")
             );
             if (!hasLabelEvents) {
               console.log(`[waha-proxy] Reconfiguring webhooks to include label events`);
-              await fetch(`${baseUrl}/api/sessions/${sessionId}/`, {
+              const putResp = await fetch(`${baseUrl}/api/sessions/${sessionId}/`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
                 body: JSON.stringify({
@@ -1291,7 +1292,56 @@ Deno.serve(async (req) => {
                   }
                 }),
               });
+              const putStatus = putResp.status;
+              await putResp.text();
+              console.log(`[waha-proxy] Webhook reconfig PUT: ${putStatus}`);
+
+              // Verify the PUT actually applied
+              const verifyResp = await fetch(`${baseUrl}/api/sessions/${sessionId}`, {
+                method: "GET",
+                headers: { "X-Api-Key": apiKey },
+              });
+              let verified = false;
+              if (verifyResp.ok) {
+                const verifyData = await verifyResp.json();
+                const verifyWebhooks = verifyData?.config?.webhooks || [];
+                verified = verifyWebhooks.some((wh: { events?: string[] }) =>
+                  wh.events?.includes("label.upsert") && wh.events?.includes("label.chat.added")
+                );
+              } else {
+                await verifyResp.text();
+              }
+
+              if (!verified) {
+                // Fallback: stop+start (keep connection with logout: false)
+                console.log(`[waha-proxy] PUT did not apply label events, using stop+start fallback`);
+                const stopResp = await fetch(`${baseUrl}/api/sessions/stop`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
+                  body: JSON.stringify({ name: sessionId, logout: false }),
+                });
+                console.log(`[waha-proxy] Stop for label reconfig: ${stopResp.status}`);
+                await stopResp.text();
+                await new Promise(r => setTimeout(r, 2000));
+
+                const startResp = await fetch(`${baseUrl}/api/sessions/start`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
+                  body: JSON.stringify({
+                    name: sessionId,
+                    config: {
+                      webhooks: [{ url: webhookUrl, events: webhookEvents }]
+                    }
+                  }),
+                });
+                console.log(`[waha-proxy] Start for label reconfig: ${startResp.status}`);
+                await startResp.text();
+              } else {
+                console.log(`[waha-proxy] ✅ Label webhook events verified after PUT`);
+              }
             }
+          } else {
+            await currentSessionResp.text();
           }
         } catch (e) {
           console.warn(`[waha-proxy] Failed to reconfigure webhooks:`, e);
@@ -1320,66 +1370,91 @@ Deno.serve(async (req) => {
               }, { onConflict: "organizacao_id,waha_label_id" });
           }
 
-          // AIDEV-NOTE: Sync label-chat associations for all active conversations
+          // AIDEV-NOTE: Sync label-chat associations using INVERTED strategy
+          // Fetch CHATS PER LABEL instead of LABELS PER CHAT (WAHA bug #1370 workaround)
           try {
-            const { data: conversasAtivas } = await supabaseAdmin
-              .from("conversas")
-              .select("id, chat_id")
-              .eq("organizacao_id", organizacaoId)
-              .eq("canal", "whatsapp")
-              .is("deletado_em", null)
-              .order("ultima_mensagem_em", { ascending: false })
-              .limit(100);
+            // Get all DB labels for this org
+            const { data: dbLabels } = await supabaseAdmin
+              .from("whatsapp_labels")
+              .select("id, waha_label_id")
+              .eq("organizacao_id", organizacaoId);
 
-            if (conversasAtivas && conversasAtivas.length > 0) {
-              // Get all DB labels for this org
-              const { data: dbLabels } = await supabaseAdmin
-                .from("whatsapp_labels")
-                .select("id, waha_label_id")
-                .eq("organizacao_id", organizacaoId);
+            if (dbLabels && dbLabels.length > 0) {
+              // Build a map of chat_id -> conversa_id for quick lookup
+              const { data: conversasAtivas } = await supabaseAdmin
+                .from("conversas")
+                .select("id, chat_id")
+                .eq("organizacao_id", organizacaoId)
+                .eq("canal", "whatsapp")
+                .is("deletado_em", null)
+                .order("ultima_mensagem_em", { ascending: false })
+                .limit(500);
 
-              const labelMap = new Map((dbLabels || []).map(l => [String(l.waha_label_id), l.id]));
+              const chatToConversaMap = new Map(
+                (conversasAtivas || []).map(c => [c.chat_id, c.id])
+              );
 
-              for (const conversa of conversasAtivas) {
+              // Clear ALL existing label associations for this org's conversations
+              if (conversasAtivas && conversasAtivas.length > 0) {
+                const conversaIds = conversasAtivas.map(c => c.id);
+                await supabaseAdmin
+                  .from("conversas_labels")
+                  .delete()
+                  .eq("organizacao_id", organizacaoId)
+                  .in("conversa_id", conversaIds);
+              }
+
+              const allNewRows: Array<{ organizacao_id: string; conversa_id: string; label_id: string }> = [];
+
+              // For each label, fetch which chats have it applied
+              for (const dbLabel of dbLabels) {
                 try {
-                  const chatLabelsResp = await fetch(
-                    `${baseUrl}/api/${sessionId}/labels/chats/${encodeURIComponent(conversa.chat_id)}/`,
+                  const chatsResp = await fetch(
+                    `${baseUrl}/api/${sessionId}/labels/${dbLabel.waha_label_id}/chats`,
                     { method: "GET", headers: { "X-Api-Key": apiKey } }
                   );
 
-                  if (chatLabelsResp.ok) {
-                    const chatLabels = await chatLabelsResp.json().catch(() => []);
-                    const wahaLabelIds: string[] = Array.isArray(chatLabels)
-                      ? chatLabels.map((l: { id?: string }) => String(l.id))
+                  if (chatsResp.ok) {
+                    const chatsData = await chatsResp.json().catch(() => []);
+                    const chatIds: string[] = Array.isArray(chatsData)
+                      ? chatsData.map((c: { id?: string; chatId?: string } | string) =>
+                          typeof c === 'string' ? c : (c.id || c.chatId || ''))
                       : [];
 
-                    // Remove existing labels for this conversa
-                    await supabaseAdmin
-                      .from("conversas_labels")
-                      .delete()
-                      .eq("conversa_id", conversa.id)
-                      .eq("organizacao_id", organizacaoId);
-
-                    // Insert current labels
-                    const newRows = wahaLabelIds
-                      .filter(wid => labelMap.has(wid))
-                      .map(wid => ({
-                        organizacao_id: organizacaoId,
-                        conversa_id: conversa.id,
-                        label_id: labelMap.get(wid)!,
-                      }));
-
-                    if (newRows.length > 0) {
-                      await supabaseAdmin
-                        .from("conversas_labels")
-                        .insert(newRows);
+                    let matchCount = 0;
+                    for (const chatId of chatIds) {
+                      if (!chatId) continue;
+                      const conversaId = chatToConversaMap.get(chatId);
+                      if (conversaId) {
+                        allNewRows.push({
+                          organizacao_id: organizacaoId,
+                          conversa_id: conversaId,
+                          label_id: dbLabel.id,
+                        });
+                        matchCount++;
+                      }
                     }
+                    console.log(`[waha-proxy] Label ${dbLabel.waha_label_id}: ${chatIds.length} chats from WAHA, ${matchCount} matched in DB`);
+                  } else {
+                    const errText = await chatsResp.text();
+                    console.warn(`[waha-proxy] Failed to fetch chats for label ${dbLabel.waha_label_id}: ${chatsResp.status} ${errText}`);
                   }
-                } catch (chatErr) {
-                  console.warn(`[waha-proxy] Failed to sync labels for chat ${conversa.chat_id}:`, chatErr);
+                } catch (labelErr) {
+                  console.warn(`[waha-proxy] Error fetching chats for label ${dbLabel.waha_label_id}:`, labelErr);
                 }
               }
-              console.log(`[waha-proxy] ✅ Synced label associations for ${conversasAtivas.length} conversations`);
+
+              // Batch insert all associations
+              if (allNewRows.length > 0) {
+                const { error: insertErr } = await supabaseAdmin
+                  .from("conversas_labels")
+                  .upsert(allNewRows, { onConflict: "conversa_id,label_id" });
+                if (insertErr) {
+                  console.error(`[waha-proxy] Error inserting label associations:`, insertErr.message);
+                }
+              }
+
+              console.log(`[waha-proxy] ✅ Synced ${allNewRows.length} label associations across ${dbLabels.length} labels`);
             }
           } catch (syncErr) {
             console.warn(`[waha-proxy] Failed to sync label-chat associations:`, syncErr);
