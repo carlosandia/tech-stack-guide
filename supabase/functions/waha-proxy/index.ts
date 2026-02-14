@@ -1435,15 +1435,12 @@ Deno.serve(async (req) => {
                 console.warn(`[waha-proxy] Error fetching chats for lid resolution:`, chatsFetchErr);
               }
 
-              // Clear ALL existing label associations for this org's conversations
-              if (conversasAtivas && conversasAtivas.length > 0) {
-                const conversaIds = conversasAtivas.map(c => c.id);
-                await supabaseAdmin
-                  .from("conversas_labels")
-                  .delete()
-                  .eq("organizacao_id", organizacaoId)
-                  .in("conversa_id", conversaIds);
-              }
+              // AIDEV-NOTE: Clear ALL label associations for this org (includes soft-deleted conversations)
+              // This prevents orphan labels from showing stale data
+              await supabaseAdmin
+                .from("conversas_labels")
+                .delete()
+                .eq("organizacao_id", organizacaoId);
 
               const allNewRows: Array<{ organizacao_id: string; conversa_id: string; label_id: string }> = [];
 

@@ -74,6 +74,8 @@ export function useSincronizarLabels() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['whatsapp-labels'] })
+      queryClient.invalidateQueries({ queryKey: ['conversas'] })
+      queryClient.invalidateQueries({ queryKey: ['labels-conversa'] })
     },
   })
 }
