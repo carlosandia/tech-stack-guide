@@ -35,10 +35,16 @@ export function SolicitacaoCard({ preOp, onClick, onWhatsApp }: SolicitacaoCardP
   const isUrgente = preOp.tempo_espera_minutos > 60
 
   return (
-    <div className="w-full text-left bg-card rounded-lg shadow-sm p-3 hover:shadow-md transition-all duration-200">
-      {/* Header: Nome/Telefone + WhatsApp icon */}
+    <div
+      className="w-full text-left bg-card rounded-lg shadow-sm p-3 hover:shadow-md transition-all duration-200 cursor-pointer"
+      onClick={() => onClick(preOp)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === 'Enter') onClick(preOp) }}
+    >
+      {/* Header: Nome/Telefone */}
       <div className="flex items-center gap-2 mb-2">
-        <button type="button" onClick={() => onClick(preOp)} className="flex items-center gap-2 min-w-0 flex-1">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
           {preOp.profile_picture_url ? (
             <img src={preOp.profile_picture_url} alt="" className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
           ) : (
@@ -57,23 +63,15 @@ export function SolicitacaoCard({ preOp, onClick, onWhatsApp }: SolicitacaoCardP
               </p>
             )}
           </div>
-        </button>
+        </div>
       </div>
 
       {/* Preview da mensagem */}
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={() => onClick(preOp)}
-        onKeyDown={(e) => { if (e.key === 'Enter') onClick(preOp) }}
-        className="w-full text-left cursor-pointer"
-      >
-        {preOp.ultima_mensagem && (
-          <p className="text-xs text-muted-foreground line-clamp-2 mb-2 leading-relaxed">
-            {preOp.ultima_mensagem}
-          </p>
-        )}
-      </div>
+      {preOp.ultima_mensagem && (
+        <p className="text-xs text-muted-foreground line-clamp-2 mb-2 leading-relaxed">
+          {preOp.ultima_mensagem}
+        </p>
+      )}
 
       {/* Footer */}
       <div className="flex items-center justify-between mt-1">
