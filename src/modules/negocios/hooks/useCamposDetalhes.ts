@@ -15,6 +15,7 @@ export interface CampoDefinicao {
   sistema: boolean
   obrigatorio: boolean
   ordem: number
+  opcoes: any[] | null
 }
 
 export interface ValorCampo {
@@ -35,7 +36,7 @@ export function useCamposDefinicoes() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('campos_customizados')
-        .select('id, nome, slug, entidade, tipo, sistema, obrigatorio, ordem')
+        .select('id, nome, slug, entidade, tipo, sistema, obrigatorio, ordem, opcoes')
         .in('entidade', ['pessoa', 'oportunidade'])
         .is('deletado_em', null)
         .eq('ativo', true)
@@ -124,6 +125,10 @@ export function getValorExibicao(campo: CampoDefinicao, valor: ValorCampo | unde
     case 'multi_select':
       if (valor.valor_json && Array.isArray(valor.valor_json)) {
         return (valor.valor_json as string[]).join(', ')
+      }
+      // Fallback: valor_texto com delimitador |
+      if (valor.valor_texto) {
+        return valor.valor_texto.split('|').map(v => v.trim()).filter(Boolean).join(', ')
       }
       return ''
     default:

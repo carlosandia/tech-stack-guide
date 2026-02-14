@@ -1,0 +1,3 @@
+UPDATE campos_customizados SET opcoes = '["Sou o decisor final","Participo da decisão","Apenas pesquiso / avalio fornecedores"]'::jsonb WHERE id = '823ccfcf-6491-4d59-9420-a47efacb1d51';
+UPDATE campos_customizados SET opcoes = '["Não estou gerando leads suficientes","Gero leads, mas não converto em vendas","Falta organização / CRM / processo comercial","Redes sociais sem resultado","Anúncios pagos sem retorno","Não tenho estratégia definida","Quero escalar o que já funciona"]'::jsonb WHERE id = '7d94a744-9ffa-48e8-b98f-12cef20c359c';
+UPDATE campos_customizados SET opcoes = '["O quanto antes (urgente)","Nos próximos 30 dias","Nos próximos 3 meses","Estou apenas pesquisando"]'::jsonb WHERE id = '94cd8d75-9636-408f-a179-d03ab048e506';
