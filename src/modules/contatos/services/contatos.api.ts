@@ -339,10 +339,16 @@ export const contatosApi = {
             if (!campoInfo) continue
 
             let displayValue: unknown = null
+            const campoTipo = campoInfo.tipo
             if (vc.valor_json && Array.isArray(vc.valor_json)) {
-              displayValue = (vc.valor_json as string[]).join(', ')
+              // Multi-select: usar pipe para preservar valores com vírgula
+              displayValue = campoTipo === 'multi_select'
+                ? (vc.valor_json as string[]).join(' | ')
+                : (vc.valor_json as string[]).join(', ')
             } else if (vc.valor_texto && vc.valor_texto.includes('|')) {
-              displayValue = vc.valor_texto.split('|').map((s: string) => s.trim()).filter(Boolean).join(', ')
+              displayValue = campoTipo === 'multi_select'
+                ? vc.valor_texto
+                : vc.valor_texto.split('|').map((s: string) => s.trim()).filter(Boolean).join(', ')
             } else if (vc.valor_texto != null) {
               displayValue = vc.valor_texto
             } else if (vc.valor_numero != null) {
