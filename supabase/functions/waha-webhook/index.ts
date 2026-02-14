@@ -365,14 +365,102 @@ Deno.serve(async (req) => {
           .maybeSingle();
 
         if (sessao) {
-          // Find conversa by chat_id
-          const { data: conversa } = await supabaseAdmin
+          // AIDEV-NOTE: Find conversa by chat_id with @lid -> @c.us fallback
+          // WAHA labels API sends chatId in @lid format but DB stores @c.us format
+          let conversa: { id: string } | null = null;
+
+          // Try exact match first
+          const { data: exactConversa } = await supabaseAdmin
             .from("conversas")
             .select("id")
             .eq("chat_id", labelPayload.chatId)
             .eq("organizacao_id", sessao.organizacao_id)
             .is("deletado_em", null)
             .maybeSingle();
+          conversa = exactConversa;
+
+          // If not found and chatId is @lid format, resolve via WAHA contacts API or mensagens table
+          if (!conversa && labelPayload.chatId.endsWith("@lid")) {
+            console.log(`[waha-webhook] chatId is @lid format, resolving to @c.us...`);
+            
+            // Strategy 1: Search mensagens table for a message containing this LID
+            const lidNumber = labelPayload.chatId.replace("@lid", "");
+            const { data: msgWithLid } = await supabaseAdmin
+              .from("mensagens")
+              .select("conversa_id")
+              .eq("organizacao_id", sessao.organizacao_id)
+              .or(`message_id.ilike.%${lidNumber}%,remetente_id.eq.${labelPayload.chatId}`)
+              .limit(1)
+              .maybeSingle();
+
+            if (msgWithLid?.conversa_id) {
+              conversa = { id: msgWithLid.conversa_id };
+              console.log(`[waha-webhook] Resolved @lid via mensagens: conversa_id=${conversa.id}`);
+            }
+
+            // Strategy 2: Try WAHA API to get contact info (which may have @c.us)
+            if (!conversa) {
+              try {
+                const { data: wahaConfig } = await supabaseAdmin
+                  .from("configuracoes_globais")
+                  .select("configuracoes")
+                  .eq("plataforma", "waha")
+                  .maybeSingle();
+                const config = wahaConfig?.configuracoes as Record<string, string> | null;
+                const wahaApiUrl = config?.api_url?.replace(/\/+$/, "");
+                const wahaApiKey = config?.api_key;
+
+                if (wahaApiUrl && wahaApiKey) {
+                  const contactResp = await fetch(
+                    `${wahaApiUrl}/api/contacts/check-exists`,
+                    {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json", "X-Api-Key": wahaApiKey },
+                      body: JSON.stringify({ session: sessionName, phone: lidNumber }),
+                    }
+                  );
+                  if (contactResp.ok) {
+                    const contactData = await contactResp.json().catch(() => null);
+                    const chatId = contactData?.chatId || contactData?.id?.user ? `${contactData.id.user}@c.us` : null;
+                    console.log(`[waha-webhook] WAHA check-exists result: ${chatId}`);
+                    if (chatId) {
+                      const { data: resolvedConversa } = await supabaseAdmin
+                        .from("conversas")
+                        .select("id")
+                        .eq("chat_id", chatId)
+                        .eq("organizacao_id", sessao.organizacao_id)
+                        .is("deletado_em", null)
+                        .maybeSingle();
+                      conversa = resolvedConversa;
+                    }
+                  } else {
+                    await contactResp.text();
+                  }
+                }
+              } catch (resolveErr) {
+                console.warn(`[waha-webhook] Error resolving @lid:`, resolveErr);
+              }
+            }
+
+            // Strategy 3: Check if there's a contato with this phone and find their conversa
+            if (!conversa) {
+              // Try to find by looking at all active conversas and checking contato phone
+              const { data: conversasByPhone } = await supabaseAdmin
+                .from("conversas")
+                .select("id, chat_id")
+                .eq("organizacao_id", sessao.organizacao_id)
+                .eq("canal", "whatsapp")
+                .is("deletado_em", null)
+                .like("chat_id", `%${lidNumber.slice(-8)}%`)
+                .limit(1)
+                .maybeSingle();
+              
+              if (conversasByPhone) {
+                conversa = { id: conversasByPhone.id };
+                console.log(`[waha-webhook] Resolved @lid via partial phone match: ${conversasByPhone.chat_id}`);
+              }
+            }
+          }
 
           // Find label by waha_label_id
           let { data: label } = await supabaseAdmin
@@ -479,13 +567,42 @@ Deno.serve(async (req) => {
           .maybeSingle();
 
         if (sessao) {
-          const { data: conversa } = await supabaseAdmin
+          // AIDEV-NOTE: Resolve @lid -> @c.us for label.chat.deleted too
+          let conversaDel: { id: string } | null = null;
+          const { data: exactConversaDel } = await supabaseAdmin
             .from("conversas")
             .select("id")
             .eq("chat_id", labelPayload.chatId)
             .eq("organizacao_id", sessao.organizacao_id)
             .is("deletado_em", null)
             .maybeSingle();
+          conversaDel = exactConversaDel;
+
+          if (!conversaDel && labelPayload.chatId.endsWith("@lid")) {
+            const lidNum = labelPayload.chatId.replace("@lid", "");
+            const { data: msgLid } = await supabaseAdmin
+              .from("mensagens")
+              .select("conversa_id")
+              .eq("organizacao_id", sessao.organizacao_id)
+              .or(`message_id.ilike.%${lidNum}%,remetente_id.eq.${labelPayload.chatId}`)
+              .limit(1)
+              .maybeSingle();
+            if (msgLid?.conversa_id) {
+              conversaDel = { id: msgLid.conversa_id };
+            }
+            if (!conversaDel) {
+              const { data: partialMatch } = await supabaseAdmin
+                .from("conversas")
+                .select("id")
+                .eq("organizacao_id", sessao.organizacao_id)
+                .eq("canal", "whatsapp")
+                .is("deletado_em", null)
+                .like("chat_id", `%${lidNum.slice(-8)}%`)
+                .limit(1)
+                .maybeSingle();
+              conversaDel = partialMatch;
+            }
+          }
 
           const { data: label } = await supabaseAdmin
             .from("whatsapp_labels")
@@ -494,11 +611,11 @@ Deno.serve(async (req) => {
             .eq("organizacao_id", sessao.organizacao_id)
             .maybeSingle();
 
-          if (conversa && label) {
+          if (conversaDel && label) {
             const { error: deleteError } = await supabaseAdmin
               .from("conversas_labels")
               .delete()
-              .eq("conversa_id", conversa.id)
+              .eq("conversa_id", conversaDel.id)
               .eq("label_id", label.id)
               .eq("organizacao_id", sessao.organizacao_id);
 

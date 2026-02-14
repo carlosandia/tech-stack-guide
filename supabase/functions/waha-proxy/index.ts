@@ -1393,6 +1393,20 @@ Deno.serve(async (req) => {
               const chatToConversaMap = new Map(
                 (conversasAtivas || []).map(c => [c.chat_id, c.id])
               );
+              
+              // AIDEV-NOTE: Build reverse phone map for @lid resolution
+              // Extract phone numbers from @c.us chat_ids for partial matching
+              const phoneToConversaMap = new Map<string, string>();
+              for (const c of (conversasAtivas || [])) {
+                if (c.chat_id.endsWith("@c.us")) {
+                  const phone = c.chat_id.replace("@c.us", "");
+                  // Store last 8 digits as key for partial matching
+                  if (phone.length >= 8) {
+                    phoneToConversaMap.set(phone.slice(-8), c.id);
+                  }
+                  phoneToConversaMap.set(phone, c.id);
+                }
+              }
 
               // Clear ALL existing label associations for this org's conversations
               if (conversasAtivas && conversasAtivas.length > 0) {
@@ -1424,7 +1438,24 @@ Deno.serve(async (req) => {
                     let matchCount = 0;
                     for (const chatId of chatIds) {
                       if (!chatId) continue;
-                      const conversaId = chatToConversaMap.get(chatId);
+                      
+                      // Try exact match first
+                      let conversaId = chatToConversaMap.get(chatId);
+                      
+                      // AIDEV-NOTE: If @lid format, resolve to @c.us via partial phone match
+                      if (!conversaId && chatId.endsWith("@lid")) {
+                        const lidNumber = chatId.replace("@lid", "");
+                        // Try full number match
+                        conversaId = phoneToConversaMap.get(lidNumber);
+                        // Try last 8 digits match
+                        if (!conversaId && lidNumber.length >= 8) {
+                          conversaId = phoneToConversaMap.get(lidNumber.slice(-8));
+                        }
+                        if (conversaId) {
+                          console.log(`[waha-proxy] Resolved @lid ${chatId} to conversa ${conversaId}`);
+                        }
+                      }
+                      
                       if (conversaId) {
                         allNewRows.push({
                           organizacao_id: organizacaoId,
