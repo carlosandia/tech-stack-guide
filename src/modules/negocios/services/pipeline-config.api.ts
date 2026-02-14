@@ -48,6 +48,7 @@ export interface EtapaFunil {
   probabilidade?: number | null
   ordem?: number | null
   ativo?: boolean | null
+  etiqueta_whatsapp?: string | null
   criado_em: string
   atualizado_em: string
 }
@@ -198,6 +199,7 @@ export const pipelineConfigApi = {
     cor?: string
     probabilidade?: number
     ordem?: number
+    etiqueta_whatsapp?: string | null
   }): Promise<void> => {
     const { error } = await supabase
       .from('etapas_funil')

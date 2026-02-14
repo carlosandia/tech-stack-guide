@@ -25,13 +25,14 @@ export function EtapaFormModal({ etapa, onClose, onSave, loading }: Props) {
   const [nome, setNome] = useState(etapa?.nome || '')
   const [cor, setCor] = useState(etapa?.cor || '#3B82F6')
   const [probabilidade, setProbabilidade] = useState(etapa?.probabilidade ?? 50)
+  const [etiquetaWhatsapp, setEtiquetaWhatsapp] = useState((etapa as any)?.etiqueta_whatsapp || '')
 
   const isEdit = !!etapa
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!nome.trim()) return
-    await onSave({ nome: nome.trim(), cor, probabilidade })
+    await onSave({ nome: nome.trim(), cor, probabilidade, etiqueta_whatsapp: etiquetaWhatsapp.trim() || null } as any)
   }
 
   return (
@@ -113,6 +114,21 @@ export function EtapaFormModal({ etapa, onClose, onSave, loading }: Props) {
           </div>
           <p className="text-xs text-muted-foreground">
             Usado para calcular o forecast do funil
+          </p>
+        </div>
+
+        {/* Etiqueta WhatsApp */}
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-foreground">Etiqueta WhatsApp</label>
+          <input
+            type="text"
+            value={etiquetaWhatsapp}
+            onChange={e => setEtiquetaWhatsapp(e.target.value)}
+            placeholder="Ex: Novo pedido, Qualificado..."
+            className="w-full px-3 py-2 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30"
+          />
+          <p className="text-xs text-muted-foreground">
+            Nome da etiqueta do WhatsApp que move oportunidades para esta etapa (case-insensitive)
           </p>
         </div>
       </form>

@@ -2881,6 +2881,7 @@ export type Database = {
           criado_em: string
           deletado_em: string | null
           descricao: string | null
+          etiqueta_whatsapp: string | null
           funil_id: string
           id: string
           nome: string
@@ -2896,6 +2897,7 @@ export type Database = {
           criado_em?: string
           deletado_em?: string | null
           descricao?: string | null
+          etiqueta_whatsapp?: string | null
           funil_id: string
           id?: string
           nome: string
@@ -2911,6 +2913,7 @@ export type Database = {
           criado_em?: string
           deletado_em?: string | null
           descricao?: string | null
+          etiqueta_whatsapp?: string | null
           funil_id?: string
           id?: string
           nome?: string
@@ -6596,6 +6599,8 @@ export type Database = {
           criado_em: string
           deletado_em: string | null
           desconectado_em: string | null
+          etiqueta_comportamento_fechada: string | null
+          etiqueta_move_oportunidade: boolean | null
           funil_destino_id: string | null
           id: string
           organizacao_id: string
@@ -6618,6 +6623,8 @@ export type Database = {
           criado_em?: string
           deletado_em?: string | null
           desconectado_em?: string | null
+          etiqueta_comportamento_fechada?: string | null
+          etiqueta_move_oportunidade?: boolean | null
           funil_destino_id?: string | null
           id?: string
           organizacao_id: string
@@ -6640,6 +6647,8 @@ export type Database = {
           criado_em?: string
           deletado_em?: string | null
           desconectado_em?: string | null
+          etiqueta_comportamento_fechada?: string | null
+          etiqueta_move_oportunidade?: boolean | null
           funil_destino_id?: string | null
           id?: string
           organizacao_id?: string
