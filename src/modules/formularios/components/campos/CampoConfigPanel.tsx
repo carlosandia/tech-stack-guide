@@ -627,9 +627,6 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className, hideHead
             onValueChange={(v) => {
               if (v === '__criar_pessoa__' || v === '__criar_empresa__') {
                 const ent = v === '__criar_pessoa__' ? 'pessoa' : 'empresa'
-                setCriarCampoEntidade(ent as 'pessoa' | 'empresa')
-                // Pré-preencher nome com o label do campo do formulário
-                setNovoCampoNome(form.label || '')
                 // Mapear tipo do formulário para tipo do campo customizado
                 const tipoMap: Record<string, string> = {
                   texto: 'texto', textarea: 'texto_longo', numero: 'numero',
@@ -638,7 +635,32 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className, hideHead
                   selecao: 'select', selecao_multipla: 'multi_select',
                   cpf: 'cpf', cnpj: 'cnpj', checkbox: 'booleano',
                 }
-                setNovoCampoTipo(tipoMap[campo.tipo] || 'texto')
+                const nomeCampo = form.label || ''
+                const tipoCampo = (tipoMap[campo.tipo] || 'texto') as CriarCampoPayload['tipo']
+                
+                // Se já temos nome, criar direto sem mostrar mini-form
+                if (nomeCampo.trim()) {
+                  const slug = nomeCampo.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
+                  criarCampoMutation.mutateAsync({
+                    nome: nomeCampo.trim(),
+                    entidade: ent,
+                    tipo: tipoCampo,
+                  }).then(async () => {
+                    await queryClient.invalidateQueries({
+                      queryKey: ['configuracoes', 'campos', ent],
+                    })
+                    const mapeamento = `custom.${ent}.${slug}`
+                    setForm((f) => ({ ...f, mapeamento_campo: mapeamento }))
+                  }).catch(() => {
+                    // Error handled by hook toast
+                  })
+                  return
+                }
+                
+                // Fallback: mostrar mini-form se não tiver nome
+                setCriarCampoEntidade(ent as 'pessoa' | 'empresa')
+                setNovoCampoNome(nomeCampo)
+                setNovoCampoTipo(tipoCampo)
                 setShowCriarCampo(true)
                 return
               }
