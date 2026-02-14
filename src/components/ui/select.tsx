@@ -84,7 +84,7 @@ const SelectContent = React.forwardRef<
         )}
       >
         <div
-          className="select-scroll"
+          className="select-scroll select-scroll-wrapper"
           style={{
             maxHeight: 'min(var(--radix-select-content-available-height, 300px), 300px)',
             overflowY: 'auto',
