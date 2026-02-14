@@ -587,35 +587,116 @@ Deno.serve(async (req) => {
     } else if (isGroup) {
       // GROUP MESSAGE
       chatId = rawFrom; // e.g. "120363xxx@g.us"
-      phoneNumber = participantRaw
-        ? participantRaw.replace("@c.us", "").replace("@s.whatsapp.net", "")
-        : "";
-      phoneName = payload._data?.pushName || payload._data?.notifyName || payload.notifyName || payload.pushName || null;
       conversaTipo = "grupo";
 
-      // Extract group name from payload
-      groupName = payload._data?.subject || payload._data?.name || null;
+      // AIDEV-NOTE: Resolver @lid do participant para numero real
+      let resolvedParticipant = participantRaw || "";
+      if (participantRaw && participantRaw.includes("@lid")) {
+        const originalLidParticipant = participantRaw;
+        // Strategy 1: _data.key.participant (numero real em GOWS)
+        const keyParticipant = payload._data?.key?.participant;
+        if (keyParticipant && typeof keyParticipant === "string" && !keyParticipant.includes("@lid")) {
+          resolvedParticipant = keyParticipant.replace("@s.whatsapp.net", "@c.us");
+          console.log(`[waha-webhook] Group participant LID resolved via key.participant: ${originalLidParticipant} -> ${resolvedParticipant}`);
+        }
+        // Strategy 2: _data.participant
+        if (resolvedParticipant.includes("@lid")) {
+          const dataParticipant = payload._data?.participant;
+          if (dataParticipant && typeof dataParticipant === "string" && !dataParticipant.includes("@lid")) {
+            resolvedParticipant = dataParticipant.replace("@s.whatsapp.net", "@c.us");
+            console.log(`[waha-webhook] Group participant LID resolved via _data.participant: ${originalLidParticipant} -> ${resolvedParticipant}`);
+          }
+        }
+        // Strategy 3: WAHA API contact lookup
+        if (resolvedParticipant.includes("@lid") && wahaApiUrl && wahaApiKey) {
+          try {
+            const contactResp = await fetch(
+              `${wahaApiUrl}/api/contacts?contactId=${encodeURIComponent(participantRaw)}&session=${encodeURIComponent(sessionName)}`,
+              { headers: { "X-Api-Key": wahaApiKey } }
+            );
+            if (contactResp.ok) {
+              const contactData = await contactResp.json();
+              const realId = contactData?.id?._serialized || contactData?.id;
+              if (realId && typeof realId === "string" && !realId.includes("@lid")) {
+                resolvedParticipant = realId;
+                console.log(`[waha-webhook] Group participant LID resolved via WAHA contacts API: ${originalLidParticipant} -> ${resolvedParticipant}`);
+              }
+              // Also get name from contact
+              if (!phoneName) {
+                phoneName = contactData?.pushname || contactData?.name || contactData?.shortName || null;
+              }
+            } else {
+              await contactResp.text();
+            }
+          } catch (e) {
+            console.log(`[waha-webhook] Error resolving participant LID via API:`, e);
+          }
+        }
+        if (resolvedParticipant.includes("@lid")) {
+          console.warn(`[waha-webhook] Could NOT resolve group participant @lid: ${originalLidParticipant}`);
+        }
+      }
 
-      console.log(`[waha-webhook] GROUP message from ${phoneNumber} in ${chatId} (${groupName || "unknown group"})`);
+      phoneNumber = resolvedParticipant
+        ? resolvedParticipant.replace("@c.us", "").replace("@s.whatsapp.net", "").replace("@lid", "")
+        : "";
+      phoneName = payload._data?.pushName || payload._data?.notifyName || payload.notifyName || payload.pushName || phoneName || null;
+
+      // Extract group name from payload
+      groupName = payload._data?.subject || payload._data?.name || payload._data?.chat?.name || payload._data?.chat?.subject || null;
+
+      console.log(`[waha-webhook] GROUP message from ${phoneNumber} (${phoneName || "?"}) in ${chatId} (${groupName || "unknown group"})`);
 
       // Fetch group metadata from WAHA (name + photo)
       if (wahaApiUrl && wahaApiKey) {
         try {
           if (!groupName) {
+            // AIDEV-NOTE: Usar endpoint especifico do grupo ao inves de listar todos
             const groupResp = await fetch(
-              `${wahaApiUrl}/api/groups?session=${encodeURIComponent(sessionName)}`,
+              `${wahaApiUrl}/api/${encodeURIComponent(sessionName)}/groups/${encodeURIComponent(rawFrom)}`,
               { headers: { "X-Api-Key": wahaApiKey } }
             );
             if (groupResp.ok) {
-              const groups = await groupResp.json();
-              const thisGroup = Array.isArray(groups)
-                ? groups.find((g: Record<string, unknown>) => g.id === rawFrom || g.id?._serialized === rawFrom)
-                : null;
-              if (thisGroup) {
-                groupName = thisGroup.subject || thisGroup.name || null;
-              }
+              const groupData = await groupResp.json();
+              groupName = groupData?.subject || groupData?.name || groupData?.desc || null;
+              console.log(`[waha-webhook] Group name from API: ${groupName}`);
             } else {
+              // Fallback: list all groups
               await groupResp.text();
+              const allGroupsResp = await fetch(
+                `${wahaApiUrl}/api/${encodeURIComponent(sessionName)}/groups`,
+                { headers: { "X-Api-Key": wahaApiKey } }
+              );
+              if (allGroupsResp.ok) {
+                const groups = await allGroupsResp.json();
+                const thisGroup = Array.isArray(groups)
+                  ? groups.find((g: Record<string, unknown>) => g.id === rawFrom || (g.id as Record<string, unknown>)?._serialized === rawFrom)
+                  : null;
+                if (thisGroup) {
+                  groupName = (thisGroup as Record<string, unknown>).subject as string || (thisGroup as Record<string, unknown>).name as string || null;
+                }
+              } else {
+                await allGroupsResp.text();
+              }
+            }
+          }
+
+          // Fetch participant name via WAHA if still missing
+          if (!phoneName && resolvedParticipant && !resolvedParticipant.includes("@lid")) {
+            try {
+              const pContactResp = await fetch(
+                `${wahaApiUrl}/api/contacts?contactId=${encodeURIComponent(resolvedParticipant)}&session=${encodeURIComponent(sessionName)}`,
+                { headers: { "X-Api-Key": wahaApiKey } }
+              );
+              if (pContactResp.ok) {
+                const pData = await pContactResp.json();
+                phoneName = pData?.pushname || pData?.name || pData?.shortName || null;
+                console.log(`[waha-webhook] Participant name from WAHA: ${phoneName}`);
+              } else {
+                await pContactResp.text();
+              }
+            } catch (e) {
+              console.log(`[waha-webhook] Error fetching participant name:`, e);
             }
           }
 
@@ -636,12 +717,10 @@ Deno.serve(async (req) => {
 
       if (!phoneNumber) {
         // AIDEV-NOTE: Fallback para mensagens de grupo sem participant
-        // (mensagens de sistema, notificações, ou fromMe sem participant)
         if (isFromMe && sessao.phone_number) {
           phoneNumber = sessao.phone_number.replace(/\D/g, "");
           console.log(`[waha-webhook] Group no participant (fromMe): using session phone ${phoneNumber}`);
         } else {
-          // Usar o ID do grupo como identificador genérico
           phoneNumber = rawFrom.replace("@g.us", "");
           phoneName = phoneName || groupName || "Participante desconhecido";
           console.log(`[waha-webhook] Group no participant: using group ID as fallback phone=${phoneNumber}`);
@@ -1071,9 +1150,23 @@ Deno.serve(async (req) => {
       console.log(`[waha-webhook] Reply detected: quotedStanzaID=${quotedStanzaID}`);
     }
 
-    // For groups and channels, store participant info
-    if ((isGroup || isChannel) && participantRaw) {
-      messageInsert.participant = participantRaw;
+    // For groups and channels, store participant info (resolved, not @lid)
+    if ((isGroup || isChannel)) {
+      // AIDEV-NOTE: Armazenar participant resolvido e nome para display correto
+      const resolvedP = (isGroup && typeof resolvedParticipant === "string" && resolvedParticipant)
+        ? resolvedParticipant
+        : (participantRaw || "");
+      if (resolvedP) {
+        messageInsert.participant = resolvedP;
+      }
+      // Inject resolved pushName into raw_data for frontend getParticipantDisplayName
+      if (phoneName) {
+        const existingRaw = (messageInsert.raw_data || {}) as Record<string, unknown>;
+        const existingData = (existingRaw._data || {}) as Record<string, unknown>;
+        existingData.pushName = existingData.pushName || phoneName;
+        existingRaw._data = existingData;
+        messageInsert.raw_data = existingRaw;
+      }
     }
 
     // =====================================================
