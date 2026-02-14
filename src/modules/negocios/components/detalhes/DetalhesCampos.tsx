@@ -945,7 +945,7 @@ function FieldRow({
 
     // Multi-select (múltipla escolha)
     if (campoTipo === 'multi_select' && opcoes && opcoes.length > 0) {
-      const selectedValues = editValue ? editValue.split(' | ').map(v => v.trim()).filter(Boolean) : []
+      const selectedValues = editValue ? editValue.split(/[|,]/).map(v => v.trim()).filter(Boolean) : []
       const toggleOption = (opt: string) => {
         const newSelected = selectedValues.includes(opt)
           ? selectedValues.filter(v => v !== opt)
