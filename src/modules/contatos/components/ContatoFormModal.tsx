@@ -368,12 +368,49 @@ export function ContatoFormModal({
       const key = `custom_${campo.slug}`
       const label = campo.nome + (campo.obrigatorio ? ' *' : '')
 
-      if ((campo.tipo === 'select' || campo.tipo === 'multi_select') && campo.opcoes?.length) {
+      if (campo.tipo === 'select' && campo.opcoes?.length) {
         return (
           <SelectField key={key} label={label} {...form.register(key)}>
             <option value="">Selecione</option>
             {campo.opcoes.map((opt) => (<option key={opt} value={opt}>{opt}</option>))}
           </SelectField>
+        )
+      }
+
+      if (campo.tipo === 'multi_select' && campo.opcoes?.length) {
+        return (
+          <Controller key={key} name={key} control={form.control}
+            render={({ field }) => {
+              const selectedValues = field.value ? String(field.value).split('|').map((s: string) => s.trim()).filter(Boolean) : []
+              const toggleOption = (opt: string) => {
+                const newSelected = selectedValues.includes(opt)
+                  ? selectedValues.filter((v: string) => v !== opt)
+                  : [...selectedValues, opt]
+                field.onChange(newSelected.join(' | '))
+              }
+              return (
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1.5">{label}</label>
+                  <div className="space-y-1 border border-input rounded-md p-2 bg-background">
+                    {campo.opcoes!.map((opt) => {
+                      const isActive = selectedValues.includes(opt)
+                      return (
+                        <button key={opt} type="button" onClick={() => toggleOption(opt)}
+                          className="flex items-center gap-2 text-sm cursor-pointer hover:bg-accent rounded px-2 py-1 transition-colors w-full text-left">
+                          <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
+                            isActive ? 'bg-primary border-primary' : 'border-input'
+                          }`}>
+                            {isActive && <span className="text-primary-foreground text-xs">✓</span>}
+                          </div>
+                          <span className="text-foreground">{opt}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            }}
+          />
         )
       }
 
