@@ -638,26 +638,7 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className, hideHead
                 const nomeCampo = form.label || ''
                 const tipoCampo = (tipoMap[campo.tipo] || 'texto') as CriarCampoPayload['tipo']
                 
-                // Se já temos nome, criar direto sem mostrar mini-form
-                if (nomeCampo.trim()) {
-                  const slug = nomeCampo.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
-                  criarCampoMutation.mutateAsync({
-                    nome: nomeCampo.trim(),
-                    entidade: ent,
-                    tipo: tipoCampo,
-                  }).then(async () => {
-                    await queryClient.invalidateQueries({
-                      queryKey: ['configuracoes', 'campos', ent],
-                    })
-                    const mapeamento = `custom.${ent}.${slug}`
-                    setForm((f) => ({ ...f, mapeamento_campo: mapeamento }))
-                  }).catch(() => {
-                    // Error handled by hook toast
-                  })
-                  return
-                }
-                
-                // Fallback: mostrar mini-form se não tiver nome
+                // Sempre mostrar mini-form para o usuário revisar nome e tipo
                 setCriarCampoEntidade(ent as 'pessoa' | 'empresa')
                 setNovoCampoNome(nomeCampo)
                 setNovoCampoTipo(tipoCampo)
@@ -670,7 +651,7 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className, hideHead
             <SelectTrigger>
               <SelectValue placeholder="Nenhum" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="max-h-[280px] overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-track]:bg-transparent">
               {(() => {
                 const grupos = [...new Set(MAPEAMENTOS.map((m) => m.grupo))]
                 return grupos.map((grupo) => {
@@ -719,16 +700,12 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className, hideHead
                 className="h-8 text-xs"
                 autoFocus
               />
-              <Select value={novoCampoTipo} onValueChange={setNovoCampoTipo}>
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {tipoCampoOptions.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="space-y-1">
+                <Label className="text-[10px] text-muted-foreground">Tipo</Label>
+                <div className="h-8 px-3 flex items-center rounded-md border border-input bg-muted text-xs text-muted-foreground cursor-not-allowed">
+                  {tipoCampoOptions.find(t => t.value === novoCampoTipo)?.label || novoCampoTipo}
+                </div>
+              </div>
               <div className="flex items-center gap-2">
                 <Button
                   size="sm"
