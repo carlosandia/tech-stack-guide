@@ -310,6 +310,155 @@ Deno.serve(async (req) => {
       );
     }
 
+    // =====================================================
+    // HANDLE label.* EVENTS (WhatsApp Labels sync)
+    // AIDEV-NOTE: Processa eventos de etiquetas ANTES do filtro de mensagens
+    // =====================================================
+    if (body.event === "label.upsert") {
+      const labelPayload = body.payload;
+      console.log(`[waha-webhook] label.upsert:`, JSON.stringify(labelPayload));
+
+      if (labelPayload) {
+        const { data: sessao } = await supabaseAdmin
+          .from("sessoes_whatsapp")
+          .select("id, organizacao_id")
+          .eq("session_name", sessionName)
+          .is("deletado_em", null)
+          .maybeSingle();
+
+        if (sessao) {
+          const { error: upsertError } = await supabaseAdmin
+            .from("whatsapp_labels")
+            .upsert({
+              organizacao_id: sessao.organizacao_id,
+              waha_label_id: String(labelPayload.id),
+              nome: labelPayload.name || `Label ${labelPayload.id}`,
+              cor_hex: labelPayload.colorHex || null,
+              cor_codigo: labelPayload.color ?? null,
+              atualizado_em: new Date().toISOString(),
+            }, { onConflict: "organizacao_id,waha_label_id" });
+
+          if (upsertError) {
+            console.error(`[waha-webhook] Error upserting label:`, upsertError.message);
+          } else {
+            console.log(`[waha-webhook] ✅ Label upserted: ${labelPayload.name} (${labelPayload.id})`);
+          }
+        }
+      }
+
+      return new Response(
+        JSON.stringify({ ok: true, message: "Label upsert processed" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (body.event === "label.chat.added") {
+      const labelPayload = body.payload;
+      console.log(`[waha-webhook] label.chat.added:`, JSON.stringify(labelPayload));
+
+      if (labelPayload?.labelId && labelPayload?.chatId) {
+        const { data: sessao } = await supabaseAdmin
+          .from("sessoes_whatsapp")
+          .select("id, organizacao_id")
+          .eq("session_name", sessionName)
+          .is("deletado_em", null)
+          .maybeSingle();
+
+        if (sessao) {
+          // Find conversa by chat_id
+          const { data: conversa } = await supabaseAdmin
+            .from("conversas")
+            .select("id")
+            .eq("chat_id", labelPayload.chatId)
+            .eq("organizacao_id", sessao.organizacao_id)
+            .is("deletado_em", null)
+            .maybeSingle();
+
+          // Find label by waha_label_id
+          const { data: label } = await supabaseAdmin
+            .from("whatsapp_labels")
+            .select("id")
+            .eq("waha_label_id", String(labelPayload.labelId))
+            .eq("organizacao_id", sessao.organizacao_id)
+            .maybeSingle();
+
+          if (conversa && label) {
+            const { error: insertError } = await supabaseAdmin
+              .from("conversas_labels")
+              .upsert({
+                organizacao_id: sessao.organizacao_id,
+                conversa_id: conversa.id,
+                label_id: label.id,
+              }, { onConflict: "conversa_id,label_id" });
+
+            if (insertError) {
+              console.error(`[waha-webhook] Error adding label to chat:`, insertError.message);
+            } else {
+              console.log(`[waha-webhook] ✅ Label ${labelPayload.labelId} added to chat ${labelPayload.chatId}`);
+            }
+          } else {
+            console.log(`[waha-webhook] label.chat.added: conversa=${!!conversa}, label=${!!label} - skipping`);
+          }
+        }
+      }
+
+      return new Response(
+        JSON.stringify({ ok: true, message: "Label chat added processed" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (body.event === "label.chat.deleted") {
+      const labelPayload = body.payload;
+      console.log(`[waha-webhook] label.chat.deleted:`, JSON.stringify(labelPayload));
+
+      if (labelPayload?.labelId && labelPayload?.chatId) {
+        const { data: sessao } = await supabaseAdmin
+          .from("sessoes_whatsapp")
+          .select("id, organizacao_id")
+          .eq("session_name", sessionName)
+          .is("deletado_em", null)
+          .maybeSingle();
+
+        if (sessao) {
+          const { data: conversa } = await supabaseAdmin
+            .from("conversas")
+            .select("id")
+            .eq("chat_id", labelPayload.chatId)
+            .eq("organizacao_id", sessao.organizacao_id)
+            .is("deletado_em", null)
+            .maybeSingle();
+
+          const { data: label } = await supabaseAdmin
+            .from("whatsapp_labels")
+            .select("id")
+            .eq("waha_label_id", String(labelPayload.labelId))
+            .eq("organizacao_id", sessao.organizacao_id)
+            .maybeSingle();
+
+          if (conversa && label) {
+            const { error: deleteError } = await supabaseAdmin
+              .from("conversas_labels")
+              .delete()
+              .eq("conversa_id", conversa.id)
+              .eq("label_id", label.id)
+              .eq("organizacao_id", sessao.organizacao_id);
+
+            if (deleteError) {
+              console.error(`[waha-webhook] Error removing label from chat:`, deleteError.message);
+            } else {
+              console.log(`[waha-webhook] ✅ Label ${labelPayload.labelId} removed from chat ${labelPayload.chatId}`);
+            }
+          }
+        }
+      }
+
+      return new Response(
+        JSON.stringify({ ok: true, message: "Label chat deleted processed" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Only process message events from here (both "message" and "message.any")
     if (body.event !== "message" && body.event !== "message.any") {
       console.log(`[waha-webhook] Ignoring event: ${body.event}`);

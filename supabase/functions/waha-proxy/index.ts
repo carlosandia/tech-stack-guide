@@ -133,7 +133,7 @@ Deno.serve(async (req) => {
 
     // Webhook events to subscribe
     // message.any = both incoming and outgoing (sent from phone) messages
-    const webhookEvents = ["message.any", "message.ack", "poll.vote", "poll.vote.failed"];
+    const webhookEvents = ["message.any", "message.ack", "poll.vote", "poll.vote.failed", "label.upsert", "label.chat.added", "label.chat.deleted"];
 
     console.log(`[waha-proxy] Action: ${action}, Session: ${sessionId}, WAHA URL: ${baseUrl}`);
 
@@ -1258,6 +1258,146 @@ Deno.serve(async (req) => {
         return new Response(
           JSON.stringify({ ok: fwdResp.ok, data: fwdData }),
           { status: fwdResp.ok ? 200 : fwdResp.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // =====================================================
+      // LABELS: LISTAR TODAS ETIQUETAS
+      // =====================================================
+      case "labels_list": {
+        console.log(`[waha-proxy] Listing labels for session: ${sessionId}`);
+
+        const labelsResp = await fetch(`${baseUrl}/api/${sessionId}/labels`, {
+          method: "GET",
+          headers: { "X-Api-Key": apiKey },
+        });
+
+        const labelsData = await labelsResp.json().catch(() => []);
+        console.log(`[waha-proxy] Labels response: ${labelsResp.status}, count: ${Array.isArray(labelsData) ? labelsData.length : 0}`);
+
+        if (labelsResp.ok && Array.isArray(labelsData)) {
+          // Sync labels to DB
+          for (const label of labelsData) {
+            await supabaseAdmin
+              .from("whatsapp_labels")
+              .upsert({
+                organizacao_id: organizacaoId,
+                waha_label_id: String(label.id),
+                nome: label.name || `Label ${label.id}`,
+                cor_hex: label.colorHex || null,
+                cor_codigo: label.color ?? null,
+                atualizado_em: new Date().toISOString(),
+              }, { onConflict: "organizacao_id,waha_label_id" });
+          }
+        }
+
+        if (!labelsResp.ok && isNowebLimitation(labelsResp.status, labelsData as Record<string, unknown>)) {
+          return nowebPartialResponse('labels_list');
+        }
+
+        return new Response(
+          JSON.stringify({ ok: labelsResp.ok, labels: labelsData }),
+          { status: labelsResp.ok ? 200 : labelsResp.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // =====================================================
+      // LABELS: OBTER ETIQUETAS DE UM CHAT
+      // =====================================================
+      case "labels_get_chat": {
+        const { chat_id: labelChatId } = body as { chat_id?: string };
+        if (!labelChatId) {
+          return new Response(
+            JSON.stringify({ error: "chat_id é obrigatório" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const chatLabelsResp = await fetch(`${baseUrl}/api/${sessionId}/labels/chats/${encodeURIComponent(labelChatId)}/`, {
+          method: "GET",
+          headers: { "X-Api-Key": apiKey },
+        });
+
+        const chatLabelsData = await chatLabelsResp.json().catch(() => []);
+
+        if (!chatLabelsResp.ok && isNowebLimitation(chatLabelsResp.status, chatLabelsData as Record<string, unknown>)) {
+          return nowebPartialResponse('labels_get_chat');
+        }
+
+        return new Response(
+          JSON.stringify({ ok: chatLabelsResp.ok, labels: chatLabelsData }),
+          { status: chatLabelsResp.ok ? 200 : chatLabelsResp.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // =====================================================
+      // LABELS: APLICAR ETIQUETAS A UM CHAT
+      // =====================================================
+      case "labels_set_chat": {
+        const { chat_id: setChatId, label_ids: setLabelIds } = body as { chat_id?: string; label_ids?: string[] };
+        if (!setChatId || !Array.isArray(setLabelIds)) {
+          return new Response(
+            JSON.stringify({ error: "chat_id e label_ids (array) são obrigatórios" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        console.log(`[waha-proxy] Setting labels for chat ${setChatId}: ${JSON.stringify(setLabelIds)}`);
+
+        const setLabelsResp = await fetch(`${baseUrl}/api/${sessionId}/labels/chats/${encodeURIComponent(setChatId)}/`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
+          body: JSON.stringify({ labels: setLabelIds.map(id => ({ id })) }),
+        });
+
+        const setLabelsData = await setLabelsResp.json().catch(() => ({}));
+        console.log(`[waha-proxy] Set labels response: ${setLabelsResp.status}`, JSON.stringify(setLabelsData).substring(0, 300));
+
+        if (setLabelsResp.ok || isNowebLimitation(setLabelsResp.status, setLabelsData as Record<string, unknown>)) {
+          // Sync to DB: find conversa, then update conversas_labels
+          const { data: conversa } = await supabaseAdmin
+            .from("conversas")
+            .select("id")
+            .eq("chat_id", setChatId)
+            .eq("organizacao_id", organizacaoId)
+            .is("deletado_em", null)
+            .maybeSingle();
+
+          if (conversa) {
+            // Get label UUIDs from waha_label_ids
+            const { data: dbLabels } = await supabaseAdmin
+              .from("whatsapp_labels")
+              .select("id, waha_label_id")
+              .eq("organizacao_id", organizacaoId)
+              .in("waha_label_id", setLabelIds);
+
+            // Remove all current labels for this conversa
+            await supabaseAdmin
+              .from("conversas_labels")
+              .delete()
+              .eq("conversa_id", conversa.id)
+              .eq("organizacao_id", organizacaoId);
+
+            // Insert new labels
+            if (dbLabels && dbLabels.length > 0) {
+              await supabaseAdmin
+                .from("conversas_labels")
+                .insert(dbLabels.map(l => ({
+                  organizacao_id: organizacaoId,
+                  conversa_id: conversa.id,
+                  label_id: l.id,
+                })));
+            }
+          }
+        }
+
+        if (!setLabelsResp.ok && isNowebLimitation(setLabelsResp.status, setLabelsData as Record<string, unknown>)) {
+          return nowebPartialResponse('labels_set_chat');
+        }
+
+        return new Response(
+          JSON.stringify({ ok: setLabelsResp.ok, data: setLabelsData }),
+          { status: setLabelsResp.ok ? 200 : setLabelsResp.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 

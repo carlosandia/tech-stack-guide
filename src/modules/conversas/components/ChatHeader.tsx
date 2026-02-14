@@ -4,11 +4,15 @@
  * Menu expandido: silenciar, limpar conversa, apagar conversa
  */
 
-import { ArrowLeft, MoreVertical, CircleDot, Search, Plus, BellOff, Bell, Trash2, Eraser, Timer } from 'lucide-react'
+import { ArrowLeft, MoreVertical, CircleDot, Search, Plus, BellOff, Bell, Trash2, Eraser, Timer, Tag } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
 import { createPortal } from 'react-dom'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import { TarefasConversaPopover } from './TarefasConversaPopover'
+import { LabelBadge } from './LabelBadge'
+import { LabelsPopover } from './LabelsPopover'
+import { useLabelsConversa } from '../hooks/useWhatsAppLabels'
 import { toast } from 'sonner'
 import type { Conversa } from '../services/conversas.api'
 
@@ -153,9 +157,24 @@ function MenuDropdown({
 export function ChatHeader({ conversa, onBack, onOpenDrawer, onAlterarStatus, onCriarOportunidade, onToggleBusca, onSilenciar, onLimparConversa, onApagarConversa }: ChatHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirmAction, setConfirmAction] = useState<'limpar' | 'apagar' | null>(null)
+  const [sessionName, setSessionName] = useState('')
   const nome = conversa.contato?.nome || conversa.nome || 'Sem nome'
   const fotoUrl = conversa.contato?.foto_url || conversa.foto_url
   const statusInfo = statusLabels[conversa.status] || statusLabels.aberta
+  const { data: conversaLabels = [] } = useLabelsConversa(conversa.id)
+
+  // Fetch session_name for labels popover
+  useEffect(() => {
+    if (!conversa.sessao_whatsapp_id || conversa.canal !== 'whatsapp') return
+    supabase
+      .from('sessoes_whatsapp')
+      .select('session_name')
+      .eq('id', conversa.sessao_whatsapp_id)
+      .maybeSingle()
+      .then(({ data }: { data: { session_name: string } | null }) => {
+        if (data?.session_name) setSessionName(data.session_name)
+      })
+  }, [conversa.sessao_whatsapp_id, conversa.canal])
 
   const handleConfirm = () => {
     if (confirmAction === 'limpar') onLimparConversa?.()
@@ -204,7 +223,27 @@ export function ChatHeader({ conversa, onBack, onOpenDrawer, onAlterarStatus, on
                   </svg>
                 )}
               </div>
-              <p className="text-[10px] sm:text-[11px] text-muted-foreground text-left hidden sm:block">Clique para info do contato</p>
+              <p className="text-[10px] sm:text-[11px] text-muted-foreground text-left hidden sm:flex items-center gap-1">
+                {conversaLabels.length > 0 ? (
+                  <LabelsPopover conversaId={conversa.id} chatId={conversa.chat_id} sessionName={sessionName}>
+                    <span className="flex items-center gap-1 cursor-pointer hover:opacity-80">
+                      {conversaLabels.slice(0, 3).map(cl => (
+                        <LabelBadge key={cl.id} nome={cl.whatsapp_labels.nome} corHex={cl.whatsapp_labels.cor_hex} />
+                      ))}
+                      {conversaLabels.length > 3 && <span className="text-[10px] text-muted-foreground">+{conversaLabels.length - 3}</span>}
+                    </span>
+                  </LabelsPopover>
+                ) : conversa.canal === 'whatsapp' && sessionName ? (
+                  <LabelsPopover conversaId={conversa.id} chatId={conversa.chat_id} sessionName={sessionName}>
+                    <span className="flex items-center gap-0.5 cursor-pointer hover:text-primary transition-colors">
+                      <Tag className="w-3 h-3" />
+                      Etiquetas
+                    </span>
+                  </LabelsPopover>
+                ) : (
+                  'Clique para info do contato'
+                )}
+              </p>
             </div>
           </button>
         </div>
