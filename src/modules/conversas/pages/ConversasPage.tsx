@@ -58,7 +58,7 @@ export function ConversasPage() {
   useConversasRealtime(conversaAtivaId)
 
   // AIDEV-NOTE: Auto-sync labels do WhatsApp na montagem da página
-  const { data: allLabels = [], isLoading: loadingLabels } = useLabels()
+  useLabels() // keep query active for realtime invalidation
   const sincronizarLabels = useSincronizarLabels()
   const labelsSyncRef = useRef(false)
 
@@ -74,9 +74,9 @@ export function ConversasPage() {
     return data.pages.flatMap((p) => p.conversas)
   }, [data])
 
-  // Auto-sync labels when page loads and labels are empty
+  // AIDEV-NOTE: Auto-sync labels do WhatsApp sempre ao carregar a página
   useEffect(() => {
-    if (!loadingLabels && allLabels.length === 0 && !labelsSyncRef.current && conversas.length > 0) {
+    if (!labelsSyncRef.current && conversas.length > 0) {
       const whatsappConversa = conversas.find(c => c.canal === 'whatsapp' && c.sessao_whatsapp_id)
       if (whatsappConversa) {
         labelsSyncRef.current = true
@@ -94,7 +94,7 @@ export function ConversasPage() {
         })
       }
     }
-  }, [loadingLabels, allLabels.length, conversas])
+  }, [conversas])
 
   const conversaAtiva = conversas.find((c) => c.id === conversaAtivaId) || null
 
