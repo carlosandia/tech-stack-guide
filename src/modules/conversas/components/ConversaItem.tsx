@@ -120,11 +120,14 @@ export function ConversaItem({ conversa, isActive, onClick, onArquivar, onFixar,
 
   return (
     <div className="relative group">
-      <button
+      <div
+        role="button"
+        tabIndex={0}
         onClick={onClick}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onClick() }}
         className={`
           w-full flex items-center gap-3 px-3 py-3.5 text-left transition-all duration-200 min-h-[56px]
-          border-b border-border/50
+          border-b border-border/50 cursor-pointer
           ${isActive
             ? 'bg-primary/5 border-l-2 border-l-primary'
             : 'hover:bg-accent/50 border-l-2 border-l-transparent'
@@ -234,7 +237,7 @@ export function ConversaItem({ conversa, isActive, onClick, onArquivar, onFixar,
             </div>
           </div>
         </div>
-      </button>
+      </div>
 
       {/* Context menu trigger + popover */}
       <div ref={menuRef} className="absolute right-2 top-3 z-10">
