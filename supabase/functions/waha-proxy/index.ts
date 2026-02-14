@@ -1353,8 +1353,15 @@ Deno.serve(async (req) => {
           headers: { "X-Api-Key": apiKey },
         });
 
-        const labelsData = await labelsResp.json().catch(() => []);
+        const labelsRawText = await labelsResp.text();
+        let labelsData: unknown;
+        try { labelsData = JSON.parse(labelsRawText); } catch { labelsData = []; }
         console.log(`[waha-proxy] Labels response: ${labelsResp.status}, count: ${Array.isArray(labelsData) ? labelsData.length : 0}`);
+        // AIDEV-NOTE: Log full structure of first label to detect chatIds field
+        if (Array.isArray(labelsData) && labelsData.length > 0) {
+          console.log(`[waha-proxy] Label sample keys: ${JSON.stringify(Object.keys(labelsData[0]))}`);
+          console.log(`[waha-proxy] Label sample: ${JSON.stringify(labelsData[0]).substring(0, 500)}`);
+        }
 
         if (labelsResp.ok && Array.isArray(labelsData)) {
           // Sync labels to DB
@@ -1371,67 +1378,112 @@ Deno.serve(async (req) => {
               }, { onConflict: "organizacao_id,waha_label_id" });
           }
 
-          // AIDEV-NOTE: Sync label↔chat associations via "labels per chat" strategy
-          // GET /labels não retorna chatIds no WAHA GOWS, e webhooks de label são instáveis
-          // Solução: para cada conversa ativa, consultar GET /labels/chats/{chatId}
-          // Com polling a 60s, isso é aceitável (antes era 15s)
+          // AIDEV-NOTE: Sync label↔chat associations via "chats per label" strategy
+          // GET /labels/{labelId}/chats é mais confiável que GET /labels/chats/{chatId}
+          // Itera por cada label (8 labels = 8 requests) em vez de cada conversa (N requests)
           try {
-            const { data: dbLabels } = await supabaseAdmin
+            const { data: dbLabels, error: dbLabelsErr } = await supabaseAdmin
               .from("whatsapp_labels")
               .select("id, waha_label_id")
               .eq("organizacao_id", organizacaoId);
 
-            if (dbLabels && dbLabels.length > 0) {
-              const labelIdMap = new Map(dbLabels.map(l => [String(l.waha_label_id), l.id]));
+            console.log(`[waha-proxy] DB labels found: ${dbLabels?.length ?? 0}, error: ${dbLabelsErr?.message ?? 'none'}`);
 
-              // Get active conversations
-              const { data: conversasAtivas } = await supabaseAdmin
+            if (dbLabels && dbLabels.length > 0) {
+              // Build a map of chat_id -> conversa DB id
+              const { data: conversasAtivas, error: convErr } = await supabaseAdmin
                 .from("conversas")
                 .select("id, chat_id")
                 .eq("organizacao_id", organizacaoId)
                 .eq("canal", "whatsapp")
-                .is("deletado_em", null)
-                .order("ultima_mensagem_em", { ascending: false })
-                .limit(500);
+                .is("deletado_em", null);
+
+              console.log(`[waha-proxy] Active conversations: ${conversasAtivas?.length ?? 0}, error: ${convErr?.message ?? 'none'}`);
+
+              const chatIdToConversaId = new Map((conversasAtivas || []).map(c => [c.chat_id, c.id]));
 
               // Clear ALL label associations for this org (full sync)
-              await supabaseAdmin
+              const { error: delErr } = await supabaseAdmin
                 .from("conversas_labels")
                 .delete()
                 .eq("organizacao_id", organizacaoId);
+              
+              if (delErr) console.error(`[waha-proxy] Error deleting old associations:`, delErr.message);
 
               const allNewRows: Array<{ organizacao_id: string; conversa_id: string; label_id: string }> = [];
 
-              for (const conversa of (conversasAtivas || [])) {
+              // For each label, get its associated chats
+              for (const dbLabel of dbLabels) {
                 try {
-                  const labelsForChatResp = await fetch(
-                    `${baseUrl}/api/${sessionId}/labels/chats/${encodeURIComponent(conversa.chat_id)}`,
+                  const chatsByLabelResp = await fetch(
+                    `${baseUrl}/api/${sessionId}/labels/${encodeURIComponent(dbLabel.waha_label_id)}/chats`,
                     { method: "GET", headers: { "X-Api-Key": apiKey } }
                   );
 
-                  if (labelsForChatResp.ok) {
-                    const labelsForChat = await labelsForChatResp.json().catch(() => []);
-                    const labelIds: string[] = Array.isArray(labelsForChat)
-                      ? labelsForChat.map((l: { id?: string; labelId?: string } | string | number) => {
-                          if (typeof l === 'string') return l;
-                          if (typeof l === 'number') return String(l);
-                          return String(l.id ?? l.labelId ?? '');
-                        }).filter(Boolean)
-                      : [];
+                  if (chatsByLabelResp.ok) {
+                    const rawBody = await chatsByLabelResp.text();
+                    let chatsForLabel: unknown;
+                    try { chatsForLabel = JSON.parse(rawBody); } catch { chatsForLabel = []; }
 
-                    for (const wahaLabelId of labelIds) {
-                      const dbLabelUuid = labelIdMap.get(wahaLabelId);
-                      if (dbLabelUuid) {
+                    // AIDEV-NOTE: Response can be array of chat objects {id, name} or array of chat IDs
+                    let chatIds: string[] = [];
+                    if (Array.isArray(chatsForLabel)) {
+                      chatIds = chatsForLabel.map((c: unknown) => {
+                        if (typeof c === 'string') return c;
+                        if (c && typeof c === 'object') {
+                          const obj = c as Record<string, unknown>;
+                          return String(obj.id ?? obj.chatId ?? obj.chat_id ?? '');
+                        }
+                        return '';
+                      }).filter(Boolean);
+                    }
+
+                    if (chatIds.length > 0) {
+                      console.log(`[waha-proxy] Label "${dbLabel.waha_label_id}" has ${chatIds.length} chats: ${JSON.stringify(chatIds).substring(0, 300)}`);
+                    }
+
+                    for (const chatId of chatIds) {
+                      let conversaId = chatIdToConversaId.get(chatId);
+                      
+                      // AIDEV-NOTE: Resolver @lid para conversa via RPC quando chatId não faz match direto
+                      // WAHA GOWS retorna @lid para algumas labels, mas conversas armazenam @c.us
+                      if (!conversaId && chatId.endsWith('@lid')) {
+                        const lidNumber = chatId.replace('@lid', '');
+                        try {
+                          const { data: resolvedRows } = await supabaseAdmin
+                            .rpc('resolve_lid_conversa', { p_org_id: organizacaoId, p_lid_number: lidNumber });
+                          if (resolvedRows && resolvedRows.length > 0) {
+                            conversaId = resolvedRows[0].conversa_id;
+                            console.log(`[waha-proxy] Resolved @lid ${lidNumber} → conversa ${conversaId}`);
+                          } else {
+                            // Fallback: try matching by phone number substring in chat_id
+                            for (const [cId, cDbId] of chatIdToConversaId.entries()) {
+                              if (cId.includes(lidNumber.slice(-8))) {
+                                conversaId = cDbId;
+                                console.log(`[waha-proxy] Resolved @lid ${lidNumber} via partial match → ${cId}`);
+                                break;
+                              }
+                            }
+                          }
+                        } catch (lidErr) {
+                          console.warn(`[waha-proxy] Error resolving @lid ${lidNumber}:`, lidErr);
+                        }
+                      }
+                      
+                      if (conversaId) {
                         allNewRows.push({
                           organizacao_id: organizacaoId,
-                          conversa_id: conversa.id,
-                          label_id: dbLabelUuid,
+                          conversa_id: conversaId,
+                          label_id: dbLabel.id,
                         });
                       }
                     }
+                  } else {
+                    const errBody = await chatsByLabelResp.text();
+                    console.warn(`[waha-proxy] GET chats for label ${dbLabel.waha_label_id} returned ${chatsByLabelResp.status}: ${errBody.substring(0, 200)}`);
                   }
-                } catch (chatLabelErr) {
-                  // Skip individual chat errors silently
+                } catch (labelErr) {
+                  console.warn(`[waha-proxy] Error fetching chats for label ${dbLabel.waha_label_id}:`, labelErr);
                 }
               }
 
@@ -1453,10 +1505,10 @@ Deno.serve(async (req) => {
                 }
               }
 
-              console.log(`[waha-proxy] ✅ Synced ${dedupedRows.length} label associations across ${(conversasAtivas || []).length} conversations`);
+              console.log(`[waha-proxy] ✅ Synced ${dedupedRows.length} label associations from ${dbLabels.length} labels`);
             }
           } catch (syncErr) {
-            console.warn(`[waha-proxy] Failed to sync label-chat associations:`, syncErr);
+            console.error(`[waha-proxy] Failed to sync label-chat associations:`, syncErr);
           }
         }
 
