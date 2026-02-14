@@ -771,7 +771,7 @@ export function ChatMessageBubble({
   quotedMessage
 }: ChatMessageBubbleProps) {
   const [viewerMedia, setViewerMedia] = useState<{ url: string; tipo: 'image' | 'video' } | null>(null)
-  const [hovered, setHovered] = useState(false)
+  const [, setHovered] = useState(false)
   const [actionMenuOpen, setActionMenuOpen] = useState(false)
   const [showReactionPicker, setShowReactionPicker] = useState(false)
   const [reactionPos, setReactionPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
@@ -892,7 +892,7 @@ export function ChatMessageBubble({
       >
         {/* Action menu - LEFT side for SENT messages (isMe) */}
         {isMe && onDeleteMessage && (
-          <div className={`flex items-start pt-1 mr-1 transition-opacity ${hovered || actionMenuOpen ? 'opacity-100' : 'opacity-0'}`}>
+          <div className={`flex items-start pt-1 mr-1 transition-opacity opacity-0 group-hover/msg:opacity-100 ${actionMenuOpen ? '!opacity-100' : ''}`}>
             <MessageActionMenu
               mensagem={mensagem}
               onDelete={handleDelete}
@@ -961,7 +961,7 @@ export function ChatMessageBubble({
 
         {/* Action menu - RIGHT side for RECEIVED messages (!isMe) */}
         {!isMe && onDeleteMessage && (
-          <div className={`flex items-start pt-1 ml-1 transition-opacity ${hovered || actionMenuOpen ? 'opacity-100' : 'opacity-0'}`}>
+          <div className={`flex items-start pt-1 ml-1 transition-opacity opacity-0 group-hover/msg:opacity-100 ${actionMenuOpen ? '!opacity-100' : ''}`}>
             <MessageActionMenu
               mensagem={mensagem}
               onDelete={handleDelete}
