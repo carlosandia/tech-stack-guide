@@ -398,6 +398,32 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
     setBuscaIndex((prev) => (prev + 1) % resultadosBusca.length)
   }
 
+  // AIDEV-NOTE: Busca dados da empresa vinculada ao contato para pré-preencher modal
+  const [empresaContato, setEmpresaContato] = useState<{ id: string; razao_social?: string; nome_fantasia?: string } | null>(null)
+
+  useEffect(() => {
+    if (!conversa.contato?.id) return
+    supabase
+      .from('contatos')
+      .select('empresa_id')
+      .eq('id', conversa.contato.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.empresa_id) {
+          supabase
+            .from('contatos')
+            .select('id, razao_social, nome_fantasia')
+            .eq('id', data.empresa_id)
+            .maybeSingle()
+            .then(({ data: emp }) => {
+              if (emp) setEmpresaContato({ id: emp.id, razao_social: emp.razao_social ?? undefined, nome_fantasia: emp.nome_fantasia ?? undefined })
+            })
+        } else {
+          setEmpresaContato(null)
+        }
+      })
+  }, [conversa.contato?.id])
+
   const contatoPreSelecionado = useMemo(() => {
     if (!conversa.contato) return undefined
     return {
@@ -406,8 +432,9 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
       nome: conversa.contato.nome,
       email: conversa.contato.email,
       telefone: conversa.contato.telefone,
+      empresa: empresaContato,
     }
-  }, [conversa.contato])
+  }, [conversa.contato, empresaContato])
 
   const mensagensDestacadas = useMemo(() => {
     if (!termoBusca.trim()) return new Set<string>()
