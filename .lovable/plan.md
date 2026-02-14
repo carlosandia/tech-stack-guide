@@ -1,109 +1,83 @@
 
-# Correção: Etiquetas do WhatsApp não sincronizando em tempo real
+# Correção: Etiquetas dessincronizadas entre sidebar, header e dispositivo
 
-## Diagnostico
+## Diagnóstico (3 problemas encontrados)
 
-Analisei os logs e o código completamente. Encontrei **2 problemas distintos**:
+### Problema 1: Cache não invalida após sync
+O hook `useSincronizarLabels` no `onSuccess` só invalida a query `['whatsapp-labels']`. Ele NAO invalida `['conversas']` nem `['labels-conversa']`. Resultado: o banco atualiza corretamente mas o frontend continua mostrando dados antigos até o próximo refresh manual.
 
-### Problema 1: Webhooks de label nao estao chegando
-Os logs do `waha-webhook` mostram ZERO eventos `label.*` apesar da reconfiguração via PUT ter sido executada. A reconfiguração logou sucesso (`"Reconfiguring webhooks to include label events"`) mas o WAHA tem um **bug conhecido** onde o PUT na sessão pode não aplicar novos eventos de webhook sem reiniciar. A solução é garantir que o PATCH/PUT inclua o campo `name` correto e, se falhar, usar stop+start como fallback (assim como já é feito no `status`).
+### Problema 2: Labels órfãs em conversa soft-deleted
+Existe uma conversa duplicada com `chat_id = '162826672971943@lid'` que está soft-deleted (`deletado_em` preenchido). O sync só limpa labels de conversas ativas (filtra `deletado_em IS NULL`), então as labels dessa conversa fantasma nunca são removidas. Dependendo de cache, o frontend pode exibir dados dessa conversa morta.
 
-Porém, o problema **mais grave** é que mesmo quando o webhook label.chat.added chegar, ele precisa que a label já exista no banco. Se a label não existir, o handler simplesmente ignora (`label=false - skipping`). Precisamos adicionar auto-criação da label quando o webhook chega e ela não existe no banco.
+### Problema 3: Sidebar e Header usam fontes de dados diferentes
+- **Sidebar (ConversaItem)**: usa `conversa.labels` que vem do JOIN na query paginada (cache do React Query)
+- **Header (ChatHeader)**: usa `useLabelsConversa(conversa.id)` que é uma query separada direto na tabela
 
-### Problema 2: Sincronização manual (labels_list) não insere associações
-O log mostra `"Synced label associations for 10 conversations"` mas a tabela `conversas_labels` está **vazia**. Isso indica que o endpoint `GET /api/{session}/labels/chats/{chatId}/` do WAHA está retornando arrays vazios para todos os chats. Este é um **bug conhecido do WAHA** (issue #1370) onde a API de labels por chat pode retornar vazio mesmo com labels aplicadas.
-
-A solução é usar a abordagem inversa: `GET /api/{session}/labels/{labelId}/chats` (buscar chats por label) em vez de buscar labels por chat.
+Quando o cache está desatualizado, os dois mostram dados diferentes.
 
 ---
 
 ## Plano de Correção
 
-### 1. Edge Function `waha-proxy` - Inverter estratégia de sync
+### 1. Corrigir invalidação de cache no `useSincronizarLabels`
+**Arquivo:** `src/modules/conversas/hooks/useWhatsAppLabels.ts`
 
+No `onSuccess` da mutation, adicionar invalidação de `['conversas']` e `['labels-conversa']` para que tanto a sidebar quanto o header atualizem após o sync.
+
+### 2. Limpar labels de conversas soft-deleted no sync
 **Arquivo:** `supabase/functions/waha-proxy/index.ts`
 
-Na action `labels_list`, substituir o loop que busca labels POR CHAT pelo loop inverso que busca CHATS POR LABEL:
+No bloco `labels_list`, ao fazer o DELETE das associações, incluir TODAS as conversas da organização (não apenas as ativas). Isso garante que conversas com `deletado_em` preenchido também tenham suas labels limpas.
 
-```text
-Para cada label sincronizada no DB:
-  GET /api/{session}/labels/{labelId}/chats
-  Para cada chatId retornado:
-    Buscar conversa no DB pelo chat_id
-    Se existir, inserir em conversas_labels
-```
-
-Isso contorna o bug #1370 do WAHA onde `labels/chats/{chatId}` retorna vazio.
-
-Adicionar logging detalhado para cada label processada e quantos chats foram encontrados.
-
-### 2. Edge Function `waha-webhook` - Auto-criar label ausente
-
-**Arquivo:** `supabase/functions/waha-webhook/index.ts`
-
-No handler `label.chat.added`, quando a label não existe no banco (`label=null`):
-- Buscar a label na API WAHA: `GET /api/{session}/labels/{labelId}`
-- Inserir no banco `whatsapp_labels`
-- Continuar com a inserção em `conversas_labels`
-
-Isso resolve o cenário onde o webhook chega antes da sincronização manual.
-
-### 3. Edge Function `waha-proxy` - Forçar reconfiguração robusta de webhooks
-
-Na action `labels_list`, após o PUT de reconfiguração, verificar se realmente aplicou lendo a sessão novamente. Se os label events ainda não estiverem registrados, fazer o fallback stop+start (com `logout: false` para não perder a conexão).
-
-### 4. Frontend - Auto-sync mais robusto
-
-**Arquivo:** `src/modules/conversas/pages/ConversasPage.tsx`
-
-O auto-sync atual roda a cada mount da página, mas só quando tem conversas. Melhorar para:
-- Rodar apenas uma vez por sessão do navegador (usar ref para controlar)
-- Não depender da lista de labels estar vazia
+### 3. Limpar dados órfãos imediatos
+Executar uma migration SQL para remover labels associadas a conversas soft-deleted, limpando os dados sujos que existem agora.
 
 ---
 
-## Secao Tecnica - Detalhes
+## Detalhes Técnicos
 
-### Mudança no waha-proxy (labels_list sync)
-
-Trocar:
+### Mudança 1 - useWhatsAppLabels.ts
 ```typescript
-// ANTES: busca labels por chat (bug WAHA #1370 - retorna vazio)
-for (const conversa of conversasAtivas) {
-  const chatLabelsResp = await fetch(
-    `${baseUrl}/api/${sessionId}/labels/chats/${encodeURIComponent(conversa.chat_id)}/`
-  );
+// ANTES
+onSuccess: () => {
+  queryClient.invalidateQueries({ queryKey: ['whatsapp-labels'] })
+}
+
+// DEPOIS
+onSuccess: () => {
+  queryClient.invalidateQueries({ queryKey: ['whatsapp-labels'] })
+  queryClient.invalidateQueries({ queryKey: ['conversas'] })
+  queryClient.invalidateQueries({ queryKey: ['labels-conversa'] })
 }
 ```
 
-Por:
+### Mudança 2 - waha-proxy/index.ts (labels_list)
+No bloco de DELETE, trocar o filtro de conversas ativas para incluir todas as conversas da org:
+
 ```typescript
-// DEPOIS: busca chats por label (funciona corretamente)
-for (const label of labelsData) {
-  const chatsResp = await fetch(
-    `${baseUrl}/api/${sessionId}/labels/${label.id}/chats`
-  );
-  // Para cada chat retornado, vincular no banco
-}
+// ANTES: só deleta labels de conversas ativas
+const conversaIds = conversasAtivas.map(c => c.id);
+await supabaseAdmin.from("conversas_labels")
+  .delete()
+  .eq("organizacao_id", organizacaoId)
+  .in("conversa_id", conversaIds);
+
+// DEPOIS: deleta TODAS labels da org (inclui soft-deleted)
+await supabaseAdmin.from("conversas_labels")
+  .delete()
+  .eq("organizacao_id", organizacaoId);
 ```
 
-### Mudança no waha-webhook (label.chat.added)
-
-Adicionar bloco de auto-fetch quando `label === null`:
-```typescript
-if (!label && sessao) {
-  // Buscar dados da label na API WAHA
-  const wahaApiUrl = Deno.env.get("WAHA_API_URL") || configData?.waha_url;
-  const resp = await fetch(`${wahaApiUrl}/api/${sessionName}/labels/${labelPayload.labelId}`);
-  if (resp.ok) {
-    const labelData = await resp.json();
-    // Inserir no banco e continuar
-  }
-}
+### Mudança 3 - Migration SQL
+```sql
+DELETE FROM conversas_labels
+WHERE conversa_id IN (
+  SELECT id FROM conversas WHERE deletado_em IS NOT NULL
+);
 ```
 
 ### Ordem de implementação
-1. Corrigir `waha-proxy` (sync invertido + reconfig robusta)
-2. Corrigir `waha-webhook` (auto-criar label ausente)
-3. Ajustar frontend (auto-sync controlado)
+1. Migration para limpar dados órfãos
+2. Corrigir waha-proxy (delete abrangente)
+3. Corrigir cache invalidation no hook
 4. Deploy e teste
