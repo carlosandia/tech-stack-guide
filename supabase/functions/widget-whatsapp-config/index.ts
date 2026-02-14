@@ -187,7 +187,115 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Verificar se notificação por email está ativa
+      // =====================================================
+      // 1. Criar/buscar contato e oportunidade na pipeline
+      // =====================================================
+      const funilId = widgetCfg.funil_id;
+      let contatoId: string | null = null;
+
+      // Extrair dados do contato dos campos
+      const nomeContato = dados.Nome || dados.nome || dados.name || "Lead Widget";
+      const telefoneContato = dados.Telefone || dados.telefone || dados.phone || dados.Celular || dados.celular || "";
+      const emailContato = dados.Email || dados.email || "";
+
+      // Tentar encontrar contato existente por telefone ou email
+      if (telefoneContato) {
+        const telLimpo = telefoneContato.replace(/\D/g, '');
+        const { data: contatoExistente } = await supabase
+          .from("contatos")
+          .select("id")
+          .eq("organizacao_id", orgId)
+          .ilike("telefone", `%${telLimpo.slice(-8)}%`)
+          .is("deletado_em", null)
+          .limit(1)
+          .maybeSingle();
+        if (contatoExistente) contatoId = contatoExistente.id;
+      }
+
+      if (!contatoId && emailContato) {
+        const { data: contatoExistente } = await supabase
+          .from("contatos")
+          .select("id")
+          .eq("organizacao_id", orgId)
+          .ilike("email", emailContato)
+          .is("deletado_em", null)
+          .limit(1)
+          .maybeSingle();
+        if (contatoExistente) contatoId = contatoExistente.id;
+      }
+
+      // Se não encontrou, criar novo contato
+      if (!contatoId) {
+        const { data: novoContato, error: errContato } = await supabase
+          .from("contatos")
+          .insert({
+            organizacao_id: orgId,
+            tipo: "pessoa",
+            nome: nomeContato,
+            telefone: telefoneContato || null,
+            email: emailContato || null,
+            origem: "widget_whatsapp",
+            status: "novo",
+          })
+          .select("id")
+          .single();
+
+        if (errContato) {
+          console.error("[widget-submit] Erro ao criar contato:", errContato);
+        } else {
+          contatoId = novoContato.id;
+          console.log("[widget-submit] Contato criado:", contatoId);
+        }
+      } else {
+        console.log("[widget-submit] Contato existente encontrado:", contatoId);
+      }
+
+      // Criar oportunidade se temos contato e funil
+      if (contatoId && funilId) {
+        // Buscar etapa de entrada do funil
+        const { data: etapaEntrada } = await supabase
+          .from("etapas_funil")
+          .select("id")
+          .eq("funil_id", funilId)
+          .eq("tipo", "entrada")
+          .is("deletado_em", null)
+          .single();
+
+        const etapaId = etapaEntrada?.id;
+
+        // Gerar título automático
+        const { count: countOps } = await supabase
+          .from("oportunidades")
+          .select("id", { count: "exact", head: true })
+          .eq("contato_id", contatoId)
+          .is("deletado_em", null);
+
+        const sequencia = (countOps || 0) + 1;
+        const tituloAuto = `${nomeContato} - #${sequencia}`;
+
+        const { data: oportunidade, error: opErr } = await supabase
+          .from("oportunidades")
+          .insert({
+            organizacao_id: orgId,
+            funil_id: funilId,
+            etapa_id: etapaId,
+            contato_id: contatoId,
+            titulo: tituloAuto,
+            valor: 0,
+          })
+          .select("id")
+          .single();
+
+        if (opErr) {
+          console.error("[widget-submit] Erro ao criar oportunidade:", opErr);
+        } else {
+          console.log("[widget-submit] Oportunidade criada:", oportunidade?.id);
+        }
+      }
+
+      // =====================================================
+      // 2. Notificação por email (se ativo)
+      // =====================================================
       if (widgetCfg.notificar_email && widgetCfg.email_destino) {
         console.log("[widget-submit] Enviando notificação por email para:", widgetCfg.email_destino);
 
@@ -202,18 +310,16 @@ Deno.serve(async (req) => {
           .single();
 
         if (conexao?.smtp_host && conexao?.smtp_user && conexao?.smtp_pass_encrypted) {
-          // Montar HTML do email
           const camposHtml = Object.entries(dados as Record<string, string>)
             .map(([k, v]) => `<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;font-weight:600;text-transform:capitalize;background:#f9fafb">${k}</td><td style="padding:8px 12px;border:1px solid #e5e7eb">${v}</td></tr>`)
             .join("");
 
-          // Buscar nome do funil
           let funilNome = "Widget WhatsApp";
-          if (widgetCfg.funil_id) {
+          if (funilId) {
             const { data: funil } = await supabase
               .from("funis")
               .select("nome")
-              .eq("id", widgetCfg.funil_id)
+              .eq("id", funilId)
               .maybeSingle();
             if (funil?.nome) funilNome = funil.nome;
           }
@@ -230,7 +336,6 @@ Deno.serve(async (req) => {
               <p style="color:#666;font-size:12px">Enviado automaticamente pelo CRM Renove</p>
             </div>`;
 
-          const nomeContato = dados.nome || dados.Nome || "Lead";
           const result = await enviarEmailSmtp({
             host: conexao.smtp_host,
             port: conexao.smtp_port || 587,
