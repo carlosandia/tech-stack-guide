@@ -1,82 +1,143 @@
 
+# Automacao: Etiqueta WhatsApp movimenta Oportunidade no CRM
 
-# Simplificacao da Sincronizacao de Etiquetas
+## Resumo
 
-## Situacao Atual
+Quando o usuario alterar uma etiqueta no WhatsApp, o CRM identifica a etapa correspondente (por nome, case-insensitive) e:
+- Se ja existe oportunidade aberta para aquele contato: **move** para a etapa correspondente
+- Se nao existe oportunidade (ou so existem fechadas, conforme preferencia): **cria** uma nova e posiciona na etapa
+- Sempre considera o **ultimo evento** de webhook como verdade
 
-O sistema possui **tres mecanismos** para sincronizar etiquetas:
+A configuracao fica na area de **Conexoes** (WhatsApp), dando ao usuario controle total para habilitar/desabilitar e definir preferencias.
 
-1. **Webhooks** (`waha-webhook`): processam `label.upsert`, `label.chat.added`, `label.chat.deleted` em tempo real -- ja implementado e funcional
-2. **Polling pesado a cada 15s** (`ConversasPage.tsx`): chama `labels_list` no `waha-proxy`, que faz 1 request para cada conversa ativa (ate 500 requests a cada 15s)
-3. **Sync ao focar aba / selecionar conversa**: tambem chama `labels_list` (mesma carga pesada)
+---
 
-O polling de 15s e extremamente custoso: para 50 conversas ativas, sao 50+ requests HTTP a cada 15 segundos. Alem disso, o `labels_list` faz DELETE ALL + INSERT em batch, o que pode causar "piscar" de etiquetas na interface.
+## Arquitetura
 
-## Proposta: Confiar nos Webhooks + Polling Leve
-
-### 1. Frontend: Reduzir polling de 15s para 60s (health check)
-
-**Arquivo:** `src/modules/conversas/pages/ConversasPage.tsx`
-
-- Mudar o `setInterval` de `15000` para `60000` (60 segundos)
-- Isso torna o polling um "health check" de seguranca, nao o mecanismo principal
-- Manter o sync ao focar aba (visibilitychange) e ao montar a pagina
-
-### 2. Backend `waha-proxy`: Simplificar `labels_list`
-
-**Arquivo:** `supabase/functions/waha-proxy/index.ts`
-
-A action `labels_list` continuara:
-- Sincronizando as **definicoes de labels** (nomes, cores) via `GET /labels` (1 unico request)
-- Reconfigurar webhooks se necessario (manter logica existente)
-
-Mas ao inves de iterar por cada conversa ativa (N requests), usara uma estrategia mais leve:
-- Chamar `GET /labels` para obter as labels e suas propriedades
-- Para cada label retornada pela API, verificar se possui campo `chatIds` ou similar (alguns endpoints WAHA retornam isso)
-- Se nao houver dados de associacao no endpoint simples, **nao faz o full sync de associacoes** -- confia nos webhooks para manter `conversas_labels` atualizado
-
-Caso o endpoint `GET /labels` retorne a lista de chats por label (alguns engines do WAHA fazem isso), usar esses dados diretamente. Caso contrario, pular o sync de associacoes no polling e confiar 100% nos webhooks.
-
-### 3. Manter Realtime do Supabase
-
-O `useConversasRealtime.ts` ja escuta INSERT/DELETE em `conversas_labels` e `*` em `whatsapp_labels`. Quando o webhook insere/remove uma associacao, o Supabase Realtime invalida o cache automaticamente -- isso ja funciona.
-
-### 4. Remover sync ao selecionar conversa
-
-**Arquivo:** `src/modules/conversas/pages/ConversasPage.tsx`
-
-No `handleSelectConversa`, remover a chamada `sincronizarLabels.mutate()`. Ao selecionar uma conversa, os dados ja estarao atualizados via webhook + realtime. Isso reduz chamadas desnecessarias.
-
-## Resultado Esperado
+O fluxo e acionado pelo webhook `label.chat.added` que ja existe no `waha-webhook`. A logica nova sera adicionada **apos** o upsert em `conversas_labels`, aproveitando o contexto ja resolvido (conversa, label, organizacao).
 
 ```text
-Antes:
-  - 15s polling → N requests por conversa (50+ requests a cada 15s)
-  - DELETE ALL + INSERT em batch a cada 15s
-  - Visibilidade e selecao de conversa = mais N requests
-
-Depois:
-  - Webhooks em tempo real (latencia < 2s)
-  - Realtime Supabase invalida cache instantaneamente
-  - 60s polling = apenas 1 request GET /labels (definicoes, nao associacoes)
-  - Menor carga no servidor WAHA e no Supabase
+Dispositivo WhatsApp
+    |
+    v
+WAHA (label.chat.added webhook)
+    |
+    v
+waha-webhook Edge Function
+    |
+    +-- 1. Upsert em conversas_labels (ja existe)
+    |
+    +-- 2. [NOVO] Buscar mapeamento etiqueta -> etapa (por nome, case-insensitive)
+    |
+    +-- 3. [NOVO] Buscar contato da conversa
+    |
+    +-- 4. [NOVO] Buscar oportunidade existente do contato no funil
+    |       |
+    |       +-- Existe aberta? -> Mover para etapa
+    |       +-- Nao existe? -> Criar oportunidade + posicionar na etapa
+    |       +-- Existe fechada? -> Conforme config do usuario
+    |
+    v
+  Retorno OK
 ```
 
-## Detalhes Tecnicos
+---
 
-### Alteracoes por arquivo:
+## Etapa 1: Banco de Dados
 
-**`src/modules/conversas/pages/ConversasPage.tsx`:**
-- Linha 110: mudar `15000` para `60000`
-- Linhas 126-131: remover `sincronizarLabels.mutate()` do `handleSelectConversa`
+### 1.1 Nova coluna em `etapas_funil`
 
-**`supabase/functions/waha-proxy/index.ts`:**
-- Linhas 1374-1507 (bloco de sync "labels per chat"): substituir por um sync simplificado que apenas sincroniza as definicoes de labels sem iterar por cada conversa. O bloco pesado de N requests sera removido.
-- Manter o upsert de definicoes de labels (nomes, cores) que ja existe nas linhas 1361-1372
+Adicionar `etiqueta_whatsapp` (varchar, nullable) na tabela `etapas_funil`. Armazena o nome da etiqueta que corresponde a essa etapa. A comparacao sera sempre case-insensitive (LOWER).
 
-### Risco e Mitigacao
+```sql
+ALTER TABLE etapas_funil
+ADD COLUMN etiqueta_whatsapp varchar(255) DEFAULT NULL;
+```
 
-- **Risco**: se webhooks falharem, labels ficam dessincronizadas ate o proximo polling (60s)
-- **Mitigacao**: o botao manual "Sincronizar" no LabelsPopover continua funcionando e pode disparar o full sync quando o usuario perceber inconsistencia
-- **Mitigacao extra**: manter no `labels_list` a opcao de full sync, mas so executar quando chamado manualmente (nao no polling automatico)
+### 1.2 Novas colunas em `sessoes_whatsapp`
 
+Adicionar configuracoes do recurso de etiquetas na sessao:
+
+```sql
+ALTER TABLE sessoes_whatsapp
+ADD COLUMN etiqueta_move_oportunidade boolean DEFAULT false,
+ADD COLUMN etiqueta_comportamento_fechada varchar(20) DEFAULT 'criar_nova'
+  CHECK (etiqueta_comportamento_fechada IN ('criar_nova', 'ignorar', 'criar_se_fechada'));
+```
+
+- `etiqueta_move_oportunidade`: habilita/desabilita o recurso
+- `etiqueta_comportamento_fechada`: define o que fazer quando ja existe oportunidade fechada
+  - `criar_nova`: sempre cria nova oportunidade
+  - `ignorar`: nao faz nada se existe qualquer oportunidade (aberta ou fechada)
+  - `criar_se_fechada`: cria nova apenas se todas estao fechadas, move se tem aberta
+
+---
+
+## Etapa 2: Frontend - Configuracao nas Conexoes
+
+### 2.1 Configuracao na tela de Conexoes (WhatsAppConfigModal)
+
+Adicionar uma nova secao **"Automacao de Etiquetas"** dentro do modal de configuracao do WhatsApp (acessado pelo botao "Configurar" na tela de Conexoes):
+
+- **Toggle**: "Movimentar oportunidades por etiqueta" (habilita/desabilita)
+- **Select**: "Quando oportunidade ja fechada" com 3 opcoes:
+  - Criar nova oportunidade (padrao)
+  - Ignorar
+  - Criar nova apenas se fechada
+
+### 2.2 Mapeamento etiqueta na configuracao de Etapas do Funil
+
+Na pagina de configuracao de cada pipeline (etapas do funil), adicionar um campo de texto opcional **"Etiqueta WhatsApp"** em cada etapa editavel. O campo aceita o nome da etiqueta (comparacao case-insensitive).
+
+Quando o usuario digitar "NOVO PEDIDO", qualquer etiqueta chamada "novo pedido", "Novo Pedido" ou "NOVO PEDIDO" sera reconhecida.
+
+---
+
+## Etapa 3: Backend - Logica no waha-webhook
+
+### 3.1 No handler de `label.chat.added`
+
+Apos o upsert em `conversas_labels` (que ja existe), adicionar:
+
+1. **Verificar se o recurso esta habilitado**: consultar `sessoes_whatsapp.etiqueta_move_oportunidade`
+2. **Buscar nome da label**: consultar `whatsapp_labels.nome` pelo `label.id`
+3. **Buscar etapa correspondente**: consultar `etapas_funil` onde `LOWER(etiqueta_whatsapp) = LOWER(nome_da_label)` e pertence ao funil configurado em `sessoes_whatsapp.funil_destino_id`
+4. **Buscar contato da conversa**: consultar `conversas.contato_id`
+5. **Buscar oportunidade existente**:
+   - Consultar `oportunidades` pelo `contato_id` + `funil_id` + `deletado_em IS NULL`
+   - Se tem aberta (`fechado_em IS NULL`): mover `etapa_id` para a nova etapa
+   - Se so tem fechada: aplicar regra de `etiqueta_comportamento_fechada`
+   - Se nao tem nenhuma: criar nova oportunidade
+6. **Criar oportunidade** (quando necessario):
+   - Titulo: nome do contato + " - #sequencia"
+   - Funil: `sessoes_whatsapp.funil_destino_id`
+   - Etapa: a correspondente a etiqueta
+   - Contato: o da conversa
+   - Origem: 'whatsapp'
+7. **Log**: registrar em audit_log a movimentacao/criacao
+
+### 3.2 Eventos multiplos (5 etiquetas)
+
+Quando multiplas etiquetas sao adicionadas/removidas rapidamente, cada webhook `label.chat.added` executa independentemente. O **ultimo a executar** prevalece, pois cada um move a oportunidade para sua etapa correspondente. Isso atende naturalmente o requisito de "ultimo evento vence".
+
+---
+
+## Etapa 4: Arquivos Modificados
+
+| Arquivo | Alteracao |
+|---------|-----------|
+| `supabase/functions/waha-webhook/index.ts` | Logica de movimentacao/criacao de oportunidade no handler `label.chat.added` |
+| `src/modules/configuracoes/components/integracoes/WhatsAppConfigModal.tsx` | Secao de configuracao de etiquetas |
+| UI de configuracao de etapas do funil | Campo "Etiqueta WhatsApp" por etapa |
+| Migration SQL | Colunas `etiqueta_whatsapp`, `etiqueta_move_oportunidade`, `etiqueta_comportamento_fechada` |
+
+---
+
+## Riscos e Mitigacoes
+
+| Risco | Mitigacao |
+|-------|-----------|
+| Webhook chega antes do contato existir | O handler ja cria contato automaticamente no fluxo de mensagens. Se o label.chat.added chegar sem contato, pula a automacao (a proxima mensagem criara o contato e o proximo label sync cobrira). |
+| Etiquetas com nomes duplicados em etapas diferentes | Busca considera apenas etapas do funil configurado (`funil_destino_id`). Se houver duplicata no mesmo funil, usa a primeira encontrada (ordem menor). |
+| Race condition entre webhooks simultaneos | Cada webhook opera atomicamente no banco. O ultimo a executar UPDATE prevalece, que e o comportamento desejado. |
+| Recurso desabilitado por padrao | `etiqueta_move_oportunidade` default `false`. Nenhum comportamento muda ate o usuario habilitar explicitamente. |
