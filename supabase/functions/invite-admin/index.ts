@@ -506,7 +506,7 @@ Deno.serve(async (req) => {
 
     const origin =
       req.headers.get("origin") ||
-      "https://id-preview--1f239c79-4597-4aa1-ba11-8321b3203abb.lovable.app";
+      "https://crm.renovedigital.com.br";
     const orgNome = organizacao_nome || "CRM";
 
     // Usar nome do convidador do body ou do requesting user

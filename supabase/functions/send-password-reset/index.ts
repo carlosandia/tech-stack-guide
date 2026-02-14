@@ -325,7 +325,7 @@ Deno.serve(async (req) => {
     const nomeUsuario = usuario.nome || "Usuário";
 
     // Gerar link de recovery via Supabase Auth
-    const origin = req.headers.get("origin") || "https://id-preview--1f239c79-4597-4aa1-ba11-8321b3203abb.lovable.app";
+    const origin = req.headers.get("origin") || "https://crm.renovedigital.com.br";
 
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: "recovery",
