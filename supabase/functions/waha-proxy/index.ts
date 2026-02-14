@@ -1371,9 +1371,10 @@ Deno.serve(async (req) => {
               }, { onConflict: "organizacao_id,waha_label_id" });
           }
 
-          // AIDEV-NOTE: Associações label↔chat são mantidas pelos webhooks (label.chat.added/deleted)
-          // O polling agora sincroniza apenas definições de labels (nomes, cores) - 1 único request
-          // Se o endpoint GET /labels retornar chatIds por label, usamos esses dados diretamente
+          // AIDEV-NOTE: Sync label↔chat associations via "labels per chat" strategy
+          // GET /labels não retorna chatIds no WAHA GOWS, e webhooks de label são instáveis
+          // Solução: para cada conversa ativa, consultar GET /labels/chats/{chatId}
+          // Com polling a 60s, isso é aceitável (antes era 15s)
           try {
             const { data: dbLabels } = await supabaseAdmin
               .from("whatsapp_labels")
@@ -1383,77 +1384,79 @@ Deno.serve(async (req) => {
             if (dbLabels && dbLabels.length > 0) {
               const labelIdMap = new Map(dbLabels.map(l => [String(l.waha_label_id), l.id]));
 
-              // Verificar se labelsData já contém chatIds (alguns engines WAHA retornam isso)
-              const labelsWithChats = labelsData.filter((l: { chatIds?: string[] }) =>
-                Array.isArray(l.chatIds) && l.chatIds.length > 0
-              );
+              // Get active conversations
+              const { data: conversasAtivas } = await supabaseAdmin
+                .from("conversas")
+                .select("id, chat_id")
+                .eq("organizacao_id", organizacaoId)
+                .eq("canal", "whatsapp")
+                .is("deletado_em", null)
+                .order("ultima_mensagem_em", { ascending: false })
+                .limit(500);
 
-              if (labelsWithChats.length > 0) {
-                console.log(`[waha-proxy] GET /labels returned chatIds - syncing associations from label data`);
+              // Clear ALL label associations for this org (full sync)
+              await supabaseAdmin
+                .from("conversas_labels")
+                .delete()
+                .eq("organizacao_id", organizacaoId);
 
-                // Buscar conversas para mapear chat_id → conversa.id
-                const { data: conversasAtivas } = await supabaseAdmin
-                  .from("conversas")
-                  .select("id, chat_id")
-                  .eq("organizacao_id", organizacaoId)
-                  .eq("canal", "whatsapp")
-                  .is("deletado_em", null)
-                  .order("ultima_mensagem_em", { ascending: false })
-                  .limit(500);
+              const allNewRows: Array<{ organizacao_id: string; conversa_id: string; label_id: string }> = [];
 
-                const chatIdToConversaMap = new Map(
-                  (conversasAtivas || []).map(c => [c.chat_id, c.id])
-                );
+              for (const conversa of (conversasAtivas || [])) {
+                try {
+                  const labelsForChatResp = await fetch(
+                    `${baseUrl}/api/${sessionId}/labels/chats/${encodeURIComponent(conversa.chat_id)}`,
+                    { method: "GET", headers: { "X-Api-Key": apiKey } }
+                  );
 
-                // Clear and rebuild from GET /labels chatIds data
-                await supabaseAdmin
-                  .from("conversas_labels")
-                  .delete()
-                  .eq("organizacao_id", organizacaoId);
+                  if (labelsForChatResp.ok) {
+                    const labelsForChat = await labelsForChatResp.json().catch(() => []);
+                    const labelIds: string[] = Array.isArray(labelsForChat)
+                      ? labelsForChat.map((l: { id?: string; labelId?: string } | string | number) => {
+                          if (typeof l === 'string') return l;
+                          if (typeof l === 'number') return String(l);
+                          return String(l.id ?? l.labelId ?? '');
+                        }).filter(Boolean)
+                      : [];
 
-                const allNewRows: Array<{ organizacao_id: string; conversa_id: string; label_id: string }> = [];
-
-                for (const label of labelsWithChats) {
-                  const dbLabelUuid = labelIdMap.get(String(label.id));
-                  if (!dbLabelUuid) continue;
-
-                  for (const chatId of (label as { chatIds: string[] }).chatIds) {
-                    const conversaId = chatIdToConversaMap.get(chatId);
-                    if (conversaId) {
-                      allNewRows.push({
-                        organizacao_id: organizacaoId,
-                        conversa_id: conversaId,
-                        label_id: dbLabelUuid,
-                      });
+                    for (const wahaLabelId of labelIds) {
+                      const dbLabelUuid = labelIdMap.get(wahaLabelId);
+                      if (dbLabelUuid) {
+                        allNewRows.push({
+                          organizacao_id: organizacaoId,
+                          conversa_id: conversa.id,
+                          label_id: dbLabelUuid,
+                        });
+                      }
                     }
                   }
+                } catch (chatLabelErr) {
+                  // Skip individual chat errors silently
                 }
-
-                // Dedup + insert
-                const uniqueKeys = new Set<string>();
-                const dedupedRows = allNewRows.filter(row => {
-                  const key = `${row.conversa_id}:${row.label_id}`;
-                  if (uniqueKeys.has(key)) return false;
-                  uniqueKeys.add(key);
-                  return true;
-                });
-
-                if (dedupedRows.length > 0) {
-                  const { error: insertErr } = await supabaseAdmin
-                    .from("conversas_labels")
-                    .upsert(dedupedRows, { onConflict: "conversa_id,label_id" });
-                  if (insertErr) {
-                    console.error(`[waha-proxy] Error inserting label associations:`, insertErr.message);
-                  }
-                }
-
-                console.log(`[waha-proxy] ✅ Synced ${dedupedRows.length} label associations from GET /labels chatIds`);
-              } else {
-                console.log(`[waha-proxy] GET /labels does not include chatIds - trusting webhooks for associations`);
               }
+
+              // Dedup + insert
+              const uniqueKeys = new Set<string>();
+              const dedupedRows = allNewRows.filter(row => {
+                const key = `${row.conversa_id}:${row.label_id}`;
+                if (uniqueKeys.has(key)) return false;
+                uniqueKeys.add(key);
+                return true;
+              });
+
+              if (dedupedRows.length > 0) {
+                const { error: insertErr } = await supabaseAdmin
+                  .from("conversas_labels")
+                  .upsert(dedupedRows, { onConflict: "conversa_id,label_id" });
+                if (insertErr) {
+                  console.error(`[waha-proxy] Error inserting label associations:`, insertErr.message);
+                }
+              }
+
+              console.log(`[waha-proxy] ✅ Synced ${dedupedRows.length} label associations across ${(conversasAtivas || []).length} conversations`);
             }
           } catch (syncErr) {
-            console.warn(`[waha-proxy] Failed to check label associations:`, syncErr);
+            console.warn(`[waha-proxy] Failed to sync label-chat associations:`, syncErr);
           }
         }
 
