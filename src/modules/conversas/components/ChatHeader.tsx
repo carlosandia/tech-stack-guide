@@ -196,7 +196,7 @@ export function ChatHeader({ conversa, onBack, onOpenDrawer, onAlterarStatus, on
 
           <button
             onClick={onOpenDrawer}
-            className="flex items-center gap-2 min-w-0 hover:opacity-80 transition-opacity flex-1"
+            className="flex items-center gap-2 min-w-0 hover:opacity-80 transition-opacity"
           >
             {fotoUrl ? (
               <img src={fotoUrl} alt={nome} className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover flex-shrink-0" />
@@ -223,29 +223,28 @@ export function ChatHeader({ conversa, onBack, onOpenDrawer, onAlterarStatus, on
                   </svg>
                 )}
               </div>
-              <p className="text-[10px] sm:text-[11px] text-muted-foreground text-left hidden sm:flex items-center gap-1">
-                {conversaLabels.length > 0 ? (
-                  <LabelsPopover conversaId={conversa.id} chatId={conversa.chat_id} sessionName={sessionName}>
-                    <span className="flex items-center gap-1 cursor-pointer hover:opacity-80">
-                      {conversaLabels.slice(0, 3).map(cl => (
-                        <LabelBadge key={cl.id} nome={cl.whatsapp_labels.nome} corHex={cl.whatsapp_labels.cor_hex} />
-                      ))}
-                      {conversaLabels.length > 3 && <span className="text-[10px] text-muted-foreground">+{conversaLabels.length - 3}</span>}
-                    </span>
-                  </LabelsPopover>
-                ) : conversa.canal === 'whatsapp' && sessionName ? (
-                  <LabelsPopover conversaId={conversa.id} chatId={conversa.chat_id} sessionName={sessionName}>
-                    <span className="flex items-center gap-0.5 cursor-pointer hover:text-primary transition-colors">
-                      <Tag className="w-3 h-3" />
-                      Etiquetas
-                    </span>
-                  </LabelsPopover>
-                ) : (
-                  'Clique para info do contato'
-                )}
-              </p>
             </div>
           </button>
+          {/* AIDEV-NOTE: Etiquetas fora do botão para não propagar clique ao drawer */}
+          <div className="hidden sm:flex items-center gap-1 min-w-0">
+            {conversaLabels.length > 0 ? (
+              <LabelsPopover conversaId={conversa.id} chatId={conversa.chat_id} sessionName={sessionName}>
+                <span className="flex items-center gap-1 cursor-pointer hover:opacity-80 text-[10px] sm:text-[11px]">
+                  {conversaLabels.slice(0, 3).map(cl => (
+                    <LabelBadge key={cl.id} nome={cl.whatsapp_labels.nome} corHex={cl.whatsapp_labels.cor_hex} />
+                  ))}
+                  {conversaLabels.length > 3 && <span className="text-[10px] text-muted-foreground">+{conversaLabels.length - 3}</span>}
+                </span>
+              </LabelsPopover>
+            ) : conversa.canal === 'whatsapp' && sessionName ? (
+              <LabelsPopover conversaId={conversa.id} chatId={conversa.chat_id} sessionName={sessionName}>
+                <span className="flex items-center gap-0.5 cursor-pointer hover:text-primary transition-colors text-[10px] sm:text-[11px] text-muted-foreground">
+                  <Tag className="w-3 h-3" />
+                  Etiquetas
+                </span>
+              </LabelsPopover>
+            ) : null}
+          </div>
         </div>
 
         {/* Right: Actions + Status + Menu */}
