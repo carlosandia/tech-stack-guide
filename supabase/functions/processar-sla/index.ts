@@ -204,9 +204,8 @@ Deno.serve(async (req) => {
         await supabase.from('historico_distribuicao').insert({
           organizacao_id: config.organizacao_id,
           oportunidade_id: op.id,
-          funil_id: config.funil_id,
-          usuario_origem_id: responsavelAtual,
-          usuario_destino_id: proximoUsuarioId,
+          usuario_anterior_id: responsavelAtual,
+          usuario_novo_id: proximoUsuarioId,
           motivo: 'sla',
         })
 
