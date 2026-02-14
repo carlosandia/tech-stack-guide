@@ -464,7 +464,7 @@ function PainelInformacoes({ oportunidadeId }: { oportunidadeId: string }) {
       const { data } = await supabase
         .from('valores_campos_customizados')
         .select('campo_id, valor_texto, valor_numero, valor_data, valor_booleano, valor_json')
-        .eq('entidade_tipo', 'contato')
+        .eq('entidade_tipo', 'pessoa')
         .eq('entidade_id', contato.id)
       return data || []
     },
@@ -477,7 +477,7 @@ function PainelInformacoes({ oportunidadeId }: { oportunidadeId: string }) {
       const { data } = await supabase
         .from('valores_campos_customizados')
         .select('campo_id, valor_texto, valor_numero, valor_data, valor_booleano, valor_json')
-        .eq('entidade_tipo', 'contato')
+        .eq('entidade_tipo', 'empresa')
         .eq('entidade_id', empresa.id)
       return data || []
     },
@@ -542,7 +542,16 @@ function PainelInformacoes({ oportunidadeId }: { oportunidadeId: string }) {
   const getCustomValue = (valores: any[] | undefined, campoId: string) => {
     if (!valores) return null
     const v = valores.find((x: any) => x.campo_id === campoId)
-    return v?.valor_texto || v?.valor_numero?.toString() || null
+    if (!v) return null
+    // Multi-select: prefer valor_json array
+    if (v.valor_json && Array.isArray(v.valor_json)) {
+      return (v.valor_json as string[]).join(', ')
+    }
+    // Fallback: valor_texto com pipe delimiter
+    if (v.valor_texto && v.valor_texto.includes('|')) {
+      return v.valor_texto.split('|').map((s: string) => s.trim()).filter(Boolean).join(', ')
+    }
+    return v?.valor_texto || v?.valor_numero?.toString() || v?.valor_booleano?.toString() || null
   }
 
   // Campos de pessoa (sistema + custom)
@@ -629,7 +638,7 @@ function PainelInformacoes({ oportunidadeId }: { oportunidadeId: string }) {
                     icon={FileText}
                     label={campo.nome}
                     value={getCustomValue(valoresContatoCustom, campo.id)}
-                    onSave={saveCustomField('contato', contato.id, campo.id)}
+                    onSave={saveCustomField('pessoa', contato.id, campo.id)}
                   />
                 )
               }
@@ -671,7 +680,7 @@ function PainelInformacoes({ oportunidadeId }: { oportunidadeId: string }) {
                     icon={FileText}
                     label={campo.nome}
                     value={getCustomValue(valoresEmpresaCustom, campo.id)}
-                    onSave={saveCustomField('contato', empresa.id, campo.id)}
+                    onSave={saveCustomField('empresa', empresa.id, campo.id)}
                   />
                 )
               }
