@@ -194,7 +194,8 @@ async function notificarEmail(
       <p style="color:#666;font-size:12px">Enviado automaticamente pelo CRM Renove</p>
     </div>`
 
-  const nomeContato = dadosContato.nome || 'Lead'
+  // Buscar nome do contato: tentar chaves comuns (label pode variar)
+  const nomeContato = dadosContato['Nome'] || dadosContato['nome'] || dadosContato['Seu nome'] || dadosContato['Seu Nome'] || dadosContato['name'] || Object.values(dadosContato)[0] || 'Lead'
   const result = await enviarEmailSmtp({
     host: conexao.smtp_host,
     port: conexao.smtp_port || 587,
