@@ -388,12 +388,12 @@ Deno.serve(async (req) => {
 
     // Buscar nomes dos campos selecionados
     const campoIds = (widgetConfig?.campos_formulario as string[]) || [];
-    let camposInfo: Array<{ id: string; nome: string; tipo: string; placeholder: string | null }> = [];
+    let camposInfo: Array<{ id: string; nome: string; tipo: string; placeholder: string | null; opcoes: any; obrigatorio: boolean }> = [];
 
     if (campoIds.length > 0) {
       const { data: campos } = await supabase
         .from("campos_customizados")
-        .select("id, nome, tipo, placeholder")
+        .select("id, nome, tipo, placeholder, opcoes, obrigatorio")
         .in("id", campoIds)
         .eq("organizacao_id", orgId);
 
