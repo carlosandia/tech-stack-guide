@@ -5,7 +5,7 @@
  * Conecta ações de silenciar, limpar, apagar, fixar, reagir e encaminhar
  */
 
-import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useState, useMemo, useEffect, useCallback, forwardRef } from 'react'
 import { compressImage } from '@/shared/utils/compressMedia'
 import { ChatHeader } from './ChatHeader'
 import { ChatMessages } from './ChatMessages'
@@ -94,7 +94,7 @@ interface ChatWindowProps {
   onConversaApagada?: () => void
 }
 
-export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }: ChatWindowProps) {
+export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }, _ref) {
   const [quickRepliesOpen, setQuickRepliesOpen] = useState(false)
   const [pipelineModalOpen, setPipelineModalOpen] = useState(false)
   const [oportunidadeModalOpen, setOportunidadeModalOpen] = useState(false)
@@ -602,4 +602,5 @@ export function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }
       )}
     </div>
   )
-}
+})
+ChatWindow.displayName = 'ChatWindow'

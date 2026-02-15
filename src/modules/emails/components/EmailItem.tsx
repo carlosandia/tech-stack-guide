@@ -3,6 +3,7 @@
  * Formato: checkbox | star | remetente | assunto - preview | data
  */
 
+import { forwardRef } from 'react'
 import { format, isToday, isYesterday, isThisYear } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Star, Paperclip } from 'lucide-react'
@@ -26,14 +27,14 @@ function formatarDataEmail(dataStr: string): string {
   return format(data, 'd/MM/yy')
 }
 
-export function EmailItem({
+export const EmailItem = forwardRef<HTMLDivElement, EmailItemProps>(function EmailItem({
   email,
   isSelected,
   isChecked,
   onSelect,
   onToggleCheck,
   onToggleFavorito,
-}: EmailItemProps) {
+}, _ref) {
   const nomeRemetente = email.de_nome || email.de_email.split('@')[0]
   const isUnread = !email.lido
 
@@ -125,4 +126,5 @@ export function EmailItem({
       </div>
     </div>
   )
-}
+})
+EmailItem.displayName = 'EmailItem'

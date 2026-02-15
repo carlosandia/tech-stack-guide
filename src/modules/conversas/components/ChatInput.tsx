@@ -4,7 +4,7 @@
  * Integra AudioRecorder inline quando gravação está ativa
  */
 
-import { useState, useRef, useCallback, type KeyboardEvent, type ClipboardEvent } from 'react'
+import { useState, useRef, useCallback, forwardRef, type KeyboardEvent, type ClipboardEvent } from 'react'
 import { Send, StickyNote, MessageSquare, Plus, Mic, Smile, X } from 'lucide-react'
 import { AnexosMenu } from './AnexosMenu'
 import { AudioRecorder } from './AudioRecorder'
@@ -29,11 +29,11 @@ interface ChatInputProps {
 
 type InputTab = 'responder' | 'nota'
 
-export function ChatInput({
+export const ChatInput = forwardRef<HTMLDivElement, ChatInputProps>(function ChatInput({
   onSendMessage, onSendNote, onOpenQuickReplies, onFileSelected,
   onAudioSend, onOpenCamera, onOpenContato, onOpenEnquete,
   isSending, disabled, replyingTo, onCancelReply, audioSending
-}: ChatInputProps) {
+}, _ref) {
   const [tab, setTab] = useState<InputTab>('responder')
   const [texto, setTexto] = useState('')
   const [notaTexto, setNotaTexto] = useState('')
@@ -312,4 +312,5 @@ export function ChatInput({
       </div>
     </div>
   )
-}
+})
+ChatInput.displayName = 'ChatInput'

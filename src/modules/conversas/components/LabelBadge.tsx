@@ -10,7 +10,9 @@ interface LabelBadgeProps {
   onClick?: () => void
 }
 
-export function LabelBadge({ nome, corHex, size = 'sm', onClick }: LabelBadgeProps) {
+import { forwardRef } from 'react'
+
+export const LabelBadge = forwardRef<HTMLSpanElement, LabelBadgeProps>(function LabelBadge({ nome, corHex, size = 'sm', onClick }, _ref) {
   const color = corHex || '#6b7280'
 
   return (
@@ -34,4 +36,5 @@ export function LabelBadge({ nome, corHex, size = 'sm', onClick }: LabelBadgePro
       {nome}
     </span>
   )
-}
+})
+LabelBadge.displayName = 'LabelBadge'

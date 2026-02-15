@@ -4,7 +4,7 @@
  * Conecta ações de contexto: arquivar, fixar, marcar não lida, apagar
  */
 
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef, forwardRef } from 'react'
 import { Plus, BarChart3 } from 'lucide-react'
 import { SelecionarPipelineModal } from '../components/SelecionarPipelineModal'
 import { NovaOportunidadeModal } from '@/modules/negocios/components/modals/NovaOportunidadeModal'
@@ -22,7 +22,7 @@ import { ConversasMetricasPanel } from '../components/ConversasMetricasPanel'
 import { toast } from 'sonner'
 import type { ListarConversasParams } from '../services/conversas.api'
 
-export function ConversasPage() {
+export const ConversasPage = forwardRef<HTMLDivElement>(function ConversasPage(_props, _ref) {
   const { setActions, setSubtitle, setCenterContent } = useAppToolbar()
   const [conversaAtivaId, setConversaAtivaId] = useState<string | null>(null)
   const [drawerAberto, setDrawerAberto] = useState(false)
@@ -329,6 +329,7 @@ export function ConversasPage() {
       )}
     </div>
   )
-}
+})
+ConversasPage.displayName = 'ConversasPage'
 
 export default ConversasPage

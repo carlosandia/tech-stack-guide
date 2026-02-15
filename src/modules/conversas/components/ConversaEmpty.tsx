@@ -2,9 +2,10 @@
  * AIDEV-NOTE: Estado vazio quando nenhuma conversa está selecionada
  */
 
+import { forwardRef } from 'react'
 import { MessageSquare } from 'lucide-react'
 
-export function ConversaEmpty() {
+export const ConversaEmpty = forwardRef<HTMLDivElement>(function ConversaEmpty(_props, _ref) {
   return (
     <div className="flex-1 flex flex-col items-center justify-center gap-4 bg-muted/20">
       <div className="w-20 h-20 rounded-full bg-muted/60 flex items-center justify-center">
@@ -20,4 +21,5 @@ export function ConversaEmpty() {
       </div>
     </div>
   )
-}
+})
+ConversaEmpty.displayName = 'ConversaEmpty'

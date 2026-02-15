@@ -5,7 +5,7 @@
  */
 
 import { ArrowLeft, MoreVertical, CircleDot, Search, Plus, BellOff, Bell, Trash2, Eraser, Timer, Tag } from 'lucide-react'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, forwardRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { createPortal } from 'react-dom'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
@@ -40,10 +40,7 @@ function getInitials(nome?: string | null): string {
 }
 
 /** Portal-based menu dropdown to avoid z-index issues inside modals */
-function MenuDropdown({
-  isOpen, onToggle, onClose, conversa,
-  onAlterarStatus, onSilenciar, onLimpar, onApagar,
-}: {
+const MenuDropdown = forwardRef<HTMLDivElement, {
   isOpen: boolean
   onToggle: () => void
   onClose: () => void
@@ -52,7 +49,10 @@ function MenuDropdown({
   onSilenciar: () => void
   onLimpar: () => void
   onApagar: () => void
-}) {
+}>(function MenuDropdown({
+  isOpen, onToggle, onClose, conversa,
+  onAlterarStatus, onSilenciar, onLimpar, onApagar,
+}, _ref) {
   const btnRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ top: number; right: number } | null>(null)
@@ -152,9 +152,10 @@ function MenuDropdown({
       )}
     </div>
   )
-}
+})
+MenuDropdown.displayName = 'MenuDropdown'
 
-export function ChatHeader({ conversa, onBack, onOpenDrawer, onAlterarStatus, onCriarOportunidade, onToggleBusca, onSilenciar, onLimparConversa, onApagarConversa }: ChatHeaderProps) {
+export const ChatHeader = forwardRef<HTMLDivElement, ChatHeaderProps>(function ChatHeader({ conversa, onBack, onOpenDrawer, onAlterarStatus, onCriarOportunidade, onToggleBusca, onSilenciar, onLimparConversa, onApagarConversa }, _ref) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirmAction, setConfirmAction] = useState<'limpar' | 'apagar' | null>(null)
   const [sessionName, setSessionName] = useState('')
@@ -323,4 +324,5 @@ export function ChatHeader({ conversa, onBack, onOpenDrawer, onAlterarStatus, on
       )}
     </>
   )
-}
+})
+ChatHeader.displayName = 'ChatHeader'

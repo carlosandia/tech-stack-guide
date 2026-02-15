@@ -5,7 +5,7 @@
  * Usa React Portal para evitar problemas de z-index
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, forwardRef } from 'react'
 import { createPortal } from 'react-dom'
 import { ListTodo, Check, Loader2, Clock, AlertTriangle, Plus } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -37,7 +37,7 @@ const prioridadeCor: Record<string, string> = {
   baixa: 'text-muted-foreground',
 }
 
-export function TarefasConversaPopover({ contatoId, contatoNome, canal }: TarefasConversaPopoverProps) {
+export const TarefasConversaPopover = forwardRef<HTMLDivElement, TarefasConversaPopoverProps>(function TarefasConversaPopover({ contatoId, contatoNome, canal }, _ref) {
   const [open, setOpen] = useState(false)
   const [tarefas, setTarefas] = useState<Tarefa[]>([])
   const [loading, setLoading] = useState(false)
@@ -265,4 +265,5 @@ export function TarefasConversaPopover({ contatoId, contatoNome, canal }: Tarefa
       )}
     </>
   )
-}
+})
+TarefasConversaPopover.displayName = 'TarefasConversaPopover'

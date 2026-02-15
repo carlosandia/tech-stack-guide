@@ -3,7 +3,7 @@
  * Opções: Documento, Fotos/Vídeos, Câmera, Áudio, Contato, Enquete
  */
 
-import { useRef } from 'react'
+import { useRef, forwardRef } from 'react'
 import { FileText, Image, Camera, Mic, User, BarChart3, Zap, X } from 'lucide-react'
 
 interface AnexosMenuProps {
@@ -37,7 +37,7 @@ const menuOptions: MenuOption[] = [
   { icon: Zap, label: 'Mensagens Prontas', color: '#EAB308', bgColor: '#EAB30815', tipo: 'quick-reply', action: 'mensagens-prontas' },
 ]
 
-export function AnexosMenu({ isOpen, onClose, onFileSelected, onAudioRecord, onCamera, onContato, onEnquete, onMensagensProntas }: AnexosMenuProps) {
+export const AnexosMenu = forwardRef<HTMLDivElement, AnexosMenuProps>(function AnexosMenu({ isOpen, onClose, onFileSelected, onAudioRecord, onCamera, onContato, onEnquete, onMensagensProntas }, _ref) {
   const docInputRef = useRef<HTMLInputElement>(null)
   const mediaInputRef = useRef<HTMLInputElement>(null)
 
@@ -149,4 +149,5 @@ export function AnexosMenu({ isOpen, onClose, onFileSelected, onAudioRecord, onC
       />
     </>
   )
-}
+})
+AnexosMenu.displayName = 'AnexosMenu'

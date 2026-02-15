@@ -5,7 +5,7 @@
  * Usa Portal para dropdown de status evitar clipping por overflow-hidden
  */
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, forwardRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Search, X, ChevronDown, Archive } from 'lucide-react'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
@@ -35,7 +35,7 @@ const statuses = [
   { value: 'fechada' as const, label: 'Fechadas' },
 ]
 
-export function FiltrosConversas({
+export const FiltrosConversas = forwardRef<HTMLDivElement, FiltrosConversasProps>(function FiltrosConversas({
   canal,
   status,
   busca,
@@ -44,7 +44,7 @@ export function FiltrosConversas({
   onStatusChange,
   onBuscaChange,
   onArquivadasChange,
-}: FiltrosConversasProps) {
+}, _ref) {
   const [buscaLocal, setBuscaLocal] = useState(busca || '')
   const [statusOpen, setStatusOpen] = useState(false)
   const statusBtnRef = useRef<HTMLButtonElement>(null)
@@ -200,4 +200,5 @@ export function FiltrosConversas({
       </div>
     </div>
   )
-}
+})
+FiltrosConversas.displayName = 'FiltrosConversas'
