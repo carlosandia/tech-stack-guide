@@ -63,6 +63,7 @@ export default function NegociosPage() {
     tipo: 'ganho' | 'perda'
   } | null>(null)
   const [detalhesOpId, setDetalhesOpId] = useState<string | null>(null)
+  const [detalhesAbaInicial, setDetalhesAbaInicial] = useState<string | undefined>(undefined)
 
   // Queries
   const { data: funis, isLoading: funisLoading } = useFunis()
@@ -186,6 +187,12 @@ export default function NegociosPage() {
   }, [])
 
   const handleCardClick = useCallback((oportunidade: Oportunidade) => {
+    setDetalhesAbaInicial(undefined)
+    setDetalhesOpId(oportunidade.id)
+  }, [])
+
+  const handleAgendar = useCallback((oportunidade: Oportunidade) => {
+    setDetalhesAbaInicial('agenda')
     setDetalhesOpId(oportunidade.id)
   }, [])
 
@@ -260,6 +267,7 @@ export default function NegociosPage() {
           isLoading={kanbanLoading}
           onDropGanhoPerda={handleDropGanhoPerda}
           onCardClick={handleCardClick}
+          onAgendar={handleAgendar}
         />
       ) : kanbanLoading ? (
         <div className="flex-1 flex items-center justify-center">
@@ -308,11 +316,13 @@ export default function NegociosPage() {
           oportunidadeId={detalhesOpId}
           funilId={funilAtivoId}
           etapas={kanbanData.etapas}
-          onClose={() => setDetalhesOpId(null)}
+          onClose={() => { setDetalhesOpId(null); setDetalhesAbaInicial(undefined) }}
           onDropGanhoPerda={(op, etapaId, tipo) => {
             setDetalhesOpId(null)
+            setDetalhesAbaInicial(undefined)
             handleDropGanhoPerda(op, etapaId, tipo)
           }}
+          abaInicial={detalhesAbaInicial}
         />
       )}
     </div>

@@ -26,9 +26,10 @@ interface KanbanBoardProps {
   isLoading: boolean
   onDropGanhoPerda: (oportunidade: Oportunidade, etapaId: string, tipo: 'ganho' | 'perda') => void
   onCardClick: (oportunidade: Oportunidade) => void
+  onAgendar?: (oportunidade: Oportunidade) => void
 }
 
-export function KanbanBoard({ data, isLoading, onDropGanhoPerda, onCardClick }: KanbanBoardProps) {
+export function KanbanBoard({ data, isLoading, onDropGanhoPerda, onCardClick, onAgendar }: KanbanBoardProps) {
   const draggedOpRef = useRef<Oportunidade | null>(null)
   const moverEtapa = useMoverEtapa()
   const excluirEmMassa = useExcluirOportunidadesEmMassa()
@@ -319,6 +320,7 @@ export function KanbanBoard({ data, isLoading, onDropGanhoPerda, onCardClick }: 
                   onDragOver={handleDragOver}
                   onDrop={handleDrop}
                   onCardClick={onCardClick}
+                  onAgendar={onAgendar}
                   cardConfig={cardConfig}
                   slaConfig={slaConfig || undefined}
                   selectedIds={selectedIds}

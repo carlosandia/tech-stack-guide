@@ -505,6 +505,152 @@ serve(async (req) => {
       });
     }
 
+    // ==========================================
+    // POST { action: "create-event" } - Create Google Calendar event
+    // ==========================================
+    if (action === "create-event") {
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader) {
+        return new Response(JSON.stringify({ error: "Não autorizado" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { userId, organizacaoId } = await getUserFromToken(supabaseAdmin, authHeader);
+
+      // Get stored tokens
+      const { data: conexao } = await supabaseAdmin
+        .from("conexoes_google")
+        .select("access_token_encrypted, refresh_token_encrypted, token_expires_at, calendar_id, criar_google_meet")
+        .eq("organizacao_id", organizacaoId)
+        .eq("usuario_id", userId)
+        .in("status", ["active", "conectado"])
+        .is("deletado_em", null)
+        .single();
+
+      if (!conexao) {
+        return new Response(JSON.stringify({ error: "Google não conectado" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      let accessToken = simpleDecrypt(conexao.access_token_encrypted, "");
+
+      // Refresh token if expired
+      if (conexao.token_expires_at && new Date(conexao.token_expires_at) < new Date()) {
+        if (conexao.refresh_token_encrypted) {
+          const googleConfig = await getGoogleConfig(supabaseAdmin);
+          const refreshToken = simpleDecrypt(conexao.refresh_token_encrypted, "");
+          const tokenResponse = await fetch(GOOGLE_TOKEN_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+              client_id: googleConfig.clientId,
+              client_secret: googleConfig.clientSecret,
+              refresh_token: refreshToken,
+              grant_type: "refresh_token",
+            }),
+          });
+          const tokens = await tokenResponse.json();
+          if (tokens.access_token) {
+            accessToken = tokens.access_token;
+            await supabaseAdmin
+              .from("conexoes_google")
+              .update({
+                access_token_encrypted: simpleEncrypt(tokens.access_token, ""),
+                token_expires_at: new Date(Date.now() + (tokens.expires_in || 3600) * 1000).toISOString(),
+                atualizado_em: new Date().toISOString(),
+              })
+              .eq("organizacao_id", organizacaoId)
+              .eq("usuario_id", userId)
+              .is("deletado_em", null);
+          }
+        }
+      }
+
+      const calendarId = conexao.calendar_id || "primary";
+      const useMeet = body.google_meet ?? conexao.criar_google_meet ?? false;
+
+      // Build Google Calendar event
+      const eventBody: Record<string, unknown> = {
+        summary: body.titulo || "Reunião CRM",
+        description: body.descricao || undefined,
+        location: body.local || undefined,
+        start: {
+          dateTime: body.data_inicio,
+          timeZone: body.timezone || "America/Sao_Paulo",
+        },
+        end: {
+          dateTime: body.data_fim || body.data_inicio,
+          timeZone: body.timezone || "America/Sao_Paulo",
+        },
+      };
+
+      // Add attendees
+      if (body.participantes && Array.isArray(body.participantes) && body.participantes.length > 0) {
+        eventBody.attendees = body.participantes.map((p: { email: string }) => ({ email: p.email }));
+      }
+
+      // Add Google Meet conference
+      if (useMeet) {
+        eventBody.conferenceData = {
+          createRequest: {
+            requestId: crypto.randomUUID(),
+            conferenceSolutionKey: { type: "hangoutsMeet" },
+          },
+        };
+      }
+
+      // Add reminder
+      if (body.notificacao_minutos !== undefined && body.notificacao_minutos > 0) {
+        eventBody.reminders = {
+          useDefault: false,
+          overrides: [{ method: "popup", minutes: body.notificacao_minutos }],
+        };
+      }
+
+      const conferenceParam = useMeet ? "&conferenceDataVersion=1" : "";
+      const calResponse = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?sendUpdates=all${conferenceParam}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(eventBody),
+        }
+      );
+
+      const calData = await calResponse.json();
+
+      if (!calResponse.ok) {
+        console.error("[google-auth] Create event error:", calData);
+        return new Response(JSON.stringify({ error: "Erro ao criar evento no Google Calendar", details: calData.error?.message }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Extract Meet link
+      let meetLink: string | null = null;
+      if (calData.conferenceData?.entryPoints) {
+        const videoEntry = calData.conferenceData.entryPoints.find((ep: { entryPointType: string }) => ep.entryPointType === "video");
+        if (videoEntry) meetLink = videoEntry.uri;
+      }
+
+      return new Response(JSON.stringify({
+        success: true,
+        google_event_id: calData.id,
+        google_meet_link: meetLink,
+        html_link: calData.htmlLink,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     return new Response(JSON.stringify({ error: "Ação não encontrada" }), {
       status: 404,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

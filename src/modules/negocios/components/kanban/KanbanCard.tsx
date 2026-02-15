@@ -45,6 +45,7 @@ interface KanbanCardProps {
   oportunidade: Oportunidade
   onDragStart: (e: React.DragEvent, oportunidade: Oportunidade) => void
   onClick: (oportunidade: Oportunidade) => void
+  onAgendar?: (oportunidade: Oportunidade) => void
   config?: CardConfig
   slaConfig?: SlaConfig
   etapaTipo?: string
@@ -123,7 +124,7 @@ const ACOES_ICONS: Record<string, { icon: React.ElementType; label: string }> = 
 // Component
 // =====================================================
 
-export function KanbanCard({ oportunidade, onDragStart, onClick, config, slaConfig, etapaTipo, isSelected, onToggleSelect }: KanbanCardProps) {
+export function KanbanCard({ oportunidade, onDragStart, onClick, onAgendar, config, slaConfig, etapaTipo, isSelected, onToggleSelect }: KanbanCardProps) {
   const { camposVisiveis, acoesRapidas } = config || DEFAULT_CONFIG
   const qualificacao = getQualificacaoLabel(oportunidade)
   const tarefasPendentes = (oportunidade as any)._tarefas_pendentes ?? 0
@@ -326,6 +327,7 @@ export function KanbanCard({ oportunidade, onDragStart, onClick, config, slaConf
         }
         break
       case 'agendar':
+        if (onAgendar) onAgendar(oportunidade)
         break
     }
   }

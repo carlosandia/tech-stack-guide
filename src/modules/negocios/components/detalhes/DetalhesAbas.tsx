@@ -16,6 +16,7 @@ interface DetalhesAbasProps {
   oportunidadeId: string
   usuarioAtualId?: string
   emailContato?: string | null
+  abaInicial?: string
 }
 
 const TABS = [
@@ -28,8 +29,8 @@ const TABS = [
 
 type TabId = typeof TABS[number]['id']
 
-export function DetalhesAbas({ oportunidadeId, usuarioAtualId, emailContato }: DetalhesAbasProps) {
-  const [activeTab, setActiveTab] = useState<TabId>('anotacoes')
+export function DetalhesAbas({ oportunidadeId, usuarioAtualId, emailContato, abaInicial }: DetalhesAbasProps) {
+  const [activeTab, setActiveTab] = useState<TabId>((abaInicial as TabId) || 'anotacoes')
 
   return (
     <div className="flex flex-col h-full">
