@@ -6,7 +6,7 @@
  * Sempre visível quando configurado, mesmo sem tarefas
  */
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, forwardRef } from 'react'
 import { createPortal } from 'react-dom'
 import { CheckSquare, Square, Loader2, ClipboardList } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -29,7 +29,7 @@ interface TarefasPopoverProps {
   totalConcluidas: number
 }
 
-export function TarefasPopover({ oportunidadeId, totalPendentes, totalTarefas, totalConcluidas }: TarefasPopoverProps) {
+export const TarefasPopover = forwardRef<HTMLDivElement, TarefasPopoverProps>(function TarefasPopover({ oportunidadeId, totalPendentes, totalTarefas, totalConcluidas }, _ref) {
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
   const [tarefas, setTarefas] = useState<Tarefa[]>([])
@@ -310,4 +310,5 @@ export function TarefasPopover({ oportunidadeId, totalPendentes, totalTarefas, t
       )}
     </>
   )
-}
+})
+TarefasPopover.displayName = 'TarefasPopover'
