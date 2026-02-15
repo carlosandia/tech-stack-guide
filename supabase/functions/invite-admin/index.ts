@@ -74,7 +74,7 @@ const InviteEmail = ({
           React.createElement(Img, {
             src: "https://crm.renovedigital.com.br/logo-email.png",
             width: "140",
-            height: "48",
+            alt: "Renove",
             alt: "Renove",
             style: styles.logoImg,
           })
@@ -116,14 +116,22 @@ const InviteEmail = ({
                 Section,
                 { style: styles.loginInfoBox },
                 React.createElement(
-                  Text,
-                  { style: styles.loginInfoLabel },
-                  "📧 Seu email de acesso:"
-                ),
-                React.createElement(
-                  Text,
-                  { style: styles.loginInfoEmail },
-                  email
+                  Row,
+                  null,
+                  React.createElement(
+                    Column,
+                    { style: styles.loginInfoPadding },
+                    React.createElement(
+                      Text,
+                      { style: styles.loginInfoLabel },
+                      "📧 Seu email de acesso:"
+                    ),
+                    React.createElement(
+                      Text,
+                      { style: styles.loginInfoEmail },
+                      email
+                    )
+                  )
                 )
               ),
 
@@ -282,9 +290,11 @@ const styles = {
   loginInfoBox: {
     backgroundColor: "#EFF6FF",
     borderRadius: "8px",
-    padding: "16px 20px",
     margin: "0 0 28px 0",
     border: "1px solid #BFDBFE",
+  },
+  loginInfoPadding: {
+    padding: "16px 20px",
   },
   loginInfoLabel: {
     color: "#1E40AF",
@@ -305,7 +315,7 @@ const styles = {
     padding: "32px 0",
   },
   button: {
-    backgroundColor: "#3B82F6",
+    backgroundColor: "#60A5FA",
     borderRadius: "8px",
     color: "#FFFFFF",
     fontSize: "16px",
