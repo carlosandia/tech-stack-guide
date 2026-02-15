@@ -41,6 +41,7 @@ interface InviteEmailProps {
   organizacaoNome: string;
   confirmUrl: string;
   token: string;
+  roleName: string;
   convidadoPor?: string;
   convidadoPorEmail?: string;
 }
@@ -50,6 +51,7 @@ const InviteEmail = ({
   email = "",
   organizacaoNome = "CRM",
   confirmUrl = "",
+  roleName = "membro",
   convidadoPor = "",
   convidadoPorEmail = "",
 }: InviteEmailProps) => {
@@ -106,7 +108,7 @@ const InviteEmail = ({
                 { style: styles.paragraph },
                 `Você foi convidado para ingressar no `,
                 React.createElement("strong", null, "CRM Renove"),
-                ` como membro da organização `,
+                ` como ${roleName} da organização `,
                 React.createElement("strong", { style: { color: "#3B82F6" } }, organizacaoNome),
                 `.`
               ),
@@ -476,9 +478,12 @@ Deno.serve(async (req) => {
       usuario_id,
       organizacao_id,
       organizacao_nome,
+      role: inviteRole,
       convidado_por,
       convidado_por_email,
     } = await req.json();
+
+    const userRole = inviteRole || "member";
 
     console.log("[invite-admin] Invite request:", {
       email,
@@ -538,10 +543,10 @@ Deno.serve(async (req) => {
           data: {
             nome,
             sobrenome,
-            role: "member",
+            role: userRole,
             tenant_id: organizacao_id,
             organizacao_nome: orgNome,
-            invite_type: "member",
+            invite_type: userRole,
           },
           redirectTo: `${origin}/auth/set-password`,
         },
@@ -560,10 +565,10 @@ Deno.serve(async (req) => {
               data: {
                 nome,
                 sobrenome,
-                role: "member",
+                role: userRole,
                 tenant_id: organizacao_id,
                 organizacao_nome: orgNome,
-                invite_type: "member",
+                invite_type: userRole,
               },
               redirectTo: `${origin}/auth/set-password`,
             },
@@ -617,6 +622,7 @@ Deno.serve(async (req) => {
             organizacaoNome: orgNome,
             confirmUrl,
             token: linkData.properties?.token || "",
+            roleName: userRole === "admin" ? "administrador" : "membro",
             convidadoPor: inviterName,
             convidadoPorEmail: inviterEmail,
           })

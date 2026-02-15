@@ -2057,6 +2057,7 @@ export const equipeApi = {
           usuario_id: data.id,
           organizacao_id: orgId,
           organizacao_nome: orgNome,
+          role: 'member',
           convidado_por: convidadoPor,
           convidado_por_email: convidadoPorEmail,
         },
