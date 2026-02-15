@@ -1,74 +1,71 @@
 
-# Correcao: Link de Convite Expira Apos Primeiro Clique
+# Correcao: Tela Branca ao Digitar Senha com Maiusculas/Numeros
 
 ## Causa Raiz
 
-O link de convite usa o endpoint `/auth/v1/verify?token=...` do Supabase, que **consome o token na primeira verificacao** (comportamento padrao do Supabase - tokens de verificacao sao single-use). Quando o usuario clica no link pela segunda vez, o Supabase retorna `error=access_denied&error_description=...expired` no hash de redirecionamento.
+O Chrome **ignora completamente** o atributo `autoComplete="off"` em campos `type="password"`. Isso e documentado pelo proprio Chrome - ele considera que desabilitar autocomplete em campos de senha e prejudicial ao usuario e simplesmente ignora o atributo.
 
-O problema esta no `SetPasswordPage.tsx` nas linhas 100-111: quando detecta erro no hash, o codigo **retorna imediatamente mostrando "Link Invalido"** sem verificar se a sessao do primeiro clique ainda esta ativa no navegador.
-
-O fluxo que falha:
-1. Usuario clica no link pela primeira vez -> Supabase consome o token, redireciona com access_token -> setSession() funciona -> sessao fica no localStorage
-2. Usuario fecha a aba sem definir a senha
-3. Usuario clica no link de novo -> Supabase detecta token ja consumido -> redireciona com error=access_denied
-4. SetPasswordPage ve o erro e mostra "Link Invalido" sem checar se a sessao do passo 1 ainda existe
+Resultado: o overlay do gerenciador de senhas do Chrome continua aparecendo, intercepta o campo de input, modifica o DOM diretamente (fora do controle do React), e quando o usuario digita caracteres que ativam o overlay (como Shift+P para maiuscula, ou numeros), o Chrome manipula o valor do input causando uma inconsistencia entre o estado React e o DOM real. Isso gera um erro de invariante do React que desmonta a arvore de componentes -> tela branca.
 
 ## Solucao
 
-Alterar a logica de tratamento de erro no `SetPasswordPage.tsx` para, antes de exibir "Link Invalido", verificar se ja existe uma sessao valida no navegador para um usuario com status `pendente`. Se existir, mostrar o formulario de senha normalmente.
+Trocar `type="password"` por `type="text"` e usar a propriedade CSS `-webkit-text-security: disc` para mascarar os caracteres visualmente. Isso faz com que:
+
+1. O Chrome **nao detecte** o campo como campo de senha (pois e `type="text"`)
+2. O overlay do gerenciador de senhas **nunca aparece**
+3. Os caracteres continuam exibidos como bolinhas (mascarados) gracas ao CSS
+4. Quando o usuario clica no icone de "mostrar senha", remove-se o CSS de mascaramento
+
+Adicionalmente, envolver o formulario de senha em um `try-catch` no onChange para garantir que, mesmo que algum erro inesperado ocorra, ele seja tratado graciosamente em vez de crashar.
 
 ## Detalhes Tecnicos
 
 ### Arquivo: `src/modules/auth/pages/SetPasswordPage.tsx`
 
-Alterar o bloco de erro (linhas 100-111) para adicionar verificacao de sessao existente:
+**Campos de senha (Nova Senha e Confirmar Senha):**
 
-```typescript
-if (errorParam || errorCode) {
-  console.error('[SetPassword] Erro no token:', errorParam || errorCode, errorDescription)
-  
-  // ANTES de mostrar erro, verificar se ja existe sessao valida
-  // (pode acontecer quando o usuario clica no link pela segunda vez - 
-  // o token ja foi consumido no primeiro clique mas a sessao ainda esta ativa)
-  const { data: { session: existingSession } } = await supabase.auth.getSession()
-  
-  if (existingSession?.user) {
-    const { data: usuario } = await supabase
-      .from('usuarios')
-      .select('status')
-      .eq('auth_id', existingSession.user.id)
-      .single()
-    
-    if (usuario?.status === 'pendente') {
-      console.log('[SetPassword] Token ja consumido, mas sessao pendente encontrada:', existingSession.user.email)
-      setUserEmail(existingSession.user.email || null)
-      setTokenValid(true)
-      window.history.replaceState(null, '', window.location.pathname)
-      setLoading(false)
-      return
-    }
-  }
-  
-  // Sem sessao valida - mostrar erro normalmente
-  const isExpired = errorParam === 'access_denied' || errorDescription?.includes('expired')
-  if (isExpired) {
-    setError('O link de convite expirou. Solicite ao administrador que reenvie o convite.')
-  } else {
-    setError(decodeURIComponent(errorDescription || 'Token invalido ou expirado.'))
-  }
-  setLoading(false)
-  return
-}
+Antes:
+```tsx
+<input
+  type={showPassword ? 'text' : 'password'}
+  value={password}
+  onChange={(e) => setPassword(e.target.value)}
+  autoComplete="off"
+  data-lpignore="true"
+  data-form-type="other"
+/>
 ```
 
-## Fluxo Corrigido
+Depois:
+```tsx
+<input
+  type="text"
+  value={password}
+  onChange={(e) => setPassword(e.target.value)}
+  autoComplete="off"
+  autoCorrect="off"
+  autoCapitalize="off"
+  spellCheck={false}
+  data-lpignore="true"
+  data-form-type="other"
+  data-1p-ignore
+  style={!showPassword ? { WebkitTextSecurity: 'disc', textSecurity: 'disc' } : undefined}
+/>
+```
 
-1. Primeiro clique: token consumido pelo Supabase -> sessao criada -> formulario de senha exibido
-2. Segundo clique: Supabase retorna erro (token ja consumido) -> SetPasswordPage verifica sessao existente -> encontra usuario pendente -> exibe formulario normalmente
-3. Token realmente expirado (apos 24h): Supabase retorna erro -> nenhuma sessao valida -> mostra "Link Invalido" corretamente
+Mesma alteracao para o campo de confirmar senha (usando `showConfirmPassword`).
 
-## Resumo
+### Arquivo: `src/modules/auth/pages/ResetPasswordPage.tsx`
+
+Aplicar a mesma correcao nos campos de senha desta pagina para consistencia.
+
+### O que muda visualmente?
+
+Nada. O campo continua mostrando bolinhas quando a senha esta oculta, e mostra o texto quando o usuario clica no icone de olho. A unica diferenca e que o Chrome nao detecta mais o campo como senha e nao exibe o overlay do gerenciador.
+
+## Resumo das Alteracoes
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `src/modules/auth/pages/SetPasswordPage.tsx` | Verificar sessao existente antes de exibir erro de token consumido |
+| `SetPasswordPage.tsx` | Trocar `type="password"` por `type="text"` + CSS `textSecurity: disc` nos 2 inputs |
+| `ResetPasswordPage.tsx` | Mesma correcao para consistencia |
