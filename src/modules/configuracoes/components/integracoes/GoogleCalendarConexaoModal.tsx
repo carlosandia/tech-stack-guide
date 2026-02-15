@@ -23,7 +23,7 @@ export function GoogleCalendarConexaoModal({ onClose }: GoogleCalendarConexaoMod
 
   const handleConectar = async () => {
     try {
-      const redirectUri = `${window.location.origin}/app/configuracoes/conexoes`
+      const redirectUri = `${window.location.origin}/oauth/google/callback`
       const result = await obterAuthUrl.mutateAsync({
         plataforma: 'google',
         redirect_uri: redirectUri,
