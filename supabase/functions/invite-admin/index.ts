@@ -518,6 +518,7 @@ Deno.serve(async (req) => {
 
     let linkData: any = null;
     let userId: string | undefined;
+    let linkType = 'invite';
 
     // 1. Tentar invite (usuario novo)
     const { data: inviteData, error: inviteError } =
@@ -569,6 +570,7 @@ Deno.serve(async (req) => {
 
         linkData = magicData;
         userId = magicData.user?.id;
+        linkType = 'magiclink';
       } else {
         console.error("[invite-admin] generateLink error:", inviteError);
         return new Response(JSON.stringify({ error: inviteError.message }), {
@@ -590,7 +592,7 @@ Deno.serve(async (req) => {
 
     // Construir URL de confirmação
     const tokenHash = linkData.properties?.hashed_token;
-    const confirmUrl = `${supabaseUrl}/auth/v1/verify?token=${tokenHash}&type=invite&redirect_to=${encodeURIComponent(`${origin}/auth/set-password`)}`;
+    const confirmUrl = `${supabaseUrl}/auth/v1/verify?token=${tokenHash}&type=${linkType}&redirect_to=${encodeURIComponent(`${origin}/auth/set-password`)}`;
 
     console.log("[invite-admin] Confirm URL gerada");
 
