@@ -1,0 +1,71 @@
+import { Component, type ReactNode } from 'react'
+import { AlertCircle } from 'lucide-react'
+
+/**
+ * AIDEV-NOTE: Error Boundary global para capturar erros nao tratados
+ * Evita tela branca total ao exibir fallback com opcao de recarregar.
+ * React 18 exige class components para Error Boundaries.
+ */
+
+interface ErrorBoundaryProps {
+  children: ReactNode
+  fallback?: ReactNode
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean
+  error: Error | null
+}
+
+export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props)
+    this.state = { hasError: false, error: null }
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error }
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('[ErrorBoundary] Erro capturado:', error, errorInfo)
+  }
+
+  handleReload = () => {
+    window.location.reload()
+  }
+
+  render() {
+    if (this.state.hasError) {
+      if (this.props.fallback) {
+        return this.props.fallback
+      }
+
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-background p-4">
+          <div className="w-full max-w-md bg-card rounded-lg border border-border p-8 shadow-lg text-center">
+            <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto mb-4">
+              <AlertCircle className="w-8 h-8 text-destructive" />
+            </div>
+            <h1 className="text-xl font-semibold text-foreground mb-2">
+              Algo deu errado
+            </h1>
+            <p className="text-sm text-muted-foreground mb-6">
+              Ocorreu um erro inesperado. Tente recarregar a página.
+            </p>
+            <button
+              onClick={this.handleReload}
+              className="w-full h-11 bg-primary text-primary-foreground rounded-md font-medium hover:bg-primary/90 transition-colors"
+            >
+              Recarregar página
+            </button>
+          </div>
+        </div>
+      )
+    }
+
+    return this.props.children
+  }
+}
+
+export default ErrorBoundary
