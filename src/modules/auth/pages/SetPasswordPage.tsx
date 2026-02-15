@@ -114,9 +114,12 @@ export function SetPasswordPage() {
           console.log('[SetPassword] Processando token de convite...')
 
           // AIDEV-NOTE: PASSO CRITICO - decodificar JWT ANTES de setSession()
-          // para saber qual email está no convite
+          // para saber qual email está no convite.
+          // detectSessionInUrl está DESABILITADO nesta pagina (ver supabase.ts)
+          // então o hash NÃO foi auto-processado pelo Supabase client.
           const jwtPayload = decodeJwtPayload(accessToken)
           const inviteEmail = (jwtPayload?.email as string) || null
+          console.log('[SetPassword] Email do convite:', inviteEmail)
 
           // Verificar se já existe uma sessão ativa de OUTRO usuario
           const { data: { session: existingSession } } = await supabase.auth.getSession()
