@@ -21,6 +21,7 @@ export interface AuthUser {
   organizacao_id: string | null
   avatar_url?: string
   org_status?: OrgStatus
+  status?: 'ativo' | 'pendente' | 'inativo'
 }
 
 interface AuthContextType {
@@ -55,7 +56,7 @@ export const AuthProvider = forwardRef<HTMLDivElement, AuthProviderProps>(functi
     try {
       const { data: usuario, error } = await supabase
         .from('usuarios')
-        .select('id, nome, sobrenome, email, role, organizacao_id, avatar_url')
+        .select('id, nome, sobrenome, email, role, organizacao_id, avatar_url, status')
         .eq('auth_id', supabaseUser.id)
         .single()
 
@@ -127,6 +128,7 @@ export const AuthProvider = forwardRef<HTMLDivElement, AuthProviderProps>(functi
         organizacao_id: usuario.organizacao_id,
         avatar_url: usuario.avatar_url ?? undefined,
         org_status: orgStatus,
+        status: (usuario as any).status as 'ativo' | 'pendente' | 'inativo' | undefined,
       }
     } catch (err) {
       console.error('Erro ao buscar dados do usuario:', err)

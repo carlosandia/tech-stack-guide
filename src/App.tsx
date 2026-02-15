@@ -41,7 +41,10 @@ import { EmailsPage } from '@/modules/emails'
  */
 
 const App = forwardRef<HTMLDivElement>(function App(_props, _ref) {
-  const { loading, isAuthenticated, role } = useAuth()
+  const { loading, isAuthenticated, role, user } = useAuth()
+
+  // AIDEV-NOTE: Bloquear acesso de usuarios com status 'pendente' (ainda nao definiram senha)
+  const isPendente = user?.status === 'pendente'
 
   // AIDEV-NOTE: Se o usuario está na pagina de set-password, não bloquear
   // mesmo que esteja autenticado. Isso previne que o convidado seja redirecionado
@@ -79,7 +82,9 @@ const App = forwardRef<HTMLDivElement>(function App(_props, _ref) {
       <Route
         element={
           isAuthenticated && (role === 'admin' || role === 'member')
-            ? <AppLayout />
+            ? isPendente
+              ? <Navigate to="/auth/set-password" replace />
+              : <AppLayout />
             : <Navigate to="/login" replace />
         }
       >
@@ -102,7 +107,9 @@ const App = forwardRef<HTMLDivElement>(function App(_props, _ref) {
         path="/configuracoes"
         element={
           isAuthenticated && (role === 'admin' || role === 'member')
-            ? <ConfiguracoesLayout />
+            ? isPendente
+              ? <Navigate to="/auth/set-password" replace />
+              : <ConfiguracoesLayout />
             : <Navigate to="/login" replace />
         }
       >
@@ -131,7 +138,9 @@ const App = forwardRef<HTMLDivElement>(function App(_props, _ref) {
         path="/admin"
         element={
           isAuthenticated && role === 'super_admin'
-            ? <AdminLayout />
+            ? isPendente
+              ? <Navigate to="/auth/set-password" replace />
+              : <AdminLayout />
             : <Navigate to="/login" replace />
         }
       >
@@ -147,9 +156,11 @@ const App = forwardRef<HTMLDivElement>(function App(_props, _ref) {
       {/* Redireciona raiz baseado no role */}
       <Route path="/" element={
         isAuthenticated && !isSetPasswordPage
-          ? role === 'super_admin'
-            ? <Navigate to="/admin" replace />
-            : <Navigate to="/dashboard" replace />
+          ? isPendente
+            ? <Navigate to="/auth/set-password" replace />
+            : role === 'super_admin'
+              ? <Navigate to="/admin" replace />
+              : <Navigate to="/dashboard" replace />
           : <Navigate to="/login" replace />
       } />
 
