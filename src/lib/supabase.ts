@@ -42,11 +42,21 @@
    }
  }
  
+ /**
+  * AIDEV-NOTE: detectSessionInUrl DESABILITADO na pagina /auth/set-password
+  * Quando o Supabase detecta #access_token=... no hash, ele auto-processa e
+  * substitui a sessao atual (ex: superadmin) pela sessao do token (ex: convidado).
+  * Isso acontece ANTES de qualquer useEffect rodar, impedindo a detecção de conflito.
+  * Desabilitando nessa pagina, o SetPasswordPage processa manualmente com segurança.
+  */
+ const isSetPasswordPage = typeof window !== 'undefined' && window.location.pathname === '/auth/set-password'
+ 
  export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
    auth: {
      storage: localStorage,
      persistSession: true,
      autoRefreshToken: true,
+     detectSessionInUrl: !isSetPasswordPage,
    },
    global: {
      fetch: fetchWithTimeout,
