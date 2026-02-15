@@ -100,6 +100,31 @@ export function SetPasswordPage() {
         if (errorParam || errorCode) {
           console.error('[SetPassword] Erro no token:', errorParam || errorCode, errorDescription)
           
+          // AIDEV-NOTE: ANTES de mostrar erro, verificar se ja existe sessao valida
+          // Isso cobre o caso em que o usuario clicou no link uma vez (token consumido),
+          // fechou a aba sem definir senha, e clicou novamente.
+          // O Supabase retorna erro (token single-use), mas a sessao do primeiro clique
+          // ainda pode estar ativa no localStorage.
+          const { data: { session: existingSession } } = await supabase.auth.getSession()
+          
+          if (existingSession?.user) {
+            const { data: usuario } = await supabase
+              .from('usuarios')
+              .select('status')
+              .eq('auth_id', existingSession.user.id)
+              .single()
+            
+            if (usuario?.status === 'pendente') {
+              console.log('[SetPassword] Token ja consumido, mas sessao pendente encontrada:', existingSession.user.email)
+              setUserEmail(existingSession.user.email || null)
+              setTokenValid(true)
+              window.history.replaceState(null, '', window.location.pathname)
+              setLoading(false)
+              return
+            }
+          }
+          
+          // Sem sessao valida pendente - mostrar erro normalmente
           const isExpired = errorParam === 'access_denied' || errorDescription?.includes('expired')
           if (isExpired) {
             setError('O link de convite expirou. Solicite ao administrador que reenvie o convite.')
