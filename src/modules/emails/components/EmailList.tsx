@@ -3,7 +3,7 @@
  * Sem tabs de pasta (movidas para EmailSidebar)
  */
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, forwardRef } from 'react'
 import {
   Search,
   RefreshCw,
@@ -46,7 +46,7 @@ interface EmailListProps {
   onCompose?: () => void
 }
 
-export function EmailList({
+export const EmailList = forwardRef<HTMLDivElement, EmailListProps>(function EmailList({
   emails,
   total,
   isLoading,
@@ -64,7 +64,7 @@ export function EmailList({
   filtros,
   setFiltros,
   onCompose,
-}: EmailListProps) {
+}, _ref) {
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set())
   const [buscaLocal, setBuscaLocal] = useState(busca)
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -268,4 +268,5 @@ export function EmailList({
       </div>
     </div>
   )
-}
+})
+EmailList.displayName = 'EmailList'

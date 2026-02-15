@@ -5,7 +5,7 @@
  * Inclui seletor de país com bandeira (padrão Brasil +55)
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, forwardRef } from 'react'
 import { MessageSquare, Search, User, Loader2, ChevronDown } from 'lucide-react'
 import { ModalBase } from '@/modules/configuracoes/components/ui/ModalBase'
 import { useCriarConversa } from '../hooks/useConversas'
@@ -32,7 +32,7 @@ const PAISES = [
   { codigo: '+34', bandeira: '🇪🇸', nome: 'Espanha', placeholder: '612345678' },
 ]
 
-export function NovaConversaModal({ isOpen, onClose, onConversaCriada }: NovaConversaModalProps) {
+export const NovaConversaModal = forwardRef<HTMLDivElement, NovaConversaModalProps>(function NovaConversaModal({ isOpen, onClose, onConversaCriada }, _ref) {
   const [telefone, setTelefone] = useState('')
   const [mensagem, setMensagem] = useState('')
   const [canal, setCanal] = useState<'whatsapp' | 'instagram'>('whatsapp')
@@ -363,4 +363,5 @@ export function NovaConversaModal({ isOpen, onClose, onConversaCriada }: NovaCon
       </div>
     </ModalBase>
   )
-}
+})
+NovaConversaModal.displayName = 'NovaConversaModal'

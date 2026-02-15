@@ -3,7 +3,7 @@
  * Acionado por "/" no textarea ou pelo ícone de raio
  */
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, forwardRef } from 'react'
 import { X, Search, Zap, Loader2, Plus } from 'lucide-react'
 import { useMensagensProntas } from '../hooks/useMensagensProntas'
 import { conversasApi } from '../services/conversas.api'
@@ -16,7 +16,7 @@ interface MensagensProntasPopoverProps {
   onSelect: (conteudo: string) => void
 }
 
-export function MensagensProntasPopover({ isOpen, onClose, onSelect }: MensagensProntasPopoverProps) {
+export const MensagensProntasPopover = forwardRef<HTMLDivElement, MensagensProntasPopoverProps>(function MensagensProntasPopover({ isOpen, onClose, onSelect }, _ref) {
   const [busca, setBusca] = useState('')
   const [criando, setCriando] = useState(false)
   const [novoAtalho, setNovoAtalho] = useState('')
@@ -237,4 +237,5 @@ export function MensagensProntasPopover({ isOpen, onClose, onSelect }: Mensagens
       </div>
     </>
   )
-}
+})
+MensagensProntasPopover.displayName = 'MensagensProntasPopover'

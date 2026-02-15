@@ -3,7 +3,7 @@
  * Mostra emails enviados que foram abertos pelo destinatário (dados do banco)
  */
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, forwardRef } from 'react'
 import { MailOpen, Mail, Eye } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -26,7 +26,7 @@ interface Props {
   onSelect: (id: string) => void
 }
 
-export function EmailHistoricoPopover({ items, isLoading, onSelect }: Props) {
+export const EmailHistoricoPopover = forwardRef<HTMLDivElement, Props>(function EmailHistoricoPopover({ items, isLoading, onSelect }, _ref) {
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -109,4 +109,5 @@ export function EmailHistoricoPopover({ items, isLoading, onSelect }: Props) {
       )}
     </div>
   )
-}
+})
+EmailHistoricoPopover.displayName = 'EmailHistoricoPopover'

@@ -4,7 +4,7 @@
  * Inclui menu de contexto (chevron hover) com arquivar, fixar, marcar não lida, apagar
  */
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, forwardRef } from 'react'
 import { format, isToday, isYesterday } from 'date-fns'
 import {
   Camera, Video, Mic, FileText, MapPin, User, BarChart3, Smile,
@@ -93,7 +93,7 @@ function getTipoBadge(tipo: string): { label: string; className: string } | null
   return null
 }
 
-export function ConversaItem({ conversa, isActive, onClick, onArquivar, onFixar, onMarcarNaoLida, onApagar }: ConversaItemProps) {
+export const ConversaItem = forwardRef<HTMLDivElement, ConversaItemProps>(function ConversaItem({ conversa, isActive, onClick, onArquivar, onFixar, onMarcarNaoLida, onApagar }, _ref) {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const nome = conversa.contato?.nome || conversa.contato?.nome_fantasia || conversa.nome || 'Sem nome'
@@ -292,4 +292,5 @@ export function ConversaItem({ conversa, isActive, onClick, onArquivar, onFixar,
       </div>
     </div>
   )
-}
+})
+ConversaItem.displayName = 'ConversaItem'

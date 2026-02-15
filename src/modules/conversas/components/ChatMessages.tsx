@@ -3,7 +3,7 @@
  * e suporte a exibição de nomes de participantes em grupos
  */
 
-import { useRef, useEffect, useMemo } from 'react'
+import { useRef, useEffect, useMemo, forwardRef } from 'react'
 import { format, isToday, isYesterday, isSameDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Loader2 } from 'lucide-react'
@@ -70,11 +70,11 @@ function getParticipantDisplayName(msg: Mensagem): string {
   return 'Desconhecido'
 }
 
-export function ChatMessages({
+export const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(function ChatMessages({
   mensagens, isLoading, hasMore, onLoadMore, isFetchingMore,
   highlightIds, focusedId, conversaTipo, conversaId, fotoUrl,
   onDeleteMessage, onReplyMessage, onReactMessage, onForwardMessage, onPinMessage,
-}: ChatMessagesProps) {
+}, _ref) {
   const containerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const prevLengthRef = useRef(0)
@@ -230,4 +230,5 @@ export function ChatMessages({
       <div ref={bottomRef} />
     </div>
   )
-}
+})
+ChatMessages.displayName = 'ChatMessages'
