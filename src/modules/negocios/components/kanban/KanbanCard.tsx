@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import type { Oportunidade } from '../../services/negocios.api'
+import { AgendaQuickPopover } from './AgendaQuickPopover'
 import { TarefasPopover } from './TarefasPopover'
 import { WhatsAppConversaModal } from './WhatsAppConversaModal'
 import { ComposeEmailModal } from '@/modules/emails/components/ComposeEmailModal'
@@ -416,6 +417,29 @@ export function KanbanCard({ oportunidade, onDragStart, onClick, onAgendar, conf
                 const acao = ACOES_ICONS[key]
                 if (!acao) return null
                 const Icon = acao.icon
+
+                // Ícone de agendar usa o AgendaQuickPopover
+                if (key === 'agendar') {
+                  return (
+                    <AgendaQuickPopover
+                      key={key}
+                      oportunidadeId={oportunidade.id}
+                      oportunidadeTitulo={oportunidade.titulo}
+                    >
+                      <button
+                        type="button"
+                        draggable={false}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-5 h-5 flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                        title={acao.label}
+                      >
+                        <Icon className="w-3.5 h-3.5" />
+                      </button>
+                    </AgendaQuickPopover>
+                  )
+                }
+
                 return (
                   <button
                     key={key}
