@@ -4,6 +4,7 @@
  * Inclui ícone WhatsApp para abrir conversa inline
  */
 
+import React from 'react'
 import { Clock, User, Phone } from 'lucide-react'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import type { PreOportunidadeCard } from '../../services/pre-oportunidades.api'
@@ -31,11 +32,13 @@ function formatPhoneDisplay(phone: string): string {
   return phone
 }
 
-export function SolicitacaoCard({ preOp, onClick, onWhatsApp }: SolicitacaoCardProps) {
+export const SolicitacaoCard = React.forwardRef<HTMLDivElement, SolicitacaoCardProps>(
+  ({ preOp, onClick, onWhatsApp }, ref) => {
   const isUrgente = preOp.tempo_espera_minutos > 60
 
   return (
     <div
+      ref={ref}
       className="w-full text-left bg-card rounded-lg shadow-sm p-3 hover:shadow-md transition-all duration-200 cursor-pointer"
       onClick={() => onClick(preOp)}
       role="button"
@@ -91,4 +94,6 @@ export function SolicitacaoCard({ preOp, onClick, onWhatsApp }: SolicitacaoCardP
       </div>
     </div>
   )
-}
+})
+
+SolicitacaoCard.displayName = 'SolicitacaoCard'
