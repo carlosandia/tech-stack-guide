@@ -3,6 +3,7 @@
  * Conforme Design System - seção 10.3 Badge
  */
 
+import { forwardRef } from 'react'
 import { Badge } from '@/components/ui/badge'
 import type { StatusFormulario } from '../services/formularios.api'
 
@@ -16,7 +17,8 @@ interface Props {
   status: StatusFormulario
 }
 
-export function FormularioStatusBadge({ status }: Props) {
+export const FormularioStatusBadge = forwardRef<HTMLDivElement, Props>(function FormularioStatusBadge({ status }, _ref) {
   const config = statusConfig[status] || statusConfig.rascunho
   return <Badge variant={config.variant}>{config.label}</Badge>
-}
+})
+FormularioStatusBadge.displayName = 'FormularioStatusBadge'

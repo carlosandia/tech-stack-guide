@@ -3,7 +3,7 @@
  * Conforme PRD-17 - Filtros compactos no toolbar (mesma linha do título)
  */
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, forwardRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useAppToolbar } from '@/modules/app/contexts/AppToolbarContext'
@@ -16,16 +16,7 @@ import { TipoFormularioOptions } from '../schemas/formulario.schema'
 import { SearchPopover } from '@/modules/admin/components/toolbar/SearchPopover'
 import { StatusDropdown } from '@/modules/admin/components/toolbar/StatusDropdown'
 
-function FormulariosToolbarFilters({
-  statusFilter,
-  setStatusFilter,
-  tipoFilter,
-  setTipoFilter,
-  busca,
-  setBusca,
-  setPagina,
-  contadores,
-}: {
+const FormulariosToolbarFilters = forwardRef<HTMLDivElement, {
   statusFilter: string
   setStatusFilter: (v: StatusFormulario | '') => void
   tipoFilter: string
@@ -34,7 +25,16 @@ function FormulariosToolbarFilters({
   setBusca: (v: string) => void
   setPagina: (v: number) => void
   contadores: any
-}) {
+}>(function FormulariosToolbarFilters({
+  statusFilter,
+  setStatusFilter,
+  tipoFilter,
+  setTipoFilter,
+  busca,
+  setBusca,
+  setPagina,
+  contadores,
+}, ref) {
   const statusOptions = [
     { value: 'todas', label: `Todos${contadores ? ` (${contadores.todos || 0})` : ''}` },
     { value: 'rascunho', label: `Rascunho${contadores ? ` (${contadores.rascunho || 0})` : ''}` },
@@ -48,7 +48,7 @@ function FormulariosToolbarFilters({
   ]
 
   return (
-    <div className="flex items-center gap-1">
+    <div ref={ref} className="flex items-center gap-1">
       <StatusDropdown
         value={statusFilter || 'todas'}
         onChange={(val) => { setStatusFilter(val === 'todas' ? '' : val as StatusFormulario); setPagina(1) }}
@@ -70,9 +70,10 @@ function FormulariosToolbarFilters({
       />
     </div>
   )
-}
+})
+FormulariosToolbarFilters.displayName = 'FormulariosToolbarFilters'
 
-export function FormulariosPage() {
+export const FormulariosPage = forwardRef<HTMLDivElement>(function FormulariosPage(_props, _ref) {
   const navigate = useNavigate()
   const { setActions, setSubtitle, setCenterContent } = useAppToolbar()
 
@@ -192,4 +193,5 @@ export function FormulariosPage() {
       <NovoFormularioModal open={novoModalOpen} onOpenChange={setNovoModalOpen} />
     </div>
   )
-}
+})
+FormulariosPage.displayName = 'FormulariosPage'

@@ -3,6 +3,7 @@
  * Conforme Design System - seção 10.5 Modal/Dialog
  */
 
+import { forwardRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus, Loader2 } from 'lucide-react'
@@ -26,7 +27,7 @@ interface Props {
   onOpenChange: (open: boolean) => void
 }
 
-export function NovoFormularioModal({ open, onOpenChange }: Props) {
+export const NovoFormularioModal = forwardRef<HTMLDivElement, Props>(function NovoFormularioModal({ open, onOpenChange }, _ref) {
   const criarMutation = useCriarFormulario()
 
   const {
@@ -136,4 +137,5 @@ export function NovoFormularioModal({ open, onOpenChange }: Props) {
       </DialogContent>
     </Dialog>
   )
-}
+})
+NovoFormularioModal.displayName = 'NovoFormularioModal'

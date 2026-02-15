@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, forwardRef } from 'react'
 import { ChevronDown, Check, Filter } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -23,13 +23,13 @@ interface StatusDropdownProps {
   defaultValue?: string
 }
 
-export function StatusDropdown({
+export const StatusDropdown = forwardRef<HTMLDivElement, StatusDropdownProps>(function StatusDropdown({
   value,
   onChange,
   options,
   placeholder = 'Filtrar',
   defaultValue = 'todas',
-}: StatusDropdownProps) {
+}, ref) {
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -38,7 +38,7 @@ export function StatusDropdown({
   const isFiltering = value !== defaultValue
 
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={ref ?? containerRef} className="relative">
       {/* Botão trigger - Estilo ghost */}
       <button
         type="button"
@@ -87,4 +87,5 @@ export function StatusDropdown({
       )}
     </div>
   )
-}
+})
+StatusDropdown.displayName = 'StatusDropdown'

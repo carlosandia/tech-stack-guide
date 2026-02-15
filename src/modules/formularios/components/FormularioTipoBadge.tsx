@@ -3,6 +3,7 @@
  * Conforme Design System - seção 10.3 Badge
  */
 
+import { forwardRef } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { FileText, MessageSquare, Mail, Layers } from 'lucide-react'
 import type { TipoFormulario } from '../services/formularios.api'
@@ -18,7 +19,7 @@ interface Props {
   tipo: TipoFormulario
 }
 
-export function FormularioTipoBadge({ tipo }: Props) {
+export const FormularioTipoBadge = forwardRef<HTMLDivElement, Props>(function FormularioTipoBadge({ tipo }, _ref) {
   const config = tipoConfig[tipo] || tipoConfig.inline
   const Icon = config.icon
   return (
@@ -27,4 +28,5 @@ export function FormularioTipoBadge({ tipo }: Props) {
       {config.label}
     </Badge>
   )
-}
+})
+FormularioTipoBadge.displayName = 'FormularioTipoBadge'

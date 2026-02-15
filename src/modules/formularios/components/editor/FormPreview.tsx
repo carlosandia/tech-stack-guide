@@ -7,7 +7,7 @@
  * Inclui seletor de país com bandeira para campos de telefone
  */
 
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, forwardRef } from 'react'
 import { getMaskForType } from '../../utils/masks'
 import { generateFormResponsiveCss, generateColunasResponsiveCss, resolveValue } from '../../utils/responsiveStyles'
 import { Monitor, Tablet, Smartphone, Settings, Eye, EyeOff, Code, Info } from 'lucide-react'
@@ -126,7 +126,7 @@ interface Props {
   onUpdateBotaoTexto?: (tipo: 'enviar' | 'whatsapp', newTexto: string) => void
 }
 
-export function FormPreview({
+export const FormPreview = forwardRef<HTMLDivElement, Props>(function FormPreview({
   formulario,
   campos,
   selectedCampoId,
@@ -159,7 +159,7 @@ export function FormPreview({
   onUpdateCampoPlaceholder,
   onUpdateBotaoTexto,
   onDuplicateCampo,
-}: Props) {
+}, _ref) {
   const [viewport, setViewport] = useState<Viewport>('desktop')
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const [dragOverImage, setDragOverImage] = useState(false)
@@ -808,7 +808,8 @@ export function FormPreview({
       </div>
     </div>
   )
-}
+})
+FormPreview.displayName = 'FormPreview'
 
 /** Wrapper com estado para campos no preview final (suporta máscaras interativas) */
 function FinalPreviewFields({ campos, estiloCampos, fontFamily, viewport = 'desktop' }: { campos: CampoFormulario[], estiloCampos: EstiloCampos | undefined, fontFamily: string, viewport?: Viewport }) {
@@ -909,16 +910,7 @@ function FinalPreviewFields({ campos, estiloCampos, fontFamily, viewport = 'desk
 }
 
 /** Componente de botões com suporte a edição inline do texto */
-function RenderBotoes({
-  configBotoes,
-  estiloBotao,
-  buttonStyle,
-  showFinalPreview,
-  selectedStyleElement,
-  onSelectStyleElement,
-  onUpdateBotaoTexto,
-  viewport,
-}: {
+const RenderBotoes = forwardRef<HTMLDivElement, {
   configBotoes: ConfigBotoes | null | undefined
   estiloBotao: EstiloBotao | undefined
   buttonStyle: React.CSSProperties
@@ -927,7 +919,16 @@ function RenderBotoes({
   onSelectStyleElement: ((el: SelectedElement) => void) | undefined
   onUpdateBotaoTexto?: ((tipo: 'enviar' | 'whatsapp', newTexto: string) => void)
   viewport?: Viewport
-}) {
+}>(function RenderBotoes({
+  configBotoes,
+  estiloBotao,
+  buttonStyle,
+  showFinalPreview,
+  selectedStyleElement,
+  onSelectStyleElement,
+  onUpdateBotaoTexto,
+  viewport,
+}, _ref) {
   const rvBtn = useCallback((field: string): string | undefined => {
     if (!estiloBotao) return undefined
     return resolveValue(estiloBotao as unknown as Record<string, unknown>, field, viewport || 'desktop')
@@ -1104,7 +1105,8 @@ function RenderBotoes({
   return null
 
   
-}
+})
+RenderBotoes.displayName = 'RenderBotoes'
 
 /** Helper: renders label with optional info icon tooltip */
 function renderLabel(
