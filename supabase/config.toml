@@ -74,3 +74,6 @@ verify_jwt = false
 
 [functions.widget-whatsapp-loader]
 verify_jwt = false
+
+[functions.google-auth]
+verify_jwt = false

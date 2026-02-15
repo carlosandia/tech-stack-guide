@@ -1478,11 +1478,20 @@ export const integracoesApi = {
       return { provedor: domain, host: `smtp.${domain}`, port: 587, tls: true }
     },
     obterGmailAuthUrl: async (): Promise<{ url: string }> => {
-      const { data } = await api.get('/v1/conexoes/email/google/auth-url')
+      // AIDEV-NOTE: Gmail auth URL via Edge Function (sem backend Express)
+      const redirectUri = `${window.location.origin}/app/configuracoes/conexoes`
+      const { data, error } = await supabase.functions.invoke('google-auth', {
+        body: { action: 'auth-url', tipo: 'gmail', redirect_uri: redirectUri },
+      })
+      if (error) throw new Error(error.message || 'Erro ao obter URL Gmail')
       return data
     },
     desconectar: async () => {
-      await api.delete('/v1/conexoes/email')
+      // AIDEV-NOTE: Desconexão email via Edge Function
+      const { error } = await supabase.functions.invoke('google-auth', {
+        body: { action: 'disconnect' },
+      })
+      if (error) throw new Error(error.message || 'Erro ao desconectar email')
     },
   },
 }
@@ -1552,11 +1561,17 @@ export const metaAdsApi = {
 
 export const googleCalendarApi = {
   listarCalendarios: async () => {
-    const { data } = await api.get('/v1/conexoes/google/calendarios')
+    const { data, error } = await supabase.functions.invoke('google-auth', {
+      body: { action: 'list-calendars' },
+    })
+    if (error) throw new Error(error.message || 'Erro ao listar calendários')
     return data as { calendarios: Array<{ id: string; summary: string; description?: string; backgroundColor?: string }> }
   },
   selecionarCalendario: async (payload: { calendar_id: string; criar_google_meet?: boolean; sincronizar_eventos?: boolean }) => {
-    const { data } = await api.post('/v1/conexoes/google/calendario', payload)
+    const { data, error } = await supabase.functions.invoke('google-auth', {
+      body: { action: 'select-calendar', ...payload },
+    })
+    if (error) throw new Error(error.message || 'Erro ao selecionar calendário')
     return data
   },
 }
