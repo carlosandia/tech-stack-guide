@@ -73,6 +73,9 @@ export function SetPasswordPage() {
         if (errorParam || errorCode) {
           console.error('[SetPassword] Erro no token:', errorParam || errorCode, errorDescription)
           
+          // IMPORTANTE: fazer signOut para nao mostrar email do usuario logado (ex: superadmin)
+          await supabase.auth.signOut()
+
           const isExpired = errorParam === 'access_denied' || errorDescription?.includes('expired')
           if (isExpired) {
             setError('O link de convite expirou. Solicite ao administrador que reenvie o convite.')

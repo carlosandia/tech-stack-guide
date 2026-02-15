@@ -122,8 +122,8 @@ export const InviteAdminEmail = ({
             </Text>
             <Text style={footerText}>
               Precisa de ajuda?{' '}
-              <Link href="mailto:suporte@renovedigital.com.br" style={footerLink}>
-                suporte@renovedigital.com.br
+              <Link href="mailto:crm@renovedigital.com.br" style={footerLink}>
+                crm@renovedigital.com.br
               </Link>
             </Text>
           </Section>
