@@ -642,7 +642,15 @@ export const detalhesApi = {
     observacoes_realizacao?: string
     observacoes_noshow?: string
   }): Promise<void> => {
-    const updateData: Record<string, unknown> = { status }
+    // AIDEV-NOTE: Mapear status do frontend para valores do CHECK constraint do banco
+    // O banco aceita: 'agendada', 'realizada', 'nao_compareceu', 'cancelada', 'reagendada'
+    const statusMap: Record<string, string> = {
+      noshow: 'nao_compareceu',
+      'no-show': 'nao_compareceu',
+      nao_compareceu: 'nao_compareceu',
+    }
+    const statusDb = statusMap[status] || status
+    const updateData: Record<string, unknown> = { status: statusDb }
 
     if (extras?.motivo_noshow) updateData.motivo_noshow = extras.motivo_noshow
     if (extras?.motivo_noshow_id) updateData.motivo_noshow_id = extras.motivo_noshow_id
