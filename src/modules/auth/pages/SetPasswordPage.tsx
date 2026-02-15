@@ -424,7 +424,9 @@ export function SetPasswordPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Digite sua nova senha"
                   className="w-full h-11 px-4 pr-12 rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-                  autoComplete="new-password"
+                  autoComplete="off"
+                  data-lpignore="true"
+                  data-form-type="other"
                 />
                 <button
                   type="button"
@@ -479,7 +481,9 @@ export function SetPasswordPage() {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Confirme sua nova senha"
                   className="w-full h-11 px-4 pr-12 rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-                  autoComplete="new-password"
+                  autoComplete="off"
+                  data-lpignore="true"
+                  data-form-type="other"
                 />
                 <button
                   type="button"

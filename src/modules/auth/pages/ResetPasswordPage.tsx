@@ -197,6 +197,9 @@ export function ResetPasswordPage() {
                     ${errors.nova_senha ? 'border-destructive' : 'border-input'}
                   `}
                   disabled={isLoading}
+                  autoComplete="off"
+                  data-lpignore="true"
+                  data-form-type="other"
                 />
                 <button
                   type="button"
@@ -254,6 +257,9 @@ export function ResetPasswordPage() {
                     ${errors.confirmar_senha ? 'border-destructive' : 'border-input'}
                   `}
                   disabled={isLoading}
+                  autoComplete="off"
+                  data-lpignore="true"
+                  data-form-type="other"
                 />
                 <button
                   type="button"
