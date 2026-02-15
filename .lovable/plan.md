@@ -1,60 +1,136 @@
 
-# Correcao: Tela Branca ao Digitar Senha na Pagina de Convite
 
-## Diagnostico
+# Correcao Completa: Bloquear Acesso Sem Definir Senha
 
-Identifiquei **duas causas** para a tela branca ao pressionar Shift+P no campo de senha:
+## Causa Raiz
 
-### Causa 1: Conflito entre Chrome Password Manager e React
-Quando o Chrome exibe a sugestao de senha forte ("O gerenciador do Google criou uma senha forte para..."), ele intercepta o campo `<input>` com `autoComplete="new-password"`. Ao interagir com o overlay do Chrome (clicar "Entrar com a sua") e depois digitar no campo, o Chrome pode modificar o valor do DOM diretamente, causando uma inconsistencia entre o estado React (`password`) e o valor real do input. Isso pode gerar um erro nao tratado no React, que **desmonta toda a arvore de componentes** resultando em tela branca.
+O AuthProvider busca dados do usuario mas **ignora o campo `status`** da tabela `usuarios`. Quando o invite-admin cria um convite, ele define `status = 'pendente'` no banco. Porem, o AuthProvider nao consulta esse campo, entao trata qualquer sessao valida como usuario 100% autenticado - mesmo que o usuario nunca tenha definido uma senha.
 
-### Causa 2: Ausencia total de Error Boundary
-A aplicacao **nao possui nenhum Error Boundary**. Qualquer erro JavaScript nao capturado (seja do conflito do Chrome, de uma re-renderizacao do AuthProvider, ou qualquer outro) faz o React desmontar tudo, mostrando uma pagina completamente branca sem nenhuma mensagem de erro.
-
-### Causa 3: Re-renderizacao do AuthProvider
-Quando o `SetPasswordPage` chama `setSession()`, o `AuthProvider` detecta a mudanca via `onAuthStateChange`, marca o usuario como autenticado e dispara re-renders. Se isso coincide com o overlay do Chrome manipulando o DOM do input, pode causar um crash.
+Resultado: apos o `setSession()` na SetPasswordPage, o usuario tem sessao ativa e pode navegar livremente para /dashboard sem criar senha.
 
 ## Solucao
 
-### 1. Desabilitar sugestao de senha forte do Chrome
-Nos campos de senha da `SetPasswordPage`, trocar `autoComplete="new-password"` por `autoComplete="off"` e adicionar atributos extras que impedem o Chrome de exibir o gerenciador de senhas:
+Adicionar verificacao de status em 3 pontos criticos:
 
-```
-autoComplete="off"
-data-lpignore="true"        // LastPass
-data-form-type="other"      // Chrome
-```
+### 1. AuthProvider - buscar e expor o status do usuario
 
-### 2. Criar um Error Boundary global
-Criar um componente `ErrorBoundary` que envolve o `<App />` no `main.tsx`. Assim, qualquer erro nao tratado mostra uma tela de fallback com opcao de recarregar, em vez de uma tela branca total.
+**Arquivo: `src/providers/AuthProvider.tsx`**
 
-### 3. Adicionar Error Boundary especifico na SetPasswordPage
-Envolver o formulario de senha em um Error Boundary local que captura erros especificos dessa pagina e mostra uma mensagem amigavel com botao para tentar novamente.
+- Adicionar `status` ao tipo `AuthUser` (valores: `'ativo' | 'pendente' | 'inativo'`)
+- Alterar a query `fetchUserData` para incluir `status` no SELECT
+- Expor `user.status` no contexto para que qualquer componente possa checar
+
+### 2. App.tsx - forcar redirect para /auth/set-password se pendente
+
+**Arquivo: `src/App.tsx`**
+
+- Antes de renderizar qualquer rota protegida, verificar se `user?.status === 'pendente'`
+- Se pendente, redirecionar TODAS as rotas (exceto /auth/set-password) para /auth/set-password
+- Isso garante que mesmo digitando /dashboard manualmente, o usuario pendente volta pro formulario de senha
+
+### 3. SetPasswordPage - manter a logica existente
+
+A pagina ja atualiza o status para `'ativo'` apos definir senha (linha 248), entao apos criar a senha o bloqueio e removido automaticamente.
 
 ## Detalhes Tecnicos
 
-### Arquivo: `src/components/ErrorBoundary.tsx` (NOVO)
-Criar componente class-based (Error Boundaries requerem classes em React 18):
-- Captura erros via `componentDidCatch`
-- Exibe tela de fallback com mensagem e botao "Recarregar pagina"
-- Log do erro no console para debug
+### AuthProvider.tsx
 
-### Arquivo: `src/main.tsx`
-Envolver `<App />` com o `<ErrorBoundary>` global.
+```typescript
+// Tipo AuthUser - adicionar status
+export interface AuthUser {
+  // ...campos existentes...
+  status?: 'ativo' | 'pendente' | 'inativo'
+}
 
-### Arquivo: `src/modules/auth/pages/SetPasswordPage.tsx`
-- Trocar `autoComplete="new-password"` por `autoComplete="off"` nos dois inputs de senha
-- Adicionar atributos `data-lpignore="true"` e `data-form-type="other"` para desabilitar gerenciadores de senha de terceiros
-- Envolver o formulario com um Error Boundary local para seguranca extra
+// Query fetchUserData - adicionar status
+const { data: usuario } = await supabase
+  .from('usuarios')
+  .select('id, nome, sobrenome, email, role, organizacao_id, avatar_url, status')
+  .eq('auth_id', supabaseUser.id)
+  .single()
 
-### Arquivo: `src/modules/auth/pages/ResetPasswordPage.tsx`
-- Aplicar a mesma correcao de `autoComplete` nos campos de senha desta pagina tambem, para consistencia
+// No retorno, incluir status
+return {
+  ...camposExistentes,
+  status: usuario.status as 'ativo' | 'pendente' | 'inativo',
+}
+```
+
+### App.tsx
+
+```typescript
+const { loading, isAuthenticated, role, user } = useAuth()
+
+const isSetPasswordPage = window.location.pathname === '/auth/set-password'
+
+// Se usuario pendente, forcar ir para set-password
+const isPendente = user?.status === 'pendente'
+
+// Nas rotas protegidas (CRM e Admin), adicionar verificacao:
+// Se autenticado MAS pendente -> redirecionar para /auth/set-password
+// Se autenticado E ativo -> renderizar normalmente
+```
+
+Na rota do CRM:
+```typescript
+<Route element={
+  isAuthenticated && (role === 'admin' || role === 'member')
+    ? isPendente
+      ? <Navigate to="/auth/set-password" replace />
+      : <AppLayout />
+    : <Navigate to="/login" replace />
+}>
+```
+
+Na rota Admin:
+```typescript
+<Route element={
+  isAuthenticated && role === 'super_admin'
+    ? isPendente
+      ? <Navigate to="/auth/set-password" replace />
+      : <AdminLayout />
+    : <Navigate to="/login" replace />
+}>
+```
+
+Na rota Configuracoes:
+```typescript
+element={
+  isAuthenticated && (role === 'admin' || role === 'member')
+    ? isPendente
+      ? <Navigate to="/auth/set-password" replace />
+      : <ConfiguracoesLayout />
+    : <Navigate to="/login" replace />
+}
+```
+
+Na rota raiz (/):
+```typescript
+<Route path="/" element={
+  isAuthenticated && !isSetPasswordPage
+    ? isPendente
+      ? <Navigate to="/auth/set-password" replace />
+      : role === 'super_admin'
+        ? <Navigate to="/admin" replace />
+        : <Navigate to="/dashboard" replace />
+    : <Navigate to="/login" replace />
+} />
+```
+
+## Fluxo Corrigido
+
+1. Convite enviado -> usuario criado com status='pendente'
+2. Usuario clica no link -> SetPasswordPage processa token -> setSession()
+3. AuthProvider carrega dados -> ve status='pendente'
+4. App.tsx: usuario autenticado MAS pendente -> qualquer rota protegida redireciona para /auth/set-password
+5. Usuario define senha -> SetPasswordPage atualiza status para 'ativo'
+6. Apos signOut + login, AuthProvider carrega status='ativo' -> acesso liberado
 
 ## Resumo das Alteracoes
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `src/components/ErrorBoundary.tsx` | Novo componente Error Boundary global |
-| `src/main.tsx` | Envolver App com ErrorBoundary |
-| `SetPasswordPage.tsx` | Desabilitar Chrome password manager + Error Boundary local |
-| `ResetPasswordPage.tsx` | Desabilitar Chrome password manager para consistencia |
+| `src/providers/AuthProvider.tsx` | Adicionar `status` ao AuthUser e a query fetchUserData |
+| `src/App.tsx` | Verificar `user.status === 'pendente'` e bloquear acesso a rotas protegidas |
+
