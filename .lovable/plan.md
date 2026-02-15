@@ -1,69 +1,60 @@
 
-# Correcao do Link de Convite Expirando Imediatamente
+# Correcao: Tela Branca ao Digitar Senha na Pagina de Convite
 
 ## Diagnostico
 
-Analisando os logs de autenticacao e o codigo, identifiquei o problema raiz na `SetPasswordPage`:
+Identifiquei **duas causas** para a tela branca ao pressionar Shift+P no campo de senha:
 
-**O que acontece:**
-1. Junior clica no link do email -> Supabase `/verify` valida o token com sucesso e redireciona para `/auth/set-password#access_token=AT1&refresh_token=RT1&type=invite`
-2. O cliente Supabase JS automaticamente detecta o hash fragment e cria uma sessao com AT1/RT1
-3. O `useEffect` da SetPasswordPage executa e chama `signOut()` (linha 93) -> isso **revoga o RT1 no servidor**
-4. Em seguida, chama `setSession({ access_token: AT1, refresh_token: RT1 })` -> **falha porque RT1 foi revogado**
-5. O erro e capturado e a pagina mostra "Token invalido ou expirado"
+### Causa 1: Conflito entre Chrome Password Manager e React
+Quando o Chrome exibe a sugestao de senha forte ("O gerenciador do Google criou uma senha forte para..."), ele intercepta o campo `<input>` com `autoComplete="new-password"`. Ao interagir com o overlay do Chrome (clicar "Entrar com a sua") e depois digitar no campo, o Chrome pode modificar o valor do DOM diretamente, causando uma inconsistencia entre o estado React (`password`) e o valor real do input. Isso pode gerar um erro nao tratado no React, que **desmonta toda a arvore de componentes** resultando em tela branca.
 
-O `signOut()` foi adicionado para evitar mostrar o email do superadmin caso ele estivesse logado. Porem, na maioria dos casos o convidado esta em seu proprio navegador/dispositivo, e o `signOut()` revoga a sessao recem-criada pelo `/verify`.
+### Causa 2: Ausencia total de Error Boundary
+A aplicacao **nao possui nenhum Error Boundary**. Qualquer erro JavaScript nao capturado (seja do conflito do Chrome, de uma re-renderizacao do AuthProvider, ou qualquer outro) faz o React desmontar tudo, mostrando uma pagina completamente branca sem nenhuma mensagem de erro.
+
+### Causa 3: Re-renderizacao do AuthProvider
+Quando o `SetPasswordPage` chama `setSession()`, o `AuthProvider` detecta a mudanca via `onAuthStateChange`, marca o usuario como autenticado e dispara re-renders. Se isso coincide com o overlay do Chrome manipulando o DOM do input, pode causar um crash.
 
 ## Solucao
 
-Modificar a `SetPasswordPage` para nao revogar a sessao antes de tentar usa-la. Em vez disso:
+### 1. Desabilitar sugestao de senha forte do Chrome
+Nos campos de senha da `SetPasswordPage`, trocar `autoComplete="new-password"` por `autoComplete="off"` e adicionar atributos extras que impedem o Chrome de exibir o gerenciador de senhas:
 
-1. Ler os hash params
-2. Se tiver `access_token` + `type=invite/magiclink`, usar `setSession` SEM chamar `signOut` antes
-3. Apenas apos confirmar que a sessao esta ativa, verificar se o email corresponde ao convidado
-4. Se ja houver uma sessao ativa (ex: superadmin logado), fazer signOut apenas se o email da sessao existente for DIFERENTE do email nos tokens do hash
+```
+autoComplete="off"
+data-lpignore="true"        // LastPass
+data-form-type="other"      // Chrome
+```
+
+### 2. Criar um Error Boundary global
+Criar um componente `ErrorBoundary` que envolve o `<App />` no `main.tsx`. Assim, qualquer erro nao tratado mostra uma tela de fallback com opcao de recarregar, em vez de uma tela branca total.
+
+### 3. Adicionar Error Boundary especifico na SetPasswordPage
+Envolver o formulario de senha em um Error Boundary local que captura erros especificos dessa pagina e mostra uma mensagem amigavel com botao para tentar novamente.
 
 ## Detalhes Tecnicos
 
+### Arquivo: `src/components/ErrorBoundary.tsx` (NOVO)
+Criar componente class-based (Error Boundaries requerem classes em React 18):
+- Captura erros via `componentDidCatch`
+- Exibe tela de fallback com mensagem e botao "Recarregar pagina"
+- Log do erro no console para debug
+
+### Arquivo: `src/main.tsx`
+Envolver `<App />` com o `<ErrorBoundary>` global.
+
 ### Arquivo: `src/modules/auth/pages/SetPasswordPage.tsx`
+- Trocar `autoComplete="new-password"` por `autoComplete="off"` nos dois inputs de senha
+- Adicionar atributos `data-lpignore="true"` e `data-form-type="other"` para desabilitar gerenciadores de senha de terceiros
+- Envolver o formulario com um Error Boundary local para seguranca extra
 
-Alterar o `useEffect` de verificacao de token:
-
-```typescript
-// ANTES (bugado):
-if (accessToken && (type === 'invite' || type === 'magiclink')) {
-  await supabase.auth.signOut()  // <-- REVOGA o refresh_token do hash!
-  const { data, error } = await supabase.auth.setSession({
-    access_token: accessToken,
-    refresh_token: refreshToken || '',
-  })
-  // ...
-}
-
-// DEPOIS (corrigido):
-if (accessToken && (type === 'invite' || type === 'magiclink')) {
-  // NAO chamar signOut antes - o setSession substitui a sessao atual
-  const { data, error } = await supabase.auth.setSession({
-    access_token: accessToken,
-    refresh_token: refreshToken || '',
-  })
-  // ...
-}
-```
-
-Tambem adicionar um fallback: se nao houver hash params, aguardar brevemente o cliente Supabase processar o hash automaticamente (via `onAuthStateChange`) antes de verificar a sessao existente.
-
-### Arquivo: `supabase/functions/invite-admin/index.ts`
-
-Corrigir o `organizacao_nome` que esta chegando como `undefined` nos logs (o wizard nao esta passando esse campo):
-
-### Arquivo: `src/modules/admin/services/admin.api.ts`
-
-Garantir que o `organizacao_nome` seja passado no body da chamada ao `invite-admin` durante a criacao da organizacao.
+### Arquivo: `src/modules/auth/pages/ResetPasswordPage.tsx`
+- Aplicar a mesma correcao de `autoComplete` nos campos de senha desta pagina tambem, para consistencia
 
 ## Resumo das Alteracoes
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `SetPasswordPage.tsx` | Remover `signOut()` antes do `setSession()` no processamento de tokens de convite |
-| `admin.api.ts` | Passar `organizacao_nome` no payload do invite-admin ao criar organizacao |
+| `src/components/ErrorBoundary.tsx` | Novo componente Error Boundary global |
+| `src/main.tsx` | Envolver App com ErrorBoundary |
+| `SetPasswordPage.tsx` | Desabilitar Chrome password manager + Error Boundary local |
+| `ResetPasswordPage.tsx` | Desabilitar Chrome password manager para consistencia |
