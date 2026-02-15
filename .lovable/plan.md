@@ -1,26 +1,40 @@
 
 
-# Melhorar textos da seção "Automação de Etiquetas"
+## Correção: Link de convite com tipo de token incorreto
 
-## O que muda
+### Causa Raiz
 
-Tornar os textos do label e das opções do select mais claros e acessíveis para qualquer usuário, sem jargão técnico.
+Na Edge Function `invite-admin`, quando o usuário já existe no Supabase Auth, o sistema gera um **magiclink** em vez de um **invite**. Porém, a URL de verificação na linha 593 sempre usa `type=invite`, causando rejeição do token pelo Supabase Auth com o erro "Email link is invalid or has expired".
 
-## Alterações
+### O que muda
 
-**Arquivo**: `src/modules/configuracoes/components/integracoes/WhatsAppConfigModal.tsx`
+**Arquivo**: `supabase/functions/invite-admin/index.ts`
 
-### 1. Label do select (linha 161)
-- **De**: "Quando oportunidade já fechada"
-- **Para**: "Se o contato já teve um negócio encerrado"
+1. Adicionar uma variável para rastrear qual tipo de link foi gerado (`invite` ou `magiclink`)
+2. Usar essa variável na construção da `confirmUrl` (linha 593) em vez do valor fixo `invite`
 
-### 2. Opções do select (linhas 26-28)
+### Detalhes Técnicos
 
-| Valor | Label atual | Novo label | Descrição atual | Nova descrição |
-|-------|------------|------------|-----------------|----------------|
-| `criar_nova` | Criar nova oportunidade | Sempre criar novo negócio | Sempre cria uma nova, mesmo se já existe fechada | Cria um novo negócio mesmo que já exista um encerrado para esse contato |
-| `ignorar` | Ignorar | Não fazer nada | Não faz nada se já existe qualquer oportunidade | Se já existir qualquer negócio (aberto ou encerrado), não cria outro |
-| `criar_se_fechada` | Criar se fechada | Criar apenas se não houver aberto | Cria nova apenas se todas estão fechadas | Cria um novo negócio somente se não houver nenhum em andamento |
+Antes (linha 593):
+```
+type=invite  (sempre fixo)
+```
 
-Apenas textos serão alterados, sem mudança de lógica ou layout.
+Depois:
+```
+type={linkType}  (dinâmico: "invite" para novos usuários, "magiclink" para existentes)
+```
+
+Alterações pontuais:
+- Criar variável `let linkType = 'invite'` junto com `linkData` e `userId`
+- No bloco de fallback para magiclink (linha ~543), atribuir `linkType = 'magiclink'`
+- Na linha 593, usar `linkType` em vez de `"invite"` hardcoded
+
+### Sobre o email do superadmin
+
+A correção que limpa a sessão (signOut) antes de exibir erro ja esta no codigo. Ao publicar o projeto pela Lovable, essa correcao ira para producao em `crm.renovedigital.com.br`.
+
+### Resultado esperado
+
+Ao reenviar o convite para `contato@litoralplace.com.br`, o link no email tera o tipo correto e o fluxo de definicao de senha funcionara normalmente.
 
