@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, type ReactNode } from 'react'
+import { createContext, useContext, useState, forwardRef, type ReactNode } from 'react'
 
 /**
  * AIDEV-NOTE: Contexto do Toolbar para módulo App (tenant)
@@ -17,7 +17,7 @@ interface AppToolbarContextType {
 
 const AppToolbarContext = createContext<AppToolbarContextType | undefined>(undefined)
 
-export function AppToolbarProvider({ children }: { children: ReactNode }) {
+export const AppToolbarProvider = forwardRef<HTMLDivElement, { children: ReactNode }>(function AppToolbarProvider({ children }, _ref) {
   const [actions, setActions] = useState<ReactNode>(null)
   const [subtitle, setSubtitle] = useState<ReactNode>(null)
   const [centerContent, setCenterContent] = useState<ReactNode>(null)
@@ -27,7 +27,9 @@ export function AppToolbarProvider({ children }: { children: ReactNode }) {
       {children}
     </AppToolbarContext.Provider>
   )
-}
+})
+
+AppToolbarProvider.displayName = 'AppToolbarProvider'
 
 export function useAppToolbar() {
   const context = useContext(AppToolbarContext)

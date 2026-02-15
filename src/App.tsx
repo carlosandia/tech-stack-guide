@@ -1,3 +1,4 @@
+import { forwardRef } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from '@/providers/AuthProvider'
 import { LoginPage, ForgotPasswordPage, ResetPasswordPage, SetPasswordPage } from '@/modules/auth'
@@ -39,7 +40,7 @@ import { EmailsPage } from '@/modules/emails'
  * /admin/* - Super Admin
  */
 
-function App() {
+const App = forwardRef<HTMLDivElement>(function App(_props, _ref) {
   const { loading, isAuthenticated, role } = useAuth()
 
   if (loading) {
@@ -151,6 +152,8 @@ function App() {
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
-}
+})
+
+App.displayName = 'App'
 
 export default App

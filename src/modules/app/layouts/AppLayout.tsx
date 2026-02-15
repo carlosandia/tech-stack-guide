@@ -75,21 +75,16 @@ const menuItems = [
   },
 ]
 
-function NavItem({
-  to,
-  exact,
-  children,
-  icon: Icon,
-  onClick,
-}: {
+const NavItem = forwardRef<HTMLAnchorElement, {
   to: string
   exact?: boolean
   children: React.ReactNode
   icon: React.ElementType
   onClick?: () => void
-}) {
+}>(function NavItem({ to, exact, children, icon: Icon, onClick }, ref) {
   return (
     <NavLink
+      ref={ref}
       to={to}
       end={exact}
       onClick={onClick}
@@ -105,7 +100,7 @@ function NavItem({
       <span>{children}</span>
     </NavLink>
   )
-}
+})
 
 function getPageTitle(pathname: string): string {
   if (pathname === '/dashboard') return 'Dashboard'
@@ -128,7 +123,7 @@ function isPipelineConfigRoute(pathname: string): boolean {
   return /^\/negocios\/pipeline\/[^/]+$/.test(pathname)
 }
 
-function AppLayoutInner() {
+const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props, ref) {
   const navigate = useNavigate()
   const location = useLocation()
   const { user, role, signOut } = useAuth()
@@ -156,7 +151,7 @@ function AppLayoutInner() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-background overflow-hidden">
+    <div ref={ref} className="h-screen flex flex-col bg-background overflow-hidden">
       {/* Mobile drawer backdrop */}
       {drawerOpen && (
         <div
@@ -367,7 +362,7 @@ function AppLayoutInner() {
       <FeedbackButton />
     </div>
   )
-}
+})
 
 const ToolbarWithActions = forwardRef<HTMLDivElement, { pageTitle: string }>(function ToolbarWithActions({ pageTitle }, ref) {
   const { actions, subtitle, centerContent } = useAppToolbar()
@@ -399,12 +394,14 @@ const ToolbarWithActions = forwardRef<HTMLDivElement, { pageTitle: string }>(fun
   )
 })
 
-export function AppLayout() {
+export const AppLayout = forwardRef<HTMLDivElement>(function AppLayout(_props, ref) {
   return (
-    <AppToolbarProvider>
+    <AppToolbarProvider ref={ref}>
       <AppLayoutInner />
     </AppToolbarProvider>
   )
-}
+})
+
+AppLayout.displayName = 'AppLayout'
 
 export default AppLayout
