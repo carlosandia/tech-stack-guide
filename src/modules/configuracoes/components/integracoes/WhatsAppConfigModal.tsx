@@ -23,9 +23,9 @@ interface Props {
 type ComportamentoFechada = 'criar_nova' | 'ignorar' | 'criar_se_fechada'
 
 const COMPORTAMENTO_OPTIONS: { value: ComportamentoFechada; label: string; desc: string }[] = [
-  { value: 'criar_nova', label: 'Criar nova oportunidade', desc: 'Sempre cria uma nova, mesmo se já existe fechada' },
-  { value: 'ignorar', label: 'Ignorar', desc: 'Não faz nada se já existe qualquer oportunidade' },
-  { value: 'criar_se_fechada', label: 'Criar se fechada', desc: 'Cria nova apenas se todas estão fechadas' },
+  { value: 'criar_nova', label: 'Sempre criar novo negócio', desc: 'Cria um novo negócio mesmo que já exista um encerrado para esse contato' },
+  { value: 'ignorar', label: 'Não fazer nada', desc: 'Se já existir qualquer negócio (aberto ou encerrado), não cria outro' },
+  { value: 'criar_se_fechada', label: 'Criar apenas se não houver aberto', desc: 'Cria um novo negócio somente se não houver nenhum em andamento' },
 ]
 
 export function WhatsAppConfigModal({ integracao, onClose }: Props) {
@@ -158,7 +158,7 @@ export function WhatsAppConfigModal({ integracao, onClose }: Props) {
                   {etiquetaAtivo && (
                     <div className="pt-1">
                       <label className="text-xs font-medium text-foreground block mb-1.5">
-                        Quando oportunidade já fechada
+                        Se o contato já teve um negócio encerrado
                       </label>
                       <div className="relative">
                         <select
