@@ -4,6 +4,7 @@
  * Cards clicáveis para filtro rápido (exceto Tempo Médio)
  */
 
+import { forwardRef } from 'react'
 import { Clock, AlertTriangle, CheckCircle, Timer } from 'lucide-react'
 import type { TarefasMetricas } from '../services/tarefas.api'
 
@@ -27,7 +28,7 @@ interface MetricaCard {
   clickable: boolean
 }
 
-export function TarefasMetricasCards({
+export const TarefasMetricasCards = forwardRef<HTMLDivElement, TarefasMetricasCardsProps>(function TarefasMetricasCards({
   metricas,
   isLoading,
   filtroAtivo,
@@ -120,4 +121,5 @@ export function TarefasMetricasCards({
       })}
     </div>
   )
-}
+})
+TarefasMetricasCards.displayName = 'TarefasMetricasCards'
