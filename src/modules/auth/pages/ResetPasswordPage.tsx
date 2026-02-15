@@ -187,7 +187,7 @@ export function ResetPasswordPage() {
               <div className="relative">
                 <input
                   id="nova_senha"
-                  type={showPassword ? 'text' : 'password'}
+                  type="text"
                   placeholder="••••••••"
                   {...register('nova_senha')}
                   className={`
@@ -198,8 +198,13 @@ export function ResetPasswordPage() {
                   `}
                   disabled={isLoading}
                   autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
                   data-lpignore="true"
                   data-form-type="other"
+                  data-1p-ignore
+                  style={!showPassword ? { WebkitTextSecurity: 'disc', textSecurity: 'disc' } as React.CSSProperties : undefined}
                 />
                 <button
                   type="button"
@@ -247,7 +252,7 @@ export function ResetPasswordPage() {
               <div className="relative">
                 <input
                   id="confirmar_senha"
-                  type={showConfirmPassword ? 'text' : 'password'}
+                  type="text"
                   placeholder="••••••••"
                   {...register('confirmar_senha')}
                   className={`
@@ -258,8 +263,13 @@ export function ResetPasswordPage() {
                   `}
                   disabled={isLoading}
                   autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
                   data-lpignore="true"
                   data-form-type="other"
+                  data-1p-ignore
+                  style={!showConfirmPassword ? { WebkitTextSecurity: 'disc', textSecurity: 'disc' } as React.CSSProperties : undefined}
                 />
                 <button
                   type="button"
