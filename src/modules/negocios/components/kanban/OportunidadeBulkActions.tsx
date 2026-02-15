@@ -4,7 +4,7 @@
  * Inclui: Exportar, Mover etapa (mesma pipeline ou outra), Segmentar/Tags, Excluir
  */
 
-import { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { Trash2, Download, ArrowRightLeft, Tag, Plus, Minus, AlertTriangle, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { EtapaFunil } from '../../services/negocios.api'
 import { useSegmentos, useSegmentarLote } from '@/modules/contatos/hooks/useSegmentos'
@@ -25,7 +25,8 @@ interface OportunidadeBulkActionsProps {
   isMoving?: boolean
 }
 
-export function OportunidadeBulkActions({
+export const OportunidadeBulkActions = React.forwardRef<HTMLDivElement, OportunidadeBulkActionsProps>(
+  function OportunidadeBulkActionsInner({
   selectedCount,
   selectedIds: _selectedIds,
   contatoIds,
@@ -38,7 +39,7 @@ export function OportunidadeBulkActions({
   onClearSelection,
   isDeleting,
   isMoving,
-}: OportunidadeBulkActionsProps) {
+}, _ref) {
   const [showMover, setShowMover] = useState(false)
   const [showTags, setShowTags] = useState(false)
   const [showConfirmDelete, setShowConfirmDelete] = useState(false)
@@ -311,4 +312,6 @@ export function OportunidadeBulkActions({
       </button>
     </div>
   )
-}
+})
+
+OportunidadeBulkActions.displayName = 'OportunidadeBulkActions'

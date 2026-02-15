@@ -5,7 +5,7 @@
  * Suporte a múltiplos anexos com compressão de imagens (max 25MB total)
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { X, Send, Loader2, FileText, Paperclip, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { EmailRichEditor } from './EmailRichEditor'
@@ -54,7 +54,8 @@ interface ComposeEmailModalProps {
   resetKey?: number
 }
 
-export function ComposeEmailModal({
+export const ComposeEmailModal = React.forwardRef<HTMLDivElement, ComposeEmailModalProps>(
+  function ComposeEmailModalInner({
   mode,
   isOpen,
   onClose,
@@ -64,7 +65,7 @@ export function ComposeEmailModal({
   isSavingDraft,
   defaults,
   resetKey = 0,
-}: ComposeEmailModalProps) {
+}, _ref) {
   const [para, setPara] = useState('')
   const [cc, setCc] = useState('')
   const [bcc, setBcc] = useState('')
@@ -357,4 +358,6 @@ export function ComposeEmailModal({
       </div>
     </>
   )
-}
+})
+
+ComposeEmailModal.displayName = 'ComposeEmailModal'
