@@ -352,6 +352,146 @@ serve(async (req) => {
       });
     }
 
+    // ==========================================
+    // POST { action: "list-calendars" } - List Google Calendars
+    // ==========================================
+    if (action === "list-calendars") {
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader) {
+        return new Response(JSON.stringify({ error: "Não autorizado" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { userId, organizacaoId } = await getUserFromToken(supabaseAdmin, authHeader);
+
+      // Get stored tokens
+      const { data: conexao } = await supabaseAdmin
+        .from("conexoes_google")
+        .select("access_token_encrypted, refresh_token_encrypted, token_expires_at")
+        .eq("organizacao_id", organizacaoId)
+        .eq("usuario_id", userId)
+        .eq("status", "active")
+        .is("deletado_em", null)
+        .single();
+
+      if (!conexao) {
+        return new Response(JSON.stringify({ error: "Google não conectado" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      let accessToken = simpleDecrypt(conexao.access_token_encrypted, "");
+
+      // Check if token expired and refresh if needed
+      if (conexao.token_expires_at && new Date(conexao.token_expires_at) < new Date()) {
+        if (conexao.refresh_token_encrypted) {
+          const googleConfig = await getGoogleConfig(supabaseAdmin);
+          const refreshToken = simpleDecrypt(conexao.refresh_token_encrypted, "");
+          const tokenResponse = await fetch(GOOGLE_TOKEN_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+              client_id: googleConfig.clientId,
+              client_secret: googleConfig.clientSecret,
+              refresh_token: refreshToken,
+              grant_type: "refresh_token",
+            }),
+          });
+          const tokens = await tokenResponse.json();
+          if (tokens.access_token) {
+            accessToken = tokens.access_token;
+            await supabaseAdmin
+              .from("conexoes_google")
+              .update({
+                access_token_encrypted: simpleEncrypt(tokens.access_token, ""),
+                token_expires_at: new Date(Date.now() + (tokens.expires_in || 3600) * 1000).toISOString(),
+                atualizado_em: new Date().toISOString(),
+              })
+              .eq("organizacao_id", organizacaoId)
+              .eq("usuario_id", userId)
+              .is("deletado_em", null);
+          }
+        }
+      }
+
+      const calResponse = await fetch("https://www.googleapis.com/calendar/v3/users/me/calendarList", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const calData = await calResponse.json();
+
+      if (!calResponse.ok) {
+        console.error("[google-auth] Calendar list error:", calData);
+        return new Response(JSON.stringify({ error: "Erro ao listar calendários" }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const calendarios = (calData.items || []).map((cal: Record<string, string>) => ({
+        id: cal.id,
+        summary: cal.summary,
+        description: cal.description || null,
+        backgroundColor: cal.backgroundColor || null,
+      }));
+
+      return new Response(JSON.stringify({ calendarios }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ==========================================
+    // POST { action: "select-calendar" } - Save selected calendar
+    // ==========================================
+    if (action === "select-calendar") {
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader) {
+        return new Response(JSON.stringify({ error: "Não autorizado" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { userId, organizacaoId } = await getUserFromToken(supabaseAdmin, authHeader);
+
+      const calendarId = body.calendar_id;
+      const criarGoogleMeet = body.criar_google_meet ?? false;
+      const sincronizarEventos = body.sincronizar_eventos ?? true;
+
+      if (!calendarId) {
+        return new Response(JSON.stringify({ error: "calendar_id é obrigatório" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { error } = await supabaseAdmin
+        .from("conexoes_google")
+        .update({
+          calendar_id: calendarId,
+          calendar_name: body.calendar_name || calendarId,
+          criar_google_meet: criarGoogleMeet,
+          sincronizar_eventos: sincronizarEventos,
+          atualizado_em: new Date().toISOString(),
+        })
+        .eq("organizacao_id", organizacaoId)
+        .eq("usuario_id", userId)
+        .is("deletado_em", null);
+
+      if (error) {
+        return new Response(JSON.stringify({ error: "Erro ao salvar calendário" }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     return new Response(JSON.stringify({ error: "Ação não encontrada" }), {
       status: 404,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
