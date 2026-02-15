@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect } from 'react'
-import { Phone, User, Tag, ChevronDown, Loader2 } from 'lucide-react'
+import { Phone, User, Tag, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { ModalBase } from '../ui/ModalBase'
 import { WhatsAppPipelineConfig } from './WhatsAppPipelineConfig'
@@ -160,22 +160,24 @@ export function WhatsAppConfigModal({ integracao, onClose }: Props) {
                       <label className="text-xs font-medium text-foreground block mb-1.5">
                         Se o contato já teve um negócio encerrado
                       </label>
-                      <div className="relative">
-                        <select
-                          value={comportamento}
-                          onChange={(e) => handleSaveEtiqueta(true, e.target.value as ComportamentoFechada)}
-                          disabled={savingEtiqueta}
-                          className="w-full h-8 pl-3 pr-8 text-xs rounded-md border border-input bg-background text-foreground appearance-none focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 disabled:opacity-50"
-                        >
-                          {COMPORTAMENTO_OPTIONS.map(opt => (
-                            <option key={opt.value} value={opt.value}>{opt.label}</option>
-                          ))}
-                        </select>
-                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                      <div className="space-y-1.5">
+                        {COMPORTAMENTO_OPTIONS.map(opt => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => handleSaveEtiqueta(true, opt.value)}
+                            disabled={savingEtiqueta}
+                            className={`w-full text-left rounded-md border p-2.5 transition-colors disabled:opacity-50 ${
+                              comportamento === opt.value
+                                ? 'border-primary bg-primary/5 ring-1 ring-primary/30'
+                                : 'border-input bg-background hover:border-muted-foreground/30'
+                            }`}
+                          >
+                            <span className="text-xs font-medium text-foreground">{opt.label}</span>
+                            <p className="text-[11px] text-muted-foreground mt-0.5">{opt.desc}</p>
+                          </button>
+                        ))}
                       </div>
-                      <p className="text-[11px] text-muted-foreground mt-1">
-                        {COMPORTAMENTO_OPTIONS.find(o => o.value === comportamento)?.desc}
-                      </p>
                       <p className="text-[11px] text-muted-foreground mt-2 border-t border-border pt-2">
                         Configure o nome da etiqueta em cada etapa na página de configuração da pipeline (Negócios → Configurar → Etapas)
                       </p>
