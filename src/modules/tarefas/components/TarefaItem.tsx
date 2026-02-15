@@ -5,6 +5,7 @@
  * badge automática, botão Concluir explícito (PRD-10 RF-004/RF-005)
  */
 
+import { forwardRef } from 'react'
 import {
   Phone,
   Mail,
@@ -72,7 +73,7 @@ function formatarDataVencimento(data: string | null): { texto: string; atrasada:
   return { texto, atrasada, className }
 }
 
-export function TarefaItem({ tarefa, onConcluir, onClickOportunidade }: TarefaItemProps) {
+export const TarefaItem = forwardRef<HTMLDivElement, TarefaItemProps>(function TarefaItem({ tarefa, onConcluir, onClickOportunidade }: TarefaItemProps, _ref) {
   const Icon = TIPO_ICONS[tarefa.tipo] || ClipboardList
   const tipoColor = TIPO_COLORS[tarefa.tipo] || TIPO_COLORS.outro
   const isConcluida = tarefa.status === 'concluida'
@@ -226,4 +227,5 @@ export function TarefaItem({ tarefa, onConcluir, onClickOportunidade }: TarefaIt
       </div>
     </div>
   )
-}
+})
+TarefaItem.displayName = 'TarefaItem'

@@ -4,7 +4,7 @@
  * Busca com popover + toggle filtros
  */
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, forwardRef } from 'react'
 import { Search, Filter, X } from 'lucide-react'
 import { useAppToolbar } from '@/modules/app/contexts/AppToolbarContext'
 
@@ -16,13 +16,13 @@ interface TarefasToolbarProps {
   hasFiltros: boolean
 }
 
-export function TarefasToolbar({
+export const TarefasToolbar = forwardRef<HTMLDivElement, TarefasToolbarProps>(function TarefasToolbar({
   busca,
   onBuscaChange,
   filtrosVisiveis,
   onToggleFiltros,
   hasFiltros,
-}: TarefasToolbarProps) {
+}: TarefasToolbarProps, _ref) {
   const { setSubtitle, setActions } = useAppToolbar()
   const [searchOpen, setSearchOpen] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -123,4 +123,5 @@ export function TarefasToolbar({
   }, [busca, searchOpen, filtrosVisiveis, hasFiltros, setActions, onBuscaChange, onToggleFiltros])
 
   return null // Renderiza via context
-}
+})
+TarefasToolbar.displayName = 'TarefasToolbar'

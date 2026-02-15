@@ -3,6 +3,7 @@
  * Inclui: loading skeleton, empty state, paginação
  */
 
+import { forwardRef } from 'react'
 import { CheckSquare, ChevronLeft, ChevronRight } from 'lucide-react'
 import { TarefaItem } from './TarefaItem'
 import type { TarefaComDetalhes } from '../services/tarefas.api'
@@ -19,7 +20,7 @@ interface TarefasListProps {
   hasFiltros: boolean
 }
 
-function SkeletonItem() {
+const SkeletonItem = forwardRef<HTMLDivElement>(function SkeletonItem(_props, _ref) {
   return (
     <div className="flex items-start gap-3 px-3 sm:px-4 py-3 border-b border-border animate-pulse">
       <div className="w-5 h-5 rounded-full bg-muted mt-0.5" />
@@ -34,9 +35,10 @@ function SkeletonItem() {
       </div>
     </div>
   )
-}
+})
+SkeletonItem.displayName = 'SkeletonItem'
 
-export function TarefasList({
+export const TarefasList = forwardRef<HTMLDivElement, TarefasListProps>(function TarefasList({
   tarefas,
   isLoading,
   page,
@@ -46,7 +48,7 @@ export function TarefasList({
   onConcluir,
   onClickOportunidade,
   hasFiltros,
-}: TarefasListProps) {
+}: TarefasListProps, _ref) {
   if (isLoading) {
     return (
       <div className="bg-card border border-border rounded-lg mx-3 sm:mx-4 lg:mx-6 overflow-hidden">
@@ -120,4 +122,5 @@ export function TarefasList({
       )}
     </div>
   )
-}
+})
+TarefasList.displayName = 'TarefasList'

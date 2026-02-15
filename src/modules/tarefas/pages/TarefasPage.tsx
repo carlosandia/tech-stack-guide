@@ -4,7 +4,7 @@
  * Integração com DetalhesOportunidadeModal ao clicar em oportunidade
  */
 
-import { useState, useCallback, useMemo, useEffect } from 'react'
+import { useState, useCallback, useMemo, useEffect, forwardRef } from 'react'
 import { useAuth } from '@/providers/AuthProvider'
 import { useTarefas, useTarefasMetricas, useConcluirTarefa } from '../hooks/useTarefas'
 import { TarefasToolbar } from '../components/TarefasToolbar'
@@ -29,7 +29,7 @@ interface FiltrosState {
   data_fim?: string
 }
 
-export default function TarefasPage() {
+const TarefasPage = forwardRef<HTMLDivElement>(function TarefasPage(_props, _ref) {
   const { role } = useAuth()
   const isAdmin = role === 'admin'
 
@@ -227,4 +227,6 @@ export default function TarefasPage() {
       )}
     </div>
   )
-}
+})
+TarefasPage.displayName = 'TarefasPage'
+export default TarefasPage
