@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, forwardRef } from 'react'
 import { useAuth } from '@/providers/AuthProvider'
 import { useAppToolbar } from '../contexts/AppToolbarContext'
 import {
@@ -14,7 +14,7 @@ import {
  * Será expandido conforme PRDs futuros
  */
 
-function DashboardPage() {
+const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, ref) {
   const { user } = useAuth()
   const { setSubtitle } = useAppToolbar()
 
@@ -55,7 +55,7 @@ function DashboardPage() {
   ]
 
   return (
-    <div className="space-y-6 px-4 sm:px-6 lg:px-8 py-6">
+    <div ref={ref} className="space-y-6 px-4 sm:px-6 lg:px-8 py-6">
       {/* Saudação */}
       <div>
         <h2 className="text-xl font-semibold text-foreground">
@@ -110,6 +110,8 @@ function DashboardPage() {
       </div>
     </div>
   )
-}
+})
+
+DashboardPage.displayName = 'DashboardPage'
 
 export default DashboardPage
