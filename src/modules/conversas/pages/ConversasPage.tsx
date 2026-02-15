@@ -210,8 +210,8 @@ export const ConversasPage = forwardRef<HTMLDivElement>(function ConversasPage(_
       <div className="flex-1 flex overflow-hidden">
         <div className={`
           flex flex-col border-r border-border/60 bg-white/80 backdrop-blur-md
-          w-full lg:w-[320px] xl:w-[340px] flex-shrink-0
-          ${conversaAtivaId ? 'hidden lg:flex' : 'flex'}
+          w-full md:w-[280px] lg:w-[320px] xl:w-[340px] flex-shrink-0
+          ${conversaAtivaId ? 'hidden md:flex' : 'flex'}
         `}>
           <FiltrosConversas
             canal={filtros.canal}
@@ -241,7 +241,7 @@ export const ConversasPage = forwardRef<HTMLDivElement>(function ConversasPage(_
 
         <div className={`
           flex-1 flex min-w-0
-          ${conversaAtivaId ? 'flex' : 'hidden lg:flex'}
+          ${conversaAtivaId ? 'flex' : 'hidden md:flex'}
         `}>
           {conversaAtiva ? (
             <>
