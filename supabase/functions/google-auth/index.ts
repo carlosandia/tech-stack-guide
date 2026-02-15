@@ -240,7 +240,7 @@ serve(async (req) => {
         google_user_id: userInfo.id || null,
         google_user_email: userInfo.email || null,
         google_user_name: userInfo.name || null,
-        status: "active",
+        status: "conectado",
         conectado_em: new Date().toISOString(),
         atualizado_em: new Date().toISOString(),
       };
@@ -318,7 +318,7 @@ serve(async (req) => {
 
       return new Response(JSON.stringify({
         id: conexao.id,
-        conectado: conexao.status === "active",
+        conectado: ["active", "conectado"].includes(conexao.status),
         status: conexao.status,
         google_user_email: conexao.google_user_email,
         google_user_name: conexao.google_user_name,
@@ -385,7 +385,7 @@ serve(async (req) => {
         .select("access_token_encrypted, refresh_token_encrypted, token_expires_at")
         .eq("organizacao_id", organizacaoId)
         .eq("usuario_id", userId)
-        .eq("status", "active")
+        .in("status", ["active", "conectado"])
         .is("deletado_em", null)
         .single();
 
