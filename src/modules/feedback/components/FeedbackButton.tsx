@@ -4,12 +4,12 @@
  * Admin/Member only
  */
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, forwardRef } from 'react'
 import { useAuth } from '@/providers/AuthProvider'
 import { FeedbackPopover } from './FeedbackPopover'
 import { Lightbulb } from 'lucide-react'
 
-export function FeedbackButton() {
+export const FeedbackButton = forwardRef<HTMLDivElement>(function FeedbackButton(_props, ref) {
   const { role } = useAuth()
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -31,7 +31,11 @@ export function FeedbackButton() {
   if (role !== 'admin' && role !== 'member') return null
 
   return (
-    <div ref={containerRef} className="fixed right-0 bottom-1/3 z-[9999] group">
+    <div ref={(node) => {
+      (containerRef as React.MutableRefObject<HTMLDivElement | null>).current = node
+      if (typeof ref === 'function') ref(node)
+      else if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = node
+    }} className="fixed right-0 bottom-1/3 z-[9999] group">
       {/* Popover */}
       {open && (
         <div className="absolute bottom-16 right-4 mb-2">
@@ -60,6 +64,8 @@ export function FeedbackButton() {
       </button>
     </div>
   )
-}
+})
+
+FeedbackButton.displayName = 'FeedbackButton'
 
 export default FeedbackButton
