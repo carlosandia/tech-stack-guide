@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, forwardRef } from 'react'
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/providers/AuthProvider'
 import { useBlockedRedirect } from '@/hooks/useBlockedRedirect'
@@ -369,11 +369,11 @@ function AppLayoutInner() {
   )
 }
 
-function ToolbarWithActions({ pageTitle }: { pageTitle: string }) {
+const ToolbarWithActions = forwardRef<HTMLDivElement, { pageTitle: string }>(function ToolbarWithActions({ pageTitle }, ref) {
   const { actions, subtitle, centerContent } = useAppToolbar()
 
   return (
-    <div className="flex-shrink-0 z-50 bg-gray-50/50 backdrop-blur-sm border-b border-gray-200/60">
+    <div ref={ref} className="flex-shrink-0 z-50 bg-gray-50/50 backdrop-blur-sm border-b border-gray-200/60">
       <div className={`flex items-center justify-between min-h-[48px] px-3 sm:px-4 lg:px-6 max-w-[1920px] mx-auto py-1.5 gap-1.5 ${centerContent ? 'flex-wrap' : ''}`}>
         {/* Left: Título + Subtitle */}
         <div className="flex items-center gap-1.5 min-w-0 flex-shrink-0">
@@ -397,7 +397,7 @@ function ToolbarWithActions({ pageTitle }: { pageTitle: string }) {
       </div>
     </div>
   )
-}
+})
 
 export function AppLayout() {
   return (

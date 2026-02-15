@@ -4,7 +4,7 @@
  * Clicar em uma notificacao abre modal com detalhes completos
  */
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, forwardRef } from 'react'
 import { useAuth } from '@/providers/AuthProvider'
 import {
   useNotificacoes,
@@ -33,7 +33,7 @@ function getIconForTipo(tipo: string) {
   }
 }
 
-export function NotificacoesSino() {
+export const NotificacoesSino = forwardRef<HTMLDivElement>(function NotificacoesSino(_props, ref) {
   const { role } = useAuth()
   const [open, setOpen] = useState(false)
   const [selectedNotificacao, setSelectedNotificacao] = useState<Notificacao | null>(null)
@@ -71,7 +71,11 @@ export function NotificacoesSino() {
 
   return (
     <>
-      <div ref={containerRef} className="relative">
+      <div ref={(node) => {
+        (containerRef as React.MutableRefObject<HTMLDivElement | null>).current = node
+        if (typeof ref === 'function') ref(node)
+        else if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = node
+      }} className="relative">
         {/* Botao sino */}
         <button
           onClick={() => setOpen(!open)}
@@ -165,6 +169,8 @@ export function NotificacoesSino() {
       )}
     </>
   )
-}
+})
+
+NotificacoesSino.displayName = 'NotificacoesSino'
 
 export default NotificacoesSino
