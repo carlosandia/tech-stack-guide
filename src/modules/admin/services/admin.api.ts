@@ -427,6 +427,7 @@ export async function criarOrganizacao(payload: CriarOrganizacaoPayload): Promis
             sobrenome: payload.admin_sobrenome,
             usuario_id: adminUser.id,
             organizacao_id: org.id,
+            organizacao_nome: payload.nome,
             role: 'admin',
           }),
         }
