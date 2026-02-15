@@ -30,6 +30,7 @@ interface KanbanColumnProps {
   onDragOver: (e: React.DragEvent) => void
   onDrop: (e: React.DragEvent, etapaId: string, tipoEtapa: string, dropIndex?: number) => void
   onCardClick: (oportunidade: Oportunidade) => void
+  onAgendar?: (oportunidade: Oportunidade) => void
   cardConfig?: CardConfig
   slaConfig?: SlaConfig
   selectedIds?: Set<string>
@@ -61,7 +62,7 @@ function canMoveEtapa(tipo: string): boolean {
   return tipo === 'normal'
 }
 
-export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardClick, cardConfig, slaConfig, selectedIds, onToggleSelect, onSelectAll, onSortColumn, onMoveColumn, isFirst, isLast }: KanbanColumnProps) {
+export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardClick, onAgendar, cardConfig, slaConfig, selectedIds, onToggleSelect, onSelectAll, onSortColumn, onMoveColumn, isFirst, isLast }: KanbanColumnProps) {
   const [isDragOver, setIsDragOver] = useState(false)
   const [dropIndex, setDropIndex] = useState<number | null>(null)
   const cardsContainerRef = useRef<HTMLDivElement>(null)
@@ -144,6 +145,7 @@ export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardCli
             oportunidade={op}
             onDragStart={onDragStart}
             onClick={onCardClick}
+            onAgendar={onAgendar}
             config={cardConfig}
             slaConfig={slaConfig}
             etapaTipo={etapa.tipo}

@@ -601,9 +601,31 @@ export const detalhesApi = {
       notificacao_minutos: payload.notificacao_minutos ?? 30,
     }
 
-    // Se Google Meet solicitado e tem link, será adicionado depois via backend
-    if (payload.google_meet) {
-      insertData.google_meet_link = null // Placeholder, backend preencherá
+    // Se Google Meet ou sincronização Google solicitada, criar evento no Google Calendar
+    if (payload.sincronizar_google || payload.google_meet) {
+      try {
+        const { data: gcalResult, error: gcalError } = await supabase.functions.invoke('google-auth', {
+          body: {
+            action: 'create-event',
+            titulo: payload.titulo,
+            descricao: payload.descricao,
+            local: payload.local,
+            data_inicio: payload.data_inicio,
+            data_fim: payload.data_fim || payload.data_inicio,
+            participantes: payload.participantes,
+            google_meet: payload.google_meet,
+            notificacao_minutos: payload.notificacao_minutos,
+          },
+        })
+
+        if (!gcalError && gcalResult?.success) {
+          insertData.google_event_id = gcalResult.google_event_id
+          insertData.google_meet_link = gcalResult.google_meet_link
+        }
+      } catch (e) {
+        console.warn('[criarReuniao] Erro ao criar evento no Google Calendar:', e)
+        // Continua criando a reunião localmente mesmo sem Google
+      }
     }
 
     const { error } = await supabase
@@ -661,7 +683,7 @@ export const detalhesApi = {
         .select('id, status, calendar_id, criar_google_meet')
         .eq('usuario_id', userId)
         .is('deletado_em', null)
-        .eq('status', 'active')
+        .in('status', ['active', 'conectado'])
         .maybeSingle()
 
       if (error || !data) return { conectado: false }

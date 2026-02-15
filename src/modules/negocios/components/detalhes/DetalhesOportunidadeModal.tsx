@@ -24,6 +24,7 @@ interface DetalhesOportunidadeModalProps {
   etapas: EtapaFunil[]
   onClose: () => void
   onDropGanhoPerda: (oportunidade: Oportunidade, etapaId: string, tipo: 'ganho' | 'perda') => void
+  abaInicial?: string
 }
 
 export function DetalhesOportunidadeModal({
@@ -32,6 +33,7 @@ export function DetalhesOportunidadeModal({
   etapas,
   onClose,
   onDropGanhoPerda,
+  abaInicial,
 }: DetalhesOportunidadeModalProps) {
   const modalRef = useRef<HTMLDivElement>(null)
   const { data: oportunidade, isLoading } = useOportunidade(oportunidadeId)
@@ -202,6 +204,7 @@ export function DetalhesOportunidadeModal({
                     oportunidadeId={oportunidade.id}
                     usuarioAtualId={undefined}
                     emailContato={oportunidade.contato?.email}
+                    abaInicial={abaInicial}
                   />
                 </div>
 
