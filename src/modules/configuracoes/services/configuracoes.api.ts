@@ -1351,6 +1351,14 @@ export const integracoesApi = {
   },
 
   obterAuthUrl: async (plataforma: PlataformaIntegracao, redirect_uri: string): Promise<{ url: string; state?: string }> => {
+    // AIDEV-NOTE: Google usa Edge Function diretamente para funcionar em producao
+    if (plataforma === 'google') {
+      const { data, error } = await supabase.functions.invoke('google-auth', {
+        body: { action: 'auth-url', tipo: 'calendar', redirect_uri },
+      })
+      if (error) throw new Error(error.message || 'Erro ao obter URL de autenticação Google')
+      return data
+    }
     const { data } = await api.get(`/v1/conexoes/${plataforma === 'meta_ads' ? 'meta' : plataforma}/auth-url`, {
       params: { redirect_uri },
     })
@@ -1377,6 +1385,12 @@ export const integracoesApi = {
           .update({ deletado_em: new Date().toISOString(), status: 'desconectado' })
           .eq('id', _id)
       }
+    } else if (routePlataforma === 'google') {
+      // AIDEV-NOTE: Google usa Edge Function para funcionar em producao
+      const { error } = await supabase.functions.invoke('google-auth', {
+        body: { action: 'disconnect' },
+      })
+      if (error) throw new Error(error.message || 'Erro ao desconectar Google')
     } else {
       await api.delete(`/v1/conexoes/${routePlataforma}`)
     }
