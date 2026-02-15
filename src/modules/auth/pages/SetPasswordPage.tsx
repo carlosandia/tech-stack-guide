@@ -1,18 +1,22 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
-import { Lock, Eye, EyeOff, Check, X, Loader2, AlertCircle, CheckCircle } from 'lucide-react'
+import { Lock, Eye, EyeOff, Check, X, Loader2, AlertCircle, CheckCircle, ShieldAlert } from 'lucide-react'
 
 /**
  * AIDEV-NOTE: Pagina de Definicao de Senha para Admins Convidados
  * Conforme PRD-14 - Sistema de Email Personalizado
  * 
- * Fluxo:
+ * Fluxo corrigido:
  * 1. Admin recebe email de convite
  * 2. Clica no link que redireciona para esta pagina
- * 3. Token é validado automaticamente
- * 4. Admin define sua senha
- * 5. Redireciona para login com sucesso
+ * 3. ANTES de setSession(), decodifica o JWT para saber pra quem é
+ * 4. Se outro usuario está logado, NÃO substitui a sessão - mostra aviso
+ * 5. Se nenhum usuario logado, faz setSession + exige definir senha
+ * 6. Após definir senha, faz signOut e redireciona para login
+ * 
+ * AIDEV-NOTE: NUNCA chamar setSession() se já existe sessão de OUTRO usuario.
+ * Isso evita que o superadmin perca sua sessão ao clicar num link de convite.
  */
 
 interface PasswordRequirement {
@@ -39,8 +43,25 @@ const PASSWORD_REQUIREMENTS: PasswordRequirement[] = [
   },
 ]
 
+/**
+ * Decodifica o payload de um JWT sem verificar assinatura.
+ * Usado apenas para ler o email do token ANTES de setSession().
+ */
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const parts = token.split('.')
+    if (parts.length !== 3) return null
+    const payload = parts[1]
+    const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'))
+    return JSON.parse(decoded)
+  } catch {
+    return null
+  }
+}
+
 export function SetPasswordPage() {
   const navigate = useNavigate()
+  const processedRef = useRef(false)
 
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -53,13 +74,19 @@ export function SetPasswordPage() {
   const [tokenValid, setTokenValid] = useState(false)
   const [success, setSuccess] = useState(false)
   const [userEmail, setUserEmail] = useState<string | null>(null)
+  // AIDEV-NOTE: Estado para detectar conflito de sessão (outro usuario logado)
+  const [sessionConflict, setSessionConflict] = useState<{
+    loggedInEmail: string
+    inviteEmail: string
+  } | null>(null)
 
-  // Verificar token ao carregar
   useEffect(() => {
+    // Evitar processamento duplo (StrictMode)
+    if (processedRef.current) return
+    processedRef.current = true
+
     const verifyToken = async () => {
       try {
-        // IMPORTANTE: verificar hash PRIMEIRO, antes de checar sessao existente
-        // Senao, se o superadmin estiver logado, mostra o email dele ao inves do convidado
         const hashParams = new URLSearchParams(window.location.hash.slice(1))
         const accessToken = hashParams.get('access_token')
         const refreshToken = hashParams.get('refresh_token')
@@ -73,9 +100,6 @@ export function SetPasswordPage() {
         if (errorParam || errorCode) {
           console.error('[SetPassword] Erro no token:', errorParam || errorCode, errorDescription)
           
-          // IMPORTANTE: fazer signOut para nao mostrar email do usuario logado (ex: superadmin)
-          await supabase.auth.signOut()
-
           const isExpired = errorParam === 'access_denied' || errorDescription?.includes('expired')
           if (isExpired) {
             setError('O link de convite expirou. Solicite ao administrador que reenvie o convite.')
@@ -88,18 +112,49 @@ export function SetPasswordPage() {
 
         if (accessToken && (type === 'invite' || type === 'magiclink')) {
           console.log('[SetPassword] Processando token de convite...')
-          
-          // AIDEV-NOTE: NAO chamar signOut() aqui - isso revoga o refresh_token
-          // que acabou de ser criado pelo /verify, causando "Token invalido"
-          // O setSession() substitui a sessao atual automaticamente
 
-          const { data, error } = await supabase.auth.setSession({
+          // AIDEV-NOTE: PASSO CRITICO - decodificar JWT ANTES de setSession()
+          // para saber qual email está no convite
+          const jwtPayload = decodeJwtPayload(accessToken)
+          const inviteEmail = (jwtPayload?.email as string) || null
+
+          // Verificar se já existe uma sessão ativa de OUTRO usuario
+          const { data: { session: existingSession } } = await supabase.auth.getSession()
+          
+          if (existingSession?.user) {
+            const currentEmail = existingSession.user.email || ''
+            
+            if (inviteEmail && currentEmail.toLowerCase() !== inviteEmail.toLowerCase()) {
+              // AIDEV-NOTE: CONFLITO DE SESSÃO DETECTADO
+              // Outro usuario está logado. NÃO chamar setSession() para não destruir
+              // a sessão do usuario atual (ex: superadmin)
+              console.warn(
+                '[SetPassword] Conflito de sessão:',
+                currentEmail, '!==', inviteEmail,
+                '- NÃO substituindo sessão'
+              )
+              setSessionConflict({
+                loggedInEmail: currentEmail,
+                inviteEmail: inviteEmail,
+              })
+              // Limpar hash para não reprocessar
+              window.history.replaceState(null, '', window.location.pathname)
+              setLoading(false)
+              return
+            }
+            
+            // Mesmo usuario - pode prosseguir normalmente
+            console.log('[SetPassword] Mesmo usuario logado, prosseguindo...')
+          }
+          
+          // AIDEV-NOTE: Só chama setSession() se NÃO há conflito de sessão
+          const { data, error: sessionError } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken || '',
           })
 
-          if (error) {
-            console.error('[SetPassword] Erro ao validar token:', error)
+          if (sessionError) {
+            console.error('[SetPassword] Erro ao validar token:', sessionError)
             setError('Token invalido ou expirado. Solicite um novo convite.')
             setLoading(false)
             return
@@ -117,14 +172,29 @@ export function SetPasswordPage() {
           return
         }
 
-        // Sem hash params - verificar sessao existente (fallback)
+        // Sem hash params - verificar sessao existente (fallback para reload da pagina)
         const { data: { session } } = await supabase.auth.getSession()
 
         if (session?.user) {
-          console.log('[SetPassword] Sessao encontrada:', session.user.email)
-          setUserEmail(session.user.email || null)
-          setTokenValid(true)
-          setLoading(false)
+          // Verificar se o usuario já tem senha definida checando status na tabela usuarios
+          const { data: usuario } = await supabase
+            .from('usuarios')
+            .select('status')
+            .eq('auth_id', session.user.id)
+            .single()
+
+          if (usuario?.status === 'pendente') {
+            // Usuario pendente - precisa definir senha
+            console.log('[SetPassword] Sessao encontrada, usuario pendente:', session.user.email)
+            setUserEmail(session.user.email || null)
+            setTokenValid(true)
+            setLoading(false)
+            return
+          }
+
+          // Usuario já ativo - não precisa definir senha
+          console.log('[SetPassword] Usuario já ativo, redirecionando...')
+          navigate('/login', { replace: true })
           return
         }
 
@@ -139,7 +209,7 @@ export function SetPasswordPage() {
     }
 
     verifyToken()
-  }, [])
+  }, [navigate])
 
   // Validar requisitos de senha
   const passwordMeetsRequirements = PASSWORD_REQUIREMENTS.every((req) =>
@@ -196,6 +266,16 @@ export function SetPasswordPage() {
     }
   }
 
+  // Handler para fazer logout do usuario atual e reprocessar o convite
+  const handleLogoutAndRetry = async () => {
+    setLoading(true)
+    setSessionConflict(null)
+    await supabase.auth.signOut()
+    // Redirecionar de volta - o usuario precisará clicar no link do email novamente
+    setError('Sessão encerrada. Clique novamente no link do email de convite para continuar.')
+    setLoading(false)
+  }
+
   // Loading state
   if (loading) {
     return (
@@ -203,6 +283,49 @@ export function SetPasswordPage() {
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
           <p className="text-muted-foreground">Verificando convite...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // AIDEV-NOTE: Tela de conflito de sessão - outro usuario está logado
+  if (sessionConflict) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-muted to-muted/50 p-4">
+        <div className="w-full max-w-md bg-card rounded-lg border border-border p-8 shadow-lg">
+          <div className="flex flex-col items-center gap-4 text-center">
+            <div className="w-16 h-16 rounded-full bg-warning/20 flex items-center justify-center">
+              <ShieldAlert className="w-8 h-8 text-warning-foreground" />
+            </div>
+            <h1 className="text-xl font-semibold text-foreground">
+              Outra Conta Conectada
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Voce esta logado como{' '}
+              <strong className="text-foreground">{sessionConflict.loggedInEmail}</strong>,
+              mas este convite e para{' '}
+              <strong className="text-foreground">{sessionConflict.inviteEmail}</strong>.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Para ativar a conta do convite, abra o link do email em uma{' '}
+              <strong>janela anonima</strong> ou em outro navegador.
+            </p>
+
+            <div className="flex flex-col gap-3 w-full mt-4">
+              <button
+                onClick={handleLogoutAndRetry}
+                className="w-full h-11 bg-primary text-primary-foreground rounded-md font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
+              >
+                Sair desta conta e tentar novamente
+              </button>
+              <button
+                onClick={() => navigate(-1)}
+                className="w-full h-11 bg-muted text-muted-foreground rounded-md font-medium hover:bg-muted/80 transition-colors"
+              >
+                Voltar
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     )
