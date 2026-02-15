@@ -5,7 +5,7 @@
  * Colunas fixas não podem ser ocultadas
  */
 
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect, useMemo, forwardRef } from 'react'
 import { Settings2 } from 'lucide-react'
 import type { TipoContato } from '../services/contatos.api'
 import { useCamposConfig } from '../hooks/useCamposConfig'
@@ -97,7 +97,7 @@ interface ContatoColumnsToggleProps {
   isSaving?: boolean
 }
 
-export function ContatoColumnsToggle({ tipo, columns, onChange, onSave, isSaving }: ContatoColumnsToggleProps) {
+export const ContatoColumnsToggle = forwardRef<HTMLDivElement, ContatoColumnsToggleProps>(function ContatoColumnsToggle({ tipo, columns, onChange, onSave, isSaving }, _ref) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -260,6 +260,7 @@ export function ContatoColumnsToggle({ tipo, columns, onChange, onSave, isSaving
       )}
     </div>
   )
-}
+})
+ContatoColumnsToggle.displayName = 'ContatoColumnsToggle'
 
 export { getInitialColumns, getDefaultColumns }

@@ -4,7 +4,7 @@
  * Apenas Admin pode criar/editar/excluir segmentos
  */
 
-import { useState } from 'react'
+import { useState, forwardRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { X, Plus, Pencil, Trash2 } from 'lucide-react'
@@ -18,7 +18,7 @@ interface SegmentosManagerProps {
   onClose: () => void
 }
 
-export function SegmentosManager({ open, onClose }: SegmentosManagerProps) {
+export const SegmentosManager = forwardRef<HTMLDivElement, SegmentosManagerProps>(function SegmentosManager({ open, onClose }, _ref) {
   const { data } = useSegmentos()
   const criarSegmento = useCriarSegmento()
   const atualizarSegmento = useAtualizarSegmento()
@@ -187,4 +187,5 @@ export function SegmentosManager({ open, onClose }: SegmentosManagerProps) {
       </div>
     </div>
   )
-}
+})
+SegmentosManager.displayName = 'SegmentosManager'

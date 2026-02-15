@@ -8,7 +8,7 @@
  * - ARIA, ESC to close, focus trap
  */
 
-import { useState, useEffect, useRef, useId } from 'react'
+import { useState, useEffect, useRef, useId, forwardRef } from 'react'
 import { X, Download } from 'lucide-react'
 import { contatosApi, type ListarContatosParams, type TipoContato } from '../services/contatos.api'
 
@@ -52,13 +52,13 @@ interface ExportarContatosModalProps {
   selectedIds?: string[]
 }
 
-export function ExportarContatosModal({
+export const ExportarContatosModal = forwardRef<HTMLDivElement, ExportarContatosModalProps>(function ExportarContatosModal({
   open,
   onClose,
   tipo,
   filtros,
   selectedIds,
-}: ExportarContatosModalProps) {
+}, _ref) {
   const colunas = tipo === 'pessoa' ? COLUNAS_PESSOA : COLUNAS_EMPRESA
   const [selectedColumns, setSelectedColumns] = useState<Set<string>>(
     () => new Set(colunas.map(c => c.key))
@@ -254,4 +254,5 @@ export function ExportarContatosModal({
       </div>
     </>
   )
-}
+})
+ExportarContatosModal.displayName = 'ExportarContatosModal'

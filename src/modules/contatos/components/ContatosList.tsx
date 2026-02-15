@@ -5,7 +5,7 @@
  * Colunas Empresa, Segmentação e Responsável são clicáveis com popovers inline
  */
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, forwardRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Eye, Pencil, Trash2, MoreHorizontal, Users2, Plus } from 'lucide-react'
 import { SegmentoBadge } from './SegmentoBadge'
@@ -51,7 +51,7 @@ interface ContatosListProps {
   onCriarOportunidade?: (contato: Contato) => void
 }
 
-export function ContatosList({
+export const ContatosList = forwardRef<HTMLDivElement, ContatosListProps>(function ContatosList({
   contatos,
   tipo,
   loading,
@@ -65,7 +65,7 @@ export function ContatosList({
   onEdit,
   onDelete,
   onCriarOportunidade,
-}: ContatosListProps) {
+}, _ref) {
   const allSelected = contatos.length > 0 && contatos.every((c) => selectedIds.has(c.id))
   const isPessoa = tipo === 'pessoa'
 
@@ -155,11 +155,12 @@ export function ContatosList({
       </table>
     </div>
   )
-}
+})
+ContatosList.displayName = 'ContatosList'
 
 // ===== Cell Renderers =====
 
-function CellNomePessoa({ contato, onCriarOportunidade }: { contato: Contato; onCriarOportunidade?: () => void }) {
+const CellNomePessoa = forwardRef<HTMLDivElement, { contato: Contato; onCriarOportunidade?: () => void }>(function CellNomePessoa({ contato, onCriarOportunidade }, _ref) {
   const semOportunidade = contato.total_oportunidades === 0
   return (
     <div className="min-w-0 flex items-center gap-2">
@@ -184,7 +185,8 @@ function CellNomePessoa({ contato, onCriarOportunidade }: { contato: Contato; on
       )}
     </div>
   )
-}
+})
+CellNomePessoa.displayName = 'CellNomePessoa'
 
 function CellNomeEmpresa({ contato }: { contato: Contato }) {
   return (
@@ -199,7 +201,7 @@ function CellNomeEmpresa({ contato }: { contato: Contato }) {
   )
 }
 
-function CellEmpresaVinculada({ contato }: { contato: Contato }) {
+const CellEmpresaVinculada = forwardRef<HTMLDivElement, { contato: Contato }>(function CellEmpresaVinculada({ contato }, _ref) {
   return (
     <InlineEmpresaPopover contatoId={contato.id} empresaAtual={contato.empresa}>
       <span className="text-sm text-foreground truncate block max-w-[150px] border-b border-dashed border-muted-foreground/30 hover:border-primary hover:text-primary transition-colors">
@@ -207,7 +209,8 @@ function CellEmpresaVinculada({ contato }: { contato: Contato }) {
       </span>
     </InlineEmpresaPopover>
   )
-}
+})
+CellEmpresaVinculada.displayName = 'CellEmpresaVinculada'
 
 function CellSegmentacao({ contato }: { contato: Contato }) {
   return (
@@ -273,9 +276,10 @@ function CellStatus({ contato }: { contato: Contato }) {
   )
 }
 
-function CellSimpleText({ value }: { value: string | null | undefined }) {
-  return <span className="text-sm text-foreground truncate block max-w-[200px]">{value || '—'}</span>
-}
+const CellSimpleText = forwardRef<HTMLSpanElement, { value: string | null | undefined }>(function CellSimpleText({ value }, ref) {
+  return <span ref={ref} className="text-sm text-foreground truncate block max-w-[200px]">{value || '—'}</span>
+})
+CellSimpleText.displayName = 'CellSimpleText'
 
 function CellOrigem({ contato }: { contato: Contato }) {
   const origemLabel = OrigemContatoOptions.find(o => o.value === contato.origem)?.label || contato.origem
@@ -357,17 +361,7 @@ function renderCell(col: ColumnConfig, contato: Contato, _tipo: TipoContato, sto
 // Columns that need stopPropagation (editable inline)
 const INTERACTIVE_KEYS = new Set(['empresa', 'segmentacao', 'responsavel', 'pessoa_vinculada'])
 
-function ContatoRow({
-  contato,
-  tipo,
-  selected,
-  visibleColumns,
-  onToggleSelect,
-  onView,
-  onEdit,
-  onDelete,
-  onCriarOportunidade,
-}: {
+const ContatoRow = forwardRef<HTMLTableRowElement, {
   contato: Contato
   tipo: TipoContato
   selected: boolean
@@ -377,7 +371,17 @@ function ContatoRow({
   onEdit: () => void
   onDelete: () => void
   onCriarOportunidade?: () => void
-}) {
+}>(function ContatoRow({
+  contato,
+  tipo,
+  selected,
+  visibleColumns,
+  onToggleSelect,
+  onView,
+  onEdit,
+  onDelete,
+  onCriarOportunidade,
+}, _ref) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 })
   const menuBtnRef = useRef<HTMLButtonElement>(null)
@@ -453,4 +457,5 @@ function ContatoRow({
       </td>
     </tr>
   )
-}
+})
+ContatoRow.displayName = 'ContatoRow'

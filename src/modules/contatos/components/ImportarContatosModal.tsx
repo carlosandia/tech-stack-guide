@@ -4,7 +4,7 @@
  * Etapa 1: Upload, Etapa 2: Mapeamento, Etapa 3: Segmentação, Etapa 4: Resumo
  */
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, forwardRef } from 'react'
 import { X, Upload, FileSpreadsheet, ChevronRight, ChevronLeft, AlertTriangle } from 'lucide-react'
 import { useSegmentos } from '../hooks/useSegmentos'
 import { CORES_SEGMENTOS } from '../schemas/contatos.schema'
@@ -61,7 +61,7 @@ function parseCSV(text: string): { headers: string[]; rows: ParsedRow[] } {
   return { headers, rows }
 }
 
-export function ImportarContatosModal({ open, onClose }: ImportarContatosModalProps) {
+export const ImportarContatosModal = forwardRef<HTMLDivElement, ImportarContatosModalProps>(function ImportarContatosModal({ open, onClose }, _ref) {
   const [step, setStep] = useState<Step>(1)
   const [file, setFile] = useState<File | null>(null)
   const [tipoContato, setTipoContato] = useState<TipoContato>('pessoa')
@@ -475,4 +475,5 @@ export function ImportarContatosModal({ open, onClose }: ImportarContatosModalPr
       </div>
     </div>
   )
-}
+})
+ImportarContatosModal.displayName = 'ImportarContatosModal'

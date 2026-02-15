@@ -5,7 +5,7 @@
  * Body: Apenas a lista de contatos
  */
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef, forwardRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Plus, Search, Filter, Download, Upload, Users2, Building2, X, Tag, GitMerge, ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
 import { useAuth } from '@/providers/AuthProvider'
@@ -33,7 +33,7 @@ import { negociosApi } from '@/modules/negocios/services/negocios.api'
 import { StatusContatoOptions, OrigemContatoOptions } from '../schemas/contatos.schema'
 import { contatosApi } from '../services/contatos.api'
 
-export function ContatosPage() {
+export const ContatosPage = forwardRef<HTMLDivElement>(function ContatosPage(_props, _ref) {
   const location = useLocation()
   const navigate = useNavigate()
   const { role } = useAuth()
@@ -864,4 +864,5 @@ export function ContatosPage() {
       )}
     </div>
   )
-}
+})
+ContatosPage.displayName = 'ContatosPage'

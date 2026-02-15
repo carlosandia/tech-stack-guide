@@ -3,7 +3,7 @@
  * Conforme PRD-06 RF-007 - Admin Only
  */
 
-import { useState } from 'react'
+import { useState, forwardRef } from 'react'
 import { X, GitMerge, XCircle } from 'lucide-react'
 import { useDuplicatas, useMesclarContatos } from '../hooks/useContatos'
 
@@ -25,7 +25,7 @@ interface DuplicataGrupo {
   }>
 }
 
-export function DuplicatasModal({ open, onClose }: DuplicatasModalProps) {
+export const DuplicatasModal = forwardRef<HTMLDivElement, DuplicatasModalProps>(function DuplicatasModal({ open, onClose }, _ref) {
   const { data, isLoading } = useDuplicatas()
   const mesclar = useMesclarContatos()
   const [selectedPrincipal, setSelectedPrincipal] = useState<Record<number, string>>({})
@@ -137,4 +137,5 @@ export function DuplicatasModal({ open, onClose }: DuplicatasModalProps) {
       </div>
     </div>
   )
-}
+})
+DuplicatasModal.displayName = 'DuplicatasModal'
