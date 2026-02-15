@@ -58,26 +58,37 @@ export function SetPasswordPage() {
   useEffect(() => {
     const verifyToken = async () => {
       try {
-        // Tentar obter sessao existente (token ja pode ter sido trocado)
-        const { data: { session } } = await supabase.auth.getSession()
-
-        if (session?.user) {
-          console.log('[SetPassword] Sessao encontrada:', session.user.email)
-          setUserEmail(session.user.email || null)
-          setTokenValid(true)
-          setLoading(false)
-          return
-        }
-
-        // Se nao tem sessao, verificar se veio do link de confirmacao
+        // IMPORTANTE: verificar hash PRIMEIRO, antes de checar sessao existente
+        // Senao, se o superadmin estiver logado, mostra o email dele ao inves do convidado
         const hashParams = new URLSearchParams(window.location.hash.slice(1))
         const accessToken = hashParams.get('access_token')
         const refreshToken = hashParams.get('refresh_token')
         const type = hashParams.get('type')
 
-        if (accessToken && type === 'invite') {
+        // Verificar parametros de erro primeiro
+        const errorParam = hashParams.get('error')
+        const errorCode = hashParams.get('error_code')
+        const errorDescription = hashParams.get('error_description')
+
+        if (errorParam || errorCode) {
+          console.error('[SetPassword] Erro no token:', errorParam || errorCode, errorDescription)
+          
+          const isExpired = errorParam === 'access_denied' || errorDescription?.includes('expired')
+          if (isExpired) {
+            setError('O link de convite expirou. Solicite ao administrador que reenvie o convite.')
+          } else {
+            setError(decodeURIComponent(errorDescription || 'Token invalido ou expirado.'))
+          }
+          setLoading(false)
+          return
+        }
+
+        if (accessToken && (type === 'invite' || type === 'magiclink')) {
           console.log('[SetPassword] Processando token de convite...')
           
+          // Fazer logout de qualquer sessao existente antes de setar a do convidado
+          await supabase.auth.signOut()
+
           const { data, error } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken || '',
@@ -98,26 +109,23 @@ export function SetPasswordPage() {
             // Limpar hash da URL
             window.history.replaceState(null, '', window.location.pathname)
           }
-        } else {
-          // Verificar parametros de erro (Supabase usa tanto 'error' quanto 'error_code')
-          const errorParam = hashParams.get('error')
-          const errorCode = hashParams.get('error_code')
-          const errorDescription = hashParams.get('error_description')
-          
-          if (errorParam || errorCode) {
-            console.error('[SetPassword] Erro no token:', errorParam || errorCode, errorDescription)
-            
-            // Mensagens amigaveis por tipo de erro
-            const isExpired = errorParam === 'access_denied' || errorDescription?.includes('expired')
-            if (isExpired) {
-              setError('O link de convite expirou. Solicite ao administrador que reenvie o convite.')
-            } else {
-              setError(decodeURIComponent(errorDescription || 'Token invalido ou expirado.'))
-            }
-          } else {
-            setError('Link invalido. Solicite um novo convite ao administrador.')
-          }
+          setLoading(false)
+          return
         }
+
+        // Sem hash params - verificar sessao existente (fallback)
+        const { data: { session } } = await supabase.auth.getSession()
+
+        if (session?.user) {
+          console.log('[SetPassword] Sessao encontrada:', session.user.email)
+          setUserEmail(session.user.email || null)
+          setTokenValid(true)
+          setLoading(false)
+          return
+        }
+
+        // Nenhum token e nenhuma sessao
+        setError('Link invalido. Solicite um novo convite ao administrador.')
       } catch (err) {
         console.error('[SetPassword] Erro:', err)
         setError('Erro ao processar o link. Tente novamente.')
