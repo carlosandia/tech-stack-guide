@@ -149,7 +149,7 @@ const InviteEmail = ({
                 React.createElement(
                   Button,
                   { style: styles.button, href: confirmUrl },
-                  "Definir Minha Senha e Acessar"
+                  "Definir minha senha e acessar"
                 )
               ),
 
@@ -262,11 +262,11 @@ const styles = {
     border: "1px solid #E2E8F0",
   },
   heading: {
-    color: "#0F172A",
-    fontSize: "26px",
+    color: "#1E293B",
+    fontSize: "22px",
     fontWeight: "600",
     lineHeight: "1.3",
-    margin: "0 0 28px 0",
+    margin: "0 0 24px 0",
   },
   inviterBox: {
     backgroundColor: "#F0FDF4",
@@ -282,10 +282,10 @@ const styles = {
     margin: "0",
   },
   paragraph: {
-    color: "#334155",
-    fontSize: "16px",
-    lineHeight: "1.75",
-    margin: "0 0 24px 0",
+    color: "#475569",
+    fontSize: "15px",
+    lineHeight: "1.7",
+    margin: "0 0 20px 0",
   },
   loginInfoBox: {
     backgroundColor: "#EFF6FF",
@@ -297,16 +297,16 @@ const styles = {
     padding: "16px 20px",
   },
   loginInfoLabel: {
-    color: "#1E40AF",
-    fontSize: "14px",
-    fontWeight: "600",
-    margin: "0 0 6px 0",
+    color: "#475569",
+    fontSize: "13px",
+    fontWeight: "500",
+    margin: "0 0 4px 0",
     lineHeight: "1.4",
   },
   loginInfoEmail: {
-    color: "#1E3A5F",
-    fontSize: "18px",
-    fontWeight: "700",
+    color: "#1E293B",
+    fontSize: "16px",
+    fontWeight: "600",
     margin: "0",
     lineHeight: "1.4",
   },
@@ -318,13 +318,12 @@ const styles = {
     backgroundColor: "#60A5FA",
     borderRadius: "8px",
     color: "#FFFFFF",
-    fontSize: "16px",
-    fontWeight: "600",
+    fontSize: "15px",
+    fontWeight: "500",
     textDecoration: "none",
     textAlign: "center" as const,
     display: "inline-block",
-    padding: "16px 40px",
-    padding: "16px 40px",
+    padding: "14px 36px",
   },
   innerDivider: {
     borderColor: "#E2E8F0",
