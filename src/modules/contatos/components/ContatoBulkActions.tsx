@@ -4,6 +4,7 @@
  * Integra AtribuirVendedorDropdown e SegmentarDropdown
  */
 
+import { forwardRef } from 'react'
 import { Trash2, Download } from 'lucide-react'
 import type { TipoContato } from '../services/contatos.api'
 import { AtribuirVendedorDropdown } from './AtribuirVendedorDropdown'
@@ -19,7 +20,7 @@ interface ContatoBulkActionsProps {
   onClearSelection: () => void
 }
 
-export function ContatoBulkActions({
+export const ContatoBulkActions = forwardRef<HTMLDivElement, ContatoBulkActionsProps>(function ContatoBulkActions({
   selectedCount,
   selectedIds,
   tipo,
@@ -27,7 +28,7 @@ export function ContatoBulkActions({
   onExcluir,
   onExportar,
   onClearSelection,
-}: ContatoBulkActionsProps) {
+}, _ref) {
   if (selectedCount === 0) return null
 
   return (
@@ -73,4 +74,5 @@ export function ContatoBulkActions({
       </button>
     </div>
   )
-}
+})
+ContatoBulkActions.displayName = 'ContatoBulkActions'

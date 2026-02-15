@@ -6,7 +6,7 @@
  * ficam agrupadas num menu dropdown acionado por ícone "⋮"
  */
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, forwardRef } from 'react'
 import { MoreVertical, Filter, Tag, Download, Upload, GitMerge } from 'lucide-react'
 import type { ColumnConfig } from './ContatoColumnsToggle'
 import type { TipoContato } from '../services/contatos.api'
@@ -27,7 +27,7 @@ interface MobileOverflowMenuProps {
   onColumnsChange: (cols: ColumnConfig[]) => void
 }
 
-export function MobileOverflowMenu({
+export const MobileOverflowMenu = forwardRef<HTMLDivElement, MobileOverflowMenuProps>(function MobileOverflowMenu({
   showFilters,
   setShowFilters,
   filtrosAtivos,
@@ -38,7 +38,7 @@ export function MobileOverflowMenu({
   onExportar,
   onImportar,
   onDuplicatas,
-}: MobileOverflowMenuProps) {
+}, _ref) {
   const [open, setOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -146,4 +146,5 @@ export function MobileOverflowMenu({
       )}
     </div>
   )
-}
+})
+MobileOverflowMenu.displayName = 'MobileOverflowMenu'

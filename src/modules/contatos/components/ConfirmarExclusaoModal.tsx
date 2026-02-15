@@ -8,7 +8,7 @@
  * - ARIA, ESC to close, focus trap
  */
 
-import { useEffect, useRef, useId } from 'react'
+import { useEffect, useRef, useId, forwardRef } from 'react'
 import { X, AlertTriangle, Link2 } from 'lucide-react'
 
 interface Vinculo {
@@ -29,7 +29,7 @@ interface ConfirmarExclusaoModalProps {
   vinculos?: Vinculo[]
 }
 
-export function ConfirmarExclusaoModal({
+export const ConfirmarExclusaoModal = forwardRef<HTMLDivElement, ConfirmarExclusaoModalProps>(function ConfirmarExclusaoModal({
   open,
   onClose,
   onConfirm,
@@ -39,7 +39,7 @@ export function ConfirmarExclusaoModal({
   erro,
   bloqueado = false,
   vinculos = [],
-}: ConfirmarExclusaoModalProps) {
+}, _ref) {
   const modalRef = useRef<HTMLDivElement>(null)
   const titleId = useId()
 
@@ -197,4 +197,5 @@ export function ConfirmarExclusaoModal({
       </div>
     </>
   )
-}
+})
+ConfirmarExclusaoModal.displayName = 'ConfirmarExclusaoModal'

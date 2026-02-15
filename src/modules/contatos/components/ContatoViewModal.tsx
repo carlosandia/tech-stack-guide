@@ -8,7 +8,7 @@
  * - ARIA, ESC to close, focus trap
  */
 
-import { useEffect, useRef, useId, useState, useCallback } from 'react'
+import { useEffect, useRef, useId, useState, useCallback, forwardRef } from 'react'
 import { X, Pencil, Trash2, Building2, User, Briefcase, DollarSign, Calendar, Loader2 } from 'lucide-react'
 import { SegmentoBadge } from './SegmentoBadge'
 import { ContatoViewFieldsToggle, isViewFieldVisible } from './ContatoViewFieldsToggle'
@@ -30,7 +30,7 @@ interface ContatoViewModalProps {
   onDelete: () => void
 }
 
-export function ContatoViewModal({ open, onClose, contato, onEdit, onDelete }: ContatoViewModalProps) {
+export const ContatoViewModal = forwardRef<HTMLDivElement, ContatoViewModalProps>(function ContatoViewModal({ open, onClose, contato, onEdit, onDelete }, _ref) {
   const [activeTab, setActiveTab] = useState<'dados' | 'historico'>('dados')
   const [, setRefreshKey] = useState(0)
   const [detalhesOpId, setDetalhesOpId] = useState<string | null>(null)
@@ -431,7 +431,8 @@ export function ContatoViewModal({ open, onClose, contato, onEdit, onDelete }: C
       )}
     </>
   )
-}
+})
+ContatoViewModal.displayName = 'ContatoViewModal'
 
 function Field({ label, value, isLink }: { label: string; value?: string | null; isLink?: boolean }) {
   return (

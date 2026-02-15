@@ -3,15 +3,18 @@
  * Conforme Design System - Badge rounded-full
  */
 
+import { forwardRef } from 'react'
+
 interface SegmentoBadgeProps {
   nome: string
   cor: string
   onRemove?: () => void
 }
 
-export function SegmentoBadge({ nome, cor, onRemove }: SegmentoBadgeProps) {
+export const SegmentoBadge = forwardRef<HTMLSpanElement, SegmentoBadgeProps>(function SegmentoBadge({ nome, cor, onRemove }, ref) {
   return (
     <span
+      ref={ref}
       className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold"
       style={{
         backgroundColor: `${cor}20`,
@@ -31,4 +34,5 @@ export function SegmentoBadge({ nome, cor, onRemove }: SegmentoBadgeProps) {
       )}
     </span>
   )
-}
+})
+SegmentoBadge.displayName = 'SegmentoBadge'

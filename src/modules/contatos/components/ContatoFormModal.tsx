@@ -62,7 +62,7 @@ function getCampoPlaceholderText(campo: CampoCustomizado): string {
   }
 }
 
-export function ContatoFormModal({
+export const ContatoFormModal = forwardRef<HTMLDivElement, ContatoFormModalProps>(function ContatoFormModal({
   open,
   onClose,
   onSubmit,
@@ -597,7 +597,8 @@ export function ContatoFormModal({
       </div>
     </>
   )
-}
+})
+ContatoFormModal.displayName = 'ContatoFormModal'
 
 // =====================================================
 // Empresa search field
