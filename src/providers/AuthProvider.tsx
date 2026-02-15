@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, forwardRef, type ReactNode } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { User, Session } from '@supabase/supabase-js'
 
@@ -41,7 +41,7 @@ interface AuthProviderProps {
   children: ReactNode
 }
 
-export function AuthProvider({ children }: AuthProviderProps) {
+export const AuthProvider = forwardRef<HTMLDivElement, AuthProviderProps>(function AuthProvider({ children }, _ref) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
@@ -245,7 +245,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       {children}
     </AuthContext.Provider>
   )
-}
+})
+
+AuthProvider.displayName = 'AuthProvider'
 
 export function useAuth() {
   const context = useContext(AuthContext)

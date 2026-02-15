@@ -1,5 +1,5 @@
- import { QueryClient, QueryClientProvider, type NetworkMode } from '@tanstack/react-query'
-import { type ReactNode, useState } from 'react'
+import { QueryClient, QueryClientProvider, type NetworkMode } from '@tanstack/react-query'
+import { forwardRef, type ReactNode, useState } from 'react'
 
 /**
  * AIDEV-NOTE: Provider central do TanStack Query
@@ -10,7 +10,7 @@ interface QueryProviderProps {
   children: ReactNode
 }
 
-export function QueryProvider({ children }: QueryProviderProps) {
+export const QueryProvider = forwardRef<HTMLDivElement, QueryProviderProps>(function QueryProvider({ children }, _ref) {
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -35,4 +35,6 @@ export function QueryProvider({ children }: QueryProviderProps) {
       {children}
     </QueryClientProvider>
   )
-}
+})
+
+QueryProvider.displayName = 'QueryProvider'
