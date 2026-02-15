@@ -37,7 +37,7 @@ export function OrganizacaoUsuariosTab({ orgId, orgNome }: Props) {
     nome: string
     sobrenome: string | null
     email: string
-  }) => {
+  }, role: string = 'member') => {
     setReenviando(usuario.id)
     setMensagem(null)
     try {
@@ -48,6 +48,7 @@ export function OrganizacaoUsuariosTab({ orgId, orgNome }: Props) {
         sobrenome: usuario.sobrenome,
         organizacao_id: orgId,
         organizacao_nome: orgNome || 'CRM',
+        role,
       })
       setMensagem({ tipo: 'sucesso', texto: `Convite reenviado para ${usuario.email}` })
       queryClient.invalidateQueries({ queryKey: ['admin', 'organizacao', orgId, 'usuarios'] })
@@ -168,7 +169,7 @@ export function OrganizacaoUsuariosTab({ orgId, orgNome }: Props) {
               <div className="flex items-center gap-3">
                 {data.admin.status === 'pendente' && (
                   <button
-                    onClick={() => handleReenviarConvite(data.admin!)}
+                    onClick={() => handleReenviarConvite(data.admin!, 'admin')}
                     disabled={reenviando === data.admin.id}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >

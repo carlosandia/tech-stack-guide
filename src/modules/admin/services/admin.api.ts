@@ -427,6 +427,7 @@ export async function criarOrganizacao(payload: CriarOrganizacaoPayload): Promis
             sobrenome: payload.admin_sobrenome,
             usuario_id: adminUser.id,
             organizacao_id: org.id,
+            role: 'admin',
           }),
         }
       )
@@ -1174,6 +1175,7 @@ export async function reenviarConvite(params: {
   sobrenome: string | null
   organizacao_id: string
   organizacao_nome: string
+  role?: string
 }): Promise<void> {
   const session = await supabase.auth.getSession()
   const accessToken = session.data.session?.access_token
@@ -1193,6 +1195,7 @@ export async function reenviarConvite(params: {
         usuario_id: params.usuario_id,
         organizacao_id: params.organizacao_id,
         organizacao_nome: params.organizacao_nome,
+        role: params.role || 'member',
       }),
     }
   )
