@@ -16,6 +16,7 @@ import { EmailConexaoModal } from '../components/integracoes/EmailConexaoModal'
 import { InstagramConexaoModal } from '../components/integracoes/InstagramConexaoModal'
 import { MetaAdsConexaoModal } from '../components/integracoes/MetaAdsConexaoModal'
 import { GoogleCalendarConexaoModal } from '../components/integracoes/GoogleCalendarConexaoModal'
+import { GoogleCalendarConfigModal } from '../components/integracoes/GoogleCalendarConfigModal'
 import { Api4comConexaoModal } from '../components/integracoes/Api4comConexaoModal'
 import { WhatsAppConfigModal } from '../components/integracoes/WhatsAppConfigModal'
 import { Api4comConfigModal } from '../components/integracoes/Api4comConfigModal'
@@ -191,6 +192,14 @@ export function ConexoesPage() {
       {configAberto === 'email' && integracoesPorPlataforma['email'] && (
         <EmailConfigModal
           integracao={integracoesPorPlataforma['email']}
+          onClose={() => setConfigAberto(null)}
+          onDesconectar={handleDesconectar}
+        />
+      )}
+
+      {configAberto === 'google' && integracoesPorPlataforma['google'] && (
+        <GoogleCalendarConfigModal
+          integracao={integracoesPorPlataforma['google']}
           onClose={() => setConfigAberto(null)}
           onDesconectar={handleDesconectar}
         />
