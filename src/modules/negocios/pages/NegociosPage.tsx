@@ -4,7 +4,7 @@
  * Layout: Toolbar (via context) + MetricasPanel + KanbanBoard
  */
 
-import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useState, useCallback, useEffect, useMemo, forwardRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/providers/AuthProvider'
 import { useFunis, useCriarFunil, useArquivarFunil, useDesarquivarFunil, useExcluirFunil } from '../hooks/useFunis'
@@ -30,7 +30,8 @@ import { useQueryClient } from '@tanstack/react-query'
 const STORAGE_KEY = 'negocios_funil_ativo'
 const METRICAS_KEY = 'negocios_metricas_visivel'
 
-export default function NegociosPage() {
+const NegociosPage = forwardRef<HTMLDivElement>(function NegociosPage(_props, ref) {
+  void ref;
   const { role } = useAuth()
   const isAdmin = role === 'admin'
   const navigate = useNavigate()
@@ -327,4 +328,6 @@ export default function NegociosPage() {
       )}
     </div>
   )
-}
+})
+NegociosPage.displayName = 'NegociosPage'
+export default NegociosPage

@@ -5,7 +5,7 @@
  * Mobile: ações sempre visíveis, confirmação de exclusão com contagem de oportunidades
  */
 
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect, useMemo, forwardRef } from 'react'
 import ReactDOM from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { ChevronDown, Plus, Layers, Search, Archive, ArchiveRestore, Trash2, ChevronRight, Settings, AlertTriangle } from 'lucide-react'
@@ -23,7 +23,7 @@ interface PipelineSelectorProps {
   isAdmin: boolean
 }
 
-export function PipelineSelector({
+export const PipelineSelector = forwardRef<HTMLDivElement, PipelineSelectorProps>(function PipelineSelector({
   funis,
   funilAtivo,
   onSelect,
@@ -32,7 +32,7 @@ export function PipelineSelector({
   onDesarquivar,
   onExcluir,
   isAdmin,
-}: PipelineSelectorProps) {
+}, _ref) {
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [busca, setBusca] = useState('')
@@ -287,7 +287,8 @@ export function PipelineSelector({
       )}
     </div>
   )
-}
+})
+PipelineSelector.displayName = 'PipelineSelector'
 
 // Sub-componente para cada item de funil
 function FunilItem({

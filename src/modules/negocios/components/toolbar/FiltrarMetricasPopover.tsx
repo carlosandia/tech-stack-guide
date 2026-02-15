@@ -4,7 +4,7 @@
  * Persistência em banco (tabela preferencias_metricas) com fallback localStorage
  */
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, forwardRef } from 'react'
 import { SlidersHorizontal, Check } from 'lucide-react'
 import { useSalvarPreferenciasMetricas } from '../../hooks/usePreOportunidades'
 
@@ -66,7 +66,7 @@ interface FiltrarMetricasPopoverProps {
   onChange: (visiveis: MetricasVisiveis) => void
 }
 
-export function FiltrarMetricasPopover({ funilId, visiveis, onChange }: FiltrarMetricasPopoverProps) {
+export const FiltrarMetricasPopover = forwardRef<HTMLDivElement, FiltrarMetricasPopoverProps>(function FiltrarMetricasPopover({ funilId, visiveis, onChange }, _ref) {
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const salvarPreferencias = useSalvarPreferenciasMetricas()
@@ -188,4 +188,5 @@ export function FiltrarMetricasPopover({ funilId, visiveis, onChange }: FiltrarM
       )}
     </div>
   )
-}
+})
+FiltrarMetricasPopover.displayName = 'FiltrarMetricasPopover'
