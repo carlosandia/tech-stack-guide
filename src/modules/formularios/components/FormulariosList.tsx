@@ -3,7 +3,7 @@
  * Conforme Design System - seção 10.10 Table
  */
 
-import { useState } from 'react'
+import { useState, forwardRef } from 'react'
 import { MoreHorizontal, Copy, Trash2, Eye, EyeOff, Pencil } from 'lucide-react'
 import {
   Table,
@@ -43,7 +43,7 @@ interface Props {
   onEdit: (id: string) => void
 }
 
-export function FormulariosList({ formularios, onEdit }: Props) {
+export const FormulariosList = forwardRef<HTMLDivElement, Props>(function FormulariosList({ formularios, onEdit }, _ref) {
   const [excluirId, setExcluirId] = useState<string | null>(null)
   const excluirMutation = useExcluirFormulario()
   const duplicarMutation = useDuplicarFormulario()
@@ -162,24 +162,25 @@ export function FormulariosList({ formularios, onEdit }: Props) {
       </AlertDialog>
     </>
   )
-}
+})
+FormulariosList.displayName = 'FormulariosList'
 
 // Dropdown de ações por formulário
-function AcoesDropdown({
-  formulario,
-  onEdit,
-  onDuplicar,
-  onPublicar,
-  onDespublicar,
-  onExcluir,
-}: {
+const AcoesDropdown = forwardRef<HTMLDivElement, {
   formulario: Formulario
   onEdit: () => void
   onDuplicar: () => void
   onPublicar: () => void
   onDespublicar: () => void
   onExcluir: () => void
-}) {
+}>(function AcoesDropdown({
+  formulario,
+  onEdit,
+  onDuplicar,
+  onPublicar,
+  onDespublicar,
+  onExcluir,
+}, _ref) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -216,4 +217,5 @@ function AcoesDropdown({
       </DropdownMenuContent>
     </DropdownMenu>
   )
-}
+})
+AcoesDropdown.displayName = 'AcoesDropdown'

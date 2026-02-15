@@ -4,7 +4,7 @@
  * Suporta edição inline do label via double-click
  */
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, forwardRef } from 'react'
 import { Trash2, Settings, ChevronDown, ChevronUp, Info, MousePointerClick, Copy } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { CampoFormulario } from '../../services/formularios.api'
@@ -49,7 +49,7 @@ interface Props {
   onDuplicate?: () => void
 }
 
-export function CampoItem({
+export const CampoItem = forwardRef<HTMLDivElement, Props>(function CampoItem({
   campo,
   isSelected,
   isDragOver,
@@ -64,7 +64,7 @@ export function CampoItem({
   onUpdateLabel,
   onUpdatePlaceholder,
   onDuplicate,
-}: Props) {
+}, _ref) {
   const [editingLabel, setEditingLabel] = useState(false)
   const [labelValue, setLabelValue] = useState(campo.label || campo.nome)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -180,7 +180,8 @@ export function CampoItem({
       </div>
     </div>
   )
-}
+})
+CampoItem.displayName = 'CampoItem'
 
 function getLabelTipo(tipo: string): string {
   const map: Record<string, string> = {

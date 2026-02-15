@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, forwardRef } from 'react'
 import { Search, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -16,7 +16,7 @@ interface SearchPopoverProps {
   placeholder?: string
 }
 
-export function SearchPopover({ value, onChange, placeholder = 'Buscar...' }: SearchPopoverProps) {
+export const SearchPopover = forwardRef<HTMLDivElement, SearchPopoverProps>(function SearchPopover({ value, onChange, placeholder = 'Buscar...' }, ref) {
   const [open, setOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -31,7 +31,7 @@ export function SearchPopover({ value, onChange, placeholder = 'Buscar...' }: Se
   const hasValue = value.length > 0
 
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={ref ?? containerRef} className="relative">
       {/* Botão trigger - Estilo ghost */}
       <button
         type="button"
@@ -98,4 +98,5 @@ export function SearchPopover({ value, onChange, placeholder = 'Buscar...' }: Se
       )}
     </div>
   )
-}
+})
+SearchPopover.displayName = 'SearchPopover'
