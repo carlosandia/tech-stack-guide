@@ -377,7 +377,7 @@ export function EmailsPage() {
       {/* Email List */}
       <div
         className={`
-          w-full lg:w-auto lg:min-w-[300px] lg:max-w-[360px] flex-shrink-0
+          w-full md:w-auto md:min-w-[280px] md:max-w-[320px] lg:min-w-[300px] lg:max-w-[360px] flex-shrink-0
           ${selectedId ? 'hidden md:flex md:flex-col' : 'flex flex-col'}
         `}
       >
