@@ -136,8 +136,9 @@ serve(async (req) => {
 
       const scopes = tipo === "calendar" ? CALENDAR_SCOPES : GMAIL_SCOPES;
 
-      // Build the callback URL - use Edge Function URL for callback
-      const callbackUrl = `${SUPABASE_URL}/functions/v1/google-auth?action=callback`;
+      // AIDEV-NOTE: redirect_uri vem do frontend (ex: https://crm.renovedigital.com.br/oauth/google/callback)
+      // O Google redirecionará para essa URL, onde o frontend captura code/state e envia para exchange-code
+      const callbackUrl = redirectUri || `${SUPABASE_URL}/functions/v1/google-auth?action=callback`;
 
       const params = new URLSearchParams({
         client_id: googleConfig.clientId,
@@ -159,21 +160,19 @@ serve(async (req) => {
     }
 
     // ==========================================
-    // GET /google-auth?action=callback (redirect from Google)
+    // POST { action: "exchange-code" } - Frontend envia code/state após redirect do Google
+    // AIDEV-NOTE: Substitui o callback antigo. O Google redireciona para o frontend,
+    // que captura code/state e envia aqui via POST.
     // ==========================================
-    if (action === "callback") {
-      const code = url.searchParams.get("code");
-      const state = url.searchParams.get("state");
-      const oauthError = url.searchParams.get("error");
-
-      const FRONTEND_URL = "https://crm.renovedigital.com.br";
-
-      if (oauthError) {
-        return Response.redirect(`${FRONTEND_URL}/app/configuracoes/conexoes?error=${oauthError}`, 302);
-      }
+    if (action === "exchange-code") {
+      const code = body.code;
+      const state = body.state;
 
       if (!code || !state) {
-        return Response.redirect(`${FRONTEND_URL}/app/configuracoes/conexoes?error=missing_params`, 302);
+        return new Response(JSON.stringify({ error: "code e state são obrigatórios" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
 
       let stateData: {
@@ -187,11 +186,16 @@ serve(async (req) => {
       try {
         stateData = JSON.parse(atob(state));
       } catch {
-        return Response.redirect(`${FRONTEND_URL}/app/configuracoes/conexoes?error=invalid_state`, 302);
+        return new Response(JSON.stringify({ error: "State inválido" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
 
       const googleConfig = await getGoogleConfig(supabaseAdmin);
-      const callbackUrl = `${SUPABASE_URL}/functions/v1/google-auth?action=callback`;
+      
+      // AIDEV-NOTE: redirect_uri deve ser EXATAMENTE a mesma usada na auth-url
+      const redirectUri = stateData.redirect_uri || `${SUPABASE_URL}/functions/v1/google-auth?action=callback`;
 
       // Exchange code for tokens
       const tokenResponse = await fetch(GOOGLE_TOKEN_URL, {
@@ -201,7 +205,7 @@ serve(async (req) => {
           code,
           client_id: googleConfig.clientId,
           client_secret: googleConfig.clientSecret,
-          redirect_uri: callbackUrl,
+          redirect_uri: redirectUri,
           grant_type: "authorization_code",
         }),
       });
@@ -210,7 +214,10 @@ serve(async (req) => {
 
       if (!tokens.access_token) {
         console.error("[google-auth] Token exchange failed:", tokens);
-        return Response.redirect(`${FRONTEND_URL}/app/configuracoes/conexoes?error=token_failed`, 302);
+        return new Response(JSON.stringify({ error: "Falha na troca de tokens", details: tokens.error }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
 
       // Get user info from Google
@@ -255,7 +262,10 @@ serve(async (req) => {
 
         if (updateError) {
           console.error("[google-auth] Update error:", updateError);
-          return Response.redirect(`${FRONTEND_URL}/app/configuracoes/conexoes?error=save_failed`, 302);
+          return new Response(JSON.stringify({ error: "Erro ao salvar conexão" }), {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
         }
       } else {
         const { error: insertError } = await supabaseAdmin
@@ -264,15 +274,18 @@ serve(async (req) => {
 
         if (insertError) {
           console.error("[google-auth] Insert error:", insertError);
-          return Response.redirect(`${FRONTEND_URL}/app/configuracoes/conexoes?error=save_failed`, 302);
+          return new Response(JSON.stringify({ error: "Erro ao salvar conexão" }), {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
         }
       }
 
       console.log("[google-auth] Connection saved for user:", stateData.usuario_id, "email:", userInfo.email);
 
-      // Redirect to frontend
-      const finalRedirect = stateData.redirect_uri || `${FRONTEND_URL}/app/configuracoes/conexoes`;
-      return Response.redirect(`${finalRedirect}?success=google`, 302);
+      return new Response(JSON.stringify({ success: true, email: userInfo.email }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // ==========================================

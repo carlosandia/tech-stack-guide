@@ -14,6 +14,7 @@ import {
 import { AppLayout, AppDashboardPage, PerfilPage } from '@/modules/app'
 import { FormulariosPage, FormularioEditorPage } from '@/modules/formularios'
 import { FormularioPublicoPage } from '@/modules/formularios/pages/FormularioPublicoPage'
+import { OAuthGoogleCallbackPage } from '@/pages/OAuthGoogleCallbackPage'
 import { PlanosPage, TrialCadastroPage, CheckoutSucessoPage, OnboardingPage } from '@/modules/public'
 import { BlockedPage } from '@/modules/blocked'
 import { ConfiguracoesLayout, CamposPage, ProdutosPage, MotivosPage, TarefasTemplatesPage, EtapasTemplatesPage, RegrasPage, ConfigCardPage, ConexoesPage, WebhooksEntradaPage, WebhooksSaidaPage, MembrosPage, EquipesPage, PerfisPermissaoPage, MetasPage, ConfigGeralPage } from '@/modules/configuracoes'
@@ -60,6 +61,7 @@ function App() {
        <Route path="/onboarding" element={<OnboardingPage />} />
        <Route path="/bloqueado" element={<BlockedPage />} />
        <Route path="/f/:slug" element={<FormularioPublicoPage />} />
+       <Route path="/oauth/google/callback" element={<OAuthGoogleCallbackPage />} />
  
        {/* Rotas de autenticacao */}
        <Route path="/login" element={<LoginPage />} />
