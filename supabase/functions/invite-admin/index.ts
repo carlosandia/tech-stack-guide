@@ -202,8 +202,8 @@ const InviteEmail = ({
             "Precisa de ajuda? ",
             React.createElement(
               Link,
-              { href: "mailto:suporte@renovedigital.com.br", style: styles.footerLink },
-              "suporte@renovedigital.com.br"
+              { href: "mailto:crm@renovedigital.com.br", style: styles.footerLink },
+              "crm@renovedigital.com.br"
             )
           )
         )
