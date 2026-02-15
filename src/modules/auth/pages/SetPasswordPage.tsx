@@ -89,8 +89,9 @@ export function SetPasswordPage() {
         if (accessToken && (type === 'invite' || type === 'magiclink')) {
           console.log('[SetPassword] Processando token de convite...')
           
-          // Fazer logout de qualquer sessao existente antes de setar a do convidado
-          await supabase.auth.signOut()
+          // AIDEV-NOTE: NAO chamar signOut() aqui - isso revoga o refresh_token
+          // que acabou de ser criado pelo /verify, causando "Token invalido"
+          // O setSession() substitui a sessao atual automaticamente
 
           const { data, error } = await supabase.auth.setSession({
             access_token: accessToken,
