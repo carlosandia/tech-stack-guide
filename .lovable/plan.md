@@ -1,69 +1,69 @@
 
-## Refatorar OAuth Google para usar `crm.renovedigital.com.br` como Redirect URI
+# Correcao do Link de Convite Expirando Imediatamente
 
-### Resumo
+## Diagnostico
 
-Atualmente o Google redireciona para a Edge Function do Supabase (`ybzhlsalbnxwkfszkloa.supabase.co/functions/v1/google-auth?action=callback`), que processa os tokens e depois redireciona para o frontend. 
+Analisando os logs de autenticacao e o codigo, identifiquei o problema raiz na `SetPasswordPage`:
 
-A proposta e redirecionar o Google diretamente para o frontend (`crm.renovedigital.com.br/oauth/google/callback`), onde uma pagina captura o `code` e envia para a Edge Function processar via POST.
+**O que acontece:**
+1. Junior clica no link do email -> Supabase `/verify` valida o token com sucesso e redireciona para `/auth/set-password#access_token=AT1&refresh_token=RT1&type=invite`
+2. O cliente Supabase JS automaticamente detecta o hash fragment e cria uma sessao com AT1/RT1
+3. O `useEffect` da SetPasswordPage executa e chama `signOut()` (linha 93) -> isso **revoga o RT1 no servidor**
+4. Em seguida, chama `setSession({ access_token: AT1, refresh_token: RT1 })` -> **falha porque RT1 foi revogado**
+5. O erro e capturado e a pagina mostra "Token invalido ou expirado"
 
-### Fluxo Proposto
+O `signOut()` foi adicionado para evitar mostrar o email do superadmin caso ele estivesse logado. Porem, na maioria dos casos o convidado esta em seu proprio navegador/dispositivo, e o `signOut()` revoga a sessao recem-criada pelo `/verify`.
 
-```text
-[Usuario clica "Conectar"]
-       |
-       v
-[Frontend] --> Edge Function (action: auth-url)
-       |         redirect_uri = https://crm.renovedigital.com.br/oauth/google/callback
-       v
-[Google Consent Screen] --> Usuario autoriza
-       |
-       v
-[Google redireciona para] --> crm.renovedigital.com.br/oauth/google/callback?code=XXX&state=YYY
-       |
-       v
-[Pagina OAuthCallback] --> Captura code/state, envia POST para Edge Function (action: exchange-code)
-       |
-       v
-[Edge Function] --> Troca code por tokens, salva em conexoes_google
-       |
-       v
-[Frontend] --> Redireciona para /configuracoes/conexoes?success=google
+## Solucao
+
+Modificar a `SetPasswordPage` para nao revogar a sessao antes de tentar usa-la. Em vez disso:
+
+1. Ler os hash params
+2. Se tiver `access_token` + `type=invite/magiclink`, usar `setSession` SEM chamar `signOut` antes
+3. Apenas apos confirmar que a sessao esta ativa, verificar se o email corresponde ao convidado
+4. Se ja houver uma sessao ativa (ex: superadmin logado), fazer signOut apenas se o email da sessao existente for DIFERENTE do email nos tokens do hash
+
+## Detalhes Tecnicos
+
+### Arquivo: `src/modules/auth/pages/SetPasswordPage.tsx`
+
+Alterar o `useEffect` de verificacao de token:
+
+```typescript
+// ANTES (bugado):
+if (accessToken && (type === 'invite' || type === 'magiclink')) {
+  await supabase.auth.signOut()  // <-- REVOGA o refresh_token do hash!
+  const { data, error } = await supabase.auth.setSession({
+    access_token: accessToken,
+    refresh_token: refreshToken || '',
+  })
+  // ...
+}
+
+// DEPOIS (corrigido):
+if (accessToken && (type === 'invite' || type === 'magiclink')) {
+  // NAO chamar signOut antes - o setSession substitui a sessao atual
+  const { data, error } = await supabase.auth.setSession({
+    access_token: accessToken,
+    refresh_token: refreshToken || '',
+  })
+  // ...
+}
 ```
 
-### Alteracoes
+Tambem adicionar um fallback: se nao houver hash params, aguardar brevemente o cliente Supabase processar o hash automaticamente (via `onAuthStateChange`) antes de verificar a sessao existente.
 
-#### 1. Nova pagina: `src/pages/OAuthGoogleCallbackPage.tsx`
-- Rota publica `/oauth/google/callback`
-- Ao montar, captura `code` e `state` da URL
-- Envia POST para Edge Function `google-auth` com `action: "exchange-code"`
-- Em caso de sucesso, redireciona para `/configuracoes/conexoes?success=google`
-- Em caso de erro, redireciona para `/configuracoes/conexoes?error=google_failed`
-- Exibe loading spinner durante o processamento
+### Arquivo: `supabase/functions/invite-admin/index.ts`
 
-#### 2. Registrar rota em `src/App.tsx`
-- Adicionar `<Route path="/oauth/google/callback" element={<OAuthGoogleCallbackPage />} />` como rota publica
+Corrigir o `organizacao_nome` que esta chegando como `undefined` nos logs (o wizard nao esta passando esse campo):
 
-#### 3. Atualizar Edge Function `supabase/functions/google-auth/index.ts`
-- Na action `auth-url`: usar `redirect_uri` vindo do frontend (que sera `https://crm.renovedigital.com.br/oauth/google/callback`) diretamente como `redirect_uri` do Google OAuth
-- Nova action `exchange-code`: recebe `code` e `state` via POST do frontend, troca por tokens, salva na tabela `conexoes_google`. Retorna JSON de sucesso/erro (sem redirect HTTP)
-- Remover a action `callback` antiga (que fazia redirect HTTP da Edge Function)
+### Arquivo: `src/modules/admin/services/admin.api.ts`
 
-#### 4. Atualizar `GoogleCalendarConexaoModal.tsx`
-- Ajustar o `redirect_uri` para `https://crm.renovedigital.com.br/oauth/google/callback`
+Garantir que o `organizacao_nome` seja passado no body da chamada ao `invite-admin` durante a criacao da organizacao.
 
-### Acao Manual no Google Cloud Console
+## Resumo das Alteracoes
 
-Nas credenciais OAuth (APIs e Servicos > Credenciais):
-- **Adicionar** URI de redirecionamento autorizada: `https://crm.renovedigital.com.br/oauth/google/callback`
-- **Remover** (se existir): `https://ybzhlsalbnxwkfszkloa.supabase.co/functions/v1/google-auth?action=callback`
-
-### Secao Tecnica
-
-| Arquivo | Tipo | Alteracao |
-|---|---|---|
-| `src/pages/OAuthGoogleCallbackPage.tsx` | Novo | Pagina que captura code/state e envia para Edge Function |
-| `src/App.tsx` | Editar | Adicionar rota `/oauth/google/callback` |
-| `supabase/functions/google-auth/index.ts` | Editar | Nova action `exchange-code`, remover `callback` antigo, ajustar `auth-url` |
-| `src/modules/configuracoes/components/integracoes/GoogleCalendarConexaoModal.tsx` | Editar | Ajustar redirect_uri |
-| **Google Cloud Console** | Manual | Atualizar URI de redirecionamento autorizada |
+| Arquivo | Alteracao |
+|---------|-----------|
+| `SetPasswordPage.tsx` | Remover `signOut()` antes do `setSession()` no processamento de tokens de convite |
+| `admin.api.ts` | Passar `organizacao_nome` no payload do invite-admin ao criar organizacao |
