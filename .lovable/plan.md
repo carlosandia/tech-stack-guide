@@ -1,136 +1,74 @@
 
-
-# Correcao Completa: Bloquear Acesso Sem Definir Senha
+# Correcao: Link de Convite Expira Apos Primeiro Clique
 
 ## Causa Raiz
 
-O AuthProvider busca dados do usuario mas **ignora o campo `status`** da tabela `usuarios`. Quando o invite-admin cria um convite, ele define `status = 'pendente'` no banco. Porem, o AuthProvider nao consulta esse campo, entao trata qualquer sessao valida como usuario 100% autenticado - mesmo que o usuario nunca tenha definido uma senha.
+O link de convite usa o endpoint `/auth/v1/verify?token=...` do Supabase, que **consome o token na primeira verificacao** (comportamento padrao do Supabase - tokens de verificacao sao single-use). Quando o usuario clica no link pela segunda vez, o Supabase retorna `error=access_denied&error_description=...expired` no hash de redirecionamento.
 
-Resultado: apos o `setSession()` na SetPasswordPage, o usuario tem sessao ativa e pode navegar livremente para /dashboard sem criar senha.
+O problema esta no `SetPasswordPage.tsx` nas linhas 100-111: quando detecta erro no hash, o codigo **retorna imediatamente mostrando "Link Invalido"** sem verificar se a sessao do primeiro clique ainda esta ativa no navegador.
+
+O fluxo que falha:
+1. Usuario clica no link pela primeira vez -> Supabase consome o token, redireciona com access_token -> setSession() funciona -> sessao fica no localStorage
+2. Usuario fecha a aba sem definir a senha
+3. Usuario clica no link de novo -> Supabase detecta token ja consumido -> redireciona com error=access_denied
+4. SetPasswordPage ve o erro e mostra "Link Invalido" sem checar se a sessao do passo 1 ainda existe
 
 ## Solucao
 
-Adicionar verificacao de status em 3 pontos criticos:
-
-### 1. AuthProvider - buscar e expor o status do usuario
-
-**Arquivo: `src/providers/AuthProvider.tsx`**
-
-- Adicionar `status` ao tipo `AuthUser` (valores: `'ativo' | 'pendente' | 'inativo'`)
-- Alterar a query `fetchUserData` para incluir `status` no SELECT
-- Expor `user.status` no contexto para que qualquer componente possa checar
-
-### 2. App.tsx - forcar redirect para /auth/set-password se pendente
-
-**Arquivo: `src/App.tsx`**
-
-- Antes de renderizar qualquer rota protegida, verificar se `user?.status === 'pendente'`
-- Se pendente, redirecionar TODAS as rotas (exceto /auth/set-password) para /auth/set-password
-- Isso garante que mesmo digitando /dashboard manualmente, o usuario pendente volta pro formulario de senha
-
-### 3. SetPasswordPage - manter a logica existente
-
-A pagina ja atualiza o status para `'ativo'` apos definir senha (linha 248), entao apos criar a senha o bloqueio e removido automaticamente.
+Alterar a logica de tratamento de erro no `SetPasswordPage.tsx` para, antes de exibir "Link Invalido", verificar se ja existe uma sessao valida no navegador para um usuario com status `pendente`. Se existir, mostrar o formulario de senha normalmente.
 
 ## Detalhes Tecnicos
 
-### AuthProvider.tsx
+### Arquivo: `src/modules/auth/pages/SetPasswordPage.tsx`
+
+Alterar o bloco de erro (linhas 100-111) para adicionar verificacao de sessao existente:
 
 ```typescript
-// Tipo AuthUser - adicionar status
-export interface AuthUser {
-  // ...campos existentes...
-  status?: 'ativo' | 'pendente' | 'inativo'
+if (errorParam || errorCode) {
+  console.error('[SetPassword] Erro no token:', errorParam || errorCode, errorDescription)
+  
+  // ANTES de mostrar erro, verificar se ja existe sessao valida
+  // (pode acontecer quando o usuario clica no link pela segunda vez - 
+  // o token ja foi consumido no primeiro clique mas a sessao ainda esta ativa)
+  const { data: { session: existingSession } } = await supabase.auth.getSession()
+  
+  if (existingSession?.user) {
+    const { data: usuario } = await supabase
+      .from('usuarios')
+      .select('status')
+      .eq('auth_id', existingSession.user.id)
+      .single()
+    
+    if (usuario?.status === 'pendente') {
+      console.log('[SetPassword] Token ja consumido, mas sessao pendente encontrada:', existingSession.user.email)
+      setUserEmail(existingSession.user.email || null)
+      setTokenValid(true)
+      window.history.replaceState(null, '', window.location.pathname)
+      setLoading(false)
+      return
+    }
+  }
+  
+  // Sem sessao valida - mostrar erro normalmente
+  const isExpired = errorParam === 'access_denied' || errorDescription?.includes('expired')
+  if (isExpired) {
+    setError('O link de convite expirou. Solicite ao administrador que reenvie o convite.')
+  } else {
+    setError(decodeURIComponent(errorDescription || 'Token invalido ou expirado.'))
+  }
+  setLoading(false)
+  return
 }
-
-// Query fetchUserData - adicionar status
-const { data: usuario } = await supabase
-  .from('usuarios')
-  .select('id, nome, sobrenome, email, role, organizacao_id, avatar_url, status')
-  .eq('auth_id', supabaseUser.id)
-  .single()
-
-// No retorno, incluir status
-return {
-  ...camposExistentes,
-  status: usuario.status as 'ativo' | 'pendente' | 'inativo',
-}
-```
-
-### App.tsx
-
-```typescript
-const { loading, isAuthenticated, role, user } = useAuth()
-
-const isSetPasswordPage = window.location.pathname === '/auth/set-password'
-
-// Se usuario pendente, forcar ir para set-password
-const isPendente = user?.status === 'pendente'
-
-// Nas rotas protegidas (CRM e Admin), adicionar verificacao:
-// Se autenticado MAS pendente -> redirecionar para /auth/set-password
-// Se autenticado E ativo -> renderizar normalmente
-```
-
-Na rota do CRM:
-```typescript
-<Route element={
-  isAuthenticated && (role === 'admin' || role === 'member')
-    ? isPendente
-      ? <Navigate to="/auth/set-password" replace />
-      : <AppLayout />
-    : <Navigate to="/login" replace />
-}>
-```
-
-Na rota Admin:
-```typescript
-<Route element={
-  isAuthenticated && role === 'super_admin'
-    ? isPendente
-      ? <Navigate to="/auth/set-password" replace />
-      : <AdminLayout />
-    : <Navigate to="/login" replace />
-}>
-```
-
-Na rota Configuracoes:
-```typescript
-element={
-  isAuthenticated && (role === 'admin' || role === 'member')
-    ? isPendente
-      ? <Navigate to="/auth/set-password" replace />
-      : <ConfiguracoesLayout />
-    : <Navigate to="/login" replace />
-}
-```
-
-Na rota raiz (/):
-```typescript
-<Route path="/" element={
-  isAuthenticated && !isSetPasswordPage
-    ? isPendente
-      ? <Navigate to="/auth/set-password" replace />
-      : role === 'super_admin'
-        ? <Navigate to="/admin" replace />
-        : <Navigate to="/dashboard" replace />
-    : <Navigate to="/login" replace />
-} />
 ```
 
 ## Fluxo Corrigido
 
-1. Convite enviado -> usuario criado com status='pendente'
-2. Usuario clica no link -> SetPasswordPage processa token -> setSession()
-3. AuthProvider carrega dados -> ve status='pendente'
-4. App.tsx: usuario autenticado MAS pendente -> qualquer rota protegida redireciona para /auth/set-password
-5. Usuario define senha -> SetPasswordPage atualiza status para 'ativo'
-6. Apos signOut + login, AuthProvider carrega status='ativo' -> acesso liberado
+1. Primeiro clique: token consumido pelo Supabase -> sessao criada -> formulario de senha exibido
+2. Segundo clique: Supabase retorna erro (token ja consumido) -> SetPasswordPage verifica sessao existente -> encontra usuario pendente -> exibe formulario normalmente
+3. Token realmente expirado (apos 24h): Supabase retorna erro -> nenhuma sessao valida -> mostra "Link Invalido" corretamente
 
-## Resumo das Alteracoes
+## Resumo
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `src/providers/AuthProvider.tsx` | Adicionar `status` ao AuthUser e a query fetchUserData |
-| `src/App.tsx` | Verificar `user.status === 'pendente'` e bloquear acesso a rotas protegidas |
-
+| `src/modules/auth/pages/SetPasswordPage.tsx` | Verificar sessao existente antes de exibir erro de token consumido |
