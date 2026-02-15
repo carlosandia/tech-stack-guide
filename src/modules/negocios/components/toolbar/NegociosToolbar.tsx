@@ -5,7 +5,7 @@
  * Inclui FiltrosPopover e PeriodoSelector
  */
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, forwardRef } from 'react'
 import { Search, Plus, X, BarChart3 } from 'lucide-react'
 import { useAppToolbar } from '@/modules/app/contexts/AppToolbarContext'
 import { PipelineSelector } from './PipelineSelector'
@@ -38,7 +38,7 @@ interface NegociosToolbarProps {
   funilAtivoId: string | null
 }
 
-export function NegociosToolbar({
+export const NegociosToolbar = forwardRef<HTMLDivElement, NegociosToolbarProps>(function NegociosToolbar({
   funis,
   funilAtivo,
   onSelectFunil,
@@ -59,7 +59,7 @@ export function NegociosToolbar({
   metricasVisiveis,
   onMetricasVisiveisChange,
   funilAtivoId,
-}: NegociosToolbarProps) {
+}, _ref) {
   const { setCenterContent, setActions } = useAppToolbar()
   const [searchOpen, setSearchOpen] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -210,4 +210,5 @@ export function NegociosToolbar({
   }, [busca, searchOpen, isAdmin, setActions, onNovaOportunidade, onBuscaChange, filtros, onFiltrosChange, periodo, onPeriodoChange, metricasVisivel, onToggleMetricas, metricasVisiveis, onMetricasVisiveisChange, funilAtivoId])
 
   return null // Renderiza via context
-}
+})
+NegociosToolbar.displayName = 'NegociosToolbar'

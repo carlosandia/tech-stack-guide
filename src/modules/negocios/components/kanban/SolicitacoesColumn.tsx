@@ -4,7 +4,7 @@
  * Posicionada antes das colunas de etapas
  */
 
-import { useState } from 'react'
+import { useState, forwardRef } from 'react'
 import { Inbox, Loader2 } from 'lucide-react'
 import { usePreOportunidadesPendentes } from '../../hooks/usePreOportunidades'
 import { SolicitacaoCard } from './SolicitacaoCard'
@@ -17,7 +17,7 @@ interface SolicitacoesColumnProps {
   funilId: string
 }
 
-export function SolicitacoesColumn({ funilId }: SolicitacoesColumnProps) {
+export const SolicitacoesColumn = forwardRef<HTMLDivElement, SolicitacoesColumnProps>(function SolicitacoesColumn({ funilId }, _ref) {
   const { data: preOps, isLoading } = usePreOportunidadesPendentes(funilId)
   const [selectedPreOp, setSelectedPreOp] = useState<PreOportunidadeCard | null>(null)
   const [showRejeitar, setShowRejeitar] = useState<PreOportunidadeCard | null>(null)
@@ -96,4 +96,5 @@ export function SolicitacoesColumn({ funilId }: SolicitacoesColumnProps) {
       )}
     </>
   )
-}
+})
+SolicitacoesColumn.displayName = 'SolicitacoesColumn'

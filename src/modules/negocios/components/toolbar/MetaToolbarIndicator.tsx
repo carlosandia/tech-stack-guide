@@ -5,7 +5,7 @@
  * Member: vê sua meta individual + ranking para incentivo
  */
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, forwardRef } from 'react'
 import { Target, ChevronDown, Building2, User, Trophy } from 'lucide-react'
 import {
   Popover,
@@ -152,7 +152,7 @@ function RankingSection({ ranking, currentUserId }: { ranking: RankingItem[]; cu
   )
 }
 
-export function MetaToolbarIndicator() {
+export const MetaToolbarIndicator = forwardRef<HTMLDivElement>(function MetaToolbarIndicator(_props, _ref) {
   const { role, user } = useAuth()
   const isAdmin = role === 'admin' || role === 'super_admin'
   const { data: empresaData } = useMetasEmpresa()
@@ -325,4 +325,5 @@ export function MetaToolbarIndicator() {
       </PopoverContent>
     </Popover>
   )
-}
+})
+MetaToolbarIndicator.displayName = 'MetaToolbarIndicator'

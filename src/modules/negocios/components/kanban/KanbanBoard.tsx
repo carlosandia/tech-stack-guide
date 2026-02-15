@@ -7,7 +7,7 @@
  * Menu de 3 pontos nas colunas: selecionar todos, ordenar, mover etapa
  */
 
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState, forwardRef } from 'react'
 import { ChevronRight, Loader2 } from 'lucide-react'
 import type { Oportunidade, KanbanData } from '../../services/negocios.api'
 import { KanbanColumn } from './KanbanColumn'
@@ -29,7 +29,7 @@ interface KanbanBoardProps {
   onAgendar?: (oportunidade: Oportunidade) => void
 }
 
-export function KanbanBoard({ data, isLoading, onDropGanhoPerda, onCardClick, onAgendar }: KanbanBoardProps) {
+export const KanbanBoard = forwardRef<HTMLDivElement, KanbanBoardProps>(function KanbanBoard({ data, isLoading, onDropGanhoPerda, onCardClick, onAgendar }, _ref) {
   const draggedOpRef = useRef<Oportunidade | null>(null)
   const moverEtapa = useMoverEtapa()
   const excluirEmMassa = useExcluirOportunidadesEmMassa()
@@ -353,4 +353,5 @@ export function KanbanBoard({ data, isLoading, onDropGanhoPerda, onCardClick, on
       />
     </>
   )
-}
+})
+KanbanBoard.displayName = 'KanbanBoard'

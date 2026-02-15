@@ -6,7 +6,7 @@
  * Se todas as métricas forem desmarcadas, o painel desaparece completamente
  */
 
-import { useMemo } from 'react'
+import { useMemo, forwardRef } from 'react'
 import {
   TrendingUp, TrendingDown, DollarSign, Target, Clock,
   AlertTriangle, CheckCircle, XCircle, BarChart3,
@@ -138,7 +138,7 @@ function calcularMetricas(data: KanbanData): Metrica[] {
   ]
 }
 
-export function MetricasPanel({ data, metricasVisiveis }: MetricasPanelProps) {
+export const MetricasPanel = forwardRef<HTMLDivElement, MetricasPanelProps>(function MetricasPanel({ data, metricasVisiveis }, _ref) {
   const metricas = useMemo(() => calcularMetricas(data), [data])
 
   const metricasFiltradas = useMemo(() => {
@@ -175,4 +175,5 @@ export function MetricasPanel({ data, metricasVisiveis }: MetricasPanelProps) {
       </div>
     </div>
   )
-}
+})
+MetricasPanel.displayName = 'MetricasPanel'

@@ -4,7 +4,7 @@
  * Presets: Hoje, 7d, Este mês, Mês passado, Personalizado
  */
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, forwardRef } from 'react'
 import { Calendar, ChevronDown } from 'lucide-react'
 import { startOfDay, subDays, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 
@@ -68,7 +68,7 @@ function getPresetLabel(preset: string): string {
   return PRESETS.find(p => p.id === preset)?.label || 'Todo período'
 }
 
-export function PeriodoSelector({ periodo, onChange }: PeriodoSelectorProps) {
+export const PeriodoSelector = forwardRef<HTMLDivElement, PeriodoSelectorProps>(function PeriodoSelector({ periodo, onChange }, _ref) {
   const [open, setOpen] = useState(false)
   const [customInicio, setCustomInicio] = useState('')
   const [customFim, setCustomFim] = useState('')
@@ -186,4 +186,5 @@ export function PeriodoSelector({ periodo, onChange }: PeriodoSelectorProps) {
       )}
     </div>
   )
-}
+})
+PeriodoSelector.displayName = 'PeriodoSelector'

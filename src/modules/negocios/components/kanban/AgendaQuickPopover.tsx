@@ -4,7 +4,7 @@
  * - Com reunião: exibe próxima reunião e ações de status (realizada, no-show, cancelar, reagendar)
  */
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, forwardRef } from 'react'
 import {
   Calendar, CheckCircle2, XCircle, AlertTriangle, RotateCcw,
   Video, MapPin, Phone, Loader2, ExternalLink,
@@ -36,7 +36,7 @@ const TIPO_ICONS: Record<string, typeof Video> = {
   telefone: Phone,
 }
 
-export function AgendaQuickPopover({ oportunidadeId, oportunidadeTitulo, children }: AgendaQuickPopoverProps) {
+export const AgendaQuickPopover = forwardRef<HTMLDivElement, AgendaQuickPopoverProps>(function AgendaQuickPopover({ oportunidadeId, oportunidadeTitulo, children }, _ref) {
   const [open, setOpen] = useState(false)
   const { data: reunioes, isLoading } = useReunioesOportunidade(open ? oportunidadeId : null)
   const criarReuniao = useCriarReuniao()
@@ -300,4 +300,5 @@ export function AgendaQuickPopover({ oportunidadeId, oportunidadeTitulo, childre
       </PopoverContent>
     </Popover>
   )
-}
+})
+AgendaQuickPopover.displayName = 'AgendaQuickPopover'

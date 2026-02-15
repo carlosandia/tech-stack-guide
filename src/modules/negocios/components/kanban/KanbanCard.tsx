@@ -5,7 +5,7 @@
  * Ações rápidas: WhatsApp abre modal de conversa, Email abre compose modal.
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, forwardRef } from 'react'
 import {
   User,
   DollarSign,
@@ -125,7 +125,7 @@ const ACOES_ICONS: Record<string, { icon: React.ElementType; label: string }> = 
 // Component
 // =====================================================
 
-export function KanbanCard({ oportunidade, onDragStart, onClick, onAgendar, config, slaConfig, etapaTipo, isSelected, onToggleSelect }: KanbanCardProps) {
+export const KanbanCard = forwardRef<HTMLDivElement, KanbanCardProps>(function KanbanCard({ oportunidade, onDragStart, onClick, onAgendar, config, slaConfig, etapaTipo, isSelected, onToggleSelect }, _ref) {
   const { camposVisiveis, acoesRapidas } = config || DEFAULT_CONFIG
   const qualificacao = getQualificacaoLabel(oportunidade)
   const tarefasPendentes = (oportunidade as any)._tarefas_pendentes ?? 0
@@ -504,4 +504,5 @@ export function KanbanCard({ oportunidade, onDragStart, onClick, onAgendar, conf
       )}
     </>
   )
-}
+})
+KanbanCard.displayName = 'KanbanCard'

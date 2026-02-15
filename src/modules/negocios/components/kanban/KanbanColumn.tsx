@@ -6,7 +6,7 @@
  * Menu de 3 pontos com selecionar todos, ordenar e mover etapa
  */
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, forwardRef } from 'react'
 import { MoreVertical, CheckSquare, ArrowUpDown, ArrowLeft, ArrowRight } from 'lucide-react'
 import type { EtapaFunil, Oportunidade } from '../../services/negocios.api'
 import { KanbanCard } from './KanbanCard'
@@ -62,7 +62,7 @@ function canMoveEtapa(tipo: string): boolean {
   return tipo === 'normal'
 }
 
-export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardClick, onAgendar, cardConfig, slaConfig, selectedIds, onToggleSelect, onSelectAll, onSortColumn, onMoveColumn, isFirst, isLast }: KanbanColumnProps) {
+export const KanbanColumn = forwardRef<HTMLDivElement, KanbanColumnProps>(function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardClick, onAgendar, cardConfig, slaConfig, selectedIds, onToggleSelect, onSelectAll, onSortColumn, onMoveColumn, isFirst, isLast }, _ref) {
   const [isDragOver, setIsDragOver] = useState(false)
   const [dropIndex, setDropIndex] = useState<number | null>(null)
   const cardsContainerRef = useRef<HTMLDivElement>(null)
@@ -266,4 +266,5 @@ export function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardCli
       </div>
     </div>
   )
-}
+})
+KanbanColumn.displayName = 'KanbanColumn'

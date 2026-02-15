@@ -4,7 +4,7 @@
  * Filtros: Responsável, Qualificação, Valor (range), Origem
  */
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, forwardRef } from 'react'
 import { Filter, Loader2 } from 'lucide-react'
 import { negociosApi } from '../../services/negocios.api'
 
@@ -31,7 +31,7 @@ function contarFiltrosAtivos(f: FiltrosKanban): number {
   return count
 }
 
-export function FiltrosPopover({ filtros, onChange, isAdmin }: FiltrosPopoverProps) {
+export const FiltrosPopover = forwardRef<HTMLDivElement, FiltrosPopoverProps>(function FiltrosPopover({ filtros, onChange, isAdmin }, _ref) {
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const [membros, setMembros] = useState<Array<{ id: string; nome: string; sobrenome?: string | null }>>([])
@@ -243,4 +243,5 @@ export function FiltrosPopover({ filtros, onChange, isAdmin }: FiltrosPopoverPro
       )}
     </div>
   )
-}
+})
+FiltrosPopover.displayName = 'FiltrosPopover'
