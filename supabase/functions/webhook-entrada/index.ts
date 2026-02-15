@@ -27,6 +27,15 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Validar tamanho do payload
+    const contentLength = parseInt(req.headers.get("content-length") || "0");
+    if (contentLength > 1024 * 1024) {
+      return new Response(
+        JSON.stringify({ error: "Payload muito grande. Máximo 1MB." }),
+        { status: 413, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceRoleKey, {
@@ -100,13 +109,20 @@ Deno.serve(async (req) => {
 
     console.log("[webhook-entrada] Dados recebidos:", JSON.stringify(body).substring(0, 500));
 
-    // Mapear campos do lead
-    const nome = (body.nome || body.name || body.first_name || "") as string;
-    const sobrenome = (body.sobrenome || body.last_name || "") as string;
-    const email = (body.email || body.e_mail || "") as string;
-    const telefone = (body.telefone || body.phone || body.tel || body.whatsapp || "") as string;
-    const empresa = (body.empresa || body.company || body.company_name || "") as string;
-    const observacoes = (body.observacoes || body.notes || body.message || body.mensagem || "") as string;
+    // Mapear e validar campos do lead
+    const truncate = (val: unknown, max: number): string => {
+      const s = String(val || "").trim();
+      return s.substring(0, max);
+    };
+    const isValidEmail = (e: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) && e.length <= 320;
+
+    const nome = truncate(body.nome || body.name || body.first_name || "", 100);
+    const sobrenome = truncate(body.sobrenome || body.last_name || "", 100);
+    const rawEmail = truncate(body.email || body.e_mail || "", 320);
+    const email = isValidEmail(rawEmail) ? rawEmail : "";
+    const telefone = truncate(body.telefone || body.phone || body.tel || body.whatsapp || "", 20);
+    const empresa = truncate(body.empresa || body.company || body.company_name || "", 200);
+    const observacoes = truncate(body.observacoes || body.notes || body.message || body.mensagem || "", 1000);
 
     // Validar origem contra valores permitidos no banco
     const origensValidas = ["manual", "importacao", "formulario", "whatsapp", "instagram", "meta_ads", "indicacao", "webhook", "outro"];

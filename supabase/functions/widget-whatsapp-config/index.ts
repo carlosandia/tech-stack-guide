@@ -252,6 +252,23 @@ Deno.serve(async (req) => {
 
       // Criar oportunidade se temos contato e funil
       if (contatoId && funilId) {
+        // Validar que funil_id pertence à organização
+        const { data: funilValido } = await supabase
+          .from("funis")
+          .select("id")
+          .eq("id", funilId)
+          .eq("organizacao_id", orgId)
+          .is("deletado_em", null)
+          .maybeSingle();
+
+        if (!funilValido) {
+          console.warn("[widget-submit] Funil não pertence à organização:", funilId);
+          return new Response(
+            JSON.stringify({ error: "Funil inválido" }),
+            { status: 400, headers: corsHeaders }
+          );
+        }
+
         // Buscar etapa de entrada do funil
         const { data: etapaEntrada } = await supabase
           .from("etapas_funil")
@@ -310,8 +327,12 @@ Deno.serve(async (req) => {
           .single();
 
         if (conexao?.smtp_host && conexao?.smtp_user && conexao?.smtp_pass_encrypted) {
+          // Sanitizar HTML para prevenir XSS no email
+          const escapeHtml = (str: string): string =>
+            String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+
           const camposHtml = Object.entries(dados as Record<string, string>)
-            .map(([k, v]) => `<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;font-weight:600;text-transform:capitalize;background:#f9fafb">${k}</td><td style="padding:8px 12px;border:1px solid #e5e7eb">${v}</td></tr>`)
+            .map(([k, v]) => `<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;font-weight:600;text-transform:capitalize;background:#f9fafb">${escapeHtml(k)}</td><td style="padding:8px 12px;border:1px solid #e5e7eb">${escapeHtml(String(v))}</td></tr>`)
             .join("");
 
           let funilNome = "Widget WhatsApp";
