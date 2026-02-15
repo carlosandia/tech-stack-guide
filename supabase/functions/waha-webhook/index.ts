@@ -923,6 +923,17 @@ Deno.serve(async (req) => {
     const now = new Date().toISOString();
 
     // =====================================================
+    // IGNORE STATUS/STORIES BROADCAST
+    // =====================================================
+    if (rawFrom === "status@broadcast") {
+      console.log("[waha-webhook] Ignoring status@broadcast (WhatsApp Status/Stories)");
+      return new Response(
+        JSON.stringify({ ok: true, message: "Status broadcast ignored" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // =====================================================
     // DETECT GROUP vs INDIVIDUAL vs CHANNEL (@newsletter)
     // =====================================================
     const isGroup = rawFrom.includes("@g.us");
