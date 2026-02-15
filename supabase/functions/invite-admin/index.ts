@@ -15,6 +15,8 @@ import {
   Button,
   Hr,
   Img,
+  Row,
+  Column,
 } from "npm:@react-email/components@0.0.22";
 
 /**
@@ -70,7 +72,7 @@ const InviteEmail = ({
           Section,
           { style: styles.logoSection },
           React.createElement(Img, {
-            src: "https://crm.renovedigital.com.br/logo.svg",
+            src: "https://crm.renovedigital.com.br/logo-email.png",
             width: "140",
             height: "48",
             alt: "Renove",
@@ -84,74 +86,82 @@ const InviteEmail = ({
         React.createElement(
           Section,
           { style: styles.contentCard },
-
-          // Greeting
           React.createElement(
-            Heading,
-            { style: styles.heading },
-            `Olá, ${nome}! 👋`
-          ),
-
-          // Intro text
-          React.createElement(
-            Text,
-            { style: styles.paragraph },
-            `Você foi convidado para ingressar no `,
-            React.createElement("strong", null, "CRM Renove"),
-            ` como membro da organização `,
-            React.createElement("strong", { style: { color: "#3B82F6" } }, organizacaoNome),
-            `.`
-          ),
-
-          // Login info box
-          React.createElement(
-            Section,
-            { style: styles.loginInfoBox },
+            Row,
+            null,
             React.createElement(
-              Text,
-              { style: styles.loginInfoLabel },
-              "📧 Seu email de acesso:"
-            ),
-            React.createElement(
-              Text,
-              { style: styles.loginInfoEmail },
-              email
-            )
-          ),
+              Column,
+              { style: styles.contentPadding },
 
-          // Instruction text
-          React.createElement(
-            Text,
-            { style: styles.paragraph },
-            "Para começar, defina sua senha clicando no botão abaixo:"
-          ),
+              // Greeting
+              React.createElement(
+                Heading,
+                { style: styles.heading },
+                `Olá, ${nome}! 👋`
+              ),
 
-          // CTA Button
-          React.createElement(
-            Section,
-            { style: styles.buttonContainer },
-            React.createElement(
-              Button,
-              { style: styles.button, href: confirmUrl },
-              "Definir Minha Senha e Acessar"
-            )
-          ),
+              // Intro text
+              React.createElement(
+                Text,
+                { style: styles.paragraph },
+                `Você foi convidado para ingressar no `,
+                React.createElement("strong", null, "CRM Renove"),
+                ` como membro da organização `,
+                React.createElement("strong", { style: { color: "#3B82F6" } }, organizacaoNome),
+                `.`
+              ),
 
-          React.createElement(Hr, { style: styles.innerDivider }),
+              // Login info box
+              React.createElement(
+                Section,
+                { style: styles.loginInfoBox },
+                React.createElement(
+                  Text,
+                  { style: styles.loginInfoLabel },
+                  "📧 Seu email de acesso:"
+                ),
+                React.createElement(
+                  Text,
+                  { style: styles.loginInfoEmail },
+                  email
+                )
+              ),
 
-          // Link fallback
-          React.createElement(
-            Text,
-            { style: styles.smallText },
-            "Ou copie e cole o link abaixo no seu navegador:"
-          ),
-          React.createElement(
-            Text,
-            { style: styles.linkText },
-            React.createElement(
-              Link,
-              { href: confirmUrl, style: styles.link },
-              confirmUrl
+              // Instruction text
+              React.createElement(
+                Text,
+                { style: styles.paragraph },
+                "Para começar, defina sua senha clicando no botão abaixo:"
+              ),
+
+              // CTA Button
+              React.createElement(
+                Section,
+                { style: styles.buttonContainer },
+                React.createElement(
+                  Button,
+                  { style: styles.button, href: confirmUrl },
+                  "Definir Minha Senha e Acessar"
+                )
+              ),
+
+              React.createElement(Hr, { style: styles.innerDivider }),
+
+              // Link fallback
+              React.createElement(
+                Text,
+                { style: styles.smallText },
+                "Ou copie e cole o link abaixo no seu navegador:"
+              ),
+              React.createElement(
+                Text,
+                { style: styles.linkText },
+                React.createElement(
+                  Link,
+                  { href: confirmUrl, style: styles.link },
+                  confirmUrl
+                )
+              )
             )
           )
         ),
@@ -235,8 +245,12 @@ const styles = {
   contentCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: "12px",
-    padding: "48px 40px",
+    padding: "0",
     margin: "24px 16px",
+    border: "1px solid #E2E8F0",
+  },
+  contentPadding: {
+    padding: "48px 40px",
     border: "1px solid #E2E8F0",
   },
   heading: {
@@ -300,7 +314,7 @@ const styles = {
     textAlign: "center" as const,
     display: "inline-block",
     padding: "16px 40px",
-    boxShadow: "0 2px 4px rgba(59, 130, 246, 0.3)",
+    padding: "16px 40px",
   },
   innerDivider: {
     borderColor: "#E2E8F0",
