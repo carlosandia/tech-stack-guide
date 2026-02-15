@@ -43,6 +43,11 @@ import { EmailsPage } from '@/modules/emails'
 const App = forwardRef<HTMLDivElement>(function App(_props, _ref) {
   const { loading, isAuthenticated, role } = useAuth()
 
+  // AIDEV-NOTE: Se o usuario está na pagina de set-password, não bloquear
+  // mesmo que esteja autenticado. Isso previne que o convidado seja redirecionado
+  // para o dashboard antes de definir a senha.
+  const isSetPasswordPage = window.location.pathname === '/auth/set-password'
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -141,15 +146,17 @@ const App = forwardRef<HTMLDivElement>(function App(_props, _ref) {
 
       {/* Redireciona raiz baseado no role */}
       <Route path="/" element={
-        isAuthenticated
+        isAuthenticated && !isSetPasswordPage
           ? role === 'super_admin'
             ? <Navigate to="/admin" replace />
             : <Navigate to="/dashboard" replace />
           : <Navigate to="/login" replace />
       } />
 
-      {/* 404 */}
-      <Route path="*" element={<Navigate to="/" replace />} />
+      {/* 404 - não redirecionar se está na pagina de set-password */}
+      <Route path="*" element={
+        isSetPasswordPage ? null : <Navigate to="/" replace />
+      } />
     </Routes>
   )
 })
