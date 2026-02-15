@@ -14,6 +14,7 @@ import {
   Text,
   Button,
   Hr,
+  Img,
 } from "npm:@react-email/components@0.0.22";
 
 /**
@@ -50,9 +51,7 @@ const InviteEmail = ({
   convidadoPor = "",
   convidadoPorEmail = "",
 }: InviteEmailProps) => {
-  const previewText = convidadoPor
-    ? `${convidadoPor} convidou você para acessar o CRM Renove`
-    : `Você foi convidado para acessar o CRM Renove`;
+  const previewText = `Convite para ingressar no CRM Renove`;
 
   return React.createElement(
     Html,
@@ -70,7 +69,13 @@ const InviteEmail = ({
         React.createElement(
           Section,
           { style: styles.logoSection },
-          React.createElement(Text, { style: styles.logoText }, "CRM Renove")
+          React.createElement(Img, {
+            src: "https://crm.renovedigital.com.br/logo.svg",
+            width: "140",
+            height: "48",
+            alt: "Renove",
+            style: styles.logoImg,
+          })
         ),
 
         React.createElement(Hr, { style: styles.divider }),
@@ -87,29 +92,13 @@ const InviteEmail = ({
             `Olá, ${nome}! 👋`
           ),
 
-          // Invite context - quem convidou
-          convidadoPor
-            ? React.createElement(
-                Section,
-                { style: styles.inviterBox },
-                React.createElement(
-                  Text,
-                  { style: styles.inviterText },
-                  `📨 `,
-                  React.createElement("strong", null, convidadoPor),
-                  convidadoPorEmail ? ` (${convidadoPorEmail})` : "",
-                  ` convidou você para fazer parte da equipe.`
-                )
-              )
-            : null,
-
           // Intro text
           React.createElement(
             Text,
             { style: styles.paragraph },
-            `Você foi convidado para acessar o `,
+            `Você foi convidado para ingressar no `,
             React.createElement("strong", null, "CRM Renove"),
-            ` da organização `,
+            ` como membro da organização `,
             React.createElement("strong", { style: { color: "#3B82F6" } }, organizacaoNome),
             `.`
           ),
@@ -233,12 +222,9 @@ const styles = {
     textAlign: "center" as const,
     padding: "32px 0 24px 0",
   },
-  logoText: {
-    fontSize: "28px",
-    fontWeight: "700",
-    color: "#3B82F6",
-    margin: "0",
-    letterSpacing: "-0.5px",
+  logoImg: {
+    margin: "0 auto",
+    display: "block",
   },
   divider: {
     borderColor: "#E2E8F0",
@@ -249,7 +235,7 @@ const styles = {
   contentCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: "12px",
-    padding: "44px 48px",
+    padding: "48px 40px",
     margin: "24px 16px",
     border: "1px solid #E2E8F0",
   },
@@ -617,9 +603,7 @@ Deno.serve(async (req) => {
           await resend.emails.send({
             from: "CRM Renove <crm@renovedigital.com.br>",
             to: [email],
-            subject: inviterName
-              ? `${inviterName} convidou você para o CRM Renove`
-              : "Convite para acesso ao CRM Renove",
+            subject: "Convite para ingressar no CRM Renove",
             html,
           });
 
