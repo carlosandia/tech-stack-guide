@@ -1,76 +1,81 @@
 
 
-## Correção do Email: Logo PNG e Padding Compatível com Email Clients
+## Correção da Conexão Google Calendar via Edge Function
 
-### Problemas Identificados
+### Diagnóstico
 
-1. **Logo SVG nao renderiza** -- Gmail, Outlook e Yahoo nao suportam SVG em emails. O logo precisa ser servido como PNG.
-2. **Padding interno nao aparece** -- O componente `Section` do React Email gera uma `<table>`, e Gmail ignora `padding` em elementos `<table>`. O padding precisa ser aplicado via cellPadding ou com elementos intermediarios que forcem o espacamento.
+O erro `localhost:3001` ocorre porque algumas partes do código ainda tentam chamar o backend Express, que nao é deployado pelo Lovable. Apenas o frontend (Vite) e as Edge Functions (Supabase) funcionam em produção.
 
-### O que suportam Gmail, Outlook e Yahoo
+A Edge Function `google-auth` já existe e o frontend já a utiliza para obter a auth URL (linhas 1353-1361 de `configuracoes.api.ts`). O fluxo OAuth via Edge Function está correto, mas a **URI de redirecionamento no Google Cloud Console** precisa ser atualizada.
 
-| Propriedade | Gmail | Outlook | Yahoo |
-|---|---|---|---|
-| inline styles | Sim | Sim | Sim |
-| padding em `<td>` | Sim | Sim | Sim |
-| padding em `<table>` | Nao | Parcial | Nao |
-| border-radius | Sim | Nao | Sim |
-| SVG (`<img src=".svg">`) | Nao | Nao | Nao |
-| PNG/JPG (`<img>`) | Sim | Sim | Sim |
-| box-shadow | Sim | Nao | Sim |
+### Ação Necessária no Google Cloud Console
 
-**Conclusao**: Nao é problema do Resend nem necessidade de SMTP. O problema é compatibilidade de CSS com clientes de email. A solucao é usar tecnicas compativeis com todos.
+Nas credenciais OAuth do Google (APIs e Serviços > Credenciais), é preciso:
 
-### Alteracoes
+1. **Adicionar** como URI de redirecionamento autorizada:
+   `https://ybzhlsalbnxwkfszkloa.supabase.co/functions/v1/google-auth?action=callback`
 
-**Arquivo**: `supabase/functions/invite-admin/index.ts`
+2. **Manter** as origens JavaScript autorizadas como estão:
+   - `https://crm.renovedigital.com.br`
+   - `http://127.0.0.1:8080`
 
-#### 1. Copiar logo PNG para o projeto
+### Alterações no Código
 
-- Copiar `user-uploads://logo_renove.png` para `public/logo-email.png`
-- Este arquivo sera servido em `https://crm.renovedigital.com.br/logo-email.png`
+#### 1. Edge Function `google-auth` - Corrigir redirect final
 
-#### 2. Trocar referencia do logo
+**Arquivo**: `supabase/functions/google-auth/index.ts`
 
-- De: `src: "https://crm.renovedigital.com.br/logo.svg"`
-- Para: `src: "https://crm.renovedigital.com.br/logo-email.png"`
+- Garantir que o `FRONTEND_URL` aponte para `https://crm.renovedigital.com.br`
+- Garantir que a `redirect_uri` do state (vinda do frontend) seja respeitada no redirect final
+- Usar `window.location.origin` no frontend ao gerar o redirect_uri para funcionar tanto em dev quanto em produção
 
-#### 3. Corrigir padding do content card
+#### 2. Verificar `googleCalendarApi` - Remover chamadas via axios/backend
 
-O `Section` do React Email renderiza como `<table>`. Para forcar padding visivel em todos os clients:
+**Arquivo**: `src/modules/configuracoes/services/configuracoes.api.ts`
 
-- Envolver o conteudo do `contentCard` em um elemento `Row` + `Column` do React Email (que geram `<tr><td>`)
-- Aplicar o padding no `<td>` (Column), onde Gmail e Outlook respeitam
-- Importar `Row` e `Column` dos componentes do React Email
+- O `googleCalendarApi` (linhas 1553-1562) ainda usa `api.get('/v1/conexoes/google/calendarios')` e `api.post('/v1/conexoes/google/calendario')` -- chamadas ao backend Express
+- Migrar essas chamadas para usar a Edge Function `google-auth` ou diretamente o Supabase client (tabela `conexoes_google`)
+- A função `obterGmailAuthUrl` (linha 1480) também usa `api.get` -- precisa ser migrada se for usada
 
-Estrutura resultante:
+#### 3. Garantir isolamento por usuário/organização
+
+A Edge Function já filtra por `usuario_id` e `organizacao_id`:
+- Cada usuário tem sua própria conexão na tabela `conexoes_google`
+- O token OAuth é armazenado por usuário
+- A RLS no Supabase garante que cada tenant só vê seus dados
+
+### Fluxo Final (como ficará)
+
 ```text
-Section (contentCard - background branco, border, border-radius)
-  └── Row
-       └── Column (padding: 48px 40px) <-- padding aqui, no <td>
-            ├── Heading
-            ├── Text (intro)
-            ├── Section (login info box)
-            ├── Text (instrucao)
-            ├── Button (CTA)
-            ├── Hr
-            ├── Text (link fallback)
-            └── Text (link)
+[Usuário clica "Conectar"]
+       |
+       v
+[Frontend] --> supabase.functions.invoke('google-auth', { action: 'auth-url' })
+       |
+       v
+[Edge Function] --> Gera URL Google com redirect_uri = Edge Function callback
+       |
+       v
+[Google Consent Screen] --> Usuário autoriza
+       |
+       v
+[Google] --> Redireciona para Edge Function callback
+       |
+       v
+[Edge Function] --> Troca code por tokens, salva em conexoes_google
+       |
+       v
+[Edge Function] --> Redireciona para https://crm.renovedigital.com.br/app/configuracoes/conexoes?success=google
 ```
 
-#### 4. Ajustes adicionais de compatibilidade
+### Resumo das Alterações
 
-- Remover `boxShadow` do botao (Outlook ignora)
-- Manter todos os estilos inline (ja esta assim)
-- Garantir que `borderRadius` tenha fallback visual (cor de borda solida)
+| Arquivo | Alteração |
+|---|---|
+| `supabase/functions/google-auth/index.ts` | Revisar/confirmar redirect URLs e fluxo de callback |
+| `src/modules/configuracoes/services/configuracoes.api.ts` | Migrar `googleCalendarApi` de axios para Edge Function/Supabase direto |
+| **Google Cloud Console** (manual) | Adicionar URI de redirecionamento da Edge Function |
 
-### Resultado esperado
+### Nota Importante
 
-- Logo aparecera corretamente em Gmail, Outlook e Yahoo como imagem PNG
-- O conteudo tera espacamento interno visivel (padding) em todos os clientes de email
-- Layout profissional e consistente entre plataformas
-
-### Nota
-
-Apos publicar o projeto, o arquivo `logo-email.png` estara disponivel no dominio de producao. Para testar, basta reenviar o convite.
-
+O backend Express (pasta `backend/`) pode continuar existindo para desenvolvimento local, mas em produção todas as chamadas Google devem passar pela Edge Function. Não é possível usar o backend Express em produção via Lovable.
