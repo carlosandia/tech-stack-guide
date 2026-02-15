@@ -20,9 +20,9 @@ import {
 } from "npm:@react-email/components@0.0.22";
 
 /**
- * AIDEV-NOTE: Edge Function para convidar membros/admins
- * Usa generateLink para evitar o Auth Hook e envia email diretamente via Resend
- * Template moderno com informações de quem enviou o convite
+ * AIDEV-NOTE: Edge Function para criar admins/membros com senha aleatória
+ * Gera senha segura, cria usuário com email confirmado, envia credenciais por email
+ * Conforme padrão SaaS e LGPD - sem links com token expirável
  */
 
 const corsHeaders = {
@@ -32,30 +32,59 @@ const corsHeaders = {
 };
 
 // =====================================================
-// EMAIL TEMPLATE
+// GERADOR DE SENHA SEGURA
 // =====================================================
 
-interface InviteEmailProps {
-  nome: string;
-  email: string;
-  organizacaoNome: string;
-  confirmUrl: string;
-  token: string;
-  roleName: string;
-  convidadoPor?: string;
-  convidadoPorEmail?: string;
+function generateSecurePassword(length = 12): string {
+  const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const lower = 'abcdefghijklmnopqrstuvwxyz';
+  const digits = '0123456789';
+  const special = '!@#$%&*';
+  const all = upper + lower + digits + special;
+
+  const array = new Uint8Array(length);
+  crypto.getRandomValues(array);
+
+  // Garantir pelo menos 1 de cada tipo
+  let password = '';
+  password += upper[array[0] % upper.length];
+  password += lower[array[1] % lower.length];
+  password += digits[array[2] % digits.length];
+  password += special[array[3] % special.length];
+
+  for (let i = 4; i < length; i++) {
+    password += all[array[i] % all.length];
+  }
+
+  // Embaralhar para não ter padrão previsível
+  return password
+    .split('')
+    .sort(() => crypto.getRandomValues(new Uint8Array(1))[0] - 128)
+    .join('');
 }
 
-const InviteEmail = ({
+// =====================================================
+// EMAIL TEMPLATE - BOAS-VINDAS COM CREDENCIAIS
+// =====================================================
+
+interface WelcomeEmailProps {
+  nome: string;
+  email: string;
+  senha: string;
+  organizacaoNome: string;
+  roleName: string;
+  loginUrl: string;
+}
+
+const WelcomeEmail = ({
   nome = "Usuario",
   email = "",
+  senha = "",
   organizacaoNome = "CRM",
-  confirmUrl = "",
-  roleName = "membro",
-  convidadoPor = "",
-  convidadoPorEmail = "",
-}: InviteEmailProps) => {
-  const previewText = `Convite para ingressar no CRM Renove`;
+  roleName = "administrador",
+  loginUrl = "https://crm.renovedigital.com.br/login",
+}: WelcomeEmailProps) => {
+  const previewText = `Bem-vindo ao CRM Renove - Seus dados de acesso`;
 
   return React.createElement(
     Html,
@@ -76,7 +105,6 @@ const InviteEmail = ({
           React.createElement(Img, {
             src: "https://crm.renovedigital.com.br/logo-email.png",
             width: "140",
-            alt: "Renove",
             alt: "Renove",
             style: styles.logoImg,
           })
@@ -99,93 +127,99 @@ const InviteEmail = ({
               React.createElement(
                 Heading,
                 { style: styles.heading },
-                `Olá, ${nome}! 👋`
+                `Bem-vindo, ${nome}! 🎉`
               ),
 
               // Intro text
               React.createElement(
                 Text,
                 { style: styles.paragraph },
-                `Você foi convidado para ingressar no `,
+                `Sua conta no `,
                 React.createElement("strong", null, "CRM Renove"),
-                ` como ${roleName} da organização `,
+                ` foi criada com sucesso! Você é ${roleName} da organização `,
                 React.createElement("strong", { style: { color: "#3B82F6" } }, organizacaoNome),
                 `.`
               ),
 
-              // Login info box
+              // Credentials box
               React.createElement(
                 Section,
-                { style: styles.loginInfoBox },
+                { style: styles.credentialsBox },
                 React.createElement(
                   Row,
                   null,
                   React.createElement(
                     Column,
-                    { style: styles.loginInfoPadding },
+                    { style: styles.credentialsPadding },
                     React.createElement(
                       Text,
-                      { style: styles.loginInfoLabel },
-                      "📧 Seu email de acesso:"
+                      { style: styles.credentialsTitle },
+                      "🔑 Seus dados de acesso"
                     ),
                     React.createElement(
                       Text,
-                      { style: styles.loginInfoEmail },
+                      { style: styles.credentialLabel },
+                      "E-mail:"
+                    ),
+                    React.createElement(
+                      Text,
+                      { style: styles.credentialValue },
                       email
+                    ),
+                    React.createElement(
+                      Text,
+                      { style: { ...styles.credentialLabel, marginTop: "12px" } },
+                      "Senha temporária:"
+                    ),
+                    React.createElement(
+                      Text,
+                      { style: styles.credentialPassword },
+                      senha
                     )
                   )
                 )
               ),
 
-              // Instruction text
+              // CTA Button
               React.createElement(
                 Text,
                 { style: styles.paragraph },
-                "Para começar, defina sua senha clicando no botão abaixo:"
+                "Acesse o CRM agora com suas credenciais:"
               ),
 
-              // CTA Button
               React.createElement(
                 Section,
                 { style: styles.buttonContainer },
                 React.createElement(
                   Button,
-                  { style: styles.button, href: confirmUrl },
-                  "Definir minha senha e acessar"
+                  { style: styles.button, href: loginUrl },
+                  "Acessar o CRM Renove"
                 )
               ),
 
               React.createElement(Hr, { style: styles.innerDivider }),
 
-              // Link fallback
+              // LGPD Notice
               React.createElement(
-                Text,
-                { style: styles.smallText },
-                "Ou copie e cole o link abaixo no seu navegador:"
-              ),
-              React.createElement(
-                Text,
-                { style: styles.linkText },
+                Section,
+                { style: styles.lgpdBox },
                 React.createElement(
-                  Link,
-                  { href: confirmUrl, style: styles.link },
-                  confirmUrl
+                  Row,
+                  null,
+                  React.createElement(
+                    Column,
+                    { style: styles.lgpdPadding },
+                    React.createElement(
+                      Text,
+                      { style: styles.lgpdText },
+                      "🔒 ",
+                      React.createElement("strong", null, "Segurança:"),
+                      " Recomendamos que altere sua senha no primeiro acesso através das configurações da sua conta. Nunca compartilhe suas credenciais com terceiros."
+                    )
+                  )
                 )
               )
             )
-          )
-        ),
-
-        // Warning Section
-        React.createElement(
-          Section,
-          { style: styles.warningSection },
-          React.createElement(
-            Text,
-            { style: styles.warningText },
-            "⏰ Este link expira em ",
-            React.createElement("strong", null, "24 horas"),
-            ". Caso expire, solicite um novo convite ao administrador."
           )
         ),
 
@@ -203,7 +237,7 @@ const InviteEmail = ({
           React.createElement(
             Text,
             { style: styles.footerText },
-            "Se você não solicitou este convite, pode ignorar este email com segurança."
+            "Este é um e-mail automático. Não responda a esta mensagem."
           ),
           React.createElement(
             Text,
@@ -261,7 +295,6 @@ const styles = {
   },
   contentPadding: {
     padding: "48px 40px",
-    border: "1px solid #E2E8F0",
   },
   heading: {
     color: "#1E293B",
@@ -270,51 +303,58 @@ const styles = {
     lineHeight: "1.3",
     margin: "0 0 24px 0",
   },
-  inviterBox: {
-    backgroundColor: "#F0FDF4",
-    borderRadius: "8px",
-    padding: "14px 20px",
-    margin: "0 0 28px 0",
-    border: "1px solid #BBF7D0",
-  },
-  inviterText: {
-    color: "#166534",
-    fontSize: "15px",
-    lineHeight: "1.6",
-    margin: "0",
-  },
   paragraph: {
     color: "#475569",
     fontSize: "15px",
     lineHeight: "1.7",
     margin: "0 0 20px 0",
   },
-  loginInfoBox: {
+  credentialsBox: {
     backgroundColor: "#EFF6FF",
     borderRadius: "8px",
     margin: "0 0 28px 0",
     border: "1px solid #BFDBFE",
   },
-  loginInfoPadding: {
-    padding: "16px 20px",
+  credentialsPadding: {
+    padding: "20px 24px",
   },
-  loginInfoLabel: {
+  credentialsTitle: {
+    color: "#1E40AF",
+    fontSize: "15px",
+    fontWeight: "600",
+    margin: "0 0 16px 0",
+    lineHeight: "1.4",
+  },
+  credentialLabel: {
     color: "#475569",
     fontSize: "13px",
     fontWeight: "500",
     margin: "0 0 4px 0",
     lineHeight: "1.4",
   },
-  loginInfoEmail: {
+  credentialValue: {
     color: "#1E293B",
     fontSize: "16px",
     fontWeight: "600",
     margin: "0",
     lineHeight: "1.4",
   },
+  credentialPassword: {
+    color: "#1E293B",
+    fontSize: "18px",
+    fontWeight: "700",
+    fontFamily: "monospace",
+    margin: "0",
+    lineHeight: "1.4",
+    letterSpacing: "1px",
+    backgroundColor: "#DBEAFE",
+    padding: "8px 12px",
+    borderRadius: "6px",
+    display: "inline-block" as const,
+  },
   buttonContainer: {
     textAlign: "center" as const,
-    padding: "32px 0",
+    padding: "12px 0 32px 0",
   },
   button: {
     backgroundColor: "#60A5FA",
@@ -331,41 +371,22 @@ const styles = {
     borderColor: "#E2E8F0",
     borderTop: "none" as const,
     borderWidth: "1px",
-    margin: "28px 0",
+    margin: "0 0 24px 0",
   },
-  smallText: {
-    color: "#64748B",
-    fontSize: "14px",
-    lineHeight: "1.6",
-    margin: "0 0 12px 0",
+  lgpdBox: {
+    backgroundColor: "#F0FDF4",
+    borderRadius: "8px",
+    margin: "0",
+    border: "1px solid #BBF7D0",
   },
-  linkText: {
+  lgpdPadding: {
+    padding: "14px 20px",
+  },
+  lgpdText: {
+    color: "#166534",
     fontSize: "13px",
-    color: "#64748B",
-    margin: "0 0 0 0",
-    wordBreak: "break-all" as const,
-    backgroundColor: "#F8FAFC",
-    padding: "12px 16px",
-    borderRadius: "8px",
-    border: "1px solid #E2E8F0",
-  },
-  link: {
-    color: "#3B82F6",
-    textDecoration: "underline",
-  },
-  warningSection: {
-    backgroundColor: "#FFFBEB",
-    borderRadius: "8px",
-    padding: "16px 20px",
-    margin: "0 16px 24px 16px",
-    border: "1px solid #FDE68A",
-  },
-  warningText: {
-    color: "#92400E",
-    fontSize: "14px",
     lineHeight: "1.6",
     margin: "0",
-    textAlign: "center" as const,
   },
   footer: {
     textAlign: "center" as const,
@@ -417,7 +438,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Validar JWT do usuário requisitante
     const supabaseAuth = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -438,7 +458,6 @@ Deno.serve(async (req) => {
     const requestingUserId = claimsData.claims.sub;
     console.log("[invite-admin] Usuário autenticado:", requestingUserId);
 
-    // Verificar se o usuário requisitante é admin ou super_admin
     const { data: requestingUser, error: requestingUserError } = await supabaseAdmin
       .from("usuarios")
       .select("role, organizacao_id, nome, email")
@@ -456,7 +475,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Apenas admin e super_admin podem convidar
     if (requestingUser.role !== "admin" && requestingUser.role !== "super_admin") {
       console.warn("[invite-admin] Usuário sem permissão:", requestingUser.role);
       return new Response(
@@ -479,18 +497,15 @@ Deno.serve(async (req) => {
       organizacao_id,
       organizacao_nome,
       role: inviteRole,
-      convidado_por,
-      convidado_por_email,
     } = await req.json();
 
     const userRole = inviteRole || "member";
 
-    console.log("[invite-admin] Invite request:", {
+    console.log("[invite-admin] Request:", {
       email,
       usuario_id,
       organizacao_id,
       organizacao_nome,
-      convidado_por,
       requestedBy: requestingUserId,
     });
 
@@ -518,113 +533,117 @@ Deno.serve(async (req) => {
       );
     }
 
-    const origin =
-      req.headers.get("origin") ||
-      "https://crm.renovedigital.com.br";
     const orgNome = organizacao_nome || "CRM";
+    const loginUrl = "https://crm.renovedigital.com.br/login";
 
-    // Usar nome do convidador do body ou do requesting user
-    const inviterName = convidado_por || requestingUser.nome || "";
-    const inviterEmail = convidado_por_email || requestingUser.email || "";
+    // =====================================================
+    // GERAR SENHA SEGURA E CRIAR/ATUALIZAR USUÁRIO
+    // =====================================================
+    const senhaGerada = generateSecurePassword(12);
+    console.log("[invite-admin] Senha segura gerada para:", email);
 
-    // Gerar link de convite
-    console.log("[invite-admin] Gerando link de convite...");
+    let authUserId: string | undefined;
 
-    let linkData: any = null;
-    let userId: string | undefined;
-    let linkType = 'invite';
-
-    // 1. Tentar invite (usuario novo)
-    const { data: inviteData, error: inviteError } =
-      await supabaseAdmin.auth.admin.generateLink({
-        type: "invite",
+    // Tentar criar usuário novo
+    const { data: createData, error: createError } =
+      await supabaseAdmin.auth.admin.createUser({
         email,
-        options: {
-          data: {
-            nome,
-            sobrenome,
-            role: userRole,
-            tenant_id: organizacao_id,
-            organizacao_nome: orgNome,
-            invite_type: userRole,
-          },
-          redirectTo: `${origin}/auth/set-password`,
+        password: senhaGerada,
+        email_confirm: true,
+        user_metadata: {
+          nome,
+          sobrenome,
+          role: userRole,
+          tenant_id: organizacao_id,
+          organizacao_nome: orgNome,
         },
       });
 
-    if (inviteError) {
-      // Se usuario já existe, gerar magiclink
-      if (inviteError.message?.includes("already been registered") || (inviteError as any).code === "email_exists") {
-        console.log("[invite-admin] Usuário já existe, gerando magiclink...");
+    if (createError) {
+      // Se usuário já existe, atualizar a senha
+      if (
+        createError.message?.includes("already been registered") ||
+        (createError as any).code === "email_exists"
+      ) {
+        console.log("[invite-admin] Usuário já existe, atualizando senha...");
 
-        const { data: magicData, error: magicError } =
-          await supabaseAdmin.auth.admin.generateLink({
-            type: "magiclink",
-            email,
-            options: {
-              data: {
+        // Buscar o user ID existente
+        const { data: listData } = await supabaseAdmin.auth.admin.listUsers();
+        const existingUser = listData?.users?.find(
+          (u: any) => u.email === email.toLowerCase().trim()
+        );
+
+        if (existingUser) {
+          authUserId = existingUser.id;
+          const { error: updateError } =
+            await supabaseAdmin.auth.admin.updateUser(existingUser.id, {
+              password: senhaGerada,
+              user_metadata: {
                 nome,
                 sobrenome,
                 role: userRole,
                 tenant_id: organizacao_id,
                 organizacao_nome: orgNome,
-                invite_type: userRole,
               },
-              redirectTo: `${origin}/auth/set-password`,
-            },
-          });
+            });
 
-        if (magicError) {
-          console.error("[invite-admin] magiclink error:", magicError);
-          return new Response(JSON.stringify({ error: magicError.message }), {
+          if (updateError) {
+            console.error("[invite-admin] Erro ao atualizar usuário:", updateError);
+            return new Response(
+              JSON.stringify({ error: updateError.message }),
+              {
+                status: 400,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              }
+            );
+          }
+        } else {
+          return new Response(
+            JSON.stringify({ error: "Usuário existente não encontrado" }),
+            {
+              status: 400,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            }
+          );
+        }
+      } else {
+        console.error("[invite-admin] createUser error:", createError);
+        return new Response(
+          JSON.stringify({ error: createError.message }),
+          {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-
-        linkData = magicData;
-        userId = magicData.user?.id;
-        linkType = 'magiclink';
-      } else {
-        console.error("[invite-admin] generateLink error:", inviteError);
-        return new Response(JSON.stringify({ error: inviteError.message }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+          }
+        );
       }
     } else {
-      linkData = inviteData;
-      userId = inviteData.user?.id;
-      console.log("[invite-admin] Novo usuário criado:", userId);
+      authUserId = createData.user?.id;
+      console.log("[invite-admin] Novo usuário criado:", authUserId);
     }
 
-    // Atualizar usuario na tabela
+    // Atualizar usuario na tabela com status 'ativo'
     await supabaseAdmin
       .from("usuarios")
-      .update({ auth_id: userId, status: "pendente" })
+      .update({ auth_id: authUserId, status: "ativo" })
       .eq("id", usuario_id);
 
-    // Construir URL de confirmação
-    const tokenHash = linkData.properties?.hashed_token;
-    const confirmUrl = `${supabaseUrl}/auth/v1/verify?token=${tokenHash}&type=${linkType}&redirect_to=${encodeURIComponent(`${origin}/auth/set-password`)}`;
+    console.log("[invite-admin] Usuário atualizado para status 'ativo'");
 
-    console.log("[invite-admin] Confirm URL gerada");
-
-    // Enviar email via Resend
+    // =====================================================
+    // ENVIAR EMAIL COM CREDENCIAIS VIA RESEND
+    // =====================================================
     if (resendApiKey) {
       try {
         const resend = new Resend(resendApiKey);
 
         const html = await renderAsync(
-          React.createElement(InviteEmail, {
+          React.createElement(WelcomeEmail, {
             nome: nome || "Usuário",
             email,
+            senha: senhaGerada,
             organizacaoNome: orgNome,
-            confirmUrl,
-            token: linkData.properties?.token || "",
             roleName: userRole === "admin" ? "administrador" : "membro",
-            convidadoPor: inviterName,
-            convidadoPorEmail: inviterEmail,
+            loginUrl,
           })
         );
 
@@ -632,14 +651,14 @@ Deno.serve(async (req) => {
           await resend.emails.send({
             from: "CRM Renove <crm@renovedigital.com.br>",
             to: [email],
-            subject: "Convite para ingressar no CRM Renove",
+            subject: "Bem-vindo ao CRM Renove - Seus dados de acesso",
             html,
           });
 
         if (emailError) {
           console.error("[invite-admin] Erro ao enviar email:", emailError);
         } else {
-          console.log("[invite-admin] Email enviado:", emailData?.id);
+          console.log("[invite-admin] Email de boas-vindas enviado:", emailData?.id);
         }
       } catch (emailErr) {
         console.error("[invite-admin] Erro no envio:", emailErr);
@@ -649,7 +668,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ success: true, auth_id: userId }),
+      JSON.stringify({ success: true, auth_id: authUserId }),
       {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

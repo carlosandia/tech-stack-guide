@@ -58,8 +58,14 @@ export function ForgotPasswordPage() {
 
       const result = await response.json()
 
-      if (!response.ok || result.error === 'email_not_found') {
-        setErrorMsg('E-mail não encontrado. Verifique se o endereço está correto.')
+      if (!response.ok) {
+        if (result.error === 'email_not_found') {
+          setErrorMsg('E-mail não encontrado. Verifique se o endereço está correto.')
+        } else if (result.error === 'user_not_active') {
+          setErrorMsg('Esta conta ainda não foi ativada. Entre em contato com o administrador.')
+        } else {
+          setErrorMsg('Erro ao processar solicitação. Tente novamente.')
+        }
         setIsLoading(false)
         return
       }

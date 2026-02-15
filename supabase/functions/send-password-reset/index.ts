@@ -309,7 +309,7 @@ Deno.serve(async (req) => {
     // Buscar usuario na tabela usuarios - se nao existir, retorna erro
     const { data: usuario } = await supabaseAdmin
       .from("usuarios")
-      .select("nome, email")
+      .select("nome, email, status")
       .eq("email", email.toLowerCase().trim())
       .is("deletado_em", null)
       .maybeSingle();
@@ -319,6 +319,15 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ success: false, error: "email_not_found" }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // AIDEV-NOTE: Verificar se usuario está ativo antes de enviar link de recovery
+    if (usuario.status && usuario.status !== 'ativo') {
+      console.log("[send-password-reset] User not active:", email, "status:", usuario.status);
+      return new Response(
+        JSON.stringify({ success: false, error: "user_not_active" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
