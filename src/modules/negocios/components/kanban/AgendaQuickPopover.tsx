@@ -90,6 +90,7 @@ export function AgendaQuickPopover({ oportunidadeId, oportunidadeTitulo, childre
   }, [form, oportunidadeId, oportunidadeTitulo, criarReuniao, conexaoGoogle, resetForm])
 
   const handleStatus = useCallback(async (reuniaoId: string, status: string) => {
+    // AIDEV-NOTE: O mapeamento noshow -> nao_compareceu é feito na camada de serviço
     try {
       await atualizarStatus.mutateAsync({ reuniaoId, status })
       toast.success(
