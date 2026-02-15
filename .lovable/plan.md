@@ -1,81 +1,69 @@
 
+## Refatorar OAuth Google para usar `crm.renovedigital.com.br` como Redirect URI
 
-## Correção da Conexão Google Calendar via Edge Function
+### Resumo
 
-### Diagnóstico
+Atualmente o Google redireciona para a Edge Function do Supabase (`ybzhlsalbnxwkfszkloa.supabase.co/functions/v1/google-auth?action=callback`), que processa os tokens e depois redireciona para o frontend. 
 
-O erro `localhost:3001` ocorre porque algumas partes do código ainda tentam chamar o backend Express, que nao é deployado pelo Lovable. Apenas o frontend (Vite) e as Edge Functions (Supabase) funcionam em produção.
+A proposta e redirecionar o Google diretamente para o frontend (`crm.renovedigital.com.br/oauth/google/callback`), onde uma pagina captura o `code` e envia para a Edge Function processar via POST.
 
-A Edge Function `google-auth` já existe e o frontend já a utiliza para obter a auth URL (linhas 1353-1361 de `configuracoes.api.ts`). O fluxo OAuth via Edge Function está correto, mas a **URI de redirecionamento no Google Cloud Console** precisa ser atualizada.
-
-### Ação Necessária no Google Cloud Console
-
-Nas credenciais OAuth do Google (APIs e Serviços > Credenciais), é preciso:
-
-1. **Adicionar** como URI de redirecionamento autorizada:
-   `https://ybzhlsalbnxwkfszkloa.supabase.co/functions/v1/google-auth?action=callback`
-
-2. **Manter** as origens JavaScript autorizadas como estão:
-   - `https://crm.renovedigital.com.br`
-   - `http://127.0.0.1:8080`
-
-### Alterações no Código
-
-#### 1. Edge Function `google-auth` - Corrigir redirect final
-
-**Arquivo**: `supabase/functions/google-auth/index.ts`
-
-- Garantir que o `FRONTEND_URL` aponte para `https://crm.renovedigital.com.br`
-- Garantir que a `redirect_uri` do state (vinda do frontend) seja respeitada no redirect final
-- Usar `window.location.origin` no frontend ao gerar o redirect_uri para funcionar tanto em dev quanto em produção
-
-#### 2. Verificar `googleCalendarApi` - Remover chamadas via axios/backend
-
-**Arquivo**: `src/modules/configuracoes/services/configuracoes.api.ts`
-
-- O `googleCalendarApi` (linhas 1553-1562) ainda usa `api.get('/v1/conexoes/google/calendarios')` e `api.post('/v1/conexoes/google/calendario')` -- chamadas ao backend Express
-- Migrar essas chamadas para usar a Edge Function `google-auth` ou diretamente o Supabase client (tabela `conexoes_google`)
-- A função `obterGmailAuthUrl` (linha 1480) também usa `api.get` -- precisa ser migrada se for usada
-
-#### 3. Garantir isolamento por usuário/organização
-
-A Edge Function já filtra por `usuario_id` e `organizacao_id`:
-- Cada usuário tem sua própria conexão na tabela `conexoes_google`
-- O token OAuth é armazenado por usuário
-- A RLS no Supabase garante que cada tenant só vê seus dados
-
-### Fluxo Final (como ficará)
+### Fluxo Proposto
 
 ```text
-[Usuário clica "Conectar"]
+[Usuario clica "Conectar"]
        |
        v
-[Frontend] --> supabase.functions.invoke('google-auth', { action: 'auth-url' })
+[Frontend] --> Edge Function (action: auth-url)
+       |         redirect_uri = https://crm.renovedigital.com.br/oauth/google/callback
+       v
+[Google Consent Screen] --> Usuario autoriza
        |
        v
-[Edge Function] --> Gera URL Google com redirect_uri = Edge Function callback
+[Google redireciona para] --> crm.renovedigital.com.br/oauth/google/callback?code=XXX&state=YYY
        |
        v
-[Google Consent Screen] --> Usuário autoriza
-       |
-       v
-[Google] --> Redireciona para Edge Function callback
+[Pagina OAuthCallback] --> Captura code/state, envia POST para Edge Function (action: exchange-code)
        |
        v
 [Edge Function] --> Troca code por tokens, salva em conexoes_google
        |
        v
-[Edge Function] --> Redireciona para https://crm.renovedigital.com.br/app/configuracoes/conexoes?success=google
+[Frontend] --> Redireciona para /configuracoes/conexoes?success=google
 ```
 
-### Resumo das Alterações
+### Alteracoes
 
-| Arquivo | Alteração |
-|---|---|
-| `supabase/functions/google-auth/index.ts` | Revisar/confirmar redirect URLs e fluxo de callback |
-| `src/modules/configuracoes/services/configuracoes.api.ts` | Migrar `googleCalendarApi` de axios para Edge Function/Supabase direto |
-| **Google Cloud Console** (manual) | Adicionar URI de redirecionamento da Edge Function |
+#### 1. Nova pagina: `src/pages/OAuthGoogleCallbackPage.tsx`
+- Rota publica `/oauth/google/callback`
+- Ao montar, captura `code` e `state` da URL
+- Envia POST para Edge Function `google-auth` com `action: "exchange-code"`
+- Em caso de sucesso, redireciona para `/configuracoes/conexoes?success=google`
+- Em caso de erro, redireciona para `/configuracoes/conexoes?error=google_failed`
+- Exibe loading spinner durante o processamento
 
-### Nota Importante
+#### 2. Registrar rota em `src/App.tsx`
+- Adicionar `<Route path="/oauth/google/callback" element={<OAuthGoogleCallbackPage />} />` como rota publica
 
-O backend Express (pasta `backend/`) pode continuar existindo para desenvolvimento local, mas em produção todas as chamadas Google devem passar pela Edge Function. Não é possível usar o backend Express em produção via Lovable.
+#### 3. Atualizar Edge Function `supabase/functions/google-auth/index.ts`
+- Na action `auth-url`: usar `redirect_uri` vindo do frontend (que sera `https://crm.renovedigital.com.br/oauth/google/callback`) diretamente como `redirect_uri` do Google OAuth
+- Nova action `exchange-code`: recebe `code` e `state` via POST do frontend, troca por tokens, salva na tabela `conexoes_google`. Retorna JSON de sucesso/erro (sem redirect HTTP)
+- Remover a action `callback` antiga (que fazia redirect HTTP da Edge Function)
+
+#### 4. Atualizar `GoogleCalendarConexaoModal.tsx`
+- Ajustar o `redirect_uri` para `https://crm.renovedigital.com.br/oauth/google/callback`
+
+### Acao Manual no Google Cloud Console
+
+Nas credenciais OAuth (APIs e Servicos > Credenciais):
+- **Adicionar** URI de redirecionamento autorizada: `https://crm.renovedigital.com.br/oauth/google/callback`
+- **Remover** (se existir): `https://ybzhlsalbnxwkfszkloa.supabase.co/functions/v1/google-auth?action=callback`
+
+### Secao Tecnica
+
+| Arquivo | Tipo | Alteracao |
+|---|---|---|
+| `src/pages/OAuthGoogleCallbackPage.tsx` | Novo | Pagina que captura code/state e envia para Edge Function |
+| `src/App.tsx` | Editar | Adicionar rota `/oauth/google/callback` |
+| `supabase/functions/google-auth/index.ts` | Editar | Nova action `exchange-code`, remover `callback` antigo, ajustar `auth-url` |
+| `src/modules/configuracoes/components/integracoes/GoogleCalendarConexaoModal.tsx` | Editar | Ajustar redirect_uri |
+| **Google Cloud Console** | Manual | Atualizar URI de redirecionamento autorizada |
