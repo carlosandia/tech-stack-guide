@@ -1026,8 +1026,13 @@ Deno.serve(async (req) => {
                   ? channels.find((c: Record<string, unknown>) => c.id === rawFrom || (c.id as Record<string, unknown>)?._serialized === rawFrom || c.newsletterId === newsletterId)
                   : null;
                 if (thisChannel) {
-                  groupName = (thisChannel as Record<string, unknown>).name as string || (thisChannel as Record<string, unknown>).subject as string || null;
-                  console.log(`[waha-webhook] Newsletter name from /channels API: ${groupName}`);
+                  const ch = thisChannel as Record<string, unknown>;
+                  groupName = ch.name as string || ch.subject as string || null;
+                  // AIDEV-NOTE: Extrair foto do canal da resposta /channels
+                  if (!groupPhotoUrl) {
+                    groupPhotoUrl = (ch.picture as string) || (ch.profilePicUrl as string) || (ch.profilePictureUrl as string) || (ch.pictureUrl as string) || (ch.preview as string) || null;
+                  }
+                  console.log(`[waha-webhook] Newsletter from /channels API: name=${groupName}, photo=${groupPhotoUrl}`);
                 }
               } else {
                 await chResp.text();
@@ -1049,16 +1054,34 @@ Deno.serve(async (req) => {
             }
           }
 
-          // Fetch channel picture
-          const picResp = await fetch(
-            `${wahaApiUrl}/api/contacts/profile-picture?contactId=${encodeURIComponent(rawFrom)}&session=${encodeURIComponent(sessionName)}`,
-            { headers: { "X-Api-Key": wahaApiKey } }
-          );
-          if (picResp.ok) {
-            const picData = await picResp.json();
-            groupPhotoUrl = picData?.profilePictureUrl || picData?.url || picData?.profilePicUrl || null;
-          } else {
-            await picResp.text();
+          // Fetch channel picture (try multiple endpoints)
+          if (!groupPhotoUrl) {
+            // Try profile-picture endpoint first
+            const picResp = await fetch(
+              `${wahaApiUrl}/api/contacts/profile-picture?contactId=${encodeURIComponent(rawFrom)}&session=${encodeURIComponent(sessionName)}`,
+              { headers: { "X-Api-Key": wahaApiKey } }
+            );
+            if (picResp.ok) {
+              const picData = await picResp.json();
+              console.log(`[waha-webhook] Channel profile-picture response: ${JSON.stringify(picData).substring(0, 300)}`);
+              groupPhotoUrl = picData?.profilePictureUrl || picData?.url || picData?.profilePicUrl || null;
+            } else {
+              const picStatus = picResp.status;
+              await picResp.text();
+              console.log(`[waha-webhook] Channel profile-picture returned ${picStatus}, trying group-picture endpoint`);
+              // AIDEV-NOTE: Fallback para endpoint de grupo que funciona com GOWS
+              const gpicResp = await fetch(
+                `${wahaApiUrl}/api/${encodeURIComponent(sessionName)}/groups/${encodeURIComponent(rawFrom)}/settings`,
+                { headers: { "X-Api-Key": wahaApiKey } }
+              );
+              if (gpicResp.ok) {
+                const gpicData = await gpicResp.json();
+                console.log(`[waha-webhook] Channel group settings response: ${JSON.stringify(gpicData).substring(0, 300)}`);
+                groupPhotoUrl = gpicData?.profilePictureUrl || gpicData?.picture || gpicData?.pictureUrl || gpicData?.profilePicUrl || null;
+              } else {
+                await gpicResp.text();
+              }
+            }
           }
         } catch (e) {
           console.log(`[waha-webhook] Error fetching channel metadata:`, e);
@@ -1211,15 +1234,33 @@ Deno.serve(async (req) => {
             }
           }
 
-          const picResp = await fetch(
-            `${wahaApiUrl}/api/contacts/profile-picture?contactId=${encodeURIComponent(rawFrom)}&session=${encodeURIComponent(sessionName)}`,
-            { headers: { "X-Api-Key": wahaApiKey } }
-          );
-          if (picResp.ok) {
-            const picData = await picResp.json();
-            groupPhotoUrl = picData?.profilePictureUrl || picData?.url || picData?.profilePicUrl || picData?.profilePictureURL || null;
-          } else {
-            await picResp.text();
+          // Fetch group picture (try multiple endpoints)
+          if (!groupPhotoUrl) {
+            const picResp = await fetch(
+              `${wahaApiUrl}/api/contacts/profile-picture?contactId=${encodeURIComponent(rawFrom)}&session=${encodeURIComponent(sessionName)}`,
+              { headers: { "X-Api-Key": wahaApiKey } }
+            );
+            if (picResp.ok) {
+              const picData = await picResp.json();
+              console.log(`[waha-webhook] Group profile-picture response: ${JSON.stringify(picData).substring(0, 300)}`);
+              groupPhotoUrl = picData?.profilePictureUrl || picData?.url || picData?.profilePicUrl || picData?.profilePictureURL || null;
+            } else {
+              const picStatus = picResp.status;
+              await picResp.text();
+              console.log(`[waha-webhook] Group profile-picture returned ${picStatus}, trying group settings`);
+              // AIDEV-NOTE: Fallback para endpoint /groups/{id} que pode conter a foto
+              const gpicResp = await fetch(
+                `${wahaApiUrl}/api/${encodeURIComponent(sessionName)}/groups/${encodeURIComponent(rawFrom)}`,
+                { headers: { "X-Api-Key": wahaApiKey } }
+              );
+              if (gpicResp.ok) {
+                const gpicData = await gpicResp.json();
+                console.log(`[waha-webhook] Group API response keys: ${JSON.stringify(Object.keys(gpicData || {}))}`);
+                groupPhotoUrl = gpicData?.profilePictureUrl || gpicData?.picture || gpicData?.pictureUrl || gpicData?.profilePicUrl || gpicData?.PictureURL || null;
+              } else {
+                await gpicResp.text();
+              }
+            }
           }
         } catch (e) {
           console.log(`[waha-webhook] Error fetching group metadata:`, e);
