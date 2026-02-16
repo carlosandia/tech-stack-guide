@@ -136,3 +136,10 @@
   pointer-events: none;
   z-index: 1;
 }
+
+/* AIDEV-NOTE: Estilo para menções em mensagens de grupo (@nome) */
+.mention-highlight {
+  color: hsl(var(--primary));
+  font-weight: 600;
+  cursor: default;
+}

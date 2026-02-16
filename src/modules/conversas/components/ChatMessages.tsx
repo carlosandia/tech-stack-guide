@@ -9,6 +9,7 @@ import { ptBR } from 'date-fns/locale'
 import { Loader2 } from 'lucide-react'
 import { ChatMessageBubble } from './ChatMessageBubble'
 import type { Mensagem } from '../services/conversas.api'
+import { useMentionResolver } from '../hooks/useMentionResolver'
 
 interface ChatMessagesProps {
   mensagens: Mensagem[]
@@ -79,6 +80,7 @@ export const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(functi
   const bottomRef = useRef<HTMLDivElement>(null)
   const prevLengthRef = useRef(0)
   const isGroup = conversaTipo === 'grupo' || conversaTipo === 'canal'
+  const { contactMap } = useMentionResolver(mensagens)
 
   useEffect(() => {
     if (mensagens.length > prevLengthRef.current) {
@@ -216,6 +218,7 @@ export const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(functi
               participantColor={participantColor}
               conversaId={conversaId}
               fotoUrl={fotoUrl}
+              contactMap={contactMap}
               onDeleteMessage={onDeleteMessage}
               onReplyMessage={onReplyMessage}
               onReactMessage={onReactMessage}
