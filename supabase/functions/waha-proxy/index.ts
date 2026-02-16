@@ -1402,14 +1402,48 @@ Deno.serve(async (req) => {
 
               const chatIdToConversaId = new Map((conversasAtivas || []).map(c => [c.chat_id, c.id]));
 
-              // AIDEV-NOTE: DELETE ALL removido - agora usa estratégia diff-based (ver bloco abaixo)
+              // AIDEV-NOTE: Pre-build reverse lookup for @lid resolution IN-MEMORY
+              // Instead of calling resolve_lid_conversa RPC per chat (which does LIKE on all messages),
+              // we build a map from lid_number -> conversa_id using conversas that have raw_data with @lid references
+              // This avoids hundreds of expensive RPC calls that cause WORKER_LIMIT errors
+              const { data: lidMappings } = await supabaseAdmin
+                .from("mensagens")
+                .select("conversa_id, raw_data")
+                .eq("organizacao_id", organizacaoId)
+                .not("raw_data", "is", null)
+                .limit(2000);
+
+              // Build @lid -> conversa_id map from raw_data
+              const lidToConversaId = new Map<string, string>();
+              if (lidMappings) {
+                for (const msg of lidMappings) {
+                  const raw = JSON.stringify(msg.raw_data || '');
+                  // Extract @lid numbers from raw_data
+                  const lidMatches = raw.match(/(\d{10,20})@lid/g);
+                  if (lidMatches) {
+                    for (const match of lidMatches) {
+                      const lidNum = match.replace('@lid', '');
+                      if (!lidToConversaId.has(lidNum)) {
+                        // Verify this conversa exists and has a real chat_id (not @lid)
+                        const convId = msg.conversa_id;
+                        // Check it maps to an active conversa
+                        for (const [chatId, dbId] of chatIdToConversaId.entries()) {
+                          if (dbId === convId && !chatId.endsWith('@lid')) {
+                            lidToConversaId.set(lidNum, convId);
+                            break;
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+              console.log(`[waha-proxy] Pre-built @lid lookup map with ${lidToConversaId.size} entries`);
 
               // AIDEV-NOTE: Track source of each association (@lid vs @c.us)
-              // When a conversa has labels from BOTH @lid and @c.us sources, 
-              // prefer @lid data (current WAHA format) over @c.us (potentially stale)
               interface LabelRow { organizacao_id: string; conversa_id: string; label_id: string; source: 'lid' | 'cus' }
               const allNewRows: LabelRow[] = [];
-              const conversasWithLidLabels = new Set<string>(); // conversaIds that got labels via @lid
+              const conversasWithLidLabels = new Set<string>();
 
               // For each label, get its associated chats
               for (const dbLabel of dbLabels) {
@@ -1444,27 +1478,25 @@ Deno.serve(async (req) => {
                       let conversaId = chatIdToConversaId.get(chatId);
                       let source: 'lid' | 'cus' = 'cus';
                       
-                      // AIDEV-NOTE: Resolver @lid para conversa via RPC
+                      // AIDEV-NOTE: Resolver @lid IN-MEMORY usando mapa pré-construído
+                      // Evita chamadas RPC individuais que causam WORKER_LIMIT
                       if (!conversaId && chatId.endsWith('@lid')) {
                         source = 'lid';
                         const lidNumber = chatId.replace('@lid', '');
-                        try {
-                          const { data: resolvedRows } = await supabaseAdmin
-                            .rpc('resolve_lid_conversa', { p_org_id: organizacaoId, p_lid_number: lidNumber });
-                          if (resolvedRows && resolvedRows.length > 0) {
-                            conversaId = resolvedRows[0].conversa_id;
-                            console.log(`[waha-proxy] Resolved @lid ${lidNumber} → conversa ${conversaId}`);
-                          } else {
-                            for (const [cId, cDbId] of chatIdToConversaId.entries()) {
-                              if (cId.includes(lidNumber.slice(-8))) {
-                                conversaId = cDbId;
-                                console.log(`[waha-proxy] Resolved @lid ${lidNumber} via partial match → ${cId}`);
-                                break;
-                              }
+                        // Try pre-built map first (O(1) lookup)
+                        conversaId = lidToConversaId.get(lidNumber);
+                        if (conversaId) {
+                          console.log(`[waha-proxy] Resolved @lid ${lidNumber} → conversa ${conversaId}`);
+                        } else {
+                          // Fallback: partial match on last 8 digits
+                          const suffix = lidNumber.slice(-8);
+                          for (const [cId, cDbId] of chatIdToConversaId.entries()) {
+                            if (cId.includes(suffix)) {
+                              conversaId = cDbId;
+                              console.log(`[waha-proxy] Resolved @lid ${lidNumber} via partial match → ${cId}`);
+                              break;
                             }
                           }
-                        } catch (lidErr) {
-                          console.warn(`[waha-proxy] Error resolving @lid ${lidNumber}:`, lidErr);
                         }
                       }
                       
@@ -1490,11 +1522,8 @@ Deno.serve(async (req) => {
               }
 
               // AIDEV-NOTE: Filtrar associações stale do @c.us
-              // Se uma conversa tem labels via @lid (formato atual), descartar labels que vieram
-              // apenas via @c.us (formato antigo/stale) para essa mesma conversa
               const filteredRows = allNewRows.filter(row => {
                 if (row.source === 'cus' && conversasWithLidLabels.has(row.conversa_id)) {
-                  console.log(`[waha-proxy] Discarding stale @c.us label for conversa ${row.conversa_id}, label ${row.label_id}`);
                   return false;
                 }
                 return true;
@@ -1509,40 +1538,39 @@ Deno.serve(async (req) => {
                 return true;
               });
 
-              // Strip 'source' field before inserting — not a DB column
               const insertRows = dedupedRows.map(({ organizacao_id, conversa_id, label_id }) => ({
                 organizacao_id, conversa_id, label_id,
               }));
 
-              // AIDEV-NOTE: Estratégia diff-based - só apaga associações obsoletas, nunca faz DELETE ALL
-              // Protege contra respostas vazias intermitentes do WAHA GOWS
+              // AIDEV-NOTE: Estratégia diff-based - só apaga obsoletas, nunca DELETE ALL
               if (insertRows.length > 0) {
-                // Buscar associações atuais do DB
                 const { data: currentAssocs } = await supabaseAdmin
                   .from("conversas_labels")
                   .select("conversa_id, label_id")
                   .eq("organizacao_id", organizacaoId);
 
-                // Calcular quais remover (estão no DB mas não vieram do WAHA)
                 const newKeys = new Set(insertRows.map(r => `${r.conversa_id}:${r.label_id}`));
                 const toDelete = (currentAssocs || []).filter(
                   cl => !newKeys.has(`${cl.conversa_id}:${cl.label_id}`)
                 );
 
-                // Deletar apenas as obsoletas
+                // Batch delete obsoletas (em lote ao invés de uma a uma)
                 if (toDelete.length > 0) {
                   console.log(`[waha-proxy] Removing ${toDelete.length} obsolete label associations`);
-                  for (const del of toDelete) {
+                  const deleteConversaIds = [...new Set(toDelete.map(d => d.conversa_id))];
+                  for (const convId of deleteConversaIds) {
+                    const labelsToRemove = toDelete
+                      .filter(d => d.conversa_id === convId)
+                      .map(d => d.label_id);
                     await supabaseAdmin
                       .from("conversas_labels")
                       .delete()
-                      .eq("conversa_id", del.conversa_id)
-                      .eq("label_id", del.label_id)
+                      .eq("conversa_id", convId)
+                      .in("label_id", labelsToRemove)
                       .eq("organizacao_id", organizacaoId);
                   }
                 }
 
-                // Upsert novas/existentes
                 const { error: insertErr } = await supabaseAdmin
                   .from("conversas_labels")
                   .upsert(insertRows, { onConflict: "conversa_id,label_id" });
@@ -1552,8 +1580,7 @@ Deno.serve(async (req) => {
 
                 console.log(`[waha-proxy] ✅ Synced ${dedupedRows.length} label associations from ${dbLabels.length} labels (diff-based)`);
               } else {
-                // WAHA retornou 0 associações - NÃO apagar nada, preservar dados existentes
-                console.warn(`[waha-proxy] ⚠️ WAHA returned 0 label associations from ${dbLabels?.length ?? 0} labels — preserving existing data`);
+                console.warn(`[waha-proxy] ⚠️ WAHA returned 0 label associations — preserving existing data`);
               }
             }
           } catch (syncErr) {
