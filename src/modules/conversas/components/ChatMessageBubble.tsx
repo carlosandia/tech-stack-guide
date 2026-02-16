@@ -102,15 +102,43 @@ function ImageContent({ mensagem, onViewMedia }: { mensagem: Mensagem; onViewMed
       </div>
     )
   }
+  const [imgError, setImgError] = useState(false)
+  const [signedUrl, setSignedUrl] = useState<string | null>(null)
+
+  // AIDEV-NOTE: Fallback para signed URL se a URL pública falhar (bucket privado)
+  const handleImageError = useCallback(async () => {
+    if (imgError || !mensagem.media_url) return
+    setImgError(true)
+    // Tentar extrair path do storage da URL pública
+    const match = mensagem.media_url.match(/\/storage\/v1\/object\/public\/chat-media\/(.+)/)
+    if (match) {
+      try {
+        const { supabase } = await import('@/integrations/supabase/client')
+        const { data } = await supabase.storage.from('chat-media').createSignedUrl(match[1], 3600)
+        if (data?.signedUrl) setSignedUrl(data.signedUrl)
+      } catch { /* silent */ }
+    }
+  }, [mensagem.media_url, imgError])
+
+  const finalUrl = signedUrl || mensagem.media_url
+
   return (
     <div className="space-y-1">
-      <img
-        src={mensagem.media_url}
-        alt="Imagem"
-        className="rounded-md max-w-[280px] max-h-[300px] object-cover cursor-pointer hover:opacity-90 transition-opacity"
-        loading="lazy"
-        onClick={() => onViewMedia?.(mensagem.media_url!, 'image')}
-      />
+      {imgError && !signedUrl ? (
+        <div className="flex items-center gap-2 p-3 rounded-md bg-muted/50 border border-border/30 text-muted-foreground text-xs italic">
+          <FileText className="w-4 h-4" />
+          <span>Imagem não pôde ser carregada</span>
+        </div>
+      ) : (
+        <img
+          src={finalUrl}
+          alt="Imagem"
+          className="rounded-md max-w-[280px] max-h-[300px] object-cover cursor-pointer hover:opacity-90 transition-opacity"
+          loading="lazy"
+          onClick={() => onViewMedia?.(finalUrl!, 'image')}
+          onError={handleImageError}
+        />
+      )}
       {mensagem.caption && <TextContent body={mensagem.caption} />}
     </div>
   )
@@ -125,16 +153,41 @@ function VideoContent({ mensagem, onViewMedia }: { mensagem: Mensagem; onViewMed
       </div>
     )
   }
+  const [vidError, setVidError] = useState(false)
+  const [signedUrl, setSignedUrl] = useState<string | null>(null)
+
+  const handleVideoError = useCallback(async () => {
+    if (vidError || !mensagem.media_url) return
+    setVidError(true)
+    const match = mensagem.media_url.match(/\/storage\/v1\/object\/public\/chat-media\/(.+)/)
+    if (match) {
+      try {
+        const { supabase } = await import('@/integrations/supabase/client')
+        const { data } = await supabase.storage.from('chat-media').createSignedUrl(match[1], 3600)
+        if (data?.signedUrl) setSignedUrl(data.signedUrl)
+      } catch { /* silent */ }
+    }
+  }, [mensagem.media_url, vidError])
+
+  const finalUrl = signedUrl || mensagem.media_url
+
   return (
     <div className="space-y-1">
-      <div className="relative cursor-pointer group" onClick={() => onViewMedia?.(mensagem.media_url!, 'video')}>
-        <video src={mensagem.media_url} className="rounded-md max-w-[280px] max-h-[300px]" preload="metadata" />
-        <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-md group-hover:bg-black/30 transition-colors">
-          <div className="w-12 h-12 rounded-full bg-black/50 flex items-center justify-center">
-            <Play className="w-6 h-6 text-white fill-white ml-0.5" />
+      {vidError && !signedUrl ? (
+        <div className="flex items-center gap-2 p-3 rounded-md bg-muted/50 border border-border/30 text-muted-foreground text-xs italic">
+          <Play className="w-4 h-4" />
+          <span>Vídeo não pôde ser carregado</span>
+        </div>
+      ) : (
+        <div className="relative cursor-pointer group" onClick={() => onViewMedia?.(finalUrl!, 'video')}>
+          <video src={finalUrl} className="rounded-md max-w-[280px] max-h-[300px]" preload="metadata" onError={handleVideoError} />
+          <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-md group-hover:bg-black/30 transition-colors">
+            <div className="w-12 h-12 rounded-full bg-black/50 flex items-center justify-center">
+              <Play className="w-6 h-6 text-white fill-white ml-0.5" />
+            </div>
           </div>
         </div>
-      </div>
+      )}
       {mensagem.caption && <TextContent body={mensagem.caption} />}
     </div>
   )

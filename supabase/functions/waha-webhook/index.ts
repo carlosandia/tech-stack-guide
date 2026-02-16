@@ -982,7 +982,10 @@ Deno.serve(async (req) => {
       conversaTipo = "canal";
 
       // Extract channel name from payload
-      groupName = payload._data?.subject || payload._data?.name || payload._data?.chat?.name || null;
+      // AIDEV-NOTE: GOWS pode fornecer nome do canal em vários campos diferentes
+      groupName = payload._data?.subject || payload._data?.name || payload._data?.chat?.name
+        || (payload._data as any)?.Info?.GroupName || (payload._data as any)?.ChannelName
+        || (payload._data as any)?.Info?.Topic || null;
 
       console.log(`[waha-webhook] CHANNEL message in ${chatId} (${groupName || "unknown channel"})`);
 
@@ -990,15 +993,49 @@ Deno.serve(async (req) => {
       if (wahaApiUrl && wahaApiKey) {
         try {
           if (!groupName) {
-            const chResp = await fetch(
+            // AIDEV-NOTE: Tentar endpoint especifico de newsletters do WAHA Plus
+            const newsletterId = rawFrom.replace("@newsletter", "");
+            const nlResp = await fetch(
+              `${wahaApiUrl}/api/${encodeURIComponent(sessionName)}/newsletters/${encodeURIComponent(rawFrom)}`,
+              { headers: { "X-Api-Key": wahaApiKey } }
+            );
+            if (nlResp.ok) {
+              const nlData = await nlResp.json();
+              groupName = nlData?.name || nlData?.subject || nlData?.title || null;
+              console.log(`[waha-webhook] Newsletter name from /newsletters API: ${groupName}`);
+            } else {
+              await nlResp.text();
+              // Fallback: tentar endpoint de channels
+              const chResp = await fetch(
+                `${wahaApiUrl}/api/${encodeURIComponent(sessionName)}/channels`,
+                { headers: { "X-Api-Key": wahaApiKey } }
+              );
+              if (chResp.ok) {
+                const channels = await chResp.json();
+                const thisChannel = Array.isArray(channels)
+                  ? channels.find((c: Record<string, unknown>) => c.id === rawFrom || (c.id as Record<string, unknown>)?._serialized === rawFrom || c.newsletterId === newsletterId)
+                  : null;
+                if (thisChannel) {
+                  groupName = (thisChannel as Record<string, unknown>).name as string || (thisChannel as Record<string, unknown>).subject as string || null;
+                  console.log(`[waha-webhook] Newsletter name from /channels API: ${groupName}`);
+                }
+              } else {
+                await chResp.text();
+              }
+            }
+          }
+
+          // Fallback final: contacts/about
+          if (!groupName) {
+            const aboutResp = await fetch(
               `${wahaApiUrl}/api/contacts/about?contactId=${encodeURIComponent(rawFrom)}&session=${encodeURIComponent(sessionName)}`,
               { headers: { "X-Api-Key": wahaApiKey } }
             );
-            if (chResp.ok) {
-              const chData = await chResp.json();
-              groupName = chData?.pushname || chData?.name || null;
+            if (aboutResp.ok) {
+              const aboutData = await aboutResp.json();
+              groupName = aboutData?.pushname || aboutData?.name || null;
             } else {
-              await chResp.text();
+              await aboutResp.text();
             }
           }
 
@@ -1195,7 +1232,31 @@ Deno.serve(async (req) => {
             console.log(`[waha-webhook] LID resolved via GOWS RecipientAlt: ${originalLid} -> ${toField}`);
           }
 
-          // Strategy 1: _data.key.remoteJidAlt (campo padrão WEBJS)
+          // GOWS Strategy 0b: _data.Info.ChatAlt / _data.Info.SenderAlt (fallback GOWS)
+          if (!lidResolved) {
+            const chatAlt = (payload._data as any)?.Info?.ChatAlt;
+            const senderAlt = (payload._data as any)?.Info?.SenderAlt;
+            const gowsAlt = [chatAlt, senderAlt].find(
+              (v: unknown) => typeof v === "string" && (v as string).includes("@s.whatsapp.net")
+            );
+            if (gowsAlt) {
+              toField = (gowsAlt as string).replace("@s.whatsapp.net", "@c.us");
+              lidResolved = true;
+              console.log(`[waha-webhook] LID resolved via GOWS ChatAlt/SenderAlt: ${originalLid} -> ${toField}`);
+            }
+          }
+
+          // Strategy 1: _data.key.remoteJid (numero real)
+          if (!lidResolved) {
+            const remoteJid = payload._data?.key?.remoteJid;
+            if (remoteJid && typeof remoteJid === "string" && remoteJid.includes("@s.whatsapp.net")) {
+              toField = remoteJid.replace("@s.whatsapp.net", "@c.us");
+              lidResolved = true;
+              console.log(`[waha-webhook] LID resolved via key.remoteJid: ${originalLid} -> ${toField}`);
+            }
+          }
+
+          // Strategy 1b: _data.key.remoteJidAlt (campo padrão WEBJS)
           const altJid = payload._data?.key?.remoteJidAlt;
           if (!lidResolved && altJid && typeof altJid === "string" && altJid.includes("@s.whatsapp.net")) {
             toField = altJid.replace("@s.whatsapp.net", "@c.us");
@@ -1340,13 +1401,38 @@ Deno.serve(async (req) => {
     // =====================================================
     let contatoId: string;
 
-    const { data: existingContato } = await supabaseAdmin
+    let existingContato = null;
+
+    // Tentativa 1: busca exata por telefone
+    const { data: contatoExato } = await supabaseAdmin
       .from("contatos")
       .select("id, nome")
       .eq("organizacao_id", sessao.organizacao_id)
       .eq("telefone", phoneNumber)
       .is("deletado_em", null)
       .maybeSingle();
+
+    existingContato = contatoExato;
+
+    // AIDEV-NOTE: Tentativa 2 - Busca fuzzy pelos últimos 8-10 dígitos do telefone
+    // Resolve casos onde @lid numerico != @c.us numerico mas representam a mesma pessoa
+    if (!existingContato && phoneNumber.length >= 8) {
+      const lastDigits = phoneNumber.slice(-8);
+      console.log(`[waha-webhook] Contact not found by exact phone, trying fuzzy match: %${lastDigits}`);
+      const { data: contatoFuzzy } = await supabaseAdmin
+        .from("contatos")
+        .select("id, nome, telefone")
+        .eq("organizacao_id", sessao.organizacao_id)
+        .ilike("telefone", `%${lastDigits}`)
+        .is("deletado_em", null)
+        .limit(1)
+        .maybeSingle();
+
+      if (contatoFuzzy) {
+        existingContato = contatoFuzzy;
+        console.log(`[waha-webhook] ✅ Contact found via fuzzy phone match: ${contatoFuzzy.id} (phone: ${contatoFuzzy.telefone})`);
+      }
+    }
 
     if (existingContato) {
       contatoId = existingContato.id;
@@ -1445,9 +1531,34 @@ Deno.serve(async (req) => {
 
       if (conversaByContato) {
         existingConversa = conversaByContato;
-        // Atualiza o chatId para usar o real da conversa encontrada
         chatId = conversaByContato.chat_id;
         console.log(`[waha-webhook] ✅ Conversa found via contato fallback: ${conversaByContato.id} (chatId=${chatId})`);
+      }
+    }
+
+    // AIDEV-NOTE: Tentativa 3 - Busca por telefone do contato em conversas existentes
+    // Resolve duplicação quando @lid cria contato novo mas já existe conversa com @c.us
+    if (!existingConversa && conversaTipo === "individual") {
+      const lastDigits = phoneNumber.length >= 8 ? phoneNumber.slice(-8) : phoneNumber;
+      console.log(`[waha-webhook] Conversa not found, trying phone-based search: %${lastDigits}`);
+      const { data: conversaByPhone } = await supabaseAdmin
+        .from("conversas")
+        .select("id, total_mensagens, mensagens_nao_lidas, chat_id, contato_id")
+        .eq("organizacao_id", sessao.organizacao_id)
+        .eq("sessao_whatsapp_id", sessao.id)
+        .eq("tipo", "individual")
+        .ilike("chat_id", `%${lastDigits}%`)
+        .is("deletado_em", null)
+        .maybeSingle();
+
+      if (conversaByPhone) {
+        existingConversa = conversaByPhone;
+        chatId = conversaByPhone.chat_id;
+        // Atualizar contato_id se o contato encontrado é diferente
+        if (conversaByPhone.contato_id !== contatoId) {
+          contatoId = conversaByPhone.contato_id;
+        }
+        console.log(`[waha-webhook] ✅ Conversa found via phone-based search: ${conversaByPhone.id} (chatId=${chatId})`);
       }
     }
 
