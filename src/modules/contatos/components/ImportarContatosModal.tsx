@@ -135,21 +135,52 @@ export const ImportarContatosModal = forwardRef<HTMLDivElement, ImportarContatos
         return obj
       })
 
-      // For now, import one by one via API (batch import should be backend)
-      const { contatosApi } = await import('../services/contatos.api')
+      const { contatosApi, segmentosApi } = await import('../services/contatos.api')
       let importados = 0
       let erros = 0
+      const importedIds: string[] = []
 
       for (const contato of contatos.slice(0, 100)) {
         try {
-          await contatosApi.criar(contato)
+          const created = await contatosApi.criar(contato)
           importados++
+          if (created?.id) importedIds.push(created.id)
         } catch {
           erros++
         }
       }
 
-      // If segment was selected, we'd need to link - simplified for now
+      // AIDEV-NOTE: Criar/vincular segmento aos contatos importados
+      if (importedIds.length > 0) {
+        let targetSegmentoId: string | null = null
+
+        if (segmentoOpcao === 'novo' && novoSegmentoNome.trim()) {
+          try {
+            const novoSeg = await segmentosApi.criar({
+              nome: novoSegmentoNome.trim(),
+              cor: novoSegmentoCor,
+            })
+            if (novoSeg?.id) targetSegmentoId = novoSeg.id
+          } catch (segErr) {
+            console.error('[import] Erro ao criar segmento:', segErr)
+          }
+        } else if (segmentoOpcao === 'existente' && segmentoId) {
+          targetSegmentoId = segmentoId
+        }
+
+        if (targetSegmentoId) {
+          try {
+            await contatosApi.segmentarLote({
+              ids: importedIds,
+              adicionar: [targetSegmentoId],
+              remover: [],
+            })
+          } catch (linkErr) {
+            console.error('[import] Erro ao vincular segmento:', linkErr)
+          }
+        }
+      }
+
       setImportResult({ importados, erros })
       setStep(4)
     } catch {
