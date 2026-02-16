@@ -168,8 +168,8 @@ export const ConversaItem = forwardRef<HTMLDivElement, ConversaItemProps>(functi
         {/* Content */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5 min-w-0">
-              <span className={`text-sm truncate ${hasUnread ? 'font-semibold text-foreground' : 'font-medium text-foreground'}`}>
+            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+              <span className={`text-sm flex-shrink-0 max-w-[45%] truncate ${hasUnread ? 'font-semibold text-foreground' : 'font-medium text-foreground'}`}>
                 {nome}
               </span>
               {conversa.silenciada && <BellOff className="w-3 h-3 text-muted-foreground flex-shrink-0" />}
@@ -183,6 +183,8 @@ export const ConversaItem = forwardRef<HTMLDivElement, ConversaItemProps>(functi
                   key={cl.id}
                   nome={cl.whatsapp_labels.nome}
                   corHex={cl.whatsapp_labels.cor_hex}
+                  compact
+                  maxWidth="90px"
                 />
               ))}
               {extraLabelsCount > 0 && (
@@ -199,7 +201,7 @@ export const ConversaItem = forwardRef<HTMLDivElement, ConversaItemProps>(functi
                   <PopoverContent
                     side="bottom"
                     align="start"
-                    className="w-auto max-w-[200px] p-2 flex flex-wrap gap-1"
+                    className="w-auto max-w-[250px] p-2 flex flex-wrap gap-1"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {labels.slice(1).map(cl => (
