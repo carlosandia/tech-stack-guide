@@ -55,7 +55,7 @@ function getMessagePreview(conversa: Conversa): { icon?: React.ReactNode; text: 
     case 'poll':
       return { icon: <BarChart3 className="w-3.5 h-3.5 flex-shrink-0" />, text: `${prefix}Enquete` }
     case 'sticker':
-      return { icon: <Smile className="w-3.5 h-3.5 flex-shrink-0" />, text: `${prefix}Sticker` }
+      return { icon: <Smile className="w-3.5 h-3.5 flex-shrink-0" />, text: `${prefix}Figurinha` }
     default:
       return { text: `${prefix}${(msg.body || '').slice(0, 50)}` }
   }
