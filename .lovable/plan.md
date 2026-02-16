@@ -1,122 +1,62 @@
 
-# Correcao: Respostas em Grupos + Avatar de Audio
+# Correcao: Respostas em Grupos GOWS Nao Exibidas
 
-## Problemas Identificados
+## Problema
 
-### 1. Respostas (reply/quote) nao detectadas em grupos GOWS
+O webhook **ja esta salvando** `reply_to_message_id` corretamente (confirmado: 11 mensagens com reply nas ultimas 2 horas). O problema esta na **UI** -- a lookup para encontrar a mensagem citada falha.
 
-O webhook nao salva `reply_to_message_id` para mensagens GOWS porque:
+### Causa Raiz
 
-- O codigo verifica `sub.contextInfo?.stanzaId` (d minusculo), mas o GOWS envia `stanzaID` (D maiusculo)
-- O codigo busca em `payload._data?.message` (m minusculo), mas o GOWS envia `payload._data?.Message` (M maiusculo)
-- O payload tambem tem `payload.replyTo.id` como fallback, que nunca e verificado
+O formato de `message_id` em grupos GOWS tem 4 segmentos:
 
-Exemplo do raw_data real:
 ```text
-_data.Message.extendedTextMessage.contextInfo.stanzaID = "3A9933702605A7147E54"
-(webhook procura: _data.message.*.contextInfo.stanzaId -- nao encontra)
+false_120363045526325783@g.us_3B47283A826F265B10FA_222286367961324@lid
+[0]    [1]                      [2] = stanzaID           [3] = senderLid
 ```
 
-### 2. Audio mostrando foto do contato em vez do usuario
+O codigo atual em `ChatMessages.tsx` indexa pelo **ultimo** segmento (`.split('_').pop()`), que retorna o `senderLid` (`222286367961324@lid`). Porem, o `reply_to_message_id` armazena o **stanzaID** (segmento [2], ex: `A520943141A016E3F4460E46E708DBC1`).
 
-O `ChatWindow` passa `fotoUrl={conversa.contato?.foto_url}` para `ChatMessages`, que repassa para `AudioContent` e `WhatsAppAudioPlayer`. Para mensagens `fromMe`, deveria mostrar o avatar do usuario logado, nao o do contato.
-
-### 3. QuotedMessagePreview mostra "Contato" generico
-
-Em grupos, o preview da mensagem citada exibe "Voce" ou "Contato", quando deveria exibir o nome do participante que enviou a mensagem original.
-
----
+Para mensagens **individuais** (3 segmentos), o ultimo segmento E o stanzaID, entao funciona. Para **grupos** (4 segmentos), nao funciona.
 
 ## Solucao
 
-### Mudanca 1: Webhook - Corrigir extracao do stanzaID (PascalCase)
+### Arquivo: `src/modules/conversas/components/ChatMessages.tsx`
 
-**Arquivo**: `supabase/functions/waha-webhook/index.ts`
-
-Alterar a busca do quotedStanzaID para verificar ambas as variantes:
+Alterar o mapeamento `messageByWahaId` para indexar tambem pelo **penultimo** segmento (stanzaID) quando o `message_id` tiver 4+ segmentos:
 
 ```typescript
-// Buscar em _data.message E _data.Message (GOWS usa PascalCase)
-const msgData = payload._data?.message || payload._data?.Message;
-if (msgData && typeof msgData === 'object') {
-  for (const key of Object.keys(msgData)) {
-    const sub = msgData[key];
-    if (sub && typeof sub === 'object') {
-      const stanza = sub.contextInfo?.stanzaId || sub.contextInfo?.stanzaID;
-      if (stanza) {
-        quotedStanzaID = stanza;
-        break;
+const messageByWahaId = useMemo(() => {
+  const map = new Map<string, Mensagem>()
+  for (const msg of sortedMessages) {
+    if (msg.message_id) {
+      // Index by full serialized ID
+      map.set(msg.message_id, msg)
+      
+      if (msg.message_id.includes('_')) {
+        const parts = msg.message_id.split('_')
+        // Last segment (works for individual messages where last = stanzaID)
+        const lastPart = parts[parts.length - 1]
+        if (lastPart) map.set(lastPart, msg)
+        
+        // For GOWS group messages (4 segments): stanzaID is at index 2
+        // Format: {bool}_{groupId}_{stanzaID}_{senderLid}
+        if (parts.length >= 4) {
+          const stanzaPart = parts[2]
+          if (stanzaPart && !stanzaPart.includes('@')) {
+            map.set(stanzaPart, msg)
+          }
+        }
       }
     }
   }
-}
-
-// Fallback: replyTo.id (presente em payloads GOWS)
-if (!quotedStanzaID && payload.replyTo?.id) {
-  quotedStanzaID = payload.replyTo.id;
-}
+  return map
+}, [sortedMessages])
 ```
 
-### Mudanca 2: Audio - Usar avatar do usuario logado para fromMe
-
-**Arquivo**: `src/modules/conversas/components/ChatMessageBubble.tsx`
-
-Alterar `AudioContent` para receber o avatar do usuario logado e usa-lo quando `isMe`:
-
-```typescript
-function AudioContent({ mensagem, isMe, fotoUrl, myAvatarUrl }: { 
-  mensagem: Mensagem; isMe?: boolean; fotoUrl?: string | null; myAvatarUrl?: string | null 
-}) {
-  // Para mensagens proprias, usar avatar do usuario logado
-  const avatarUrl = isMe ? myAvatarUrl : fotoUrl;
-  return <WhatsAppAudioPlayer src={mensagem.media_url} isMe={!!isMe} fotoUrl={avatarUrl} />
-}
-```
-
-**Arquivo**: `src/modules/conversas/components/ChatWindow.tsx`
-
-Passar `myAvatarUrl` (do `useAuth`) para `ChatMessages` e propagar ate `AudioContent`.
-
-### Mudanca 3: QuotedMessagePreview - Exibir nome do participante
-
-**Arquivo**: `src/modules/conversas/components/ChatMessageBubble.tsx`
-
-Alterar `QuotedMessagePreview` para usar o `participantName` ou `pushName` do raw_data da mensagem citada:
-
-```typescript
-function QuotedMessagePreview({ quoted, isMe, contactMap }: { 
-  quoted: Mensagem; isMe: boolean; contactMap?: Map<string, string> 
-}) {
-  const senderName = useMemo(() => {
-    if (quoted.from_me) return 'Voce'
-    // Tentar pushName do participante
-    const rawData = quoted.raw_data as Record<string, unknown> | null
-    const _data = rawData?._data as Record<string, unknown> | undefined
-    const pushName = _data?.pushName || _data?.PushName || _data?.Info?.PushName
-    if (pushName) return pushName as string
-    return 'Contato'
-  }, [quoted])
-
-  return (
-    <p className="text-[11px] font-semibold text-primary truncate">
-      {senderName}
-    </p>
-    // ...
-  )
-}
-```
-
----
-
-## Arquivos a modificar
-
-1. `supabase/functions/waha-webhook/index.ts` - Corrigir extracao stanzaID (PascalCase + fallback replyTo)
-2. `src/modules/conversas/components/ChatMessageBubble.tsx` - AudioContent com avatar correto + QuotedMessagePreview com nome do participante
-3. `src/modules/conversas/components/ChatWindow.tsx` - Passar avatar do usuario logado
-4. `src/modules/conversas/components/ChatMessages.tsx` - Propagar myAvatarUrl
+A condicao `!stanzaPart.includes('@')` garante que so indexa valores que parecem stanzaIDs (hexadecimais), evitando conflitos com IDs como `groupId@g.us`.
 
 ## Resultado Esperado
 
-- Mensagens de resposta em grupos GOWS serao salvas com `reply_to_message_id` e exibidas com quote visual
-- Audio enviado pelo usuario mostrara seu proprio avatar
-- Quote exibira o nome do participante original (via pushName) em vez de "Contato" generico
+- Mensagens de resposta em grupos GOWS serao corretamente vinculadas e exibidas com o bloco de citacao visual
+- Mensagens individuais continuam funcionando (sem regressao)
+- A mensagem "Carnaval, aconteceu ano passado..." do Eduardo Dietrich exibira o quote de "Bom dia pessoal!" do Gabriel Candido
