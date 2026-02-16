@@ -1519,6 +1519,31 @@ Deno.serve(async (req) => {
 
     existingConversa = conversaByChatId;
 
+    // AIDEV-NOTE: Tentativa 1b - Busca por chat_id SEM filtro de sessão (cross-session)
+    // Previne duplicidade quando reconecta WhatsApp (nova sessão)
+    if (!existingConversa) {
+      const { data: conversaCrossSession } = await supabaseAdmin
+        .from("conversas")
+        .select("id, total_mensagens, mensagens_nao_lidas, chat_id, sessao_whatsapp_id")
+        .eq("organizacao_id", sessao.organizacao_id)
+        .eq("chat_id", chatId)
+        .is("deletado_em", null)
+        .maybeSingle();
+
+      if (conversaCrossSession) {
+        existingConversa = conversaCrossSession;
+        // Migrar conversa para sessão atual
+        if (conversaCrossSession.sessao_whatsapp_id !== sessao.id) {
+          console.log(`[waha-webhook] Migrating conversa ${conversaCrossSession.id} from session ${conversaCrossSession.sessao_whatsapp_id} to ${sessao.id}`);
+          await supabaseAdmin
+            .from("conversas")
+            .update({ sessao_whatsapp_id: sessao.id, atualizado_em: now })
+            .eq("id", conversaCrossSession.id);
+        }
+        console.log(`[waha-webhook] ✅ Conversa found via cross-session search: ${conversaCrossSession.id}`);
+      }
+    }
+
     // Tentativa 2: se chatId contém @lid e não encontrou, buscar por contato_id + sessao
     if (!existingConversa && chatId.includes("@lid") && contatoId) {
       console.log(`[waha-webhook] Conversa not found by @lid chatId, trying fallback by contato_id=${contatoId}`);
