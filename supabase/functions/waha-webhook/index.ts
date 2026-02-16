@@ -1018,7 +1018,8 @@ Deno.serve(async (req) => {
               console.log(`[waha-webhook] Channel API /channels/{id} response (${chStatus}): ${JSON.stringify(chData).substring(0, 500)}`);
               groupName = chData?.name || chData?.Name || chData?.subject || chData?.Subject || chData?.title || chData?.Title || null;
               if (!groupPhotoUrl) {
-                groupPhotoUrl = chData?.picture || chData?.preview || chData?.profilePicUrl || chData?.profilePictureUrl || chData?.pictureUrl || null;
+                // AIDEV-NOTE: profilePictureURL (GOWS) primeiro
+                groupPhotoUrl = chData?.profilePictureURL || chData?.profilePictureUrl || chData?.picture || chData?.preview || chData?.profilePicUrl || chData?.pictureUrl || null;
               }
               console.log(`[waha-webhook] Channel name from /channels/{id}: ${groupName}, photo: ${groupPhotoUrl}`);
             } else {
@@ -1042,7 +1043,8 @@ Deno.serve(async (req) => {
                   const ch = thisChannel as Record<string, unknown>;
                   groupName = ch.name as string || ch.subject as string || null;
                   if (!groupPhotoUrl) {
-                    groupPhotoUrl = (ch.picture as string) || (ch.profilePicUrl as string) || (ch.profilePictureUrl as string) || (ch.pictureUrl as string) || (ch.preview as string) || null;
+                    // AIDEV-NOTE: profilePictureURL (GOWS) primeiro
+                    groupPhotoUrl = (ch as any).profilePictureURL || (ch.profilePictureUrl as string) || (ch.picture as string) || (ch.profilePicUrl as string) || (ch.pictureUrl as string) || (ch.preview as string) || null;
                   }
                   console.log(`[waha-webhook] Channel from /channels list fallback: name=${groupName}, photo=${groupPhotoUrl}`);
                 } else {
@@ -1079,7 +1081,8 @@ Deno.serve(async (req) => {
             if (picResp.ok) {
               const picData = await picResp.json();
               console.log(`[waha-webhook] Channel profile-picture response: ${JSON.stringify(picData).substring(0, 300)}`);
-              groupPhotoUrl = picData?.profilePictureUrl || picData?.url || picData?.profilePicUrl || null;
+              // AIDEV-NOTE: profilePictureURL (GOWS) primeiro
+              groupPhotoUrl = picData?.profilePictureURL || picData?.profilePictureUrl || picData?.url || picData?.profilePicUrl || null;
             } else {
               const picStatus = picResp.status;
               await picResp.text();
@@ -1092,7 +1095,7 @@ Deno.serve(async (req) => {
               if (gpicResp.ok) {
                 const gpicData = await gpicResp.json();
                 console.log(`[waha-webhook] Channel group settings response: ${JSON.stringify(gpicData).substring(0, 300)}`);
-                groupPhotoUrl = gpicData?.profilePictureUrl || gpicData?.picture || gpicData?.pictureUrl || gpicData?.profilePicUrl || null;
+                groupPhotoUrl = gpicData?.profilePictureURL || gpicData?.profilePictureUrl || gpicData?.picture || gpicData?.pictureUrl || gpicData?.profilePicUrl || null;
               } else {
                 await gpicResp.text();
               }
@@ -1203,6 +1206,14 @@ Deno.serve(async (req) => {
               groupName = groupData?.subject || groupData?.Subject || groupData?.name || groupData?.Name 
                 || groupData?.desc || groupData?.Topic || groupData?.GroupName
                 || groupData?.groupName || groupData?.title || null;
+              // AIDEV-NOTE: Extrair foto da mesma resposta da API de grupos (evita chamada separada)
+              if (!groupPhotoUrl) {
+                groupPhotoUrl = groupData?.profilePictureURL || groupData?.profilePictureUrl 
+                  || groupData?.picture || groupData?.pictureUrl || groupData?.PictureURL || null;
+                if (groupPhotoUrl) {
+                  console.log(`[waha-webhook] Group photo extracted from /groups/{id} response: ${groupPhotoUrl}`);
+                }
+              }
               console.log(`[waha-webhook] Group name from API: ${groupName}`);
             } else {
               const errText = await groupResp.text();
@@ -1223,6 +1234,11 @@ Deno.serve(async (req) => {
                 if (thisGroup) {
                   console.log(`[waha-webhook] Found group in list: ${JSON.stringify(thisGroup).substring(0, 300)}`);
                   groupName = (thisGroup as any).subject || (thisGroup as any).Subject || (thisGroup as any).name || (thisGroup as any).Name || null;
+                  // AIDEV-NOTE: Extrair foto do fallback de lista de grupos
+                  if (!groupPhotoUrl) {
+                    groupPhotoUrl = (thisGroup as any).profilePictureURL || (thisGroup as any).profilePictureUrl 
+                      || (thisGroup as any).picture || (thisGroup as any).pictureUrl || (thisGroup as any).PictureURL || null;
+                  }
                 }
               } else {
                 await allGroupsResp.text();
@@ -1249,6 +1265,12 @@ Deno.serve(async (req) => {
             }
           }
 
+        } catch (e) {
+          console.log(`[waha-webhook] Error fetching group name/metadata:`, e);
+        }
+
+        // AIDEV-NOTE: Busca de foto separada em try/catch independente (falha no nome nao impede busca de foto)
+        try {
           // Fetch group picture (try multiple endpoints)
           if (!groupPhotoUrl) {
             const picResp = await fetch(
@@ -1258,7 +1280,8 @@ Deno.serve(async (req) => {
             if (picResp.ok) {
               const picData = await picResp.json();
               console.log(`[waha-webhook] Group profile-picture response: ${JSON.stringify(picData).substring(0, 300)}`);
-              groupPhotoUrl = picData?.profilePictureUrl || picData?.url || picData?.profilePicUrl || picData?.profilePictureURL || null;
+              // AIDEV-NOTE: profilePictureURL (GOWS) primeiro, depois camelCase
+              groupPhotoUrl = picData?.profilePictureURL || picData?.profilePictureUrl || picData?.url || picData?.profilePicUrl || null;
             } else {
               const picStatus = picResp.status;
               await picResp.text();
@@ -1271,14 +1294,14 @@ Deno.serve(async (req) => {
               if (gpicResp.ok) {
                 const gpicData = await gpicResp.json();
                 console.log(`[waha-webhook] Group API response keys: ${JSON.stringify(Object.keys(gpicData || {}))}`);
-                groupPhotoUrl = gpicData?.profilePictureUrl || gpicData?.picture || gpicData?.pictureUrl || gpicData?.profilePicUrl || gpicData?.PictureURL || null;
+                groupPhotoUrl = gpicData?.profilePictureURL || gpicData?.profilePictureUrl || gpicData?.picture || gpicData?.pictureUrl || gpicData?.PictureURL || null;
               } else {
                 await gpicResp.text();
               }
             }
           }
         } catch (e) {
-          console.log(`[waha-webhook] Error fetching group metadata:`, e);
+          console.log(`[waha-webhook] Error fetching group photo:`, e);
         }
       }
 
