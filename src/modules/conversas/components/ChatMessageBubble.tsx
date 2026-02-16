@@ -677,16 +677,16 @@ function QuotedMessagePreview({ quoted, isMe }: { quoted: Mensagem; isMe: boolea
 
   return (
     <div className={`
-      rounded-md px-2.5 py-1.5 mb-1.5 border-l-[3px] cursor-pointer
+      rounded-lg px-3 py-2 mb-1.5 border-l-[3px] cursor-pointer
       ${isMe
-        ? 'bg-primary/5 border-l-primary/40'
-        : 'bg-muted/60 border-l-muted-foreground/40'
+        ? 'bg-primary/10 border-l-primary/60'
+        : 'bg-muted border-l-muted-foreground/50'
       }
     `}>
       <p className="text-[11px] font-semibold text-primary truncate">
         {senderName}
       </p>
-      <p className="text-[11px] text-muted-foreground truncate max-w-[250px]">
+      <p className="text-[11px] text-muted-foreground/80 truncate max-w-[250px]">
         {getPreviewText()}
       </p>
     </div>
