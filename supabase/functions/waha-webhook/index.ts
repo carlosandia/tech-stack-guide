@@ -2375,9 +2375,11 @@ Deno.serve(async (req) => {
       );
     }
 
+    // AIDEV-NOTE: Upsert com ignoreDuplicates para prevenir erro em duplicatas
+    // que passem pela verificação prévia (race condition entre webhooks simultâneos)
     const { data: newMsg, error: msgError } = await supabaseAdmin
       .from("mensagens")
-      .insert(messageInsert)
+      .upsert(messageInsert, { onConflict: "message_id", ignoreDuplicates: true })
       .select("id")
       .single();
 
