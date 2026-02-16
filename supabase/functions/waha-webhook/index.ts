@@ -2384,7 +2384,7 @@ Deno.serve(async (req) => {
     // que passem pela verificação prévia (race condition entre webhooks simultâneos)
     const { data: newMsg, error: msgError } = await supabaseAdmin
       .from("mensagens")
-      .upsert(messageInsert, { onConflict: "message_id", ignoreDuplicates: true })
+      .upsert(messageInsert, { onConflict: "organizacao_id,message_id", ignoreDuplicates: true })
       .select("id")
       .single();
 
