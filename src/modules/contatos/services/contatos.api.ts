@@ -513,27 +513,38 @@ export const contatosApi = {
     const erros: string[] = []
     let excluidos = 0
 
-    // AIDEV-NOTE: Primeiro remover vínculos de segmentos antes de excluir contatos
     for (const id of payload.ids) {
-      // Remover vínculos na tabela contatos_segmentos
-      await supabase
-        .from('contatos_segmentos')
-        .delete()
-        .eq('contato_id', id)
-    }
+      try {
+        // AIDEV-NOTE: Remover todas as dependências FK antes de deletar o contato
+        // Ordem importa: remover refs mais externas primeiro
+        await supabase.from('contatos_segmentos').delete().eq('contato_id', id)
+        await supabase.from('duplicatas_contatos').delete().or(`contato_original_id.eq.${id},contato_duplicado_id.eq.${id}`)
+        await supabase.from('notas_contato').delete().eq('contato_id', id)
+        await supabase.from('custom_audience_membros').delete().eq('contato_id', id)
+        await supabase.from('submissoes_formularios').delete().eq('contato_id', id)
+        
+        // Desassociar (nullify) refs que não devem ser excluídas em cascata
+        await supabase.from('oportunidades').update({ contato_id: null } as any).eq('contato_id', id)
+        await supabase.from('tarefas').update({ contato_id: null } as any).eq('contato_id', id)
+        await supabase.from('conversas').update({ contato_id: null } as any).eq('contato_id', id)
+        await supabase.from('emails_recebidos').update({ contato_id: null } as any).eq('contato_id', id)
+        await supabase.from('ligacoes').update({ contato_id: null } as any).eq('contato_id', id)
+        
+        // Desassociar empresa_id self-ref
+        await supabase.from('contatos').update({ empresa_id: null } as any).eq('empresa_id', id)
 
-    // DELETE real do banco conforme solicitação
-    for (const id of payload.ids) {
-      const { error } = await supabase
-        .from('contatos')
-        .delete()
-        .eq('id', id)
+        // DELETE real do contato
+        const { error } = await supabase.from('contatos').delete().eq('id', id)
 
-      if (error) {
-        console.error(`[excluirLote] Erro ao excluir ${id}:`, error.message)
-        erros.push(`${id}: ${error.message}`)
-      } else {
-        excluidos++
+        if (error) {
+          console.error(`[excluirLote] Erro ao excluir ${id}:`, error.message)
+          erros.push(`${id}: ${error.message}`)
+        } else {
+          excluidos++
+        }
+      } catch (err: any) {
+        console.error(`[excluirLote] Exceção ao excluir ${id}:`, err)
+        erros.push(`${id}: ${err?.message || 'erro desconhecido'}`)
       }
     }
 
