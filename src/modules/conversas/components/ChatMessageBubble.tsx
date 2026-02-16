@@ -40,6 +40,7 @@ interface ChatMessageBubbleProps {
   participantColor?: string | null
   conversaId?: string
   fotoUrl?: string | null
+  contactMap?: Map<string, string>
   onDeleteMessage?: (mensagemId: string, messageWahaId: string, paraTodos: boolean) => void
   onReplyMessage?: (mensagem: Mensagem) => void
   onReactMessage?: (mensagem: Mensagem, emoji: string) => void
@@ -82,13 +83,56 @@ function sanitizeFormattedHtml(text: string): string {
   return DOMPurify.sanitize(formatted, DOMPURIFY_CONFIG)
 }
 
-function TextContent({ body }: { body: string }) {
-  const sanitized = sanitizeFormattedHtml(body)
+function TextContent({ body, rawData, contactMap }: { body: string; rawData?: Record<string, unknown> | null; contactMap?: Map<string, string> }) {
+  const resolvedBody = useMemo(() => {
+    if (!contactMap || contactMap.size === 0 || !rawData) return body
+
+    // Extrair mentionedJid do raw_data
+    const _data = rawData._data as Record<string, unknown> | undefined
+    const message = (_data?.message || _data?.Message) as Record<string, unknown> | undefined
+    const extText = message?.extendedTextMessage as Record<string, unknown> | undefined
+    const contextInfo = extText?.contextInfo as Record<string, unknown> | undefined
+    const mentionedJid = (
+      contextInfo?.mentionedJid || contextInfo?.mentionedJID ||
+      _data?.MentionedJID ||
+      rawData.mentionedIds
+    ) as string[] | undefined
+
+    if (!mentionedJid || mentionedJid.length === 0) return body
+
+    let resolved = body
+    for (const jid of mentionedJid) {
+      const number = jid
+        .replace('@s.whatsapp.net', '')
+        .replace('@c.us', '')
+        .replace('@lid', '')
+      const name = contactMap.get(number)
+      if (name) {
+        // Substituir @numero por marcador que será renderizado como menção
+        resolved = resolved.replace(`@${number}`, `@@mention:${name}@@`)
+      } else if (/^\d{8,}$/.test(number)) {
+        // Formatar numero como telefone legível
+        const formatted = number.length > 10
+          ? `+${number.slice(0, 2)} ${number.slice(2, 4)} ${number.slice(4)}`
+          : `+${number}`
+        resolved = resolved.replace(`@${number}`, `@@mention:${formatted}@@`)
+      }
+    }
+    return resolved
+  }, [body, rawData, contactMap])
+
+  // Renderizar com menções estilizadas
+  const sanitized = sanitizeFormattedHtml(resolvedBody)
+  // Substituir marcadores @@mention:nome@@ por spans estilizados
+  const withMentions = sanitized.replace(
+    /@@mention:(.*?)@@/g,
+    '<span class="mention-highlight">@$1</span>'
+  )
 
   return (
     <p
       className="text-sm whitespace-pre-wrap break-words"
-      dangerouslySetInnerHTML={{ __html: sanitized }}
+      dangerouslySetInnerHTML={{ __html: withMentions }}
     />
   )
 }
@@ -139,7 +183,7 @@ function ImageContent({ mensagem, onViewMedia }: { mensagem: Mensagem; onViewMed
           onError={handleImageError}
         />
       )}
-      {mensagem.caption && <TextContent body={mensagem.caption} />}
+      {mensagem.caption && <TextContent body={mensagem.caption} rawData={mensagem.raw_data} />}
     </div>
   )
 }
@@ -188,7 +232,7 @@ function VideoContent({ mensagem, onViewMedia }: { mensagem: Mensagem; onViewMed
           </div>
         </div>
       )}
-      {mensagem.caption && <TextContent body={mensagem.caption} />}
+      {mensagem.caption && <TextContent body={mensagem.caption} rawData={mensagem.raw_data} />}
     </div>
   )
 }
@@ -574,9 +618,10 @@ function renderContent(
   conversaId?: string,
   isMe?: boolean,
   fotoUrl?: string | null,
+  contactMap?: Map<string, string>,
 ) {
   switch (mensagem.tipo) {
-    case 'text': return <TextContent body={mensagem.body || ''} />
+    case 'text': return <TextContent body={mensagem.body || ''} rawData={mensagem.raw_data} contactMap={contactMap} />
     case 'image': return <ImageContent mensagem={mensagem} onViewMedia={onViewMedia} />
     case 'video': return <VideoContent mensagem={mensagem} onViewMedia={onViewMedia} />
     case 'audio': return <AudioContent mensagem={mensagem} isMe={isMe} fotoUrl={fotoUrl} />
@@ -819,7 +864,7 @@ function MessageActionMenu({ mensagem, onDelete, onReply, onCopy, onReact, onFor
 // =====================================================
 
 export function ChatMessageBubble({
-  mensagem, participantName, participantColor, conversaId, fotoUrl,
+  mensagem, participantName, participantColor, conversaId, fotoUrl, contactMap,
   onDeleteMessage, onReplyMessage, onReactMessage, onForwardMessage, onPinMessage,
   quotedMessage
 }: ChatMessageBubbleProps) {
@@ -922,7 +967,7 @@ export function ChatMessageBubble({
       <>
         <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} mb-1`}>
           <div className="relative">
-            {renderContent(mensagem, handleViewMedia, conversaId, isMe, fotoUrl)}
+             {renderContent(mensagem, handleViewMedia, conversaId, isMe, fotoUrl, contactMap)}
             <span className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1 justify-end">
               {format(new Date(mensagem.criado_em), 'HH:mm')}
               {isMe && <AckIndicator ack={mensagem.ack} />}
@@ -1001,7 +1046,7 @@ export function ChatMessageBubble({
             </div>
           ) : (
             <>
-              {renderContent(mensagem, handleViewMedia, conversaId, isMe, fotoUrl)}
+              {renderContent(mensagem, handleViewMedia, conversaId, isMe, fotoUrl, contactMap)}
               <div className="flex items-center gap-1 justify-end mt-1">
                 <span className="text-[10px] text-muted-foreground">
                   {format(new Date(mensagem.criado_em), 'HH:mm')}
