@@ -1,128 +1,59 @@
 
-# Correcao Definitiva: Duplicidade @lid vs @c.us
+# Correcao: Nome do Canal nao Resolvido no WAHA GOWS
 
-## Diagnostico da Causa Raiz
+## Problema Identificado
 
-O problema persiste por **dois bugs interligados** na logica atual:
+O nome do canal (ex: CazéTV) nao e resolvido na primeira mensagem porque o webhook tenta endpoints incorretos ou ineficientes:
 
-### Bug 1: RPC `resolve_lid_conversa` retorna a propria conversa @lid
+1. **Endpoint errado**: Tenta `GET /api/{session}/newsletters/{channelId}` que NAO existe no GOWS, retorna 404
+2. **Fallback ineficiente**: Cai para `GET /api/{session}/channels` que lista TODOS os canais e depois faz `find()` -- isso pode ser lento ou falhar com muitos canais
+3. **Endpoint correto nao usado**: O GOWS suporta `GET /api/{session}/channels/{ChannelID}` para buscar um canal especifico (documentado oficialmente)
 
-Quando uma mensagem chega com `chatId=91057635229851@lid`, a Tentativa 4b chama a RPC para encontrar uma conversa @c.us correspondente. Porem a RPC busca mensagens cujo `raw_data` contem o texto `91057635229851` - e as mensagens da PROPRIA conversa @lid tambem contem esse numero! Resultado: a RPC retorna a conversa @lid (ela mesma), nao a conversa @c.us que seria o merge correto.
+O payload do GOWS (`_data`) para canais nao inclui o nome -- `PushName`, `Subject`, `Name` sao todos vazios/null para newsletters. A unica forma de obter o nome e via API.
 
-### Bug 2: Tentativa 3 (busca por telefone) falha com numeros @lid
-
-A Tentativa 3 busca conversas por `ilike("chat_id", "%${lastDigits}%")` usando os ultimos 8 digitos do phoneNumber. Porem quando o phoneNumber e um @lid (ex: `91057635229851`), os ultimos 8 digitos (`35229851`) NAO existem no chat_id da conversa real (`5513991415709@c.us`). A busca fuzzy falha.
-
-### Fluxo do problema (confirmado nos dados):
-
-```text
-14:26:27 - Keven ENVIA para Matheus
-         - GOWS resolve @lid -> 5513991415709@c.us
-         - Cria conversa com chat_id=5513991415709@c.us (OK)
-
-14:26:46 - Matheus RESPONDE
-         - from=91057635229851@lid (GOWS NAO resolve)
-         - chatId = 91057635229851@lid
-         - originalLidChatId = null (nao houve resolucao)
-         - Tentativa 1: busca chat_id=91057635229851@lid -> NAO encontra
-         - Tentativa 2: busca por contato_id -> NAO encontra (contato novo)
-         - Tentativa 3: busca fuzzy por %35229851% -> NAO bate com 5513991415709@c.us
-         - Tentativa 4: originalLidChatId=null -> PULA (nao se aplica)
-         - Tentativa 4b: RPC resolve_lid_conversa('91057635229851')
-           -> Retorna conversa 4a99022b (A PROPRIA @lid criada neste mesmo fluxo)
-           -> Bug: deveria retornar a conversa @c.us, mas encontra a @lid primeiro
-         - CRIA nova conversa duplicada com chat_id=91057635229851@lid
-```
+O resultado: na criacao, `groupName` fica null e a conversa e criada com `nome = chatId` (ex: `120363170942886188@newsletter`). Eventualmente numa mensagem posterior, se uma das APIs funcionar, o nome e atualizado.
 
 ## Solucao
 
-### Mudanca 1: Corrigir RPC `resolve_lid_conversa`
-
-Adicionar filtro para excluir conversas cujo `chat_id` contem `@lid`. A RPC deve retornar APENAS conversas com `chat_id @c.us` que tenham referencia ao numero @lid no `raw_data`.
-
-```sql
--- Adicionar: AND c.chat_id NOT LIKE '%@lid'
-```
-
-### Mudanca 2: Adicionar Tentativa 5 - busca reversa por raw_data
-
-Quando chatId e @lid e nenhuma tentativa anterior funcionou, buscar diretamente nas mensagens de OUTRAS conversas (nao @lid) que contenham referencia ao @lid number no raw_data. Isso e mais robusto que a RPC.
-
-### Mudanca 3: Tentativa 3 aprimorada com busca por contato_id cross-session
-
-Se chatId e @lid, buscar conversa pelo contato_id encontrado (mesmo que de outra sessao), ja que o contato pode ter sido criado com telefone real via uma mensagem anterior.
-
-### Mudanca 4: Limpeza SQL dos dados
-
-Merge das conversas duplicadas existentes em ambas as organizacoes (Litoral Place e Personal Junior):
-- Mover mensagens de conversas @lid para as conversas @c.us correspondentes
-- Soft-delete das conversas @lid duplicadas
-- Atualizar telefones dos contatos @lid para o numero real
-
-## Detalhes Tecnicos
-
-### Arquivo: Migracao SQL (RPC)
-
-Recriar a funcao `resolve_lid_conversa` com filtro `c.chat_id NOT LIKE '%@lid'`:
-
-```sql
-CREATE OR REPLACE FUNCTION public.resolve_lid_conversa(p_org_id uuid, p_lid_number text)
-RETURNS TABLE(conversa_id uuid)
-LANGUAGE sql
-STABLE SECURITY DEFINER
-SET search_path TO 'public'
-AS $$
-  SELECT m.conversa_id
-  FROM mensagens m
-  JOIN conversas c ON c.id = m.conversa_id
-  WHERE m.organizacao_id = p_org_id
-    AND m.raw_data::text LIKE '%' || p_lid_number || '%'
-    AND c.deletado_em IS NULL
-    AND c.chat_id NOT LIKE '%@lid'  -- EXCLUIR conversas @lid
-  LIMIT 1;
-$$;
-```
-
 ### Arquivo: `supabase/functions/waha-webhook/index.ts`
 
-1. **Tentativa 4b**: Adicionar validacao para ignorar resultado se a conversa retornada tem `chat_id @lid` (mesmo que a RPC retorne)
+Refatorar a logica de busca de metadados de canal na secao `isChannel` (linhas ~1005-1045):
 
-2. **Tentativa 5** (nova): Quando Tentativa 4b falha, buscar conversa @c.us por contato_id na mesma org (sem filtro de sessao):
+1. **Prioridade 1**: Usar o endpoint correto `GET /api/{session}/channels/{channelId}` (endpoint especifico e rapido)
+   - URL: `/api/{sessionName}/channels/{rawFrom}` onde rawFrom = `120363170942886188@newsletter`
+   - Resposta esperada: `{"id": "...@newsletter", "name": "CazéTV", ...}`
+   - Extrair: `name`, `description`, `picture/preview` (para foto)
+
+2. **Prioridade 2**: Manter fallback para `GET /api/{session}/channels` (lista completa) caso o endpoint especifico falhe
+
+3. **Remover**: O endpoint `/newsletters/{id}` que nao existe no GOWS
+
+4. **Adicionar log detalhado**: Registrar status HTTP e resposta de cada tentativa para facilitar debug futuro
+
+### Mudanca tecnica no webhook
 
 ```typescript
-// Tentativa 5: buscar conversa @c.us pelo mesmo contato_id
-if (!existingConversa && chatId.includes("@lid") && contatoId) {
-  const { data: conversaCus } = await supabaseAdmin
-    .from("conversas")
-    .select("id, total_mensagens, mensagens_nao_lidas, chat_id, contato_id")
-    .eq("organizacao_id", sessao.organizacao_id)
-    .eq("contato_id", contatoId)
-    .eq("tipo", "individual")
-    .not("chat_id", "like", "%@lid")
-    .is("deletado_em", null)
-    .maybeSingle();
+// ANTES (errado):
+const nlResp = await fetch(
+  `${wahaApiUrl}/api/${sessionName}/newsletters/${rawFrom}`,
+  ...
+);
 
-  if (conversaCus) {
-    existingConversa = conversaCus;
-    chatId = conversaCus.chat_id;
-  }
+// DEPOIS (correto - endpoint suportado pelo GOWS):
+const chResp = await fetch(
+  `${wahaApiUrl}/api/${sessionName}/channels/${encodeURIComponent(rawFrom)}`,
+  ...
+);
+if (chResp.ok) {
+  const chData = await chResp.json();
+  groupName = chData?.name || chData?.Name || chData?.subject || null;
+  groupPhotoUrl = chData?.picture || chData?.preview || chData?.pictureUrl || null;
 }
 ```
 
-3. **Protecao final**: Antes de criar conversa nova, se chatId ainda e @lid, fazer uma ultima busca direta no raw_data das mensagens existentes para extrair o numero @c.us real
+### Resultado esperado
 
-### Arquivo: Migracao SQL (limpeza de dados)
-
-Para Litoral Place (`0f93da3e`):
-- Merge `91057635229851@lid` + `5513991415709@c.us` (Matheus da Costa)
-- Merge `98079957098744@lid` (MT) com sua conversa @c.us se existir
-
-Para Personal Junior (`1a3e19c7`):
-- Todas as 20 conversas @lid restantes: verificar se tem @c.us correspondente e fazer merge
-
-## Resultado Esperado
-
-- A RPC nunca mais retorna a propria conversa @lid como resultado
-- Quando um @lid chega sem resolucao, o sistema encontra a conversa @c.us pelo contato ou pelo raw_data
-- Conversas @lid existentes sao automaticamente migradas para @c.us na proxima mensagem
-- Duplicidade eliminada definitivamente
+- O nome do canal sera resolvido ja na primeira mensagem recebida
+- A conversa sera criada com o nome correto (ex: "CazéTV") ao inves do ID numerico
+- O contato do canal tambem tera o nome atualizado
+- Menos chamadas de API (1 chamada direta vs 1 chamada falhada + 1 lista completa)
