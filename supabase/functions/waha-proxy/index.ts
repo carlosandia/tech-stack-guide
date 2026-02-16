@@ -1402,13 +1402,7 @@ Deno.serve(async (req) => {
 
               const chatIdToConversaId = new Map((conversasAtivas || []).map(c => [c.chat_id, c.id]));
 
-              // Clear ALL label associations for this org (full sync)
-              const { error: delErr } = await supabaseAdmin
-                .from("conversas_labels")
-                .delete()
-                .eq("organizacao_id", organizacaoId);
-              
-              if (delErr) console.error(`[waha-proxy] Error deleting old associations:`, delErr.message);
+              // AIDEV-NOTE: DELETE ALL removido - agora usa estratégia diff-based (ver bloco abaixo)
 
               // AIDEV-NOTE: Track source of each association (@lid vs @c.us)
               // When a conversa has labels from BOTH @lid and @c.us sources, 
@@ -1520,16 +1514,47 @@ Deno.serve(async (req) => {
                 organizacao_id, conversa_id, label_id,
               }));
 
+              // AIDEV-NOTE: Estratégia diff-based - só apaga associações obsoletas, nunca faz DELETE ALL
+              // Protege contra respostas vazias intermitentes do WAHA GOWS
               if (insertRows.length > 0) {
+                // Buscar associações atuais do DB
+                const { data: currentAssocs } = await supabaseAdmin
+                  .from("conversas_labels")
+                  .select("conversa_id, label_id")
+                  .eq("organizacao_id", organizacaoId);
+
+                // Calcular quais remover (estão no DB mas não vieram do WAHA)
+                const newKeys = new Set(insertRows.map(r => `${r.conversa_id}:${r.label_id}`));
+                const toDelete = (currentAssocs || []).filter(
+                  cl => !newKeys.has(`${cl.conversa_id}:${cl.label_id}`)
+                );
+
+                // Deletar apenas as obsoletas
+                if (toDelete.length > 0) {
+                  console.log(`[waha-proxy] Removing ${toDelete.length} obsolete label associations`);
+                  for (const del of toDelete) {
+                    await supabaseAdmin
+                      .from("conversas_labels")
+                      .delete()
+                      .eq("conversa_id", del.conversa_id)
+                      .eq("label_id", del.label_id)
+                      .eq("organizacao_id", organizacaoId);
+                  }
+                }
+
+                // Upsert novas/existentes
                 const { error: insertErr } = await supabaseAdmin
                   .from("conversas_labels")
                   .upsert(insertRows, { onConflict: "conversa_id,label_id" });
                 if (insertErr) {
-                  console.error(`[waha-proxy] Error inserting label associations:`, insertErr.message);
+                  console.error(`[waha-proxy] Error upserting label associations:`, insertErr.message);
                 }
-              }
 
-              console.log(`[waha-proxy] ✅ Synced ${dedupedRows.length} label associations from ${dbLabels.length} labels`);
+                console.log(`[waha-proxy] ✅ Synced ${dedupedRows.length} label associations from ${dbLabels.length} labels (diff-based)`);
+              } else {
+                // WAHA retornou 0 associações - NÃO apagar nada, preservar dados existentes
+                console.warn(`[waha-proxy] ⚠️ WAHA returned 0 label associations from ${dbLabels?.length ?? 0} labels — preserving existing data`);
+              }
             }
           } catch (syncErr) {
             console.error(`[waha-proxy] Failed to sync label-chat associations:`, syncErr);
