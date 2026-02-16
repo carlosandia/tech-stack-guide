@@ -1,104 +1,92 @@
 
+# Correcoes: Etapas Globais (Lapis) + Filtrar Canais das Conversas
 
-# Correcao: Etapas Padrao para Novos Tenants + Edicao de Etiqueta em Etapas Sistema
+## 1. Remover lapis de edicao das etapas sistema em /configuracoes/etapas
 
-## Resumo
+**Arquivo**: `src/modules/configuracoes/pages/EtapasTemplatesPage.tsx`
 
-Duas acoes necessarias:
+Atualmente o lapis aparece para TODAS as etapas (incluindo sistema). Conforme pedido, deve aparecer apenas para etapas customizadas (tipo `normal`).
 
-1. **Dados**: Inserir etapas padrao (Novos Negocios, Ganho, Perdido) nas organizacoes "Personal Junior" e "Litoral Place" que estao sem elas
-2. **UI Pipeline Config**: Mostrar botao de edicao (lapis) nas etapas de sistema (entrada/ganho/perda) na configuracao de pipeline, permitindo editar APENAS o campo "Etiqueta WhatsApp"
-
----
-
-## Parte 1: Inserir Etapas Padrao (Dados)
-
-Inserir 3 registros na tabela `etapas_templates` para cada organizacao que nao possui:
-
-| Organizacao | Nome | Tipo | Cor | Prob | Sistema |
-|---|---|---|---|---|---|
-| Personal Junior | Novos Negocios | entrada | #3B82F6 | 10 | true |
-| Personal Junior | Ganho | ganho | #22C55E | 100 | true |
-| Personal Junior | Perdido | perda | #EF4444 | 0 | true |
-| Litoral Place | Novos Negocios | entrada | #3B82F6 | 10 | true |
-| Litoral Place | Ganho | ganho | #22C55E | 100 | true |
-| Litoral Place | Perdido | perda | #EF4444 | 0 | true |
-
-IDs das organizacoes:
-- Personal Junior: `1a3e19c7-66d6-4016-b5bb-1351a75b0fe1`
-- Litoral Place: `0f93da3e-58b3-48f7-80e0-7e4902799357`
-
----
-
-## Parte 2: Lapis de Edicao para Etapas Sistema na Pipeline
-
-### Arquivo: `src/modules/negocios/components/config/ConfigEtapas.tsx`
-
-**Mudanca**: Mostrar o botao de edicao (lapis) para etapas de sistema (entrada/ganho/perda), sem mostrar o botao de excluir:
+**Mudanca**: Condicionar o botao de edicao para esconder quando `template.sistema` ou `template.tipo !== 'normal'`:
 
 ```typescript
-// ANTES (linha ~194): so mostra lapis para NAO-sistema
-{!isSistema(etapa) && (
-  <>
-    <button onClick={...}><Pencil /></button>
-    <button onClick={...}><Trash2 /></button>
-  </>
-)}
-
-// DEPOIS: lapis para TODAS, lixeira so para nao-sistema
-<button onClick={() => { setEditando(etapa); setShowModal(true) }}
-  className="p-1.5 rounded-md hover:bg-accent text-muted-foreground"
-  title="Editar">
-  <Pencil className="w-3.5 h-3.5" />
-</button>
-{!isSistema(etapa) && (
-  <button onClick={() => excluirEtapa.mutate(etapa.id)}
-    className="p-1.5 rounded-md hover:bg-destructive/10 text-destructive"
-    title="Excluir">
-    <Trash2 className="w-3.5 h-3.5" />
+{isAdmin && !template.sistema && template.tipo === 'normal' && (
+  <button onClick={() => handleEdit(template)} ...>
+    <Pencil />
   </button>
 )}
 ```
 
-### Arquivo: `src/modules/negocios/components/config/EtapaFormModal.tsx`
+---
 
-**Mudanca**: Detectar se a etapa e de sistema e bloquear todos os campos exceto "Etiqueta WhatsApp":
+## 2. Nao trazer mais conversas de canal (@newsletter) na listagem
+
+Duas acoes:
+
+### 2a. Backend: Filtrar canais na listagem
+
+**Arquivo**: `backend/src/services/conversas.service.ts`
+
+Adicionar `.neq('tipo', 'canal')` na query de listagem para que conversas de canal nunca aparecam:
 
 ```typescript
-// Adicionar deteccao de sistema
-const isSistema = etapa?.tipo === 'entrada' || etapa?.tipo === 'ganho' || etapa?.tipo === 'perda'
-
-// Campos nome, cor, probabilidade: disabled={isSistema}
-// Campo etiqueta_whatsapp: sempre habilitado
-
-// Titulo do modal: "Etiqueta da Etapa" quando sistema
-// Mensagem informativa quando sistema
+let query = supabase
+  .from('conversas')
+  .select(...)
+  .eq('organizacao_id', organizacaoId)
+  .is('deletado_em', null)
+  .neq('tipo', 'canal')  // <-- NOVO: excluir canais
 ```
 
-### Arquivo: `src/modules/configuracoes/pages/EtapasTemplatesPage.tsx`
+### 2b. Webhook: Ignorar mensagens de canal no WAHA
 
-**Mudanca**: Mostrar lapis de edicao para etapas de sistema tambem (mesma logica — editar so etiqueta). Atualmente o `handleEdit` retorna sem fazer nada para etapas sistema. Remover essa restricao e permitir abrir o modal.
+**Arquivo**: `supabase/functions/waha-webhook/index.ts`
 
-### Arquivo: `src/modules/configuracoes/components/etapas/EtapaTemplateFormModal.tsx`
+Adicionar um early return quando `isChannel` e detectado (logo apos a deteccao de `@newsletter`), para que o webhook nao crie conversas nem salve mensagens de canais:
 
-**Mudanca**: Quando `isProtegido` (etapa sistema), ainda permitir salvar — so que apenas campos nao-protegidos serao editaveis. Atualmente o botao "Salvar" e escondido quando `isProtegido`. Mudar para mostrar o botao e permitir salvar os campos liberados.
+```typescript
+if (isChannel) {
+  console.log(`[waha-webhook] Channel message ignored: ${rawFrom}`);
+  return new Response(
+    JSON.stringify({ ok: true, message: "Channel message ignored" }),
+    { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+  );
+}
+```
 
-**Nota**: A tabela `etapas_templates` NAO possui coluna `etiqueta_whatsapp` (apenas `etapas_funil` tem). Para a pagina de templates globais, o modal abrira em modo somente-leitura como esta hoje (sem campo de etiqueta). A mudanca principal de edicao de etiqueta e na configuracao de pipeline (`EtapaFormModal`).
+---
+
+## 3. Excluir dados existentes de canal
+
+Soft delete (marcar `deletado_em`) em todas as mensagens e conversas de tipo `canal`:
+
+```sql
+-- Soft delete mensagens de conversas de canal
+UPDATE mensagens 
+SET deletado_em = NOW() 
+WHERE conversa_id IN (SELECT id FROM conversas WHERE tipo = 'canal')
+AND deletado_em IS NULL;
+
+-- Soft delete conversas de canal
+UPDATE conversas 
+SET deletado_em = NOW() 
+WHERE tipo = 'canal' AND deletado_em IS NULL;
+```
+
+Dados afetados: 5 conversas e 99 mensagens em todas as organizacoes.
 
 ---
 
 ## Arquivos a Modificar
 
-1. **Dados** — INSERT de 6 registros em `etapas_templates`
-2. `src/modules/negocios/components/config/ConfigEtapas.tsx` — Mostrar lapis para etapas sistema
-3. `src/modules/negocios/components/config/EtapaFormModal.tsx` — Campos bloqueados exceto etiqueta quando sistema
-4. `src/modules/configuracoes/pages/EtapasTemplatesPage.tsx` — Mostrar lapis para etapas sistema (somente leitura)
-5. `src/modules/configuracoes/components/etapas/EtapaTemplateFormModal.tsx` — Abrir em modo visualizacao para etapas sistema
+1. `src/modules/configuracoes/pages/EtapasTemplatesPage.tsx` -- Esconder lapis para etapas sistema
+2. `backend/src/services/conversas.service.ts` -- Filtrar tipo canal na listagem
+3. `supabase/functions/waha-webhook/index.ts` -- Ignorar mensagens @newsletter
+4. Migracao SQL -- Soft delete de conversas/mensagens de canal existentes
 
 ## Resultado Esperado
 
-- Todas as organizacoes terao as 3 etapas padrao visiveis em Configuracoes > Etapas
-- Na configuracao de pipeline, o lapis aparecera para Novos Negocios, Ganho e Perdido
-- Ao clicar, o modal abrira com todos os campos bloqueados exceto "Etiqueta WhatsApp"
-- O botao "Salvar" estara disponivel para salvar a etiqueta
-
+- Em /configuracoes/etapas, o lapis aparece apenas para etapas customizadas
+- Em /conversas, conversas de canal nao aparecem mais na lista
+- O webhook ignora novas mensagens de canais @newsletter
+- Dados existentes de canal sao removidos (soft delete)
