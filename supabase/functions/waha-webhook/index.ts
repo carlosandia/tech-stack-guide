@@ -1770,6 +1770,7 @@ Deno.serve(async (req) => {
     }
 
     // AIDEV-NOTE: Tentativa 4b - Inverso: chatId ainda é @lid, buscar conversa @c.us via RPC
+    // A RPC agora filtra c.chat_id NOT LIKE '%@lid' para nunca retornar a própria conversa @lid
     if (!existingConversa && chatId.includes("@lid") && conversaTipo === "individual") {
       const lidNumber = chatId.replace("@lid", "");
       console.log(`[waha-webhook] Tentativa 4b: chatId é @lid, buscando conversa real via RPC: ${lidNumber}`);
@@ -1788,13 +1789,76 @@ Deno.serve(async (req) => {
           .is("deletado_em", null)
           .maybeSingle();
 
-        if (realConversa) {
+        // AIDEV-NOTE: Validação extra - ignorar se a conversa retornada ainda for @lid
+        if (realConversa && !realConversa.chat_id.includes("@lid")) {
           existingConversa = realConversa;
-          chatId = realConversa.chat_id; // Usar o chat_id real
+          chatId = realConversa.chat_id;
           if (realConversa.contato_id) {
             contatoId = realConversa.contato_id;
           }
           console.log(`[waha-webhook] ✅ Conversa found via RPC resolve_lid: ${realConversa.id} (chatId=${chatId})`);
+        } else if (realConversa) {
+          console.log(`[waha-webhook] ⚠️ RPC returned @lid conversa ${realConversa.id}, ignoring`);
+        }
+      }
+    }
+
+    // AIDEV-NOTE: Tentativa 5 - Buscar conversa @c.us pelo mesmo contato_id (cross-session)
+    // Quando chatId é @lid e o contato já foi criado com telefone real via mensagem anterior
+    if (!existingConversa && chatId.includes("@lid") && contatoId && conversaTipo === "individual") {
+      console.log(`[waha-webhook] Tentativa 5: buscando conversa @c.us pelo contato_id=${contatoId} (cross-session)`);
+      const { data: conversaCus } = await supabaseAdmin
+        .from("conversas")
+        .select("id, total_mensagens, mensagens_nao_lidas, chat_id, contato_id")
+        .eq("organizacao_id", sessao.organizacao_id)
+        .eq("contato_id", contatoId)
+        .eq("tipo", "individual")
+        .not("chat_id", "like", "%@lid")
+        .is("deletado_em", null)
+        .order("ultima_mensagem_em", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (conversaCus) {
+        existingConversa = conversaCus;
+        chatId = conversaCus.chat_id;
+        console.log(`[waha-webhook] ✅ Conversa found via contato_id cross-session: ${conversaCus.id} (chatId=${chatId})`);
+      }
+    }
+
+    // AIDEV-NOTE: Proteção final - Se chatId ainda é @lid e nenhuma tentativa encontrou,
+    // fazer última busca direta no raw_data de mensagens @c.us para encontrar o número real
+    if (!existingConversa && chatId.includes("@lid") && conversaTipo === "individual") {
+      const lidNumber = chatId.replace("@lid", "");
+      console.log(`[waha-webhook] Proteção final: última tentativa de busca por raw_data para lid=${lidNumber}`);
+      
+      // Buscar diretamente mensagens de conversas @c.us que referenciam este @lid
+      const { data: msgComLid } = await supabaseAdmin
+        .from("mensagens")
+        .select("conversa_id")
+        .eq("organizacao_id", sessao.organizacao_id)
+        .ilike("raw_data", `%${lidNumber}%`)
+        .limit(10);
+
+      if (msgComLid && msgComLid.length > 0) {
+        // Buscar conversas dessas mensagens que NÃO sejam @lid
+        const conversaIds = [...new Set(msgComLid.map(m => m.conversa_id))];
+        const { data: conversasReais } = await supabaseAdmin
+          .from("conversas")
+          .select("id, total_mensagens, mensagens_nao_lidas, chat_id, contato_id")
+          .in("id", conversaIds)
+          .not("chat_id", "like", "%@lid")
+          .is("deletado_em", null)
+          .limit(1)
+          .maybeSingle();
+
+        if (conversasReais) {
+          existingConversa = conversasReais;
+          chatId = conversasReais.chat_id;
+          if (conversasReais.contato_id) {
+            contatoId = conversasReais.contato_id;
+          }
+          console.log(`[waha-webhook] ✅ Conversa found via raw_data search: ${conversasReais.id} (chatId=${chatId})`);
         }
       }
     }
