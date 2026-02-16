@@ -159,7 +159,10 @@ export const ChatHeader = forwardRef<HTMLDivElement, ChatHeaderProps>(function C
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirmAction, setConfirmAction] = useState<'limpar' | 'apagar' | null>(null)
   const [sessionName, setSessionName] = useState('')
-  const nome = conversa.contato?.nome || conversa.nome || 'Sem nome'
+  // AIDEV-NOTE: Grupos/canais priorizam conversa.nome sobre contato.nome (pode ser ID numérico)
+  const nome = (conversa.tipo === 'grupo' || conversa.tipo === 'canal')
+    ? (conversa.nome || conversa.contato?.nome || 'Sem nome')
+    : (conversa.contato?.nome || conversa.nome || 'Sem nome')
   const fotoUrl = conversa.contato?.foto_url || conversa.foto_url
   const statusInfo = statusLabels[conversa.status] || statusLabels.aberta
   const { data: conversaLabels = [] } = useLabelsConversa(conversa.id)
