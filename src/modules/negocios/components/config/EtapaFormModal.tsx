@@ -22,6 +22,7 @@ const CORES = [
 ]
 
 export function EtapaFormModal({ etapa, onClose, onSave, loading }: Props) {
+  const isSistema = etapa?.tipo === 'entrada' || etapa?.tipo === 'ganho' || etapa?.tipo === 'perda'
   const [nome, setNome] = useState(etapa?.nome || '')
   const [cor, setCor] = useState(etapa?.cor || '#3B82F6')
   const [probabilidade, setProbabilidade] = useState(etapa?.probabilidade ?? 50)
@@ -31,15 +32,20 @@ export function EtapaFormModal({ etapa, onClose, onSave, loading }: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!nome.trim()) return
-    await onSave({ nome: nome.trim(), cor, probabilidade, etiqueta_whatsapp: etiquetaWhatsapp.trim() || null } as any)
+    if (isSistema) {
+      // Só salva etiqueta para etapas sistema
+      await onSave({ nome: etapa!.nome, cor: etapa!.cor || '#6B7280', probabilidade: etapa!.probabilidade ?? 0, etiqueta_whatsapp: etiquetaWhatsapp.trim() || null } as any)
+    } else {
+      if (!nome.trim()) return
+      await onSave({ nome: nome.trim(), cor, probabilidade, etiqueta_whatsapp: etiquetaWhatsapp.trim() || null } as any)
+    }
   }
 
   return (
     <ModalBase
       onClose={onClose}
-      title={isEdit ? 'Editar Etapa' : 'Nova Etapa'}
-      description={isEdit ? 'Atualize as configurações da etapa' : 'Defina nome, cor e probabilidade'}
+      title={isSistema ? 'Etiqueta da Etapa' : isEdit ? 'Editar Etapa' : 'Nova Etapa'}
+      description={isSistema ? 'Configure a etiqueta WhatsApp desta etapa do sistema' : isEdit ? 'Atualize as configurações da etapa' : 'Defina nome, cor e probabilidade'}
       icon={Layers}
       variant={isEdit ? 'edit' : 'create'}
       size="sm"
@@ -54,7 +60,7 @@ export function EtapaFormModal({ etapa, onClose, onSave, loading }: Props) {
           </button>
           <button
             onClick={handleSubmit}
-            disabled={!nome.trim() || loading}
+            disabled={(!isSistema && !nome.trim()) || loading}
             className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 transition-all duration-200"
           >
             {loading ? 'Salvando...' : isEdit ? 'Salvar' : 'Criar Etapa'}
@@ -63,6 +69,12 @@ export function EtapaFormModal({ etapa, onClose, onSave, loading }: Props) {
       }
     >
       <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-5">
+        {isSistema && (
+          <div className="px-3 py-2 rounded-md bg-muted text-xs text-muted-foreground">
+            Etapas do sistema não podem ter nome, cor ou probabilidade alterados. Apenas a etiqueta WhatsApp pode ser configurada.
+          </div>
+        )}
+
         {/* Nome */}
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-foreground">Nome da Etapa *</label>
@@ -71,8 +83,9 @@ export function EtapaFormModal({ etapa, onClose, onSave, loading }: Props) {
             value={nome}
             onChange={e => setNome(e.target.value)}
             placeholder="Ex: Qualificação, Proposta, Negociação..."
-            className="w-full px-3 py-2 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30"
-            required
+            className="w-full px-3 py-2 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30 disabled:opacity-50 disabled:cursor-not-allowed"
+            required={!isSistema}
+            disabled={isSistema}
           />
         </div>
 
@@ -85,7 +98,8 @@ export function EtapaFormModal({ etapa, onClose, onSave, loading }: Props) {
                 key={c}
                 type="button"
                 onClick={() => setCor(c)}
-                className={`w-8 h-8 rounded-md border-2 transition-all duration-200 ${
+                disabled={isSistema}
+                className={`w-8 h-8 rounded-md border-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
                   cor === c ? 'border-foreground scale-110' : 'border-transparent hover:scale-105'
                 }`}
                 style={{ backgroundColor: c }}
@@ -107,6 +121,7 @@ export function EtapaFormModal({ etapa, onClose, onSave, loading }: Props) {
               value={probabilidade}
               onChange={e => setProbabilidade(Number(e.target.value))}
               className="flex-1 accent-primary"
+              disabled={isSistema}
             />
             <span className="text-sm font-medium text-foreground w-10 text-right">
               {probabilidade}%

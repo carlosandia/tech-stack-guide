@@ -191,23 +191,21 @@ export function ConfigEtapas({ funilId }: Props) {
                 {etapa.probabilidade ?? 0}%
               </span>
 
+              <button
+                onClick={() => { setEditando(etapa); setShowModal(true) }}
+                className="p-1.5 rounded-md hover:bg-accent text-muted-foreground transition-all duration-200"
+                title="Editar"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
               {!isSistema(etapa) && (
-                <>
-                  <button
-                    onClick={() => { setEditando(etapa); setShowModal(true) }}
-                    className="p-1.5 rounded-md hover:bg-accent text-muted-foreground transition-all duration-200"
-                    title="Editar"
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => excluirEtapa.mutate(etapa.id)}
-                    className="p-1.5 rounded-md hover:bg-destructive/10 text-destructive transition-all duration-200"
-                    title="Excluir"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </>
+                <button
+                  onClick={() => excluirEtapa.mutate(etapa.id)}
+                  className="p-1.5 rounded-md hover:bg-destructive/10 text-destructive transition-all duration-200"
+                  title="Excluir"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
               )}
             </div>
           </div>

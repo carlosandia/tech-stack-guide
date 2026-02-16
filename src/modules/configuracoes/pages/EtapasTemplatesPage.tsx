@@ -46,8 +46,6 @@ export function EtapasTemplatesPage() {
   }, [isAdmin, setActions, setSubtitle])
 
   const handleEdit = (template: EtapaTemplate) => {
-    // Etapas sistema não podem ser editadas
-    if (template.sistema || template.tipo === 'entrada' || template.tipo === 'ganho' || template.tipo === 'perda') return
     setTemplateEditando(template)
     setModalAberto(true)
   }
@@ -134,11 +132,11 @@ export function EtapasTemplatesPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
-                {isAdmin && !template.sistema && template.tipo === 'normal' && (
+                {isAdmin && (
                   <button
                     onClick={() => handleEdit(template)}
                     className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200"
-                    title="Editar etapa"
+                    title={template.sistema || template.tipo !== 'normal' ? 'Visualizar etapa' : 'Editar etapa'}
                   >
                     <Pencil className="w-4 h-4" />
                   </button>
