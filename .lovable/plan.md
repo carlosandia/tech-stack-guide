@@ -1,77 +1,67 @@
 
-# Correcao: Conversas Duplicadas por Sufixo de Device GOWS
+# Correcao: Mensagens Silenciosamente Descartadas pelo Indice UNIQUE Global
 
 ## Diagnostico
 
-O WAHA GOWS retorna nos campos `SenderAlt` e `RecipientAlt` um formato com **sufixo de device** (ex: `5513974079532:72@s.whatsapp.net`). O `:72` indica o dispositivo vinculado do contato.
+Existem **dois indices UNIQUE conflitantes** na tabela `mensagens`:
 
-O codigo atual faz `.replace("@s.whatsapp.net", "@c.us")` sem limpar o sufixo, resultando em:
+| Indice | Definicao | Status |
+|---|---|---|
+| `idx_mensagens_message_id_unique` | `UNIQUE(message_id) WHERE deletado_em IS NULL` | DEVERIA TER SIDO REMOVIDO -- causa o bug |
+| `idx_mensagens_unique` | `UNIQUE(organizacao_id, message_id) WHERE deletado_em IS NULL` | Correto, mas nao esta sendo usado |
 
-| Cenario | Campo usado | Valor resolvido | Problema |
-|---|---|---|---|
-| Mensagem enviada (fromMe) | RecipientAlt | `5513974079532@c.us` | OK (sem sufixo neste caso) |
-| Mensagem recebida | SenderAlt | `5513974079532:72@c.us` | DUPLICA - sufixo `:72` gera chatId diferente |
+O webhook faz `.upsert(messageInsert, { onConflict: "message_id", ignoreDuplicates: true })`, que resolve contra o indice **global**. Quando um `message_id` ja existe em outra organizacao, o upsert silenciosamente descarta a mensagem. A conversa e criada normalmente, mas nenhuma mensagem e persistida.
 
-Isso cria **contato duplicado** (telefone `5513974079532:72` vs `5513974079532`) e **conversa duplicada** (chat_id diferente).
+**Conversas afetadas atualmente (0 mensagens):**
+- Rafa Lobo (19496216448@c.us) -- total_mensagens=22, real=0
+- "." (5511986096402@c.us) -- total_mensagens=5, real=0
+- "." (5513981294528@c.us) -- total_mensagens=20, real=0
 
-**Impacto atual**: 18 contatos e 2 conversas ja afetados no banco.
+**Este e um problema sistemico**: todas as proximas conversas com `message_id` coincidente entre organizacoes terao mensagens perdidas silenciosamente.
 
 ## Solucao
 
-### 1. Webhook: Limpar sufixo de device em todos os pontos de resolucao
-
-**Arquivo**: `supabase/functions/waha-webhook/index.ts`
-
-Criar funcao utilitaria que remove o sufixo de device antes de usar o numero:
-
-```typescript
-function cleanDeviceSuffix(jid: string): string {
-  // GOWS retorna "5513974079532:72@s.whatsapp.net" onde ":72" e o device ID
-  // Precisamos limpar para "5513974079532@s.whatsapp.net"
-  return jid.replace(/:\d+@/, "@");
-}
-```
-
-Aplicar em **3 locais**:
-
-- **Individual recebido** (linha ~1466): `SenderAlt` antes de `.replace("@s.whatsapp.net", "@c.us")`
-- **Individual fromMe** (linha ~1346): `RecipientAlt` e `ChatAlt`/`SenderAlt`
-- **Grupo** (linha ~1133): `SenderAlt` do participante
-
-### 2. Migracao SQL: Corrigir dados existentes
+### 1. Migracao SQL: Remover indice global + resetar contadores
 
 ```sql
--- Corrigir telefones com sufixo de device nos contatos
-UPDATE contatos
-SET telefone = REGEXP_REPLACE(telefone, ':\d+$', '')
-WHERE telefone ~ ':\d+$' AND deletado_em IS NULL;
+-- Remover o indice global que causa o conflito entre organizacoes
+DROP INDEX IF EXISTS idx_mensagens_message_id_unique;
 
--- Corrigir chat_id com sufixo de device nas conversas
+-- Resetar contadores das conversas afetadas para refletir a realidade
 UPDATE conversas
-SET chat_id = REGEXP_REPLACE(chat_id, ':\d+@', '@')
-WHERE chat_id ~ ':\d+@c\.us' AND deletado_em IS NULL;
-
--- Mesclar conversas duplicadas (soft delete a duplicada, mover mensagens para a original)
--- Para cada par de conversas com mesmo numero base, mover mensagens da duplicada para a original
--- e soft delete a conversa duplicada
+SET total_mensagens = 0, mensagens_nao_lidas = 0
+WHERE id IN (
+  'eaa5f71d-ba2f-465d-bb4d-540cb28bf792',
+  '7576ec19-9ea7-47ed-95a2-e9df5dc6bbcc',
+  '4f191c3e-9f29-47e5-817f-d647ef231c83'
+);
 ```
 
-Logica de mesclagem para o caso do Danilo e outros afetados:
-- Identificar pares de conversas com mesmo numero base (com e sem sufixo)
-- Mover mensagens da conversa duplicada para a original
-- Soft delete da conversa duplicada e do contato duplicado
+O indice composto `idx_mensagens_unique(organizacao_id, message_id)` ja existe e continuara prevenindo duplicatas dentro da mesma organizacao.
 
-### 3. Deduplicar contatos afetados
+### 2. Webhook: Ajustar onConflict para usar indice composto
 
-Mesclar os 18 contatos duplicados: manter o mais antigo (sem sufixo quando possivel) e redirecionar as referencias (conversas, oportunidades, etc.) para ele.
+**Arquivo**: `supabase/functions/waha-webhook/index.ts` (linha ~2387)
+
+Alterar de:
+```typescript
+.upsert(messageInsert, { onConflict: "message_id", ignoreDuplicates: true })
+```
+
+Para:
+```typescript
+.upsert(messageInsert, { onConflict: "organizacao_id,message_id", ignoreDuplicates: true })
+```
+
+Isso garante que o upsert usa o indice correto escopado por organizacao.
 
 ## Arquivos a Modificar
 
-1. **`supabase/functions/waha-webhook/index.ts`** -- Funcao `cleanDeviceSuffix` + aplicar nos 3 pontos de resolucao
-2. **Migracao SQL** -- Corrigir telefones, chat_ids, mesclar conversas e contatos duplicados
+1. **Migracao SQL** -- Drop do indice global, reset de contadores
+2. **`supabase/functions/waha-webhook/index.ts`** -- Corrigir `onConflict` para `"organizacao_id,message_id"`
 
 ## Resultado Esperado
 
-- Novas mensagens nunca mais criarao conversas/contatos duplicados por sufixo de device
-- Conversas existentes duplicadas serao mescladas (mensagens unificadas)
-- Contatos com telefone contendo `:XX` serao corrigidos
+- Novas mensagens nunca mais serao descartadas por conflito entre organizacoes
+- As 3 conversas afetadas terao contadores zerados (mensagens perdidas so recuperaveis via sync WAHA)
+- O indice composto `idx_mensagens_unique` continuara prevenindo duplicatas reais dentro da mesma org
