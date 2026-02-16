@@ -305,7 +305,11 @@ export const ImportarContatosModal = forwardRef<HTMLDivElement, ImportarContatos
               </div>
 
               <div className="space-y-2">
-                <p className="text-sm font-medium text-foreground">Mapeamento de Campos</p>
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-medium min-w-[150px]">Planilha</span>
+                  <span className="w-4" />
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-medium flex-1">Campo CRM</span>
+                </div>
                 {parsedData.headers.map((header) => (
                   <div key={header} className="flex items-center gap-3">
                     <span className="text-sm text-foreground min-w-[150px] truncate" title={header}>{header}</span>
