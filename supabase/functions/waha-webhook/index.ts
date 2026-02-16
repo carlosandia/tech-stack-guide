@@ -982,12 +982,21 @@ Deno.serve(async (req) => {
       conversaTipo = "canal";
 
       // Extract channel name from payload
-      // AIDEV-NOTE: GOWS pode fornecer nome do canal em vários campos diferentes
+      // AIDEV-NOTE: GOWS pode fornecer nome do canal em vários campos diferentes (PascalCase)
       groupName = payload._data?.subject || payload._data?.name || payload._data?.chat?.name
         || (payload._data as any)?.Info?.GroupName || (payload._data as any)?.ChannelName
-        || (payload._data as any)?.Info?.Topic || null;
+        || (payload._data as any)?.Info?.Topic || (payload._data as any)?.Info?.GroupSubject
+        || (payload._data as any)?.GroupName || (payload._data as any)?.Name
+        || (payload._data as any)?.Subject || null;
 
       console.log(`[waha-webhook] CHANNEL message in ${chatId} (${groupName || "unknown channel"})`);
+      // Log raw _data keys for debug
+      if (!groupName && payload._data) {
+        console.log(`[waha-webhook] Channel _data keys: ${JSON.stringify(Object.keys(payload._data as object))}`);
+        if ((payload._data as any)?.Info) {
+          console.log(`[waha-webhook] Channel _data.Info keys: ${JSON.stringify(Object.keys((payload._data as any).Info))}`);
+        }
+      }
 
       // Fetch channel metadata from WAHA if available
       if (wahaApiUrl && wahaApiKey) {
@@ -1001,7 +1010,8 @@ Deno.serve(async (req) => {
             );
             if (nlResp.ok) {
               const nlData = await nlResp.json();
-              groupName = nlData?.name || nlData?.subject || nlData?.title || null;
+              console.log(`[waha-webhook] Newsletter API raw response: ${JSON.stringify(nlData).substring(0, 500)}`);
+              groupName = nlData?.name || nlData?.Name || nlData?.subject || nlData?.Subject || nlData?.title || nlData?.Title || null;
               console.log(`[waha-webhook] Newsletter name from /newsletters API: ${groupName}`);
             } else {
               await nlResp.text();
@@ -1127,37 +1137,54 @@ Deno.serve(async (req) => {
       phoneName = extractPushName(payload) || phoneName;
 
       // Extract group name from payload
-      groupName = payload._data?.subject || payload._data?.name || payload._data?.chat?.name || payload._data?.chat?.subject || null;
+      // AIDEV-NOTE: GOWS usa campos diferentes: _data.Info.GroupName, _data.Info.Topic
+      groupName = payload._data?.subject || payload._data?.name 
+        || payload._data?.chat?.name || payload._data?.chat?.subject
+        || (payload._data as any)?.Info?.GroupName 
+        || (payload._data as any)?.Info?.Topic
+        || (payload._data as any)?.Info?.GroupSubject
+        || (payload._data as any)?.GroupName
+        || null;
 
       console.log(`[waha-webhook] GROUP message from ${phoneNumber} (${phoneName || "?"}) in ${chatId} (${groupName || "unknown group"})`);
 
-      // Fetch group metadata from WAHA (name + photo)
+      // AIDEV-NOTE: Sempre buscar metadata do grupo via API para garantir nome correto
       if (wahaApiUrl && wahaApiKey) {
         try {
           if (!groupName) {
-            // AIDEV-NOTE: Usar endpoint especifico do grupo ao inves de listar todos
+            // AIDEV-NOTE: Usar endpoint especifico do grupo
             const groupResp = await fetch(
               `${wahaApiUrl}/api/${encodeURIComponent(sessionName)}/groups/${encodeURIComponent(rawFrom)}`,
               { headers: { "X-Api-Key": wahaApiKey } }
             );
             if (groupResp.ok) {
               const groupData = await groupResp.json();
-              groupName = groupData?.subject || groupData?.name || groupData?.desc || null;
+              console.log(`[waha-webhook] Group API raw response keys: ${JSON.stringify(Object.keys(groupData || {}))}`);
+              console.log(`[waha-webhook] Group API response sample: ${JSON.stringify(groupData).substring(0, 500)}`);
+              // AIDEV-NOTE: GOWS pode retornar Subject (PascalCase) ao invés de subject
+              groupName = groupData?.subject || groupData?.Subject || groupData?.name || groupData?.Name 
+                || groupData?.desc || groupData?.Topic || groupData?.GroupName
+                || groupData?.groupName || groupData?.title || null;
               console.log(`[waha-webhook] Group name from API: ${groupName}`);
             } else {
+              const errText = await groupResp.text();
+              console.log(`[waha-webhook] Group API error (${groupResp.status}): ${errText.substring(0, 200)}`);
               // Fallback: list all groups
-              await groupResp.text();
               const allGroupsResp = await fetch(
                 `${wahaApiUrl}/api/${encodeURIComponent(sessionName)}/groups`,
                 { headers: { "X-Api-Key": wahaApiKey } }
               );
               if (allGroupsResp.ok) {
                 const groups = await allGroupsResp.json();
+                if (Array.isArray(groups) && groups.length > 0) {
+                  console.log(`[waha-webhook] Groups list sample keys: ${JSON.stringify(Object.keys(groups[0]))}`);
+                }
                 const thisGroup = Array.isArray(groups)
                   ? groups.find((g: Record<string, unknown>) => g.id === rawFrom || (g.id as Record<string, unknown>)?._serialized === rawFrom)
                   : null;
                 if (thisGroup) {
-                  groupName = (thisGroup as Record<string, unknown>).subject as string || (thisGroup as Record<string, unknown>).name as string || null;
+                  console.log(`[waha-webhook] Found group in list: ${JSON.stringify(thisGroup).substring(0, 300)}`);
+                  groupName = (thisGroup as any).subject || (thisGroup as any).Subject || (thisGroup as any).name || (thisGroup as any).Name || null;
                 }
               } else {
                 await allGroupsResp.text();
