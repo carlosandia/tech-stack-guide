@@ -1006,40 +1006,51 @@ Deno.serve(async (req) => {
       if (wahaApiUrl && wahaApiKey) {
         try {
           if (!groupName) {
-            // AIDEV-NOTE: Tentar endpoint especifico de newsletters do WAHA Plus
-            const newsletterId = rawFrom.replace("@newsletter", "");
-            const nlResp = await fetch(
-              `${wahaApiUrl}/api/${encodeURIComponent(sessionName)}/newsletters/${encodeURIComponent(rawFrom)}`,
-              { headers: { "X-Api-Key": wahaApiKey } }
-            );
-            if (nlResp.ok) {
-              const nlData = await nlResp.json();
-              console.log(`[waha-webhook] Newsletter API raw response: ${JSON.stringify(nlData).substring(0, 500)}`);
-              groupName = nlData?.name || nlData?.Name || nlData?.subject || nlData?.Subject || nlData?.title || nlData?.Title || null;
-              console.log(`[waha-webhook] Newsletter name from /newsletters API: ${groupName}`);
+            // AIDEV-NOTE: Prioridade 1 - Endpoint especifico do GOWS: GET /api/{session}/channels/{channelId}
+            // O endpoint /newsletters/{id} NAO existe no GOWS (retorna 404). Usar /channels/{id} que e suportado.
+            const channelUrl = `${wahaApiUrl}/api/${encodeURIComponent(sessionName)}/channels/${encodeURIComponent(rawFrom)}`;
+            console.log(`[waha-webhook] Fetching channel metadata from: ${channelUrl}`);
+            const chResp = await fetch(channelUrl, { headers: { "X-Api-Key": wahaApiKey } });
+            const chStatus = chResp.status;
+
+            if (chResp.ok) {
+              const chData = await chResp.json();
+              console.log(`[waha-webhook] Channel API /channels/{id} response (${chStatus}): ${JSON.stringify(chData).substring(0, 500)}`);
+              groupName = chData?.name || chData?.Name || chData?.subject || chData?.Subject || chData?.title || chData?.Title || null;
+              if (!groupPhotoUrl) {
+                groupPhotoUrl = chData?.picture || chData?.preview || chData?.profilePicUrl || chData?.profilePictureUrl || chData?.pictureUrl || null;
+              }
+              console.log(`[waha-webhook] Channel name from /channels/{id}: ${groupName}, photo: ${groupPhotoUrl}`);
             } else {
-              await nlResp.text();
-              // Fallback: tentar endpoint de channels
-              const chResp = await fetch(
-                `${wahaApiUrl}/api/${encodeURIComponent(sessionName)}/channels`,
-                { headers: { "X-Api-Key": wahaApiKey } }
-              );
-              if (chResp.ok) {
-                const channels = await chResp.json();
+              const chBody = await chResp.text();
+              console.log(`[waha-webhook] Channel API /channels/{id} returned ${chStatus}: ${chBody.substring(0, 300)}`);
+
+              // AIDEV-NOTE: Prioridade 2 - Fallback: listar todos os canais e procurar pelo ID
+              const newsletterId = rawFrom.replace("@newsletter", "");
+              const listUrl = `${wahaApiUrl}/api/${encodeURIComponent(sessionName)}/channels`;
+              console.log(`[waha-webhook] Fallback: listing all channels from ${listUrl}`);
+              const listResp = await fetch(listUrl, { headers: { "X-Api-Key": wahaApiKey } });
+              const listStatus = listResp.status;
+
+              if (listResp.ok) {
+                const channels = await listResp.json();
+                console.log(`[waha-webhook] /channels list returned ${Array.isArray(channels) ? channels.length : 'non-array'} items`);
                 const thisChannel = Array.isArray(channels)
                   ? channels.find((c: Record<string, unknown>) => c.id === rawFrom || (c.id as Record<string, unknown>)?._serialized === rawFrom || c.newsletterId === newsletterId)
                   : null;
                 if (thisChannel) {
                   const ch = thisChannel as Record<string, unknown>;
                   groupName = ch.name as string || ch.subject as string || null;
-                  // AIDEV-NOTE: Extrair foto do canal da resposta /channels
                   if (!groupPhotoUrl) {
                     groupPhotoUrl = (ch.picture as string) || (ch.profilePicUrl as string) || (ch.profilePictureUrl as string) || (ch.pictureUrl as string) || (ch.preview as string) || null;
                   }
-                  console.log(`[waha-webhook] Newsletter from /channels API: name=${groupName}, photo=${groupPhotoUrl}`);
+                  console.log(`[waha-webhook] Channel from /channels list fallback: name=${groupName}, photo=${groupPhotoUrl}`);
+                } else {
+                  console.log(`[waha-webhook] Channel ${rawFrom} NOT found in /channels list`);
                 }
               } else {
-                await chResp.text();
+                const listBody = await listResp.text();
+                console.log(`[waha-webhook] /channels list returned ${listStatus}: ${listBody.substring(0, 300)}`);
               }
             }
           }
