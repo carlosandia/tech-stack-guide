@@ -1,62 +1,104 @@
 
-# Correcao: Respostas em Grupos GOWS Nao Exibidas
 
-## Problema
+# Correcao: Etapas Padrao para Novos Tenants + Edicao de Etiqueta em Etapas Sistema
 
-O webhook **ja esta salvando** `reply_to_message_id` corretamente (confirmado: 11 mensagens com reply nas ultimas 2 horas). O problema esta na **UI** -- a lookup para encontrar a mensagem citada falha.
+## Resumo
 
-### Causa Raiz
+Duas acoes necessarias:
 
-O formato de `message_id` em grupos GOWS tem 4 segmentos:
+1. **Dados**: Inserir etapas padrao (Novos Negocios, Ganho, Perdido) nas organizacoes "Personal Junior" e "Litoral Place" que estao sem elas
+2. **UI Pipeline Config**: Mostrar botao de edicao (lapis) nas etapas de sistema (entrada/ganho/perda) na configuracao de pipeline, permitindo editar APENAS o campo "Etiqueta WhatsApp"
 
-```text
-false_120363045526325783@g.us_3B47283A826F265B10FA_222286367961324@lid
-[0]    [1]                      [2] = stanzaID           [3] = senderLid
-```
+---
 
-O codigo atual em `ChatMessages.tsx` indexa pelo **ultimo** segmento (`.split('_').pop()`), que retorna o `senderLid` (`222286367961324@lid`). Porem, o `reply_to_message_id` armazena o **stanzaID** (segmento [2], ex: `A520943141A016E3F4460E46E708DBC1`).
+## Parte 1: Inserir Etapas Padrao (Dados)
 
-Para mensagens **individuais** (3 segmentos), o ultimo segmento E o stanzaID, entao funciona. Para **grupos** (4 segmentos), nao funciona.
+Inserir 3 registros na tabela `etapas_templates` para cada organizacao que nao possui:
 
-## Solucao
+| Organizacao | Nome | Tipo | Cor | Prob | Sistema |
+|---|---|---|---|---|---|
+| Personal Junior | Novos Negocios | entrada | #3B82F6 | 10 | true |
+| Personal Junior | Ganho | ganho | #22C55E | 100 | true |
+| Personal Junior | Perdido | perda | #EF4444 | 0 | true |
+| Litoral Place | Novos Negocios | entrada | #3B82F6 | 10 | true |
+| Litoral Place | Ganho | ganho | #22C55E | 100 | true |
+| Litoral Place | Perdido | perda | #EF4444 | 0 | true |
 
-### Arquivo: `src/modules/conversas/components/ChatMessages.tsx`
+IDs das organizacoes:
+- Personal Junior: `1a3e19c7-66d6-4016-b5bb-1351a75b0fe1`
+- Litoral Place: `0f93da3e-58b3-48f7-80e0-7e4902799357`
 
-Alterar o mapeamento `messageByWahaId` para indexar tambem pelo **penultimo** segmento (stanzaID) quando o `message_id` tiver 4+ segmentos:
+---
+
+## Parte 2: Lapis de Edicao para Etapas Sistema na Pipeline
+
+### Arquivo: `src/modules/negocios/components/config/ConfigEtapas.tsx`
+
+**Mudanca**: Mostrar o botao de edicao (lapis) para etapas de sistema (entrada/ganho/perda), sem mostrar o botao de excluir:
 
 ```typescript
-const messageByWahaId = useMemo(() => {
-  const map = new Map<string, Mensagem>()
-  for (const msg of sortedMessages) {
-    if (msg.message_id) {
-      // Index by full serialized ID
-      map.set(msg.message_id, msg)
-      
-      if (msg.message_id.includes('_')) {
-        const parts = msg.message_id.split('_')
-        // Last segment (works for individual messages where last = stanzaID)
-        const lastPart = parts[parts.length - 1]
-        if (lastPart) map.set(lastPart, msg)
-        
-        // For GOWS group messages (4 segments): stanzaID is at index 2
-        // Format: {bool}_{groupId}_{stanzaID}_{senderLid}
-        if (parts.length >= 4) {
-          const stanzaPart = parts[2]
-          if (stanzaPart && !stanzaPart.includes('@')) {
-            map.set(stanzaPart, msg)
-          }
-        }
-      }
-    }
-  }
-  return map
-}, [sortedMessages])
+// ANTES (linha ~194): so mostra lapis para NAO-sistema
+{!isSistema(etapa) && (
+  <>
+    <button onClick={...}><Pencil /></button>
+    <button onClick={...}><Trash2 /></button>
+  </>
+)}
+
+// DEPOIS: lapis para TODAS, lixeira so para nao-sistema
+<button onClick={() => { setEditando(etapa); setShowModal(true) }}
+  className="p-1.5 rounded-md hover:bg-accent text-muted-foreground"
+  title="Editar">
+  <Pencil className="w-3.5 h-3.5" />
+</button>
+{!isSistema(etapa) && (
+  <button onClick={() => excluirEtapa.mutate(etapa.id)}
+    className="p-1.5 rounded-md hover:bg-destructive/10 text-destructive"
+    title="Excluir">
+    <Trash2 className="w-3.5 h-3.5" />
+  </button>
+)}
 ```
 
-A condicao `!stanzaPart.includes('@')` garante que so indexa valores que parecem stanzaIDs (hexadecimais), evitando conflitos com IDs como `groupId@g.us`.
+### Arquivo: `src/modules/negocios/components/config/EtapaFormModal.tsx`
+
+**Mudanca**: Detectar se a etapa e de sistema e bloquear todos os campos exceto "Etiqueta WhatsApp":
+
+```typescript
+// Adicionar deteccao de sistema
+const isSistema = etapa?.tipo === 'entrada' || etapa?.tipo === 'ganho' || etapa?.tipo === 'perda'
+
+// Campos nome, cor, probabilidade: disabled={isSistema}
+// Campo etiqueta_whatsapp: sempre habilitado
+
+// Titulo do modal: "Etiqueta da Etapa" quando sistema
+// Mensagem informativa quando sistema
+```
+
+### Arquivo: `src/modules/configuracoes/pages/EtapasTemplatesPage.tsx`
+
+**Mudanca**: Mostrar lapis de edicao para etapas de sistema tambem (mesma logica — editar so etiqueta). Atualmente o `handleEdit` retorna sem fazer nada para etapas sistema. Remover essa restricao e permitir abrir o modal.
+
+### Arquivo: `src/modules/configuracoes/components/etapas/EtapaTemplateFormModal.tsx`
+
+**Mudanca**: Quando `isProtegido` (etapa sistema), ainda permitir salvar — so que apenas campos nao-protegidos serao editaveis. Atualmente o botao "Salvar" e escondido quando `isProtegido`. Mudar para mostrar o botao e permitir salvar os campos liberados.
+
+**Nota**: A tabela `etapas_templates` NAO possui coluna `etiqueta_whatsapp` (apenas `etapas_funil` tem). Para a pagina de templates globais, o modal abrira em modo somente-leitura como esta hoje (sem campo de etiqueta). A mudanca principal de edicao de etiqueta e na configuracao de pipeline (`EtapaFormModal`).
+
+---
+
+## Arquivos a Modificar
+
+1. **Dados** — INSERT de 6 registros em `etapas_templates`
+2. `src/modules/negocios/components/config/ConfigEtapas.tsx` — Mostrar lapis para etapas sistema
+3. `src/modules/negocios/components/config/EtapaFormModal.tsx` — Campos bloqueados exceto etiqueta quando sistema
+4. `src/modules/configuracoes/pages/EtapasTemplatesPage.tsx` — Mostrar lapis para etapas sistema (somente leitura)
+5. `src/modules/configuracoes/components/etapas/EtapaTemplateFormModal.tsx` — Abrir em modo visualizacao para etapas sistema
 
 ## Resultado Esperado
 
-- Mensagens de resposta em grupos GOWS serao corretamente vinculadas e exibidas com o bloco de citacao visual
-- Mensagens individuais continuam funcionando (sem regressao)
-- A mensagem "Carnaval, aconteceu ano passado..." do Eduardo Dietrich exibira o quote de "Bom dia pessoal!" do Gabriel Candido
+- Todas as organizacoes terao as 3 etapas padrao visiveis em Configuracoes > Etapas
+- Na configuracao de pipeline, o lapis aparecera para Novos Negocios, Ganho e Perdido
+- Ao clicar, o modal abrira com todos os campos bloqueados exceto "Etiqueta WhatsApp"
+- O botao "Salvar" estara disponivel para salvar a etiqueta
+
