@@ -1,146 +1,79 @@
 
-# Correcao Definitiva: Duplicidade fromMe + @lid nao resolvido
+# Correcao: Mencoes em Grupos Exibindo Numeros ao Inves de Nomes
 
-## Diagnostico Completo
+## Problema
 
-A duplicidade acontece em DOIS cenarios interligados no tenant Renove Digital:
+No WhatsApp, quando alguem menciona um usuario em um grupo (ex: `@Kamilly Vasconcelos`), o CRM exibe o numero bruto (ex: `@224953207095378`) ao inves do nome da pessoa mencionada.
 
-### Cenario Real (Francisco Carlos)
+**Causa raiz**: O WAHA NOWEB envia o `body` da mensagem com o numero/LID no lugar da mencao (ex: `@224953207095378`), mas inclui os dados dos mencionados no campo `_data.message.extendedTextMessage.contextInfo.mentionedJid` (array de JIDs). O sistema atualmente:
 
-1. **18:16:58** - Francisco envia audio para Carlos
-   - `from = 82064342802621@lid` (GOWS nao resolve)
-   - Codigo tenta resolver: `Info.Sender = 82064342802621@lid` (nao ajuda), `Info.Chat = 82064342802621@lid` (nao ajuda)
-   - **Bug 1**: O campo `SenderAlt = 553599562143@s.whatsapp.net` (numero REAL) existe no payload mas NAO e verificado no branch de mensagens recebidas
-   - Contato criado: "Francisco Carlos" com telefone `82064342802621` (LID, nao real)
-   - Conversa criada: `chat_id = 82064342802621@lid`
+1. Salva o `body` cru sem processar mencoes
+2. Nao extrai nem armazena os JIDs mencionados
+3. O frontend renderiza o texto sem nenhum tratamento de `@numero`
 
-2. **18:17:25** - Carlos responde pelo WhatsApp Web (fora do CRM), `fromMe = true`
-   - `from = 553599562143@c.us` (numero real do Francisco)
-   - `toField = payload.to || rawFrom = 553599562143@c.us`
-   - chatId = `553599562143@c.us`, phoneNumber = `553599562143`
-   - Busca contato com telefone `553599562143` -- NAO encontra (Francisco foi salvo com `82064342802621`)
-   - Busca fuzzy `%99562143` -- NAO bate com `82064342802621`
-   - **Cria NOVO contato** com nome "553599562143" (sem nome, pois fromMe nao usa pushName)
-   - Busca conversa com `chat_id = 553599562143@c.us` -- NAO encontra (conversa tem `82064342802621@lid`)
-   - Tentativas 2-5 todas checam `chatId.includes("@lid")` -- **PULA** pois chatId e `@c.us`
-   - **Bug 2**: Nao existe nenhuma tentativa reversa: "procurar conversa @lid que pertenca ao mesmo contato real"
-   - **Cria NOVA conversa duplicada**
+**Por que nao traz o nome diretamente?** O WAHA nao substitui os JIDs por nomes no body -- isso e responsabilidade do cliente. O payload apenas fornece a lista de JIDs mencionados; cabe ao CRM resolver esses JIDs para nomes usando os contatos ja cadastrados ou via API.
 
-### Bugs Identificados
+**Sobre conversas antigas**: Sim, a ausencia de historico influencia -- se o contato mencionado nunca enviou mensagem nesse tenant, ele nao existe na base de contatos, entao nao temos o nome para substituir. Isso e esperado.
 
-1. **Branch nao-fromMe nao verifica `SenderAlt`**: Quando o payload tem `from = @lid`, o codigo tenta `Info.Sender` e `Info.Chat`, mas AMBOS sao @lid. O `SenderAlt` (que contem o numero real @s.whatsapp.net) NAO e verificado.
+## Solucao em 2 Partes
 
-2. **Busca de conversa ignora cenario @c.us -> @lid**: As Tentativas 2-5 todas exigem `chatId.includes("@lid")`. Quando chatId e `@c.us` mas a conversa existente tem `@lid`, nenhuma tentativa funciona.
+### Parte 1: Frontend -- Resolver mencoes na renderizacao (ChatMessageBubble)
 
-3. **Busca de contato nao cruza @lid com numero real**: Quando phoneNumber e `553599562143`, a busca fuzzy nao encontra contato com telefone `82064342802621` porque sao numeros completamente diferentes.
+**Arquivo**: `src/modules/conversas/components/ChatMessageBubble.tsx`
 
-## Solucao (3 mudancas no webhook)
+Modificar o componente `TextContent` para detectar padroes `@numero` no body e tentar resolver o nome:
 
-### Mudanca 1: Resolver @lid via SenderAlt no branch nao-fromMe
-
-No branch de mensagens recebidas (linha ~1420), apos tentar `Info.Sender` e `Info.Chat`, adicionar verificacao de `SenderAlt`:
+1. Extrair `mentionedJid` do `raw_data` da mensagem (ja armazenado)
+2. Para cada `@numero` no texto, buscar o contato correspondente na base (via query ou cache local)
+3. Substituir `@numero` por `@Nome` com estilo visual (negrito, cor diferente)
 
 ```typescript
-// Apos verificar Info.Sender e Info.Chat:
-if (resolvedFrom.includes("@lid")) {
-  const senderAlt = (payload._data as any)?.Info?.SenderAlt;
-  if (typeof senderAlt === "string" && senderAlt.includes("@s.whatsapp.net")) {
-    resolvedFrom = senderAlt.replace("@s.whatsapp.net", "@c.us");
-    console.log(`[waha-webhook] Resolved @lid via SenderAlt: ${rawFrom} -> ${resolvedFrom}`);
-  }
-}
-```
-
-Isso resolve o problema na RAIZ: a primeira mensagem ja cria contato e conversa com o numero real, impedindo toda a cadeia de duplicidade.
-
-### Mudanca 2: Busca reversa de conversa @lid quando chatId e @c.us
-
-Apos Tentativa 1b e ANTES da Tentativa 2, adicionar busca que conecta @c.us com @lid:
-
-```typescript
-// Tentativa 1c: chatId e @c.us mas pode existir conversa com @lid do mesmo contato
-if (!existingConversa && !chatId.includes("@lid") && conversaTipo === "individual") {
-  // Buscar por contato_id (o contato ja encontrado pode ter conversa com @lid)
-  if (contatoId) {
-    const { data: conversaByContato } = await supabaseAdmin
-      .from("conversas")
-      .select("id, total_mensagens, mensagens_nao_lidas, chat_id, contato_id")
-      .eq("organizacao_id", sessao.organizacao_id)
-      .eq("contato_id", contatoId)
-      .eq("tipo", "individual")
-      .is("deletado_em", null)
-      .maybeSingle();
-
-    if (conversaByContato) {
-      existingConversa = conversaByContato;
-      // Se conversa tem @lid, atualizar para @c.us
-      if (conversaByContato.chat_id.includes("@lid")) {
-        await supabaseAdmin
-          .from("conversas")
-          .update({ chat_id: chatId })
-          .eq("id", conversaByContato.id);
-      }
-      chatId = conversaByContato.chat_id.includes("@lid") ? chatId : conversaByContato.chat_id;
+// Logica de resolucao de mencoes no TextContent
+function resolveMentions(body: string, rawData: any, contatos: Map<string, string>): string {
+  // Extrair mentionedJid do contextInfo
+  const contextInfo = rawData?.message?.extendedTextMessage?.contextInfo;
+  const mentionedJids = contextInfo?.mentionedJid || contextInfo?.mentionedJID || [];
+  
+  let resolved = body;
+  for (const jid of mentionedJids) {
+    const number = jid.replace("@s.whatsapp.net", "").replace("@c.us", "").replace("@lid", "");
+    const name = contatos.get(number); // buscar do cache/query
+    if (name) {
+      resolved = resolved.replace(`@${number}`, `@${name}`);
     }
   }
+  return resolved;
 }
 ```
 
-### Mudanca 3: Busca cruzada de contato via raw_data (SenderAlt)
+**Abordagem para buscar nomes**: Criar um hook `useMentionResolver` que:
+- Recebe as mensagens visiveis da conversa
+- Extrai todos os numeros mencionados unicos
+- Faz uma unica query na tabela `contatos` filtrando por `telefone LIKE %numero` 
+- Retorna um Map de `numero -> nome`
+- Usa cache (React Query) para nao repetir queries
 
-Na busca de contato, quando phoneNumber e @c.us e nao encontrou contato, buscar se existe conversa com outro chat_id cujo raw_data contenha o phoneNumber:
+### Parte 2: Componente visual da mencao
 
-```typescript
-// Apos Tentativa 3b: busca contato via conversas que referenciam este numero no raw_data
-if (!existingContato && !chatId.includes("@lid") && conversaTipo === "individual") {
-  const { data: rpcResult } = await supabaseAdmin
-    .rpc("resolve_lid_conversa", {
-      p_org_id: sessao.organizacao_id,
-      p_lid_number: phoneNumber,
-    });
+Renderizar mencoes como `<span>` estilizado (similar ao WhatsApp):
+- Cor azul/destaque para mencoes
+- Texto em negrito
+- Se o contato nao existir na base, manter o numero formatado como `@+55 31 99444-4555`
 
-  if (rpcResult && rpcResult.length > 0) {
-    // Encontrou conversa que referencia este numero - buscar o contato dela
-    const { data: conversaRef } = await supabaseAdmin
-      .from("conversas")
-      .select("contato_id")
-      .eq("id", rpcResult[0].conversa_id)
-      .maybeSingle();
+### Nao e necessario alterar o webhook
 
-    if (conversaRef?.contato_id) {
-      const { data: contatoRef } = await supabaseAdmin
-        .from("contatos")
-        .select("id, nome, telefone")
-        .eq("id", conversaRef.contato_id)
-        .is("deletado_em", null)
-        .maybeSingle();
+O `raw_data` ja contem o payload completo do WAHA (incluindo `contextInfo.mentionedJid`). O body salvo e o texto original. A resolucao de nomes e melhor feita no frontend porque:
+- Novos contatos podem ser adicionados depois (o nome resolve retroativamente)
+- Nao precisa fazer chamadas API no webhook (performance)
+- O raw_data ja esta disponivel
 
-      if (contatoRef) {
-        existingContato = contatoRef;
-        // Atualizar telefone para o real
-        if (contatoRef.telefone !== phoneNumber) {
-          await supabaseAdmin
-            .from("contatos")
-            .update({ telefone: phoneNumber })
-            .eq("id", contatoRef.id);
-        }
-      }
-    }
-  }
-}
-```
+## Arquivos a modificar
 
-### Mudanca 4: Limpeza SQL dos dados duplicados no Renove Digital
+1. **`src/modules/conversas/components/ChatMessageBubble.tsx`**: Alterar `TextContent` para processar mencoes, extraindo JIDs do `raw_data` e substituindo por nomes
+2. **`src/modules/conversas/hooks/useMentionResolver.ts`** (novo): Hook que busca nomes dos contatos mencionados via query Supabase
+3. **`src/modules/conversas/components/ChatMessages.tsx`**: Passar dados do resolver para cada `ChatMessageBubble`
 
-```sql
--- Mover mensagens da conversa @lid para a @c.us
--- Merge contatos duplicados
--- Soft-delete registros @lid
-```
+## Limitacoes conhecidas
 
-## Resultado Esperado
-
-- **Mudanca 1** resolve 90% dos casos: SenderAlt presente na maioria dos payloads GOWS, resolve @lid na primeira mensagem
-- **Mudanca 2** e safety net para mensagens fromMe: se a conversa foi criada com @lid, a resposta fromMe com @c.us encontra e atualiza
-- **Mudanca 3** evita criar contato duplicado quando ja existe um com @lid
-- Dados existentes limpos via migracao SQL
+- Se o contato mencionado nunca interagiu com o tenant, o nome nao estara na base -- exibira o numero formatado
+- Mencoes em mensagens de midia (imagem com legenda) tambem serao tratadas
