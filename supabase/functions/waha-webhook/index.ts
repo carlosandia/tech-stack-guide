@@ -1901,7 +1901,27 @@ Deno.serve(async (req) => {
       console.log(`[waha-webhook] Poll detected from _data.Info.Type fallback`);
     }
 
+    // AIDEV-NOTE: Detect sticker messages from GOWS engine
+    // GOWS may send stickers with type "chat"/"text" or even "image" (due to image/webp mimetype)
+    // but the payload structure contains stickerMessage or Info.Type === "sticker"
+    if (
+      (wahaType === "text" || wahaType === "chat" || wahaType === "image") &&
+      (
+        payload._data?.Info?.Type === "sticker" ||
+        payload._data?.Message?.stickerMessage ||
+        payload._data?.message?.stickerMessage
+      )
+    ) {
+      wahaType = "sticker";
+      console.log(`[waha-webhook] Sticker detected from payload structure (was type: ${messageType})`);
+    }
+    // Also handle when WAHA correctly sends type="sticker" but media inference below would override
+    if (messageType === "sticker") {
+      wahaType = "sticker";
+    }
+
     // If type is "text" but has media, infer correct type from mimetype
+    // AIDEV-NOTE: Excludes "sticker" to prevent webp mimetype from overriding sticker detection
     if ((wahaType === "text" || wahaType === "chat") && payload.hasMedia && payload.media?.mimetype) {
       const mime = (payload.media.mimetype as string).toLowerCase();
       if (mime.startsWith("image/")) {
