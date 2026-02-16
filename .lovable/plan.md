@@ -1,92 +1,76 @@
 
-# Correcoes: Etapas Globais (Lapis) + Filtrar Canais das Conversas
 
-## 1. Remover lapis de edicao das etapas sistema em /configuracoes/etapas
+# Correcao: Respostas (Quotes) em Grupos Nao Aparecendo
 
-**Arquivo**: `src/modules/configuracoes/pages/EtapasTemplatesPage.tsx`
+## Diagnostico
 
-Atualmente o lapis aparece para TODAS as etapas (incluindo sistema). Conforme pedido, deve aparecer apenas para etapas customizadas (tipo `normal`).
+**Causa raiz**: O codigo de extracao de `reply_to_message_id` (stanzaID da resposta citada) foi implantado no webhook APOS muitas mensagens ja terem sido recebidas. Mensagens recebidas antes do deploy nao tiveram o campo preenchido.
 
-**Mudanca**: Condicionar o botao de edicao para esconder quando `template.sistema` ou `template.tipo !== 'normal'`:
+**Evidencias**:
+- **2.107 mensagens** possuem dados de resposta no `raw_data` (campo `replyTo.id` ou `contextInfo.stanzaID`) mas `reply_to_message_id` esta NULL
+- Mensagens recentes (apos 22:49 de hoje) JA possuem `reply_to_message_id` preenchido corretamente
+- O codigo atual do webhook esta correto e funciona para novas mensagens
 
-```typescript
-{isAdmin && !template.sistema && template.tipo === 'normal' && (
-  <button onClick={() => handleEdit(template)} ...>
-    <Pencil />
-  </button>
-)}
+**Problema secundario**: Existem **41 mensagens duplicadas** (mesmo `message_id` inserido 2x) por falta de constraint UNIQUE
+
+## Solucao
+
+### 1. Backfill: Preencher reply_to_message_id a partir do raw_data
+
+Migracaco SQL que extrai o stanzaID de `raw_data->'replyTo'->>'id'` para todas mensagens que possuem resposta mas estao com o campo NULL:
+
+```sql
+UPDATE mensagens
+SET reply_to_message_id = raw_data->'replyTo'->>'id'
+WHERE reply_to_message_id IS NULL
+  AND deletado_em IS NULL
+  AND raw_data->'replyTo'->>'id' IS NOT NULL;
 ```
 
----
+Isso corrige as ~2.107 mensagens existentes sem necessidade de reprocessar via webhook.
 
-## 2. Nao trazer mais conversas de canal (@newsletter) na listagem
+### 2. Remover mensagens duplicadas
 
-Duas acoes:
+Manter apenas o registro mais antigo de cada `message_id` duplicado:
 
-### 2a. Backend: Filtrar canais na listagem
-
-**Arquivo**: `backend/src/services/conversas.service.ts`
-
-Adicionar `.neq('tipo', 'canal')` na query de listagem para que conversas de canal nunca aparecam:
-
-```typescript
-let query = supabase
-  .from('conversas')
-  .select(...)
-  .eq('organizacao_id', organizacaoId)
-  .is('deletado_em', null)
-  .neq('tipo', 'canal')  // <-- NOVO: excluir canais
+```sql
+DELETE FROM mensagens
+WHERE id IN (
+  SELECT id FROM (
+    SELECT id, ROW_NUMBER() OVER (PARTITION BY message_id ORDER BY criado_em ASC) as rn
+    FROM mensagens
+    WHERE deletado_em IS NULL
+  ) sub
+  WHERE rn > 1
+);
 ```
 
-### 2b. Webhook: Ignorar mensagens de canal no WAHA
+### 3. Adicionar constraint UNIQUE para prevenir futuras duplicatas
+
+Adicionar um indice UNIQUE parcial em `message_id` (excluindo deletados) para que o webhook nao insira a mesma mensagem duas vezes:
+
+```sql
+CREATE UNIQUE INDEX IF NOT EXISTS idx_mensagens_message_id_unique 
+ON mensagens (message_id) 
+WHERE deletado_em IS NULL;
+```
+
+Apos isso, ajustar o INSERT no webhook para usar UPSERT (`ON CONFLICT DO NOTHING` ou `DO UPDATE`) para lidar graciosamente com duplicatas.
+
+### 4. Ajustar INSERT no webhook para ON CONFLICT
 
 **Arquivo**: `supabase/functions/waha-webhook/index.ts`
 
-Adicionar um early return quando `isChannel` e detectado (logo apos a deteccao de `@newsletter`), para que o webhook nao crie conversas nem salve mensagens de canais:
-
-```typescript
-if (isChannel) {
-  console.log(`[waha-webhook] Channel message ignored: ${rawFrom}`);
-  return new Response(
-    JSON.stringify({ ok: true, message: "Channel message ignored" }),
-    { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-  );
-}
-```
-
----
-
-## 3. Excluir dados existentes de canal
-
-Soft delete (marcar `deletado_em`) em todas as mensagens e conversas de tipo `canal`:
-
-```sql
--- Soft delete mensagens de conversas de canal
-UPDATE mensagens 
-SET deletado_em = NOW() 
-WHERE conversa_id IN (SELECT id FROM conversas WHERE tipo = 'canal')
-AND deletado_em IS NULL;
-
--- Soft delete conversas de canal
-UPDATE conversas 
-SET deletado_em = NOW() 
-WHERE tipo = 'canal' AND deletado_em IS NULL;
-```
-
-Dados afetados: 5 conversas e 99 mensagens em todas as organizacoes.
-
----
+Mudar o `.insert(messageInsert)` para `.upsert(messageInsert, { onConflict: 'message_id', ignoreDuplicates: true })` ou usar uma abordagem de verificacao previa.
 
 ## Arquivos a Modificar
 
-1. `src/modules/configuracoes/pages/EtapasTemplatesPage.tsx` -- Esconder lapis para etapas sistema
-2. `backend/src/services/conversas.service.ts` -- Filtrar tipo canal na listagem
-3. `supabase/functions/waha-webhook/index.ts` -- Ignorar mensagens @newsletter
-4. Migracao SQL -- Soft delete de conversas/mensagens de canal existentes
+1. **Migracao SQL** -- Backfill de reply_to_message_id, remocao de duplicatas, constraint UNIQUE
+2. **`supabase/functions/waha-webhook/index.ts`** -- UPSERT ao inves de INSERT para evitar duplicatas futuras
 
 ## Resultado Esperado
 
-- Em /configuracoes/etapas, o lapis aparece apenas para etapas customizadas
-- Em /conversas, conversas de canal nao aparecem mais na lista
-- O webhook ignora novas mensagens de canais @newsletter
-- Dados existentes de canal sao removidos (soft delete)
+- Todas as respostas (quotes) de grupo aparecerao corretamente no CRM com a bolha de citacao
+- Novas mensagens continuarao sendo detectadas corretamente (o codigo ja funciona)
+- Duplicatas eliminadas e prevenidas no futuro
+
