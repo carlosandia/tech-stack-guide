@@ -1322,8 +1322,9 @@ Deno.serve(async (req) => {
         
         chatId = toField; // e.g. "5513988506995@c.us" (the other person)
         phoneNumber = toField.replace("@c.us", "").replace("@s.whatsapp.net", "").replace("@lid", "");
-        // For fromMe, pushName/notifyName might not be available for the recipient
-        phoneName = extractPushName(payload) || payload._data?.notifyName as string || payload.notifyName as string || null;
+        // AIDEV-NOTE: Para fromMe, NÃO usar extractPushName pois retorna o nome do REMETENTE (nós),
+        // não do destinatário. phoneName fica null para não sobrescrever o nome do contato.
+        phoneName = null;
         console.log(`[waha-webhook] fromMe individual: from=${rawFrom}, to=${toField}, chatId=${chatId}, resolved=${!toField.includes("@lid")}`);
       } else {
         let resolvedFrom = rawFrom;
@@ -1438,7 +1439,9 @@ Deno.serve(async (req) => {
       contatoId = existingContato.id;
 
       // Update contact name if we have a better name from WhatsApp
-      if (phoneName && existingContato.nome !== phoneName) {
+      // AIDEV-NOTE: Nunca atualizar nome do contato com dados de mensagens fromMe,
+      // pois o pushName seria o nome do próprio usuário, não do contato.
+      if (phoneName && !isFromMe && existingContato.nome !== phoneName) {
         await supabaseAdmin
           .from("contatos")
           .update({ nome: phoneName, atualizado_em: now })
