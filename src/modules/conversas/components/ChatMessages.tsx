@@ -137,11 +137,21 @@ export const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(functi
       if (msg.message_id) {
         // Index by full serialized ID
         map.set(msg.message_id, msg)
-        // Also index by short stanza ID (last segment after '_')
-        // This enables lookup when reply_to_message_id is a short quotedStanzaID
+
         if (msg.message_id.includes('_')) {
-          const shortId = msg.message_id.split('_').pop()
-          if (shortId) map.set(shortId, msg)
+          const parts = msg.message_id.split('_')
+          // Last segment (works for individual messages where last = stanzaID)
+          const lastPart = parts[parts.length - 1]
+          if (lastPart) map.set(lastPart, msg)
+
+          // AIDEV-NOTE: For GOWS group messages (4+ segments): stanzaID is at index 2
+          // Format: {bool}_{groupId}_{stanzaID}_{senderLid}
+          if (parts.length >= 4) {
+            const stanzaPart = parts[2]
+            if (stanzaPart && !stanzaPart.includes('@')) {
+              map.set(stanzaPart, msg)
+            }
+          }
         }
       }
     }
