@@ -96,7 +96,10 @@ function getTipoBadge(tipo: string): { label: string; className: string } | null
 export const ConversaItem = forwardRef<HTMLDivElement, ConversaItemProps>(function ConversaItem({ conversa, isActive, onClick, onArquivar, onFixar, onMarcarNaoLida, onApagar }, _ref) {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
-  const nome = conversa.contato?.nome || conversa.contato?.nome_fantasia || conversa.nome || 'Sem nome'
+  // AIDEV-NOTE: Grupos/canais priorizam conversa.nome (nome real do grupo) sobre contato.nome (ID numérico)
+  const nome = (conversa.tipo === 'grupo' || conversa.tipo === 'canal')
+    ? (conversa.nome || conversa.contato?.nome || 'Sem nome')
+    : (conversa.contato?.nome || conversa.contato?.nome_fantasia || conversa.nome || 'Sem nome')
   const fotoUrl = conversa.contato?.foto_url || conversa.foto_url
   const hasUnread = conversa.mensagens_nao_lidas > 0
   const preview = getMessagePreview(conversa)
