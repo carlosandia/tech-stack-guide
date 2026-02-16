@@ -125,7 +125,41 @@ export const ImportarContatosModal = forwardRef<HTMLDivElement, ImportarContatos
 
   const handleImport = async () => {
     setImporting(true)
+    setError(null)
     try {
+      // AIDEV-NOTE: Primeiro criar o segmento ANTES de importar contatos
+      // para garantir que o segmento existe antes de vincular
+      const { contatosApi, segmentosApi } = await import('../services/contatos.api')
+      let targetSegmentoId: string | null = null
+
+      if (segmentoOpcao === 'novo' && novoSegmentoNome.trim()) {
+        try {
+          console.log('[import] Criando segmento:', novoSegmentoNome.trim(), novoSegmentoCor)
+          const novoSeg = await segmentosApi.criar({
+            nome: novoSegmentoNome.trim(),
+            cor: novoSegmentoCor,
+          })
+          console.log('[import] Segmento criado:', novoSeg)
+          if (novoSeg?.id) {
+            targetSegmentoId = novoSeg.id
+            toast.success(`Segmento "${novoSegmentoNome.trim()}" criado`)
+          } else {
+            toast.error('Erro: segmento criado sem ID')
+            setError('Falha ao criar segmento - resposta sem ID')
+            setImporting(false)
+            return
+          }
+        } catch (segErr: any) {
+          console.error('[import] Erro ao criar segmento:', segErr)
+          toast.error(`Erro ao criar segmento: ${segErr?.message || 'desconhecido'}`)
+          setError(`Falha ao criar segmento: ${segErr?.message || 'erro desconhecido'}`)
+          setImporting(false)
+          return
+        }
+      } else if (segmentoOpcao === 'existente' && segmentoId) {
+        targetSegmentoId = segmentoId
+      }
+
       // Build rows from mapping
       const campos = Object.entries(mapping).filter(([, v]) => v)
       const contatos = parsedData.rows.map(row => {
@@ -136,7 +170,6 @@ export const ImportarContatosModal = forwardRef<HTMLDivElement, ImportarContatos
         return obj
       })
 
-      const { contatosApi, segmentosApi } = await import('../services/contatos.api')
       let importados = 0
       let erros = 0
       const importedIds: string[] = []
@@ -146,52 +179,34 @@ export const ImportarContatosModal = forwardRef<HTMLDivElement, ImportarContatos
           const created = await contatosApi.criar(contato)
           importados++
           if (created?.id) importedIds.push(created.id)
-        } catch {
+        } catch (criarErr) {
+          console.error('[import] Erro ao criar contato:', criarErr)
           erros++
         }
       }
 
-      // AIDEV-NOTE: Criar/vincular segmento aos contatos importados
-      if (importedIds.length > 0) {
-        let targetSegmentoId: string | null = null
-
-        if (segmentoOpcao === 'novo' && novoSegmentoNome.trim()) {
-          try {
-            const novoSeg = await segmentosApi.criar({
-              nome: novoSegmentoNome.trim(),
-              cor: novoSegmentoCor,
-            })
-            if (novoSeg?.id) {
-              targetSegmentoId = novoSeg.id
-              toast.success(`Segmento "${novoSegmentoNome.trim()}" criado`)
-            }
-          } catch (segErr) {
-            console.error('[import] Erro ao criar segmento:', segErr)
-            toast.error('Erro ao criar segmento')
-          }
-        } else if (segmentoOpcao === 'existente' && segmentoId) {
-          targetSegmentoId = segmentoId
-        }
-
-        if (targetSegmentoId) {
-          try {
-            await contatosApi.segmentarLote({
-              ids: importedIds,
-              adicionar: [targetSegmentoId],
-              remover: [],
-            })
-            toast.success(`${importedIds.length} contato(s) vinculados ao segmento`)
-          } catch (linkErr) {
-            console.error('[import] Erro ao vincular segmento:', linkErr)
-            toast.error('Erro ao vincular contatos ao segmento')
-          }
+      // AIDEV-NOTE: Vincular segmento aos contatos importados
+      if (targetSegmentoId && importedIds.length > 0) {
+        try {
+          console.log('[import] Vinculando', importedIds.length, 'contatos ao segmento', targetSegmentoId)
+          await contatosApi.segmentarLote({
+            ids: importedIds,
+            adicionar: [targetSegmentoId],
+            remover: [],
+          })
+          console.log('[import] Vinculação concluída com sucesso')
+          toast.success(`${importedIds.length} contato(s) vinculados ao segmento`)
+        } catch (linkErr: any) {
+          console.error('[import] Erro ao vincular segmento:', linkErr)
+          toast.error(`Erro ao vincular contatos ao segmento: ${linkErr?.message || 'desconhecido'}`)
         }
       }
 
       setImportResult({ importados, erros })
       setStep(4)
-    } catch {
-      setError('Erro ao importar contatos')
+    } catch (globalErr: any) {
+      console.error('[import] Erro geral:', globalErr)
+      setError(`Erro ao importar contatos: ${globalErr?.message || 'desconhecido'}`)
     } finally {
       setImporting(false)
     }
