@@ -132,11 +132,11 @@ export function EtapasTemplatesPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
-                {isAdmin && (
+                {isAdmin && !template.sistema && template.tipo === 'normal' && (
                   <button
                     onClick={() => handleEdit(template)}
                     className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200"
-                    title={template.sistema || template.tipo !== 'normal' ? 'Visualizar etapa' : 'Editar etapa'}
+                    title="Editar etapa"
                   >
                     <Pencil className="w-4 h-4" />
                   </button>

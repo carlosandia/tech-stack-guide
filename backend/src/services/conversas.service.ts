@@ -46,6 +46,7 @@ class ConversasService {
       `, { count: 'exact' })
       .eq('organizacao_id', organizacaoId)
       .is('deletado_em', null)
+      .neq('tipo', 'canal') // AIDEV-NOTE: Excluir conversas de canal (@newsletter)
 
     // AIDEV-NOTE: Member ve apenas suas proprias conversas
     if (role === 'member') {

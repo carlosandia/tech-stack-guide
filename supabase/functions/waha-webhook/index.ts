@@ -959,10 +959,19 @@ Deno.serve(async (req) => {
     const isChannel = rawFrom.includes("@newsletter");
     const participantRaw = payload.participant || payload._data?.participant || null;
 
-    // AIDEV-NOTE: fromMe em grupos/canais agora é processado normalmente.
+    // AIDEV-NOTE: Ignorar mensagens de canal (@newsletter) completamente
+    if (isChannel) {
+      console.log(`[waha-webhook] Channel message ignored: ${rawFrom}`);
+      return new Response(
+        JSON.stringify({ ok: true, message: "Channel message ignored" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // AIDEV-NOTE: fromMe em grupos agora é processado normalmente.
     // Mensagens são salvas com from_me=true para exibição correta na UI.
-    if (isFromMe && (isGroup || isChannel)) {
-      console.log(`[waha-webhook] Processing fromMe in ${isGroup ? "group" : "channel"}: ${rawFrom}`);
+    if (isFromMe && isGroup) {
+      console.log(`[waha-webhook] Processing fromMe in group: ${rawFrom}`);
     }
 
     let chatId: string;
