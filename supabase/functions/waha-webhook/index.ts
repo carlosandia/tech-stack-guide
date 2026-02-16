@@ -82,6 +82,11 @@ async function criarOportunidadeViaEtiqueta(
 }
 
 // AIDEV-NOTE: Helper GOWS-aware para extrair PushName de qualquer motor (GOWS ou WEBJS)
+// AIDEV-NOTE: Remove sufixo de device ID do GOWS (ex: "5513974079532:72@s.whatsapp.net" -> "5513974079532@s.whatsapp.net")
+function cleanDeviceSuffix(jid: string): string {
+  return jid.replace(/:\d+@/, "@");
+}
+
 function extractPushName(payload: Record<string, unknown>): string | null {
   const _data = payload._data as Record<string, unknown> | undefined;
   const info = _data?.Info as Record<string, unknown> | undefined;
@@ -1131,7 +1136,7 @@ Deno.serve(async (req) => {
         // GOWS Strategy 0: _data.Info.SenderAlt (numero real do participante no GOWS)
         const senderAlt = (payload._data as any)?.Info?.SenderAlt;
         if (typeof senderAlt === "string" && senderAlt.includes("@s.whatsapp.net")) {
-          resolvedParticipant = senderAlt.replace("@s.whatsapp.net", "@c.us");
+          resolvedParticipant = cleanDeviceSuffix(senderAlt).replace("@s.whatsapp.net", "@c.us");
           console.log(`[waha-webhook] Group participant LID resolved via GOWS SenderAlt: ${originalLidParticipant} -> ${resolvedParticipant}`);
         }
 
@@ -1344,7 +1349,7 @@ Deno.serve(async (req) => {
           // GOWS Strategy 0: _data.Info.RecipientAlt (numero real do destinatario no GOWS)
           const recipientAlt = (payload._data as any)?.Info?.RecipientAlt;
           if (typeof recipientAlt === "string" && recipientAlt.includes("@s.whatsapp.net")) {
-            toField = recipientAlt.replace("@s.whatsapp.net", "@c.us");
+            toField = cleanDeviceSuffix(recipientAlt).replace("@s.whatsapp.net", "@c.us");
             lidResolved = true;
             console.log(`[waha-webhook] LID resolved via GOWS RecipientAlt: ${originalLid} -> ${toField}`);
           }
@@ -1357,7 +1362,7 @@ Deno.serve(async (req) => {
               (v: unknown) => typeof v === "string" && (v as string).includes("@s.whatsapp.net")
             );
             if (gowsAlt) {
-              toField = (gowsAlt as string).replace("@s.whatsapp.net", "@c.us");
+              toField = cleanDeviceSuffix(gowsAlt as string).replace("@s.whatsapp.net", "@c.us");
               lidResolved = true;
               console.log(`[waha-webhook] LID resolved via GOWS ChatAlt/SenderAlt: ${originalLid} -> ${toField}`);
             }
@@ -1456,14 +1461,14 @@ Deno.serve(async (req) => {
             (v: unknown) => typeof v === "string" && (v as string).includes("@s.whatsapp.net")
           );
           if (gowsFrom) {
-            resolvedFrom = (gowsFrom as string).replace("@s.whatsapp.net", "@c.us");
+            resolvedFrom = cleanDeviceSuffix(gowsFrom as string).replace("@s.whatsapp.net", "@c.us");
             console.log(`[waha-webhook] Resolved @lid via GOWS Info: ${rawFrom} -> ${resolvedFrom}`);
           } else {
             // AIDEV-NOTE: GOWS Strategy 0b - SenderAlt contém o número real quando Sender é @lid
             // Este campo é a principal fonte de resolução no GOWS para mensagens recebidas
             const senderAlt = (payload._data as any)?.Info?.SenderAlt;
             if (typeof senderAlt === "string" && senderAlt.includes("@s.whatsapp.net")) {
-              resolvedFrom = senderAlt.replace("@s.whatsapp.net", "@c.us");
+              resolvedFrom = cleanDeviceSuffix(senderAlt).replace("@s.whatsapp.net", "@c.us");
               console.log(`[waha-webhook] Resolved @lid via SenderAlt: ${rawFrom} -> ${resolvedFrom}`);
             } else {
               // WEBJS fallback: remoteJidAlt
