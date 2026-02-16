@@ -513,19 +513,31 @@ export const contatosApi = {
     const erros: string[] = []
     let excluidos = 0
 
+    // AIDEV-NOTE: Primeiro remover vínculos de segmentos antes de excluir contatos
+    for (const id of payload.ids) {
+      // Remover vínculos na tabela contatos_segmentos
+      await supabase
+        .from('contatos_segmentos')
+        .delete()
+        .eq('contato_id', id)
+    }
+
+    // DELETE real do banco conforme solicitação
     for (const id of payload.ids) {
       const { error } = await supabase
         .from('contatos')
-        .update({ deletado_em: new Date().toISOString() } as any)
+        .delete()
         .eq('id', id)
 
       if (error) {
+        console.error(`[excluirLote] Erro ao excluir ${id}:`, error.message)
         erros.push(`${id}: ${error.message}`)
       } else {
         excluidos++
       }
     }
 
+    console.log(`[excluirLote] Resultado: ${excluidos} excluídos, ${erros.length} erros`)
     return { excluidos, erros }
   },
 
