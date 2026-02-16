@@ -6,6 +6,7 @@
 
 import { useState, useRef, useCallback, forwardRef } from 'react'
 import { X, Upload, FileSpreadsheet, ChevronRight, ChevronLeft, AlertTriangle } from 'lucide-react'
+import { toast } from 'sonner'
 import { useSegmentos } from '../hooks/useSegmentos'
 import { CORES_SEGMENTOS } from '../schemas/contatos.schema'
 import type { TipoContato } from '../services/contatos.api'
@@ -160,9 +161,13 @@ export const ImportarContatosModal = forwardRef<HTMLDivElement, ImportarContatos
               nome: novoSegmentoNome.trim(),
               cor: novoSegmentoCor,
             })
-            if (novoSeg?.id) targetSegmentoId = novoSeg.id
+            if (novoSeg?.id) {
+              targetSegmentoId = novoSeg.id
+              toast.success(`Segmento "${novoSegmentoNome.trim()}" criado`)
+            }
           } catch (segErr) {
             console.error('[import] Erro ao criar segmento:', segErr)
+            toast.error('Erro ao criar segmento')
           }
         } else if (segmentoOpcao === 'existente' && segmentoId) {
           targetSegmentoId = segmentoId
@@ -175,8 +180,10 @@ export const ImportarContatosModal = forwardRef<HTMLDivElement, ImportarContatos
               adicionar: [targetSegmentoId],
               remover: [],
             })
+            toast.success(`${importedIds.length} contato(s) vinculados ao segmento`)
           } catch (linkErr) {
             console.error('[import] Erro ao vincular segmento:', linkErr)
+            toast.error('Erro ao vincular contatos ao segmento')
           }
         }
       }
