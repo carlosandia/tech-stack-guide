@@ -1,79 +1,86 @@
 
-# Correcao: Mencoes em Grupos Exibindo Numeros ao Inves de Nomes
+# Correcao: Fotos de Grupos Nao Aparecendo no CRM
 
-## Problema
+## Problema Identificado
 
-No WhatsApp, quando alguem menciona um usuario em um grupo (ex: `@Kamilly Vasconcelos`), o CRM exibe o numero bruto (ex: `@224953207095378`) ao inves do nome da pessoa mencionada.
+Alguns grupos do WhatsApp (ex: "PROMOÇÕES MUNDO DO TENISTA") aparecem com iniciais ao inves da foto real, enquanto no app WhatsApp a foto aparece normalmente.
 
-**Causa raiz**: O WAHA NOWEB envia o `body` da mensagem com o numero/LID no lugar da mencao (ex: `@224953207095378`), mas inclui os dados dos mencionados no campo `_data.message.extendedTextMessage.contextInfo.mentionedJid` (array de JIDs). O sistema atualmente:
+### Causa Raiz (Webhook)
 
-1. Salva o `body` cru sem processar mencoes
-2. Nao extrai nem armazena os JIDs mencionados
-3. O frontend renderiza o texto sem nenhum tratamento de `@numero`
+O webhook faz **duas chamadas de API separadas** para grupos:
+1. Uma para buscar o **nome** via `GET /api/{session}/groups/{groupId}` (linhas 1194-1230)
+2. Outra para buscar a **foto** via `GET /api/contacts/profile-picture` (linhas 1254-1261)
 
-**Por que nao traz o nome diretamente?** O WAHA nao substitui os JIDs por nomes no body -- isso e responsabilidade do cliente. O payload apenas fornece a lista de JIDs mencionados; cabe ao CRM resolver esses JIDs para nomes usando os contatos ja cadastrados ou via API.
+O problema e que:
+- A resposta da API de grupos (chamada 1) **ja contem a foto**, mas o codigo **NAO extrai** esse campo -- descarta a informacao
+- A chamada separada de profile-picture (chamada 2) pode falhar com 404 para alguns grupos (restricao de privacidade)
+- O fallback (linhas 1267-1277) refaz a mesma chamada de grupos, duplicando trabalho
 
-**Sobre conversas antigas**: Sim, a ausencia de historico influencia -- se o contato mencionado nunca enviou mensagem nesse tenant, ele nao existe na base de contatos, entao nao temos o nome para substituir. Isso e esperado.
+Resultado: grupos cuja API profile-picture retorna 404 ficam sem foto, mesmo que a API de grupos JA tenha retornado a URL.
 
-## Solucao em 2 Partes
+### Dados no Banco
 
-### Parte 1: Frontend -- Resolver mencoes na renderizacao (ChatMessageBubble)
+- Grupos COM foto: GESTOR HIGH LEVEL, ARCOLI 2 (foto_url populado)
+- Grupos SEM foto: PROMOÇÕES MUNDO DO TENISTA (foto_url = NULL)
+- O grupo foi criado sem foto e as mensagens subsequentes tambem nao conseguiram buscar
 
-**Arquivo**: `src/modules/conversas/components/ChatMessageBubble.tsx`
+## Solucao
 
-Modificar o componente `TextContent` para detectar padroes `@numero` no body e tentar resolver o nome:
+### Arquivo: `supabase/functions/waha-webhook/index.ts`
 
-1. Extrair `mentionedJid` do `raw_data` da mensagem (ja armazenado)
-2. Para cada `@numero` no texto, buscar o contato correspondente na base (via query ou cache local)
-3. Substituir `@numero` por `@Nome` com estilo visual (negrito, cor diferente)
+**Mudanca 1**: Extrair foto da resposta da API de grupos (mesma chamada que busca o nome)
+
+Na secao de grupos (linhas ~1198-1206), apos extrair o nome, tambem extrair a foto do mesmo response:
 
 ```typescript
-// Logica de resolucao de mencoes no TextContent
-function resolveMentions(body: string, rawData: any, contatos: Map<string, string>): string {
-  // Extrair mentionedJid do contextInfo
-  const contextInfo = rawData?.message?.extendedTextMessage?.contextInfo;
-  const mentionedJids = contextInfo?.mentionedJid || contextInfo?.mentionedJID || [];
-  
-  let resolved = body;
-  for (const jid of mentionedJids) {
-    const number = jid.replace("@s.whatsapp.net", "").replace("@c.us", "").replace("@lid", "");
-    const name = contatos.get(number); // buscar do cache/query
-    if (name) {
-      resolved = resolved.replace(`@${number}`, `@${name}`);
-    }
-  }
-  return resolved;
+// ANTES: so extrai nome
+groupName = groupData?.subject || groupData?.Subject || ...
+
+// DEPOIS: extrai nome E foto na mesma chamada
+groupName = groupData?.subject || groupData?.Subject || ...
+if (!groupPhotoUrl) {
+  groupPhotoUrl = groupData?.profilePictureURL || groupData?.profilePictureUrl 
+    || groupData?.picture || groupData?.pictureUrl || groupData?.PictureURL || null;
 }
 ```
 
-**Abordagem para buscar nomes**: Criar um hook `useMentionResolver` que:
-- Recebe as mensagens visiveis da conversa
-- Extrai todos os numeros mencionados unicos
-- Faz uma unica query na tabela `contatos` filtrando por `telefone LIKE %numero` 
-- Retorna um Map de `numero -> nome`
-- Usa cache (React Query) para nao repetir queries
+Aplicar a mesma logica no fallback de lista de grupos (linhas ~1223-1226).
 
-### Parte 2: Componente visual da mencao
+**Mudanca 2**: Reordenar prioridade dos campos de foto na chamada profile-picture
 
-Renderizar mencoes como `<span>` estilizado (similar ao WhatsApp):
-- Cor azul/destaque para mencoes
-- Texto em negrito
-- Se o contato nao existir na base, manter o numero formatado como `@+55 31 99444-4555`
+Colocar `profilePictureURL` (formato GOWS, com URL maiusculo) como **primeira opcao** ao inves de quarta:
 
-### Nao e necessario alterar o webhook
+```typescript
+// ANTES (profilePictureURL e a 4a opcao):
+groupPhotoUrl = picData?.profilePictureUrl || picData?.url || picData?.profilePicUrl || picData?.profilePictureURL || null;
 
-O `raw_data` ja contem o payload completo do WAHA (incluindo `contextInfo.mentionedJid`). O body salvo e o texto original. A resolucao de nomes e melhor feita no frontend porque:
-- Novos contatos podem ser adicionados depois (o nome resolve retroativamente)
-- Nao precisa fazer chamadas API no webhook (performance)
-- O raw_data ja esta disponivel
+// DEPOIS (profilePictureURL primeiro, pois e o formato GOWS):
+groupPhotoUrl = picData?.profilePictureURL || picData?.profilePictureUrl || picData?.url || picData?.profilePicUrl || null;
+```
 
-## Arquivos a modificar
+**Mudanca 3**: Separar try/catch da busca de foto da busca de nome
 
-1. **`src/modules/conversas/components/ChatMessageBubble.tsx`**: Alterar `TextContent` para processar mencoes, extraindo JIDs do `raw_data` e substituindo por nomes
-2. **`src/modules/conversas/hooks/useMentionResolver.ts`** (novo): Hook que busca nomes dos contatos mencionados via query Supabase
-3. **`src/modules/conversas/components/ChatMessages.tsx`**: Passar dados do resolver para cada `ChatMessageBubble`
+Atualmente, se a busca de nome lancar uma excecao, a busca de foto (que esta no mesmo try/catch) e pulada inteiramente. Separar em blocos independentes:
 
-## Limitacoes conhecidas
+```typescript
+// Buscar nome do grupo
+try {
+  if (!groupName) { /* ... fetch name ... */ }
+} catch (e) { console.log("Error fetching group name:", e); }
 
-- Se o contato mencionado nunca interagiu com o tenant, o nome nao estara na base -- exibira o numero formatado
-- Mencoes em mensagens de midia (imagem com legenda) tambem serao tratadas
+// Buscar foto do grupo (independente)
+try {
+  if (!groupPhotoUrl) { /* ... fetch photo ... */ }
+} catch (e) { console.log("Error fetching group photo:", e); }
+```
+
+**Mudanca 4**: Aplicar mesmas correcoes para canais (@newsletter)
+
+A secao de canais (linhas ~1006-1104) tem a mesma estrutura -- extrair foto da resposta do endpoint `/channels/{id}` e reordenar campos.
+
+### Resultado Esperado
+
+- Grupos que retornam foto na API de detalhes terao a foto capturada na mesma chamada (sem depender da API profile-picture)
+- O formato GOWS (`profilePictureURL`) sera verificado primeiro, evitando falsos negativos
+- Falha na busca de nome nao impedira a busca de foto (try/catch separados)
+- Menos chamadas de API redundantes (foto ja extraida junto com o nome)
