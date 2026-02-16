@@ -1,86 +1,122 @@
 
-# Correcao: Fotos de Grupos Nao Aparecendo no CRM
+# Correcao: Respostas em Grupos + Avatar de Audio
 
-## Problema Identificado
+## Problemas Identificados
 
-Alguns grupos do WhatsApp (ex: "PROMOÇÕES MUNDO DO TENISTA") aparecem com iniciais ao inves da foto real, enquanto no app WhatsApp a foto aparece normalmente.
+### 1. Respostas (reply/quote) nao detectadas em grupos GOWS
 
-### Causa Raiz (Webhook)
+O webhook nao salva `reply_to_message_id` para mensagens GOWS porque:
 
-O webhook faz **duas chamadas de API separadas** para grupos:
-1. Uma para buscar o **nome** via `GET /api/{session}/groups/{groupId}` (linhas 1194-1230)
-2. Outra para buscar a **foto** via `GET /api/contacts/profile-picture` (linhas 1254-1261)
+- O codigo verifica `sub.contextInfo?.stanzaId` (d minusculo), mas o GOWS envia `stanzaID` (D maiusculo)
+- O codigo busca em `payload._data?.message` (m minusculo), mas o GOWS envia `payload._data?.Message` (M maiusculo)
+- O payload tambem tem `payload.replyTo.id` como fallback, que nunca e verificado
 
-O problema e que:
-- A resposta da API de grupos (chamada 1) **ja contem a foto**, mas o codigo **NAO extrai** esse campo -- descarta a informacao
-- A chamada separada de profile-picture (chamada 2) pode falhar com 404 para alguns grupos (restricao de privacidade)
-- O fallback (linhas 1267-1277) refaz a mesma chamada de grupos, duplicando trabalho
+Exemplo do raw_data real:
+```text
+_data.Message.extendedTextMessage.contextInfo.stanzaID = "3A9933702605A7147E54"
+(webhook procura: _data.message.*.contextInfo.stanzaId -- nao encontra)
+```
 
-Resultado: grupos cuja API profile-picture retorna 404 ficam sem foto, mesmo que a API de grupos JA tenha retornado a URL.
+### 2. Audio mostrando foto do contato em vez do usuario
 
-### Dados no Banco
+O `ChatWindow` passa `fotoUrl={conversa.contato?.foto_url}` para `ChatMessages`, que repassa para `AudioContent` e `WhatsAppAudioPlayer`. Para mensagens `fromMe`, deveria mostrar o avatar do usuario logado, nao o do contato.
 
-- Grupos COM foto: GESTOR HIGH LEVEL, ARCOLI 2 (foto_url populado)
-- Grupos SEM foto: PROMOÇÕES MUNDO DO TENISTA (foto_url = NULL)
-- O grupo foi criado sem foto e as mensagens subsequentes tambem nao conseguiram buscar
+### 3. QuotedMessagePreview mostra "Contato" generico
+
+Em grupos, o preview da mensagem citada exibe "Voce" ou "Contato", quando deveria exibir o nome do participante que enviou a mensagem original.
+
+---
 
 ## Solucao
 
-### Arquivo: `supabase/functions/waha-webhook/index.ts`
+### Mudanca 1: Webhook - Corrigir extracao do stanzaID (PascalCase)
 
-**Mudanca 1**: Extrair foto da resposta da API de grupos (mesma chamada que busca o nome)
+**Arquivo**: `supabase/functions/waha-webhook/index.ts`
 
-Na secao de grupos (linhas ~1198-1206), apos extrair o nome, tambem extrair a foto do mesmo response:
+Alterar a busca do quotedStanzaID para verificar ambas as variantes:
 
 ```typescript
-// ANTES: so extrai nome
-groupName = groupData?.subject || groupData?.Subject || ...
+// Buscar em _data.message E _data.Message (GOWS usa PascalCase)
+const msgData = payload._data?.message || payload._data?.Message;
+if (msgData && typeof msgData === 'object') {
+  for (const key of Object.keys(msgData)) {
+    const sub = msgData[key];
+    if (sub && typeof sub === 'object') {
+      const stanza = sub.contextInfo?.stanzaId || sub.contextInfo?.stanzaID;
+      if (stanza) {
+        quotedStanzaID = stanza;
+        break;
+      }
+    }
+  }
+}
 
-// DEPOIS: extrai nome E foto na mesma chamada
-groupName = groupData?.subject || groupData?.Subject || ...
-if (!groupPhotoUrl) {
-  groupPhotoUrl = groupData?.profilePictureURL || groupData?.profilePictureUrl 
-    || groupData?.picture || groupData?.pictureUrl || groupData?.PictureURL || null;
+// Fallback: replyTo.id (presente em payloads GOWS)
+if (!quotedStanzaID && payload.replyTo?.id) {
+  quotedStanzaID = payload.replyTo.id;
 }
 ```
 
-Aplicar a mesma logica no fallback de lista de grupos (linhas ~1223-1226).
+### Mudanca 2: Audio - Usar avatar do usuario logado para fromMe
 
-**Mudanca 2**: Reordenar prioridade dos campos de foto na chamada profile-picture
+**Arquivo**: `src/modules/conversas/components/ChatMessageBubble.tsx`
 
-Colocar `profilePictureURL` (formato GOWS, com URL maiusculo) como **primeira opcao** ao inves de quarta:
-
-```typescript
-// ANTES (profilePictureURL e a 4a opcao):
-groupPhotoUrl = picData?.profilePictureUrl || picData?.url || picData?.profilePicUrl || picData?.profilePictureURL || null;
-
-// DEPOIS (profilePictureURL primeiro, pois e o formato GOWS):
-groupPhotoUrl = picData?.profilePictureURL || picData?.profilePictureUrl || picData?.url || picData?.profilePicUrl || null;
-```
-
-**Mudanca 3**: Separar try/catch da busca de foto da busca de nome
-
-Atualmente, se a busca de nome lancar uma excecao, a busca de foto (que esta no mesmo try/catch) e pulada inteiramente. Separar em blocos independentes:
+Alterar `AudioContent` para receber o avatar do usuario logado e usa-lo quando `isMe`:
 
 ```typescript
-// Buscar nome do grupo
-try {
-  if (!groupName) { /* ... fetch name ... */ }
-} catch (e) { console.log("Error fetching group name:", e); }
-
-// Buscar foto do grupo (independente)
-try {
-  if (!groupPhotoUrl) { /* ... fetch photo ... */ }
-} catch (e) { console.log("Error fetching group photo:", e); }
+function AudioContent({ mensagem, isMe, fotoUrl, myAvatarUrl }: { 
+  mensagem: Mensagem; isMe?: boolean; fotoUrl?: string | null; myAvatarUrl?: string | null 
+}) {
+  // Para mensagens proprias, usar avatar do usuario logado
+  const avatarUrl = isMe ? myAvatarUrl : fotoUrl;
+  return <WhatsAppAudioPlayer src={mensagem.media_url} isMe={!!isMe} fotoUrl={avatarUrl} />
+}
 ```
 
-**Mudanca 4**: Aplicar mesmas correcoes para canais (@newsletter)
+**Arquivo**: `src/modules/conversas/components/ChatWindow.tsx`
 
-A secao de canais (linhas ~1006-1104) tem a mesma estrutura -- extrair foto da resposta do endpoint `/channels/{id}` e reordenar campos.
+Passar `myAvatarUrl` (do `useAuth`) para `ChatMessages` e propagar ate `AudioContent`.
 
-### Resultado Esperado
+### Mudanca 3: QuotedMessagePreview - Exibir nome do participante
 
-- Grupos que retornam foto na API de detalhes terao a foto capturada na mesma chamada (sem depender da API profile-picture)
-- O formato GOWS (`profilePictureURL`) sera verificado primeiro, evitando falsos negativos
-- Falha na busca de nome nao impedira a busca de foto (try/catch separados)
-- Menos chamadas de API redundantes (foto ja extraida junto com o nome)
+**Arquivo**: `src/modules/conversas/components/ChatMessageBubble.tsx`
+
+Alterar `QuotedMessagePreview` para usar o `participantName` ou `pushName` do raw_data da mensagem citada:
+
+```typescript
+function QuotedMessagePreview({ quoted, isMe, contactMap }: { 
+  quoted: Mensagem; isMe: boolean; contactMap?: Map<string, string> 
+}) {
+  const senderName = useMemo(() => {
+    if (quoted.from_me) return 'Voce'
+    // Tentar pushName do participante
+    const rawData = quoted.raw_data as Record<string, unknown> | null
+    const _data = rawData?._data as Record<string, unknown> | undefined
+    const pushName = _data?.pushName || _data?.PushName || _data?.Info?.PushName
+    if (pushName) return pushName as string
+    return 'Contato'
+  }, [quoted])
+
+  return (
+    <p className="text-[11px] font-semibold text-primary truncate">
+      {senderName}
+    </p>
+    // ...
+  )
+}
+```
+
+---
+
+## Arquivos a modificar
+
+1. `supabase/functions/waha-webhook/index.ts` - Corrigir extracao stanzaID (PascalCase + fallback replyTo)
+2. `src/modules/conversas/components/ChatMessageBubble.tsx` - AudioContent com avatar correto + QuotedMessagePreview com nome do participante
+3. `src/modules/conversas/components/ChatWindow.tsx` - Passar avatar do usuario logado
+4. `src/modules/conversas/components/ChatMessages.tsx` - Propagar myAvatarUrl
+
+## Resultado Esperado
+
+- Mensagens de resposta em grupos GOWS serao salvas com `reply_to_message_id` e exibidas com quote visual
+- Audio enviado pelo usuario mostrara seu proprio avatar
+- Quote exibira o nome do participante original (via pushName) em vez de "Contato" generico
