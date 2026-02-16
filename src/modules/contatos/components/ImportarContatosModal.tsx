@@ -5,7 +5,7 @@
  */
 
 import { useState, useRef, useCallback, forwardRef } from 'react'
-import { X, Upload, FileSpreadsheet, ChevronRight, ChevronLeft, AlertTriangle } from 'lucide-react'
+import { X, Upload, FileSpreadsheet, ChevronRight, ChevronLeft, AlertTriangle, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useSegmentos } from '../hooks/useSegmentos'
 import { CORES_SEGMENTOS } from '../schemas/contatos.schema'
@@ -75,6 +75,7 @@ export const ImportarContatosModal = forwardRef<HTMLDivElement, ImportarContatos
   const [error, setError] = useState<string | null>(null)
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState<{ importados: number; erros: number } | null>(null)
+  const [importProgress, setImportProgress] = useState<{ current: number; total: number; status: string }>({ current: 0, total: 0, status: '' })
   const fileRef = useRef<HTMLInputElement>(null)
 
   const { data: segmentosData } = useSegmentos()
@@ -126,20 +127,19 @@ export const ImportarContatosModal = forwardRef<HTMLDivElement, ImportarContatos
   const handleImport = async () => {
     setImporting(true)
     setError(null)
+    const totalRows = Math.min(parsedData.rows.length, 100)
+    setImportProgress({ current: 0, total: totalRows, status: 'Preparando importação...' })
     try {
-      // AIDEV-NOTE: Primeiro criar o segmento ANTES de importar contatos
-      // para garantir que o segmento existe antes de vincular
       const { contatosApi, segmentosApi } = await import('../services/contatos.api')
       let targetSegmentoId: string | null = null
 
       if (segmentoOpcao === 'novo' && novoSegmentoNome.trim()) {
+        setImportProgress(p => ({ ...p, status: 'Criando segmento...' }))
         try {
-          console.log('[import] Criando segmento:', novoSegmentoNome.trim(), novoSegmentoCor)
           const novoSeg = await segmentosApi.criar({
             nome: novoSegmentoNome.trim(),
             cor: novoSegmentoCor,
           })
-          console.log('[import] Segmento criado:', novoSeg)
           if (novoSeg?.id) {
             targetSegmentoId = novoSeg.id
             toast.success(`Segmento "${novoSegmentoNome.trim()}" criado`)
@@ -160,7 +160,7 @@ export const ImportarContatosModal = forwardRef<HTMLDivElement, ImportarContatos
         targetSegmentoId = segmentoId
       }
 
-      // Build rows from mapping
+      setImportProgress(p => ({ ...p, status: 'Importando contatos...' }))
       const campos = Object.entries(mapping).filter(([, v]) => v)
       const contatos = parsedData.rows.map(row => {
         const obj: Record<string, string> = { tipo: tipoContato }
@@ -174,27 +174,26 @@ export const ImportarContatosModal = forwardRef<HTMLDivElement, ImportarContatos
       let erros = 0
       const importedIds: string[] = []
 
-      for (const contato of contatos.slice(0, 100)) {
+      for (let i = 0; i < Math.min(contatos.length, 100); i++) {
         try {
-          const created = await contatosApi.criar(contato)
+          const created = await contatosApi.criar(contatos[i])
           importados++
           if (created?.id) importedIds.push(created.id)
         } catch (criarErr) {
           console.error('[import] Erro ao criar contato:', criarErr)
           erros++
         }
+        setImportProgress({ current: i + 1, total: totalRows, status: `Importando contato ${i + 1} de ${totalRows}...` })
       }
 
-      // AIDEV-NOTE: Vincular segmento aos contatos importados
       if (targetSegmentoId && importedIds.length > 0) {
+        setImportProgress(p => ({ ...p, status: 'Vinculando segmento aos contatos...' }))
         try {
-          console.log('[import] Vinculando', importedIds.length, 'contatos ao segmento', targetSegmentoId)
           await contatosApi.segmentarLote({
             ids: importedIds,
             adicionar: [targetSegmentoId],
             remover: [],
           })
-          console.log('[import] Vinculação concluída com sucesso')
           toast.success(`${importedIds.length} contato(s) vinculados ao segmento`)
         } catch (linkErr: any) {
           console.error('[import] Erro ao vincular segmento:', linkErr)
@@ -517,15 +516,35 @@ export const ImportarContatosModal = forwardRef<HTMLDivElement, ImportarContatos
                 <ChevronRight className="w-4 h-4" />
               </button>
             )}
-            {step === 3 && (
+            {step === 3 && !importing && (
               <button
                 onClick={handleImport}
-                disabled={importing}
-                className="flex items-center gap-1 px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+                className="flex items-center gap-1 px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
               >
-                {importing ? 'Importando...' : 'Importar'}
+                Importar
                 <ChevronRight className="w-4 h-4" />
               </button>
+            )}
+            {step === 3 && importing && (
+              <div className="flex items-center gap-3 px-4 py-2">
+                <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                <div className="min-w-[180px]">
+                  <p className="text-xs font-medium text-foreground">{importProgress.status}</p>
+                  {importProgress.total > 0 && (
+                    <div className="mt-1 h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-primary rounded-full transition-all duration-200"
+                        style={{ width: `${Math.round((importProgress.current / importProgress.total) * 100)}%` }}
+                      />
+                    </div>
+                  )}
+                  {importProgress.total > 0 && (
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      {importProgress.current}/{importProgress.total}
+                    </p>
+                  )}
+                </div>
+              </div>
             )}
           </div>
         </div>
