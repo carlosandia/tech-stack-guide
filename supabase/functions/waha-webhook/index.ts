@@ -2137,14 +2137,19 @@ Deno.serve(async (req) => {
     // =====================================================
     let quotedStanzaID: string | null = null;
 
-    // Search for stanzaId in _data.message.*.contextInfo
-    const msgData = payload._data?.message;
-    if (msgData && typeof msgData === 'object') {
-      for (const key of Object.keys(msgData)) {
-        const sub = msgData[key];
-        if (sub && typeof sub === 'object' && sub.contextInfo?.stanzaId) {
-          quotedStanzaID = sub.contextInfo.stanzaId;
-          break;
+    // AIDEV-NOTE: Search for stanzaId in _data.message.*.contextInfo (camelCase + PascalCase for GOWS)
+    const msgDataLower = payload._data?.message;
+    const msgDataUpper = payload._data?.Message;
+    const msgDataCombined = msgDataLower || msgDataUpper;
+    if (msgDataCombined && typeof msgDataCombined === 'object') {
+      for (const key of Object.keys(msgDataCombined)) {
+        const sub = msgDataCombined[key];
+        if (sub && typeof sub === 'object') {
+          const stanza = sub.contextInfo?.stanzaId || sub.contextInfo?.stanzaID || sub.ContextInfo?.StanzaId || sub.ContextInfo?.stanzaID;
+          if (stanza) {
+            quotedStanzaID = stanza;
+            break;
+          }
         }
       }
     }
@@ -2153,8 +2158,14 @@ Deno.serve(async (req) => {
     if (!quotedStanzaID) {
       quotedStanzaID = payload._data?.quotedStanzaID
         || payload._data?.contextInfo?.stanzaId
+        || payload._data?.contextInfo?.stanzaID
         || payload._data?.contextInfo?.quotedStanzaId
         || null;
+    }
+
+    // AIDEV-NOTE: Fallback final: replyTo.id presente em payloads GOWS
+    if (!quotedStanzaID && payload.replyTo?.id) {
+      quotedStanzaID = payload.replyTo.id;
     }
 
     if (quotedStanzaID) {

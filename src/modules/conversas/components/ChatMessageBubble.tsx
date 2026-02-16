@@ -40,6 +40,7 @@ interface ChatMessageBubbleProps {
   participantColor?: string | null
   conversaId?: string
   fotoUrl?: string | null
+  myAvatarUrl?: string | null
   contactMap?: Map<string, string>
   onDeleteMessage?: (mensagemId: string, messageWahaId: string, paraTodos: boolean) => void
   onReplyMessage?: (mensagem: Mensagem) => void
@@ -237,7 +238,7 @@ function VideoContent({ mensagem, onViewMedia }: { mensagem: Mensagem; onViewMed
   )
 }
 
-function AudioContent({ mensagem, isMe, fotoUrl }: { mensagem: Mensagem; isMe?: boolean; fotoUrl?: string | null }) {
+function AudioContent({ mensagem, isMe, fotoUrl, myAvatarUrl }: { mensagem: Mensagem; isMe?: boolean; fotoUrl?: string | null; myAvatarUrl?: string | null }) {
   if (!mensagem.media_url) {
     return (
       <div className="flex items-center gap-2 p-3 rounded-md bg-muted/50 border border-border/30 text-muted-foreground text-xs italic">
@@ -246,12 +247,14 @@ function AudioContent({ mensagem, isMe, fotoUrl }: { mensagem: Mensagem; isMe?: 
       </div>
     )
   }
+  // AIDEV-NOTE: Para mensagens próprias, usar avatar do usuário logado
+  const avatarUrl = isMe ? myAvatarUrl : fotoUrl
   return (
     <WhatsAppAudioPlayer
       src={mensagem.media_url}
       duration={mensagem.media_duration ?? undefined}
       isMe={!!isMe}
-      fotoUrl={fotoUrl}
+      fotoUrl={avatarUrl}
     />
   )
 }
@@ -619,12 +622,13 @@ function renderContent(
   isMe?: boolean,
   fotoUrl?: string | null,
   contactMap?: Map<string, string>,
+  myAvatarUrl?: string | null,
 ) {
   switch (mensagem.tipo) {
     case 'text': return <TextContent body={mensagem.body || ''} rawData={mensagem.raw_data} contactMap={contactMap} />
     case 'image': return <ImageContent mensagem={mensagem} onViewMedia={onViewMedia} />
     case 'video': return <VideoContent mensagem={mensagem} onViewMedia={onViewMedia} />
-    case 'audio': return <AudioContent mensagem={mensagem} isMe={isMe} fotoUrl={fotoUrl} />
+    case 'audio': return <AudioContent mensagem={mensagem} isMe={isMe} fotoUrl={fotoUrl} myAvatarUrl={myAvatarUrl} />
     case 'document': return <DocumentContent mensagem={mensagem} />
     case 'location': return <LocationContent mensagem={mensagem} />
     case 'contact': return <ContactContent mensagem={mensagem} />
@@ -655,6 +659,22 @@ function QuotedMessagePreview({ quoted, isMe }: { quoted: Mensagem; isMe: boolea
     }
   }
 
+  // AIDEV-NOTE: Resolver nome do remetente da mensagem citada via pushName (grupos)
+  const senderName = useMemo(() => {
+    if (quoted.from_me) return 'Você'
+    const rawData = quoted.raw_data as Record<string, unknown> | null
+    if (rawData) {
+      const _data = rawData._data as Record<string, unknown> | undefined
+      const pushName = _data?.pushName as string
+        || _data?.PushName as string
+        || (_data?.Info as Record<string, unknown> | undefined)?.PushName as string
+        || rawData.notifyName as string
+        || rawData.pushName as string
+      if (pushName) return pushName
+    }
+    return 'Contato'
+  }, [quoted])
+
   return (
     <div className={`
       rounded-md px-2.5 py-1.5 mb-1.5 border-l-[3px] cursor-pointer
@@ -664,7 +684,7 @@ function QuotedMessagePreview({ quoted, isMe }: { quoted: Mensagem; isMe: boolea
       }
     `}>
       <p className="text-[11px] font-semibold text-primary truncate">
-        {quoted.from_me ? 'Você' : 'Contato'}
+        {senderName}
       </p>
       <p className="text-[11px] text-muted-foreground truncate max-w-[250px]">
         {getPreviewText()}
@@ -864,7 +884,7 @@ function MessageActionMenu({ mensagem, onDelete, onReply, onCopy, onReact, onFor
 // =====================================================
 
 export function ChatMessageBubble({
-  mensagem, participantName, participantColor, conversaId, fotoUrl, contactMap,
+  mensagem, participantName, participantColor, conversaId, fotoUrl, myAvatarUrl, contactMap,
   onDeleteMessage, onReplyMessage, onReactMessage, onForwardMessage, onPinMessage,
   quotedMessage
 }: ChatMessageBubbleProps) {
@@ -967,7 +987,7 @@ export function ChatMessageBubble({
       <>
         <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} mb-1`}>
           <div className="relative">
-             {renderContent(mensagem, handleViewMedia, conversaId, isMe, fotoUrl, contactMap)}
+             {renderContent(mensagem, handleViewMedia, conversaId, isMe, fotoUrl, contactMap, myAvatarUrl)}
             <span className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1 justify-end">
               {format(new Date(mensagem.criado_em), 'HH:mm')}
               {isMe && <AckIndicator ack={mensagem.ack} />}
@@ -1046,7 +1066,7 @@ export function ChatMessageBubble({
             </div>
           ) : (
             <>
-              {renderContent(mensagem, handleViewMedia, conversaId, isMe, fotoUrl, contactMap)}
+              {renderContent(mensagem, handleViewMedia, conversaId, isMe, fotoUrl, contactMap, myAvatarUrl)}
               <div className="flex items-center gap-1 justify-end mt-1">
                 <span className="text-[10px] text-muted-foreground">
                   {format(new Date(mensagem.criado_em), 'HH:mm')}

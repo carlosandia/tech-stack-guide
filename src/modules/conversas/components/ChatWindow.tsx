@@ -7,6 +7,7 @@
 
 import { useState, useMemo, useEffect, useCallback, forwardRef } from 'react'
 import { compressImage } from '@/shared/utils/compressMedia'
+import { useAuth } from '@/providers/AuthProvider'
 import { ChatHeader } from './ChatHeader'
 import { ChatMessages } from './ChatMessages'
 import { ChatInput } from './ChatInput'
@@ -95,6 +96,8 @@ interface ChatWindowProps {
 }
 
 export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }, _ref) {
+  const { user } = useAuth()
+  const myAvatarUrl = user?.avatar_url || null
   const [quickRepliesOpen, setQuickRepliesOpen] = useState(false)
   const [pipelineModalOpen, setPipelineModalOpen] = useState(false)
   const [oportunidadeModalOpen, setOportunidadeModalOpen] = useState(false)
@@ -492,6 +495,7 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
         conversaTipo={conversa.tipo}
         conversaId={conversa.id}
         fotoUrl={conversa.contato?.foto_url || conversa.foto_url}
+        myAvatarUrl={myAvatarUrl}
         onDeleteMessage={(mensagemId, messageWahaId, paraTodos) => {
           apagarMensagem.mutate({ conversaId: conversa.id, mensagemId, messageWahaId, paraTodos })
         }}
