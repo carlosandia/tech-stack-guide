@@ -1,76 +1,77 @@
 
-
-# Correcao: Respostas (Quotes) em Grupos Nao Aparecendo
+# Correcao: Conversas Duplicadas por Sufixo de Device GOWS
 
 ## Diagnostico
 
-**Causa raiz**: O codigo de extracao de `reply_to_message_id` (stanzaID da resposta citada) foi implantado no webhook APOS muitas mensagens ja terem sido recebidas. Mensagens recebidas antes do deploy nao tiveram o campo preenchido.
+O WAHA GOWS retorna nos campos `SenderAlt` e `RecipientAlt` um formato com **sufixo de device** (ex: `5513974079532:72@s.whatsapp.net`). O `:72` indica o dispositivo vinculado do contato.
 
-**Evidencias**:
-- **2.107 mensagens** possuem dados de resposta no `raw_data` (campo `replyTo.id` ou `contextInfo.stanzaID`) mas `reply_to_message_id` esta NULL
-- Mensagens recentes (apos 22:49 de hoje) JA possuem `reply_to_message_id` preenchido corretamente
-- O codigo atual do webhook esta correto e funciona para novas mensagens
+O codigo atual faz `.replace("@s.whatsapp.net", "@c.us")` sem limpar o sufixo, resultando em:
 
-**Problema secundario**: Existem **41 mensagens duplicadas** (mesmo `message_id` inserido 2x) por falta de constraint UNIQUE
+| Cenario | Campo usado | Valor resolvido | Problema |
+|---|---|---|---|
+| Mensagem enviada (fromMe) | RecipientAlt | `5513974079532@c.us` | OK (sem sufixo neste caso) |
+| Mensagem recebida | SenderAlt | `5513974079532:72@c.us` | DUPLICA - sufixo `:72` gera chatId diferente |
+
+Isso cria **contato duplicado** (telefone `5513974079532:72` vs `5513974079532`) e **conversa duplicada** (chat_id diferente).
+
+**Impacto atual**: 18 contatos e 2 conversas ja afetados no banco.
 
 ## Solucao
 
-### 1. Backfill: Preencher reply_to_message_id a partir do raw_data
-
-Migracaco SQL que extrai o stanzaID de `raw_data->'replyTo'->>'id'` para todas mensagens que possuem resposta mas estao com o campo NULL:
-
-```sql
-UPDATE mensagens
-SET reply_to_message_id = raw_data->'replyTo'->>'id'
-WHERE reply_to_message_id IS NULL
-  AND deletado_em IS NULL
-  AND raw_data->'replyTo'->>'id' IS NOT NULL;
-```
-
-Isso corrige as ~2.107 mensagens existentes sem necessidade de reprocessar via webhook.
-
-### 2. Remover mensagens duplicadas
-
-Manter apenas o registro mais antigo de cada `message_id` duplicado:
-
-```sql
-DELETE FROM mensagens
-WHERE id IN (
-  SELECT id FROM (
-    SELECT id, ROW_NUMBER() OVER (PARTITION BY message_id ORDER BY criado_em ASC) as rn
-    FROM mensagens
-    WHERE deletado_em IS NULL
-  ) sub
-  WHERE rn > 1
-);
-```
-
-### 3. Adicionar constraint UNIQUE para prevenir futuras duplicatas
-
-Adicionar um indice UNIQUE parcial em `message_id` (excluindo deletados) para que o webhook nao insira a mesma mensagem duas vezes:
-
-```sql
-CREATE UNIQUE INDEX IF NOT EXISTS idx_mensagens_message_id_unique 
-ON mensagens (message_id) 
-WHERE deletado_em IS NULL;
-```
-
-Apos isso, ajustar o INSERT no webhook para usar UPSERT (`ON CONFLICT DO NOTHING` ou `DO UPDATE`) para lidar graciosamente com duplicatas.
-
-### 4. Ajustar INSERT no webhook para ON CONFLICT
+### 1. Webhook: Limpar sufixo de device em todos os pontos de resolucao
 
 **Arquivo**: `supabase/functions/waha-webhook/index.ts`
 
-Mudar o `.insert(messageInsert)` para `.upsert(messageInsert, { onConflict: 'message_id', ignoreDuplicates: true })` ou usar uma abordagem de verificacao previa.
+Criar funcao utilitaria que remove o sufixo de device antes de usar o numero:
+
+```typescript
+function cleanDeviceSuffix(jid: string): string {
+  // GOWS retorna "5513974079532:72@s.whatsapp.net" onde ":72" e o device ID
+  // Precisamos limpar para "5513974079532@s.whatsapp.net"
+  return jid.replace(/:\d+@/, "@");
+}
+```
+
+Aplicar em **3 locais**:
+
+- **Individual recebido** (linha ~1466): `SenderAlt` antes de `.replace("@s.whatsapp.net", "@c.us")`
+- **Individual fromMe** (linha ~1346): `RecipientAlt` e `ChatAlt`/`SenderAlt`
+- **Grupo** (linha ~1133): `SenderAlt` do participante
+
+### 2. Migracao SQL: Corrigir dados existentes
+
+```sql
+-- Corrigir telefones com sufixo de device nos contatos
+UPDATE contatos
+SET telefone = REGEXP_REPLACE(telefone, ':\d+$', '')
+WHERE telefone ~ ':\d+$' AND deletado_em IS NULL;
+
+-- Corrigir chat_id com sufixo de device nas conversas
+UPDATE conversas
+SET chat_id = REGEXP_REPLACE(chat_id, ':\d+@', '@')
+WHERE chat_id ~ ':\d+@c\.us' AND deletado_em IS NULL;
+
+-- Mesclar conversas duplicadas (soft delete a duplicada, mover mensagens para a original)
+-- Para cada par de conversas com mesmo numero base, mover mensagens da duplicada para a original
+-- e soft delete a conversa duplicada
+```
+
+Logica de mesclagem para o caso do Danilo e outros afetados:
+- Identificar pares de conversas com mesmo numero base (com e sem sufixo)
+- Mover mensagens da conversa duplicada para a original
+- Soft delete da conversa duplicada e do contato duplicado
+
+### 3. Deduplicar contatos afetados
+
+Mesclar os 18 contatos duplicados: manter o mais antigo (sem sufixo quando possivel) e redirecionar as referencias (conversas, oportunidades, etc.) para ele.
 
 ## Arquivos a Modificar
 
-1. **Migracao SQL** -- Backfill de reply_to_message_id, remocao de duplicatas, constraint UNIQUE
-2. **`supabase/functions/waha-webhook/index.ts`** -- UPSERT ao inves de INSERT para evitar duplicatas futuras
+1. **`supabase/functions/waha-webhook/index.ts`** -- Funcao `cleanDeviceSuffix` + aplicar nos 3 pontos de resolucao
+2. **Migracao SQL** -- Corrigir telefones, chat_ids, mesclar conversas e contatos duplicados
 
 ## Resultado Esperado
 
-- Todas as respostas (quotes) de grupo aparecerao corretamente no CRM com a bolha de citacao
-- Novas mensagens continuarao sendo detectadas corretamente (o codigo ja funciona)
-- Duplicatas eliminadas e prevenidas no futuro
-
+- Novas mensagens nunca mais criarao conversas/contatos duplicados por sufixo de device
+- Conversas existentes duplicadas serao mescladas (mensagens unificadas)
+- Contatos com telefone contendo `:XX` serao corrigidos
