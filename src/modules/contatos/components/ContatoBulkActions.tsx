@@ -4,8 +4,8 @@
  * Integra AtribuirVendedorDropdown e SegmentarDropdown
  */
 
-import { forwardRef } from 'react'
-import { Trash2, Download } from 'lucide-react'
+import { forwardRef, useState } from 'react'
+import { Trash2, Download, AlertTriangle } from 'lucide-react'
 import type { TipoContato } from '../services/contatos.api'
 import { AtribuirVendedorDropdown } from './AtribuirVendedorDropdown'
 import { SegmentarDropdown } from './SegmentarDropdown'
@@ -29,7 +29,23 @@ export const ContatoBulkActions = forwardRef<HTMLDivElement, ContatoBulkActionsP
   onExportar,
   onClearSelection,
 }, _ref) {
+  const [confirmando, setConfirmando] = useState(false)
+
   if (selectedCount === 0) return null
+
+  const handleExcluirClick = () => {
+    if (confirmando) return
+    setConfirmando(true)
+  }
+
+  const handleConfirmar = () => {
+    setConfirmando(false)
+    onExcluir()
+  }
+
+  const handleCancelar = () => {
+    setConfirmando(false)
+  }
 
   return (
     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] bg-foreground text-background rounded-lg shadow-xl px-4 py-3 flex items-center gap-3 animate-in slide-in-from-bottom-4">
@@ -55,14 +71,33 @@ export const ContatoBulkActions = forwardRef<HTMLDivElement, ContatoBulkActionsP
         </>
       )}
 
-      <button
-        onClick={onExcluir}
-        className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md text-red-300 hover:bg-red-500/20 transition-colors"
-        title="Excluir selecionados"
-      >
-        <Trash2 className="w-4 h-4" />
-        <span className="hidden sm:inline">Excluir</span>
-      </button>
+      {!confirmando ? (
+        <button
+          onClick={handleExcluirClick}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md text-destructive hover:bg-destructive/20 transition-colors"
+          title="Excluir selecionados"
+        >
+          <Trash2 className="w-4 h-4" />
+          <span className="hidden sm:inline">Excluir</span>
+        </button>
+      ) : (
+        <div className="flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 text-destructive" />
+          <span className="text-sm text-destructive font-medium">Confirmar?</span>
+          <button
+            onClick={handleConfirmar}
+            className="px-3 py-1 text-sm font-medium bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 transition-colors"
+          >
+            Sim
+          </button>
+          <button
+            onClick={handleCancelar}
+            className="px-3 py-1 text-sm text-background/70 hover:text-background transition-colors"
+          >
+            Não
+          </button>
+        </div>
+      )}
 
       <div className="w-px h-5 bg-background/20" />
 
