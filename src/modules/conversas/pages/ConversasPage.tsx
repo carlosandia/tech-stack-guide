@@ -210,7 +210,7 @@ export const ConversasPage = forwardRef<HTMLDivElement>(function ConversasPage(_
       <div className="flex-1 flex overflow-hidden">
         <div className={`
           flex flex-col border-r border-border/60 bg-white/80 backdrop-blur-md
-          w-full md:w-[280px] lg:w-[320px] xl:w-[340px] flex-shrink-0
+          w-full md:w-[320px] lg:w-[360px] xl:w-[400px] flex-shrink-0
           ${conversaAtivaId ? 'hidden md:flex' : 'flex'}
         `}>
           <FiltrosConversas
