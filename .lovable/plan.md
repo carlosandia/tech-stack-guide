@@ -1,76 +1,64 @@
 
-# Plano de Correcao - Modulo Conversas (3 Problemas)
 
-## Problema 1: Nome do Canal (Newsletter) nao resolvido
+# Plano: Correção de Duplicidade de Conversas e Nomes Corrompidos
 
-**Diagnostico:** Canais do WhatsApp (`@newsletter`) exibem o ID numerico (ex: `120363181602471460`) ao inves do nome real. O GOWS nao popula `_data.subject` nem `_data.name` para newsletters. O fallback atual usa `/api/contacts/about` que tambem nao funciona para canais.
+## Diagnóstico da Raiz do Problema
 
-**Correcao no `supabase/functions/waha-webhook/index.ts`:**
-- Adicionar endpoint especifico para newsletters do WAHA: `/api/newsletters/{id}` (disponivel no WAHA Plus).
-- Fallback adicional: tentar `/api/channels` ou `/api/contacts?contactId={id}` com o ID do canal.
-- Se o GOWS retornar `_data.Info.GroupName` ou `_data.ChannelName`, usar como fonte.
-- Guardar o nome resolvido na conversa para nao precisar re-buscar.
+A "duplicidade" visível nas conversas tem **duas causas distintas**:
 
----
+### Causa 1: Nomes Corrompidos (principal causa visual)
+O bug anterior do `pushName` (corrigido no ultimo deploy) fez com que o nome do proprio usuario do WhatsApp ("Keven Litoral Place") fosse gravado em **muitos contatos diferentes**. Resultado: 10+ conversas de pessoas diferentes aparecem todas com o nome "Keven Litoral Place", dando a impressao de duplicidade.
 
-## Problema 2: Imagens e Videos nao renderizam
+- 10 contatos com nome "Keven Litoral Place" (todos com telefones diferentes)
+- 156 contatos com nome "Comercial Junior Santos" (outra sessao com mesmo bug)
 
-**Diagnostico:** As imagens existem no Supabase Storage com URL valida (ex: `chat-media/conversas/.../false_xxx.jpg`), mas exibem texto "Imagem" quebrado na UI. A URL publica do storage esta correta no banco.
+### Causa 2: Sessao Antiga Nao Limpa
+Uma conversa antiga (sessao `6e89f3f3`, usuario `9e09faf0`) com `chat_id=5513988506995@c.us` ainda aparece na listagem junto com a conversa nova (sessao `e598bc04`), pois a listagem filtra apenas por `organizacao_id`, nao por sessao.
 
-**Investigacao e Correcao:**
-- Verificar se o bucket `chat-media` esta configurado como **publico** no Supabase (se privado, as URLs nao funcionam sem token).
-- No componente `ChatMessageBubble.tsx`, a funcao `ImageContent` ja trata `media_url` corretamente. O problema provavelmente esta no bucket ou no `Content-Type` do upload.
-- Adicionar tratamento de erro `onError` na tag `<img>` para exibir fallback visual ao inves de icone quebrado.
-- Adicionar o mesmo tratamento no `<video>`.
+## Solucoes
 
----
+### 1. Migração SQL: Resetar Nomes Corrompidos
+Atualizar todos os contatos que tiveram o nome sobrescrito para o numero de telefone. O nome real sera restaurado automaticamente na proxima mensagem recebida de cada contato (o webhook ja esta corrigido).
 
-## Problema 3: Conversas duplicadas (Carlos Andia e 5513988506995)
+```sql
+-- Resetar "Keven Litoral Place" para telefone
+UPDATE contatos SET nome = telefone, atualizado_em = now()
+WHERE nome = 'Keven Litoral Place' AND deletado_em IS NULL
+AND telefone != '5513974109032'; -- Manter o contato que realmente é o Keven
 
-**Diagnostico:** O sistema criou DUAS conversas para a mesma pessoa:
-1. `chat_id: 5513988506995@c.us` com contato telefone `5513988506995` (nome: "5513988506995")
-2. `chat_id: 162826672971943@lid` com contato telefone `162826672971943` (nome: "Carlos Andia")
+-- Resetar "Comercial Junior Santos" para telefone  
+UPDATE contatos SET nome = telefone, atualizado_em = now()
+WHERE nome = 'Comercial Junior Santos' AND deletado_em IS NULL;
 
-O `@lid` nao foi resolvido para `@c.us`, gerando um contato E conversa duplicados. O fallback atual (Tentativa 2 na linha 1434) busca por `contato_id`, mas como o contato tambem foi duplicado (telefone `@lid` diferente), nao encontrou match.
+-- Atualizar nome nas conversas tambem
+UPDATE conversas SET nome = ct.telefone
+FROM contatos ct WHERE conversas.contato_id = ct.id
+AND ct.nome = ct.telefone AND conversas.deletado_em IS NULL;
+```
 
-**Correcao no `supabase/functions/waha-webhook/index.ts`:**
+### 2. Limpar Conversas Duplicadas da Sessao Antiga
+Soft-delete na conversa antiga que tem o mesmo `chat_id` de uma conversa ativa na sessao atual.
 
-### 3a. Melhorar resolucao de @lid para mensagens individuais `fromMe`
-- Na secao de mensagens `fromMe` individuais (linha ~1210), quando `toField` contem `@lid`, aplicar as mesmas estrategias GOWS que ja existem para grupos:
-  - `_data.Info.Chat` (ja existe parcialmente)
-  - `_data.key.remoteJid` (novo)
-  - `_data.Info.SenderAlt` / `_data.Info.ChatAlt` (novo para GOWS)
+### 3. Prevenção no Webhook: Buscar Conversa Sem Filtro de Sessao
+Alterar a logica de busca de conversa existente no `waha-webhook` para, quando nao encontrar pela sessao atual, buscar por `chat_id` + `organizacao_id` sem filtrar por `sessao_whatsapp_id`. Isso evita que uma reconexao (nova sessao) crie conversas duplicadas.
 
-### 3b. Busca de contato por telefone normalizado
-- Antes de criar um novo contato, alem de buscar por `telefone = phoneNumber`, tambem buscar contatos cujo telefone contenha os ultimos 8-10 digitos do numero (para capturar @lid numerico vs @c.us numerico que representam a mesma pessoa).
+**Arquivo**: `supabase/functions/waha-webhook/index.ts`
 
-### 3c. Busca de conversa com fallback por telefone do contato
-- Quando `chatId` contem `@lid` e nao encontra conversa exata, buscar conversas existentes do tipo `individual` na mesma sessao onde o contato associado tenha o mesmo numero de telefone (parcial match).
+Na busca de conversa existente (Tentativa 1, linha ~1511), adicionar uma **Tentativa 1b** que busca pelo `chat_id` sem filtro de sessao. Se encontrar, atualizar o `sessao_whatsapp_id` da conversa para a sessao atual.
 
-### 3d. Script de limpeza (manual)
-- Fornecer query SQL para o desenvolvedor mesclar as conversas duplicadas (mover mensagens da conversa @lid para a conversa @c.us e deletar a duplicada).
+### 4. Prevenção no Webhook: Nao Criar Contato Duplicado por Nome
+O contato ja e buscado por telefone (fuzzy match), entao essa parte ja esta correta. O problema era apenas a sobrescrita do nome.
 
----
+## Resumo dos Arquivos Alterados
 
-## Detalhes Tecnicos
+| Arquivo | Alteracao |
+|---------|-----------|
+| `supabase/functions/waha-webhook/index.ts` | Busca de conversa sem filtro de sessao (prevencao futura) |
+| Nova migracao SQL | Resetar nomes corrompidos + limpar conversa duplicada |
 
-### Arquivos a modificar:
+## Resultado Esperado
 
-1. **`supabase/functions/waha-webhook/index.ts`**
-   - Secao CHANNEL (linhas ~975-1023): Adicionar endpoint `/api/newsletters/{chatId}` para resolver nome do canal
-   - Secao individual fromMe (linhas ~1200-1300): Melhorar resolucao @lid com mais estrategias GOWS
-   - Secao STEP 1 contato (linhas ~1343-1410): Adicionar busca fuzzy por telefone (ultimos digitos)
-   - Secao STEP 2 conversa (linhas ~1412-1517): Adicionar fallback de busca por telefone do contato
+- Contatos voltam a mostrar numeros de telefone (temporariamente) ate receberem mensagem
+- Cada pessoa aparece apenas UMA vez na lista de conversas
+- Reconexoes futuras nao criarao conversas duplicadas
 
-2. **`src/modules/conversas/components/ChatMessageBubble.tsx`**
-   - `ImageContent` (linha ~107): Adicionar `onError` handler na `<img>` para exibir fallback
-   - `VideoContent` (linha ~131): Adicionar `onError` handler no `<video>`
-   - Ambos: Tentar URL com token se a URL publica falhar
-
-3. **Verificacao do bucket `chat-media`**: Confirmar que esta publico no Supabase dashboard.
-
-### Ordem de execucao:
-1. Corrigir renderizacao de imagens/videos (frontend)
-2. Corrigir resolucao de nome do canal (edge function)
-3. Corrigir deduplicacao de conversas por @lid (edge function)
-4. Deploy da edge function
