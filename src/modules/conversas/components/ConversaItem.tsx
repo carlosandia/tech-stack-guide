@@ -186,8 +186,6 @@ export const ConversaItem = forwardRef<HTMLDivElement, ConversaItemProps>(functi
                   key={cl.id}
                   nome={cl.whatsapp_labels.nome}
                   corHex={cl.whatsapp_labels.cor_hex}
-                  compact
-                  maxWidth="90px"
                 />
               ))}
               {extraLabelsCount > 0 && (
@@ -212,7 +210,6 @@ export const ConversaItem = forwardRef<HTMLDivElement, ConversaItemProps>(functi
                         key={cl.id}
                         nome={cl.whatsapp_labels.nome}
                         corHex={cl.whatsapp_labels.cor_hex}
-                        size="md"
                       />
                     ))}
                   </PopoverContent>
