@@ -972,6 +972,10 @@ Deno.serve(async (req) => {
     let groupName: string | null = null;
     let groupPhotoUrl: string | null = null;
 
+    // AIDEV-NOTE: originalLidChatId preserva o @lid original ANTES da resolução
+    // para permitir busca retroativa de conversas/contatos criados com @lid
+    let originalLidChatId: string | null = null;
+
     if (isChannel) {
       // CHANNEL MESSAGE (@newsletter)
       chatId = rawFrom; // e.g. "29847512@newsletter"
@@ -1282,6 +1286,7 @@ Deno.serve(async (req) => {
       // INDIVIDUAL MESSAGE
       // AIDEV-NOTE: For fromMe messages (sent from phone), payload.from = OUR number,
       // payload.to = the chat partner. We need the partner's ID for chatId/phoneNumber.
+
       if (isFromMe) {
         let toField = payload.to || payload._data?.to || rawFrom;
         
@@ -1289,6 +1294,7 @@ Deno.serve(async (req) => {
         // O WAHA GOWS usa Linked IDs (@lid) internos que precisam ser convertidos
         // para números reais (@c.us) para encontrar contatos e conversas existentes.
         if (toField.includes("@lid")) {
+          originalLidChatId = toField; // GUARDAR @lid original ANTES de resolver
           let lidResolved = false;
           const originalLid = toField;
 
@@ -1399,6 +1405,7 @@ Deno.serve(async (req) => {
         
         // Resolve @lid to @c.us
         if (rawFrom.includes("@lid")) {
+          originalLidChatId = rawFrom; // GUARDAR @lid original ANTES de resolver
           // GOWS Strategy 0: _data.Info.Sender or _data.Info.Chat
           const infoSender = (payload._data as any)?.Info?.Sender;
           const infoChat = (payload._data as any)?.Info?.Chat;
@@ -1500,6 +1507,66 @@ Deno.serve(async (req) => {
       if (contatoFuzzy) {
         existingContato = contatoFuzzy;
         console.log(`[waha-webhook] ✅ Contact found via fuzzy phone match: ${contatoFuzzy.id} (phone: ${contatoFuzzy.telefone})`);
+      }
+    }
+
+    // AIDEV-NOTE: Tentativa 3 - Busca contato pelo número @lid original
+    // Se phoneNumber foi resolvido de @lid para @c.us, o contato pode ter sido
+    // criado anteriormente com o número @lid. Encontrar e ATUALIZAR para o real.
+    if (!existingContato && originalLidChatId && originalLidChatId !== chatId) {
+      const lidNumber = originalLidChatId.replace("@lid", "").replace("@c.us", "");
+      console.log(`[waha-webhook] Contact not found, trying @lid original number: ${lidNumber}`);
+      const { data: contatoByLid } = await supabaseAdmin
+        .from("contatos")
+        .select("id, nome, telefone")
+        .eq("organizacao_id", sessao.organizacao_id)
+        .eq("telefone", lidNumber)
+        .is("deletado_em", null)
+        .maybeSingle();
+
+      if (contatoByLid) {
+        existingContato = contatoByLid;
+        // Atualizar telefone do contato para o número real (@c.us)
+        console.log(`[waha-webhook] ✅ Contact found via @lid number: ${contatoByLid.id} (${contatoByLid.telefone} -> ${phoneNumber})`);
+        await supabaseAdmin
+          .from("contatos")
+          .update({ telefone: phoneNumber, atualizado_em: now })
+          .eq("id", contatoByLid.id);
+      }
+    }
+
+    // AIDEV-NOTE: Tentativa 3b - Inverso: chatId ainda é @lid, buscar contato com @c.us
+    // que possa ter sido resolvido anteriormente
+    if (!existingContato && chatId.includes("@lid")) {
+      const lidNumber = chatId.replace("@lid", "");
+      console.log(`[waha-webhook] chatId is @lid, trying resolve_lid_conversa RPC to find real contact`);
+      const { data: rpcResult } = await supabaseAdmin
+        .rpc("resolve_lid_conversa", {
+          p_org_id: sessao.organizacao_id,
+          p_lid_number: lidNumber,
+        });
+
+      if (rpcResult && rpcResult.length > 0) {
+        const realConversaId = rpcResult[0].conversa_id;
+        const { data: realConversa } = await supabaseAdmin
+          .from("conversas")
+          .select("contato_id, chat_id")
+          .eq("id", realConversaId)
+          .maybeSingle();
+
+        if (realConversa?.contato_id) {
+          const { data: realContato } = await supabaseAdmin
+            .from("contatos")
+            .select("id, nome, telefone")
+            .eq("id", realConversa.contato_id)
+            .is("deletado_em", null)
+            .maybeSingle();
+
+          if (realContato) {
+            existingContato = realContato;
+            console.log(`[waha-webhook] ✅ Contact found via RPC resolve_lid: ${realContato.id} (phone: ${realContato.telefone})`);
+          }
+        }
       }
     }
 
@@ -1655,6 +1722,80 @@ Deno.serve(async (req) => {
           contatoId = conversaByPhone.contato_id;
         }
         console.log(`[waha-webhook] ✅ Conversa found via phone-based search: ${conversaByPhone.id} (chatId=${chatId})`);
+      }
+    }
+
+    // AIDEV-NOTE: Tentativa 4 - Se chatId foi resolvido de @lid para @c.us,
+    // buscar conversa existente pelo @lid original e ATUALIZAR para @c.us
+    if (!existingConversa && originalLidChatId && originalLidChatId !== chatId) {
+      console.log(`[waha-webhook] Tentativa 4: buscando conversa pelo @lid original: ${originalLidChatId}`);
+      const { data: conversaByLid } = await supabaseAdmin
+        .from("conversas")
+        .select("id, total_mensagens, mensagens_nao_lidas, chat_id, contato_id")
+        .eq("organizacao_id", sessao.organizacao_id)
+        .eq("chat_id", originalLidChatId)
+        .is("deletado_em", null)
+        .maybeSingle();
+
+      if (conversaByLid) {
+        existingConversa = conversaByLid;
+        // ATUALIZAR chat_id da conversa para o @c.us resolvido (formato canônico)
+        console.log(`[waha-webhook] ✅ Conversa found via @lid original! Updating chat_id: ${originalLidChatId} -> ${chatId}`);
+        await supabaseAdmin
+          .from("conversas")
+          .update({ chat_id: chatId, atualizado_em: now })
+          .eq("id", conversaByLid.id);
+
+        // Também atualizar o contato vinculado se necessário
+        if (conversaByLid.contato_id && conversaByLid.contato_id !== contatoId) {
+          // Usar o contato da conversa existente (é o correto)
+          contatoId = conversaByLid.contato_id;
+          // Atualizar telefone do contato para o número real
+          const lidPhone = originalLidChatId.replace("@lid", "").replace("@c.us", "");
+          const { data: lidContato } = await supabaseAdmin
+            .from("contatos")
+            .select("id, telefone")
+            .eq("id", conversaByLid.contato_id)
+            .maybeSingle();
+
+          if (lidContato && lidContato.telefone === lidPhone) {
+            await supabaseAdmin
+              .from("contatos")
+              .update({ telefone: phoneNumber, atualizado_em: now })
+              .eq("id", lidContato.id);
+            console.log(`[waha-webhook] ✅ Contact phone updated: ${lidPhone} -> ${phoneNumber}`);
+          }
+        }
+      }
+    }
+
+    // AIDEV-NOTE: Tentativa 4b - Inverso: chatId ainda é @lid, buscar conversa @c.us via RPC
+    if (!existingConversa && chatId.includes("@lid") && conversaTipo === "individual") {
+      const lidNumber = chatId.replace("@lid", "");
+      console.log(`[waha-webhook] Tentativa 4b: chatId é @lid, buscando conversa real via RPC: ${lidNumber}`);
+      const { data: rpcResult } = await supabaseAdmin
+        .rpc("resolve_lid_conversa", {
+          p_org_id: sessao.organizacao_id,
+          p_lid_number: lidNumber,
+        });
+
+      if (rpcResult && rpcResult.length > 0) {
+        const realConversaId = rpcResult[0].conversa_id;
+        const { data: realConversa } = await supabaseAdmin
+          .from("conversas")
+          .select("id, total_mensagens, mensagens_nao_lidas, chat_id, contato_id")
+          .eq("id", realConversaId)
+          .is("deletado_em", null)
+          .maybeSingle();
+
+        if (realConversa) {
+          existingConversa = realConversa;
+          chatId = realConversa.chat_id; // Usar o chat_id real
+          if (realConversa.contato_id) {
+            contatoId = realConversa.contato_id;
+          }
+          console.log(`[waha-webhook] ✅ Conversa found via RPC resolve_lid: ${realConversa.id} (chatId=${chatId})`);
+        }
       }
     }
 
