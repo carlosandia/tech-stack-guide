@@ -81,6 +81,25 @@ async function criarOportunidadeViaEtiqueta(
   }
 }
 
+// AIDEV-NOTE: Helper GOWS-aware para extrair PushName de qualquer motor (GOWS ou WEBJS)
+function extractPushName(payload: Record<string, unknown>): string | null {
+  const _data = payload._data as Record<string, unknown> | undefined;
+  const info = _data?.Info as Record<string, unknown> | undefined;
+
+  // GOWS: _data.Info.PushName (capital P)
+  if (info?.PushName && typeof info.PushName === "string" && info.PushName.trim()) {
+    return info.PushName;
+  }
+  // GOWS: VerifiedName for business accounts
+  const verifiedName = (info?.VerifiedName as Record<string, unknown>)?.Details as Record<string, unknown>;
+  if (verifiedName?.verifiedName && typeof verifiedName.verifiedName === "string") {
+    return verifiedName.verifiedName as string;
+  }
+  // WEBJS fallbacks
+  return (_data?.pushName as string) || (_data?.notifyName as string)
+    || (payload.notifyName as string) || (payload.pushName as string) || null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -959,7 +978,7 @@ Deno.serve(async (req) => {
       phoneNumber = participantRaw
         ? participantRaw.replace("@c.us", "").replace("@s.whatsapp.net", "").replace("@lid", "")
         : rawFrom.replace("@newsletter", "");
-      phoneName = payload._data?.pushName || payload._data?.notifyName || payload.notifyName || payload.pushName || null;
+      phoneName = extractPushName(payload);
       conversaTipo = "canal";
 
       // Extract channel name from payload
@@ -1011,11 +1030,21 @@ Deno.serve(async (req) => {
       let resolvedParticipant = participantRaw || "";
       if (participantRaw && participantRaw.includes("@lid")) {
         const originalLidParticipant = participantRaw;
-        // Strategy 1: _data.key.participant (numero real em GOWS)
+
+        // GOWS Strategy 0: _data.Info.SenderAlt (numero real do participante no GOWS)
+        const senderAlt = (payload._data as any)?.Info?.SenderAlt;
+        if (typeof senderAlt === "string" && senderAlt.includes("@s.whatsapp.net")) {
+          resolvedParticipant = senderAlt.replace("@s.whatsapp.net", "@c.us");
+          console.log(`[waha-webhook] Group participant LID resolved via GOWS SenderAlt: ${originalLidParticipant} -> ${resolvedParticipant}`);
+        }
+
+        // Strategy 1: _data.key.participant (numero real em WEBJS)
+        if (resolvedParticipant.includes("@lid")) {
         const keyParticipant = payload._data?.key?.participant;
         if (keyParticipant && typeof keyParticipant === "string" && !keyParticipant.includes("@lid")) {
           resolvedParticipant = keyParticipant.replace("@s.whatsapp.net", "@c.us");
           console.log(`[waha-webhook] Group participant LID resolved via key.participant: ${originalLidParticipant} -> ${resolvedParticipant}`);
+        }
         }
         // Strategy 2: _data.participant
         if (resolvedParticipant.includes("@lid")) {
@@ -1058,7 +1087,7 @@ Deno.serve(async (req) => {
       phoneNumber = resolvedParticipant
         ? resolvedParticipant.replace("@c.us", "").replace("@s.whatsapp.net", "").replace("@lid", "")
         : "";
-      phoneName = payload._data?.pushName || payload._data?.notifyName || payload.notifyName || payload.pushName || phoneName || null;
+      phoneName = extractPushName(payload) || phoneName;
 
       // Extract group name from payload
       groupName = payload._data?.subject || payload._data?.name || payload._data?.chat?.name || payload._data?.chat?.subject || null;
@@ -1158,7 +1187,15 @@ Deno.serve(async (req) => {
           let lidResolved = false;
           const originalLid = toField;
 
-          // Strategy 1: _data.key.remoteJidAlt (campo padrão GOWS)
+          // GOWS Strategy 0: _data.Info.RecipientAlt (numero real do destinatario no GOWS)
+          const recipientAlt = (payload._data as any)?.Info?.RecipientAlt;
+          if (typeof recipientAlt === "string" && recipientAlt.includes("@s.whatsapp.net")) {
+            toField = recipientAlt.replace("@s.whatsapp.net", "@c.us");
+            lidResolved = true;
+            console.log(`[waha-webhook] LID resolved via GOWS RecipientAlt: ${originalLid} -> ${toField}`);
+          }
+
+          // Strategy 1: _data.key.remoteJidAlt (campo padrão WEBJS)
           const altJid = payload._data?.key?.remoteJidAlt;
           if (!lidResolved && altJid && typeof altJid === "string" && altJid.includes("@s.whatsapp.net")) {
             toField = altJid.replace("@s.whatsapp.net", "@c.us");
@@ -1225,30 +1262,42 @@ Deno.serve(async (req) => {
         chatId = toField; // e.g. "5513988506995@c.us" (the other person)
         phoneNumber = toField.replace("@c.us", "").replace("@s.whatsapp.net", "").replace("@lid", "");
         // For fromMe, pushName/notifyName might not be available for the recipient
-        phoneName = payload._data?.notifyName || payload.notifyName || null;
+        phoneName = extractPushName(payload) || payload._data?.notifyName as string || payload.notifyName as string || null;
         console.log(`[waha-webhook] fromMe individual: from=${rawFrom}, to=${toField}, chatId=${chatId}, resolved=${!toField.includes("@lid")}`);
       } else {
         let resolvedFrom = rawFrom;
         
-        // Resolve @lid to @c.us using remoteJidAlt
+        // Resolve @lid to @c.us
         if (rawFrom.includes("@lid")) {
-          const altJid = payload._data?.key?.remoteJidAlt;
-          if (altJid) {
-            resolvedFrom = altJid.replace("@s.whatsapp.net", "@c.us");
-            console.log(`[waha-webhook] Resolved @lid: ${rawFrom} -> ${resolvedFrom}`);
+          // GOWS Strategy 0: _data.Info.Sender or _data.Info.Chat
+          const infoSender = (payload._data as any)?.Info?.Sender;
+          const infoChat = (payload._data as any)?.Info?.Chat;
+          const gowsFrom = [infoSender, infoChat].find(
+            (v: unknown) => typeof v === "string" && (v as string).includes("@s.whatsapp.net")
+          );
+          if (gowsFrom) {
+            resolvedFrom = (gowsFrom as string).replace("@s.whatsapp.net", "@c.us");
+            console.log(`[waha-webhook] Resolved @lid via GOWS Info: ${rawFrom} -> ${resolvedFrom}`);
           } else {
-            // Fallback: try chat.id or other fields
-            const altFrom = payload._data?.chat?.id?._serialized || payload._data?.chat?.id;
-            if (altFrom && !altFrom.includes("@lid")) {
-              resolvedFrom = altFrom;
-              console.log(`[waha-webhook] Resolved @lid (via chat.id): ${rawFrom} -> ${resolvedFrom}`);
+            // WEBJS fallback: remoteJidAlt
+            const altJid = payload._data?.key?.remoteJidAlt;
+            if (altJid) {
+              resolvedFrom = (altJid as string).replace("@s.whatsapp.net", "@c.us");
+              console.log(`[waha-webhook] Resolved @lid: ${rawFrom} -> ${resolvedFrom}`);
+            } else {
+              // Fallback: try chat.id or other fields
+              const altFrom = payload._data?.chat?.id?._serialized || payload._data?.chat?.id;
+              if (altFrom && !(altFrom as string).includes("@lid")) {
+                resolvedFrom = altFrom as string;
+                console.log(`[waha-webhook] Resolved @lid (via chat.id): ${rawFrom} -> ${resolvedFrom}`);
+              }
             }
           }
         }
         
         chatId = resolvedFrom; // e.g. "5513988506995@c.us"
         phoneNumber = resolvedFrom.replace("@c.us", "").replace("@s.whatsapp.net", "").replace("@lid", "");
-        phoneName = payload._data?.pushName || payload._data?.notifyName || payload.notifyName || payload.pushName || null;
+        phoneName = extractPushName(payload);
       }
       conversaTipo = "individual";
     }
