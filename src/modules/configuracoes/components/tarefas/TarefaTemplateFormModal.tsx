@@ -2,6 +2,7 @@
  * AIDEV-NOTE: Modal de criação/edição de Template de Tarefa
  * Migrado para usar ModalBase (Design System 10.5)
  * Suporta modo 'comum' e 'cadencia' (PRD-05 evolução)
+ * Editor rico com emoji, formatação e upload de imagem para cadência
  */
 
 import { useState } from 'react'
@@ -13,6 +14,8 @@ import type { TarefaTemplateFormData } from '../../schemas/tarefas-templates.sch
 import { useCriarTarefaTemplate, useAtualizarTarefaTemplate, useExcluirTarefaTemplate } from '../../hooks/useTarefasTemplates'
 import type { TarefaTemplate } from '../../services/configuracoes.api'
 import { ModalBase } from '../ui/ModalBase'
+import { CadenciaMessageEditor } from './CadenciaMessageEditor'
+import { EmojiInput } from './EmojiInput'
 
 interface TarefaTemplateFormModalProps {
   template?: TarefaTemplate | null
@@ -43,6 +46,8 @@ export function TarefaTemplateFormModal({ template, onClose }: TarefaTemplateFor
 
   const tipoSelecionado = watch('tipo')
   const modoSelecionado = watch('modo')
+  const assuntoAtual = watch('assunto_email') || ''
+  const corpoAtual = watch('corpo_mensagem') || ''
 
   // Tipos permitidos para cadência
   const tiposFiltrados = modoSelecionado === 'cadencia'
@@ -158,22 +163,32 @@ export function TarefaTemplateFormModal({ template, onClose }: TarefaTemplateFor
           <div className="space-y-4 p-3 rounded-lg border border-primary/20 bg-primary/5">
             <p className="text-xs font-medium text-primary">Configuração da Mensagem</p>
 
-            {/* Assunto (só para email) */}
+            {/* Assunto (só para email) - com emoji */}
             {tipoSelecionado === 'email' && (
               <div>
                 <label htmlFor="tt-assunto" className="block text-sm font-medium text-foreground mb-1">Assunto do E-mail <span className="text-destructive">*</span></label>
-                <input id="tt-assunto" {...register('assunto_email')} className="w-full h-10 px-3 rounded-md border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-ring focus:border-ring transition-all duration-200" placeholder="Ex: Proposta comercial" />
+                <EmojiInput
+                  id="tt-assunto"
+                  value={assuntoAtual}
+                  onChange={(val) => setValue('assunto_email', val, { shouldValidate: true })}
+                  placeholder="Ex: Proposta comercial 🎯"
+                />
                 {errors.assunto_email && <p className="text-xs text-destructive mt-1">{errors.assunto_email.message}</p>}
               </div>
             )}
 
-            {/* Corpo da mensagem */}
+            {/* Corpo da mensagem - editor rico */}
             <div>
-              <label htmlFor="tt-corpo" className="block text-sm font-medium text-foreground mb-1">
+              <label className="block text-sm font-medium text-foreground mb-1">
                 {tipoSelecionado === 'email' ? 'Corpo do E-mail' : 'Mensagem do WhatsApp'} <span className="text-destructive">*</span>
               </label>
-              <textarea id="tt-corpo" {...register('corpo_mensagem')} className="w-full px-3 py-2 rounded-md border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-ring focus:border-ring transition-all duration-200 resize-none" rows={4}
-                placeholder={tipoSelecionado === 'email' ? 'Corpo do e-mail que será enviado...' : 'Mensagem que será enviada via WhatsApp...'} />
+              <CadenciaMessageEditor
+                content={corpoAtual}
+                onChange={(html) => setValue('corpo_mensagem', html, { shouldValidate: true })}
+                mode={tipoSelecionado === 'email' ? 'email' : 'whatsapp'}
+                placeholder={tipoSelecionado === 'email' ? 'Corpo do e-mail que será enviado...' : 'Mensagem que será enviada via WhatsApp...'}
+                minHeight="100px"
+              />
               {errors.corpo_mensagem && <p className="text-xs text-destructive mt-1">{errors.corpo_mensagem.message}</p>}
             </div>
           </div>
