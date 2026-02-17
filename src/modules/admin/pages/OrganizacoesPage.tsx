@@ -86,7 +86,7 @@ export function OrganizacoesPage() {
         page,
         limit: 10,
       }),
-    enabled: isPendentes,
+    enabled: isPendentes || statusFilter === 'todas',
   })
 
   // Injetar subtítulo no toolbar
@@ -285,6 +285,55 @@ export function OrganizacoesPage() {
                       onImpersonar={handleImpersonar}
                     />
                   ))}
+                  {/* AIDEV-NOTE: Pre-cadastros na visao "Todos os status" */}
+                  {statusFilter === 'todas' && preCadastrosData?.pre_cadastros?.map((pc) => (
+                    <tr key={`pc-${pc.id}`} className="hover:bg-accent/50">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-muted rounded-lg flex items-center justify-center flex-shrink-0">
+                            <span className="text-lg font-semibold text-muted-foreground">
+                              {pc.nome_empresa.charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                          <div className="flex flex-col justify-center">
+                            <p className="font-medium text-foreground">{pc.nome_empresa}</p>
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium w-fit ${
+                              pc.status === 'checkout_iniciado'
+                                ? 'bg-yellow-100 text-yellow-700'
+                                : 'bg-orange-100 text-orange-700'
+                            }`}>
+                              {pc.status === 'pendente' ? 'Pendente' :
+                               pc.status === 'checkout_iniciado' ? 'Checkout iniciado' :
+                               pc.status === 'expirado' ? 'Expirado' : pc.status}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div>
+                          <p className="text-sm text-foreground">{pc.nome_contato}</p>
+                          <p className="text-xs text-muted-foreground">{pc.email}</p>
+                          {pc.telefone && (
+                            <p className="text-xs text-muted-foreground">{pc.telefone}</p>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-sm text-muted-foreground capitalize">{pc.segmento}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-sm text-muted-foreground">
+                          {pc.plano?.nome || '-'} ({pc.periodo})
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-sm text-muted-foreground">{formatDate(pc.criado_em)}</span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        {/* Sem ações para pré-cadastros */}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -299,6 +348,46 @@ export function OrganizacoesPage() {
                   getInitial={getInitial}
                   navigate={navigate}
                 />
+              ))}
+              {/* AIDEV-NOTE: Pre-cadastros mobile na visao "Todos os status" */}
+              {statusFilter === 'todas' && preCadastrosData?.pre_cadastros?.map((pc) => (
+                <div key={`pc-${pc.id}`} className="p-4">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-10 h-10 bg-muted rounded-lg flex items-center justify-center">
+                      <span className="text-lg font-semibold text-muted-foreground">
+                        {pc.nome_empresa.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="font-medium text-foreground">{pc.nome_empresa}</p>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                        pc.status === 'checkout_iniciado'
+                          ? 'bg-yellow-100 text-yellow-700'
+                          : 'bg-orange-100 text-orange-700'
+                      }`}>
+                        {pc.status === 'pendente' ? 'Pendente' : 'Checkout iniciado'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm mt-2">
+                    <div>
+                      <span className="text-muted-foreground">Contato:</span>
+                      <span className="ml-1 text-foreground">{pc.nome_contato}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Email:</span>
+                      <span className="ml-1 text-foreground">{pc.email}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Segmento:</span>
+                      <span className="ml-1 text-foreground capitalize">{pc.segmento}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Data:</span>
+                      <span className="ml-1 text-foreground">{formatDate(pc.criado_em)}</span>
+                    </div>
+                  </div>
+                </div>
               ))}
             </div>
 
