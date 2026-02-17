@@ -510,7 +510,7 @@ export function FormularioPublicoPage() {
                                   campo: child, labelStyle, inputStyle, fontFamily, camposEstilo,
                                   valor: valores[child.id] || '',
                                   onChange: (v) => handleChange(child.id, child.tipo, v),
-                                  ddi: ddiSelecionado[child.id] || '+55',
+                                  ddi: ddiSelecionado[child.id] || (PAISES_DDI.find(p => p.code === child.valor_padrao)?.ddi || '+55'),
                                   onDdiChange: (ddi) => setDdiSelecionado(prev => ({ ...prev, [child.id]: ddi })),
                                   enderecoValue: enderecoValues[child.id] || { rua: '', numero: '', complemento: '' },
                                   onEnderecoChange: (val) => setEnderecoValues(prev => ({ ...prev, [child.id]: val })),
@@ -563,7 +563,7 @@ export function FormularioPublicoPage() {
                   campo, labelStyle, inputStyle, fontFamily, camposEstilo,
                   valor: valores[campo.id] || '',
                   onChange: (v) => handleChange(campo.id, campo.tipo, v),
-                  ddi: ddiSelecionado[campo.id] || '+55',
+                  ddi: ddiSelecionado[campo.id] || (PAISES_DDI.find(p => p.code === campo.valor_padrao)?.ddi || '+55'),
                   onDdiChange: (ddi) => setDdiSelecionado(prev => ({ ...prev, [campo.id]: ddi })),
                   enderecoValue: enderecoValues[campo.id] || { rua: '', numero: '', complemento: '' },
                   onEnderecoChange: (val) => setEnderecoValues(prev => ({ ...prev, [campo.id]: val })),
@@ -871,7 +871,7 @@ function renderCampoPublico(props: RenderCampoProps) {
       return (
         <div>
           {renderLabel()}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0' }}>
+          <div style={{ display: 'flex', alignItems: 'stretch', gap: '0' }}>
             <span style={{
               ...inputStyle,
               width: 'auto',
@@ -887,6 +887,8 @@ function renderCampoPublico(props: RenderCampoProps) {
               fontSize: '14px',
               whiteSpace: 'nowrap',
               flexShrink: 0,
+              boxSizing: 'border-box' as const,
+              height: 'auto',
             }}>
               🇧🇷 +55
             </span>

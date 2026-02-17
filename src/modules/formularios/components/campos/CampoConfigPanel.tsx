@@ -602,6 +602,42 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className, hideHead
           </div>
         )}
 
+        {/* DDI padrão para campo telefone internacional */}
+        {campo.tipo === 'telefone' && (
+          <div className="space-y-1.5">
+            <Label className="text-xs">Bandeira / DDI Padrão</Label>
+            <Select
+              value={form.valor_padrao || 'BR'}
+              onValueChange={(v) => setForm((f) => ({ ...f, valor_padrao: v }))}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[
+                  { code: 'BR', label: '🇧🇷 Brasil (+55)' },
+                  { code: 'US', label: '🇺🇸 EUA (+1)' },
+                  { code: 'PT', label: '🇵🇹 Portugal (+351)' },
+                  { code: 'AR', label: '🇦🇷 Argentina (+54)' },
+                  { code: 'CL', label: '🇨🇱 Chile (+56)' },
+                  { code: 'CO', label: '🇨🇴 Colômbia (+57)' },
+                  { code: 'MX', label: '🇲🇽 México (+52)' },
+                  { code: 'UY', label: '🇺🇾 Uruguai (+598)' },
+                  { code: 'PY', label: '🇵🇾 Paraguai (+595)' },
+                  { code: 'PE', label: '🇵🇪 Peru (+51)' },
+                  { code: 'DE', label: '🇩🇪 Alemanha (+49)' },
+                  { code: 'FR', label: '🇫🇷 França (+33)' },
+                  { code: 'ES', label: '🇪🇸 Espanha (+34)' },
+                  { code: 'IT', label: '🇮🇹 Itália (+39)' },
+                  { code: 'GB', label: '🇬🇧 Reino Unido (+44)' },
+                ].map((p) => (
+                  <SelectItem key={p.code} value={p.code}>{p.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
         {/* Largura: mostrar para titulo, paragrafo, imagem_link e campos normais; ocultar para divisor, espacador, bloco_html, bloco_colunas */}
         {!isDivisor && !isEspacador && !isBlocoHtml && !isBlocoColunas && (
           <div className="space-y-1.5">
