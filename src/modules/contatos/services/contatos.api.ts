@@ -540,13 +540,10 @@ export const contatosApi = {
   },
 
   duplicatas: async () => {
-    // Buscar contatos com mesmo email ou telefone
-    const organizacaoId = await getOrganizacaoId()
-
+    // AIDEV-NOTE: RLS garante isolamento por tenant - filtro explicito removido
     const { data, error } = await supabase
       .from('contatos')
       .select('id, nome, sobrenome, email, telefone, tipo, status, criado_em')
-      .eq('organizacao_id', organizacaoId)
       .is('deletado_em', null)
       .order('email')
 
