@@ -5878,6 +5878,75 @@ export type Database = {
           },
         ]
       }
+      pre_cadastros_saas: {
+        Row: {
+          atualizado_em: string
+          criado_em: string
+          email: string
+          id: string
+          is_trial: boolean | null
+          nome_contato: string
+          nome_empresa: string
+          organizacao_id: string | null
+          periodo: string | null
+          plano_id: string | null
+          segmento: string
+          status: string | null
+          stripe_session_id: string | null
+          telefone: string | null
+          utms: Json | null
+        }
+        Insert: {
+          atualizado_em?: string
+          criado_em?: string
+          email: string
+          id?: string
+          is_trial?: boolean | null
+          nome_contato: string
+          nome_empresa: string
+          organizacao_id?: string | null
+          periodo?: string | null
+          plano_id?: string | null
+          segmento: string
+          status?: string | null
+          stripe_session_id?: string | null
+          telefone?: string | null
+          utms?: Json | null
+        }
+        Update: {
+          atualizado_em?: string
+          criado_em?: string
+          email?: string
+          id?: string
+          is_trial?: boolean | null
+          nome_contato?: string
+          nome_empresa?: string
+          organizacao_id?: string | null
+          periodo?: string | null
+          plano_id?: string | null
+          segmento?: string
+          status?: string | null
+          stripe_session_id?: string | null
+          telefone?: string | null
+          utms?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pre_cadastros_saas_organizacao_id_fkey"
+            columns: ["organizacao_id"]
+            isOneToOne: false
+            referencedRelation: "organizacoes_saas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pre_cadastros_saas_plano_id_fkey"
+            columns: ["plano_id"]
+            isOneToOne: false
+            referencedRelation: "planos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pre_oportunidades: {
         Row: {
           atualizado_em: string

@@ -1230,6 +1230,72 @@ export async function reenviarConvite(params: {
   }
 }
 
+// =======================
+// PRE-CADASTROS (Leads)
+// =======================
+
+export interface PreCadastro {
+  id: string
+  nome_contato: string
+  email: string
+  telefone: string | null
+  nome_empresa: string
+  segmento: string
+  plano_id: string | null
+  periodo: string
+  is_trial: boolean
+  status: string
+  stripe_session_id: string | null
+  organizacao_id: string | null
+  criado_em: string
+  plano?: { nome: string } | null
+}
+
+export interface ListaPreCadastrosResponse {
+  pre_cadastros: PreCadastro[]
+  total: number
+  pagina: number
+  limite: number
+  total_paginas: number
+}
+
+export async function listarPreCadastros(params?: {
+  page?: number
+  limit?: number
+  busca?: string
+}): Promise<ListaPreCadastrosResponse> {
+  const page = params?.page || 1
+  const limit = params?.limit || 10
+  const offset = (page - 1) * limit
+
+  let query = supabase
+    .from('pre_cadastros_saas')
+    .select('*, plano:planos(nome)', { count: 'exact' })
+    .neq('status', 'convertido')
+    .order('criado_em', { ascending: false })
+
+  if (params?.busca) {
+    query = query.or(`nome_empresa.ilike.%${params.busca}%,email.ilike.%${params.busca}%,nome_contato.ilike.%${params.busca}%`)
+  }
+
+  query = query.range(offset, offset + limit - 1)
+
+  const { data, error, count } = await query
+
+  if (error) {
+    console.error('Erro ao listar pré-cadastros:', error)
+    throw new Error(error.message)
+  }
+
+  return {
+    pre_cadastros: (data || []) as unknown as PreCadastro[],
+    total: count || 0,
+    pagina: page,
+    limite: limit,
+    total_paginas: Math.ceil((count || 0) / limit),
+  }
+}
+
 // Export como objeto para uso com useQuery
 export const adminApi = {
   // Organizacoes
@@ -1261,4 +1327,6 @@ export const adminApi = {
   testarConfigGlobal,
   // Metricas
   obterMetricasResumo,
+  // Pre-Cadastros
+  listarPreCadastros,
 }

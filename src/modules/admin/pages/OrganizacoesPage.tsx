@@ -49,6 +49,7 @@ const statusOptions = [
   { value: 'trial', label: 'Em Trial' },
   { value: 'suspensa', label: 'Suspensas' },
   { value: 'cancelada', label: 'Canceladas' },
+  { value: 'pendentes', label: 'Pendentes (Leads)' },
 ]
 
 export function OrganizacoesPage() {
@@ -63,6 +64,8 @@ export function OrganizacoesPage() {
   const [impersonarOrg, setImpersonarOrg] = useState<{ id: string; nome: string } | null>(null)
   const [impersonarLoading, setImpersonarLoading] = useState(false)
 
+  const isPendentes = statusFilter === 'pendentes'
+
    const { data, isLoading, error, isError, refetch, fetchStatus } = useQuery({
     queryKey: ['admin', 'organizacoes', { busca, status: statusFilter, page }],
     queryFn: () =>
@@ -72,6 +75,18 @@ export function OrganizacoesPage() {
         page,
         limit: 10,
       }),
+    enabled: !isPendentes,
+  })
+
+  const { data: preCadastrosData, isLoading: preCadastrosLoading, isError: preCadastrosError, refetch: refetchPreCadastros } = useQuery({
+    queryKey: ['admin', 'pre-cadastros', { busca, page }],
+    queryFn: () =>
+      adminApi.listarPreCadastros({
+        busca: busca || undefined,
+        page,
+        limit: 10,
+      }),
+    enabled: isPendentes,
   })
 
   // Injetar subtítulo no toolbar
@@ -183,8 +198,8 @@ export function OrganizacoesPage() {
          </div>
        )}
  
-      {/* Tabela */}
-       {fetchStatus !== 'paused' && (
+      {/* Tabela Organizações */}
+       {!isPendentes && fetchStatus !== 'paused' && (
         <div className="flex-1 min-h-0">
        <div className="bg-card rounded-lg border border-border shadow-sm overflow-visible">
         {isLoading ? (
@@ -315,6 +330,175 @@ export function OrganizacoesPage() {
         )}
       </div>
         </div>
+       )}
+
+       {/* Tabela Pré-Cadastros (Pendentes) */}
+       {isPendentes && (
+         <div className="flex-1 min-h-0">
+           <div className="bg-card rounded-lg border border-border shadow-sm overflow-visible">
+             {preCadastrosLoading ? (
+               <div className="p-8 text-center">
+                 <div className="animate-pulse space-y-4">
+                   {[1, 2, 3].map((i) => (
+                     <div key={i} className="h-16 bg-muted rounded" />
+                   ))}
+                 </div>
+               </div>
+             ) : preCadastrosError ? (
+               <div className="p-8 text-center">
+                 <AlertTriangle className="w-12 h-12 text-destructive mx-auto mb-3" />
+                 <p className="text-muted-foreground">Erro ao carregar pré-cadastros</p>
+                 <button
+                   onClick={() => refetchPreCadastros()}
+                   className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 transition-colors"
+                 >
+                   <RefreshCw className="w-4 h-4" />
+                   Tentar novamente
+                 </button>
+               </div>
+             ) : !preCadastrosData?.pre_cadastros.length ? (
+               <div className="p-8 text-center">
+                 <Building2 className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                 <p className="text-muted-foreground">Nenhum pré-cadastro pendente</p>
+               </div>
+             ) : (
+               <>
+                 {/* Desktop Table */}
+                 <div className="hidden md:block overflow-x-auto">
+                   <table className="w-full">
+                     <thead className="bg-muted/50 border-b border-border">
+                       <tr>
+                         <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Empresa</th>
+                         <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Contato</th>
+                         <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Segmento</th>
+                         <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Plano Desejado</th>
+                         <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
+                         <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Data</th>
+                       </tr>
+                     </thead>
+                     <tbody className="divide-y divide-border">
+                       {preCadastrosData.pre_cadastros.map((pc) => (
+                         <tr key={pc.id} className="hover:bg-accent/50">
+                           <td className="px-6 py-4">
+                             <div className="flex items-center gap-3">
+                               <div className="w-10 h-10 bg-muted rounded-lg flex items-center justify-center flex-shrink-0">
+                                 <span className="text-lg font-semibold text-muted-foreground">
+                                   {pc.nome_empresa.charAt(0).toUpperCase()}
+                                 </span>
+                               </div>
+                               <p className="font-medium text-foreground">{pc.nome_empresa}</p>
+                             </div>
+                           </td>
+                           <td className="px-6 py-4">
+                             <div>
+                               <p className="text-sm text-foreground">{pc.nome_contato}</p>
+                               <p className="text-xs text-muted-foreground">{pc.email}</p>
+                               {pc.telefone && (
+                                 <p className="text-xs text-muted-foreground">{pc.telefone}</p>
+                               )}
+                             </div>
+                           </td>
+                           <td className="px-6 py-4">
+                             <span className="text-sm text-muted-foreground capitalize">{pc.segmento}</span>
+                           </td>
+                           <td className="px-6 py-4">
+                             <span className="text-sm text-muted-foreground">
+                               {pc.plano?.nome || '-'} ({pc.periodo})
+                             </span>
+                           </td>
+                           <td className="px-6 py-4">
+                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                               pc.status === 'checkout_iniciado'
+                                 ? 'bg-yellow-100 text-yellow-700'
+                                 : pc.status === 'expirado'
+                                 ? 'bg-muted text-muted-foreground'
+                                 : 'bg-orange-100 text-orange-700'
+                             }`}>
+                               {pc.status === 'pendente' ? 'Pendente' :
+                                pc.status === 'checkout_iniciado' ? 'Checkout iniciado' :
+                                pc.status === 'expirado' ? 'Expirado' : pc.status}
+                             </span>
+                           </td>
+                           <td className="px-6 py-4">
+                             <span className="text-sm text-muted-foreground">{formatDate(pc.criado_em)}</span>
+                           </td>
+                         </tr>
+                       ))}
+                     </tbody>
+                   </table>
+                 </div>
+
+                 {/* Mobile Cards */}
+                 <div className="md:hidden divide-y divide-border">
+                   {preCadastrosData.pre_cadastros.map((pc) => (
+                     <div key={pc.id} className="p-4">
+                       <div className="flex items-center gap-3 mb-2">
+                         <div className="w-10 h-10 bg-muted rounded-lg flex items-center justify-center">
+                           <span className="text-lg font-semibold text-muted-foreground">
+                             {pc.nome_empresa.charAt(0).toUpperCase()}
+                           </span>
+                         </div>
+                         <div>
+                           <p className="font-medium text-foreground">{pc.nome_empresa}</p>
+                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                             pc.status === 'checkout_iniciado'
+                               ? 'bg-yellow-100 text-yellow-700'
+                               : 'bg-orange-100 text-orange-700'
+                           }`}>
+                             {pc.status === 'pendente' ? 'Pendente' : 'Checkout iniciado'}
+                           </span>
+                         </div>
+                       </div>
+                       <div className="grid grid-cols-2 gap-2 text-sm mt-2">
+                         <div>
+                           <span className="text-muted-foreground">Contato:</span>
+                           <span className="ml-1 text-foreground">{pc.nome_contato}</span>
+                         </div>
+                         <div>
+                           <span className="text-muted-foreground">Email:</span>
+                           <span className="ml-1 text-foreground">{pc.email}</span>
+                         </div>
+                         <div>
+                           <span className="text-muted-foreground">Segmento:</span>
+                           <span className="ml-1 text-foreground capitalize">{pc.segmento}</span>
+                         </div>
+                         <div>
+                           <span className="text-muted-foreground">Data:</span>
+                           <span className="ml-1 text-foreground">{formatDate(pc.criado_em)}</span>
+                         </div>
+                       </div>
+                     </div>
+                   ))}
+                 </div>
+
+                 {/* Paginação */}
+                 {preCadastrosData.total_paginas > 1 && (
+                   <div className="px-6 py-4 border-t border-border flex items-center justify-between">
+                     <p className="text-sm text-muted-foreground">
+                       Mostrando {(page - 1) * 10 + 1} a {Math.min(page * 10, preCadastrosData.total)} de {preCadastrosData.total}
+                     </p>
+                     <div className="flex gap-2">
+                       <button
+                         onClick={() => setPage(page - 1)}
+                         disabled={page === 1}
+                         className="px-3 py-1 border border-border rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-accent"
+                       >
+                         Anterior
+                       </button>
+                       <button
+                         onClick={() => setPage(page + 1)}
+                         disabled={page === preCadastrosData.total_paginas}
+                         className="px-3 py-1 border border-border rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-accent"
+                       >
+                         Proximo
+                       </button>
+                     </div>
+                   </div>
+                 )}
+               </>
+             )}
+           </div>
+         </div>
        )}
     </div>
   )

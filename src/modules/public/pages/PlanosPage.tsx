@@ -2,6 +2,7 @@
  import { useSearchParams, Link } from 'react-router-dom'
  import { Check, Loader2, Star, Zap, RefreshCw, AlertTriangle } from 'lucide-react'
  import { supabase } from '@/lib/supabase'
+ import { PreCadastroModal } from '../components/PreCadastroModal'
  
  /**
   * AIDEV-NOTE: Pagina publica de planos
@@ -49,6 +50,8 @@ interface PlanoDb {
    const [loading, setLoading] = useState(true)
    const [loadError, setLoadError] = useState<string | null>(null)
    const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
+   const [modalOpen, setModalOpen] = useState(false)
+   const [modalPlano, setModalPlano] = useState<{ id: string; nome: string; isTrial: boolean } | null>(null)
  
    // Capturar UTMs
    const utms = {
@@ -123,56 +126,44 @@ interface PlanoDb {
      }
    }
  
-   const handleSelectPlan = async (plano: PlanoDb) => {
-     // Plano pago - criar sessao de checkout
-     setCheckoutLoading(plano.id)
- 
+   const handleSelectPlan = (plano: PlanoDb) => {
+     setModalPlano({ id: plano.id, nome: plano.nome, isTrial: false })
+     setModalOpen(true)
+   }
+
+   const handleStartTrial = () => {
+     if (!trialPlan) return
+     setModalPlano({ id: trialPlan.id, nome: 'Trial', isTrial: true })
+     setModalOpen(true)
+   }
+
+   // Após pré-cadastro salvo, iniciar checkout
+   const handleCheckout = async (preCadastroId: string) => {
+     setModalOpen(false)
+     if (!modalPlano) return
+
+     const loadingKey = modalPlano.isTrial ? 'trial' : modalPlano.id
+     setCheckoutLoading(loadingKey)
+
      try {
        const { data, error } = await supabase.functions.invoke('create-checkout-session', {
          body: {
-           plano_id: plano.id,
-           periodo,
+           plano_id: modalPlano.id,
+           periodo: modalPlano.isTrial ? 'mensal' : periodo,
+           is_trial: modalPlano.isTrial,
+           pre_cadastro_id: preCadastroId,
            utms,
          },
        })
- 
+
        if (error) throw error
- 
+
        if (data?.url) {
          window.location.href = data.url
        }
      } catch (err) {
        console.error('Error creating checkout:', err)
        alert('Erro ao iniciar checkout. Tente novamente.')
-     } finally {
-       setCheckoutLoading(null)
-     }
-   }
- 
-   // Handler para iniciar trial via Stripe (com cartão)
-   const handleStartTrial = async () => {
-     if (!trialPlan) return
- 
-     setCheckoutLoading('trial')
- 
-     try {
-       const { data, error } = await supabase.functions.invoke('create-checkout-session', {
-         body: {
-           plano_id: trialPlan.id,
-           periodo: 'mensal',
-           is_trial: true,
-           utms,
-         },
-       })
- 
-       if (error) throw error
- 
-       if (data?.url) {
-         window.location.href = data.url
-       }
-     } catch (err) {
-       console.error('Error creating trial checkout:', err)
-       alert('Erro ao iniciar trial. Tente novamente.')
      } finally {
        setCheckoutLoading(null)
      }
@@ -367,7 +358,7 @@ interface PlanoDb {
                    {checkoutLoading === 'trial' ? (
                      <Loader2 className="w-4 h-4 animate-spin mx-auto" />
                    ) : (
-                     'Comecar Trial'
+                     'Teste grátis agora'
                    )}
                  </button>
                </div>
@@ -450,7 +441,7 @@ interface PlanoDb {
                      {checkoutLoading === plano.id ? (
                        <Loader2 className="w-4 h-4 animate-spin mx-auto" />
                      ) : (
-                       'Assinar'
+                       'Comprar agora'
                      )}
                    </button>
                  </div>
@@ -459,7 +450,21 @@ interface PlanoDb {
            </div>
          </div>
        </section>
- 
+
+       {/* Modal Pré-Cadastro */}
+       {modalPlano && (
+         <PreCadastroModal
+           open={modalOpen}
+           onOpenChange={setModalOpen}
+           planoId={modalPlano.id}
+           planoNome={modalPlano.nome}
+           periodo={periodo}
+           isTrial={modalPlano.isTrial}
+           utms={utms}
+           onCheckout={handleCheckout}
+         />
+       )}
+
        {/* Footer */}
        <footer className="border-t border-border py-8 px-4">
          <div className="max-w-7xl mx-auto text-center text-sm text-muted-foreground">
