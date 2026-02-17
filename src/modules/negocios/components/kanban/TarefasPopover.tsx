@@ -51,12 +51,20 @@ export const TarefasPopover = forwardRef<HTMLDivElement, TarefasPopoverProps>(fu
     if (!triggerRef.current) return
     const rect = triggerRef.current.getBoundingClientRect()
     const popoverWidth = envioAberto ? 320 : 260
+    const popoverHeight = 300 // estimated max height
 
-    let top = rect.bottom + 6
     let left = rect.right - popoverWidth
-
     if (left < 8) left = rect.left
     if (left + popoverWidth > window.innerWidth - 8) left = window.innerWidth - popoverWidth - 8
+
+    // Flip upward if not enough space below
+    let top: number
+    if (rect.bottom + 6 + popoverHeight > window.innerHeight - 8) {
+      top = rect.top - 6 - popoverHeight
+      if (top < 8) top = 8
+    } else {
+      top = rect.bottom + 6
+    }
 
     setPopoverPos({ top, left })
   }, [envioAberto])
