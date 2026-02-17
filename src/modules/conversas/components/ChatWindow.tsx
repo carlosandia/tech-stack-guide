@@ -94,9 +94,10 @@ interface ChatWindowProps {
   onBack: () => void
   onOpenDrawer: () => void
   onConversaApagada?: () => void
+  onNavigateConversa?: (conversaId: string) => void
 }
 
-export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada }, _ref) {
+export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada, onNavigateConversa }, _ref) {
   const { user } = useAuth()
   const myAvatarUrl = user?.avatar_url || null
   const [quickRepliesOpen, setQuickRepliesOpen] = useState(false)
@@ -427,14 +428,13 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
     setEncaminharMsg(mensagem)
   }, [])
 
-  const handleForwardConfirm = useCallback((_destinoConversaId: string, destinoChatId: string) => {
+  const handleForwardConfirm = useCallback(async (_destinoConversaId: string, destinoChatId: string) => {
     if (!encaminharMsg) return
-    encaminharMensagem.mutate({
+    await encaminharMensagem.mutateAsync({
       conversaId: conversa.id,
       messageWahaId: encaminharMsg.message_id,
       destinoChatId,
     })
-    setEncaminharMsg(null)
   }, [conversa.id, encaminharMsg, encaminharMensagem])
 
   const handlePinMessage = useCallback((mensagem: Mensagem) => {
@@ -648,6 +648,7 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
           mensagem={encaminharMsg}
           onForward={handleForwardConfirm}
           onClose={() => setEncaminharMsg(null)}
+          onNavigateConversa={onNavigateConversa}
         />
       )}
 
