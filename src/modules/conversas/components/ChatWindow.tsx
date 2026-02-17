@@ -7,6 +7,7 @@
 
 import { useState, useMemo, useEffect, useCallback, forwardRef } from 'react'
 import { compressImage } from '@/shared/utils/compressMedia'
+import { MediaQueue, type QueuedMedia } from './MediaQueue'
 import { useAuth } from '@/providers/AuthProvider'
 import { ChatHeader } from './ChatHeader'
 import { ChatMessages } from './ChatMessages'
@@ -172,6 +173,11 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
     setBuscaAberta(false)
     setTermoBusca('')
     setBuscaIndex(0)
+    // Limpar fila de mídia ao trocar de conversa
+    setMediaQueue(prev => {
+      prev.forEach(item => { if (item.thumbnail) URL.revokeObjectURL(item.thumbnail) })
+      return []
+    })
   }, [conversa.id])
 
   const handleSendMessage = (texto: string) => {
@@ -203,6 +209,10 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
   // Upload progress state - supports multiple simultaneous uploads
   const [uploads, setUploads] = useState<UploadItem[]>([])
 
+  // AIDEV-NOTE: Fila de mídia — arquivos ficam aqui após upload, aguardando envio manual pelo usuário
+  const [mediaQueue, setMediaQueue] = useState<QueuedMedia[]>([])
+  const [sendingQueue, setSendingQueue] = useState(false)
+
   const handleFileSelected = useCallback(async (file: File, tipo: string) => {
     const uploadId = `${Date.now()}_${Math.random().toString(36).slice(2)}`
     const correctMime = getCorrectMimeType(file)
@@ -215,7 +225,6 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
     try {
       setUploads(prev => [...prev, { id: uploadId, filename: file.name, progress: 10, icon }])
 
-      // Comprimir imagem antes do upload (transparente para não-imagens)
       const processed = await compressImage(file, file.name)
       const finalFile = processed instanceof File ? processed : new File([processed], file.name)
       const ext = finalFile.name.split('.').pop() || 'bin'
@@ -240,30 +249,73 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
         .from('chat-media')
         .getPublicUrl(path)
 
-      updateProgress(90)
+      updateProgress(100)
 
-      await conversasApi.enviarMedia(conversa.id, {
+      // Gerar thumbnail para imagens
+      let thumbnail: string | undefined
+      if (tipo === 'image') {
+        thumbnail = URL.createObjectURL(finalFile)
+      }
+
+      // AIDEV-NOTE: Adicionar à fila em vez de enviar imediatamente
+      setMediaQueue(prev => [...prev, {
+        id: uploadId,
+        filename: file.name,
         tipo,
         media_url: urlData.publicUrl,
-        caption: undefined,
-        filename: file.name,
         mimetype: correctMime,
-      })
+        thumbnail,
+      }])
 
-      updateProgress(100)
-      // Fade out after completion
+      // Fade out progress bar
       setTimeout(() => {
         setUploads(prev => prev.map(u => u.id === uploadId ? { ...u, fading: true } : u))
         setTimeout(() => {
           setUploads(prev => prev.filter(u => u.id !== uploadId))
         }, 300)
-      }, 600)
-      toast.success(`${file.name} enviado`)
+      }, 400)
     } catch (error: any) {
       setUploads(prev => prev.filter(u => u.id !== uploadId))
       toast.error(error?.message || `Erro ao enviar ${file.name}`)
     }
-  }, [conversa.id])
+  }, [conversa.id, conversa.organizacao_id])
+
+  const handleRemoveFromQueue = useCallback((id: string) => {
+    setMediaQueue(prev => {
+      const item = prev.find(i => i.id === id)
+      if (item?.thumbnail) URL.revokeObjectURL(item.thumbnail)
+      return prev.filter(i => i.id !== id)
+    })
+  }, [])
+
+  const handleSendQueue = useCallback(async () => {
+    if (mediaQueue.length === 0 || sendingQueue) return
+    setSendingQueue(true)
+
+    try {
+      // AIDEV-NOTE: Enviar itens em ordem sequencial (fila)
+      for (const item of mediaQueue) {
+        await conversasApi.enviarMedia(conversa.id, {
+          tipo: item.tipo,
+          media_url: item.media_url,
+          caption: undefined,
+          filename: item.filename,
+          mimetype: item.mimetype,
+        })
+      }
+
+      // Limpar thumbnails
+      mediaQueue.forEach(item => {
+        if (item.thumbnail) URL.revokeObjectURL(item.thumbnail)
+      })
+      setMediaQueue([])
+      toast.success(`${mediaQueue.length === 1 ? 'Arquivo enviado' : `${mediaQueue.length} arquivos enviados`}`)
+    } catch (error: any) {
+      toast.error(error?.message || 'Erro ao enviar arquivos da fila')
+    } finally {
+      setSendingQueue(false)
+    }
+  }, [mediaQueue, sendingQueue, conversa.id])
 
   const [audioSending, setAudioSending] = useState(false)
 
@@ -307,7 +359,6 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
   const handleCameraCapture = useCallback(async (blob: Blob) => {
     setCameraOpen(false)
     try {
-      // Comprimir foto da câmera antes do upload
       const compressed = await compressImage(blob, 'foto.jpg')
       // AIDEV-NOTE: O path DEVE começar com organizacao_id para passar na RLS do bucket chat-media
       const path = `${conversa.organizacao_id}/${conversa.id}/foto_${Date.now()}.jpg`
@@ -325,16 +376,20 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
         .from('chat-media')
         .getPublicUrl(path)
 
-      await conversasApi.enviarMedia(conversa.id, {
+      // AIDEV-NOTE: Foto da câmera também vai pra fila
+      const thumbnail = URL.createObjectURL(compressed instanceof File ? compressed : new Blob([compressed]))
+      setMediaQueue(prev => [...prev, {
+        id: `cam_${Date.now()}`,
+        filename: 'foto.jpg',
         tipo: 'image',
         media_url: urlData.publicUrl,
-      })
-
-      toast.success('Foto enviada')
+        mimetype: 'image/jpeg',
+        thumbnail,
+      }])
     } catch (error: any) {
       toast.error(error?.message || 'Erro ao enviar foto')
     }
-  }, [conversa.id])
+  }, [conversa.id, conversa.organizacao_id])
 
   const handleContatoSelect = useCallback((contato: ConversaContato, vcard: string) => {
     setContatoModalOpen(false)
@@ -533,6 +588,12 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
             ))}
           </div>
         )}
+        <MediaQueue
+          items={mediaQueue}
+          onRemove={handleRemoveFromQueue}
+          onSendAll={handleSendQueue}
+          isSending={sendingQueue}
+        />
         <MensagensProntasPopover
           isOpen={quickRepliesOpen}
           onClose={() => setQuickRepliesOpen(false)}
