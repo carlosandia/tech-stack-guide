@@ -20,6 +20,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import type { CardConfig, SlaConfig } from './KanbanCard'
 import { useReordenarEtapas } from '../../hooks/usePipelineConfig'
+import { usePreOportunidadesPendentes } from '../../hooks/usePreOportunidades'
 
 interface KanbanBoardProps {
   data: KanbanData
@@ -38,6 +39,10 @@ export const KanbanBoard = forwardRef<HTMLDivElement, KanbanBoardProps>(function
   const reordenarEtapas = useReordenarEtapas(data?.funil?.id || '')
   const queryClient = useQueryClient()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
+  // AIDEV-NOTE: Verificar se coluna Solicitações está visível para ocultar seta da primeira etapa
+  const { data: preOps } = usePreOportunidadesPendentes(data?.funil?.id || null)
+  const solicitacoesVisiveis = (preOps?.length || 0) > 0
 
   // Buscar configuração de cards
   const { data: configCard } = useConfigCard()
@@ -310,10 +315,12 @@ export const KanbanBoard = forwardRef<HTMLDivElement, KanbanBoardProps>(function
 
             return (
               <div key={etapa.id} className="flex items-stretch">
-                {/* Seta sutil entre colunas */}
-                <div className="flex items-start pt-3 px-0.5">
-                  <ChevronRight className="w-4 h-4 text-muted-foreground/40" />
-                </div>
+                {/* Seta sutil entre colunas - oculta na primeira etapa normal quando Solicitações não está visível */}
+                {(solicitacoesVisiveis || !isFirstNormal) && (
+                  <div className="flex items-start pt-3 px-0.5">
+                    <ChevronRight className="w-4 h-4 text-muted-foreground/40" />
+                  </div>
+                )}
                 <KanbanColumn
                   etapa={etapa}
                   onDragStart={handleDragStart}
