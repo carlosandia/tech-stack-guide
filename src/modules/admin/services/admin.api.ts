@@ -519,19 +519,32 @@ export async function revogarCortesia(id: string): Promise<void> {
   if (orgError) throw new Error(orgError.message)
 }
 
-export async function impersonarOrganizacao(id: string, _motivo: string): Promise<{ organizacao_id: string; organizacao_nome: string }> {
-  const { data, error } = await supabase
-    .from('organizacoes_saas')
-    .select('id, nome')
-    .eq('id', id)
-    .single()
+export async function impersonarOrganizacao(id: string, motivo: string): Promise<{ magic_link_url: string; organizacao_nome: string; expira_em: string }> {
+  const session = await supabase.auth.getSession()
+  const accessToken = session.data.session?.access_token
 
-  if (error) throw new Error(error.message)
+  const response = await fetch(
+    'https://ybzhlsalbnxwkfszkloa.supabase.co/functions/v1/impersonar-organizacao',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        action: 'iniciar',
+        organizacao_id: id,
+        motivo,
+      }),
+    }
+  )
 
-  return {
-    organizacao_id: data.id,
-    organizacao_nome: data.nome,
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error || 'Erro ao impersonar organização')
   }
+
+  return response.json()
 }
 
 export async function listarUsuariosOrganizacao(id: string): Promise<{

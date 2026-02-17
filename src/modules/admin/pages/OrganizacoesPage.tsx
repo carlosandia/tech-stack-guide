@@ -6,6 +6,8 @@ import { useToolbar } from '../contexts/ToolbarContext'
 import { NovaOrganizacaoModal } from '../components/NovaOrganizacaoModal'
 import { SearchPopover, StatusDropdown } from '../components/toolbar'
 import { OrganizacaoActionsMenu } from '../components/OrganizacaoActionsMenu'
+import { ImpersonarModal } from '../components/ImpersonarModal'
+import { toast } from 'sonner'
 import {
   Plus,
   Eye,
@@ -57,6 +59,9 @@ export function OrganizacoesPage() {
   const [page, setPage] = useState(1)
   const [menuAberto, setMenuAberto] = useState<string | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
+  const [impersonarModalOpen, setImpersonarModalOpen] = useState(false)
+  const [impersonarOrg, setImpersonarOrg] = useState<{ id: string; nome: string } | null>(null)
+  const [impersonarLoading, setImpersonarLoading] = useState(false)
 
    const { data, isLoading, error, isError, refetch, fetchStatus } = useQuery({
     queryKey: ['admin', 'organizacoes', { busca, status: statusFilter, page }],
@@ -119,12 +124,43 @@ export function OrganizacoesPage() {
 
   const getInitial = (nome: string) => nome.charAt(0).toUpperCase()
 
+  const handleImpersonar = (org: Organizacao) => {
+    setImpersonarOrg({ id: org.id, nome: org.nome })
+    setImpersonarModalOpen(true)
+  }
+
+  const handleConfirmImpersonar = async (motivo: string) => {
+    if (!impersonarOrg) return
+    setImpersonarLoading(true)
+    try {
+      const result = await adminApi.impersonarOrganizacao(impersonarOrg.id, motivo)
+      // Abrir magic link em nova aba
+      window.open(result.magic_link_url, '_blank')
+      toast.success(`Impersonação iniciada para ${result.organizacao_nome}`)
+      setImpersonarModalOpen(false)
+      setImpersonarOrg(null)
+    } catch (err) {
+      toast.error((err as Error).message || 'Erro ao impersonar')
+    } finally {
+      setImpersonarLoading(false)
+    }
+  }
+
   return (
     <div className="flex flex-col flex-1 min-h-0 space-y-6">
       {/* Modal Nova Organizacao */}
       <NovaOrganizacaoModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
+      />
+
+      {/* Modal Impersonar */}
+      <ImpersonarModal
+        open={impersonarModalOpen}
+        onOpenChange={(v) => { setImpersonarModalOpen(v); if (!v) setImpersonarOrg(null) }}
+        orgNome={impersonarOrg?.nome || ''}
+        loading={impersonarLoading}
+        onConfirm={handleConfirmImpersonar}
       />
 
        {/* Estado: Sem conexão (paused) */}
@@ -231,6 +267,7 @@ export function OrganizacoesPage() {
                       menuAberto={menuAberto}
                       setMenuAberto={setMenuAberto}
                       navigate={navigate}
+                      onImpersonar={handleImpersonar}
                     />
                   ))}
                 </tbody>
@@ -291,6 +328,7 @@ function OrganizacaoRow({
   menuAberto,
   setMenuAberto,
   navigate,
+  onImpersonar,
 }: {
   org: Organizacao
   formatDate: (date: string) => string
@@ -298,6 +336,7 @@ function OrganizacaoRow({
   menuAberto: string | null
   setMenuAberto: (id: string | null) => void
   navigate: ReturnType<typeof useNavigate>
+  onImpersonar: (org: Organizacao) => void
 }) {
   return (
     <tr className="hover:bg-accent/50 cursor-pointer" onClick={() => navigate(`/admin/organizacoes/${org.id}`)}>
@@ -351,7 +390,7 @@ function OrganizacaoRow({
           onOpenChange={(open) => setMenuAberto(open ? org.id : null)}
           onVisualizar={() => navigate(`/admin/organizacoes/${org.id}`)}
           onGerenciarModulos={() => navigate(`/admin/organizacoes/${org.id}`)}
-          onImpersonar={() => alert('Funcao de impersonacao sera implementada')}
+          onImpersonar={() => onImpersonar(org)}
         />
       </td>
     </tr>

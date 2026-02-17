@@ -1,25 +1,22 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, MoreVertical, Building2, Users, BarChart3, Settings, Pause, Play, ExternalLink } from 'lucide-react'
+import { toast } from 'sonner'
 import {
   useOrganizacao,
   useSuspenderOrganizacao,
   useReativarOrganizacao,
-  useImpersonarOrganizacao,
 } from '../hooks/useOrganizacoes'
+import { adminApi } from '../services/admin.api'
 import { OrganizacaoDadosTab } from '../components/OrganizacaoDadosTab'
 import { OrganizacaoUsuariosTab } from '../components/OrganizacaoUsuariosTab'
 import { OrganizacaoRelatoriosTab } from '../components/OrganizacaoRelatoriosTab'
 import { OrganizacaoConfigTab } from '../components/OrganizacaoConfigTab'
+import { ImpersonarModal } from '../components/ImpersonarModal'
 
 /**
  * AIDEV-NOTE: Pagina de Detalhes da Organizacao
  * Conforme PRD-14 - RF-012
- *
- * Tabs:
- * - Usuarios: Lista de admin e members
- * - Relatorios: Metricas do tenant
- * - Configuracoes: Limites e modulos
  */
 
 const statusColors: Record<string, string> = {
@@ -50,12 +47,12 @@ export function OrganizacaoDetalhesPage() {
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<TabId>('dados')
   const [menuAberto, setMenuAberto] = useState(false)
-  const [impersonando, setImpersonando] = useState(false)
+  const [impersonarModalOpen, setImpersonarModalOpen] = useState(false)
+  const [impersonarLoading, setImpersonarLoading] = useState(false)
 
   const { data: org, isLoading, error } = useOrganizacao(id || '')
   const { mutate: suspender, isPending: suspendendo } = useSuspenderOrganizacao()
   const { mutate: reativar, isPending: reativando } = useReativarOrganizacao()
-  const { mutate: impersonar, isPending: impersonarPending } = useImpersonarOrganizacao()
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('pt-BR', {
@@ -81,31 +78,22 @@ export function OrganizacaoDetalhesPage() {
   }
 
   const handleImpersonar = () => {
+    setMenuAberto(false)
+    setImpersonarModalOpen(true)
+  }
+
+  const handleConfirmImpersonar = async (motivo: string) => {
     if (!id) return
-    const motivo = prompt('Informe o motivo da impersonacao (sera registrado no audit log):')
-    if (motivo) {
-      setImpersonando(true)
-      impersonar(
-        { id, motivo },
-        {
-          onSuccess: (result: { organizacao_id: string; organizacao_nome: string }) => {
-            // Armazena info de impersonação no sessionStorage para exibir banner
-            sessionStorage.setItem('impersonation', JSON.stringify({
-              organizacao_id: result.organizacao_id,
-              organizacao_nome: result.organizacao_nome,
-              motivo,
-              timestamp: new Date().toISOString(),
-            }))
-            // Redireciona para dashboard da organização em nova aba
-            window.open(`/dashboard?org=${result.organizacao_id}`, '_blank')
-            setImpersonando(false)
-          },
-          onError: () => {
-            setImpersonando(false)
-          },
-        }
-      )
-      setMenuAberto(false)
+    setImpersonarLoading(true)
+    try {
+      const result = await adminApi.impersonarOrganizacao(id, motivo)
+      window.open(result.magic_link_url, '_blank')
+      toast.success(`Impersonação iniciada para ${result.organizacao_nome}`)
+      setImpersonarModalOpen(false)
+    } catch (err) {
+      toast.error((err as Error).message || 'Erro ao impersonar')
+    } finally {
+      setImpersonarLoading(false)
     }
   }
 
@@ -130,6 +118,15 @@ export function OrganizacaoDetalhesPage() {
 
   return (
     <div className="space-y-6">
+      {/* Modal Impersonar */}
+      <ImpersonarModal
+        open={impersonarModalOpen}
+        onOpenChange={setImpersonarModalOpen}
+        orgNome={org.nome}
+        loading={impersonarLoading}
+        onConfirm={handleConfirmImpersonar}
+      />
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div className="flex items-start gap-4">
@@ -187,11 +184,10 @@ export function OrganizacaoDetalhesPage() {
                 <div className="absolute right-0 mt-1 w-48 bg-card rounded-lg shadow-lg border border-border py-1 z-50">
                   <button
                     onClick={handleImpersonar}
-                    disabled={impersonarPending || impersonando}
-                    className="flex items-center gap-2 w-full px-4 py-2 text-sm text-foreground hover:bg-accent disabled:opacity-50"
+                    className="flex items-center gap-2 w-full px-4 py-2 text-sm text-foreground hover:bg-accent"
                   >
                     <ExternalLink className="w-4 h-4" />
-                    {impersonando ? 'Abrindo...' : 'Impersonar'}
+                    Impersonar
                   </button>
                 </div>
               </>
