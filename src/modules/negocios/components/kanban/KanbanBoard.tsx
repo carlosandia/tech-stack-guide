@@ -308,15 +308,16 @@ export const KanbanBoard = forwardRef<HTMLDivElement, KanbanBoardProps>(function
         <div className="flex gap-0 px-3 sm:px-4 pt-0 pb-3 h-full min-w-min">
           <SolicitacoesColumn funilId={data.funil.id} />
 
-          {data.etapas.map((etapa) => {
+          {data.etapas.map((etapa, idx) => {
             const normalEtapas = data.etapas.filter(e => e.tipo === 'normal')
             const isFirstNormal = normalEtapas[0]?.id === etapa.id
             const isLastNormal = normalEtapas[normalEtapas.length - 1]?.id === etapa.id
+            const isFirstEtapa = idx === 0
 
             return (
               <div key={etapa.id} className="flex items-stretch">
                 {/* Seta sutil entre colunas - oculta na primeira etapa normal quando Solicitações não está visível */}
-                {(solicitacoesVisiveis || !isFirstNormal) && (
+                {(solicitacoesVisiveis || !isFirstEtapa) && (
                   <div className="flex items-start pt-3 px-0.5">
                     <ChevronRight className="w-4 h-4 text-muted-foreground/40" />
                   </div>
