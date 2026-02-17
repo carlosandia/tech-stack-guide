@@ -33,6 +33,7 @@ export function AgendarMensagemPopover({ conversaId, textoPreenchido, disabled }
   const [dataHora, setDataHora] = useState('')
   const [tab, setTab] = useState<'agendar' | 'lista'>('agendar')
   const [tipoMsg, setTipoMsg] = useState<TipoMensagem>('text')
+  const [erroInline, setErroInline] = useState<string | null>(null)
 
   // Audio recording state
   const [isRecording, setIsRecording] = useState(false)
@@ -176,6 +177,7 @@ export function AgendarMensagemPopover({ conversaId, textoPreenchido, disabled }
       const defaultTime = addMinutes(new Date(), 60)
       setDataHora(format(defaultTime, "yyyy-MM-dd'T'HH:mm"))
       setTipoMsg('text')
+      setErroInline(null)
     }
     setOpen(isOpen)
   }
@@ -200,6 +202,7 @@ export function AgendarMensagemPopover({ conversaId, textoPreenchido, disabled }
 
   const handleAgendar = async () => {
     if (!dataHora) return
+    setErroInline(null)
 
     if (tipoMsg === 'text') {
       const msg = texto.trim()
@@ -215,6 +218,10 @@ export function AgendarMensagemPopover({ conversaId, textoPreenchido, disabled }
           setTexto('')
           setDataHora('')
           setTab('lista')
+          setErroInline(null)
+        },
+        onError: (error: Error) => {
+          setErroInline(error.message)
         }
       })
     } else {
@@ -236,6 +243,10 @@ export function AgendarMensagemPopover({ conversaId, textoPreenchido, disabled }
             setAudioDuration(0)
             setDataHora('')
             setTab('lista')
+            setErroInline(null)
+          },
+          onError: (error: Error) => {
+            setErroInline(error.message)
           }
         })
       } catch (err) {
@@ -447,11 +458,18 @@ export function AgendarMensagemPopover({ conversaId, textoPreenchido, disabled }
               <input
                 type="datetime-local"
                 value={dataHora}
-                onChange={(e) => setDataHora(e.target.value)}
+                onChange={(e) => { setDataHora(e.target.value); setErroInline(null) }}
                 min={minDateTime}
                 max={maxDateTime}
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                className={`w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 transition-colors ${
+                  erroInline
+                    ? 'border-destructive/60 focus:ring-destructive/40'
+                    : 'border-border focus:ring-ring'
+                }`}
               />
+              {erroInline && (
+                <p className="text-[11px] text-destructive mt-0.5">{erroInline}</p>
+              )}
             </div>
 
             {/* Botão */}

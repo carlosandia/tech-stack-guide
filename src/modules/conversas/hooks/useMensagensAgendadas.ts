@@ -98,9 +98,7 @@ export function useAgendarMensagem() {
       queryClient.invalidateQueries({ queryKey: ['mensagens-agendadas-count', variables.conversaId] })
       queryClient.invalidateQueries({ queryKey: ['mensagens-agendadas-count-usuario'] })
     },
-    onError: (error: Error) => {
-      toast.error(error.message)
-    },
+    // AIDEV-NOTE: Sem toast de erro - erros tratados inline no popover
   })
 }
 
@@ -116,9 +114,6 @@ export function useCancelarAgendada() {
       queryClient.invalidateQueries({ queryKey: ['mensagens-agendadas', variables.conversaId] })
       queryClient.invalidateQueries({ queryKey: ['mensagens-agendadas-count', variables.conversaId] })
       queryClient.invalidateQueries({ queryKey: ['mensagens-agendadas-count-usuario'] })
-    },
-    onError: (error: Error) => {
-      toast.error(error.message)
     },
   })
 }
