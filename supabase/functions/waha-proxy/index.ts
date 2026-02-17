@@ -626,6 +626,28 @@ Deno.serve(async (req) => {
       // ENVIAR MÍDIA VIA WAHA
       // =====================================================
       case "enviar_media": {
+        // AIDEV-NOTE: Helper para detectar mimetype e filename a partir da URL
+        // WAHA GOWS requer mimetype+filename no objeto file para processar mídia corretamente
+        const detectMimeFromUrl = (url: string, mediaType?: string): { mimetype: string; filename: string } => {
+          const extMatch = url.match(/\.([a-zA-Z0-9]+)(?:\?|$)/);
+          const ext = extMatch ? extMatch[1].toLowerCase() : '';
+          const mimeMap: Record<string, string> = {
+            jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',
+            webp: 'image/webp', svg: 'image/svg+xml',
+            mp4: 'video/mp4', webm: 'video/webm', avi: 'video/x-msvideo', mov: 'video/quicktime',
+            mp3: 'audio/mpeg', ogg: 'audio/ogg', wav: 'audio/wav',
+            pdf: 'application/pdf', doc: 'application/msword',
+          };
+          const detected = mimeMap[ext];
+          if (detected) {
+            return { mimetype: detected, filename: `file.${ext}` };
+          }
+          // Fallback baseado no media_type informado
+          if (mediaType === 'video') return { mimetype: 'video/mp4', filename: 'video.mp4' };
+          if (mediaType === 'audio') return { mimetype: 'audio/ogg', filename: 'audio.ogg' };
+          if (mediaType === 'document') return { mimetype: 'application/octet-stream', filename: 'document' };
+          return { mimetype: 'image/jpeg', filename: 'image.jpeg' };
+        };
         const { chat_id: mediaChatId, media_url, caption: mediaCaption, filename, media_type, mimetype } = body as {
           chat_id?: string;
           media_url?: string;
@@ -668,8 +690,11 @@ Deno.serve(async (req) => {
           mediaBody.file = { url: media_url };
           mediaBody.convert = true;
         } else {
-          mediaBody.file = { url: media_url };
+          // sendImage / sendVideo: incluir mimetype + filename para WAHA GOWS processar corretamente
+          const mimeInfo = detectMimeFromUrl(media_url, media_type);
+          mediaBody.file = { url: media_url, mimetype: mimeInfo.mimetype, filename: mimeInfo.filename };
           if (mediaCaption) mediaBody.caption = mediaCaption;
+          console.log(`[waha-proxy] Media file payload: mimetype=${mimeInfo.mimetype}, filename=${mimeInfo.filename}`);
         }
 
         const mediaResp = await fetch(`${baseUrl}/api/${endpoint}`, {
