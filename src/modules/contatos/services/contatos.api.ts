@@ -806,6 +806,100 @@ export const contatosApi = {
     return csvRows.join('\n')
   },
 
+  /**
+   * AIDEV-NOTE: Criação de oportunidades em massa a partir de contatos selecionados
+   * Busca etapa de entrada, cria oportunidades com título = nome do contato
+   * Suporta distribuição: nenhuma, rodízio (round-robin), manual
+   */
+  criarOportunidadesLote: async (payload: {
+    contato_ids: string[]
+    funil_id: string
+    distribuicao: 'nenhuma' | 'rodizio' | 'manual'
+    membro_ids?: string[]
+  }): Promise<{ criadas: number; erros: number; detalhes: string[] }> => {
+    const organizacaoId = await getOrganizacaoId()
+    const userId = await getUsuarioId()
+    const detalhes: string[] = []
+    let criadas = 0
+    let erros = 0
+
+    // 1. Buscar etapa de entrada do funil
+    const { data: etapas } = await supabase
+      .from('etapas_funil')
+      .select('id, tipo, ordem')
+      .eq('funil_id', payload.funil_id)
+      .is('deletado_em', null)
+      .eq('ativo', true)
+      .order('ordem', { ascending: true })
+
+    const etapaEntrada = (etapas || []).find(e => (e as any).tipo === 'entrada') || (etapas || [])[0]
+    if (!etapaEntrada) {
+      throw new Error('Nenhuma etapa encontrada na pipeline selecionada')
+    }
+
+    // 2. Buscar nomes dos contatos
+    const { data: contatos } = await supabase
+      .from('contatos')
+      .select('id, nome, sobrenome, nome_fantasia')
+      .in('id', payload.contato_ids)
+
+    if (!contatos || contatos.length === 0) {
+      throw new Error('Nenhum contato encontrado')
+    }
+
+    // 3. Montar lista de membros para distribuição
+    let membrosDistribuicao: string[] = []
+    if (payload.distribuicao === 'rodizio') {
+      const { data: funilMembros } = await supabase
+        .from('funis_membros')
+        .select('usuario_id')
+        .eq('funil_id', payload.funil_id)
+        .eq('ativo', true)
+      membrosDistribuicao = (funilMembros || []).map(m => m.usuario_id)
+    } else if (payload.distribuicao === 'manual' && payload.membro_ids) {
+      membrosDistribuicao = payload.membro_ids
+    }
+
+    // 4. Criar oportunidades em lote
+    const oportunidades = contatos.map((c, index) => {
+      const titulo = [c.nome, c.sobrenome].filter(Boolean).join(' ') || c.nome_fantasia || 'Sem nome'
+      let responsavelId: string | null = null
+
+      if (membrosDistribuicao.length > 0) {
+        responsavelId = membrosDistribuicao[index % membrosDistribuicao.length]
+      }
+
+      return {
+        organizacao_id: organizacaoId,
+        funil_id: payload.funil_id,
+        etapa_id: etapaEntrada.id,
+        contato_id: c.id,
+        titulo,
+        usuario_responsavel_id: responsavelId,
+        criado_por: userId,
+        posicao: index,
+      }
+    })
+
+    // Inserir em batches de 50
+    const batchSize = 50
+    for (let i = 0; i < oportunidades.length; i += batchSize) {
+      const batch = oportunidades.slice(i, i + batchSize)
+      const { error } = await supabase
+        .from('oportunidades')
+        .insert(batch as any)
+
+      if (error) {
+        erros += batch.length
+        detalhes.push(`Erro no lote ${Math.floor(i / batchSize) + 1}: ${error.message}`)
+      } else {
+        criadas += batch.length
+      }
+    }
+
+    return { criadas, erros, detalhes }
+  },
+
   segmentarLote: async (payload: { ids: string[]; adicionar: string[]; remover: string[] }): Promise<void> => {
     const organizacaoId = await getOrganizacaoId()
 
