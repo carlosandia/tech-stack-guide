@@ -210,7 +210,7 @@ export function MetaFormModal({ open, onClose, onSubmit, meta, equipes, usuarios
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
                   categoriaAtiva === cat.key ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-accent'
                 }`}>
-                <span>{cat.icon}</span>
+                {(() => { const CatIcon = cat.icon; return <CatIcon className="w-4 h-4" /> })()}
                 <span>{cat.label}</span>
               </button>
             ))}
@@ -220,7 +220,7 @@ export function MetaFormModal({ open, onClose, onSubmit, meta, equipes, usuarios
         {/* Métrica */}
         <div>
           <label className="block text-sm font-medium text-foreground mb-2">Métrica <span className="text-destructive">*</span></label>
-          <div className="space-y-1.5">
+           <div className="space-y-1.5">
             {metricasCategoria.map(m => (
               <label key={m.value}
                 className={`flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-all duration-200 ${
@@ -228,9 +228,14 @@ export function MetaFormModal({ open, onClose, onSubmit, meta, equipes, usuarios
                 }`}>
                 <input type="radio" value={m.value} checked={form.watch('metrica') === m.value}
                   onChange={() => form.setValue('metrica', m.value as MetaFormValues['metrica'])} className="accent-primary" />
-                <div>
-                  <span className="text-sm font-medium text-foreground">{m.label}</span>
-                  <span className="text-xs text-muted-foreground ml-2">({m.unidade})</span>
+                <div className="flex flex-col">
+                  <div>
+                    <span className="text-sm font-medium text-foreground">{m.label}</span>
+                    <span className="text-xs text-muted-foreground ml-2">({m.unidade})</span>
+                  </div>
+                  {'hint' in m && m.hint && (
+                    <span className="text-xs text-muted-foreground mt-0.5">{m.hint}</span>
+                  )}
                 </div>
               </label>
             ))}

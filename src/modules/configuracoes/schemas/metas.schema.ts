@@ -57,17 +57,19 @@ export const METRICAS_POR_CATEGORIA = {
     { value: 'sqls', label: 'SQLs Gerados', unidade: 'un' },
   ],
   tempo: [
-    { value: 'tempo_fechamento', label: 'Tempo de Fechamento', unidade: 'dias' },
-    { value: 'velocidade_pipeline', label: 'Velocidade do Pipeline', unidade: 'dias' },
+    { value: 'tempo_fechamento', label: 'Tempo de Fechamento', unidade: 'dias', hint: 'Módulo Negócios — média de dias até fechar uma oportunidade como Ganha' },
+    { value: 'velocidade_pipeline', label: 'Velocidade do Pipeline', unidade: 'dias', hint: 'Módulo Negócios — tempo médio que oportunidades levam para percorrer o funil' },
   ],
 } as const
 
+import { DollarSign, BarChart3, ClipboardList, UsersRound, Clock } from 'lucide-react'
+
 export const CATEGORIAS = [
-  { key: 'receita', label: 'Receita', icon: '💰' },
-  { key: 'quantidade', label: 'Quantidade', icon: '📊' },
-  { key: 'atividades', label: 'Atividades', icon: '📋' },
-  { key: 'leads', label: 'Leads', icon: '👥' },
-  { key: 'tempo', label: 'Tempo', icon: '⏱' },
+  { key: 'receita', label: 'Receita', icon: DollarSign },
+  { key: 'quantidade', label: 'Quantidade', icon: BarChart3 },
+  { key: 'atividades', label: 'Atividades', icon: ClipboardList },
+  { key: 'leads', label: 'Leads', icon: UsersRound },
+  { key: 'tempo', label: 'Tempo', icon: Clock },
 ] as const
 
 export const PERIODOS = [
