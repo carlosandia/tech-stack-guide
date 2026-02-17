@@ -7,6 +7,7 @@
 
 import { useState, useRef, useCallback, forwardRef, type KeyboardEvent, type ClipboardEvent } from 'react'
 import { Send, StickyNote, MessageSquare, Plus, Mic, Smile, X } from 'lucide-react'
+import { AgendarMensagemPopover } from './AgendarMensagemPopover'
 import { AnexosMenu } from './AnexosMenu'
 import { AudioRecorder } from './AudioRecorder'
 import { EmojiPicker } from './EmojiPicker'
@@ -26,6 +27,7 @@ interface ChatInputProps {
   replyingTo?: Mensagem | null
   onCancelReply?: () => void
   audioSending?: boolean
+  conversaId?: string
 }
 
 type InputTab = 'responder' | 'nota'
@@ -33,7 +35,7 @@ type InputTab = 'responder' | 'nota'
 export const ChatInput = forwardRef<HTMLDivElement, ChatInputProps>(function ChatInput({
   onSendMessage, onSendNote, onOpenQuickReplies, onFileSelected,
   onAudioSend, onOpenCamera, onOpenContato, onOpenEnquete,
-  isSending, disabled, replyingTo, onCancelReply, audioSending
+  isSending, disabled, replyingTo, onCancelReply, audioSending, conversaId
 }, _ref) {
   const [tab, setTab] = useState<InputTab>('responder')
   const [texto, setTexto] = useState('')
@@ -274,21 +276,32 @@ export const ChatInput = forwardRef<HTMLDivElement, ChatInputProps>(function Cha
                 style={{ maxHeight: '150px' }}
               />
 
-              {/* Right icon inside input: mic (only when no text & reply mode) */}
-              {!isNota && !hasText && (
-                <div className="flex items-center pr-1 pb-[7px] flex-shrink-0">
-                  {audioSending ? (
-                    <div className="flex items-center gap-1 px-1.5">
-                      <div className="w-4 h-4 border-2 border-muted-foreground/40 border-t-primary rounded-full animate-spin" />
-                    </div>
-                  ) : (
-                    <button
-                      className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200"
-                      title="Gravar áudio"
-                      onClick={() => setIsRecording(true)}
-                    >
-                      <Mic className="w-[18px] h-[18px]" />
-                    </button>
+              {/* Right icons inside input: clock always, mic only when no text */}
+              {!isNota && (
+                <div className="flex items-center pr-1 pb-[7px] flex-shrink-0 gap-0">
+                  {conversaId && (
+                    <AgendarMensagemPopover
+                      conversaId={conversaId}
+                      textoPreenchido={texto}
+                      disabled={disabled}
+                    />
+                  )}
+                  {!hasText && (
+                    <>
+                      {audioSending ? (
+                        <div className="flex items-center gap-1 px-1.5">
+                          <div className="w-4 h-4 border-2 border-muted-foreground/40 border-t-primary rounded-full animate-spin" />
+                        </div>
+                      ) : (
+                        <button
+                          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200"
+                          title="Gravar áudio"
+                          onClick={() => setIsRecording(true)}
+                        >
+                          <Mic className="w-[18px] h-[18px]" />
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               )}
