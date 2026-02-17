@@ -873,7 +873,7 @@ function FinalPreviewFields({ campos, estiloCampos, fontFamily, viewport = 'desk
                               child, estiloCampos, fontFamily,
                               valores[child.id] || '',
                               (v) => handleChange(child.id, child.tipo, v),
-                              paises[child.id] || { code: 'BR', ddi: '55', flag: '🇧🇷' },
+                              paises[child.id] || (PAISES_COMUNS.find(p => p.code === child.valor_padrao) || PAISES_COMUNS[0]),
                               (p) => handlePaisChange(child.id, p),
                             )}
                           </div>
@@ -899,7 +899,7 @@ function FinalPreviewFields({ campos, estiloCampos, fontFamily, viewport = 'desk
               campo, estiloCampos, fontFamily,
               valores[campo.id] || '',
               (v) => handleChange(campo.id, campo.tipo, v),
-              paises[campo.id] || { code: 'BR', ddi: '55', flag: '🇧🇷' },
+              paises[campo.id] || (PAISES_COMUNS.find(p => p.code === campo.valor_padrao) || PAISES_COMUNS[0]),
               (p) => handlePaisChange(campo.id, p),
             )}
           </div>
