@@ -292,7 +292,7 @@ export function TarefaEnvioInline({ tarefa, onEnviado, onCancelar }: TarefaEnvio
         </button>
         <button
           onClick={handleEnviar}
-          disabled={enviando || !mensagem.trim() || (isEmail && !assunto.trim())}
+          disabled={enviando || (!tarefa.audio_url && !mensagem.trim()) || (isEmail && !assunto.trim())}
           className="flex items-center gap-1 px-2 h-7 rounded bg-primary text-primary-foreground text-[10px] font-medium hover:bg-primary/90 disabled:opacity-50 transition-all duration-200"
         >
           {enviando ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
