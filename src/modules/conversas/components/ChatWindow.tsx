@@ -219,7 +219,8 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
       const processed = await compressImage(file, file.name)
       const finalFile = processed instanceof File ? processed : new File([processed], file.name)
       const ext = finalFile.name.split('.').pop() || 'bin'
-      const path = `conversas/${conversa.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
+      // AIDEV-NOTE: O path DEVE começar com organizacao_id para passar na RLS do bucket chat-media
+      const path = `${conversa.organizacao_id}/${conversa.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
 
       updateProgress(30)
 
@@ -273,7 +274,8 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
       const isOgg = blob.type.includes('ogg')
       const ext = isOgg ? 'ogg' : 'webm'
       const contentType = isOgg ? 'audio/ogg; codecs=opus' : 'audio/webm; codecs=opus'
-      const path = `conversas/${conversa.id}/audio_${Date.now()}.${ext}`
+      // AIDEV-NOTE: O path DEVE começar com organizacao_id para passar na RLS do bucket chat-media
+      const path = `${conversa.organizacao_id}/${conversa.id}/audio_${Date.now()}.${ext}`
 
       const { error: uploadError } = await supabase.storage
         .from('chat-media')
@@ -307,7 +309,8 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
     try {
       // Comprimir foto da câmera antes do upload
       const compressed = await compressImage(blob, 'foto.jpg')
-      const path = `conversas/${conversa.id}/foto_${Date.now()}.jpg`
+      // AIDEV-NOTE: O path DEVE começar com organizacao_id para passar na RLS do bucket chat-media
+      const path = `${conversa.organizacao_id}/${conversa.id}/foto_${Date.now()}.jpg`
 
       const { error: uploadError } = await supabase.storage
         .from('chat-media')
