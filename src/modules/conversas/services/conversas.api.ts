@@ -74,6 +74,9 @@ export interface UltimaMensagemPreview {
   from_me: boolean
   criado_em: string
   reaction_emoji?: string | null
+  reaction_message_id?: string | null
+  // AIDEV-NOTE: Tipo da mensagem original quando é reação (para preview na lista)
+  reaction_original_tipo?: string | null
 }
 
 export interface WhatsAppLabelPreview {
@@ -284,13 +287,15 @@ export const conversasApi = {
       
       const { data: ultimasMensagens } = await supabase
         .from('mensagens')
-        .select('id, conversa_id, tipo, body, from_me, criado_em, reaction_emoji')
+        .select('id, conversa_id, tipo, body, from_me, criado_em, reaction_emoji, reaction_message_id')
         .in('conversa_id', conversaIds)
         .is('deletado_em', null)
         .order('criado_em', { ascending: false })
 
       if (ultimasMensagens) {
         const ultimaMap = new Map<string, UltimaMensagemPreview>()
+        const reactionMessageIds: string[] = []
+
         for (const msg of ultimasMensagens) {
           if (!ultimaMap.has(msg.conversa_id)) {
             // Skip text messages with null body (WAHA webhook duplicates)
@@ -302,7 +307,36 @@ export const conversasApi = {
               from_me: msg.from_me,
               criado_em: msg.criado_em,
               reaction_emoji: msg.reaction_emoji,
+              reaction_message_id: msg.reaction_message_id,
             })
+            if (msg.tipo === 'reaction' && msg.reaction_message_id) {
+              reactionMessageIds.push(msg.reaction_message_id)
+            }
+          }
+        }
+
+        // AIDEV-NOTE: Buscar tipo da mensagem original para reações (preview na lista)
+        if (reactionMessageIds.length > 0) {
+          const { data: origMsgs } = await supabase
+            .from('mensagens')
+            .select('message_id, tipo, body')
+            .in('message_id', reactionMessageIds)
+            .is('deletado_em', null)
+
+          if (origMsgs) {
+            const origMap = new Map(origMsgs.map(m => [m.message_id, m]))
+            for (const [, preview] of ultimaMap) {
+              if (preview.tipo === 'reaction' && preview.reaction_message_id) {
+                const orig = origMap.get(preview.reaction_message_id)
+                if (orig) {
+                  preview.reaction_original_tipo = orig.tipo
+                  // Se a mensagem original é texto, guardar o body para preview
+                  if (orig.tipo === 'text' && orig.body && !preview.body) {
+                    preview.body = orig.body
+                  }
+                }
+              }
+            }
           }
         }
         

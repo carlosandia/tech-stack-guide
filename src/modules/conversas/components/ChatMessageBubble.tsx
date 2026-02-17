@@ -1071,6 +1071,7 @@ export function ChatMessageBubble({
           ref={bubbleRef}
           className={`
             relative max-w-[85%] sm:max-w-[75%] lg:max-w-[60%] rounded-lg px-3 py-1.5
+            ${reactions && reactions.length > 0 ? 'mb-3' : ''}
             ${isMe
               ? 'bg-primary/10 border border-primary/15'
               : 'bg-muted border border-border/30'
@@ -1118,25 +1119,25 @@ export function ChatMessageBubble({
               </div>
             </>
           )}
-        </div>
 
-        {/* AIDEV-NOTE: Reaction badges no estilo WhatsApp - bolinha no canto inferior */}
-        {reactions && reactions.length > 0 && (
-          <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} -mt-2 mb-1 ${isMe ? 'mr-1' : 'ml-1'}`}>
-            <div className="flex items-center gap-0.5 bg-background border border-border/50 rounded-full px-1.5 py-0.5 shadow-sm">
-              {reactions.map((r, i) => (
-                <span key={i} className="text-sm leading-none" title={r.fromMe ? 'Você' : ''}>
-                  {r.emoji}
-                </span>
-              ))}
-              {reactions.reduce((s, r) => s + r.count, 0) > 1 && (
-                <span className="text-[10px] text-muted-foreground ml-0.5">
-                  {reactions.reduce((s, r) => s + r.count, 0)}
-                </span>
-              )}
+          {/* AIDEV-NOTE: Reaction badges flutuante no canto inferior esquerdo (estilo WhatsApp) */}
+          {reactions && reactions.length > 0 && (
+            <div className="absolute -bottom-3 left-1 z-10">
+              <div className="flex items-center gap-0.5 bg-background border border-border/50 rounded-full px-1.5 py-0.5 shadow-sm">
+                {reactions.map((r, i) => (
+                  <span key={i} className="text-sm leading-none" title={r.fromMe ? 'Você' : ''}>
+                    {r.emoji}
+                  </span>
+                ))}
+                {reactions.reduce((s, r) => s + r.count, 0) > 1 && (
+                  <span className="text-[10px] text-muted-foreground ml-0.5">
+                    {reactions.reduce((s, r) => s + r.count, 0)}
+                  </span>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Action menu - RIGHT side for RECEIVED messages (!isMe) */}
         {!isMe && onDeleteMessage && (

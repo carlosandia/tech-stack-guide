@@ -58,8 +58,24 @@ function getMessagePreview(conversa: Conversa): { icon?: React.ReactNode; text: 
       return { icon: <Smile className="w-3.5 h-3.5 flex-shrink-0" />, text: `${prefix}Figurinha` }
     case 'reaction': {
       const emoji = msg.reaction_emoji || '❤️'
+      const origTipo = (msg as any).reaction_original_tipo
       const body = msg.body || ''
-      return { text: `${prefix}Reagiu com ${emoji} a: "${body.slice(0, 30)}${body.length > 30 ? '...' : ''}"` }
+      // AIDEV-NOTE: Mostrar tipo de mídia original na preview da reação
+      let mediaLabel = ''
+      switch (origTipo) {
+        case 'image': mediaLabel = '📷 Foto'; break
+        case 'video': mediaLabel = '🎥 Vídeo'; break
+        case 'audio': mediaLabel = '🎵 Áudio'; break
+        case 'document': mediaLabel = '📄 Documento'; break
+        case 'sticker': mediaLabel = '😀 Figurinha'; break
+        case 'location': mediaLabel = '📍 Localização'; break
+        case 'contact': mediaLabel = '👤 Contato'; break
+        default:
+          if (body) {
+            mediaLabel = `"${body.slice(0, 25)}${body.length > 25 ? '...' : ''}"`
+          }
+      }
+      return { text: `${prefix}Reagiu com ${emoji}${mediaLabel ? ` a: ${mediaLabel}` : ''}` }
     }
     default:
       return { text: `${prefix}${(msg.body || '').slice(0, 50)}` }
