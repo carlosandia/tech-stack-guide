@@ -642,7 +642,7 @@ Deno.serve(async (req) => {
           );
         }
 
-        console.log(`[waha-proxy] Sending media to ${mediaChatId}, type: ${media_type}, session: ${sessionId}`);
+        console.log(`[waha-proxy] Sending media to ${mediaChatId}, type: ${media_type}, caption: ${mediaCaption ? mediaCaption.substring(0, 100) : '(none)'}, session: ${sessionId}`);
 
         // Determine WAHA endpoint based on media type
         let endpoint = "sendImage";
