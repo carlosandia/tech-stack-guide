@@ -897,6 +897,17 @@ export const contatosApi = {
       }
     }
 
+    // 5. Atualizar owner_id dos contatos com o responsável atribuído
+    if (membrosDistribuicao.length > 0) {
+      for (let i = 0; i < contatos.length; i++) {
+        const responsavelId = membrosDistribuicao[i % membrosDistribuicao.length]
+        await supabase
+          .from('contatos')
+          .update({ owner_id: responsavelId })
+          .eq('id', contatos[i].id)
+      }
+    }
+
     return { criadas, erros, detalhes }
   },
 
