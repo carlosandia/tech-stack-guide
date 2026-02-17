@@ -294,6 +294,24 @@ export const emailsApi = {
   },
 
   /**
+   * AIDEV-NOTE: Buscar corpo do email sob demanda (lazy loading)
+   * Chamada quando o usuário abre um email que não tem corpo_html carregado
+   */
+  fetchEmailBody: async (emailId: string): Promise<{ corpo_html: string | null; corpo_texto: string | null }> => {
+    const { data, error } = await supabase.functions.invoke('fetch-email-body', {
+      body: { email_id: emailId },
+    })
+
+    if (error) throw new Error(error.message || 'Erro ao buscar corpo do email')
+    if (data && !data.sucesso) throw new Error(data.mensagem || 'Falha ao buscar corpo')
+
+    return {
+      corpo_html: data?.corpo_html || null,
+      corpo_texto: data?.corpo_texto || null,
+    }
+  },
+
+  /**
    * Contar emails não lidos
    */
   contarNaoLidos: async (): Promise<{ inbox: number; total: number }> => {

@@ -80,3 +80,9 @@ verify_jwt = false
 
 [functions.impersonar-organizacao]
 verify_jwt = false
+
+[functions.limpar-emails-antigos]
+verify_jwt = false
+
+[functions.fetch-email-body]
+verify_jwt = false
