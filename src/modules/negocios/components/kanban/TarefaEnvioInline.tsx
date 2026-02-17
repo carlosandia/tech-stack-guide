@@ -168,22 +168,35 @@ export function TarefaEnvioInline({ tarefa, onEnviado, onCancelar }: TarefaEnvio
           const imageUrls = extractImagesFromHtml(mensagem)
           const textoWa = htmlToWhatsApp(mensagem)
 
-          // Enviar imagens primeiro (como mídia)
-          for (const imgUrl of imageUrls) {
-            const { error: imgErr } = await supabase.functions.invoke('waha-proxy', {
+          if (imageUrls.length > 0) {
+            // Primeira imagem vai com o texto como caption
+            const { error: firstImgErr } = await supabase.functions.invoke('waha-proxy', {
               body: {
                 action: 'enviar_media',
                 session_name: sessionName,
                 chat_id: chatId,
-                media_url: imgUrl,
+                media_url: imageUrls[0],
                 media_type: 'image',
+                caption: textoWa || undefined,
               },
             })
-            if (imgErr) console.error('[TarefaEnvioInline] Erro ao enviar imagem:', imgErr)
-          }
+            if (firstImgErr) throw firstImgErr
 
-          // Enviar texto depois
-          if (textoWa) {
+            // Imagens adicionais vão sem caption
+            for (let i = 1; i < imageUrls.length; i++) {
+              const { error: imgErr } = await supabase.functions.invoke('waha-proxy', {
+                body: {
+                  action: 'enviar_media',
+                  session_name: sessionName,
+                  chat_id: chatId,
+                  media_url: imageUrls[i],
+                  media_type: 'image',
+                },
+              })
+              if (imgErr) console.error('[TarefaEnvioInline] Erro ao enviar imagem extra:', imgErr)
+            }
+          } else if (textoWa) {
+            // Sem imagens, enviar só texto
             const { error: txtErr } = await supabase.functions.invoke('waha-proxy', {
               body: {
                 action: 'enviar_mensagem',
