@@ -680,7 +680,7 @@ function QuotedMessagePreview({ quoted, isMe }: { quoted: Mensagem; isMe: boolea
       rounded-lg px-3 py-2 mb-1.5 border-l-[3px] cursor-pointer
       ${isMe
         ? 'bg-primary/10 border-l-primary/60'
-        : 'bg-muted border-l-muted-foreground/50'
+        : 'bg-muted-foreground/15 border-l-muted-foreground/50'
       }
     `}>
       <p className="text-[11px] font-semibold text-primary truncate">
