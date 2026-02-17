@@ -117,7 +117,7 @@ export function TarefaEnvioInline({ tarefa, onEnviado, onCancelar }: TarefaEnvio
         const { data: sessoes } = await supabase
           .from('sessoes_whatsapp')
           .select('session_name')
-          .eq('status', 'WORKING')
+          .eq('status', 'connected')
           .limit(1)
 
         if (!sessoes || sessoes.length === 0) {
