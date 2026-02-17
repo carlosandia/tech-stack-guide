@@ -1,14 +1,15 @@
 /**
  * AIDEV-NOTE: Painel de métricas de atendimento (Conversas)
- * Mesmo padrão visual do MetricasPanel de Negócios
- * Cards compactos com ícones, filtro de período integrado
+ * Cards compactos com ícones, filtro de período integrado + personalizado
  * Layout responsivo: 2 cols mobile, 3 tablet, 5 desktop
  */
 
 import { useState } from 'react'
+import { format } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 import {
   Clock, MessageCircle, Send, Inbox, Users, CheckCircle,
-  AlertTriangle, BarChart3, Timer, Zap,
+  AlertTriangle, Timer, Zap, CalendarIcon,
 } from 'lucide-react'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import { InstagramIcon } from '@/shared/components/InstagramIcon'
@@ -18,6 +19,13 @@ import {
   type PeriodoMetricas,
   type CanalFiltro,
 } from '../hooks/useConversasMetricas'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import { Calendar } from '@/components/ui/calendar'
+import { cn } from '@/lib/utils'
 
 const PERIODOS: Array<{ value: PeriodoMetricas; label: string }> = [
   { value: 'hoje', label: 'Hoje' },
@@ -25,6 +33,7 @@ const PERIODOS: Array<{ value: PeriodoMetricas; label: string }> = [
   { value: '30d', label: '30 dias' },
   { value: '60d', label: '60 dias' },
   { value: '90d', label: '90 dias' },
+  { value: 'custom', label: 'Personalizado' },
 ]
 
 const CANAIS_FILTRO: Array<{ value: CanalFiltro; label: string }> = [
@@ -60,11 +69,25 @@ const ICON_COR_CLASSES: Record<string, string> = {
 export function ConversasMetricasPanel() {
   const [periodo, setPeriodo] = useState<PeriodoMetricas>('30d')
   const [canal, setCanal] = useState<CanalFiltro>('todos')
+  const [customInicio, setCustomInicio] = useState<Date | undefined>()
+  const [customFim, setCustomFim] = useState<Date | undefined>()
+  const [datePickerOpen, setDatePickerOpen] = useState(false)
+  const [pickingField, setPickingField] = useState<'inicio' | 'fim'>('inicio')
 
   const { data: metricas, isLoading } = useConversasMetricas({
     periodo,
     canal,
+    dataInicio: customInicio?.toISOString(),
+    dataFim: customFim?.toISOString(),
   })
+
+  const handlePeriodoClick = (value: PeriodoMetricas) => {
+    setPeriodo(value)
+    if (value !== 'custom') {
+      setCustomInicio(undefined)
+      setCustomFim(undefined)
+    }
+  }
 
   const cards: MetricaCard[] = metricas ? [
     {
@@ -135,14 +158,14 @@ export function ConversasMetricasPanel() {
       id: 'whatsapp',
       label: 'WhatsApp',
       valor: String(metricas.conversasPorCanal.whatsapp),
-      icon: BarChart3,
+      icon: WhatsAppIcon,
       cor: 'default',
     },
     {
       id: 'instagram',
       label: 'Instagram',
       valor: String(metricas.conversasPorCanal.instagram),
-      icon: BarChart3,
+      icon: InstagramIcon,
       cor: 'default',
     },
   ] : []
@@ -152,21 +175,87 @@ export function ConversasMetricasPanel() {
       {/* Filtros: Período + Canal */}
       <div className="flex items-center gap-2 flex-wrap">
         {/* Período chips */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-wrap">
           {PERIODOS.map((p) => (
-            <button
-              key={p.value}
-              onClick={() => setPeriodo(p.value)}
-              className={`
-                px-2.5 py-1 text-xs rounded-md font-medium transition-all duration-200
-                ${periodo === p.value
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                }
-              `}
-            >
-              {p.label}
-            </button>
+            p.value === 'custom' ? (
+              <Popover key={p.value} open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    onClick={() => {
+                      handlePeriodoClick('custom')
+                      setDatePickerOpen(true)
+                    }}
+                    className={`
+                      flex items-center gap-1 px-2.5 py-1 text-xs rounded-md font-medium transition-all duration-200
+                      ${periodo === 'custom'
+                        ? 'bg-primary/10 text-primary'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                      }
+                    `}
+                  >
+                    <CalendarIcon className="w-3 h-3" />
+                    {periodo === 'custom' && customInicio && customFim
+                      ? `${format(customInicio, 'dd/MM', { locale: ptBR })} - ${format(customFim, 'dd/MM', { locale: ptBR })}`
+                      : p.label
+                    }
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-3 space-y-3" align="start">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setPickingField('inicio')}
+                      className={cn(
+                        'flex-1 text-xs px-2 py-1.5 rounded border text-left',
+                        pickingField === 'inicio' ? 'border-primary bg-primary/5' : 'border-border'
+                      )}
+                    >
+                      <span className="text-muted-foreground block text-[10px]">Início</span>
+                      {customInicio ? format(customInicio, 'dd/MM/yyyy') : '--'}
+                    </button>
+                    <button
+                      onClick={() => setPickingField('fim')}
+                      className={cn(
+                        'flex-1 text-xs px-2 py-1.5 rounded border text-left',
+                        pickingField === 'fim' ? 'border-primary bg-primary/5' : 'border-border'
+                      )}
+                    >
+                      <span className="text-muted-foreground block text-[10px]">Fim</span>
+                      {customFim ? format(customFim, 'dd/MM/yyyy') : '--'}
+                    </button>
+                  </div>
+                  <Calendar
+                    mode="single"
+                    selected={pickingField === 'inicio' ? customInicio : customFim}
+                    onSelect={(date: Date | undefined) => {
+                      if (pickingField === 'inicio') {
+                        setCustomInicio(date)
+                        setPickingField('fim')
+                      } else {
+                        setCustomFim(date)
+                        if (customInicio && date) setDatePickerOpen(false)
+                      }
+                    }}
+                    disabled={(date) => date > new Date()}
+                    initialFocus
+                    className={cn('p-3 pointer-events-auto')}
+                  />
+                </PopoverContent>
+              </Popover>
+            ) : (
+              <button
+                key={p.value}
+                onClick={() => handlePeriodoClick(p.value)}
+                className={`
+                  px-2.5 py-1 text-xs rounded-md font-medium transition-all duration-200
+                  ${periodo === p.value
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                  }
+                `}
+              >
+                {p.label}
+              </button>
+            )
           ))}
         </div>
 
@@ -226,7 +315,7 @@ export function ConversasMetricasPanel() {
         </div>
       )}
 
-      {/* Top vendedores (se admin e houver dados) */}
+      {/* Top vendedores */}
       {metricas && metricas.conversasPorVendedor.length > 1 && (
         <div className="flex items-center gap-3 text-xs text-muted-foreground overflow-x-auto">
           <Users className="w-3.5 h-3.5 flex-shrink-0" />

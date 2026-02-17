@@ -42,6 +42,7 @@
     "lovable-tagger": "^1.1.13",
     "lucide-react": "^0.400.0",
     "react": "^18.3.1",
+    "react-day-picker": "^8.10.1",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.52.0",
     "react-router-dom": "^6.30.1",
