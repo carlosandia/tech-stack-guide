@@ -48,7 +48,7 @@ const ICON_COR_CLASSES: Record<string, string> = {
 }
 
 export function EmailsMetricasPanel() {
-  const [periodo, setPeriodo] = useState<PeriodoMetricas>('30d')
+  const [periodo, setPeriodo] = useState<PeriodoMetricas>('todos')
 
   const { data: metricas, isLoading } = useEmailsMetricas({ periodo })
 
@@ -140,7 +140,7 @@ export function EmailsMetricasPanel() {
         {PERIODOS.map((p) => (
           <button
             key={p.value}
-            onClick={() => setPeriodo(p.value)}
+            onClick={() => setPeriodo(periodo === p.value ? 'todos' : p.value)}
             className={`
               px-2.5 py-1 text-xs rounded-md font-medium transition-all duration-200
               ${periodo === p.value

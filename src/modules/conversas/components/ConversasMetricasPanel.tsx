@@ -9,7 +9,7 @@ import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import {
   Clock, MessageCircle, Send, Inbox, Users, CheckCircle,
-  AlertTriangle, Timer, Zap, CalendarIcon, Info,
+  AlertTriangle, Timer, Zap, CalendarIcon, Info, X,
 } from 'lucide-react'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import { InstagramIcon } from '@/shared/components/InstagramIcon'
@@ -68,7 +68,7 @@ const ICON_COR_CLASSES: Record<string, string> = {
 }
 
 export function ConversasMetricasPanel() {
-  const [periodo, setPeriodo] = useState<PeriodoMetricas>('30d')
+  const [periodo, setPeriodo] = useState<PeriodoMetricas>('todos')
   const [canal, setCanal] = useState<CanalFiltro>('todos')
   const [customInicio, setCustomInicio] = useState<Date | undefined>()
   const [customFim, setCustomFim] = useState<Date | undefined>()
@@ -83,11 +83,28 @@ export function ConversasMetricasPanel() {
   })
 
   const handlePeriodoClick = (value: PeriodoMetricas) => {
+    // AIDEV-NOTE: Clicar no período ativo desseleciona para 'todos' (sem filtro)
+    if (value === periodo && value !== 'custom') {
+      setPeriodo('todos')
+      return
+    }
     setPeriodo(value)
     if (value !== 'custom') {
       setCustomInicio(undefined)
       setCustomFim(undefined)
     }
+  }
+
+  const handleClearCustom = () => {
+    setPeriodo('todos')
+    setCustomInicio(undefined)
+    setCustomFim(undefined)
+    setDatePickerOpen(false)
+  }
+
+  const handleCanalClick = (value: CanalFiltro) => {
+    // AIDEV-NOTE: Clicar no canal ativo desseleciona para 'todos'
+    setCanal(value === canal ? 'todos' : value)
   }
 
   const cards: MetricaCard[] = metricas ? [
@@ -209,6 +226,12 @@ export function ConversasMetricasPanel() {
                       ? `${format(customInicio, 'dd/MM', { locale: ptBR })} - ${format(customFim, 'dd/MM', { locale: ptBR })}`
                       : p.label
                     }
+                    {periodo === 'custom' && (
+                      <X
+                        className="w-3 h-3 ml-0.5 hover:text-destructive transition-colors"
+                        onClick={(e) => { e.stopPropagation(); handleClearCustom() }}
+                      />
+                    )}
                   </button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-3 space-y-3" align="start">
@@ -274,10 +297,10 @@ export function ConversasMetricasPanel() {
 
         {/* Canal chips */}
         <div className="flex items-center gap-1">
-          {CANAIS_FILTRO.map((c) => (
+          {CANAIS_FILTRO.filter(c => c.value !== 'todos').map((c) => (
             <button
               key={c.value}
-              onClick={() => setCanal(c.value)}
+              onClick={() => handleCanalClick(c.value)}
               className={`
                 flex items-center gap-1 px-2.5 py-1 text-xs rounded-md font-medium transition-all duration-200
                 ${canal === c.value

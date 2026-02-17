@@ -15,7 +15,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/providers/AuthProvider'
 import { subDays } from 'date-fns'
 
-export type PeriodoMetricas = 'hoje' | '7d' | '30d' | '60d' | '90d' | 'custom'
+export type PeriodoMetricas = 'todos' | 'hoje' | '7d' | '30d' | '60d' | '90d' | 'custom'
 export type CanalFiltro = 'todos' | 'whatsapp' | 'instagram'
 
 interface MetricasFilters {
@@ -40,9 +40,14 @@ export interface ConversasMetricas {
   conversasPorCanal: { whatsapp: number; instagram: number }
 }
 
-function getPeriodoRange(filters: MetricasFilters): { inicio: string; fim: string } {
+function getPeriodoRange(filters: MetricasFilters): { inicio: string | null; fim: string } {
   const now = new Date()
   const fim = now.toISOString()
+
+  // AIDEV-NOTE: 'todos' = sem filtro de data, métricas desde a criação da org
+  if (filters.periodo === 'todos') {
+    return { inicio: null, fim }
+  }
 
   if (filters.periodo === 'custom') {
     return {
@@ -93,7 +98,11 @@ async function fetchMetricas(filters: MetricasFilters, role: string): Promise<Co
     .eq('organizacao_id', orgId)
     .eq('tipo', 'individual')
     .is('deletado_em', null)
-    .gte('ultima_mensagem_em', dataInicio)
+
+  // AIDEV-NOTE: Se dataInicio é null (periodo='todos'), não aplica filtro de data
+  if (dataInicio) {
+    conversasQuery = conversasQuery.gte('ultima_mensagem_em', dataInicio)
+  }
 
   if (filters.canal !== 'todos') {
     conversasQuery = conversasQuery.eq('canal', filters.canal)
@@ -115,22 +124,23 @@ async function fetchMetricas(filters: MetricasFilters, role: string): Promise<Co
     for (let i = 0; i < conversaIds.length; i += batchSize) {
       const batch = conversaIds.slice(i, i + batchSize)
 
-      const [envRes, recRes] = await Promise.all([
-        supabase
+      let envQuery = supabase
           .from('mensagens')
           .select('id', { count: 'exact', head: true })
           .in('conversa_id', batch)
           .eq('from_me', true)
           .is('deletado_em', null)
-          .gte('criado_em', dataInicio),
-        supabase
+      if (dataInicio) envQuery = envQuery.gte('criado_em', dataInicio)
+
+      let recQuery = supabase
           .from('mensagens')
           .select('id', { count: 'exact', head: true })
           .in('conversa_id', batch)
           .eq('from_me', false)
           .is('deletado_em', null)
-          .gte('criado_em', dataInicio),
-      ])
+      if (dataInicio) recQuery = recQuery.gte('criado_em', dataInicio)
+
+      const [envRes, recRes] = await Promise.all([envQuery, recQuery])
 
       mensagensEnviadas += envRes.count || 0
       mensagensRecebidas += recRes.count || 0
@@ -145,12 +155,13 @@ async function fetchMetricas(filters: MetricasFilters, role: string): Promise<Co
     const tmaBatchSize = 10
     for (let i = 0; i < conversaIds.length; i += tmaBatchSize) {
       const batch = conversaIds.slice(i, i + tmaBatchSize)
-      const { data: msgs } = await supabase
+      let msgsQuery = supabase
         .from('mensagens')
         .select('id, conversa_id, from_me, criado_em')
         .in('conversa_id', batch)
         .is('deletado_em', null)
-        .gte('criado_em', dataInicio)
+      if (dataInicio) msgsQuery = msgsQuery.gte('criado_em', dataInicio)
+      const { data: msgs } = await msgsQuery
         .order('criado_em', { ascending: true })
         .limit(5000)
 
