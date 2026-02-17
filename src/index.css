@@ -24,6 +24,7 @@
     --input: 220 13% 90%;
     --ring: 221.2 83.2% 53.3%;
     --radius: 0.75rem;
+    --content-bg: 220 15% 97.5%;
 
     /* Status Colors */
     --success: 142 71% 45%;

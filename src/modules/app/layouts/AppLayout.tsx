@@ -357,7 +357,7 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
       {!hideToolbar && <ToolbarWithActions pageTitle={pageTitle} />}
 
       {/* Main content - flex-1 preenche altura restante, overflow-hidden para scroll interno das páginas */}
-      <main className="flex-1 overflow-hidden" style={{ backgroundColor: 'hsl(220, 10%, 95%)' }}>
+      <main className="flex-1 overflow-hidden" style={{ backgroundColor: 'hsl(var(--content-bg))' }}>
         <Outlet />
       </main>
 
