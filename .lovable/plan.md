@@ -1,44 +1,53 @@
 
-# Remocao de Filtro Redundante no Modulo de Contatos
+# Correcao de Duplicatas Falsas - Race Condition no Webhook WhatsApp
 
-## Contexto
+## Problema Identificado
 
-A funcao `duplicatas` em `src/modules/contatos/services/contatos.api.ts` (linha 549) aplica um filtro explicito `.eq('organizacao_id', organizacaoId)` que e redundante porque a tabela `contatos` ja possui RLS ativo com policy `organizacao_id = get_user_tenant_id()`. O RLS garante o isolamento por tenant automaticamente em toda query feita pelo Supabase client.
+A investigacao revelou que as duplicatas **sao reais**: existem 2 contatos com telefone `5513981996865` na base, criados com apenas 12 milissegundos de diferenca. Isso acontece porque o webhook do WhatsApp (`waha-webhook`) recebe duas mensagens simultaneas do mesmo contato e, como nao ha protecao contra concorrencia, ambos os processos:
 
-## O que sera feito
+1. Buscam contato por telefone -- nao encontram
+2. Criam um novo contato -- resultando em duplicata
 
-### Arquivo: `src/modules/contatos/services/contatos.api.ts`
+## Solucao em 2 Partes
 
-Na funcao `duplicatas` (linhas 542-583):
+### Parte 1: Prevenir novas duplicatas (causa raiz)
 
-- **Remover** a chamada `await getOrganizacaoId()` (linha 544) que busca o `organizacao_id` desnecessariamente
-- **Remover** o filtro `.eq('organizacao_id', organizacaoId)` (linha 549)
-- A query continuara protegida pelo RLS, que filtra automaticamente pelo tenant do usuario autenticado
+**Arquivo:** `supabase/functions/waha-webhook/index.ts`
 
-**Antes:**
-```typescript
-duplicatas: async () => {
-  const organizacaoId = await getOrganizacaoId()
-  const { data, error } = await supabase
-    .from('contatos')
-    .select('id, nome, sobrenome, email, telefone, tipo, status, criado_em')
-    .eq('organizacao_id', organizacaoId)
-    .is('deletado_em', null)
-    .order('email')
+Adicionar um **UNIQUE INDEX condicional** na tabela `contatos` para a combinacao `(organizacao_id, telefone)` onde `deletado_em IS NULL`. Isso impede que dois inserts concorrentes criem contatos com o mesmo telefone na mesma organizacao.
+
+Alem disso, ajustar a logica de insercao no webhook para tratar o erro de constraint violation fazendo um `SELECT` de retry ao inves de falhar.
+
+**Migracao SQL:**
+```text
+CREATE UNIQUE INDEX IF NOT EXISTS idx_contatos_org_telefone_unique
+ON contatos (organizacao_id, telefone)
+WHERE deletado_em IS NULL AND telefone IS NOT NULL AND telefone != '';
 ```
 
-**Depois:**
-```typescript
-duplicatas: async () => {
-  const { data, error } = await supabase
-    .from('contatos')
-    .select('id, nome, sobrenome, email, telefone, tipo, status, criado_em')
-    .is('deletado_em', null)
-    .order('email')
-```
+**Logica no webhook (linhas ~1691-1718):**
+- Envolver o INSERT em try/catch
+- Se falhar com erro de constraint (23505), fazer SELECT para buscar o contato que ja foi criado pela outra request concorrente
+- Usar o contato encontrado normalmente
+
+### Parte 2: Melhorar deteccao de duplicatas no frontend
+
+**Arquivo:** `src/modules/contatos/services/contatos.api.ts` (linhas 552-577)
+
+A logica atual de agrupamento tem um problema menor: a limpeza de telefone com `replace(/\D/g, '')` pode agrupar telefones que sao visualmente diferentes mas numericamente iguais (ex: `(13) 98850-4422` e `13988504422`). Isso e desejavel. Porem, nao ha deduplicacao de contatos entre grupos — se um contato tem email E telefone duplicados, ele aparece em 2 grupos separados.
+
+Ajuste: apos agrupar, deduplicar para que cada contato apareca em no maximo 1 grupo de duplicatas (priorizando email sobre telefone).
+
+## Resumo Tecnico
+
+| Acao | Arquivo | Descricao |
+|------|---------|-----------|
+| Nova migracao SQL | `supabase/migrations/...unique_telefone.sql` | UNIQUE INDEX parcial em `(organizacao_id, telefone)` |
+| Ajustar webhook | `supabase/functions/waha-webhook/index.ts` | Retry com SELECT se INSERT falhar por constraint |
+| Melhorar deteccao | `src/modules/contatos/services/contatos.api.ts` | Deduplicar contatos entre grupos de duplicatas |
 
 ## Impacto
 
-- Nenhuma mudanca funcional: o RLS continua garantindo isolamento por tenant
-- Remocao de uma chamada de rede desnecessaria (`getOrganizacaoId` faz query na tabela `usuarios`)
-- Codigo mais consistente com o padrao usado nas demais funcoes do modulo (listar, buscar, atualizar, excluir) que ja confiam no RLS
+- **Zero downtime**: o index unico nao afeta registros existentes com telefones diferentes
+- **Duplicatas existentes**: continuarao aparecendo ate serem mescladas manualmente (comportamento correto)
+- **Novas duplicatas**: serao impossibilitadas pelo constraint no banco de dados
