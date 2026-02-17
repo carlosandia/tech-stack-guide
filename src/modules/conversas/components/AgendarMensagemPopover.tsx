@@ -183,9 +183,21 @@ export function AgendarMensagemPopover({ conversaId, textoPreenchido, disabled }
   }
 
   const uploadAudio = async (blob: Blob): Promise<string> => {
+    // AIDEV-NOTE: O path DEVE começar com organizacao_id para passar na RLS do bucket chat-media
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Usuário não autenticado')
+
+    const { data: usr } = await supabase
+      .from('usuarios')
+      .select('organizacao_id')
+      .eq('auth_id', user.id)
+      .maybeSingle()
+
+    if (!usr?.organizacao_id) throw new Error('Organização não encontrada')
+
     const ext = blob.type.includes('ogg') ? 'ogg' : 'webm'
     const fileName = `agendado_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`
-    const path = `scheduled/${conversaId}/${fileName}`
+    const path = `${usr.organizacao_id}/scheduled/${conversaId}/${fileName}`
 
     const { error: uploadError } = await supabase.storage
       .from('chat-media')
@@ -250,7 +262,7 @@ export function AgendarMensagemPopover({ conversaId, textoPreenchido, disabled }
           }
         })
       } catch (err) {
-        setAudioError(err instanceof Error ? err.message : 'Erro no upload')
+        setErroInline(err instanceof Error ? err.message : 'Erro no upload')
       } finally {
         setIsUploading(false)
       }
