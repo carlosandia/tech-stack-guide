@@ -5,7 +5,7 @@
  */
 
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
-import { Clock, Trash2, CalendarDays, AlertTriangle, Mic, Square, Type, Play, Pause } from 'lucide-react'
+import { Clock, Trash2, CalendarDays, AlertTriangle, Mic, Square, Type, Play, Pause, Send } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { format, addMinutes, addDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -16,6 +16,7 @@ import {
   useContarAgendadasUsuario,
   useAgendarMensagem,
   useCancelarAgendada,
+  useEnviarAgendadaAgora,
   useAgendadasRealtime,
   LIMITES_AGENDAMENTO,
 } from '../hooks/useMensagensAgendadas'
@@ -138,6 +139,7 @@ export function AgendarMensagemPopover({ conversaId, textoPreenchido, disabled }
   const { data: countUsuario = 0 } = useContarAgendadasUsuario()
   const agendarMutation = useAgendarMensagem()
   const cancelarMutation = useCancelarAgendada()
+  const enviarAgoraMutation = useEnviarAgendadaAgora()
   useAgendadasRealtime(conversaId)
 
   const minDateTime = useMemo(() => {
@@ -603,14 +605,24 @@ export function AgendarMensagemPopover({ conversaId, textoPreenchido, disabled }
                         {format(new Date(item.agendado_para), "dd/MM 'às' HH:mm", { locale: ptBR })}
                       </p>
                     </div>
-                    <button
-                      onClick={() => handleCancelar(item.id)}
-                      disabled={cancelarMutation.isPending}
-                      className="p-1 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0"
-                      title="Cancelar agendamento"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0">
+                      <button
+                        onClick={() => enviarAgoraMutation.mutate({ id: item.id, conversaId })}
+                        disabled={enviarAgoraMutation.isPending}
+                        className="p-1 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                        title="Enviar agora"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleCancelar(item.id)}
+                        disabled={cancelarMutation.isPending}
+                        className="p-1 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                        title="Cancelar agendamento"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
