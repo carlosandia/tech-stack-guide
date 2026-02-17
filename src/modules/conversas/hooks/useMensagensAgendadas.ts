@@ -121,6 +121,25 @@ export function useCancelarAgendada() {
   })
 }
 
+export function useEnviarAgendadaAgora() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (params: { id: string; conversaId: string }) => {
+      return conversasApi.enviarAgendadaAgora(params.id)
+    },
+    onSuccess: (_data, variables) => {
+      toast.success('Mensagem enviada para processamento')
+      queryClient.invalidateQueries({ queryKey: ['mensagens-agendadas', variables.conversaId] })
+      queryClient.invalidateQueries({ queryKey: ['mensagens-agendadas-count', variables.conversaId] })
+      queryClient.invalidateQueries({ queryKey: ['mensagens-agendadas-count-usuario'] })
+    },
+    onError: () => {
+      toast.error('Erro ao enviar mensagem')
+    },
+  })
+}
+
 /**
  * AIDEV-NOTE: Realtime subscription para atualizar a UI quando mensagens agendadas
  * são enviadas (status muda de 'agendada' para 'enviada') sem precisar de refresh

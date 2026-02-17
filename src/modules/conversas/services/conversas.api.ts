@@ -1368,6 +1368,20 @@ export const conversasApi = {
     if (error) throw new Error(error.message)
   },
 
+  // AIDEV-NOTE: Envia agora uma mensagem agendada alterando agendado_para para agora
+  async enviarAgendadaAgora(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('mensagens_agendadas')
+      .update({
+        agendado_para: new Date().toISOString(),
+        atualizado_em: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .eq('status', 'agendada')
+
+    if (error) throw new Error(error.message)
+  },
+
   async ultimaAgendadaConversa(conversaId: string): Promise<string | null> {
     const organizacaoId = await getOrganizacaoId()
 
