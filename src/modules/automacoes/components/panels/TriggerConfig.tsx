@@ -37,6 +37,22 @@ export function TriggerConfig({ data, onUpdate }: TriggerConfigProps) {
     staleTime: Infinity,
   })
 
+  // AIDEV-NOTE: Buscar formulários do tenant para trigger formulario_submetido
+  const { data: formularios } = useQuery({
+    queryKey: ['formularios-trigger', usuario?.organizacao_id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('formularios')
+        .select('id, nome, status')
+        .eq('organizacao_id', usuario!.organizacao_id!)
+        .is('deletado_em', null)
+        .order('nome')
+      return data || []
+    },
+    enabled: !!usuario?.organizacao_id && currentTipo === 'formulario_submetido',
+    staleTime: 30000,
+  })
+
   const toggleCat = (key: string) => {
     setExpandedCats(prev => {
       const next = new Set(prev)
@@ -129,6 +145,34 @@ export function TriggerConfig({ data, onUpdate }: TriggerConfigProps) {
               placeholder="Filtrar por valor específico"
               className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
             />
+          </div>
+        </div>
+      )}
+
+      {/* AIDEV-NOTE: Seletor de formulário para trigger formulario_submetido */}
+      {currentTipo === 'formulario_submetido' && (
+        <div className="pt-3 border-t border-border space-y-3">
+          <p className="text-xs font-semibold text-foreground uppercase tracking-wide">Configuração do gatilho</p>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Formulário</label>
+            <select
+              value={(triggerConfig.formulario_id as string) || ''}
+              onChange={e => handleTriggerConfigUpdate({
+                ...triggerConfig,
+                formulario_id: e.target.value || undefined,
+              })}
+              className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              <option value="">Qualquer formulário</option>
+              {(formularios || []).map(f => (
+                <option key={f.id} value={f.id}>
+                  {f.nome} {f.status !== 'publicado' ? `(${f.status})` : ''}
+                </option>
+              ))}
+            </select>
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Selecione um formulário específico ou deixe em branco para qualquer um
+            </p>
           </div>
         </div>
       )}
