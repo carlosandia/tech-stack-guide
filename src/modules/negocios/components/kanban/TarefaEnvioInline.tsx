@@ -113,11 +113,27 @@ export function TarefaEnvioInline({ tarefa, onEnviado, onCancelar }: TarefaEnvio
     setEnviando(true)
     try {
       if (isWhatsApp && contato?.telefone) {
-        // Buscar sessão WAHA ativa
+        // Buscar organizacao_id do usuário logado
+        const { data: { user } } = await supabase.auth.getUser()
+        const { data: usuario } = await supabase
+          .from('usuarios')
+          .select('organizacao_id')
+          .eq('auth_id', user?.id || '')
+          .single()
+
+        if (!usuario?.organizacao_id) {
+          toast.error('Organização não encontrada')
+          setEnviando(false)
+          return
+        }
+
+        // Buscar sessão WAHA ativa do tenant
         const { data: sessoes } = await supabase
           .from('sessoes_whatsapp')
           .select('session_name')
+          .eq('organizacao_id', usuario.organizacao_id)
           .eq('status', 'connected')
+          .is('deletado_em', null)
           .limit(1)
 
         if (!sessoes || sessoes.length === 0) {
