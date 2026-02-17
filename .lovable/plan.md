@@ -1,79 +1,136 @@
 
-# Criacao de Oportunidades em Massa a partir de Contatos
+# Templates de Tarefa com Cadencia Comercial (Envio de WhatsApp e E-mail)
 
 ## Resumo
 
-Adicionar um botao "Criar Oportunidade" na barra flutuante de acoes em massa (bulk actions) do modulo de Contatos. Ao clicar, abre um modal dedicado onde o usuario seleciona a pipeline e opcionalmente distribui as oportunidades entre membros da equipe (round-robin ou manual).
+Evoluir o sistema de Templates de Tarefas para suportar dois modos: **Tarefa Comum** (comportamento atual) e **Cadencia Comercial** (tarefa com mensagem pre-configurada para envio via WhatsApp ou E-mail). No popover do Kanban, tarefas de cadencia exibem um botao "Enviar" que dispara a mensagem usando a infraestrutura existente (WAHA para WhatsApp, Edge Function `send-email` para E-mail) e marca a tarefa como concluida automaticamente.
 
 ---
 
 ## Fluxo do Usuario
 
-1. Na listagem de contatos, selecionar multiplos contatos (ex: 38 selecionados)
-2. Na barra flutuante inferior, clicar no novo botao **"Criar Oportunidade"** (icone `Target`)
-3. Abre o modal **"Criar Oportunidades em Massa"** com:
-   - **Step 1: Pipeline** -- Selecionar em qual pipeline criar (lista de pipelines ativas com cor)
-   - **Step 2: Distribuicao** -- Opcoes de distribuicao:
-     - **Nao distribuir** -- todas ficam sem responsavel (ou atribuidas ao criador)
-     - **Rodizio automatico** -- distribui igualmente entre membros do funil (usa `funis_membros`)
-     - **Escolher membros manualmente** -- checkboxes para selecionar quais membros participam da distribuicao
-   - **Resumo** -- Exibe: "40 oportunidades serao criadas na pipeline X, distribuidas entre 4 membros (10 cada)"
-4. Confirmar e processar em lote
+### Criacao do Template
+
+1. Ao criar um template de tarefa, o usuario escolhe entre **"Tarefa Comum"** ou **"Cadencia Comercial"**
+2. Se **Tarefa Comum**: formulario atual sem alteracao
+3. Se **Cadencia Comercial**:
+   - Tipo restrito a `email` ou `whatsapp`
+   - **WhatsApp**: exibe campo "Mensagem" (textarea com formatacao basica)
+   - **E-mail**: exibe campo "Assunto" + campo "Corpo do E-mail" (textarea com formatacao basica)
+   - A descricao do template funciona como instrucao interna (nao e enviada)
+
+### Execucao no Kanban
+
+1. No popover de tarefas, tarefas de cadencia exibem um botao `Send` (icone) ao lado do checkbox
+2. Ao clicar no botao, abre um mini-formulario inline mostrando:
+   - Destinatario (telefone ou email do contato, readonly)
+   - Mensagem pre-preenchida do template (editavel antes do envio)
+   - Se email: assunto pre-preenchido do template (editavel)
+3. Ao clicar "Enviar":
+   - WhatsApp: chama `waha-proxy` com action `enviar_mensagem`
+   - E-mail: chama `send-email` com `to`, `subject`, `body`
+4. Apos envio com sucesso, tarefa muda para `concluida` automaticamente
 
 ---
 
-## Recomendacoes Estrategicas
+## Alteracoes no Banco de Dados (Migration)
 
-- **Titulo automatico**: Cada oportunidade usa o nome do contato como titulo (ex: "Eddie", "Beatriz")
-- **Etapa de entrada**: Todas as oportunidades sao criadas na etapa de entrada da pipeline selecionada
-- **Preview da distribuicao**: Mostrar visualmente quantas oportunidades cada membro recebera antes de confirmar
-- **Progresso visual**: Barra de progresso durante a criacao para lotes grandes (>20)
-- **Contatos ja com oportunidade**: Filtrar e avisar quantos dos selecionados ja possuem oportunidade nessa pipeline, com opcao de pular ou criar duplicada
-- **Limite de seguranca**: Maximo de 100 oportunidades por lote para evitar sobrecarga
+Adicionar 3 colunas na tabela `tarefas_templates`:
 
----
-
-## Detalhes Tecnicos
-
-### 1. API -- `contatos.api.ts`
-Nova funcao `criarOportunidadesLote`:
-```typescript
-criarOportunidadesLote: async (payload: {
-  contato_ids: string[]
-  funil_id: string
-  distribuicao: 'nenhuma' | 'rodizio' | 'manual'
-  membro_ids?: string[]  // para distribuicao manual
-}) => Promise<{ criadas: number; erros: number; detalhes: string[] }>
+```sql
+ALTER TABLE tarefas_templates
+  ADD COLUMN modo VARCHAR(20) DEFAULT 'comum' CHECK (modo IN ('comum', 'cadencia')),
+  ADD COLUMN assunto_email VARCHAR(500),
+  ADD COLUMN corpo_mensagem TEXT;
 ```
 
-Internamente:
-- Busca etapa de entrada da pipeline
-- Para cada contato, cria uma oportunidade com titulo = nome do contato
-- Se distribuicao = 'rodizio', busca `funis_membros` e distribui round-robin
-- Se distribuicao = 'manual', distribui entre os `membro_ids` fornecidos
-- Atualiza `posicao_rodizio` na `configuracoes_distribuicao` se aplicavel
+Tambem adicionar as mesmas colunas na tabela `tarefas` para que a tarefa criada herde os dados do template:
 
-### 2. Hook -- `useContatos.ts`
-Novo hook `useCriarOportunidadesLote` com mutation padrao, invalidando queries `['contatos']` e `['kanban']`.
+```sql
+ALTER TABLE tarefas
+  ADD COLUMN modo VARCHAR(20) DEFAULT 'comum',
+  ADD COLUMN assunto_email VARCHAR(500),
+  ADD COLUMN corpo_mensagem TEXT;
+```
 
-### 3. Componente -- `CriarOportunidadeLoteModal.tsx`
-Modal multi-step com:
-- Lista de pipelines ativas (reutiliza dados de `useFunis`)
-- Opcoes de distribuicao com radio buttons
-- Se "manual", exibe lista de membros do funil selecionado (via `funis_membros`)
-- Resumo com calculo de distribuicao (ex: "10 por membro")
-- Barra de progresso durante execucao
+---
 
-### 4. Barra Flutuante -- `ContatoBulkActions.tsx`
-Adicionar botao `Target` + "Oportunidade" na barra, visivel apenas para tipo `pessoa` e `isAdmin`.
-Ao clicar, abre `CriarOportunidadeLoteModal` passando `selectedIds`.
+## Alteracoes no Trigger `aplicar_config_pipeline_oportunidade`
 
-### 5. Arquivos a criar/modificar
+Na parte que cria tarefas automaticas a partir de templates vinculados a etapas, propagar os novos campos `modo`, `assunto_email` e `corpo_mensagem` do template para a tarefa criada.
+
+---
+
+## Alteracoes no Frontend
+
+### 1. Schema -- `tarefas-templates.schema.ts`
+
+- Adicionar campo `modo` (`'comum' | 'cadencia'`)
+- Adicionar campo `assunto_email` (string, obrigatorio se modo=cadencia e tipo=email)
+- Adicionar campo `corpo_mensagem` (string, obrigatorio se modo=cadencia)
+- Validacao condicional via `superRefine`
+
+### 2. Backend Schema -- `backend/src/schemas/tarefas-templates.ts`
+
+- Adicionar os campos `modo`, `assunto_email`, `corpo_mensagem` nos schemas de criar/atualizar
+
+### 3. Modal de Template -- `TarefaTemplateFormModal.tsx`
+
+- Adicionar seletor "Tarefa Comum" / "Cadencia Comercial" (toggle/radio com 2 opcoes)
+- Se `cadencia`:
+  - Restringir tipo a `email` ou `whatsapp`
+  - Exibir campo "Corpo da Mensagem" (textarea)
+  - Se tipo = `email`, exibir campo "Assunto do E-mail" (input)
+- Manter formulario atual intacto para modo `comum`
+
+### 4. Pagina de Templates -- `TarefasTemplatesPage.tsx`
+
+- Exibir badge "Cadencia" ao lado do titulo quando `modo === 'cadencia'`
+
+### 5. Componente de Envio Inline -- `TarefaEnvioInline.tsx` (novo)
+
+Componente que renderiza dentro do popover para tarefas de cadencia:
+
+- Resolve destinatario: `tarefa.oportunidade_id` -> `oportunidades.contato_id` -> `contatos.email/telefone`
+- Para WhatsApp: busca sessao WAHA ativa da organizacao + formata chat_id
+- Exibe mensagem pre-preenchida (editavel), assunto se email
+- Botao "Enviar" que:
+  - WhatsApp: `supabase.functions.invoke('waha-proxy', { body: { action: 'enviar_mensagem', chat_id, text } })`
+  - E-mail: `supabase.functions.invoke('send-email', { body: { to, subject, body, body_type: 'text' } })`
+  - Apos sucesso: atualiza `tarefas.status = 'concluida'` e `data_conclusao = now()`
+  - Invalida queries do kanban
+
+### 6. Popover de Tarefas -- `TarefasPopover.tsx`
+
+- Buscar campos adicionais na query: `modo, assunto_email, corpo_mensagem`
+- Para tarefas com `modo === 'cadencia'` e tipo `email` ou `whatsapp`: exibir botao `Send` ao lado do checkbox
+- Ao clicar no botao: expandir `TarefaEnvioInline` abaixo da tarefa
+- Validacoes: contato sem telefone/email, sessao WhatsApp desconectada, conexao email inativa
+
+---
+
+## Arquivos a Criar/Modificar
 
 | Arquivo | Acao |
 |---------|------|
-| `src/modules/contatos/components/CriarOportunidadeLoteModal.tsx` | Criar (modal multi-step) |
-| `src/modules/contatos/services/contatos.api.ts` | Adicionar `criarOportunidadesLote` |
-| `src/modules/contatos/hooks/useContatos.ts` | Adicionar `useCriarOportunidadesLote` |
-| `src/modules/contatos/components/ContatoBulkActions.tsx` | Adicionar botao "Oportunidade" |
-| `src/modules/contatos/pages/ContatosPage.tsx` | Integrar modal e estado |
+| Migration SQL | Criar (adicionar colunas modo, assunto_email, corpo_mensagem em tarefas_templates e tarefas) |
+| Migration SQL (trigger) | Atualizar trigger `aplicar_config_pipeline_oportunidade` para propagar novos campos |
+| `src/modules/configuracoes/schemas/tarefas-templates.schema.ts` | Modificar (adicionar campos modo, assunto_email, corpo_mensagem) |
+| `backend/src/schemas/tarefas-templates.ts` | Modificar (adicionar campos nos schemas) |
+| `src/modules/configuracoes/components/tarefas/TarefaTemplateFormModal.tsx` | Modificar (adicionar UI para modo cadencia) |
+| `src/modules/configuracoes/pages/TarefasTemplatesPage.tsx` | Modificar (badge de cadencia) |
+| `src/modules/negocios/components/kanban/TarefaEnvioInline.tsx` | Criar (componente de envio inline) |
+| `src/modules/negocios/components/kanban/TarefasPopover.tsx` | Modificar (botao Send + integrar TarefaEnvioInline) |
+
+---
+
+## Validacoes e Edge Cases
+
+- **Contato sem telefone (WhatsApp)**: exibir aviso "Contato sem telefone cadastrado"
+- **Contato sem email**: exibir aviso "Contato sem email cadastrado"
+- **Sessao WhatsApp desconectada**: exibir aviso "WhatsApp nao conectado"
+- **Conexao email inativa**: exibir aviso "Email nao configurado"
+- **Mensagem vazia**: impedir envio
+- **Assunto vazio (email)**: impedir envio
+- **Erro no envio**: toast de erro, tarefa permanece pendente
+- **Tarefa sem oportunidade**: botao de envio nao aparece (sem contato para resolver)
