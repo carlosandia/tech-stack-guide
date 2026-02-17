@@ -1742,7 +1742,7 @@ Deno.serve(async (req) => {
     // Tentativa 1: busca por chat_id exato
     const { data: conversaByChatId } = await supabaseAdmin
       .from("conversas")
-      .select("id, total_mensagens, mensagens_nao_lidas, chat_id")
+      .select("id, total_mensagens, mensagens_nao_lidas, chat_id, foto_url")
       .eq("organizacao_id", sessao.organizacao_id)
       .eq("chat_id", chatId)
       .eq("sessao_whatsapp_id", sessao.id)
@@ -1756,7 +1756,7 @@ Deno.serve(async (req) => {
     if (!existingConversa) {
       const { data: conversaCrossSession } = await supabaseAdmin
         .from("conversas")
-        .select("id, total_mensagens, mensagens_nao_lidas, chat_id, sessao_whatsapp_id")
+        .select("id, total_mensagens, mensagens_nao_lidas, chat_id, sessao_whatsapp_id, foto_url")
         .eq("organizacao_id", sessao.organizacao_id)
         .eq("chat_id", chatId)
         .is("deletado_em", null)
@@ -1783,7 +1783,7 @@ Deno.serve(async (req) => {
       console.log(`[waha-webhook] Tentativa 1c: chatId é @c.us, buscando conversa @lid pelo contato_id=${contatoId}`);
       const { data: conversaByContato } = await supabaseAdmin
         .from("conversas")
-        .select("id, total_mensagens, mensagens_nao_lidas, chat_id, contato_id")
+        .select("id, total_mensagens, mensagens_nao_lidas, chat_id, contato_id, foto_url")
         .eq("organizacao_id", sessao.organizacao_id)
         .eq("contato_id", contatoId)
         .eq("tipo", "individual")
@@ -1811,7 +1811,7 @@ Deno.serve(async (req) => {
       console.log(`[waha-webhook] Conversa not found by @lid chatId, trying fallback by contato_id=${contatoId}`);
       const { data: conversaByContato } = await supabaseAdmin
         .from("conversas")
-        .select("id, total_mensagens, mensagens_nao_lidas, chat_id")
+        .select("id, total_mensagens, mensagens_nao_lidas, chat_id, foto_url")
         .eq("organizacao_id", sessao.organizacao_id)
         .eq("contato_id", contatoId)
         .eq("sessao_whatsapp_id", sessao.id)
@@ -1833,7 +1833,7 @@ Deno.serve(async (req) => {
       console.log(`[waha-webhook] Conversa not found, trying phone-based search: %${lastDigits}`);
       const { data: conversaByPhone } = await supabaseAdmin
         .from("conversas")
-        .select("id, total_mensagens, mensagens_nao_lidas, chat_id, contato_id")
+        .select("id, total_mensagens, mensagens_nao_lidas, chat_id, contato_id, foto_url")
         .eq("organizacao_id", sessao.organizacao_id)
         .eq("sessao_whatsapp_id", sessao.id)
         .eq("tipo", "individual")
@@ -1858,7 +1858,7 @@ Deno.serve(async (req) => {
       console.log(`[waha-webhook] Tentativa 4: buscando conversa pelo @lid original: ${originalLidChatId}`);
       const { data: conversaByLid } = await supabaseAdmin
         .from("conversas")
-        .select("id, total_mensagens, mensagens_nao_lidas, chat_id, contato_id")
+        .select("id, total_mensagens, mensagens_nao_lidas, chat_id, contato_id, foto_url")
         .eq("organizacao_id", sessao.organizacao_id)
         .eq("chat_id", originalLidChatId)
         .is("deletado_em", null)
@@ -1911,7 +1911,7 @@ Deno.serve(async (req) => {
         const realConversaId = rpcResult[0].conversa_id;
         const { data: realConversa } = await supabaseAdmin
           .from("conversas")
-          .select("id, total_mensagens, mensagens_nao_lidas, chat_id, contato_id")
+          .select("id, total_mensagens, mensagens_nao_lidas, chat_id, contato_id, foto_url")
           .eq("id", realConversaId)
           .is("deletado_em", null)
           .maybeSingle();
@@ -1936,7 +1936,7 @@ Deno.serve(async (req) => {
       console.log(`[waha-webhook] Tentativa 5: buscando conversa @c.us pelo contato_id=${contatoId} (cross-session)`);
       const { data: conversaCus } = await supabaseAdmin
         .from("conversas")
-        .select("id, total_mensagens, mensagens_nao_lidas, chat_id, contato_id")
+        .select("id, total_mensagens, mensagens_nao_lidas, chat_id, contato_id, foto_url")
         .eq("organizacao_id", sessao.organizacao_id)
         .eq("contato_id", contatoId)
         .eq("tipo", "individual")
@@ -1972,7 +1972,7 @@ Deno.serve(async (req) => {
         const conversaIds = [...new Set(msgComLid.map(m => m.conversa_id))];
         const { data: conversasReais } = await supabaseAdmin
           .from("conversas")
-          .select("id, total_mensagens, mensagens_nao_lidas, chat_id, contato_id")
+          .select("id, total_mensagens, mensagens_nao_lidas, chat_id, contato_id, foto_url")
           .in("id", conversaIds)
           .not("chat_id", "like", "%@lid")
           .is("deletado_em", null)
@@ -2010,6 +2010,61 @@ Deno.serve(async (req) => {
       } else {
         if (phoneName) updateData.nome = phoneName;
         if (profilePictureUrl) updateData.foto_url = profilePictureUrl;
+      }
+
+      // AIDEV-NOTE: Retry de busca de foto quando grupo/canal existente tem foto_url null
+      // Corrige caso onde a primeira busca falhou e a foto nunca mais foi tentada
+      if ((isGroup || isChannel) && !groupPhotoUrl && !existingConversa.foto_url && wahaApiUrl && wahaApiKey) {
+        try {
+          const picResp = await fetch(
+            `${wahaApiUrl}/api/contacts/profile-picture?contactId=${encodeURIComponent(rawFrom)}&session=${encodeURIComponent(sessionName)}`,
+            { headers: { "X-Api-Key": wahaApiKey } }
+          );
+          if (picResp.ok) {
+            const picData = await picResp.json();
+            const retryPhoto = picData?.profilePictureURL || picData?.profilePictureUrl || picData?.url || picData?.profilePicUrl || null;
+            if (retryPhoto) {
+              updateData.foto_url = retryPhoto;
+              console.log(`[waha-webhook] Retry fetched group photo for ${rawFrom}: ${retryPhoto}`);
+            } else {
+              // Fallback: endpoint de grupo/settings
+              const gpicResp = await fetch(
+                `${wahaApiUrl}/api/${encodeURIComponent(sessionName)}/groups/${encodeURIComponent(rawFrom)}/settings`,
+                { headers: { "X-Api-Key": wahaApiKey } }
+              );
+              if (gpicResp.ok) {
+                const gpicData = await gpicResp.json();
+                const gpicUrl = gpicData?.groupPictureUrl || gpicData?.profilePictureUrl || gpicData?.picture || null;
+                if (gpicUrl) {
+                  updateData.foto_url = gpicUrl;
+                  console.log(`[waha-webhook] Retry fetched group photo (settings) for ${rawFrom}: ${gpicUrl}`);
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.log(`[waha-webhook] Retry fetch group photo failed for ${rawFrom}:`, e);
+        }
+      }
+
+      // Retry para contatos individuais sem foto
+      if (!isGroup && !isChannel && !profilePictureUrl && !existingConversa.foto_url && wahaApiUrl && wahaApiKey) {
+        try {
+          const picResp = await fetch(
+            `${wahaApiUrl}/api/contacts/profile-picture?contactId=${encodeURIComponent(rawFrom)}&session=${encodeURIComponent(sessionName)}`,
+            { headers: { "X-Api-Key": wahaApiKey } }
+          );
+          if (picResp.ok) {
+            const picData = await picResp.json();
+            const retryPhoto = picData?.profilePictureURL || picData?.profilePictureUrl || picData?.url || picData?.profilePicUrl || null;
+            if (retryPhoto) {
+              updateData.foto_url = retryPhoto;
+              console.log(`[waha-webhook] Retry fetched contact photo for ${rawFrom}: ${retryPhoto}`);
+            }
+          }
+        } catch (e) {
+          console.log(`[waha-webhook] Retry fetch contact photo failed for ${rawFrom}:`, e);
+        }
       }
 
       await supabaseAdmin
