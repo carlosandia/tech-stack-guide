@@ -28,33 +28,69 @@ interface AgendarMensagemPopoverProps {
 
 type TipoMensagem = 'text' | 'audio'
 
-// Mini audio player for scheduled audio preview
+// Mini audio player for scheduled audio preview with progress counter
 function AudioPreviewPlayer({ url, label }: { url: string; label: string }) {
   const [playing, setPlaying] = useState(false)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [duration, setDuration] = useState(0)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const rafRef = useRef<number | null>(null)
+
+  const updateTime = useCallback(() => {
+    if (audioRef.current) {
+      setCurrentTime(audioRef.current.currentTime)
+      if (playing) {
+        rafRef.current = requestAnimationFrame(updateTime)
+      }
+    }
+  }, [playing])
 
   const toggle = () => {
     if (!audioRef.current) {
-      audioRef.current = new Audio(url)
-      audioRef.current.onended = () => setPlaying(false)
+      const audio = new Audio(url)
+      audioRef.current = audio
+      audio.onloadedmetadata = () => setDuration(audio.duration)
+      audio.onended = () => {
+        setPlaying(false)
+        setCurrentTime(0)
+        if (rafRef.current) cancelAnimationFrame(rafRef.current)
+      }
     }
     if (playing) {
       audioRef.current.pause()
       setPlaying(false)
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
     } else {
       audioRef.current.play().catch(() => setPlaying(false))
       setPlaying(true)
+      rafRef.current = requestAnimationFrame(updateTime)
     }
   }
 
   useEffect(() => {
+    if (playing) {
+      rafRef.current = requestAnimationFrame(updateTime)
+    }
     return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+    }
+  }, [playing, updateTime])
+
+  useEffect(() => {
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
       if (audioRef.current) {
         audioRef.current.pause()
         audioRef.current = null
       }
     }
   }, [])
+
+  const fmt = (s: number) => {
+    const m = Math.floor(s / 60)
+    const sec = Math.floor(s % 60)
+    return `${m}:${String(sec).padStart(2, '0')}`
+  }
 
   return (
     <div className="flex items-center gap-1.5">
@@ -66,7 +102,11 @@ function AudioPreviewPlayer({ url, label }: { url: string; label: string }) {
       >
         {playing ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
       </button>
-      <span className="text-xs text-foreground">{label}</span>
+      <span className="text-xs font-mono text-foreground">
+        {playing || currentTime > 0
+          ? `${fmt(currentTime)} / ${duration > 0 ? fmt(duration) : label}`
+          : label}
+      </span>
     </div>
   )
 }
