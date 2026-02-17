@@ -18,13 +18,13 @@ import { SelecionarPipelineModal } from './SelecionarPipelineModal'
 import { CameraCapture } from './CameraCapture'
 import { ContatoSelectorModal } from './ContatoSelectorModal'
 import { EnqueteModal } from './EnqueteModal'
-import { EncaminharModal } from './EncaminharModal'
+// AIDEV-NOTE: EncaminharModal removido - GOWS não suporta forward
 import { PinnedMessageBanner } from './PinnedMessageBanner'
 import { useMensagens, useEnviarTexto, useEnviarContato, useEnviarEnquete } from '../hooks/useMensagens'
 import {
   useAlterarStatusConversa, useMarcarComoLida, useSilenciarConversa,
   useLimparConversa, useApagarConversa, useApagarMensagem,
-  useFixarMensagem, useDesafixarMensagem, useReagirMensagem, useEncaminharMensagem,
+  useFixarMensagem, useDesafixarMensagem, useReagirMensagem,
 } from '../hooks/useConversas'
 import { conversasApi } from '../services/conversas.api'
 import { supabase } from '@/lib/supabase'
@@ -97,7 +97,7 @@ interface ChatWindowProps {
   onNavigateConversa?: (conversaId: string) => void
 }
 
-export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada, onNavigateConversa }, _ref) {
+export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada, onNavigateConversa: _onNavigateConversa }, _ref) {
   const { user } = useAuth()
   const myAvatarUrl = user?.avatar_url || null
   const [quickRepliesOpen, setQuickRepliesOpen] = useState(false)
@@ -116,7 +116,7 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
   const [enqueteModalOpen, setEnqueteModalOpen] = useState(false)
   const [replyingTo, setReplyingTo] = useState<Mensagem | null>(null)
   const chatInputRef = useRef<ChatInputHandle>(null)
-  const [encaminharMsg, setEncaminharMsg] = useState<Mensagem | null>(null)
+  // AIDEV-NOTE: encaminharMsg removido - GOWS não suporta forward
 
   const {
     data: mensagensData,
@@ -138,7 +138,7 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
   const fixarMensagem = useFixarMensagem()
   const desafixarMensagem = useDesafixarMensagem()
   const reagirMensagem = useReagirMensagem()
-  const encaminharMensagem = useEncaminharMensagem()
+  // AIDEV-NOTE: encaminharMensagem removido - GOWS não suporta forward
 
   // Flatten paginated messages
   const mensagens = useMemo(() => {
@@ -424,18 +424,7 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
     reagirMensagem.mutate({ conversaId: conversa.id, messageWahaId: mensagem.message_id, emoji })
   }, [conversa.id, reagirMensagem])
 
-  const handleForwardMessage = useCallback((mensagem: Mensagem) => {
-    setEncaminharMsg(mensagem)
-  }, [])
-
-  const handleForwardConfirm = useCallback(async (_destinoConversaId: string, destinoChatId: string) => {
-    if (!encaminharMsg) return
-    await encaminharMensagem.mutateAsync({
-      conversaId: conversa.id,
-      messageWahaId: encaminharMsg.message_id,
-      destinoChatId,
-    })
-  }, [conversa.id, encaminharMsg, encaminharMensagem])
+  // AIDEV-NOTE: handleForwardMessage e handleForwardConfirm removidos - GOWS não suporta forward
 
   const handlePinMessage = useCallback((mensagem: Mensagem) => {
     fixarMensagem.mutate({ conversaId: conversa.id, mensagemId: mensagem.id, messageWahaId: mensagem.message_id })
@@ -563,7 +552,7 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
           setTimeout(() => chatInputRef.current?.focusTextarea(), 50)
         }}
         onReactMessage={handleReactMessage}
-        onForwardMessage={handleForwardMessage}
+        onForwardMessage={undefined}
         onPinMessage={handlePinMessage}
       />
 
@@ -643,14 +632,7 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
         />
       )}
 
-      {encaminharMsg && (
-        <EncaminharModal
-          mensagem={encaminharMsg}
-          onForward={handleForwardConfirm}
-          onClose={() => setEncaminharMsg(null)}
-          onNavigateConversa={onNavigateConversa}
-        />
-      )}
+      {/* AIDEV-NOTE: EncaminharModal removido - GOWS não suporta forward */}
 
       {pipelineModalOpen && (
         <SelecionarPipelineModal
