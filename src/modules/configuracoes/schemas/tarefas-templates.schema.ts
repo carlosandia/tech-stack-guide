@@ -40,7 +40,7 @@ export const tarefaTemplateFormSchema = z.object({
   tipo: z.enum(['ligacao', 'email', 'reuniao', 'whatsapp', 'visita', 'outro'], {
     required_error: 'Tipo é obrigatório',
   }),
-  canal: z.enum(['whatsapp', 'instagram', 'email', 'telefone']).optional().nullable(),
+  canal: z.union([z.enum(['whatsapp', 'instagram', 'email', 'telefone']), z.literal('')]).optional().nullable().transform(v => v === '' ? null : v),
   prioridade: z.enum(['baixa', 'media', 'alta', 'urgente']).default('media'),
   dias_prazo: z.number().min(0, 'Prazo deve ser positivo').default(1),
   modo: z.enum(['comum', 'cadencia']).default('comum'),

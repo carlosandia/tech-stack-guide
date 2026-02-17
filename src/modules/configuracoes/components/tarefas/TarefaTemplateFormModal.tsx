@@ -32,7 +32,7 @@ export function TarefaTemplateFormModal({ template, onClose }: TarefaTemplateFor
     defaultValues: {
       titulo: template?.titulo || '', descricao: template?.descricao || '',
       tipo: template?.tipo || 'ligacao',
-      canal: template?.canal as TarefaTemplateFormData['canal'] || undefined,
+      canal: (template?.canal as TarefaTemplateFormData['canal']) || null,
       prioridade: template?.prioridade || 'media',
       dias_prazo: template?.dias_prazo ?? 1,
       modo: template?.modo || 'comum',
@@ -64,6 +64,10 @@ export function TarefaTemplateFormModal({ template, onClose }: TarefaTemplateFor
       if (payload.modo === 'comum') {
         payload.assunto_email = null
         payload.corpo_mensagem = null
+      }
+      // Garantir que canal vazio vire null
+      if (!payload.canal) {
+        payload.canal = null
       }
       if (isEditing && template) { await atualizar.mutateAsync({ id: template.id, payload }) }
       else { await criar.mutateAsync(payload) }
@@ -103,7 +107,7 @@ export function TarefaTemplateFormModal({ template, onClose }: TarefaTemplateFor
 
   return (
     <ModalBase onClose={onClose} title={isEditing ? 'Editar Template' : 'Novo Template de Tarefa'} description="Templates" variant={isEditing ? 'edit' : 'create'} size="md" footer={footerContent}>
-      <form id="tarefa-tpl-form" onSubmit={handleSubmit(onSubmit)} className="px-4 sm:px-6 py-4 space-y-4">
+      <form id="tarefa-tpl-form" onSubmit={handleSubmit(onSubmit, (errs) => console.error('Validação falhou:', errs))} className="px-4 sm:px-6 py-4 space-y-4">
         {/* Modo: Comum vs Cadência */}
         <div>
           <label className="block text-sm font-medium text-foreground mb-2">Modo</label>
