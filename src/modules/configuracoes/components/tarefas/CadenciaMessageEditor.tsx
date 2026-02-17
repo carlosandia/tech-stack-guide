@@ -35,6 +35,29 @@ interface CadenciaMessageEditorProps {
   className?: string
 }
 
+function LinkInputInline({ onConfirm, onCancel }: { onConfirm: (url: string) => void; onCancel: () => void }) {
+  const [url, setUrl] = useState('')
+  return (
+    <div className="flex items-center gap-2 px-2 py-1.5 border-b border-border/60 bg-muted/20">
+      <input
+        type="url"
+        value={url}
+        onChange={e => setUrl(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') onConfirm(url); if (e.key === 'Escape') onCancel() }}
+        placeholder="https://exemplo.com"
+        className="flex-1 h-7 px-2 text-xs rounded border border-input bg-background text-foreground placeholder:text-muted-foreground"
+        autoFocus
+      />
+      <button type="button" onClick={() => onConfirm(url)} className="text-xs px-2 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
+        Inserir
+      </button>
+      <button type="button" onClick={onCancel} className="text-xs px-2 py-1 rounded text-muted-foreground hover:text-foreground transition-colors">
+        Cancelar
+      </button>
+    </div>
+  )
+}
+
 export function CadenciaMessageEditor({
   content,
   onChange,
@@ -137,16 +160,22 @@ export function CadenciaMessageEditor({
     input.click()
   }, [editor])
 
+  const [showLinkInput, setShowLinkInput] = useState(false)
+
   const handleLink = useCallback(() => {
     if (!editor) return
     if (editor.isActive('link')) {
       editor.chain().focus().unsetLink().run()
       return
     }
-    const url = window.prompt('URL do link:')
-    if (url) {
+    setShowLinkInput(true)
+  }, [editor])
+
+  const handleLinkConfirm = useCallback((url: string) => {
+    if (editor && url) {
       editor.chain().focus().setLink({ href: url }).run()
     }
+    setShowLinkInput(false)
   }, [editor])
 
   if (!editor) return null
@@ -158,7 +187,7 @@ export function CadenciaMessageEditor({
     )
 
   return (
-    <div className={cn('border border-input rounded-md overflow-hidden bg-background', className)}>
+    <div className={cn('border border-input rounded-md bg-background', className)} style={{ overflow: 'visible', position: 'relative' }}>
       {/* Toolbar */}
       <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-border/60 bg-muted/30 flex-wrap">
         <button type="button" onClick={() => editor.chain().focus().toggleBold().run()} className={btnClass(editor.isActive('bold'))} title="Negrito">
@@ -203,12 +232,17 @@ export function CadenciaMessageEditor({
             <Smile className="w-4 h-4" />
           </button>
           {emojiOpen && (
-            <div className="absolute left-0 bottom-full mb-1 z-50">
+            <div className="absolute left-0 bottom-full mb-1" style={{ zIndex: 9999 }}>
               <EmojiPicker onSelect={handleEmojiSelect} onClose={() => setEmojiOpen(false)} />
             </div>
           )}
         </div>
       </div>
+
+      {/* Inline link input */}
+      {showLinkInput && (
+        <LinkInputInline onConfirm={handleLinkConfirm} onCancel={() => setShowLinkInput(false)} />
+      )}
 
       {/* Editor */}
       <EditorContent editor={editor} className="px-3 py-2" />
