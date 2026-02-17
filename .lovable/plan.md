@@ -1,97 +1,79 @@
 
+# Criacao de Oportunidades em Massa a partir de Contatos
 
-# Plano de Correcao: Foco ao Responder + Copiar Midia Real
+## Resumo
 
-## Problema 1: Foco automatico ao clicar em "Responder"
-
-Quando o usuario clica em "Responder" no menu de acoes, o estado `replyingTo` e atualizado no `ChatWindow`, mas o campo de texto nao recebe foco automaticamente -- o usuario precisa clicar manualmente no textarea.
-
-**Solucao**: Expor o `textareaRef` do `ChatInput` via `useImperativeHandle` e, no `ChatWindow`, chamar `.focus()` ao definir `replyingTo`.
-
-### Alteracoes
-
-**Arquivo**: `src/modules/conversas/components/ChatInput.tsx`
-- Alterar o `forwardRef` para expor um metodo `focusTextarea()` via `useImperativeHandle`
-- O ref externo passara a ter a interface `{ focusTextarea: () => void }`
-
-**Arquivo**: `src/modules/conversas/components/ChatWindow.tsx`
-- Criar um `chatInputRef` com `useRef`
-- Passar o ref ao componente `ChatInput`
-- No callback `onReplyMessage`, alem de `setReplyingTo(msg)`, chamar `chatInputRef.current?.focusTextarea()` com um pequeno `setTimeout` para garantir que o estado ja atualizou
+Adicionar um botao "Criar Oportunidade" na barra flutuante de acoes em massa (bulk actions) do modulo de Contatos. Ao clicar, abre um modal dedicado onde o usuario seleciona a pipeline e opcionalmente distribui as oportunidades entre membros da equipe (round-robin ou manual).
 
 ---
 
-## Problema 2: Copiar midia real (imagem, video, documento) em vez da URL
+## Fluxo do Usuario
 
-Atualmente o `handleCopy` no `ChatMessageBubble.tsx` copia a URL da midia como texto plano. O comportamento esperado e:
-
-- **Imagens**: Copiar o blob da imagem para a area de transferencia (usando `navigator.clipboard.write` com `ClipboardItem`)
-- **Videos/Documentos/Audio**: Nao e possivel copiar binarios complexos para a area de transferencia na maioria dos navegadores. Para esses tipos, o comportamento mais correto e **baixar o arquivo** em vez de copiar a URL. Porem, como copiar video/doc nao e padrao, a abordagem recomendada e:
-  - Imagem: copiar o blob real da imagem
-  - Video/Audio/Documento: copiar a URL mas informar ao usuario com toast "Link copiado" (ou oferecer download)
-
-**Solucao para imagens**: Fazer `fetch` da `media_url`, converter para `Blob`, e usar `navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])`.
-
-### Alteracoes
-
-**Arquivo**: `src/modules/conversas/components/ChatMessageBubble.tsx`
-- Refatorar `handleCopy` (linhas 921-950):
-  - Para `tipo === 'image'`: buscar a imagem via `fetch`, converter para blob PNG, e usar a Clipboard API binaria
-  - Para `tipo === 'video' | 'audio' | 'document'`: manter a copia da URL mas alterar o toast para "Link do arquivo copiado"
-  - Para `tipo === 'text'` e outros: manter comportamento atual (copiar texto)
-  - Tratar erros de CORS ou falha no fetch com fallback para copiar a URL
+1. Na listagem de contatos, selecionar multiplos contatos (ex: 38 selecionados)
+2. Na barra flutuante inferior, clicar no novo botao **"Criar Oportunidade"** (icone `Target`)
+3. Abre o modal **"Criar Oportunidades em Massa"** com:
+   - **Step 1: Pipeline** -- Selecionar em qual pipeline criar (lista de pipelines ativas com cor)
+   - **Step 2: Distribuicao** -- Opcoes de distribuicao:
+     - **Nao distribuir** -- todas ficam sem responsavel (ou atribuidas ao criador)
+     - **Rodizio automatico** -- distribui igualmente entre membros do funil (usa `funis_membros`)
+     - **Escolher membros manualmente** -- checkboxes para selecionar quais membros participam da distribuicao
+   - **Resumo** -- Exibe: "40 oportunidades serao criadas na pipeline X, distribuidas entre 4 membros (10 cada)"
+4. Confirmar e processar em lote
 
 ---
 
-## Secao Tecnica
+## Recomendacoes Estrategicas
 
-### Focus via ImperativeHandle
+- **Titulo automatico**: Cada oportunidade usa o nome do contato como titulo (ex: "Eddie", "Beatriz")
+- **Etapa de entrada**: Todas as oportunidades sao criadas na etapa de entrada da pipeline selecionada
+- **Preview da distribuicao**: Mostrar visualmente quantas oportunidades cada membro recebera antes de confirmar
+- **Progresso visual**: Barra de progresso durante a criacao para lotes grandes (>20)
+- **Contatos ja com oportunidade**: Filtrar e avisar quantos dos selecionados ja possuem oportunidade nessa pipeline, com opcao de pular ou criar duplicada
+- **Limite de seguranca**: Maximo de 100 oportunidades por lote para evitar sobrecarga
 
+---
+
+## Detalhes Tecnicos
+
+### 1. API -- `contatos.api.ts`
+Nova funcao `criarOportunidadesLote`:
 ```typescript
-// ChatInput.tsx
-export interface ChatInputHandle {
-  focusTextarea: () => void
-}
-
-export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(...)
-
-useImperativeHandle(ref, () => ({
-  focusTextarea: () => textareaRef.current?.focus()
-}))
+criarOportunidadesLote: async (payload: {
+  contato_ids: string[]
+  funil_id: string
+  distribuicao: 'nenhuma' | 'rodizio' | 'manual'
+  membro_ids?: string[]  // para distribuicao manual
+}) => Promise<{ criadas: number; erros: number; detalhes: string[] }>
 ```
 
-```typescript
-// ChatWindow.tsx
-const chatInputRef = useRef<ChatInputHandle>(null)
+Internamente:
+- Busca etapa de entrada da pipeline
+- Para cada contato, cria uma oportunidade com titulo = nome do contato
+- Se distribuicao = 'rodizio', busca `funis_membros` e distribui round-robin
+- Se distribuicao = 'manual', distribui entre os `membro_ids` fornecidos
+- Atualiza `posicao_rodizio` na `configuracoes_distribuicao` se aplicavel
 
-onReplyMessage={(msg) => {
-  setReplyingTo(msg)
-  setTimeout(() => chatInputRef.current?.focusTextarea(), 50)
-}}
-```
+### 2. Hook -- `useContatos.ts`
+Novo hook `useCriarOportunidadesLote` com mutation padrao, invalidando queries `['contatos']` e `['kanban']`.
 
-### Clipboard API para imagens
+### 3. Componente -- `CriarOportunidadeLoteModal.tsx`
+Modal multi-step com:
+- Lista de pipelines ativas (reutiliza dados de `useFunis`)
+- Opcoes de distribuicao com radio buttons
+- Se "manual", exibe lista de membros do funil selecionado (via `funis_membros`)
+- Resumo com calculo de distribuicao (ex: "10 por membro")
+- Barra de progresso durante execucao
 
-```typescript
-// handleCopy para imagens
-if (mensagem.tipo === 'image' && mensagem.media_url) {
-  try {
-    const resp = await fetch(mensagem.media_url)
-    const blob = await resp.blob()
-    // Converter para PNG se necessario (clipboard so aceita PNG)
-    const pngBlob = await convertToPng(blob)
-    await navigator.clipboard.write([
-      new ClipboardItem({ 'image/png': pngBlob })
-    ])
-    toast.success('Imagem copiada')
-  } catch {
-    // Fallback: copiar URL
-    navigator.clipboard.writeText(mensagem.media_url)
-    toast.success('Link da imagem copiado')
-  }
-  return
-}
-```
+### 4. Barra Flutuante -- `ContatoBulkActions.tsx`
+Adicionar botao `Target` + "Oportunidade" na barra, visivel apenas para tipo `pessoa` e `isAdmin`.
+Ao clicar, abre `CriarOportunidadeLoteModal` passando `selectedIds`.
 
-A funcao `convertToPng` carrega o blob num `Image` via canvas e exporta como PNG, necessario porque a Clipboard API so aceita `image/png`.
+### 5. Arquivos a criar/modificar
 
+| Arquivo | Acao |
+|---------|------|
+| `src/modules/contatos/components/CriarOportunidadeLoteModal.tsx` | Criar (modal multi-step) |
+| `src/modules/contatos/services/contatos.api.ts` | Adicionar `criarOportunidadesLote` |
+| `src/modules/contatos/hooks/useContatos.ts` | Adicionar `useCriarOportunidadesLote` |
+| `src/modules/contatos/components/ContatoBulkActions.tsx` | Adicionar botao "Oportunidade" |
+| `src/modules/contatos/pages/ContatosPage.tsx` | Integrar modal e estado |
