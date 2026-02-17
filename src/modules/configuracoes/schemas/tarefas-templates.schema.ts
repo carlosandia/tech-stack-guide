@@ -46,12 +46,15 @@ export const tarefaTemplateFormSchema = z.object({
   modo: z.enum(['comum', 'cadencia']).default('comum'),
   assunto_email: z.string().max(500).optional().nullable(),
   corpo_mensagem: z.string().optional().nullable(),
+  audio_url: z.string().optional().nullable(),
 }).superRefine((data, ctx) => {
   if (data.modo === 'cadencia') {
     if (data.tipo !== 'email' && data.tipo !== 'whatsapp') {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Cadência só permite tipo E-mail ou WhatsApp', path: ['tipo'] })
     }
-    if (!data.corpo_mensagem || data.corpo_mensagem.trim() === '') {
+    // WhatsApp com áudio não precisa de corpo_mensagem
+    const hasAudio = data.tipo === 'whatsapp' && data.audio_url
+    if (!hasAudio && (!data.corpo_mensagem || data.corpo_mensagem.trim() === '')) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Mensagem é obrigatória para cadência', path: ['corpo_mensagem'] })
     }
     if (data.tipo === 'email' && (!data.assunto_email || data.assunto_email.trim() === '')) {

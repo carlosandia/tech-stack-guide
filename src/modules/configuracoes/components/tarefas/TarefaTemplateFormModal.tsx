@@ -3,6 +3,7 @@
  * Migrado para usar ModalBase (Design System 10.5)
  * Suporta modo 'comum' e 'cadencia' (PRD-05 evolução)
  * Editor rico com emoji, formatação e upload de imagem para cadência
+ * Suporta gravação de áudio para templates WhatsApp (substitui texto)
  */
 
 import { useState } from 'react'
@@ -15,6 +16,7 @@ import { useCriarTarefaTemplate, useAtualizarTarefaTemplate, useExcluirTarefaTem
 import type { TarefaTemplate } from '../../services/configuracoes.api'
 import { ModalBase } from '../ui/ModalBase'
 import { CadenciaMessageEditor } from './CadenciaMessageEditor'
+import { CadenciaAudioRecorder } from './CadenciaAudioRecorder'
 import { EmojiInput } from './EmojiInput'
 
 interface TarefaTemplateFormModalProps {
@@ -41,6 +43,7 @@ export function TarefaTemplateFormModal({ template, onClose }: TarefaTemplateFor
       modo: template?.modo || 'comum',
       assunto_email: template?.assunto_email || '',
       corpo_mensagem: template?.corpo_mensagem || '',
+      audio_url: (template as any)?.audio_url || null,
     },
   })
 
@@ -48,6 +51,8 @@ export function TarefaTemplateFormModal({ template, onClose }: TarefaTemplateFor
   const modoSelecionado = watch('modo')
   const assuntoAtual = watch('assunto_email') || ''
   const corpoAtual = watch('corpo_mensagem') || ''
+  const audioUrlAtual = watch('audio_url')
+  const hasAudio = !!audioUrlAtual
 
   // Tipos permitidos para cadência
   const tiposFiltrados = modoSelecionado === 'cadencia'
@@ -60,6 +65,9 @@ export function TarefaTemplateFormModal({ template, onClose }: TarefaTemplateFor
     if (modo === 'cadencia' && tipoSelecionado !== 'email' && tipoSelecionado !== 'whatsapp') {
       setValue('tipo', 'whatsapp')
     }
+    if (modo === 'comum') {
+      setValue('audio_url', null)
+    }
   }
 
   const onSubmit = async (data: TarefaTemplateFormData) => {
@@ -68,6 +76,11 @@ export function TarefaTemplateFormModal({ template, onClose }: TarefaTemplateFor
       const payload = { ...data }
       if (payload.modo === 'comum') {
         payload.assunto_email = null
+        payload.corpo_mensagem = null
+        payload.audio_url = null
+      }
+      // Se WhatsApp com áudio, limpar corpo_mensagem
+      if (payload.audio_url && payload.tipo === 'whatsapp') {
         payload.corpo_mensagem = null
       }
       // Garantir que canal vazio vire null
@@ -177,20 +190,36 @@ export function TarefaTemplateFormModal({ template, onClose }: TarefaTemplateFor
               </div>
             )}
 
-            {/* Corpo da mensagem - editor rico */}
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">
-                {tipoSelecionado === 'email' ? 'Corpo do E-mail' : 'Mensagem do WhatsApp'} <span className="text-destructive">*</span>
-              </label>
-              <CadenciaMessageEditor
-                content={corpoAtual}
-                onChange={(html) => setValue('corpo_mensagem', html, { shouldValidate: true })}
-                mode={tipoSelecionado === 'email' ? 'email' : 'whatsapp'}
-                placeholder={tipoSelecionado === 'email' ? 'Corpo do e-mail que será enviado...' : 'Mensagem que será enviada via WhatsApp...'}
-                minHeight="100px"
-              />
-              {errors.corpo_mensagem && <p className="text-xs text-destructive mt-1">{errors.corpo_mensagem.message}</p>}
-            </div>
+            {/* Gravação de áudio (só para WhatsApp) */}
+            {tipoSelecionado === 'whatsapp' && (
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Áudio da Mensagem</label>
+                <CadenciaAudioRecorder
+                  audioUrl={audioUrlAtual || null}
+                  onChange={(url) => {
+                    setValue('audio_url', url, { shouldValidate: true })
+                    if (url) setValue('corpo_mensagem', '', { shouldValidate: true })
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Corpo da mensagem - editor rico (oculto se tem áudio no whatsapp) */}
+            {!(tipoSelecionado === 'whatsapp' && hasAudio) && (
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  {tipoSelecionado === 'email' ? 'Corpo do E-mail' : 'Mensagem do WhatsApp'} <span className="text-destructive">*</span>
+                </label>
+                <CadenciaMessageEditor
+                  content={corpoAtual}
+                  onChange={(html) => setValue('corpo_mensagem', html, { shouldValidate: true })}
+                  mode={tipoSelecionado === 'email' ? 'email' : 'whatsapp'}
+                  placeholder={tipoSelecionado === 'email' ? 'Corpo do e-mail que será enviado...' : 'Mensagem que será enviada via WhatsApp...'}
+                  minHeight="100px"
+                />
+                {errors.corpo_mensagem && <p className="text-xs text-destructive mt-1">{errors.corpo_mensagem.message}</p>}
+              </div>
+            )}
           </div>
         )}
 
