@@ -1368,18 +1368,49 @@ export const conversasApi = {
     if (error) throw new Error(error.message)
   },
 
-  // AIDEV-NOTE: Envia agora uma mensagem agendada alterando agendado_para para agora
+  // AIDEV-NOTE: Envia agora uma mensagem agendada - busca dados, envia e marca como enviada
   async enviarAgendadaAgora(id: string): Promise<void> {
-    const { error } = await supabase
+    // 1. Buscar dados da mensagem agendada
+    const { data: agendada, error: fetchError } = await supabase
+      .from('mensagens_agendadas')
+      .select('*')
+      .eq('id', id)
+      .eq('status', 'agendada')
+      .single()
+
+    if (fetchError || !agendada) throw new Error('Mensagem agendada não encontrada')
+
+    // 2. Enviar a mensagem de fato
+    try {
+      if (agendada.tipo === 'text') {
+        await this.enviarTexto(agendada.conversa_id, agendada.conteudo)
+      } else {
+        await this.enviarMedia(agendada.conversa_id, {
+          tipo: agendada.tipo,
+          media_url: agendada.media_url!,
+          caption: agendada.conteudo,
+        })
+      }
+    } catch (sendErr) {
+      // Marca como falha
+      await supabase
+        .from('mensagens_agendadas')
+        .update({ status: 'falha', erro: sendErr instanceof Error ? sendErr.message : 'Erro desconhecido', atualizado_em: new Date().toISOString() })
+        .eq('id', id)
+      throw sendErr
+    }
+
+    // 3. Marcar como enviada
+    const { error: updateError } = await supabase
       .from('mensagens_agendadas')
       .update({
-        agendado_para: new Date().toISOString(),
+        status: 'enviada',
+        enviada_em: new Date().toISOString(),
         atualizado_em: new Date().toISOString(),
       })
       .eq('id', id)
-      .eq('status', 'agendada')
 
-    if (error) throw new Error(error.message)
+    if (updateError) throw new Error(updateError.message)
   },
 
   async ultimaAgendadaConversa(conversaId: string): Promise<string | null> {
