@@ -25,7 +25,6 @@ import {
   Reply,
   Copy,
   Smile,
-  Forward,
   Pin,
 } from 'lucide-react'
 import type { Mensagem } from '../services/conversas.api'
@@ -737,13 +736,12 @@ function ReactionPicker({ onSelect, position }: {
 // Action Menu (Portal-based)
 // =====================================================
 
-function MessageActionMenu({ mensagem, onDelete, onReply, onCopy, onReact, onForward, onPin, onOpenChange }: {
+function MessageActionMenu({ mensagem, onDelete, onReply, onCopy, onReact, onPin, onOpenChange }: {
   mensagem: Mensagem
   onDelete: (paraTodos: boolean) => void
   onReply?: () => void
   onCopy?: () => void
   onReact?: () => void
-  onForward?: () => void
   onPin?: () => void
   onOpenChange?: (isOpen: boolean) => void
 }) {
@@ -828,15 +826,7 @@ function MessageActionMenu({ mensagem, onDelete, onReply, onCopy, onReact, onFor
         </button>
       )}
 
-      {onForward && (
-        <button
-          onClick={() => { onForward(); setOpen(false) }}
-          className="flex items-center gap-2.5 w-full px-3 py-2 text-xs hover:bg-accent/50 transition-colors text-foreground"
-        >
-          <Forward className="w-3.5 h-3.5 text-muted-foreground" />
-          Encaminhar
-        </button>
-      )}
+      {/* AIDEV-NOTE: Encaminhamento removido - WAHA GOWS não suporta forward de mensagens */}
 
       {onPin && (
         <button
@@ -894,7 +884,7 @@ function MessageActionMenu({ mensagem, onDelete, onReply, onCopy, onReact, onFor
 export function ChatMessageBubble({
   mensagem, participantName, participantColor, conversaId, fotoUrl, myAvatarUrl, contactMap,
   reactions,
-  onDeleteMessage, onReplyMessage, onReactMessage, onForwardMessage, onPinMessage,
+  onDeleteMessage, onReplyMessage, onReactMessage, onForwardMessage: _onForwardMessage, onPinMessage,
   quotedMessage
 }: ChatMessageBubbleProps) {
   const [viewerMedia, setViewerMedia] = useState<{ url: string; tipo: 'image' | 'video' } | null>(null)
@@ -1008,9 +998,7 @@ export function ChatMessageBubble({
     onReactMessage?.(mensagem, emoji)
   }, [mensagem, onReactMessage])
 
-  const handleForward = useCallback(() => {
-    onForwardMessage?.(mensagem)
-  }, [mensagem, onForwardMessage])
+  // AIDEV-NOTE: handleForward removido - GOWS não suporta forward
 
   const handlePin = useCallback(() => {
     onPinMessage?.(mensagem)
@@ -1060,7 +1048,6 @@ export function ChatMessageBubble({
               onReply={onReplyMessage ? handleReply : undefined}
               onCopy={handleCopy}
               onReact={onReactMessage ? handleReact : undefined}
-              onForward={onForwardMessage ? handleForward : undefined}
               onPin={onPinMessage ? handlePin : undefined}
               onOpenChange={(isOpen) => { setActionMenuOpen(isOpen); if (!isOpen) setHovered(false) }}
             />
@@ -1148,7 +1135,7 @@ export function ChatMessageBubble({
               onReply={onReplyMessage ? handleReply : undefined}
               onCopy={handleCopy}
               onReact={onReactMessage ? handleReact : undefined}
-              onForward={onForwardMessage ? handleForward : undefined}
+              
               onPin={onPinMessage ? handlePin : undefined}
               onOpenChange={(isOpen) => { setActionMenuOpen(isOpen); if (!isOpen) setHovered(false) }}
             />
