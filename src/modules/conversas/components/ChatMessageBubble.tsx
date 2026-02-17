@@ -34,6 +34,13 @@ import { MediaViewer } from './MediaViewer'
 import { toast } from 'sonner'
 import { WhatsAppAudioPlayer } from './WhatsAppAudioPlayer'
 
+// AIDEV-NOTE: Estrutura de reação agregada para exibição no estilo WhatsApp
+export interface ReactionBadge {
+  emoji: string
+  count: number
+  fromMe: boolean
+}
+
 interface ChatMessageBubbleProps {
   mensagem: Mensagem
   participantName?: string | null
@@ -42,6 +49,7 @@ interface ChatMessageBubbleProps {
   fotoUrl?: string | null
   myAvatarUrl?: string | null
   contactMap?: Map<string, string>
+  reactions?: ReactionBadge[]
   onDeleteMessage?: (mensagemId: string, messageWahaId: string, paraTodos: boolean) => void
   onReplyMessage?: (mensagem: Mensagem) => void
   onReactMessage?: (mensagem: Mensagem, emoji: string) => void
@@ -885,6 +893,7 @@ function MessageActionMenu({ mensagem, onDelete, onReply, onCopy, onReact, onFor
 
 export function ChatMessageBubble({
   mensagem, participantName, participantColor, conversaId, fotoUrl, myAvatarUrl, contactMap,
+  reactions,
   onDeleteMessage, onReplyMessage, onReactMessage, onForwardMessage, onPinMessage,
   quotedMessage
 }: ChatMessageBubbleProps) {
@@ -1110,6 +1119,24 @@ export function ChatMessageBubble({
             </>
           )}
         </div>
+
+        {/* AIDEV-NOTE: Reaction badges no estilo WhatsApp - bolinha no canto inferior */}
+        {reactions && reactions.length > 0 && (
+          <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} -mt-2 mb-1 ${isMe ? 'mr-1' : 'ml-1'}`}>
+            <div className="flex items-center gap-0.5 bg-background border border-border/50 rounded-full px-1.5 py-0.5 shadow-sm">
+              {reactions.map((r, i) => (
+                <span key={i} className="text-sm leading-none" title={r.fromMe ? 'Você' : ''}>
+                  {r.emoji}
+                </span>
+              ))}
+              {reactions.reduce((s, r) => s + r.count, 0) > 1 && (
+                <span className="text-[10px] text-muted-foreground ml-0.5">
+                  {reactions.reduce((s, r) => s + r.count, 0)}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Action menu - RIGHT side for RECEIVED messages (!isMe) */}
         {!isMe && onDeleteMessage && (

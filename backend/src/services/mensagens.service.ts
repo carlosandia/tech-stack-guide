@@ -367,14 +367,15 @@ class MensagensService {
     conversaId: string,
     messageId: string,
     emoji: string,
-    reacaoMessageId: string
+    reacaoMessageId: string,
+    fromMe: boolean = false
   ): Promise<Mensagem> {
     // Salva reacao como mensagem separada
     return this.salvarMensagem({
       organizacao_id: organizacaoId,
       conversa_id: conversaId,
       message_id: messageId,
-      from_me: false,
+      from_me: fromMe,
       tipo: 'reaction',
       reaction_emoji: emoji,
       reaction_message_id: reacaoMessageId,

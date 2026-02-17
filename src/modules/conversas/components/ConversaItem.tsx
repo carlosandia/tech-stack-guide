@@ -56,6 +56,11 @@ function getMessagePreview(conversa: Conversa): { icon?: React.ReactNode; text: 
       return { icon: <BarChart3 className="w-3.5 h-3.5 flex-shrink-0" />, text: `${prefix}Enquete` }
     case 'sticker':
       return { icon: <Smile className="w-3.5 h-3.5 flex-shrink-0" />, text: `${prefix}Figurinha` }
+    case 'reaction': {
+      const emoji = msg.reaction_emoji || '❤️'
+      const body = msg.body || ''
+      return { text: `${prefix}Reagiu com ${emoji} a: "${body.slice(0, 30)}${body.length > 30 ? '...' : ''}"` }
+    }
     default:
       return { text: `${prefix}${(msg.body || '').slice(0, 50)}` }
   }
