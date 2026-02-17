@@ -12,7 +12,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/providers/AuthProvider'
 import { subDays } from 'date-fns'
 
-export type PeriodoMetricas = 'hoje' | '7d' | '30d' | '60d' | '90d'
+export type PeriodoMetricas = 'todos' | 'hoje' | '7d' | '30d' | '60d' | '90d'
 
 interface MetricasFilters {
   periodo: PeriodoMetricas
@@ -31,7 +31,8 @@ export interface EmailsMetricas {
   mediaPrimeiraAbertura: number | null // minutos
 }
 
-function getPeriodoDate(periodo: PeriodoMetricas): Date {
+function getPeriodoDate(periodo: PeriodoMetricas): Date | null {
+  if (periodo === 'todos') return null
   const now = new Date()
   switch (periodo) {
     case 'hoje': return subDays(now, 1)
@@ -55,7 +56,8 @@ export function formatDuracao(minutos: number | null): string {
 }
 
 async function fetchMetricas(filters: MetricasFilters): Promise<EmailsMetricas> {
-  const dataInicio = getPeriodoDate(filters.periodo).toISOString()
+  const periodoDate = getPeriodoDate(filters.periodo)
+  const dataInicio = periodoDate?.toISOString() || null
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Não autenticado')
@@ -71,22 +73,24 @@ async function fetchMetricas(filters: MetricasFilters): Promise<EmailsMetricas> 
   const orgId = usuario.organizacao_id
 
   // Buscar emails enviados no período
-  const { data: enviados, count: enviadosCount } = await supabase
+  let enviadosQuery = supabase
     .from('emails_recebidos')
     .select('id, total_aberturas, aberto_em, data_email, thread_id', { count: 'exact' })
     .eq('organizacao_id', orgId)
     .eq('pasta', 'sent')
     .is('deletado_em', null)
-    .gte('data_email', dataInicio)
+  if (dataInicio) enviadosQuery = enviadosQuery.gte('data_email', dataInicio)
+  const { data: enviados, count: enviadosCount } = await enviadosQuery
 
   // Buscar emails recebidos no período
-  const { count: recebidosCount } = await supabase
+  let recebidosQuery = supabase
     .from('emails_recebidos')
     .select('id', { count: 'exact', head: true })
     .eq('organizacao_id', orgId)
     .eq('pasta', 'inbox')
     .is('deletado_em', null)
-    .gte('data_email', dataInicio)
+  if (dataInicio) recebidosQuery = recebidosQuery.gte('data_email', dataInicio)
+  const { count: recebidosCount } = await recebidosQuery
 
   const enviadosList = enviados || []
   const totalEnviados = enviadosCount || 0
@@ -151,13 +155,14 @@ async function fetchMetricas(filters: MetricasFilters): Promise<EmailsMetricas> 
   // Simplificado por performance — pode ser expandido futuramente
 
   // Com anexos no período
-  const { count: comAnexosCount } = await supabase
+  let comAnexosQuery = supabase
     .from('emails_recebidos')
     .select('id', { count: 'exact', head: true })
     .eq('organizacao_id', orgId)
     .eq('tem_anexos', true)
     .is('deletado_em', null)
-    .gte('data_email', dataInicio)
+  if (dataInicio) comAnexosQuery = comAnexosQuery.gte('data_email', dataInicio)
+  const { count: comAnexosCount } = await comAnexosQuery
 
   // Favoritos
   const { count: favoritosCount } = await supabase
