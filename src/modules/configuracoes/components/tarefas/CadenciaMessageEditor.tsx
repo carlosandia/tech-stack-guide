@@ -263,6 +263,8 @@ export function CadenciaMessageEditor({
 export function htmlToWhatsApp(html: string): string {
   if (!html) return ''
   let text = html
+  // Remove image tags (handled separately)
+  text = text.replace(/<img[^>]*>/gi, '')
   // Bold
   text = text.replace(/<strong>(.*?)<\/strong>/gi, '*$1*')
   text = text.replace(/<b>(.*?)<\/b>/gi, '*$1*')
@@ -287,4 +289,20 @@ export function htmlToWhatsApp(html: string): string {
   text = text.replace(/&quot;/g, '"')
   // Trim extra whitespace
   return text.trim()
+}
+
+/**
+ * Extrai URLs de imagens do HTML
+ */
+export function extractImagesFromHtml(html: string): string[] {
+  if (!html) return []
+  const urls: string[] = []
+  const regex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi
+  let match
+  while ((match = regex.exec(html)) !== null) {
+    if (match[1] && !match[1].startsWith('data:')) {
+      urls.push(match[1])
+    }
+  }
+  return urls
 }

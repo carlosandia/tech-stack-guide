@@ -11,7 +11,7 @@ import { Send, Loader2, AlertTriangle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { htmlToWhatsApp } from '@/modules/configuracoes/components/tarefas/CadenciaMessageEditor'
+import { htmlToWhatsApp, extractImagesFromHtml } from '@/modules/configuracoes/components/tarefas/CadenciaMessageEditor'
 
 interface TarefaCadencia {
   id: string
@@ -147,15 +147,40 @@ export function TarefaEnvioInline({ tarefa, onEnviado, onCancelar }: TarefaEnvio
         // Formatar chat_id
         const telefoneNumeros = contato.telefone.replace(/\D/g, '')
         const chatId = `${telefoneNumeros}@c.us`
+        const sessionName = sessoes[0].session_name
 
-        const { error } = await supabase.functions.invoke('waha-proxy', {
-          body: {
-            action: 'enviar_mensagem',
-            session_name: sessoes[0].session_name,
-            chat_id: chatId,
-            text: htmlToWhatsApp(mensagem),
-          },
-        })
+        // Extrair imagens do HTML antes de converter
+        const imageUrls = extractImagesFromHtml(mensagem)
+        const textoWa = htmlToWhatsApp(mensagem)
+
+        // Enviar texto se houver
+        if (textoWa) {
+          const { error: txtErr } = await supabase.functions.invoke('waha-proxy', {
+            body: {
+              action: 'enviar_mensagem',
+              session_name: sessionName,
+              chat_id: chatId,
+              text: textoWa,
+            },
+          })
+          if (txtErr) throw txtErr
+        }
+
+        // Enviar cada imagem como mídia
+        for (const imgUrl of imageUrls) {
+          const { error: imgErr } = await supabase.functions.invoke('waha-proxy', {
+            body: {
+              action: 'enviar_media',
+              session_name: sessionName,
+              chat_id: chatId,
+              media_url: imgUrl,
+              media_type: 'image',
+            },
+          })
+          if (imgErr) console.error('Erro ao enviar imagem WhatsApp:', imgErr)
+        }
+
+        const error = null as any
 
         if (error) throw error
       } else if (isEmail && contato?.email) {
