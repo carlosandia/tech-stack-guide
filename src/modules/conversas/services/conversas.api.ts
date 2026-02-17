@@ -715,7 +715,8 @@ export const conversasApi = {
   // =====================================================
 
   /** Fixar mensagem no chat via WAHA + marcar no banco */
-  async fixarMensagem(conversaId: string, mensagemId: string, messageWahaId: string): Promise<void> {
+  async fixarMensagem(conversaId: string, mensagemId: string, messageWahaId: string): Promise<{ localOnly: boolean }> {
+    let localOnly = false
     const session = await getConversaWahaSession(conversaId)
     if (session) {
       const { data, error } = await supabase.functions.invoke('waha-proxy', {
@@ -728,10 +729,14 @@ export const conversasApi = {
       })
       if (error) {
         console.warn('[conversasApi] WAHA fixar_mensagem falhou:', error)
+        localOnly = true
       }
       if (data?.waha_unsupported) {
-        console.warn('[conversasApi] Fixar não suportado pelo engine NOWEB, salvando localmente')
+        console.warn('[conversasApi] Fixar não suportado pelo engine atual, salvando localmente')
+        localOnly = true
       }
+    } else {
+      localOnly = true
     }
 
     // Desafixar qualquer mensagem previamente fixada nesta conversa
@@ -746,6 +751,8 @@ export const conversasApi = {
       .from('mensagens')
       .update({ fixada: true })
       .eq('id', mensagemId)
+
+    return { localOnly }
   },
 
   /** Desafixar mensagem no chat via WAHA + desmarcar no banco */

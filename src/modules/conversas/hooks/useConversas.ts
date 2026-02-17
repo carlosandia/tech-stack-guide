@@ -211,9 +211,13 @@ export function useFixarMensagem() {
     mutationFn: ({ conversaId, mensagemId, messageWahaId }: {
       conversaId: string; mensagemId: string; messageWahaId: string
     }) => conversasApi.fixarMensagem(conversaId, mensagemId, messageWahaId),
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['mensagens'] })
-      toast.success('Mensagem fixada')
+      if (result.localOnly) {
+        toast.info('Mensagem fixada apenas no CRM. O engine GOWS não suporta fixar no WhatsApp.')
+      } else {
+        toast.success('Mensagem fixada')
+      }
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Erro ao fixar mensagem')
