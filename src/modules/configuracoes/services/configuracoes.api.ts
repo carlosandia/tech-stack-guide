@@ -1395,6 +1395,30 @@ export const integracoesApi = {
         body: { action: 'disconnect' },
       })
       if (error) throw new Error(error.message || 'Erro ao desconectar Google')
+    } else if (routePlataforma === 'email') {
+      // Soft delete na conexao email
+      if (_id) {
+        await supabase
+          .from('conexoes_email')
+          .update({ deletado_em: new Date().toISOString(), status: 'desconectado' })
+          .eq('id', _id)
+      }
+    } else if (routePlataforma === 'instagram') {
+      // Soft delete na conexao instagram
+      if (_id) {
+        await supabase
+          .from('conexoes_instagram')
+          .update({ deletado_em: new Date().toISOString(), status: 'desconectado' })
+          .eq('id', _id)
+      }
+    } else if (routePlataforma === 'meta') {
+      // Soft delete na conexao meta
+      if (_id) {
+        await supabase
+          .from('conexoes_meta')
+          .update({ deletado_em: new Date().toISOString(), status: 'desconectado' })
+          .eq('id', _id)
+      }
     } else {
       await api.delete(`/v1/conexoes/${routePlataforma}`)
     }
