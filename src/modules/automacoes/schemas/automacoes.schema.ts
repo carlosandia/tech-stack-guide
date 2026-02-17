@@ -16,6 +16,7 @@ export const TRIGGER_CATEGORIAS = [
   { key: 'formularios', label: 'Formulários' },
   { key: 'comunicacao', label: 'Comunicação' },
   { key: 'distribuicao', label: 'Distribuição' },
+  { key: 'webhooks', label: 'Webhooks' },
 ] as const
 
 export const TRIGGER_TIPOS = [
@@ -45,6 +46,8 @@ export const TRIGGER_TIPOS = [
   { tipo: 'conversa_finalizada', label: 'Conversa finalizada', categoria: 'comunicacao', icon: 'CheckSquare' },
   // Distribuição
   { tipo: 'sla_distribuicao_expirado', label: 'SLA de distribuição expirado', categoria: 'distribuicao', icon: 'Clock' },
+  // Webhooks
+  { tipo: 'webhook_recebido', label: 'Webhook externo recebido', categoria: 'webhooks', icon: 'Webhook' },
 ] as const
 
 export type TriggerTipo = typeof TRIGGER_TIPOS[number]['tipo']
