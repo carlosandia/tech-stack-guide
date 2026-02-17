@@ -70,8 +70,22 @@ export function CadenciaAudioRecorder({ audioUrl, onChange }: CadenciaAudioRecor
         setUploading(true)
 
         try {
+          // AIDEV-NOTE: Buscar organizacao_id para cumprir RLS do bucket chat-media
+          const { data: { user } } = await supabase.auth.getUser()
+          const { data: usuario } = await supabase
+            .from('usuarios')
+            .select('organizacao_id')
+            .eq('auth_id', user?.id || '')
+            .single()
+
+          if (!usuario?.organizacao_id) {
+            toast.error('Organização não encontrada')
+            setUploading(false)
+            return
+          }
+
           const ext = mimeType.includes('webm') ? 'webm' : 'mp4'
-          const path = `template-audios/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+          const path = `${usuario.organizacao_id}/template-audios/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
 
           const { data, error } = await supabase.storage
             .from('chat-media')
