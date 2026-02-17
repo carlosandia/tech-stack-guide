@@ -636,28 +636,19 @@ export async function obterLimitesOrganizacao(id: string): Promise<LimitesUso> {
   const usadoOp = opCount || 0
   const usadoContatos = contatosCount || 0
 
-  // Calcular storage usado (soma dos buckets vinculados a org)
-  // AIDEV-NOTE: Lista arquivos nas pastas da org em cada bucket relevante
-  let storageUsadoBytes = 0
-  const bucketsParaContar = ['documentos-oportunidades', 'anotacoes-audio', 'email-anexos', 'chat-media', 'formularios', 'assinaturas']
-  
-  for (const bucketName of bucketsParaContar) {
-    try {
-      const { data: files } = await supabase.storage
-        .from(bucketName)
-        .list(id, { limit: 1000 })
-      if (files && files.length > 0) {
-        for (const file of files) {
-          if (file.metadata?.size) {
-            storageUsadoBytes += Number(file.metadata.size)
-          }
-        }
-      }
-    } catch {
-      // Bucket pode não ter pasta para essa org, ignorar
+  // Calcular storage usado via função do banco (soma real de todos os buckets)
+  // AIDEV-NOTE: Usa função calcular_storage_organizacao que consulta storage.objects
+  let storageUsadoMb = 0
+  try {
+    const { data: storageBytes } = await supabase.rpc('calcular_storage_organizacao', {
+      p_organizacao_id: id,
+    })
+    if (storageBytes && typeof storageBytes === 'number') {
+      storageUsadoMb = storageBytes / (1024 * 1024)
     }
+  } catch {
+    // Fallback: 0 se a função não existir ou falhar
   }
-  const storageUsadoMb = storageUsadoBytes / (1024 * 1024)
 
   return {
     usuarios: {
@@ -671,7 +662,7 @@ export async function obterLimitesOrganizacao(id: string): Promise<LimitesUso> {
       percentual: limiteOp ? (usadoOp / limiteOp) * 100 : null,
     },
     storage: {
-      usado_mb: storageUsadoMb,
+      usado_mb: Math.round(storageUsadoMb * 100) / 100,
       limite_mb: limiteStorage,
       percentual: limiteStorage ? (storageUsadoMb / limiteStorage) * 100 : null,
     },

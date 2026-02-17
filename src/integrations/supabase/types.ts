@@ -7754,6 +7754,10 @@ export type Database = {
       }
     }
     Functions: {
+      calcular_storage_organizacao: {
+        Args: { p_organizacao_id: string }
+        Returns: number
+      }
       criar_campos_sistema: {
         Args: { p_criado_por: string; p_organizacao_id: string }
         Returns: undefined
