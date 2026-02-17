@@ -1688,6 +1688,9 @@ Deno.serve(async (req) => {
       let newContato;
       let contatoError;
       
+      // AIDEV-NOTE: INSERT com tratamento de race condition (constraint 23505)
+      // Se duas requests concorrentes tentarem criar o mesmo contato,
+      // a segunda falha com unique violation e faz SELECT de retry.
       ({ data: newContato, error: contatoError } = await supabaseAdmin
         .from("contatos")
         .insert({
@@ -1701,9 +1704,25 @@ Deno.serve(async (req) => {
         .select("id")
         .single());
 
-      // Correção 3: Fallback para status "novo" se pre_lead falhar (constraint)
+      // Constraint violation (23505) = contato já criado por request concorrente
+      if (contatoError && contatoError.code === "23505") {
+        console.warn(`[waha-webhook] Duplicate constraint hit for ${phoneNumber}, fetching existing contato`);
+        const { data: existingContato } = await supabaseAdmin
+          .from("contatos")
+          .select("id")
+          .eq("organizacao_id", sessao.organizacao_id)
+          .eq("telefone", phoneNumber)
+          .is("deletado_em", null)
+          .single();
+        if (existingContato) {
+          newContato = existingContato;
+          contatoError = null;
+        }
+      }
+
+      // Fallback: se falhou por outro motivo, tentar com status "novo"
       if (contatoError) {
-        console.warn(`[waha-webhook] pre_lead failed (${contatoError.message}), retrying with status=novo`);
+        console.warn(`[waha-webhook] Insert failed (${contatoError.message}), retrying with status=novo`);
         ({ data: newContato, error: contatoError } = await supabaseAdmin
           .from("contatos")
           .insert({
@@ -1716,10 +1735,25 @@ Deno.serve(async (req) => {
           })
           .select("id")
           .single());
+
+        // Retry constraint violation novamente
+        if (contatoError && contatoError.code === "23505") {
+          const { data: existingContato } = await supabaseAdmin
+            .from("contatos")
+            .select("id")
+            .eq("organizacao_id", sessao.organizacao_id)
+            .eq("telefone", phoneNumber)
+            .is("deletado_em", null)
+            .single();
+          if (existingContato) {
+            newContato = existingContato;
+            contatoError = null;
+          }
+        }
       }
 
       if (contatoError || !newContato) {
-        console.error(`[waha-webhook] Error creating contato (both statuses failed):`, contatoError?.message);
+        console.error(`[waha-webhook] Error creating contato:`, contatoError?.message);
         return new Response(
           JSON.stringify({ ok: true, message: "Error creating contact" }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }

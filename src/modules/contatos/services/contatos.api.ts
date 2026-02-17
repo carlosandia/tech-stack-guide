@@ -567,14 +567,30 @@ export const contatosApi = {
       }
     }
 
-    // Retornar apenas duplicatas (2+ contatos)
-    const duplicatas = Object.entries(groups)
+    // AIDEV-NOTE: Retornar apenas duplicatas (2+ contatos), deduplicando entre grupos
+    // Prioridade: email > telefone (contato aparece em no máximo 1 grupo)
+    const rawDuplicatas = Object.entries(groups)
       .filter(([, items]) => items.length > 1)
       .map(([key, items]) => ({
         campo: key.startsWith('email:') ? 'email' : 'telefone',
         valor: key.split(':')[1],
         contatos: items,
       }))
+      // Ordenar email primeiro para priorizar
+      .sort((a, b) => (a.campo === 'email' ? -1 : 1) - (b.campo === 'email' ? -1 : 1))
+
+    // Deduplicar: cada contato aparece em no máximo 1 grupo
+    const seenIds = new Set<string>()
+    const duplicatas = rawDuplicatas
+      .map(grupo => ({
+        ...grupo,
+        contatos: grupo.contatos.filter(c => !seenIds.has(c.id)),
+      }))
+      .filter(grupo => {
+        if (grupo.contatos.length < 2) return false
+        grupo.contatos.forEach(c => seenIds.add(c.id))
+        return true
+      })
 
     return { duplicatas, total: duplicatas.length }
   },
