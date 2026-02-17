@@ -809,21 +809,31 @@ export const conversasApi = {
   /** Encaminhar mensagem para outra conversa via WAHA */
   async encaminharMensagem(conversaId: string, messageWahaId: string, destinoChatId: string): Promise<void> {
     const session = await getConversaWahaSession(conversaId)
-    if (session) {
-      try {
-        await supabase.functions.invoke('waha-proxy', {
-          body: {
-            action: 'encaminhar_mensagem',
-            session_name: session.sessionName,
-            chat_id: session.chatId,
-            message_id: messageWahaId,
-            destino_chat_id: destinoChatId,
-          },
-        })
-      } catch (e) {
-        console.warn('[conversasApi] WAHA encaminhar_mensagem falhou:', e)
-        throw new Error('Erro ao encaminhar mensagem')
-      }
+    if (!session) {
+      throw new Error('Sessão WhatsApp não encontrada para esta conversa')
+    }
+
+    const { data, error } = await supabase.functions.invoke('waha-proxy', {
+      body: {
+        action: 'encaminhar_mensagem',
+        session_name: session.sessionName,
+        chat_id: session.chatId,
+        message_id: messageWahaId,
+        destino_chat_id: destinoChatId,
+      },
+    })
+
+    if (error) {
+      console.error('[conversasApi] WAHA encaminhar_mensagem falhou:', error)
+      throw new Error('Erro ao encaminhar mensagem')
+    }
+
+    if (data?.waha_unsupported) {
+      throw new Error('Encaminhamento não suportado pelo engine atual')
+    }
+
+    if (!data?.ok) {
+      throw new Error('Falha ao encaminhar mensagem no WhatsApp')
     }
   },
 

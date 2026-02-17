@@ -250,6 +250,7 @@ export const ConversasPage = forwardRef<HTMLDivElement>(function ConversasPage(_
                 onBack={() => setConversaAtivaId(null)}
                 onOpenDrawer={() => setDrawerAberto(true)}
                 onConversaApagada={() => setConversaAtivaId(null)}
+                onNavigateConversa={(id) => setConversaAtivaId(id)}
               />
               <ContatoDrawer
                 conversa={conversaAtiva}
