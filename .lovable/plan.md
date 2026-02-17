@@ -1,38 +1,36 @@
 
 
-# Correcao: Filtrar Duplicatas Apenas para Contatos Reais
+# Correcao: Preservar Mapeamento ao Trocar Tipo de Contato
 
 ## Problema
 
-A funcao `duplicatas` em `src/modules/contatos/services/contatos.api.ts` (linha 542) busca **todos** os contatos da tabela, incluindo os com status `pre_lead`. Contatos `pre_lead` sao criados automaticamente por conversas e widgets, e nao sao contatos reais do modulo `/contatos/pessoas`. Isso gera deteccao de duplicatas entre um contato real e uma conversa, que e incorreto.
+Na etapa 2 do modal de importacao, ao trocar o "Tipo de Contato" entre Pessoa e Empresa, o mapeamento feito pelo usuario e descartado. Isso acontece porque o estado `mapping` nao e recalculado ao mudar o tipo -- os valores mapeados para campos de "Pessoa" (ex: `nome`, `sobrenome`) nao existem na lista de "Empresa" (ex: `razao_social`, `cnpj`), entao os selects voltam para "Ignorar".
 
-## Correcao
+## Solucao
 
-### Arquivo: `src/modules/contatos/services/contatos.api.ts`
+### Arquivo: `src/modules/contatos/components/ImportarContatosModal.tsx`
 
-Na funcao `duplicatas` (linha 544-548), adicionar filtro para excluir contatos com status `pre_lead`:
+1. **Recalcular o mapeamento automaticamente** ao trocar o tipo de contato (linha 313). Quando o usuario muda de Pessoa para Empresa (ou vice-versa):
+   - Manter mapeamentos para campos que existem em ambos os tipos (ex: `email`, `telefone`, `observacoes`)
+   - Remover mapeamentos de campos exclusivos do tipo anterior (ex: `nome` so existe em Pessoa, `razao_social` so existe em Empresa)
+   - Executar o auto-map novamente para tentar mapear headers restantes aos novos campos disponiveis
 
-**Antes:**
-```typescript
-const { data, error } = await supabase
-  .from('contatos')
-  .select('id, nome, sobrenome, email, telefone, tipo, status, criado_em')
-  .is('deletado_em', null)
-  .order('email')
+2. **Extrair o handler de mudanca de tipo** em uma funcao dedicada para manter o codigo organizado.
+
+### Logica detalhada
+
+```text
+Ao mudar tipoContato:
+  1. Obter lista de campos validos do novo tipo
+  2. Filtrar mapping atual: manter apenas entries cujo valor existe nos campos do novo tipo
+  3. Re-executar auto-map para headers ainda nao mapeados
+  4. Atualizar mapping com o resultado
 ```
 
-**Depois:**
-```typescript
-const { data, error } = await supabase
-  .from('contatos')
-  .select('id, nome, sobrenome, email, telefone, tipo, status, criado_em')
-  .is('deletado_em', null)
-  .neq('status', 'pre_lead')
-  .order('email')
-```
+### Campos compartilhados entre Pessoa e Empresa
+- `email`, `telefone`, `observacoes` -- serao preservados na troca
 
-## Impacto
+### Campos exclusivos (serao removidos na troca)
+- Pessoa: `nome`, `sobrenome`, `cargo`, `linkedin_url`
+- Empresa: `razao_social`, `nome_fantasia`, `cnpj`, `website`, `segmento`, `porte`
 
-- Duplicatas serao detectadas apenas entre contatos reais (status: novo, lead, mql, sql, cliente, perdido)
-- Conversas que ainda nao viraram contatos (pre_lead) serao ignoradas
-- Uma unica linha adicionada, sem risco de regressao
