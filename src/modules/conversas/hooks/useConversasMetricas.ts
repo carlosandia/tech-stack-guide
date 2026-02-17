@@ -5,6 +5,9 @@
  * - Produtividade: Total, Msgs enviadas/recebidas, Por vendedor, Taxa resolução
  * - Qualidade: Tempo resolução, Conversão, Por canal
  * Visibilidade: admin vê tudo, member vê só suas métricas
+ *
+ * AIDEV-NOTE: Usa count queries para enviadas/recebidas (contorna limite 1000 rows)
+ * e batches de 10 conversas com limit alto para TMR/TMA
  */
 
 import { useQuery } from '@tanstack/react-query'
@@ -12,46 +15,49 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/providers/AuthProvider'
 import { subDays } from 'date-fns'
 
-export type PeriodoMetricas = 'hoje' | '7d' | '30d' | '60d' | '90d'
+export type PeriodoMetricas = 'hoje' | '7d' | '30d' | '60d' | '90d' | 'custom'
 export type CanalFiltro = 'todos' | 'whatsapp' | 'instagram'
 
 interface MetricasFilters {
   periodo: PeriodoMetricas
   canal: CanalFiltro
-  vendedorId?: string // undefined = todos (admin only)
+  vendedorId?: string
+  dataInicio?: string // ISO string para periodo custom
+  dataFim?: string    // ISO string para periodo custom
 }
 
 export interface ConversasMetricas {
-  // Velocidade
-  tempoMedioPrimeiraResposta: number | null // minutos
-  tempoMedioResposta: number | null // minutos
+  tempoMedioPrimeiraResposta: number | null
+  tempoMedioResposta: number | null
   conversasSemResposta: number
-
-  // Produtividade
   totalConversas: number
   mensagensEnviadas: number
   mensagensRecebidas: number
   conversasPorVendedor: Array<{ usuario_id: string; nome: string; total: number }>
-  taxaResolucao: number // percentual
-
-  // Qualidade
-  tempoMedioResolucao: number | null // minutos
-  taxaConversao: number // percentual (conversas que geraram opp)
+  taxaResolucao: number
+  tempoMedioResolucao: number | null
+  taxaConversao: number
   conversasPorCanal: { whatsapp: number; instagram: number }
 }
 
-function getPeriodoDate(periodo: PeriodoMetricas): Date {
+function getPeriodoRange(filters: MetricasFilters): { inicio: string; fim: string } {
   const now = new Date()
-  switch (periodo) {
-    case 'hoje': return subDays(now, 1)
-    case '7d': return subDays(now, 7)
-    case '30d': return subDays(now, 30)
-    case '60d': return subDays(now, 60)
-    case '90d': return subDays(now, 90)
+  const fim = now.toISOString()
+
+  if (filters.periodo === 'custom') {
+    return {
+      inicio: filters.dataInicio || subDays(now, 30).toISOString(),
+      fim: filters.dataFim || fim,
+    }
   }
+
+  const dias: Record<string, number> = {
+    hoje: 1, '7d': 7, '30d': 30, '60d': 60, '90d': 90,
+  }
+  return { inicio: subDays(now, dias[filters.periodo] ?? 30).toISOString(), fim }
 }
 
-function formatDuracao(minutos: number | null): string {
+export function formatDuracao(minutos: number | null): string {
   if (minutos === null || minutos === 0) return '--'
   if (minutos < 60) return `${Math.round(minutos)}min`
   const horas = Math.floor(minutos / 60)
@@ -62,12 +68,9 @@ function formatDuracao(minutos: number | null): string {
   return horasRestantes > 0 ? `${dias}d ${horasRestantes}h` : `${dias}d`
 }
 
-export { formatDuracao }
-
 async function fetchMetricas(filters: MetricasFilters, role: string): Promise<ConversasMetricas> {
-  const dataInicio = getPeriodoDate(filters.periodo).toISOString()
+  const { inicio: dataInicio } = getPeriodoRange(filters)
 
-  // Helper para obter organizacao_id
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Não autenticado')
 
@@ -83,11 +86,12 @@ async function fetchMetricas(filters: MetricasFilters, role: string): Promise<Co
   const isAdmin = role === 'admin' || role === 'super_admin'
   const usuarioFiltro = (!isAdmin) ? usuario.id : filters.vendedorId
 
-  // 1. Buscar conversas do período
+  // 1. Buscar conversas (somente individuais, excluir grupos)
   let conversasQuery = supabase
     .from('conversas')
-    .select('id, canal, status, usuario_id, primeira_mensagem_em, status_alterado_em, ultima_mensagem_em')
+    .select('id, canal, status, tipo, usuario_id, primeira_mensagem_em, status_alterado_em, ultima_mensagem_em')
     .eq('organizacao_id', orgId)
+    .eq('tipo', 'individual')
     .is('deletado_em', null)
     .gte('ultima_mensagem_em', dataInicio)
 
@@ -102,14 +106,45 @@ async function fetchMetricas(filters: MetricasFilters, role: string): Promise<Co
   const conversasList = conversas || []
   const conversaIds = conversasList.map(c => c.id)
 
-  // 2. Buscar mensagens do período (apenas se há conversas)
-  let mensagensList: Array<{ id: string; conversa_id: string; from_me: boolean; criado_em: string }> = []
+  // 2. Contagens de mensagens via count queries (contorna limite 1000)
+  let mensagensEnviadas = 0
+  let mensagensRecebidas = 0
 
   if (conversaIds.length > 0) {
-    // Buscar em batches de 50 para evitar limite de URL
     const batchSize = 50
     for (let i = 0; i < conversaIds.length; i += batchSize) {
       const batch = conversaIds.slice(i, i + batchSize)
+
+      const [envRes, recRes] = await Promise.all([
+        supabase
+          .from('mensagens')
+          .select('id', { count: 'exact', head: true })
+          .in('conversa_id', batch)
+          .eq('from_me', true)
+          .is('deletado_em', null)
+          .gte('criado_em', dataInicio),
+        supabase
+          .from('mensagens')
+          .select('id', { count: 'exact', head: true })
+          .in('conversa_id', batch)
+          .eq('from_me', false)
+          .is('deletado_em', null)
+          .gte('criado_em', dataInicio),
+      ])
+
+      mensagensEnviadas += envRes.count || 0
+      mensagensRecebidas += recRes.count || 0
+    }
+  }
+
+  // 3. Buscar mensagens para TMR/TMA (batches de 10, limit alto)
+  const tmrValues: number[] = []
+  const tmaValues: number[] = []
+
+  if (conversaIds.length > 0) {
+    const tmaBatchSize = 10
+    for (let i = 0; i < conversaIds.length; i += tmaBatchSize) {
+      const batch = conversaIds.slice(i, i + tmaBatchSize)
       const { data: msgs } = await supabase
         .from('mensagens')
         .select('id, conversa_id, from_me, criado_em')
@@ -117,52 +152,40 @@ async function fetchMetricas(filters: MetricasFilters, role: string): Promise<Co
         .is('deletado_em', null)
         .gte('criado_em', dataInicio)
         .order('criado_em', { ascending: true })
+        .limit(5000)
 
-      if (msgs) mensagensList.push(...msgs)
-    }
-  }
+      if (!msgs) continue
 
-  // 3. Calcular métricas
-
-  // -- Mensagens enviadas/recebidas --
-  const mensagensEnviadas = mensagensList.filter(m => m.from_me).length
-  const mensagensRecebidas = mensagensList.filter(m => !m.from_me).length
-
-  // -- TMR (Tempo Médio de Primeira Resposta) --
-  // Para cada conversa, encontrar a 1a msg do cliente e a 1a resposta do vendedor
-  const tmrValues: number[] = []
-  const tmaValues: number[] = []
-
-  // Agrupar mensagens por conversa
-  const msgsPorConversa = new Map<string, typeof mensagensList>()
-  for (const msg of mensagensList) {
-    const list = msgsPorConversa.get(msg.conversa_id) || []
-    list.push(msg)
-    msgsPorConversa.set(msg.conversa_id, list)
-  }
-
-  for (const [, msgs] of msgsPorConversa) {
-    // Ordenar por criado_em
-    msgs.sort((a, b) => new Date(a.criado_em).getTime() - new Date(b.criado_em).getTime())
-
-    // TMR: primeira msg do cliente -> primeira resposta do vendedor
-    const primeiraCliente = msgs.find(m => !m.from_me)
-    if (primeiraCliente) {
-      const primeiraResposta = msgs.find(m => m.from_me && new Date(m.criado_em) > new Date(primeiraCliente.criado_em))
-      if (primeiraResposta) {
-        const diff = (new Date(primeiraResposta.criado_em).getTime() - new Date(primeiraCliente.criado_em).getTime()) / 60000
-        tmrValues.push(diff)
+      // Agrupar por conversa
+      const msgsPorConversa = new Map<string, typeof msgs>()
+      for (const msg of msgs) {
+        const list = msgsPorConversa.get(msg.conversa_id) || []
+        list.push(msg)
+        msgsPorConversa.set(msg.conversa_id, list)
       }
-    }
 
-    // TMA: para cada msg do cliente, medir tempo até próxima resposta do vendedor
-    for (let i = 0; i < msgs.length; i++) {
-      if (!msgs[i].from_me) {
-        // Encontrar próxima msg from_me
-        const resposta = msgs.slice(i + 1).find(m => m.from_me)
-        if (resposta) {
-          const diff = (new Date(resposta.criado_em).getTime() - new Date(msgs[i].criado_em).getTime()) / 60000
-          tmaValues.push(diff)
+      for (const [, convMsgs] of msgsPorConversa) {
+        // TMR: primeira msg do cliente -> primeira resposta do vendedor
+        const primeiraCliente = convMsgs.find(m => !m.from_me)
+        if (primeiraCliente) {
+          const primeiraResposta = convMsgs.find(
+            m => m.from_me && new Date(m.criado_em) > new Date(primeiraCliente.criado_em)
+          )
+          if (primeiraResposta) {
+            const diff = (new Date(primeiraResposta.criado_em).getTime() - new Date(primeiraCliente.criado_em).getTime()) / 60000
+            tmrValues.push(diff)
+          }
+        }
+
+        // TMA: para cada msg do cliente, medir tempo até próxima resposta
+        for (let j = 0; j < convMsgs.length; j++) {
+          if (!convMsgs[j].from_me) {
+            const resposta = convMsgs.slice(j + 1).find(m => m.from_me)
+            if (resposta) {
+              const diff = (new Date(resposta.criado_em).getTime() - new Date(convMsgs[j].criado_em).getTime()) / 60000
+              tmaValues.push(diff)
+            }
+          }
         }
       }
     }
@@ -176,27 +199,71 @@ async function fetchMetricas(filters: MetricasFilters, role: string): Promise<Co
     ? tmaValues.reduce((a, b) => a + b, 0) / tmaValues.length
     : null
 
-  // -- Conversas sem resposta (última msg é do cliente há mais de 2h) --
+  // 4. Sem Resposta: última msg do cliente há >2h OU conversa sem nenhum from_me
   const agora = new Date()
   let conversasSemResposta = 0
-  for (const [, msgs] of msgsPorConversa) {
-    const ultimaMsg = msgs[msgs.length - 1]
-    if (ultimaMsg && !ultimaMsg.from_me) {
-      const diff = (agora.getTime() - new Date(ultimaMsg.criado_em).getTime()) / 60000
-      if (diff > 120) conversasSemResposta++
+
+  if (conversaIds.length > 0) {
+    // Buscar conversas que não possuem nenhuma mensagem from_me
+    const batchSize = 50
+    const conversasComResposta = new Set<string>()
+
+    for (let i = 0; i < conversaIds.length; i += batchSize) {
+      const batch = conversaIds.slice(i, i + batchSize)
+      const { data: msgsFromMe } = await supabase
+        .from('mensagens')
+        .select('conversa_id')
+        .in('conversa_id', batch)
+        .eq('from_me', true)
+        .is('deletado_em', null)
+        .limit(5000)
+
+      if (msgsFromMe) {
+        for (const m of msgsFromMe) {
+          conversasComResposta.add(m.conversa_id)
+        }
+      }
+    }
+
+    // Conversas nunca respondidas
+    const nuncaRespondidas = conversaIds.filter(id => !conversasComResposta.has(id))
+    conversasSemResposta += nuncaRespondidas.length
+
+    // Conversas com última msg do cliente há >2h (excluindo as já contadas)
+    for (const c of conversasList) {
+      if (nuncaRespondidas.includes(c.id)) continue
+      if (c.ultima_mensagem_em && c.status === 'aberta') {
+        // Precisamos verificar se a última mensagem é do cliente
+        // Usar os dados já obtidos ou fazer query pontual
+        const { data: ultimaMsg } = await supabase
+          .from('mensagens')
+          .select('from_me, criado_em')
+          .eq('conversa_id', c.id)
+          .is('deletado_em', null)
+          .order('criado_em', { ascending: false })
+          .limit(1)
+          .single()
+
+        if (ultimaMsg && !ultimaMsg.from_me) {
+          const diff = (agora.getTime() - new Date(ultimaMsg.criado_em).getTime()) / 60000
+          if (diff > 120) conversasSemResposta++
+        }
+      }
     }
   }
 
-  // -- Taxa de Resolução --
-  const conversasFechadas = conversasList.filter(c => c.status === 'fechada').length
+  // 5. Taxa de Resolução (fechada OU resolvida)
+  const conversasResolvidas = conversasList.filter(
+    c => c.status === 'fechada' || c.status === 'resolvida'
+  ).length
   const taxaResolucao = conversasList.length > 0
-    ? Math.round((conversasFechadas / conversasList.length) * 100)
+    ? Math.round((conversasResolvidas / conversasList.length) * 100)
     : 0
 
-  // -- Tempo Médio de Resolução --
+  // 6. Tempo Médio de Resolução
   const temposResolucao: number[] = []
   for (const c of conversasList) {
-    if (c.status === 'fechada' && c.primeira_mensagem_em && c.status_alterado_em) {
+    if ((c.status === 'fechada' || c.status === 'resolvida') && c.primeira_mensagem_em && c.status_alterado_em) {
       const diff = (new Date(c.status_alterado_em).getTime() - new Date(c.primeira_mensagem_em).getTime()) / 60000
       if (diff > 0) temposResolucao.push(diff)
     }
@@ -205,19 +272,18 @@ async function fetchMetricas(filters: MetricasFilters, role: string): Promise<Co
     ? temposResolucao.reduce((a, b) => a + b, 0) / temposResolucao.length
     : null
 
-  // -- Conversas por Canal --
+  // 7. Conversas por Canal
   const conversasPorCanal = {
     whatsapp: conversasList.filter(c => c.canal === 'whatsapp').length,
     instagram: conversasList.filter(c => c.canal === 'instagram').length,
   }
 
-  // -- Conversas por Vendedor --
+  // 8. Conversas por Vendedor
   const vendedorMap = new Map<string, number>()
   for (const c of conversasList) {
     vendedorMap.set(c.usuario_id, (vendedorMap.get(c.usuario_id) || 0) + 1)
   }
 
-  // Buscar nomes dos vendedores
   const vendedorIds = Array.from(vendedorMap.keys())
   let vendedorNomes = new Map<string, string>()
   if (vendedorIds.length > 0) {
@@ -240,9 +306,6 @@ async function fetchMetricas(filters: MetricasFilters, role: string): Promise<Co
     }))
     .sort((a, b) => b.total - a.total)
 
-  // -- Taxa de Conversão (conversas que geraram oportunidade) --
-  // Simplificação: verificar oportunidades criadas no período que tenham contato_id matching
-  // Por ora, retornar 0 pois requer join com oportunidades via contato_id
   const taxaConversao = 0
 
   return {
@@ -266,7 +329,7 @@ export function useConversasMetricas(filters: MetricasFilters) {
   return useQuery({
     queryKey: ['conversas-metricas', filters, role],
     queryFn: () => fetchMetricas(filters, role || 'member'),
-    staleTime: 5 * 60 * 1000, // 5 minutos
+    staleTime: 5 * 60 * 1000,
     enabled: !!role,
   })
 }
