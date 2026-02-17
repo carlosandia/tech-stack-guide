@@ -6,6 +6,7 @@
 
 import { useState, useRef, useCallback, forwardRef } from 'react'
 import { X, Upload, FileSpreadsheet, ChevronRight, ChevronLeft, AlertTriangle, Loader2 } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { useSegmentos } from '../hooks/useSegmentos'
 import { CORES_SEGMENTOS } from '../schemas/contatos.schema'
@@ -80,6 +81,7 @@ export const ImportarContatosModal = forwardRef<HTMLDivElement, ImportarContatos
   const [importProgress, setImportProgress] = useState<{ current: number; total: number; status: string }>({ current: 0, total: 0, status: '' })
   const fileRef = useRef<HTMLInputElement>(null)
 
+  const queryClient = useQueryClient()
   const { data: segmentosData } = useSegmentos()
   const segmentos = segmentosData?.segmentos || []
 
@@ -204,6 +206,8 @@ export const ImportarContatosModal = forwardRef<HTMLDivElement, ImportarContatos
       }
 
       setImportResult({ importados, erros })
+      // AIDEV-NOTE: Invalidar cache para atualizar listagem imediatamente
+      queryClient.invalidateQueries({ queryKey: ['contatos'] })
       setStep(4)
     } catch (globalErr: any) {
       console.error('[import] Erro geral:', globalErr)
