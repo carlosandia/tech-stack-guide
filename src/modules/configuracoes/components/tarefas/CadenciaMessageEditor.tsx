@@ -1,0 +1,250 @@
+/**
+ * AIDEV-NOTE: Editor de mensagem para Cadência Comercial
+ * Suporta: Emoji, Bold, Italic, Underline, Imagem
+ * Compatível com Email (HTML) e WhatsApp (markdown WhatsApp)
+ */
+
+import { useState, useCallback, useRef, useEffect } from 'react'
+import { useEditor, EditorContent } from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
+import Underline from '@tiptap/extension-underline'
+import Link from '@tiptap/extension-link'
+import Image from '@tiptap/extension-image'
+import ResizeImage from 'tiptap-extension-resize-image'
+import {
+  Bold as BoldIcon,
+  Italic as ItalicIcon,
+  Underline as UnderlineIcon,
+  Strikethrough,
+  List,
+  ListOrdered,
+  Link as LinkIcon,
+  ImagePlus,
+  Smile,
+} from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { supabase } from '@/lib/supabase'
+import { EmojiPicker } from '@/modules/conversas/components/EmojiPicker'
+
+interface CadenciaMessageEditorProps {
+  content: string
+  onChange: (html: string) => void
+  mode: 'email' | 'whatsapp'
+  placeholder?: string
+  minHeight?: string
+  className?: string
+}
+
+export function CadenciaMessageEditor({
+  content,
+  onChange,
+  mode,
+  placeholder: _placeholder,
+  minHeight = '120px',
+  className,
+}: CadenciaMessageEditorProps) {
+  void _placeholder
+  const [emojiOpen, setEmojiOpen] = useState(false)
+  const emojiRef = useRef<HTMLDivElement>(null)
+
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        // WhatsApp suporta bold, italic, strikethrough
+        // Email suporta tudo
+      }),
+      Underline,
+      Link.configure({
+        openOnClick: false,
+        HTMLAttributes: { class: 'text-primary underline' },
+      }),
+      Image.configure({
+        inline: true,
+        allowBase64: true,
+      }),
+      ResizeImage,
+    ],
+    content: content || '',
+    onUpdate: ({ editor: e }) => {
+      onChange(e.getHTML())
+    },
+    editorProps: {
+      attributes: {
+        class: 'prose prose-sm max-w-none focus:outline-none text-foreground [&_p]:my-1 [&_img]:inline-block [&_img]:max-w-full',
+        style: `min-height: ${minHeight}`,
+      },
+    },
+  })
+
+  // Sync external content changes
+  useEffect(() => {
+    if (editor && content !== editor.getHTML()) {
+      editor.commands.setContent(content || '')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Close emoji on outside click
+  useEffect(() => {
+    if (!emojiOpen) return
+    const handler = (e: MouseEvent) => {
+      if (emojiRef.current && !emojiRef.current.contains(e.target as Node)) {
+        setEmojiOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [emojiOpen])
+
+  const handleEmojiSelect = useCallback((emoji: string) => {
+    if (!editor) return
+    editor.chain().focus().insertContent(emoji).run()
+    setEmojiOpen(false)
+  }, [editor])
+
+  const handleImageUpload = useCallback(() => {
+    if (!editor) return
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*'
+    input.onchange = async () => {
+      const file = input.files?.[0]
+      if (!file) return
+
+      const ext = file.name.split('.').pop()
+      const path = `email-images/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+
+      const { data, error } = await supabase.storage
+        .from('email-anexos')
+        .upload(path, file, { contentType: file.type, upsert: true })
+
+      if (error) {
+        // Fallback base64
+        const reader = new FileReader()
+        reader.onload = () => {
+          editor.chain().focus().setImage({ src: reader.result as string }).run()
+        }
+        reader.readAsDataURL(file)
+        return
+      }
+
+      const { data: urlData } = supabase.storage
+        .from('email-anexos')
+        .getPublicUrl(data.path)
+
+      editor.chain().focus().setImage({ src: urlData.publicUrl }).run()
+    }
+    input.click()
+  }, [editor])
+
+  const handleLink = useCallback(() => {
+    if (!editor) return
+    if (editor.isActive('link')) {
+      editor.chain().focus().unsetLink().run()
+      return
+    }
+    const url = window.prompt('URL do link:')
+    if (url) {
+      editor.chain().focus().setLink({ href: url }).run()
+    }
+  }, [editor])
+
+  if (!editor) return null
+
+  const btnClass = (active: boolean) =>
+    cn(
+      'p-1.5 rounded hover:bg-accent transition-colors',
+      active ? 'bg-accent text-primary' : 'text-muted-foreground'
+    )
+
+  return (
+    <div className={cn('border border-input rounded-md overflow-hidden bg-background', className)}>
+      {/* Toolbar */}
+      <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-border/60 bg-muted/30 flex-wrap">
+        <button type="button" onClick={() => editor.chain().focus().toggleBold().run()} className={btnClass(editor.isActive('bold'))} title="Negrito">
+          <BoldIcon className="w-4 h-4" />
+        </button>
+        <button type="button" onClick={() => editor.chain().focus().toggleItalic().run()} className={btnClass(editor.isActive('italic'))} title="Itálico">
+          <ItalicIcon className="w-4 h-4" />
+        </button>
+        {mode === 'email' && (
+          <button type="button" onClick={() => editor.chain().focus().toggleUnderline().run()} className={btnClass(editor.isActive('underline'))} title="Sublinhado">
+            <UnderlineIcon className="w-4 h-4" />
+          </button>
+        )}
+        <button type="button" onClick={() => editor.chain().focus().toggleStrike().run()} className={btnClass(editor.isActive('strike'))} title="Tachado">
+          <Strikethrough className="w-4 h-4" />
+        </button>
+
+        <div className="w-px h-4 bg-border mx-1" />
+
+        {mode === 'email' && (
+          <>
+            <button type="button" onClick={() => editor.chain().focus().toggleBulletList().run()} className={btnClass(editor.isActive('bulletList'))} title="Lista">
+              <List className="w-4 h-4" />
+            </button>
+            <button type="button" onClick={() => editor.chain().focus().toggleOrderedList().run()} className={btnClass(editor.isActive('orderedList'))} title="Lista numerada">
+              <ListOrdered className="w-4 h-4" />
+            </button>
+            <button type="button" onClick={handleLink} className={btnClass(editor.isActive('link'))} title="Link">
+              <LinkIcon className="w-4 h-4" />
+            </button>
+            <div className="w-px h-4 bg-border mx-1" />
+          </>
+        )}
+
+        <button type="button" onClick={handleImageUpload} className={btnClass(false)} title="Inserir imagem">
+          <ImagePlus className="w-4 h-4" />
+        </button>
+
+        {/* Emoji */}
+        <div className="relative" ref={emojiRef}>
+          <button type="button" onClick={() => setEmojiOpen(!emojiOpen)} className={btnClass(emojiOpen)} title="Emoji">
+            <Smile className="w-4 h-4" />
+          </button>
+          {emojiOpen && (
+            <div className="absolute left-0 bottom-full mb-1 z-50">
+              <EmojiPicker onSelect={handleEmojiSelect} onClose={() => setEmojiOpen(false)} />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Editor */}
+      <EditorContent editor={editor} className="px-3 py-2" />
+    </div>
+  )
+}
+
+/**
+ * Converte HTML do TipTap para formatação WhatsApp
+ * *bold* _italic_ ~strikethrough~
+ */
+export function htmlToWhatsApp(html: string): string {
+  if (!html) return ''
+  let text = html
+  // Bold
+  text = text.replace(/<strong>(.*?)<\/strong>/gi, '*$1*')
+  text = text.replace(/<b>(.*?)<\/b>/gi, '*$1*')
+  // Italic
+  text = text.replace(/<em>(.*?)<\/em>/gi, '_$1_')
+  text = text.replace(/<i>(.*?)<\/i>/gi, '_$1_')
+  // Strikethrough
+  text = text.replace(/<s>(.*?)<\/s>/gi, '~$1~')
+  text = text.replace(/<del>(.*?)<\/del>/gi, '~$1~')
+  // Line breaks
+  text = text.replace(/<br\s*\/?>/gi, '\n')
+  text = text.replace(/<\/p>\s*<p>/gi, '\n\n')
+  // Lists
+  text = text.replace(/<li>(.*?)<\/li>/gi, '• $1\n')
+  // Strip remaining HTML tags
+  text = text.replace(/<[^>]*>/g, '')
+  // Decode HTML entities
+  text = text.replace(/&amp;/g, '&')
+  text = text.replace(/&lt;/g, '<')
+  text = text.replace(/&gt;/g, '>')
+  text = text.replace(/&nbsp;/g, ' ')
+  text = text.replace(/&quot;/g, '"')
+  // Trim extra whitespace
+  return text.trim()
+}

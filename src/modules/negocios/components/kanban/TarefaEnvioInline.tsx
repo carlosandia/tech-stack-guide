@@ -3,6 +3,7 @@
  * Resolve destinatário via oportunidade -> contato
  * Envia via waha-proxy (WhatsApp) ou send-email (E-mail)
  * Marca tarefa como concluída após envio bem-sucedido
+ * Suporta HTML para email e converte para formatação WhatsApp
  */
 
 import { useState, useEffect } from 'react'
@@ -10,6 +11,7 @@ import { Send, Loader2, AlertTriangle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import { htmlToWhatsApp } from '@/modules/configuracoes/components/tarefas/CadenciaMessageEditor'
 
 interface TarefaCadencia {
   id: string
@@ -151,7 +153,7 @@ export function TarefaEnvioInline({ tarefa, onEnviado, onCancelar }: TarefaEnvio
             action: 'enviar_mensagem',
             session_name: sessoes[0].session_name,
             chat_id: chatId,
-            text: mensagem,
+            text: htmlToWhatsApp(mensagem),
           },
         })
 
@@ -162,7 +164,7 @@ export function TarefaEnvioInline({ tarefa, onEnviado, onCancelar }: TarefaEnvio
             to: contato.email,
             subject: assunto,
             body: mensagem,
-            body_type: 'text',
+            body_type: 'html',
           },
         })
 
