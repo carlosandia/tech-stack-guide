@@ -545,6 +545,7 @@ export const contatosApi = {
       .from('contatos')
       .select('id, nome, sobrenome, email, telefone, tipo, status, criado_em')
       .is('deletado_em', null)
+      .neq('status', 'pre_lead')
       .order('email')
 
     if (error) throw new Error(error.message)
