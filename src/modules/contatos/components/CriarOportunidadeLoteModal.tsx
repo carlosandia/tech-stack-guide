@@ -8,7 +8,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { Target, Loader2, Check, AlertTriangle } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { useFunis, useFunilComEtapas } from '@/modules/negocios/hooks/useFunis'
-import { negociosApi } from '@/modules/negocios/services/negocios.api'
+// AIDEV-NOTE: negociosApi removido - membros agora buscados diretamente da tabela usuarios
 import { useCriarOportunidadesLote } from '../hooks/useContatos'
 
 type DistribuicaoTipo = 'nenhuma' | 'rodizio' | 'manual'
@@ -46,31 +46,19 @@ export function CriarOportunidadeLoteModal({ open, onClose, selectedIds, onSucce
   const totalContatos = selectedIds.length
   const excedeLimite = totalContatos > 100
 
-  // Carregar membros do funil ao selecionar pipeline
+  // Carregar todos os membros ativos do tenant (role member ou admin)
   useEffect(() => {
     if (!selectedFunilId) return
     setLoadingMembros(true)
-    // Buscar membros vinculados ao funil via funis_membros
     import('@/lib/supabase').then(({ supabase }) => {
       supabase
-        .from('funis_membros')
-        .select('usuario_id')
-        .eq('funil_id', selectedFunilId)
-        .eq('ativo', true)
-        .then(async ({ data: vinculados }) => {
-          if (!vinculados || vinculados.length === 0) {
-            // Fallback: buscar todos membros do tenant
-            const allMembros = await negociosApi.listarMembros()
-            setMembros(allMembros)
-          } else {
-            const ids = vinculados.map(v => v.usuario_id)
-            const { data: usuarios } = await supabase
-              .from('usuarios')
-              .select('id, nome, sobrenome')
-              .in('id', ids)
-              .eq('status', 'ativo')
-            setMembros((usuarios || []) as Membro[])
-          }
+        .from('usuarios')
+        .select('id, nome, sobrenome')
+        .in('role', ['member', 'admin'])
+        .eq('status', 'ativo')
+        .is('deletado_em', null)
+        .then(({ data: usuarios }) => {
+          setMembros((usuarios || []) as Membro[])
           setLoadingMembros(false)
         })
     })
