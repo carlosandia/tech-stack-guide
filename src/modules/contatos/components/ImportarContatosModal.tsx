@@ -310,7 +310,34 @@ export const ImportarContatosModal = forwardRef<HTMLDivElement, ImportarContatos
                 <label className="block text-sm font-medium text-foreground mb-1.5">Tipo de Contato</label>
                 <select
                   value={tipoContato}
-                  onChange={(e) => setTipoContato(e.target.value as TipoContato)}
+                  onChange={(e) => {
+                    const novoTipo = e.target.value as TipoContato
+                    setTipoContato(novoTipo)
+                    // AIDEV-NOTE: Recalcular mapeamento ao trocar tipo de contato
+                    const novosCampos = novoTipo === 'pessoa' ? CAMPOS_PESSOA : CAMPOS_EMPRESA
+                    const valoresValidos = new Set(novosCampos.map(c => c.value).filter(Boolean))
+                    // Preservar mapeamentos cujo campo existe no novo tipo
+                    const mappingPreservado: Record<string, string> = {}
+                    Object.entries(mapping).forEach(([header, campo]) => {
+                      if (campo && valoresValidos.has(campo)) {
+                        mappingPreservado[header] = campo
+                      }
+                    })
+                    // Re-executar auto-map para headers ainda não mapeados
+                    const headersMapeados = new Set(Object.keys(mappingPreservado).filter(h => mappingPreservado[h]))
+                    const camposUsados = new Set(Object.values(mappingPreservado).filter(Boolean))
+                    parsedData.headers.forEach(h => {
+                      if (!headersMapeados.has(h) || !mappingPreservado[h]) {
+                        const hl = h.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                        const match = novosCampos.find(c => c.value && !camposUsados.has(c.value) && hl.includes(c.value.replace('_', '')))
+                        if (match) {
+                          mappingPreservado[h] = match.value
+                          camposUsados.add(match.value)
+                        }
+                      }
+                    })
+                    setMapping(mappingPreservado)
+                  }}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 >
                   <option value="pessoa">Pessoa</option>
