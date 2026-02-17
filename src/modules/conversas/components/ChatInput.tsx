@@ -2,6 +2,7 @@
  * AIDEV-NOTE: Barra de entrada de mensagem com tabs (Responder/Nota Privada)
  * Estilo WhatsApp: textarea expansível, Enter=enviar, Shift+Enter=nova linha
  * Integra AudioRecorder inline quando gravação está ativa
+ * Ícones dentro da caixa de texto para visual mais moderno e compacto
  */
 
 import { useState, useRef, useCallback, forwardRef, type KeyboardEvent, type ClipboardEvent } from 'react'
@@ -67,7 +68,6 @@ export const ChatInput = forwardRef<HTMLDivElement, ChatInputProps>(function Cha
         onFileSelected(file, tipo)
       }
     }
-    // Text paste is handled natively
   }, [onFileSelected])
 
   const handleSend = () => {
@@ -175,77 +175,83 @@ export const ChatInput = forwardRef<HTMLDivElement, ChatInputProps>(function Cha
             onCancel={() => setIsRecording(false)}
           />
         ) : (
-          <div className="flex items-end gap-1 sm:gap-2">
-            {/* Action buttons (only for reply mode) */}
-            {!isNota && (
-              <div className="flex items-center gap-0 relative">
-                {/* Emoji picker button */}
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setEmojiOpen(!emojiOpen)}
-                    className={`p-1.5 sm:p-2 rounded-md transition-all duration-200 ${
-                      emojiOpen ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                    }`}
-                    title="Emojis"
-                  >
-                    <Smile className="w-4 h-4" />
-                  </button>
-                  {emojiOpen && (
-                    <>
-                      <div className="fixed inset-0 z-40" onClick={() => setEmojiOpen(false)} />
-                      <div className="absolute bottom-12 left-0 z-50">
-                        <EmojiPicker
-                          onSelect={(emoji) => {
-                            if (tab === 'responder') {
-                              const el = textareaRef.current
-                              if (el) {
-                                const start = el.selectionStart
-                                const end = el.selectionEnd
-                                const newText = texto.slice(0, start) + emoji + texto.slice(end)
-                                setTexto(newText)
-                                requestAnimationFrame(() => {
-                                  el.selectionStart = el.selectionEnd = start + emoji.length
-                                  el.focus()
-                                })
+          <div className="flex items-end gap-1.5 sm:gap-2">
+            {/* Input container with icons inside */}
+            <div className={`
+              flex-1 flex items-end rounded-lg border transition-colors
+              ${isNota
+                ? 'bg-warning-muted/20 border-warning/30 focus-within:ring-1 focus-within:ring-warning/50'
+                : 'bg-background border-border focus-within:ring-1 focus-within:ring-ring'
+              }
+            `}>
+              {/* Left icons inside input (only for reply mode) */}
+              {!isNota && (
+                <div className="flex items-center gap-0 pl-1 pb-[7px] flex-shrink-0">
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setEmojiOpen(!emojiOpen)}
+                      className={`p-1.5 rounded-md transition-all duration-200 ${
+                        emojiOpen ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                      }`}
+                      title="Emojis"
+                    >
+                      <Smile className="w-[18px] h-[18px]" />
+                    </button>
+                    {emojiOpen && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setEmojiOpen(false)} />
+                        <div className="absolute bottom-10 left-0 z-50">
+                          <EmojiPicker
+                            onSelect={(emoji) => {
+                              if (tab === 'responder') {
+                                const el = textareaRef.current
+                                if (el) {
+                                  const start = el.selectionStart
+                                  const end = el.selectionEnd
+                                  const newText = texto.slice(0, start) + emoji + texto.slice(end)
+                                  setTexto(newText)
+                                  requestAnimationFrame(() => {
+                                    el.selectionStart = el.selectionEnd = start + emoji.length
+                                    el.focus()
+                                  })
+                                } else {
+                                  setTexto(t => t + emoji)
+                                }
                               } else {
-                                setTexto(t => t + emoji)
+                                setNotaTexto(t => t + emoji)
                               }
-                            } else {
-                              setNotaTexto(t => t + emoji)
-                            }
-                          }}
-                          onClose={() => setEmojiOpen(false)}
-                        />
-                      </div>
-                    </>
-                  )}
+                            }}
+                            onClose={() => setEmojiOpen(false)}
+                          />
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setAnexosOpen(!anexosOpen)}
+                      className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200"
+                      title="Anexar / Mensagens prontas"
+                    >
+                      <Plus className="w-[18px] h-[18px]" />
+                    </button>
+                    <AnexosMenu
+                      isOpen={anexosOpen}
+                      onClose={() => setAnexosOpen(false)}
+                      onFileSelected={onFileSelected}
+                      onAudioRecord={() => { setAnexosOpen(false); setIsRecording(true) }}
+                      onCamera={() => { setAnexosOpen(false); onOpenCamera() }}
+                      onContato={() => { setAnexosOpen(false); onOpenContato() }}
+                      onEnquete={() => { setAnexosOpen(false); onOpenEnquete() }}
+                      onMensagensProntas={() => { setAnexosOpen(false); onOpenQuickReplies() }}
+                    />
+                  </div>
                 </div>
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setAnexosOpen(!anexosOpen)}
-                    className="p-1.5 sm:p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200"
-                    title="Anexar / Mensagens prontas"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
-                  <AnexosMenu
-                    isOpen={anexosOpen}
-                    onClose={() => setAnexosOpen(false)}
-                    onFileSelected={onFileSelected}
-                    onAudioRecord={() => { setAnexosOpen(false); setIsRecording(true) }}
-                    onCamera={() => { setAnexosOpen(false); onOpenCamera() }}
-                    onContato={() => { setAnexosOpen(false); onOpenContato() }}
-                    onEnquete={() => { setAnexosOpen(false); onOpenEnquete() }}
-                    onMensagensProntas={() => { setAnexosOpen(false); onOpenQuickReplies() }}
-                  />
-                </div>
-              </div>
-            )}
+              )}
 
-            {/* Textarea */}
-            <div className="flex-1">
+              {/* Textarea */}
               <textarea
                 ref={textareaRef}
                 value={currentText}
@@ -255,50 +261,50 @@ export const ChatInput = forwardRef<HTMLDivElement, ChatInputProps>(function Cha
                 }}
                 onKeyDown={handleKeyDown}
                 onPaste={!isNota ? handlePaste : undefined}
-                placeholder={isNota ? 'Escreva uma nota privada...' : 'Shift + Enter para nova linha...'}
+                placeholder={isNota ? 'Escreva uma nota privada...' : 'Digite uma mensagem...'}
                 disabled={disabled}
-                rows={2}
-                className={`
-                  w-full resize-none rounded-md border px-3 py-2 text-sm
-                  focus:outline-none focus:ring-1
-                  placeholder:text-muted-foreground
+                rows={1}
+                className="
+                  flex-1 w-full resize-none bg-transparent px-2 py-2.5 text-sm
+                  focus:outline-none
+                  placeholder:text-muted-foreground/60
                   disabled:opacity-50
                   overflow-hidden
-                  ${isNota
-                    ? 'bg-warning-muted/20 border-warning/30 focus:ring-warning/50'
-                    : 'bg-background border-border focus:ring-ring'
-                  }
-                `}
+                "
                 style={{ maxHeight: '150px' }}
               />
+
+              {/* Right icon inside input: mic (only when no text & reply mode) */}
+              {!isNota && !hasText && (
+                <div className="flex items-center pr-1 pb-[7px] flex-shrink-0">
+                  {audioSending ? (
+                    <div className="flex items-center gap-1 px-1.5">
+                      <div className="w-4 h-4 border-2 border-muted-foreground/40 border-t-primary rounded-full animate-spin" />
+                    </div>
+                  ) : (
+                    <button
+                      className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200"
+                      title="Gravar áudio"
+                      onClick={() => setIsRecording(true)}
+                    >
+                      <Mic className="w-[18px] h-[18px]" />
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
-            {/* Send / Mic button */}
-            {!isNota && !hasText ? (
-              audioSending ? (
-                <div className="flex items-center gap-1.5 px-2 pb-1 text-muted-foreground">
-                  <div className="w-4 h-4 border-2 border-muted-foreground/40 border-t-primary rounded-full animate-spin" />
-                  <span className="text-[11px]">Enviando...</span>
-                </div>
-              ) : (
-                <button
-                  className="p-2 rounded-md bg-muted text-muted-foreground hover:bg-accent hover:text-foreground transition-all duration-200 flex-shrink-0 mb-0.5"
-                  title="Gravar áudio"
-                  onClick={() => setIsRecording(true)}
-                >
-                  <Mic className="w-4 h-4" />
-                </button>
-              )
-            ) : (
+            {/* Send button (outside, appears when has text) */}
+            {hasText && (
               <button
                 onClick={handleSend}
                 disabled={!currentText.trim() || isSending || disabled}
                 className={`
-                  p-2 rounded-md transition-all duration-200 flex-shrink-0 mb-0.5
+                  p-2.5 rounded-lg transition-all duration-200 flex-shrink-0
                   ${currentText.trim()
                     ? isNota
                       ? 'bg-warning text-white hover:bg-warning/90'
-                      : 'bg-primary text-primary-foreground hover:bg-primary/90'
+                      : 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm'
                     : 'bg-muted text-muted-foreground cursor-not-allowed'
                   }
                 `}
