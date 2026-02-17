@@ -25,6 +25,7 @@ interface Tarefa {
   modo?: string
   assunto_email?: string | null
   corpo_mensagem?: string | null
+  audio_url?: string | null
   oportunidade_id?: string | null
   contato_id?: string | null
   organizacao_id?: string
@@ -105,7 +106,7 @@ export const TarefasPopover = forwardRef<HTMLDivElement, TarefasPopoverProps>(fu
       try {
         const { data, error } = await supabase
           .from('tarefas')
-          .select('id, titulo, status, tipo, data_vencimento, etapa_origem_id, oportunidade_id, contato_id, organizacao_id, modo, assunto_email, corpo_mensagem')
+          .select('id, titulo, status, tipo, data_vencimento, etapa_origem_id, oportunidade_id, contato_id, organizacao_id, modo, assunto_email, corpo_mensagem, audio_url')
           .eq('oportunidade_id', oportunidadeId)
           .is('deletado_em', null)
           .order('criado_em', { ascending: true })

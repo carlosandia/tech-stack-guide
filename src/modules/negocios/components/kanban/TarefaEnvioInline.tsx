@@ -22,6 +22,7 @@ interface TarefaCadencia {
   modo?: string
   assunto_email?: string | null
   corpo_mensagem?: string | null
+  audio_url?: string | null
   organizacao_id?: string
 }
 
@@ -103,7 +104,8 @@ export function TarefaEnvioInline({ tarefa, onEnviado, onCancelar }: TarefaEnvio
   }, [tarefa.oportunidade_id, tarefa.contato_id, isEmail, isWhatsApp])
 
   const handleEnviar = async () => {
-    if (!mensagem.trim()) {
+    const hasAudio = isWhatsApp && !!tarefa.audio_url
+    if (!hasAudio && !mensagem.trim()) {
       toast.error('Mensagem não pode estar vazia')
       return
     }
@@ -149,41 +151,49 @@ export function TarefaEnvioInline({ tarefa, onEnviado, onCancelar }: TarefaEnvio
         const chatId = `${telefoneNumeros}@c.us`
         const sessionName = sessoes[0].session_name
 
-        // Extrair imagens do HTML antes de converter
-        const imageUrls = extractImagesFromHtml(mensagem)
-        const textoWa = htmlToWhatsApp(mensagem)
-        console.log('[TarefaEnvioInline] imageUrls extraídas:', imageUrls.length, imageUrls)
-
-        // Enviar imagens primeiro (como mídia)
-        for (const imgUrl of imageUrls) {
-          console.log('[TarefaEnvioInline] Enviando imagem:', imgUrl.substring(0, 80))
-          const { data: imgData, error: imgErr } = await supabase.functions.invoke('waha-proxy', {
+        // Se tem áudio, enviar como voice note
+        if (tarefa.audio_url) {
+          const { error: audioErr } = await supabase.functions.invoke('waha-proxy', {
             body: {
               action: 'enviar_media',
               session_name: sessionName,
               chat_id: chatId,
-              media_url: imgUrl,
-              media_type: 'image',
+              media_url: tarefa.audio_url,
+              media_type: 'audio',
             },
           })
-          if (imgErr) {
-            console.error('[TarefaEnvioInline] Erro ao enviar imagem WhatsApp:', imgErr)
-          } else {
-            console.log('[TarefaEnvioInline] Imagem enviada com sucesso:', imgData)
-          }
-        }
+          if (audioErr) throw audioErr
+        } else {
+          // Extrair imagens do HTML antes de converter
+          const imageUrls = extractImagesFromHtml(mensagem)
+          const textoWa = htmlToWhatsApp(mensagem)
 
-        // Enviar texto depois
-        if (textoWa) {
-          const { error: txtErr } = await supabase.functions.invoke('waha-proxy', {
-            body: {
-              action: 'enviar_mensagem',
-              session_name: sessionName,
-              chat_id: chatId,
-              text: textoWa,
-            },
-          })
-          if (txtErr) throw txtErr
+          // Enviar imagens primeiro (como mídia)
+          for (const imgUrl of imageUrls) {
+            const { error: imgErr } = await supabase.functions.invoke('waha-proxy', {
+              body: {
+                action: 'enviar_media',
+                session_name: sessionName,
+                chat_id: chatId,
+                media_url: imgUrl,
+                media_type: 'image',
+              },
+            })
+            if (imgErr) console.error('[TarefaEnvioInline] Erro ao enviar imagem:', imgErr)
+          }
+
+          // Enviar texto depois
+          if (textoWa) {
+            const { error: txtErr } = await supabase.functions.invoke('waha-proxy', {
+              body: {
+                action: 'enviar_mensagem',
+                session_name: sessionName,
+                chat_id: chatId,
+                text: textoWa,
+              },
+            })
+            if (txtErr) throw txtErr
+          }
         }
 
       } else if (isEmail && contato?.email) {
@@ -259,14 +269,21 @@ export function TarefaEnvioInline({ tarefa, onEnviado, onCancelar }: TarefaEnvio
         />
       )}
 
-      {/* Mensagem */}
-      <textarea
-        value={mensagem}
-        onChange={e => setMensagem(e.target.value)}
-        className="w-full px-2 py-1.5 rounded border border-input bg-background text-foreground text-xs focus:ring-1 focus:ring-ring resize-none"
-        rows={3}
-        placeholder="Mensagem..."
-      />
+      {/* Mensagem ou indicador de áudio */}
+      {tarefa.audio_url ? (
+        <div className="flex items-center gap-2 px-2 py-1.5 rounded border border-primary/20 bg-primary/5">
+          <span className="text-xs text-primary font-medium">🎙️ Áudio gravado</span>
+          <span className="text-[10px] text-muted-foreground">Será enviado como voice note</span>
+        </div>
+      ) : (
+        <textarea
+          value={mensagem}
+          onChange={e => setMensagem(e.target.value)}
+          className="w-full px-2 py-1.5 rounded border border-input bg-background text-foreground text-xs focus:ring-1 focus:ring-ring resize-none"
+          rows={3}
+          placeholder="Mensagem..."
+        />
+      )}
 
       {/* Ações */}
       <div className="flex items-center justify-end gap-1.5">

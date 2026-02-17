@@ -6869,6 +6869,7 @@ export type Database = {
         Row: {
           assunto_email: string | null
           atualizado_em: string
+          audio_url: string | null
           canal: string | null
           contato_id: string | null
           corpo_mensagem: string | null
@@ -6895,6 +6896,7 @@ export type Database = {
         Insert: {
           assunto_email?: string | null
           atualizado_em?: string
+          audio_url?: string | null
           canal?: string | null
           contato_id?: string | null
           corpo_mensagem?: string | null
@@ -6921,6 +6923,7 @@ export type Database = {
         Update: {
           assunto_email?: string | null
           atualizado_em?: string
+          audio_url?: string | null
           canal?: string | null
           contato_id?: string | null
           corpo_mensagem?: string | null
@@ -7001,6 +7004,7 @@ export type Database = {
           assunto_email: string | null
           ativo: boolean | null
           atualizado_em: string
+          audio_url: string | null
           canal: string | null
           corpo_mensagem: string | null
           criado_em: string
@@ -7019,6 +7023,7 @@ export type Database = {
           assunto_email?: string | null
           ativo?: boolean | null
           atualizado_em?: string
+          audio_url?: string | null
           canal?: string | null
           corpo_mensagem?: string | null
           criado_em?: string
@@ -7037,6 +7042,7 @@ export type Database = {
           assunto_email?: string | null
           ativo?: boolean | null
           atualizado_em?: string
+          audio_url?: string | null
           canal?: string | null
           corpo_mensagem?: string | null
           criado_em?: string
