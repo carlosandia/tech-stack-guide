@@ -25,7 +25,7 @@ export const TIPOS_CAMPO: TipoCampoPaleta[] = [
   { tipo: 'texto', label: 'Texto', icon: Type, categoria: 'basico' },
   { tipo: 'area_texto', label: 'Texto Longo', icon: AlignLeft, categoria: 'basico' },
   { tipo: 'email', label: 'Email', icon: Mail, categoria: 'basico' },
-  { tipo: 'telefone', label: 'Telefone', icon: Phone, categoria: 'basico' },
+  { tipo: 'telefone', label: 'Tel. INT', icon: Phone, categoria: 'basico' },
   { tipo: 'telefone_br', label: 'Telefone BR', icon: Phone, categoria: 'basico' },
   { tipo: 'numero', label: 'Número', icon: Hash, categoria: 'basico' },
   { tipo: 'moeda', label: 'Moeda (R$)', icon: CreditCard, categoria: 'basico' },
