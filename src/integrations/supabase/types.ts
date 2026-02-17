@@ -7343,6 +7343,57 @@ export type Database = {
           },
         ]
       }
+      webhooks_entrada_logs: {
+        Row: {
+          criado_em: string
+          headers: Json | null
+          id: string
+          ip_origem: string | null
+          organizacao_id: string
+          payload: Json
+          processado: boolean
+          status_code: number
+          webhook_id: string
+        }
+        Insert: {
+          criado_em?: string
+          headers?: Json | null
+          id?: string
+          ip_origem?: string | null
+          organizacao_id: string
+          payload?: Json
+          processado?: boolean
+          status_code?: number
+          webhook_id: string
+        }
+        Update: {
+          criado_em?: string
+          headers?: Json | null
+          id?: string
+          ip_origem?: string | null
+          organizacao_id?: string
+          payload?: Json
+          processado?: boolean
+          status_code?: number
+          webhook_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webhooks_entrada_logs_organizacao_id_fkey"
+            columns: ["organizacao_id"]
+            isOneToOne: false
+            referencedRelation: "organizacoes_saas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "webhooks_entrada_logs_webhook_id_fkey"
+            columns: ["webhook_id"]
+            isOneToOne: false
+            referencedRelation: "webhooks_entrada"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       webhooks_formularios: {
         Row: {
           ativo: boolean | null

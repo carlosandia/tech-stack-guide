@@ -144,6 +144,15 @@ async function processarEvento(
 
   for (const automacao of automacoes as Automacao[]) {
     try {
+      // AIDEV-NOTE: Para trigger webhook_recebido, filtrar pelo webhook_id no trigger_config
+      if (evento.tipo === "webhook_recebido") {
+        const configWebhookId = automacao.trigger_config?.webhook_id;
+        const eventoWebhookId = (evento.dados as Record<string, unknown>)?.webhook_id;
+        if (configWebhookId && eventoWebhookId && configWebhookId !== eventoWebhookId) {
+          continue; // Esta automação é para outro webhook
+        }
+      }
+
       const resultado = await executarAutomacao(supabase, automacao, evento);
       if (resultado === "executado") executados++;
       else if (resultado === "erro") erros++;

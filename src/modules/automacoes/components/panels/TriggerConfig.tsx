@@ -5,6 +5,9 @@
 import { useState } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { TRIGGER_TIPOS, TRIGGER_CATEGORIAS } from '../../schemas/automacoes.schema'
+import { WebhookDebugPanel } from './WebhookDebugPanel'
+import { supabase } from '@/integrations/supabase/client'
+import { useQuery } from '@tanstack/react-query'
 
 interface TriggerConfigProps {
   data: Record<string, unknown>
@@ -18,6 +21,22 @@ export function TriggerConfig({ data, onUpdate }: TriggerConfigProps) {
     new Set([TRIGGER_CATEGORIAS[0]?.key])
   )
 
+  // AIDEV-NOTE: Buscar organizacao_id do usuário logado
+  const { data: usuario } = useQuery({
+    queryKey: ['usuario-atual-trigger'],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return null
+      const { data } = await supabase
+        .from('usuarios')
+        .select('organizacao_id')
+        .eq('auth_id', user.id)
+        .single()
+      return data
+    },
+    staleTime: Infinity,
+  })
+
   const toggleCat = (key: string) => {
     setExpandedCats(prev => {
       const next = new Set(prev)
@@ -25,6 +44,12 @@ export function TriggerConfig({ data, onUpdate }: TriggerConfigProps) {
       else next.add(key)
       return next
     })
+  }
+
+  const triggerConfig = (data.trigger_config as Record<string, unknown>) || {}
+
+  const handleTriggerConfigUpdate = (newConfig: Record<string, unknown>) => {
+    onUpdate({ ...data, trigger_config: newConfig })
   }
 
   return (
@@ -78,12 +103,12 @@ export function TriggerConfig({ data, onUpdate }: TriggerConfigProps) {
           <div>
             <label className="text-xs font-medium text-muted-foreground">Campo monitorado</label>
             <select
-              value={((data.trigger_config as Record<string, unknown>)?.campo_monitorado as string) || ''}
-              onChange={e => onUpdate({
-                ...data,
-                trigger_config: { ...(data.trigger_config as Record<string, unknown> || {}), campo_monitorado: e.target.value }
+              value={(triggerConfig.campo_monitorado as string) || ''}
+              onChange={e => handleTriggerConfigUpdate({
+                ...triggerConfig,
+                campo_monitorado: e.target.value,
               })}
-              className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+              className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary"
             >
               <option value="">Qualquer campo</option>
               <option value="nome">Nome</option>
@@ -96,16 +121,25 @@ export function TriggerConfig({ data, onUpdate }: TriggerConfigProps) {
             <label className="text-xs font-medium text-muted-foreground">Valor esperado (opcional)</label>
             <input
               type="text"
-              value={((data.trigger_config as Record<string, unknown>)?.valor_esperado as string) || ''}
-              onChange={e => onUpdate({
-                ...data,
-                trigger_config: { ...(data.trigger_config as Record<string, unknown> || {}), valor_esperado: e.target.value }
+              value={(triggerConfig.valor_esperado as string) || ''}
+              onChange={e => handleTriggerConfigUpdate({
+                ...triggerConfig,
+                valor_esperado: e.target.value,
               })}
               placeholder="Filtrar por valor específico"
-              className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
+              className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
             />
           </div>
         </div>
+      )}
+
+      {/* AIDEV-NOTE: Painel de debug para trigger webhook_recebido */}
+      {currentTipo === 'webhook_recebido' && usuario?.organizacao_id && (
+        <WebhookDebugPanel
+          triggerConfig={triggerConfig}
+          onConfigUpdate={handleTriggerConfigUpdate}
+          organizacaoId={usuario.organizacao_id}
+        />
       )}
     </div>
   )

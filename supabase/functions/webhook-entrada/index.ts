@@ -5,6 +5,10 @@ import { createClient } from "npm:@supabase/supabase-js@2";
  * Recebe leads de N8N, Zapier, Make.com e outras plataformas
  * Autenticação via API Key (header X-Api-Key ou Authorization: Bearer)
  * URL: /functions/v1/webhook-entrada/{url_token}
+ * 
+ * Além de criar contatos, agora também:
+ * 1. Registra logs em webhooks_entrada_logs (debug/auditoria)
+ * 2. Emite evento webhook_recebido para o motor de automações
  */
 
 const corsHeaders = {
@@ -109,6 +113,25 @@ Deno.serve(async (req) => {
 
     console.log("[webhook-entrada] Dados recebidos:", JSON.stringify(body).substring(0, 500));
 
+    // AIDEV-NOTE: Registrar log do request para debug/auditoria
+    const headersObj: Record<string, string> = {};
+    req.headers.forEach((v, k) => {
+      // Não logar tokens sensíveis
+      if (!['authorization', 'x-api-key'].includes(k.toLowerCase())) {
+        headersObj[k] = v;
+      }
+    });
+
+    await supabase.from("webhooks_entrada_logs").insert({
+      organizacao_id: webhook.organizacao_id,
+      webhook_id: webhook.id,
+      payload: body,
+      headers: headersObj,
+      ip_origem: req.headers.get("x-forwarded-for") || req.headers.get("cf-connecting-ip") || "unknown",
+      status_code: 200,
+      processado: false,
+    });
+
     // Mapear e validar campos do lead
     const truncate = (val: unknown, max: number): string => {
       const s = String(val || "").trim();
@@ -169,6 +192,19 @@ Deno.serve(async (req) => {
         ultimo_request: new Date().toISOString(),
       })
       .eq("id", webhook.id);
+
+    // AIDEV-NOTE: Emitir evento para motor de automações (trigger webhook_recebido)
+    await supabase.from("eventos_automacao").insert({
+      organizacao_id: webhook.organizacao_id,
+      tipo: "webhook_recebido",
+      entidade_tipo: "webhook",
+      entidade_id: webhook.id,
+      dados: {
+        webhook_id: webhook.id,
+        payload: body,
+        contato_id: contato.id,
+      },
+    });
 
     console.log("[webhook-entrada] Lead criado com sucesso:", contato.id);
 
