@@ -28,9 +28,28 @@ export function useEmails(params: ListarEmailsParams = {}) {
 }
 
 export function useEmail(id: string | null) {
+  const queryClient = useQueryClient()
+
   return useQuery({
     queryKey: ['email', id],
-    queryFn: () => emailsApi.obter(id!),
+    queryFn: async () => {
+      const email = await emailsApi.obter(id!)
+
+      // AIDEV-NOTE: Lazy loading — se o email não tem corpo, buscar via IMAP on-demand
+      if (!email.corpo_html && !email.corpo_texto && email.provider_id) {
+        try {
+          const body = await emailsApi.fetchEmailBody(id!)
+          email.corpo_html = body.corpo_html
+          email.corpo_texto = body.corpo_texto
+          // Atualizar cache com o corpo carregado
+          queryClient.setQueryData(['email', id], email)
+        } catch (err) {
+          console.warn('[useEmail] Lazy load body failed:', (err as Error).message)
+        }
+      }
+
+      return email
+    },
     enabled: !!id,
   })
 }

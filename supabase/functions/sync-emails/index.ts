@@ -607,6 +607,50 @@ function imapDateStr(date: Date): string {
 }
 
 // =====================================================
+// HTML Sanitization (reduce DB bloat)
+// =====================================================
+
+/**
+ * AIDEV-NOTE: Sanitiza HTML de emails antes de salvar no banco.
+ * - Remove imagens base64 inline (podem ter 100-500KB cada)
+ * - Remove tags <script>
+ * - Remove blocos <style> maiores que 5KB
+ * - Trunca HTML que ultrapasse 200KB
+ */
+function sanitizeEmailHtml(html: string): string {
+  if (!html) return html;
+
+  let sanitized = html;
+
+  // 1. Remove data:image base64 inline (substitui por placeholder)
+  sanitized = sanitized.replace(
+    /src\s*=\s*["']data:image\/[^;]+;base64,[^"']+["']/gi,
+    'src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="[imagem removida]"'
+  );
+
+  // 2. Remove tags <script> completamente
+  sanitized = sanitized.replace(/<script\b[\s\S]*?<\/script\s*>/gi, '');
+  sanitized = sanitized.replace(/<script\b[^>]*\/>/gi, '');
+
+  // 3. Remove blocos <style> maiores que 5KB
+  sanitized = sanitized.replace(/<style\b[^>]*>([\s\S]*?)<\/style\s*>/gi, (match, content) => {
+    if (match.length > 5120) {
+      return '<!-- style block removido (>5KB) -->';
+    }
+    return match;
+  });
+
+  // 4. Trunca se > 200KB
+  const MAX_SIZE = 200 * 1024; // 200KB
+  if (sanitized.length > MAX_SIZE) {
+    sanitized = sanitized.substring(0, MAX_SIZE) +
+      '\n<!-- [HTML truncado: conteúdo original excedeu 200KB] -->';
+  }
+
+  return sanitized;
+}
+
+// =====================================================
 // Main Handler
 // =====================================================
 
@@ -832,13 +876,11 @@ Deno.serve(async (req) => {
       }
 
       // =====================================================
-      // PHASE 2: Fetch bodies for new emails + backfill existing
+      // PHASE 2: Backfill — only fetch bodies for existing emails missing body (limit 10)
+      // AIDEV-NOTE: Novos emails NÃO baixam body aqui (lazy loading via fetch-email-body)
       // =====================================================
-      const newUids = toInsert
-        .map((e) => parseInt(e.provider_id as string))
-        .filter((n) => !isNaN(n));
 
-      // Find existing emails missing body OR with garbled subjects (backfill, limit 20)
+      // Find existing emails missing body (backfill, limit 10)
       const { data: missingBody } = await supabaseAdmin
         .from("emails_recebidos")
         .select("id, provider_id, assunto, corpo_html, corpo_texto")
@@ -847,7 +889,7 @@ Deno.serve(async (req) => {
         .not("provider_id", "is", null)
         .eq("pasta", "inbox")
         .or("corpo_html.is.null,corpo_texto.is.null")
-        .limit(20);
+        .limit(10);
 
       const existingMissing = (missingBody || [])
         .map(
@@ -863,39 +905,18 @@ Deno.serve(async (req) => {
         )
         .filter((e: { uid: number }) => !isNaN(e.uid) && e.uid > 0);
 
-      const allUidsToFetch = [
-        ...newUids,
-        ...existingMissing.map((e: { uid: number }) => e.uid),
-      ];
-
-      if (allUidsToFetch.length > 0) {
+      if (existingMissing.length > 0) {
         console.log(
-          `[sync-emails] Fetching bodies for ${allUidsToFetch.length} emails (${newUids.length} new + ${existingMissing.length} backfill)`
+          `[sync-emails] Backfill: fetching bodies for ${existingMissing.length} existing emails`
         );
 
         try {
-          const bodies = await imap.uidFetchBodies(allUidsToFetch);
-          console.log(`[sync-emails] Got ${bodies.length} bodies`);
+          const backfillUids = existingMissing.map((e: { uid: number }) => e.uid);
+          const bodies = await imap.uidFetchBodies(backfillUids);
 
           for (const { uid, raw } of bodies) {
             const { html, text } = parseMimeMessage(raw);
 
-            // Update new email in toInsert
-            const insertIdx = toInsert.findIndex(
-              (e) => parseInt(e.provider_id as string) === uid
-            );
-            if (insertIdx >= 0) {
-              toInsert[insertIdx].corpo_html = html || null;
-              toInsert[insertIdx].corpo_texto = text || null;
-              if (text) {
-                toInsert[insertIdx].preview = text
-                  .substring(0, 200)
-                  .replace(/\s+/g, " ")
-                  .trim();
-              }
-            }
-
-            // Update existing email missing body (backfill)
             const existingItem = existingMissing.find(
               (e: { uid: number }) => e.uid === uid
             );
@@ -905,8 +926,7 @@ Deno.serve(async (req) => {
                 .replace(/\s+/g, " ")
                 .trim();
 
-              // Also re-decode subject from headers if it had mojibake
-              // We extract subject from the full MIME headers in the body
+              // Re-decode subject from headers if it had mojibake
               let fixedSubject: string | undefined;
               const headerEnd = raw.replace(/\r\n/g, "\n").indexOf("\n\n");
               if (headerEnd > 0) {
@@ -925,7 +945,7 @@ Deno.serve(async (req) => {
               }
 
               const updateData: Record<string, unknown> = {
-                corpo_html: html || null,
+                corpo_html: sanitizeEmailHtml(html) || null,
                 corpo_texto: text || null,
               };
               if (previewText) updateData.preview = previewText;
@@ -948,7 +968,7 @@ Deno.serve(async (req) => {
           }
         } catch (bodyErr) {
           console.warn(
-            "[sync-emails] Body fetch phase failed (continuing with headers only):",
+            "[sync-emails] Backfill body fetch failed:",
             (bodyErr as Error).message
           );
         }
