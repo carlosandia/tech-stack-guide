@@ -84,7 +84,7 @@ export function useReativarOrganizacao() {
   })
 }
 
-// Impersonar organizacao
+// Impersonar organizacao (agora via Edge Function)
 export function useImpersonarOrganizacao() {
   return useMutation({
     mutationFn: ({ id, motivo }: { id: string; motivo: string }) =>

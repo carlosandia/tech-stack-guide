@@ -6591,6 +6591,73 @@ export type Database = {
           },
         ]
       }
+      sessoes_impersonacao: {
+        Row: {
+          admin_alvo_id: string
+          ativo: boolean
+          criado_em: string
+          encerrado_em: string | null
+          expira_em: string
+          id: string
+          ip_origem: string | null
+          motivo: string
+          organizacao_id: string
+          super_admin_id: string
+          token_hash: string
+          user_agent: string | null
+        }
+        Insert: {
+          admin_alvo_id: string
+          ativo?: boolean
+          criado_em?: string
+          encerrado_em?: string | null
+          expira_em: string
+          id?: string
+          ip_origem?: string | null
+          motivo: string
+          organizacao_id: string
+          super_admin_id: string
+          token_hash: string
+          user_agent?: string | null
+        }
+        Update: {
+          admin_alvo_id?: string
+          ativo?: boolean
+          criado_em?: string
+          encerrado_em?: string | null
+          expira_em?: string
+          id?: string
+          ip_origem?: string | null
+          motivo?: string
+          organizacao_id?: string
+          super_admin_id?: string
+          token_hash?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sessoes_impersonacao_admin_alvo_id_fkey"
+            columns: ["admin_alvo_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sessoes_impersonacao_organizacao_id_fkey"
+            columns: ["organizacao_id"]
+            isOneToOne: false
+            referencedRelation: "organizacoes_saas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sessoes_impersonacao_super_admin_id_fkey"
+            columns: ["super_admin_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sessoes_whatsapp: {
         Row: {
           atualizado_em: string

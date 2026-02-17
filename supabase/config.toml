@@ -77,3 +77,6 @@ verify_jwt = false
 
 [functions.google-auth]
 verify_jwt = false
+
+[functions.impersonar-organizacao]
+verify_jwt = false
