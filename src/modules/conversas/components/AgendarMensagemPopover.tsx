@@ -5,7 +5,7 @@
  */
 
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
-import { Clock, Trash2, CalendarDays, AlertTriangle, Mic, Square, Type } from 'lucide-react'
+import { Clock, Trash2, CalendarDays, AlertTriangle, Mic, Square, Type, Play, Pause } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { format, addMinutes, addDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -16,6 +16,7 @@ import {
   useContarAgendadasUsuario,
   useAgendarMensagem,
   useCancelarAgendada,
+  useAgendadasRealtime,
   LIMITES_AGENDAMENTO,
 } from '../hooks/useMensagensAgendadas'
 
@@ -26,6 +27,49 @@ interface AgendarMensagemPopoverProps {
 }
 
 type TipoMensagem = 'text' | 'audio'
+
+// Mini audio player for scheduled audio preview
+function AudioPreviewPlayer({ url, label }: { url: string; label: string }) {
+  const [playing, setPlaying] = useState(false)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+
+  const toggle = () => {
+    if (!audioRef.current) {
+      audioRef.current = new Audio(url)
+      audioRef.current.onended = () => setPlaying(false)
+    }
+    if (playing) {
+      audioRef.current.pause()
+      setPlaying(false)
+    } else {
+      audioRef.current.play().catch(() => setPlaying(false))
+      setPlaying(true)
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current = null
+      }
+    }
+  }, [])
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <button
+        type="button"
+        onClick={toggle}
+        className="p-0.5 rounded-full text-primary hover:bg-primary/10 transition-colors"
+        title={playing ? 'Pausar' : 'Ouvir'}
+      >
+        {playing ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+      </button>
+      <span className="text-xs text-foreground">{label}</span>
+    </div>
+  )
+}
 
 export function AgendarMensagemPopover({ conversaId, textoPreenchido, disabled }: AgendarMensagemPopoverProps) {
   const [open, setOpen] = useState(false)
@@ -54,6 +98,7 @@ export function AgendarMensagemPopover({ conversaId, textoPreenchido, disabled }
   const { data: countUsuario = 0 } = useContarAgendadasUsuario()
   const agendarMutation = useAgendarMensagem()
   const cancelarMutation = useCancelarAgendada()
+  useAgendadasRealtime(conversaId)
 
   const minDateTime = useMemo(() => {
     const min = addMinutes(new Date(), 6)
@@ -509,9 +554,11 @@ export function AgendarMensagemPopover({ conversaId, textoPreenchido, disabled }
                       <Clock className="w-3.5 h-3.5 mt-0.5 text-muted-foreground flex-shrink-0" />
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs text-foreground line-clamp-2">
-                        {item.tipo === 'audio' ? `🎙️ ${item.conteudo}` : item.conteudo}
-                      </p>
+                      {item.tipo === 'audio' && item.media_url ? (
+                        <AudioPreviewPlayer url={item.media_url} label={item.conteudo} />
+                      ) : (
+                        <p className="text-xs text-foreground line-clamp-2">{item.conteudo}</p>
+                      )}
                       <p className="text-[11px] text-muted-foreground mt-0.5">
                         {format(new Date(item.agendado_para), "dd/MM 'às' HH:mm", { locale: ptBR })}
                       </p>

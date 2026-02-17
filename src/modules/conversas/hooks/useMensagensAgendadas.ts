@@ -1,10 +1,13 @@
 /**
  * AIDEV-NOTE: Hook TanStack Query para mensagens agendadas (PRD-09)
  * Inclui validação de limites anti-spam (WAHA Plus)
+ * Inclui realtime subscription para atualização automática
  */
 
+import { useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { conversasApi } from '../services/conversas.api'
+import { supabase } from '@/integrations/supabase/client'
 import { toast } from 'sonner'
 import { addMinutes, addDays, isBefore, isAfter, differenceInMinutes } from 'date-fns'
 
@@ -116,6 +119,41 @@ export function useCancelarAgendada() {
       queryClient.invalidateQueries({ queryKey: ['mensagens-agendadas-count-usuario'] })
     },
   })
+}
+
+/**
+ * AIDEV-NOTE: Realtime subscription para atualizar a UI quando mensagens agendadas
+ * são enviadas (status muda de 'agendada' para 'enviada') sem precisar de refresh
+ */
+export function useAgendadasRealtime(conversaId: string) {
+  const queryClient = useQueryClient()
+
+  useEffect(() => {
+    if (!conversaId) return
+
+    const channel = supabase
+      .channel(`agendadas-${conversaId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'mensagens_agendadas',
+          filter: `conversa_id=eq.${conversaId}`,
+        },
+        () => {
+          // Invalidar todas as queries relacionadas
+          queryClient.invalidateQueries({ queryKey: ['mensagens-agendadas', conversaId] })
+          queryClient.invalidateQueries({ queryKey: ['mensagens-agendadas-count', conversaId] })
+          queryClient.invalidateQueries({ queryKey: ['mensagens-agendadas-count-usuario'] })
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [conversaId, queryClient])
 }
 
 export { LIMITES as LIMITES_AGENDAMENTO }
