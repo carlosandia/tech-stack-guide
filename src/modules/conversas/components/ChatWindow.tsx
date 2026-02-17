@@ -549,6 +549,7 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
           replyingTo={replyingTo}
           onCancelReply={() => setReplyingTo(null)}
           audioSending={audioSending}
+          conversaId={conversa.id}
         />
       </div>
 

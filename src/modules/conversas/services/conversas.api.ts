@@ -1275,6 +1275,115 @@ export const conversasApi = {
     if (error) throw new Error(error.message)
     return (data || []) as ConversaContato[]
   },
+
+  // =====================================================
+  // Mensagens Agendadas
+  // =====================================================
+
+  // =====================================================
+  // Mensagens Agendadas
+  // =====================================================
+
+  async agendarMensagem(conversaId: string, dados: {
+    tipo: 'text' | 'audio'
+    conteudo: string
+    agendado_para: string
+    media_url?: string
+  }): Promise<any> {
+    const organizacaoId = await getOrganizacaoId()
+    const usuarioId = await getUsuarioId()
+
+    const { data, error } = await supabase
+      .from('mensagens_agendadas')
+      .insert({
+        organizacao_id: organizacaoId,
+        conversa_id: conversaId,
+        usuario_id: usuarioId,
+        tipo: dados.tipo,
+        conteudo: dados.conteudo,
+        media_url: dados.media_url || null,
+        agendado_para: dados.agendado_para,
+        status: 'agendada',
+      })
+      .select()
+      .single()
+
+    if (error) throw new Error(error.message)
+    return data
+  },
+
+  async listarAgendadas(conversaId: string): Promise<any[]> {
+    const organizacaoId = await getOrganizacaoId()
+
+    const { data, error } = await supabase
+      .from('mensagens_agendadas')
+      .select('*')
+      .eq('organizacao_id', organizacaoId)
+      .eq('conversa_id', conversaId)
+      .eq('status', 'agendada')
+      .order('agendado_para', { ascending: true })
+
+    if (error) throw new Error(error.message)
+    return data || []
+  },
+
+  async contarAgendadasConversa(conversaId: string): Promise<number> {
+    const organizacaoId = await getOrganizacaoId()
+
+    const { count, error } = await supabase
+      .from('mensagens_agendadas')
+      .select('*', { count: 'exact', head: true })
+      .eq('organizacao_id', organizacaoId)
+      .eq('conversa_id', conversaId)
+      .eq('status', 'agendada')
+
+    if (error) throw new Error(error.message)
+    return count || 0
+  },
+
+  async contarAgendadasUsuario(): Promise<number> {
+    const organizacaoId = await getOrganizacaoId()
+    const usuarioId = await getUsuarioId()
+
+    const { count, error } = await supabase
+      .from('mensagens_agendadas')
+      .select('*', { count: 'exact', head: true })
+      .eq('organizacao_id', organizacaoId)
+      .eq('usuario_id', usuarioId)
+      .eq('status', 'agendada')
+
+    if (error) throw new Error(error.message)
+    return count || 0
+  },
+
+  async cancelarAgendada(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('mensagens_agendadas')
+      .update({
+        status: 'cancelada',
+        atualizado_em: new Date().toISOString(),
+      })
+      .eq('id', id)
+
+    if (error) throw new Error(error.message)
+  },
+
+  async ultimaAgendadaConversa(conversaId: string): Promise<string | null> {
+    const organizacaoId = await getOrganizacaoId()
+
+    const { data, error } = await supabase
+      .from('mensagens_agendadas')
+      .select('agendado_para')
+      .eq('organizacao_id', organizacaoId)
+      .eq('conversa_id', conversaId)
+      .eq('status', 'agendada')
+      .order('agendado_para', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (error) return null
+    return data?.agendado_para || null
+  },
 }
 
 export default conversasApi
