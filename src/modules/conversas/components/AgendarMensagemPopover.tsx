@@ -5,7 +5,7 @@
  */
 
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
-import { Clock, Trash2, CalendarDays, AlertTriangle, Mic, Square, Type, Play, Pause, Send } from 'lucide-react'
+import { Clock, Trash2, CalendarDays, AlertTriangle, Mic, Square, Type, Play, Pause, Send, Loader2 } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { format, addMinutes, addDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -609,10 +609,13 @@ export function AgendarMensagemPopover({ conversaId, textoPreenchido, disabled }
                       <button
                         onClick={() => enviarAgoraMutation.mutate({ id: item.id, conversaId })}
                         disabled={enviarAgoraMutation.isPending}
-                        className="p-1 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                        className="p-1 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-50"
                         title="Enviar agora"
                       >
-                        <Send className="w-3.5 h-3.5" />
+                        {enviarAgoraMutation.isPending && enviarAgoraMutation.variables?.id === item.id
+                          ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          : <Send className="w-3.5 h-3.5" />
+                        }
                       </button>
                       <button
                         onClick={() => handleCancelar(item.id)}
