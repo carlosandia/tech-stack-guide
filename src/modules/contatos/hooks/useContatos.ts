@@ -106,6 +106,31 @@ export function useDuplicatas() {
   })
 }
 
+export function useCriarOportunidadesLote() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: {
+      contato_ids: string[]
+      funil_id: string
+      distribuicao: 'nenhuma' | 'rodizio' | 'manual'
+      membro_ids?: string[]
+    }) => contatosApi.criarOportunidadesLote(payload),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['contatos'] })
+      queryClient.invalidateQueries({ queryKey: ['kanban'] })
+      queryClient.invalidateQueries({ queryKey: ['funil'] })
+      if (result.erros > 0) {
+        toast.warning(`${result.criadas} criada(s), ${result.erros} com erro`)
+      } else {
+        toast.success(`${result.criadas} oportunidade(s) criada(s) com sucesso`)
+      }
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || 'Erro ao criar oportunidades em lote')
+    },
+  })
+}
+
 export function useMesclarContatos() {
   const queryClient = useQueryClient()
   return useMutation({

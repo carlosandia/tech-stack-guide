@@ -5,7 +5,7 @@
  */
 
 import { forwardRef, useState } from 'react'
-import { Trash2, Download, AlertTriangle } from 'lucide-react'
+import { Trash2, Download, AlertTriangle, Target } from 'lucide-react'
 import type { TipoContato } from '../services/contatos.api'
 import { AtribuirVendedorDropdown } from './AtribuirVendedorDropdown'
 import { SegmentarDropdown } from './SegmentarDropdown'
@@ -18,6 +18,7 @@ interface ContatoBulkActionsProps {
   onExcluir: () => void
   onExportar: () => void
   onClearSelection: () => void
+  onCriarOportunidade?: () => void
 }
 
 export const ContatoBulkActions = forwardRef<HTMLDivElement, ContatoBulkActionsProps>(function ContatoBulkActions({
@@ -28,6 +29,7 @@ export const ContatoBulkActions = forwardRef<HTMLDivElement, ContatoBulkActionsP
   onExcluir,
   onExportar,
   onClearSelection,
+  onCriarOportunidade,
 }, _ref) {
   const [confirmando, setConfirmando] = useState(false)
 
@@ -66,6 +68,14 @@ export const ContatoBulkActions = forwardRef<HTMLDivElement, ContatoBulkActionsP
 
       {tipo === 'pessoa' && isAdmin && (
         <>
+          <button
+            onClick={onCriarOportunidade}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md hover:bg-background/10 transition-colors"
+            title="Criar oportunidades em massa"
+          >
+            <Target className="w-4 h-4" />
+            <span className="hidden sm:inline">Oportunidade</span>
+          </button>
           <AtribuirVendedorDropdown selectedIds={selectedIds} onComplete={onClearSelection} />
           <SegmentarDropdown selectedIds={selectedIds} onComplete={onClearSelection} />
         </>

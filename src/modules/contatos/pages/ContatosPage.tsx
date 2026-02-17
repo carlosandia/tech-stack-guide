@@ -22,6 +22,7 @@ import { ConfirmarExclusaoModal } from '../components/ConfirmarExclusaoModal'
 import { SegmentosManager } from '../components/SegmentosManager'
 import { DuplicatasModal } from '../components/DuplicatasModal'
 import { ImportarContatosModal } from '../components/ImportarContatosModal'
+import { CriarOportunidadeLoteModal } from '../components/CriarOportunidadeLoteModal'
 import { ExportarContatosModal } from '../components/ExportarContatosModal'
 import { ContatoColumnsToggle, getInitialColumns, getDefaultColumns, type ColumnConfig } from '../components/ContatoColumnsToggle'
 import { usePreferenciaColunas } from '../hooks/usePreferenciaColunas'
@@ -75,6 +76,7 @@ export const ContatosPage = forwardRef<HTMLDivElement>(function ContatosPage(_pr
   const [duplicatasModalOpen, setDuplicatasModalOpen] = useState(false)
   const [importarModalOpen, setImportarModalOpen] = useState(false)
   const [exportModalOpen, setExportModalOpen] = useState(false)
+  const [criarOportunidadeLoteOpen, setCriarOportunidadeLoteOpen] = useState(false)
   const [editingContato, setEditingContato] = useState<Contato | null>(null)
   const [viewingContato, setViewingContato] = useState<Contato | null>(null)
   const [deletingContato, setDeletingContato] = useState<Contato | null>(null)
@@ -718,6 +720,7 @@ export const ContatosPage = forwardRef<HTMLDivElement>(function ContatosPage(_pr
         isAdmin={isAdmin}
         onExcluir={handleBulkDelete}
         onExportar={() => setExportModalOpen(true)}
+        onCriarOportunidade={() => setCriarOportunidadeLoteOpen(true)}
         onClearSelection={() => setSelectedIds(new Set())}
       />
 
@@ -785,7 +788,16 @@ export const ContatosPage = forwardRef<HTMLDivElement>(function ContatosPage(_pr
         selectedIds={selectedIds.size > 0 ? Array.from(selectedIds) : undefined}
       />
 
-      {/* Pipeline Selector Popover para criar oportunidade */}
+      <CriarOportunidadeLoteModal
+        open={criarOportunidadeLoteOpen}
+        onClose={() => setCriarOportunidadeLoteOpen(false)}
+        selectedIds={Array.from(selectedIds)}
+        onSuccess={() => {
+          setCriarOportunidadeLoteOpen(false)
+          setSelectedIds(new Set())
+        }}
+      />
+
       {showPipelineSelector && contatoParaOportunidade && (
         <>
           <div className="fixed inset-0 z-[70]" onClick={() => setShowPipelineSelector(false)} />
