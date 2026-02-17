@@ -4,13 +4,15 @@
  * Usa React Portal para renderizar fora do card (evita corte por overflow)
  * Exibe tarefas pendentes com checkbox para concluir inline
  * Sempre visível quando configurado, mesmo sem tarefas
+ * Suporta envio inline para tarefas de cadência comercial
  */
 
 import { useState, useRef, useEffect, useCallback, forwardRef } from 'react'
 import { createPortal } from 'react-dom'
-import { CheckSquare, Square, Loader2, ClipboardList } from 'lucide-react'
+import { CheckSquare, Square, Loader2, ClipboardList, Send } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
+import { TarefaEnvioInline } from './TarefaEnvioInline'
 
 interface Tarefa {
   id: string
@@ -20,6 +22,12 @@ interface Tarefa {
   data_vencimento?: string | null
   etapa_origem_id?: string | null
   etapa_nome?: string | null
+  modo?: string
+  assunto_email?: string | null
+  corpo_mensagem?: string | null
+  oportunidade_id?: string | null
+  contato_id?: string | null
+  organizacao_id?: string
 }
 
 interface TarefasPopoverProps {
@@ -35,46 +43,37 @@ export const TarefasPopover = forwardRef<HTMLDivElement, TarefasPopoverProps>(fu
   const [tarefas, setTarefas] = useState<Tarefa[]>([])
   const [loading, setLoading] = useState(false)
   const [concluindo, setConcluindo] = useState<string | null>(null)
+  const [envioAberto, setEnvioAberto] = useState<string | null>(null)
   const [popoverPos, setPopoverPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
   const triggerRef = useRef<HTMLButtonElement>(null)
 
-  // Calcula posição do popover relativa ao trigger — sempre abaixo do badge
   const updatePosition = useCallback(() => {
     if (!triggerRef.current) return
     const rect = triggerRef.current.getBoundingClientRect()
-    const popoverWidth = 260
+    const popoverWidth = envioAberto ? 320 : 260
 
-    // Abrir abaixo do badge
     let top = rect.bottom + 6
     let left = rect.right - popoverWidth
 
-    // Se sair pela esquerda, alinhar ao left do trigger
-    if (left < 8) {
-      left = rect.left
-    }
-    // Se sair pela direita
-    if (left + popoverWidth > window.innerWidth - 8) {
-      left = window.innerWidth - popoverWidth - 8
-    }
+    if (left < 8) left = rect.left
+    if (left + popoverWidth > window.innerWidth - 8) left = window.innerWidth - popoverWidth - 8
 
     setPopoverPos({ top, left })
-  }, [])
+  }, [envioAberto])
 
-  // Click outside
   useEffect(() => {
     if (!open) return
     const handler = (e: MouseEvent) => {
       if (triggerRef.current?.contains(e.target as Node)) return
-      // Check if click is inside the portal popover
       const popover = document.getElementById(`tarefas-popover-${oportunidadeId}`)
       if (popover?.contains(e.target as Node)) return
       setOpen(false)
+      setEnvioAberto(null)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [open, oportunidadeId])
 
-  // Update position on scroll/resize
   useEffect(() => {
     if (!open) return
     updatePosition()
@@ -86,7 +85,6 @@ export const TarefasPopover = forwardRef<HTMLDivElement, TarefasPopoverProps>(fu
     }
   }, [open, updatePosition])
 
-  // Load tarefas on open
   useEffect(() => {
     if (!open) return
     setLoading(true)
@@ -95,7 +93,7 @@ export const TarefasPopover = forwardRef<HTMLDivElement, TarefasPopoverProps>(fu
       try {
         const { data, error } = await supabase
           .from('tarefas')
-          .select('id, titulo, status, tipo, data_vencimento, etapa_origem_id')
+          .select('id, titulo, status, tipo, data_vencimento, etapa_origem_id, oportunidade_id, contato_id, organizacao_id, modo, assunto_email, corpo_mensagem')
           .eq('oportunidade_id', oportunidadeId)
           .is('deletado_em', null)
           .order('criado_em', { ascending: true })
@@ -109,7 +107,6 @@ export const TarefasPopover = forwardRef<HTMLDivElement, TarefasPopoverProps>(fu
 
         const tarefasRaw = (data || []) as Tarefa[]
 
-        // Buscar nomes das etapas de origem
         const etapaIds = [...new Set(tarefasRaw.filter(t => t.etapa_origem_id).map(t => t.etapa_origem_id!))]
         let etapasMap: Record<string, string> = {}
 
@@ -126,7 +123,6 @@ export const TarefasPopover = forwardRef<HTMLDivElement, TarefasPopoverProps>(fu
           }
         }
 
-        // Enriquecer tarefas com nome da etapa
         const tarefasEnriquecidas = tarefasRaw.map(t => ({
           ...t,
           etapa_nome: t.etapa_origem_id ? etapasMap[t.etapa_origem_id] || null : null,
@@ -159,7 +155,6 @@ export const TarefasPopover = forwardRef<HTMLDivElement, TarefasPopoverProps>(fu
         setTarefas(prev => prev.map(t =>
           t.id === tarefa.id ? { ...t, status: novoStatus } : t
         ))
-        // Invalidar kanban para atualizar badge imediatamente
         queryClient.invalidateQueries({ queryKey: ['kanban'] })
       }
     } catch (err) {
@@ -169,10 +164,11 @@ export const TarefasPopover = forwardRef<HTMLDivElement, TarefasPopoverProps>(fu
     }
   }
 
+  const isCadencia = (t: Tarefa) => t.modo === 'cadencia' && (t.tipo === 'email' || t.tipo === 'whatsapp')
+
   const pendentes = tarefas.filter(t => t.status !== 'concluida' && t.status !== 'cancelada')
   const concluidas = tarefas.filter(t => t.status === 'concluida')
 
-  // Agrupar pendentes por etapa de origem
   const pendentesAgrupados = pendentes.reduce<Record<string, { nome: string; tarefas: Tarefa[] }>>((acc, t) => {
     const key = t.etapa_origem_id || '_sem_etapa'
     const nome = t.etapa_nome || 'Sem etapa'
@@ -185,9 +181,11 @@ export const TarefasPopover = forwardRef<HTMLDivElement, TarefasPopoverProps>(fu
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation()
     setOpen(!open)
+    if (open) setEnvioAberto(null)
   }
 
   const allDone = totalTarefas === 0 || totalPendentes === 0
+  const popoverWidth = envioAberto ? 320 : 260
 
   return (
     <>
@@ -210,11 +208,12 @@ export const TarefasPopover = forwardRef<HTMLDivElement, TarefasPopoverProps>(fu
       {open && createPortal(
         <div
           id={`tarefas-popover-${oportunidadeId}`}
-          className="w-[260px] bg-card border border-border rounded-lg shadow-lg animate-enter"
+          className="bg-card border border-border rounded-lg shadow-lg animate-enter"
           style={{
             position: 'fixed',
             top: popoverPos.top,
             left: popoverPos.left,
+            width: popoverWidth,
             zIndex: 600,
           }}
           onClick={(e) => e.stopPropagation()}
@@ -236,39 +235,70 @@ export const TarefasPopover = forwardRef<HTMLDivElement, TarefasPopoverProps>(fu
               Nenhuma tarefa cadastrada
             </div>
           ) : (
-            <div className="max-h-[300px] overflow-y-auto">
+            <div className="max-h-[400px] overflow-y-auto">
               {/* Pendentes agrupados por etapa */}
               {gruposEtapa.map(([etapaKey, grupo], idx) => (
                 <div key={etapaKey}>
-                  {/* Separador de etapa */}
                   <div className={`flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider bg-muted/50 ${idx > 0 ? 'border-t border-border' : ''}`}>
                     <ClipboardList className="w-3 h-3" />
                     <span>{grupo.nome}</span>
                   </div>
                   {grupo.tarefas.map(tarefa => (
-                    <div
-                      key={tarefa.id}
-                      className="flex items-start gap-2 px-3 py-2 hover:bg-accent/50 transition-all duration-200"
-                    >
-                      <button
-                        onClick={(e) => handleToggleConcluir(e, tarefa)}
-                        disabled={concluindo === tarefa.id}
-                        className="mt-0.5 flex-shrink-0 text-muted-foreground hover:text-primary transition-all duration-200"
-                      >
-                        {concluindo === tarefa.id ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Square className="w-4 h-4" />
-                        )}
-                      </button>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs text-foreground leading-tight">{tarefa.titulo}</p>
-                        {tarefa.data_vencimento && (
-                          <p className="text-[10px] text-muted-foreground mt-0.5">
-                            Prazo: {new Date(tarefa.data_vencimento).toLocaleDateString('pt-BR')}
-                          </p>
-                        )}
+                    <div key={tarefa.id}>
+                      <div className="flex items-start gap-2 px-3 py-2 hover:bg-accent/50 transition-all duration-200">
+                        <button
+                          onClick={(e) => handleToggleConcluir(e, tarefa)}
+                          disabled={concluindo === tarefa.id}
+                          className="mt-0.5 flex-shrink-0 text-muted-foreground hover:text-primary transition-all duration-200"
+                        >
+                          {concluindo === tarefa.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Square className="w-4 h-4" />
+                          )}
+                        </button>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1">
+                            <p className="text-xs text-foreground leading-tight flex-1">{tarefa.titulo}</p>
+                            {isCadencia(tarefa) && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setEnvioAberto(envioAberto === tarefa.id ? null : tarefa.id) }}
+                                className={`flex-shrink-0 p-1 rounded transition-all duration-200 ${
+                                  envioAberto === tarefa.id
+                                    ? 'bg-primary/10 text-primary'
+                                    : 'text-muted-foreground hover:text-primary hover:bg-primary/10'
+                                }`}
+                                title="Enviar mensagem"
+                              >
+                                <Send className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            {isCadencia(tarefa) && (
+                              <span className="text-[9px] font-medium text-primary bg-primary/10 px-1 py-0.5 rounded">Cadência</span>
+                            )}
+                            {tarefa.data_vencimento && (
+                              <p className="text-[10px] text-muted-foreground">
+                                Prazo: {new Date(tarefa.data_vencimento).toLocaleDateString('pt-BR')}
+                              </p>
+                            )}
+                          </div>
+                        </div>
                       </div>
+                      {/* Envio inline expandido */}
+                      {envioAberto === tarefa.id && (
+                        <TarefaEnvioInline
+                          tarefa={tarefa}
+                          onEnviado={() => {
+                            setEnvioAberto(null)
+                            setTarefas(prev => prev.map(t =>
+                              t.id === tarefa.id ? { ...t, status: 'concluida' } : t
+                            ))
+                          }}
+                          onCancelar={() => setEnvioAberto(null)}
+                        />
+                      )}
                     </div>
                   ))}
                 </div>

@@ -155,6 +155,7 @@ export interface MotivoResultado {
 // Templates de Tarefa
 export type TipoTarefa = 'ligacao' | 'email' | 'reuniao' | 'whatsapp' | 'visita' | 'outro'
 export type PrioridadeTarefa = 'baixa' | 'media' | 'alta' | 'urgente'
+export type ModoTarefa = 'comum' | 'cadencia'
 export interface TarefaTemplate {
   id: string
   organizacao_id: string
@@ -164,6 +165,9 @@ export interface TarefaTemplate {
   canal?: string | null
   prioridade: PrioridadeTarefa
   dias_prazo: number
+  modo: ModoTarefa
+  assunto_email?: string | null
+  corpo_mensagem?: string | null
   ativo: boolean
   criado_em: string
 }
