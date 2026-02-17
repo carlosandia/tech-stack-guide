@@ -5,7 +5,7 @@
  * Ícones dentro da caixa de texto para visual mais moderno e compacto
  */
 
-import { useState, useRef, useCallback, forwardRef, type KeyboardEvent, type ClipboardEvent } from 'react'
+import { useState, useRef, useCallback, forwardRef, useImperativeHandle, type KeyboardEvent, type ClipboardEvent } from 'react'
 import { Send, StickyNote, MessageSquare, Plus, Mic, Smile, X } from 'lucide-react'
 import { AgendarMensagemPopover } from './AgendarMensagemPopover'
 import { AnexosMenu } from './AnexosMenu'
@@ -32,11 +32,15 @@ interface ChatInputProps {
 
 type InputTab = 'responder' | 'nota'
 
-export const ChatInput = forwardRef<HTMLDivElement, ChatInputProps>(function ChatInput({
+export interface ChatInputHandle {
+  focusTextarea: () => void
+}
+
+export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput({
   onSendMessage, onSendNote, onOpenQuickReplies, onFileSelected,
   onAudioSend, onOpenCamera, onOpenContato, onOpenEnquete,
   isSending, disabled, replyingTo, onCancelReply, audioSending, conversaId
-}, _ref) {
+}, ref) {
   const [tab, setTab] = useState<InputTab>('responder')
   const [texto, setTexto] = useState('')
   const [notaTexto, setNotaTexto] = useState('')
@@ -44,6 +48,10 @@ export const ChatInput = forwardRef<HTMLDivElement, ChatInputProps>(function Cha
   const [isRecording, setIsRecording] = useState(false)
   const [emojiOpen, setEmojiOpen] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  useImperativeHandle(ref, () => ({
+    focusTextarea: () => textareaRef.current?.focus()
+  }))
 
   const autoResize = useCallback((el: HTMLTextAreaElement) => {
     el.style.height = 'auto'

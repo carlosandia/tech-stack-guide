@@ -5,13 +5,13 @@
  * Conecta ações de silenciar, limpar, apagar, fixar, reagir e encaminhar
  */
 
-import { useState, useMemo, useEffect, useCallback, forwardRef } from 'react'
+import { useState, useMemo, useEffect, useCallback, useRef, forwardRef } from 'react'
 import { compressImage } from '@/shared/utils/compressMedia'
 import { MediaQueue, type QueuedMedia } from './MediaQueue'
 import { useAuth } from '@/providers/AuthProvider'
 import { ChatHeader } from './ChatHeader'
 import { ChatMessages } from './ChatMessages'
-import { ChatInput } from './ChatInput'
+import { ChatInput, type ChatInputHandle } from './ChatInput'
 import { BuscaMensagensBar } from './BuscaMensagensBar'
 import { MensagensProntasPopover } from './MensagensProntasPopover'
 import { SelecionarPipelineModal } from './SelecionarPipelineModal'
@@ -114,6 +114,7 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
   const [contatoModalOpen, setContatoModalOpen] = useState(false)
   const [enqueteModalOpen, setEnqueteModalOpen] = useState(false)
   const [replyingTo, setReplyingTo] = useState<Mensagem | null>(null)
+  const chatInputRef = useRef<ChatInputHandle>(null)
   const [encaminharMsg, setEncaminharMsg] = useState<Mensagem | null>(null)
 
   const {
@@ -557,7 +558,10 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
         onDeleteMessage={(mensagemId, messageWahaId, paraTodos) => {
           apagarMensagem.mutate({ conversaId: conversa.id, mensagemId, messageWahaId, paraTodos })
         }}
-        onReplyMessage={(msg) => setReplyingTo(msg)}
+        onReplyMessage={(msg) => {
+          setReplyingTo(msg)
+          setTimeout(() => chatInputRef.current?.focusTextarea(), 50)
+        }}
         onReactMessage={handleReactMessage}
         onForwardMessage={handleForwardMessage}
         onPinMessage={handlePinMessage}
@@ -600,6 +604,7 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
           onSelect={handleQuickReplySelect}
         />
         <ChatInput
+          ref={chatInputRef}
           onSendMessage={handleSendMessage}
           onSendNote={handleSendNote}
           onOpenQuickReplies={() => setQuickRepliesOpen(true)}

@@ -917,19 +917,53 @@ export function ChatMessageBubble({
     onReplyMessage?.(mensagem)
   }
 
-  // Universal copy: text, media URL, vcard, etc.
-  const handleCopy = useCallback(() => {
+  // AIDEV-NOTE: Copia inteligente - imagens como blob PNG, outros tipos como texto/URL
+  const handleCopy = useCallback(async () => {
+    // Imagens: copiar o blob real da imagem via Clipboard API
+    if (mensagem.tipo === 'image' && mensagem.media_url) {
+      try {
+        const resp = await fetch(mensagem.media_url)
+        const blob = await resp.blob()
+        // Clipboard API exige image/png — converter via canvas se necessário
+        const pngBlob = await new Promise<Blob>((resolve, reject) => {
+          const img = new Image()
+          img.crossOrigin = 'anonymous'
+          img.onload = () => {
+            const canvas = document.createElement('canvas')
+            canvas.width = img.naturalWidth
+            canvas.height = img.naturalHeight
+            const ctx = canvas.getContext('2d')
+            if (!ctx) return reject(new Error('Canvas context failed'))
+            ctx.drawImage(img, 0, 0)
+            canvas.toBlob(b => b ? resolve(b) : reject(new Error('toBlob failed')), 'image/png')
+          }
+          img.onerror = () => reject(new Error('Image load failed'))
+          img.src = URL.createObjectURL(blob)
+        })
+        await navigator.clipboard.write([
+          new ClipboardItem({ 'image/png': pngBlob })
+        ])
+        toast.success('Imagem copiada')
+      } catch {
+        // Fallback: copiar URL
+        await navigator.clipboard.writeText(mensagem.media_url)
+        toast.success('Link da imagem copiado')
+      }
+      return
+    }
+
+    // Outros tipos de mídia: copiar URL com toast adequado
+    if (['video', 'audio', 'document', 'sticker'].includes(mensagem.tipo) && mensagem.media_url) {
+      await navigator.clipboard.writeText(mensagem.media_url)
+      toast.success('Link do arquivo copiado')
+      return
+    }
+
+    // Texto, contato, localização, enquete
     let content = ''
     switch (mensagem.tipo) {
       case 'text':
         content = mensagem.body || ''
-        break
-      case 'image':
-      case 'video':
-      case 'audio':
-      case 'document':
-      case 'sticker':
-        content = mensagem.media_url || mensagem.caption || mensagem.body || ''
         break
       case 'contact':
         content = mensagem.vcard || mensagem.body || ''
@@ -944,7 +978,7 @@ export function ChatMessageBubble({
         content = mensagem.body || ''
     }
     if (content) {
-      navigator.clipboard.writeText(content)
+      await navigator.clipboard.writeText(content)
       toast.success('Copiado')
     }
   }, [mensagem])
