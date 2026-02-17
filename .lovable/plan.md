@@ -1,94 +1,135 @@
 
 
-## Otimizacoes do Modulo de Emails - Reducao de Carga no Servidor
+## Captura de Leads Pre-Checkout na Pagina de Planos
 
-### Resumo
+### Problema
+Quando o usuario clica em "Assinar", ele vai direto para o checkout do Stripe. Se desistir, nenhum dado foi capturado, e o time comercial perde a oportunidade de follow-up.
 
-Tres melhorias para evitar sobrecarga do banco de dados com o crescimento de emails sincronizados:
+### Solucao
 
----
-
-### 1. Sanitizacao do HTML antes de salvar no banco
-
-**Problema:** Emails de marketing podem conter imagens base64 inline (100-500KB cada), scripts, e HTML excessivamente grande que infla a tabela `emails_recebidos`.
-
-**Solucao:** Adicionar funcao `sanitizeEmailHtml()` no `sync-emails/index.ts` que:
-- Remove imagens base64 inline (`src="data:image/..."`) substituindo por placeholder
-- Remove tags `<script>`, `<style>` com conteudo excessivo (>5KB)
-- Trunca HTML que ultrapasse 200KB (mantendo as primeiras 200KB + aviso de truncamento)
-
-**Arquivo:** `supabase/functions/sync-emails/index.ts`
-- Criar funcao `sanitizeEmailHtml(html: string): string` 
-- Aplicar nos pontos onde `corpo_html` e salvo (linhas ~888 e ~928)
+Criar um fluxo de **pre-cadastro** com modal antes do checkout, e exibir esses leads pendentes na area administrativa.
 
 ---
 
-### 2. Politica de Retencao Automatica (TTL)
+### 1. Nova tabela `pre_cadastros_saas`
 
-**Problema:** Emails na lixeira e arquivados acumulam indefinidamente no banco sem limpeza.
+Conforme o arquiteto de produto recomenda (separacao do Mundo SaaS), criar tabela dedicada para nao poluir `organizacoes_saas` com dados incompletos.
 
-**Solucao:** Criar uma Edge Function `limpar-emails-antigos` + cron job que:
-- Deleta emails da pasta `trash` com mais de 30 dias
-- Deleta emails da pasta `archived` com mais de 90 dias (soft delete via `deletado_em`)
-- Executa automaticamente via `pg_cron` a cada 24h
+Campos:
+- `id` (uuid, PK)
+- `nome_contato` (varchar, NOT NULL)
+- `email` (varchar, NOT NULL)
+- `telefone` (varchar)
+- `nome_empresa` (varchar, NOT NULL)
+- `segmento` (varchar, NOT NULL)
+- `plano_id` (uuid, FK planos)
+- `periodo` (varchar) -- mensal/anual
+- `is_trial` (boolean, default false)
+- `status` (varchar, default 'pendente') -- pendente, checkout_iniciado, convertido, expirado
+- `stripe_session_id` (varchar, nullable)
+- `organizacao_id` (uuid, nullable, FK) -- preenchido quando convertido
+- `utms` (jsonb)
+- `criado_em`, `atualizado_em`
 
-**Arquivos:**
-- Novo: `supabase/functions/limpar-emails-antigos/index.ts`
-- SQL: Cron job para executar diariamente
+Constraint de status: `pendente`, `checkout_iniciado`, `convertido`, `expirado`
 
 ---
 
-### 3. Lazy Loading do corpo_html
+### 2. Modal estilo Pipedrive na PlanosPage
 
-**Problema:** Atualmente o sync baixa o body completo de todos os emails novos, mesmo que o usuario nunca os abra. Isso consome banda IMAP e espaco no banco desnecessariamente.
+Ao clicar em "Comprar agora" ou "Teste gratis agora", abre um modal (Dialog do shadcn/ui) com:
 
-**Solucao:** Alterar o fluxo de sincronizacao para:
-- No sync: salvar apenas headers (remetente, assunto, data) — sem baixar o body
-- Quando o usuario abrir um email no frontend: buscar o body via IMAP on-demand e salvar no banco
-- Manter o backfill existente como fallback
+- **Nome completo** (input texto, obrigatorio)
+- **Email** (input email, obrigatorio)
+- **Telefone** (input com mascara BR)
+- **Nome da Empresa** (input texto, obrigatorio)
+- **Segmento** (select com mesmas opcoes do cadastro de organizacao: Software, Servicos, Varejo, etc.)
 
-**Arquivos:**
-- `supabase/functions/sync-emails/index.ts` — remover fetch de bodies no sync principal
-- Novo: `supabase/functions/fetch-email-body/index.ts` — busca body individual sob demanda
-- Frontend: `src/modules/emails/` — ao abrir email sem `corpo_html`, chamar a nova Edge Function
+Botao do modal: "Continuar para o pagamento" (planos pagos) ou "Iniciar teste gratis" (trial).
+
+---
+
+### 3. Fluxo de dados
+
+```text
+1. Usuario clica "Comprar agora" ou "Teste gratis agora"
+2. Modal abre e coleta dados
+3. Dados salvos na tabela pre_cadastros_saas (status: pendente)
+4. Edge Function create-checkout-session recebe o pre_cadastro_id
+5. Atualiza status para checkout_iniciado + salva stripe_session_id
+6. Redireciona para Stripe Checkout
+7. Webhook de sucesso atualiza para convertido + vincula organizacao_id
+```
+
+O dado fica salvo **antes** do redirect para o Stripe, garantindo que mesmo sem concluir o checkout, o time comercial tem as informacoes.
+
+---
+
+### 4. Botoes atualizados na PlanosPage
+
+- Planos pagos: "Comprar agora" (em vez de "Assinar")
+- Plano Trial: "Teste gratis agora" (em vez de "Comecar Trial")
+
+---
+
+### 5. Exibicao no Admin - OrganizacoesPage
+
+Adicionar na coluna STATUS da tabela de organizacoes um novo filtro/aba para "Pendentes" que lista os pre-cadastros que nao converteram.
+
+Opcoes:
+- Adicionar status `pendente` no filtro do dropdown existente
+- Ao selecionar "Pendentes", buscar da tabela `pre_cadastros_saas` onde `status != 'convertido'`
+- Exibir com badge laranja "Pendente" mostrando: empresa, contato (nome + email + telefone), segmento, plano desejado, data
+
+O time comercial pode assim ver quem preencheu o formulario mas nao finalizou a compra.
 
 ---
 
 ### Secao Tecnica
 
-**Sanitizacao (sync-emails/index.ts):**
+**Migracao SQL:**
 ```text
-function sanitizeEmailHtml(html: string): string {
-  // 1. Remove data:image base64 (substitui por placeholder)
-  // 2. Remove <script> tags
-  // 3. Remove <style> blocks > 5KB
-  // 4. Trunca se > 200KB
-  return sanitized;
-}
+CREATE TABLE pre_cadastros_saas (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  nome_contato varchar(255) NOT NULL,
+  email varchar(255) NOT NULL,
+  telefone varchar(50),
+  nome_empresa varchar(255) NOT NULL,
+  segmento varchar(100) NOT NULL,
+  plano_id uuid REFERENCES planos(id),
+  periodo varchar(10) DEFAULT 'mensal',
+  is_trial boolean DEFAULT false,
+  status varchar(20) DEFAULT 'pendente',
+  stripe_session_id varchar(255),
+  organizacao_id uuid REFERENCES organizacoes_saas(id),
+  utms jsonb DEFAULT '{}',
+  criado_em timestamptz NOT NULL DEFAULT now(),
+  atualizado_em timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT chk_pre_cadastro_status CHECK (status IN ('pendente', 'checkout_iniciado', 'convertido', 'expirado'))
+);
+
+-- RLS: anon pode INSERT, super_admin pode SELECT/UPDATE
+ALTER TABLE pre_cadastros_saas ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "anon_insert" ON pre_cadastros_saas FOR INSERT TO anon WITH CHECK (true);
+CREATE POLICY "super_admin_all" ON pre_cadastros_saas FOR ALL USING (is_super_admin_v2());
 ```
 
-**TTL (limpar-emails-antigos/index.ts):**
-```text
-- DELETE FROM emails_recebidos WHERE pasta = 'trash' AND atualizado_em < NOW() - INTERVAL '30 days'
-- UPDATE emails_recebidos SET deletado_em = NOW() WHERE pasta = 'archived' AND atualizado_em < NOW() - INTERVAL '90 days' AND deletado_em IS NULL
-```
+**Arquivos a criar/editar:**
 
-**Cron via pg_cron:**
-```text
-SELECT cron.schedule('limpar-emails-antigos', '0 3 * * *', $$ ... $$);
-```
+| Arquivo | Acao |
+|---------|------|
+| `supabase/migrations/xxx_pre_cadastros_saas.sql` | Criar tabela |
+| `src/modules/public/components/PreCadastroModal.tsx` | Novo modal com formulario |
+| `src/modules/public/pages/PlanosPage.tsx` | Integrar modal, renomear botoes |
+| `supabase/functions/create-checkout-session/index.ts` | Aceitar pre_cadastro_id, atualizar status |
+| `src/modules/admin/pages/OrganizacoesPage.tsx` | Adicionar filtro/listagem de pendentes |
+| `src/modules/admin/services/admin.api.ts` | Funcoes para listar pre-cadastros |
 
-**Lazy Loading (fetch-email-body/index.ts):**
-```text
-- Recebe email_id
-- Busca conexao SMTP do usuario
-- Conecta IMAP, faz UID FETCH do body
-- Salva corpo_html/corpo_texto no banco
-- Retorna o conteudo
-```
-
-**Ordem de implementacao:**
-1. Sanitizacao (menor risco, maior impacto imediato)
-2. TTL (simples, evita acumulo futuro)
-3. Lazy Loading (maior mudanca, requer ajuste no frontend)
+**Componente PreCadastroModal:**
+- Usa Dialog do radix-ui (ja instalado)
+- React Hook Form + Zod para validacao
+- Reutiliza constante SEGMENTOS de `organizacao.schema.ts`
+- Salva direto no Supabase via client (anon INSERT)
+- Apos salvar, chama create-checkout-session passando `pre_cadastro_id`
 
