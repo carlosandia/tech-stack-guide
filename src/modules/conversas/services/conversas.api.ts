@@ -73,6 +73,7 @@ export interface UltimaMensagemPreview {
   body?: string | null
   from_me: boolean
   criado_em: string
+  reaction_emoji?: string | null
 }
 
 export interface WhatsAppLabelPreview {
@@ -283,7 +284,7 @@ export const conversasApi = {
       
       const { data: ultimasMensagens } = await supabase
         .from('mensagens')
-        .select('id, conversa_id, tipo, body, from_me, criado_em')
+        .select('id, conversa_id, tipo, body, from_me, criado_em, reaction_emoji')
         .in('conversa_id', conversaIds)
         .is('deletado_em', null)
         .order('criado_em', { ascending: false })
@@ -300,6 +301,7 @@ export const conversasApi = {
               body: msg.body,
               from_me: msg.from_me,
               criado_em: msg.criado_em,
+              reaction_emoji: msg.reaction_emoji,
             })
           }
         }
@@ -735,7 +737,7 @@ export const conversasApi = {
       .eq('id', mensagemId)
   },
 
-  /** Reagir a uma mensagem via WAHA */
+  /** Reagir a uma mensagem via WAHA e salvar localmente */
   async reagirMensagem(conversaId: string, messageWahaId: string, emoji: string): Promise<void> {
     const session = await getConversaWahaSession(conversaId)
     if (session) {
@@ -756,6 +758,18 @@ export const conversasApi = {
         throw new Error('Reação não suportada pelo engine NOWEB')
       }
     }
+
+    // AIDEV-NOTE: Salvar reação localmente para exibição imediata (sem esperar webhook)
+    const orgId = await getOrganizacaoId()
+    await supabase.from('mensagens').insert({
+      organizacao_id: orgId,
+      conversa_id: conversaId,
+      message_id: `reaction_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+      from_me: true,
+      tipo: 'reaction',
+      reaction_emoji: emoji,
+      reaction_message_id: messageWahaId,
+    })
   },
 
   /** Encaminhar mensagem para outra conversa via WAHA */

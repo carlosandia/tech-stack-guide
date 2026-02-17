@@ -7,7 +7,7 @@ import { useRef, useEffect, useMemo, forwardRef } from 'react'
 import { format, isToday, isYesterday, isSameDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Loader2 } from 'lucide-react'
-import { ChatMessageBubble } from './ChatMessageBubble'
+import { ChatMessageBubble, type ReactionBadge } from './ChatMessageBubble'
 import type { Mensagem } from '../services/conversas.api'
 import { useMentionResolver } from '../hooks/useMentionResolver'
 
@@ -131,6 +131,31 @@ export const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(functi
     )
   }, [mensagens])
 
+  // AIDEV-NOTE: Agregar reações por message_id da mensagem original (estilo WhatsApp badges)
+  const reactionsMap = useMemo(() => {
+    const map = new Map<string, ReactionBadge[]>()
+    for (const msg of sortedMessages) {
+      if (msg.tipo === 'reaction' && msg.reaction_message_id && msg.reaction_emoji) {
+        const key = msg.reaction_message_id
+        const existing = map.get(key) || []
+        const found = existing.find(r => r.emoji === msg.reaction_emoji)
+        if (found) {
+          found.count++
+          if (msg.from_me) found.fromMe = true
+        } else {
+          existing.push({ emoji: msg.reaction_emoji, count: 1, fromMe: msg.from_me })
+        }
+        map.set(key, existing)
+      }
+    }
+    return map
+  }, [sortedMessages])
+
+  // Filtrar mensagens tipo reaction da timeline (serão exibidas como badges)
+  const visibleMessages = useMemo(() => {
+    return sortedMessages.filter(m => m.tipo !== 'reaction')
+  }, [sortedMessages])
+
   const messageByWahaId = useMemo(() => {
     const map = new Map<string, Mensagem>()
     for (const msg of sortedMessages) {
@@ -190,10 +215,10 @@ export const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(functi
         </div>
       )}
 
-      {sortedMessages.map((msg, idx) => {
+      {visibleMessages.map((msg, idx) => {
         const showDateSep =
           idx === 0 ||
-          !isSameDay(new Date(msg.criado_em), new Date(sortedMessages[idx - 1].criado_em))
+          !isSameDay(new Date(msg.criado_em), new Date(visibleMessages[idx - 1].criado_em))
 
         let participantName: string | null = null
         let participantColor: string | null = null
@@ -203,6 +228,9 @@ export const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(functi
           participantName = getParticipantDisplayName(msg)
           participantColor = getParticipantColor(participant)
         }
+
+        // AIDEV-NOTE: Buscar reações para esta mensagem pelo message_id
+        const msgReactions = msg.message_id ? reactionsMap.get(msg.message_id) : undefined
 
         return (
           <div
@@ -231,6 +259,7 @@ export const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(functi
               fotoUrl={fotoUrl}
               myAvatarUrl={myAvatarUrl}
               contactMap={contactMap}
+              reactions={msgReactions}
               onDeleteMessage={onDeleteMessage}
               onReplyMessage={onReplyMessage}
               onReactMessage={onReactMessage}

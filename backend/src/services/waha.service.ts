@@ -435,6 +435,7 @@ class WahaService {
   private async handleMessageReaction(sessao: any, payload: any): Promise<void> {
     const reactionMessageId = payload.reactionMessage?.key?.id
     const emoji = payload.text || payload.reaction
+    const fromMe = payload.fromMe === true || payload.reactionMessage?.key?.fromMe === true
 
     if (!reactionMessageId || !emoji) return
 
@@ -452,7 +453,8 @@ class WahaService {
           mensagemOriginal.conversa_id,
           payload.id || `reaction_${Date.now()}`,
           emoji,
-          reactionMessageId
+          reactionMessageId,
+          fromMe
         )
       }
     } catch (error) {
