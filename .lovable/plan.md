@@ -1,108 +1,97 @@
 
-# Plano de Correcao - Metricas de Conversas
 
-## Problemas Identificados
+# Plano de Correcao: Foco ao Responder + Copiar Midia Real
 
-### 1. Bug Critico: Limite de 1000 linhas do Supabase (Enviadas/Recebidas incorretas)
-- O Supabase limita queries a 1000 linhas por padrao
-- A query de mensagens busca em batches de 50 conversas, mas cada batch pode retornar +1000 mensagens
-- **Dados reais**: DB tem 2660 mensagens em 30 dias (1182 enviadas, 1648 recebidas)
-- **Tela mostra**: 295 enviadas, 428 recebidas (dados truncados)
-- **Impacto**: TMR, TMA, Sem Resposta tambem estao incorretos pois dependem das mensagens
+## Problema 1: Foco automatico ao clicar em "Responder"
 
-### 2. Filtro de tipo de conversa ausente
-- A query de conversas nao exclui `tipo = 'grupo'` (35 grupos incluidos indevidamente)
-- Total Conversas mostra 360, deveria ser ~325 (somente individuais)
+Quando o usuario clica em "Responder" no menu de acoes, o estado `replyingTo` e atualizado no `ChatWindow`, mas o campo de texto nao recebe foco automaticamente -- o usuario precisa clicar manualmente no textarea.
 
-### 3. Taxa de Resolucao sempre 0%
-- O hook so verifica `status = 'fechada'`, mas o DB tambem tem status `resolvida`
-- Ambos os status devem contar para resolucao
+**Solucao**: Expor o `textareaRef` do `ChatInput` via `useImperativeHandle` e, no `ChatWindow`, chamar `.focus()` ao definir `replyingTo`.
 
-### 4. Sem Resposta com logica incompleta
-- So conta conversas com ultima mensagem do cliente ha mais de 2h
-- Deveria tambem contar conversas sem nenhuma resposta (sem nenhum `from_me`)
+### Alteracoes
 
-### 5. Filtro de periodo "Personalizado" ausente
-- Usuarios nao conseguem selecionar datas especificas
+**Arquivo**: `src/modules/conversas/components/ChatInput.tsx`
+- Alterar o `forwardRef` para expor um metodo `focusTextarea()` via `useImperativeHandle`
+- O ref externo passara a ter a interface `{ focusTextarea: () => void }`
+
+**Arquivo**: `src/modules/conversas/components/ChatWindow.tsx`
+- Criar um `chatInputRef` com `useRef`
+- Passar o ref ao componente `ChatInput`
+- No callback `onReplyMessage`, alem de `setReplyingTo(msg)`, chamar `chatInputRef.current?.focusTextarea()` com um pequeno `setTimeout` para garantir que o estado ja atualizou
 
 ---
 
-## Plano de Implementacao
+## Problema 2: Copiar midia real (imagem, video, documento) em vez da URL
 
-### Etapa 1: Corrigir busca de mensagens (bug do limite 1000)
-**Arquivo**: `src/modules/conversas/hooks/useConversasMetricas.ts`
+Atualmente o `handleCopy` no `ChatMessageBubble.tsx` copia a URL da midia como texto plano. O comportamento esperado e:
 
-Em vez de buscar todas as mensagens e calcular no frontend (ineficiente e limitado), refatorar para usar **queries de contagem** no Supabase:
+- **Imagens**: Copiar o blob da imagem para a area de transferencia (usando `navigator.clipboard.write` com `ClipboardItem`)
+- **Videos/Documentos/Audio**: Nao e possivel copiar binarios complexos para a area de transferencia na maioria dos navegadores. Para esses tipos, o comportamento mais correto e **baixar o arquivo** em vez de copiar a URL. Porem, como copiar video/doc nao e padrao, a abordagem recomendada e:
+  - Imagem: copiar o blob real da imagem
+  - Video/Audio/Documento: copiar a URL mas informar ao usuario com toast "Link copiado" (ou oferecer download)
 
-- **Enviadas/Recebidas**: Usar `count: 'exact'` com filtro `from_me` direto no Supabase, sem buscar linhas
-- **TMR/TMA**: Manter busca por mensagens mas com `.limit(10000)` e batches menores (20 conversas por vez) para evitar truncamento
-- **Sem Resposta**: Usar query SQL separada contando conversas sem `from_me`
+**Solucao para imagens**: Fazer `fetch` da `media_url`, converter para `Blob`, e usar `navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])`.
 
-### Etapa 2: Adicionar filtro `tipo != 'grupo'`
-**Arquivo**: `src/modules/conversas/hooks/useConversasMetricas.ts`
+### Alteracoes
 
-Adicionar `.eq('tipo', 'individual')` na query de conversas para excluir grupos e canais.
-
-### Etapa 3: Corrigir Taxa de Resolucao
-**Arquivo**: `src/modules/conversas/hooks/useConversasMetricas.ts`
-
-Alterar de:
-```
-conversasList.filter(c => c.status === 'fechada')
-```
-Para:
-```
-conversasList.filter(c => c.status === 'fechada' || c.status === 'resolvida')
-```
-
-### Etapa 4: Corrigir logica de "Sem Resposta"
-**Arquivo**: `src/modules/conversas/hooks/useConversasMetricas.ts`
-
-Incluir conversas que:
-- Ultima mensagem e do cliente ha mais de 2h (atual)
-- **OU** nao possuem nenhuma mensagem `from_me` (nunca respondidas)
-
-### Etapa 5: Adicionar filtro "Personalizado"
-**Arquivos**:
-- `src/modules/conversas/hooks/useConversasMetricas.ts` - Adicionar tipo `'custom'` ao `PeriodoMetricas` com `dataInicio` e `dataFim`
-- `src/modules/conversas/components/ConversasMetricasPanel.tsx` - Adicionar botao "Personalizado" que abre um date range picker com dois inputs de data
-
-### Etapa 6: Ajustes visuais no painel
-**Arquivo**: `src/modules/conversas/components/ConversasMetricasPanel.tsx`
-
-- Usar icones dedicados para WhatsApp e Instagram nos cards (em vez do generico `BarChart3`)
-- Seguir design system para espacamentos e tipografia
+**Arquivo**: `src/modules/conversas/components/ChatMessageBubble.tsx`
+- Refatorar `handleCopy` (linhas 921-950):
+  - Para `tipo === 'image'`: buscar a imagem via `fetch`, converter para blob PNG, e usar a Clipboard API binaria
+  - Para `tipo === 'video' | 'audio' | 'document'`: manter a copia da URL mas alterar o toast para "Link do arquivo copiado"
+  - Para `tipo === 'text'` e outros: manter comportamento atual (copiar texto)
+  - Tratar erros de CORS ou falha no fetch com fallback para copiar a URL
 
 ---
 
 ## Secao Tecnica
 
-### Estrategia para contornar limite de 1000 linhas
+### Focus via ImperativeHandle
 
-A abordagem sera hibrida:
-
-1. **Contagens simples** (enviadas, recebidas, com anexos): usar `select('id', { count: 'exact', head: true })` que retorna apenas o count sem dados
-2. **Calculos que precisam de dados** (TMR, TMA): buscar mensagens com `.limit(5000)` em batches de 10 conversas por vez, garantindo que cada batch retorne poucos registros
-3. **Sem Resposta**: query separada que busca somente a ultima mensagem de cada conversa
-
-### Tipo PeriodoMetricas atualizado
 ```typescript
-type PeriodoMetricas = 'hoje' | '7d' | '30d' | '60d' | '90d' | 'custom'
+// ChatInput.tsx
+export interface ChatInputHandle {
+  focusTextarea: () => void
+}
 
-interface MetricasFilters {
-  periodo: PeriodoMetricas
-  canal: CanalFiltro
-  vendedorId?: string
-  dataInicio?: string  // ISO string para periodo custom
-  dataFim?: string     // ISO string para periodo custom
+export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(...)
+
+useImperativeHandle(ref, () => ({
+  focusTextarea: () => textareaRef.current?.focus()
+}))
+```
+
+```typescript
+// ChatWindow.tsx
+const chatInputRef = useRef<ChatInputHandle>(null)
+
+onReplyMessage={(msg) => {
+  setReplyingTo(msg)
+  setTimeout(() => chatInputRef.current?.focusTextarea(), 50)
+}}
+```
+
+### Clipboard API para imagens
+
+```typescript
+// handleCopy para imagens
+if (mensagem.tipo === 'image' && mensagem.media_url) {
+  try {
+    const resp = await fetch(mensagem.media_url)
+    const blob = await resp.blob()
+    // Converter para PNG se necessario (clipboard so aceita PNG)
+    const pngBlob = await convertToPng(blob)
+    await navigator.clipboard.write([
+      new ClipboardItem({ 'image/png': pngBlob })
+    ])
+    toast.success('Imagem copiada')
+  } catch {
+    // Fallback: copiar URL
+    navigator.clipboard.writeText(mensagem.media_url)
+    toast.success('Link da imagem copiado')
+  }
+  return
 }
 ```
 
-### Tabelas e colunas validadas
-- `conversas.canal` = 'whatsapp' | 'instagram' -- OK, filtro funciona
-- `conversas.tipo` = 'individual' | 'grupo' -- **falta filtro**
-- `conversas.status` = 'aberta' | 'fechada' | 'resolvida' -- **falta 'resolvida'**
-- `conversas.usuario_id` -- OK para filtro por vendedor
-- `mensagens.from_me` -- OK
-- `mensagens.criado_em` -- OK para periodos
-- `conversas.primeira_mensagem_em` / `status_alterado_em` -- OK para tempo resolucao
+A funcao `convertToPng` carrega o blob num `Image` via canvas e exporta como PNG, necessario porque a Clipboard API so aceita `image/png`.
+
