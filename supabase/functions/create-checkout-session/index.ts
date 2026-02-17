@@ -50,9 +50,9 @@ serve(async (req) => {
     const supabase = createClient<any>(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
     const body = await req.json()
-    const { plano_id, periodo = 'mensal', email, is_trial = false, utms } = body
+    const { plano_id, periodo = 'mensal', email, is_trial = false, utms, pre_cadastro_id } = body
 
-    console.log('Creating checkout session:', { plano_id, periodo, email, is_trial })
+    console.log('Creating checkout session:', { plano_id, periodo, email, is_trial, pre_cadastro_id })
 
     // Buscar configuração de trial se for trial
     let trialDias = 14
@@ -155,12 +155,13 @@ serve(async (req) => {
       allow_promotion_codes: true,
       billing_address_collection: 'required',
       metadata: {
-        plano_id: is_trial ? plano_id : plano.id,  // Para trial: guardar plano_id original (Trial)
-        billing_plano_id: plano.id,  // Plano que será cobrado
+        plano_id: is_trial ? plano_id : plano.id,
+        billing_plano_id: plano.id,
         plano_nome: plano.nome,
         periodo,
         is_trial: is_trial ? 'true' : 'false',
         trial_dias: is_trial ? String(trialDias) : '0',
+        pre_cadastro_id: pre_cadastro_id || '',
         utm_source: utms?.utm_source || '',
         utm_medium: utms?.utm_medium || '',
         utm_campaign: utms?.utm_campaign || '',
@@ -180,6 +181,18 @@ serve(async (req) => {
     const session = await stripe.checkout.sessions.create(sessionParams)
 
     console.log('Checkout session created:', session.id, '| Product:', productName, '| Amount:', unitAmount, currency)
+
+    // Atualizar pré-cadastro com stripe_session_id e status
+    if (pre_cadastro_id) {
+      await supabase
+        .from('pre_cadastros_saas')
+        .update({
+          status: 'checkout_iniciado',
+          stripe_session_id: session.id,
+        })
+        .eq('id', pre_cadastro_id)
+      console.log('Pre-cadastro atualizado:', pre_cadastro_id)
+    }
 
     return new Response(
       JSON.stringify({ url: session.url }),
