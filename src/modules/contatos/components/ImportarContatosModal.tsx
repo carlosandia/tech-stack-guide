@@ -68,6 +68,8 @@ export const ImportarContatosModal = forwardRef<HTMLDivElement, ImportarContatos
   const [tipoContato, setTipoContato] = useState<TipoContato>('pessoa')
   const [parsedData, setParsedData] = useState<{ headers: string[]; rows: ParsedRow[] }>({ headers: [], rows: [] })
   const [mapping, setMapping] = useState<Record<string, string>>({})
+  // AIDEV-NOTE: Armazena mapeamento por tipo para restaurar ao trocar
+  const mappingPorTipo = useRef<Record<TipoContato, Record<string, string>>>({ pessoa: {}, empresa: {} })
   const [segmentoOpcao, setSegmentoOpcao] = useState<'nenhum' | 'existente' | 'novo'>('nenhum')
   const [segmentoId, setSegmentoId] = useState('')
   const [novoSegmentoNome, setNovoSegmentoNome] = useState('')
@@ -216,6 +218,7 @@ export const ImportarContatosModal = forwardRef<HTMLDivElement, ImportarContatos
     setFile(null)
     setParsedData({ headers: [], rows: [] })
     setMapping({})
+    mappingPorTipo.current = { pessoa: {}, empresa: {} }
     setSegmentoOpcao('nenhum')
     setSegmentoId('')
     setNovoSegmentoNome('')
@@ -312,31 +315,29 @@ export const ImportarContatosModal = forwardRef<HTMLDivElement, ImportarContatos
                   value={tipoContato}
                   onChange={(e) => {
                     const novoTipo = e.target.value as TipoContato
+                    // AIDEV-NOTE: Salvar mapeamento atual antes de trocar
+                    mappingPorTipo.current[tipoContato] = { ...mapping }
                     setTipoContato(novoTipo)
-                    // AIDEV-NOTE: Recalcular mapeamento ao trocar tipo de contato
-                    const novosCampos = novoTipo === 'pessoa' ? CAMPOS_PESSOA : CAMPOS_EMPRESA
-                    const valoresValidos = new Set(novosCampos.map(c => c.value).filter(Boolean))
-                    // Preservar mapeamentos cujo campo existe no novo tipo
-                    const mappingPreservado: Record<string, string> = {}
-                    Object.entries(mapping).forEach(([header, campo]) => {
-                      if (campo && valoresValidos.has(campo)) {
-                        mappingPreservado[header] = campo
-                      }
-                    })
-                    // Re-executar auto-map para headers ainda não mapeados
-                    const headersMapeados = new Set(Object.keys(mappingPreservado).filter(h => mappingPreservado[h]))
-                    const camposUsados = new Set(Object.values(mappingPreservado).filter(Boolean))
-                    parsedData.headers.forEach(h => {
-                      if (!headersMapeados.has(h) || !mappingPreservado[h]) {
+                    // Restaurar mapeamento salvo do novo tipo, se existir
+                    const salvo = mappingPorTipo.current[novoTipo]
+                    const temSalvo = Object.values(salvo).some(v => v)
+                    if (temSalvo) {
+                      setMapping({ ...salvo })
+                    } else {
+                      // Auto-map para o novo tipo
+                      const novosCampos = novoTipo === 'pessoa' ? CAMPOS_PESSOA : CAMPOS_EMPRESA
+                      const autoMap: Record<string, string> = {}
+                      const camposUsados = new Set<string>()
+                      parsedData.headers.forEach(h => {
                         const hl = h.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
                         const match = novosCampos.find(c => c.value && !camposUsados.has(c.value) && hl.includes(c.value.replace('_', '')))
                         if (match) {
-                          mappingPreservado[h] = match.value
+                          autoMap[h] = match.value
                           camposUsados.add(match.value)
                         }
-                      }
-                    })
-                    setMapping(mappingPreservado)
+                      })
+                      setMapping(autoMap)
+                    }
                   }}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 >
