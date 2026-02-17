@@ -21,6 +21,7 @@ import {
   Link as LinkIcon,
   ImagePlus,
   Smile,
+  Loader2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
@@ -68,6 +69,7 @@ export function CadenciaMessageEditor({
 }: CadenciaMessageEditorProps) {
   void _placeholder
   const [emojiOpen, setEmojiOpen] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const emojiRef = useRef<HTMLDivElement>(null)
 
   const editor = useEditor({
@@ -126,7 +128,7 @@ export function CadenciaMessageEditor({
   }, [editor])
 
   const handleImageUpload = useCallback(() => {
-    if (!editor) return
+    if (!editor || uploading) return
     const input = document.createElement('input')
     input.type = 'file'
     input.accept = 'image/*'
@@ -134,31 +136,35 @@ export function CadenciaMessageEditor({
       const file = input.files?.[0]
       if (!file) return
 
-      const ext = file.name.split('.').pop()
-      const path = `email-images/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+      setUploading(true)
+      try {
+        const ext = file.name.split('.').pop()
+        const path = `email-images/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
 
-      const { data, error } = await supabase.storage
-        .from('email-anexos')
-        .upload(path, file, { contentType: file.type, upsert: true })
+        const { data, error } = await supabase.storage
+          .from('email-anexos')
+          .upload(path, file, { contentType: file.type, upsert: true })
 
-      if (error) {
-        // Fallback base64
-        const reader = new FileReader()
-        reader.onload = () => {
-          editor.chain().focus().setImage({ src: reader.result as string }).run()
+        if (error) {
+          const reader = new FileReader()
+          reader.onload = () => {
+            editor.chain().focus().setImage({ src: reader.result as string }).run()
+          }
+          reader.readAsDataURL(file)
+          return
         }
-        reader.readAsDataURL(file)
-        return
+
+        const { data: urlData } = supabase.storage
+          .from('email-anexos')
+          .getPublicUrl(data.path)
+
+        editor.chain().focus().setImage({ src: urlData.publicUrl }).run()
+      } finally {
+        setUploading(false)
       }
-
-      const { data: urlData } = supabase.storage
-        .from('email-anexos')
-        .getPublicUrl(data.path)
-
-      editor.chain().focus().setImage({ src: urlData.publicUrl }).run()
     }
     input.click()
-  }, [editor])
+  }, [editor, uploading])
 
   const [showLinkInput, setShowLinkInput] = useState(false)
 
@@ -222,8 +228,8 @@ export function CadenciaMessageEditor({
           </>
         )}
 
-        <button type="button" onClick={handleImageUpload} className={btnClass(false)} title="Inserir imagem">
-          <ImagePlus className="w-4 h-4" />
+        <button type="button" onClick={handleImageUpload} className={btnClass(false)} title="Inserir imagem" disabled={uploading}>
+          {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImagePlus className="w-4 h-4" />}
         </button>
 
         {/* Emoji */}
