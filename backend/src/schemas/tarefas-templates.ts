@@ -15,6 +15,9 @@ import { z } from 'zod'
 export const TipoTarefaEnum = z.enum(['ligacao', 'email', 'reuniao', 'whatsapp', 'visita', 'outro'])
 export type TipoTarefa = z.infer<typeof TipoTarefaEnum>
 
+export const ModoTarefaEnum = z.enum(['comum', 'cadencia'])
+export type ModoTarefa = z.infer<typeof ModoTarefaEnum>
+
 export const CanalTarefaEnum = z.enum(['whatsapp', 'instagram', 'email', 'telefone'])
 export type CanalTarefa = z.infer<typeof CanalTarefaEnum>
 
@@ -34,6 +37,9 @@ export const TarefaTemplateSchema = z.object({
   canal: CanalTarefaEnum.nullable().optional(),
   prioridade: PrioridadeTarefaEnum.default('media'),
   dias_prazo: z.number().nonnegative().default(1),
+  modo: ModoTarefaEnum.default('comum'),
+  assunto_email: z.string().nullable().optional(),
+  corpo_mensagem: z.string().nullable().optional(),
   ativo: z.boolean().default(true),
   criado_em: z.string().datetime(),
   criado_por: z.string().uuid().nullable().optional(),
@@ -54,6 +60,9 @@ export const CriarTarefaTemplateSchema = z.object({
   canal: CanalTarefaEnum.optional(),
   prioridade: PrioridadeTarefaEnum.optional().default('media'),
   dias_prazo: z.number().nonnegative('Dias deve ser positivo').optional().default(1),
+  modo: ModoTarefaEnum.optional().default('comum'),
+  assunto_email: z.string().max(500).optional(),
+  corpo_mensagem: z.string().optional(),
 })
 
 export type CriarTarefaTemplatePayload = z.infer<typeof CriarTarefaTemplateSchema>
@@ -65,6 +74,9 @@ export const AtualizarTarefaTemplateSchema = z.object({
   canal: CanalTarefaEnum.nullable().optional(),
   prioridade: PrioridadeTarefaEnum.optional(),
   dias_prazo: z.number().nonnegative().optional(),
+  modo: ModoTarefaEnum.optional(),
+  assunto_email: z.string().max(500).nullable().optional(),
+  corpo_mensagem: z.string().nullable().optional(),
   ativo: z.boolean().optional(),
 })
 

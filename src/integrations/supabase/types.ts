@@ -6867,9 +6867,11 @@ export type Database = {
       }
       tarefas: {
         Row: {
+          assunto_email: string | null
           atualizado_em: string
           canal: string | null
           contato_id: string | null
+          corpo_mensagem: string | null
           criado_em: string
           criado_por_id: string | null
           data_conclusao: string | null
@@ -6880,6 +6882,7 @@ export type Database = {
           id: string
           lembrete_em: string | null
           lembrete_enviado: boolean | null
+          modo: string | null
           oportunidade_id: string | null
           organizacao_id: string
           owner_id: string | null
@@ -6890,9 +6893,11 @@ export type Database = {
           titulo: string
         }
         Insert: {
+          assunto_email?: string | null
           atualizado_em?: string
           canal?: string | null
           contato_id?: string | null
+          corpo_mensagem?: string | null
           criado_em?: string
           criado_por_id?: string | null
           data_conclusao?: string | null
@@ -6903,6 +6908,7 @@ export type Database = {
           id?: string
           lembrete_em?: string | null
           lembrete_enviado?: boolean | null
+          modo?: string | null
           oportunidade_id?: string | null
           organizacao_id: string
           owner_id?: string | null
@@ -6913,9 +6919,11 @@ export type Database = {
           titulo: string
         }
         Update: {
+          assunto_email?: string | null
           atualizado_em?: string
           canal?: string | null
           contato_id?: string | null
+          corpo_mensagem?: string | null
           criado_em?: string
           criado_por_id?: string | null
           data_conclusao?: string | null
@@ -6926,6 +6934,7 @@ export type Database = {
           id?: string
           lembrete_em?: string | null
           lembrete_enviado?: boolean | null
+          modo?: string | null
           oportunidade_id?: string | null
           organizacao_id?: string
           owner_id?: string | null
@@ -6989,45 +6998,54 @@ export type Database = {
       }
       tarefas_templates: {
         Row: {
+          assunto_email: string | null
           ativo: boolean | null
           atualizado_em: string
           canal: string | null
+          corpo_mensagem: string | null
           criado_em: string
           criado_por: string | null
           deletado_em: string | null
           descricao: string | null
           dias_prazo: number | null
           id: string
+          modo: string | null
           organizacao_id: string
           prioridade: string | null
           tipo: string
           titulo: string
         }
         Insert: {
+          assunto_email?: string | null
           ativo?: boolean | null
           atualizado_em?: string
           canal?: string | null
+          corpo_mensagem?: string | null
           criado_em?: string
           criado_por?: string | null
           deletado_em?: string | null
           descricao?: string | null
           dias_prazo?: number | null
           id?: string
+          modo?: string | null
           organizacao_id: string
           prioridade?: string | null
           tipo: string
           titulo: string
         }
         Update: {
+          assunto_email?: string | null
           ativo?: boolean | null
           atualizado_em?: string
           canal?: string | null
+          corpo_mensagem?: string | null
           criado_em?: string
           criado_por?: string | null
           deletado_em?: string | null
           descricao?: string | null
           dias_prazo?: number | null
           id?: string
+          modo?: string | null
           organizacao_id?: string
           prioridade?: string | null
           tipo?: string

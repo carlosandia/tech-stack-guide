@@ -116,9 +116,12 @@ export function TarefasTemplatesPage() {
                   <div className="w-8 h-8 bg-primary/10 rounded-md flex items-center justify-center flex-shrink-0">
                     <Icon className="w-4 h-4 text-primary" />
                   </div>
-                  <div className="min-w-0">
+                    <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-foreground truncate">{template.titulo}</span>
+                      {template.modo === 'cadencia' && (
+                        <span className="text-[10px] font-medium text-primary px-1.5 py-0.5 rounded bg-primary/10">Cadência</span>
+                      )}
                       {!template.ativo && (
                         <span className="text-xs text-muted-foreground px-1.5 py-0.5 rounded bg-muted">Inativo</span>
                       )}

@@ -1,13 +1,14 @@
 /**
  * AIDEV-NOTE: Modal de criação/edição de Template de Tarefa
  * Migrado para usar ModalBase (Design System 10.5)
+ * Suporta modo 'comum' e 'cadencia' (PRD-05 evolução)
  */
 
 import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { tarefaTemplateFormSchema, tipoTarefaOptions, canalTarefaOptions, prioridadeTarefaOptions } from '../../schemas/tarefas-templates.schema'
+import { tarefaTemplateFormSchema, tipoTarefaOptions, canalTarefaOptions, prioridadeTarefaOptions, modoTarefaOptions } from '../../schemas/tarefas-templates.schema'
 import type { TarefaTemplateFormData } from '../../schemas/tarefas-templates.schema'
 import { useCriarTarefaTemplate, useAtualizarTarefaTemplate, useExcluirTarefaTemplate } from '../../hooks/useTarefasTemplates'
 import type { TarefaTemplate } from '../../services/configuracoes.api'
@@ -34,15 +35,38 @@ export function TarefaTemplateFormModal({ template, onClose }: TarefaTemplateFor
       canal: template?.canal as TarefaTemplateFormData['canal'] || undefined,
       prioridade: template?.prioridade || 'media',
       dias_prazo: template?.dias_prazo ?? 1,
+      modo: template?.modo || 'comum',
+      assunto_email: template?.assunto_email || '',
+      corpo_mensagem: template?.corpo_mensagem || '',
     },
   })
 
   const tipoSelecionado = watch('tipo')
+  const modoSelecionado = watch('modo')
+
+  // Tipos permitidos para cadência
+  const tiposFiltrados = modoSelecionado === 'cadencia'
+    ? tipoTarefaOptions.filter(opt => opt.value === 'email' || opt.value === 'whatsapp')
+    : tipoTarefaOptions
+
+  // Quando muda modo para cadência, forçar tipo válido
+  const handleModoChange = (modo: 'comum' | 'cadencia') => {
+    setValue('modo', modo)
+    if (modo === 'cadencia' && tipoSelecionado !== 'email' && tipoSelecionado !== 'whatsapp') {
+      setValue('tipo', 'whatsapp')
+    }
+  }
 
   const onSubmit = async (data: TarefaTemplateFormData) => {
     try {
-      if (isEditing && template) { await atualizar.mutateAsync({ id: template.id, payload: data }) }
-      else { await criar.mutateAsync(data) }
+      // Limpar campos de cadência se modo comum
+      const payload = { ...data }
+      if (payload.modo === 'comum') {
+        payload.assunto_email = null
+        payload.corpo_mensagem = null
+      }
+      if (isEditing && template) { await atualizar.mutateAsync({ id: template.id, payload }) }
+      else { await criar.mutateAsync(payload) }
       onClose()
     } catch { /* erro tratado pelo React Query */ }
   }
@@ -80,6 +104,22 @@ export function TarefaTemplateFormModal({ template, onClose }: TarefaTemplateFor
   return (
     <ModalBase onClose={onClose} title={isEditing ? 'Editar Template' : 'Novo Template de Tarefa'} description="Templates" variant={isEditing ? 'edit' : 'create'} size="md" footer={footerContent}>
       <form id="tarefa-tpl-form" onSubmit={handleSubmit(onSubmit)} className="px-4 sm:px-6 py-4 space-y-4">
+        {/* Modo: Comum vs Cadência */}
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-2">Modo</label>
+          <div className="grid grid-cols-2 gap-2">
+            {modoTarefaOptions.map(opt => (
+              <button key={opt.value} type="button" onClick={() => handleModoChange(opt.value as 'comum' | 'cadencia')}
+                className={`flex flex-col items-start px-3 py-2.5 rounded-md border text-left transition-all duration-200 ${
+                  modoSelecionado === opt.value ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'
+                }`}>
+                <span className={`text-sm font-medium ${modoSelecionado === opt.value ? 'text-primary' : 'text-foreground'}`}>{opt.label}</span>
+                <span className="text-[11px] text-muted-foreground mt-0.5">{opt.descricao}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Título */}
         <div>
           <label htmlFor="tt-titulo" className="block text-sm font-medium text-foreground mb-1">Título <span className="text-destructive">*</span></label>
@@ -89,7 +129,7 @@ export function TarefaTemplateFormModal({ template, onClose }: TarefaTemplateFor
 
         {/* Descrição */}
         <div>
-          <label htmlFor="tt-desc" className="block text-sm font-medium text-foreground mb-1">Descrição</label>
+          <label htmlFor="tt-desc" className="block text-sm font-medium text-foreground mb-1">Descrição {modoSelecionado === 'cadencia' ? '(instrução interna)' : ''}</label>
           <textarea id="tt-desc" {...register('descricao')} className="w-full px-3 py-2 rounded-md border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-ring focus:border-ring transition-all duration-200 resize-none" rows={2} placeholder="Descrição opcional..." />
         </div>
 
@@ -97,7 +137,7 @@ export function TarefaTemplateFormModal({ template, onClose }: TarefaTemplateFor
         <div>
           <label className="block text-sm font-medium text-foreground mb-1">Tipo <span className="text-destructive">*</span></label>
           <div className="grid grid-cols-3 gap-2">
-            {tipoTarefaOptions.map(opt => (
+            {tiposFiltrados.map(opt => (
               <button key={opt.value} type="button" onClick={() => setValue('tipo', opt.value)}
                 className={`flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-md border text-sm font-medium transition-all duration-200 ${
                   tipoSelecionado === opt.value ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'
@@ -109,14 +149,42 @@ export function TarefaTemplateFormModal({ template, onClose }: TarefaTemplateFor
           {errors.tipo && <p className="text-xs text-destructive mt-1">{errors.tipo.message}</p>}
         </div>
 
-        {/* Canal */}
-        <div>
-          <label htmlFor="tt-canal" className="block text-sm font-medium text-foreground mb-1">Canal</label>
-          <select id="tt-canal" {...register('canal')} className="w-full h-10 px-3 rounded-md border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-ring focus:border-ring transition-all duration-200">
-            <option value="">Nenhum</option>
-            {canalTarefaOptions.map(opt => (<option key={opt.value} value={opt.value}>{opt.label}</option>))}
-          </select>
-        </div>
+        {/* Campos de Cadência */}
+        {modoSelecionado === 'cadencia' && (
+          <div className="space-y-4 p-3 rounded-lg border border-primary/20 bg-primary/5">
+            <p className="text-xs font-medium text-primary">Configuração da Mensagem</p>
+
+            {/* Assunto (só para email) */}
+            {tipoSelecionado === 'email' && (
+              <div>
+                <label htmlFor="tt-assunto" className="block text-sm font-medium text-foreground mb-1">Assunto do E-mail <span className="text-destructive">*</span></label>
+                <input id="tt-assunto" {...register('assunto_email')} className="w-full h-10 px-3 rounded-md border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-ring focus:border-ring transition-all duration-200" placeholder="Ex: Proposta comercial" />
+                {errors.assunto_email && <p className="text-xs text-destructive mt-1">{errors.assunto_email.message}</p>}
+              </div>
+            )}
+
+            {/* Corpo da mensagem */}
+            <div>
+              <label htmlFor="tt-corpo" className="block text-sm font-medium text-foreground mb-1">
+                {tipoSelecionado === 'email' ? 'Corpo do E-mail' : 'Mensagem do WhatsApp'} <span className="text-destructive">*</span>
+              </label>
+              <textarea id="tt-corpo" {...register('corpo_mensagem')} className="w-full px-3 py-2 rounded-md border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-ring focus:border-ring transition-all duration-200 resize-none" rows={4}
+                placeholder={tipoSelecionado === 'email' ? 'Corpo do e-mail que será enviado...' : 'Mensagem que será enviada via WhatsApp...'} />
+              {errors.corpo_mensagem && <p className="text-xs text-destructive mt-1">{errors.corpo_mensagem.message}</p>}
+            </div>
+          </div>
+        )}
+
+        {/* Canal (só para modo comum) */}
+        {modoSelecionado === 'comum' && (
+          <div>
+            <label htmlFor="tt-canal" className="block text-sm font-medium text-foreground mb-1">Canal</label>
+            <select id="tt-canal" {...register('canal')} className="w-full h-10 px-3 rounded-md border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-ring focus:border-ring transition-all duration-200">
+              <option value="">Nenhum</option>
+              {canalTarefaOptions.map(opt => (<option key={opt.value} value={opt.value}>{opt.label}</option>))}
+            </select>
+          </div>
+        )}
 
         {/* Prioridade e Dias prazo */}
         <div className="grid grid-cols-2 gap-4">
