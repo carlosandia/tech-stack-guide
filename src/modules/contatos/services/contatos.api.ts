@@ -860,9 +860,25 @@ export const contatosApi = {
       membrosDistribuicao = payload.membro_ids
     }
 
-    // 4. Criar oportunidades em lote
+    // 4. Contar oportunidades existentes de cada contato para gerar título automático
+    // Lógica: "NomeContato - #N" (mesmo padrão do modal individual em /negocios)
+    const contatoIds = contatos.map(c => c.id)
+    const { data: contagemExistente } = await supabase
+      .from('oportunidades')
+      .select('contato_id')
+      .in('contato_id', contatoIds)
+      .is('deletado_em', null)
+
+    const contagemPorContato: Record<string, number> = {}
+    for (const row of contagemExistente || []) {
+      contagemPorContato[row.contato_id] = (contagemPorContato[row.contato_id] || 0) + 1
+    }
+
+    // 5. Criar oportunidades em lote
     const oportunidades = contatos.map((c, index) => {
-      const titulo = [c.nome, c.sobrenome].filter(Boolean).join(' ') || c.nome_fantasia || 'Sem nome'
+      const nomeContato = [c.nome, c.sobrenome].filter(Boolean).join(' ') || c.nome_fantasia || 'Sem nome'
+      const countExistente = contagemPorContato[c.id] || 0
+      const titulo = `${nomeContato} - #${countExistente + 1}`
       let responsavelId: string | null = null
 
       if (membrosDistribuicao.length > 0) {
