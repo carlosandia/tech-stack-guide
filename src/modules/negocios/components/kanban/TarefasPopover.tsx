@@ -46,18 +46,19 @@ export const TarefasPopover = forwardRef<HTMLDivElement, TarefasPopoverProps>(fu
   const [envioAberto, setEnvioAberto] = useState<string | null>(null)
   const [popoverPos, setPopoverPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
   const triggerRef = useRef<HTMLButtonElement>(null)
+  const popoverRef = useRef<HTMLDivElement>(null)
 
   const updatePosition = useCallback(() => {
     if (!triggerRef.current) return
     const rect = triggerRef.current.getBoundingClientRect()
     const popoverWidth = envioAberto ? 320 : 260
-    const popoverHeight = 300 // estimated max height
+    const popoverEl = popoverRef.current
+    const popoverHeight = popoverEl ? popoverEl.offsetHeight : 200
 
     let left = rect.right - popoverWidth
     if (left < 8) left = rect.left
     if (left + popoverWidth > window.innerWidth - 8) left = window.innerWidth - popoverWidth - 8
 
-    // Flip upward if not enough space below
     let top: number
     if (rect.bottom + 6 + popoverHeight > window.innerHeight - 8) {
       top = rect.top - 6 - popoverHeight
@@ -85,9 +86,12 @@ export const TarefasPopover = forwardRef<HTMLDivElement, TarefasPopoverProps>(fu
   useEffect(() => {
     if (!open) return
     updatePosition()
+    // Re-calc after content renders
+    const raf = requestAnimationFrame(updatePosition)
     window.addEventListener('scroll', updatePosition, true)
     window.addEventListener('resize', updatePosition)
     return () => {
+      cancelAnimationFrame(raf)
       window.removeEventListener('scroll', updatePosition, true)
       window.removeEventListener('resize', updatePosition)
     }
@@ -215,6 +219,7 @@ export const TarefasPopover = forwardRef<HTMLDivElement, TarefasPopoverProps>(fu
       {/* Popover via Portal */}
       {open && createPortal(
         <div
+          ref={popoverRef}
           id={`tarefas-popover-${oportunidadeId}`}
           className="bg-card border border-border rounded-lg shadow-lg animate-enter"
           style={{
