@@ -255,12 +255,18 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className, hideHead
     }
   }, [form, layoutConfig, opcoesText])
 
-  // Flush on unmount or campo change
+  // Flush on unmount or campo change — AIDEV-NOTE: deve salvar pendências antes de trocar
+  const buildPayloadRef = useRef(buildPayload)
+  buildPayloadRef.current = buildPayload
+  const onUpdateRef = useRef(onUpdate)
+  onUpdateRef.current = onUpdate
+
   useEffect(() => {
     return () => {
       if (debounceRef.current) {
         clearTimeout(debounceRef.current)
-        // Flush pending save is not needed here since campo is changing
+        // Flush pending save before campo changes or unmount
+        onUpdateRef.current(buildPayloadRef.current())
       }
     }
   }, [campo.id])
