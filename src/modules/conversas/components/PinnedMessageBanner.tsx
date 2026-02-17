@@ -28,7 +28,7 @@ function getPreviewText(msg: Mensagem): string {
   }
 }
 
-export function PinnedMessageBanner({ mensagem, onUnpin, onScrollTo }: PinnedMessageBannerProps) {
+export function PinnedMessageBanner({ mensagem, onUnpin, onScrollTo, localOnly }: PinnedMessageBannerProps & { localOnly?: boolean }) {
   return (
     <div className="flex items-center gap-2 px-4 py-2 bg-muted/60 border-b border-border/50 cursor-pointer hover:bg-muted/80 transition-colors">
       <Pin className="w-4 h-4 text-primary flex-shrink-0 rotate-45" />
@@ -37,9 +37,16 @@ export function PinnedMessageBanner({ mensagem, onUnpin, onScrollTo }: PinnedMes
         className="flex-1 min-w-0"
         onClick={() => onScrollTo?.(mensagem.id)}
       >
-        <p className="text-[11px] font-semibold text-primary">
-          Mensagem fixada
-        </p>
+        <div className="flex items-center gap-1.5">
+          <p className="text-[11px] font-semibold text-primary">
+            Mensagem fixada
+          </p>
+          {localOnly && (
+            <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-600 font-medium">
+              Apenas no CRM
+            </span>
+          )}
+        </div>
         <p className="text-xs text-foreground/70 truncate">
           {getPreviewText(mensagem)}
         </p>

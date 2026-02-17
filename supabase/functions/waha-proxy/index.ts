@@ -14,17 +14,25 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-/** Check if WAHA response is a NOWEB engine limitation (store not enabled or method not implemented) */
-function isNowebLimitation(respStatus: number, data: Record<string, unknown>): boolean {
-  if (respStatus === 501) return true;
+/** Check if WAHA response is an engine limitation (NOWEB store not enabled, GOWS not supported, or method not implemented) */
+function isEngineLimitation(respStatus: number, data: Record<string, unknown>): boolean {
+  if (respStatus === 501 || respStatus === 404 || respStatus === 405) return true;
   const msg = typeof data?.message === 'string' ? data.message : '';
-  return !!(msg.includes('NOWEB store') || msg.includes('not implemented'));
+  const errMsg = typeof data?.error === 'string' ? data.error : '';
+  return !!(
+    msg.includes('NOWEB store') || msg.includes('not implemented') || msg.includes('not supported') ||
+    msg.includes('Method Not Allowed') || msg.includes('Not Found') ||
+    errMsg.includes('not implemented') || errMsg.includes('not supported')
+  );
 }
 
+/** Backward-compatible alias */
+const isNowebLimitation = isEngineLimitation;
+
 function nowebPartialResponse(action: string) {
-  console.log(`[waha-proxy] NOWEB limitation - returning partial success for ${action}`);
+  console.log(`[waha-proxy] Engine limitation - returning partial success for ${action}`);
   return new Response(
-    JSON.stringify({ ok: true, waha_unsupported: true, message: "Funcionalidade não suportada pelo engine NOWEB. Operação aplicada apenas no CRM." }),
+    JSON.stringify({ ok: true, waha_unsupported: true, message: "Funcionalidade não suportada pelo engine atual (GOWS/NOWEB). Operação aplicada apenas no CRM." }),
     { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
   );
 }
