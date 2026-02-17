@@ -152,8 +152,28 @@ export function TarefaEnvioInline({ tarefa, onEnviado, onCancelar }: TarefaEnvio
         // Extrair imagens do HTML antes de converter
         const imageUrls = extractImagesFromHtml(mensagem)
         const textoWa = htmlToWhatsApp(mensagem)
+        console.log('[TarefaEnvioInline] imageUrls extraídas:', imageUrls.length, imageUrls)
 
-        // Enviar texto se houver
+        // Enviar imagens primeiro (como mídia)
+        for (const imgUrl of imageUrls) {
+          console.log('[TarefaEnvioInline] Enviando imagem:', imgUrl.substring(0, 80))
+          const { data: imgData, error: imgErr } = await supabase.functions.invoke('waha-proxy', {
+            body: {
+              action: 'enviar_media',
+              session_name: sessionName,
+              chat_id: chatId,
+              media_url: imgUrl,
+              media_type: 'image',
+            },
+          })
+          if (imgErr) {
+            console.error('[TarefaEnvioInline] Erro ao enviar imagem WhatsApp:', imgErr)
+          } else {
+            console.log('[TarefaEnvioInline] Imagem enviada com sucesso:', imgData)
+          }
+        }
+
+        // Enviar texto depois
         if (textoWa) {
           const { error: txtErr } = await supabase.functions.invoke('waha-proxy', {
             body: {
@@ -166,23 +186,6 @@ export function TarefaEnvioInline({ tarefa, onEnviado, onCancelar }: TarefaEnvio
           if (txtErr) throw txtErr
         }
 
-        // Enviar cada imagem como mídia
-        for (const imgUrl of imageUrls) {
-          const { error: imgErr } = await supabase.functions.invoke('waha-proxy', {
-            body: {
-              action: 'enviar_media',
-              session_name: sessionName,
-              chat_id: chatId,
-              media_url: imgUrl,
-              media_type: 'image',
-            },
-          })
-          if (imgErr) console.error('Erro ao enviar imagem WhatsApp:', imgErr)
-        }
-
-        const error = null as any
-
-        if (error) throw error
       } else if (isEmail && contato?.email) {
         const { error } = await supabase.functions.invoke('send-email', {
           body: {
