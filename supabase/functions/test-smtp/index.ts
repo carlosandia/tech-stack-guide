@@ -240,13 +240,12 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Verificar se já existe conexão para este email nesta org
+      // Verificar se já existe conexão para este usuario nesta org (incluindo soft-deleted)
       const { data: existente } = await supabaseAdmin
         .from("conexoes_email")
         .select("id")
         .eq("organizacao_id", usuario.organizacao_id)
-        .eq("email", email)
-        .is("deletado_em", null)
+        .eq("usuario_id", usuario.id)
         .maybeSingle();
 
       const conexaoData = {
@@ -263,6 +262,7 @@ Deno.serve(async (req) => {
         organizacao_id: usuario.organizacao_id,
         usuario_id: usuario.id,
         ultimo_erro: null,
+        deletado_em: null,
       };
 
       let dbError;
