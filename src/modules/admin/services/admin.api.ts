@@ -636,9 +636,28 @@ export async function obterLimitesOrganizacao(id: string): Promise<LimitesUso> {
   const usadoOp = opCount || 0
   const usadoContatos = contatosCount || 0
 
-  // Calcular storage usado (soma dos buckets de documentos e áudio da org)
-  // AIDEV-NOTE: Storage real requer listagem de arquivos por org, placeholder por enquanto
-  const storageUsadoMb = 0
+  // Calcular storage usado (soma dos buckets vinculados a org)
+  // AIDEV-NOTE: Lista arquivos nas pastas da org em cada bucket relevante
+  let storageUsadoBytes = 0
+  const bucketsParaContar = ['documentos-oportunidades', 'anotacoes-audio', 'email-anexos', 'chat-media', 'formularios', 'assinaturas']
+  
+  for (const bucketName of bucketsParaContar) {
+    try {
+      const { data: files } = await supabase.storage
+        .from(bucketName)
+        .list(id, { limit: 1000 })
+      if (files && files.length > 0) {
+        for (const file of files) {
+          if (file.metadata?.size) {
+            storageUsadoBytes += Number(file.metadata.size)
+          }
+        }
+      }
+    } catch {
+      // Bucket pode não ter pasta para essa org, ignorar
+    }
+  }
+  const storageUsadoMb = storageUsadoBytes / (1024 * 1024)
 
   return {
     usuarios: {
