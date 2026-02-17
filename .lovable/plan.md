@@ -1,112 +1,108 @@
 
+# Plano de Correcao - Metricas de Conversas
 
-# Agendamento de Mensagens no Chat
+## Problemas Identificados
 
-## Contexto
+### 1. Bug Critico: Limite de 1000 linhas do Supabase (Enviadas/Recebidas incorretas)
+- O Supabase limita queries a 1000 linhas por padrao
+- A query de mensagens busca em batches de 50 conversas, mas cada batch pode retornar +1000 mensagens
+- **Dados reais**: DB tem 2660 mensagens em 30 dias (1182 enviadas, 1648 recebidas)
+- **Tela mostra**: 295 enviadas, 428 recebidas (dados truncados)
+- **Impacto**: TMR, TMA, Sem Resposta tambem estao incorretos pois dependem das mensagens
 
-A infraestrutura de backend para mensagens agendadas ja existe completa:
-- Tabela `mensagens_agendadas` no Supabase (com campos: tipo, conteudo, agendado_para, status, etc.)
-- Rotas REST no backend (`GET/POST/DELETE /api/v1/mensagens-agendadas`)
-- Service com logica de criacao, cancelamento e processamento via cron
+### 2. Filtro de tipo de conversa ausente
+- A query de conversas nao exclui `tipo = 'grupo'` (35 grupos incluidos indevidamente)
+- Total Conversas mostra 360, deveria ser ~325 (somente individuais)
 
-O trabalho e 100% frontend: criar a UI de agendamento integrada ao ChatInput e uma API layer no Supabase direto (mesmo padrao do modulo conversas).
+### 3. Taxa de Resolucao sempre 0%
+- O hook so verifica `status = 'fechada'`, mas o DB tambem tem status `resolvida`
+- Ambos os status devem contar para resolucao
 
----
+### 4. Sem Resposta com logica incompleta
+- So conta conversas com ultima mensagem do cliente ha mais de 2h
+- Deveria tambem contar conversas sem nenhuma resposta (sem nenhum `from_me`)
 
-## Limites Anti-Spam (WAHA Plus / WhatsApp nao oficial)
-
-Para proteger o usuario de banimento, os seguintes limites serao aplicados:
-
-| Regra | Valor | Justificativa |
-|-------|-------|---------------|
-| Max agendadas ativas por conversa | 3 | Evita flood em um unico contato |
-| Max agendadas ativas total (usuario) | 15 | Limita volume geral por sessao WAHA |
-| Intervalo minimo entre agendamentos na mesma conversa | 5 minutos | Evita burst sequencial |
-| Agendamento minimo no futuro | 5 minutos | Tempo minimo pratico |
-| Agendamento maximo no futuro | 30 dias | Evita lixo esquecido |
-
-Esses limites serao validados no frontend antes de inserir no banco.
+### 5. Filtro de periodo "Personalizado" ausente
+- Usuarios nao conseguem selecionar datas especificas
 
 ---
 
-## Implementacao
+## Plano de Implementacao
 
-### 1. Service Layer - `conversas.api.ts`
+### Etapa 1: Corrigir busca de mensagens (bug do limite 1000)
+**Arquivo**: `src/modules/conversas/hooks/useConversasMetricas.ts`
 
-Adicionar metodos ao service existente usando Supabase direto (mesmo padrao RLS):
+Em vez de buscar todas as mensagens e calcular no frontend (ineficiente e limitado), refatorar para usar **queries de contagem** no Supabase:
 
-- `agendarMensagem(conversaId, { tipo, conteudo, agendado_para })` - INSERT na tabela
-- `listarAgendadas(conversaId)` - SELECT com filtro status='agendada'
-- `cancelarAgendada(id)` - UPDATE status para 'cancelada'
-- `contarAgendadasAtivas(conversaId?)` - COUNT para validacao de limites
+- **Enviadas/Recebidas**: Usar `count: 'exact'` com filtro `from_me` direto no Supabase, sem buscar linhas
+- **TMR/TMA**: Manter busca por mensagens mas com `.limit(10000)` e batches menores (20 conversas por vez) para evitar truncamento
+- **Sem Resposta**: Usar query SQL separada contando conversas sem `from_me`
 
-### 2. Hook TanStack Query - `useMensagensAgendadas.ts`
+### Etapa 2: Adicionar filtro `tipo != 'grupo'`
+**Arquivo**: `src/modules/conversas/hooks/useConversasMetricas.ts`
 
-Novo hook com:
-- `useAgendadas(conversaId)` - lista agendadas ativas da conversa
-- `useContarAgendadas()` - conta total do usuario (para limite global)
-- `useAgendarMensagem()` - mutation de criacao com validacao de limites
-- `useCancelarAgendada()` - mutation de cancelamento
+Adicionar `.eq('tipo', 'individual')` na query de conversas para excluir grupos e canais.
 
-### 3. Componente - `AgendarMensagemPopover.tsx`
+### Etapa 3: Corrigir Taxa de Resolucao
+**Arquivo**: `src/modules/conversas/hooks/useConversasMetricas.ts`
 
-Popover que abre ao clicar no icone de relogio (ao lado do microfone dentro da caixa de input):
-
-- **Campo de texto** - reutiliza o texto ja digitado no ChatInput (se houver)
-- **Tipo** - Toggle entre "Texto" e "Audio" (audio usa gravacao inline)
-- **Date/Time picker** - selecao de data e hora com date-fns
-- **Indicador de limites** - mostra "X/3 nesta conversa" e "X/15 total"
-- **Botao Agendar** - valida limites, insere e fecha popover
-- **Lista de agendadas** - mostra agendamentos pendentes da conversa com opcao de cancelar
-
-Visual: Popover sobe a partir do icone, seguindo o padrao do design system (rounded-lg, shadow-md, p-4).
-
-### 4. Integracao no `ChatInput.tsx`
-
-- Adicionar icone `Clock` (lucide) ao lado do `Mic` dentro da caixa de input
-- O icone aparece sempre (com ou sem texto)
-- Se o usuario ja digitou texto, ao clicar no relogio o popover pre-preenche o conteudo
-- Badge numerico no icone se houver agendamentos pendentes na conversa
-
-### 5. Integracao no `ChatWindow.tsx`
-
-- Passar `conversaId` para o novo componente
-- Adicionar prop `onSchedule` no ChatInput que abre o popover
-
----
-
-## Detalhes Tecnicos
-
-### Validacao de limites (frontend)
-
-```text
-Antes de inserir:
-1. SELECT count(*) FROM mensagens_agendadas 
-   WHERE conversa_id = X AND status = 'agendada' --> max 3
-2. SELECT count(*) FROM mensagens_agendadas 
-   WHERE usuario_id = Y AND status = 'agendada' --> max 15
-3. Verificar intervalo minimo de 5min entre agendamentos na mesma conversa
-4. Data deve ser entre 5min e 30 dias no futuro
+Alterar de:
+```
+conversasList.filter(c => c.status === 'fechada')
+```
+Para:
+```
+conversasList.filter(c => c.status === 'fechada' || c.status === 'resolvida')
 ```
 
-### Arquivos a criar
-- `src/modules/conversas/components/AgendarMensagemPopover.tsx`
-- `src/modules/conversas/hooks/useMensagensAgendadas.ts`
+### Etapa 4: Corrigir logica de "Sem Resposta"
+**Arquivo**: `src/modules/conversas/hooks/useConversasMetricas.ts`
 
-### Arquivos a modificar
-- `src/modules/conversas/services/conversas.api.ts` - adicionar metodos de agendamento
-- `src/modules/conversas/components/ChatInput.tsx` - adicionar icone Clock e integracao
-- `src/modules/conversas/components/ChatWindow.tsx` - passar props necessarias
+Incluir conversas que:
+- Ultima mensagem e do cliente ha mais de 2h (atual)
+- **OU** nao possuem nenhuma mensagem `from_me` (nunca respondidas)
 
-### Fluxo do usuario
+### Etapa 5: Adicionar filtro "Personalizado"
+**Arquivos**:
+- `src/modules/conversas/hooks/useConversasMetricas.ts` - Adicionar tipo `'custom'` ao `PeriodoMetricas` com `dataInicio` e `dataFim`
+- `src/modules/conversas/components/ConversasMetricasPanel.tsx` - Adicionar botao "Personalizado" que abre um date range picker com dois inputs de data
 
-```text
-1. Usuario digita texto na caixa de mensagem
-2. Clica no icone de relogio (ao lado do mic)
-3. Popover abre com texto pre-preenchido
-4. Seleciona data e hora
-5. Clica "Agendar"
-6. Toast de confirmacao + badge atualizado no icone
-7. Pode ver/cancelar agendamentos no mesmo popover
+### Etapa 6: Ajustes visuais no painel
+**Arquivo**: `src/modules/conversas/components/ConversasMetricasPanel.tsx`
+
+- Usar icones dedicados para WhatsApp e Instagram nos cards (em vez do generico `BarChart3`)
+- Seguir design system para espacamentos e tipografia
+
+---
+
+## Secao Tecnica
+
+### Estrategia para contornar limite de 1000 linhas
+
+A abordagem sera hibrida:
+
+1. **Contagens simples** (enviadas, recebidas, com anexos): usar `select('id', { count: 'exact', head: true })` que retorna apenas o count sem dados
+2. **Calculos que precisam de dados** (TMR, TMA): buscar mensagens com `.limit(5000)` em batches de 10 conversas por vez, garantindo que cada batch retorne poucos registros
+3. **Sem Resposta**: query separada que busca somente a ultima mensagem de cada conversa
+
+### Tipo PeriodoMetricas atualizado
+```typescript
+type PeriodoMetricas = 'hoje' | '7d' | '30d' | '60d' | '90d' | 'custom'
+
+interface MetricasFilters {
+  periodo: PeriodoMetricas
+  canal: CanalFiltro
+  vendedorId?: string
+  dataInicio?: string  // ISO string para periodo custom
+  dataFim?: string     // ISO string para periodo custom
+}
 ```
 
+### Tabelas e colunas validadas
+- `conversas.canal` = 'whatsapp' | 'instagram' -- OK, filtro funciona
+- `conversas.tipo` = 'individual' | 'grupo' -- **falta filtro**
+- `conversas.status` = 'aberta' | 'fechada' | 'resolvida' -- **falta 'resolvida'**
+- `conversas.usuario_id` -- OK para filtro por vendedor
+- `mensagens.from_me` -- OK
+- `mensagens.criado_em` -- OK para periodos
+- `conversas.primeira_mensagem_em` / `status_alterado_em` -- OK para tempo resolucao
