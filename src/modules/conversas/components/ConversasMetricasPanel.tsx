@@ -9,7 +9,7 @@ import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import {
   Clock, MessageCircle, Send, Inbox, Users, CheckCircle,
-  AlertTriangle, Timer, Zap, CalendarIcon,
+  AlertTriangle, Timer, Zap, CalendarIcon, Info,
 } from 'lucide-react'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import { InstagramIcon } from '@/shared/components/InstagramIcon'
@@ -48,6 +48,7 @@ interface MetricaCard {
   valor: string
   icon: React.ElementType
   cor: 'default' | 'success' | 'warning' | 'destructive' | 'primary'
+  tooltip: string
 }
 
 const COR_CLASSES: Record<string, string> = {
@@ -95,6 +96,7 @@ export function ConversasMetricasPanel() {
       label: '1ª Resposta',
       valor: formatDuracao(metricas.tempoMedioPrimeiraResposta),
       icon: Zap,
+      tooltip: 'Tempo médio até a primeira resposta do vendedor após mensagem do cliente. Considera apenas conversas individuais.',
       cor: metricas.tempoMedioPrimeiraResposta !== null && metricas.tempoMedioPrimeiraResposta <= 15
         ? 'success'
         : metricas.tempoMedioPrimeiraResposta !== null && metricas.tempoMedioPrimeiraResposta > 60
@@ -106,6 +108,7 @@ export function ConversasMetricasPanel() {
       label: 'Tempo Médio Resp.',
       valor: formatDuracao(metricas.tempoMedioResposta),
       icon: Timer,
+      tooltip: 'Tempo médio entre cada mensagem do cliente e a resposta do vendedor. Conversas individuais apenas.',
       cor: metricas.tempoMedioResposta !== null && metricas.tempoMedioResposta <= 30
         ? 'success'
         : metricas.tempoMedioResposta !== null && metricas.tempoMedioResposta > 120
@@ -117,6 +120,7 @@ export function ConversasMetricasPanel() {
       label: 'Sem Resposta',
       valor: String(metricas.conversasSemResposta),
       icon: AlertTriangle,
+      tooltip: 'Conversas individuais sem resposta há mais de 2h ou que nunca receberam resposta do vendedor.',
       cor: metricas.conversasSemResposta > 5 ? 'destructive' : metricas.conversasSemResposta > 0 ? 'warning' : 'success',
     },
     {
@@ -124,6 +128,7 @@ export function ConversasMetricasPanel() {
       label: 'Total Conversas',
       valor: String(metricas.totalConversas),
       icon: MessageCircle,
+      tooltip: 'Total de conversas individuais no período. Grupos não são contabilizados.',
       cor: 'default',
     },
     {
@@ -131,6 +136,7 @@ export function ConversasMetricasPanel() {
       label: 'Enviadas',
       valor: String(metricas.mensagensEnviadas),
       icon: Send,
+      tooltip: 'Total de mensagens enviadas pelo vendedor em conversas individuais no período.',
       cor: 'default',
     },
     {
@@ -138,6 +144,7 @@ export function ConversasMetricasPanel() {
       label: 'Recebidas',
       valor: String(metricas.mensagensRecebidas),
       icon: Inbox,
+      tooltip: 'Total de mensagens recebidas de clientes em conversas individuais no período.',
       cor: 'default',
     },
     {
@@ -145,6 +152,7 @@ export function ConversasMetricasPanel() {
       label: 'Taxa Resolução',
       valor: `${metricas.taxaResolucao}%`,
       icon: CheckCircle,
+      tooltip: 'Percentual de conversas individuais fechadas ou resolvidas no período.',
       cor: metricas.taxaResolucao >= 80 ? 'success' : metricas.taxaResolucao >= 50 ? 'warning' : 'destructive',
     },
     {
@@ -152,6 +160,7 @@ export function ConversasMetricasPanel() {
       label: 'Tempo Resolução',
       valor: formatDuracao(metricas.tempoMedioResolucao),
       icon: Clock,
+      tooltip: 'Tempo médio entre a primeira mensagem e o fechamento/resolução da conversa individual.',
       cor: 'default',
     },
     {
@@ -159,6 +168,7 @@ export function ConversasMetricasPanel() {
       label: 'WhatsApp',
       valor: String(metricas.conversasPorCanal.whatsapp),
       icon: WhatsAppIcon,
+      tooltip: 'Conversas individuais via WhatsApp no período selecionado.',
       cor: 'default',
     },
     {
@@ -166,6 +176,7 @@ export function ConversasMetricasPanel() {
       label: 'Instagram',
       valor: String(metricas.conversasPorCanal.instagram),
       icon: InstagramIcon,
+      tooltip: 'Conversas individuais via Instagram no período selecionado.',
       cor: 'default',
     },
   ] : []
@@ -295,17 +306,21 @@ export function ConversasMetricasPanel() {
           {cards.map((m) => (
             <div
               key={m.id}
+              title={m.tooltip}
               className={`
-                flex items-center gap-2 px-2.5 py-2 rounded-lg
+                group relative flex items-center gap-2 px-2.5 py-2 rounded-lg cursor-default
                 ${COR_CLASSES[m.cor]}
                 transition-all duration-200
               `}
             >
               <m.icon className={`w-3.5 h-3.5 flex-shrink-0 ${ICON_COR_CLASSES[m.cor]}`} />
-              <div className="min-w-0">
-                <p className="text-[10px] text-muted-foreground leading-none truncate">
-                  {m.label}
-                </p>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1">
+                  <p className="text-[10px] text-muted-foreground leading-none truncate">
+                    {m.label}
+                  </p>
+                  <Info className="w-2.5 h-2.5 text-muted-foreground/40 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
                 <p className="text-sm font-semibold leading-tight mt-0.5 truncate">
                   {m.valor}
                 </p>
