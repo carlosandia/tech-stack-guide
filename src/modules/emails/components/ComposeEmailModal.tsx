@@ -6,11 +6,13 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { X, Send, Loader2, FileText, Paperclip, Trash2 } from 'lucide-react'
+import { X, Send, Loader2, FileText, Paperclip, Trash2, User, Search, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { EmailRichEditor } from './EmailRichEditor'
 import { useAssinatura } from '../hooks/useEmails'
 import { compressImage } from '@/shared/utils/compressMedia'
+import { useQuery } from '@tanstack/react-query'
+import { supabase } from '@/lib/supabase'
 
 export type ComposerMode = 'novo' | 'responder' | 'responder_todos' | 'encaminhar'
 
@@ -75,9 +77,48 @@ export const ComposeEmailModal = React.forwardRef<HTMLDivElement, ComposeEmailMo
   const [showBcc, setShowBcc] = useState(false)
   const [editorKey, setEditorKey] = useState(0)
   const [anexos, setAnexos] = useState<File[]>([])
+  const [contatoSearchOpen, setContatoSearchOpen] = useState(false)
+  const [contatoSearch, setContatoSearch] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const contatoRef = useRef<HTMLDivElement>(null)
 
   const { data: assinatura } = useAssinatura()
+
+  // Busca contatos para inserir no campo "Para"
+  const { data: contatosBusca, isFetching: buscandoContatos } = useQuery({
+    queryKey: ['contatos-email-picker', contatoSearch],
+    queryFn: async () => {
+      let query = supabase
+        .from('contatos')
+        .select('id, nome, sobrenome, email, tipo')
+        .eq('tipo', 'pessoa')
+        .is('deletado_em', null)
+        .not('email', 'is', null)
+        .limit(8)
+
+      if (contatoSearch.trim().length > 0) {
+        query = query.or(`nome.ilike.%${contatoSearch}%,sobrenome.ilike.%${contatoSearch}%,email.ilike.%${contatoSearch}%`)
+      }
+
+      const { data } = await query.order('nome')
+      return data || []
+    },
+    enabled: contatoSearchOpen,
+    staleTime: 10000,
+  })
+
+  // Fechar popover ao clicar fora
+  useEffect(() => {
+    if (!contatoSearchOpen) return
+    function handleClick(e: MouseEvent) {
+      if (contatoRef.current && !contatoRef.current.contains(e.target as Node)) {
+        setContatoSearchOpen(false)
+        setContatoSearch('')
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [contatoSearchOpen])
 
   const totalAnexosSize = anexos.reduce((acc, f) => acc + f.size, 0)
 
@@ -208,14 +249,83 @@ export const ComposeEmailModal = React.forwardRef<HTMLDivElement, ComposeEmailMo
             {/* Para */}
             <div className="flex items-center gap-2">
               <label className="w-10 text-xs text-muted-foreground font-medium">Para</label>
-              <input
-                value={para}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPara(e.target.value)}
-                placeholder="email@exemplo.com"
-                className="flex-1 h-8 px-3 text-sm rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                type="email"
-                required
-              />
+              <div className="flex-1 relative flex items-center gap-1">
+                <input
+                  value={para}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPara(e.target.value)}
+                  placeholder="email@exemplo.com"
+                  className="flex-1 h-8 px-3 text-sm rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  type="email"
+                  required
+                />
+                {/* Botão buscar contato */}
+                <div className="relative" ref={contatoRef}>
+                  <button
+                    type="button"
+                    onClick={() => setContatoSearchOpen(!contatoSearchOpen)}
+                    className="flex items-center justify-center w-8 h-8 rounded-md border border-input hover:bg-accent transition-colors text-muted-foreground hover:text-primary flex-shrink-0"
+                    title="Buscar contato"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+
+                  {contatoSearchOpen && (
+                    <div className="absolute right-0 top-full mt-1 w-72 bg-background border border-border rounded-lg shadow-lg z-[600] py-1">
+                      <div className="px-2 py-1.5">
+                        <div className="relative">
+                          <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-muted-foreground" />
+                          <input
+                            type="text"
+                            placeholder="Buscar por nome ou email..."
+                            value={contatoSearch}
+                            onChange={(e) => setContatoSearch(e.target.value)}
+                            className="w-full pl-8 pr-3 py-1.5 text-sm rounded-md border border-input bg-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                            autoFocus
+                          />
+                        </div>
+                      </div>
+
+                      <div className="max-h-[200px] overflow-y-auto">
+                        {buscandoContatos && (
+                          <div className="flex items-center justify-center py-3">
+                            <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                          </div>
+                        )}
+
+                        {!buscandoContatos && contatosBusca && contatosBusca.length === 0 && (
+                          <p className="px-3 py-2 text-xs text-muted-foreground text-center">
+                            Nenhum contato com email encontrado
+                          </p>
+                        )}
+
+                        {!buscandoContatos && contatosBusca?.map((c) => {
+                          const nomeDisplay = [c.nome, c.sobrenome].filter(Boolean).join(' ') || '(sem nome)'
+                          return (
+                            <button
+                              key={c.id}
+                              type="button"
+                              onClick={() => {
+                                if (c.email) {
+                                  setPara(c.email)
+                                  setContatoSearchOpen(false)
+                                  setContatoSearch('')
+                                }
+                              }}
+                              className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent transition-colors text-left"
+                            >
+                              <User className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-medium text-foreground truncate">{nomeDisplay}</p>
+                                <p className="text-[11px] text-muted-foreground truncate">{c.email}</p>
+                              </div>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
               <div className="flex gap-1">
                 {!showCc && (
                   <button type="button" onClick={() => setShowCc(true)} className="text-xs text-muted-foreground hover:text-primary">
