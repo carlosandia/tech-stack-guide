@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
     headers: {
       ...corsHeaders,
       'Content-Type': 'application/javascript; charset=utf-8',
-      'Cache-Control': 'public, max-age=3600, s-maxage=86400',
+      'Cache-Control': 'public, max-age=300, s-maxage=300',
     },
   })
 })
@@ -103,7 +103,7 @@ function getFormScript(configApi: string, submitApi: string, mode: string, slug:
   parts.push("else if((c.tipo==='select'||c.tipo==='dropdown'||c.tipo==='selecao')&&c.opcoes){inp=document.createElement('select');inp.style.cssText=inputCss+';appearance:auto';var defOpt=document.createElement('option');defOpt.value='';defOpt.textContent=c.placeholder||'Selecione...';inp.appendChild(defOpt);var opts=Array.isArray(c.opcoes)?c.opcoes:(c.opcoes.opcoes||[]);for(var j=0;j<opts.length;j++){var o=document.createElement('option');var val=typeof opts[j]==='string'?opts[j]:(opts[j].valor||opts[j].label||opts[j]);var lbl=typeof opts[j]==='string'?opts[j]:(opts[j].label||opts[j].valor||opts[j]);o.value=val;o.textContent=lbl;inp.appendChild(o)}}")
 
   // SELECAO MULTIPLA (checkboxes visuais)
-  parts.push("else if(c.tipo==='selecao_multipla'&&c.opcoes){inp=document.createElement('div');inp.setAttribute('data-name',c.nome);inp.setAttribute('data-multi','1');var bc2=fS.input_border_color||borderColor||'#D1D5DB';var mOpts=Array.isArray(c.opcoes)?c.opcoes:(c.opcoes.opcoes||[]);for(var m=0;m<mOpts.length;m++){var mLabel=document.createElement('label');mLabel.style.cssText='display:flex;align-items:center;gap:8px;font-size:14px;color:#374151;cursor:pointer;padding:8px 12px;border:1px solid '+bc2+';border-radius:6px;margin-bottom:6px;transition:all 0.15s;background:#fff;font-family:'+fontFamily;var mInp=document.createElement('input');mInp.type='checkbox';mInp.style.cssText='width:16px;height:16px;accent-color:#3B82F6;flex-shrink:0';var mVal=typeof mOpts[m]==='string'?mOpts[m]:(mOpts[m].valor||mOpts[m].label||mOpts[m]);mInp.value=mVal;(function(bc3){mInp.addEventListener('change',function(){var p=this.parentElement;if(this.checked){p.style.borderColor='#3B82F6';p.style.backgroundColor='#EFF6FF'}else{p.style.borderColor=bc3;p.style.backgroundColor='#fff'}})})(bc2);mLabel.appendChild(mInp);mLabel.appendChild(document.createTextNode(typeof mOpts[m]==='string'?mOpts[m]:(mOpts[m].label||mOpts[m].valor||mOpts[m])));inp.appendChild(mLabel)}}")
+  parts.push("else if(c.tipo==='selecao_multipla'&&c.opcoes){inp=document.createElement('select');inp.setAttribute('multiple','multiple');inp.name=c.nome;inp.style.cssText=inputCss+';appearance:auto;height:auto;min-height:'+(fS.input_height||'40px');var mOpts=Array.isArray(c.opcoes)?c.opcoes:(c.opcoes.opcoes||[]);for(var m=0;m<mOpts.length;m++){var mOpt=document.createElement('option');var mVal=typeof mOpts[m]==='string'?mOpts[m]:(mOpts[m].valor||mOpts[m].label||mOpts[m]);var mLbl=typeof mOpts[m]==='string'?mOpts[m]:(mOpts[m].label||mOpts[m].valor||mOpts[m]);mOpt.value=mVal;mOpt.textContent=mLbl;inp.appendChild(mOpt)}}")
 
   // CHECKBOX
   parts.push("else if(c.tipo==='checkbox'){var cbWrap=document.createElement('div');cbWrap.style.cssText='display:flex;align-items:center;gap:8px';var cbInp=document.createElement('input');cbInp.type='checkbox';cbInp.name=c.nome;cbInp.style.cssText='width:16px;height:16px;accent-color:#3B82F6';var cbLabel=document.createElement('span');cbLabel.style.cssText=labelCss+';margin-bottom:0';cbLabel.innerHTML=c.label+(c.obrigatorio?' <span style=\"color:#EF4444\">*</span>':'');if(c.texto_ajuda){cbLabel.appendChild(makeHelpIcon(c.texto_ajuda))}cbWrap.appendChild(cbInp);cbWrap.appendChild(cbLabel);group.appendChild(cbWrap);return}")
@@ -183,8 +183,8 @@ function getFormScript(configApi: string, submitApi: string, mode: string, slug:
   // Form element and field styles
   parts.push("var formEl=document.createElement('form');formEl.style.cssText='display:flex;flex-wrap:wrap';")
   parts.push("var bw=fS.input_border_width||'1';var bsv=fS.input_border_style||'solid';var bc=fS.input_border_color||'#D1D5DB';")
-  parts.push("var inputCss='width:100%;background:'+(fS.input_background||'#F9FAFB')+';border:'+bw+'px '+bsv+' '+bc+';border-radius:'+(fS.input_border_radius||'6px')+';color:'+(fS.input_texto_cor||'#1F2937')+';padding:8px 12px;font-size:14px;height:'+(fS.input_height||'40px')+';outline:none;font-family:'+fontFamily+';box-sizing:border-box';")
-  parts.push("var labelCss='color:'+(fS.label_cor||'#374151')+';font-size:'+(fS.label_tamanho||'14px')+';font-weight:'+(fS.label_font_weight||'500')+';display:block;margin-bottom:4px;font-family:'+fontFamily;")
+  parts.push("var inputCss='width:100%;background:'+(fS.input_background||'#F9FAFB')+';border:'+bw+'px '+bsv+' '+bc+';border-radius:'+ensurePx(fS.input_border_radius,'6px')+';color:'+(fS.input_texto_cor||'#1F2937')+';padding:8px 12px;font-size:14px;height:'+ensurePx(fS.input_height,'40px')+';outline:none;font-family:'+fontFamily+';box-sizing:border-box';")
+  parts.push("var labelCss='color:'+(fS.label_cor||'#374151')+';font-size:'+ensurePx(fS.label_tamanho,'14px')+';font-weight:'+(fS.label_font_weight||'500')+';display:block;margin-bottom:4px;font-family:'+fontFamily;")
   // AIDEV-NOTE: Usar check explícito para não tratar 0 como falsy
   parts.push("function safeGap(v,fb){return(v!==undefined&&v!==null&&v!=='')?v:fb}")
   parts.push("var gapTop=safeGap(fS.gap_top,safeGap(fS.gap,'12'));var gapRight=safeGap(fS.gap_right,'0');var gapBottom=safeGap(fS.gap_bottom,'0');var gapLeft=safeGap(fS.gap_left,'0');")
