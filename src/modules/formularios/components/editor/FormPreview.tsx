@@ -7,7 +7,7 @@
  * Inclui seletor de país com bandeira para campos de telefone
  */
 
-import { useState, useRef, useCallback, useEffect, forwardRef } from 'react'
+import React, { useState, useRef, useCallback, useEffect, forwardRef } from 'react'
 import { getMaskForType } from '../../utils/masks'
 
 import { generateFormResponsiveCss, generateColunasResponsiveCss, resolveValue } from '../../utils/responsiveStyles'
@@ -308,7 +308,7 @@ export const FormPreview = forwardRef<HTMLDivElement, Props>(function FormPrevie
       onDragOver={handleDragOver}
       onDragLeave={(e) => handleDragLeave(e, index)}
       onDrop={(e) => handleDrop(e, index)}
-      className="relative"
+      className="relative w-full"
       style={{ zIndex: dragOverIndex === index ? 10 : undefined }}
     >
       {/* Invisible hit area — tall enough for easy targeting, no layout shift */}
@@ -319,7 +319,7 @@ export const FormPreview = forwardRef<HTMLDivElement, Props>(function FormPrevie
             ? 'py-8'
             : dragOverIndex === index
               ? 'py-3'
-              : 'py-0',
+              : 'py-1',
         )}
       >
         {/* Active indicator line */}
@@ -591,37 +591,39 @@ export const FormPreview = forwardRef<HTMLDivElement, Props>(function FormPrevie
                               }
 
                               return (
-                                <div key={campo.id} className={widthClass}>
-                                  <CampoItem
-                                    campo={campo}
-                                    isSelected={selectedCampoId === campo.id}
-                                    isDragOver={false}
-                                    onSelect={() => onSelectCampo(campo.id)}
-                                    onRemove={() => onRemoveCampo(campo.id)}
-                                    onMoveUp={index > 0 ? () => _onMoveCampo(campo.id, 'up') : undefined}
-                                    onMoveDown={index < topLevelCampos.length - 1 ? () => _onMoveCampo(campo.id, 'down') : undefined}
-                                    onDragStart={(e) => {
-                                      e.dataTransfer.setData('application/campo-id', campo.id)
-                                      e.dataTransfer.effectAllowed = 'move'
-                                    }}
-                                    onDragOver={(e) => e.preventDefault()}
-                                    onDrop={(e) => {
-                                      e.preventDefault()
-                                      e.stopPropagation()
-                                      const draggedId = e.dataTransfer.getData('application/campo-id')
-                                      if (draggedId && draggedId !== campo.id) {
-                                        onReorderCampo(draggedId, index)
-                                      }
-                                    }}
-                                    onDragLeave={() => {}}
-                                    onUpdateLabel={onUpdateCampoLabel ? (newLabel) => onUpdateCampoLabel(campo.id, newLabel) : undefined}
-                                    onUpdatePlaceholder={onUpdateCampoPlaceholder ? (newP) => onUpdateCampoPlaceholder(campo.id, newP) : undefined}
-                                    onDuplicate={onDuplicateCampo ? () => onDuplicateCampo(campo.id) : undefined}
-                                    estiloCampos={estiloCampos}
-                                    fontFamily={fontFamily}
-                                  />
+                                <React.Fragment key={campo.id}>
+                                  <div className={widthClass}>
+                                    <CampoItem
+                                      campo={campo}
+                                      isSelected={selectedCampoId === campo.id}
+                                      isDragOver={false}
+                                      onSelect={() => onSelectCampo(campo.id)}
+                                      onRemove={() => onRemoveCampo(campo.id)}
+                                      onMoveUp={index > 0 ? () => _onMoveCampo(campo.id, 'up') : undefined}
+                                      onMoveDown={index < topLevelCampos.length - 1 ? () => _onMoveCampo(campo.id, 'down') : undefined}
+                                      onDragStart={(e) => {
+                                        e.dataTransfer.setData('application/campo-id', campo.id)
+                                        e.dataTransfer.effectAllowed = 'move'
+                                      }}
+                                      onDragOver={(e) => e.preventDefault()}
+                                      onDrop={(e) => {
+                                        e.preventDefault()
+                                        e.stopPropagation()
+                                        const draggedId = e.dataTransfer.getData('application/campo-id')
+                                        if (draggedId && draggedId !== campo.id) {
+                                          onReorderCampo(draggedId, index)
+                                        }
+                                      }}
+                                      onDragLeave={() => {}}
+                                      onUpdateLabel={onUpdateCampoLabel ? (newLabel) => onUpdateCampoLabel(campo.id, newLabel) : undefined}
+                                      onUpdatePlaceholder={onUpdateCampoPlaceholder ? (newP) => onUpdateCampoPlaceholder(campo.id, newP) : undefined}
+                                      onDuplicate={onDuplicateCampo ? () => onDuplicateCampo(campo.id) : undefined}
+                                      estiloCampos={estiloCampos}
+                                      fontFamily={fontFamily}
+                                    />
+                                  </div>
                                   {renderDropZone(index + 1)}
-                                </div>
+                                </React.Fragment>
                               )
                             })}
                           </div>
