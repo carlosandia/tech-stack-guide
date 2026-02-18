@@ -131,7 +131,16 @@ export const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(functi
     )
   }, [mensagens])
 
+  // AIDEV-NOTE: Extrair stanza ID (último segmento após '_') para fallback de matching
+  function extractStanzaId(messageId: string): string | undefined {
+    if (!messageId || !messageId.includes('_')) return undefined
+    const parts = messageId.split('_')
+    return parts[parts.length - 1]
+  }
+
   // AIDEV-NOTE: Agregar reações por message_id da mensagem original (estilo WhatsApp badges)
+  // Indexa tanto pelo message_id completo quanto pelo stanza ID para resolver
+  // divergência @lid vs @c.us (ex: false_xxx@lid_STANZA vs false_xxx@c.us_STANZA)
   const reactionsMap = useMemo(() => {
     const map = new Map<string, ReactionBadge[]>()
     for (const msg of sortedMessages) {
@@ -146,6 +155,14 @@ export const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(functi
           existing.push({ emoji: msg.reaction_emoji, count: 1, fromMe: msg.from_me })
         }
         map.set(key, existing)
+
+        // AIDEV-NOTE: Indexar também pelo stanza ID como fallback
+        const stanzaId = extractStanzaId(key)
+        if (stanzaId && stanzaId !== key) {
+          if (!map.has(stanzaId)) {
+            map.set(stanzaId, existing)
+          }
+        }
       }
     }
     return map
@@ -229,8 +246,10 @@ export const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(functi
           participantColor = getParticipantColor(participant)
         }
 
-        // AIDEV-NOTE: Buscar reações para esta mensagem pelo message_id
-        const msgReactions = msg.message_id ? reactionsMap.get(msg.message_id) : undefined
+        // AIDEV-NOTE: Buscar reações pelo message_id completo, fallback pelo stanza ID
+        const msgReactions = msg.message_id
+          ? (reactionsMap.get(msg.message_id) || reactionsMap.get(extractStanzaId(msg.message_id) || ''))
+          : undefined
 
         return (
           <div
