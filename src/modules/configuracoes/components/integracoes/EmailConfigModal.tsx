@@ -75,7 +75,7 @@ export function EmailConfigModal({ integracao, onClose, onDesconectar }: Props) 
               <div className="flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">Tipo</span>
                 <span className="text-xs text-foreground font-medium">
-                  {integracao.tipo_email === 'gmail_oauth' ? 'Gmail OAuth' : 'SMTP Manual'}
+                  {['gmail_oauth', 'gmail'].includes(integracao.tipo_email || '') ? 'Gmail OAuth' : 'SMTP Manual'}
                 </span>
               </div>
             )}
