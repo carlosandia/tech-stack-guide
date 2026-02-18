@@ -1,23 +1,30 @@
 
+# Corrigir ensurePx no widget-formulario-loader para aceitar numeros
 
-# Adicionar nocache ao script do widget na pagina de Planos
+## Problema
+
+O campo `estilo_campo.label_tamanho` esta salvo no banco como numero (`35`), nao como string (`"35"`). A funcao `ensurePx` no edge function `widget-formulario-loader` chama `.trim()` diretamente no valor recebido. Quando o valor e um numero, `(35).trim()` lanca TypeError, fazendo a funcao retornar o fallback (`18px`).
+
+Dados do banco confirmam:
+- `validacoes.estilo_campo.label_tamanho` = `35` (numero)
+- `valor_padrao.tamanho` = `"18"` (string)
 
 ## Alteracao
 
-Adicionar `&nocache=1` na URL do script do widget embed dentro de `src/modules/public/pages/PlanosPage.tsx` (linha 65), para que o formulario sempre carregue a versao mais recente sem cache.
+### Arquivo: `supabase/functions/widget-formulario-loader/index.ts`
 
-## Detalhe tecnico
+**Linha 55** - Alterar a funcao `ensurePx` para converter o valor para string antes de operar:
 
-**Arquivo:** `src/modules/public/pages/PlanosPage.tsx`
-
-Na linha 65, alterar a URL do script de:
+De:
+```js
+function ensurePx(v,fb){if(!v||!v.trim())return fb;var t=v.trim();if(/[a-z%]/i.test(t))return t;return t+'px'}
 ```
-...widget-formulario-loader?slug=demonstracao-crm-mlrb6yoz&mode=inline
-```
+
 Para:
-```
-...widget-formulario-loader?slug=demonstracao-crm-mlrb6yoz&mode=inline&nocache=1
+```js
+function ensurePx(v,fb){if(v===undefined||v===null||v==='')return fb;var t=String(v).trim();if(!t)return fb;if(/[a-z%]/i.test(t))return t;return t+'px'}
 ```
 
-Isso forca o navegador e o edge function a ignorar o cache de 1h, garantindo que a estilizacao atualizada apareca imediatamente na pagina de planos.
+Isso garante que valores numericos (35) sejam convertidos para string ("35") antes de processar, resultando em "35px" corretamente.
 
+Apos editar, fazer deploy da edge function `widget-formulario-loader`.
