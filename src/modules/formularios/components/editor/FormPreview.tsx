@@ -349,21 +349,16 @@ export const FormPreview = forwardRef<HTMLDivElement, Props>(function FormPrevie
   return (
     <div className="flex flex-col h-full">
       {/* Viewport switcher */}
-      <div className="flex items-center justify-between gap-1 px-3 py-1.5 border-b border-border bg-muted/30 shrink-0">
-        {/* Left: Visualizar Final + CSS */}
-        <div className="flex items-center gap-1">
+      <div className="grid grid-cols-3 items-center px-3 py-1.5 border-b border-border bg-muted/30 shrink-0">
+        {/* Left: Visualizar Final */}
+        <div className="flex items-center">
           {onToggleFinalPreview && (
             <span className="text-xs text-muted-foreground select-none">Visualizar Final</span>
-          )}
-          {onToggleCss && !showFinalPreview && (
-            <Button variant={showCssDrawer ? 'secondary' : 'ghost'} size="sm" className="h-7 text-xs" onClick={onToggleCss}>
-              <Code className="w-3.5 h-3.5 mr-1.5" />CSS
-            </Button>
           )}
         </div>
 
         {/* Center: Viewport switcher */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center justify-center gap-1">
           {([
             { key: 'desktop', icon: Monitor, label: 'Desktop' },
             { key: 'tablet', icon: Tablet, label: 'Tablet' },
@@ -382,8 +377,14 @@ export const FormPreview = forwardRef<HTMLDivElement, Props>(function FormPrevie
           ))}
         </div>
 
-        {/* Right: spacer */}
-        <div className="flex items-center" />
+        {/* Right: CSS */}
+        <div className="flex items-center justify-end">
+          {onToggleCss && !showFinalPreview && (
+            <Button variant={showCssDrawer ? 'secondary' : 'ghost'} size="sm" className="h-7 text-xs" onClick={onToggleCss}>
+              <Code className="w-3.5 h-3.5 mr-1.5" />CSS
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Preview area */}
