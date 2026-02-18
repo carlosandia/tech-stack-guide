@@ -126,7 +126,10 @@ export function LoginPage() {
       )}
 
       {/* === Lado Esquerdo: Formulário === */}
-      <div className="md:w-[38%] flex-shrink-0 flex flex-col items-center justify-center bg-background px-4 py-8 md:py-0 md:px-8 lg:px-16 min-h-0 md:min-h-screen">
+      <div className="md:w-[38%] flex-shrink-0 flex flex-col items-center justify-between bg-background px-4 py-8 md:py-12 md:px-8 lg:px-16 min-h-0 md:min-h-screen">
+        {/* Spacer top */}
+        <div className="flex-1" />
+
         <div className="w-full max-w-[400px] space-y-8">
           {/* Logo */}
           <div className="flex flex-col items-center">
@@ -152,23 +155,26 @@ export function LoginPage() {
               error={error}
             />
           </div>
+        </div>
 
-          {/* Links de Politica e Termos */}
-          <div className="text-center text-xs text-muted-foreground">
-            <Link
-              to={PRIVACY_URL}
-              className="hover:text-foreground hover:underline transition-colors"
-            >
-              Política de Privacidade
-            </Link>
-            <span className="mx-2">•</span>
-            <Link
-              to={TERMS_URL}
-              className="hover:text-foreground hover:underline transition-colors"
-            >
-              Termos de Serviço
-            </Link>
-          </div>
+        {/* Spacer bottom */}
+        <div className="flex-1" />
+
+        {/* Links de Politica e Termos - rodapé fixo */}
+        <div className="text-center text-xs text-muted-foreground py-4">
+          <Link
+            to={PRIVACY_URL}
+            className="hover:text-foreground hover:underline transition-colors"
+          >
+            Política de Privacidade
+          </Link>
+          <span className="mx-2">•</span>
+          <Link
+            to={TERMS_URL}
+            className="hover:text-foreground hover:underline transition-colors"
+          >
+            Termos de Serviço
+          </Link>
         </div>
       </div>
 
