@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useScrollReveal } from '../../hooks/useScrollReveal'
 
 /**
  * AIDEV-NOTE: FAQ - eliminação de objeções com accordion customizado
@@ -42,11 +43,18 @@ const faqs = [
 
 export function FAQSection() {
   const [openIdx, setOpenIdx] = useState<number | null>(0)
+  const { ref: headerRef, isVisible: headerVisible } = useScrollReveal()
+  const { ref: listRef, isVisible: listVisible } = useScrollReveal()
 
   return (
     <section id="faq" className="py-16 md:py-24 bg-background">
       <div className="max-w-[800px] mx-auto px-4 md:px-6">
-        <div className="text-center mb-12 md:mb-16">
+        <div
+          ref={headerRef}
+          className={`text-center mb-12 md:mb-16 transition-all duration-600 ${
+            headerVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
+          }`}
+        >
           <p className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">
             Dúvidas frequentes
           </p>
@@ -55,7 +63,13 @@ export function FAQSection() {
           </h2>
         </div>
 
-        <div className="space-y-3">
+        <div
+          ref={listRef}
+          className={`space-y-3 transition-all duration-600 ${
+            listVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
+          }`}
+          style={{ transitionDelay: '150ms' }}
+        >
           {faqs.map((faq, idx) => (
             <div
               key={idx}
@@ -76,13 +90,18 @@ export function FAQSection() {
                   )}
                 />
               </button>
-              {openIdx === idx && (
+              <div
+                className={cn(
+                  'overflow-hidden transition-all duration-200',
+                  openIdx === idx ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'
+                )}
+              >
                 <div className="px-4 md:px-5 pb-4 md:pb-5">
                   <p className="text-sm text-muted-foreground leading-relaxed">
                     {faq.a}
                   </p>
                 </div>
-              )}
+              </div>
             </div>
           ))}
         </div>

@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { ArrowRight } from 'lucide-react'
+import { useScrollReveal } from '../../hooks/useScrollReveal'
 
 /**
  * AIDEV-NOTE: Como funciona - 3 passos simples para começar
@@ -24,10 +25,18 @@ const steps = [
 ]
 
 export function HowItWorksSection() {
+  const { ref: headerRef, isVisible: headerVisible } = useScrollReveal()
+  const { ref: stepsRef, isVisible: stepsVisible } = useScrollReveal()
+
   return (
     <section id="como-funciona" className="py-16 md:py-24 bg-muted/30">
       <div className="max-w-[1200px] mx-auto px-4 md:px-6">
-        <div className="text-center max-w-2xl mx-auto mb-12 md:mb-16">
+        <div
+          ref={headerRef}
+          className={`text-center max-w-2xl mx-auto mb-12 md:mb-16 transition-all duration-600 ${
+            headerVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
+          }`}
+        >
           <p className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">
             Simples de começar
           </p>
@@ -36,9 +45,15 @@ export function HowItWorksSection() {
           </h2>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-8 md:gap-12 mb-12">
+        <div ref={stepsRef} className="grid md:grid-cols-3 gap-8 md:gap-12 mb-12">
           {steps.map((step, idx) => (
-            <div key={step.number} className="relative text-center md:text-left">
+            <div
+              key={step.number}
+              className={`relative text-center md:text-left transition-all duration-500 ${
+                stepsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
+              }`}
+              style={{ transitionDelay: `${idx * 150}ms` }}
+            >
               {/* Linha conectora (desktop) */}
               {idx < steps.length - 1 && (
                 <div className="hidden md:block absolute top-8 left-[60%] w-[80%] h-px bg-border" />
