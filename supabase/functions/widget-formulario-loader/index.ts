@@ -185,7 +185,9 @@ function getFormScript(configApi: string, submitApi: string, mode: string, slug:
   parts.push("var bw=fS.input_border_width||'1';var bsv=fS.input_border_style||'solid';var bc=fS.input_border_color||'#D1D5DB';")
   parts.push("var inputCss='width:100%;background:'+(fS.input_background||'#F9FAFB')+';border:'+bw+'px '+bsv+' '+bc+';border-radius:'+(fS.input_border_radius||'6px')+';color:'+(fS.input_texto_cor||'#1F2937')+';padding:8px 12px;font-size:14px;height:'+(fS.input_height||'40px')+';outline:none;font-family:'+fontFamily+';box-sizing:border-box';")
   parts.push("var labelCss='color:'+(fS.label_cor||'#374151')+';font-size:'+(fS.label_tamanho||'14px')+';font-weight:'+(fS.label_font_weight||'500')+';display:block;margin-bottom:4px;font-family:'+fontFamily;")
-  parts.push("var gapTop=fS.gap_top||fS.gap||'12';var gapRight=fS.gap_right||'0';var gapBottom=fS.gap_bottom||'0';var gapLeft=fS.gap_left||'0';")
+  // AIDEV-NOTE: Usar check explícito para não tratar 0 como falsy
+  parts.push("function safeGap(v,fb){return(v!==undefined&&v!==null&&v!=='')?v:fb}")
+  parts.push("var gapTop=safeGap(fS.gap_top,safeGap(fS.gap,'12'));var gapRight=safeGap(fS.gap_right,'0');var gapBottom=safeGap(fS.gap_bottom,'0');var gapLeft=safeGap(fS.gap_left,'0');")
   parts.push("var fieldPadding=gapTop+'px '+gapRight+'px '+gapBottom+'px '+gapLeft+'px';")
   // AIDEV-NOTE: getFieldPad — calcula padding individual por campo usando validacoes.spacing_* como override do global
   parts.push("function getFieldPad(c){var v=c.validacoes||{};var st=v.spacing_top;var sr=v.spacing_right;var sb=v.spacing_bottom;var sl=v.spacing_left;var t=(st!==undefined&&st!==null&&st!=='')?st:gapTop;var r=(sr!==undefined&&sr!==null&&sr!=='')?sr:gapRight;var b=(sb!==undefined&&sb!==null&&sb!=='')?sb:gapBottom;var l=(sl!==undefined&&sl!==null&&sl!=='')?sl:gapLeft;return t+'px '+r+'px '+b+'px '+l+'px'}")
