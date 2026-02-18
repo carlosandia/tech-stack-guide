@@ -8,53 +8,7 @@
  */
 
 import { supabase } from '@/lib/supabase'
-
-// =====================================================
-// Helper - Obter organizacao_id do usuario logado
-// =====================================================
-
-let _cachedOrgId: string | null = null
-let _cachedUserId: string | null = null
-
-async function getOrganizacaoId(): Promise<string> {
-  if (_cachedOrgId) return _cachedOrgId
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Usuário não autenticado')
-
-  const { data } = await supabase
-    .from('usuarios')
-    .select('organizacao_id')
-    .eq('auth_id', user.id)
-    .maybeSingle()
-
-  if (!data?.organizacao_id) throw new Error('Organização não encontrada')
-  _cachedOrgId = data.organizacao_id
-  return _cachedOrgId
-}
-
-async function getUsuarioId(): Promise<string> {
-  if (_cachedUserId) return _cachedUserId
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Usuário não autenticado')
-
-  const { data } = await supabase
-    .from('usuarios')
-    .select('id')
-    .eq('auth_id', user.id)
-    .maybeSingle()
-
-  if (!data?.id) throw new Error('Usuário não encontrado')
-  _cachedUserId = data.id
-  return _cachedUserId
-}
-
-// Reset cache on auth state change
-supabase.auth.onAuthStateChange(() => {
-  _cachedOrgId = null
-  _cachedUserId = null
-})
+import { getOrganizacaoId, getUsuarioId } from '@/shared/services/auth-context'
 
 // =====================================================
 // Types
@@ -177,6 +131,19 @@ export const contatosApi = {
     const ordenarPor = params?.ordenar_por || 'criado_em'
     const ordemAsc = params?.ordem === 'asc'
 
+    // AIDEV-NOTE: Filtro de segmento pre-query para corrigir paginacao distorcida (Plano Escala)
+    let idsDoSegmento: string[] | null = null
+    if (params?.segmento_id) {
+      const { data: segVinculos } = await supabase
+        .from('contatos_segmentos')
+        .select('contato_id')
+        .eq('segmento_id', params.segmento_id)
+      idsDoSegmento = (segVinculos || []).map(v => v.contato_id)
+      if (idsDoSegmento.length === 0) {
+        return { contatos: [], total: 0, page, per_page: perPage, total_paginas: 0 }
+      }
+    }
+
     let query = supabase
       .from('contatos')
       .select('*', { count: 'exact' })
@@ -184,6 +151,11 @@ export const contatosApi = {
       .neq('status', 'pre_lead')
       .order(ordenarPor, { ascending: ordemAsc })
       .range(from, to)
+
+    // Aplicar filtro de segmento na query principal
+    if (idsDoSegmento) {
+      query = query.in('id', idsDoSegmento)
+    }
 
     if (params?.tipo) query = query.eq('tipo', params.tipo)
     if (params?.status) query = query.eq('status', params.status)
@@ -304,10 +276,7 @@ export const contatosApi = {
         }
       }
 
-      // Filtrar por segmento_id (pós-query se necessário)
-      if (params?.segmento_id) {
-        contatos = contatos.filter(c => c.segmentos?.some(s => s.id === params.segmento_id))
-      }
+      // AIDEV-NOTE: Filtro de segmento movido para pre-query (Plano Escala 5.4)
 
       // Enriquecer com campos customizados
       {
@@ -368,12 +337,12 @@ export const contatosApi = {
         }
       }
 
-      // Enriquecer com total_oportunidades
+      // AIDEV-NOTE: Contagem otimizada de oportunidades — usa count agrupado (Plano Escala 5.6)
       const contatoIdsAll = contatos.map(c => c.id)
       if (contatoIdsAll.length > 0) {
         const { data: opsData } = await supabase
           .from('oportunidades')
-          .select('contato_id')
+          .select('contato_id', { count: 'exact', head: false })
           .in('contato_id', contatoIdsAll)
           .is('deletado_em', null)
 
@@ -632,13 +601,19 @@ export const contatosApi = {
   },
 
   exportar: async (params?: ListarContatosParams): Promise<string> => {
-    // Buscar todos os contatos sem paginação
-    const { data, error } = await (() => {
+    // AIDEV-NOTE: Exportacao em batches de 1000 para prevenir timeout (Plano Escala 5.5)
+    const batchSize = 1000
+    let allContatos: any[] = []
+    let offset = 0
+    let hasMore = true
+
+    while (hasMore) {
       let query = supabase
         .from('contatos')
         .select('*')
         .is('deletado_em', null)
         .order('criado_em', { ascending: false })
+        .range(offset, offset + batchSize - 1)
 
       if (params?.tipo) query = query.eq('tipo', params.tipo)
       if (params?.status) query = query.eq('status', params.status)
@@ -649,12 +624,16 @@ export const contatosApi = {
         )
       }
 
-      return query
-    })()
+      const { data, error } = await query
+      if (error) throw new Error(error.message)
 
-    if (error) throw new Error(error.message)
+      const batch = data || []
+      allContatos = allContatos.concat(batch)
+      hasMore = batch.length === batchSize
+      offset += batchSize
+    }
 
-    const contatos = data || []
+    const contatos = allContatos
 
     // Gerar CSV
     const isPessoa = params?.tipo === 'pessoa'
@@ -767,32 +746,47 @@ export const contatosApi = {
   },
 
   exportarComColunas: async (params: ListarContatosParams & { colunas: Array<{ key: string; label: string }>; ids?: string[] }): Promise<string> => {
-    let query = supabase
-      .from('contatos')
-      .select('*')
-      .is('deletado_em', null)
-      .order('criado_em', { ascending: false })
+    // AIDEV-NOTE: Exportacao em batches de 1000 para prevenir timeout (Plano Escala 5.5)
+    const batchSize = 1000
+    let allContatos: any[] = []
+    let offset = 0
+    let hasMore = true
 
-    if (params.ids && params.ids.length > 0) {
-      query = query.in('id', params.ids)
-    } else {
-      if (params.tipo) query = query.eq('tipo', params.tipo)
-      if (params.status) query = query.eq('status', params.status)
-      if (params.origem) query = query.eq('origem', params.origem)
-      if (params.owner_id) query = query.eq('owner_id', params.owner_id)
-      if (params.data_inicio) query = query.gte('criado_em', params.data_inicio)
-      if (params.data_fim) query = query.lte('criado_em', params.data_fim)
-      if (params.busca) {
-        query = query.or(
-          `nome.ilike.%${params.busca}%,sobrenome.ilike.%${params.busca}%,email.ilike.%${params.busca}%,razao_social.ilike.%${params.busca}%`
-        )
+    while (hasMore) {
+      let query = supabase
+        .from('contatos')
+        .select('*')
+        .is('deletado_em', null)
+        .order('criado_em', { ascending: false })
+        .range(offset, offset + batchSize - 1)
+
+      if (params.ids && params.ids.length > 0) {
+        query = query.in('id', params.ids)
+      } else {
+        if (params.tipo) query = query.eq('tipo', params.tipo)
+        if (params.status) query = query.eq('status', params.status)
+        if (params.origem) query = query.eq('origem', params.origem)
+        if (params.owner_id) query = query.eq('owner_id', params.owner_id)
+        if (params.data_inicio) query = query.gte('criado_em', params.data_inicio)
+        if (params.data_fim) query = query.lte('criado_em', params.data_fim)
+        if (params.busca) {
+          query = query.or(
+            `nome.ilike.%${params.busca}%,sobrenome.ilike.%${params.busca}%,email.ilike.%${params.busca}%,razao_social.ilike.%${params.busca}%`
+          )
+        }
       }
+
+      const { data, error } = await query
+      if (error) throw new Error(error.message)
+
+      const batch = data || []
+      allContatos = allContatos.concat(batch)
+      // Se filtrando por IDs específicos, não precisa paginar
+      hasMore = !(params.ids && params.ids.length > 0) && batch.length === batchSize
+      offset += batchSize
     }
 
-    const { data, error } = await query
-    if (error) throw new Error(error.message)
-
-    const contatos = data || []
+    const contatos = allContatos
     const headers = params.colunas.map(c => c.label)
     const rows = contatos.map(c =>
       params.colunas.map(col => (c as any)[col.key] ?? '')
@@ -913,15 +907,19 @@ export const contatosApi = {
       }
     }
 
-    // 5. Atualizar owner_id dos contatos com o responsável atribuído
+    // AIDEV-NOTE: Owner update agrupado por responsavel — reduz N queries para K (Plano Escala 5.3)
     if (membrosDistribuicao.length > 0) {
-      for (let i = 0; i < contatos.length; i++) {
+      const ownerGroups: Record<string, string[]> = {}
+      contatos.forEach((c, i) => {
         const responsavelId = membrosDistribuicao[i % membrosDistribuicao.length]
-        await supabase
-          .from('contatos')
-          .update({ owner_id: responsavelId })
-          .eq('id', contatos[i].id)
-      }
+        if (!ownerGroups[responsavelId]) ownerGroups[responsavelId] = []
+        ownerGroups[responsavelId].push(c.id)
+      })
+      await Promise.all(
+        Object.entries(ownerGroups).map(([ownerId, ids]) =>
+          supabase.from('contatos').update({ owner_id: ownerId } as any).in('id', ids)
+        )
+      )
     }
 
     return { criadas, erros, detalhes }
@@ -930,39 +928,38 @@ export const contatosApi = {
   segmentarLote: async (payload: { ids: string[]; adicionar: string[]; remover: string[] }): Promise<void> => {
     const organizacaoId = await getOrganizacaoId()
 
-    // Remover segmentos
+    // AIDEV-NOTE: Remoção em batch — 1 query por segmento (Plano Escala 5.2)
     if (payload.remover.length > 0) {
-      for (const segId of payload.remover) {
-        await supabase
-          .from('contatos_segmentos')
-          .delete()
-          .in('contato_id', payload.ids)
-          .eq('segmento_id', segId)
-      }
+      await Promise.all(
+        payload.remover.map(segId =>
+          supabase
+            .from('contatos_segmentos')
+            .delete()
+            .in('contato_id', payload.ids)
+            .eq('segmento_id', segId)
+        )
+      )
     }
 
-    // Adicionar segmentos
+    // AIDEV-NOTE: Upsert em batch — unique constraint (contato_id, segmento_id) já existe (Plano Escala 5.2)
     if (payload.adicionar.length > 0) {
-      for (const contatoId of payload.ids) {
-        for (const segId of payload.adicionar) {
-          // Upsert para evitar duplicatas
-          const { data: existing } = await supabase
-            .from('contatos_segmentos')
-            .select('id')
-            .eq('contato_id', contatoId)
-            .eq('segmento_id', segId)
-            .maybeSingle()
+      const rows = payload.ids.flatMap(contatoId =>
+        payload.adicionar.map(segId => ({
+          contato_id: contatoId,
+          segmento_id: segId,
+          organizacao_id: organizacaoId,
+        }))
+      )
 
-          if (!existing) {
-            await supabase
-              .from('contatos_segmentos')
-              .insert({
-                contato_id: contatoId,
-                segmento_id: segId,
-                organizacao_id: organizacaoId,
-              })
-          }
-        }
+      // Inserir em batches de 500 para evitar limite de payload
+      const batchSize = 500
+      for (let i = 0; i < rows.length; i += batchSize) {
+        const batch = rows.slice(i, i + batchSize)
+        const { error } = await supabase
+          .from('contatos_segmentos')
+          .upsert(batch, { onConflict: 'contato_id,segmento_id' })
+
+        if (error) throw new Error(error.message)
       }
     }
   },
