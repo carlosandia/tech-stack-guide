@@ -339,9 +339,10 @@ async function atualizarCampo(
     .eq('formulario_id', formularioId)
     .eq('id', campoId)
     .select()
-    .single()
+    .maybeSingle()
 
   if (error) throw new Error(`Erro ao atualizar campo: ${error.message}`)
+  if (!data) return null as unknown as CampoFormulario
   return data as unknown as CampoFormulario
 }
 

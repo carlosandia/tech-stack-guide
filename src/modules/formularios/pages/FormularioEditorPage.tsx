@@ -385,11 +385,12 @@ export function FormularioEditorPage() {
 
   const handleRemoveCampo = useCallback(
     (campoId: string) => {
-      excluirCampo.mutate(campoId)
+      // AIDEV-NOTE: Desselecionar ANTES de excluir — desmonta CampoConfigPanel e cancela debounce pendente
       if (selectedCampoId === campoId) {
         setSelectedCampoId(null)
         setShowConfig(false)
       }
+      excluirCampo.mutate(campoId)
     },
     [excluirCampo, selectedCampoId]
   )
