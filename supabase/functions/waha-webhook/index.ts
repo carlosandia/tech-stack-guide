@@ -1683,6 +1683,7 @@ Deno.serve(async (req) => {
     // STEP 1: Find or create contact (by participant phone for groups)
     // =====================================================
     let contatoId: string;
+    let contactFoundByFuzzy = false;
 
     let existingContato = null;
 
@@ -1697,11 +1698,13 @@ Deno.serve(async (req) => {
 
     existingContato = contatoExato;
 
-    // AIDEV-NOTE: Tentativa 2 - Busca fuzzy pelos últimos 8-10 dígitos do telefone
+    // AIDEV-NOTE: Tentativa 2 - Busca fuzzy pelos últimos 10 dígitos do telefone
     // Resolve casos onde @lid numerico != @c.us numerico mas representam a mesma pessoa
-    if (!existingContato && phoneNumber.length >= 8) {
-      const lastDigits = phoneNumber.slice(-8);
-      console.log(`[waha-webhook] Contact not found by exact phone, trying fuzzy match: %${lastDigits}`);
+    // CORRECAO: Aumentado de 8 para 10 digitos + validacao de comprimento para evitar
+    // falsos positivos (ex: 553584723836 vs 5535984723836 - numeros diferentes!)
+    if (!existingContato && phoneNumber.length >= 10) {
+      const lastDigits = phoneNumber.slice(-10);
+      console.log(`[waha-webhook] Contact not found by exact phone, trying fuzzy match (10 digits): %${lastDigits}`);
       const { data: contatoFuzzy } = await supabaseAdmin
         .from("contatos")
         .select("id, nome, telefone")
@@ -1712,8 +1715,18 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (contatoFuzzy) {
-        existingContato = contatoFuzzy;
-        console.log(`[waha-webhook] ✅ Contact found via fuzzy phone match: ${contatoFuzzy.id} (phone: ${contatoFuzzy.telefone})`);
+        // AIDEV-NOTE: Validacao extra - rejeitar match se comprimentos diferem
+        // e nao estamos resolvendo @lid. Numeros com comprimentos diferentes
+        // sao quase certamente pessoas diferentes (ex: fixo vs celular BR).
+        const foundPhone = (contatoFuzzy.telefone || "").replace(/\D/g, "");
+        const searchPhone = phoneNumber.replace(/\D/g, "");
+        if (foundPhone.length !== searchPhone.length && !originalLidChatId) {
+          console.log(`[waha-webhook] ⚠️ Fuzzy match REJECTED: phone length mismatch (found=${foundPhone.length}, search=${searchPhone.length}), not @lid resolution`);
+        } else {
+          existingContato = contatoFuzzy;
+          contactFoundByFuzzy = true;
+          console.log(`[waha-webhook] ✅ Contact found via fuzzy phone match: ${contatoFuzzy.id} (phone: ${contatoFuzzy.telefone})`);
+        }
       }
     }
 
@@ -1964,7 +1977,9 @@ Deno.serve(async (req) => {
     // AIDEV-NOTE: Tentativa 1c - chatId é @c.us mas pode existir conversa com @lid do mesmo contato
     // Busca reversa: quando o usuário responde pelo WhatsApp Web externo, o chatId vem como @c.us
     // mas a conversa original foi criada com @lid
-    if (!existingConversa && !chatId.includes("@lid") && conversaTipo === "individual" && contatoId) {
+    // AIDEV-NOTE: So buscar conversa por contato_id quando o contato foi encontrado por match EXATO.
+    // Se foi fuzzy, o contato pode ser errado e rotearia a mensagem para conversa errada.
+    if (!existingConversa && !chatId.includes("@lid") && conversaTipo === "individual" && contatoId && !contactFoundByFuzzy) {
       console.log(`[waha-webhook] Tentativa 1c: chatId é @c.us, buscando conversa @lid pelo contato_id=${contatoId}`);
       const { data: conversaByContato } = await supabaseAdmin
         .from("conversas")
