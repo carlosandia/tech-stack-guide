@@ -1,128 +1,194 @@
 
 
-## Plano de Otimizacao para Escala — Modulo /negocios
+## Auditoria de Producao — Modulo /contatos
 
-Correcoes pontuais e seguras para preparar o modulo para 500+ usuarios, sem alterar comportamento funcional existente.
-
----
-
-### Fase 1 — Correcoes Criticas
-
-#### 1.1 Debounce no Realtime (useKanban.ts)
-
-**Problema**: Cada evento Realtime dispara `invalidateQueries` imediatamente, causando "refetch storms" quando multiplos usuarios movem cards.
-
-**Correcao**: Adicionar debounce de 2 segundos no callback do Realtime. Usar `setTimeout` + `clearTimeout` com ref.
-
-**Arquivo**: `src/modules/negocios/hooks/useKanban.ts`
-- Adicionar `useRef` para armazenar timer
-- No callback do `postgres_changes`, limpar timer anterior e agendar invalidacao com 2s de delay
-- Limpar timer no cleanup do useEffect
-
-**Risco**: Zero. Apenas atrasa a invalidacao em 2s, o optimistic update ja garante UX imediata.
+Analise para 500+ usuarios, alto volume de contatos e dados, conforme diretrizes do Arquiteto de Produto.
 
 ---
 
-#### 1.2 Batch update de posicoes (negocios.api.ts — moverEtapa)
+### 1. Problemas Criticos
 
-**Problema**: `moverEtapa` (linhas 509-512) faz N updates individuais via `Promise.all` para recalcular posicoes. Com 50 cards numa etapa, sao 50 queries paralelas.
+#### 1.1 N+1 Queries no `listar` — GARGALO PRINCIPAL
 
-**Correcao**: Criar uma funcao RPC no Supabase (`reordenar_posicoes_etapa`) que recebe um array de `{id, posicao}` e faz o update em uma unica transacao.
+O metodo `contatosApi.listar` faz **7 queries sequenciais** para montar a listagem:
 
-**Arquivos**:
-- Nova migration SQL com a funcao `reordenar_posicoes_etapa`
-- `src/modules/negocios/services/negocios.api.ts` — substituir o `Promise.all` de updates por `supabase.rpc('reordenar_posicoes_etapa', { items: [...] })`
+1. Buscar contatos (principal)
+2. Buscar segmentos vinculados (`contatos_segmentos`)
+3. Buscar owners (`usuarios`)
+4. Buscar empresas vinculadas (se tipo=pessoa)
+5. Buscar pessoas vinculadas (se tipo=empresa)
+6. Buscar definicoes de campos customizados (`campos_customizados`)
+7. Buscar valores de campos customizados (`valores_campos_customizados`)
+8. Buscar total de oportunidades (`oportunidades`)
 
-**Mesmo fix aplicado em**: `handleSortColumn` no `KanbanBoard.tsx` (linhas 188-191)
+Com 500 usuarios carregando a listagem, sao **3.500-4.000 queries/segundo** so para renderizar a tabela.
 
-**Risco**: Baixo. A funcao RPC faz exatamente o mesmo que o `Promise.all`, so que em 1 roundtrip. Se a RPC falhar, o rollback e atomico.
+**Correcao**: As queries de enriquecimento (2-8) ja usam batch `.in()`, o que e bom. Porem, o campo `campos_customizados` faz 2 queries extras (definicoes + valores) que podem ser consolidadas. Alem disso, a query de `total_oportunidades` pode usar `.select('contato_id.count()')` com group by ao inves de trazer todos os registros e contar no frontend.
 
----
+#### 1.2 Duplicatas carrega TODOS os contatos sem limit
 
-#### 1.3 Remover logica de rodizio duplicada do frontend (negocios.api.ts — criarOportunidade)
+O metodo `duplicatas()` (linha 542) faz `select` de **todos os contatos** do tenant sem paginacao nem limit. Com 50.000 contatos, isso transfere megabytes de dados e processa tudo no frontend.
 
-**Problema**: O rodizio de distribuicao existe no frontend (linhas 556-618) E no trigger do banco (`aplicar_config_pipeline_oportunidade`). Isso cria race condition e possivel atribuicao dupla.
+**Correcao**: Mover a logica de agrupamento para o banco via SQL function que retorna apenas os grupos duplicados.
 
-**Correcao**: Remover o bloco de rodizio do frontend (linhas 556-618). Manter apenas `responsavelFinal = payload.usuario_responsavel_id || userId` como fallback simples. O trigger do banco ja faz a logica correta.
+#### 1.3 Exportacao sem limit — risco de timeout
 
-**Arquivo**: `src/modules/negocios/services/negocios.api.ts`
+`exportar` e `exportarComColunas` (linhas 634, 769) buscam todos os contatos sem paginacao. Com bases grandes, isso causa timeout no Supabase (limite de 30s por default).
 
-**Risco**: Baixo. O trigger `aplicar_config_pipeline_oportunidade` ja existe e faz o rodizio. Verificar que o trigger esta ativo antes de remover. O frontend passa a confiar no banco como fonte unica de verdade (conforme arquiteto).
+**Correcao**: Implementar exportacao em batches (1000 por vez) e concatenar os resultados.
 
----
+#### 1.4 `segmentarLote` — N*M queries individuais
 
-#### 1.4 Remover criacao de tarefas automaticas duplicada (negocios.api.ts)
+O metodo `segmentarLote` (linha 930) faz uma query **por contato, por segmento** para verificar existencia antes de inserir. Com 100 contatos e 3 segmentos, sao **300 SELECT + 300 INSERT** = 600 queries.
 
-**Problema**: `criarTarefasAutomaticas` e chamado em 2 pontos do frontend (ao criar oportunidade linha 652-664, ao mover etapa linhas 517-532) E pelo trigger `aplicar_config_pipeline_oportunidade`. A deduplicacao parcial (linhas 1246-1261) mitiga mas nao elimina o risco.
+**Correcao**: Usar `upsert` com `onConflict` ao inves de verificar existencia manualmente, reduzindo para 1 query por batch.
 
-**Correcao**: Remover as 2 chamadas a `criarTarefasAutomaticas` de `criarOportunidade` e de `moverEtapa`. Manter a funcao `criarTarefasAutomaticas` no codigo (pode ser util para chamadas manuais), mas nao chama-la automaticamente — o trigger do banco ja cuida disso.
+#### 1.5 `criarOportunidadesLote` — updates individuais de owner
 
-**Arquivo**: `src/modules/negocios/services/negocios.api.ts`
+Linhas 917-924: atualiza owner_id de cada contato **individualmente** em um loop. Com 200 contatos, sao 200 queries.
 
-**Risco**: Baixo. A deduplicacao ja existente protege contra duplicatas. Remover a chamada do frontend apenas elimina a redundancia. Verificar que o trigger cobre os dois cenarios (criacao e movimentacao).
+**Correcao**: Agrupar por `responsavelId` e fazer um `.in('id', [...]).update()` por grupo.
 
----
+#### 1.6 Cache auth duplicado
 
-### Fase 2 — Otimizacoes de Performance
+Mesma duplicacao de `_cachedOrgId/_cachedUserId` ja identificada no modulo /negocios. O `auth-context.ts` compartilhado ja foi criado mas `contatos.api.ts` ainda usa a copia local.
 
-#### 2.1 Paginacao no historico (negocios.api.ts — listarHistorico)
-
-**Problema**: `listarHistorico` tem `limit(100)` fixo. Para oportunidades com muitas movimentacoes, carrega tudo de uma vez.
-
-**Correcao**: Adicionar parametros `page` e `pageSize` opcionais (default 50). Aplicar `.range()` na query.
-
-**Arquivos**:
-- `src/modules/negocios/services/negocios.api.ts` — adicionar paginacao
-- `src/modules/negocios/hooks/useOportunidadeDetalhes.ts` — passar parametros
-- Componente de timeline — adicionar botao "Carregar mais" (se necessario)
-
-**Risco**: Zero. Parametros opcionais com defaults que mantém comportamento atual.
+**Correcao**: Importar de `src/shared/services/auth-context.ts`.
 
 ---
 
-#### 2.2 Limit nas anotacoes (negocios.api.ts — listarAnotacoes)
+### 2. Problemas de Performance Media
 
-**Problema**: `listarAnotacoes` nao tem limit — carrega TODAS as anotacoes.
+#### 2.1 Filtro de segmento pos-query
 
-**Correcao**: Adicionar `.limit(50)` como default seguro. Adicionar paginacao futura se necessario.
+Linha 308: `if (params?.segmento_id)` filtra contatos **no frontend** apos ja ter carregado a pagina inteira. Isso distorce a paginacao (pode retornar menos itens que o `per_page` esperado).
 
-**Arquivo**: `src/modules/negocios/services/negocios.api.ts`
+**Correcao**: Fazer um pre-query em `contatos_segmentos` para obter os IDs filtrados e usar `.in('id', idsDoSegmento)` na query principal.
 
-**Risco**: Zero. Apenas adiciona um limit razoavel.
+#### 2.2 Contagem de oportunidades carrega registros inteiros
 
----
+Linha 374: busca `select('contato_id')` de todas as oportunidades dos contatos da pagina. Deveria usar `count` agrupado ao inves de trazer linhas.
 
-#### 2.3 Extrair auth-context compartilhado
-
-**Problema**: 3 copias identicas do pattern `_cachedOrgId/_cachedUserId` em `negocios.api.ts`, `detalhes.api.ts` e `pre-oportunidades.api.ts`.
-
-**Correcao**: Criar `src/shared/services/auth-context.ts` com as funcoes `getOrganizacaoId()`, `getUsuarioId()` e `getUserRole()`. Importar nos 3 arquivos.
-
-**Arquivos**:
-- Novo: `src/shared/services/auth-context.ts`
-- Editar: `negocios.api.ts`, `detalhes.api.ts`, `pre-oportunidades.api.ts` — remover duplicatas e importar do modulo compartilhado
-
-**Risco**: Zero. Apenas refactor de organizacao sem mudanca de logica.
+**Correcao**: Substituir por uma query que conta no banco.
 
 ---
 
-### Resumo de arquivos impactados
+### 3. O que ja esta BEM FEITO
+
+- Soft delete padronizado em todas as operacoes
+- Batch operations no `excluirLote` e `atribuirLote` (eficientes com `.in()`)
+- Sanitizacao de payload com `sanitizeContatoPayload`
+- Paginacao na listagem principal
+- Exclusao de `pre_lead` da listagem
+- Campos customizados com tipagem correta
+- Hooks React Query bem estruturados
+
+---
+
+### 4. Plano de Acao Priorizado
+
+#### Fase 1 — Critico (antes de 500 usuarios)
+
+| # | Acao | Impacto |
+|---|------|---------|
+| 1 | Importar auth-context compartilhado | Elimina duplicacao, DRY |
+| 2 | Otimizar `segmentarLote` com upsert | Reduz N*M queries para 1 batch |
+| 3 | Otimizar owner update em `criarOportunidadesLote` | Reduz N queries para K (K = membros unicos) |
+| 4 | Filtro de segmento pre-query ao inves de pos-query | Corrige paginacao distorcida |
+
+#### Fase 2 — Performance
+
+| # | Acao | Impacto |
+|---|------|---------|
+| 5 | Exportacao em batches (1000 por vez) | Previne timeout em bases grandes |
+| 6 | Contagem de oportunidades otimizada | Menos dados transferidos |
+| 7 | Consolidar queries de campos customizados | Reduz 2 queries para 1 |
+
+#### Fase 3 — Escala futura
+
+| # | Acao | Impacto |
+|---|------|---------|
+| 8 | Mover deteccao de duplicatas para SQL function | Elimina transferencia massiva de dados |
+
+---
+
+### 5. Detalhes Tecnicos
+
+**5.1 Auth-context (`contatos.api.ts`)**
+
+Remover linhas 16-57 (cache local + `getOrganizacaoId` + `getUsuarioId` + `onAuthStateChange`). Importar de `@/shared/services/auth-context`.
+
+**5.2 `segmentarLote` — upsert**
+
+Substituir o loop de verificacao por:
+```
+const rows = payload.ids.flatMap(contatoId =>
+  payload.adicionar.map(segId => ({
+    contato_id: contatoId,
+    segmento_id: segId,
+    organizacao_id: organizacaoId,
+  }))
+)
+await supabase.from('contatos_segmentos')
+  .upsert(rows, { onConflict: 'contato_id,segmento_id' })
+```
+
+**5.3 Owner update agrupado em `criarOportunidadesLote`**
+
+Substituir o loop individual por agrupamento:
+```
+const ownerGroups: Record<string, string[]> = {}
+contatos.forEach((c, i) => {
+  const rid = membrosDistribuicao[i % membrosDistribuicao.length]
+  if (!ownerGroups[rid]) ownerGroups[rid] = []
+  ownerGroups[rid].push(c.id)
+})
+await Promise.all(Object.entries(ownerGroups).map(([ownerId, ids]) =>
+  supabase.from('contatos').update({ owner_id: ownerId }).in('id', ids)
+))
+```
+
+**5.4 Filtro de segmento pre-query**
+
+Antes da query principal, buscar IDs:
+```
+if (params?.segmento_id) {
+  const { data: segVinculos } = await supabase
+    .from('contatos_segmentos')
+    .select('contato_id')
+    .eq('segmento_id', params.segmento_id)
+  const idsDoSegmento = (segVinculos || []).map(v => v.contato_id)
+  if (idsDoSegmento.length === 0) return { contatos: [], total: 0, page, per_page: perPage, total_paginas: 0 }
+  query = query.in('id', idsDoSegmento)
+}
+```
+E remover o filtro pos-query da linha 308.
+
+**5.5 Exportacao em batches**
+
+Substituir query unica por loop com `.range(i, i+999)` ate esgotar os dados.
+
+**5.6 Contagem de oportunidades**
+
+Usar RPC ou contar direto no select com subquery ao inves de trazer todos os registros.
+
+---
+
+### 6. Arquivos impactados
 
 | Arquivo | Tipo de mudanca |
 |---------|----------------|
-| `src/modules/negocios/hooks/useKanban.ts` | Adicionar debounce no Realtime |
-| `src/modules/negocios/services/negocios.api.ts` | Remover rodizio/tarefas duplicados, batch positions via RPC, limit anotacoes, paginacao historico |
-| `src/modules/negocios/components/kanban/KanbanBoard.tsx` | Usar RPC para batch positions no handleSortColumn |
-| `src/shared/services/auth-context.ts` | Novo arquivo — helpers de auth compartilhados |
-| `src/modules/negocios/services/detalhes.api.ts` | Importar auth-context compartilhado |
-| `src/modules/negocios/services/pre-oportunidades.api.ts` | Importar auth-context compartilhado |
-| Nova migration SQL | Funcao `reordenar_posicoes_etapa` |
+| `src/modules/contatos/services/contatos.api.ts` | Todas as correcoes acima |
 
-### Garantias de seguranca
+Nenhum componente visual sera alterado. Nenhum hook muda de assinatura. Todas as correcoes sao internas ao service.
 
-- Nenhum componente visual sera alterado
-- Nenhuma prop sera removida ou renomeada
-- Optimistic updates continuam funcionando identicamente
-- Todos os hooks mantem a mesma assinatura
-- Valores default garantem retrocompatibilidade
+### 7. Garantias de seguranca
+
+- Nenhum componente visual alterado
+- Nenhuma prop removida ou renomeada
+- Hooks mantem mesma assinatura e comportamento
+- Paginacao continua funcionando identicamente
+- Filtros, busca, ordenacao inalterados
+- Soft delete preservado
+- RLS continua como unica linha de defesa
 
