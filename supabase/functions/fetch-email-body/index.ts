@@ -105,6 +105,35 @@ function extractCharset(contentTypeHeader: string): string | undefined {
   return match ? match[1].trim().toLowerCase() : undefined;
 }
 
+// AIDEV-NOTE: Detecta charset declarado em tags <meta> do HTML (fallback quando MIME headers não declaram)
+function detectCharsetFromHtmlMeta(html: string): string | undefined {
+  // <meta charset="iso-8859-1">
+  const m1 = html.match(/<meta\s+charset\s*=\s*"?([^"\s;>]+)"?\s*\/?>/i);
+  if (m1) return m1[1].trim().toLowerCase();
+  // <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+  const m2 = html.match(/<meta\s+http-equiv\s*=\s*"?Content-Type"?\s+content\s*=\s*"[^"]*charset=([^"\s;>]+)"?\s*\/?>/i);
+  if (m2) return m2[1].trim().toLowerCase();
+  return undefined;
+}
+
+// AIDEV-NOTE: Re-decodifica conteúdo se contiver replacement chars e charset HTML difere
+function reDecodeIfNeeded(decoded: string, rawContent: string, encoding: string, mimeCharset?: string): string {
+  if (!decoded.includes("\uFFFD")) return decoded;
+  const htmlCharset = detectCharsetFromHtmlMeta(decoded);
+  if (htmlCharset && htmlCharset !== (mimeCharset || "utf-8")) {
+    const reDecoded = decodeContentBody(rawContent, encoding, htmlCharset);
+    if (!reDecoded.includes("\uFFFD") || reDecoded.split("\uFFFD").length < decoded.split("\uFFFD").length) {
+      return reDecoded;
+    }
+  }
+  // Fallback: try latin1/iso-8859-1 if not already tried
+  if (mimeCharset !== "iso-8859-1" && mimeCharset !== "latin1" && (!decoded.includes("\uFFFD") === false)) {
+    const latin1 = decodeContentBody(rawContent, encoding, "iso-8859-1");
+    if (!latin1.includes("\uFFFD")) return latin1;
+  }
+  return decoded;
+}
+
 function parseMimeMessage(raw: string): { html: string; text: string } {
   const normalized = raw.replace(/\r\n/g, "\n");
   const headerEnd = normalized.indexOf("\n\n");
@@ -118,7 +147,11 @@ function parseMimeMessage(raw: string): { html: string; text: string } {
   if (isMultipart) {
     const boundaryMatch = headers.match(/boundary="?([^"\s;]+)"?/i);
     if (boundaryMatch) {
-      return parseMultipart(body, boundaryMatch[1].trim());
+      const result = parseMultipart(body, boundaryMatch[1].trim());
+      // Re-decode if needed
+      if (result.html) result.html = reDecodeIfNeeded(result.html, body, "7bit");
+      if (result.text) result.text = reDecodeIfNeeded(result.text, body, "7bit");
+      return result;
     }
   }
 
@@ -129,7 +162,8 @@ function parseMimeMessage(raw: string): { html: string; text: string } {
   const encodingMatch = headers.match(/Content-Transfer-Encoding:\s*([^\n]+)/i);
   const encoding = encodingMatch ? encodingMatch[1].trim() : "7bit";
 
-  const decoded = decodeContentBody(body, encoding, charset);
+  let decoded = decodeContentBody(body, encoding, charset);
+  decoded = reDecodeIfNeeded(decoded, body, encoding, charset);
   if (contentType.includes("text/html")) return { html: decoded, text: "" };
   return { html: "", text: decoded };
 }
