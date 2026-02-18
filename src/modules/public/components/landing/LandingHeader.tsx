@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Menu, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import renoveLogo from '@/assets/logotipo-renove.svg'
 
 /**
  * AIDEV-NOTE: Header fixo da landing page com navegacao por ancoras
@@ -31,7 +32,7 @@ export function LandingHeader() {
       <div className="max-w-[1200px] mx-auto px-4 md:px-6 flex items-center justify-between h-16">
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2">
-          <img src="/logo.svg" alt="CRM Renove" className="h-8" />
+          <img src={renoveLogo} alt="CRM Renove" className="h-8" />
         </Link>
 
         {/* Desktop nav */}
