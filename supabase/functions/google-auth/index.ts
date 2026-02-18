@@ -136,9 +136,9 @@ serve(async (req) => {
 
       const scopes = tipo === "calendar" ? CALENDAR_SCOPES : GMAIL_SCOPES;
 
-      // AIDEV-NOTE: redirect_uri vem do frontend (ex: https://crm.renovedigital.com.br/oauth/google/callback)
-      // O Google redirecionará para essa URL, onde o frontend captura code/state e envia para exchange-code
-      const callbackUrl = redirectUri || `${SUPABASE_URL}/functions/v1/google-auth?action=callback`;
+      // AIDEV-NOTE: redirect_uri DEVE ser o mesmo configurado no Google Console
+      // Prioriza o redirect_uri da config global (Super Admin), pois é o autorizado no Google
+      const callbackUrl = googleConfig.redirectUri || redirectUri || `${SUPABASE_URL}/functions/v1/google-auth?action=callback`;
 
       const params = new URLSearchParams({
         client_id: googleConfig.clientId,
@@ -194,8 +194,8 @@ serve(async (req) => {
 
       const googleConfig = await getGoogleConfig(supabaseAdmin);
       
-      // AIDEV-NOTE: redirect_uri deve ser EXATAMENTE a mesma usada na auth-url
-      const redirectUri = stateData.redirect_uri || `${SUPABASE_URL}/functions/v1/google-auth?action=callback`;
+      // AIDEV-NOTE: redirect_uri DEVE ser EXATAMENTE a mesma usada na auth-url (da config global)
+      const redirectUri = googleConfig.redirectUri || stateData.redirect_uri || `${SUPABASE_URL}/functions/v1/google-auth?action=callback`;
 
       // Exchange code for tokens
       const tokenResponse = await fetch(GOOGLE_TOKEN_URL, {

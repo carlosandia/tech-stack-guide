@@ -21,12 +21,12 @@ export function OAuthGoogleCallbackPage() {
       const oauthError = searchParams.get('error')
 
       if (oauthError) {
-        navigate(`/configuracoes/conexoes?error=${oauthError}`, { replace: true })
+        navigate(`/app/configuracoes/conexoes?error=${oauthError}`, { replace: true })
         return
       }
 
       if (!code || !state) {
-        navigate('/configuracoes/conexoes?error=missing_params', { replace: true })
+        navigate('/app/configuracoes/conexoes?error=missing_params', { replace: true })
         return
       }
 
@@ -41,13 +41,13 @@ export function OAuthGoogleCallbackPage() {
 
         if (error || !data?.success) {
           const errorMsg = data?.error || error?.message || 'exchange_failed'
-          navigate(`/configuracoes/conexoes?error=${encodeURIComponent(errorMsg)}`, { replace: true })
+          navigate(`/app/configuracoes/conexoes?error=${encodeURIComponent(errorMsg)}`, { replace: true })
           return
         }
 
-        navigate('/configuracoes/conexoes?success=google', { replace: true })
+        navigate('/app/configuracoes/conexoes?success=google', { replace: true })
       } catch {
-        navigate('/configuracoes/conexoes?error=exchange_failed', { replace: true })
+        navigate('/app/configuracoes/conexoes?error=exchange_failed', { replace: true })
       }
     }
 

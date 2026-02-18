@@ -73,6 +73,7 @@ const App = forwardRef<HTMLDivElement>(function App(_props, _ref) {
        <Route path="/privacidade" element={<PoliticaPrivacidadePage />} />
        <Route path="/termos" element={<TermosServicoPage />} />
        <Route path="/oauth/google/callback" element={<OAuthGoogleCallbackPage />} />
+       <Route path="/auth/google/callback" element={<OAuthGoogleCallbackPage />} />
  
        {/* Rotas de autenticacao */}
        <Route path="/login" element={<LoginPage />} />
