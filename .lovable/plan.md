@@ -1,96 +1,58 @@
 
-
-## Otimizar Onboarding com Dados do Pre-Cadastro
+## Adicionar botao "Solicite uma demonstracao" nos cards de planos
 
 ### Objetivo
-Eliminar a redundancia no formulario de onboarding. Os dados ja coletados no modal de pre-cadastro (nome, email, telefone, empresa, segmento) serao reaproveitados e exibidos como somente leitura. O usuario precisara apenas criar sua senha.
+Inserir um botao secundario "Solicite uma demonstracao" abaixo de cada botao principal (Teste gratis agora / Comprar agora) nos cards da pagina publica de planos. Ao clicar, abre um modal com o formulario embed de demonstracao.
 
 ---
 
 ### Alteracoes
 
-#### 1. Edge Function `get-checkout-session` - Retornar `pre_cadastro_id`
+**Arquivo:** `src/modules/public/pages/PlanosPage.tsx`
 
-A funcao ja recebe os metadados do Stripe que contem `pre_cadastro_id`. Basta incluir esse campo na resposta JSON.
+#### 1. Novo estado para controlar o modal de demonstracao
+- Adicionar `const [demoModalOpen, setDemoModalOpen] = useState(false)`
 
-**Arquivo:** `supabase/functions/get-checkout-session/index.ts`
-- Adicionar `pre_cadastro_id: session.metadata?.pre_cadastro_id` no JSON de retorno
+#### 2. Botao "Solicite uma demonstracao" no card Trial (apos linha 363)
+- Inserir um botao com estilo `ghost` / texto com cor `text-muted-foreground` e hover sutil
+- Ao clicar: `setDemoModalOpen(true)`
 
----
+#### 3. Botao "Solicite uma demonstracao" nos cards pagos (apos linha 446)
+- Mesmo botao com mesmo estilo, abaixo do "Comprar agora"
 
-#### 2. `OnboardingPage` - Buscar pre-cadastro e pre-preencher formulario
+#### 4. Modal de demonstracao (novo componente inline ou Dialog)
+- Usar o componente `Dialog` do projeto
+- Dentro do `DialogContent`, renderizar o script embed via `useEffect` + DOM injection:
+  - Criar um `div` ref container
+  - No `useEffect` (quando modal abrir), criar um `<script>` com `src="https://ybzhlsalbnxwkfszkloa.supabase.co/functions/v1/widget-formulario-loader?slug=demonstracao-crm-mlrb6yoz&mode=inline"` e `data-form-slug="demonstracao-crm-mlrb6yoz"`
+  - Appendar o script no container
+  - Cleanup ao fechar
 
-**Arquivo:** `src/modules/public/pages/OnboardingPage.tsx`
-
-Fluxo atualizado:
-1. `fetchSession` retorna agora o `pre_cadastro_id`
-2. Se existir `pre_cadastro_id`, faz uma query na tabela `pre_cadastros_saas` para buscar os dados
-3. Pre-preenche os campos: `nome_empresa`, `segmento`, `admin_nome` (extraido de `nome_contato`), `admin_email`, `admin_telefone`
-4. Todos os campos pre-preenchidos ficam `readOnly` com estilo visual de campo bloqueado (`bg-muted`, `cursor-not-allowed`)
-5. Apenas o campo `Senha` fica editavel
-6. Se nao houver pre-cadastro (fallback), o formulario funciona como hoje (todos os campos editaveis)
-
-Logica de split do nome:
-- `nome_contato` = "Rafael Azevedo" -> `admin_nome` = "Rafael", `admin_sobrenome` = "Azevedo"
-- Se so um nome: `admin_nome` = nome, `admin_sobrenome` = ""
-
----
-
-#### 3. RLS - Permitir SELECT anon na `pre_cadastros_saas`
-
-Atualmente so existe policy de INSERT para anon. Para que o onboarding (que roda sem auth) consiga ler o pre-cadastro, e necessaria uma policy de SELECT restrita.
-
-**Migracao SQL:**
-```
-CREATE POLICY "anon_select_by_id" ON pre_cadastros_saas
-  FOR SELECT TO anon
-  USING (true);
-```
-
-Nota: como o SELECT sera feito por `id` (UUID nao adivinhavel) e os dados sao do proprio usuario que acabou de preencher, o risco e minimo. Alternativamente, podemos mover a busca para dentro da edge function `get-checkout-session` (que ja roda com service role), evitando expor a tabela. Essa segunda abordagem e mais segura.
-
-**Abordagem escolhida (mais segura):** Buscar os dados do pre-cadastro dentro da propria edge function `get-checkout-session`, que ja tem acesso service_role. Assim nao precisamos de nova policy RLS.
-
----
-
-#### 4. Ajuste final na Edge Function `get-checkout-session`
-
-Alem de retornar o `pre_cadastro_id`, a funcao buscara os dados do pre-cadastro e os retornara diretamente:
-
-```text
-Retorno atualizado:
-{
-  customer_email,
-  plano_id,
-  plano_nome,
-  is_trial,
-  periodo,
-  pre_cadastro: {
-    nome_contato,
-    email,
-    telefone,
-    nome_empresa,
-    segmento
-  }
-}
-```
-
-Isso elimina a necessidade de query adicional no frontend e de nova policy RLS.
+#### 5. Estilo do botao
+- Cor secundaria/outline sutil para nao competir com o CTA principal
+- Exemplo: `text-sm font-medium text-muted-foreground hover:text-foreground hover:underline transition-colors mt-2`
+- Centralizado, sem borda, estilo link discreto
 
 ---
 
 ### Secao Tecnica
 
-**Arquivos modificados:**
+**Unico arquivo modificado:** `src/modules/public/pages/PlanosPage.tsx`
 
-| Arquivo | Alteracao |
-|---------|----------|
-| `supabase/functions/get-checkout-session/index.ts` | Buscar pre-cadastro por ID dos metadados e retornar dados no response |
-| `src/modules/public/pages/OnboardingPage.tsx` | Pre-preencher campos com dados do pre-cadastro, campos bloqueados, apenas senha editavel |
+Para injetar o script embed dentro do modal React, sera usado um `useRef` + `useEffect`:
 
-**Nenhuma migracao SQL necessaria** - a busca ocorre na edge function com service_role.
+```text
+const containerRef = useRef<HTMLDivElement>(null)
 
-**UX do formulario otimizado:**
-- Campos pre-preenchidos: fundo `bg-muted`, borda `border-input`, cor `text-muted-foreground`, `cursor-not-allowed`, atributo `readOnly`
-- Campo Senha: estilo normal, editavel, foco automatico
-- Texto de contexto: "Seus dados foram recuperados do cadastro anterior. Defina sua senha para continuar."
+useEffect(() => {
+  if (!demoModalOpen || !containerRef.current) return
+  const script = document.createElement('script')
+  script.src = '...widget-formulario-loader?slug=demonstracao-crm-mlrb6yoz&mode=inline'
+  script.dataset.formSlug = 'demonstracao-crm-mlrb6yoz'
+  script.async = true
+  containerRef.current.appendChild(script)
+  return () => { containerRef.current?.replaceChildren() }
+}, [demoModalOpen])
+```
+
+O Dialog tera `max-w-2xl` para acomodar o formulario e titulo "Solicite uma demonstracao".
