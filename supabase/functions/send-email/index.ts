@@ -2,13 +2,13 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 /**
  * AIDEV-NOTE: Edge Function para envio de email via SMTP
- * Busca credenciais do usuario na tabela conexoes_email
- * Envia email real usando comandos SMTP diretos
+ * Suporta dois modos:
+ *   1. Gmail OAuth → smtp.gmail.com + XOAUTH2 (access token)
+ *   2. SMTP Manual → servidor configurado + AUTH LOGIN
  * SALVA cópia do email enviado na tabela emails_recebidos (pasta=sent)
  * Suporta: anexos via Storage, tracking pixel
  * 
  * AIDEV-NOTE: Usa writeAll() para garantir envio completo de mensagens grandes.
- * O conn.write() do Deno pode não enviar todos os bytes de uma vez.
  */
 
 const corsHeaders = {
@@ -16,6 +16,117 @@ const corsHeaders = {
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+
+const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
+
+// =====================================================
+// Crypto helpers (compatível com google-auth)
+// =====================================================
+
+function simpleDecrypt(encrypted: string, _key: string): string {
+  if (encrypted.startsWith("ef:")) {
+    return decodeURIComponent(escape(atob(encrypted.substring(3))));
+  }
+  return encrypted;
+}
+
+function simpleEncrypt(text: string, _key: string): string {
+  const encoded = btoa(unescape(encodeURIComponent(text)));
+  return `ef:${encoded}`;
+}
+
+// =====================================================
+// Google OAuth helpers
+// =====================================================
+
+async function getGoogleConfig(supabaseAdmin: ReturnType<typeof createClient>) {
+  const { data, error } = await supabaseAdmin
+    .from("configuracoes_globais")
+    .select("configuracoes, configurado")
+    .eq("plataforma", "google")
+    .single();
+
+  if (error || !data || !data.configurado) {
+    throw new Error("Google não configurado. Peça ao Super Admin para configurar.");
+  }
+
+  const config = data.configuracoes as Record<string, string>;
+  if (!config.client_id || !config.client_secret) {
+    throw new Error("Credenciais Google incompletas.");
+  }
+
+  return { clientId: config.client_id, clientSecret: config.client_secret };
+}
+
+/**
+ * AIDEV-NOTE: Obtém access token válido para Gmail.
+ * Se expirado, faz refresh e atualiza ambas as tabelas (conexoes_email + conexoes_google).
+ */
+async function getGmailAccessToken(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  conexao: Record<string, unknown>
+): Promise<string> {
+  let accessToken = simpleDecrypt(conexao.access_token_encrypted as string, "");
+
+  const expiresAt = conexao.token_expires_at as string | null;
+  const isExpired = expiresAt && new Date(expiresAt) < new Date();
+
+  if (isExpired && conexao.refresh_token_encrypted) {
+    console.log("[send-email] Gmail token expirado, renovando...");
+    const googleConfig = await getGoogleConfig(supabaseAdmin);
+    const refreshToken = simpleDecrypt(conexao.refresh_token_encrypted as string, "");
+
+    const tokenResponse = await fetch(GOOGLE_TOKEN_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: googleConfig.clientId,
+        client_secret: googleConfig.clientSecret,
+        refresh_token: refreshToken,
+        grant_type: "refresh_token",
+      }),
+    });
+
+    const tokens = await tokenResponse.json();
+    if (tokens.access_token) {
+      accessToken = tokens.access_token;
+      const newExpiry = new Date(Date.now() + (tokens.expires_in || 3600) * 1000).toISOString();
+      const encryptedToken = simpleEncrypt(tokens.access_token, "");
+
+      // Atualizar token em conexoes_email
+      await supabaseAdmin
+        .from("conexoes_email")
+        .update({
+          access_token_encrypted: encryptedToken,
+          token_expires_at: newExpiry,
+          atualizado_em: new Date().toISOString(),
+        })
+        .eq("id", conexao.id as string);
+
+      // Atualizar token em conexoes_google (mantém sincronizado)
+      await supabaseAdmin
+        .from("conexoes_google")
+        .update({
+          access_token_encrypted: encryptedToken,
+          token_expires_at: newExpiry,
+          atualizado_em: new Date().toISOString(),
+        })
+        .eq("usuario_id", conexao.usuario_id as string)
+        .is("deletado_em", null);
+
+      console.log("[send-email] Gmail token renovado com sucesso");
+    } else {
+      console.error("[send-email] Falha ao renovar token Gmail:", tokens);
+      throw new Error("Token Gmail expirado e não foi possível renovar. Reconecte sua conta Google.");
+    }
+  }
+
+  return accessToken;
+}
+
+// =====================================================
+// SMTP helpers
+// =====================================================
 
 /** Extrai hostname real do greeting SMTP para validação TLS */
 function extractHostnameFromGreeting(greeting: string, fallback: string): string {
@@ -43,8 +154,6 @@ function splitBase64Lines(base64: string): string {
 
 /**
  * AIDEV-NOTE: writeAll garante que TODOS os bytes sejam enviados.
- * conn.write() pode retornar menos bytes que o total — esta função
- * faz loop até completar o envio.
  */
 async function writeAll(conn: Deno.TcpConn | Deno.TlsConn, data: Uint8Array): Promise<void> {
   let offset = 0;
@@ -62,12 +171,13 @@ interface AnexoInfo {
   size: number;
 }
 
-/** Envia email via SMTP com AUTH LOGIN + STARTTLS */
+/** Envia email via SMTP com AUTH LOGIN ou XOAUTH2 + STARTTLS */
 async function sendSmtpEmail(config: {
   host: string;
   port: number;
   user: string;
   pass: string;
+  authMethod?: 'login' | 'xoauth2';
   from: string;
   fromName?: string;
   to: string;
@@ -147,23 +257,34 @@ async function sendSmtpEmail(config: {
       }
     }
 
-    // AUTH LOGIN
-    const authResp = await sendCommand("AUTH LOGIN");
-    if (!authResp.startsWith("334")) {
-      conn.close();
-      return { sucesso: false, mensagem: "Servidor não suporta AUTH LOGIN" };
-    }
+    // AIDEV-NOTE: Autenticação SMTP - suporta AUTH LOGIN (SMTP manual) e XOAUTH2 (Gmail OAuth)
+    if (config.authMethod === 'xoauth2') {
+      // Gmail XOAUTH2: https://developers.google.com/gmail/imap/xoauth2-protocol
+      const xoauth2Token = btoa(`user=${config.user}\x01auth=Bearer ${config.pass}\x01\x01`);
+      const authResp = await sendCommand(`AUTH XOAUTH2 ${xoauth2Token}`);
+      if (!authResp.startsWith("235")) {
+        conn.close();
+        return { sucesso: false, mensagem: `Falha na autenticação Gmail XOAUTH2: ${authResp.substring(0, 100)}` };
+      }
+    } else {
+      // AUTH LOGIN padrão
+      const authResp = await sendCommand("AUTH LOGIN");
+      if (!authResp.startsWith("334")) {
+        conn.close();
+        return { sucesso: false, mensagem: "Servidor não suporta AUTH LOGIN" };
+      }
 
-    const userResp = await sendCommand(btoa(config.user));
-    if (!userResp.startsWith("334")) {
-      conn.close();
-      return { sucesso: false, mensagem: "Falha na autenticação (usuário)" };
-    }
+      const userResp = await sendCommand(btoa(config.user));
+      if (!userResp.startsWith("334")) {
+        conn.close();
+        return { sucesso: false, mensagem: "Falha na autenticação (usuário)" };
+      }
 
-    const passResp = await sendCommand(btoa(config.pass));
-    if (!passResp.startsWith("235")) {
-      conn.close();
-      return { sucesso: false, mensagem: `Falha na autenticação SMTP: ${passResp.substring(0, 100)}` };
+      const passResp = await sendCommand(btoa(config.pass));
+      if (!passResp.startsWith("235")) {
+        conn.close();
+        return { sucesso: false, mensagem: `Falha na autenticação SMTP: ${passResp.substring(0, 100)}` };
+      }
     }
 
     // MAIL FROM
@@ -406,12 +527,41 @@ Deno.serve(async (req) => {
       );
     }
 
-    // AIDEV-NOTE: Validação SMTP condicional - conexões Gmail podem não ter SMTP configurado
-    if (conexao.tipo !== 'gmail' && (!conexao.smtp_host || !conexao.smtp_user || !conexao.smtp_pass_encrypted)) {
-      return new Response(
-        JSON.stringify({ sucesso: false, mensagem: "Configuração SMTP incompleta" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    // AIDEV-NOTE: Resolver configuração SMTP baseado no tipo de conexão
+    const isGmail = conexao.tipo === 'gmail' || conexao.tipo === 'gmail_oauth';
+    let smtpHost: string;
+    let smtpPort: number;
+    let smtpUser: string;
+    let smtpPass: string;
+    let authMethod: 'login' | 'xoauth2' = 'login';
+
+    if (isGmail) {
+      // Gmail OAuth → smtp.gmail.com + XOAUTH2
+      if (!conexao.access_token_encrypted) {
+        return new Response(
+          JSON.stringify({ sucesso: false, mensagem: "Token Gmail não encontrado. Reconecte sua conta Google em Configurações → Conexões." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const accessToken = await getGmailAccessToken(supabaseAdmin, conexao);
+      smtpHost = "smtp.gmail.com";
+      smtpPort = 587;
+      smtpUser = conexao.email;
+      smtpPass = accessToken; // XOAUTH2 usa o access token como "password"
+      authMethod = 'xoauth2';
+    } else {
+      // SMTP Manual → configuração armazenada
+      if (!conexao.smtp_host || !conexao.smtp_user || !conexao.smtp_pass_encrypted) {
+        return new Response(
+          JSON.stringify({ sucesso: false, mensagem: "Configuração SMTP incompleta" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      smtpHost = conexao.smtp_host;
+      smtpPort = conexao.smtp_port || 587;
+      smtpUser = conexao.smtp_user;
+      smtpPass = conexao.smtp_pass_encrypted;
     }
 
     // Parse body
@@ -433,7 +583,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log("[send-email] Enviando para:", to, "via", conexao.smtp_host, "anexos:", anexos?.length || 0);
+    console.log(`[send-email] Enviando para: ${to} via ${smtpHost} (${isGmail ? 'XOAUTH2' : 'AUTH LOGIN'}) anexos: ${anexos?.length || 0}`);
 
     // Gerar tracking ID
     const trackingId = crypto.randomUUID();
@@ -495,10 +645,11 @@ Deno.serve(async (req) => {
     }
 
     const result = await sendSmtpEmail({
-      host: conexao.smtp_host,
-      port: conexao.smtp_port || 587,
-      user: conexao.smtp_user,
-      pass: conexao.smtp_pass_encrypted,
+      host: smtpHost,
+      port: smtpPort,
+      user: smtpUser,
+      pass: smtpPass,
+      authMethod,
       from: conexao.email,
       fromName: conexao.nome_remetente || usuario.nome,
       to,
