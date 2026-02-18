@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
-import { Check, Loader2, Star, Zap, RefreshCw, AlertTriangle } from 'lucide-react'
+import { Check, Loader2, Star, RefreshCw, AlertTriangle } from 'lucide-react'
+import renoveLogo from '@/assets/logotipo-renove.svg'
 import { supabase } from '@/lib/supabase'
 import { PreCadastroModal } from '../components/PreCadastroModal'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
@@ -245,12 +246,9 @@ interface PlanoDb {
        <header className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
            <div className="flex items-center justify-between h-16">
-             <div className="flex items-center gap-2">
-               <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                 <Zap className="w-5 h-5 text-primary-foreground" />
-               </div>
-               <span className="font-bold text-lg text-foreground">CRM Renove</span>
-             </div>
+              <div className="flex items-center gap-2">
+                <img src={renoveLogo} alt="CRM Renove" className="h-8" />
+              </div>
              <Link
                to="/login"
                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
