@@ -9,7 +9,7 @@ import { Columns, Trash2, Settings, GripVertical } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { CampoItem } from './CampoItem'
-import type { CampoFormulario } from '../../services/formularios.api'
+import type { CampoFormulario, EstiloCampos } from '../../services/formularios.api'
 
 interface ColunasConfig {
   colunas: number
@@ -68,6 +68,8 @@ interface Props {
   onUpdatePlaceholder?: (campoId: string, newPlaceholder: string) => void
   onDuplicateCampo?: (campoId: string) => void
   viewport?: DeviceViewport
+  estiloCampos?: EstiloCampos
+  fontFamily?: string
 }
 
 export function BlocoColunasEditor({
@@ -90,6 +92,8 @@ export function BlocoColunasEditor({
   onUpdatePlaceholder,
   onDuplicateCampo,
   viewport = 'desktop',
+  estiloCampos,
+  fontFamily,
 }: Props) {
   const config = parseColunasConfig(bloco.valor_padrao)
   const larguras = resolveColLarguras(config, viewport)
@@ -261,6 +265,8 @@ export function BlocoColunasEditor({
                         onUpdateLabel={onUpdateLabel ? (newLabel) => onUpdateLabel(child.id, newLabel) : undefined}
                         onUpdatePlaceholder={onUpdatePlaceholder ? (newP) => onUpdatePlaceholder(child.id, newP) : undefined}
                         onDuplicate={onDuplicateCampo ? () => onDuplicateCampo(child.id) : undefined}
+                        estiloCampos={estiloCampos}
+                        fontFamily={fontFamily}
                       />
                       {renderColumnDropZone(colIndex, idx + 1)}
                     </div>

@@ -1,36 +1,17 @@
 /**
- * AIDEV-NOTE: Componente de campo individual no preview do formulário
- * Renderiza o campo com aparência real + controles de edição
- * Suporta edição inline do label via double-click
+ * AIDEV-NOTE: Componente de campo individual no editor do formulário
+ * Usa renderFinalCampo para aparência real + controles de edição (hover)
+ * Suporta edição inline do label via click
  */
 
-import { useState, useRef, useEffect, forwardRef } from 'react'
-import { Trash2, Settings, ChevronDown, ChevronUp, Info, MousePointerClick, Copy } from 'lucide-react'
+import { useState, useRef, useEffect, useCallback, forwardRef } from 'react'
+import { Trash2, Settings, ChevronUp, ChevronDown, Copy, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { CampoFormulario } from '../../services/formularios.api'
+import type { CampoFormulario, EstiloCampos } from '../../services/formularios.api'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
+import { renderFinalCampo, computeFieldStyles, PAISES_COMUNS, PhoneInputWithCountry } from '../../utils/renderFinalCampo'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
-
-function parseLayoutConfig(valorPadrao: string | null | undefined, tipo: string): Record<string, string> {
-  if (tipo === 'titulo' || tipo === 'paragrafo') {
-    const defaults = { alinhamento: 'left', cor: '#374151', tamanho: tipo === 'titulo' ? '18' : '14' }
-    if (!valorPadrao) return defaults
-    try { const p = JSON.parse(valorPadrao); return { alinhamento: p.alinhamento || defaults.alinhamento, cor: p.cor || defaults.cor, tamanho: p.tamanho || defaults.tamanho } } catch { return defaults }
-  }
-  if (tipo === 'divisor') {
-    const defaults = { cor: '#D1D5DB', espessura: '1', estilo: 'solid' }
-    if (!valorPadrao) return defaults
-    try { const p = JSON.parse(valorPadrao); return { cor: p.cor || defaults.cor, espessura: p.espessura || defaults.espessura, estilo: p.estilo || defaults.estilo } } catch { return defaults }
-  }
-  if (tipo === 'espacador') {
-    const defaults = { altura: '16' }
-    if (!valorPadrao) return defaults
-    try { const p = JSON.parse(valorPadrao); return { altura: p.altura || defaults.altura } } catch { return defaults }
-  }
-  return {}
-}
-
+import { getMaskForType } from '../../utils/masks'
 
 interface Props {
   campo: CampoFormulario
@@ -47,7 +28,16 @@ interface Props {
   onUpdateLabel?: (newLabel: string) => void
   onUpdatePlaceholder?: (newPlaceholder: string) => void
   onDuplicate?: () => void
+  estiloCampos?: EstiloCampos
+  fontFamily?: string
 }
+
+// AIDEV-NOTE: Tipos de campo que são botões (renderizados no rodapé, não aqui)
+const BUTTON_TYPES = ['botao_enviar', 'botao_whatsapp']
+// AIDEV-NOTE: Tipos de layout que não têm label editável separado (o conteúdo É o campo)
+const LAYOUT_TYPES = ['titulo', 'paragrafo', 'divisor', 'espacador', 'bloco_html', 'oculto', 'imagem_link']
+// AIDEV-NOTE: Tipos que renderizam label inline (checkbox com texto ao lado)
+const INLINE_LABEL_TYPES = ['checkbox', 'checkbox_termos']
 
 export const CampoItem = forwardRef<HTMLDivElement, Props>(function CampoItem({
   campo,
@@ -64,10 +54,18 @@ export const CampoItem = forwardRef<HTMLDivElement, Props>(function CampoItem({
   onUpdateLabel,
   onUpdatePlaceholder,
   onDuplicate,
+  estiloCampos,
+  fontFamily: fontFamilyProp,
 }, _ref) {
   const [editingLabel, setEditingLabel] = useState(false)
   const [labelValue, setLabelValue] = useState(campo.label || campo.nome)
   const inputRef = useRef<HTMLInputElement>(null)
+  const [valor, setValor] = useState('')
+  const [paisSelecionado, setPaisSelecionado] = useState<{ code: string; ddi: string; flag: string }>(
+    PAISES_COMUNS.find(p => p.code === campo.valor_padrao) || PAISES_COMUNS[0]
+  )
+
+  const fontFamily = fontFamilyProp || "'Inter', system-ui, sans-serif"
 
   useEffect(() => {
     setLabelValue(campo.label || campo.nome)
@@ -89,14 +87,99 @@ export const CampoItem = forwardRef<HTMLDivElement, Props>(function CampoItem({
   }
 
   const handleLabelKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      handleLabelBlur()
+    if (e.key === 'Enter') { e.preventDefault(); handleLabelBlur() }
+    if (e.key === 'Escape') { setLabelValue(campo.label || campo.nome); setEditingLabel(false) }
+  }
+
+  const handleChange = useCallback((rawValue: string) => {
+    const mask = getMaskForType(campo.tipo)
+    setValor(mask ? mask(rawValue) : rawValue)
+  }, [campo.tipo])
+
+  const isLayout = LAYOUT_TYPES.includes(campo.tipo)
+  const isButton = BUTTON_TYPES.includes(campo.tipo)
+
+  // AIDEV-NOTE: Para campos de layout e botões, renderizar diretamente sem label editável separado
+  // Para campos normais, renderizar com label editável + renderFinalCampo (sem label duplicado)
+
+  const renderContent = () => {
+    if (isButton) {
+      // Renderizar botão com aparência final
+      if (campo.tipo === 'botao_whatsapp') {
+        return (
+          <BotaoInlineEdit
+            campo={campo}
+            onUpdateLabel={onUpdatePlaceholder}
+            icon={<WhatsAppIcon size={16} />}
+            defaultText="Enviar via WhatsApp"
+            style={{ backgroundColor: '#25D366', color: '#FFFFFF' }}
+          />
+        )
+      }
+      return (
+        <BotaoInlineEdit
+          campo={campo}
+          onUpdateLabel={onUpdatePlaceholder}
+          icon={null}
+          defaultText="Enviar"
+          className="bg-primary text-primary-foreground"
+        />
+      )
     }
-    if (e.key === 'Escape') {
-      setLabelValue(campo.label || campo.nome)
-      setEditingLabel(false)
+
+    if (isLayout || INLINE_LABEL_TYPES.includes(campo.tipo)) {
+      // Campos de layout e checkboxes: renderizar com renderFinalCampo direto
+      return renderFinalCampo(campo, estiloCampos, fontFamily, valor, handleChange)
     }
+
+    // Campos normais: label editável + corpo do campo via renderFinalCampo
+    // Usamos renderFinalCampo que já inclui o label - mas precisamos interceptar o label para torná-lo editável
+    const { labelStyle } = computeFieldStyles(campo, estiloCampos, fontFamily)
+
+    return (
+      <div>
+        {/* Label editável */}
+        {editingLabel ? (
+          <input
+            ref={inputRef}
+            value={labelValue}
+            onChange={(e) => setLabelValue(e.target.value)}
+            onBlur={handleLabelBlur}
+            onKeyDown={handleLabelKeyDown}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-transparent border-b border-primary outline-none px-0 py-0 min-w-[60px]"
+            style={{ ...labelStyle, width: `${Math.max(labelValue.length, 4)}ch`, marginBottom: '4px' }}
+          />
+        ) : (
+          <span
+            style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: '4px', cursor: onUpdateLabel ? 'text' : 'default' }}
+            onClick={(e) => {
+              e.stopPropagation()
+              if (onUpdateLabel) setEditingLabel(true)
+            }}
+            title={onUpdateLabel ? 'Clique para editar' : undefined}
+          >
+            {campo.label || campo.nome}
+            {campo.obrigatorio && <span style={{ color: '#EF4444' }}> *</span>}
+            {campo.texto_ajuda && (
+              <span title={campo.texto_ajuda} style={{ cursor: 'help', display: 'inline-flex' }}>
+                <Info style={{ width: '14px', height: '14px', color: '#9CA3AF' }} />
+              </span>
+            )}
+          </span>
+        )}
+        {/* Corpo do campo (sem label - renderizado separadamente acima) */}
+        <FieldBodyOnly
+          campo={campo}
+          estiloCampos={estiloCampos}
+          fontFamily={fontFamily}
+          valor={valor}
+          onChange={handleChange}
+          paisSelecionado={paisSelecionado}
+          onPaisChange={setPaisSelecionado}
+        />
+      </div>
+    )
   }
 
   return (
@@ -108,99 +191,189 @@ export const CampoItem = forwardRef<HTMLDivElement, Props>(function CampoItem({
       onDragLeave={onDragLeave}
       onClick={onSelect}
       className={cn(
-        'group relative border rounded-lg p-3 transition-all cursor-pointer',
-        isSelected
-          ? 'border-primary bg-primary/5 ring-1 ring-primary/20'
-          : 'border-border bg-card hover:border-primary/30',
-        isDragOver && 'border-primary border-dashed bg-primary/10'
+        'group relative rounded-md py-1.5 px-1 transition-all cursor-pointer',
+        isSelected && 'outline outline-2 outline-primary outline-offset-2 bg-primary/5',
+        !isSelected && 'hover:bg-muted/30',
+        isDragOver && 'outline-dashed outline-primary bg-primary/10'
       )}
     >
-      {/* Controls - move arrows, gear (opens config sidebar) and delete */}
-      <div className="absolute right-2 top-2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+      {/* Controls - hover overlay */}
+      <div className="absolute right-1 top-1 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
         {onMoveUp && (
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); onMoveUp() }} title="Mover para cima">
-            <ChevronUp className="w-4 h-4" />
+          <Button variant="ghost" size="icon" className="h-6 w-6 bg-card/80 backdrop-blur-sm shadow-sm" onClick={(e) => { e.stopPropagation(); onMoveUp() }} title="Mover para cima">
+            <ChevronUp className="w-3.5 h-3.5" />
           </Button>
         )}
         {onMoveDown && (
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); onMoveDown() }} title="Mover para baixo">
-            <ChevronDown className="w-4 h-4" />
+          <Button variant="ghost" size="icon" className="h-6 w-6 bg-card/80 backdrop-blur-sm shadow-sm" onClick={(e) => { e.stopPropagation(); onMoveDown() }} title="Mover para baixo">
+            <ChevronDown className="w-3.5 h-3.5" />
           </Button>
         )}
         {onDuplicate && (
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); onDuplicate() }} title="Duplicar campo">
-            <Copy className="w-4 h-4" />
+          <Button variant="ghost" size="icon" className="h-6 w-6 bg-card/80 backdrop-blur-sm shadow-sm" onClick={(e) => { e.stopPropagation(); onDuplicate() }} title="Duplicar campo">
+            <Copy className="w-3.5 h-3.5" />
           </Button>
         )}
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); onSelect() }}>
-          <Settings className="w-4 h-4" />
+        <Button variant="ghost" size="icon" className="h-6 w-6 bg-card/80 backdrop-blur-sm shadow-sm" onClick={(e) => { e.stopPropagation(); onSelect() }}>
+          <Settings className="w-3.5 h-3.5" />
         </Button>
-        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); onRemove() }}>
-          <Trash2 className="w-4 h-4" />
+        <Button variant="ghost" size="icon" className="h-6 w-6 bg-card/80 backdrop-blur-sm shadow-sm text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); onRemove() }}>
+          <Trash2 className="w-3.5 h-3.5" />
         </Button>
       </div>
 
-      {/* Field preview */}
-      <div className="space-y-1.5">
-        <div className="flex items-center gap-2">
-          {editingLabel ? (
-            <input
-              ref={inputRef}
-              value={labelValue}
-              onChange={(e) => setLabelValue(e.target.value)}
-              onBlur={handleLabelBlur}
-              onKeyDown={handleLabelKeyDown}
-              onClick={(e) => e.stopPropagation()}
-              className="text-sm font-medium text-foreground bg-transparent border-b border-primary outline-none px-0 py-0 min-w-[60px]"
-              style={{ width: `${Math.max(labelValue.length, 4)}ch` }}
-            />
-          ) : (
-            <label
-              className="text-sm font-medium text-foreground flex items-center gap-1 cursor-text hover:text-primary transition-colors"
-              onClick={(e) => {
-                e.stopPropagation()
-                if (onUpdateLabel) setEditingLabel(true)
-              }}
-              title={onUpdateLabel ? 'Clique para editar' : undefined}
-            >
-              {campo.label || campo.nome}
-              {campo.obrigatorio && <span className="text-destructive ml-0.5">*</span>}
-              {campo.texto_ajuda && (
-                <span title={campo.texto_ajuda} className="cursor-help">
-                  <Info className="w-3.5 h-3.5 text-muted-foreground" />
-                </span>
-              )}
-            </label>
-          )}
-          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-            {getLabelTipo(campo.tipo)}
-          </Badge>
-        </div>
-        {renderFieldPreview(campo, onUpdatePlaceholder)}
-      </div>
+      {renderContent()}
     </div>
   )
 })
 CampoItem.displayName = 'CampoItem'
 
-function getLabelTipo(tipo: string): string {
-  const map: Record<string, string> = {
-    texto: 'Texto', area_texto: 'Texto Longo', email: 'Email', telefone: 'Telefone',
-    telefone_br: 'Tel BR', numero: 'Número', moeda: 'Moeda', url: 'URL',
-    selecao: 'Select', selecao_multipla: 'Multi', radio: 'Radio', checkbox: 'Checkbox',
-    data: 'Data', data_hora: 'Data/Hora', hora: 'Hora',
-    cpf: 'CPF', cnpj: 'CNPJ', cep: 'CEP',
-    endereco: 'Endereço', pais: 'País', estado: 'Estado', cidade: 'Cidade',
-    arquivo: 'Anexo', imagem: 'Imagem', documento: 'Doc', upload_video: 'Vídeo', upload_audio: 'Áudio',
-    avaliacao: 'Avaliação', nps: 'NPS', slider: 'Slider', assinatura: 'Assinatura',
-    cor: 'Cor', ranking: 'Ranking', checkbox_termos: 'Termos', oculto: 'Oculto',
-    titulo: 'Título', paragrafo: 'Parágrafo', divisor: 'Divisor', espacador: 'Espaçador',
-    bloco_html: 'HTML',
-    botao_enviar: 'Botão', botao_whatsapp: 'WhatsApp',
+/**
+ * AIDEV-NOTE: Renderiza apenas o corpo do campo (sem label), para uso quando
+ * o label é renderizado separadamente com edição inline
+ */
+
+function FieldBodyOnly({
+  campo,
+  estiloCampos,
+  fontFamily,
+  valor,
+  onChange,
+  paisSelecionado,
+  onPaisChange,
+}: {
+  campo: CampoFormulario
+  estiloCampos?: EstiloCampos
+  fontFamily: string
+  valor: string
+  onChange: (v: string) => void
+  paisSelecionado?: { code: string; ddi: string; flag: string }
+  onPaisChange?: (p: { code: string; ddi: string; flag: string }) => void
+}) {
+  const { inputStyle } = computeFieldStyles(campo, estiloCampos, fontFamily)
+  const placeholder = campo.placeholder || ''
+  const handleInput = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    onChange(e.target.value)
   }
-  return map[tipo] || tipo
+
+  switch (campo.tipo) {
+    case 'area_texto':
+      return <textarea style={{ ...inputStyle, height: '64px', resize: 'vertical' }} placeholder={placeholder || 'Digite aqui...'} value={valor} onChange={handleInput} />
+    case 'checkbox':
+      return null // checkbox renders label inline, handled by parent
+    case 'checkbox_termos':
+      return null
+    case 'selecao':
+    case 'selecao_multipla':
+    case 'pais':
+    case 'estado':
+    case 'cidade':
+      return (
+        <select style={{ ...inputStyle, appearance: 'auto' }} value={valor} onChange={handleInput}>
+          <option value="">{placeholder || (campo.tipo === 'selecao_multipla' ? 'Selecione uma ou mais...' : 'Selecione...')}</option>
+          {(campo.opcoes as string[] || []).map((op, i) => (
+            <option key={i} value={op}>{typeof op === 'string' ? op : `Opção ${i + 1}`}</option>
+          ))}
+        </select>
+      )
+    case 'radio':
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          {(campo.opcoes as string[] || ['Opção 1', 'Opção 2']).slice(0, 4).map((op, i) => (
+            <label key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', color: estiloCampos?.input_texto_cor || '#1F2937', fontFamily, cursor: 'pointer' }}>
+              <input type="radio" name={campo.id} checked={valor === op} onChange={() => onChange(typeof op === 'string' ? op : `Opção ${i + 1}`)} />
+              {typeof op === 'string' ? op : `Opção ${i + 1}`}
+            </label>
+          ))}
+        </div>
+      )
+    case 'data':
+      return <input type="date" style={inputStyle} value={valor} onChange={handleInput} />
+    case 'data_hora':
+      return <input type="datetime-local" style={inputStyle} value={valor} onChange={handleInput} />
+    case 'hora':
+      return <input type="time" style={inputStyle} value={valor} onChange={handleInput} />
+    case 'moeda':
+    case 'cpf':
+    case 'cnpj':
+    case 'cep':
+      return <input style={inputStyle} placeholder={placeholder || ''} value={valor} onChange={handleInput} />
+    case 'telefone':
+    case 'telefone_br':
+      return (
+        <PhoneInputWithCountry
+          inputStyle={inputStyle}
+          placeholder={placeholder}
+          valor={valor}
+          onChange={onChange}
+          paisSelecionado={paisSelecionado}
+          onPaisChange={onPaisChange}
+        />
+      )
+    case 'numero':
+      return <input type="number" style={inputStyle} placeholder={placeholder || '0'} value={valor} onChange={handleInput} />
+    case 'url':
+      return <input type="url" style={inputStyle} placeholder={placeholder || 'https://'} value={valor} onChange={handleInput} />
+    case 'email':
+      return <input type="email" style={inputStyle} placeholder={placeholder || 'email@exemplo.com'} value={valor} onChange={handleInput} />
+    case 'endereco':
+      return (
+        <div>
+          <div style={{ display: 'flex', gap: '6px', marginBottom: '6px' }}>
+            <input style={{ ...inputStyle, flex: 1 }} placeholder={placeholder || 'Rua / Logradouro'} value={valor} onChange={handleInput} />
+            <input style={{ ...inputStyle, flex: 0, width: '80px', minWidth: '70px' }} placeholder="Nº" />
+          </div>
+          <input style={inputStyle} placeholder="Complemento" />
+        </div>
+      )
+    case 'avaliacao':
+      return (
+        <div style={{ display: 'flex', gap: '4px', fontSize: '20px', color: '#FBBF24', cursor: 'pointer' }}>
+          {'★★★★★'.split('').map((s, i) => <span key={i} onClick={() => onChange(String(i + 1))}>{s}</span>)}
+        </div>
+      )
+    case 'nps':
+      return (
+        <div style={{ display: 'flex', gap: '4px' }}>
+          {Array.from({ length: 11 }, (_, i) => (
+            <span key={i} onClick={() => onChange(String(i))} style={{ ...inputStyle, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, fontSize: '12px', textAlign: 'center' as const, cursor: 'pointer', backgroundColor: valor === String(i) ? '#3B82F6' : inputStyle.backgroundColor, color: valor === String(i) ? '#FFFFFF' : inputStyle.color }}>{i}</span>
+          ))}
+        </div>
+      )
+    case 'slider':
+      return <input type="range" style={{ width: '100%' }} value={valor || '50'} onChange={handleInput} />
+    case 'assinatura':
+      return (
+        <div style={{ ...inputStyle, height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: estiloCampos?.input_texto_cor || '#9CA3AF' }}>
+          Área de assinatura
+        </div>
+      )
+    case 'cor':
+      return <input type="color" style={{ width: '48px', height: '32px', border: 'none', cursor: 'pointer' }} value={valor || '#000000'} onChange={handleInput} />
+    case 'ranking':
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          {(campo.opcoes as string[] || ['Item 1', 'Item 2', 'Item 3']).map((item, i) => (
+            <div key={i} style={{ ...inputStyle, padding: '6px 12px' }}>{i + 1}. {typeof item === 'string' ? item : `Item ${i + 1}`}</div>
+          ))}
+        </div>
+      )
+    case 'arquivo':
+    case 'imagem':
+    case 'documento':
+    case 'upload_video':
+    case 'upload_audio':
+      return (
+        <div style={{ ...inputStyle, padding: '12px', textAlign: 'center' as const, color: estiloCampos?.input_texto_cor || '#9CA3AF', borderStyle: 'dashed', cursor: 'pointer' }}>
+          Clique ou arraste para enviar
+        </div>
+      )
+    default:
+      return <input style={inputStyle} placeholder={placeholder || 'Digite aqui...'} value={valor} onChange={handleInput} />
+  }
 }
 
+/** Inline edit for button text */
 function BotaoInlineEdit({ campo, onUpdateLabel, icon, defaultText, className, style }: {
   campo: CampoFormulario
   onUpdateLabel?: (v: string) => void
@@ -254,197 +427,4 @@ function BotaoInlineEdit({ campo, onUpdateLabel, icon, defaultText, className, s
       {campo.placeholder || defaultText}
     </button>
   )
-}
-
-function renderFieldPreview(campo: CampoFormulario, onUpdateLabel?: (v: string) => void) {
-  const placeholder = campo.placeholder || ''
-  const baseInputClass = 'w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground pointer-events-none'
-
-  switch (campo.tipo) {
-    case 'area_texto':
-      return <div className={cn(baseInputClass, 'h-16 resize-none')}>{placeholder || 'Digite aqui...'}</div>
-
-    case 'selecao':
-    case 'pais':
-    case 'estado':
-    case 'cidade':
-      return (
-        <div className={cn(baseInputClass, 'flex items-center justify-between')}>
-          <span>{placeholder || 'Selecione...'}</span>
-          <ChevronDown className="w-3.5 h-3.5" />
-        </div>
-      )
-
-    case 'selecao_multipla':
-      return (
-        <div className={cn(baseInputClass, 'flex items-center justify-between')}>
-          <span>{placeholder || 'Selecione uma ou mais...'}</span>
-          <ChevronDown className="w-3.5 h-3.5" />
-        </div>
-      )
-
-    case 'checkbox':
-    case 'checkbox_termos':
-      return (
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded border border-input bg-background" />
-          <span className="text-sm text-muted-foreground">{placeholder || (campo.tipo === 'checkbox_termos' ? 'Aceito os termos' : 'Opção')}</span>
-        </div>
-      )
-
-    case 'radio':
-      return (
-        <div className="space-y-1">
-          {(campo.opcoes as string[] || ['Opção 1', 'Opção 2']).slice(0, 3).map((op, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded-full border border-input bg-background" />
-              <span className="text-sm text-muted-foreground">{typeof op === 'string' ? op : `Opção ${i + 1}`}</span>
-            </div>
-          ))}
-        </div>
-      )
-
-    case 'avaliacao':
-      return (
-        <div className="flex gap-1">
-          {[1, 2, 3, 4, 5].map((n) => (
-            <span key={n} className="text-lg text-muted-foreground/40">★</span>
-          ))}
-        </div>
-      )
-
-    case 'nps':
-      return (
-        <div className="flex gap-1">
-          {Array.from({ length: 11 }, (_, i) => (
-            <div key={i} className="w-7 h-7 rounded border border-input bg-background flex items-center justify-center text-xs text-muted-foreground">
-              {i}
-            </div>
-          ))}
-        </div>
-      )
-
-    case 'slider':
-      return (
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">0</span>
-          <div className="flex-1 h-2 rounded-full bg-muted">
-            <div className="h-2 w-1/2 rounded-full bg-primary" />
-          </div>
-          <span className="text-xs text-muted-foreground">100</span>
-        </div>
-      )
-
-    case 'arquivo':
-    case 'imagem':
-    case 'documento':
-    case 'upload_video':
-    case 'upload_audio':
-      return (
-        <div className="border-2 border-dashed border-input rounded-md p-4 text-center">
-          <p className="text-xs text-muted-foreground">Arraste ou clique para enviar</p>
-        </div>
-      )
-
-    case 'assinatura':
-      return (
-        <div className="border border-input rounded-md h-20 bg-background flex items-center justify-center">
-          <span className="text-xs text-muted-foreground">Área de assinatura</span>
-        </div>
-      )
-
-    case 'cor':
-      return (
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-md border border-input bg-primary" />
-          <span className="text-sm text-muted-foreground">#3B82F6</span>
-        </div>
-      )
-
-    case 'ranking':
-      return (
-        <div className="space-y-1">
-          {(campo.opcoes as string[] || ['Item 1', 'Item 2', 'Item 3']).slice(0, 3).map((op, i) => (
-            <div key={i} className="flex items-center gap-2 px-2 py-1 rounded border border-input bg-background">
-              <span className="text-xs font-medium text-muted-foreground w-4">{i + 1}.</span>
-              <span className="text-sm text-muted-foreground">{typeof op === 'string' ? op : `Item ${i + 1}`}</span>
-            </div>
-          ))}
-        </div>
-      )
-
-    case 'titulo': {
-      const tc = parseLayoutConfig(campo.valor_padrao, 'titulo')
-      return <p className="font-semibold text-foreground" style={{ fontSize: `${tc.tamanho}px`, textAlign: tc.alinhamento as any, color: tc.cor }}>{placeholder || 'Título da seção'}</p>
-    }
-
-    case 'paragrafo': {
-      const pc = parseLayoutConfig(campo.valor_padrao, 'paragrafo')
-      return <p className="text-muted-foreground" style={{ fontSize: `${pc.tamanho}px`, textAlign: pc.alinhamento as any, color: pc.cor }}>{placeholder || 'Texto descritivo do parágrafo.'}</p>
-    }
-
-    case 'divisor': {
-      const dc = parseLayoutConfig(campo.valor_padrao, 'divisor')
-      return <hr style={{ border: 'none', borderTop: `${dc.espessura}px ${dc.estilo} ${dc.cor}` }} />
-    }
-
-    case 'espacador': {
-      const ec = parseLayoutConfig(campo.valor_padrao, 'espacador')
-      return <div style={{ height: `${ec.altura}px` }} />
-    }
-
-    case 'bloco_html':
-      return (
-        <div className={cn(baseInputClass, 'font-mono text-xs bg-muted/30')}>
-          {placeholder || '<p>Conteúdo HTML</p>'}
-        </div>
-      )
-
-    case 'oculto':
-      return <p className="text-xs text-muted-foreground italic">Campo oculto (não visível para o usuário)</p>
-
-    case 'botao_enviar':
-      return <BotaoInlineEdit campo={campo} onUpdateLabel={onUpdateLabel} icon={<MousePointerClick className="w-4 h-4" />} defaultText="Enviar" className="bg-primary text-primary-foreground" />
-
-    case 'botao_whatsapp':
-      return <BotaoInlineEdit campo={campo} onUpdateLabel={onUpdateLabel} icon={<WhatsAppIcon size={16} />} defaultText="Enviar via WhatsApp" style={{ backgroundColor: '#25D366', color: '#FFFFFF' }} />
-
-    case 'cpf':
-      return <div className={baseInputClass}>{placeholder || '000.000.000-00'}</div>
-
-    case 'cnpj':
-      return <div className={baseInputClass}>{placeholder || '00.000.000/0000-00'}</div>
-
-    case 'cep':
-      return <div className={baseInputClass}>{placeholder || '00000-000'}</div>
-
-    case 'moeda':
-      return <div className={baseInputClass}>{placeholder || 'R$ 0,00'}</div>
-
-    case 'telefone_br':
-      return <div className={baseInputClass}>{placeholder || '(00) 00000-0000'}</div>
-
-    case 'endereco':
-      return (
-        <div className="space-y-1.5">
-          <div className="grid grid-cols-[1fr_80px] gap-1.5">
-            <div className={baseInputClass}>{placeholder || 'Rua / Logradouro'}</div>
-            <div className={baseInputClass}>Nº</div>
-          </div>
-          <div className={baseInputClass}>Complemento</div>
-        </div>
-      )
-
-    case 'data':
-      return <div className={cn(baseInputClass, 'flex items-center')}>{placeholder || 'dd/mm/aaaa'}</div>
-
-    case 'data_hora':
-      return <div className={cn(baseInputClass, 'flex items-center')}>{placeholder || 'dd/mm/aaaa hh:mm'}</div>
-
-    case 'hora':
-      return <div className={cn(baseInputClass, 'flex items-center')}>{placeholder || 'hh:mm'}</div>
-
-    default:
-      return <div className={baseInputClass}>{placeholder || 'Digite aqui...'}</div>
-  }
 }
