@@ -38,10 +38,11 @@ import {
    const { setSubtitle } = useToolbar()
    const [periodo, setPeriodo] = useState<Periodo>('30d')
  
-   const { data: metricas, isLoading, error } = useQuery({
-     queryKey: ['admin', 'metricas', 'resumo', periodo],
-     queryFn: () => adminApi.obterMetricasResumo(periodo),
-   })
+  const { data: metricas, isLoading, error } = useQuery({
+    queryKey: ['admin', 'metricas', 'resumo', periodo],
+    queryFn: () => adminApi.obterMetricasResumo(periodo),
+    staleTime: 60_000,
+  })
  
    useEffect(() => {
      setSubtitle(

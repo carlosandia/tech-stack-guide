@@ -558,6 +558,7 @@ export async function listarUsuariosOrganizacao(id: string): Promise<{
     .eq('organizacao_id', id)
     .is('deletado_em', null)
     .order('criado_em', { ascending: true })
+    .limit(200)
 
   if (error) throw new Error(error.message)
 
@@ -587,33 +588,18 @@ export async function listarUsuariosOrganizacao(id: string): Promise<{
 }
 
 export async function obterLimitesOrganizacao(id: string): Promise<LimitesUso> {
-  // Contar usuários
-  const { count: usuariosCount } = await supabase
-    .from('usuarios')
-    .select('id', { count: 'exact', head: true })
-    .eq('organizacao_id', id)
-    .is('deletado_em', null)
-
-  // Contar oportunidades
-  const { count: opCount } = await supabase
-    .from('oportunidades')
-    .select('*', { count: 'exact', head: true })
-    .eq('organizacao_id', id)
-    .is('deletado_em', null)
-
-  // Contar contatos (pessoas)
-  const { count: contatosCount } = await supabase
-    .from('contatos')
-    .select('*', { count: 'exact', head: true })
-    .eq('organizacao_id', id)
-    .is('deletado_em', null)
-
-  // Buscar limites da organização + plano associado
-  const { data: org } = await supabase
-    .from('organizacoes_saas')
-    .select('limite_usuarios, limite_oportunidades, limite_storage_mb, plano')
-    .eq('id', id)
-    .single()
+  // AIDEV-NOTE: Queries independentes paralelizadas - reduz 4xRTT para 1xRTT
+  const [
+    { count: usuariosCount },
+    { count: opCount },
+    { count: contatosCount },
+    { data: org },
+  ] = await Promise.all([
+    supabase.from('usuarios').select('id', { count: 'exact', head: true }).eq('organizacao_id', id).is('deletado_em', null),
+    supabase.from('oportunidades').select('*', { count: 'exact', head: true }).eq('organizacao_id', id).is('deletado_em', null),
+    supabase.from('contatos').select('*', { count: 'exact', head: true }).eq('organizacao_id', id).is('deletado_em', null),
+    supabase.from('organizacoes_saas').select('limite_usuarios, limite_oportunidades, limite_storage_mb, plano').eq('id', id).single(),
+  ])
 
   // Buscar limites do plano (limite_contatos e limite_storage_mb vêm do plano)
   let limiteContatos: number | null = null
@@ -1089,55 +1075,49 @@ export async function testarConfigGlobal(plataforma: string): Promise<{ sucesso:
    const dataInicio = new Date()
    dataInicio.setDate(dataInicio.getDate() - dias)
    const dataInicioISO = dataInicio.toISOString()
- 
-   // Contar organizações por status
-   const { data: orgs, count: totalOrgs } = await supabase
-    .from('organizacoes_saas')
-    .select('status', { count: 'exact' })
-    .is('deletado_em', null)
+
+   // Datas fixas para KPIs absolutos
+   const seteDiasAtras = new Date()
+   seteDiasAtras.setDate(seteDiasAtras.getDate() - 7)
+   const seteDiasAtrasISO = seteDiasAtras.toISOString()
+
+   const trintaDiasAtras = new Date()
+   trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30)
+   const trintaDiasAtrasISO = trintaDiasAtras.toISOString()
+
+   const hojeInicio = new Date()
+   hojeInicio.setHours(0, 0, 0, 0)
+   const hojeInicioISO = hojeInicio.toISOString()
+
+   // AIDEV-NOTE: Todas as queries são independentes - execução paralela via Promise.all
+   // Reduz latência de 7xRTT para 1xRTT
+   const [
+     orgsResult,
+     novos7dResult,
+     novos30dResult,
+     totalUsuariosResult,
+     ativosHojeResult,
+     ativos7dResult,
+     planosListResult,
+   ] = await Promise.all([
+     supabase.from('organizacoes_saas').select('status', { count: 'exact' }).is('deletado_em', null).limit(10000),
+     supabase.from('organizacoes_saas').select('*', { count: 'exact', head: true }).gte('criado_em', seteDiasAtrasISO).is('deletado_em', null),
+     supabase.from('organizacoes_saas').select('*', { count: 'exact', head: true }).gte('criado_em', trintaDiasAtrasISO).is('deletado_em', null),
+     supabase.from('usuarios').select('id', { count: 'exact', head: true }).is('deletado_em', null),
+     supabase.from('usuarios').select('id', { count: 'exact', head: true }).is('deletado_em', null).gte('ultimo_login', hojeInicioISO),
+     supabase.from('usuarios').select('id', { count: 'exact', head: true }).is('deletado_em', null).gte('ultimo_login', seteDiasAtrasISO),
+     supabase.from('organizacoes_saas').select('plano').is('deletado_em', null).gte('criado_em', dataInicioISO),
+   ])
+
+  const orgs = orgsResult.data
+  const totalOrgs = orgsResult.count
 
   const statusCounts = (orgs || []).reduce((acc, org) => {
     acc[org.status] = (acc[org.status] || 0) + 1
     return acc
   }, {} as Record<string, number>)
 
-   // Contar novos no período selecionado
-   const { count: novosPeriodo } = await supabase
-    .from('organizacoes_saas')
-    .select('*', { count: 'exact', head: true })
-     .gte('criado_em', dataInicioISO)
-    .is('deletado_em', null)
-
-   // Contar usuários (total)
-  const { count: totalUsuarios } = await supabase
-    .from('usuarios')
-    .select('id', { count: 'exact', head: true })
-    .is('deletado_em', null)
-
-   // Usuários ativos hoje
-   const hojeInicio = new Date()
-   hojeInicio.setHours(0, 0, 0, 0)
-   const { count: ativosHoje } = await supabase
-     .from('usuarios')
-     .select('id', { count: 'exact', head: true })
-     .is('deletado_em', null)
-     .gte('ultimo_login', hojeInicio.toISOString())
-
-   // Usuários ativos nos últimos 7 dias
-   const seteDiasAtras = new Date()
-   seteDiasAtras.setDate(seteDiasAtras.getDate() - 7)
-   const { count: ativos7d } = await supabase
-     .from('usuarios')
-     .select('id', { count: 'exact', head: true })
-     .is('deletado_em', null)
-     .gte('ultimo_login', seteDiasAtras.toISOString())
-
-   // Distribuição por plano (considerando período)
-   const { data: planosList } = await supabase
-    .from('organizacoes_saas')
-    .select('plano')
-    .is('deletado_em', null)
-     .gte('criado_em', dataInicioISO)
+  const planosList = planosListResult.data
 
   const planoCounts = (planosList || []).reduce((acc, org) => {
     const planoNome = org.plano || 'Sem plano'
@@ -1145,10 +1125,12 @@ export async function testarConfigGlobal(plataforma: string): Promise<{ sucesso:
     return acc
   }, {} as Record<string, number>)
 
+  // AIDEV-NOTE: Usa totalPeriodo (denominador correto) em vez de totalOrgs (total geral)
+  const totalPeriodo = (planosList || []).length
   const distribuicao: MetricasResumo['distribuicao_planos'] = Object.entries(planoCounts).map(([plano, quantidade]) => ({
     plano,
     quantidade,
-    percentual: totalOrgs ? (quantidade / totalOrgs) * 100 : 0,
+    percentual: totalPeriodo ? (quantidade / totalPeriodo) * 100 : 0,
   }))
 
   // Alertas
@@ -1174,13 +1156,14 @@ export async function testarConfigGlobal(plataforma: string): Promise<{ sucesso:
       ativos: statusCounts['ativo'] || 0,
       trial: statusCounts['trial'] || 0,
       suspensos: statusCounts['suspensa'] || 0,
-       novos_7d: novosPeriodo || 0,
-       novos_30d: novosPeriodo || 0,
+      // AIDEV-NOTE: novos_7d e novos_30d são KPIs fixos, independentes do período selecionado
+      novos_7d: novos7dResult.count || 0,
+      novos_30d: novos30dResult.count || 0,
     },
     usuarios: {
-      total: totalUsuarios || 0,
-      ativos_hoje: ativosHoje || 0,
-      ativos_7d: ativos7d || 0,
+      total: totalUsuariosResult.count || 0,
+      ativos_hoje: ativosHojeResult.count || 0,
+      ativos_7d: ativos7dResult.count || 0,
     },
     financeiro: {
       mrr: 0,
