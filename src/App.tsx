@@ -16,7 +16,7 @@ import { AppLayout, AppDashboardPage, PerfilPage } from '@/modules/app'
 import { FormulariosPage, FormularioEditorPage } from '@/modules/formularios'
 import { FormularioPublicoPage } from '@/modules/formularios/pages/FormularioPublicoPage'
 import { OAuthGoogleCallbackPage } from '@/pages/OAuthGoogleCallbackPage'
-import { PlanosPage, TrialCadastroPage, CheckoutSucessoPage, OnboardingPage } from '@/modules/public'
+import { PlanosPage, TrialCadastroPage, CheckoutSucessoPage, OnboardingPage, PoliticaPrivacidadePage, TermosServicoPage } from '@/modules/public'
 import { BlockedPage } from '@/modules/blocked'
 import { ConfiguracoesLayout, CamposPage, ProdutosPage, MotivosPage, TarefasTemplatesPage, EtapasTemplatesPage, RegrasPage, ConfigCardPage, ConexoesPage, WebhooksEntradaPage, WebhooksSaidaPage, MembrosPage, EquipesPage, PerfisPermissaoPage, MetasPage, ConfigGeralPage } from '@/modules/configuracoes'
 import { AutomacoesPage } from '@/modules/automacoes'
@@ -70,6 +70,8 @@ const App = forwardRef<HTMLDivElement>(function App(_props, _ref) {
        <Route path="/onboarding" element={<OnboardingPage />} />
        <Route path="/bloqueado" element={<BlockedPage />} />
        <Route path="/f/:slug" element={<FormularioPublicoPage />} />
+       <Route path="/privacidade" element={<PoliticaPrivacidadePage />} />
+       <Route path="/termos" element={<TermosServicoPage />} />
        <Route path="/oauth/google/callback" element={<OAuthGoogleCallbackPage />} />
  
        {/* Rotas de autenticacao */}
