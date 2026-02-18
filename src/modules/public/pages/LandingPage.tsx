@@ -3,7 +3,7 @@ import { HeroSection } from '../components/landing/HeroSection'
 import { SocialProofBar } from '../components/landing/SocialProofBar'
 import { PainSection } from '../components/landing/PainSection'
 import { SolutionSection } from '../components/landing/SolutionSection'
-import { FeaturesSection } from '../components/landing/FeaturesSection'
+import { ModulesSection } from '../components/landing/ModulesSection'
 import { HowItWorksSection } from '../components/landing/HowItWorksSection'
 import { TestimonialsSection } from '../components/landing/TestimonialsSection'
 import { ComparisonSection } from '../components/landing/ComparisonSection'
@@ -25,7 +25,7 @@ export function LandingPage() {
         <SocialProofBar />
         <PainSection />
         <SolutionSection />
-        <FeaturesSection />
+        <ModulesSection />
         <HowItWorksSection />
         <TestimonialsSection />
         <ComparisonSection />
