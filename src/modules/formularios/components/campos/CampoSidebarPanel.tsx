@@ -116,7 +116,11 @@ export function CampoSidebarPanel({ campo, onUpdate, onClose, showConfig, estilo
   const handleApplyToAll = useCallback(() => {
     if (!allCampos || !onUpdateCampoById) return
     const validacoes = (campo.validacoes || {}) as Record<string, unknown>
-    const estiloAtual = validacoes.estilo_campo || {}
+
+    // AIDEV-NOTE: Copia o estilo merged completo (global + overrides) como override de cada campo
+    // Isso garante que todos os campos fiquem visualmente idênticos ao campo atual
+    const estiloCompleto = { ...mergedEstilo }
+
     const spacingKeys = ['spacing_top', 'spacing_bottom', 'spacing_left', 'spacing_right']
     const spacingAtual: Record<string, unknown> = {}
     for (const k of spacingKeys) {
@@ -127,10 +131,10 @@ export function CampoSidebarPanel({ campo, onUpdate, onClose, showConfig, estilo
       if (c.id === campo.id) continue
       const cVal = (c.validacoes || {}) as Record<string, unknown>
       onUpdateCampoById(c.id, {
-        validacoes: { ...cVal, estilo_campo: estiloAtual, ...spacingAtual },
+        validacoes: { ...cVal, estilo_campo: estiloCompleto, ...spacingAtual },
       })
     }
-  }, [campo, allCampos, onUpdateCampoById])
+  }, [campo, allCampos, onUpdateCampoById, mergedEstilo])
 
   const estiloContent = (
     <>
