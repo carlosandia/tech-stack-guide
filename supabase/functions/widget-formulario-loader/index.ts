@@ -52,7 +52,7 @@ function getFormScript(configApi: string, submitApi: string, mode: string, slug:
   parts.push("function inputType(t){switch(t){case'email':return'email';case'telefone':case'telefone_br':return'tel';case'numero':case'decimal':return'number';case'url':return'url';case'data':return'date';case'data_hora':return'datetime-local';case'hora':return'time';default:return'text'}}")
 
   // AIDEV-NOTE: ensurePx inline — converte números puros para px no widget embed
-  parts.push("function ensurePx(v,fb){if(!v||!v.trim())return fb;var t=v.trim();if(/[a-z%]/i.test(t))return t;return t+'px'}")
+  parts.push("function ensurePx(v,fb){if(v===undefined||v===null||v==='')return fb;var t=String(v).trim();if(!t)return fb;if(/[a-z%]/i.test(t))return t;return t+'px'}")
 
   // AIDEV-NOTE: mergeCampoEstilo inline — merge estilos globais com overrides individuais do campo
   parts.push("function mergeFieldStyle(globalFS,campo){var ec=(campo.validacoes||{}).estilo_campo||{};if(!ec||Object.keys(ec).length===0)return globalFS;var m={};for(var k in globalFS)m[k]=globalFS[k];for(var k2 in ec){if(ec[k2]!==undefined&&ec[k2]!==null&&ec[k2]!=='')m[k2]=ec[k2]}return m}")
