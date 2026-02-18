@@ -40,7 +40,7 @@ export function FeedbackButton() {
         aria-label="Enviar feedback"
         title="Enviar feedback"
       >
-        <Lightbulb className="w-5 h-5" />
+        <Lightbulb className="w-4 h-4" />
       </button>
 
       {open && (

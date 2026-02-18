@@ -82,7 +82,7 @@ export const NotificacoesSino = forwardRef<HTMLDivElement>(function Notificacoes
           className="relative p-2 rounded-md hover:bg-accent transition-colors"
           aria-label="Notificações"
         >
-          <Bell className="w-5 h-5 text-muted-foreground" />
+          <Bell className="w-4 h-4 text-muted-foreground" />
           {count > 0 && (
             <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold leading-none">
               {displayCount}
