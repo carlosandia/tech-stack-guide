@@ -135,6 +135,16 @@ export function LoginForm({ onSubmit, isLoading = false, error }: LoginFormProps
         )}
       </div>
 
+      {/* Link Esqueci senha - logo abaixo do input senha, alinhado à direita */}
+      <div className="text-right -mt-4">
+        <Link
+          to="/recuperar-senha"
+          className="text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors"
+        >
+          Esqueci minha senha
+        </Link>
+      </div>
+
       {/* Checkbox Lembrar */}
       <div className="flex items-center">
         <input
@@ -149,16 +159,6 @@ export function LoginForm({ onSubmit, isLoading = false, error }: LoginFormProps
         </label>
       </div>
 
-      {/* Link Esqueci senha - sutil, alinhado à direita */}
-      <div className="text-right -mt-2">
-        <Link
-          to="/recuperar-senha"
-          className="text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors"
-        >
-          Esqueci minha senha
-        </Link>
-      </div>
-
       {/* Botao Entrar */}
       <button
         type="submit"
@@ -169,7 +169,7 @@ export function LoginForm({ onSubmit, isLoading = false, error }: LoginFormProps
           ${
             isButtonDisabled
               ? 'bg-muted text-muted-foreground cursor-not-allowed'
-              : 'bg-primary/95 text-primary-foreground hover:bg-primary/80'
+              : 'bg-primary text-primary-foreground hover:bg-primary/85'
           }
         `}
       >
