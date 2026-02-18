@@ -974,6 +974,84 @@ Deno.serve(async (req) => {
         }
       }
 
+      // AIDEV-NOTE: Auto-vincular contatos por email antes do insert
+      if (toInsert.length > 0) {
+        const uniqueEmails = [...new Set(toInsert.map(e => e.de_email as string).filter(Boolean))];
+        
+        if (uniqueEmails.length > 0) {
+          const { data: contatosMatch } = await supabaseAdmin
+            .from("contatos")
+            .select("id, email")
+            .in("email", uniqueEmails)
+            .eq("organizacao_id", usuario.organizacao_id)
+            .is("deletado_em", null);
+          
+          if (contatosMatch && contatosMatch.length > 0) {
+            const emailToContato = new Map(
+              contatosMatch.map((c: { id: string; email: string }) => [c.email!.toLowerCase(), c.id])
+            );
+            
+            for (const email of toInsert) {
+              const contatoId = emailToContato.get((email.de_email as string).toLowerCase());
+              if (contatoId) {
+                email.contato_id = contatoId;
+              }
+            }
+            
+            console.log(`[sync-emails] Auto-vinculados ${contatosMatch.length} contatos`);
+          }
+        }
+      }
+
+      // AIDEV-NOTE: Backfill - vincular emails existentes sem contato_id
+      try {
+        const { data: emailsSemContato } = await supabaseAdmin
+          .from("emails_recebidos")
+          .select("id, de_email")
+          .eq("organizacao_id", usuario.organizacao_id)
+          .eq("usuario_id", usuario.id)
+          .is("contato_id", null)
+          .not("de_email", "is", null)
+          .limit(100);
+
+        if (emailsSemContato && emailsSemContato.length > 0) {
+          const uniqueBackfillEmails = [...new Set(emailsSemContato.map((e: { de_email: string }) => e.de_email).filter(Boolean))];
+          
+          if (uniqueBackfillEmails.length > 0) {
+            const { data: contatosBackfill } = await supabaseAdmin
+              .from("contatos")
+              .select("id, email")
+              .in("email", uniqueBackfillEmails)
+              .eq("organizacao_id", usuario.organizacao_id)
+              .is("deletado_em", null);
+
+            if (contatosBackfill && contatosBackfill.length > 0) {
+              const backfillMap = new Map(
+                contatosBackfill.map((c: { id: string; email: string }) => [c.email!.toLowerCase(), c.id])
+              );
+
+              let backfillCount = 0;
+              for (const email of emailsSemContato) {
+                const contatoId = backfillMap.get(email.de_email.toLowerCase());
+                if (contatoId) {
+                  await supabaseAdmin
+                    .from("emails_recebidos")
+                    .update({ contato_id: contatoId })
+                    .eq("id", email.id);
+                  backfillCount++;
+                }
+              }
+
+              if (backfillCount > 0) {
+                console.log(`[sync-emails] Backfill: ${backfillCount} emails vinculados a contatos`);
+              }
+            }
+          }
+        }
+      } catch (backfillErr) {
+        console.warn("[sync-emails] Backfill contato_id failed:", (backfillErr as Error).message);
+      }
+
       // Batch insert new emails
       if (toInsert.length > 0) {
         const { error: insertError } = await supabaseAdmin

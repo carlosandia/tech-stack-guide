@@ -14,7 +14,8 @@ interface ContatoCardProps {
   nome?: string | null
 }
 
-async function buscarContato(contatoId: string | null, email: string) {
+async function buscarContato(contatoId: string | null, email: string, nome?: string | null) {
+  // 1. Busca por contato_id direto
   if (contatoId) {
     const { data } = await supabase
       .from('contatos')
@@ -25,13 +26,32 @@ async function buscarContato(contatoId: string | null, email: string) {
     if (data) return data
   }
 
-  const { data } = await supabase
+  // 2. Busca por email exato
+  const { data: porEmail } = await supabase
     .from('contatos')
     .select('id, nome, sobrenome, email, cargo, tipo')
     .eq('email', email)
     .is('deletado_em', null)
     .maybeSingle()
-  return data
+  if (porEmail) return porEmail
+
+  // 3. Fallback: busca por nome (de_nome do email contra nome do contato)
+  if (nome && nome.trim().length >= 3) {
+    const partes = nome.trim().split(/\s+/)
+    const primeiroNome = partes[0]
+    if (primeiroNome.length >= 3) {
+      const { data: porNome } = await supabase
+        .from('contatos')
+        .select('id, nome, sobrenome, email, cargo, tipo')
+        .ilike('nome', `${primeiroNome}%`)
+        .is('deletado_em', null)
+        .limit(1)
+        .maybeSingle()
+      if (porNome) return porNome
+    }
+  }
+
+  return null
 }
 
 export function ContatoCard({ contatoId, email, nome }: ContatoCardProps) {
@@ -39,7 +59,7 @@ export function ContatoCard({ contatoId, email, nome }: ContatoCardProps) {
 
   const { data: contato } = useQuery({
     queryKey: ['contato-email', contatoId, email],
-    queryFn: () => buscarContato(contatoId, email),
+    queryFn: () => buscarContato(contatoId, email, nome),
     enabled: !!email,
     staleTime: 60000,
   })
