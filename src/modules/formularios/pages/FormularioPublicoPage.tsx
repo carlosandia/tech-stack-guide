@@ -820,11 +820,23 @@ function renderCampoPublico(props: RenderCampoProps) {
     // ========== LAYOUT ==========
     case 'titulo': {
       const tc = parseLayoutConfig(campo.valor_padrao, 'titulo')
-      return <h3 style={{ ...labelStyle, fontSize: `${tc.tamanho}px`, fontWeight: 600, marginBottom: 0, textAlign: tc.alinhamento as any, color: tc.cor }}>{placeholder || campo.label}</h3>
+      const campoOverT = (campo.validacoes as any)?.estilo_campo || {}
+      const tFontSize = campoOverT.label_tamanho
+        ? ensureUnit(String(campoOverT.label_tamanho), tc.tamanho + 'px', 'fontSize')
+        : tc.tamanho + 'px'
+      const tColor = campoOverT.label_cor || tc.cor || '#374151'
+      const tWeight = campoOverT.label_font_weight || '600'
+      return <h3 style={{ ...labelStyle, fontSize: tFontSize, fontWeight: tWeight, marginBottom: 0, textAlign: tc.alinhamento as any, color: tColor }}>{placeholder || campo.label}</h3>
     }
     case 'paragrafo': {
       const pc = parseLayoutConfig(campo.valor_padrao, 'paragrafo')
-      return <p style={{ fontSize: `${pc.tamanho}px`, margin: 0, fontFamily, textAlign: pc.alinhamento as any, color: pc.cor }}>{placeholder || campo.label}</p>
+      const campoOverP = (campo.validacoes as any)?.estilo_campo || {}
+      const pFontSize = campoOverP.label_tamanho
+        ? ensureUnit(String(campoOverP.label_tamanho), pc.tamanho + 'px', 'fontSize')
+        : pc.tamanho + 'px'
+      const pColor = campoOverP.label_cor || pc.cor || '#374151'
+      const pWeight = campoOverP.label_font_weight || '400'
+      return <p style={{ fontSize: pFontSize, fontWeight: pWeight, margin: 0, fontFamily, textAlign: pc.alinhamento as any, color: pColor }}>{placeholder || campo.label}</p>
     }
     case 'divisor': {
       const dc = parseLayoutConfig(campo.valor_padrao, 'divisor')
