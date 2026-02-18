@@ -77,12 +77,13 @@ const modules: Module[] = [
     id: 'negocios',
     icon: Kanban,
     title: 'Negócios',
-    headline: 'Pipeline completo com qualificação e metas',
+    headline: 'Pipeline completo com qualificação, metas e ligações',
     benefits: [
-      'Kanban configurável com identificação automática de lead MQL',
-      'Rodízio de leads e cadência comercial com scripts prontos',
-      'Disparo de scripts via WhatsApp e e-mail direto da oportunidade',
-      'Metas visíveis por equipe e individual com acompanhamento em tempo real',
+      'Kanban configurável com qualificação automática de lead MQL',
+      'Ligações VoIP integradas — ligue direto do card sem sair do CRM',
+      'Agendamento de reuniões com Google Calendar e Google Meet em um clique',
+      'Cadência comercial com scripts prontos disparados via WhatsApp e e-mail',
+      'Métricas de no-show e metas por equipe e individual em tempo real',
     ],
   },
   {
