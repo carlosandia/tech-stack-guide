@@ -4,6 +4,7 @@
  */
 
 import { supabase } from '@/integrations/supabase/client'
+import { getOrganizacaoId, getUsuarioId } from '@/shared/services/auth-context'
 import type { Automacao, CriarAutomacaoInput, LogAutomacao, Acao, Condicao } from '../schemas/automacoes.schema'
 
 // =====================================================
@@ -16,6 +17,7 @@ export async function listarAutomacoes(): Promise<Automacao[]> {
     .select('*')
     .is('deletado_em', null)
     .order('criado_em', { ascending: false })
+    .limit(100)
 
   if (error) throw error
   return (data || []).map(mapAutomacao)
@@ -34,25 +36,20 @@ export async function obterAutomacao(id: string): Promise<Automacao> {
 }
 
 export async function criarAutomacao(input: CriarAutomacaoInput): Promise<Automacao> {
-  const { data: usuario } = await supabase
-    .from('usuarios')
-    .select('id, organizacao_id')
-    .eq('auth_id', (await supabase.auth.getUser()).data.user?.id ?? '')
-    .single()
-
-  if (!usuario) throw new Error('Usuário não encontrado')
+  const organizacaoId = await getOrganizacaoId()
+  const usuarioId = await getUsuarioId()
 
   const { data, error } = await (supabase
     .from('automacoes') as any)
     .insert({
-      organizacao_id: usuario.organizacao_id,
+      organizacao_id: organizacaoId,
       nome: input.nome,
       descricao: input.descricao || null,
       trigger_tipo: input.trigger_tipo,
       trigger_config: input.trigger_config,
       condicoes: input.condicoes,
       acoes: input.acoes,
-      criado_por: usuario.id,
+      criado_por: usuarioId,
       ativo: false,
     })
     .select()

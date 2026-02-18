@@ -53,8 +53,8 @@ export function useAtualizarAutomacao() {
       silent?: boolean
     }) => api.atualizarAutomacao(id, payload),
     onSuccess: (_, variables) => {
-      qc.invalidateQueries({ queryKey: QUERY_KEY })
       if (!variables.silent) {
+        qc.invalidateQueries({ queryKey: QUERY_KEY })
         toast.success('Automação atualizada')
       }
     },

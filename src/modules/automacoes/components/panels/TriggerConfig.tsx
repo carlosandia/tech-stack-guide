@@ -8,6 +8,7 @@ import { TRIGGER_TIPOS, TRIGGER_CATEGORIAS } from '../../schemas/automacoes.sche
 import { WebhookDebugPanel } from './WebhookDebugPanel'
 import { supabase } from '@/integrations/supabase/client'
 import { useQuery } from '@tanstack/react-query'
+import { getOrganizacaoId } from '@/shared/services/auth-context'
 
 interface TriggerConfigProps {
   data: Record<string, unknown>
@@ -21,35 +22,26 @@ export function TriggerConfig({ data, onUpdate }: TriggerConfigProps) {
     new Set([TRIGGER_CATEGORIAS[0]?.key])
   )
 
-  // AIDEV-NOTE: Buscar organizacao_id do usuário logado
-  const { data: usuario } = useQuery({
-    queryKey: ['usuario-atual-trigger'],
-    queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return null
-      const { data } = await supabase
-        .from('usuarios')
-        .select('organizacao_id')
-        .eq('auth_id', user.id)
-        .single()
-      return data
-    },
+  // AIDEV-NOTE: Usa auth-context compartilhado (DRY) em vez de query inline
+  const { data: organizacaoId } = useQuery({
+    queryKey: ['org-id'],
+    queryFn: getOrganizacaoId,
     staleTime: Infinity,
   })
 
   // AIDEV-NOTE: Buscar formulários do tenant para trigger formulario_submetido
   const { data: formularios } = useQuery({
-    queryKey: ['formularios-trigger', usuario?.organizacao_id],
+    queryKey: ['formularios-trigger', organizacaoId],
     queryFn: async () => {
       const { data } = await supabase
         .from('formularios')
         .select('id, nome, status')
-        .eq('organizacao_id', usuario!.organizacao_id!)
+        .eq('organizacao_id', organizacaoId!)
         .is('deletado_em', null)
         .order('nome')
       return data || []
     },
-    enabled: !!usuario?.organizacao_id && currentTipo === 'formulario_submetido',
+    enabled: !!organizacaoId && currentTipo === 'formulario_submetido',
     staleTime: 30000,
   })
 
@@ -178,11 +170,11 @@ export function TriggerConfig({ data, onUpdate }: TriggerConfigProps) {
       )}
 
       {/* AIDEV-NOTE: Painel de debug para trigger webhook_recebido */}
-      {currentTipo === 'webhook_recebido' && usuario?.organizacao_id && (
+      {currentTipo === 'webhook_recebido' && organizacaoId && (
         <WebhookDebugPanel
           triggerConfig={triggerConfig}
           onConfigUpdate={handleTriggerConfigUpdate}
-          organizacaoId={usuario.organizacao_id}
+          organizacaoId={organizacaoId}
         />
       )}
     </div>
