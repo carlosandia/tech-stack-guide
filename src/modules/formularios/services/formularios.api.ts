@@ -5,33 +5,7 @@
  */
 
 import { supabase } from '@/lib/supabase'
-
-// =====================================================
-// Helper - Obter organizacao_id do usuario logado
-// =====================================================
-
-let _cachedOrgId: string | null = null
-
-async function getOrganizacaoId(): Promise<string> {
-  if (_cachedOrgId) return _cachedOrgId
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Usuário não autenticado')
-
-  const { data } = await supabase
-    .from('usuarios')
-    .select('organizacao_id')
-    .eq('auth_id', user.id)
-    .maybeSingle()
-
-  if (!data?.organizacao_id) throw new Error('Organização não encontrada')
-  _cachedOrgId = data.organizacao_id
-  return _cachedOrgId
-}
-
-supabase.auth.onAuthStateChange(() => {
-  _cachedOrgId = null
-})
+import { getOrganizacaoId } from '@/shared/services/auth-context'
 
 // =====================================================
 // Types
@@ -250,20 +224,24 @@ async function despublicar(id: string): Promise<Formulario> {
 async function contarPorStatus(): Promise<Record<string, number>> {
   const organizacao_id = await getOrganizacaoId()
 
-  const { data, error } = await supabase
-    .from('formularios')
-    .select('status')
-    .eq('organizacao_id', organizacao_id)
-    .is('deletado_em', null)
+  // AIDEV-NOTE: Otimizado — usa head:true para contar sem transferir dados
+  const [todos, rascunho, publicado, arquivado] = await Promise.all([
+    supabase.from('formularios').select('id', { count: 'exact', head: true })
+      .eq('organizacao_id', organizacao_id).is('deletado_em', null),
+    supabase.from('formularios').select('id', { count: 'exact', head: true })
+      .eq('organizacao_id', organizacao_id).is('deletado_em', null).eq('status', 'rascunho'),
+    supabase.from('formularios').select('id', { count: 'exact', head: true })
+      .eq('organizacao_id', organizacao_id).is('deletado_em', null).eq('status', 'publicado'),
+    supabase.from('formularios').select('id', { count: 'exact', head: true })
+      .eq('organizacao_id', organizacao_id).is('deletado_em', null).eq('status', 'arquivado'),
+  ])
 
-  if (error) throw new Error(`Erro ao contar formulários: ${error.message}`)
-
-  const contagem: Record<string, number> = { todos: 0, rascunho: 0, publicado: 0, arquivado: 0 }
-  for (const item of data || []) {
-    contagem.todos++
-    contagem[item.status] = (contagem[item.status] || 0) + 1
+  return {
+    todos: todos.count ?? 0,
+    rascunho: rascunho.count ?? 0,
+    publicado: publicado.count ?? 0,
+    arquivado: arquivado.count ?? 0,
   }
-  return contagem
 }
 
 // =====================================================
@@ -381,15 +359,18 @@ async function reordenarCampos(
   formularioId: string,
   campos: { id: string; ordem: number }[]
 ): Promise<void> {
-  for (const item of campos) {
-    const { error } = await supabase
-      .from('campos_formularios')
-      .update({ ordem: item.ordem })
-      .eq('formulario_id', formularioId)
-      .eq('id', item.id)
-
-    if (error) throw new Error(`Erro ao reordenar: ${error.message}`)
-  }
+  // AIDEV-NOTE: Otimizado — executa todos os updates em paralelo (Promise.all)
+  const results = await Promise.all(
+    campos.map(item =>
+      supabase
+        .from('campos_formularios')
+        .update({ ordem: item.ordem })
+        .eq('formulario_id', formularioId)
+        .eq('id', item.id)
+    )
+  )
+  const failed = results.find(r => r.error)
+  if (failed?.error) throw new Error(`Erro ao reordenar: ${failed.error.message}`)
 }
 
 // =====================================================
@@ -586,30 +567,13 @@ async function salvarEstilos(
   formularioId: string,
   payload: Partial<Pick<EstiloFormulario, 'container' | 'cabecalho' | 'campos' | 'botao' | 'pagina' | 'css_customizado'>>
 ): Promise<EstiloFormulario> {
-  // Check if exists
-  const { data: existente } = await supabase
-    .from('estilos_formularios')
-    .select('id')
-    .eq('formulario_id', formularioId)
-    .maybeSingle()
-
-  if (existente) {
-    const { data, error } = await supabase
-      .from('estilos_formularios')
-      .update(payload as Record<string, unknown>)
-      .eq('formulario_id', formularioId)
-      .select()
-      .single()
-    if (error) throw new Error(`Erro ao atualizar estilos: ${error.message}`)
-    return data as unknown as EstiloFormulario
-  }
-
+  // AIDEV-NOTE: Otimizado — upsert em 1 query (constraint UNIQUE em formulario_id)
   const { data, error } = await supabase
     .from('estilos_formularios')
-    .insert({ formulario_id: formularioId, ...payload } as any)
+    .upsert({ formulario_id: formularioId, ...payload } as any, { onConflict: 'formulario_id' })
     .select()
     .single()
-  if (error) throw new Error(`Erro ao criar estilos: ${error.message}`)
+  if (error) throw new Error(`Erro ao salvar estilos: ${error.message}`)
   return data as unknown as EstiloFormulario
 }
 
@@ -658,29 +622,13 @@ async function buscarConfigPopup(formularioId: string): Promise<ConfigPopup | nu
 }
 
 async function salvarConfigPopup(formularioId: string, payload: Partial<ConfigPopup>): Promise<ConfigPopup> {
-  const { data: existente } = await supabase
-    .from('config_popup_formularios')
-    .select('id')
-    .eq('formulario_id', formularioId)
-    .maybeSingle()
-
-  if (existente) {
-    const { data, error } = await supabase
-      .from('config_popup_formularios')
-      .update(payload as any)
-      .eq('formulario_id', formularioId)
-      .select()
-      .single()
-    if (error) throw new Error(`Erro ao atualizar config popup: ${error.message}`)
-    return data as unknown as ConfigPopup
-  }
-
+  // AIDEV-NOTE: Otimizado — upsert em 1 query (constraint UNIQUE em formulario_id)
   const { data, error } = await supabase
     .from('config_popup_formularios')
-    .insert({ formulario_id: formularioId, ...payload } as any)
+    .upsert({ formulario_id: formularioId, ...payload } as any, { onConflict: 'formulario_id' })
     .select()
     .single()
-  if (error) throw new Error(`Erro ao criar config popup: ${error.message}`)
+  if (error) throw new Error(`Erro ao salvar config popup: ${error.message}`)
   return data as unknown as ConfigPopup
 }
 
@@ -726,29 +674,13 @@ async function buscarConfigNewsletter(formularioId: string): Promise<ConfigNewsl
 }
 
 async function salvarConfigNewsletter(formularioId: string, payload: Partial<ConfigNewsletter>): Promise<ConfigNewsletter> {
-  const { data: existente } = await supabase
-    .from('config_newsletter_formularios')
-    .select('id')
-    .eq('formulario_id', formularioId)
-    .maybeSingle()
-
-  if (existente) {
-    const { data, error } = await supabase
-      .from('config_newsletter_formularios')
-      .update(payload as any)
-      .eq('formulario_id', formularioId)
-      .select()
-      .single()
-    if (error) throw new Error(`Erro ao atualizar config newsletter: ${error.message}`)
-    return data as unknown as ConfigNewsletter
-  }
-
+  // AIDEV-NOTE: Otimizado — upsert em 1 query (constraint UNIQUE em formulario_id)
   const { data, error } = await supabase
     .from('config_newsletter_formularios')
-    .insert({ formulario_id: formularioId, ...payload } as any)
+    .upsert({ formulario_id: formularioId, ...payload } as any, { onConflict: 'formulario_id' })
     .select()
     .single()
-  if (error) throw new Error(`Erro ao criar config newsletter: ${error.message}`)
+  if (error) throw new Error(`Erro ao salvar config newsletter: ${error.message}`)
   return data as unknown as ConfigNewsletter
 }
 
@@ -983,10 +915,12 @@ async function obterMetricas(formularioId: string): Promise<MetricasFormulario> 
   if (!form) throw new Error('Formulário não encontrado')
 
   // Buscar eventos agrupados
+  // AIDEV-NOTE: Otimizado — limit(10000) como trava de seguranca
   const { data: eventos } = await supabase
     .from('eventos_analytics_formularios')
     .select('tipo_evento')
     .eq('formulario_id', formularioId)
+    .limit(10000)
 
   const contagemPorTipo: Record<string, number> = {}
   if (eventos) {
@@ -1006,10 +940,12 @@ async function obterMetricas(formularioId: string): Promise<MetricasFormulario> 
 }
 
 async function obterFunilConversao(formularioId: string): Promise<FunilConversao> {
+  // AIDEV-NOTE: Otimizado — limit(10000) como trava de seguranca
   const { data: eventos } = await supabase
     .from('eventos_analytics_formularios')
     .select('tipo_evento')
     .eq('formulario_id', formularioId)
+    .limit(10000)
 
   if (!eventos) return { etapas: [] }
 
@@ -1028,11 +964,13 @@ async function obterFunilConversao(formularioId: string): Promise<FunilConversao
 }
 
 async function obterDesempenhoCampos(formularioId: string): Promise<DesempenhoCampo[]> {
+  // AIDEV-NOTE: Otimizado — limit(10000) como trava de seguranca
   const { data: eventos } = await supabase
     .from('eventos_analytics_formularios')
     .select('tipo_evento, dados_evento, tempo_no_campo_segundos')
     .eq('formulario_id', formularioId)
     .in('tipo_evento', ['foco_campo', 'saida_campo', 'erro_campo'])
+    .limit(10000)
 
   if (!eventos || eventos.length === 0) return []
 
