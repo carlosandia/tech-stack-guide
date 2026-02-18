@@ -143,7 +143,16 @@ function parseMimeMessage(raw: string): { html: string; text: string } {
   const encodingMatch = headers.match(
     /Content-Transfer-Encoding:\s*([^\n]+)/i
   );
-  const encoding = encodingMatch ? encodingMatch[1].trim() : "7bit";
+  let encoding = encodingMatch ? encodingMatch[1].trim() : "7bit";
+
+  // AIDEV-NOTE: Auto-detect base64 when Content-Transfer-Encoding is missing
+  if (!encodingMatch && body.trim().length > 100) {
+    const sample = body.trim().replace(/\s/g, "");
+    if (/^[A-Za-z0-9+/=]+$/.test(sample.substring(0, 200))) {
+      console.log("[sync-emails] Auto-detected base64 encoding (no CTE header)");
+      encoding = "base64";
+    }
+  }
 
   const decoded = decodeContentBody(body, encoding, charset);
   if (contentType.includes("text/html")) {
@@ -191,7 +200,15 @@ function parseMultipart(
     const encodingMatch = partHeaders.match(
       /Content-Transfer-Encoding:\s*([^\n]+)/i
     );
-    const encoding = encodingMatch ? encodingMatch[1].trim() : "7bit";
+    let encoding = encodingMatch ? encodingMatch[1].trim() : "7bit";
+
+    // AIDEV-NOTE: Auto-detect base64 in MIME parts without CTE header
+    if (!encodingMatch && partBody.trim().length > 100) {
+      const sample = partBody.trim().replace(/\s/g, "");
+      if (/^[A-Za-z0-9+/=]+$/.test(sample.substring(0, 200))) {
+        encoding = "base64";
+      }
+    }
 
     if (contentType.includes("text/html") && !html) {
       html = decodeContentBody(partBody, encoding, charset);

@@ -130,6 +130,28 @@ function looksLikeHtml(str: string): boolean {
   return /^<!DOCTYPE|^<html|^<head|^<body|^<table|^<div/i.test(t)
 }
 
+// AIDEV-NOTE: Detecta e decodifica strings base64 brutas (fallback para MIME parser)
+function tryDecodeBase64(str: string): string | null {
+  if (!str || str.length < 100) return null
+  const trimmed = str.trim()
+  // Verifica se parece base64: apenas chars válidos e comprimento razoável
+  if (!/^[A-Za-z0-9+/=\s]+$/.test(trimmed)) return null
+  // Deve ter poucas quebras de linha relativas ao comprimento (não é texto normal)
+  const nonWhitespace = trimmed.replace(/\s/g, '')
+  if (nonWhitespace.length < 50) return null
+  try {
+    const binaryStr = atob(nonWhitespace)
+    const bytes = Uint8Array.from(binaryStr, c => c.charCodeAt(0))
+    const decoded = new TextDecoder('utf-8', { fatal: false }).decode(bytes)
+    // Verificar se o resultado é legível (não tem muitos chars de controle)
+    const controlChars = decoded.replace(/[\x20-\x7E\xA0-\xFF\n\r\t]/g, '')
+    if (controlChars.length > decoded.length * 0.1) return null
+    return decoded
+  } catch {
+    return null
+  }
+}
+
 export function EmailViewer({
   email,
   isLoading,
@@ -196,6 +218,12 @@ export function EmailViewer({
       const text = email.corpo_texto.trim()
       if (looksLikeHtml(text) || text.includes('=3D"') || text.includes("=3D'")) {
         html = text
+      } else {
+        // AIDEV-NOTE: Fallback base64 — corpo pode estar codificado em base64 bruto
+        const decoded = tryDecodeBase64(text)
+        if (decoded && looksLikeHtml(decoded)) {
+          html = decoded
+        }
       }
     }
 
@@ -244,11 +272,22 @@ export function EmailViewer({
     // AIDEV-NOTE: CSP meta tag para silenciar warnings residuais no iframe sandbox
     const cspMeta = '<meta http-equiv="Content-Security-Policy" content="script-src \'none\'">'
 
-    // Inject <base target="_blank"> + CSP
+    // AIDEV-NOTE: CSS de contenção para evitar scroll horizontal no iframe
+    const containmentCss = `<style>
+html, body { overflow-x: hidden !important; max-width: 100% !important; word-wrap: break-word; overflow-wrap: break-word; }
+* { max-width: 100% !important; box-sizing: border-box; }
+table { max-width: 100% !important; table-layout: fixed; width: 100% !important; }
+img { max-width: 100% !important; height: auto !important; }
+pre, code { white-space: pre-wrap !important; word-break: break-all; }
+a { word-break: break-all; }
+td, th { word-wrap: break-word; overflow-wrap: break-word; }
+</style>`
+
+    // Inject <base target="_blank"> + CSP + containment CSS
     if (sanitized.includes('<head>')) {
-      return sanitized.replace('<head>', `<head>${cspMeta}<base target="_blank">`)
+      return sanitized.replace('<head>', `<head>${cspMeta}${containmentCss}<base target="_blank">`)
     }
-    return `<head>${cspMeta}<base target="_blank"></head>${sanitized}`
+    return `<head>${cspMeta}${containmentCss}<base target="_blank"></head>${sanitized}`
   }, [email?.corpo_html, email?.corpo_texto])
 
   if (isLoading) {
@@ -492,7 +531,7 @@ export function EmailViewer({
           />
         ) : email.corpo_texto ? (
           <pre className="text-sm text-foreground whitespace-pre-wrap font-sans leading-relaxed px-5 py-3">
-            {email.corpo_texto}
+            {tryDecodeBase64(email.corpo_texto) || email.corpo_texto}
           </pre>
         ) : (
           <p className="text-sm text-muted-foreground italic px-5 py-3">Sem conteúdo</p>
