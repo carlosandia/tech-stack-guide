@@ -11,6 +11,8 @@ import { AgendarMensagemPopover } from './AgendarMensagemPopover'
 import { AnexosMenu } from './AnexosMenu'
 import { AudioRecorder } from './AudioRecorder'
 import { EmojiPicker } from './EmojiPicker'
+import { SugestaoCorrecao } from './SugestaoCorrecao'
+import { useAutoCorrect } from '../hooks/useAutoCorrect'
 import type { Mensagem } from '../services/conversas.api'
 
 interface ChatInputProps {
@@ -47,6 +49,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
   const [anexosOpen, setAnexosOpen] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
   const [emojiOpen, setEmojiOpen] = useState(false)
+  const [cursorPos, setCursorPos] = useState(0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useImperativeHandle(ref, () => ({
@@ -111,6 +114,33 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
   const currentText = tab === 'responder' ? texto : notaTexto
   const isNota = tab === 'nota'
   const hasText = currentText.trim().length > 0
+
+  // AIDEV-NOTE: Auto-correct — detecta palavra atual e sugere correção
+  const autoCorrect = useAutoCorrect(
+    tab === 'responder' ? texto : notaTexto,
+    cursorPos
+  )
+
+  const handleAutoCorrectSelect = useCallback((correcao: string) => {
+    if (!autoCorrect) return
+    const { start, end } = autoCorrect
+    const txt = tab === 'responder' ? texto : notaTexto
+    const newText = txt.slice(0, start) + correcao + txt.slice(end)
+    if (tab === 'responder') {
+      setTexto(newText)
+    } else {
+      setNotaTexto(newText)
+    }
+    const newPos = start + correcao.length
+    setCursorPos(newPos)
+    requestAnimationFrame(() => {
+      const el = textareaRef.current
+      if (el) {
+        el.selectionStart = el.selectionEnd = newPos
+        el.focus()
+      }
+    })
+  }, [autoCorrect, tab, texto, notaTexto])
 
   return (
     <div className="flex-shrink-0 border-t border-border">
@@ -188,12 +218,22 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
           <div className="flex items-end gap-1.5 sm:gap-2">
             {/* Input container with icons inside */}
             <div className={`
-              flex-1 flex items-end rounded-lg border transition-colors
+              flex-1 flex flex-col rounded-lg border transition-colors
               ${isNota
                 ? 'bg-warning-muted/20 border-warning/30 focus-within:ring-1 focus-within:ring-warning/50'
                 : 'bg-background border-border focus-within:ring-1 focus-within:ring-ring'
               }
             `}>
+              {/* Barra de sugestões de correção ortográfica */}
+              {autoCorrect && (
+                <SugestaoCorrecao
+                  palavraOriginal={autoCorrect.palavraOriginal}
+                  sugestoes={autoCorrect.sugestoes}
+                  onSelect={handleAutoCorrectSelect}
+                />
+              )}
+
+              <div className="flex items-end">
               {/* Left icons inside input (only for reply mode) */}
               {!isNota && (
                 <div className="flex items-center gap-0 pl-1 pb-[7px] flex-shrink-0">
@@ -268,11 +308,16 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
                 onChange={(e) => {
                   handleInputChange(e.target.value)
                   autoResize(e.target)
+                  setCursorPos(e.target.selectionStart)
                 }}
                 onKeyDown={handleKeyDown}
+                onKeyUp={(e) => setCursorPos((e.target as HTMLTextAreaElement).selectionStart)}
+                onClick={(e) => setCursorPos((e.target as HTMLTextAreaElement).selectionStart)}
                 onPaste={!isNota ? handlePaste : undefined}
                 placeholder={isNota ? 'Escreva uma nota privada...' : 'Digite uma mensagem...'}
                 disabled={disabled}
+                spellCheck
+                lang="pt-BR"
                 rows={1}
                 className="
                   flex-1 w-full resize-none bg-transparent px-2 py-2.5 text-sm
@@ -313,6 +358,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
                   )}
                 </div>
               )}
+              </div>
             </div>
 
             {/* Send button (outside, appears when has text) */}
