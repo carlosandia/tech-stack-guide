@@ -1,100 +1,143 @@
 
 
-## Correcoes: Menu do usuario em /configuracoes + Escala do /perfil
+## Corretor Ortografico Inline — Modulo /conversas
+
+Sistema de sugestoes de correcao ortografica em tempo real no ChatInput, similar ao teclado do celular (conforme imagem de referencia).
 
 ---
 
-### 1. ConfigHeader sem "Meu Perfil" (Bug visual)
+### Abordagem
 
-O menu do usuario no header de `/configuracoes` (`ConfigHeader.tsx`) tem apenas "Sair", enquanto o header principal do CRM (`AppLayout.tsx`) tem "Meu Perfil" + "Sair". Falta adicionar o link para `/perfil`.
+Combinacao de duas camadas:
 
-**Correcao**: Adicionar um `NavLink` para `/perfil` entre o bloco de info do usuario e o botao "Sair", identico ao padrao do `AppLayout.tsx`. Importar `User` do lucide-react e `NavLink` do react-router-dom.
+1. **Nativa do browser**: Ativar `spellcheck="true"` e `lang="pt-BR"` no textarea para sublinhado vermelho nativo em palavras incorretas (funciona com right-click para corrigir).
 
-**Arquivo**: `src/modules/configuracoes/components/layout/ConfigHeader.tsx`
+2. **Barra de sugestoes customizada**: Componente visual acima do textarea que detecta a palavra sendo digitada e mostra sugestoes de correcao em chips clicaveis (identico ao teclado do celular na imagem).
 
-Adicionar entre a div de info (linha 92) e o botao Sair (linha 93):
+---
 
-```typescript
-<NavLink
-  to="/perfil"
-  onClick={() => setUserMenuOpen(false)}
-  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-foreground hover:bg-accent"
->
-  <User className="w-4 h-4" />
-  Meu Perfil
-</NavLink>
+### UX da Barra de Sugestoes
+
+- Aparece **acima do textarea**, dentro do container do input
+- Mostra ate **3 sugestoes** lado a lado: a palavra original entre aspas + ate 2 correcoes
+- Ao clicar numa sugestao, substitui a palavra atual no texto
+- Desaparece quando a palavra esta correta ou o usuario continua digitando
+- Animacao suave de entrada (fade + slide-up)
+- Segue design system: `bg-muted`, `rounded-md`, `text-sm`, bordas `border-border`
+
+Layout visual:
+
+```text
++-----------------------------------------------+
+|  "Sao"  |  Sao  |  [ Sao ]                    |  <-- barra de sugestoes
++-----------------------------------------------+
+| [emoji] [+]  Digite uma mensagem...  [mic]    |  <-- textarea
++-----------------------------------------------+
 ```
 
 ---
 
-### 2. PerfilPage — Problemas de Escala
+### Dicionario de Correcoes PT-BR
 
-#### 2.1 `useState` usado como `useEffect` (Bug)
+Um mapa estatico com as correcoes mais comuns de acentuacao em portugues:
 
-Linha 54: `useState(() => { loadTelefone() })` e um hack que funciona mas e semanticamente incorreto. `useState` nao deve ser usado para side effects. Isso pode causar comportamento inesperado em strict mode (executa 2x no dev) e nao respeita o ciclo de vida correto.
+- `sao` -> `Sao`, `sao` (original entre aspas)
+- `nao` -> `nao`
+- `voce` -> `voce`
+- `tambem` -> `tambem`
+- `ja` -> `ja`
+- `so` -> `so`
+- `ate` -> `ate`
+- `obrigacao` -> `obrigacao`
+- `informacao` -> `informacao`
+- `entao` -> `entao`
+- ~200 palavras mais comuns sem acento
 
-**Correcao**: Substituir por `useEffect` com dependencia em `user?.id`.
+O dicionario sera um arquivo separado (`src/modules/conversas/utils/dicionario-correcoes.ts`) para facil manutencao e expansao.
+
+---
+
+### Logica de Deteccao
+
+1. A cada mudanca no texto, extrair a **ultima palavra** sendo digitada (antes do cursor)
+2. Converter para lowercase e buscar no dicionario
+3. Se houver match, mostrar a barra com sugestoes
+4. Ao clicar na sugestao, substituir a palavra no texto preservando a posicao do cursor
+5. A barra some apos 1 segundo sem match ou ao pressionar espaco apos aceitar
+
+---
+
+### Plano de Acao
+
+| # | Acao | Arquivo |
+|---|------|---------|
+| 1 | Criar dicionario PT-BR de correcoes | `src/modules/conversas/utils/dicionario-correcoes.ts` |
+| 2 | Criar hook `useAutoCorrect` | `src/modules/conversas/hooks/useAutoCorrect.ts` |
+| 3 | Criar componente `SugestaoCorrecao` | `src/modules/conversas/components/SugestaoCorrecao.tsx` |
+| 4 | Integrar no ChatInput + ativar spellcheck nativo | `src/modules/conversas/components/ChatInput.tsx` |
+
+---
+
+### Detalhes Tecnicos
+
+**1. Dicionario (`dicionario-correcoes.ts`)**
+
+Mapa `Record<string, string[]>` onde a chave e a palavra sem acento (lowercase) e o valor sao as sugestoes ordenadas por relevancia:
 
 ```typescript
-import { useState, useRef, useCallback, useEffect } from 'react'
-
-// ...
-useEffect(() => { loadTelefone() }, [loadTelefone])
-```
-
-#### 2.2 `loadTelefone` sem tratamento de erro
-
-Se a query falhar, o erro e silenciosamente ignorado e `telefoneLoaded` nunca vira `true` (impedindo retry). Tambem nao tem `telefoneLoaded` setado no catch.
-
-**Correcao**: Adicionar try/catch com `setTelefoneLoaded(true)` no finally.
-
-```typescript
-const loadTelefone = useCallback(async () => {
-  if (telefoneLoaded || !user?.id) return
-  try {
-    const { data } = await supabase
-      .from('usuarios')
-      .select('telefone')
-      .eq('id', user.id)
-      .single()
-    if (data?.telefone) setTelefone(formatPhone(data.telefone))
-  } catch {
-    // silencioso - telefone e opcional
-  } finally {
-    setTelefoneLoaded(true)
-  }
-}, [user?.id, telefoneLoaded])
-```
-
-#### 2.3 Upload de avatar sem `.limit()` ou validacao de tamanho
-
-O upload aceita qualquer arquivo `image/*` sem validacao de tamanho antes da compressao. Para escala, um usuario pode tentar enviar um arquivo de 50MB que vai travar o browser durante a compressao.
-
-**Correcao**: Adicionar validacao de tamanho maximo (5MB) antes de comprimir:
-
-```typescript
-const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
-if (file.size > MAX_FILE_SIZE) {
-  toast.error('A imagem deve ter no maximo 5MB')
-  return
+export const CORRECOES_PT_BR: Record<string, string[]> = {
+  'sao': ['Sao'],
+  'nao': ['Nao'],
+  'voce': ['Voce'],
+  'tambem': ['Tambem'],
+  'entao': ['Entao'],
+  'ja': ['Ja'],
+  'ate': ['Ate'],
+  'so': ['So'],
+  // ... ~200 palavras comuns
 }
 ```
 
+**2. Hook `useAutoCorrect`**
+
+```typescript
+function useAutoCorrect(texto: string, cursorPos: number) {
+  // Extrai palavra atual antes do cursor
+  // Busca no dicionario
+  // Retorna { palavraOriginal, sugestoes, range }
+}
+```
+
+**3. Componente `SugestaoCorrecao`**
+
+- Recebe: `palavraOriginal`, `sugestoes[]`, `onSelect(correcao)`
+- Renderiza chips clicaveis seguindo o design system
+- Chip da palavra original com aspas (manter como esta)
+- Chips de sugestao com destaque (`bg-accent`, `font-medium`)
+
+**4. Integracao no ChatInput**
+
+- Adicionar `spellcheck={true}` e `lang="pt-BR"` no textarea
+- Renderizar `<SugestaoCorrecao>` entre os icones e o textarea
+- Ao selecionar sugestao, substituir a palavra no texto e reposicionar cursor
+
 ---
 
-### 3. Resumo
+### Arquivos impactados
 
-| # | Acao | Arquivo | Impacto |
-|---|------|---------|---------|
-| 1 | Adicionar "Meu Perfil" no menu | `ConfigHeader.tsx` | Paridade com header CRM |
-| 2 | Trocar useState por useEffect | `PerfilPage.tsx` | Corrige side-effect incorreto |
-| 3 | Try/catch no loadTelefone | `PerfilPage.tsx` | Resiliencia |
-| 4 | Validacao de tamanho no upload | `PerfilPage.tsx` | Previne travamento |
+| Arquivo | Tipo |
+|---------|------|
+| `src/modules/conversas/utils/dicionario-correcoes.ts` | Novo |
+| `src/modules/conversas/hooks/useAutoCorrect.ts` | Novo |
+| `src/modules/conversas/components/SugestaoCorrecao.tsx` | Novo |
+| `src/modules/conversas/components/ChatInput.tsx` | Editado |
 
-### 4. Garantias
+### Garantias
 
-- Nenhuma mudanca visual nos componentes existentes
-- Menu do ConfigHeader fica identico ao do AppLayout
-- PerfilPage mantem mesma aparencia e funcionalidade
-- Nenhuma prop ou hook renomeado
+- Nenhum componente existente alterado visualmente
+- ChatInput mantem todas as props e funcionalidades atuais
+- Barra de sugestoes e aditiva (nao interfere no fluxo existente)
+- Spellcheck nativo nao conflita com o sistema customizado
+- Performance: busca no dicionario e O(1) (hashmap), sem debounce necessario
+- Dicionario estatico, sem chamadas de rede
 
