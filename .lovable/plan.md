@@ -1,67 +1,60 @@
 
 
-# Nova Secao de Modulos na Landing Page
+# Melhoria Visual da Landing Page: Remoção de Labels e Diferenciação de Seções
 
-## Objetivo
+## O que será feito
 
-Substituir a atual `FeaturesSection` generica por uma nova secao `ModulesSection` estrategica, que apresenta cada modulo do CRM Renove com copywriting persuasivo focado nos beneficios e na transformacao que cada um traz para o ICP.
+### 1. Remover todos os subtítulos azuis (labels uppercase)
 
-## Estrategia de Conteudo
+Serão removidas as tags `<p>` com classe `text-primary uppercase` de **7 seções**:
+- PainSection: "Isso soa familiar?"
+- SolutionSection: "A transformação"
+- ModulesSection: "Módulos"
+- HowItWorksSection: "Simples de começar"
+- TestimonialsSection: "Quem já usa, aprova"
+- ComparisonSection: "Antes vs depois"
+- FAQSection: "Dúvidas frequentes"
 
-A secao tera um formato de **tabs/accordion interativo** onde cada modulo e apresentado com:
-- Titulo do modulo com icone
-- Frase de beneficio principal (headline curta e impactante)
-- 3-4 bullet points de beneficios traduzidos em linguagem de dor/solucao
-- Nao sera extenso - cada modulo tera no maximo 4 linhas de conteudo
+### 2. Substituir todos os travessões (—)
 
-## Modulos a Apresentar (7 modulos)
+Trocar "—" por vírgula ou ponto em:
+- SolutionSection (2 ocorrências nos textos dos pilares e subtítulo)
+- ModulesSection (2 ocorrências nos benefícios)
+- HowItWorksSection (botão CTA)
+- FinalCTASection (botão CTA)
 
-1. **Formularios** - "Crie formularios sem depender de desenvolvedor"
-2. **Contatos** - "Sua base de leads organizada e inteligente"
-3. **Conversas** - "WhatsApp profissional dentro do CRM"
-4. **Automacos** - "Sua operacao no piloto automatico"
-5. **Negocios** - "Pipeline completo com qualificacao e metas"
-6. **Caixa de Entrada** - "E-mail integrado sem sair do CRM"
-7. **Tarefas** - "Nenhuma atividade fica para tras"
+### 3. Diferenciação visual entre seções (recomendação UX)
 
-## Design da Secao
+Para evitar cansaço visual e melhorar retenção, aplicaremos um padrão de **alternância rítmica** com 3 variações de fundo:
 
-Layout com navegacao lateral (desktop) ou tabs scrollaveis (mobile):
-- Lado esquerdo: lista de modulos clicaveis (tabs verticais)
-- Lado direito: conteudo do modulo selecionado com bullets de beneficios
-- Visual limpo, sem imagens embutidas, usando icones lucide-react
-- Fundo alternado (`bg-muted/30`) para destaque na pagina
+| Seção | Fundo Atual | Novo Fundo |
+|-------|------------|------------|
+| Hero | bg-background | Mantém (branco com gradiente sutil) |
+| SocialProof | bg-muted/50 | Mantém (barra cinza com borda) |
+| **PainSection** | bg-background | **bg-muted/30** (cinza claro para agrupar com "dor") |
+| **SolutionSection** | bg-muted/30 | **bg-background** (branco, contraste com a anterior) |
+| **ModulesSection** | bg-muted/30 | **Gradiente sutil primary**: `bg-gradient-to-b from-primary/[0.03] to-primary/[0.06]` |
+| **HowItWorksSection** | bg-muted/30 | **bg-background** (branco limpo para os 3 passos) |
+| **TestimonialsSection** | bg-background | **bg-muted/30** (cinza para destaque dos cards) |
+| **ComparisonSection** | bg-muted/30 | **bg-background** (branco para o comparativo) |
+| **FAQSection** | bg-background | **bg-muted/30** (cinza para alternância) |
+| FinalCTA | bg-primary | Mantém (azul forte) |
 
-## Detalhes Tecnicos
+A lógica de UX aplicada:
+- **Alternância consistente**: branco e cinza se revezam, criando ritmo visual
+- **Seção de destaque**: ModulesSection ganha um gradiente sutil com tom do primary, sinalizando que é a seção principal do produto
+- **Ritmo de leitura**: o olho descansa ao alternar entre fundos, reduzindo fadiga visual e aumentando scroll depth
 
-### Arquivo a Criar
-- `src/modules/public/components/landing/ModulesSection.tsx`
+## Detalhes Técnicos
 
-### Arquivos a Modificar
-- `src/modules/public/components/landing/FeaturesSection.tsx` - Sera removido/substituido
-- `src/modules/public/pages/LandingPage.tsx` - Trocar `FeaturesSection` por `ModulesSection`
+### Arquivos a editar (8 arquivos)
 
-### Implementacao
-- Componente com estado interno (`useState`) para tab ativa
-- 7 tabs, uma por modulo
-- Icones do `lucide-react` para cada modulo
-- Responsivo: tabs horizontais scrollaveis no mobile, verticais no desktop
-- Animacao suave de transicao entre tabs (CSS transition)
-- Seguindo o Design System: cores primarias, tipografia Inter, espacamentos grid 8px, border-radius conforme DS
-
-### Copywriting por Modulo (resumido e estrategico)
-
-**Formularios**: Sem depender de dev. Teste A/B. QR Code. Notificacao automatica. Logica condicional. Analytics.
-
-**Contatos**: Importacao em massa. Segmentacao. Historico de oportunidades. Colunas customizaveis. Vinculo com empresa.
-
-**Conversas**: Sincronizado com WhatsApp. Correcao ortografica. Agendamento texto/audio. Notas privadas. Mensagens prontas. Anexos completos.
-
-**Automacoes**: Editor visual drag-and-drop. Gatilhos por evento. Condicoes e validacoes. Distribuicao Round Robin. Acoes de CRM, comunicacao e integracao.
-
-**Negocios**: Pipeline Kanban configuravel. Qualificacao MQL. Rodizio de leads. Tarefas de cadencia comercial. Scripts via WhatsApp/e-mail. Metas por equipe e individual.
-
-**Caixa de Entrada**: E-mail completo sem sair do CRM. Enviar, responder, consultar. Rastreamento de abertura.
-
-**Tarefas**: Central de tarefas unificada. Visualizacao e execucao rapida. Vinculada a oportunidades e contatos.
+1. `PainSection.tsx` - Remover label, trocar bg para `bg-muted/30`
+2. `SolutionSection.tsx` - Remover label, trocar bg para `bg-background`, remover travessões
+3. `ModulesSection.tsx` - Remover label, aplicar gradiente sutil, remover travessões
+4. `HowItWorksSection.tsx` - Remover label, trocar bg para `bg-background`, remover travessão do botão
+5. `TestimonialsSection.tsx` - Remover label, trocar bg para `bg-muted/30`
+6. `ComparisonSection.tsx` - Remover label, trocar bg para `bg-background`
+7. `FAQSection.tsx` - Remover label, trocar bg para `bg-muted/30`
+8. `FinalCTASection.tsx` - Remover travessão do botão CTA
 
