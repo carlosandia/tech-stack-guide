@@ -1,6 +1,6 @@
 /**
  * AIDEV-NOTE: Hook para detecção de palavras e sugestão de correção ortográfica
- * Extrai a palavra atual antes do cursor e busca no dicionário PT-BR
+ * Detecta tanto a palavra sendo digitada quanto a palavra recém-completada (após espaço)
  * Retorna sugestões se houver match, null caso contrário
  */
 
@@ -23,15 +23,27 @@ export function useAutoCorrect(
   return useMemo(() => {
     if (!texto || cursorPos <= 0) return null
 
-    // Encontrar início da palavra atual (antes do cursor)
-    let start = cursorPos
-    while (start > 0 && /\S/.test(texto[start - 1])) {
-      start--
+    let start: number
+    let end: number
+
+    // AIDEV-NOTE: Se cursor está após espaço, olhar a palavra anterior (recém-completada)
+    if (texto[cursorPos - 1] === ' ') {
+      end = cursorPos - 1
+      start = end
+      while (start > 0 && /\S/.test(texto[start - 1])) {
+        start--
+      }
+    } else {
+      // Palavra sendo digitada (antes do cursor)
+      end = cursorPos
+      start = end
+      while (start > 0 && /\S/.test(texto[start - 1])) {
+        start--
+      }
     }
 
-    // Palavra atual = do início até o cursor
-    const palavra = texto.slice(start, cursorPos)
-    if (palavra.length < 2) return null
+    const palavra = texto.slice(start, end)
+    if (palavra.length < 1) return null
 
     // Buscar no dicionário (lowercase)
     const key = palavra.toLowerCase()
@@ -40,13 +52,13 @@ export function useAutoCorrect(
     if (!sugestoes || sugestoes.length === 0) return null
 
     // Não sugerir se a palavra já está correta (é igual a uma das sugestões)
-    if (sugestoes.some(s => s === palavra)) return null
+    if (sugestoes.some(s => s.toLowerCase() === key && s === palavra)) return null
 
     return {
       palavraOriginal: palavra,
       sugestoes,
       start,
-      end: cursorPos,
+      end,
     }
   }, [texto, cursorPos])
 }

@@ -50,6 +50,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
   const [isRecording, setIsRecording] = useState(false)
   const [emojiOpen, setEmojiOpen] = useState(false)
   const [cursorPos, setCursorPos] = useState(0)
+  const [dismissedWord, setDismissedWord] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useImperativeHandle(ref, () => ({
@@ -60,8 +61,40 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
     el.style.height = 'auto'
     el.style.height = `${Math.min(el.scrollHeight, 150)}px`
   }, [])
+  // AIDEV-NOTE: Auto-correct — detecta palavra atual e sugere correção
+  const autoCorrect = useAutoCorrect(
+    tab === 'responder' ? texto : notaTexto,
+    cursorPos
+  )
+
+  // showAutoCorrect considera estado de dismiss por palavra
+  const showAutoCorrect = autoCorrect && dismissedWord !== autoCorrect.palavraOriginal
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Escape' && showAutoCorrect) {
+      setDismissedWord(autoCorrect!.palavraOriginal)
+      return
+    }
+    if (e.key === ' ' && showAutoCorrect) {
+      e.preventDefault()
+      handleAutoCorrectSelect(autoCorrect!.sugestoes[0])
+      // Inserir o espaço após a substituição
+      requestAnimationFrame(() => {
+        const el = textareaRef.current
+        if (el) {
+          const p = el.selectionStart
+          const setter = tab === 'responder' ? setTexto : setNotaTexto
+          setter(prev => prev.slice(0, p) + ' ' + prev.slice(p))
+          requestAnimationFrame(() => {
+            if (el) {
+              el.selectionStart = el.selectionEnd = p + 1
+              setCursorPos(p + 1)
+            }
+          })
+        }
+      })
+      return
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSend()
@@ -115,11 +148,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
   const isNota = tab === 'nota'
   const hasText = currentText.trim().length > 0
 
-  // AIDEV-NOTE: Auto-correct — detecta palavra atual e sugere correção
-  const autoCorrect = useAutoCorrect(
-    tab === 'responder' ? texto : notaTexto,
-    cursorPos
-  )
+  
 
   const handleAutoCorrectSelect = useCallback((correcao: string) => {
     if (!autoCorrect) return
@@ -225,10 +254,10 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
               }
             `}>
               {/* Barra de sugestões de correção ortográfica */}
-              {autoCorrect && (
+              {showAutoCorrect && (
                 <SugestaoCorrecao
-                  palavraOriginal={autoCorrect.palavraOriginal}
-                  sugestoes={autoCorrect.sugestoes}
+                  palavraOriginal={autoCorrect!.palavraOriginal}
+                  sugestoes={autoCorrect!.sugestoes}
                   onSelect={handleAutoCorrectSelect}
                 />
               )}
