@@ -3,9 +3,12 @@
  * Edita estilo INDIVIDUAL por campo (salvo em validacoes.estilo_campo)
  * Merge: global defaults (estiloCampos) + overrides individuais
  * Botão "Aplicar em todos" copia estilo do campo para todos os outros
+ * 
+ * AIDEV-NOTE: Usa estado local (localCampo) para evitar delay de digitação.
+ * O onUpdate para o servidor é debounced (800ms após parar de digitar).
  */
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { X, Copy, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -53,12 +56,37 @@ function mergeEstilo(global: EstiloCampos, individual: Partial<EstiloCampos>): E
 
 /**
  * AIDEV-NOTE: Seção de espaçamento individual por campo
+ * Usa estado local + onBlur para evitar requisições a cada keystroke
  */
 function EspacamentoCampo({ campo, onUpdate }: { campo: CampoFormulario; onUpdate: (payload: Partial<CampoFormulario>) => void }) {
   const validacoes = (campo.validacoes || {}) as Record<string, unknown>
   const getValue = (key: string, fallback: string) => String(validacoes[key] ?? fallback)
-  const updateSpacing = (key: string, val: string) => {
-    onUpdate({ validacoes: { ...validacoes, [key]: val } })
+
+  // Estado local para digitação fluída
+  const [localValues, setLocalValues] = useState({
+    spacing_top: getValue('spacing_top', '0'),
+    spacing_bottom: getValue('spacing_bottom', '0'),
+    spacing_left: getValue('spacing_left', '0'),
+    spacing_right: getValue('spacing_right', '0'),
+  })
+
+  // Sync quando o campo muda (seleção de outro campo)
+  useEffect(() => {
+    setLocalValues({
+      spacing_top: getValue('spacing_top', '0'),
+      spacing_bottom: getValue('spacing_bottom', '0'),
+      spacing_left: getValue('spacing_left', '0'),
+      spacing_right: getValue('spacing_right', '0'),
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [campo.id])
+
+  const handleLocalChange = (key: string, val: string) => {
+    setLocalValues(prev => ({ ...prev, [key]: val }))
+  }
+
+  const handleBlur = (key: string) => {
+    onUpdate({ validacoes: { ...validacoes, [key]: localValues[key as keyof typeof localValues] } })
   }
 
   return (
@@ -67,22 +95,23 @@ function EspacamentoCampo({ campo, onUpdate }: { campo: CampoFormulario; onUpdat
         Espaçamento do Campo
       </p>
       <div className="grid grid-cols-2 gap-2">
-        <div className="space-y-1">
-          <Label className="text-[10px] text-muted-foreground">Topo</Label>
-          <Input value={getValue('spacing_top', '0')} onChange={(e) => updateSpacing('spacing_top', e.target.value)} placeholder="0" className="h-7 text-xs px-2" />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-[10px] text-muted-foreground">Baixo</Label>
-          <Input value={getValue('spacing_bottom', '0')} onChange={(e) => updateSpacing('spacing_bottom', e.target.value)} placeholder="0" className="h-7 text-xs px-2" />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-[10px] text-muted-foreground">Esquerda</Label>
-          <Input value={getValue('spacing_left', '0')} onChange={(e) => updateSpacing('spacing_left', e.target.value)} placeholder="0" className="h-7 text-xs px-2" />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-[10px] text-muted-foreground">Direita</Label>
-          <Input value={getValue('spacing_right', '0')} onChange={(e) => updateSpacing('spacing_right', e.target.value)} placeholder="0" className="h-7 text-xs px-2" />
-        </div>
+        {([
+          { key: 'spacing_top', label: 'Topo' },
+          { key: 'spacing_bottom', label: 'Baixo' },
+          { key: 'spacing_left', label: 'Esquerda' },
+          { key: 'spacing_right', label: 'Direita' },
+        ] as const).map(({ key, label }) => (
+          <div key={key} className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">{label}</Label>
+            <Input
+              value={localValues[key]}
+              onChange={(e) => handleLocalChange(key, e.target.value)}
+              onBlur={() => handleBlur(key)}
+              placeholder="0"
+              className="h-7 text-xs px-2"
+            />
+          </div>
+        ))}
       </div>
       <p className="text-[10px] text-muted-foreground">Valores em px</p>
     </div>
@@ -92,13 +121,48 @@ function EspacamentoCampo({ campo, onUpdate }: { campo: CampoFormulario; onUpdat
 export function CampoSidebarPanel({ campo, onUpdate, onClose, showConfig, estiloCampos, onChangeEstiloCampos: _onChangeEstiloCampos, allCampos, onUpdateCampoById, fullscreen }: Props) {
   const [tab, setTab] = useState<TabType>('config')
 
-  // AIDEV-NOTE: Estilo individual do campo, merged com global
-  const campoEstiloIndividual = useMemo(() => getCampoEstiloIndividual(campo), [campo])
+  // AIDEV-NOTE: Estado local do campo para digitação fluída sem delay
+  const [localCampo, setLocalCampo] = useState<CampoFormulario>(campo)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Sync quando o campo selecionado muda (outro campo clicado)
+  useEffect(() => {
+    setLocalCampo(campo)
+  }, [campo.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // AIDEV-NOTE: onUpdate local: atualiza estado imediatamente, debounce a mutation
+  const handleLocalUpdate = useCallback((payload: Partial<CampoFormulario>) => {
+    setLocalCampo(prev => {
+      const next = { ...prev, ...payload }
+      // Merge validacoes deeply
+      if (payload.validacoes) {
+        next.validacoes = {
+          ...((prev.validacoes || {}) as Record<string, unknown>),
+          ...((payload.validacoes || {}) as Record<string, unknown>),
+        }
+      }
+      return next
+    })
+
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      onUpdate(payload)
+    }, 800)
+  }, [onUpdate])
+
+  // Cleanup debounce on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
+  }, [])
+
+  // AIDEV-NOTE: Estilo individual do campo, merged com global — usa localCampo
+  const campoEstiloIndividual = useMemo(() => getCampoEstiloIndividual(localCampo), [localCampo])
   const mergedEstilo = useMemo(() => mergeEstilo(estiloCampos, campoEstiloIndividual), [estiloCampos, campoEstiloIndividual])
 
   // Quando o user edita no form de estilo, salva como override individual no campo
   const handleEstiloChange = useCallback((newEstilo: EstiloCampos) => {
-    // Calcular diff entre newEstilo e o global para salvar apenas os overrides
     const overrides: Partial<EstiloCampos> = {}
     for (const [key, val] of Object.entries(newEstilo)) {
       const globalVal = (estiloCampos as any)[key]
@@ -106,19 +170,17 @@ export function CampoSidebarPanel({ campo, onUpdate, onClose, showConfig, estilo
         (overrides as any)[key] = val
       }
     }
-    const validacoes = (campo.validacoes || {}) as Record<string, unknown>
-    onUpdate({
+    const validacoes = (localCampo.validacoes || {}) as Record<string, unknown>
+    handleLocalUpdate({
       validacoes: { ...validacoes, estilo_campo: overrides },
     })
-  }, [estiloCampos, campo.validacoes, onUpdate])
+  }, [estiloCampos, localCampo.validacoes, handleLocalUpdate])
 
   // Aplicar estilo deste campo em todos os outros
   const handleApplyToAll = useCallback(() => {
     if (!allCampos || !onUpdateCampoById) return
-    const validacoes = (campo.validacoes || {}) as Record<string, unknown>
+    const validacoes = (localCampo.validacoes || {}) as Record<string, unknown>
 
-    // AIDEV-NOTE: Copia o estilo merged completo (global + overrides) como override de cada campo
-    // Isso garante que todos os campos fiquem visualmente idênticos ao campo atual
     const estiloCompleto = { ...mergedEstilo }
 
     const spacingKeys = ['spacing_top', 'spacing_bottom', 'spacing_left', 'spacing_right']
@@ -128,18 +190,18 @@ export function CampoSidebarPanel({ campo, onUpdate, onClose, showConfig, estilo
     }
 
     for (const c of allCampos) {
-      if (c.id === campo.id) continue
+      if (c.id === localCampo.id) continue
       const cVal = (c.validacoes || {}) as Record<string, unknown>
       onUpdateCampoById(c.id, {
         validacoes: { ...cVal, estilo_campo: estiloCompleto, ...spacingAtual },
       })
     }
-  }, [campo, allCampos, onUpdateCampoById, mergedEstilo])
+  }, [localCampo, allCampos, onUpdateCampoById, mergedEstilo])
 
   const estiloContent = (
     <>
       <EstiloCamposForm value={mergedEstilo} onChange={handleEstiloChange} />
-      <EspacamentoCampo campo={campo} onUpdate={onUpdate} />
+      <EspacamentoCampo campo={localCampo} onUpdate={handleLocalUpdate} />
     </>
   )
 
@@ -190,7 +252,7 @@ export function CampoSidebarPanel({ campo, onUpdate, onClose, showConfig, estilo
         <div className="p-3 space-y-3 flex-1 overflow-y-auto">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-foreground truncate max-w-[240px]">
-              {campo.label || campo.nome}
+              {localCampo.label || localCampo.nome}
             </h3>
             <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={onClose}>
               <X className="w-4 h-4" />
@@ -198,7 +260,7 @@ export function CampoSidebarPanel({ campo, onUpdate, onClose, showConfig, estilo
           </div>
           {tabButtons}
           {tab === 'config' && (
-            <CampoConfigPanel campo={campo} onUpdate={onUpdate} onClose={onClose} hideHeader />
+            <CampoConfigPanel campo={localCampo} onUpdate={handleLocalUpdate} onClose={onClose} hideHeader />
           )}
           {tab === 'estilo' && estiloContent}
         </div>
@@ -218,7 +280,7 @@ export function CampoSidebarPanel({ campo, onUpdate, onClose, showConfig, estilo
       <div className="p-3 space-y-3 flex-1 overflow-y-auto">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-foreground truncate max-w-[180px]">
-            {campo.label || campo.nome}
+            {localCampo.label || localCampo.nome}
           </h3>
           <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={onClose}>
             <X className="w-4 h-4" />
@@ -226,7 +288,7 @@ export function CampoSidebarPanel({ campo, onUpdate, onClose, showConfig, estilo
         </div>
         {tabButtons}
         {tab === 'config' && (
-          <CampoConfigPanel campo={campo} onUpdate={onUpdate} onClose={onClose} hideHeader />
+          <CampoConfigPanel campo={localCampo} onUpdate={handleLocalUpdate} onClose={onClose} hideHeader />
         )}
         {tab === 'estilo' && estiloContent}
       </div>

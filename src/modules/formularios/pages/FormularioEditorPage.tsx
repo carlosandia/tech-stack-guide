@@ -323,15 +323,10 @@ export function FormularioEditorPage() {
     if (id) setShowConfig(true)
   }, [])
 
-  // AIDEV-NOTE: Debounce para evitar requisições a cada keystroke — salva 600ms após parar de digitar
-  const debouncedMutateRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const handleUpdateCampo = useCallback(
     (payload: Partial<CampoFormulario>) => {
       if (!selectedCampoId) return
-      if (debouncedMutateRef.current) clearTimeout(debouncedMutateRef.current)
-      debouncedMutateRef.current = setTimeout(() => {
-        atualizarCampo.mutate({ campoId: selectedCampoId, payload })
-      }, 600)
+      atualizarCampo.mutate({ campoId: selectedCampoId, payload })
     },
     [selectedCampoId, atualizarCampo]
   )
