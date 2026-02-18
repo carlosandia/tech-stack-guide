@@ -849,7 +849,7 @@ function FinalPreviewFields({ campos, estiloCampos, fontFamily, viewport = 'desk
           })()
 
           return (
-            <div key={campo.id} style={{ fontSize: '14px', marginBottom: '12px', width: '100%' }}>
+            <div key={campo.id} style={{ fontSize: '14px', width: '100%', padding: `${((campo.validacoes as Record<string, unknown>)?.spacing_top as string) || '0'}px ${((campo.validacoes as Record<string, unknown>)?.spacing_right as string) || '0'}px ${((campo.validacoes as Record<string, unknown>)?.spacing_bottom as string) || '0'}px ${((campo.validacoes as Record<string, unknown>)?.spacing_left as string) || '0'}px` }}>
               <div data-bloco-id={campo.id} style={{ display: 'flex', flexWrap: 'wrap', gap: `${colConfig.gap}px` }}>
                 {Array.from({ length: colConfig.colunas }).map((_, colIdx) => {
                   const children = campos
@@ -868,7 +868,7 @@ function FinalPreviewFields({ campos, estiloCampos, fontFamily, viewport = 'desk
                       {children.map(child => {
                         const childWidth = child.largura === '1/2' ? 'calc(50% - 4px)' : child.largura === '1/3' ? 'calc(33.333% - 5.333px)' : child.largura === '2/3' ? 'calc(66.666% - 2.666px)' : '100%'
                         return (
-                          <div key={child.id} style={{ fontSize: '14px', marginBottom: '12px', width: childWidth }}>
+                          <div key={child.id} style={{ fontSize: '14px', width: childWidth, padding: `${((child.validacoes as Record<string, unknown>)?.spacing_top as string) || '0'}px ${((child.validacoes as Record<string, unknown>)?.spacing_right as string) || '0'}px ${((child.validacoes as Record<string, unknown>)?.spacing_bottom as string) || '0'}px ${((child.validacoes as Record<string, unknown>)?.spacing_left as string) || '0'}px` }}>
                             {renderFinalCampo(
                               child, estiloCampos, fontFamily,
                               valores[child.id] || '',
@@ -894,7 +894,7 @@ function FinalPreviewFields({ campos, estiloCampos, fontFamily, viewport = 'desk
           : '100%'
 
         return (
-          <div key={campo.id} style={{ fontSize: '14px', marginBottom: '12px', width }}>
+          <div key={campo.id} style={{ fontSize: '14px', width, padding: `${((campo.validacoes as Record<string, unknown>)?.spacing_top as string) || '0'}px ${((campo.validacoes as Record<string, unknown>)?.spacing_right as string) || '0'}px ${((campo.validacoes as Record<string, unknown>)?.spacing_bottom as string) || '0'}px ${((campo.validacoes as Record<string, unknown>)?.spacing_left as string) || '0'}px` }}>
             {renderFinalCampo(
               campo, estiloCampos, fontFamily,
               valores[campo.id] || '',
