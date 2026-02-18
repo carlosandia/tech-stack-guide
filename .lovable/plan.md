@@ -1,30 +1,36 @@
 
-
-# Correção: Redirecionamento pós-OAuth e exibição do card
+# Correção: Tipo de conexão Email exibindo "SMTP Manual" em vez de "Gmail OAuth"
 
 ## Problema
 
-Após autenticação Google/Gmail com sucesso, o `OAuthGoogleCallbackPage.tsx` redireciona para `/app/configuracoes/conexoes`, mas essa rota **não existe**. A rota correta é `/configuracoes/conexoes` (sem prefixo `/app`). O React Router não encontra a rota e cai no fallback, levando o usuário ao `/dashboard`.
+O banco de dados salva o tipo da conexão como `"gmail"`, mas o frontend verifica se o valor é `"gmail_oauth"`. Como `"gmail" !== "gmail_oauth"`, a condição falha e o fallback exibe "SMTP Manual".
 
-Como o usuário nunca chega na página de conexões com o parâmetro `?success=google`, o `refetch` das integrações não é executado, e o card não atualiza para mostrar "conectado".
+## Alterações
 
-A conexão no banco está correta (tabela `conexoes_google`, status `conectado`).
+### 1. `src/modules/configuracoes/components/integracoes/ConexaoCard.tsx`
 
-## Alteração
+Linha 215: Alterar a condição para aceitar ambos os valores:
 
-### Arquivo: `src/pages/OAuthGoogleCallbackPage.tsx`
+```
+// DE:
+integracao.tipo_email === 'gmail_oauth' ? 'Gmail OAuth' : 'SMTP Manual'
 
-Corrigir todas as 5 ocorrências de `/app/configuracoes/conexoes` para `/configuracoes/conexoes`:
+// PARA:
+['gmail_oauth', 'gmail'].includes(integracao.tipo_email || '') ? 'Gmail OAuth' : 'SMTP Manual'
+```
 
-- Linha 24: erro OAuth
-- Linha 29: params faltando
-- Linha 44: erro no exchange
-- Linha 48: sucesso
-- Linha 50: catch
+### 2. `src/modules/configuracoes/components/integracoes/EmailConfigModal.tsx`
 
-## Resultado esperado
+Linha 78: Mesma correção:
 
-1. Após autenticação Google, o usuário retorna para `/configuracoes/conexoes?success=google`
-2. O toast de sucesso aparece
-3. O `refetch` executa e o card do Google mostra como "conectado"
+```
+// DE:
+integracao.tipo_email === 'gmail_oauth' ? 'Gmail OAuth' : 'SMTP Manual'
 
+// PARA:
+['gmail_oauth', 'gmail'].includes(integracao.tipo_email || '') ? 'Gmail OAuth' : 'SMTP Manual'
+```
+
+## Resultado
+
+O card e o modal de Email exibirão corretamente "Gmail OAuth" para conexões feitas via autenticação Google.
