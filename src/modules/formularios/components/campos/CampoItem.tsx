@@ -182,6 +182,14 @@ export const CampoItem = forwardRef<HTMLDivElement, Props>(function CampoItem({
     )
   }
 
+  const campoVal = (campo.validacoes || {}) as Record<string, unknown>
+  const spacingStyle: React.CSSProperties = {
+    paddingTop: `${campoVal.spacing_top || '0'}px`,
+    paddingBottom: `${campoVal.spacing_bottom || '0'}px`,
+    paddingLeft: `${campoVal.spacing_left || '0'}px`,
+    paddingRight: `${campoVal.spacing_right || '0'}px`,
+  }
+
   return (
     <div
       draggable
@@ -190,8 +198,9 @@ export const CampoItem = forwardRef<HTMLDivElement, Props>(function CampoItem({
       onDrop={onDrop}
       onDragLeave={onDragLeave}
       onClick={onSelect}
+      style={spacingStyle}
       className={cn(
-        'group relative rounded-md py-1.5 px-1 transition-all cursor-pointer',
+        'group relative rounded-md transition-all cursor-pointer',
         isSelected && 'outline outline-2 outline-primary outline-offset-2 bg-primary/5',
         !isSelected && 'hover:bg-muted/30',
         isDragOver && 'outline-dashed outline-primary bg-primary/10'
