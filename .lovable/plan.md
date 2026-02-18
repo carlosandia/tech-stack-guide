@@ -1,87 +1,91 @@
 
 
-## Auditoria de Producao — Modulo /contatos
+## Auditoria de Producao — Modulo /conversas
 
-Analise para 500+ usuarios, alto volume de contatos e dados, conforme diretrizes do Arquiteto de Produto.
+Analise para 500+ usuarios simultaneos, alto volume de mensagens e conversas, conforme diretrizes do Arquiteto de Produto.
 
 ---
 
 ### 1. Problemas Criticos
 
-#### 1.1 N+1 Queries no `listar` — GARGALO PRINCIPAL
+#### 1.1 N+1 na listagem de conversas — ULTIMA MENSAGEM PREVIEW
 
-O metodo `contatosApi.listar` faz **7 queries sequenciais** para montar a listagem:
+O metodo `listar` em `conversas.api.ts` (linhas 284-347) busca **todas as mensagens** de todas as conversas da pagina para extrair apenas a ultima de cada. Com 20 conversas e 500 mensagens cada, transfere **10.000 registros** para o frontend so para montar o preview.
 
-1. Buscar contatos (principal)
-2. Buscar segmentos vinculados (`contatos_segmentos`)
-3. Buscar owners (`usuarios`)
-4. Buscar empresas vinculadas (se tipo=pessoa)
-5. Buscar pessoas vinculadas (se tipo=empresa)
-6. Buscar definicoes de campos customizados (`campos_customizados`)
-7. Buscar valores de campos customizados (`valores_campos_customizados`)
-8. Buscar total de oportunidades (`oportunidades`)
+Alem disso, se a ultima mensagem e uma reacao, faz uma **terceira query** para buscar o tipo da mensagem original.
 
-Com 500 usuarios carregando a listagem, sao **3.500-4.000 queries/segundo** so para renderizar a tabela.
+**Correcao**: Substituir a query de mensagens por uma busca otimizada usando `DISTINCT ON (conversa_id)` em SQL ou, no minimo, adicionar `.limit(1)` por conversa agrupada. Como o Supabase client nao suporta `DISTINCT ON`, a solucao viavel e buscar apenas 1 mensagem por conversa individualmente em paralelo (batch de Promise.all), ou criar uma RPC SQL que retorne as ultimas mensagens pre-agrupadas.
 
-**Correcao**: As queries de enriquecimento (2-8) ja usam batch `.in()`, o que e bom. Porem, o campo `campos_customizados` faz 2 queries extras (definicoes + valores) que podem ser consolidadas. Alem disso, a query de `total_oportunidades` pode usar `.select('contato_id.count()')` com group by ao inves de trazer todos os registros e contar no frontend.
+Solucao pratica: buscar UMA mensagem por conversa com `Promise.all` de queries individuais + `.limit(1)` em vez de trazer todas.
 
-#### 1.2 Duplicatas carrega TODOS os contatos sem limit
+#### 1.2 Cache auth duplicado (conversas.api.ts)
 
-O metodo `duplicatas()` (linha 542) faz `select` de **todos os contatos** do tenant sem paginacao nem limit. Com 50.000 contatos, isso transfere megabytes de dados e processa tudo no frontend.
+Linhas 14-55: Mesma duplicacao `_cachedOrgId/_cachedUserId + onAuthStateChange` ja corrigida nos outros modulos. O `auth-context.ts` compartilhado ja existe mas `conversas.api.ts` ainda usa a copia local.
 
-**Correcao**: Mover a logica de agrupamento para o banco via SQL function que retorna apenas os grupos duplicados.
+**Correcao**: Importar de `@/shared/services/auth-context`.
 
-#### 1.3 Exportacao sem limit — risco de timeout
+#### 1.3 Contagem de total_mensagens com query pesada (enviarTexto)
 
-`exportar` e `exportarComColunas` (linhas 634, 769) buscam todos os contatos sem paginacao. Com bases grandes, isso causa timeout no Supabase (limite de 30s por default).
+Linha 965: ao enviar texto, faz uma query `count` em TODAS as mensagens da conversa so para atualizar `total_mensagens`. Com 10.000 mensagens, isso e desnecessario.
 
-**Correcao**: Implementar exportacao em batches (1000 por vez) e concatenar os resultados.
+**Correcao**: Usar incremento simples `total_mensagens = total_mensagens + 1` via SQL ou remover (o webhook ja atualiza).
 
-#### 1.4 `segmentarLote` — N*M queries individuais
+#### 1.4 `getConversaWahaSession` — 2 queries repetidas em toda acao
 
-O metodo `segmentarLote` (linha 930) faz uma query **por contato, por segmento** para verificar existencia antes de inserir. Com 100 contatos e 3 segmentos, sao **300 SELECT + 300 INSERT** = 600 queries.
+Cada acao (apagar, limpar, arquivar, fixar, reagir, etc.) chama `getConversaWahaSession` que faz 2 queries (conversa + sessao). Metodos como `enviarTexto`, `enviarMedia`, `enviarContato`, `enviarEnquete` repetem essa mesma logica inline (4 copias identicas).
 
-**Correcao**: Usar `upsert` com `onConflict` ao inves de verificar existencia manualmente, reduzindo para 1 query por batch.
+**Correcao**: Consolidar em `getConversaWahaSession` e reutilizar em todos os metodos de envio, eliminando codigo duplicado.
 
-#### 1.5 `criarOportunidadesLote` — updates individuais de owner
+#### 1.5 Notas sem limit (listarNotas)
 
-Linhas 917-924: atualiza owner_id de cada contato **individualmente** em um loop. Com 200 contatos, sao 200 queries.
+Linha 1283: `listarNotas` nao tem limit — carrega TODAS as notas do contato.
 
-**Correcao**: Agrupar por `responsavelId` e fazer um `.in('id', [...]).update()` por grupo.
-
-#### 1.6 Cache auth duplicado
-
-Mesma duplicacao de `_cachedOrgId/_cachedUserId` ja identificada no modulo /negocios. O `auth-context.ts` compartilhado ja foi criado mas `contatos.api.ts` ainda usa a copia local.
-
-**Correcao**: Importar de `src/shared/services/auth-context.ts`.
+**Correcao**: Adicionar `.limit(50)` como default.
 
 ---
 
 ### 2. Problemas de Performance Media
 
-#### 2.1 Filtro de segmento pos-query
+#### 2.1 Metricas — N+1 massivo (useConversasMetricas)
 
-Linha 308: `if (params?.segmento_id)` filtra contatos **no frontend** apos ja ter carregado a pagina inteira. Isso distorce a paginacao (pode retornar menos itens que o `per_page` esperado).
+O hook `fetchMetricas` (linhas 76-335) e o pior gargalo do modulo:
 
-**Correcao**: Fazer um pre-query em `contatos_segmentos` para obter os IDs filtrados e usar `.in('id', idsDoSegmento)` na query principal.
+1. Busca TODAS as conversas do periodo (sem limit)
+2. Faz batches de 50 para contar mensagens enviadas/recebidas
+3. Faz batches de 10 para calcular TMR/TMA (carregando ate 5000 msgs por batch!)
+4. Faz batches de 50 para detectar conversas com resposta
+5. Faz **1 query individual por conversa aberta** para verificar "sem resposta" (linhas 249-256)
 
-#### 2.2 Contagem de oportunidades carrega registros inteiros
+Com 1.000 conversas no periodo, isso gera **centenas de queries** e transfere **megabytes** de dados.
 
-Linha 374: busca `select('contato_id')` de todas as oportunidades dos contatos da pagina. Deveria usar `count` agrupado ao inves de trazer linhas.
+**Correcao**: Mover TODA a logica de metricas para uma function PL/pgSQL que calcule TMR, TMA, contagens e "sem resposta" no banco em uma unica chamada. Por agora, como medida imediata: eliminar a query individual por conversa (item 5) e usar os dados ja obtidos nos batches anteriores.
 
-**Correcao**: Substituir por uma query que conta no banco.
+#### 2.2 Realtime sem debounce (useConversasRealtime)
+
+Mesmo problema do modulo /negocios: cada evento dispara `invalidateQueries` imediatamente. Em ambiente de alta atividade, causa "refetch storms".
+
+**Correcao**: Adicionar debounce de 2 segundos (mesmo padrao ja implementado em `useKanban.ts`).
+
+#### 2.3 Polling de 30s nas conversas (useConversas)
+
+Linha 18 de `useConversas.ts`: `refetchInterval: 30000`. Com Realtime ja ativo, esse polling e redundante e gera carga desnecessaria.
+
+**Correcao**: Remover `refetchInterval` — o Realtime ja invalida o cache quando ha mudancas.
 
 ---
 
 ### 3. O que ja esta BEM FEITO
 
+- Scroll infinito com `useInfiniteQuery` (conversas e mensagens)
+- Paginacao de mensagens com `has_more`
 - Soft delete padronizado em todas as operacoes
-- Batch operations no `excluirLote` e `atribuirLote` (eficientes com `.in()`)
-- Sanitizacao de payload com `sanitizeContatoPayload`
-- Paginacao na listagem principal
-- Exclusao de `pre_lead` da listagem
-- Campos customizados com tipagem correta
-- Hooks React Query bem estruturados
+- Sincronizacao WAHA bidirecional com fallback gracioso
+- Fila de midia sequencial (MediaQueue)
+- Limites anti-spam para agendamento
+- Deduplicacao de mensagens WAHA (text sem body)
+- Resolucao de mencoes em grupos
+- Labels sincronizadas com Realtime
+- Reacoes com persistencia local imediata
 
 ---
 
@@ -92,85 +96,84 @@ Linha 374: busca `select('contato_id')` de todas as oportunidades dos contatos d
 | # | Acao | Impacto |
 |---|------|---------|
 | 1 | Importar auth-context compartilhado | Elimina duplicacao, DRY |
-| 2 | Otimizar `segmentarLote` com upsert | Reduz N*M queries para 1 batch |
-| 3 | Otimizar owner update em `criarOportunidadesLote` | Reduz N queries para K (K = membros unicos) |
-| 4 | Filtro de segmento pre-query ao inves de pos-query | Corrige paginacao distorcida |
+| 2 | Otimizar preview ultima mensagem (1 query por conversa em paralelo) | Reduz transferencia massiva de dados |
+| 3 | Substituir count total_mensagens por incremento | Elimina query pesada a cada envio |
+| 4 | Consolidar logica de sessao WAHA (DRY) | Elimina 4 copias de codigo |
+| 5 | Adicionar limit em listarNotas | Previne carregamento excessivo |
+| 6 | Remover refetchInterval redundante | Elimina polling desnecessario |
+| 7 | Adicionar debounce no Realtime | Reduz re-fetches em picos |
 
 #### Fase 2 — Performance
 
 | # | Acao | Impacto |
 |---|------|---------|
-| 5 | Exportacao em batches (1000 por vez) | Previne timeout em bases grandes |
-| 6 | Contagem de oportunidades otimizada | Menos dados transferidos |
-| 7 | Consolidar queries de campos customizados | Reduz 2 queries para 1 |
-
-#### Fase 3 — Escala futura
-
-| # | Acao | Impacto |
-|---|------|---------|
-| 8 | Mover deteccao de duplicatas para SQL function | Elimina transferencia massiva de dados |
+| 8 | Eliminar query individual de "sem resposta" nas metricas | Reduz N queries para 0 |
 
 ---
 
 ### 5. Detalhes Tecnicos
 
-**5.1 Auth-context (`contatos.api.ts`)**
+**5.1 Auth-context**
 
-Remover linhas 16-57 (cache local + `getOrganizacaoId` + `getUsuarioId` + `onAuthStateChange`). Importar de `@/shared/services/auth-context`.
+Remover linhas 14-55 de `conversas.api.ts`. Importar `getOrganizacaoId` e `getUsuarioId` de `@/shared/services/auth-context`.
 
-**5.2 `segmentarLote` — upsert**
+**5.2 Preview ultima mensagem otimizado**
 
-Substituir o loop de verificacao por:
-```
-const rows = payload.ids.flatMap(contatoId =>
-  payload.adicionar.map(segId => ({
-    contato_id: contatoId,
-    segmento_id: segId,
-    organizacao_id: organizacaoId,
-  }))
+Substituir a query unica que traz TODAS as mensagens de todas as conversas por:
+
+```typescript
+const ultimasPromises = conversaIds.map(id =>
+  supabase.from('mensagens')
+    .select('id, conversa_id, tipo, body, from_me, criado_em, reaction_emoji, reaction_message_id')
+    .eq('conversa_id', id)
+    .is('deletado_em', null)
+    .neq('tipo', 'reaction')
+    .order('criado_em', { ascending: false })
+    .limit(1)
+    .maybeSingle()
 )
-await supabase.from('contatos_segmentos')
-  .upsert(rows, { onConflict: 'contato_id,segmento_id' })
+const results = await Promise.all(ultimasPromises)
 ```
 
-**5.3 Owner update agrupado em `criarOportunidadesLote`**
+Isso transfere no maximo 20 registros (1 por conversa) em vez de potencialmente milhares. A query de reacoes so e feita se necessario.
 
-Substituir o loop individual por agrupamento:
+**NOTA**: A query original tambem filtra mensagens de texto sem body (duplicatas WAHA). Precisamos manter esse filtro adicionando `.not('body', 'is', null)` ou `or` combinando com `tipo != text`.
+
+**5.3 Incremento total_mensagens**
+
+Substituir linha 965:
+```typescript
+// ANTES: query count pesada
+total_mensagens: (await supabase.from('mensagens').select('id', { count: 'exact', head: true }).eq('conversa_id', conversaId).is('deletado_em', null)).count || 0
+
+// DEPOIS: incremento via RPC ou query simples
+// Opção 1: Pegar valor atual e incrementar
+const { data: conv } = await supabase.from('conversas').select('total_mensagens').eq('id', conversaId).single()
+await supabase.from('conversas').update({
+  ultima_mensagem_em: new Date().toISOString(),
+  total_mensagens: (conv?.total_mensagens || 0) + 1,
+}).eq('id', conversaId)
 ```
-const ownerGroups: Record<string, string[]> = {}
-contatos.forEach((c, i) => {
-  const rid = membrosDistribuicao[i % membrosDistribuicao.length]
-  if (!ownerGroups[rid]) ownerGroups[rid] = []
-  ownerGroups[rid].push(c.id)
-})
-await Promise.all(Object.entries(ownerGroups).map(([ownerId, ids]) =>
-  supabase.from('contatos').update({ owner_id: ownerId }).in('id', ids)
-))
-```
 
-**5.4 Filtro de segmento pre-query**
+**5.4 Consolidar sessao WAHA (DRY)**
 
-Antes da query principal, buscar IDs:
-```
-if (params?.segmento_id) {
-  const { data: segVinculos } = await supabase
-    .from('contatos_segmentos')
-    .select('contato_id')
-    .eq('segmento_id', params.segmento_id)
-  const idsDoSegmento = (segVinculos || []).map(v => v.contato_id)
-  if (idsDoSegmento.length === 0) return { contatos: [], total: 0, page, per_page: perPage, total_paginas: 0 }
-  query = query.in('id', idsDoSegmento)
-}
-```
-E remover o filtro pos-query da linha 308.
+Os metodos `enviarTexto`, `enviarMedia`, `enviarContato`, `enviarEnquete` repetem 15-20 linhas identicas para buscar conversa + sessao + session_name. Substituir por chamada a `getConversaWahaSession` ja existente.
 
-**5.5 Exportacao em batches**
+**5.5 Limit em notas**
 
-Substituir query unica por loop com `.range(i, i+999)` ate esgotar os dados.
+Adicionar `.limit(50)` na query de `listarNotas`.
 
-**5.6 Contagem de oportunidades**
+**5.6 Remover refetchInterval**
 
-Usar RPC ou contar direto no select com subquery ao inves de trazer todos os registros.
+Em `useConversas.ts` linha 18, remover `refetchInterval: 30000`. O `useConversasRealtime` ja cuida de invalidar o cache.
+
+**5.7 Debounce no Realtime**
+
+Mesmo padrao do `useKanban.ts`: usar `useRef` com `setTimeout` de 2s no callback do canal Supabase em `useConversasRealtime.ts`.
+
+**5.8 Metricas — eliminar query individual de "sem resposta"**
+
+Linhas 244-263 de `useConversasMetricas.ts`: o loop que faz 1 query por conversa aberta para verificar se a ultima mensagem e do cliente pode ser eliminado. Os dados de mensagens ja foram buscados nos batches anteriores (secao 3 — TMR/TMA). Reutilizar esses dados para determinar "sem resposta" sem queries adicionais.
 
 ---
 
@@ -178,17 +181,19 @@ Usar RPC ou contar direto no select com subquery ao inves de trazer todos os reg
 
 | Arquivo | Tipo de mudanca |
 |---------|----------------|
-| `src/modules/contatos/services/contatos.api.ts` | Todas as correcoes acima |
-
-Nenhum componente visual sera alterado. Nenhum hook muda de assinatura. Todas as correcoes sao internas ao service.
+| `src/modules/conversas/services/conversas.api.ts` | Auth-context, preview otimizado, incremento total, DRY sessao WAHA, limit notas |
+| `src/modules/conversas/hooks/useConversas.ts` | Remover refetchInterval |
+| `src/modules/conversas/hooks/useConversasRealtime.ts` | Adicionar debounce 2s |
+| `src/modules/conversas/hooks/useConversasMetricas.ts` | Eliminar query individual de "sem resposta" |
 
 ### 7. Garantias de seguranca
 
 - Nenhum componente visual alterado
 - Nenhuma prop removida ou renomeada
 - Hooks mantem mesma assinatura e comportamento
-- Paginacao continua funcionando identicamente
-- Filtros, busca, ordenacao inalterados
-- Soft delete preservado
-- RLS continua como unica linha de defesa
+- Scroll infinito continua funcionando
+- Sincronizacao WAHA preservada
+- Realtime continua funcionando (apenas com debounce)
+- Fila de midia inalterada
+- Agendamento inalterado
 
