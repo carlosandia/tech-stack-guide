@@ -27,7 +27,7 @@ export function ComparisonSection() {
           }`}
         >
           <h2 className="text-3xl md:text-4xl font-bold text-foreground leading-tight">
-            A diferença que o Renove faz na sua operação
+            A diferença que a Renove faz na sua operação
           </h2>
         </div>
 

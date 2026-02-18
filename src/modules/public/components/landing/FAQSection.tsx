@@ -8,20 +8,16 @@ import { useScrollReveal } from '../../hooks/useScrollReveal'
  */
 const faqs = [
   {
-    q: 'Quanto tempo leva para configurar o CRM?',
+    q: 'Quanto tempo leva para configurar a Renove?',
     a: 'Menos de 10 minutos. Você cria a conta, configura seu funil de vendas e já pode começar a adicionar negócios. Temos templates prontos para os setores mais comuns.',
-  },
-  {
-    q: 'Preciso de cartão de crédito para o trial?',
-    a: 'Não. O período de teste de 14 dias é 100% gratuito e não exige cartão de crédito. Você só paga se decidir continuar após o trial.',
   },
   {
     q: 'Consigo importar meus contatos de planilhas?',
     a: 'Sim. Você pode importar contatos via arquivo CSV ou Excel. Também oferecemos integrações com formulários web, WhatsApp e Instagram para captura automática de leads.',
   },
   {
-    q: 'O CRM funciona com WhatsApp?',
-    a: 'Sim! Temos integração nativa com WhatsApp via API oficial. Você conversa com seus clientes direto pelo CRM, mantendo todo o histórico centralizado.',
+    q: 'A Renove funciona com WhatsApp?',
+    a: 'Sim! Temos integração nativa com WhatsApp via API oficial. Você conversa com seus clientes direto pela Renove, mantendo todo o histórico centralizado.',
   },
   {
     q: 'Quantos usuários posso ter?',
@@ -29,7 +25,7 @@ const faqs = [
   },
   {
     q: 'Como funciona o suporte?',
-    a: 'Oferecemos suporte via chat e e-mail em horário comercial. Clientes dos planos Business e Enterprise contam com suporte prioritário e gerente de conta dedicado.',
+    a: 'Oferecemos suporte via e-mail, chat e WhatsApp em horário comercial. Clientes dos planos Business e Enterprise contam com suporte prioritário e gerente de conta dedicado.',
   },
   {
     q: 'Meus dados estão seguros?',

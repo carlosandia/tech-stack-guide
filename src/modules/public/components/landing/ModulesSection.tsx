@@ -8,7 +8,9 @@ import {
   Mail,
   CheckSquare,
   Check,
+  ChevronDown,
 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { useScrollReveal } from '../../hooks/useScrollReveal'
 
 interface Module {
@@ -48,7 +50,7 @@ const modules: Module[] = [
     id: 'conversas',
     icon: MessageCircle,
     title: 'Conversas',
-    headline: 'WhatsApp profissional dentro do CRM',
+    headline: 'WhatsApp profissional dentro da Renove',
     benefits: [
       'Sincronização completa com WhatsApp. Tudo que acontece lá, aparece aqui',
       'Correção ortográfica e gramatical integrada na escrita',
@@ -75,7 +77,7 @@ const modules: Module[] = [
     headline: 'Pipeline completo com qualificação, metas e ligações',
     benefits: [
       'Kanban configurável com qualificação automática de lead MQL',
-      'Ligações VoIP integradas. Ligue direto do card sem sair do CRM',
+      'Ligações VoIP integradas. Ligue direto do card sem sair da Renove',
       'Agendamento de reuniões com Google Calendar e Google Meet em um clique',
       'Cadência comercial com scripts prontos disparados via WhatsApp e e-mail',
       'Métricas de no-show e metas por equipe e individual em tempo real',
@@ -85,7 +87,7 @@ const modules: Module[] = [
     id: 'caixa-entrada',
     icon: Mail,
     title: 'Caixa de Entrada',
-    headline: 'E-mail integrado sem sair do CRM',
+    headline: 'E-mail integrado sem sair da Renove',
     benefits: [
       'Envie, responda e consulte e-mails sem trocar de ferramenta',
       'Rastreamento de abertura para saber quem leu sua mensagem',
@@ -107,12 +109,13 @@ const modules: Module[] = [
 
 export function ModulesSection() {
   const [activeId, setActiveId] = useState(modules[0].id)
+  const [mobileOpenId, setMobileOpenId] = useState<string | null>(modules[0].id)
   const active = modules.find((m) => m.id === activeId)!
   const { ref: headerRef, isVisible: headerVisible } = useScrollReveal()
   const { ref: contentRef, isVisible: contentVisible } = useScrollReveal()
 
   return (
-    <section id="modulos" className="py-16 md:py-24 bg-gradient-to-b from-primary/[0.04] to-primary/[0.08]">
+    <section id="funcionalidades" className="py-16 md:py-24 bg-gradient-to-b from-primary/[0.04] to-primary/[0.08]">
       <div className="max-w-[1200px] mx-auto px-4 md:px-6">
         {/* Header */}
         <div
@@ -133,22 +136,51 @@ export function ModulesSection() {
           }`}
           style={{ transitionDelay: '150ms' }}
         >
-          {/* Mobile: tabs horizontais scrolláveis */}
-          <div className="flex md:hidden overflow-x-auto gap-2 pb-4 mb-6 scrollbar-hide -mx-4 px-4">
-            {modules.map((m) => (
-              <button
-                key={m.id}
-                onClick={() => setActiveId(m.id)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all shrink-0 ${
-                  activeId === m.id
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'bg-card border border-border text-muted-foreground hover:text-foreground hover:border-primary/30'
-                }`}
-              >
-                <m.icon size={16} />
-                {m.title}
-              </button>
-            ))}
+          {/* Mobile: accordion */}
+          <div className="md:hidden space-y-2">
+            {modules.map((m) => {
+              const isOpen = mobileOpenId === m.id
+              return (
+                <div key={m.id} className="rounded-xl border border-border bg-card overflow-hidden">
+                  <button
+                    onClick={() => setMobileOpenId(isOpen ? null : m.id)}
+                    className="w-full flex items-center justify-between p-4 text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <m.icon size={18} className="text-primary" />
+                      </div>
+                      <span className="text-sm font-semibold text-foreground">{m.title}</span>
+                    </div>
+                    <ChevronDown
+                      size={18}
+                      className={cn(
+                        'shrink-0 text-muted-foreground transition-transform duration-200',
+                        isOpen && 'rotate-180'
+                      )}
+                    />
+                  </button>
+                  <div
+                    className={cn(
+                      'overflow-hidden transition-all duration-200',
+                      isOpen ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'
+                    )}
+                  >
+                    <div className="px-4 pb-4">
+                      <p className="text-sm text-primary font-medium mb-3">{m.headline}</p>
+                      <ul className="space-y-2.5">
+                        {m.benefits.map((b, i) => (
+                          <li key={i} className="flex items-start gap-3 text-sm text-muted-foreground">
+                            <Check size={16} className="text-primary mt-0.5 shrink-0" />
+                            <span>{b}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
           </div>
 
           {/* Desktop: layout lado a lado */}
@@ -193,25 +225,6 @@ export function ModulesSection() {
                 ))}
               </ul>
             </div>
-          </div>
-
-          {/* Mobile: conteúdo do módulo ativo */}
-          <div className="md:hidden bg-card rounded-xl border border-border p-6" key={`mobile-${active.id}`}>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                <active.icon size={20} className="text-primary" />
-              </div>
-              <h3 className="text-lg font-bold text-foreground">{active.title}</h3>
-            </div>
-            <p className="text-sm text-primary font-medium mb-4">{active.headline}</p>
-            <ul className="space-y-3">
-              {active.benefits.map((b, i) => (
-                <li key={i} className="flex items-start gap-3 text-sm text-muted-foreground">
-                  <Check size={16} className="text-primary mt-0.5 shrink-0" />
-                  <span>{b}</span>
-                </li>
-              ))}
-            </ul>
           </div>
         </div>
       </div>
