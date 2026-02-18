@@ -9,7 +9,7 @@
 
 import { useState, useRef, useCallback, useEffect, forwardRef } from 'react'
 import { getMaskForType } from '../../utils/masks'
-import { mergeCampoEstilo, ensurePx } from '../../utils/campoEstiloUtils'
+import { mergeCampoEstilo, ensureUnit } from '../../utils/campoEstiloUtils'
 import { generateFormResponsiveCss, generateColunasResponsiveCss, resolveValue } from '../../utils/responsiveStyles'
 import { Monitor, Tablet, Smartphone, Settings, Eye, EyeOff, Code, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -1266,7 +1266,7 @@ function renderFinalCampo(
   const merged = estiloCampos ? mergeCampoEstilo(estiloCampos, campo) : undefined
   const labelStyle: React.CSSProperties = {
     color: merged?.label_cor || '#374151',
-    fontSize: ensurePx(merged?.label_tamanho, '14px'),
+    fontSize: ensureUnit(merged?.label_tamanho, '0.875rem', 'fontSize'),
     fontWeight: (merged?.label_font_weight || '500') as any,
     display: 'block',
     marginBottom: '4px',
@@ -1281,11 +1281,11 @@ function renderFinalCampo(
     width: '100%',
     backgroundColor: merged?.input_background || '#F9FAFB',
     border: `${borderWidth}px ${borderStyle} ${borderColor}`,
-    borderRadius: ensurePx(merged?.input_border_radius, '6px'),
+    borderRadius: ensureUnit(merged?.input_border_radius, '6px', 'borderRadius'),
     color: merged?.input_texto_cor || '#1F2937',
     padding: '8px 12px',
     fontSize: '14px',
-    height: ensurePx(merged?.input_height, '40px'),
+    height: ensureUnit(merged?.input_height, '2.5rem', 'height'),
     outline: 'none',
     fontFamily,
   }
