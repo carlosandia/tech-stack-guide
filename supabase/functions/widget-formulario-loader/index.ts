@@ -189,8 +189,8 @@ function getFormScript(configApi: string, submitApi: string, mode: string, slug:
   parts.push("function safeGap(v,fb){return(v!==undefined&&v!==null&&v!=='')?v:fb}")
   parts.push("var gapTop=safeGap(fS.gap_top,safeGap(fS.gap,'12'));var gapRight=safeGap(fS.gap_right,'0');var gapBottom=safeGap(fS.gap_bottom,'0');var gapLeft=safeGap(fS.gap_left,'0');")
   parts.push("var fieldPadding=gapTop+'px '+gapRight+'px '+gapBottom+'px '+gapLeft+'px';")
-  // AIDEV-NOTE: getFieldPad — calcula padding individual por campo usando validacoes.spacing_* como override do global
-  parts.push("function getFieldPad(c){var v=c.validacoes||{};var st=v.spacing_top;var sr=v.spacing_right;var sb=v.spacing_bottom;var sl=v.spacing_left;var t=(st!==undefined&&st!==null&&st!=='')?st:gapTop;var r=(sr!==undefined&&sr!==null&&sr!=='')?sr:gapRight;var b=(sb!==undefined&&sb!==null&&sb!=='')?sb:gapBottom;var l=(sl!==undefined&&sl!==null&&sl!=='')?sl:gapLeft;return t+'px '+r+'px '+b+'px '+l+'px'}")
+  // AIDEV-NOTE: getFieldPad — prioridade: validacoes.spacing_* > estilo_campo.gap_* > global
+  parts.push("function getFieldPad(c){var v=c.validacoes||{};var ec=v.estilo_campo||{};function pick(a,b,fb){if(a!==undefined&&a!==null&&a!=='')return a;if(b!==undefined&&b!==null&&b!=='')return b;return fb}var t=pick(v.spacing_top,ec.gap_top,gapTop);var r=pick(v.spacing_right,ec.gap_right,gapRight);var b=pick(v.spacing_bottom,ec.gap_bottom,gapBottom);var l=pick(v.spacing_left,ec.gap_left,gapLeft);return t+'px '+r+'px '+b+'px '+l+'px'}")
 
   // Field rendering loop
   parts.push("for(var i=0;i<campos.length;i++){var c=campos[i];if(c.pai_campo_id)continue;if(c.tipo==='botao_enviar'||c.tipo==='botao_whatsapp')continue;")
