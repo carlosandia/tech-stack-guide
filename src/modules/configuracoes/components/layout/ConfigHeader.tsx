@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, NavLink } from 'react-router-dom'
 import { useAuth } from '@/providers/AuthProvider'
 import { useState } from 'react'
 import {
@@ -6,6 +6,7 @@ import {
   ChevronDown,
   LogOut,
   Menu,
+  User,
 } from 'lucide-react'
 
 /**
@@ -90,6 +91,14 @@ export function ConfigHeader({ onMenuClick }: ConfigHeaderProps) {
                     {role === 'admin' ? 'Admin' : 'Membro'}
                   </span>
                 </div>
+                <NavLink
+                  to="/perfil"
+                  onClick={() => setUserMenuOpen(false)}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-foreground hover:bg-accent"
+                >
+                  <User className="w-4 h-4" />
+                  Meu Perfil
+                </NavLink>
                 <button
                   onClick={handleLogout}
                   className="flex items-center gap-2 w-full px-3 py-2 text-sm text-foreground hover:bg-accent"
