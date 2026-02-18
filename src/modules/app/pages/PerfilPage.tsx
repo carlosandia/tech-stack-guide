@@ -4,7 +4,7 @@
  * Email é exibido mas bloqueado (não editável)
  */
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { useAuth } from '@/providers/AuthProvider'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
@@ -41,17 +41,22 @@ export function PerfilPage() {
   // Carregar telefone do banco na primeira vez
   const loadTelefone = useCallback(async () => {
     if (telefoneLoaded || !user?.id) return
-    const { data } = await supabase
-      .from('usuarios')
-      .select('telefone')
-      .eq('id', user.id)
-      .single()
-    if (data?.telefone) setTelefone(formatPhone(data.telefone))
-    setTelefoneLoaded(true)
+    try {
+      const { data } = await supabase
+        .from('usuarios')
+        .select('telefone')
+        .eq('id', user.id)
+        .single()
+      if (data?.telefone) setTelefone(formatPhone(data.telefone))
+    } catch {
+      // silencioso - telefone é opcional
+    } finally {
+      setTelefoneLoaded(true)
+    }
   }, [user?.id, telefoneLoaded])
 
   // Carregar dados ao montar
-  useState(() => { loadTelefone() })
+  useEffect(() => { loadTelefone() }, [loadTelefone])
 
   const handleTelefoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setTelefone(formatPhone(e.target.value))
@@ -60,6 +65,12 @@ export function PerfilPage() {
   const handleUploadFoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file || !session?.user?.id) return
+
+    const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error('A imagem deve ter no máximo 5MB')
+      return
+    }
 
     setUploadingPhoto(true)
     try {
