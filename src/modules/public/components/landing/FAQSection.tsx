@@ -47,7 +47,7 @@ export function FAQSection() {
   const { ref: listRef, isVisible: listVisible } = useScrollReveal()
 
   return (
-    <section id="faq" className="py-16 md:py-24 bg-background">
+    <section id="faq" className="py-16 md:py-24 bg-muted/30">
       <div className="max-w-[800px] mx-auto px-4 md:px-6">
         <div
           ref={headerRef}
@@ -55,9 +55,6 @@ export function FAQSection() {
             headerVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
           }`}
         >
-          <p className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">
-            Dúvidas frequentes
-          </p>
           <h2 className="text-3xl md:text-4xl font-bold text-foreground leading-tight">
             Perguntas que você pode ter
           </h2>

@@ -9,7 +9,7 @@ const pillars = [
     icon: GitBranch,
     title: 'Centralize todos os canais',
     description:
-      'WhatsApp, Instagram, formulários, Meta Ads — todos os leads chegam em um único lugar. Acabou a bagunça de planilhas e grupos.',
+      'WhatsApp, Instagram, formulários, Meta Ads. Todos os leads chegam em um único lugar. Acabou a bagunça de planilhas e grupos.',
   },
   {
     icon: BarChart3,
@@ -30,7 +30,7 @@ export function SolutionSection() {
   const { ref: cardsRef, isVisible: cardsVisible } = useScrollReveal()
 
   return (
-    <section className="py-16 md:py-24 bg-muted/30">
+    <section className="py-16 md:py-24 bg-background">
       <div className="max-w-[1200px] mx-auto px-4 md:px-6">
         <div
           ref={headerRef}
@@ -38,15 +38,12 @@ export function SolutionSection() {
             headerVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
           }`}
         >
-          <p className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">
-            A transformação
-          </p>
           <h2 className="text-3xl md:text-4xl font-bold text-foreground leading-tight">
             Chega de perder vendas por desorganização
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
             O CRM Renove foi construído para empresas B2B que precisam de controle real
-            sobre seu processo comercial — sem complexidade desnecessária.
+            sobre seu processo comercial, sem complexidade desnecessária.
           </p>
         </div>
 

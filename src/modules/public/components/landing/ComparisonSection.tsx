@@ -18,7 +18,7 @@ export function ComparisonSection() {
   const { ref: tableRef, isVisible: tableVisible } = useScrollReveal()
 
   return (
-    <section className="py-16 md:py-24 bg-muted/30">
+    <section className="py-16 md:py-24 bg-background">
       <div className="max-w-[1000px] mx-auto px-4 md:px-6">
         <div
           ref={headerRef}
@@ -26,9 +26,6 @@ export function ComparisonSection() {
             headerVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
           }`}
         >
-          <p className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">
-            Antes vs depois
-          </p>
           <h2 className="text-3xl md:text-4xl font-bold text-foreground leading-tight">
             A diferença que o Renove faz na sua operação
           </h2>
