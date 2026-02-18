@@ -10,9 +10,11 @@ import { createPortal } from 'react-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { User, Building2, Plus, ExternalLink, Link2, Search, Loader2 } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
 import { ContatoFormModal } from '@/modules/contatos/components/ContatoFormModal'
+import { ContatoViewModal } from '@/modules/contatos/components/ContatoViewModal'
 import { useCriarContato } from '@/modules/contatos/hooks/useContatos'
+import { contatosApi } from '@/modules/contatos/services/contatos.api'
+import type { Contato } from '@/modules/contatos/services/contatos.api'
 import { toast } from 'sonner'
 
 interface ContatoCardProps {
@@ -63,9 +65,10 @@ async function buscarContato(contatoId: string | null, email: string, nome?: str
 }
 
 export function ContatoCard({ contatoId, email, nome, emailId }: ContatoCardProps) {
-  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [modalOpen, setModalOpen] = useState(false)
+  const [viewModalOpen, setViewModalOpen] = useState(false)
+  const [contatoCompleto, setContatoCompleto] = useState<Contato | null>(null)
   const [vincularOpen, setVincularOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [vinculando, setVinculando] = useState(false)
@@ -273,28 +276,51 @@ export function ContatoCard({ contatoId, email, nome, emailId }: ContatoCardProp
 
   const nomeCompleto = [contato.nome, contato.sobrenome].filter(Boolean).join(' ') || email
 
+  const handleVerContato = async () => {
+    try {
+      const full = await contatosApi.buscar(contato.id)
+      setContatoCompleto(full)
+      setViewModalOpen(true)
+    } catch {
+      toast.error('Erro ao carregar dados do contato')
+    }
+  }
+
   return (
-    <div className="flex items-center gap-3 px-4 py-2 border-b border-border/60 bg-muted/20">
-      <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-        {contato.tipo === 'empresa' ? (
-          <Building2 className="w-3.5 h-3.5 text-primary" />
-        ) : (
-          <User className="w-3.5 h-3.5 text-primary" />
-        )}
+    <>
+      <div className="flex items-center gap-3 px-4 py-2 border-b border-border/60 bg-muted/20">
+        <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+          {contato.tipo === 'empresa' ? (
+            <Building2 className="w-3.5 h-3.5 text-primary" />
+          ) : (
+            <User className="w-3.5 h-3.5 text-primary" />
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-medium text-foreground truncate">{nomeCompleto}</p>
+          {contato.cargo && (
+            <p className="text-[11px] text-muted-foreground truncate">{contato.cargo}</p>
+          )}
+        </div>
+        <button
+          onClick={handleVerContato}
+          className="p-1 rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-foreground flex-shrink-0"
+          title="Ver contato"
+        >
+          <ExternalLink className="w-3.5 h-3.5" />
+        </button>
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-xs font-medium text-foreground truncate">{nomeCompleto}</p>
-        {contato.cargo && (
-          <p className="text-[11px] text-muted-foreground truncate">{contato.cargo}</p>
-        )}
-      </div>
-      <button
-        onClick={() => navigate(`/app/contatos/${contato.id}`)}
-        className="p-1 rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-foreground flex-shrink-0"
-        title="Ver contato"
-      >
-        <ExternalLink className="w-3.5 h-3.5" />
-      </button>
-    </div>
+
+      {viewModalOpen && createPortal(
+        <ContatoViewModal
+          open={viewModalOpen}
+          onClose={() => { setViewModalOpen(false); setContatoCompleto(null) }}
+          contato={contatoCompleto}
+          onEdit={() => {}}
+          onDelete={() => {}}
+        />,
+        document.body
+      )}
+    </>
   )
 }
