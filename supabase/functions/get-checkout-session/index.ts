@@ -101,21 +101,39 @@ import Stripe from 'npm:stripe@14.14.0'
        }
      }
  
-     console.log('Session data retrieved successfully')
- 
-     return new Response(
-       JSON.stringify({
-         customer_email: session.customer_email,
-         plano_id: session.metadata?.plano_id,
-         plano_nome: session.metadata?.plano_nome,
-         is_trial: session.metadata?.is_trial === 'true',
-         periodo: session.metadata?.periodo || 'mensal',
-       }),
-       {
-         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-         status: 200,
-       }
-     )
+      // AIDEV-NOTE: Buscar dados do pré-cadastro se existir pre_cadastro_id nos metadados
+      let preCadastro = null
+      const preCadastroId = session.metadata?.pre_cadastro_id
+      if (preCadastroId) {
+        const { data: pcData, error: pcError } = await supabase
+          .from('pre_cadastros_saas')
+          .select('nome_contato, email, telefone, nome_empresa, segmento')
+          .eq('id', preCadastroId)
+          .maybeSingle()
+
+        if (pcError) {
+          console.error('Error fetching pre_cadastro:', pcError)
+        } else if (pcData) {
+          preCadastro = pcData
+        }
+      }
+
+      console.log('Session data retrieved successfully')
+  
+      return new Response(
+        JSON.stringify({
+          customer_email: session.customer_email,
+          plano_id: session.metadata?.plano_id,
+          plano_nome: session.metadata?.plano_nome,
+          is_trial: session.metadata?.is_trial === 'true',
+          periodo: session.metadata?.periodo || 'mensal',
+          pre_cadastro: preCadastro,
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        }
+      )
     } catch (error: unknown) {
       console.error('Error fetching checkout session:', error)
       return new Response(
