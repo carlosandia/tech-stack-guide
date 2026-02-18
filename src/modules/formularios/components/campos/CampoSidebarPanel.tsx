@@ -6,7 +6,7 @@
  */
 
 import { useState, useMemo, useCallback } from 'react'
-import { X, Copy } from 'lucide-react'
+import { X, Copy, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -140,15 +140,20 @@ export function CampoSidebarPanel({ campo, onUpdate, onClose, showConfig, estilo
   )
 
   const applyAllFooter = allCampos && onUpdateCampoById ? (
-    <div className="sticky bottom-0 border-t border-border bg-card p-3 mt-auto">
+    <div className="sticky bottom-0 border-t border-border bg-card p-3 mt-auto space-y-1.5">
       <Button
         size="sm"
-        className="w-full text-xs gap-1.5 bg-success hover:bg-success/90 text-success-foreground"
+        className="w-full text-xs gap-1.5 bg-success hover:bg-success/90"
+        style={{ color: 'rgba(255,255,255,0.9)' }}
         onClick={handleApplyToAll}
       >
         <Copy className="w-3.5 h-3.5" />
         Aplicar estilo em todos os campos
       </Button>
+      <p className="flex items-center gap-1 text-[10px] text-muted-foreground">
+        <Info className="w-3 h-3 shrink-0" />
+        Copia o estilo e espaçamento deste campo para todos os outros campos do formulário.
+      </p>
     </div>
   ) : null
 
