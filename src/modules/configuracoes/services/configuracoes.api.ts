@@ -1451,7 +1451,8 @@ export const integracoesApi = {
     },
     obterGmailAuthUrl: async (): Promise<{ url: string }> => {
       // AIDEV-NOTE: Gmail auth URL via Edge Function (sem backend Express)
-      const redirectUri = `${window.location.origin}/app/configuracoes/conexoes`
+      // Usa a mesma rota de callback OAuth que o Google Calendar
+      const redirectUri = `${window.location.origin}/oauth/google/callback`
       const { data, error } = await supabase.functions.invoke('google-auth', {
         body: { action: 'auth-url', tipo: 'gmail', redirect_uri: redirectUri },
       })
