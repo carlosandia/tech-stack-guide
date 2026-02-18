@@ -13,6 +13,7 @@ import DOMPurify from 'dompurify'
 import type { CampoFormulario, EstiloFormulario, EstiloContainer, EstiloCampos, EstiloBotao, EstiloCabecalho } from '../services/formularios.api'
 import { generateFormResponsiveCss, generateColunasResponsiveCss } from '../utils/responsiveStyles'
 import { mergeCampoEstilo, ensureUnit } from '../utils/campoEstiloUtils'
+import { MultiSelectDropdown } from '../components/campos/MultiSelectDropdown'
 
 interface FormularioPublico {
   id: string
@@ -1043,51 +1044,21 @@ function renderCampoPublico(props: RenderCampoProps) {
         </div>
       )
 
-    // ========== MULTI SELECT (checkboxes) ==========
+    // ========== MULTI SELECT (dropdown com checkboxes) ==========
     case 'selecao_multipla': {
       const selectedValues = valor ? valor.split('|') : []
-      const toggleValue = (v: string) => {
-        const newVals = selectedValues.includes(v)
-          ? selectedValues.filter(s => s !== v)
-          : [...selectedValues, v]
-        onChange(newVals.join('|'))
-      }
       return (
         <div>
           {renderLabel()}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
-            {(campo.opcoes as string[] || []).map((op, i) => {
-              const label = typeof op === 'string' ? op : `Opção ${i + 1}`
-              const isChecked = selectedValues.includes(label)
-              return (
-                <label
-                  key={i}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    padding: '8px 12px',
-                    border: `1px solid ${isChecked ? '#3B82F6' : (camposEstilo.input_border_color || '#D1D5DB')}`,
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    backgroundColor: isChecked ? '#EFF6FF' : '#FFFFFF',
-                    fontSize: '14px',
-                    fontFamily,
-                    transition: 'all 0.15s',
-                  }}
-                  onClick={() => toggleValue(label)}
-                >
-                  <input
-                    type="checkbox"
-                    checked={isChecked}
-                    onChange={() => {}}
-                    style={{ width: '16px', height: '16px', accentColor: '#3B82F6', flexShrink: 0 }}
-                  />
-                  {label}
-                </label>
-              )
-            })}
-          </div>
+          <MultiSelectDropdown
+            opcoes={campo.opcoes as string[] || []}
+            selectedValues={selectedValues}
+            onChange={(vals) => onChange(vals.join('|'))}
+            placeholder={placeholder || 'Selecione uma ou mais...'}
+            inputStyle={inputStyle}
+            fontFamily={fontFamily}
+            borderColor={camposEstilo.input_border_color || '#D1D5DB'}
+          />
         </div>
       )
     }

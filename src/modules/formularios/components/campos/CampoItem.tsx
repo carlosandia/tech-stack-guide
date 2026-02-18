@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { renderFinalCampo, computeFieldStyles, parseLayoutConfig, PAISES_COMUNS, PhoneInputWithCountry } from '../../utils/renderFinalCampo'
 import { ensureUnit } from '../../utils/campoEstiloUtils'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
+import { MultiSelectDropdown } from './MultiSelectDropdown'
 import { getMaskForType } from '../../utils/masks'
 
 interface Props {
@@ -332,17 +333,28 @@ function FieldBodyOnly({
     case 'checkbox_termos':
       return null
     case 'selecao':
-    case 'selecao_multipla':
     case 'pais':
     case 'estado':
     case 'cidade':
       return (
         <select style={{ ...inputStyle, appearance: 'auto' }} value={valor} onChange={handleInput}>
-          <option value="">{placeholder || (campo.tipo === 'selecao_multipla' ? 'Selecione uma ou mais...' : 'Selecione...')}</option>
+          <option value="">{placeholder || 'Selecione...'}</option>
           {(campo.opcoes as string[] || []).map((op, i) => (
             <option key={i} value={op}>{typeof op === 'string' ? op : `Opção ${i + 1}`}</option>
           ))}
         </select>
+      )
+    case 'selecao_multipla':
+      return (
+        <MultiSelectDropdown
+          opcoes={campo.opcoes as string[] || []}
+          selectedValues={valor ? valor.split('|') : []}
+          onChange={(vals) => onChange(vals.join('|'))}
+          placeholder={placeholder || 'Selecione uma ou mais...'}
+          inputStyle={inputStyle}
+          fontFamily={fontFamily}
+          borderColor={estiloCampos?.input_border_color || '#D1D5DB'}
+        />
       )
     case 'radio':
       return (
