@@ -6,75 +6,12 @@
  * Acesso:
  * - Admin: vê todas tarefas do tenant
  * - Member: vê apenas suas próprias tarefas
+ *
+ * AIDEV-NOTE: Auth centralizado via auth-context (Plano de Escala 2.3)
  */
 
 import { supabase } from '@/lib/supabase'
-
-// =====================================================
-// Helpers - Cache de IDs (mesmo padrão contatos/negocios)
-// =====================================================
-
-let _cachedOrgId: string | null = null
-let _cachedUserId: string | null = null
-let _cachedUserRole: string | null = null
-
-async function getOrganizacaoId(): Promise<string> {
-  if (_cachedOrgId) return _cachedOrgId
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Usuário não autenticado')
-
-  const { data } = await supabase
-    .from('usuarios')
-    .select('organizacao_id')
-    .eq('auth_id', user.id)
-    .maybeSingle()
-
-  if (!data?.organizacao_id) throw new Error('Organização não encontrada')
-  _cachedOrgId = data.organizacao_id
-  return _cachedOrgId
-}
-
-async function getUsuarioId(): Promise<string> {
-  if (_cachedUserId) return _cachedUserId
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Usuário não autenticado')
-
-  const { data } = await supabase
-    .from('usuarios')
-    .select('id')
-    .eq('auth_id', user.id)
-    .maybeSingle()
-
-  if (!data?.id) throw new Error('Usuário não encontrado')
-  _cachedUserId = data.id
-  return _cachedUserId
-}
-
-async function getUserRole(): Promise<string> {
-  if (_cachedUserRole) return _cachedUserRole
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Usuário não autenticado')
-
-  const { data } = await supabase
-    .from('usuarios')
-    .select('role')
-    .eq('auth_id', user.id)
-    .maybeSingle()
-
-  if (!data?.role) throw new Error('Role não encontrado')
-  _cachedUserRole = data.role
-  return _cachedUserRole
-}
-
-// Reset cache on auth state change
-supabase.auth.onAuthStateChange(() => {
-  _cachedOrgId = null
-  _cachedUserId = null
-  _cachedUserRole = null
-})
+import { getOrganizacaoId, getUsuarioId, getUserRole } from '@/shared/services/auth-context'
 
 // =====================================================
 // Types
@@ -166,11 +103,14 @@ export interface MembroEquipe {
 export const tarefasApi = {
   /**
    * Lista tarefas com filtros, paginação e joins
+   * AIDEV-NOTE: pipeline_id filtrado no banco via pre-fetch de oportunidade_ids
    */
   listar: async (params?: ListarTarefasParams): Promise<ListarTarefasResponse> => {
-    const organizacaoId = await getOrganizacaoId()
-    const usuarioId = await getUsuarioId()
-    const role = await getUserRole()
+    const [organizacaoId, usuarioId, role] = await Promise.all([
+      getOrganizacaoId(),
+      getUsuarioId(),
+      getUserRole(),
+    ])
 
     const page = params?.page || 1
     const limit = params?.limit || 20
@@ -179,6 +119,22 @@ export const tarefasApi = {
 
     const orderBy = params?.order_by || 'data_vencimento'
     const orderAsc = (params?.order_dir || 'asc') === 'asc'
+
+    // AIDEV-NOTE: Filtro pipeline_id movido para DB (antes era post-query em memória,
+    // quebrando paginação e contagem)
+    let pipelineOpIds: string[] | null = null
+    if (params?.pipeline_id) {
+      const { data: ops } = await supabase
+        .from('oportunidades')
+        .select('id')
+        .eq('funil_id', params.pipeline_id)
+        .is('deletado_em', null)
+        .limit(1000)
+      pipelineOpIds = (ops || []).map(o => o.id)
+      if (pipelineOpIds.length === 0) {
+        return { data: [], pagination: { page, limit, total: 0, total_pages: 0 } }
+      }
+    }
 
     let query = supabase
       .from('tarefas')
@@ -192,6 +148,11 @@ export const tarefasApi = {
       .is('deletado_em', null)
       .order(orderBy, { ascending: orderAsc, nullsFirst: false })
       .range(from, to)
+
+    // Filtro pipeline no banco
+    if (pipelineOpIds) {
+      query = query.in('oportunidade_id', pipelineOpIds)
+    }
 
     // Role-based filtering
     if (role === 'member') {
@@ -248,10 +209,10 @@ export const tarefasApi = {
 
       const [funisRes, etapasRes] = await Promise.all([
         funilIds.length > 0
-          ? supabase.from('funis').select('id, nome').in('id', funilIds)
+          ? supabase.from('funis').select('id, nome').in('id', funilIds).limit(100)
           : Promise.resolve({ data: [] }),
         etapaIds.length > 0
-          ? supabase.from('etapas_funil').select('id, nome').in('id', etapaIds)
+          ? supabase.from('etapas_funil').select('id, nome').in('id', etapaIds).limit(100)
           : Promise.resolve({ data: [] }),
       ])
 
@@ -266,16 +227,7 @@ export const tarefasApi = {
       }))
     }
 
-    // Filtro por pipeline_id (post-query via oportunidade)
-    if (params?.pipeline_id) {
-      tarefas = tarefas.filter(t =>
-        t.oportunidades?.funil_id === params.pipeline_id
-      )
-    }
-
-    const total = params?.pipeline_id
-      ? tarefas.length
-      : (count || 0)
+    const total = count || 0
 
     return {
       data: tarefas,
@@ -298,9 +250,11 @@ export const tarefasApi = {
     data_inicio?: string
     data_fim?: string
   }): Promise<TarefasMetricas> => {
-    const organizacaoId = await getOrganizacaoId()
-    const usuarioId = await getUsuarioId()
-    const role = await getUserRole()
+    const [organizacaoId, usuarioId, role] = await Promise.all([
+      getOrganizacaoId(),
+      getUsuarioId(),
+      getUserRole(),
+    ])
 
     // Base query builder helper
     const buildQuery = () => {
@@ -396,8 +350,10 @@ export const tarefasApi = {
    * Marca tarefa como concluída
    */
   concluir: async (tarefaId: string, observacao?: string): Promise<void> => {
-    const usuarioId = await getUsuarioId()
-    const role = await getUserRole()
+    const [usuarioId, role] = await Promise.all([
+      getUsuarioId(),
+      getUserRole(),
+    ])
 
     // Buscar tarefa para validar
     const { data: tarefa, error: fetchError } = await supabase
@@ -456,6 +412,7 @@ export const tarefasApi = {
       .in('role', ['admin', 'member'])
       .eq('ativo', true)
       .order('nome')
+      .limit(100)
 
     if (error) throw new Error(error.message)
     return (data || []) as MembroEquipe[]
@@ -472,6 +429,7 @@ export const tarefasApi = {
       .is('arquivado', false)
       .is('deletado_em', null)
       .order('nome')
+      .limit(50)
 
     if (error) throw new Error(error.message)
     return data || []
@@ -487,6 +445,7 @@ export const tarefasApi = {
       .eq('funil_id', funilId)
       .is('deletado_em', null)
       .order('ordem')
+      .limit(100)
 
     if (error) throw new Error(error.message)
     return data || []
