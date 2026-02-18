@@ -42,7 +42,7 @@ export function SolutionSection() {
             Chega de perder vendas por desorganização
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
-            O CRM Renove foi construído para empresas B2B que precisam de controle real
+            A Renove foi construída para empresas B2B que precisam de controle real
             sobre seu processo comercial, sem complexidade desnecessária.
           </p>
         </div>

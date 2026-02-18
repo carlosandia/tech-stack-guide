@@ -32,7 +32,7 @@ export function FinalCTASection() {
         </h2>
         <p className="text-lg text-primary-foreground/80 mb-8 max-w-xl mx-auto">
           Junte-se a centenas de empresas B2B que já transformaram seu processo comercial
-          com o CRM Renove.
+          com a Renove.
         </p>
 
         <Link to="/trial">

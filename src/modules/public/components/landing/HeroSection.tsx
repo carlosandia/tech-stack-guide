@@ -30,7 +30,7 @@ export function HeroSection() {
             </h1>
 
             <p className="text-lg text-muted-foreground leading-relaxed max-w-lg">
-              O CRM Renove centraliza todos os seus canais, organiza seu funil de vendas
+              A Renove centraliza todos os seus canais, organiza seu funil de vendas
               e garante que nenhum lead fique sem resposta. Mais controle, mais conversões,
               mais receita.
             </p>

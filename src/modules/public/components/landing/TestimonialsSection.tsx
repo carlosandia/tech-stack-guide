@@ -1,5 +1,8 @@
 import { Star } from 'lucide-react'
 import { useScrollReveal } from '../../hooks/useScrollReveal'
+import testimonialRicardo from '@/assets/testimonial-ricardo.jpg'
+import testimonialCamila from '@/assets/testimonial-camila.jpg'
+import testimonialFernando from '@/assets/testimonial-fernando.jpg'
 
 /**
  * AIDEV-NOTE: Depoimentos / prova social - resultados reais
@@ -9,15 +12,15 @@ const testimonials = [
     name: 'Ricardo Almeida',
     role: 'Diretor Comercial',
     company: 'TechSolutions BR',
-    avatar: 'RA',
+    photo: testimonialRicardo,
     stars: 5,
-    text: 'Antes do Renove, perdíamos pelo menos 30% dos leads por falta de follow-up. Hoje temos visibilidade total do funil e nossa taxa de conversão subiu 40% em 3 meses.',
+    text: 'Antes da Renove, perdíamos pelo menos 30% dos leads por falta de follow-up. Hoje temos visibilidade total do funil e nossa taxa de conversão subiu 40% em 3 meses.',
   },
   {
     name: 'Camila Santos',
     role: 'CEO',
     company: 'Grupo Innova',
-    avatar: 'CS',
+    photo: testimonialCamila,
     stars: 5,
     text: 'Finalmente marketing e vendas falam a mesma língua. Consigo ver exatamente quais campanhas geram receita real e onde investir mais. O ROI se pagou no primeiro mês.',
   },
@@ -25,7 +28,7 @@ const testimonials = [
     name: 'Fernando Costa',
     role: 'Gerente de Vendas',
     company: 'Construtora Horizonte',
-    avatar: 'FC',
+    photo: testimonialFernando,
     stars: 5,
     text: 'Minha equipe de 8 vendedores agora trabalha com processo. As automações eliminaram tarefas repetitivas e cada um ganhou pelo menos 2 horas por dia de produtividade.',
   },
@@ -70,9 +73,11 @@ export function TestimonialsSection() {
               </p>
 
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
-                  {t.avatar}
-                </div>
+                <img
+                  src={t.photo}
+                  alt={t.name}
+                  className="w-11 h-11 rounded-full object-cover border-2 border-primary/20"
+                />
                 <div>
                   <p className="text-sm font-semibold text-foreground">{t.name}</p>
                   <p className="text-xs text-muted-foreground">
