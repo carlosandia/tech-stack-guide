@@ -112,11 +112,27 @@ export function useApagarConversa() {
 
   return useMutation({
     mutationFn: (conversaId: string) => conversasApi.apagarConversa(conversaId),
+    onMutate: async (conversaId: string) => {
+      // AIDEV-NOTE: Optimistic update — remove da UI imediatamente
+      await queryClient.cancelQueries({ queryKey: ['conversas'] })
+      const previous = queryClient.getQueriesData({ queryKey: ['conversas'] })
+      queryClient.setQueriesData({ queryKey: ['conversas'] }, (old: any) => {
+        if (Array.isArray(old)) return old.filter((c: any) => c.id !== conversaId)
+        return old
+      })
+      return { previous }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['conversas'] })
       toast.success('Conversa apagada')
     },
-    onError: (error: Error) => {
+    onError: (error: Error, _conversaId, context) => {
+      // Restaurar cache anterior em caso de erro
+      if (context?.previous) {
+        context.previous.forEach(([key, data]: [any, any]) => {
+          queryClient.setQueryData(key, data)
+        })
+      }
       toast.error(error.message || 'Erro ao apagar conversa')
     },
   })
