@@ -16,7 +16,7 @@ import { AppLayout, AppDashboardPage, PerfilPage } from '@/modules/app'
 import { FormulariosPage, FormularioEditorPage } from '@/modules/formularios'
 import { FormularioPublicoPage } from '@/modules/formularios/pages/FormularioPublicoPage'
 import { OAuthGoogleCallbackPage } from '@/pages/OAuthGoogleCallbackPage'
-import { PlanosPage, TrialCadastroPage, CheckoutSucessoPage, OnboardingPage, PoliticaPrivacidadePage, TermosServicoPage } from '@/modules/public'
+import { PlanosPage, TrialCadastroPage, CheckoutSucessoPage, OnboardingPage, PoliticaPrivacidadePage, TermosServicoPage, LandingPage } from '@/modules/public'
 import { BlockedPage } from '@/modules/blocked'
 import { ConfiguracoesLayout, CamposPage, ProdutosPage, MotivosPage, TarefasTemplatesPage, EtapasTemplatesPage, RegrasPage, ConfigCardPage, ConexoesPage, WebhooksEntradaPage, WebhooksSaidaPage, MembrosPage, EquipesPage, PerfisPermissaoPage, MetasPage, ConfigGeralPage } from '@/modules/configuracoes'
 import { AutomacoesPage } from '@/modules/automacoes'
@@ -155,7 +155,7 @@ const App = forwardRef<HTMLDivElement>(function App(_props, _ref) {
         <Route path="evolucao" element={<AdminEvolucaoPage />} />
       </Route>
 
-      {/* Redireciona raiz baseado no role */}
+      {/* Redireciona raiz baseado no role ou mostra landing */}
       <Route path="/" element={
         isAuthenticated && !isSetPasswordPage
           ? isPendente
@@ -163,7 +163,7 @@ const App = forwardRef<HTMLDivElement>(function App(_props, _ref) {
             : role === 'super_admin'
               ? <Navigate to="/admin" replace />
               : <Navigate to="/dashboard" replace />
-          : <Navigate to="/login" replace />
+          : <LandingPage />
       } />
 
       {/* 404 - não redirecionar se está na pagina de set-password */}
