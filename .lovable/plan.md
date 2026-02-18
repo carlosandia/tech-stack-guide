@@ -1,54 +1,57 @@
 
-# Corrigir Estilizacao do Widget Embed para Espelhar o Visualizador Final
+# Corrigir Tamanho da Fonte do Titulo na Pagina Publica (/f/:slug)
 
-## Problemas Identificados
+## Problema Identificado
 
-Analisei os dados reais do banco e o codigo do `widget-formulario-loader`. Ha 3 bugs que causam divergencia entre o editor preview e o widget embed:
+A pagina publica do formulario (`/f/:slug`) ignora o `estilo_campo.label_tamanho` configurado para campos de titulo e paragrafo. O `labelStyle` que chega ja contem os valores corretos (merge feito via `getLabelStyle` > `mergeCampoEstilo`), porem o `renderCampoPublico` sobrescreve o `fontSize` com o valor do `valor_padrao.tamanho` (que e "18" - o default do layout).
 
-### 1. Cor do titulo/paragrafo ignorada
-O titulo tem `valor_padrao` com `cor: "#0b64f4"` (azul). Porem, no widget (linha 193), a logica faz:
+### Dados do Banco
+- `valor_padrao.tamanho` = "18" (default do layout)
+- `validacoes.estilo_campo.label_tamanho` = "35" (override configurado pelo usuario)
+- O editor e o widget embed ja usam o override corretamente
+- A pagina publica mostra "18px" em vez de "35px"
+
+## Alteracoes
+
+### Arquivo: `src/modules/formularios/pages/FormularioPublicoPage.tsx`
+
+**Titulo (linha 821-823)**: Aplicar a mesma logica de prioridade do editor:
+1. `estilo_campo.label_tamanho` (override individual) - se existir
+2. `valor_padrao.tamanho` (configuracao do layout)
+3. Fallback "18px"
+
+Tambem aplicar mesma logica para cor e peso da fonte.
+
+**Paragrafo (linha 825-827)**: Mesma correcao. Atualmente nem usa `labelStyle`, precisa incorporar overrides.
+
+### Logica Corrigida (titulo)
 ```
-var tColor = tFS.label_cor || tc.cor;
+case 'titulo': {
+  const tc = parseLayoutConfig(campo.valor_padrao, 'titulo')
+  const campoOver = (campo.validacoes as any)?.estilo_campo || {}
+  const fontSize = campoOver.label_tamanho
+    ? ensureUnit(String(campoOver.label_tamanho), tc.tamanho + 'px', 'fontSize')
+    : tc.tamanho + 'px'
+  const color = campoOver.label_cor || tc.cor || '#374151'
+  const weight = campoOver.label_font_weight || '600'
+  return <h3 style={{ ...labelStyle, fontSize, fontWeight: weight, marginBottom: 0, textAlign: tc.alinhamento, color }}>{...}</h3>
+}
 ```
-O `tFS` e o merge do estilo global dos campos (`fS`) com `estilo_campo`. Como o estilo global `fS.label_cor = "#374151"` (cinza escuro) existe, ele **sempre** prevalece sobre a cor do `valor_padrao`, mesmo que o campo titulo nao tenha override individual de `label_cor`.
 
-**Correcao**: Para campos de layout (titulo/paragrafo), a prioridade deve ser:
-1. `estilo_campo.label_cor` (override individual) -- se existir
-2. `tc.cor` (cor do valor_padrao do layout) -- cor configurada para aquele titulo
-3. `fS.label_cor` (global) -- fallback
-
-### 2. Tamanho da fonte sem unidade CSS
-O `label_tamanho` do titulo e "30" (sem "px"). No widget, nao ha `ensurePx()` aplicado ao font-size do titulo:
+### Logica Corrigida (paragrafo)
 ```
-var tFontSize = tFS.label_tamanho || tc.tamanho + 'px';
+case 'paragrafo': {
+  const pc = parseLayoutConfig(campo.valor_padrao, 'paragrafo')
+  const campoOver = (campo.validacoes as any)?.estilo_campo || {}
+  const fontSize = campoOver.label_tamanho
+    ? ensureUnit(String(campoOver.label_tamanho), pc.tamanho + 'px', 'fontSize')
+    : pc.tamanho + 'px'
+  const color = campoOver.label_cor || pc.cor || '#374151'
+  const weight = campoOver.label_font_weight || '400'
+  return <p style={{ fontSize, fontWeight: weight, margin: 0, fontFamily, textAlign: pc.alinhamento, color }}>{...}</p>
+}
 ```
-Quando `tFS.label_tamanho = "30"`, o CSS recebe `font-size:30` que e invalido. O navegador ignora.
 
-**Correcao**: Aplicar `ensurePx()` ao font-size.
+## Resultado Esperado
 
-### 3. Espacamento individual por campo nao aplicado
-O widget usa `fieldPadding` global (de `fS.gap_top`, `fS.gap_bottom`) para todos os campos. Porem, cada campo pode ter `validacoes.spacing_top`, `spacing_bottom`, etc., como overrides individuais. O widget ignora esses valores.
-
-Exemplo: o titulo tem `spacing_bottom: "30"` mas o widget aplica o global `gap_bottom: "40"`.
-
-**Correcao**: Antes de renderizar cada campo, ler `validacoes.spacing_*` e montar padding individual.
-
-## Alteracoes Tecnicas
-
-### Arquivo: `supabase/functions/widget-formulario-loader/index.ts`
-
-**A) Adicionar funcao `fieldPad` para spacing individual** (antes do loop de campos):
-- Criar funcao JS inline que le `c.validacoes.spacing_top/right/bottom/left` e usa como override do `fieldPadding` global
-
-**B) Corrigir titulo (linha 193)**:
-- Font size: aplicar `ensurePx()` em `tFS.label_tamanho`
-- Cor: verificar se `estilo_campo` tem `label_cor` explicitamente antes de usar `tFS.label_cor`, senao usar `tc.cor`
-
-**C) Corrigir paragrafo (linha 194)**:
-- Mesma logica de cor e font-size do titulo
-
-**D) Aplicar spacing individual a todos os campos**:
-- Substituir `fieldPadding` fixo por chamada a `fieldPad(c)` para cada campo no loop
-
-### Deploy
-Apos as alteracoes, sera necessario fazer deploy da edge function `widget-formulario-loader`. O cache do script e de 1h, entao os sites que ja carregaram verao a mudanca apos o cache expirar (ou com `?nocache=1`).
+Apos a correcao, a pagina `/f/demonstracao-crm-mlrb6yoz` exibira o titulo "Demonstracao Gratuita" com font-size equivalente a 35px (2.1875rem), identico ao que aparece no editor e no widget embed.
