@@ -7912,6 +7912,7 @@ export type Database = {
         Args: { p_tracking_id: string }
         Returns: undefined
       }
+      reordenar_posicoes_etapa: { Args: { items: Json }; Returns: undefined }
       resolve_lid_conversa: {
         Args: { p_lid_number: string; p_org_id: string }
         Returns: {

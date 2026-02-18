@@ -3,7 +3,7 @@
  * Conforme PRD-07 - Módulo de Negócios
  */
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { negociosApi } from '../services/negocios.api'
 import { supabase } from '@/lib/supabase'
@@ -22,7 +22,9 @@ interface KanbanFiltros {
 export function useKanban(funilId: string | null, filtros?: KanbanFiltros) {
   const queryClient = useQueryClient()
 
-  // Supabase Realtime: invalidar kanban quando oportunidades mudam
+  // AIDEV-NOTE: Debounce de 2s no Realtime para evitar refetch storms (Plano de Escala 1.1)
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   useEffect(() => {
     if (!funilId) return
 
@@ -37,12 +39,16 @@ export function useKanban(funilId: string | null, filtros?: KanbanFiltros) {
           filter: `funil_id=eq.${funilId}`,
         },
         () => {
-          queryClient.invalidateQueries({ queryKey: ['kanban', funilId] })
+          if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
+          debounceTimerRef.current = setTimeout(() => {
+            queryClient.invalidateQueries({ queryKey: ['kanban', funilId] })
+          }, 2000)
         }
       )
       .subscribe()
 
     return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
       supabase.removeChannel(channel)
     }
   }, [funilId, queryClient])
