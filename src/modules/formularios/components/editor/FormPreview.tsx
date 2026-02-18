@@ -574,7 +574,7 @@ export const FormPreview = forwardRef<HTMLDivElement, Props>(function FormPrevie
                                         e.stopPropagation()
                                         const draggedId = e.dataTransfer.getData('application/campo-id')
                                         if (draggedId && draggedId !== campo.id) {
-                                          onReorderCampo(draggedId, index)
+                                          onReorderCampo(draggedId, campo.ordem)
                                         }
                                       }}
                                       onDragLeave={() => {}}
@@ -585,7 +585,7 @@ export const FormPreview = forwardRef<HTMLDivElement, Props>(function FormPrevie
                                       estiloCampos={estiloCampos}
                                       fontFamily={fontFamily}
                                     />
-                                    {renderDropZone(index + 1)}
+                                    {renderDropZone(campo.ordem + 1)}
                                   </div>
                                 )
                               }
@@ -611,7 +611,7 @@ export const FormPreview = forwardRef<HTMLDivElement, Props>(function FormPrevie
                                         e.stopPropagation()
                                         const draggedId = e.dataTransfer.getData('application/campo-id')
                                         if (draggedId && draggedId !== campo.id) {
-                                          onReorderCampo(draggedId, index)
+                                          onReorderCampo(draggedId, campo.ordem)
                                         }
                                       }}
                                       onDragLeave={() => {}}
@@ -622,7 +622,7 @@ export const FormPreview = forwardRef<HTMLDivElement, Props>(function FormPrevie
                                       fontFamily={fontFamily}
                                     />
                                   </div>
-                                  {renderDropZone(index + 1)}
+                                  {renderDropZone(campo.ordem + 1)}
                                 </React.Fragment>
                               )
                             })}

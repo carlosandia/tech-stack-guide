@@ -239,14 +239,20 @@ export function FormularioEditorPage() {
   )
 
   const handleReorderCampo = useCallback(
-    (dragId: string, targetIndex: number) => {
-      const dragIdx = campos.findIndex((c) => c.id === dragId)
-      if (dragIdx === -1) return
-      if (dragIdx === targetIndex || dragIdx === targetIndex - 1) return
-      const newCampos = [...campos]
-      const [moved] = newCampos.splice(dragIdx, 1)
-      const insertAt = dragIdx < targetIndex ? targetIndex - 1 : targetIndex
-      newCampos.splice(insertAt, 0, moved)
+    (dragId: string, targetOrdem: number) => {
+      const draggedCampo = campos.find((c) => c.id === dragId)
+      if (!draggedCampo) return
+      // Se já está na posição correta, ignorar
+      if (draggedCampo.ordem === targetOrdem || draggedCampo.ordem === targetOrdem - 1) return
+
+      const without = campos.filter((c) => c.id !== dragId)
+      const insertAt = without.findIndex((c) => c.ordem >= targetOrdem)
+      const newCampos = [...without]
+      if (insertAt === -1) {
+        newCampos.push(draggedCampo)
+      } else {
+        newCampos.splice(insertAt, 0, draggedCampo)
+      }
       reordenarCampos.mutate(newCampos.map((c, i) => ({ id: c.id, ordem: i })))
     },
     [campos, reordenarCampos]
