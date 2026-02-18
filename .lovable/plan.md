@@ -1,50 +1,73 @@
 
-# Botão "Conversar" no vCard: abrir modal Nova Conversa com telefone preenchido
 
-## Contexto
+# Correção: Conteúdo do email cortado e caracteres "�"
 
-Atualmente, o botão "Conversar" dentro de um cartão de contato (vCard) no chat abre o `wa.me` no navegador. O comportamento desejado é abrir o modal "Nova Conversa" com o telefone do contato ja preenchido.
+## Problema 1: Layout cortado / não centralizado
 
-## Alteracoes
+A CSS de contenção injetada no iframe é muito agressiva:
 
-### 1. NovaConversaModal - aceitar telefone inicial via props
+```css
+table { max-width: 100% !important; table-layout: fixed; width: 100% !important; }
+* { max-width: 100% !important; }
+```
 
-Adicionar prop opcional `telefoneInicial` ao componente. Quando presente, o modal abre ja no modo "telefone" com o numero preenchido e o pais detectado automaticamente.
+Emails profissionais (como os do eNotas) usam tabelas aninhadas com larguras fixas para layout. O `table-layout: fixed` e `width: 100%` forçados em TODAS as tabelas quebra completamente esse layout, causando o corte do conteúdo e a falta de centralização.
 
-**Arquivo**: `src/modules/conversas/components/NovaConversaModal.tsx`
+## Problema 2: Caracteres "�" (encoding quebrado)
 
-- Adicionar `telefoneInicial?: string` na interface `NovaConversaModalProps`
-- No `useEffect` de reset (quando `isOpen` muda), se `telefoneInicial` existir:
-  - Detectar o DDI do numero (ex: se comeca com "55", selecionar Brasil)
-  - Remover o DDI e colocar o restante no campo `telefone`
-  - Manter modo "telefone"
+O caractere "�" (U+FFFD) aparece em textos como "eletr**�**nica" e "Verifica**��**o". Isso indica que bytes de charset latin1/iso-8859-1 (ex: `0xF4` = "ô") foram interpretados como UTF-8 sem conversão correta.
 
-### 2. ConversasPage - gerenciar estado do telefone inicial
+**Causa**: O MIME parser detecta charset apenas dos headers MIME. Muitos emails declaram charset somente na tag `<meta>` do HTML (ex: `<meta charset="iso-8859-1">`), e o parser ignora isso, assumindo UTF-8 como fallback.
 
-**Arquivo**: `src/modules/conversas/pages/ConversasPage.tsx`
+Adicionalmente, o iframe `srcDoc` não tem `<meta charset="utf-8">` declarado, o que pode causar problemas de interpretação.
 
-- Adicionar estado `novaConversaTelefone` (string | null)
-- Criar callback `handleIniciarConversaComTelefone(telefone: string)` que seta o telefone e abre o modal
-- Passar `telefoneInicial` para o `NovaConversaModal`
-- Limpar `novaConversaTelefone` ao fechar o modal
-- Passar o callback para o `ChatWindow`
+## Alterações
 
-### 3. ChatWindow - propagar callback ate o ChatMessageBubble
+### Arquivo 1: `src/modules/emails/components/EmailViewer.tsx`
 
-**Arquivo**: `src/modules/conversas/components/ChatWindow.tsx`
+**1a. Corrigir CSS de contenção (linhas 276-284)**
 
-- Receber e repassar prop `onStartConversation` para `ChatMessages`
+Remover as regras agressivas que quebram layout de tabelas:
 
-### 4. ChatMessages - repassar para ChatMessageBubble
+```text
+ANTES:
+* { max-width: 100% !important; box-sizing: border-box; }
+table { max-width: 100% !important; table-layout: fixed; width: 100% !important; }
 
-**Arquivo**: `src/modules/conversas/components/ChatMessages.tsx`
+DEPOIS:
+* { box-sizing: border-box; }
+table { border-collapse: collapse; }
+```
 
-- Receber e repassar prop `onStartConversation` para `ChatMessageBubble`
+Manter apenas as regras seguras: `overflow-x: hidden` no body, `img { max-width: 100%; height: auto; }`, e `pre/code { white-space: pre-wrap; }`.
 
-### 5. ChatMessageBubble - alterar botao "Conversar" no vCard
+**1b. Adicionar `<meta charset="utf-8">` na injeção do head (linhas 287-290)**
 
-**Arquivo**: `src/modules/conversas/components/ChatMessageBubble.tsx`
+Garantir que o iframe interprete o conteúdo como UTF-8.
 
-- Receber prop `onStartConversation?: (telefone: string) => void`
-- No botao "Conversar" do `VCardContent` (linha 440-443), ao inves de abrir `wa.me`, chamar `onStartConversation` com o telefone limpo
-- Fallback: se `onStartConversation` nao estiver disponivel, manter comportamento atual (abrir wa.me)
+**1c. Adicionar detecção e re-decodificação de charset no frontend (no `cleanHtml` useMemo)**
+
+Após o sanitize, verificar se o HTML contém "�" (replacement character). Se sim, tentar detectar o charset original da tag `<meta>` do HTML e re-decodificar o corpo original como latin1/iso-8859-1. Isso serve como fallback quando o backend já salvou dados com encoding errado.
+
+### Arquivo 2: `supabase/functions/fetch-email-body/index.ts`
+
+**2a. Adicionar fallback de detecção de charset via HTML meta (na função `parseMimeMessage`)**
+
+Após decodificar o body com o charset dos headers MIME, verificar se o resultado contém "�". Se sim, procurar `<meta charset="...">` ou `<meta http-equiv="Content-Type" content="...; charset=...">` no HTML decodificado e re-decodificar com o charset correto.
+
+### Arquivo 3: `supabase/functions/sync-emails/index.ts`
+
+**3a. Mesma correção do fetch-email-body**: Adicionar o fallback de charset via HTML meta na função `parseMimeMessage` para que emails sincronizados automaticamente também resolvam o encoding corretamente.
+
+## Resumo das mudanças
+
+| Arquivo | Alteração |
+|---|---|
+| `EmailViewer.tsx` | CSS menos agressivo, meta charset, fallback re-decode |
+| `fetch-email-body/index.ts` | Detecção de charset via HTML meta |
+| `sync-emails/index.ts` | Detecção de charset via HTML meta |
+
+## Nota sobre emails já salvos
+
+Emails que já estão no banco com encoding errado precisarão ser re-sincronizados. Isso pode ser feito limpando o `corpo_html` dos registros afetados para que o `fetch-email-body` busque novamente do servidor IMAP com a correção aplicada.
+
