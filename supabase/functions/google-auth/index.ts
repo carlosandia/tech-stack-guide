@@ -281,6 +281,66 @@ serve(async (req) => {
         }
       }
 
+      // AIDEV-NOTE: Se tipo=gmail, também criar/atualizar conexoes_email para refletir no card de Email
+      if (stateData.tipo === "gmail" && userInfo.email) {
+        const emailConexaoData = {
+          organizacao_id: stateData.organizacao_id,
+          usuario_id: stateData.usuario_id,
+          email: userInfo.email,
+          tipo: "gmail",
+          status: "conectado",
+          conectado_em: new Date().toISOString(),
+          atualizado_em: new Date().toISOString(),
+          access_token_encrypted: simpleEncrypt(tokens.access_token, ""),
+          refresh_token_encrypted: tokens.refresh_token
+            ? simpleEncrypt(tokens.refresh_token, "")
+            : null,
+          token_expires_at: tokens.expires_in
+            ? new Date(Date.now() + tokens.expires_in * 1000).toISOString()
+            : null,
+          google_user_id: userInfo.id || null,
+          nome_remetente: userInfo.name || null,
+        };
+
+        const { data: existingEmail } = await supabaseAdmin
+          .from("conexoes_email")
+          .select("id")
+          .eq("organizacao_id", stateData.organizacao_id)
+          .eq("usuario_id", stateData.usuario_id)
+          .eq("tipo", "gmail")
+          .is("deletado_em", null)
+          .single();
+
+        if (existingEmail) {
+          await supabaseAdmin
+            .from("conexoes_email")
+            .update(emailConexaoData)
+            .eq("id", existingEmail.id);
+        } else {
+          // Check if there's an old SMTP connection for same user, update it to gmail
+          const { data: existingSmtp } = await supabaseAdmin
+            .from("conexoes_email")
+            .select("id")
+            .eq("organizacao_id", stateData.organizacao_id)
+            .eq("usuario_id", stateData.usuario_id)
+            .is("deletado_em", null)
+            .single();
+
+          if (existingSmtp) {
+            await supabaseAdmin
+              .from("conexoes_email")
+              .update(emailConexaoData)
+              .eq("id", existingSmtp.id);
+          } else {
+            await supabaseAdmin
+              .from("conexoes_email")
+              .insert(emailConexaoData);
+          }
+        }
+
+        console.log("[google-auth] Email connection also saved for Gmail user:", userInfo.email);
+      }
+
       console.log("[google-auth] Connection saved for user:", stateData.usuario_id, "email:", userInfo.email);
 
       return new Response(JSON.stringify({ success: true, email: userInfo.email }), {
