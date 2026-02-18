@@ -184,11 +184,10 @@ export const KanbanBoard = forwardRef<HTMLDivElement, KanbanBoardProps>(function
       }
     })
 
-    // Batch update posições
-    const updates = sorted.map((op, idx) => 
-      supabase.from('oportunidades').update({ posicao: idx }).eq('id', op.id)
-    )
-    await Promise.all(updates)
+    // AIDEV-NOTE: Batch update via RPC em 1 roundtrip (Plano de Escala 1.2)
+    const items = sorted.map((op, idx) => ({ id: op.id, posicao: idx }))
+    const { error: rpcError } = await supabase.rpc('reordenar_posicoes_etapa', { items: JSON.stringify(items) } as any)
+    if (rpcError) console.error('Erro RPC reordenar_posicoes_etapa:', rpcError)
     queryClient.invalidateQueries({ queryKey: ['kanban'] })
     toast.success('Cards ordenados')
   }, [data, queryClient])

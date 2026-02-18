@@ -5,52 +5,7 @@
  */
 
 import { supabase } from '@/lib/supabase'
-
-// =====================================================
-// Helper - Obter organizacao_id e usuario_id
-// =====================================================
-
-let _cachedOrgId: string | null = null
-let _cachedUserId: string | null = null
-
-async function getOrganizacaoId(): Promise<string> {
-  if (_cachedOrgId) return _cachedOrgId
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Usuário não autenticado')
-
-  const { data } = await supabase
-    .from('usuarios')
-    .select('organizacao_id')
-    .eq('auth_id', user.id)
-    .maybeSingle()
-
-  if (!data?.organizacao_id) throw new Error('Organização não encontrada')
-  _cachedOrgId = data.organizacao_id
-  return _cachedOrgId
-}
-
-async function getUsuarioId(): Promise<string> {
-  if (_cachedUserId) return _cachedUserId
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Usuário não autenticado')
-
-  const { data } = await supabase
-    .from('usuarios')
-    .select('id')
-    .eq('auth_id', user.id)
-    .maybeSingle()
-
-  if (!data?.id) throw new Error('Usuário não encontrado')
-  _cachedUserId = data.id
-  return _cachedUserId
-}
-
-supabase.auth.onAuthStateChange(() => {
-  _cachedOrgId = null
-  _cachedUserId = null
-})
+import { getOrganizacaoId, getUsuarioId } from '@/shared/services/auth-context'
 
 // =====================================================
 // Types
@@ -505,11 +460,10 @@ export const negociosApi = {
       const idx = (dropIndex !== undefined && dropIndex >= 0) ? dropIndex : listaOrdenada.length
       listaOrdenada.splice(idx, 0, oportunidadeId)
 
-      // Atualizar posições em batch
-      const updates = listaOrdenada.map((id, i) =>
-        supabase.from('oportunidades').update({ posicao: i + 1 } as any).eq('id', id)
-      )
-      await Promise.all(updates)
+      // AIDEV-NOTE: Batch update via RPC em 1 roundtrip (Plano de Escala 1.2)
+      const items = listaOrdenada.map((id, i) => ({ id, posicao: i + 1 }))
+      const { error: rpcError } = await supabase.rpc('reordenar_posicoes_etapa', { items: JSON.stringify(items) } as any)
+      if (rpcError) console.error('Erro RPC reordenar_posicoes_etapa:', rpcError)
     } catch (err) {
       console.error('Erro ao recalcular posições:', err)
     }
@@ -553,69 +507,9 @@ export const negociosApi = {
     const organizacaoId = await getOrganizacaoId()
     const userId = await getUsuarioId()
 
-    // AIDEV-NOTE: Aplicar rodízio quando responsável não é informado (RF-06)
-    let responsavelFinal = payload.usuario_responsavel_id || userId
-    if (!payload.usuario_responsavel_id) {
-      try {
-        const { data: configDist } = await supabase
-          .from('configuracoes_distribuicao')
-          .select('*')
-          .eq('funil_id', payload.funil_id)
-          .single()
-
-        if (configDist && configDist.modo === 'rodizio') {
-          let dentroDoHorario = true
-          if (configDist.horario_especifico) {
-            const agora = new Date()
-            const diaSemana = agora.getDay()
-            const horaAtual = `${String(agora.getHours()).padStart(2, '0')}:${String(agora.getMinutes()).padStart(2, '0')}`
-            if (configDist.dias_semana && !configDist.dias_semana.includes(diaSemana)) dentroDoHorario = false
-            if (configDist.horario_inicio && configDist.horario_fim) {
-              if (horaAtual < configDist.horario_inicio || horaAtual > configDist.horario_fim) dentroDoHorario = false
-            }
-          }
-
-          if (dentroDoHorario) {
-            const { data: membros } = await supabase
-              .from('funis_membros')
-              .select('usuario_id')
-              .eq('funil_id', payload.funil_id)
-              .eq('ativo', true)
-
-            if (membros && membros.length > 0) {
-              let membrosFiltrados = membros
-              if (configDist.pular_inativos) {
-                const { data: ativos } = await supabase
-                  .from('usuarios')
-                  .select('id')
-                  .in('id', membros.map(m => m.usuario_id))
-                  .eq('status', 'ativo')
-                if (ativos) {
-                  const ativosSet = new Set(ativos.map(u => u.id))
-                  membrosFiltrados = membros.filter(m => ativosSet.has(m.usuario_id))
-                }
-              }
-
-              if (membrosFiltrados.length > 0) {
-                const posicao = (configDist.posicao_rodizio || 0) % membrosFiltrados.length
-                responsavelFinal = membrosFiltrados[posicao].usuario_id
-
-                // Incrementar posição
-                await supabase
-                  .from('configuracoes_distribuicao')
-                  .update({
-                    posicao_rodizio: (configDist.posicao_rodizio || 0) + 1,
-                    ultimo_usuario_id: responsavelFinal,
-                  })
-                  .eq('id', configDist.id)
-              }
-            }
-          }
-        }
-      } catch (err) {
-        console.error('[rodizio] Erro ao aplicar distribuição:', err)
-      }
-    }
+    // AIDEV-NOTE: Rodízio removido do frontend — trigger `aplicar_config_pipeline_oportunidade`
+    // no banco faz a distribuição (Plano de Escala 1.3). Fallback simples abaixo.
+    const responsavelFinal = payload.usuario_responsavel_id || userId
 
     const insertData: Record<string, unknown> = {
       organizacao_id: organizacaoId,
@@ -649,19 +543,8 @@ export const negociosApi = {
 
     const oportunidade = data as Oportunidade
 
-    // Auto-criar tarefas vinculadas à etapa (RF-07)
-    try {
-      await negociosApi.criarTarefasAutomaticas(
-        oportunidade.id,
-        payload.etapa_id,
-        oportunidade.contato_id,
-        organizacaoId,
-        payload.usuario_responsavel_id || userId,
-        userId,
-      )
-    } catch (err) {
-      console.error('Erro ao criar tarefas automáticas:', err)
-    }
+    // AIDEV-NOTE: Tarefas automáticas na criação removidas do frontend —
+    // trigger `aplicar_config_pipeline_oportunidade` (INSERT) já cria (Plano de Escala 1.4)
 
     return oportunidade
   },
@@ -1059,12 +942,14 @@ export const negociosApi = {
     usuario_id: string
     usuario?: { id: string; nome: string; avatar_url?: string | null }
   }>> => {
+    // AIDEV-NOTE: Limit de 50 adicionado para evitar carregamento excessivo (Plano de Escala 2.2)
     const { data, error } = await supabase
       .from('anotacoes_oportunidades')
       .select('*')
       .eq('oportunidade_id', oportunidadeId)
       .is('deletado_em', null)
       .order('criado_em', { ascending: false })
+      .limit(50)
 
     if (error) throw new Error(error.message)
 
@@ -1138,7 +1023,8 @@ export const negociosApi = {
   // Histórico (Timeline) via audit_log
   // =====================================================
 
-  listarHistorico: async (oportunidadeId: string): Promise<Array<{
+  // AIDEV-NOTE: Paginação adicionada com defaults retrocompatíveis (Plano de Escala 2.1)
+  listarHistorico: async (oportunidadeId: string, page: number = 0, pageSize: number = 50): Promise<Array<{
     id: string
     acao: string
     entidade: string
@@ -1149,12 +1035,15 @@ export const negociosApi = {
     usuario_id: string | null
     usuario_nome: string | null
   }>> => {
+    const from = page * pageSize
+    const to = from + pageSize - 1
+
     const { data, error } = await supabase
       .from('audit_log')
       .select('id, acao, entidade, detalhes, dados_anteriores, dados_novos, criado_em, usuario_id')
       .eq('entidade_id', oportunidadeId)
       .order('criado_em', { ascending: false })
-      .limit(100)
+      .range(from, to)
 
     if (error) throw new Error(error.message)
     const eventos = (data || []) as any[]

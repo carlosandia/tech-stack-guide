@@ -5,6 +5,7 @@
  */
 
 import { supabase } from '@/lib/supabase'
+import { getOrganizacaoId, getUsuarioId } from '@/shared/services/auth-context'
 
 // =====================================================
 // Types
@@ -43,34 +44,6 @@ export interface PreOportunidadeCard {
   criado_em: string
   ultima_mensagem_em: string | null
   tempo_espera_minutos: number
-}
-
-// =====================================================
-// Helpers
-// =====================================================
-
-async function getOrganizacaoId(): Promise<string> {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Usuário não autenticado')
-  const { data } = await supabase
-    .from('usuarios')
-    .select('organizacao_id')
-    .eq('auth_id', user.id)
-    .maybeSingle()
-  if (!data?.organizacao_id) throw new Error('Organização não encontrada')
-  return data.organizacao_id
-}
-
-async function getUsuarioId(): Promise<string> {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Usuário não autenticado')
-  const { data } = await supabase
-    .from('usuarios')
-    .select('id')
-    .eq('auth_id', user.id)
-    .maybeSingle()
-  if (!data?.id) throw new Error('Usuário não encontrado')
-  return data.id
 }
 
 // =====================================================
