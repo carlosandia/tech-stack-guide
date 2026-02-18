@@ -40,12 +40,58 @@ export function useEnviarTexto() {
   return useMutation({
     mutationFn: ({ conversaId, texto, replyTo, isTemplate }: { conversaId: string; texto: string; replyTo?: string; isTemplate?: boolean }) =>
       conversasApi.enviarTexto(conversaId, texto, replyTo, isTemplate),
-    onSuccess: (_data, variables) => {
+    // AIDEV-NOTE: Optimistic Update - mensagem aparece instantaneamente na UI
+    onMutate: async (variables) => {
+      await queryClient.cancelQueries({ queryKey: ['mensagens', variables.conversaId] })
+      const snapshot = queryClient.getQueryData(['mensagens', variables.conversaId])
+
+      const optimisticMsg = {
+        id: `temp_${Date.now()}`,
+        conversa_id: variables.conversaId,
+        organizacao_id: '',
+        message_id: null,
+        from_me: true,
+        from_number: null,
+        to_number: null,
+        participant: null,
+        tipo: 'text' as const,
+        body: variables.texto,
+        media_url: null,
+        media_mimetype: null,
+        media_filename: null,
+        media_caption: null,
+        ack: 0,
+        reply_to_message_id: variables.replyTo || null,
+        reaction_emoji: null,
+        reaction_message_id: null,
+        raw_data: null,
+        criado_em: new Date().toISOString(),
+        atualizado_em: new Date().toISOString(),
+        deletado_em: null,
+      }
+
+      queryClient.setQueryData(['mensagens', variables.conversaId], (old: any) => {
+        if (!old?.pages?.length) return old
+        const newPages = [...old.pages]
+        newPages[0] = {
+          ...newPages[0],
+          data: [optimisticMsg, ...newPages[0].data],
+        }
+        return { ...old, pages: newPages }
+      })
+
+      return { snapshot }
+    },
+    onError: (error: Error, variables, context) => {
+      // Rollback ao snapshot anterior
+      if (context?.snapshot) {
+        queryClient.setQueryData(['mensagens', variables.conversaId], context.snapshot)
+      }
+      handleWahaError(error, 'Erro ao enviar mensagem')
+    },
+    onSettled: (_data, _err, variables) => {
       queryClient.invalidateQueries({ queryKey: ['mensagens', variables.conversaId] })
       queryClient.invalidateQueries({ queryKey: ['conversas'] })
-    },
-    onError: (error: Error) => {
-      handleWahaError(error, 'Erro ao enviar mensagem')
     },
   })
 }
