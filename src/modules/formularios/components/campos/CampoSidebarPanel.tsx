@@ -1,12 +1,15 @@
 /**
  * AIDEV-NOTE: Wrapper com abas Configuração/Estilo para o sidebar de campo
  * Similar ao BotaoConfigPanel, unifica config e estilo em um único local
+ * Inclui espaçamento individual por campo (salvo em validacoes)
  */
 
 import { useState } from 'react'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { CampoConfigPanel } from './CampoConfigPanel'
 import { EstiloCamposForm } from '../estilos/EstiloCamposForm'
 import type { CampoFormulario, EstiloCampos } from '../../services/formularios.api'
@@ -24,8 +27,78 @@ interface Props {
   fullscreen?: boolean
 }
 
+/**
+ * AIDEV-NOTE: Seção de espaçamento individual por campo
+ * Os valores são salvos em campo.validacoes.spacing_*
+ */
+function EspacamentoCampo({ campo, onUpdate }: { campo: CampoFormulario; onUpdate: (payload: Partial<CampoFormulario>) => void }) {
+  const validacoes = (campo.validacoes || {}) as Record<string, unknown>
+
+  const getValue = (key: string, fallback: string) => String(validacoes[key] ?? fallback)
+
+  const updateSpacing = (key: string, val: string) => {
+    onUpdate({
+      validacoes: { ...validacoes, [key]: val },
+    })
+  }
+
+  return (
+    <div className="space-y-2 pt-2 border-t border-border">
+      <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+        Espaçamento do Campo
+      </p>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1">
+          <Label className="text-[10px] text-muted-foreground">Topo</Label>
+          <Input
+            value={getValue('spacing_top', '0')}
+            onChange={(e) => updateSpacing('spacing_top', e.target.value)}
+            placeholder="0"
+            className="h-7 text-xs px-2"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-[10px] text-muted-foreground">Baixo</Label>
+          <Input
+            value={getValue('spacing_bottom', '0')}
+            onChange={(e) => updateSpacing('spacing_bottom', e.target.value)}
+            placeholder="0"
+            className="h-7 text-xs px-2"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-[10px] text-muted-foreground">Esquerda</Label>
+          <Input
+            value={getValue('spacing_left', '0')}
+            onChange={(e) => updateSpacing('spacing_left', e.target.value)}
+            placeholder="0"
+            className="h-7 text-xs px-2"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-[10px] text-muted-foreground">Direita</Label>
+          <Input
+            value={getValue('spacing_right', '0')}
+            onChange={(e) => updateSpacing('spacing_right', e.target.value)}
+            placeholder="0"
+            className="h-7 text-xs px-2"
+          />
+        </div>
+      </div>
+      <p className="text-[10px] text-muted-foreground">Valores em px</p>
+    </div>
+  )
+}
+
 export function CampoSidebarPanel({ campo, onUpdate, onClose, showConfig, estiloCampos, onChangeEstiloCampos, fullscreen }: Props) {
   const [tab, setTab] = useState<TabType>('config')
+
+  const estiloContent = (
+    <>
+      <EstiloCamposForm value={estiloCampos} onChange={onChangeEstiloCampos} />
+      <EspacamentoCampo campo={campo} onUpdate={onUpdate} />
+    </>
+  )
 
   if (fullscreen) {
     return (
@@ -67,9 +140,7 @@ export function CampoSidebarPanel({ campo, onUpdate, onClose, showConfig, estilo
           {tab === 'config' && (
             <CampoConfigPanel campo={campo} onUpdate={onUpdate} onClose={onClose} hideHeader />
           )}
-          {tab === 'estilo' && (
-            <EstiloCamposForm value={estiloCampos} onChange={onChangeEstiloCampos} />
-          )}
+          {tab === 'estilo' && estiloContent}
         </div>
       </div>
     )
@@ -120,9 +191,7 @@ export function CampoSidebarPanel({ campo, onUpdate, onClose, showConfig, estilo
         {tab === 'config' && (
           <CampoConfigPanel campo={campo} onUpdate={onUpdate} onClose={onClose} hideHeader />
         )}
-        {tab === 'estilo' && (
-          <EstiloCamposForm value={estiloCampos} onChange={onChangeEstiloCampos} />
-        )}
+        {tab === 'estilo' && estiloContent}
       </div>
     </div>
   )

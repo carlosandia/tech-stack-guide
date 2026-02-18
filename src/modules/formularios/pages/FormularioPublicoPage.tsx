@@ -484,7 +484,7 @@ export function FormularioPublicoPage() {
               })()
 
               return (
-                <div key={campo.id} style={{ width: '100%', padding: `${camposEstilo.gap_top || camposEstilo.gap || '12'}px 0` }}>
+                <div key={campo.id} style={{ width: '100%', padding: `${((campo.validacoes as Record<string, unknown>)?.spacing_top as string) || '0'}px 0` }}>
                   <div data-bloco-id={campo.id} style={{ display: 'flex', flexWrap: 'wrap', gap: `${colConfig.gap}px` }}>
                     {Array.from({ length: colConfig.colunas }).map((_, colIdx) => {
                       const children = campos
@@ -503,7 +503,9 @@ export function FormularioPublicoPage() {
                           {children.map(child => {
                             const childLarguraMap: Record<string, string> = { full: '100%', '1/2': '50%', '1/3': '33.33%', '2/3': '66.66%', half: '50%', third: '33.33%' }
                             const cw = childLarguraMap[child.largura] || '100%'
-                            const fieldMargin = `${camposEstilo.gap_top || camposEstilo.gap || '12'}px ${camposEstilo.gap_right || '0'}px ${camposEstilo.gap_bottom || '0'}px ${camposEstilo.gap_left || '0'}px`
+                            // AIDEV-NOTE: Espaçamento individual por campo (validacoes.spacing_*)
+                            const childVal = (child.validacoes || {}) as Record<string, unknown>
+                            const fieldMargin = `${childVal.spacing_top || '0'}px ${childVal.spacing_right || '0'}px ${childVal.spacing_bottom || '0'}px ${childVal.spacing_left || '0'}px`
                             return (
                               <div key={child.id} data-campo-id={child.id} style={{ width: cw, padding: fieldMargin, boxSizing: 'border-box' as const }}>
                                 {renderCampoPublico({
@@ -556,7 +558,9 @@ export function FormularioPublicoPage() {
 
             const larguraMap: Record<string, string> = { full: '100%', '1/2': '50%', '1/3': '33.33%', '2/3': '66.66%', half: '50%', third: '33.33%' }
             const w = larguraMap[campo.largura] || '100%'
-            const fieldMargin = `${camposEstilo.gap_top || camposEstilo.gap || '12'}px ${camposEstilo.gap_right || '0'}px ${camposEstilo.gap_bottom || '0'}px ${camposEstilo.gap_left || '0'}px`
+            // AIDEV-NOTE: Espaçamento individual por campo (validacoes.spacing_*)
+            const campoVal = (campo.validacoes || {}) as Record<string, unknown>
+            const fieldMargin = `${campoVal.spacing_top || '0'}px ${campoVal.spacing_right || '0'}px ${campoVal.spacing_bottom || '0'}px ${campoVal.spacing_left || '0'}px`
             return (
               <div key={campo.id} data-campo-id={campo.id} style={{ width: w, padding: fieldMargin, boxSizing: 'border-box' as const }}>
                 {renderCampoPublico({

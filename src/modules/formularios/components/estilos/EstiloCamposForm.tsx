@@ -213,36 +213,7 @@ export function EstiloCamposForm({ value, onChange }: Props) {
         value={value.erro_cor || '#EF4444'}
         onChange={(v) => update('erro_cor', v)}
       />
-
-      {/* Espaçamento */}
-      <SectionLabel>Espaçamento entre Campos</SectionLabel>
-      <div className="grid grid-cols-2 gap-2">
-        <SmallInput
-          label="Topo"
-          value={value.gap_top || '12'}
-          onChange={(v) => update('gap_top', v)}
-          placeholder="12"
-        />
-        <SmallInput
-          label="Baixo"
-          value={value.gap_bottom || '0'}
-          onChange={(v) => update('gap_bottom', v)}
-          placeholder="0"
-        />
-        <SmallInput
-          label="Esquerda"
-          value={value.gap_left || '0'}
-          onChange={(v) => update('gap_left', v)}
-          placeholder="0"
-        />
-        <SmallInput
-          label="Direita"
-          value={value.gap_right || '0'}
-          onChange={(v) => update('gap_right', v)}
-          placeholder="0"
-        />
-      </div>
-      <p className="text-[10px] text-muted-foreground">Valores em px</p>
+      {/* AIDEV-NOTE: Espaçamento entre campos removido daqui - agora é individual por campo via CampoSidebarPanel */}
     </div>
   )
 }
