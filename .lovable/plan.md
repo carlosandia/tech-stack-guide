@@ -1,51 +1,76 @@
 
-# Corrigir desconexao de espacamento entre Editor e Widget Embed
 
-## Problema raiz
+# Corrigir paridade visual entre Editor Preview e Widget Embed
 
-Existem duas logicas diferentes para calcular o espacamento entre campos:
+## Diagnostico completo
 
-- **Editor (FormPreview.tsx, CampoItem.tsx):** usa somente `validacoes.spacing_*`, com fallback para `'0'`
-- **Widget embed (edge function):** usa `validacoes.spacing_*` -> `validacoes.estilo_campo.gap_*` -> `estilos_formularios.campos.gap_*`
+Apos investigacao profunda, identifiquei **3 problemas** que causam a diferenca visual entre o preview do editor e o widget embedado no site:
 
-O banco de dados mostra:
-- Global: `gap_bottom: 40`, `gap_top: 0`
-- Campos individuais: `estilo_campo.gap_bottom: 40` (gravado pelo "Aplicar a todos")
-- `spacing_bottom`: vazio/ausente na maioria dos campos
+### Problema 1 — Cache CDN de 24 horas
 
-O editor mostra espacamento 0 (porque ignora `estilo_campo.gap_*` e global), mas o widget embed usa 40px (porque cai no fallback `estilo_campo.gap_bottom: 40`).
+O header `Cache-Control` atual e `max-age=3600, s-maxage=86400`. Mesmo apos deploy, o CDN pode servir a versao antiga por ate **24 horas**. Todas as correcoes anteriores podem nao estar refletindo no site por causa disso.
 
-## Solucao
+### Problema 2 — `ensurePx` nao aplicado no CSS global do widget
 
-Unificar a logica: o `getFieldPad` no widget embed deve seguir **exatamente** a mesma logica do editor frontend.
+Na edge function, as propriedades globais `label_tamanho`, `input_height` e `input_border_radius` sao concatenadas diretamente sem `ensurePx`. Se o banco gravar valores numericos (sem `px`), o CSS gerado fica invalido (ex: `font-size:14` ao inves de `font-size:14px`).
+
+Dados atuais do banco para este formulario:
+- `label_tamanho: "14px"` (OK, ja tem unidade)
+- `input_height: "40px"` (OK)
+- `input_border_radius: "6px"` (OK)
+
+Porem, como outros formularios podem ter valores numericos puros, a correcao deve ser aplicada preventivamente.
+
+### Problema 3 — `selecao_multipla` renderiza diferente
+
+No editor, `selecao_multipla` renderiza como um `<select>` dropdown com texto "Selecione uma ou mais...". No widget embed, renderiza como checkboxes individuais com bordas, ocupando muito mais espaco vertical. Isso causa uma grande diferenca visual no layout do formulario.
+
+---
+
+## Plano de correcao
 
 ### Arquivo: `supabase/functions/widget-formulario-loader/index.ts`
 
-**Linha 193** - Simplificar `getFieldPad` para usar apenas `validacoes.spacing_*` com fallback `'0'`, igual ao frontend:
+**Correcao 1 — Cache (linha 34)**
 
-De:
-```js
-function getFieldPad(c){
-  var v=c.validacoes||{};
-  var ec=v.estilo_campo||{};
-  function pick(a,b,fb){...}
-  var t=pick(v.spacing_top,ec.gap_top,gapTop);
-  var r=pick(v.spacing_right,ec.gap_right,gapRight);
-  var b=pick(v.spacing_bottom,ec.gap_bottom,gapBottom);
-  var l=pick(v.spacing_left,ec.gap_left,gapLeft);
-  return t+'px '+r+'px '+b+'px '+l+'px'
-}
+Reduzir o cache para 5 minutos:
+```
+De: 'Cache-Control': 'public, max-age=3600, s-maxage=86400'
+Para: 'Cache-Control': 'public, max-age=300, s-maxage=300'
 ```
 
-Para:
-```js
-function getFieldPad(c){
-  var v=c.validacoes||{};
-  function safe(x){return(x!==undefined&&x!==null&&x!=='')?x:'0'}
-  return safe(v.spacing_top)+'px '+safe(v.spacing_right)+'px '+safe(v.spacing_bottom)+'px '+safe(v.spacing_left)+'px'
-}
+**Correcao 2 — ensurePx nas propriedades globais (linhas 186-187)**
+
+Aplicar `ensurePx` em `input_border_radius`, `input_height` e `label_tamanho` nos CSS globais:
+
+Linha 186 (inputCss):
+```
+De: border-radius:'+(fS.input_border_radius||'6px')+'  ...  height:'+(fS.input_height||'40px')+'
+Para: border-radius:'+ensurePx(fS.input_border_radius,'6px')+'  ...  height:'+ensurePx(fS.input_height,'40px')+'
 ```
 
-Isso garante que o widget embed use a mesma logica do editor: `validacoes.spacing_*` com fallback `'0'`. Sem camadas extras de `estilo_campo.gap_*` ou global `gap_*`.
+Linha 187 (labelCss):
+```
+De: font-size:'+(fS.label_tamanho||'14px')+'
+Para: font-size:'+ensurePx(fS.label_tamanho,'14px')+'
+```
 
-Apos editar, fazer deploy da edge function `widget-formulario-loader`.
+**Correcao 3 — Renderizar `selecao_multipla` como dropdown igual ao editor (linha 106)**
+
+Substituir a renderizacao de checkboxes individuais por um `<select multiple>` com as mesmas opcoes, espelhando o comportamento do editor preview.
+
+De: checkboxes visuais com bordas e margin-bottom
+Para: `<select>` com `appearance:auto` e opcoes, igual ao que o editor mostra
+
+---
+
+## Resumo
+
+| Correcao | Linha | Impacto |
+|----------|-------|---------|
+| Cache 5min | 34 | Correcoes refletem rapido no site |
+| ensurePx global | 186-187 | CSS valido para valores numericos |
+| selecao_multipla como select | 106 | Renderizacao identica ao editor |
+
+Apos editar, deploy da edge function `widget-formulario-loader`.
+
