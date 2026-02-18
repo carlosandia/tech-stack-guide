@@ -1,46 +1,55 @@
 
-## Mover Feedback (Lampada) para o Header
+## Adicionar Bandeira do Pais na Coluna de Telefone
 
-### Objetivo
-Remover o botao flutuante de feedback da lateral direita e integra-lo ao header, junto com os icones de Configuracoes (engrenagem) e Notificacoes (sino).
+### O que muda
+Na listagem de contatos, a coluna "Telefone" passara a exibir a bandeira (emoji) do pais antes do numero, permitindo identificacao visual imediata de qual pais e aquele telefone.
 
-### Ordem recomendada dos icones (da esquerda para direita)
-1. **Lampada (Feedback)** - acao menos frequente, fica mais distante do menu do usuario
-2. **Engrenagem (Configuracoes)** - admin only, acesso a area importante
-3. **Sino (Notificacoes)** - mais frequente, proximo ao usuario
-4. **Avatar + Nome (User Menu)** - ultimo item, padrao de UX consolidado
+Exemplo visual:
+- Antes: `(27) 99809-5977`
+- Depois: `🇧🇷 (27) 99809-5977`
+- Antes: `+5513988506995`
+- Depois: `🇧🇷 +5513988506995`
+- Telefone internacional: `🇺🇸 (305) 555-1234`
 
-Essa ordem segue a convencao de frequencia de uso crescente da esquerda para a direita, com o perfil sempre no extremo direito.
+### Abordagem
 
-### Mudancas
+Criar um componente `CellTelefone` dentro de `ContatosList.tsx` que:
 
-#### 1. `src/modules/app/layouts/AppLayout.tsx`
-- Remover o `<FeedbackButton />` flutuante do final do layout (linha 365)
-- Adicionar um botao de feedback inline no header, na area direita (linha ~271), antes da engrenagem
-- O botao tera o mesmo icone `Lightbulb`, estilo consistente com os demais (`p-2 rounded-md hover:bg-accent`)
-- Ao clicar, abrira o `FeedbackPopover` posicionado como dropdown (absolute, similar ao sino)
-- Manter a verificacao de role (admin/member only)
-- Reduzir gap entre icones de `gap-1` para `gap-0` ou `gap-0.5`
+1. Recebe o valor do telefone (string)
+2. Detecta o pais pelo DDI usando a mesma lista de paises ja existente no projeto (`PhoneInputField.tsx`)
+3. Exibe a bandeira emoji seguida do numero formatado
 
-#### 2. `src/modules/feedback/components/FeedbackButton.tsx`
-- Refatorar para ser um botao inline (nao mais flutuante/fixed)
-- Remover estilos de `fixed`, `translate-x`, gradiente, `group-hover`
-- Transformar em um botao simples com icone + popover dropdown (mesmo padrao do `NotificacoesSino`)
-- Manter logica de abrir/fechar popover e click-outside
+### Detalhes Tecnicos
 
-### Secao Tecnica
+**1. Extrair lista de paises para arquivo compartilhado**
 
-**FeedbackButton refatorado:**
-- Substituir o wrapper `fixed right-0 bottom-1/3` por `relative`
-- Botao: `p-2 rounded-md hover:bg-accent transition-colors` (mesmo estilo do sino e engrenagem)
-- Popover: posicionado `absolute right-0 mt-1` ao inves de `absolute bottom-16 right-4`
-- Backdrop overlay `fixed inset-0 z-40` para fechar ao clicar fora (mesmo padrao do sino)
+Criar `src/shared/utils/countries.ts` com a lista `COUNTRIES` (extraida de `PhoneInputField.tsx`) e uma funcao utilitaria `detectCountryByPhone(phone: string)` que retorna o pais correspondente.
 
-**AppLayout - area direita do header:**
-```text
-[Lampada] [Engrenagem] [Sino] [Avatar Carlos v]
-   ^          ^           ^
- gap-0.5   gap-0.5    gap-0.5
+A deteccao funciona assim:
+- Remove caracteres nao-numericos do telefone
+- Testa os DDIs em ordem decrescente de tamanho (ex: `+351` antes de `+3`) para evitar falsos positivos
+- Retorna o pais correspondente ou `null` se nao encontrar
+- Padrao: se comecar com `55`, assume Brasil
+
+**2. Novo componente `CellTelefone` em `ContatosList.tsx`**
+
+```
+CellTelefone({ value })
+  -> detectCountryByPhone(value)
+  -> renderiza: [bandeira emoji] [numero formatado]
 ```
 
-Nenhuma dependencia nova. Nenhuma mudanca no AdminLayout (que tem estrutura separada).
+Layout inline com `flex items-center gap-1.5`, bandeira em tamanho de texto normal, numero em `text-sm`.
+
+**3. Atualizar `PhoneInputField.tsx`**
+
+Importar `COUNTRIES` do arquivo compartilhado ao inves de definir localmente, eliminando duplicacao.
+
+**4. Substituir no `ContatosList.tsx`**
+
+No case `'telefone'`, trocar `CellSimpleText` por `CellTelefone`.
+
+### Arquivos modificados
+- **Novo**: `src/shared/utils/countries.ts` - lista de paises e funcao de deteccao
+- **Editado**: `src/modules/contatos/components/ContatosList.tsx` - novo `CellTelefone` + uso no case telefone
+- **Editado**: `src/modules/contatos/components/PhoneInputField.tsx` - importar COUNTRIES do shared
