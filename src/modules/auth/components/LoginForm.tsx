@@ -166,7 +166,7 @@ export function LoginForm({ onSubmit, isLoading = false, error }: LoginFormProps
           transition-colors
           ${
             isButtonDisabled
-              ? 'bg-muted text-muted-foreground cursor-not-allowed'
+              ? 'bg-muted-foreground/30 text-muted-foreground cursor-not-allowed'
               : 'bg-primary text-primary-foreground hover:bg-primary/85'
           }
         `}
