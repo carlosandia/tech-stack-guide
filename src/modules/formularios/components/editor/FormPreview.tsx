@@ -531,7 +531,7 @@ export const FormPreview = forwardRef<HTMLDivElement, Props>(function FormPrevie
                       return (
                         <div className="group/campos">
                           {renderDropZone(0)}
-                          <div className="flex flex-wrap gap-x-2">
+                          <div className="flex flex-wrap">
                             {topLevelCampos.map((campo, index) => {
                               // AIDEV-NOTE: Larguras fracionárias - campos lado a lado
                               const largura = campo.largura || 'full'
