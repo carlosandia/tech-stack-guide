@@ -1,58 +1,65 @@
 
-# Correção: Scroll horizontal e emails com corpo base64 não decodificado
 
-## Problema 1: Scroll horizontal no iframe
+# Correção: Reações do WhatsApp não aparecem no CRM
 
-O conteudo HTML dos emails e renderizado dentro de um iframe via `srcDoc`. Emails com tabelas largas, URLs longas ou conteudo sem `word-break` causam overflow horizontal.
+## Problema
 
-**Solucao**: Injetar CSS de contencao no `<head>` do HTML sanitizado, forcando:
-- `overflow-x: hidden` no body
-- `word-wrap: break-word` e `overflow-wrap: break-word` globalmente
-- `max-width: 100%` em tabelas e imagens
-- `table-layout: fixed` em tabelas
+O webhook WAHA (`waha-webhook/index.ts`) ignora o evento `message.reaction` na linha 894. Quando alguém reage a uma mensagem no WhatsApp (ex: emoji 🙏), o WAHA envia um evento com `body.event === "message.reaction"`, mas o handler atual só processa `"message"` e `"message.any"`, descartando qualquer outro evento não tratado anteriormente.
 
-## Problema 2: Email eNotas exibindo texto base64 bruto
+Resultado: reações feitas no dispositivo WhatsApp nunca são salvas no banco, e portanto não aparecem na interface do CRM.
 
-O email da eNotas possui o corpo codificado em base64 que nao foi decodificado pelo parser MIME. Quando `corpo_html` fica `null` e `corpo_texto` contem o bloco base64 bruto, o viewer exibe esse texto ilegivel.
+## Solução
 
-**Solucao**: Adicionar deteccao de base64 no `EmailViewer` como fallback. Se `corpo_texto` parece ser base64 (string longa sem espacos, caracteres A-Z/a-z/0-9/+/=), tentar decodificar e verificar se o resultado e HTML ou texto legivel.
+Adicionar um handler para `message.reaction` no webhook, **antes** do filtro geral da linha 894. O handler deve:
 
----
+1. Extrair o emoji e o `message_id` da mensagem reagida do payload WAHA
+2. Encontrar a sessão e organização correspondente
+3. Localizar a conversa associada à mensagem original
+4. Inserir um registro na tabela `mensagens` com `tipo: 'reaction'`, seguindo o mesmo formato usado pelo frontend (campos `reaction_emoji` e `reaction_message_id`)
 
-## Detalhes Tecnicos
+## Detalhes Técnicos
 
-### Arquivo: `src/modules/emails/components/EmailViewer.tsx`
+### Arquivo: `supabase/functions/waha-webhook/index.ts`
 
-**Alteracao 1 - CSS de contencao no iframe (dentro do `cleanHtml` useMemo)**
+Inserir um novo bloco entre o handler de `label.chat.deleted` (linha ~891) e o filtro geral (linha 894):
 
-Apos a linha que injeta o CSP meta tag, adicionar um bloco `<style>` com regras de contencao:
+```text
+if (body.event === "message.reaction") {
+  // 1. Extrair dados do payload WAHA
+  //    - payload.reaction.text = emoji (ou "" para remover)
+  //    - payload.reaction.messageId._serialized = ID da msg reagida
+  //    - payload.from = chatId de quem reagiu
+  //    - payload.fromMe = se a reação foi enviada por nós
 
-```css
-html, body {
-  overflow-x: hidden !important;
-  max-width: 100% !important;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
+  // 2. Buscar sessão pelo sessionName
+
+  // 3. Se emoji vazio (""), significa remoção de reação:
+  //    - Buscar e soft-deletar a mensagem de reação existente no banco
+
+  // 4. Se emoji presente, inserir nova mensagem tipo 'reaction':
+  //    - Buscar conversa pelo chatId (com resolução @lid)
+  //    - Inserir na tabela mensagens com:
+  //      tipo: 'reaction'
+  //      reaction_emoji: emoji
+  //      reaction_message_id: messageId serializado
+  //      from_me: payload.fromMe
+  //      message_id: gerado único para reações
+
+  // 5. Retornar resposta de sucesso
 }
-table { max-width: 100% !important; table-layout: fixed; }
-img { max-width: 100% !important; height: auto !important; }
-pre, code { white-space: pre-wrap !important; word-break: break-all; }
-a { word-break: break-all; }
 ```
 
-**Alteracao 2 - Deteccao e decodificacao de base64 no fallback**
+**Campos do payload WAHA `message.reaction`** (formato GOWS):
+- `payload.reaction.text` - o emoji (string vazia = remoção)
+- `payload.reaction.messageId._serialized` ou `payload.reaction.messageId.id` - ID da mensagem reagida
+- `payload.from` - chatId do remetente
+- `payload.fromMe` - boolean
 
-Criar funcao `tryDecodeBase64(str)` que:
-1. Verifica se a string parece base64 (regex `/^[A-Za-z0-9+/=\s]+$/` e comprimento > 100)
-2. Remove whitespace, tenta `atob()` e converte para UTF-8
-3. Retorna o texto decodificado ou `null` se falhar
+**Lógica de remoção**: quando `reaction.text === ""`, buscar no banco a mensagem de reação existente (`tipo = 'reaction'`, `reaction_message_id` = ID da msg original, mesmo `from_me`) e fazer soft delete (`deletado_em = now`).
 
-Usar essa funcao no `cleanHtml` useMemo: se `corpo_html` e vazio e `corpo_texto` parece base64, decodificar e verificar se o resultado e HTML (usar `looksLikeHtml`).
+**Lógica de inserção**: usar o mesmo padrão do frontend - `message_id: reaction_{timestamp}_{random}`, com resolução de `@lid` para encontrar a conversa correta.
 
-Tambem usar no fallback de texto plano (`corpo_texto`): se o texto parece base64, decodificar antes de exibir.
+### Nenhuma alteração no frontend
 
-### Arquivo: `supabase/functions/sync-emails/index.ts`
+O frontend já sabe exibir reações recebidas via realtime (o hook `useConversasRealtime` escuta INSERTs em `mensagens` e o `ChatMessages` já agrega reações por `reaction_message_id`). Basta que o webhook insira corretamente no banco.
 
-**Alteracao 3 - Melhoria no parser MIME (prevencao futura)**
-
-Na funcao `parseMimeMessage`, adicionar deteccao de encoding quando o Content-Transfer-Encoding nao esta presente mas o corpo parece ser base64. Isso evita que futuros emails cheguem com corpo bruto no banco.
