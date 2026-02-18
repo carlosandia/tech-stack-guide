@@ -5,6 +5,7 @@
  */
 
 import { supabase } from '@/lib/supabase'
+import { getOrganizacaoId, getUsuarioId } from '@/shared/services/auth-context'
 import type {
   EmailRecebido,
   EmailRascunho,
@@ -17,53 +18,6 @@ import type {
   EnviarEmailPayload,
   ConexaoEmail,
 } from '../types/email.types'
-
-// =====================================================
-// Helpers - Cache de IDs (mesmo padrão dos outros módulos)
-// =====================================================
-
-let _cachedOrgId: string | null = null
-let _cachedUserId: string | null = null
-
-async function getOrganizacaoId(): Promise<string> {
-  if (_cachedOrgId) return _cachedOrgId
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Usuário não autenticado')
-
-  const { data } = await supabase
-    .from('usuarios')
-    .select('organizacao_id')
-    .eq('auth_id', user.id)
-    .maybeSingle()
-
-  if (!data?.organizacao_id) throw new Error('Organização não encontrada')
-  _cachedOrgId = data.organizacao_id
-  return _cachedOrgId
-}
-
-async function getUsuarioId(): Promise<string> {
-  if (_cachedUserId) return _cachedUserId
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Usuário não autenticado')
-
-  const { data } = await supabase
-    .from('usuarios')
-    .select('id')
-    .eq('auth_id', user.id)
-    .maybeSingle()
-
-  if (!data?.id) throw new Error('Usuário não encontrado')
-  _cachedUserId = data.id
-  return _cachedUserId
-}
-
-// Reset cache on auth state change
-supabase.auth.onAuthStateChange(() => {
-  _cachedOrgId = null
-  _cachedUserId = null
-})
 
 // =====================================================
 // API de Emails
@@ -346,6 +300,7 @@ export const emailsApi = {
       .eq('usuario_id', userId)
       .is('deletado_em', null)
       .order('atualizado_em', { ascending: false })
+      .limit(50)
 
     if (error) throw new Error(error.message)
     return (data || []) as EmailRascunho[]

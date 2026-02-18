@@ -1,17 +1,27 @@
 /**
  * AIDEV-NOTE: Hook de realtime para emails via Supabase Realtime
- * Escuta INSERT na tabela emails_recebidos e invalida cache automaticamente
+ * Escuta INSERT/UPDATE na tabela emails_recebidos e invalida cache com debounce de 2s
+ * para evitar refetch storms durante sincronização IMAP em lote
  */
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 
 export function useEmailRealtime() {
   const queryClient = useQueryClient()
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
+    const scheduleInvalidation = () => {
+      if (refreshTimer.current) clearTimeout(refreshTimer.current)
+      refreshTimer.current = setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['emails'] })
+        queryClient.invalidateQueries({ queryKey: ['email'] })
+      }, 2000)
+    }
+
     const channel = supabase
       .channel('emails-realtime')
       .on(
@@ -22,9 +32,8 @@ export function useEmailRealtime() {
           table: 'emails_recebidos',
         },
         (payload) => {
-          // Invalidate all email queries to refresh lists
-          queryClient.invalidateQueries({ queryKey: ['emails'] })
-          queryClient.invalidateQueries({ queryKey: ['email'] })
+          // AIDEV-NOTE: Debounce invalidation — toast imediato, refetch com delay
+          scheduleInvalidation()
 
           // Só notifica emails recebidos na inbox (não enviados, não arquivados)
           const newEmail = payload.new as any
@@ -47,12 +56,13 @@ export function useEmailRealtime() {
           table: 'emails_recebidos',
         },
         () => {
-          queryClient.invalidateQueries({ queryKey: ['emails'] })
+          scheduleInvalidation()
         }
       )
       .subscribe()
 
     return () => {
+      if (refreshTimer.current) clearTimeout(refreshTimer.current)
       supabase.removeChannel(channel)
     }
   }, [queryClient])
