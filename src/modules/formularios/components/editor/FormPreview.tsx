@@ -12,7 +12,7 @@ import { getMaskForType } from '../../utils/masks'
 
 import { generateFormResponsiveCss, generateColunasResponsiveCss, resolveValue } from '../../utils/responsiveStyles'
 import { renderFinalCampo, PAISES_COMUNS } from '../../utils/renderFinalCampo'
-import { Monitor, Tablet, Smartphone, Settings, Code } from 'lucide-react'
+import { Monitor, Tablet, Smartphone, Settings, Code, EyeOff, Eye } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
@@ -147,6 +147,7 @@ export const FormPreview = forwardRef<HTMLDivElement, Props>(function FormPrevie
   const [viewport, setViewport] = useState<Viewport>('desktop')
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const [dragOverImage, setDragOverImage] = useState(false)
+  const [showContainerBorder, setShowContainerBorder] = useState(true)
   const dragCounter = useRef<Record<number, number>>({})
   const imageDropCounter = useRef(0)
 
@@ -377,8 +378,17 @@ export const FormPreview = forwardRef<HTMLDivElement, Props>(function FormPrevie
           ))}
         </div>
 
-        {/* Right: CSS */}
-        <div className="flex items-center justify-end">
+        {/* Right: Border toggle + CSS */}
+        <div className="flex items-center justify-end gap-1">
+          <Button
+            variant={showContainerBorder ? 'secondary' : 'ghost'}
+            size="sm"
+            className="h-7 px-2"
+            onClick={() => setShowContainerBorder(prev => !prev)}
+            title={showContainerBorder ? 'Ocultar borda do container' : 'Mostrar borda do container'}
+          >
+            {showContainerBorder ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+          </Button>
           {onToggleCss && !showFinalPreview && (
             <Button variant={showCssDrawer ? 'secondary' : 'ghost'} size="sm" className="h-7 text-xs" onClick={onToggleCss}>
               <Code className="w-3.5 h-3.5 mr-1.5" />CSS
@@ -389,8 +399,8 @@ export const FormPreview = forwardRef<HTMLDivElement, Props>(function FormPrevie
 
       {/* Preview area */}
       <div
-        className="flex-1 overflow-auto p-4"
-        style={{ backgroundColor: showFinalPreview ? (paginaBackgroundColor || '#F3F4F6') : undefined }}
+        className="flex-1 overflow-auto p-4 flex items-start justify-center"
+        style={{ backgroundColor: showFinalPreview ? (paginaBackgroundColor || '#F3F4F6') : 'hsl(220 15% 97.5%)' }}
         onClick={(e) => {
           if (e.target === e.currentTarget) {
             onSelectStyleElement?.(null)
@@ -409,9 +419,10 @@ export const FormPreview = forwardRef<HTMLDivElement, Props>(function FormPrevie
             showFinalPreview && 'form-container',
             viewportWidths[viewport],
             showFinalPreview
-              ? 'border border-border'
+              ? (showContainerBorder ? 'border border-border' : '')
               : cn(
-                  'border border-border group/container',
+                  showContainerBorder ? 'border border-border' : '',
+                  'group/container',
                   !estiloContainer && 'bg-card shadow-sm p-6',
                   selectedStyleElement === 'container' && 'outline outline-2 outline-dashed outline-primary outline-offset-4'
                 )
