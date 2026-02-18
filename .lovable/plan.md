@@ -1,59 +1,82 @@
 
-# Correcao: Mensagem indo para conversa errada (fuzzy match muito agressivo)
+# Correção: Reações não aparecem + Mensagens no contato errado
 
-## Causa Raiz
+## Problema 1: Reações não aparecem na UI
 
-A busca fuzzy de contatos na **Tentativa 2** do webhook (`waha-webhook/index.ts`, linhas 1700-1718) usa apenas os **ultimos 8 digitos** do telefone para encontrar contatos. Isso causa falsos positivos com numeros brasileiros:
+**Causa raiz**: O `message_id` da mensagem original e o `reaction_message_id` da reação usam formatos diferentes de chatId.
+
+- Mensagem armazenada com: `false_65275349192889@lid_3ACF2DEE9059E92FACCA`
+- Reação referencia como: `false_5513974053443@c.us_3ACF2DEE9059E92FACCA`
+- O stanza ID (`3ACF2DEE9059E92FACCA`) é idêntico, mas o sistema compara a string completa e não encontra correspondência.
+
+**Solução**: Normalizar a correspondência entre reações e mensagens no frontend, usando o stanza ID (ultimo segmento) como fallback.
+
+## Problema 2: Mensagens indo para conversa do Keven
+
+**Causa raiz (dados corrompidos)**: O contato "Keven Litoral Place" (`325aca6b`) está com telefone `553584723836`, mas o telefone real dele é outro (a conversa dele tem `chat_id = 5513974069392@c.us`). Outro contato "Maito" (`fe7a5828`) também tem o mesmo telefone `553584723836`. Isso causa:
+
+1. A busca exata por telefone (`maybeSingle()`) falha porque retorna 2 contatos
+2. A busca fuzzy encontra um dos dois (pode ser o Keven)
+3. Antes do fix anterior, o Tentativa 1c roteava pela contato_id errada
+
+**Solução**: Correção de dados + prevenção contra duplicatas.
+
+## Detalhes Técnicos
+
+### Arquivo 1: `src/modules/conversas/components/ChatMessages.tsx`
+
+**Alterar o `reactionsMap` (linhas 134-152)**: Além de indexar pelo `reaction_message_id` completo, também indexar pelo stanza ID (ultimo segmento separado por `_`). Isso garante correspondência mesmo quando o chatId difere entre @lid e @c.us.
+
+**Alterar a busca de reações (linha 233)**: Tentar primeiro pelo `message_id` completo, depois pelo stanza ID como fallback.
 
 ```text
-Numero real destino:  5535984723836   (55 35 9 8472-3836 - com o 9)
-Contato encontrado:   553584723836   (55 35   8472-3836 - sem o 9, Keven)
-Ultimos 8 digitos:              84723836  (iguais!)
-```
-
-O sistema assumiu que eram a mesma pessoa, encontrou a conversa do Keven via `contato_id` (Tentativa 1c, linha 1967), e inseriu a mensagem la. Porem, sao pessoas diferentes.
-
-## Solucao
-
-Tornar a busca fuzzy mais restritiva para evitar falsos positivos:
-
-1. **Aumentar o minimo de digitos para match fuzzy**: de 8 para 11 digitos (para cobrir DDI+DDD+numero completo brasileiro)
-2. **Adicionar validacao extra**: quando o fuzzy match encontrar um contato, verificar se a diferenca entre os numeros e apenas o "9" do celular brasileiro (nesse caso pode ser a mesma pessoa) ou se sao numeros realmente diferentes
-3. **Prioridade para match exato**: so usar fuzzy quando realmente necessario (resolucao de @lid)
-
-## Detalhes Tecnicos
-
-### Arquivo: `supabase/functions/waha-webhook/index.ts`
-
-**Alteracao 1 - Restringir fuzzy match (linhas 1700-1718)**
-
-Substituir a logica atual de 8 digitos por uma validacao mais inteligente:
-
-- Aumentar para **10 digitos** minimos no match fuzzy
-- Adicionar validacao: se o numero encontrado difere do buscado em mais do que o "9" de celular brasileiro, rejeitar o match
-- A logica de validacao compara os numeros normalizados: se `found = "553584723836"` e `search = "5535984723836"`, a unica diferenca e o "9" inserido - mas isso muda o numero completamente (fixo vs celular), entao deve ser rejeitado
-
-Logica proposta:
-```text
-// Fuzzy match: usar 10 digitos ao inves de 8
-const lastDigits = phoneNumber.slice(-10);
-
-// Apos encontrar candidato, validar:
-// Se ambos tem DDI 55 (Brasil), verificar se a diferenca e APENAS o 9o digito
-// Numeros como 553584723836 vs 5535984723836 NAO sao a mesma pessoa
-if (candidato.telefone.length !== phoneNumber.length) {
-  // Comprimentos diferentes = provavelmente numeros diferentes
-  // So aceitar se for resolucao @lid (originalLidChatId != null)
-  if (!originalLidChatId) {
-    candidato = null; // Rejeitar match
-  }
+// reactionsMap: indexar por stanza ID também
+const stanzaId = extractStanzaId(key)
+if (stanzaId && stanzaId !== key) {
+  // Merge com possível entrada existente pelo stanza
+  map.set(stanzaId, existing)
 }
+
+// Lookup: tentar message_id completo, depois stanza ID
+const msgReactions = msg.message_id 
+  ? (reactionsMap.get(msg.message_id) || reactionsMap.get(extractStanzaId(msg.message_id)))
+  : undefined
 ```
 
-**Alteracao 2 - Proteger Tentativa 1c (linhas 1967-1992)**
+### Arquivo 2: `supabase/functions/waha-webhook/index.ts`
 
-Adicionar condicao extra: so buscar conversa por `contato_id` quando o `chatId` atual ainda contem `@lid` OU quando o contato foi encontrado por match exato (nao fuzzy). Adicionar uma flag `contactFoundByFuzzy` para rastrear isso.
+**Alterar busca exata de contato (linhas 1691-1697)**: Adicionar `.limit(1)` ANTES do `.maybeSingle()` para evitar erro quando existem contatos duplicados com mesmo telefone.
 
-### Dados a corrigir manualmente
+```text
+ANTES:
+.eq("telefone", phoneNumber)
+.is("deletado_em", null)
+.maybeSingle();
 
-A mensagem ja inserida erroneamente (id `94fb8641-852c-4df3-ad38-e1af52f7b777`) na conversa do Keven precisa ser removida ou movida. Isso pode ser feito via SQL apos a correcao do codigo.
+DEPOIS:
+.eq("telefone", phoneNumber)
+.is("deletado_em", null)
+.limit(1)
+.maybeSingle();
+```
+
+### Correção de dados (SQL manual)
+
+Corrigir o telefone do contato Keven para refletir o numero real (baseado no chat_id da conversa dele):
+
+```text
+UPDATE contatos 
+SET telefone = '5513974069392' 
+WHERE id = '325aca6b-256e-4158-a79c-44834906e6bf' 
+  AND telefone = '553584723836';
+```
+
+E mover as 2 mensagens incorretas de volta para a conversa do Maito (`e9af85da`) ou removê-las:
+
+```text
+UPDATE mensagens 
+SET conversa_id = 'e9af85da-00a9-4833-b728-1832e57b575c' 
+WHERE id IN ('33f0d12d-5411-4815-b048-ca53d3d47608', '94fb8641-852c-4df3-ad38-e1af52f7b777');
+```
+
+Essas queries SQL devem ser executadas no painel do Supabase (Cloud View > Run SQL).
