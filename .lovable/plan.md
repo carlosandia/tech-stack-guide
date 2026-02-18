@@ -1,89 +1,74 @@
 
-# Correções no Módulo de Conversas: Auto-focus e Optimistic Send
+# Vinculação Automática de Contatos na Sincronização de Emails
 
-## 1. Auto-focus no textarea ao selecionar conversa
+## Problema Identificado
 
-**Problema:** Ao clicar em uma conversa na lista, o campo de texto não recebe foco automaticamente, obrigando o usuário a clicar manualmente no input antes de digitar.
+A busca do `ContatoCard` está **tecnicamente correta** — ela procura por `contato_id` primeiro e depois por email exato na tabela `contatos`. O problema real é que:
 
-**Solução:** No `ChatWindow`, adicionar um `useEffect` que detecta mudança de `conversa.id` e chama `chatInputRef.current?.focusTextarea()` automaticamente. Isso fará o cursor já estar posicionado no campo de texto assim que a conversa abrir.
+1. **O sync de emails (`sync-emails`) nunca popula o campo `contato_id`** — ao inserir novos emails, o campo fica sempre `null`
+2. O fallback por email funciona, mas depende de match exato entre `de_email` do email e `email` do contato
+3. Nenhum email no banco tem `contato_id` preenchido (confirmado via consulta)
 
-**Arquivo:** `src/modules/conversas/components/ChatWindow.tsx`
-- Adicionar `useEffect` no bloco que já reseta busca ao trocar conversa (linha ~167), incluindo chamada de focus com pequeno delay para garantir que o DOM já renderizou.
+Exemplo: o email do eKyte (`notification@email.ekyte.com`) corretamente mostra "não encontrado" porque esse endereço não existe nos contatos. Porém, se um email vier de `djavan.mcd@gmail.com` (que existe nos contatos), o ContatoCard **já encontra** via fallback — mas sem o vínculo direto no `contato_id`.
 
-## 2. Optimistic Update ao enviar mensagem
+## Solução
 
-**Problema:** Ao enviar uma mensagem, ela só aparece na UI depois que o backend confirma o envio. Isso causa uma sensação de lentidão.
+### 1. Auto-vinculação no `sync-emails` (Edge Function)
 
-**Solução:** Implementar Optimistic Update no hook `useEnviarTexto` do TanStack Query. Ao chamar `mutate`, inserimos imediatamente uma mensagem temporária no cache local com status visual de "enviando" (ack = 0). Quando o backend confirma, o cache é invalidado e a mensagem real substitui a otimista.
+Após montar o array `toInsert` e antes do insert no banco, adicionar uma etapa que:
+- Coleta todos os `de_email` únicos dos emails a inserir
+- Faz uma query batch nos contatos: `SELECT id, email FROM contatos WHERE email IN (...) AND deletado_em IS NULL AND organizacao_id = ?`
+- Cria um mapa `email -> contato_id`
+- Preenche o `contato_id` de cada email no `toInsert` quando houver match
 
-**Arquivo:** `src/modules/conversas/hooks/useMensagens.ts`
-- No `useEnviarTexto`, adicionar callbacks `onMutate`, `onError` e `onSettled`:
-  - `onMutate`: salvar snapshot do cache, inserir mensagem otimista na primeira página com `id` temporário, `from_me: true`, `tipo: 'text'`, `body: texto`, `ack: 0`, `criado_em: new Date().toISOString()`
-  - `onError`: restaurar snapshot (rollback)
-  - `onSettled`: invalidar queries para sincronizar com dados reais
+**Arquivo:** `supabase/functions/sync-emails/index.ts`
 
-**Arquivo:** `src/modules/conversas/components/ChatMessages.tsx` (se necessário)
-- Verificar se mensagens com `ack: 0` já possuem indicação visual (check cinza). Caso contrário, garantir que o status "enviando" seja visualmente distinto.
+Trecho a adicionar (após linha ~876, antes do batch insert):
 
-## Detalhes Técnicos
-
-### Auto-focus (ChatWindow.tsx)
 ```typescript
-// Dentro do useEffect que reseta busca (conversa.id change)
-useEffect(() => {
-  setBuscaAberta(false)
-  setTermoBusca('')
-  setBuscaIndex(0)
-  setMediaQueue(prev => { /* cleanup */ })
-  // Auto-focus no input
-  setTimeout(() => chatInputRef.current?.focusTextarea(), 100)
-}, [conversa.id])
-```
-
-### Optimistic Update (useMensagens.ts)
-```typescript
-export function useEnviarTexto() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: ({ conversaId, texto, replyTo, isTemplate }) =>
-      conversasApi.enviarTexto(conversaId, texto, replyTo, isTemplate),
-    onMutate: async (variables) => {
-      await queryClient.cancelQueries({ queryKey: ['mensagens', variables.conversaId] })
-      const snapshot = queryClient.getQueryData(['mensagens', variables.conversaId])
+// Auto-vincular contatos por email
+if (toInsert.length > 0) {
+  const uniqueEmails = [...new Set(toInsert.map(e => e.de_email).filter(Boolean))]
+  
+  if (uniqueEmails.length > 0) {
+    const { data: contatos } = await supabaseAdmin
+      .from('contatos')
+      .select('id, email')
+      .in('email', uniqueEmails)
+      .eq('organizacao_id', usuario.organizacao_id)
+      .is('deletado_em', null)
+    
+    if (contatos && contatos.length > 0) {
+      const emailToContato = new Map(contatos.map(c => [c.email.toLowerCase(), c.id]))
       
-      // Inserir mensagem otimista
-      const optimisticMsg = {
-        id: `temp_${Date.now()}`,
-        conversa_id: variables.conversaId,
-        from_me: true,
-        tipo: 'text',
-        body: variables.texto,
-        ack: 0,  // status "enviando"
-        criado_em: new Date().toISOString(),
-        // ... campos mínimos
+      for (const email of toInsert) {
+        const contatoId = emailToContato.get((email.de_email as string).toLowerCase())
+        if (contatoId) {
+          email.contato_id = contatoId
+        }
       }
       
-      queryClient.setQueryData(['mensagens', variables.conversaId], (old) => {
-        // Inserir na primeira página (mais recente)
-        // ...
-      })
-      
-      return { snapshot }
-    },
-    onError: (_err, variables, context) => {
-      // Rollback
-      queryClient.setQueryData(['mensagens', variables.conversaId], context?.snapshot)
-    },
-    onSettled: (_data, _err, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['mensagens', variables.conversaId] })
-      queryClient.invalidateQueries({ queryKey: ['conversas'] })
-    },
-  })
+      console.log(`[sync-emails] Auto-vinculados ${contatos.length} contatos`)
+    }
+  }
 }
 ```
 
-### Arquivos a editar
+### 2. Backfill de emails existentes sem `contato_id`
 
-1. `src/modules/conversas/components/ChatWindow.tsx` - Adicionar auto-focus no useEffect de mudança de conversa
-2. `src/modules/conversas/hooks/useMensagens.ts` - Implementar optimistic update no `useEnviarTexto`
+Para corrigir os emails já sincronizados que estão sem vínculo, adicionar uma etapa de backfill no mesmo sync:
+- Busca emails existentes com `contato_id IS NULL`
+- Tenta vincular pelos mesmos critérios
+
+**Mesmo arquivo:** `supabase/functions/sync-emails/index.ts`
+
+### 3. ContatoCard - Melhoria no fallback por nome (opcional)
+
+Adicionar um terceiro nível de busca no `ContatoCard`: se não encontrar por `contato_id` nem por email exato, tentar buscar por nome (usando `de_nome` do email contra `nome` do contato). Isso captura casos onde o contato existe mas com email diferente.
+
+**Arquivo:** `src/modules/emails/components/ContatoCard.tsx`
+
+## Arquivos a editar
+
+1. `supabase/functions/sync-emails/index.ts` — Adicionar auto-vinculação de `contato_id` por email + backfill de existentes
+2. `src/modules/emails/components/ContatoCard.tsx` — Adicionar fallback por nome como terceira tentativa de busca
