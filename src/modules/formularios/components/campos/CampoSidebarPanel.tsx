@@ -136,21 +136,21 @@ export function CampoSidebarPanel({ campo, onUpdate, onClose, showConfig, estilo
     <>
       <EstiloCamposForm value={mergedEstilo} onChange={handleEstiloChange} />
       <EspacamentoCampo campo={campo} onUpdate={onUpdate} />
-      {allCampos && onUpdateCampoById && (
-        <div className="pt-2 border-t border-border">
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full text-xs gap-1.5"
-            onClick={handleApplyToAll}
-          >
-            <Copy className="w-3.5 h-3.5" />
-            Aplicar estilo em todos os campos
-          </Button>
-        </div>
-      )}
     </>
   )
+
+  const applyAllFooter = allCampos && onUpdateCampoById ? (
+    <div className="sticky bottom-0 border-t border-border bg-card p-3 mt-auto">
+      <Button
+        size="sm"
+        className="w-full text-xs gap-1.5 bg-success hover:bg-success/90 text-success-foreground"
+        onClick={handleApplyToAll}
+      >
+        <Copy className="w-3.5 h-3.5" />
+        Aplicar estilo em todos os campos
+      </Button>
+    </div>
+  ) : null
 
   const tabButtons = (
     <div className="flex gap-1 bg-muted/50 rounded-lg p-0.5">
@@ -193,6 +193,7 @@ export function CampoSidebarPanel({ campo, onUpdate, onClose, showConfig, estilo
           )}
           {tab === 'estilo' && estiloContent}
         </div>
+        {tab === 'estilo' && applyAllFooter}
       </div>
     )
   }
@@ -200,12 +201,12 @@ export function CampoSidebarPanel({ campo, onUpdate, onClose, showConfig, estilo
   return (
     <div
       className={cn(
-        'border-l border-border bg-card overflow-y-auto flex-shrink-0 transition-all duration-200',
-        'hidden lg:block lg:w-72',
-        showConfig && 'block absolute inset-y-0 right-0 w-72 z-20 shadow-lg lg:relative lg:shadow-none'
+        'border-l border-border bg-card flex-shrink-0 transition-all duration-200 flex flex-col',
+        'hidden lg:flex lg:w-72',
+        showConfig && 'flex absolute inset-y-0 right-0 w-72 z-20 shadow-lg lg:relative lg:shadow-none'
       )}
     >
-      <div className="p-3 space-y-3">
+      <div className="p-3 space-y-3 flex-1 overflow-y-auto">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-foreground truncate max-w-[180px]">
             {campo.label || campo.nome}
@@ -220,6 +221,7 @@ export function CampoSidebarPanel({ campo, onUpdate, onClose, showConfig, estilo
         )}
         {tab === 'estilo' && estiloContent}
       </div>
+      {tab === 'estilo' && applyAllFooter}
     </div>
   )
 }
