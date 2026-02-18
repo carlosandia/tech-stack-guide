@@ -57,14 +57,21 @@ interface PlanoDb {
   const demoContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (!demoModalOpen || !demoContainerRef.current) return
-    demoContainerRef.current.replaceChildren()
-    const script = document.createElement('script')
-    script.src = 'https://ybzhlsalbnxwkfszkloa.supabase.co/functions/v1/widget-formulario-loader?slug=demonstracao-crm-mlrb6yoz&mode=inline'
-    script.dataset.formSlug = 'demonstracao-crm-mlrb6yoz'
-    script.async = true
-    demoContainerRef.current.appendChild(script)
-    return () => { demoContainerRef.current?.replaceChildren() }
+    if (!demoModalOpen) return
+    // Delay to ensure Dialog DOM is fully mounted before injecting script
+    const timer = setTimeout(() => {
+      if (!demoContainerRef.current) return
+      demoContainerRef.current.replaceChildren()
+      const script = document.createElement('script')
+      script.src = 'https://ybzhlsalbnxwkfszkloa.supabase.co/functions/v1/widget-formulario-loader?slug=demonstracao-crm-mlrb6yoz&mode=inline'
+      script.dataset.formSlug = 'demonstracao-crm-mlrb6yoz'
+      script.async = true
+      demoContainerRef.current.appendChild(script)
+    }, 100)
+    return () => {
+      clearTimeout(timer)
+      demoContainerRef.current?.replaceChildren()
+    }
   }, [demoModalOpen])
  
    // Capturar UTMs
