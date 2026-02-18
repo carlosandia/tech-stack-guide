@@ -38,6 +38,11 @@ export function SugestaoCorrecao({ palavraOriginal, sugestoes, onSelect }: Suges
           {sugestao}
         </button>
       ))}
+
+      {/* Hint de UX */}
+      <span className="text-[10px] text-muted-foreground/50 ml-auto whitespace-nowrap">
+        Esc ignora
+      </span>
     </div>
   )
 }

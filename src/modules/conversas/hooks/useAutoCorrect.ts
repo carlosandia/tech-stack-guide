@@ -18,10 +18,11 @@ export interface AutoCorrectResult {
 
 export function useAutoCorrect(
   texto: string,
-  cursorPos: number
+  cursorPos: number,
+  enabled = true
 ): AutoCorrectResult | null {
   return useMemo(() => {
-    if (!texto || cursorPos <= 0) return null
+    if (!enabled || !texto || cursorPos <= 0) return null
 
     let start: number
     let end: number
@@ -60,5 +61,5 @@ export function useAutoCorrect(
       start,
       end,
     }
-  }, [texto, cursorPos])
+  }, [texto, cursorPos, enabled])
 }
