@@ -47,7 +47,7 @@ export function FAQSection() {
   const { ref: listRef, isVisible: listVisible } = useScrollReveal()
 
   return (
-    <section id="faq" className="py-16 md:py-24 bg-muted/30">
+    <section id="faq" className="py-16 md:py-24 bg-muted/50">
       <div className="max-w-[800px] mx-auto px-4 md:px-6">
         <div
           ref={headerRef}

@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
-import { ArrowRight, Shield } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 import { useScrollReveal } from '../../hooks/useScrollReveal'
 
 /**
@@ -47,11 +47,6 @@ export function FinalCTASection() {
         </Link>
 
         <div className="mt-6 flex items-center justify-center gap-4 text-sm text-primary-foreground/70">
-          <span className="flex items-center gap-1.5">
-            <Shield size={14} />
-            Sem cartão de crédito
-          </span>
-          <span>•</span>
           <span>Cancele quando quiser</span>
           <span>•</span>
           <span>Suporte incluso</span>

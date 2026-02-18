@@ -30,7 +30,7 @@ export function PainSection() {
   const { ref: cardsRef, isVisible: cardsVisible } = useScrollReveal()
 
   return (
-    <section className="py-16 md:py-24 bg-muted/30">
+    <section className="py-16 md:py-24 bg-muted/50">
       <div className="max-w-[1200px] mx-auto px-4 md:px-6">
         <div
           ref={headerRef}

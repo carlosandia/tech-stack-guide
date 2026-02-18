@@ -112,7 +112,7 @@ export function ModulesSection() {
   const { ref: contentRef, isVisible: contentVisible } = useScrollReveal()
 
   return (
-    <section id="modulos" className="py-16 md:py-24 bg-gradient-to-b from-primary/[0.03] to-primary/[0.06]">
+    <section id="modulos" className="py-16 md:py-24 bg-gradient-to-b from-primary/[0.04] to-primary/[0.08]">
       <div className="max-w-[1200px] mx-auto px-4 md:px-6">
         {/* Header */}
         <div

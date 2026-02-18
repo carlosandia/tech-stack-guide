@@ -36,7 +36,7 @@ export function TestimonialsSection() {
   const { ref: cardsRef, isVisible: cardsVisible } = useScrollReveal()
 
   return (
-    <section id="depoimentos" className="py-16 md:py-24 bg-muted/30">
+    <section id="depoimentos" className="py-16 md:py-24 bg-muted/50">
       <div className="max-w-[1200px] mx-auto px-4 md:px-6">
         <div
           ref={headerRef}
