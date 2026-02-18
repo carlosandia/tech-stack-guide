@@ -11,11 +11,13 @@ import { ModalBase } from '@/modules/configuracoes/components/ui/ModalBase'
 import { useCriarConversa } from '../hooks/useConversas'
 import { conversasApi, type ConversaContato } from '../services/conversas.api'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
+import { detectCountryByPhone } from '@/shared/utils/countries'
 
 interface NovaConversaModalProps {
   isOpen: boolean
   onClose: () => void
   onConversaCriada: (id: string) => void
+  telefoneInicial?: string | null
 }
 
 const PAISES = [
@@ -32,7 +34,7 @@ const PAISES = [
   { codigo: '+34', bandeira: '🇪🇸', nome: 'Espanha', placeholder: '612345678' },
 ]
 
-export const NovaConversaModal = forwardRef<HTMLDivElement, NovaConversaModalProps>(function NovaConversaModal({ isOpen, onClose, onConversaCriada }, _ref) {
+export const NovaConversaModal = forwardRef<HTMLDivElement, NovaConversaModalProps>(function NovaConversaModal({ isOpen, onClose, onConversaCriada, telefoneInicial }, _ref) {
   const [telefone, setTelefone] = useState('')
   const [mensagem, setMensagem] = useState('')
   const [canal, setCanal] = useState<'whatsapp' | 'instagram'>('whatsapp')
@@ -49,17 +51,35 @@ export const NovaConversaModal = forwardRef<HTMLDivElement, NovaConversaModalPro
   // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
-      setTelefone('')
       setMensagem('')
       setCanal('whatsapp')
       setBuscaContato('')
       setContatoSelecionado(null)
       setContatosResultado([])
-      setModo('telefone')
-      setPaisSelecionado(PAISES[0])
       setPaisDropdownOpen(false)
+
+      // AIDEV-NOTE: Se telefoneInicial fornecido (ex: vCard), detectar DDI e preencher
+      if (telefoneInicial) {
+        const digits = telefoneInicial.replace(/\D/g, '')
+        const country = detectCountryByPhone(digits)
+        if (country) {
+          const ddiDigits = country.ddi.replace(/\D/g, '')
+          const matchingPais = PAISES.find(p => p.codigo === country.ddi)
+          if (matchingPais) setPaisSelecionado(matchingPais)
+          else setPaisSelecionado(PAISES[0])
+          setTelefone(digits.startsWith(ddiDigits) ? digits.slice(ddiDigits.length) : digits)
+        } else {
+          setPaisSelecionado(PAISES[0])
+          setTelefone(digits)
+        }
+        setModo('telefone')
+      } else {
+        setTelefone('')
+        setModo('telefone')
+        setPaisSelecionado(PAISES[0])
+      }
     }
-  }, [isOpen])
+  }, [isOpen, telefoneInicial])
 
   // Debounced contact search via Supabase direto
   useEffect(() => {

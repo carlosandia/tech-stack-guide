@@ -95,9 +95,10 @@ interface ChatWindowProps {
   onOpenDrawer: () => void
   onConversaApagada?: () => void
   onNavigateConversa?: (conversaId: string) => void
+  onStartConversation?: (telefone: string) => void
 }
 
-export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada, onNavigateConversa: _onNavigateConversa }, _ref) {
+export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function ChatWindow({ conversa, onBack, onOpenDrawer, onConversaApagada, onNavigateConversa: _onNavigateConversa, onStartConversation }, _ref) {
   const { user } = useAuth()
   const myAvatarUrl = user?.avatar_url || null
   const [quickRepliesOpen, setQuickRepliesOpen] = useState(false)
@@ -538,6 +539,7 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
         onReactMessage={handleReactMessage}
         onForwardMessage={undefined}
         onPinMessage={undefined}
+        onStartConversation={onStartConversation}
       />
 
       <div className="relative mt-auto">
