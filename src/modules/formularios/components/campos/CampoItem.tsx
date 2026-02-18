@@ -201,7 +201,7 @@ export const CampoItem = forwardRef<HTMLDivElement, Props>(function CampoItem({
       style={spacingStyle}
       className={cn(
         'group relative rounded-md transition-all cursor-pointer',
-        isSelected && 'outline outline-2 outline-primary outline-offset-2 bg-primary/5',
+        isSelected && 'bg-primary/5',
         !isSelected && 'hover:bg-muted/30',
         isDragOver && 'outline-dashed outline-primary bg-primary/10'
       )}
