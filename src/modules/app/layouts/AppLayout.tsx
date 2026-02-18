@@ -285,7 +285,7 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
                   }
                   title="Configurações"
                 >
-                  <Settings className="w-5 h-5" />
+                  <Settings className="w-4 h-4" />
                 </NavLink>
               )}
 
