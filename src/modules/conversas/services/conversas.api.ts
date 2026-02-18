@@ -6,53 +6,8 @@
  */
 
 import { supabase } from '@/lib/supabase'
-
-// =====================================================
-// Helpers - Cache de IDs (mesmo padrão dos outros módulos)
-// =====================================================
-
-let _cachedOrgId: string | null = null
-let _cachedUserId: string | null = null
-
-async function getOrganizacaoId(): Promise<string> {
-  if (_cachedOrgId) return _cachedOrgId
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Usuário não autenticado')
-
-  const { data } = await supabase
-    .from('usuarios')
-    .select('organizacao_id')
-    .eq('auth_id', user.id)
-    .maybeSingle()
-
-  if (!data?.organizacao_id) throw new Error('Organização não encontrada')
-  _cachedOrgId = data.organizacao_id
-  return _cachedOrgId
-}
-
-async function getUsuarioId(): Promise<string> {
-  if (_cachedUserId) return _cachedUserId
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Usuário não autenticado')
-
-  const { data } = await supabase
-    .from('usuarios')
-    .select('id')
-    .eq('auth_id', user.id)
-    .maybeSingle()
-
-  if (!data?.id) throw new Error('Usuário não encontrado')
-  _cachedUserId = data.id
-  return _cachedUserId
-}
-
-// Reset cache on auth state change
-supabase.auth.onAuthStateChange(() => {
-  _cachedOrgId = null
-  _cachedUserId = null
-})
+// AIDEV-NOTE: Auth-context compartilhado — elimina duplicação (Plano de Escala)
+import { getOrganizacaoId, getUsuarioId } from '@/shared/services/auth-context'
 
 // =====================================================
 // Types
@@ -281,68 +236,70 @@ export const conversasApi = {
 
     const conversas = (data || []) as unknown as Conversa[]
 
-    // Fetch ultima mensagem preview para cada conversa
+    // AIDEV-NOTE: Fetch ultima mensagem preview — 1 query por conversa em paralelo (Plano de Escala)
     if (conversas.length > 0) {
       const conversaIds = conversas.map(c => c.id)
-      
-      const { data: ultimasMensagens } = await supabase
-        .from('mensagens')
-        .select('id, conversa_id, tipo, body, from_me, criado_em, reaction_emoji, reaction_message_id')
-        .in('conversa_id', conversaIds)
-        .is('deletado_em', null)
-        .order('criado_em', { ascending: false })
 
-      if (ultimasMensagens) {
-        const ultimaMap = new Map<string, UltimaMensagemPreview>()
-        const reactionMessageIds: string[] = []
+      const ultimasPromises = conversaIds.map(id =>
+        supabase.from('mensagens')
+          .select('id, conversa_id, tipo, body, from_me, criado_em, reaction_emoji, reaction_message_id')
+          .eq('conversa_id', id)
+          .is('deletado_em', null)
+          .neq('tipo', 'reaction')
+          // AIDEV-NOTE: Filtrar duplicatas WAHA (text sem body)
+          .or('tipo.neq.text,body.not.is.null')
+          .order('criado_em', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      )
+      const results = await Promise.all(ultimasPromises)
 
-        for (const msg of ultimasMensagens) {
-          if (!ultimaMap.has(msg.conversa_id)) {
-            // Skip text messages with null body (WAHA webhook duplicates)
-            if (msg.tipo === 'text' && !msg.body) continue
-            ultimaMap.set(msg.conversa_id, {
-              id: msg.id,
-              tipo: msg.tipo,
-              body: msg.body,
-              from_me: msg.from_me,
-              criado_em: msg.criado_em,
-              reaction_emoji: msg.reaction_emoji,
-              reaction_message_id: msg.reaction_message_id,
-            })
-            if (msg.tipo === 'reaction' && msg.reaction_message_id) {
-              reactionMessageIds.push(msg.reaction_message_id)
-            }
-          }
+      const ultimaMap = new Map<string, UltimaMensagemPreview>()
+      const reactionMessageIds: string[] = []
+
+      for (const result of results) {
+        const msg = result.data
+        if (!msg) continue
+        ultimaMap.set(msg.conversa_id, {
+          id: msg.id,
+          tipo: msg.tipo,
+          body: msg.body,
+          from_me: msg.from_me,
+          criado_em: msg.criado_em,
+          reaction_emoji: msg.reaction_emoji,
+          reaction_message_id: msg.reaction_message_id,
+        })
+        if (msg.tipo === 'reaction' && msg.reaction_message_id) {
+          reactionMessageIds.push(msg.reaction_message_id)
         }
+      }
 
-        // AIDEV-NOTE: Buscar tipo da mensagem original para reações (preview na lista)
-        if (reactionMessageIds.length > 0) {
-          const { data: origMsgs } = await supabase
-            .from('mensagens')
-            .select('message_id, tipo, body')
-            .in('message_id', reactionMessageIds)
-            .is('deletado_em', null)
+      // AIDEV-NOTE: Buscar tipo da mensagem original para reações (preview na lista)
+      if (reactionMessageIds.length > 0) {
+        const { data: origMsgs } = await supabase
+          .from('mensagens')
+          .select('message_id, tipo, body')
+          .in('message_id', reactionMessageIds)
+          .is('deletado_em', null)
 
-          if (origMsgs) {
-            const origMap = new Map(origMsgs.map(m => [m.message_id, m]))
-            for (const [, preview] of ultimaMap) {
-              if (preview.tipo === 'reaction' && preview.reaction_message_id) {
-                const orig = origMap.get(preview.reaction_message_id)
-                if (orig) {
-                  preview.reaction_original_tipo = orig.tipo
-                  // Se a mensagem original é texto, guardar o body para preview
-                  if (orig.tipo === 'text' && orig.body && !preview.body) {
-                    preview.body = orig.body
-                  }
+        if (origMsgs) {
+          const origMap = new Map(origMsgs.map(m => [m.message_id, m]))
+          for (const [, preview] of ultimaMap) {
+            if (preview.tipo === 'reaction' && preview.reaction_message_id) {
+              const orig = origMap.get(preview.reaction_message_id)
+              if (orig) {
+                preview.reaction_original_tipo = orig.tipo
+                if (orig.tipo === 'text' && orig.body && !preview.body) {
+                  preview.body = orig.body
                 }
               }
             }
           }
         }
-        
-        for (const conversa of conversas) {
-          conversa.ultima_mensagem = ultimaMap.get(conversa.id) || null
-        }
+      }
+
+      for (const conversa of conversas) {
+        conversa.ultima_mensagem = ultimaMap.get(conversa.id) || null
       }
     }
 
@@ -882,59 +839,44 @@ export const conversasApi = {
    * Envia mensagem de texto. Se a conversa tem sessão WhatsApp ativa,
    * envia via WAHA API. Caso contrário, salva apenas localmente.
    */
+  // AIDEV-NOTE: DRY — enviarTexto agora usa getConversaWahaSession (Plano de Escala)
   async enviarTexto(conversaId: string, texto: string, replyTo?: string, isTemplate?: boolean): Promise<Mensagem> {
     const organizacaoId = await getOrganizacaoId()
 
-    // Buscar dados da conversa para determinar se é WhatsApp
-    const { data: conversa } = await supabase
-      .from('conversas')
-      .select('chat_id, sessao_whatsapp_id, canal')
-      .eq('id', conversaId)
-      .maybeSingle()
-
     let wahaMessageId: string | null = null
 
-    // Se é uma conversa WhatsApp com sessão, enviar via WAHA
-    if (conversa?.sessao_whatsapp_id && conversa?.canal === 'whatsapp') {
-      // Buscar session_name da sessão
-      const { data: sessao } = await supabase
-        .from('sessoes_whatsapp')
-        .select('session_name')
-        .eq('id', conversa.sessao_whatsapp_id)
-        .maybeSingle()
+    const session = await getConversaWahaSession(conversaId)
+    if (session) {
+      const { data: wahaResult, error: wahaError } = await supabase.functions.invoke('waha-proxy', {
+        body: {
+          action: 'enviar_mensagem',
+          session_name: session.sessionName,
+          chat_id: session.chatId,
+          text: texto,
+          reply_to: replyTo || undefined,
+        },
+      })
 
-      if (sessao?.session_name) {
-        const { data: wahaResult, error: wahaError } = await supabase.functions.invoke('waha-proxy', {
-          body: {
-            action: 'enviar_mensagem',
-            session_name: sessao.session_name,
-            chat_id: conversa.chat_id,
-            text: texto,
-            reply_to: replyTo || undefined,
-          },
-        })
-
-        if (wahaError) {
-          console.error('[conversas.api] Erro ao enviar via WAHA:', wahaError)
-          const errorMsg = wahaError?.message || JSON.stringify(wahaError)
-          if (errorMsg.includes('does not exist')) {
-            throw new Error('SESSION_NOT_FOUND')
-          }
-          throw new Error('Erro ao enviar mensagem pelo WhatsApp')
+      if (wahaError) {
+        console.error('[conversas.api] Erro ao enviar via WAHA:', wahaError)
+        const errorMsg = wahaError?.message || JSON.stringify(wahaError)
+        if (errorMsg.includes('does not exist')) {
+          throw new Error('SESSION_NOT_FOUND')
         }
-
-        if (wahaResult?.error) {
-          console.error('[conversas.api] WAHA retornou erro:', wahaResult.error)
-          const detailsStr = JSON.stringify(wahaResult.details || wahaResult.error || '')
-          if (detailsStr.includes('does not exist')) {
-            throw new Error('SESSION_NOT_FOUND')
-          }
-          throw new Error(wahaResult.error)
-        }
-
-        wahaMessageId = wahaResult?.message_id || null
-        console.log('[conversas.api] Mensagem enviada via WAHA, messageId:', wahaMessageId)
+        throw new Error('Erro ao enviar mensagem pelo WhatsApp')
       }
+
+      if (wahaResult?.error) {
+        console.error('[conversas.api] WAHA retornou erro:', wahaResult.error)
+        const detailsStr = JSON.stringify(wahaResult.details || wahaResult.error || '')
+        if (detailsStr.includes('does not exist')) {
+          throw new Error('SESSION_NOT_FOUND')
+        }
+        throw new Error(wahaResult.error)
+      }
+
+      wahaMessageId = wahaResult?.message_id || null
+      console.log('[conversas.api] Mensagem enviada via WAHA, messageId:', wahaMessageId)
     }
 
     // Salvar mensagem no banco
@@ -957,12 +899,13 @@ export const conversasApi = {
 
     if (error) throw new Error(error.message)
 
-    // Atualizar conversa metadata
+    // AIDEV-NOTE: Incremento simples em vez de count pesado (Plano de Escala)
+    const { data: convData } = await supabase.from('conversas').select('total_mensagens').eq('id', conversaId).single()
     await supabase
       .from('conversas')
       .update({
         ultima_mensagem_em: new Date().toISOString(),
-        total_mensagens: (await supabase.from('mensagens').select('id', { count: 'exact', head: true }).eq('conversa_id', conversaId).is('deletado_em', null)).count || 0,
+        total_mensagens: (convData?.total_mensagens || 0) + 1,
       })
       .eq('id', conversaId)
 
@@ -972,59 +915,45 @@ export const conversasApi = {
   /**
    * Envia mídia. Se é WhatsApp com sessão, envia via WAHA API.
    */
+  // AIDEV-NOTE: DRY — enviarMedia agora usa getConversaWahaSession (Plano de Escala)
   async enviarMedia(conversaId: string, dados: { tipo: string; media_url: string; caption?: string; filename?: string; mimetype?: string }): Promise<Mensagem> {
     const organizacaoId = await getOrganizacaoId()
 
-    // Buscar dados da conversa
-    const { data: conversa } = await supabase
-      .from('conversas')
-      .select('chat_id, sessao_whatsapp_id, canal')
-      .eq('id', conversaId)
-      .maybeSingle()
-
     let wahaMessageId: string | null = null
 
-    // Se é WhatsApp com sessão, enviar via WAHA
-    if (conversa?.sessao_whatsapp_id && conversa?.canal === 'whatsapp') {
-      const { data: sessao } = await supabase
-        .from('sessoes_whatsapp')
-        .select('session_name')
-        .eq('id', conversa.sessao_whatsapp_id)
-        .maybeSingle()
+    const session = await getConversaWahaSession(conversaId)
+    if (session) {
+      const { data: wahaResult, error: wahaError } = await supabase.functions.invoke('waha-proxy', {
+        body: {
+          action: 'enviar_media',
+          session_name: session.sessionName,
+          chat_id: session.chatId,
+          media_url: dados.media_url,
+          media_type: dados.tipo,
+          caption: dados.caption,
+          filename: dados.filename,
+          mimetype: dados.mimetype,
+        },
+      })
 
-      if (sessao?.session_name) {
-        const { data: wahaResult, error: wahaError } = await supabase.functions.invoke('waha-proxy', {
-          body: {
-            action: 'enviar_media',
-            session_name: sessao.session_name,
-            chat_id: conversa.chat_id,
-            media_url: dados.media_url,
-            media_type: dados.tipo,
-            caption: dados.caption,
-            filename: dados.filename,
-            mimetype: dados.mimetype,
-          },
-        })
-
-        if (wahaError) {
-          console.error('[conversas.api] Erro ao enviar mídia via WAHA:', wahaError)
-          const errorMsg = wahaError?.message || JSON.stringify(wahaError)
-          if (errorMsg.includes('does not exist')) {
-            throw new Error('SESSION_NOT_FOUND')
-          }
-          throw new Error('Erro ao enviar mídia pelo WhatsApp')
+      if (wahaError) {
+        console.error('[conversas.api] Erro ao enviar mídia via WAHA:', wahaError)
+        const errorMsg = wahaError?.message || JSON.stringify(wahaError)
+        if (errorMsg.includes('does not exist')) {
+          throw new Error('SESSION_NOT_FOUND')
         }
-
-        if (wahaResult?.error) {
-          const detailsStr = JSON.stringify(wahaResult.details || wahaResult.error || '')
-          if (detailsStr.includes('does not exist')) {
-            throw new Error('SESSION_NOT_FOUND')
-          }
-          throw new Error(wahaResult.error)
-        }
-
-        wahaMessageId = wahaResult?.message_id || null
+        throw new Error('Erro ao enviar mídia pelo WhatsApp')
       }
+
+      if (wahaResult?.error) {
+        const detailsStr = JSON.stringify(wahaResult.details || wahaResult.error || '')
+        if (detailsStr.includes('does not exist')) {
+          throw new Error('SESSION_NOT_FOUND')
+        }
+        throw new Error(wahaResult.error)
+      }
+
+      wahaMessageId = wahaResult?.message_id || null
     }
 
     const { data, error } = await supabase
@@ -1051,40 +980,28 @@ export const conversasApi = {
 
   /**
    * Envia contato vCard. Se é WhatsApp com sessão, envia via WAHA API.
+   * AIDEV-NOTE: DRY — usa getConversaWahaSession (Plano de Escala)
    */
   async enviarContato(conversaId: string, dados: { contact_name: string; vcard: string }): Promise<Mensagem> {
     const organizacaoId = await getOrganizacaoId()
 
-    const { data: conversa } = await supabase
-      .from('conversas')
-      .select('chat_id, sessao_whatsapp_id, canal')
-      .eq('id', conversaId)
-      .maybeSingle()
-
     let wahaMessageId: string | null = null
 
-    if (conversa?.sessao_whatsapp_id && conversa?.canal === 'whatsapp') {
-      const { data: sessao } = await supabase
-        .from('sessoes_whatsapp')
-        .select('session_name')
-        .eq('id', conversa.sessao_whatsapp_id)
-        .maybeSingle()
+    const session = await getConversaWahaSession(conversaId)
+    if (session) {
+      const { data: wahaResult, error: wahaError } = await supabase.functions.invoke('waha-proxy', {
+        body: {
+          action: 'enviar_contato',
+          session_name: session.sessionName,
+          chat_id: session.chatId,
+          contact_name: dados.contact_name,
+          vcard: dados.vcard,
+        },
+      })
 
-      if (sessao?.session_name) {
-        const { data: wahaResult, error: wahaError } = await supabase.functions.invoke('waha-proxy', {
-          body: {
-            action: 'enviar_contato',
-            session_name: sessao.session_name,
-            chat_id: conversa.chat_id,
-            contact_name: dados.contact_name,
-            vcard: dados.vcard,
-          },
-        })
-
-        if (wahaError) throw new Error('Erro ao enviar contato pelo WhatsApp')
-        if (wahaResult?.error) throw new Error(wahaResult.error)
-        wahaMessageId = wahaResult?.message_id || null
-      }
+      if (wahaError) throw new Error('Erro ao enviar contato pelo WhatsApp')
+      if (wahaResult?.error) throw new Error(wahaResult.error)
+      wahaMessageId = wahaResult?.message_id || null
     }
 
     const { data, error } = await supabase
@@ -1115,41 +1032,29 @@ export const conversasApi = {
 
   /**
    * Envia enquete (poll). Se é WhatsApp com sessão, envia via WAHA API.
+   * AIDEV-NOTE: DRY — usa getConversaWahaSession (Plano de Escala)
    */
   async enviarEnquete(conversaId: string, dados: { poll_name: string; poll_options: string[]; poll_allow_multiple: boolean }): Promise<Mensagem> {
     const organizacaoId = await getOrganizacaoId()
 
-    const { data: conversa } = await supabase
-      .from('conversas')
-      .select('chat_id, sessao_whatsapp_id, canal')
-      .eq('id', conversaId)
-      .maybeSingle()
-
     let wahaMessageId: string | null = null
 
-    if (conversa?.sessao_whatsapp_id && conversa?.canal === 'whatsapp') {
-      const { data: sessao } = await supabase
-        .from('sessoes_whatsapp')
-        .select('session_name')
-        .eq('id', conversa.sessao_whatsapp_id)
-        .maybeSingle()
+    const session = await getConversaWahaSession(conversaId)
+    if (session) {
+      const { data: wahaResult, error: wahaError } = await supabase.functions.invoke('waha-proxy', {
+        body: {
+          action: 'enviar_enquete',
+          session_name: session.sessionName,
+          chat_id: session.chatId,
+          poll_name: dados.poll_name,
+          poll_options: dados.poll_options,
+          poll_allow_multiple: dados.poll_allow_multiple,
+        },
+      })
 
-      if (sessao?.session_name) {
-        const { data: wahaResult, error: wahaError } = await supabase.functions.invoke('waha-proxy', {
-          body: {
-            action: 'enviar_enquete',
-            session_name: sessao.session_name,
-            chat_id: conversa.chat_id,
-            poll_name: dados.poll_name,
-            poll_options: dados.poll_options,
-            poll_allow_multiple: dados.poll_allow_multiple,
-          },
-        })
-
-        if (wahaError) throw new Error('Erro ao enviar enquete pelo WhatsApp')
-        if (wahaResult?.error) throw new Error(wahaResult.error)
-        wahaMessageId = wahaResult?.message_id || null
-      }
+      if (wahaError) throw new Error('Erro ao enviar enquete pelo WhatsApp')
+      if (wahaResult?.error) throw new Error(wahaResult.error)
+      wahaMessageId = wahaResult?.message_id || null
     }
 
     const pollOptions = dados.poll_options.map(opt => ({ text: opt, votes: 0 }))
@@ -1290,6 +1195,7 @@ export const conversasApi = {
       .eq('contato_id', contatoId)
       .is('deletado_em', null)
       .order('criado_em', { ascending: false })
+      .limit(50) // AIDEV-NOTE: Limit para prevenir carregamento excessivo (Plano de Escala)
 
     if (error) throw new Error(error.message)
 
