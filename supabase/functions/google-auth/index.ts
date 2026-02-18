@@ -302,40 +302,26 @@ serve(async (req) => {
           nome_remetente: userInfo.name || null,
         };
 
-        const { data: existingEmail } = await supabaseAdmin
+        // AIDEV-NOTE: Buscar ANY existing record (incluindo soft-deleted) para evitar violação de unique constraint
+        const { data: existingAny } = await supabaseAdmin
           .from("conexoes_email")
           .select("id")
           .eq("organizacao_id", stateData.organizacao_id)
           .eq("usuario_id", stateData.usuario_id)
-          .eq("tipo", "gmail")
-          .is("deletado_em", null)
+          .order("criado_em", { ascending: false })
+          .limit(1)
           .single();
 
-        if (existingEmail) {
+        if (existingAny) {
+          // Reativar e atualizar registro existente (incluindo limpar deletado_em)
           await supabaseAdmin
             .from("conexoes_email")
-            .update(emailConexaoData)
-            .eq("id", existingEmail.id);
+            .update({ ...emailConexaoData, deletado_em: null })
+            .eq("id", existingAny.id);
         } else {
-          // Check if there's an old SMTP connection for same user, update it to gmail
-          const { data: existingSmtp } = await supabaseAdmin
+          await supabaseAdmin
             .from("conexoes_email")
-            .select("id")
-            .eq("organizacao_id", stateData.organizacao_id)
-            .eq("usuario_id", stateData.usuario_id)
-            .is("deletado_em", null)
-            .single();
-
-          if (existingSmtp) {
-            await supabaseAdmin
-              .from("conexoes_email")
-              .update(emailConexaoData)
-              .eq("id", existingSmtp.id);
-          } else {
-            await supabaseAdmin
-              .from("conexoes_email")
-              .insert(emailConexaoData);
-          }
+            .insert(emailConexaoData);
         }
 
         console.log("[google-auth] Email connection also saved for Gmail user:", userInfo.email);

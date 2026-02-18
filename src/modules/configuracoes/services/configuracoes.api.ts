@@ -1253,7 +1253,7 @@ export const integracoesApi = {
           id: row.id as string,
           organizacao_id: row.organizacao_id as string,
           plataforma: 'email',
-          status: ['connected', 'ativo', 'active'].includes(row.status as string) ? 'conectado' : (row.status as string) || 'desconectado',
+          status: ['connected', 'ativo', 'active', 'conectado'].includes(row.status as string) ? 'conectado' : (row.status as string) || 'desconectado',
           email: row.email as string | null,
           tipo_email: row.tipo as TipoConexaoEmail | null,
           nome_remetente: row.nome_remetente as string | null,
