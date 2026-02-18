@@ -1,8 +1,9 @@
- import { useState, useEffect } from 'react'
- import { useSearchParams, Link } from 'react-router-dom'
- import { Check, Loader2, Star, Zap, RefreshCw, AlertTriangle } from 'lucide-react'
- import { supabase } from '@/lib/supabase'
- import { PreCadastroModal } from '../components/PreCadastroModal'
+import { useState, useEffect, useRef } from 'react'
+import { useSearchParams, Link } from 'react-router-dom'
+import { Check, Loader2, Star, Zap, RefreshCw, AlertTriangle } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+import { PreCadastroModal } from '../components/PreCadastroModal'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
  
  /**
   * AIDEV-NOTE: Pagina publica de planos
@@ -50,8 +51,21 @@ interface PlanoDb {
    const [loading, setLoading] = useState(true)
    const [loadError, setLoadError] = useState<string | null>(null)
    const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
-   const [modalOpen, setModalOpen] = useState(false)
-   const [modalPlano, setModalPlano] = useState<{ id: string; nome: string; isTrial: boolean } | null>(null)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [modalPlano, setModalPlano] = useState<{ id: string; nome: string; isTrial: boolean } | null>(null)
+  const [demoModalOpen, setDemoModalOpen] = useState(false)
+  const demoContainerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!demoModalOpen || !demoContainerRef.current) return
+    demoContainerRef.current.replaceChildren()
+    const script = document.createElement('script')
+    script.src = 'https://ybzhlsalbnxwkfszkloa.supabase.co/functions/v1/widget-formulario-loader?slug=demonstracao-crm-mlrb6yoz&mode=inline'
+    script.dataset.formSlug = 'demonstracao-crm-mlrb6yoz'
+    script.async = true
+    demoContainerRef.current.appendChild(script)
+    return () => { demoContainerRef.current?.replaceChildren() }
+  }, [demoModalOpen])
  
    // Capturar UTMs
    const utms = {
@@ -350,18 +364,24 @@ interface PlanoDb {
                    </li>
                  </ul>
  
-                 <button
-                   onClick={handleStartTrial}
-                   disabled={checkoutLoading === 'trial'}
-                   className="w-full py-2.5 px-4 text-sm font-medium border border-border rounded-lg hover:bg-accent transition-colors disabled:opacity-50"
-                 >
-                   {checkoutLoading === 'trial' ? (
-                     <Loader2 className="w-4 h-4 animate-spin mx-auto" />
-                   ) : (
-                     'Teste grátis agora'
-                   )}
-                 </button>
-               </div>
+                  <button
+                    onClick={handleStartTrial}
+                    disabled={checkoutLoading === 'trial'}
+                    className="w-full py-2.5 px-4 text-sm font-medium border border-border rounded-lg hover:bg-accent transition-colors disabled:opacity-50"
+                  >
+                    {checkoutLoading === 'trial' ? (
+                      <Loader2 className="w-4 h-4 animate-spin mx-auto" />
+                    ) : (
+                      'Teste grátis agora'
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setDemoModalOpen(true)}
+                    className="w-full py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:underline transition-colors mt-2"
+                  >
+                    Solicite uma demonstração
+                  </button>
+                </div>
              )}
  
              {/* Cards dos Planos */}
@@ -429,22 +449,28 @@ interface PlanoDb {
                      </li>
                    </ul>
  
-                   <button
-                     onClick={() => handleSelectPlan(plano)}
-                     disabled={checkoutLoading === plano.id}
-                     className={`w-full py-2.5 px-4 text-sm font-medium rounded-lg transition-colors disabled:opacity-50 ${
-                       isPopular
-                         ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                         : 'border border-border hover:bg-accent'
-                     }`}
-                   >
-                     {checkoutLoading === plano.id ? (
-                       <Loader2 className="w-4 h-4 animate-spin mx-auto" />
-                     ) : (
-                       'Comprar agora'
-                     )}
-                   </button>
-                 </div>
+                    <button
+                      onClick={() => handleSelectPlan(plano)}
+                      disabled={checkoutLoading === plano.id}
+                      className={`w-full py-2.5 px-4 text-sm font-medium rounded-lg transition-colors disabled:opacity-50 ${
+                        isPopular
+                          ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                          : 'border border-border hover:bg-accent'
+                      }`}
+                    >
+                      {checkoutLoading === plano.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin mx-auto" />
+                      ) : (
+                        'Comprar agora'
+                      )}
+                    </button>
+                    <button
+                      onClick={() => setDemoModalOpen(true)}
+                      className="w-full py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:underline transition-colors mt-2"
+                    >
+                      Solicite uma demonstração
+                    </button>
+                  </div>
                )
              })}
            </div>
@@ -465,8 +491,18 @@ interface PlanoDb {
          />
        )}
 
-       {/* Footer */}
-       <footer className="border-t border-border py-8 px-4">
+        {/* Modal Demonstração */}
+        <Dialog open={demoModalOpen} onOpenChange={setDemoModalOpen}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Solicite uma demonstração</DialogTitle>
+            </DialogHeader>
+            <div ref={demoContainerRef} className="min-h-[300px]" />
+          </DialogContent>
+        </Dialog>
+
+        {/* Footer */}
+        <footer className="border-t border-border py-8 px-4">
          <div className="max-w-7xl mx-auto text-center text-sm text-muted-foreground">
            <p>© 2024 CRM Renove. Todos os direitos reservados.</p>
          </div>
