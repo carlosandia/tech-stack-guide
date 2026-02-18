@@ -1,98 +1,104 @@
 
+## Auditoria de Producao — Modulo /tarefas
 
-## Auditoria de Producao — Modulo /automacoes
-
-Analise para 500+ usuarios, alto volume de automacoes e execucoes, conforme diretrizes do Arquiteto de Produto.
+Analise para 500+ usuarios, alto volume de tarefas e oportunidades, conforme diretrizes do Arquiteto de Produto.
 
 ---
 
 ### 1. Problemas Criticos
 
-#### 1.1 Auth inline em `criarAutomacao` (automacoes.api.ts)
+#### 1.1 Cache auth duplicado (tarefas.api.ts)
 
-Linhas 37-43: Faz `supabase.auth.getUser()` + `supabase.from('usuarios').select()` manualmente a cada criacao. O `auth-context.ts` compartilhado ja existe e foi adotado nos modulos /emails, /formularios, /configuracoes.
+Linhas 17-77: Mesma duplicacao de `_cachedOrgId`, `_cachedUserId`, `_cachedUserRole` com `onAuthStateChange` local. Identica ao padrao ja corrigido nos modulos /emails, /formularios, /configuracoes, /automacoes. O `auth-context.ts` compartilhado ja existe e exporta `getOrganizacaoId`, `getUsuarioId` e `getUserRole`.
 
-**Correcao**: Importar `getOrganizacaoId` e `getUsuarioId` de `@/shared/services/auth-context` e usar no lugar da query inline.
+**Correcao**: Remover linhas 17-77 e importar de `@/shared/services/auth-context`.
 
 **Risco**: Zero. Refactor DRY puro.
 
 ---
 
-#### 1.2 Auth inline em `SegmentoSelect` (AcaoConfig.tsx)
+#### 1.2 Filtro `pipeline_id` em memoria (GARGALO)
 
-Linhas 177-180: Dentro de `criarSegmento()`, faz `supabase.auth.getUser()` + query de `usuarios` inline para obter `organizacao_id`. Duplicacao identica ao padrao ja corrigido.
+Linhas 270-274: Apos buscar tarefas paginadas do banco, filtra por `pipeline_id` no frontend via `.filter()`. Isso causa dois problemas graves:
 
-**Correcao**: Importar e usar `getOrganizacaoId` do `auth-context`.
+1. **Paginacao quebrada**: Se a pagina tem 20 resultados e 5 sao do pipeline errado, o usuario ve 15 itens em vez de 20.
+2. **Total incorreto**: O count vem do banco (sem filtro de pipeline), mas os dados sao filtrados localmente, criando inconsistencia entre `total` e dados exibidos.
+
+**Correcao**: Mover o filtro para o banco. Buscar os `oportunidade_id`s do pipeline antes da query principal e usar `.in('oportunidade_id', ids)`. Alternativamente, filtrar via `etapa_origem_id` que ja e coluna da tabela `tarefas`.
+
+```typescript
+if (params?.pipeline_id) {
+  // Buscar oportunidades do pipeline
+  const { data: ops } = await supabase
+    .from('oportunidades')
+    .select('id')
+    .eq('funil_id', params.pipeline_id)
+    .is('deletado_em', null)
+    .limit(1000)
+  const opIds = (ops || []).map(o => o.id)
+  if (opIds.length === 0) {
+    return { data: [], pagination: { page, limit, total: 0, total_pages: 0 } }
+  }
+  query = query.in('oportunidade_id', opIds)
+}
+```
+
+---
+
+#### 1.3 3 queries auth sequenciais em `listar` e `obterMetricas`
+
+Linhas 171-173 e 301-303: Cada chamada faz `getOrganizacaoId()`, `getUsuarioId()`, `getUserRole()` sequencialmente (3 awaits). Mesmo com cache, na primeira chamada sao 6 queries ao banco (2 por funcao). Com o auth-context compartilhado, o cache e global e ja resolve isso, mas as chamadas ainda sao sequenciais.
+
+**Correcao**: Agrupar em `Promise.all`:
+
+```typescript
+const [organizacaoId, usuarioId, role] = await Promise.all([
+  getOrganizacaoId(),
+  getUsuarioId(),
+  getUserRole(),
+])
+```
+
+---
+
+#### 1.4 Enrichment de funis/etapas sem limit
+
+Linhas 249-256: Busca funis e etapas para enriquecer nomes, mas sem `.limit()`. Em cenarios normais o volume e baixo (poucos funis), mas como boa pratica deve ter trava.
+
+**Correcao**: Adicionar `.limit(100)` em ambas as queries de enrichment.
 
 **Risco**: Zero.
 
 ---
 
-#### 1.3 Auth inline em `TriggerConfig` (TriggerConfig.tsx)
+#### 1.5 `listarMembros` e `listarFunis` sem limit
 
-Linhas 25-38: Hook `useQuery` dedicado (`usuario-atual-trigger`) que faz `supabase.auth.getUser()` + query de `usuarios` para obter `organizacao_id`. Usado para buscar formularios e exibir o WebhookDebugPanel.
+Linhas 452-461 e 468-478: Ambas funcoes buscam sem `.limit()`. Com organizacoes grandes (50+ membros, 20+ funis), nao ha trava.
 
-**Correcao**: Criar um hook simples `useOrganizacaoId()` que encapsula a chamada a `getOrganizacaoId` via `useQuery` com `staleTime: Infinity`, e reusar em vez da query inline. Alternativamente, importar diretamente `getOrganizacaoId` dentro das queryFn que precisam (formularios, webhooks).
-
-**Risco**: Zero.
+**Correcao**: Adicionar `.limit(100)` em `listarMembros` e `.limit(50)` em `listarFunis`.
 
 ---
 
-#### 1.4 `listarAutomacoes` sem limit (automacoes.api.ts)
+#### 1.6 Hooks sem `staleTime` na listagem principal
 
-Linha 13-22: `listarAutomacoes` busca TODAS as automacoes da organizacao sem `.limit()`. Com 500+ tenants, cada um pode ter dezenas de automacoes. A sidebar ja carrega tudo de uma vez.
+Linhas 10-15 (useTarefas): O hook `useTarefas` nao tem `staleTime`, o que significa que cada mudanca de tab/foco do browser refaz a query completa. Os hooks de filtro (`useMembrosEquipe`, `useFunisFiltro`) ja tem `staleTime` correto.
 
-**Correcao**: Adicionar `.limit(100)` como trava de seguranca.
-
-**Risco**: Zero. 100 automacoes e um limite generoso (nenhum tenant realista tera mais que isso).
-
----
-
-#### 1.5 Auto-save dispara `invalidateQueries` desnecessariamente
-
-Linha 55-56 (useAtualizarAutomacao): O auto-save com debounce de 1s chama `atualizarMutation.mutate()`, que no `onSuccess` faz `qc.invalidateQueries({ queryKey: QUERY_KEY })`. Isso re-fetcha a lista completa de automacoes a cada keystroke (com 1s de delay). Como o auto-save usa `silent: true` para evitar toast, deveria tambem evitar invalidacao desnecessaria.
-
-**Correcao**: No hook `useAtualizarAutomacao`, quando `variables.silent === true`, pular o `invalidateQueries` (os dados no canvas ja estao atualizados localmente).
-
-**Risco**: Baixo. O estado local do canvas ja tem os dados mais recentes; a lista lateral sera invalidada na proxima operacao nao-silenciosa.
-
----
-
-#### 1.6 WebhookDebugPanel — polling sem cleanup no unmount
-
-Linhas 94-109 (WebhookDebugPanel.tsx): O polling com `setInterval` de 3s nao tem timeout maximo. Se o usuario iniciar a escuta e esquecer, o polling roda indefinidamente.
-
-**Correcao**: Adicionar um timeout maximo de 120 segundos (40 iteracoes). Apos o timeout, parar automaticamente e exibir mensagem.
-
-**Risco**: Zero.
-
----
-
-#### 1.7 WebhookDebugPanel — carrega webhooks com `useEffect` em vez de `useQuery`
-
-Linhas 50-63: Usa `useEffect` + `useState` manual para carregar webhooks, sem cache, staleTime, ou retry. Cada vez que o componente monta, refaz a query.
-
-**Correcao**: Converter para `useQuery` com `staleTime: 60_000`, consistente com os outros seletores do modulo (MembroSelector, SegmentoSelect, WebhookSaidaSelect).
-
-**Risco**: Zero.
+**Correcao**: Adicionar `staleTime: 30_000` (30s) no `useTarefas` e `useTarefasMetricas`.
 
 ---
 
 ### 2. O que ja esta BEM FEITO
 
-- Auto-save com debounce de 1s (evita saves excessivos)
-- Serializer/deserializer de grafo robusto (flowConverter.ts) com suporte a branching
-- `initialLoadRef` para evitar save ao carregar automacao (previne loop save-ao-carregar)
-- Refs estaveis para nodes/edges no auto-save (`nodesRef`, `edgesRef`)
-- Hooks React Query bem estruturados com queryKeys consistentes
-- `staleTime: 60_000` nos sub-seletores (membros, segmentos, webhooks saida)
-- `staleTime: Infinity` no usuario-atual-trigger (dado imutavel na sessao)
-- Logs com `.limit(50)` configuravel
+- Paginacao com `.range()` e `{ count: 'exact' }` na listagem principal
+- Metricas com `{ count: 'exact', head: true }` (sem transferir dados para contagem)
+- `Promise.all` nas 4 queries de metricas (execucao paralela)
+- `.limit(500)` na query de tempo medio (trava de seguranca)
+- `Promise.all` no enrichment de funis/etapas
+- Validacao de permissao Member na conclusao
+- Hooks de filtro com `staleTime` adequado (5min membros, 5min funis, 2min etapas)
 - Soft delete padronizado
-- Canvas React Flow com memoizacao correta (`useMemo` para nodeTypes, edgeTypes, callbacks)
-- Sidebar com busca client-side (aceitavel para volume de automacoes por tenant)
-- Edge deletavel com hover UX
-- Mobile responsive com overlay sidebar
+- Componentes visuais bem estruturados com forwardRef e skeletons
+- Cards de metricas clicaveis como filtro rapido
 
 ---
 
@@ -100,110 +106,78 @@ Linhas 50-63: Usa `useEffect` + `useState` manual para carregar webhooks, sem ca
 
 | # | Acao | Arquivo | Impacto |
 |---|------|---------|---------|
-| 1 | Importar auth-context em criarAutomacao | `automacoes.api.ts` | Elimina auth duplicado |
-| 2 | Importar auth-context em SegmentoSelect | `AcaoConfig.tsx` | Elimina auth duplicado |
-| 3 | Importar auth-context em TriggerConfig | `TriggerConfig.tsx` | Elimina auth duplicado |
-| 4 | Adicionar .limit(100) em listarAutomacoes | `automacoes.api.ts` | Trava de seguranca |
-| 5 | Pular invalidateQueries quando silent=true | `useAutomacoes.ts` | Elimina refetch desnecessario no auto-save |
-| 6 | Adicionar timeout de 120s no polling | `WebhookDebugPanel.tsx` | Previne polling infinito |
-| 7 | Converter load de webhooks para useQuery | `WebhookDebugPanel.tsx` | Cache + retry automatico |
+| 1 | Importar auth-context compartilhado | `tarefas.api.ts` | Elimina 60 linhas de duplicacao |
+| 2 | Mover filtro pipeline_id para o banco | `tarefas.api.ts` | Corrige paginacao e contagem |
+| 3 | Paralelizar chamadas auth com Promise.all | `tarefas.api.ts` | Reduz latencia na primeira chamada |
+| 4 | Adicionar .limit() em enrichment e selects auxiliares | `tarefas.api.ts` | Travas de seguranca |
+| 5 | Adicionar staleTime nos hooks principais | `useTarefas.ts` | Evita refetch desnecessario |
 
 ---
 
 ### 4. Detalhes Tecnicos
 
-**4.1 Auth-context em criarAutomacao (automacoes.api.ts)**
+**4.1 Auth-context (tarefas.api.ts)**
 
-Adicionar no topo:
+Remover linhas 17-77. Substituir imports:
 ```typescript
-import { getOrganizacaoId, getUsuarioId } from '@/shared/services/auth-context'
+import { getOrganizacaoId, getUsuarioId, getUserRole } from '@/shared/services/auth-context'
 ```
 
-Substituir linhas 37-43:
+**4.2 Pipeline filter no banco (tarefas.api.ts)**
+
+Mover o filtro de `pipeline_id` para ANTES da query principal:
 ```typescript
-const organizacaoId = await getOrganizacaoId()
-const usuarioId = await getUsuarioId()
-```
-
-E usar `organizacaoId` e `usuarioId` no insert.
-
-**4.2 Auth-context em SegmentoSelect (AcaoConfig.tsx)**
-
-Substituir linhas 177-180 de `criarSegmento()`:
-```typescript
-import { getOrganizacaoId } from '@/shared/services/auth-context'
-// dentro de criarSegmento:
-const organizacaoId = await getOrganizacaoId()
-```
-
-Remover a busca manual de `supabase.auth.getUser()` + query de `usuarios`.
-
-**4.3 Auth-context em TriggerConfig (TriggerConfig.tsx)**
-
-Substituir o hook `useQuery(['usuario-atual-trigger'])` por chamada direta a `getOrganizacaoId` dentro das queryFn que precisam:
-
-```typescript
-import { getOrganizacaoId } from '@/shared/services/auth-context'
-```
-
-No useQuery de formularios, usar `getOrganizacaoId()` diretamente. Para o `organizacaoId` passado ao `WebhookDebugPanel`, usar um `useQuery` simples:
-```typescript
-const { data: organizacaoId } = useQuery({
-  queryKey: ['org-id'],
-  queryFn: getOrganizacaoId,
-  staleTime: Infinity,
-})
-```
-
-**4.4 Limit em listarAutomacoes (automacoes.api.ts)**
-
-Adicionar `.limit(100)` apos `.order()`.
-
-**4.5 Pular invalidateQueries no silent (useAutomacoes.ts)**
-
-No `useAtualizarAutomacao`, alterar `onSuccess`:
-```typescript
-onSuccess: (_, variables) => {
-  if (!variables.silent) {
-    qc.invalidateQueries({ queryKey: QUERY_KEY })
-    toast.success('Automacao atualizada')
+if (params?.pipeline_id) {
+  const { data: ops } = await supabase
+    .from('oportunidades')
+    .select('id')
+    .eq('funil_id', params.pipeline_id)
+    .is('deletado_em', null)
+    .limit(1000)
+  const opIds = (ops || []).map(o => o.id)
+  if (opIds.length === 0) {
+    return { data: [], pagination: { page, limit, total: 0, total_pages: 0 } }
   }
-},
+  query = query.in('oportunidade_id', opIds)
+}
 ```
 
-**4.6 Timeout no polling (WebhookDebugPanel.tsx)**
+Remover o bloco pos-query das linhas 270-278.
 
-No `startListening`, adicionar contador:
+**4.3 Promise.all para auth (tarefas.api.ts)**
+
+Em `listar` e `obterMetricas`:
 ```typescript
-let iteracoes = 0
-pollingRef.current = setInterval(async () => {
-  iteracoes++
-  if (iteracoes >= 40) { // 40 * 3s = 120s
-    stopListening()
-    return
-  }
-  // ... resto do polling
-}, 3000)
+const [organizacaoId, usuarioId, role] = await Promise.all([
+  getOrganizacaoId(), getUsuarioId(), getUserRole(),
+])
 ```
 
-**4.7 Converter load de webhooks para useQuery (WebhookDebugPanel.tsx)**
+**4.4 Limits (tarefas.api.ts)**
 
-Substituir o `useEffect` + `useState` por:
+- Enrichment funis: `.limit(100)`
+- Enrichment etapas: `.limit(100)`
+- `listarMembros`: `.limit(100)`
+- `listarFunis`: `.limit(50)`
+
+**4.5 staleTime (useTarefas.ts)**
+
 ```typescript
-const { data: webhooks = [], isLoading: loading } = useQuery({
-  queryKey: ['webhooks-entrada', organizacaoId],
-  queryFn: async () => {
-    const { data } = await supabase
-      .from('webhooks_entrada')
-      .select('id, nome, url_token, ativo')
-      .eq('organizacao_id', organizacaoId)
-      .is('deletado_em', null)
-      .order('criado_em', { ascending: false })
-    return data || []
-  },
-  enabled: !!organizacaoId,
-  staleTime: 60_000,
-})
+export function useTarefas(params?: ListarTarefasParams) {
+  return useQuery({
+    queryKey: ['tarefas-lista', params],
+    queryFn: () => tarefasApi.listar(params),
+    staleTime: 30_000,
+  })
+}
+
+export function useTarefasMetricas(params?: ...) {
+  return useQuery({
+    queryKey: ['tarefas-metricas', params],
+    queryFn: () => tarefasApi.obterMetricas(params),
+    staleTime: 30_000,
+  })
+}
 ```
 
 ---
@@ -212,21 +186,16 @@ const { data: webhooks = [], isLoading: loading } = useQuery({
 
 | Arquivo | Tipo de mudanca |
 |---------|----------------|
-| `src/modules/automacoes/services/automacoes.api.ts` | Auth-context, limit |
-| `src/modules/automacoes/hooks/useAutomacoes.ts` | Pular invalidate no silent |
-| `src/modules/automacoes/components/panels/AcaoConfig.tsx` | Auth-context em SegmentoSelect |
-| `src/modules/automacoes/components/panels/TriggerConfig.tsx` | Auth-context |
-| `src/modules/automacoes/components/panels/WebhookDebugPanel.tsx` | useQuery, timeout polling |
+| `src/modules/tarefas/services/tarefas.api.ts` | Auth-context, pipeline filter, limits, Promise.all |
+| `src/modules/tarefas/hooks/useTarefas.ts` | staleTime nos hooks principais |
 
 ### 6. Garantias de seguranca
 
 - Nenhum componente visual alterado
 - Nenhuma prop removida ou renomeada
 - Hooks mantem mesma assinatura e comportamento
-- Auto-save com debounce preservado
-- Canvas React Flow inalterado
-- Flow converter (serializer/deserializer) inalterado
-- Triggers SQL de emissao de eventos inalterados
-- Motor de execucao (Edge Functions) inalterado
+- Paginacao corrigida (melhora, nao quebra)
+- Cards de metricas inalterados
+- Modal de conclusao inalterado
+- Backend Express (routes + service) inalterado
 - RLS continua como unica linha de defesa
-
