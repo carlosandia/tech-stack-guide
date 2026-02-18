@@ -9,7 +9,7 @@ import { Trash2, Settings, ChevronUp, ChevronDown, Copy, Info } from 'lucide-rea
 import { cn } from '@/lib/utils'
 import type { CampoFormulario, EstiloCampos } from '../../services/formularios.api'
 import { Button } from '@/components/ui/button'
-import { renderFinalCampo, computeFieldStyles, PAISES_COMUNS, PhoneInputWithCountry } from '../../utils/renderFinalCampo'
+import { renderFinalCampo, computeFieldStyles, parseLayoutConfig, PAISES_COMUNS, PhoneInputWithCountry } from '../../utils/renderFinalCampo'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import { getMaskForType } from '../../utils/masks'
 
@@ -127,8 +127,66 @@ export const CampoItem = forwardRef<HTMLDivElement, Props>(function CampoItem({
       )
     }
 
+    // Titulo e Paragrafo: renderizar com edição inline do texto
+    if (campo.tipo === 'titulo' || campo.tipo === 'paragrafo') {
+      const { labelStyle } = computeFieldStyles(campo, estiloCampos, fontFamily)
+      const layoutConfig = parseLayoutConfig(campo.valor_padrao, campo.tipo)
+      const campoOverrides = ((campo.validacoes || {}) as Record<string, unknown>).estilo_campo as Partial<EstiloCampos> | undefined
+
+      const isTitulo = campo.tipo === 'titulo'
+      const fontSize = campoOverrides?.label_tamanho
+        ? campoOverrides.label_tamanho
+        : `${layoutConfig.tamanho}px`
+      const color = campoOverrides?.label_cor || layoutConfig.cor
+      const fontWeight = isTitulo ? (campoOverrides?.label_font_weight || '600') : '400'
+      const textAlign = (layoutConfig.alinhamento || 'left') as React.CSSProperties['textAlign']
+      const displayText = campo.placeholder || campo.label || (isTitulo ? 'Título da seção' : 'Texto descritivo')
+
+      const textStyle: React.CSSProperties = {
+        ...labelStyle,
+        fontSize,
+        fontWeight: fontWeight as any,
+        color,
+        textAlign,
+        marginBottom: 0,
+        width: '100%',
+      }
+
+      if (editingLabel) {
+        return (
+          <input
+            ref={inputRef}
+            value={labelValue}
+            onChange={(e) => setLabelValue(e.target.value)}
+            onBlur={handleLabelBlur}
+            onKeyDown={handleLabelKeyDown}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-transparent border-b border-primary outline-none w-full"
+            style={textStyle}
+          />
+        )
+      }
+
+      const Tag = isTitulo ? 'h3' : 'p'
+      return (
+        <Tag
+          style={{ ...textStyle, cursor: onUpdateLabel ? 'text' : 'default' }}
+          onClick={(e) => {
+            e.stopPropagation()
+            if (onUpdateLabel) {
+              setLabelValue(displayText)
+              setEditingLabel(true)
+            }
+          }}
+          title={onUpdateLabel ? 'Clique para editar' : undefined}
+        >
+          {displayText}
+        </Tag>
+      )
+    }
+
     if (isLayout || INLINE_LABEL_TYPES.includes(campo.tipo)) {
-      // Campos de layout e checkboxes: renderizar com renderFinalCampo direto
+      // Outros campos de layout (divisor, espacador, etc) e checkboxes
       return renderFinalCampo(campo, estiloCampos, fontFamily, valor, handleChange)
     }
 
