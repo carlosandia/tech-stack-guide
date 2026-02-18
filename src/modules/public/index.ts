@@ -8,3 +8,4 @@
  export { OnboardingPage } from './pages/OnboardingPage'
  export { PoliticaPrivacidadePage } from './pages/PoliticaPrivacidadePage'
  export { TermosServicoPage } from './pages/TermosServicoPage'
+ export { LandingPage } from './pages/LandingPage'
