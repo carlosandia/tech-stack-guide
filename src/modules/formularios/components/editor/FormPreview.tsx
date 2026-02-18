@@ -12,7 +12,7 @@ import { getMaskForType } from '../../utils/masks'
 
 import { generateFormResponsiveCss, generateColunasResponsiveCss, resolveValue } from '../../utils/responsiveStyles'
 import { renderFinalCampo, PAISES_COMUNS } from '../../utils/renderFinalCampo'
-import { Monitor, Tablet, Smartphone, Settings, Eye, EyeOff, Code } from 'lucide-react'
+import { Monitor, Tablet, Smartphone, Settings, Code } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
@@ -353,13 +353,7 @@ export const FormPreview = forwardRef<HTMLDivElement, Props>(function FormPrevie
         {/* Left: Visualizar Final + CSS */}
         <div className="flex items-center gap-1">
           {onToggleFinalPreview && (
-            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onToggleFinalPreview}>
-              {showFinalPreview ? (
-                <><EyeOff className="w-3.5 h-3.5 mr-1.5" />Voltar</>
-              ) : (
-                <><Eye className="w-3.5 h-3.5 mr-1.5" />Visualizar Final</>
-              )}
-            </Button>
+            <span className="text-xs text-muted-foreground select-none">Visualizar Final</span>
           )}
           {onToggleCss && !showFinalPreview && (
             <Button variant={showCssDrawer ? 'secondary' : 'ghost'} size="sm" className="h-7 text-xs" onClick={onToggleCss}>

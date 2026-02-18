@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 import type { CampoFormulario, EstiloCampos } from '../../services/formularios.api'
 import { Button } from '@/components/ui/button'
 import { renderFinalCampo, computeFieldStyles, parseLayoutConfig, PAISES_COMUNS, PhoneInputWithCountry } from '../../utils/renderFinalCampo'
+import { ensureUnit } from '../../utils/campoEstiloUtils'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import { getMaskForType } from '../../utils/masks'
 
@@ -135,7 +136,7 @@ export const CampoItem = forwardRef<HTMLDivElement, Props>(function CampoItem({
 
       const isTitulo = campo.tipo === 'titulo'
       const fontSize = campoOverrides?.label_tamanho
-        ? campoOverrides.label_tamanho
+        ? ensureUnit(String(campoOverrides.label_tamanho), `${layoutConfig.tamanho}px`, 'fontSize')
         : `${layoutConfig.tamanho}px`
       const color = campoOverrides?.label_cor || layoutConfig.cor
       const fontWeight = isTitulo ? (campoOverrides?.label_font_weight || '600') : '400'
