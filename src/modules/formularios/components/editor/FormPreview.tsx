@@ -1303,19 +1303,32 @@ function renderFinalCampo(
   }
 
   // Campos de layout (sem wrapper de largura)
+  // AIDEV-NOTE: Extrai overrides individuais do campo para verificar se há prioridade
+  const campoOverrides = ((campo.validacoes || {}) as Record<string, unknown>).estilo_campo as Partial<EstiloCampos> | undefined
+
   switch (campo.tipo) {
     case 'titulo': {
       const tc = parseLayoutConfig(campo.valor_padrao, 'titulo')
+      // AIDEV-NOTE: Se há override individual de label_tamanho, usa ele; senão usa o do parseLayoutConfig
+      const tituloFontSize = campoOverrides?.label_tamanho
+        ? ensureUnit(campoOverrides.label_tamanho, `${tc.tamanho}px`, 'fontSize')
+        : `${tc.tamanho}px`
+      const tituloColor = campoOverrides?.label_cor || tc.cor
+      const tituloWeight = campoOverrides?.label_font_weight || '600'
       return (
-        <h3 style={{ ...labelStyle, fontSize: `${tc.tamanho}px`, fontWeight: 600, marginBottom: 0, textAlign: tc.alinhamento as any, color: tc.cor }}>
+        <h3 style={{ ...labelStyle, fontSize: tituloFontSize, fontWeight: tituloWeight as any, marginBottom: 0, textAlign: tc.alinhamento as any, color: tituloColor }}>
           {placeholder || campo.label || 'Título da seção'}
         </h3>
       )
     }
     case 'paragrafo': {
       const pc = parseLayoutConfig(campo.valor_padrao, 'paragrafo')
+      const paraFontSize = campoOverrides?.label_tamanho
+        ? ensureUnit(campoOverrides.label_tamanho, `${pc.tamanho}px`, 'fontSize')
+        : `${pc.tamanho}px`
+      const paraColor = campoOverrides?.label_cor || pc.cor
       return (
-        <p style={{ fontSize: `${pc.tamanho}px`, margin: 0, fontFamily, textAlign: pc.alinhamento as any, color: pc.cor }}>
+        <p style={{ fontSize: paraFontSize, margin: 0, fontFamily, textAlign: pc.alinhamento as any, color: paraColor }}>
           {placeholder || campo.label || 'Texto descritivo'}
         </p>
       )
