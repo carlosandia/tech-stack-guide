@@ -135,28 +135,26 @@ export function LoginForm({ onSubmit, isLoading = false, error }: LoginFormProps
         )}
       </div>
 
-      {/* Link Esqueci senha - logo abaixo do input senha, alinhado à direita */}
-      <div className="text-right -mt-4">
+      {/* Lembrar + Esqueci senha na mesma linha */}
+      <div className="flex items-center justify-between -mt-4">
+        <div className="flex items-center">
+          <input
+            id="lembrar"
+            type="checkbox"
+            {...register('lembrar')}
+            className="h-4 w-4 text-primary focus:ring-primary border-input rounded"
+            disabled={isLoading}
+          />
+          <label htmlFor="lembrar" className="ml-2 block text-sm text-muted-foreground">
+            Lembrar por 30 dias
+          </label>
+        </div>
         <Link
           to="/recuperar-senha"
           className="text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors"
         >
           Esqueci minha senha
         </Link>
-      </div>
-
-      {/* Checkbox Lembrar */}
-      <div className="flex items-center">
-        <input
-          id="lembrar"
-          type="checkbox"
-          {...register('lembrar')}
-          className="h-4 w-4 text-primary focus:ring-primary border-input rounded"
-          disabled={isLoading}
-        />
-        <label htmlFor="lembrar" className="ml-2 block text-sm text-muted-foreground">
-          Lembrar por 30 dias
-        </label>
       </div>
 
       {/* Botao Entrar */}
