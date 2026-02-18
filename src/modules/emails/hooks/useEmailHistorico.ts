@@ -42,7 +42,7 @@ export function useEmailHistoricoAberturas() {
         ultima_abertura: e.aberto_em!,
       }))
     },
-    refetchInterval: 60000, // Refetch a cada 1 min
+    // AIDEV-NOTE: Polling removido — Realtime invalida cache quando emails são atualizados
     staleTime: 30000,
   })
 }

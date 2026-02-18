@@ -23,7 +23,7 @@ export function useEmails(params: ListarEmailsParams = {}) {
   return useQuery({
     queryKey: ['emails', params],
     queryFn: () => emailsApi.listar(params),
-    refetchInterval: 60000, // Atualiza a cada 1 min
+    // AIDEV-NOTE: Polling removido — useEmailRealtime + useAutoSyncEmails já cuidam da atualização
   })
 }
 
@@ -58,7 +58,7 @@ export function useContadorNaoLidos() {
   return useQuery({
     queryKey: ['emails', 'nao-lidos'],
     queryFn: () => emailsApi.contarNaoLidos(),
-    refetchInterval: 30000, // Atualiza a cada 30s
+    // AIDEV-NOTE: Polling removido — useEmailRealtime invalida cache em tempo real
   })
 }
 

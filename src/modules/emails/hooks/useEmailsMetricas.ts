@@ -9,6 +9,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { getOrganizacaoId } from '@/shared/services/auth-context'
 import { useAuth } from '@/providers/AuthProvider'
 import { subDays } from 'date-fns'
 
@@ -59,18 +60,8 @@ async function fetchMetricas(filters: MetricasFilters): Promise<EmailsMetricas> 
   const periodoDate = getPeriodoDate(filters.periodo)
   const dataInicio = periodoDate?.toISOString() || null
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Não autenticado')
-
-  const { data: usuario } = await supabase
-    .from('usuarios')
-    .select('id, organizacao_id')
-    .eq('auth_id', user.id)
-    .single()
-
-  if (!usuario?.organizacao_id) throw new Error('Org não encontrada')
-
-  const orgId = usuario.organizacao_id
+  // AIDEV-NOTE: Auth centralizado via shared auth-context (DRY)
+  const orgId = await getOrganizacaoId()
 
   // Buscar emails enviados no período
   let enviadosQuery = supabase
@@ -125,7 +116,7 @@ async function fetchMetricas(filters: MetricasFilters): Promise<EmailsMetricas> 
 
   if (threadIds.length > 0) {
     // Buscar threads que tiveram resposta (email recebido com mesmo thread_id)
-    const batchSize = 50
+    const batchSize = 100 // AIDEV-NOTE: Aumentado de 50 para 100 para reduzir roundtrips
     const threadsComResposta = new Set<string>()
     for (let i = 0; i < threadIds.length; i += batchSize) {
       const batch = threadIds.slice(i, i + batchSize)
