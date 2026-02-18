@@ -8,6 +8,7 @@ import { ChevronDown, ChevronUp, ChevronRight, Variable, X, Search, User } from 
 import { useState, useRef, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/integrations/supabase/client'
+import { getOrganizacaoId } from '@/shared/services/auth-context'
 import { useCampos } from '@/modules/configuracoes/hooks/useCampos'
 import type { Entidade } from '@/modules/configuracoes/services/configuracoes.api'
 import { StatusConexao } from './StatusConexao'
@@ -173,18 +174,15 @@ function SegmentoSelect({ segmentoId, onChange, modo }: {
     if (!novoNome.trim()) return
     setSalvando(true)
     try {
-      // Obter organizacao_id do usuario logado
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Não autenticado')
-      const { data: usr } = await supabase.from('usuarios').select('organizacao_id').eq('auth_id', user.id).maybeSingle()
-      if (!usr?.organizacao_id) throw new Error('Organização não encontrada')
+      // AIDEV-NOTE: Usa auth-context compartilhado (DRY)
+      const orgId = await getOrganizacaoId()
 
       const cores = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#06b6d4']
       const corAleatoria = cores[Math.floor(Math.random() * cores.length)]
 
       const { data: novo, error } = await supabase
         .from('segmentos')
-        .insert({ organizacao_id: usr.organizacao_id, nome: novoNome.trim(), cor: corAleatoria })
+        .insert({ organizacao_id: orgId, nome: novoNome.trim(), cor: corAleatoria })
         .select('id, nome')
         .single()
 

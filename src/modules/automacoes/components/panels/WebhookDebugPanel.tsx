@@ -3,9 +3,11 @@
  * Permite selecionar webhook, copiar URL, escutar eventos de teste e mapear campos
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { Copy, Radio, Check, ArrowRight, Loader2 } from 'lucide-react'
 import { supabase } from '@/integrations/supabase/client'
+import { useQuery } from '@tanstack/react-query'
+import { toast } from 'sonner'
 
 // AIDEV-NOTE: Campos do CRM disponíveis para mapeamento
 const CAMPOS_CRM = [
@@ -27,40 +29,35 @@ interface WebhookDebugPanelProps {
   organizacaoId: string
 }
 
-interface WebhookEntrada {
-  id: string
-  nome: string
-  url_token: string
-  ativo: boolean | null
-}
+// AIDEV-NOTE: Timeout máximo de 120s (40 iterações * 3s) para evitar polling infinito
+const MAX_POLLING_ITERATIONS = 40
 
 export function WebhookDebugPanel({ triggerConfig, onConfigUpdate, organizacaoId }: WebhookDebugPanelProps) {
-  const [webhooks, setWebhooks] = useState<WebhookEntrada[]>([])
-  const [loading, setLoading] = useState(true)
   const [listening, setListening] = useState(false)
   const [lastPayload, setLastPayload] = useState<Record<string, unknown> | null>(null)
   const [copied, setCopied] = useState(false)
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const lastLogIdRef = useRef<string | null>(null)
+  const iteracoesRef = useRef(0)
 
   const selectedWebhookId = triggerConfig.webhook_id as string || ''
   const mapeamento = (triggerConfig.mapeamento || {}) as Record<string, string>
 
-  // Carregar webhooks de entrada do tenant
-  useEffect(() => {
-    async function loadWebhooks() {
+  // AIDEV-NOTE: Usa useQuery com cache em vez de useEffect manual (GAP 7)
+  const { data: webhooks = [], isLoading: loading } = useQuery({
+    queryKey: ['webhooks-entrada', organizacaoId],
+    queryFn: async () => {
       const { data } = await supabase
         .from('webhooks_entrada')
         .select('id, nome, url_token, ativo')
         .eq('organizacao_id', organizacaoId)
         .is('deletado_em', null)
         .order('criado_em', { ascending: false })
-
-      setWebhooks(data || [])
-      setLoading(false)
-    }
-    if (organizacaoId) loadWebhooks()
-  }, [organizacaoId])
+      return data || []
+    },
+    enabled: !!organizacaoId,
+    staleTime: 60_000,
+  })
 
   const selectedWebhook = webhooks.find(w => w.id === selectedWebhookId)
   const webhookUrl = selectedWebhook
@@ -81,17 +78,31 @@ export function WebhookDebugPanel({ triggerConfig, onConfigUpdate, organizacaoId
     setTimeout(() => setCopied(false), 2000)
   }
 
-  // Polling para escutar eventos de teste
+  const stopListening = useCallback(() => {
+    setListening(false)
+    if (pollingRef.current) clearInterval(pollingRef.current)
+    pollingRef.current = null
+    iteracoesRef.current = 0
+  }, [])
+
+  // AIDEV-NOTE: Polling com timeout de 120s (GAP 6)
   const startListening = useCallback(() => {
     if (!selectedWebhookId) return
     setListening(true)
     setLastPayload(null)
     lastLogIdRef.current = null
+    iteracoesRef.current = 0
 
-    // Marcar timestamp de início para ignorar logs antigos
     const startedAt = new Date().toISOString()
 
     pollingRef.current = setInterval(async () => {
+      iteracoesRef.current++
+      if (iteracoesRef.current >= MAX_POLLING_ITERATIONS) {
+        stopListening()
+        toast.info('Timeout: escuta encerrada após 2 minutos')
+        return
+      }
+
       const { data } = await supabase
         .from('webhooks_entrada_logs')
         .select('id, payload, criado_em')
@@ -103,16 +114,10 @@ export function WebhookDebugPanel({ triggerConfig, onConfigUpdate, organizacaoId
       if (data && data.length > 0 && data[0].id !== lastLogIdRef.current) {
         lastLogIdRef.current = data[0].id
         setLastPayload(data[0].payload as Record<string, unknown>)
-        setListening(false)
-        if (pollingRef.current) clearInterval(pollingRef.current)
+        stopListening()
       }
     }, 3000)
-  }, [selectedWebhookId])
-
-  const stopListening = () => {
-    setListening(false)
-    if (pollingRef.current) clearInterval(pollingRef.current)
-  }
+  }, [selectedWebhookId, stopListening])
 
   // Cleanup
   useEffect(() => {
