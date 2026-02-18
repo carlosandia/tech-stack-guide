@@ -1,73 +1,57 @@
 
 
-## Correção do Drop em Posição Errada (Off-by-one por gaps no `ordem`)
+## Correção: Erro "Cannot coerce" ao excluir campo
 
 ### Causa raiz
 
-Os valores de `ordem` dos campos no banco têm gaps (0, 1, 3, 5, 7, 8, 9, 10). O `FormPreview` usa o **índice do array filtrado** (`topLevelCampos.map((campo, index)`) como parâmetro para drop zones e handlers, mas:
-
-- `handleDropNewCampo` trata esse parâmetro como valor de `ordem` (usa para `ordem: index` e `c.ordem >= index`)
-- `handleReorderCampo` trata como índice do array completo `campos`
-
-Resultado: ao soltar entre Telefone (ordem=5) e Email (ordem=7), o drop zone passa `index+1 = 4`. O handler cria o campo com `ordem: 4`, que fica ANTES do Telefone (ordem 5), não depois.
-
----
+O painel de configuração (`CampoConfigPanel`) usa debounce de 800ms para persistir alterações. Quando o usuário exclui um campo, o timer do debounce ainda está ativo e dispara um `update` no campo que acabou de ser deletado. A função `atualizarCampo` usa `.single()` na query Supabase, que exige exatamente 1 resultado — como o campo já foi excluído, retorna 0 linhas e o Supabase lança o erro "Cannot coerce the result to a single JSON object".
 
 ### Solução
 
-Usar `campo.ordem` ao invés de `index` do array filtrado, e ajustar o handler de reordenamento para funcionar com valores de `ordem`.
+Duas alterações complementares:
 
----
-
-### Alterações
-
-#### 1. `src/modules/formularios/components/editor/FormPreview.tsx`
-
-Substituir todos os usos de `index` (do array filtrado) por `campo.ordem` nos callbacks de drag-and-drop:
-
-- `renderDropZone(index + 1)` passa a ser `renderDropZone(campo.ordem + 1)`
-- `onReorderCampo(draggedId, index)` no CampoItem passa a ser `onReorderCampo(draggedId, campo.ordem)`
-- `onReorderCampo(draggedId, index)` no BlocoColunasEditor passa a ser `onReorderCampo(draggedId, campo.ordem)`
-- `onMoveUp` / `onMoveDown` continuam usando `index` (posição visual), sem alteração
-
-#### 2. `src/modules/formularios/pages/FormularioEditorPage.tsx`
-
-**`handleReorderCampo`** — Reescrever para usar `targetOrdem` (valor de ordem) ao invés de índice de array:
+**1. `src/modules/formularios/services/formularios.api.ts`** — Trocar `.single()` por `.maybeSingle()` na função `atualizarCampo`:
 
 ```typescript
-const handleReorderCampo = useCallback(
-  (dragId: string, targetOrdem: number) => {
-    const draggedCampo = campos.find(c => c.id === dragId)
-    if (!draggedCampo) return
-    // Se já está na posição correta, ignorar
-    if (draggedCampo.ordem === targetOrdem || draggedCampo.ordem === targetOrdem - 1) return
+// Linha 342: trocar .single() por .maybeSingle()
+const { data, error } = await supabase
+  .from('campos_formularios')
+  .update(payload as Record<string, unknown>)
+  .eq('formulario_id', formularioId)
+  .eq('id', campoId)
+  .select()
+  .maybeSingle()  // <-- tolerante a 0 resultados
 
-    const without = campos.filter(c => c.id !== dragId)
-    const insertAt = without.findIndex(c => c.ordem >= targetOrdem)
-    const newCampos = [...without]
-    if (insertAt === -1) {
-      newCampos.push(draggedCampo)
-    } else {
-      newCampos.splice(insertAt, 0, draggedCampo)
+if (error) throw new Error(`Erro ao atualizar campo: ${error.message}`)
+if (!data) return null as unknown as CampoFormulario  // campo já foi excluído, ignorar silenciosamente
+return data as unknown as CampoFormulario
+```
+
+**2. `src/modules/formularios/pages/FormularioEditorPage.tsx`** — Ao excluir um campo, desselecionar ANTES de chamar o mutate, para que o painel de config desmonte e cancele o debounce pendente:
+
+```typescript
+const handleRemoveCampo = useCallback(
+  (campoId: string) => {
+    // Desselecionar ANTES de excluir — desmonta CampoConfigPanel e cancela debounce
+    if (selectedCampoId === campoId) {
+      setSelectedCampoId(null)
+      setShowConfig(false)
     }
-    reordenarCampos.mutate(newCampos.map((c, i) => ({ id: c.id, ordem: i })))
+    excluirCampo.mutate(campoId)
   },
-  [campos, reordenarCampos]
+  [excluirCampo, selectedCampoId]
 )
 ```
 
----
-
 ### Arquivos impactados
 
-| Arquivo | Ação |
+| Arquivo | Acao |
 |---------|------|
-| `src/modules/formularios/components/editor/FormPreview.tsx` | Trocar `index` por `campo.ordem` nos drop zones e onDrop callbacks |
-| `src/modules/formularios/pages/FormularioEditorPage.tsx` | Reescrever `handleReorderCampo` para usar `ordem` |
+| `src/modules/formularios/services/formularios.api.ts` | `.single()` -> `.maybeSingle()` em `atualizarCampo` |
+| `src/modules/formularios/pages/FormularioEditorPage.tsx` | Desselecionar campo antes de excluir |
 
 ### Garantias
 
-- Funciona corretamente com gaps no `ordem` (cenário real do banco)
-- `handleDropNewCampo` já funciona com valores de `ordem` — apenas precisa receber o valor correto
-- Nenhuma alteração na UI visual
-- Campos fracionários e blocos de colunas continuam funcionando
+- Elimina o erro toast ao excluir qualquer campo
+- Se um debounce ainda disparar apos exclusao, sera ignorado silenciosamente
+- Sem impacto em atualizacoes normais (quando campo existe, `.maybeSingle()` funciona igual a `.single()`)
