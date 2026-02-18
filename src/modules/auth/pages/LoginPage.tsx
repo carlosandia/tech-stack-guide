@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import renoveLogo from '@/assets/logotipo-renove.svg'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { LoginForm } from '../components/LoginForm'
 import { useAuth } from '@/providers/AuthProvider'
 import { useLoginBanner } from '../hooks/useLoginBanner'
@@ -18,10 +18,9 @@ import { useLoginBanner } from '../hooks/useLoginBanner'
  * - Mobile (< 768px): banner topo + formulario abaixo
  */
 
-// URLs de politica e termos
-// TODO: Futuramente buscar de configuracoes_globais
-const PRIVACY_URL = ''
-const TERMS_URL = ''
+// URLs de politica e termos (rotas internas)
+const PRIVACY_URL = '/privacidade'
+const TERMS_URL = '/termos'
 
 export function LoginPage() {
   const navigate = useNavigate()
@@ -155,31 +154,21 @@ export function LoginPage() {
           </div>
 
           {/* Links de Politica e Termos */}
-          {(PRIVACY_URL || TERMS_URL) && (
-            <div className="text-center text-xs text-muted-foreground">
-              {PRIVACY_URL && (
-                <a
-                  href={PRIVACY_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-foreground hover:underline"
-                >
-                  Política de Privacidade
-                </a>
-              )}
-              {PRIVACY_URL && TERMS_URL && <span className="mx-2">•</span>}
-              {TERMS_URL && (
-                <a
-                  href={TERMS_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-foreground hover:underline"
-                >
-                  Termos de Serviço
-                </a>
-              )}
-            </div>
-          )}
+          <div className="text-center text-xs text-muted-foreground">
+            <Link
+              to={PRIVACY_URL}
+              className="hover:text-foreground hover:underline transition-colors"
+            >
+              Política de Privacidade
+            </Link>
+            <span className="mx-2">•</span>
+            <Link
+              to={TERMS_URL}
+              className="hover:text-foreground hover:underline transition-colors"
+            >
+              Termos de Serviço
+            </Link>
+          </div>
         </div>
       </div>
 
