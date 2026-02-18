@@ -1688,12 +1688,14 @@ Deno.serve(async (req) => {
     let existingContato = null;
 
     // Tentativa 1: busca exata por telefone
+    // AIDEV-NOTE: .limit(1) previne erro quando existem contatos duplicados com mesmo telefone
     const { data: contatoExato } = await supabaseAdmin
       .from("contatos")
       .select("id, nome")
       .eq("organizacao_id", sessao.organizacao_id)
       .eq("telefone", phoneNumber)
       .is("deletado_em", null)
+      .limit(1)
       .maybeSingle();
 
     existingContato = contatoExato;
