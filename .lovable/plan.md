@@ -1,36 +1,42 @@
 
-# Correção: Tipo de conexão Email exibindo "SMTP Manual" em vez de "Gmail OAuth"
+# Correção: Reconhecer conexão Gmail OAuth em todo o sistema
 
-## Problema
+## Problema raiz
 
-O banco de dados salva o tipo da conexão como `"gmail"`, mas o frontend verifica se o valor é `"gmail_oauth"`. Como `"gmail" !== "gmail_oauth"`, a condição falha e o fallback exibe "SMTP Manual".
+O fluxo Google OAuth (Edge Function `google-auth`) salva registros na tabela `conexoes_email` com `status: 'conectado'`, mas **todos os pontos do sistema** filtram por `status = 'ativo'`:
 
-## Alterações
+| Local | Arquivo | Linha |
+|-------|---------|-------|
+| Verificação de conexão (Negócios) | `src/modules/negocios/services/detalhes.api.ts` | ~452 |
+| Listagem de conexões (Emails) | `src/modules/emails/services/emails.api.ts` | ~448 |
+| Envio de email (Edge Function) | `supabase/functions/send-email/index.ts` | ~398 |
+| Sincronização (Edge Function) | `supabase/functions/sync-emails/index.ts` | ~772 |
 
-### 1. `src/modules/configuracoes/components/integracoes/ConexaoCard.tsx`
+Como `'conectado' != 'ativo'`, a conexão Gmail **nunca é encontrada** por nenhum desses módulos.
 
-Linha 215: Alterar a condição para aceitar ambos os valores:
+## Solução
 
-```
-// DE:
-integracao.tipo_email === 'gmail_oauth' ? 'Gmail OAuth' : 'SMTP Manual'
+Atualizar o filtro de status em todos os 4 pontos para aceitar ambos os valores: `'ativo'` e `'conectado'`.
 
-// PARA:
-['gmail_oauth', 'gmail'].includes(integracao.tipo_email || '') ? 'Gmail OAuth' : 'SMTP Manual'
-```
+### 1. Frontend: `src/modules/negocios/services/detalhes.api.ts`
 
-### 2. `src/modules/configuracoes/components/integracoes/EmailConfigModal.tsx`
+Substituir `.eq('status', 'ativo')` por `.in('status', ['ativo', 'conectado'])` na função `verificarConexaoEmail`.
 
-Linha 78: Mesma correção:
+### 2. Frontend: `src/modules/emails/services/emails.api.ts`
 
-```
-// DE:
-integracao.tipo_email === 'gmail_oauth' ? 'Gmail OAuth' : 'SMTP Manual'
+Substituir `.eq('status', 'ativo')` por `.in('status', ['ativo', 'conectado'])` na função `listarConexoes`.
 
-// PARA:
-['gmail_oauth', 'gmail'].includes(integracao.tipo_email || '') ? 'Gmail OAuth' : 'SMTP Manual'
-```
+### 3. Edge Function: `supabase/functions/send-email/index.ts`
 
-## Resultado
+- Substituir `.eq("status", "ativo")` por `.in("status", ["ativo", "conectado"])`.
+- Tornar a validação de `smtp_host/smtp_user/smtp_pass_encrypted` condicional: exigir apenas quando `tipo != 'gmail'`. Para conexões Gmail que possuam dados SMTP (como o caso atual que tem SMTP herdado), o envio continuará funcionando normalmente via SMTP.
 
-O card e o modal de Email exibirão corretamente "Gmail OAuth" para conexões feitas via autenticação Google.
+### 4. Edge Function: `supabase/functions/sync-emails/index.ts`
+
+Substituir `.eq("status", "ativo")` por `.in("status", ["ativo", "conectado"])`.
+
+## Resultado esperado
+
+1. A aba E-mail em `/negocios` mostrará "Remetente: carloshenrique.hsa@gmail.com" e habilitará o botão "Enviar"
+2. O módulo `/emails` reconhecerá a conexão Gmail para composição e sincronização
+3. O envio e a sincronização de emails funcionarão normalmente com conexões Gmail OAuth
