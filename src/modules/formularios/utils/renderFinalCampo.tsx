@@ -7,6 +7,7 @@ import { useState } from 'react'
 import { Info } from 'lucide-react'
 import { mergeCampoEstilo, ensureUnit } from './campoEstiloUtils'
 import { TermosModal } from '../components/campos/TermosModal'
+import { MultiSelectDropdown } from '../components/campos/MultiSelectDropdown'
 import type { CampoFormulario, EstiloCampos } from '../services/formularios.api'
 
 export function parseLayoutConfig(valorPadrao: string | null | undefined, tipo: string): Record<string, string> {
@@ -338,7 +339,6 @@ export function renderFinalCampo(
           </div>
         )
       case 'selecao':
-      case 'selecao_multipla':
       case 'pais':
       case 'estado':
       case 'cidade':
@@ -346,11 +346,26 @@ export function renderFinalCampo(
           <div>
             {renderLabel(campo, labelStyle)}
             <select style={{ ...inputStyle, appearance: 'auto' }} value={valor} onChange={handleInput}>
-              <option value="">{placeholder || (campo.tipo === 'selecao_multipla' ? 'Selecione uma ou mais...' : 'Selecione...')}</option>
+              <option value="">{placeholder || 'Selecione...'}</option>
               {(campo.opcoes as string[] || []).map((op, i) => (
                 <option key={i} value={op}>{typeof op === 'string' ? op : `Opção ${i + 1}`}</option>
               ))}
             </select>
+          </div>
+        )
+      case 'selecao_multipla':
+        return (
+          <div>
+            {renderLabel(campo, labelStyle)}
+            <MultiSelectDropdown
+              opcoes={campo.opcoes as string[] || []}
+              selectedValues={valor ? valor.split('|') : []}
+              onChange={(vals) => onChange?.(vals.join('|'))}
+              placeholder={placeholder || 'Selecione uma ou mais...'}
+              inputStyle={inputStyle}
+              fontFamily={fontFamily}
+              borderColor={estiloCampos?.input_border_color || '#D1D5DB'}
+            />
           </div>
         )
       case 'radio':
