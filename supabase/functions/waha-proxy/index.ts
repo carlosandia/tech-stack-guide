@@ -141,7 +141,7 @@ Deno.serve(async (req) => {
 
     // Webhook events to subscribe
     // message.any = both incoming and outgoing (sent from phone) messages
-    const webhookEvents = ["message.any", "message.ack", "poll.vote", "poll.vote.failed", "label.upsert", "label.chat.added", "label.chat.deleted"];
+    const webhookEvents = ["message.any", "message.ack", "message.reaction", "poll.vote", "poll.vote.failed", "label.upsert", "label.chat.added", "label.chat.deleted"];
 
     console.log(`[waha-proxy] Action: ${action}, Session: ${sessionId}, WAHA URL: ${baseUrl}`);
 
