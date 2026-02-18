@@ -212,7 +212,7 @@ function PlataformaDetails({ integracao }: { integracao: Integracao }) {
         {integracao.tipo_email && (
           <p className="text-xs text-muted-foreground">
             Tipo: <span className="font-medium text-foreground">
-              {integracao.tipo_email === 'gmail_oauth' ? 'Gmail OAuth' : 'SMTP Manual'}
+              {['gmail_oauth', 'gmail'].includes(integracao.tipo_email || '') ? 'Gmail OAuth' : 'SMTP Manual'}
             </span>
           </p>
         )}
