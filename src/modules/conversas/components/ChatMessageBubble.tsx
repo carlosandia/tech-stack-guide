@@ -54,6 +54,7 @@ interface ChatMessageBubbleProps {
   onForwardMessage?: (mensagem: Mensagem) => void
   onPinMessage?: (mensagem: Mensagem) => void
   quotedMessage?: Mensagem | null
+  onStartConversation?: (telefone: string) => void
 }
 
 // =====================================================
@@ -385,7 +386,7 @@ function getContactAvatarColor(name: string): string {
   return contactAvatarColors[hash % contactAvatarColors.length]
 }
 
-function ContactContent({ mensagem }: { mensagem: Mensagem }) {
+function ContactContent({ mensagem, onStartConversation }: { mensagem: Mensagem; onStartConversation?: (telefone: string) => void }) {
   // Parse vCard fields
   const vcard = mensagem.vcard || ''
   const displayName = vcard.match(/FN:(.*)/)?.[1]?.trim() || 'Contato'
@@ -439,7 +440,13 @@ function ContactContent({ mensagem }: { mensagem: Mensagem }) {
         <button
           onClick={() => {
             const cleanPhone = (waid || phone).replace(/\D/g, '')
-            if (cleanPhone) window.open(`https://wa.me/${cleanPhone}`, '_blank')
+            if (cleanPhone) {
+              if (onStartConversation) {
+                onStartConversation(cleanPhone)
+              } else {
+                window.open(`https://wa.me/${cleanPhone}`, '_blank')
+              }
+            }
           }}
           className="w-full py-2 text-xs font-medium text-primary hover:bg-primary/5 transition-colors"
         >
@@ -638,6 +645,7 @@ function renderContent(
   myAvatarUrl?: string | null,
   audioTimestamp?: string,
   audioAckIndicator?: React.ReactNode,
+  onStartConversation?: (telefone: string) => void,
 ) {
   switch (mensagem.tipo) {
     case 'text': return <TextContent body={mensagem.body || ''} rawData={mensagem.raw_data} contactMap={contactMap} />
@@ -646,7 +654,7 @@ function renderContent(
     case 'audio': return <AudioContent mensagem={mensagem} isMe={isMe} fotoUrl={fotoUrl} myAvatarUrl={myAvatarUrl} timestamp={audioTimestamp} ackIndicator={audioAckIndicator} />
     case 'document': return <DocumentContent mensagem={mensagem} />
     case 'location': return <LocationContent mensagem={mensagem} />
-    case 'contact': return <ContactContent mensagem={mensagem} />
+    case 'contact': return <ContactContent mensagem={mensagem} onStartConversation={onStartConversation} />
     case 'poll': return <PollContent mensagem={mensagem} conversaId={conversaId} fotoUrl={fotoUrl} />
     case 'sticker': return <StickerContent mensagem={mensagem} />
     case 'reaction': return <ReactionContent mensagem={mensagem} />
@@ -883,7 +891,7 @@ export function ChatMessageBubble({
   mensagem, participantName, participantColor, conversaId, fotoUrl, myAvatarUrl, contactMap,
   reactions,
   onDeleteMessage, onReplyMessage, onReactMessage, onForwardMessage: _onForwardMessage, onPinMessage: _onPinMessage,
-  quotedMessage
+  quotedMessage, onStartConversation
 }: ChatMessageBubbleProps) {
   const [viewerMedia, setViewerMedia] = useState<{ url: string; tipo: 'image' | 'video' } | null>(null)
   const [, setHovered] = useState(false)
@@ -1013,7 +1021,7 @@ export function ChatMessageBubble({
       <>
         <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} mb-1`}>
           <div className="relative">
-             {renderContent(mensagem, handleViewMedia, conversaId, isMe, fotoUrl, contactMap, myAvatarUrl)}
+             {renderContent(mensagem, handleViewMedia, conversaId, isMe, fotoUrl, contactMap, myAvatarUrl, undefined, undefined, onStartConversation)}
             <span className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1 justify-end">
               {format(new Date(mensagem.criado_em), 'HH:mm')}
               {isMe && <AckIndicator ack={mensagem.ack} />}
@@ -1091,11 +1099,11 @@ export function ChatMessageBubble({
             </div>
           ) : mensagem.tipo === 'audio' ? (
               <>
-                {renderContent(mensagem, handleViewMedia, conversaId, isMe, fotoUrl, contactMap, myAvatarUrl, format(new Date(mensagem.criado_em), 'HH:mm'), isMe ? <AckIndicator ack={mensagem.ack} /> : undefined)}
+                {renderContent(mensagem, handleViewMedia, conversaId, isMe, fotoUrl, contactMap, myAvatarUrl, format(new Date(mensagem.criado_em), 'HH:mm'), isMe ? <AckIndicator ack={mensagem.ack} /> : undefined, onStartConversation)}
               </>
           ) : (
             <>
-              {renderContent(mensagem, handleViewMedia, conversaId, isMe, fotoUrl, contactMap, myAvatarUrl)}
+              {renderContent(mensagem, handleViewMedia, conversaId, isMe, fotoUrl, contactMap, myAvatarUrl, undefined, undefined, onStartConversation)}
               <div className="flex items-center gap-1 justify-end mt-1">
                 <span className="text-[10px] text-muted-foreground">
                   {format(new Date(mensagem.criado_em), 'HH:mm')}

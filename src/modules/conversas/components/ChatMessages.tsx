@@ -28,6 +28,7 @@ interface ChatMessagesProps {
   onReactMessage?: (mensagem: Mensagem, emoji: string) => void
   onForwardMessage?: (mensagem: Mensagem) => void
   onPinMessage?: (mensagem: Mensagem) => void
+  onStartConversation?: (telefone: string) => void
 }
 
 function formatDateSeparator(dateStr: string): string {
@@ -75,7 +76,7 @@ function getParticipantDisplayName(msg: Mensagem): string {
 export const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(function ChatMessages({
   mensagens, isLoading, hasMore, onLoadMore, isFetchingMore,
   highlightIds, focusedId, conversaTipo, conversaId, fotoUrl, myAvatarUrl,
-  onDeleteMessage, onReplyMessage, onReactMessage, onForwardMessage, onPinMessage,
+  onDeleteMessage, onReplyMessage, onReactMessage, onForwardMessage, onPinMessage, onStartConversation,
 }, _ref) {
   const containerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -284,6 +285,7 @@ export const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(functi
               onReactMessage={onReactMessage}
               onForwardMessage={onForwardMessage}
               onPinMessage={onPinMessage}
+              onStartConversation={onStartConversation}
               quotedMessage={msg.reply_to_message_id ? messageByWahaId.get(msg.reply_to_message_id) || null : null}
             />
           </div>

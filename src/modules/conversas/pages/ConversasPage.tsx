@@ -27,6 +27,7 @@ export const ConversasPage = forwardRef<HTMLDivElement>(function ConversasPage(_
   const [conversaAtivaId, setConversaAtivaId] = useState<string | null>(null)
   const [drawerAberto, setDrawerAberto] = useState(false)
   const [novaConversaAberta, setNovaConversaAberta] = useState(false)
+  const [novaConversaTelefone, setNovaConversaTelefone] = useState<string | null>(null)
   const [filtros, setFiltros] = useState<ListarConversasParams>({})
   const [confirmApagar, setConfirmApagar] = useState<string | null>(null)
   const [pipelineModalOpen, setPipelineModalOpen] = useState(false)
@@ -203,6 +204,12 @@ export const ConversasPage = forwardRef<HTMLDivElement>(function ConversasPage(_
 
   const handleInsertQuickReply = (_conteudo: string) => {}
 
+  // AIDEV-NOTE: Callback para abrir modal Nova Conversa com telefone pré-preenchido (vCard)
+  const handleIniciarConversaComTelefone = useCallback((telefone: string) => {
+    setNovaConversaTelefone(telefone)
+    setNovaConversaAberta(true)
+  }, [])
+
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {metricasVisiveis && <ConversasMetricasPanel />}
@@ -251,6 +258,7 @@ export const ConversasPage = forwardRef<HTMLDivElement>(function ConversasPage(_
                 onOpenDrawer={() => setDrawerAberto(true)}
                 onConversaApagada={() => setConversaAtivaId(null)}
                 onNavigateConversa={(id) => setConversaAtivaId(id)}
+                onStartConversation={handleIniciarConversaComTelefone}
               />
               <ContatoDrawer
                 conversa={conversaAtiva}
@@ -270,8 +278,9 @@ export const ConversasPage = forwardRef<HTMLDivElement>(function ConversasPage(_
 
         <NovaConversaModal
           isOpen={novaConversaAberta}
-          onClose={() => setNovaConversaAberta(false)}
+          onClose={() => { setNovaConversaAberta(false); setNovaConversaTelefone(null) }}
           onConversaCriada={(id) => setConversaAtivaId(id)}
+          telefoneInicial={novaConversaTelefone}
         />
       </div>
 
