@@ -1,4 +1,5 @@
 import { CheckCircle2, BarChart3, MessageSquare, GitBranch } from 'lucide-react'
+import { useScrollReveal } from '../../hooks/useScrollReveal'
 
 /**
  * AIDEV-NOTE: Seção de solução/transformação - transição dor → solução
@@ -25,10 +26,18 @@ const pillars = [
 ]
 
 export function SolutionSection() {
+  const { ref: headerRef, isVisible: headerVisible } = useScrollReveal()
+  const { ref: cardsRef, isVisible: cardsVisible } = useScrollReveal()
+
   return (
     <section className="py-16 md:py-24 bg-muted/30">
       <div className="max-w-[1200px] mx-auto px-4 md:px-6">
-        <div className="text-center max-w-2xl mx-auto mb-12 md:mb-16">
+        <div
+          ref={headerRef}
+          className={`text-center max-w-2xl mx-auto mb-12 md:mb-16 transition-all duration-600 ${
+            headerVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
+          }`}
+        >
           <p className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">
             A transformação
           </p>
@@ -41,11 +50,14 @@ export function SolutionSection() {
           </p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6 md:gap-8">
-          {pillars.map((pillar) => (
+        <div ref={cardsRef} className="grid md:grid-cols-3 gap-6 md:gap-8">
+          {pillars.map((pillar, idx) => (
             <div
               key={pillar.title}
-              className="relative p-6 md:p-8 rounded-xl bg-background border border-border shadow-sm hover:shadow-md transition-shadow"
+              className={`relative p-6 md:p-8 rounded-xl bg-background border border-border shadow-sm hover:shadow-md transition-all duration-500 ${
+                cardsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
+              }`}
+              style={{ transitionDelay: `${idx * 120}ms` }}
             >
               <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-5">
                 <pillar.icon size={24} className="text-primary" />

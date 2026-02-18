@@ -1,11 +1,14 @@
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { ArrowRight, Shield } from 'lucide-react'
+import { useScrollReveal } from '../../hooks/useScrollReveal'
 
 /**
  * AIDEV-NOTE: CTA final com urgência e ação definitiva
  */
 export function FinalCTASection() {
+  const { ref, isVisible } = useScrollReveal()
+
   return (
     <section className="py-16 md:py-24 bg-primary relative overflow-hidden">
       {/* Pattern de fundo */}
@@ -16,7 +19,12 @@ export function FinalCTASection() {
         }} />
       </div>
 
-      <div className="max-w-[800px] mx-auto px-4 md:px-6 text-center relative">
+      <div
+        ref={ref}
+        className={`max-w-[800px] mx-auto px-4 md:px-6 text-center relative transition-all duration-700 ${
+          isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+        }`}
+      >
         <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-primary-foreground leading-tight mb-4">
           Pare de perder vendas.{' '}
           <br className="hidden md:block" />

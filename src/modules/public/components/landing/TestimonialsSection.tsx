@@ -1,4 +1,5 @@
 import { Star } from 'lucide-react'
+import { useScrollReveal } from '../../hooks/useScrollReveal'
 
 /**
  * AIDEV-NOTE: Depoimentos / prova social - resultados reais
@@ -31,10 +32,18 @@ const testimonials = [
 ]
 
 export function TestimonialsSection() {
+  const { ref: headerRef, isVisible: headerVisible } = useScrollReveal()
+  const { ref: cardsRef, isVisible: cardsVisible } = useScrollReveal()
+
   return (
     <section id="depoimentos" className="py-16 md:py-24 bg-background">
       <div className="max-w-[1200px] mx-auto px-4 md:px-6">
-        <div className="text-center max-w-2xl mx-auto mb-12 md:mb-16">
+        <div
+          ref={headerRef}
+          className={`text-center max-w-2xl mx-auto mb-12 md:mb-16 transition-all duration-600 ${
+            headerVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
+          }`}
+        >
           <p className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">
             Quem já usa, aprova
           </p>
@@ -43,11 +52,14 @@ export function TestimonialsSection() {
           </h2>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6 md:gap-8">
-          {testimonials.map((t) => (
+        <div ref={cardsRef} className="grid md:grid-cols-3 gap-6 md:gap-8">
+          {testimonials.map((t, idx) => (
             <div
               key={t.name}
-              className="p-6 md:p-8 rounded-xl border border-border bg-card shadow-sm"
+              className={`p-6 md:p-8 rounded-xl border border-border bg-card shadow-sm transition-all duration-500 ${
+                cardsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
+              }`}
+              style={{ transitionDelay: `${idx * 120}ms` }}
             >
               {/* Estrelas */}
               <div className="flex gap-1 mb-4">

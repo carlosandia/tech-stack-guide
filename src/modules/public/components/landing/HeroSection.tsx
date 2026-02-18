@@ -17,7 +17,7 @@ export function HeroSection() {
       <div className="max-w-[1200px] mx-auto px-4 md:px-6 relative">
         <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
           {/* Copy */}
-          <div className="space-y-6">
+          <div className="space-y-6 animate-fade-in">
             <Badge variant="secondary" className="px-3 py-1.5 text-xs font-medium gap-1.5">
               <Building2 size={14} />
               Usado por +200 empresas B2B
@@ -54,7 +54,7 @@ export function HeroSection() {
           </div>
 
           {/* Imagem do produto */}
-          <div className="relative">
+          <div className="relative animate-fade-in" style={{ animationDelay: '0.2s', animationFillMode: 'both' }}>
             <div className="rounded-xl overflow-hidden shadow-2xl border border-border/50 bg-muted">
               <img
                 src={heroImg}
@@ -64,7 +64,7 @@ export function HeroSection() {
               />
             </div>
             {/* Badge flutuante */}
-            <div className="absolute -bottom-4 -left-4 md:-bottom-6 md:-left-6 bg-background rounded-lg shadow-lg border border-border p-3 md:p-4">
+            <div className="absolute -bottom-4 -left-4 md:-bottom-6 md:-left-6 bg-background rounded-lg shadow-lg border border-border p-3 md:p-4 animate-fade-in" style={{ animationDelay: '0.5s', animationFillMode: 'both' }}>
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-success/20 flex items-center justify-center">
                   <span className="text-success font-bold text-sm">↑</span>
