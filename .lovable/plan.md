@@ -1,58 +1,87 @@
 
-## Adicionar botao "Solicite uma demonstracao" nos cards de planos
 
-### Objetivo
-Inserir um botao secundario "Solicite uma demonstracao" abaixo de cada botao principal (Teste gratis agora / Comprar agora) nos cards da pagina publica de planos. Ao clicar, abre um modal com o formulario embed de demonstracao.
+# Plano: Corrigir Estilos Individuais no Widget Embed + Migrar para REM
 
----
+## Problemas Identificados
 
-### Alteracoes
+1. **Widget embed ignora estilos individuais por campo**: O `widget-formulario-loader` usa apenas o estilo global (`estilos.campos`) para todos os campos. Ele nao le `campo.validacoes.estilo_campo`, entao qualquer personalizacao individual feita no editor nao aparece no formulario embedado.
 
-**Arquivo:** `src/modules/public/pages/PlanosPage.tsx`
+2. **Valores numericos sem unidade no widget**: A funcao `ensurePx` existe apenas no frontend React. O widget loader (edge function) nao tem essa logica, entao valores como "300" nao recebem "px" automaticamente.
 
-#### 1. Novo estado para controlar o modal de demonstracao
-- Adicionar `const [demoModalOpen, setDemoModalOpen] = useState(false)`
+3. **Nenhum feedback visual ao salvar estilo de campo**: O hook `useAtualizarCampo` nao exibe toast de sucesso ao salvar — apenas mostra erro. Isso causa a impressao de que "nada aconteceu".
 
-#### 2. Botao "Solicite uma demonstracao" no card Trial (apos linha 363)
-- Inserir um botao com estilo `ghost` / texto com cor `text-muted-foreground` e hover sutil
-- Ao clicar: `setDemoModalOpen(true)`
-
-#### 3. Botao "Solicite uma demonstracao" nos cards pagos (apos linha 446)
-- Mesmo botao com mesmo estilo, abaixo do "Comprar agora"
-
-#### 4. Modal de demonstracao (novo componente inline ou Dialog)
-- Usar o componente `Dialog` do projeto
-- Dentro do `DialogContent`, renderizar o script embed via `useEffect` + DOM injection:
-  - Criar um `div` ref container
-  - No `useEffect` (quando modal abrir), criar um `<script>` com `src="https://ybzhlsalbnxwkfszkloa.supabase.co/functions/v1/widget-formulario-loader?slug=demonstracao-crm-mlrb6yoz&mode=inline"` e `data-form-slug="demonstracao-crm-mlrb6yoz"`
-  - Appendar o script no container
-  - Cleanup ao fechar
-
-#### 5. Estilo do botao
-- Cor secundaria/outline sutil para nao competir com o CTA principal
-- Exemplo: `text-sm font-medium text-muted-foreground hover:text-foreground hover:underline transition-colors mt-2`
-- Centralizado, sem borda, estilo link discreto
+4. **Migracao para rem**: Font sizes e alturas serao convertidos automaticamente de numeros puros para `rem` (em vez de `px`), melhorando a responsividade.
 
 ---
 
-### Secao Tecnica
+## Solucao
 
-**Unico arquivo modificado:** `src/modules/public/pages/PlanosPage.tsx`
+### 1. Atualizar o Widget Loader (edge function)
 
-Para injetar o script embed dentro do modal React, sera usado um `useRef` + `useEffect`:
+**Arquivo**: `supabase/functions/widget-formulario-loader/index.ts`
+
+- Adicionar funcao `ensurePx` inline no JS gerado
+- Adicionar funcao `mergeCampoEstilo` inline que faz merge de `campo.validacoes.estilo_campo` com o estilo global `fS`
+- No loop de renderizacao de campos, calcular `labelCss` e `inputCss` POR CAMPO usando o merge
+- Isso garante que estilos individuais configurados no editor aparecam no formulario embedado
+
+### 2. Adicionar Toast de Sucesso ao Salvar Campo
+
+**Arquivo**: `src/modules/formularios/hooks/useFormularioCampos.ts`
+
+- Adicionar `toast.success('Campo atualizado')` no `onSuccess` do `useAtualizarCampo`
+- Isso da feedback claro ao usuario quando altera qualquer configuracao de campo (incluindo estilos)
+
+### 3. Migrar para REM
+
+**Arquivo**: `src/modules/formularios/utils/campoEstiloUtils.ts`
+
+- Criar funcao `ensureUnit` que:
+  - Para `fontSize` e `height`: converte numero puro para `rem` (ex: "14" vira "0.875rem", usando divisao por 16)
+  - Para `borderRadius`, `borderWidth`: mantem `px`
+  - Se ja tem unidade, retorna como esta
+
+**Arquivos**: `src/modules/formularios/components/editor/FormPreview.tsx` e `src/modules/formularios/pages/FormularioPublicoPage.tsx`
+
+- Substituir chamadas de `ensurePx` por `ensureUnit` com o tipo correto de propriedade
+
+---
+
+## Detalhes Tecnicos
+
+### Merge no Widget (JS inline)
 
 ```text
-const containerRef = useRef<HTMLDivElement>(null)
-
-useEffect(() => {
-  if (!demoModalOpen || !containerRef.current) return
-  const script = document.createElement('script')
-  script.src = '...widget-formulario-loader?slug=demonstracao-crm-mlrb6yoz&mode=inline'
-  script.dataset.formSlug = 'demonstracao-crm-mlrb6yoz'
-  script.async = true
-  containerRef.current.appendChild(script)
-  return () => { containerRef.current?.replaceChildren() }
-}, [demoModalOpen])
+// Pseudo-codigo do merge que sera adicionado ao loader
+function mergeFieldStyle(globalFS, campo) {
+  var ec = (campo.validacoes || {}).estilo_campo || {};
+  var merged = {};
+  // Copia global
+  for (var k in globalFS) merged[k] = globalFS[k];
+  // Aplica overrides individuais
+  for (var k in ec) { if (ec[k] !== '' && ec[k] != null) merged[k] = ec[k]; }
+  return merged;
+}
 ```
 
-O Dialog tera `max-w-2xl` para acomodar o formulario e titulo "Solicite uma demonstracao".
+### Funcao ensureUnit
+
+```text
+// Para fontSize/height: numero puro -> rem
+// Para border: numero puro -> px
+ensureUnit("14", "fontSize")   -> "0.875rem"
+ensureUnit("40", "height")     -> "2.5rem"  
+ensureUnit("6", "border")      -> "6px"
+ensureUnit("14px", "fontSize") -> "14px" (ja tem unidade)
+```
+
+### Arquivos Modificados
+
+| Arquivo | Alteracao |
+|---------|-----------|
+| `supabase/functions/widget-formulario-loader/index.ts` | Merge de estilos individuais + ensurePx no JS |
+| `src/modules/formularios/hooks/useFormularioCampos.ts` | Toast de sucesso no `onSuccess` |
+| `src/modules/formularios/utils/campoEstiloUtils.ts` | Nova funcao `ensureUnit` para rem/px |
+| `src/modules/formularios/components/editor/FormPreview.tsx` | Usar `ensureUnit` |
+| `src/modules/formularios/pages/FormularioPublicoPage.tsx` | Usar `ensureUnit` |
+
