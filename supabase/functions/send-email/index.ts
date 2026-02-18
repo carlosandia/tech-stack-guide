@@ -395,7 +395,7 @@ Deno.serve(async (req) => {
       .from("conexoes_email")
       .select("*")
       .eq("usuario_id", usuario.id)
-      .eq("status", "ativo")
+      .in("status", ["ativo", "conectado"])
       .is("deletado_em", null)
       .maybeSingle();
 
@@ -406,7 +406,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (!conexao.smtp_host || !conexao.smtp_user || !conexao.smtp_pass_encrypted) {
+    // AIDEV-NOTE: Validação SMTP condicional - conexões Gmail podem não ter SMTP configurado
+    if (conexao.tipo !== 'gmail' && (!conexao.smtp_host || !conexao.smtp_user || !conexao.smtp_pass_encrypted)) {
       return new Response(
         JSON.stringify({ sucesso: false, mensagem: "Configuração SMTP incompleta" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }

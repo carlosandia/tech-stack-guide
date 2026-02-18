@@ -445,7 +445,7 @@ export const emailsApi = {
       .eq('organizacao_id', orgId)
       .eq('usuario_id', userId)
       .is('deletado_em', null)
-      .eq('status', 'ativo')
+      .in('status', ['ativo', 'conectado'])
 
     if (error) throw new Error(error.message)
     return (data || []) as ConexaoEmail[]

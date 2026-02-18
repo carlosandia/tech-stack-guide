@@ -769,7 +769,7 @@ Deno.serve(async (req) => {
       .from("conexoes_email")
       .select("*")
       .eq("usuario_id", usuario.id)
-      .eq("status", "ativo")
+      .in("status", ["ativo", "conectado"])
       .is("deletado_em", null)
       .maybeSingle();
 
