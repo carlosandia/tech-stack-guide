@@ -376,12 +376,16 @@ export const KanbanCard = forwardRef<HTMLDivElement, KanbanCardProps>(function K
                   />
                 </div>
               )}
-              <p className="text-sm font-medium text-foreground leading-tight truncate">
-                {oportunidade.titulo}
-              </p>
-              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 whitespace-nowrap ml-1.5 ${qualificacao.className}`}>
-                {qualificacao.label}
-              </span>
+              {camposVisiveis.includes('titulo') && (
+                <p className="text-sm font-medium text-foreground leading-tight truncate">
+                  {oportunidade.titulo}
+                </p>
+              )}
+              {camposVisiveis.includes('qualificacao') && (
+                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 whitespace-nowrap ml-1.5 ${qualificacao.className}`}>
+                  {qualificacao.label}
+                </span>
+              )}
             </div>
 
             {camposVisiveis.includes('tarefas_pendentes') && (
