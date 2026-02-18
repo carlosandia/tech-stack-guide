@@ -29,7 +29,7 @@ export const CORRECOES_PT_BR: Record<string, string[]> = {
   'tres': ['três'],
   'apos': ['após'],
   'atraves': ['através'],
-  'aqui': ['aqui'],
+  
 
   // Substantivos comuns
   'informacao': ['informação'],
@@ -174,9 +174,6 @@ export const CORRECOES_PT_BR: Record<string, string[]> = {
   'voluntaria': ['voluntária'],
 
   // Advérbios e conectores
-  'pra': ['pra'],
-  'entretanto': ['entretanto'],
-  'todavia': ['todavia'],
   'consequencia': ['consequência'],
   'consequencias': ['consequências'],
   'evidencia': ['evidência'],
@@ -216,8 +213,6 @@ export const CORRECOES_PT_BR: Record<string, string[]> = {
   'almoco': ['almoço'],
 
   // Saudações e expressões
-  'obrigado': ['obrigado'],
-  'obrigada': ['obrigada'],
   'bencao': ['bênção'],
   'parabens': ['parabéns'],
 
@@ -238,9 +233,6 @@ export const CORRECOES_PT_BR: Record<string, string[]> = {
   'diagnostico': ['diagnóstico'],
   'estrategia': ['estratégia'],
   'estrategias': ['estratégias'],
-  'metodologia': ['metodologia'],
-  'tecnologia': ['tecnologia'],
-  'garantia': ['garantia'],
   'politica': ['política'],
   'politicas': ['políticas'],
   'proposito': ['propósito'],
@@ -252,7 +244,41 @@ export const CORRECOES_PT_BR: Record<string, string[]> = {
   'dominio': ['domínio'],
   'dominios': ['domínios'],
   'ministerio': ['ministério'],
-  'comercial': ['comercial'],
-  'proposta': ['proposta'],
-  'contrato': ['contrato'],
+
+  // Abreviaturas comuns de chat/WhatsApp
+  'vc': ['você'],
+  'vcs': ['vocês'],
+  'tb': ['também'],
+  'tbm': ['também'],
+  'pq': ['porque', 'por que'],
+  'q': ['que'],
+  'cmg': ['comigo'],
+  'ctg': ['contigo'],
+  'msg': ['mensagem'],
+  'msgs': ['mensagens'],
+  'qdo': ['quando'],
+  'qto': ['quanto'],
+  'qts': ['quantos'],
+  'hj': ['hoje'],
+  'dps': ['depois'],
+  'blz': ['beleza'],
+  'obg': ['obrigado'],
+  'vlw': ['valeu'],
+  'pfv': ['por favor'],
+  'td': ['tudo'],
+  'tds': ['todos'],
+  'ngm': ['ninguém'],
+  'agr': ['agora'],
+  'msm': ['mesmo'],
+  'qse': ['quase'],
+  'mto': ['muito'],
+  'mta': ['muita'],
+  'tmj': ['tamo junto'],
+  'flw': ['falou'],
+  'abs': ['abraços'],
+  'bjs': ['beijos'],
+  'pls': ['por favor'],
+  'add': ['adicionar'],
+  'info': ['informação'],
+  'ref': ['referência'],
 }
