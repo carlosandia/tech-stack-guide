@@ -59,7 +59,7 @@ interface KanbanCardProps {
 // =====================================================
 
 const DEFAULT_CONFIG: CardConfig = {
-  camposVisiveis: ['valor', 'contato', 'empresa', 'owner', 'previsao_fechamento', 'tarefas_pendentes', 'tags'],
+  camposVisiveis: ['titulo', 'qualificacao', 'valor', 'contato', 'empresa', 'owner', 'previsao_fechamento', 'tarefas_pendentes', 'tags'],
   acoesRapidas: ['telefone', 'whatsapp', 'email', 'agendar'],
 }
 
