@@ -13,6 +13,8 @@ interface WhatsAppAudioPlayerProps {
   duration?: number
   isMe: boolean
   fotoUrl?: string | null
+  timestamp?: string
+  ackIndicator?: React.ReactNode
 }
 
 // Generate a deterministic waveform pattern from the URL
@@ -41,7 +43,7 @@ function formatTime(seconds: number): string {
 
 const SPEED_OPTIONS = [1, 1.5, 2] as const
 
-export function WhatsAppAudioPlayer({ src, duration: propDuration, isMe, fotoUrl }: WhatsAppAudioPlayerProps) {
+export function WhatsAppAudioPlayer({ src, duration: propDuration, isMe, fotoUrl, timestamp, ackIndicator }: WhatsAppAudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null)
   const progressRef = useRef<HTMLDivElement>(null)
   const [playing, setPlaying] = useState(false)
@@ -161,7 +163,7 @@ export function WhatsAppAudioPlayer({ src, duration: propDuration, isMe, fotoUrl
           })}
         </div>
 
-        {/* Time + speed control */}
+        {/* Time + speed + timestamp control */}
         <div className="flex items-center justify-between">
           <span className="text-[10px] text-muted-foreground leading-none">
             {playing || currentTime > 0 ? formatTime(currentTime) : formatTime(duration)}
@@ -185,6 +187,12 @@ export function WhatsAppAudioPlayer({ src, duration: propDuration, isMe, fotoUrl
             >
               {speed}x
             </button>
+            {timestamp && (
+              <span className="text-[10px] text-muted-foreground leading-none flex items-center gap-1">
+                {timestamp}
+                {ackIndicator}
+              </span>
+            )}
           </div>
         </div>
       </div>
