@@ -1,57 +1,75 @@
 
 
-# Corrigir Estilos Individuais no Formulário Embed (Widget)
+# Unificar Preview do Editor com Visualizacao Final
 
-## Problema
+## Objetivo
 
-O widget loader (`widget-formulario-loader`) ignora estilos individuais em dois cenarios:
+Substituir a renderizacao simplificada dos campos no editor (`CampoItem` com `renderFieldPreview`) pela renderizacao final real (`renderFinalCampo`), mantendo todos os controles de edicao (setas, duplicar, lixeira, engrenagem, badge de tipo, edicao inline de label).
 
-1. **Campos de layout (titulo/paragrafo)**: Linhas 193-194 usam valores direto do `parseLayoutConfig()` sem verificar `campo.validacoes.estilo_campo`. No `FormPreview.tsx` isso ja foi corrigido, mas o widget embed nao acompanhou.
+## O que muda visualmente
 
-2. **Campos dentro de blocos de colunas**: A API `widget-formulario-config` nao retorna `pai_campo_id` nem `coluna_indice` na query (linha 54), fazendo com que a logica de colunas no loader nao consiga associar campos filhos aos blocos pai.
+- Campos de telefone ja mostram a bandeira e DDI
+- Campo de avaliacao ja mostra as estrelas amarelas
+- Inputs usam os estilos reais (cores, bordas, border-radius do estilo configurado)
+- Selecao multipla, radio, NPS, slider etc. todos com aparencia final
+- Sem bordas de "card" ao redor de cada campo (remover o `border rounded-lg p-3`)
+- Sem a badge de tipo ao lado do label (remover "Texto", "Tel BR", etc.)
 
-## Solucao
+## O que permanece igual
 
-### 1. Atualizar `widget-formulario-config/index.ts`
+- Hover mostra botoes: setas cima/baixo, duplicar, engrenagem, lixeira
+- Click seleciona o campo (outline azul)
+- Double-click no label edita inline
+- Drag-and-drop para reordenar
+- Drop zones entre campos
 
-Adicionar `pai_campo_id` e `coluna_indice` na query de campos (linha 54):
+## Implementacao Tecnica
 
-```text
-.select('id, nome, label, tipo, obrigatorio, placeholder, ordem, opcoes, texto_ajuda, largura, etapa_numero, valor_padrao, validacoes, condicional_ativo, condicional_campo_id, condicional_operador, condicional_valor, pai_campo_id, coluna_indice')
-```
+### 1. Modificar `CampoItem.tsx`
 
-### 2. Atualizar `widget-formulario-loader/index.ts`
+- Receber novas props: `estiloCampos`, `fontFamily` (para renderizar com estilos reais)
+- Substituir chamada de `renderFieldPreview` por `renderFinalCampo` (importar do FormPreview ou extrair para um util)
+- Remover o wrapper com `border rounded-lg p-3` e a Badge de tipo
+- Manter apenas um wrapper fino com:
+  - `outline` quando selecionado (sem borda permanente)
+  - Botoes de controle no hover (absolutos)
+  - Label editavel inline
+- Manter o `draggable` e handlers de drag
 
-Nas linhas 193-194, aplicar `mergeFieldStyle` nos campos `titulo` e `paragrafo`:
+### 2. Extrair `renderFinalCampo` para arquivo compartilhado
 
-**Titulo (linha 193)** — antes:
-```text
-font-size:'+tc.tamanho+'px; ... color:'+tc.cor
-```
+Criar `src/modules/formularios/utils/renderFinalCampo.tsx` com:
+- A funcao `renderFinalCampo` (movida de FormPreview.tsx)
+- A funcao `renderLabel`
+- O componente `PhoneInputWithCountry`
+- A constante `PAISES_COMUNS`
 
-**Titulo (depois):**
-```text
-var tFS=mergeFieldStyle(fS,c);
-var tFontSize=tFS.label_tamanho||tc.tamanho+'px';
-var tColor=tFS.label_cor||tc.cor;
-var tWeight=tFS.label_font_weight||'600';
-```
-E usar essas variaveis no style do elemento.
+Isso permite que tanto `CampoItem` quanto `FinalPreviewFields` usem a mesma funcao.
 
-**Paragrafo (linha 194)** — mesma logica:
-```text
-var pFS=mergeFieldStyle(fS,c);
-var pFontSize=pFS.label_tamanho||pc.tamanho+'px';
-var pColor=pFS.label_cor||pc.cor;
-```
+### 3. Atualizar `FormPreview.tsx`
+
+- Remover `showFinalPreview` toggle e o botao "Visualizar Final" da toolbar (nao precisa mais)
+- Usar sempre o mesmo rendering para campos (que agora ja e o final)
+- Manter o `FinalPreviewFields` wrapper apenas para gerenciar estado de mascaras interativas, mas agora usado diretamente no modo editor tambem
+- Passar `estiloCampos` e `fontFamily` para cada `CampoItem`
+
+### 4. Adaptar `BlocoColunasEditor.tsx`
+
+- Passar as mesmas props de estilo para os `CampoItem` filhos dentro das colunas
 
 ### Arquivos Modificados
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `supabase/functions/widget-formulario-config/index.ts` | Adicionar `pai_campo_id`, `coluna_indice` na query |
-| `supabase/functions/widget-formulario-loader/index.ts` | Aplicar `mergeFieldStyle` em titulo e paragrafo |
+| `src/modules/formularios/utils/renderFinalCampo.tsx` | **NOVO** - Funcao extraida de FormPreview |
+| `src/modules/formularios/components/campos/CampoItem.tsx` | Usar renderFinalCampo, remover bordas/badges |
+| `src/modules/formularios/components/editor/FormPreview.tsx` | Importar de renderFinalCampo, remover duplicacao |
+| `src/modules/formularios/components/campos/BlocoColunasEditor.tsx` | Passar props de estilo |
 
-### Deploy
+### Riscos e Cuidados
 
-Ambas as edge functions precisam ser re-deployadas apos as alteracoes.
+- Manter a edicao inline do label funcional (ela sobrescreve o label renderizado pelo renderFinalCampo)
+- Garantir que campos de layout (titulo, paragrafo, divisor, espacador) continuem editaveis
+- Preservar drag-and-drop entre campos e nas drop zones
+- Nao quebrar o CSS responsivo ja existente
+
