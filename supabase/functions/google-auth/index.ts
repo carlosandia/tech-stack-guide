@@ -29,6 +29,7 @@ const CALENDAR_SCOPES = [
 ];
 
 const GMAIL_SCOPES = [
+  "https://mail.google.com/",
   "https://www.googleapis.com/auth/gmail.send",
   "https://www.googleapis.com/auth/userinfo.email",
 ];
