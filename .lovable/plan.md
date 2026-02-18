@@ -1,193 +1,203 @@
 
 
-## Auditoria de Producao — Modulo /emails
+## Auditoria de Producao — Modulo /formularios
 
-Analise para 500+ usuarios, alto volume de emails sincronizados via IMAP, conforme diretrizes do Arquiteto de Produto.
+Analise para 500+ usuarios, alto volume de formularios e submissoes, conforme diretrizes do Arquiteto de Produto.
 
 ---
 
 ### 1. Problemas Criticos
 
-#### 1.1 Cache auth duplicado (emails.api.ts)
+#### 1.1 Cache auth duplicado (formularios.api.ts)
 
-Linhas 25-66: Mesma duplicacao `_cachedOrgId/_cachedUserId + onAuthStateChange` ja corrigida nos modulos /negocios, /contatos e /conversas. O `auth-context.ts` compartilhado ja existe.
+Linhas 13-34: Mesma duplicacao `_cachedOrgId + onAuthStateChange` ja corrigida nos modulos /negocios, /contatos, /conversas e /emails. O `auth-context.ts` compartilhado ja existe.
 
-**Correcao**: Remover linhas 25-66 e importar `getOrganizacaoId` e `getUsuarioId` de `@/shared/services/auth-context`.
+**Correcao**: Remover linhas 13-34 e importar `getOrganizacaoId` de `@/shared/services/auth-context`.
 
 **Risco**: Zero. Refactor DRY puro.
 
 ---
 
-#### 1.2 Realtime sem debounce (useEmailRealtime.ts)
+#### 1.2 `reordenarCampos` — N queries individuais (GARGALO PRINCIPAL)
 
-Cada INSERT/UPDATE na tabela `emails_recebidos` dispara `invalidateQueries` imediatamente. Durante uma sincronizacao IMAP que insere 50 emails, isso causa 50 re-fetches consecutivos.
+Linhas 380-393: Faz um `UPDATE` **por campo** em um loop sequencial. Com 30 campos, sao 30 queries sequenciais. No drag-and-drop, isso e chamado a cada reordenamento.
 
-**Correcao**: Adicionar debounce de 2 segundos usando `useRef` + `setTimeout` (mesmo padrao ja implementado em `useKanban.ts` e `useConversasRealtime.ts`).
+**Correcao**: Agrupar todos os updates em um unico `Promise.all` para execucao paralela, reduzindo o tempo de N*latencia para 1*latencia.
 
-**Risco**: Zero. O optimistic update ja garante UX imediata.
-
----
-
-#### 1.3 Polling redundante com Realtime ativo
-
-Tres fontes de polling redundante:
-- `useEmails`: `refetchInterval: 60000` (linha 26)
-- `useContadorNaoLidos`: `refetchInterval: 30000` (linha 62)
-- `useAutoSyncEmails`: `setInterval` de 120s que chama `sincronizarEmails` (IMAP) e invalida cache
-
-O `useEmailRealtime` ja escuta INSERT/UPDATE na tabela e invalida cache. O `useAutoSyncEmails` faz sync IMAP (necessario pois Realtime so ve mudancas locais, nao emails novos no servidor remoto). Porem os `refetchInterval` de `useEmails` e `useContadorNaoLidos` sao redundantes porque:
-- Se ha emails novos no servidor IMAP, o `useAutoSyncEmails` os traz e o Realtime notifica
-- Se ha mudancas locais, o Realtime notifica
-
-**Correcao**: Remover `refetchInterval` de `useEmails` e `useContadorNaoLidos`. Manter `useAutoSyncEmails` (e o unico que busca emails novos do servidor remoto).
-
-**Risco**: Baixo. O auto-sync IMAP continua trazendo emails novos a cada 2min, e o Realtime invalida o cache.
+```typescript
+async function reordenarCampos(formularioId: string, campos: { id: string; ordem: number }[]): Promise<void> {
+  const promises = campos.map(item =>
+    supabase.from('campos_formularios')
+      .update({ ordem: item.ordem })
+      .eq('formulario_id', formularioId)
+      .eq('id', item.id)
+  )
+  const results = await Promise.all(promises)
+  const failed = results.find(r => r.error)
+  if (failed?.error) throw new Error(`Erro ao reordenar: ${failed.error.message}`)
+}
+```
 
 ---
 
-#### 1.4 Rascunhos sem limit (listarRascunhos)
+#### 1.3 `contarPorStatus` — carrega TODOS os formularios para contar
 
-Linha 342-351: `listarRascunhos` nao tem `.limit()` — carrega TODOS os rascunhos.
+Linhas 250-267: Busca todos os formularios (`.select('status')` sem limit) para contar no frontend. Com 500+ formularios por organizacao, transfere dados desnecessariamente.
 
-**Correcao**: Adicionar `.limit(50)`.
+**Correcao**: Usar `{ count: 'exact', head: true }` com filtros por status, fazendo 3 queries leves (sem dados) em paralelo ao inves de 1 query pesada.
 
-**Risco**: Zero.
+```typescript
+async function contarPorStatus(): Promise<Record<string, number>> {
+  const organizacao_id = await getOrganizacaoId()
+  const base = supabase.from('formularios').select('id', { count: 'exact', head: true })
+    .eq('organizacao_id', organizacao_id).is('deletado_em', null)
 
----
-
-#### 1.5 Assinatura com upsert manual (salvarAssinatura)
-
-Linhas 440-476: Faz SELECT para verificar existencia, depois UPDATE ou INSERT. Sao 2 queries quando poderia ser 1 com `.upsert()`.
-
-**Correcao**: Usar `.upsert()` com `onConflict: 'organizacao_id,usuario_id'` (assumindo que existe constraint unica nessas colunas). Se nao existir, manter o padrao atual mas documentar como melhoria futura.
-
-**Risco**: Baixo. Depende da existencia de constraint unica na tabela.
-
----
-
-### 2. Problemas de Performance Media
-
-#### 2.1 Metricas — auth duplicado inline (useEmailsMetricas.ts)
-
-Linhas 62-73: `fetchMetricas` faz `supabase.auth.getUser()` + `supabase.from('usuarios').select()` manualmente, duplicando a logica de `getOrganizacaoId`/`getUsuarioId`.
-
-**Correcao**: Importar e usar `getOrganizacaoId` do `auth-context` compartilhado.
-
-**Risco**: Zero.
-
----
-
-#### 2.2 Metricas — "sem resposta" com batches de threadIds
-
-Linhas 126-150: Busca threads com resposta em batches de 50, o que e razoavel. Porem, para periodos grandes com milhares de emails enviados, isso gera muitos batches.
-
-**Correcao imediata**: Manter os batches (ja e uma solucao aceitavel), mas aumentar o batchSize para 100 para reduzir roundtrips. Solucao futura: mover para SQL function.
-
-**Risco**: Zero.
+  const [todos, rascunho, publicado, arquivado] = await Promise.all([
+    base,
+    supabase.from('formularios').select('id', { count: 'exact', head: true })
+      .eq('organizacao_id', organizacao_id).is('deletado_em', null).eq('status', 'rascunho'),
+    supabase.from('formularios').select('id', { count: 'exact', head: true })
+      .eq('organizacao_id', organizacao_id).is('deletado_em', null).eq('status', 'publicado'),
+    supabase.from('formularios').select('id', { count: 'exact', head: true })
+      .eq('organizacao_id', organizacao_id).is('deletado_em', null).eq('status', 'arquivado'),
+  ])
+  return {
+    todos: todos.count || 0,
+    rascunho: rascunho.count || 0,
+    publicado: publicado.count || 0,
+    arquivado: arquivado.count || 0,
+  }
+}
+```
 
 ---
 
-#### 2.3 Historico de aberturas — polling redundante (useEmailHistorico.ts)
+#### 1.4 `salvarEstilos` — upsert manual com 2 queries
 
-Linha 45: `refetchInterval: 60000` — polling de 1min para historico de aberturas. Esse dado muda raramente e ja seria invalidado pelo Realtime.
+Linhas 585-614: Faz SELECT para verificar existencia, depois UPDATE ou INSERT. Sao 2 queries quando poderia ser 1 com `.upsert()`.
 
-**Correcao**: Remover `refetchInterval`. Manter `staleTime: 30000`.
-
-**Risco**: Zero.
+**Correcao**: Usar `.upsert()` com `onConflict: 'formulario_id'`, reduzindo para 1 query.
 
 ---
 
-### 3. O que ja esta BEM FEITO
+#### 1.5 `salvarConfigPopup` — upsert manual com 2 queries
 
-- Paginacao na listagem principal com `.range()`
-- Lazy loading de corpo do email (busca via IMAP sob demanda)
-- Optimistic updates em `useAtualizarEmail`
-- Acoes em lote eficientes com `.in()`
-- Auto-sync IMAP silencioso com protecao contra concorrencia (`isSyncingRef`)
-- Exclusao IMAP bidirecional via Edge Function
-- Tracking de aberturas com pixel via function SQL
-- Upload de anexos para Storage antes do envio
+Linhas 660-685: Mesmo padrao de SELECT+UPDATE/INSERT.
+
+**Correcao**: Usar `.upsert()` com `onConflict: 'formulario_id'`.
+
+---
+
+#### 1.6 `salvarConfigNewsletter` — upsert manual com 2 queries
+
+Linhas 728-753: Mesmo padrao.
+
+**Correcao**: Usar `.upsert()` com `onConflict: 'formulario_id'`.
+
+---
+
+#### 1.7 Analytics — `obterMetricas` e `obterFunilConversao` buscam TODOS os eventos sem limit
+
+Linhas 986-1027: Ambos metodos buscam `.select('tipo_evento')` sem qualquer limit. Com formularios populares (10.000+ eventos), transfere megabytes so para contar tipos.
+
+**Correcao**: Manter a query (nao ha alternativa simples sem RPC), mas adicionar `.limit(10000)` como trava de seguranca para evitar downloads absurdos.
+
+---
+
+#### 1.8 Analytics — `obterDesempenhoCampos` busca eventos sem limit
+
+Linhas 1030-1055: Mesmo problema — busca todos os eventos de campo sem limit.
+
+**Correcao**: Adicionar `.limit(10000)` como trava de seguranca.
+
+---
+
+### 2. O que ja esta BEM FEITO
+
+- Paginacao na listagem principal com `.range()` e `{ count: 'exact' }`
+- Paginacao nas submissoes
 - Soft delete padronizado
-- Tipos bem definidos em `email.types.ts`
-- Notificacao de novos emails via Realtime (toast)
+- Optimistic updates no `useCriarCampo` e `useReordenarCampos` (UX instantanea)
+- Slug unico com timestamp
+- Tipos bem definidos para todos os sub-modulos
+- Webhooks com logs limitados (`.limit(limite)`)
+- Hooks React Query bem estruturados com queryKeys consistentes
+- Separacao clara de concerns (campos, estilos, config, regras, analytics, AB, webhooks)
 
 ---
 
-### 4. Plano de Acao
+### 3. Plano de Acao
 
 | # | Acao | Arquivo | Impacto |
 |---|------|---------|---------|
-| 1 | Importar auth-context compartilhado | `emails.api.ts` | Elimina duplicacao DRY |
-| 2 | Adicionar debounce 2s no Realtime | `useEmailRealtime.ts` | Previne refetch storms durante sync IMAP |
-| 3 | Remover refetchInterval de useEmails e useContadorNaoLidos | `useEmails.ts` | Elimina polling redundante |
-| 4 | Remover refetchInterval de useEmailHistorico | `useEmailHistorico.ts` | Elimina polling desnecessario |
-| 5 | Adicionar .limit(50) em listarRascunhos | `emails.api.ts` | Previne carregamento excessivo |
-| 6 | Usar auth-context em fetchMetricas | `useEmailsMetricas.ts` | Elimina duplicacao de auth inline |
-| 7 | Aumentar batchSize de threadIds para 100 | `useEmailsMetricas.ts` | Reduz roundtrips |
+| 1 | Importar auth-context compartilhado | `formularios.api.ts` | Elimina duplicacao DRY |
+| 2 | Paralelizar `reordenarCampos` com `Promise.all` | `formularios.api.ts` | Reduz latencia de N*RTT para 1*RTT |
+| 3 | Otimizar `contarPorStatus` com `head: true` | `formularios.api.ts` | Elimina transferencia de dados para contagem |
+| 4 | Converter `salvarEstilos` para upsert | `formularios.api.ts` | Reduz 2 queries para 1 |
+| 5 | Converter `salvarConfigPopup` para upsert | `formularios.api.ts` | Reduz 2 queries para 1 |
+| 6 | Converter `salvarConfigNewsletter` para upsert | `formularios.api.ts` | Reduz 2 queries para 1 |
+| 7 | Adicionar `.limit(10000)` nas queries de analytics | `formularios.api.ts` | Previne downloads massivos |
 
 ---
 
-### 5. Detalhes Tecnicos
+### 4. Detalhes Tecnicos
 
-**5.1 Auth-context (emails.api.ts)**
+**4.1 Auth-context**
 
-Remover linhas 25-66 (cache local + `getOrganizacaoId` + `getUsuarioId` + `onAuthStateChange`). Adicionar:
-
+Remover linhas 13-34 de `formularios.api.ts`. Adicionar:
 ```typescript
-import { getOrganizacaoId, getUsuarioId } from '@/shared/services/auth-context'
+import { getOrganizacaoId } from '@/shared/services/auth-context'
 ```
 
-**5.2 Debounce no Realtime (useEmailRealtime.ts)**
+**4.2 `reordenarCampos` paralelizado**
 
-Adicionar `useRef` para timer. No callback de INSERT e UPDATE, limpar timer anterior e agendar invalidacao com 2s de delay. Manter toast de notificacao imediato (apenas o invalidateQueries recebe debounce).
+Substituir o loop `for...of` por `Promise.all` de todas as queries em paralelo.
 
-**5.3 Remover polling (useEmails.ts)**
+**4.3 `contarPorStatus` otimizado**
 
-- Linha 26: remover `refetchInterval: 60000` de `useEmails`
-- Linha 62: remover `refetchInterval: 30000` de `useContadorNaoLidos`
+Substituir a query que busca todos os registros por 4 queries `head: true` em paralelo (sem transferencia de dados, apenas contagem).
 
-**5.4 Remover polling historico (useEmailHistorico.ts)**
+**4.4 Upsert para estilos, popup e newsletter**
 
-- Linha 45: remover `refetchInterval: 60000`
-
-**5.5 Limit em rascunhos (emails.api.ts)**
-
-Adicionar `.limit(50)` na query de `listarRascunhos`.
-
-**5.6 Auth-context em metricas (useEmailsMetricas.ts)**
-
-Substituir linhas 62-73 por:
-
+Para `salvarEstilos`:
 ```typescript
-const orgId = await getOrganizacaoId()
+const { data, error } = await supabase
+  .from('estilos_formularios')
+  .upsert({ formulario_id: formularioId, ...payload }, { onConflict: 'formulario_id' })
+  .select()
+  .single()
 ```
 
-Remover a busca manual de `usuario` + `organizacao_id`.
+Mesmo padrao para `salvarConfigPopup` e `salvarConfigNewsletter`.
 
-**5.7 BatchSize de threadIds (useEmailsMetricas.ts)**
+**NOTA**: O upsert requer constraint UNIQUE em `formulario_id` nas tabelas `estilos_formularios`, `config_popup_formularios` e `config_newsletter_formularios`. Se nao existirem, manter o padrao SELECT+UPDATE/INSERT atual.
 
-Linha 128: alterar `const batchSize = 50` para `const batchSize = 100`.
+**4.5 Limits em analytics**
+
+Adicionar `.limit(10000)` em:
+- `obterMetricas` (linha 989)
+- `obterFunilConversao` (linha 1012)
+- `obterDesempenhoCampos` (linha 1034)
 
 ---
 
-### 6. Arquivos impactados
+### 5. Arquivos impactados
 
 | Arquivo | Tipo de mudanca |
 |---------|----------------|
-| `src/modules/emails/services/emails.api.ts` | Auth-context, limit rascunhos |
-| `src/modules/emails/hooks/useEmailRealtime.ts` | Debounce 2s |
-| `src/modules/emails/hooks/useEmails.ts` | Remover refetchInterval |
-| `src/modules/emails/hooks/useEmailHistorico.ts` | Remover refetchInterval |
-| `src/modules/emails/hooks/useEmailsMetricas.ts` | Auth-context, batchSize |
+| `src/modules/formularios/services/formularios.api.ts` | Todas as correcoes acima |
 
-### 7. Garantias de seguranca
+Nenhum hook muda de assinatura. Nenhum componente visual alterado.
+
+### 6. Garantias de seguranca
 
 - Nenhum componente visual alterado
 - Nenhuma prop removida ou renomeada
 - Hooks mantem mesma assinatura e comportamento
-- Lazy loading de corpo preservado
-- Sync IMAP automatico preservado (useAutoSyncEmails)
-- Tracking de aberturas inalterado
-- Upload de anexos inalterado
-- Soft delete preservado
+- Optimistic updates preservados
+- Editor WYSIWYG inalterado
+- Widget embed inalterado
+- Pagina publica inalterada
+- Submissoes via Edge Function inalteradas
+- RLS continua como unica linha de defesa
 
