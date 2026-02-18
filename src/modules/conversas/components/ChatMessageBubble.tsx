@@ -25,7 +25,6 @@ import {
   Reply,
   Copy,
   Smile,
-  Pin,
 } from 'lucide-react'
 import type { Mensagem } from '../services/conversas.api'
 import { conversasApi } from '../services/conversas.api'
@@ -736,13 +735,12 @@ function ReactionPicker({ onSelect, position }: {
 // Action Menu (Portal-based)
 // =====================================================
 
-function MessageActionMenu({ mensagem, onDelete, onReply, onCopy, onReact, onPin, onOpenChange }: {
+function MessageActionMenu({ mensagem, onDelete, onReply, onCopy, onReact, onOpenChange }: {
   mensagem: Mensagem
   onDelete: (paraTodos: boolean) => void
   onReply?: () => void
   onCopy?: () => void
   onReact?: () => void
-  onPin?: () => void
   onOpenChange?: (isOpen: boolean) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -827,16 +825,7 @@ function MessageActionMenu({ mensagem, onDelete, onReply, onCopy, onReact, onPin
       )}
 
       {/* AIDEV-NOTE: Encaminhamento removido - WAHA GOWS não suporta forward de mensagens */}
-
-      {onPin && (
-        <button
-          onClick={() => { onPin(); setOpen(false) }}
-          className="flex items-center gap-2.5 w-full px-3 py-2 text-xs hover:bg-accent/50 transition-colors text-foreground"
-        >
-          <Pin className="w-3.5 h-3.5 text-muted-foreground" />
-          Fixar
-        </button>
-      )}
+      {/* AIDEV-NOTE: Fixar mensagem removido por solicitação do usuário */}
 
       <div className="my-1 border-t border-border/50" />
 
@@ -884,7 +873,7 @@ function MessageActionMenu({ mensagem, onDelete, onReply, onCopy, onReact, onPin
 export function ChatMessageBubble({
   mensagem, participantName, participantColor, conversaId, fotoUrl, myAvatarUrl, contactMap,
   reactions,
-  onDeleteMessage, onReplyMessage, onReactMessage, onForwardMessage: _onForwardMessage, onPinMessage,
+  onDeleteMessage, onReplyMessage, onReactMessage, onForwardMessage: _onForwardMessage, onPinMessage: _onPinMessage,
   quotedMessage
 }: ChatMessageBubbleProps) {
   const [viewerMedia, setViewerMedia] = useState<{ url: string; tipo: 'image' | 'video' } | null>(null)
@@ -999,10 +988,7 @@ export function ChatMessageBubble({
   }, [mensagem, onReactMessage])
 
   // AIDEV-NOTE: handleForward removido - GOWS não suporta forward
-
-  const handlePin = useCallback(() => {
-    onPinMessage?.(mensagem)
-  }, [mensagem, onPinMessage])
+  // AIDEV-NOTE: handlePin removido por solicitação do usuário
 
   // Close reaction picker on outside click
   useEffect(() => {
@@ -1048,7 +1034,6 @@ export function ChatMessageBubble({
               onReply={onReplyMessage ? handleReply : undefined}
               onCopy={handleCopy}
               onReact={onReactMessage ? handleReact : undefined}
-              onPin={onPinMessage ? handlePin : undefined}
               onOpenChange={(isOpen) => { setActionMenuOpen(isOpen); if (!isOpen) setHovered(false) }}
             />
           </div>
@@ -1136,7 +1121,6 @@ export function ChatMessageBubble({
               onCopy={handleCopy}
               onReact={onReactMessage ? handleReact : undefined}
               
-              onPin={onPinMessage ? handlePin : undefined}
               onOpenChange={(isOpen) => { setActionMenuOpen(isOpen); if (!isOpen) setHovered(false) }}
             />
           </div>

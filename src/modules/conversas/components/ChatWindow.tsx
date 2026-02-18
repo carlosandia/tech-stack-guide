@@ -19,12 +19,12 @@ import { CameraCapture } from './CameraCapture'
 import { ContatoSelectorModal } from './ContatoSelectorModal'
 import { EnqueteModal } from './EnqueteModal'
 // AIDEV-NOTE: EncaminharModal removido - GOWS não suporta forward
-import { PinnedMessageBanner } from './PinnedMessageBanner'
+// AIDEV-NOTE: PinnedMessageBanner removido por solicitação do usuário
 import { useMensagens, useEnviarTexto, useEnviarContato, useEnviarEnquete } from '../hooks/useMensagens'
 import {
   useAlterarStatusConversa, useMarcarComoLida, useSilenciarConversa,
   useLimparConversa, useApagarConversa, useApagarMensagem,
-  useFixarMensagem, useDesafixarMensagem, useReagirMensagem,
+  useReagirMensagem,
 } from '../hooks/useConversas'
 import { conversasApi } from '../services/conversas.api'
 import { supabase } from '@/lib/supabase'
@@ -135,21 +135,14 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
   const limparConversa = useLimparConversa()
   const apagarConversa = useApagarConversa()
   const apagarMensagem = useApagarMensagem()
-  const fixarMensagem = useFixarMensagem()
-  const desafixarMensagem = useDesafixarMensagem()
   const reagirMensagem = useReagirMensagem()
-  // AIDEV-NOTE: encaminharMensagem removido - GOWS não suporta forward
+  // AIDEV-NOTE: fixarMensagem/desafixarMensagem removidos por solicitação do usuário
 
   // Flatten paginated messages
   const mensagens = useMemo(() => {
     if (!mensagensData?.pages) return []
     return mensagensData.pages.flatMap((page) => page.mensagens)
   }, [mensagensData])
-
-  // Find pinned message
-  const pinnedMessage = useMemo(() => {
-    return mensagens.find((m) => m.fixada) || null
-  }, [mensagens])
 
   // Search results
   const resultadosBusca = useMemo(() => {
@@ -426,13 +419,7 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
 
   // AIDEV-NOTE: handleForwardMessage e handleForwardConfirm removidos - GOWS não suporta forward
 
-  const handlePinMessage = useCallback((mensagem: Mensagem) => {
-    fixarMensagem.mutate({ conversaId: conversa.id, mensagemId: mensagem.id, messageWahaId: mensagem.message_id })
-  }, [conversa.id, fixarMensagem])
-
-  const handleUnpinMessage = useCallback((mensagem: Mensagem) => {
-    desafixarMensagem.mutate({ conversaId: conversa.id, mensagemId: mensagem.id, messageWahaId: mensagem.message_id })
-  }, [conversa.id, desafixarMensagem])
+  // AIDEV-NOTE: handlePinMessage e handleUnpinMessage removidos por solicitação do usuário
 
   const handleSearch = (termo: string) => {
     setTermoBusca(termo)
@@ -525,12 +512,7 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
         />
       )}
 
-      {pinnedMessage && (
-        <PinnedMessageBanner
-          mensagem={pinnedMessage}
-          onUnpin={handleUnpinMessage}
-        />
-      )}
+      {/* AIDEV-NOTE: PinnedMessageBanner removido por solicitação do usuário */}
 
       <ChatMessages
         mensagens={mensagens}
@@ -553,7 +535,7 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
         }}
         onReactMessage={handleReactMessage}
         onForwardMessage={undefined}
-        onPinMessage={handlePinMessage}
+        onPinMessage={undefined}
       />
 
       <div className="relative mt-auto">
