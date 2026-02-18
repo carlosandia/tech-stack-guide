@@ -272,22 +272,23 @@ export function EmailViewer({
     // AIDEV-NOTE: CSP meta tag para silenciar warnings residuais no iframe sandbox
     const cspMeta = '<meta http-equiv="Content-Security-Policy" content="script-src \'none\'">'
 
-    // AIDEV-NOTE: CSS de contenção para evitar scroll horizontal no iframe
+    // AIDEV-NOTE: CSS de contenção - regras seguras que não quebram layout de tabelas de email
     const containmentCss = `<style>
-html, body { overflow-x: hidden !important; max-width: 100% !important; word-wrap: break-word; overflow-wrap: break-word; }
-* { max-width: 100% !important; box-sizing: border-box; }
-table { max-width: 100% !important; table-layout: fixed; width: 100% !important; }
+html, body { overflow-x: hidden !important; word-wrap: break-word; overflow-wrap: break-word; margin: 0; padding: 0; }
+* { box-sizing: border-box; }
+table { border-collapse: collapse; }
 img { max-width: 100% !important; height: auto !important; }
 pre, code { white-space: pre-wrap !important; word-break: break-all; }
 a { word-break: break-all; }
-td, th { word-wrap: break-word; overflow-wrap: break-word; }
 </style>`
 
-    // Inject <base target="_blank"> + CSP + containment CSS
+    const charsetMeta = '<meta charset="utf-8">'
+
+    // Inject <base target="_blank"> + CSP + charset + containment CSS
     if (sanitized.includes('<head>')) {
-      return sanitized.replace('<head>', `<head>${cspMeta}${containmentCss}<base target="_blank">`)
+      return sanitized.replace('<head>', `<head>${charsetMeta}${cspMeta}${containmentCss}<base target="_blank">`)
     }
-    return `<head>${cspMeta}${containmentCss}<base target="_blank"></head>${sanitized}`
+    return `<head>${charsetMeta}${cspMeta}${containmentCss}<base target="_blank"></head>${sanitized}`
   }, [email?.corpo_html, email?.corpo_texto])
 
   if (isLoading) {
