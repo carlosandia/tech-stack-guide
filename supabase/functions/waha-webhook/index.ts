@@ -890,6 +890,157 @@ Deno.serve(async (req) => {
       );
     }
 
+    // =====================================================
+    // HANDLE message.reaction EVENT (emoji reactions)
+    // AIDEV-NOTE: Processa reações de WhatsApp (adicionar/remover emoji)
+    // O frontend já exibe reações via realtime - basta inserir no banco
+    // =====================================================
+    if (body.event === "message.reaction") {
+      const reactionPayload = body.payload;
+      console.log(`[waha-webhook] message.reaction:`, JSON.stringify(reactionPayload).substring(0, 500));
+
+      if (reactionPayload) {
+        const reaction = reactionPayload.reaction || {};
+        const emoji = reaction.text || "";
+        const targetMessageId = reaction.messageId?._serialized || reaction.messageId?.id || reaction.messageId || null;
+        const chatId = reactionPayload.from || "";
+        const fromMe = reactionPayload.fromMe === true;
+
+        console.log(`[waha-webhook] Reaction: emoji="${emoji}", targetMsg=${targetMessageId}, chatId=${chatId}, fromMe=${fromMe}`);
+
+        if (targetMessageId) {
+          // Buscar sessão
+          const { data: sessao } = await supabaseAdmin
+            .from("sessoes_whatsapp")
+            .select("id, organizacao_id")
+            .eq("session_name", sessionName)
+            .is("deletado_em", null)
+            .maybeSingle();
+
+          if (sessao) {
+            if (!emoji) {
+              // REMOÇÃO de reação: soft-delete a mensagem de reação existente
+              console.log(`[waha-webhook] Removing reaction for targetMsg=${targetMessageId}, fromMe=${fromMe}`);
+              const { error: deleteError } = await supabaseAdmin
+                .from("mensagens")
+                .update({ deletado_em: new Date().toISOString() })
+                .eq("organizacao_id", sessao.organizacao_id)
+                .eq("tipo", "reaction")
+                .eq("reaction_message_id", targetMessageId)
+                .eq("from_me", fromMe)
+                .is("deletado_em", null);
+
+              if (deleteError) {
+                console.error(`[waha-webhook] Error removing reaction:`, deleteError.message);
+              } else {
+                console.log(`[waha-webhook] ✅ Reaction removed for targetMsg=${targetMessageId}`);
+              }
+            } else {
+              // ADIÇÃO de reação: buscar conversa e inserir mensagem tipo 'reaction'
+              const cleanChatId = cleanDeviceSuffix(chatId);
+              let conversaId: string | null = null;
+
+              // Buscar conversa pelo chatId
+              const { data: conversa } = await supabaseAdmin
+                .from("conversas")
+                .select("id")
+                .eq("organizacao_id", sessao.organizacao_id)
+                .eq("chat_id", cleanChatId)
+                .is("deletado_em", null)
+                .maybeSingle();
+
+              if (conversa) {
+                conversaId = conversa.id;
+              } else if (cleanChatId.includes("@lid")) {
+                // Resolução de @lid
+                const lidNumber = cleanChatId.replace("@lid", "");
+                console.log(`[waha-webhook] Reaction: resolving @lid ${lidNumber}`);
+                const { data: lidResult } = await supabaseAdmin
+                  .rpc("resolve_lid_conversa", { p_org_id: sessao.organizacao_id, p_lid_number: lidNumber });
+                if (lidResult && lidResult.length > 0) {
+                  conversaId = lidResult[0].conversa_id;
+                  console.log(`[waha-webhook] Reaction: @lid resolved to conversa ${conversaId}`);
+                }
+              }
+
+              if (!conversaId) {
+                // Fallback: buscar conversa pela mensagem original
+                const { data: msgOriginal } = await supabaseAdmin
+                  .from("mensagens")
+                  .select("conversa_id")
+                  .eq("message_id", targetMessageId)
+                  .eq("organizacao_id", sessao.organizacao_id)
+                  .maybeSingle();
+                if (msgOriginal) {
+                  conversaId = msgOriginal.conversa_id;
+                  console.log(`[waha-webhook] Reaction: found conversa via original message: ${conversaId}`);
+                }
+              }
+
+              if (conversaId) {
+                // Gerar message_id único para reação (mesmo padrão do frontend)
+                const reactionMessageId = `reaction_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+
+                // Verificar se já existe reação igual (evitar duplicatas)
+                const { data: existingReaction } = await supabaseAdmin
+                  .from("mensagens")
+                  .select("id")
+                  .eq("organizacao_id", sessao.organizacao_id)
+                  .eq("tipo", "reaction")
+                  .eq("reaction_message_id", targetMessageId)
+                  .eq("from_me", fromMe)
+                  .is("deletado_em", null)
+                  .maybeSingle();
+
+                if (existingReaction) {
+                  // Atualizar emoji da reação existente
+                  const { error: updateError } = await supabaseAdmin
+                    .from("mensagens")
+                    .update({ reaction_emoji: emoji, atualizado_em: new Date().toISOString() })
+                    .eq("id", existingReaction.id);
+                  if (updateError) {
+                    console.error(`[waha-webhook] Error updating reaction:`, updateError.message);
+                  } else {
+                    console.log(`[waha-webhook] ✅ Reaction updated: ${emoji} on ${targetMessageId}`);
+                  }
+                } else {
+                  // Inserir nova reação
+                  const { error: insertError } = await supabaseAdmin
+                    .from("mensagens")
+                    .insert({
+                      organizacao_id: sessao.organizacao_id,
+                      conversa_id: conversaId,
+                      message_id: reactionMessageId,
+                      from_me: fromMe,
+                      tipo: "reaction",
+                      reaction_emoji: emoji,
+                      reaction_message_id: targetMessageId,
+                      ack: 0,
+                      timestamp_externo: Math.floor(Date.now() / 1000),
+                    });
+
+                  if (insertError) {
+                    console.error(`[waha-webhook] Error inserting reaction:`, insertError.message);
+                  } else {
+                    console.log(`[waha-webhook] ✅ Reaction inserted: ${emoji} on ${targetMessageId}`);
+                  }
+                }
+              } else {
+                console.log(`[waha-webhook] Reaction: conversa not found for chatId=${cleanChatId}`);
+              }
+            }
+          } else {
+            console.log(`[waha-webhook] Session not found for reaction: ${sessionName}`);
+          }
+        }
+      }
+
+      return new Response(
+        JSON.stringify({ ok: true, message: "Reaction processed" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Only process message events from here (both "message" and "message.any")
     if (body.event !== "message" && body.event !== "message.any") {
       console.log(`[waha-webhook] Ignoring event: ${body.event}`);
