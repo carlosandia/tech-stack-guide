@@ -318,7 +318,7 @@ export const FormPreview = forwardRef<HTMLDivElement, Props>(function FormPrevie
             ? 'py-8'
             : dragOverIndex === index
               ? 'py-3'
-              : 'py-[2px]',
+              : 'py-0',
         )}
       >
         {/* Active indicator line */}
