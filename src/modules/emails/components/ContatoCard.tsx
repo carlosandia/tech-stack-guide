@@ -5,6 +5,7 @@
  */
 
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { User, Building2, Plus, ExternalLink } from 'lucide-react'
@@ -103,22 +104,30 @@ export function ContatoCard({ contatoId, email, nome }: ContatoCardProps) {
             Contato não encontrado no CRM
           </span>
           <button
-            onClick={() => setModalOpen(true)}
-            className="inline-flex items-center gap-1 text-xs text-primary hover:underline flex-shrink-0"
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              e.preventDefault()
+              setModalOpen(true)
+            }}
+            className="inline-flex items-center gap-1 text-xs text-primary hover:underline flex-shrink-0 cursor-pointer relative z-10"
           >
             <Plus className="w-3 h-3" />
             Criar
           </button>
         </div>
 
-        <ContatoFormModal
-          open={modalOpen}
-          onClose={() => setModalOpen(false)}
-          onSubmit={handleFormSubmit}
-          tipo="pessoa"
-          loading={criarContato.isPending}
-          initialValues={initialValues}
-        />
+        {modalOpen && createPortal(
+          <ContatoFormModal
+            open={modalOpen}
+            onClose={() => setModalOpen(false)}
+            onSubmit={handleFormSubmit}
+            tipo="pessoa"
+            loading={criarContato.isPending}
+            initialValues={initialValues}
+          />,
+          document.body
+        )}
       </>
     )
   }
