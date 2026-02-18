@@ -9,6 +9,7 @@
 
 import { useState, useRef, useCallback, useEffect, forwardRef } from 'react'
 import { getMaskForType } from '../../utils/masks'
+import { mergeCampoEstilo } from '../../utils/campoEstiloUtils'
 import { generateFormResponsiveCss, generateColunasResponsiveCss, resolveValue } from '../../utils/responsiveStyles'
 import { Monitor, Tablet, Smartphone, Settings, Eye, EyeOff, Code, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -1261,28 +1262,30 @@ function renderFinalCampo(
   paisSelecionado?: { code: string; ddi: string; flag: string },
   onPaisChange?: (p: { code: string; ddi: string; flag: string }) => void,
 ) {
+  // AIDEV-NOTE: Merge estilo global com overrides individuais do campo
+  const merged = estiloCampos ? mergeCampoEstilo(estiloCampos, campo) : undefined
   const labelStyle: React.CSSProperties = {
-    color: estiloCampos?.label_cor || '#374151',
+    color: merged?.label_cor || '#374151',
     fontSize: estiloCampos?.label_tamanho || '14px',
-    fontWeight: (estiloCampos?.label_font_weight || '500') as any,
+    fontWeight: (merged?.label_font_weight || '500') as any,
     display: 'block',
     marginBottom: '4px',
     fontFamily,
   }
 
-  const borderWidth = estiloCampos?.input_border_width || '1'
-  const borderStyle = estiloCampos?.input_border_style || 'solid'
-  const borderColor = estiloCampos?.input_border_color || '#D1D5DB'
+  const borderWidth = merged?.input_border_width || '1'
+  const borderStyle = merged?.input_border_style || 'solid'
+  const borderColor = merged?.input_border_color || '#D1D5DB'
 
   const inputStyle: React.CSSProperties = {
     width: '100%',
-    backgroundColor: estiloCampos?.input_background || '#F9FAFB',
+    backgroundColor: merged?.input_background || '#F9FAFB',
     border: `${borderWidth}px ${borderStyle} ${borderColor}`,
-    borderRadius: estiloCampos?.input_border_radius || '6px',
-    color: estiloCampos?.input_texto_cor || '#1F2937',
+    borderRadius: merged?.input_border_radius || '6px',
+    color: merged?.input_texto_cor || '#1F2937',
     padding: '8px 12px',
     fontSize: '14px',
-    height: estiloCampos?.input_height || '40px',
+    height: merged?.input_height || '40px',
     outline: 'none',
     fontFamily,
   }
