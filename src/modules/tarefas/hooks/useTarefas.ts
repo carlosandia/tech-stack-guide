@@ -11,6 +11,7 @@ export function useTarefas(params?: ListarTarefasParams) {
   return useQuery({
     queryKey: ['tarefas-lista', params],
     queryFn: () => tarefasApi.listar(params),
+    staleTime: 30_000,
   })
 }
 
@@ -24,6 +25,7 @@ export function useTarefasMetricas(params?: {
   return useQuery({
     queryKey: ['tarefas-metricas', params],
     queryFn: () => tarefasApi.obterMetricas(params),
+    staleTime: 30_000,
   })
 }
 
