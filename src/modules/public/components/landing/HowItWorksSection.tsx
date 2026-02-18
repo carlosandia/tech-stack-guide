@@ -29,7 +29,7 @@ export function HowItWorksSection() {
   const { ref: stepsRef, isVisible: stepsVisible } = useScrollReveal()
 
   return (
-    <section id="como-funciona" className="py-16 md:py-24 bg-muted/30">
+    <section id="como-funciona" className="py-16 md:py-24 bg-background">
       <div className="max-w-[1200px] mx-auto px-4 md:px-6">
         <div
           ref={headerRef}
@@ -37,9 +37,6 @@ export function HowItWorksSection() {
             headerVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
           }`}
         >
-          <p className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">
-            Simples de começar
-          </p>
           <h2 className="text-3xl md:text-4xl font-bold text-foreground leading-tight">
             3 passos para transformar suas vendas
           </h2>
@@ -70,7 +67,7 @@ export function HowItWorksSection() {
         <div className="text-center">
           <Link to="/trial">
             <Button size="lg" className="text-base px-8 h-12">
-              Começar agora — é grátis
+              Começar agora, é grátis
               <ArrowRight size={18} className="ml-2" />
             </Button>
           </Link>

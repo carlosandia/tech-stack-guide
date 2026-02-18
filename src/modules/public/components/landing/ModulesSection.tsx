@@ -50,7 +50,7 @@ const modules: Module[] = [
     title: 'Conversas',
     headline: 'WhatsApp profissional dentro do CRM',
     benefits: [
-      'Sincronização completa com WhatsApp — tudo que acontece lá, aparece aqui',
+      'Sincronização completa com WhatsApp. Tudo que acontece lá, aparece aqui',
       'Correção ortográfica e gramatical integrada na escrita',
       'Agendamento de mensagens em texto ou áudio',
       'Notas privadas, mensagens prontas e anexos completos',
@@ -75,7 +75,7 @@ const modules: Module[] = [
     headline: 'Pipeline completo com qualificação, metas e ligações',
     benefits: [
       'Kanban configurável com qualificação automática de lead MQL',
-      'Ligações VoIP integradas — ligue direto do card sem sair do CRM',
+      'Ligações VoIP integradas. Ligue direto do card sem sair do CRM',
       'Agendamento de reuniões com Google Calendar e Google Meet em um clique',
       'Cadência comercial com scripts prontos disparados via WhatsApp e e-mail',
       'Métricas de no-show e metas por equipe e individual em tempo real',
@@ -112,7 +112,7 @@ export function ModulesSection() {
   const { ref: contentRef, isVisible: contentVisible } = useScrollReveal()
 
   return (
-    <section id="modulos" className="py-16 md:py-24 bg-muted/30">
+    <section id="modulos" className="py-16 md:py-24 bg-gradient-to-b from-primary/[0.03] to-primary/[0.06]">
       <div className="max-w-[1200px] mx-auto px-4 md:px-6">
         {/* Header */}
         <div
@@ -121,9 +121,6 @@ export function ModulesSection() {
             headerVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
           }`}
         >
-          <p className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">
-            Módulos
-          </p>
           <h2 className="text-3xl md:text-4xl font-bold text-foreground leading-tight">
             Conheça cada módulo que vai transformar sua operação
           </h2>

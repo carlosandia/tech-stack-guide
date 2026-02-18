@@ -41,7 +41,7 @@ export function FinalCTASection() {
             variant="secondary"
             className="text-base px-10 h-14 font-semibold shadow-lg hover:shadow-xl transition-shadow"
           >
-            Comece agora — 14 dias grátis
+            Comece agora. 14 dias grátis
             <ArrowRight size={20} className="ml-2" />
           </Button>
         </Link>
