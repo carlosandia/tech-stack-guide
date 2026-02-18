@@ -13,6 +13,111 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
+
+// =====================================================
+// Crypto helpers (compatível com google-auth e send-email)
+// =====================================================
+
+function simpleDecrypt(encrypted: string, _key: string): string {
+  if (encrypted.startsWith("ef:")) {
+    return decodeURIComponent(escape(atob(encrypted.substring(3))));
+  }
+  return encrypted;
+}
+
+function simpleEncrypt(text: string, _key: string): string {
+  const encoded = btoa(unescape(encodeURIComponent(text)));
+  return `ef:${encoded}`;
+}
+
+// =====================================================
+// Google OAuth helpers
+// =====================================================
+
+async function getGoogleConfig(supabaseAdmin: ReturnType<typeof createClient>) {
+  const { data, error } = await supabaseAdmin
+    .from("configuracoes_globais")
+    .select("configuracoes, configurado")
+    .eq("plataforma", "google")
+    .single();
+
+  if (error || !data || !data.configurado) {
+    throw new Error("Google não configurado.");
+  }
+
+  const config = data.configuracoes as Record<string, string>;
+  if (!config.client_id || !config.client_secret) {
+    throw new Error("Credenciais Google incompletas.");
+  }
+
+  return { clientId: config.client_id, clientSecret: config.client_secret };
+}
+
+/**
+ * AIDEV-NOTE: Obtém access token válido para Gmail IMAP.
+ * Se expirado, faz refresh e atualiza ambas as tabelas.
+ */
+async function getGmailAccessToken(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  conexao: Record<string, unknown>
+): Promise<string> {
+  let accessToken = simpleDecrypt(conexao.access_token_encrypted as string, "");
+
+  const expiresAt = conexao.token_expires_at as string | null;
+  const isExpired = expiresAt && new Date(expiresAt) < new Date();
+
+  if (isExpired && conexao.refresh_token_encrypted) {
+    console.log("[sync-emails] Gmail token expirado, renovando...");
+    const googleConfig = await getGoogleConfig(supabaseAdmin);
+    const refreshToken = simpleDecrypt(conexao.refresh_token_encrypted as string, "");
+
+    const tokenResponse = await fetch(GOOGLE_TOKEN_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: googleConfig.clientId,
+        client_secret: googleConfig.clientSecret,
+        refresh_token: refreshToken,
+        grant_type: "refresh_token",
+      }),
+    });
+
+    const tokens = await tokenResponse.json();
+    if (tokens.access_token) {
+      accessToken = tokens.access_token;
+      const newExpiry = new Date(Date.now() + (tokens.expires_in || 3600) * 1000).toISOString();
+      const encryptedToken = simpleEncrypt(tokens.access_token, "");
+
+      await supabaseAdmin
+        .from("conexoes_email")
+        .update({
+          access_token_encrypted: encryptedToken,
+          token_expires_at: newExpiry,
+          atualizado_em: new Date().toISOString(),
+        })
+        .eq("id", conexao.id as string);
+
+      await supabaseAdmin
+        .from("conexoes_google")
+        .update({
+          access_token_encrypted: encryptedToken,
+          token_expires_at: newExpiry,
+          atualizado_em: new Date().toISOString(),
+        })
+        .eq("usuario_id", conexao.usuario_id as string)
+        .is("deletado_em", null);
+
+      console.log("[sync-emails] Gmail token renovado com sucesso");
+    } else {
+      console.error("[sync-emails] Falha ao renovar token Gmail:", tokens);
+      throw new Error("Token Gmail expirado e não foi possível renovar. Reconecte sua conta Google.");
+    }
+  }
+
+  return accessToken;
+}
+
 // =====================================================
 // IMAP Host Detection
 // =====================================================
@@ -354,6 +459,16 @@ class ImapClient {
   async login(user: string, pass: string): Promise<boolean> {
     const escaped = pass.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
     const result = await this.command(`LOGIN "${user}" "${escaped}"`);
+    return result.ok;
+  }
+
+  /**
+   * AIDEV-NOTE: Autenticação IMAP via XOAUTH2 para Gmail OAuth
+   * Ref: https://developers.google.com/gmail/imap/xoauth2-protocol
+   */
+  async authenticateXOAuth2(user: string, accessToken: string): Promise<boolean> {
+    const xoauth2Token = btoa(`user=${user}\x01auth=Bearer ${accessToken}\x01\x01`);
+    const result = await this.command(`AUTHENTICATE XOAUTH2 ${xoauth2Token}`);
     return result.ok;
   }
 
@@ -773,11 +888,11 @@ Deno.serve(async (req) => {
       .is("deletado_em", null)
       .maybeSingle();
 
+    // AIDEV-NOTE: Gmail OAuth não precisa de smtp_host/smtp_user/smtp_pass
+    const isGmail = conexao?.tipo === 'gmail';
     if (
       !conexao ||
-      !conexao.smtp_host ||
-      !conexao.smtp_user ||
-      !conexao.smtp_pass_encrypted
+      (!isGmail && (!conexao.smtp_host || !conexao.smtp_user || !conexao.smtp_pass_encrypted))
     ) {
       return new Response(
         JSON.stringify({
@@ -795,9 +910,30 @@ Deno.serve(async (req) => {
     // =====================================================
     // IMAP SYNC
     // =====================================================
-    const imapConfig = detectImapHost(conexao.smtp_host);
+    let imapHost: string;
+    let imapPort: number;
+    let imapUser: string;
+    let imapAuthMethod: 'login' | 'xoauth2' = 'login';
+    let imapPass: string;
+
+    if (isGmail) {
+      // Gmail OAuth: usar IMAP do Gmail com XOAUTH2
+      imapHost = "imap.gmail.com";
+      imapPort = 993;
+      imapUser = conexao.email;
+      imapAuthMethod = 'xoauth2';
+      imapPass = await getGmailAccessToken(supabaseAdmin, conexao as Record<string, unknown>);
+    } else {
+      // SMTP manual: detectar IMAP a partir do host SMTP
+      const imapConfig = detectImapHost(conexao.smtp_host!);
+      imapHost = imapConfig.host;
+      imapPort = imapConfig.port;
+      imapUser = conexao.smtp_user!;
+      imapPass = conexao.smtp_pass_encrypted!;
+    }
+
     console.log(
-      `[sync-emails] IMAP: ${imapConfig.host}:${imapConfig.port} user: ${conexao.smtp_user}`
+      `[sync-emails] IMAP: ${imapHost}:${imapPort} user: ${imapUser} auth: ${imapAuthMethod}`
     );
 
     const imap = new ImapClient();
@@ -805,15 +941,17 @@ Deno.serve(async (req) => {
     let atualizados = 0;
 
     try {
-      const greeting = await imap.connect(imapConfig.host, imapConfig.port);
+      const greeting = await imap.connect(imapHost, imapPort);
       if (!greeting.includes("OK") && !greeting.includes("ready")) {
         throw new Error("Servidor IMAP rejeitou conexão");
       }
 
-      const loginOk = await imap.login(
-        conexao.smtp_user,
-        conexao.smtp_pass_encrypted
-      );
+      let loginOk: boolean;
+      if (imapAuthMethod === 'xoauth2') {
+        loginOk = await imap.authenticateXOAuth2(imapUser, imapPass);
+      } else {
+        loginOk = await imap.login(imapUser, imapPass);
+      }
       if (!loginOk) {
         throw new Error(
           "Falha na autenticação IMAP. Verifique as credenciais."
