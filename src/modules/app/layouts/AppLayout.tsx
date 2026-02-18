@@ -268,7 +268,10 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
             </div>
 
             {/* Right: Settings gear + Notificacoes + User Menu */}
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-0.5">
+              {/* Feedback (Lampada) — admin/member */}
+              <FeedbackButton />
+
               {/* Settings gear icon — admin only */}
               {isAdmin && (
                 <NavLink
@@ -361,8 +364,6 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
         <Outlet />
       </main>
 
-      {/* Botao flutuante de Feedback */}
-      <FeedbackButton />
     </div>
   )
 })

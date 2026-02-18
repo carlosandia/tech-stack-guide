@@ -1,20 +1,19 @@
 /**
- * AIDEV-NOTE: Botao flutuante de Feedback (PRD-15)
- * Lateral direita, parcialmente escondido, aparece no hover
+ * AIDEV-NOTE: Botao inline de Feedback (PRD-15)
+ * Integrado ao header, mesmo padrao do NotificacoesSino
  * Admin/Member only
  */
 
-import { useState, useRef, useEffect, forwardRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '@/providers/AuthProvider'
 import { FeedbackPopover } from './FeedbackPopover'
 import { Lightbulb } from 'lucide-react'
 
-export const FeedbackButton = forwardRef<HTMLDivElement>(function FeedbackButton(_props, ref) {
+export function FeedbackButton() {
   const { role } = useAuth()
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  // Fechar ao clicar fora
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
@@ -27,45 +26,36 @@ export const FeedbackButton = forwardRef<HTMLDivElement>(function FeedbackButton
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [open])
 
-  // Visivel apenas para admin e member
   if (role !== 'admin' && role !== 'member') return null
 
   return (
-    <div ref={(node) => {
-      (containerRef as React.MutableRefObject<HTMLDivElement | null>).current = node
-      if (typeof ref === 'function') ref(node)
-      else if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = node
-    }} className="fixed right-0 bottom-1/3 z-[9999] group">
-      {/* Popover */}
-      {open && (
-        <div className="absolute bottom-16 right-4 mb-2">
-          <FeedbackPopover onClose={() => setOpen(false)} />
-        </div>
-      )}
-
-      {/* FAB lateral — parcialmente escondido, slide-in no hover */}
+    <div ref={containerRef} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className={`
-          flex items-center justify-center w-10 h-10 rounded-l-lg shadow-lg
-          transition-all duration-300 ease-in-out
-          translate-x-5 group-hover:translate-x-0
-          ${open ? 'translate-x-0' : ''}
-          hover:shadow-xl active:scale-95
-          focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2
-        `}
-        style={{
-          background: 'linear-gradient(135deg, #7C3AED, #3B82F6)',
-        }}
+        className={`p-2 rounded-md transition-colors ${
+          open
+            ? 'text-primary bg-primary/5'
+            : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+        }`}
         aria-label="Enviar feedback"
         title="Enviar feedback"
       >
-        <Lightbulb className="w-5 h-5 text-white" />
+        <Lightbulb className="w-5 h-5" />
       </button>
+
+      {open && (
+        <>
+          <div
+            className="fixed inset-0 z-[199]"
+            onClick={() => setOpen(false)}
+          />
+          <div className="absolute right-0 mt-1 z-[200]">
+            <FeedbackPopover onClose={() => setOpen(false)} />
+          </div>
+        </>
+      )}
     </div>
   )
-})
-
-FeedbackButton.displayName = 'FeedbackButton'
+}
 
 export default FeedbackButton
