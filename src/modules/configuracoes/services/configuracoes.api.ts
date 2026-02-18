@@ -9,48 +9,7 @@
 
 import { supabase } from '@/lib/supabase'
 import api from '@/lib/api'
-
-// =====================================================
-// Helper - Obter organizacao_id do usuario logado
-// =====================================================
-
-let _cachedOrgId: string | null = null
-
-async function getOrganizacaoId(): Promise<string> {
-  if (_cachedOrgId) return _cachedOrgId
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Usuário não autenticado')
-
-  const { data } = await supabase
-    .from('usuarios')
-    .select('organizacao_id')
-    .eq('auth_id', user.id)
-    .maybeSingle()
-
-  if (!data?.organizacao_id) throw new Error('Organização não encontrada')
-  _cachedOrgId = data.organizacao_id
-  return _cachedOrgId
-}
-
-// Reset cache on auth state change
-supabase.auth.onAuthStateChange(() => {
-  _cachedOrgId = null
-})
-
-async function getUsuarioId(): Promise<string> {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Usuário não autenticado')
-
-  const { data } = await supabase
-    .from('usuarios')
-    .select('id')
-    .eq('auth_id', user.id)
-    .maybeSingle()
-
-  if (!data?.id) throw new Error('Usuário não encontrado')
-  return data.id
-}
+import { getOrganizacaoId, getUsuarioId } from '@/shared/services/auth-context'
 
 // =====================================================
 // Types
@@ -589,7 +548,8 @@ export const camposApi = {
     // Verificar duplicidade de slug e adicionar sufixo se necessário
     let slugFinal = slug
     let tentativa = 0
-    while (true) {
+    // AIDEV-NOTE: Limite de 10 tentativas para evitar loop infinito
+    while (tentativa < 10) {
       const { data: existente } = await supabase
         .from('campos_customizados')
         .select('id')
@@ -1174,35 +1134,21 @@ export const configCardApi = {
     return data as unknown as ConfiguracaoCard | null
   },
 
+  // AIDEV-NOTE: Upsert otimizado — 1 query ao invés de 2 (SELECT+UPDATE/INSERT)
   atualizar: async (payload: Record<string, unknown>) => {
     const orgId = await getOrganizacaoId()
 
-    // Verificar se já existe
-    const { data: existente } = await supabase
+    const { data, error } = await supabase
       .from('configuracoes_card')
-      .select('id')
-      .maybeSingle()
+      .upsert(
+        { organizacao_id: orgId, ...payload, atualizado_em: new Date().toISOString() } as any,
+        { onConflict: 'organizacao_id' }
+      )
+      .select()
+      .single()
 
-    if (existente) {
-      const { data, error } = await supabase
-        .from('configuracoes_card')
-        .update({ ...payload, atualizado_em: new Date().toISOString() } as any)
-        .eq('id', existente.id)
-        .select()
-        .single()
-
-      if (error) throw new Error(`Erro ao atualizar config card: ${error.message}`)
-      return data as unknown as ConfiguracaoCard
-    } else {
-      const { data, error } = await supabase
-        .from('configuracoes_card')
-        .insert({ organizacao_id: orgId, ...payload } as any)
-        .select()
-        .single()
-
-      if (error) throw new Error(`Erro ao criar config card: ${error.message}`)
-      return data as unknown as ConfiguracaoCard
-    }
+    if (error) throw new Error(`Erro ao atualizar config card: ${error.message}`)
+    return data as unknown as ConfiguracaoCard
   },
 }
 
@@ -1211,19 +1157,42 @@ export const configCardApi = {
 // =====================================================
 
 export const integracoesApi = {
+  // AIDEV-NOTE: Paralelizado — 6 queries simultâneas ao invés de sequenciais (6x RTT → 1x RTT)
   listar: async () => {
     const integracoes: Integracao[] = []
     const userId = await getUsuarioId()
 
-    // WhatsApp - via sessoes_whatsapp (cada usuário vê apenas sua sessão)
-    const { data: whatsappData } = await supabase
-      .from('sessoes_whatsapp')
-      .select('id, organizacao_id, usuario_id, status, phone_number, phone_name, session_name, conectado_em, atualizado_em')
-      .eq('usuario_id', userId)
-      .is('deletado_em', null)
+    const [whatsappResult, instagramResult, googleResult, emailResult, metaResult, api4comResult] = await Promise.all([
+      supabase
+        .from('sessoes_whatsapp')
+        .select('id, organizacao_id, usuario_id, status, phone_number, phone_name, session_name, conectado_em, atualizado_em')
+        .eq('usuario_id', userId)
+        .is('deletado_em', null),
+      supabase
+        .from('conexoes_instagram')
+        .select('id, organizacao_id, status, instagram_username, instagram_name, profile_picture_url, token_expires_at, conectado_em, ultimo_sync, ultimo_erro')
+        .is('deletado_em', null),
+      supabase
+        .from('conexoes_google')
+        .select('id, organizacao_id, status, google_user_email, google_user_name, calendar_name, calendar_id, conectado_em, ultimo_sync, ultimo_erro')
+        .is('deletado_em', null),
+      supabase
+        .from('conexoes_email')
+        .select('id, organizacao_id, status, email, tipo, nome_remetente, conectado_em, ultimo_envio, ultimo_erro')
+        .is('deletado_em', null),
+      supabase
+        .from('conexoes_meta')
+        .select('id, organizacao_id, status, meta_user_name, meta_user_email, ultimo_sync, ultimo_erro')
+        .is('deletado_em', null),
+      supabase
+        .from('conexoes_api4com')
+        .select('id, organizacao_id, status, api_url, conectado_em, ultimo_erro')
+        .is('deletado_em', null),
+    ])
 
-    if (whatsappData) {
-      whatsappData.forEach((row: Record<string, unknown>) => {
+    // WhatsApp
+    if (whatsappResult.data) {
+      whatsappResult.data.forEach((row: Record<string, unknown>) => {
         integracoes.push({
           id: row.id as string,
           organizacao_id: row.organizacao_id as string,
@@ -1240,13 +1209,8 @@ export const integracoesApi = {
     }
 
     // Instagram
-    const { data: instagramData } = await supabase
-      .from('conexoes_instagram')
-      .select('id, organizacao_id, status, instagram_username, instagram_name, profile_picture_url, token_expires_at, conectado_em, ultimo_sync, ultimo_erro')
-      .is('deletado_em', null)
-
-    if (instagramData) {
-      instagramData.forEach((row: Record<string, unknown>) => {
+    if (instagramResult.data) {
+      instagramResult.data.forEach((row: Record<string, unknown>) => {
         integracoes.push({
           id: row.id as string,
           organizacao_id: row.organizacao_id as string,
@@ -1264,13 +1228,8 @@ export const integracoesApi = {
     }
 
     // Google Calendar
-    const { data: googleData } = await supabase
-      .from('conexoes_google')
-      .select('id, organizacao_id, status, google_user_email, google_user_name, calendar_name, calendar_id, conectado_em, ultimo_sync, ultimo_erro')
-      .is('deletado_em', null)
-
-    if (googleData) {
-      googleData.forEach((row: Record<string, unknown>) => {
+    if (googleResult.data) {
+      googleResult.data.forEach((row: Record<string, unknown>) => {
         integracoes.push({
           id: row.id as string,
           organizacao_id: row.organizacao_id as string,
@@ -1288,13 +1247,8 @@ export const integracoesApi = {
     }
 
     // Email
-    const { data: emailData } = await supabase
-      .from('conexoes_email')
-      .select('id, organizacao_id, status, email, tipo, nome_remetente, conectado_em, ultimo_envio, ultimo_erro')
-      .is('deletado_em', null)
-
-    if (emailData) {
-      emailData.forEach((row: Record<string, unknown>) => {
+    if (emailResult.data) {
+      emailResult.data.forEach((row: Record<string, unknown>) => {
         integracoes.push({
           id: row.id as string,
           organizacao_id: row.organizacao_id as string,
@@ -1311,13 +1265,8 @@ export const integracoesApi = {
     }
 
     // Meta Ads
-    const { data: metaData } = await supabase
-      .from('conexoes_meta')
-      .select('id, organizacao_id, status, meta_user_name, meta_user_email, ultimo_sync, ultimo_erro')
-      .is('deletado_em', null)
-
-    if (metaData) {
-      metaData.forEach((row: Record<string, unknown>) => {
+    if (metaResult.data) {
+      metaResult.data.forEach((row: Record<string, unknown>) => {
         integracoes.push({
           id: row.id as string,
           organizacao_id: row.organizacao_id as string,
@@ -1332,13 +1281,8 @@ export const integracoesApi = {
     }
 
     // API4COM
-    const { data: api4comData } = await supabase
-      .from('conexoes_api4com')
-      .select('id, organizacao_id, status, api_url, conectado_em, ultimo_erro')
-      .is('deletado_em', null)
-
-    if (api4comData) {
-      api4comData.forEach((row: Record<string, unknown>) => {
+    if (api4comResult.data) {
+      api4comResult.data.forEach((row: Record<string, unknown>) => {
         integracoes.push({
           id: row.id as string,
           organizacao_id: row.organizacao_id as string,
@@ -2394,6 +2338,7 @@ export const metasApi = {
   },
 
   buscarEmpresa: async () => {
+    // AIDEV-NOTE: Limit de segurança para evitar downloads massivos
     const { data, error } = await supabase
       .from('metas')
       .select(`*, progresso:metas_progresso(id, valor_atual, percentual_atingido, calculado_em)`)
@@ -2401,6 +2346,7 @@ export const metasApi = {
       .eq('ativo', true)
       .is('deletado_em', null)
       .order('criado_em', { ascending: false })
+      .limit(50)
 
     if (error) throw new Error(`Erro ao buscar metas empresa: ${error.message}`)
     const metas = (data || []).map(m => processarMetaProgresso(m as Record<string, unknown>))
@@ -2449,19 +2395,20 @@ export const metasApi = {
   },
 
   buscarProgresso: async () => {
-    // Retorna progresso geral simplificado
+    // AIDEV-NOTE: Limit de segurança para evitar downloads massivos
     const { data, error } = await supabase
       .from('metas')
       .select(`*, progresso:metas_progresso(valor_atual, percentual_atingido)`)
       .eq('ativo', true)
       .is('deletado_em', null)
+      .limit(100)
 
     if (error) throw new Error(`Erro ao buscar progresso: ${error.message}`)
     return { total: data?.length || 0, metas: data }
   },
 
   buscarRanking: async (params?: Record<string, string>) => {
-    // Ranking simplificado baseado em metas individuais
+    // AIDEV-NOTE: Limit de segurança para evitar downloads massivos
     const { data, error } = await supabase
       .from('metas')
       .select(`*, progresso:metas_progresso(valor_atual, percentual_atingido), usuario:usuarios!metas_usuario_id_fkey(id, nome, sobrenome, avatar_url)`)
@@ -2469,6 +2416,7 @@ export const metasApi = {
       .eq('ativo', true)
       .is('deletado_em', null)
       .order('criado_em', { ascending: false })
+      .limit(100)
 
     if (error) throw new Error(`Erro ao buscar ranking: ${error.message}`)
 
@@ -2523,34 +2471,20 @@ export const configTenantApi = {
     return data as unknown as ConfiguracaoTenant | null
   },
 
+  // AIDEV-NOTE: Upsert otimizado — 1 query ao invés de 2 (SELECT+UPDATE/INSERT)
   atualizar: async (payload: Record<string, unknown>) => {
     const orgId = await getOrganizacaoId()
 
-    // Verificar se já existe
-    const { data: existente } = await supabase
+    const { data, error } = await supabase
       .from('configuracoes_tenant')
-      .select('id')
-      .maybeSingle()
+      .upsert(
+        { organizacao_id: orgId, ...payload, atualizado_em: new Date().toISOString() } as any,
+        { onConflict: 'organizacao_id' }
+      )
+      .select()
+      .single()
 
-    if (existente) {
-      const { data, error } = await supabase
-        .from('configuracoes_tenant')
-        .update({ ...payload, atualizado_em: new Date().toISOString() } as any)
-        .eq('id', existente.id)
-        .select()
-        .single()
-
-      if (error) throw new Error(`Erro ao atualizar configurações: ${error.message}`)
-      return data as unknown as ConfiguracaoTenant
-    } else {
-      const { data, error } = await supabase
-        .from('configuracoes_tenant')
-        .insert({ organizacao_id: orgId, ...payload } as any)
-        .select()
-        .single()
-
-      if (error) throw new Error(`Erro ao criar configurações: ${error.message}`)
-      return data as unknown as ConfiguracaoTenant
-    }
+    if (error) throw new Error(`Erro ao atualizar configurações: ${error.message}`)
+    return data as unknown as ConfiguracaoTenant
   },
 }
