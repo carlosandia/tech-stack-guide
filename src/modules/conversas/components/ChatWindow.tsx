@@ -163,7 +163,7 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
     }
   }, [conversa.id])
 
-  // Reset search on conversation change
+  // Reset search on conversation change + auto-focus no input
   useEffect(() => {
     setBuscaAberta(false)
     setTermoBusca('')
@@ -173,6 +173,8 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
       prev.forEach(item => { if (item.thumbnail) URL.revokeObjectURL(item.thumbnail) })
       return []
     })
+    // AIDEV-NOTE: Auto-focus no textarea ao selecionar conversa
+    setTimeout(() => chatInputRef.current?.focusTextarea(), 100)
   }, [conversa.id])
 
   const handleSendMessage = (texto: string) => {
