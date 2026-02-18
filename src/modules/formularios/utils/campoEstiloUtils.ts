@@ -19,6 +19,32 @@ export function ensurePx(val: string | undefined, fallback: string): string {
   return `${trimmed}px`
 }
 
+/**
+ * AIDEV-NOTE: Converte número puro para a unidade adequada conforme o tipo de propriedade CSS
+ * - fontSize, height → rem (dividindo por 16) para melhor responsividade
+ * - borderRadius, borderWidth → px (precisão)
+ * Se já tem unidade, retorna como está.
+ * Ex: ensureUnit("14", "fontSize") → "0.875rem"
+ *     ensureUnit("40", "height") → "2.5rem"
+ *     ensureUnit("6", "border") → "6px"
+ *     ensureUnit("14px", "fontSize") → "14px"
+ */
+export type UnitContext = 'fontSize' | 'height' | 'border' | 'borderRadius'
+
+export function ensureUnit(val: string | undefined, fallback: string, context: UnitContext = 'border'): string {
+  if (!val || val.trim() === '') return fallback
+  const trimmed = val.trim()
+  // Se já tem unidade (px, %, em, rem, vh, vw), retorna como está
+  if (/[a-z%]/i.test(trimmed)) return trimmed
+  // Número puro → converte conforme contexto
+  const num = parseFloat(trimmed)
+  if (isNaN(num)) return fallback
+  if (context === 'fontSize' || context === 'height') {
+    return `${(num / 16).toFixed(4).replace(/0+$/, '').replace(/\.$/, '')}rem`
+  }
+  return `${num}px`
+}
+
 export function mergeCampoEstilo(global: EstiloCampos, campo: CampoFormulario): EstiloCampos {
   const validacoes = (campo.validacoes || {}) as Record<string, unknown>
   const individual = (validacoes.estilo_campo || {}) as Partial<EstiloCampos>

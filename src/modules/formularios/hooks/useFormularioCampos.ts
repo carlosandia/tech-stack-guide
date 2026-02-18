@@ -83,6 +83,7 @@ export function useAtualizarCampo(formularioId: string) {
       formulariosApi.atualizarCampo(formularioId, campoId, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['formularios', formularioId, 'campos'] })
+      toast.success('Campo atualizado')
     },
     onError: (err: any) => {
       toast.error(err?.message || 'Erro ao atualizar campo')

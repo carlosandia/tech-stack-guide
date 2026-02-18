@@ -12,7 +12,7 @@ import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import DOMPurify from 'dompurify'
 import type { CampoFormulario, EstiloFormulario, EstiloContainer, EstiloCampos, EstiloBotao, EstiloCabecalho } from '../services/formularios.api'
 import { generateFormResponsiveCss, generateColunasResponsiveCss } from '../utils/responsiveStyles'
-import { mergeCampoEstilo, ensurePx } from '../utils/campoEstiloUtils'
+import { mergeCampoEstilo, ensureUnit } from '../utils/campoEstiloUtils'
 
 interface FormularioPublico {
   id: string
@@ -399,11 +399,11 @@ export function FormularioPublicoPage() {
       width: '100%',
       backgroundColor: m.input_background || '#F9FAFB',
       border: `${bw}px ${bs} ${bc}`,
-      borderRadius: ensurePx(m.input_border_radius, '6px'),
+      borderRadius: ensureUnit(m.input_border_radius, '6px', 'borderRadius'),
       color: m.input_texto_cor || '#1F2937',
       padding: '8px 12px',
       fontSize: '14px',
-      height: ensurePx(m.input_height, '40px'),
+      height: ensureUnit(m.input_height, '2.5rem', 'height'),
       outline: 'none',
       fontFamily,
       boxSizing: 'border-box' as const,
@@ -414,7 +414,7 @@ export function FormularioPublicoPage() {
     const m = mergeCampoEstilo(camposEstilo, campo)
     return {
       color: m.label_cor || '#374151',
-      fontSize: ensurePx(m.label_tamanho, '14px'),
+      fontSize: ensureUnit(m.label_tamanho, '0.875rem', 'fontSize'),
       fontWeight: (m.label_font_weight || '500') as any,
       display: 'block',
       marginBottom: '4px',
