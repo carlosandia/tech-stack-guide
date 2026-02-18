@@ -15,7 +15,7 @@ export function useConversas(params?: ListarConversasParams) {
     getNextPageParam: (lastPage) =>
       lastPage.page < lastPage.total_pages ? lastPage.page + 1 : undefined,
     initialPageParam: 1,
-    refetchInterval: 30000,
+    // AIDEV-NOTE: refetchInterval removido — Realtime (useConversasRealtime) já invalida o cache
   })
 }
 

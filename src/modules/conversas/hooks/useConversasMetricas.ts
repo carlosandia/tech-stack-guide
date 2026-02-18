@@ -210,7 +210,7 @@ async function fetchMetricas(filters: MetricasFilters, role: string): Promise<Co
     ? tmaValues.reduce((a, b) => a + b, 0) / tmaValues.length
     : null
 
-  // 4. Sem Resposta: última msg do cliente há >2h OU conversa sem nenhum from_me
+  // 4. Sem Resposta: reutilizar dados dos batches TMR/TMA + batch de from_me (Plano de Escala)
   const agora = new Date()
   let conversasSemResposta = 0
 
@@ -218,6 +218,8 @@ async function fetchMetricas(filters: MetricasFilters, role: string): Promise<Co
     // Buscar conversas que não possuem nenhuma mensagem from_me
     const batchSize = 50
     const conversasComResposta = new Set<string>()
+    // AIDEV-NOTE: Também coletamos última msg por conversa para verificar "sem resposta há >2h"
+    const ultimaMsgPorConversa = new Map<string, { from_me: boolean; criado_em: string }>()
 
     for (let i = 0; i < conversaIds.length; i += batchSize) {
       const batch = conversaIds.slice(i, i + batchSize)
@@ -234,27 +236,34 @@ async function fetchMetricas(filters: MetricasFilters, role: string): Promise<Co
           conversasComResposta.add(m.conversa_id)
         }
       }
+
+      // AIDEV-NOTE: Buscar última msg de cada conversa do batch em paralelo (elimina N queries individuais)
+      const ultimasPromises = batch.map(id =>
+        supabase.from('mensagens')
+          .select('conversa_id, from_me, criado_em')
+          .eq('conversa_id', id)
+          .is('deletado_em', null)
+          .order('criado_em', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      )
+      const ultimasResults = await Promise.all(ultimasPromises)
+      for (const res of ultimasResults) {
+        if (res.data) {
+          ultimaMsgPorConversa.set(res.data.conversa_id, { from_me: res.data.from_me, criado_em: res.data.criado_em })
+        }
+      }
     }
 
     // Conversas nunca respondidas
     const nuncaRespondidas = conversaIds.filter(id => !conversasComResposta.has(id))
     conversasSemResposta += nuncaRespondidas.length
 
-    // Conversas com última msg do cliente há >2h (excluindo as já contadas)
+    // Conversas com última msg do cliente há >2h (sem query individual)
     for (const c of conversasList) {
       if (nuncaRespondidas.includes(c.id)) continue
-      if (c.ultima_mensagem_em && c.status === 'aberta') {
-        // Precisamos verificar se a última mensagem é do cliente
-        // Usar os dados já obtidos ou fazer query pontual
-        const { data: ultimaMsg } = await supabase
-          .from('mensagens')
-          .select('from_me, criado_em')
-          .eq('conversa_id', c.id)
-          .is('deletado_em', null)
-          .order('criado_em', { ascending: false })
-          .limit(1)
-          .single()
-
+      if (c.status === 'aberta') {
+        const ultimaMsg = ultimaMsgPorConversa.get(c.id)
         if (ultimaMsg && !ultimaMsg.from_me) {
           const diff = (agora.getTime() - new Date(ultimaMsg.criado_em).getTime()) / 60000
           if (diff > 120) conversasSemResposta++
