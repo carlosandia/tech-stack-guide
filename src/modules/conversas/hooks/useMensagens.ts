@@ -75,7 +75,7 @@ export function useEnviarTexto() {
         const newPages = [...old.pages]
         newPages[0] = {
           ...newPages[0],
-          data: [optimisticMsg, ...newPages[0].data],
+          mensagens: [optimisticMsg, ...(newPages[0].mensagens || [])],
         }
         return { ...old, pages: newPages }
       })
