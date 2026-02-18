@@ -6,6 +6,7 @@
  */
 
 import { useState, useRef, useEffect, useCallback, forwardRef } from 'react'
+import { detectCountryByPhone } from '@/shared/utils/countries'
 import { createPortal } from 'react-dom'
 import { Eye, Pencil, Trash2, MoreHorizontal, Users2, Plus } from 'lucide-react'
 import { SegmentoBadge } from './SegmentoBadge'
@@ -281,6 +282,17 @@ const CellSimpleText = forwardRef<HTMLSpanElement, { value: string | null | unde
 })
 CellSimpleText.displayName = 'CellSimpleText'
 
+function CellTelefone({ value }: { value: string | null | undefined }) {
+  if (!value) return <span className="text-sm text-muted-foreground">—</span>
+  const country = detectCountryByPhone(value)
+  return (
+    <span className="inline-flex items-center gap-1.5 text-sm text-foreground truncate max-w-[200px]">
+      <span className="text-base leading-none shrink-0">{country?.flag ?? '🌐'}</span>
+      <span className="truncate">{value}</span>
+    </span>
+  )
+}
+
 function CellOrigem({ contato }: { contato: Contato }) {
   const origemLabel = OrigemContatoOptions.find(o => o.value === contato.origem)?.label || contato.origem
   return <span className="text-sm text-foreground">{origemLabel}</span>
@@ -322,7 +334,7 @@ function renderCell(col: ColumnConfig, contato: Contato, _tipo: TipoContato, sto
     case 'email':
       return <td key={col.key} className="px-4 py-3"><CellSimpleText value={contato.email} /></td>
     case 'telefone':
-      return <td key={col.key} className="px-4 py-3"><CellSimpleText value={contato.telefone} /></td>
+      return <td key={col.key} className="px-4 py-3"><CellTelefone value={contato.telefone} /></td>
     case 'cargo':
       return <td key={col.key} className="px-4 py-3"><CellSimpleText value={contato.cargo} /></td>
     case 'linkedin':

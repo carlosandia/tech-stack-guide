@@ -6,32 +6,7 @@
 
 import { useState, useRef, useEffect, forwardRef, useCallback } from 'react'
 import { ChevronDown } from 'lucide-react'
-
-interface Country {
-  code: string
-  name: string
-  ddi: string
-  flag: string
-  mask: string
-  maxDigits: number
-}
-
-const COUNTRIES: Country[] = [
-  { code: 'BR', name: 'Brasil', ddi: '+55', flag: '🇧🇷', mask: '(##) #####-####', maxDigits: 11 },
-  { code: 'US', name: 'Estados Unidos', ddi: '+1', flag: '🇺🇸', mask: '(###) ###-####', maxDigits: 10 },
-  { code: 'PT', name: 'Portugal', ddi: '+351', flag: '🇵🇹', mask: '### ### ###', maxDigits: 9 },
-  { code: 'AR', name: 'Argentina', ddi: '+54', flag: '🇦🇷', mask: '## ####-####', maxDigits: 10 },
-  { code: 'CL', name: 'Chile', ddi: '+56', flag: '🇨🇱', mask: '# ####-####', maxDigits: 9 },
-  { code: 'CO', name: 'Colômbia', ddi: '+57', flag: '🇨🇴', mask: '### ###-####', maxDigits: 10 },
-  { code: 'MX', name: 'México', ddi: '+52', flag: '🇲🇽', mask: '## ####-####', maxDigits: 10 },
-  { code: 'UY', name: 'Uruguai', ddi: '+598', flag: '🇺🇾', mask: '## ###-###', maxDigits: 8 },
-  { code: 'PY', name: 'Paraguai', ddi: '+595', flag: '🇵🇾', mask: '### ###-###', maxDigits: 9 },
-  { code: 'DE', name: 'Alemanha', ddi: '+49', flag: '🇩🇪', mask: '#### #######', maxDigits: 11 },
-  { code: 'GB', name: 'Reino Unido', ddi: '+44', flag: '🇬🇧', mask: '#### ######', maxDigits: 10 },
-  { code: 'FR', name: 'França', ddi: '+33', flag: '🇫🇷', mask: '# ## ## ## ##', maxDigits: 9 },
-  { code: 'ES', name: 'Espanha', ddi: '+34', flag: '🇪🇸', mask: '### ## ## ##', maxDigits: 9 },
-  { code: 'IT', name: 'Itália', ddi: '+39', flag: '🇮🇹', mask: '### ### ####', maxDigits: 10 },
-]
+import { COUNTRIES, type Country } from '@/shared/utils/countries'
 
 function formatWithMask(digits: string, mask: string): string {
   let result = ''
