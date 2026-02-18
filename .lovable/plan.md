@@ -1,142 +1,150 @@
 
 
-## Adicionar palavras faltantes ao dicionário de correções
+## Configuracao do Teclado: Blocklist + Seletor de Idioma + Dica UX
 
-Problema: O dicionário atual não contém diversas palavras com **til** (ã, õ) e outros acentos frequentes no dia a dia. Exemplo: `amanha` deveria sugerir `amanhã`.
-
----
-
-### Palavras a adicionar
-
-**Com til (ã/õ) — faltantes:**
-
-| Chave | Correção |
-|-------|----------|
-| amanha | amanhã |
-| manha | manhã |
-| irma | irmã |
-| irmao | irmão |
-| irmaos | irmãos |
-| mae | mãe |
-| pao | pão |
-| paes | pães |
-| chao | chão |
-| mao | mão |
-| maos | mãos |
-| cidadao | cidadão |
-| cidadaos | cidadãos |
-| capitao | capitão |
-| alemao | alemão |
-| coracao | coração |
-| coracoes | corações |
-| razao | razão |
-| razoes | razões |
-| estacao | estação |
-| estacoes | estações |
-| relacao | relação |
-| relacoes | relações |
-| licao | lição |
-| licoes | lições |
-| eleicao | eleição |
-| eleicoes | eleições |
-| regiao | região |
-| regioes | regiões |
-| natacao | natação |
-| alimentacao | alimentação |
-| atribuicao | atribuição |
-| motivacao | motivação |
-| negociacao | negociação |
-| negociacoes | negociações |
-| autorizacao | autorização |
-| intencao | intenção |
-| intencoes | intenções |
-| mencao | menção |
-| dimensao | dimensão |
-| pensao | pensão |
-| pressao | pressão |
-| expressao | expressão |
-| impressao | impressão |
-| permissao | permissão |
-| discussao | discussão |
-| profissao | profissão |
-| missao | missão |
-| visao | visão |
-| decisao | decisão |
-| televisao | televisão |
-| divisao | divisão |
-| precisao | precisão |
-| ocasiao | ocasião |
-| opiniao | opinião |
-| uniao | união |
-
-**Acentos agudos/circunflexos faltantes:**
-
-| Chave | Correção |
-|-------|----------|
-| cafe | café |
-| pe | pé |
-| fe | fé |
-| saude | saúde |
-| conteudo | conteúdo |
-| conteudos | conteúdos |
-| assunto | assunto |
-| incluido | incluído |
-| construido | construído |
-| destruido | destruído |
-| gratuito | gratuito |
-| juizo | juízo |
-| raiz | raiz |
-| pais | país |
-| reais | reais |
-| tambem já existe |
-| ontem | ontem |
-| aqui | aqui |
-| agua | água |
-| aguia | águia |
-| obstaculo | obstáculo |
-| veiculo | veículo |
-| veiculos | veículos |
-| musica | música |
-| musicas | músicas |
-| medico | médico |
-| medica | médica |
-| juridico | jurídico |
-| juridica | jurídica |
-| valido | válido |
-| valida | válida |
-| solido | sólido |
-| liquido | líquido |
-| individuo | indivíduo |
-| habito | hábito |
-| credivel | crível |
-| impossivel já existe |
-| responsavel já existe |
-| agradavel | agradável |
-| saudavel | saudável |
-| amavel | amável |
-| notavel | notável |
-| terrivel | terrível |
-| incrivel | incrível |
-| flexivel | flexível |
-| acessivel | acessível |
-| compativel | compatível |
-| sustentavel | sustentável |
-| rentavel | rentável |
-
-*Nota: palavras que já existem no dicionário não serão duplicadas.*
+Implementacao completa do painel de configuracoes do teclado com tres funcionalidades: blocklist persistente de palavras, seletor de idioma e dica visual "Esc ignora" na barra de sugestao.
 
 ---
 
-### Arquivo impactado
+### Arquivos a criar
 
-| Arquivo | Ação |
-|---------|------|
-| `src/modules/conversas/utils/dicionario-correcoes.ts` | Adicionar ~80 novas entradas |
+#### 1. `src/modules/conversas/hooks/useBlockedWords.ts`
+
+Hook para gerenciar palavras bloqueadas via localStorage (`crm:autocorrect:blocked`):
+
+- `blocked: string[]` — lista reativa
+- `blockWord(word)` — adiciona e persiste
+- `unblockWord(word)` — remove e persiste
+- `isBlocked(word)` — verifica
+
+---
+
+#### 2. `src/modules/conversas/hooks/useKeyboardLanguage.ts`
+
+Hook para gerenciar idioma do teclado via localStorage (`crm:autocorrect:lang`):
+
+- `language: string` — idioma ativo (default: `'pt-br'`)
+- `setLanguage(lang)` — altera e persiste
+- Idiomas disponiveis inicialmente: `pt-br` (Portugues BR) e `off` (Desativado — sem sugestoes)
+- Estrutura preparada para adicionar `en`, `es` futuramente com novos dicionarios
+
+---
+
+#### 3. `src/modules/conversas/components/ConfiguracaoTeclado.tsx`
+
+Painel renderizado quando a tab "Teclado" esta ativa. Conteudo:
+
+**Secao 1 — Idioma do teclado:**
+- Select (shadcn) com opcoes: "Portugues (BR)" (padrao), "Desativado"
+- Label: "Idioma das sugestoes"
+
+**Secao 2 — Palavras ignoradas:**
+- Titulo: "Palavras ignoradas"
+- Subtitulo: "Palavras que voce marcou para nao receber sugestao. Clique no X para voltar a sugerir."
+- Tags/chips com botao X para cada palavra bloqueada
+- Estado vazio: "Nenhuma palavra ignorada. Pressione Esc na barra de sugestao para adicionar."
+
+---
+
+### Arquivos a modificar
+
+#### 4. `src/modules/conversas/components/ChatInput.tsx`
+
+Alteracoes:
+
+- **Novo tipo de tab**: `type InputTab = 'responder' | 'nota' | 'teclado'`
+- **Nova tab na barra**: icone `Settings2` (lucide), label "Teclado"
+- **Renderizacao condicional**: quando `tab === 'teclado'`, renderizar `<ConfiguracaoTeclado>` no lugar do textarea
+- **Integrar `useBlockedWords`**: no Escape, chamar `blockWord()` + toast informativo
+- **Integrar `useKeyboardLanguage`**: quando `language === 'off'`, `showAutoCorrect = false`
+- **showAutoCorrect atualizado**: `autoCorrect && !dismissed && !isBlocked(palavra) && language !== 'off'`
+
+---
+
+#### 5. `src/modules/conversas/components/SugestaoCorrecao.tsx`
+
+Adicionar hint discreto a direita da barra:
+
+```
+<span className="text-[10px] text-muted-foreground/50 ml-auto whitespace-nowrap">
+  Esc ignora
+</span>
+```
+
+---
+
+#### 6. `src/modules/conversas/hooks/useAutoCorrect.ts`
+
+Receber parametro `enabled: boolean` para desativar quando idioma = `off`. Quando `!enabled`, retorna `null` imediatamente.
+
+---
+
+### Resumo de arquivos
+
+| Arquivo | Tipo | Acao |
+|---------|------|------|
+| `src/modules/conversas/hooks/useBlockedWords.ts` | Novo | Hook localStorage blocklist |
+| `src/modules/conversas/hooks/useKeyboardLanguage.ts` | Novo | Hook localStorage idioma |
+| `src/modules/conversas/components/ConfiguracaoTeclado.tsx` | Novo | Painel config teclado |
+| `src/modules/conversas/components/ChatInput.tsx` | Editar | Nova tab + integrar hooks |
+| `src/modules/conversas/components/SugestaoCorrecao.tsx` | Editar | Hint "Esc ignora" |
+| `src/modules/conversas/hooks/useAutoCorrect.ts` | Editar | Param `enabled` |
+
+---
+
+### Detalhes tecnicos
+
+**useKeyboardLanguage.ts:**
+
+```typescript
+const STORAGE_KEY = 'crm:autocorrect:lang'
+const LANGUAGES = [
+  { value: 'pt-br', label: 'Portugues (BR)' },
+  { value: 'off', label: 'Desativado' },
+] as const
+
+export function useKeyboardLanguage() {
+  const [language, setLang] = useState(() =>
+    localStorage.getItem(STORAGE_KEY) || 'pt-br'
+  )
+  const setLanguage = (lang: string) => {
+    setLang(lang)
+    localStorage.setItem(STORAGE_KEY, lang)
+  }
+  return { language, setLanguage, LANGUAGES }
+}
+```
+
+**ChatInput — logica Escape com blocklist:**
+
+```typescript
+if (e.key === 'Escape' && showAutoCorrect) {
+  blockWord(autoCorrect!.palavraOriginal)
+  setDismissedWord(autoCorrect!.palavraOriginal)
+  toast.info(`"${autoCorrect!.palavraOriginal}" nao sera mais sugerida`)
+  return
+}
+```
+
+**useAutoCorrect — parametro enabled:**
+
+```typescript
+export function useAutoCorrect(texto: string, cursorPos: number, enabled = true) {
+  return useMemo(() => {
+    if (!enabled || !texto || cursorPos <= 0) return null
+    // ... resto da logica
+  }, [texto, cursorPos, enabled])
+}
+```
+
+---
 
 ### Garantias
 
-- Apenas adição de novas chaves ao dicionário existente
-- Nenhuma lógica alterada (hook, componente, ChatInput)
-- Performance mantida: O(1) lookup
-- Organizado por categoria para fácil manutenção
+- Persistencia via localStorage — sobrevive refresh
+- Nenhuma chamada de rede adicional
+- Idioma padrao sempre pt-br
+- Estrutura preparada para novos idiomas (basta adicionar dicionario + entrada no array LANGUAGES)
+- UX clara: toast ao bloquear, hint visual, painel de gestao
+- Reversivel: usuario pode desbloquear palavras e reativar idioma a qualquer momento
 
