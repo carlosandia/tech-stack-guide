@@ -23,7 +23,7 @@ import { Label } from '@/components/ui/label'
 const PreCadastroSchema = z.object({
   nome_contato: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres').max(255),
   email: z.string().email('Email inválido').max(255),
-  telefone: z.string().optional(),
+  telefone: z.string().min(1, 'Telefone é obrigatório').max(20),
   nome_empresa: z.string().min(2, 'Nome da empresa deve ter no mínimo 2 caracteres').max(255),
   segmento: z.string().min(1, 'Selecione um segmento'),
 })
@@ -149,7 +149,7 @@ export function PreCadastroModal({
 
           {/* Telefone */}
           <div>
-            <Label htmlFor="telefone">Telefone</Label>
+            <Label htmlFor="telefone">Telefone <span className="text-destructive">*</span></Label>
             <Input
               id="telefone"
               placeholder="(11) 99999-9999"
