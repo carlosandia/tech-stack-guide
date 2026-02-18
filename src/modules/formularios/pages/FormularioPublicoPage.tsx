@@ -12,6 +12,7 @@ import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import DOMPurify from 'dompurify'
 import type { CampoFormulario, EstiloFormulario, EstiloContainer, EstiloCampos, EstiloBotao, EstiloCabecalho } from '../services/formularios.api'
 import { generateFormResponsiveCss, generateColunasResponsiveCss } from '../utils/responsiveStyles'
+import { mergeCampoEstilo } from '../utils/campoEstiloUtils'
 
 interface FormularioPublico {
   id: string
@@ -388,32 +389,39 @@ export function FormularioPublicoPage() {
     )
   }
 
-  const borderWidth = camposEstilo.input_border_width || '1'
-  const borderStyleVal = camposEstilo.input_border_style || 'solid'
-  const borderColor = camposEstilo.input_border_color || '#D1D5DB'
-
-  const inputStyle: React.CSSProperties = {
-    width: '100%',
-    backgroundColor: camposEstilo.input_background || '#F9FAFB',
-    border: `${borderWidth}px ${borderStyleVal} ${borderColor}`,
-    borderRadius: camposEstilo.input_border_radius || '6px',
-    color: camposEstilo.input_texto_cor || '#1F2937',
-    padding: '8px 12px',
-    fontSize: '14px',
-    height: camposEstilo.input_height || '40px',
-    outline: 'none',
-    fontFamily,
-    boxSizing: 'border-box' as const,
+  // AIDEV-NOTE: Funções que geram estilos merged (global + individual por campo)
+  const getInputStyle = (campo: CampoFormulario): React.CSSProperties => {
+    const m = mergeCampoEstilo(camposEstilo, campo)
+    const bw = m.input_border_width || '1'
+    const bs = m.input_border_style || 'solid'
+    const bc = m.input_border_color || '#D1D5DB'
+    return {
+      width: '100%',
+      backgroundColor: m.input_background || '#F9FAFB',
+      border: `${bw}px ${bs} ${bc}`,
+      borderRadius: m.input_border_radius || '6px',
+      color: m.input_texto_cor || '#1F2937',
+      padding: '8px 12px',
+      fontSize: '14px',
+      height: m.input_height || '40px',
+      outline: 'none',
+      fontFamily,
+      boxSizing: 'border-box' as const,
+    }
   }
 
-  const labelStyle: React.CSSProperties = {
-    color: camposEstilo.label_cor || '#374151',
-    fontSize: camposEstilo.label_tamanho || '14px',
-    fontWeight: (camposEstilo.label_font_weight || '500') as any,
-    display: 'block',
-    marginBottom: '4px',
-    fontFamily,
+  const getLabelStyle = (campo: CampoFormulario): React.CSSProperties => {
+    const m = mergeCampoEstilo(camposEstilo, campo)
+    return {
+      color: m.label_cor || '#374151',
+      fontSize: m.label_tamanho || '14px',
+      fontWeight: (m.label_font_weight || '500') as any,
+      display: 'block',
+      marginBottom: '4px',
+      fontFamily,
+    }
   }
+
 
   let responsiveCss = generateFormResponsiveCss(
     formulario.id,
@@ -509,7 +517,7 @@ export function FormularioPublicoPage() {
                             return (
                               <div key={child.id} data-campo-id={child.id} style={{ width: cw, padding: fieldMargin, boxSizing: 'border-box' as const }}>
                                 {renderCampoPublico({
-                                  campo: child, labelStyle, inputStyle, fontFamily, camposEstilo,
+                                  campo: child, labelStyle: getLabelStyle(child), inputStyle: getInputStyle(child), fontFamily, camposEstilo: mergeCampoEstilo(camposEstilo, child),
                                   valor: valores[child.id] || '',
                                   onChange: (v) => handleChange(child.id, child.tipo, v),
                                   ddi: ddiSelecionado[child.id] || (PAISES_DDI.find(p => p.code === child.valor_padrao)?.ddi || '+55'),
@@ -564,7 +572,7 @@ export function FormularioPublicoPage() {
             return (
               <div key={campo.id} data-campo-id={campo.id} style={{ width: w, padding: fieldMargin, boxSizing: 'border-box' as const }}>
                 {renderCampoPublico({
-                  campo, labelStyle, inputStyle, fontFamily, camposEstilo,
+                  campo, labelStyle: getLabelStyle(campo), inputStyle: getInputStyle(campo), fontFamily, camposEstilo: mergeCampoEstilo(camposEstilo, campo),
                   valor: valores[campo.id] || '',
                   onChange: (v) => handleChange(campo.id, campo.tipo, v),
                   ddi: ddiSelecionado[campo.id] || (PAISES_DDI.find(p => p.code === campo.valor_padrao)?.ddi || '+55'),

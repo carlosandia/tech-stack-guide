@@ -331,6 +331,14 @@ export function FormularioEditorPage() {
     [selectedCampoId, atualizarCampo]
   )
 
+  // AIDEV-NOTE: Callback para atualizar campo específico por ID (usado em "Aplicar em todos")
+  const handleUpdateCampoById = useCallback(
+    (campoId: string, payload: Partial<CampoFormulario>) => {
+      atualizarCampo.mutate({ campoId, payload })
+    },
+    [atualizarCampo]
+  )
+
   const handleUpdateCampoLabel = useCallback(
     (campoId: string, newLabel: string) => {
       atualizarCampo.mutate({ campoId, payload: { label: newLabel } })
@@ -580,6 +588,8 @@ export function FormularioEditorPage() {
                 showConfig={showConfig}
                 estiloCampos={camposEstilo}
                 onChangeEstiloCampos={setCamposEstilo}
+                allCampos={campos}
+                onUpdateCampoById={handleUpdateCampoById}
               />
             )}
 
@@ -748,6 +758,8 @@ export function FormularioEditorPage() {
               showConfig={true}
               estiloCampos={camposEstilo}
               onChangeEstiloCampos={setCamposEstilo}
+              allCampos={campos}
+              onUpdateCampoById={handleUpdateCampoById}
               fullscreen
             />
           )}
