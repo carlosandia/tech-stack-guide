@@ -6,3 +6,5 @@
  export { TrialCadastroPage } from './pages/TrialCadastroPage'
  export { CheckoutSucessoPage } from './pages/CheckoutSucessoPage'
  export { OnboardingPage } from './pages/OnboardingPage'
+ export { PoliticaPrivacidadePage } from './pages/PoliticaPrivacidadePage'
+ export { TermosServicoPage } from './pages/TermosServicoPage'
