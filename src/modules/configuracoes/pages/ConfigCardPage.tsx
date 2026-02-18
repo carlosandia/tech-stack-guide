@@ -22,6 +22,8 @@ import {
   Trash2,
   GripVertical,
   Calendar,
+  FileText,
+  Award,
 } from 'lucide-react'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import { useAuth } from '@/providers/AuthProvider'
@@ -35,6 +37,8 @@ import { KanbanCardPreview } from '../components/cards/KanbanCardPreview'
 // =====================================================
 
 const CAMPOS_PADRAO = [
+  { key: 'titulo', label: 'Nome da Oportunidade', descricao: 'Título/nome do negócio', icon: FileText, cor: 'text-foreground bg-muted' },
+  { key: 'qualificacao', label: 'Qualificação', descricao: 'Badge de qualificação (Lead/MQL/SQL)', icon: Award, cor: 'text-warning-foreground bg-warning-muted' },
   { key: 'valor', label: 'Valor Estimado', descricao: 'Valor estimado da oportunidade', icon: DollarSign, cor: 'text-success-foreground bg-success-muted' },
   { key: 'contato', label: 'Contato', descricao: 'Nome do contato principal', icon: User, cor: 'text-primary bg-primary/10' },
   { key: 'empresa', label: 'Empresa', descricao: 'Empresa vinculada', icon: Building2, cor: 'text-primary bg-primary/10' },
@@ -47,7 +51,7 @@ const CAMPOS_PADRAO = [
   { key: 'tags', label: 'Tags/Segmentações', descricao: 'Tags e segmentações do lead', icon: Tag, cor: 'text-primary bg-primary/10' },
 ]
 
-const CAMPOS_DEFAULT_VISIVEIS = ['valor', 'contato', 'empresa', 'owner', 'previsao_fechamento', 'tarefas_pendentes', 'tags']
+const CAMPOS_DEFAULT_VISIVEIS = ['titulo', 'qualificacao', 'valor', 'contato', 'empresa', 'owner', 'previsao_fechamento', 'tarefas_pendentes', 'tags']
 
 // =====================================================
 // Ações rápidas disponíveis
