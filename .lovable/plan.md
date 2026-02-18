@@ -1,35 +1,89 @@
 
-# Remoção de "Sem cartão de crédito" e Diferenciação Visual Real entre Seções
+# Correções no Módulo de Conversas: Auto-focus e Optimistic Send
 
-## 1. Remover "Sem cartão de crédito"
+## 1. Auto-focus no textarea ao selecionar conversa
 
-**HeroSection.tsx** - Remover a linha inteira que contém "Sem cartão de crédito • Configuração em 2 minutos • Cancele quando quiser"
+**Problema:** Ao clicar em uma conversa na lista, o campo de texto não recebe foco automaticamente, obrigando o usuário a clicar manualmente no input antes de digitar.
 
-**FinalCTASection.tsx** - Remover o item "Sem cartão de crédito" e o separador "•" que vem depois dele, mantendo apenas "Cancele quando quiser" e "Suporte incluso"
+**Solução:** No `ChatWindow`, adicionar um `useEffect` que detecta mudança de `conversa.id` e chama `chatInputRef.current?.focusTextarea()` automaticamente. Isso fará o cursor já estar posicionado no campo de texto assim que a conversa abrir.
 
-A menção no FAQ ("Preciso de cartão de crédito para o trial?") será mantida pois é uma pergunta/resposta contextual.
+**Arquivo:** `src/modules/conversas/components/ChatWindow.tsx`
+- Adicionar `useEffect` no bloco que já reseta busca ao trocar conversa (linha ~167), incluindo chamada de focus com pequeno delay para garantir que o DOM já renderizou.
 
-## 2. Tornar a diferenciação de fundo realmente visível
+## 2. Optimistic Update ao enviar mensagem
 
-O problema atual: `bg-muted/30` tem opacidade de apenas 30%, tornando a diferença quase imperceptível. A correção será aumentar a intensidade:
+**Problema:** Ao enviar uma mensagem, ela só aparece na UI depois que o backend confirma o envio. Isso causa uma sensação de lentidão.
 
-| Seção | Fundo Atual | Novo Fundo |
-|-------|------------|------------|
-| PainSection | bg-muted/30 | **bg-muted/50** (mais visível) |
-| SolutionSection | bg-background | Mantém bg-background |
-| ModulesSection | gradient primary/[0.03-0.06] | **gradient primary/[0.04-0.08]** (mais perceptível) |
-| HowItWorksSection | bg-background | Mantém bg-background |
-| TestimonialsSection | bg-muted/30 | **bg-muted/50** |
-| ComparisonSection | bg-background | Mantém bg-background |
-| FAQSection | bg-muted/30 | **bg-muted/50** |
+**Solução:** Implementar Optimistic Update no hook `useEnviarTexto` do TanStack Query. Ao chamar `mutate`, inserimos imediatamente uma mensagem temporária no cache local com status visual de "enviando" (ack = 0). Quando o backend confirma, o cache é invalidado e a mensagem real substitui a otimista.
 
-Dessa forma a alternância branco/cinza fica realmente perceptível ao scrollar.
+**Arquivo:** `src/modules/conversas/hooks/useMensagens.ts`
+- No `useEnviarTexto`, adicionar callbacks `onMutate`, `onError` e `onSettled`:
+  - `onMutate`: salvar snapshot do cache, inserir mensagem otimista na primeira página com `id` temporário, `from_me: true`, `tipo: 'text'`, `body: texto`, `ack: 0`, `criado_em: new Date().toISOString()`
+  - `onError`: restaurar snapshot (rollback)
+  - `onSettled`: invalidar queries para sincronizar com dados reais
 
-## Arquivos a editar
+**Arquivo:** `src/modules/conversas/components/ChatMessages.tsx` (se necessário)
+- Verificar se mensagens com `ack: 0` já possuem indicação visual (check cinza). Caso contrário, garantir que o status "enviando" seja visualmente distinto.
 
-1. `src/modules/public/components/landing/HeroSection.tsx` - Remover linha "Sem cartão de crédito..."
-2. `src/modules/public/components/landing/FinalCTASection.tsx` - Remover item "Sem cartão de crédito" e separador
-3. `src/modules/public/components/landing/PainSection.tsx` - bg-muted/30 para bg-muted/50
-4. `src/modules/public/components/landing/ModulesSection.tsx` - Intensificar gradiente
-5. `src/modules/public/components/landing/TestimonialsSection.tsx` - bg-muted/30 para bg-muted/50
-6. `src/modules/public/components/landing/FAQSection.tsx` - bg-muted/30 para bg-muted/50
+## Detalhes Técnicos
+
+### Auto-focus (ChatWindow.tsx)
+```typescript
+// Dentro do useEffect que reseta busca (conversa.id change)
+useEffect(() => {
+  setBuscaAberta(false)
+  setTermoBusca('')
+  setBuscaIndex(0)
+  setMediaQueue(prev => { /* cleanup */ })
+  // Auto-focus no input
+  setTimeout(() => chatInputRef.current?.focusTextarea(), 100)
+}, [conversa.id])
+```
+
+### Optimistic Update (useMensagens.ts)
+```typescript
+export function useEnviarTexto() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ conversaId, texto, replyTo, isTemplate }) =>
+      conversasApi.enviarTexto(conversaId, texto, replyTo, isTemplate),
+    onMutate: async (variables) => {
+      await queryClient.cancelQueries({ queryKey: ['mensagens', variables.conversaId] })
+      const snapshot = queryClient.getQueryData(['mensagens', variables.conversaId])
+      
+      // Inserir mensagem otimista
+      const optimisticMsg = {
+        id: `temp_${Date.now()}`,
+        conversa_id: variables.conversaId,
+        from_me: true,
+        tipo: 'text',
+        body: variables.texto,
+        ack: 0,  // status "enviando"
+        criado_em: new Date().toISOString(),
+        // ... campos mínimos
+      }
+      
+      queryClient.setQueryData(['mensagens', variables.conversaId], (old) => {
+        // Inserir na primeira página (mais recente)
+        // ...
+      })
+      
+      return { snapshot }
+    },
+    onError: (_err, variables, context) => {
+      // Rollback
+      queryClient.setQueryData(['mensagens', variables.conversaId], context?.snapshot)
+    },
+    onSettled: (_data, _err, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['mensagens', variables.conversaId] })
+      queryClient.invalidateQueries({ queryKey: ['conversas'] })
+    },
+  })
+}
+```
+
+### Arquivos a editar
+
+1. `src/modules/conversas/components/ChatWindow.tsx` - Adicionar auto-focus no useEffect de mudança de conversa
+2. `src/modules/conversas/hooks/useMensagens.ts` - Implementar optimistic update no `useEnviarTexto`
