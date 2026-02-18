@@ -1,87 +1,57 @@
 
 
-# Plano: Corrigir Estilos Individuais no Widget Embed + Migrar para REM
+# Corrigir Estilos Individuais no Formulário Embed (Widget)
 
-## Problemas Identificados
+## Problema
 
-1. **Widget embed ignora estilos individuais por campo**: O `widget-formulario-loader` usa apenas o estilo global (`estilos.campos`) para todos os campos. Ele nao le `campo.validacoes.estilo_campo`, entao qualquer personalizacao individual feita no editor nao aparece no formulario embedado.
+O widget loader (`widget-formulario-loader`) ignora estilos individuais em dois cenarios:
 
-2. **Valores numericos sem unidade no widget**: A funcao `ensurePx` existe apenas no frontend React. O widget loader (edge function) nao tem essa logica, entao valores como "300" nao recebem "px" automaticamente.
+1. **Campos de layout (titulo/paragrafo)**: Linhas 193-194 usam valores direto do `parseLayoutConfig()` sem verificar `campo.validacoes.estilo_campo`. No `FormPreview.tsx` isso ja foi corrigido, mas o widget embed nao acompanhou.
 
-3. **Nenhum feedback visual ao salvar estilo de campo**: O hook `useAtualizarCampo` nao exibe toast de sucesso ao salvar — apenas mostra erro. Isso causa a impressao de que "nada aconteceu".
-
-4. **Migracao para rem**: Font sizes e alturas serao convertidos automaticamente de numeros puros para `rem` (em vez de `px`), melhorando a responsividade.
-
----
+2. **Campos dentro de blocos de colunas**: A API `widget-formulario-config` nao retorna `pai_campo_id` nem `coluna_indice` na query (linha 54), fazendo com que a logica de colunas no loader nao consiga associar campos filhos aos blocos pai.
 
 ## Solucao
 
-### 1. Atualizar o Widget Loader (edge function)
+### 1. Atualizar `widget-formulario-config/index.ts`
 
-**Arquivo**: `supabase/functions/widget-formulario-loader/index.ts`
-
-- Adicionar funcao `ensurePx` inline no JS gerado
-- Adicionar funcao `mergeCampoEstilo` inline que faz merge de `campo.validacoes.estilo_campo` com o estilo global `fS`
-- No loop de renderizacao de campos, calcular `labelCss` e `inputCss` POR CAMPO usando o merge
-- Isso garante que estilos individuais configurados no editor aparecam no formulario embedado
-
-### 2. Adicionar Toast de Sucesso ao Salvar Campo
-
-**Arquivo**: `src/modules/formularios/hooks/useFormularioCampos.ts`
-
-- Adicionar `toast.success('Campo atualizado')` no `onSuccess` do `useAtualizarCampo`
-- Isso da feedback claro ao usuario quando altera qualquer configuracao de campo (incluindo estilos)
-
-### 3. Migrar para REM
-
-**Arquivo**: `src/modules/formularios/utils/campoEstiloUtils.ts`
-
-- Criar funcao `ensureUnit` que:
-  - Para `fontSize` e `height`: converte numero puro para `rem` (ex: "14" vira "0.875rem", usando divisao por 16)
-  - Para `borderRadius`, `borderWidth`: mantem `px`
-  - Se ja tem unidade, retorna como esta
-
-**Arquivos**: `src/modules/formularios/components/editor/FormPreview.tsx` e `src/modules/formularios/pages/FormularioPublicoPage.tsx`
-
-- Substituir chamadas de `ensurePx` por `ensureUnit` com o tipo correto de propriedade
-
----
-
-## Detalhes Tecnicos
-
-### Merge no Widget (JS inline)
+Adicionar `pai_campo_id` e `coluna_indice` na query de campos (linha 54):
 
 ```text
-// Pseudo-codigo do merge que sera adicionado ao loader
-function mergeFieldStyle(globalFS, campo) {
-  var ec = (campo.validacoes || {}).estilo_campo || {};
-  var merged = {};
-  // Copia global
-  for (var k in globalFS) merged[k] = globalFS[k];
-  // Aplica overrides individuais
-  for (var k in ec) { if (ec[k] !== '' && ec[k] != null) merged[k] = ec[k]; }
-  return merged;
-}
+.select('id, nome, label, tipo, obrigatorio, placeholder, ordem, opcoes, texto_ajuda, largura, etapa_numero, valor_padrao, validacoes, condicional_ativo, condicional_campo_id, condicional_operador, condicional_valor, pai_campo_id, coluna_indice')
 ```
 
-### Funcao ensureUnit
+### 2. Atualizar `widget-formulario-loader/index.ts`
 
+Nas linhas 193-194, aplicar `mergeFieldStyle` nos campos `titulo` e `paragrafo`:
+
+**Titulo (linha 193)** — antes:
 ```text
-// Para fontSize/height: numero puro -> rem
-// Para border: numero puro -> px
-ensureUnit("14", "fontSize")   -> "0.875rem"
-ensureUnit("40", "height")     -> "2.5rem"  
-ensureUnit("6", "border")      -> "6px"
-ensureUnit("14px", "fontSize") -> "14px" (ja tem unidade)
+font-size:'+tc.tamanho+'px; ... color:'+tc.cor
+```
+
+**Titulo (depois):**
+```text
+var tFS=mergeFieldStyle(fS,c);
+var tFontSize=tFS.label_tamanho||tc.tamanho+'px';
+var tColor=tFS.label_cor||tc.cor;
+var tWeight=tFS.label_font_weight||'600';
+```
+E usar essas variaveis no style do elemento.
+
+**Paragrafo (linha 194)** — mesma logica:
+```text
+var pFS=mergeFieldStyle(fS,c);
+var pFontSize=pFS.label_tamanho||pc.tamanho+'px';
+var pColor=pFS.label_cor||pc.cor;
 ```
 
 ### Arquivos Modificados
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `supabase/functions/widget-formulario-loader/index.ts` | Merge de estilos individuais + ensurePx no JS |
-| `src/modules/formularios/hooks/useFormularioCampos.ts` | Toast de sucesso no `onSuccess` |
-| `src/modules/formularios/utils/campoEstiloUtils.ts` | Nova funcao `ensureUnit` para rem/px |
-| `src/modules/formularios/components/editor/FormPreview.tsx` | Usar `ensureUnit` |
-| `src/modules/formularios/pages/FormularioPublicoPage.tsx` | Usar `ensureUnit` |
+| `supabase/functions/widget-formulario-config/index.ts` | Adicionar `pai_campo_id`, `coluna_indice` na query |
+| `supabase/functions/widget-formulario-loader/index.ts` | Aplicar `mergeFieldStyle` em titulo e paragrafo |
 
+### Deploy
+
+Ambas as edge functions precisam ser re-deployadas apos as alteracoes.
