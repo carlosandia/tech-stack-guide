@@ -389,7 +389,7 @@ export function AgendarMensagemPopover({ conversaId, textoPreenchido, disabled }
         side="top"
         align="end"
         sideOffset={8}
-        className="w-80 p-0 bg-popover border border-border shadow-lg rounded-lg"
+        className="w-80 p-0 bg-popover border border-border shadow-lg rounded-lg z-[600]"
       >
         {/* Tabs */}
         <div className="flex border-b border-border/50">
