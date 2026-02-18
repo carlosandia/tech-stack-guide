@@ -1,75 +1,54 @@
 
+# Corrigir Estilizacao do Widget Embed para Espelhar o Visualizador Final
 
-# Unificar Preview do Editor com Visualizacao Final
+## Problemas Identificados
 
-## Objetivo
+Analisei os dados reais do banco e o codigo do `widget-formulario-loader`. Ha 3 bugs que causam divergencia entre o editor preview e o widget embed:
 
-Substituir a renderizacao simplificada dos campos no editor (`CampoItem` com `renderFieldPreview`) pela renderizacao final real (`renderFinalCampo`), mantendo todos os controles de edicao (setas, duplicar, lixeira, engrenagem, badge de tipo, edicao inline de label).
+### 1. Cor do titulo/paragrafo ignorada
+O titulo tem `valor_padrao` com `cor: "#0b64f4"` (azul). Porem, no widget (linha 193), a logica faz:
+```
+var tColor = tFS.label_cor || tc.cor;
+```
+O `tFS` e o merge do estilo global dos campos (`fS`) com `estilo_campo`. Como o estilo global `fS.label_cor = "#374151"` (cinza escuro) existe, ele **sempre** prevalece sobre a cor do `valor_padrao`, mesmo que o campo titulo nao tenha override individual de `label_cor`.
 
-## O que muda visualmente
+**Correcao**: Para campos de layout (titulo/paragrafo), a prioridade deve ser:
+1. `estilo_campo.label_cor` (override individual) -- se existir
+2. `tc.cor` (cor do valor_padrao do layout) -- cor configurada para aquele titulo
+3. `fS.label_cor` (global) -- fallback
 
-- Campos de telefone ja mostram a bandeira e DDI
-- Campo de avaliacao ja mostra as estrelas amarelas
-- Inputs usam os estilos reais (cores, bordas, border-radius do estilo configurado)
-- Selecao multipla, radio, NPS, slider etc. todos com aparencia final
-- Sem bordas de "card" ao redor de cada campo (remover o `border rounded-lg p-3`)
-- Sem a badge de tipo ao lado do label (remover "Texto", "Tel BR", etc.)
+### 2. Tamanho da fonte sem unidade CSS
+O `label_tamanho` do titulo e "30" (sem "px"). No widget, nao ha `ensurePx()` aplicado ao font-size do titulo:
+```
+var tFontSize = tFS.label_tamanho || tc.tamanho + 'px';
+```
+Quando `tFS.label_tamanho = "30"`, o CSS recebe `font-size:30` que e invalido. O navegador ignora.
 
-## O que permanece igual
+**Correcao**: Aplicar `ensurePx()` ao font-size.
 
-- Hover mostra botoes: setas cima/baixo, duplicar, engrenagem, lixeira
-- Click seleciona o campo (outline azul)
-- Double-click no label edita inline
-- Drag-and-drop para reordenar
-- Drop zones entre campos
+### 3. Espacamento individual por campo nao aplicado
+O widget usa `fieldPadding` global (de `fS.gap_top`, `fS.gap_bottom`) para todos os campos. Porem, cada campo pode ter `validacoes.spacing_top`, `spacing_bottom`, etc., como overrides individuais. O widget ignora esses valores.
 
-## Implementacao Tecnica
+Exemplo: o titulo tem `spacing_bottom: "30"` mas o widget aplica o global `gap_bottom: "40"`.
 
-### 1. Modificar `CampoItem.tsx`
+**Correcao**: Antes de renderizar cada campo, ler `validacoes.spacing_*` e montar padding individual.
 
-- Receber novas props: `estiloCampos`, `fontFamily` (para renderizar com estilos reais)
-- Substituir chamada de `renderFieldPreview` por `renderFinalCampo` (importar do FormPreview ou extrair para um util)
-- Remover o wrapper com `border rounded-lg p-3` e a Badge de tipo
-- Manter apenas um wrapper fino com:
-  - `outline` quando selecionado (sem borda permanente)
-  - Botoes de controle no hover (absolutos)
-  - Label editavel inline
-- Manter o `draggable` e handlers de drag
+## Alteracoes Tecnicas
 
-### 2. Extrair `renderFinalCampo` para arquivo compartilhado
+### Arquivo: `supabase/functions/widget-formulario-loader/index.ts`
 
-Criar `src/modules/formularios/utils/renderFinalCampo.tsx` com:
-- A funcao `renderFinalCampo` (movida de FormPreview.tsx)
-- A funcao `renderLabel`
-- O componente `PhoneInputWithCountry`
-- A constante `PAISES_COMUNS`
+**A) Adicionar funcao `fieldPad` para spacing individual** (antes do loop de campos):
+- Criar funcao JS inline que le `c.validacoes.spacing_top/right/bottom/left` e usa como override do `fieldPadding` global
 
-Isso permite que tanto `CampoItem` quanto `FinalPreviewFields` usem a mesma funcao.
+**B) Corrigir titulo (linha 193)**:
+- Font size: aplicar `ensurePx()` em `tFS.label_tamanho`
+- Cor: verificar se `estilo_campo` tem `label_cor` explicitamente antes de usar `tFS.label_cor`, senao usar `tc.cor`
 
-### 3. Atualizar `FormPreview.tsx`
+**C) Corrigir paragrafo (linha 194)**:
+- Mesma logica de cor e font-size do titulo
 
-- Remover `showFinalPreview` toggle e o botao "Visualizar Final" da toolbar (nao precisa mais)
-- Usar sempre o mesmo rendering para campos (que agora ja e o final)
-- Manter o `FinalPreviewFields` wrapper apenas para gerenciar estado de mascaras interativas, mas agora usado diretamente no modo editor tambem
-- Passar `estiloCampos` e `fontFamily` para cada `CampoItem`
+**D) Aplicar spacing individual a todos os campos**:
+- Substituir `fieldPadding` fixo por chamada a `fieldPad(c)` para cada campo no loop
 
-### 4. Adaptar `BlocoColunasEditor.tsx`
-
-- Passar as mesmas props de estilo para os `CampoItem` filhos dentro das colunas
-
-### Arquivos Modificados
-
-| Arquivo | Alteracao |
-|---------|-----------|
-| `src/modules/formularios/utils/renderFinalCampo.tsx` | **NOVO** - Funcao extraida de FormPreview |
-| `src/modules/formularios/components/campos/CampoItem.tsx` | Usar renderFinalCampo, remover bordas/badges |
-| `src/modules/formularios/components/editor/FormPreview.tsx` | Importar de renderFinalCampo, remover duplicacao |
-| `src/modules/formularios/components/campos/BlocoColunasEditor.tsx` | Passar props de estilo |
-
-### Riscos e Cuidados
-
-- Manter a edicao inline do label funcional (ela sobrescreve o label renderizado pelo renderFinalCampo)
-- Garantir que campos de layout (titulo, paragrafo, divisor, espacador) continuem editaveis
-- Preservar drag-and-drop entre campos e nas drop zones
-- Nao quebrar o CSS responsivo ja existente
-
+### Deploy
+Apos as alteracoes, sera necessario fazer deploy da edge function `widget-formulario-loader`. O cache do script e de 1h, entao os sites que ja carregaram verao a mudanca apos o cache expirar (ou com `?nocache=1`).
