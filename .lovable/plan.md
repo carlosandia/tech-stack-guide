@@ -1,143 +1,174 @@
 
 
-## Corretor Ortografico Inline — Modulo /conversas
+## Melhorias no Sistema de Correção Ortográfica — Módulo /conversas
 
-Sistema de sugestoes de correcao ortografica em tempo real no ChatInput, similar ao teclado do celular (conforme imagem de referencia).
-
----
-
-### Abordagem
-
-Combinacao de duas camadas:
-
-1. **Nativa do browser**: Ativar `spellcheck="true"` e `lang="pt-BR"` no textarea para sublinhado vermelho nativo em palavras incorretas (funciona com right-click para corrigir).
-
-2. **Barra de sugestoes customizada**: Componente visual acima do textarea que detecta a palavra sendo digitada e mostra sugestoes de correcao em chips clicaveis (identico ao teclado do celular na imagem).
+Análise dos problemas atuais e proposta de melhorias para facilitar a escrita do usuário.
 
 ---
 
-### UX da Barra de Sugestoes
+### Problemas Identificados
 
-- Aparece **acima do textarea**, dentro do container do input
-- Mostra ate **3 sugestoes** lado a lado: a palavra original entre aspas + ate 2 correcoes
-- Ao clicar numa sugestao, substitui a palavra atual no texto
-- Desaparece quando a palavra esta correta ou o usuario continua digitando
-- Animacao suave de entrada (fade + slide-up)
-- Segue design system: `bg-muted`, `rounded-md`, `text-sm`, bordas `border-border`
+1. **Dicionário com entradas desnecessárias**: Palavras como `obrigado`, `obrigada`, `garantia`, `proposta`, `contrato`, `metodologia`, `tecnologia`, `aqui`, `pra`, `entretanto`, `todavia` estão no dicionário mas a sugestão é a mesma palavra — nunca disparam correção útil.
 
-Layout visual:
+2. **Falta de abreviaturas**: O teclado do celular (imagem de referência) sugere expansões como `Vc` → `Você`, `Vcs` → `Vocês`. O sistema atual não tem isso.
 
-```text
-+-----------------------------------------------+
-|  "Sao"  |  Sao  |  [ Sao ]                    |  <-- barra de sugestoes
-+-----------------------------------------------+
-| [emoji] [+]  Digite uma mensagem...  [mic]    |  <-- textarea
-+-----------------------------------------------+
-```
+3. **Sugestão só aparece enquanto digita a palavra**: No celular, a sugestão aparece para a palavra completa. No sistema atual, se o usuário digitar "sao " (com espaço), a barra some porque o cursor já passou da palavra.
+
+4. **Sem auto-substituição no espaço**: No teclado do celular, ao pressionar espaço a sugestão principal é aplicada automaticamente. Isso acelera muito a digitação.
+
+5. **Sem tecla Escape para dispensar**: O usuário não tem como ignorar a sugestão sem clicar no botão da palavra original.
 
 ---
 
-### Dicionario de Correcoes PT-BR
+### Plano de Melhorias
 
-Um mapa estatico com as correcoes mais comuns de acentuacao em portugues:
+#### 1. Limpar dicionário — remover entradas sem correção útil
 
-- `sao` -> `Sao`, `sao` (original entre aspas)
-- `nao` -> `nao`
-- `voce` -> `voce`
-- `tambem` -> `tambem`
-- `ja` -> `ja`
-- `so` -> `so`
-- `ate` -> `ate`
-- `obrigacao` -> `obrigacao`
-- `informacao` -> `informacao`
-- `entao` -> `entao`
-- ~200 palavras mais comuns sem acento
+Remover todas as entradas onde a sugestão é idêntica à chave (ex: `'obrigado': ['obrigado']`). Essas entradas nunca disparam sugestão porque o hook já filtra quando `sugestoes.some(s => s === palavra)`.
 
-O dicionario sera um arquivo separado (`src/modules/conversas/utils/dicionario-correcoes.ts`) para facil manutencao e expansao.
+**Entradas a remover**: `pra`, `entretanto`, `todavia`, `aqui`, `obrigado`, `obrigada`, `metodologia`, `tecnologia`, `garantia`, `comercial`, `proposta`, `contrato`.
+
+**Arquivo**: `src/modules/conversas/utils/dicionario-correcoes.ts`
 
 ---
 
-### Logica de Deteccao
+#### 2. Adicionar abreviaturas comuns do dia a dia
 
-1. A cada mudanca no texto, extrair a **ultima palavra** sendo digitada (antes do cursor)
-2. Converter para lowercase e buscar no dicionario
-3. Se houver match, mostrar a barra com sugestoes
-4. Ao clicar na sugestao, substituir a palavra no texto preservando a posicao do cursor
-5. A barra some apos 1 segundo sem match ou ao pressionar espaco apos aceitar
+Novo bloco no dicionário com abreviaturas frequentes em mensagens de WhatsApp/chat:
+
+| Abreviatura | Expansão |
+|-------------|----------|
+| vc | você |
+| vcs | vocês |
+| tb | também |
+| tbm | também |
+| pq | porque, por que |
+| q | que |
+| cmg | comigo |
+| ctg | contigo |
+| msg | mensagem |
+| msgs | mensagens |
+| qdo | quando |
+| qto | quanto |
+| qts | quantos |
+| hj | hoje |
+| dps | depois |
+| blz | beleza |
+| obg | obrigado |
+| vlw | valeu |
+| pfv | por favor |
+| td | tudo |
+| tds | todos |
+| ngm | ninguém |
+| agr | agora |
+| msm | mesmo |
+| qse | quase |
+| mto | muito |
+| mta | muita |
+| tmj | tamo junto |
+| flw | falou |
+| abs | abraços |
+| bjs | beijos |
+| pls | por favor |
+| add | adicionar |
+| info | informação |
+| ref | referência |
+
+**Arquivo**: `src/modules/conversas/utils/dicionario-correcoes.ts`
 
 ---
 
-### Plano de Acao
+#### 3. Melhorar detecção — considerar palavra recém-completada
 
-| # | Acao | Arquivo |
-|---|------|---------|
-| 1 | Criar dicionario PT-BR de correcoes | `src/modules/conversas/utils/dicionario-correcoes.ts` |
-| 2 | Criar hook `useAutoCorrect` | `src/modules/conversas/hooks/useAutoCorrect.ts` |
-| 3 | Criar componente `SugestaoCorrecao` | `src/modules/conversas/components/SugestaoCorrecao.tsx` |
-| 4 | Integrar no ChatInput + ativar spellcheck nativo | `src/modules/conversas/components/ChatInput.tsx` |
+Alterar o hook `useAutoCorrect` para detectar a **última palavra completada** (antes do espaço), não apenas a palavra parcial no cursor. Isso permite que a barra apareça após o usuário terminar de digitar a palavra e apertar espaço.
+
+Lógica: se o caractere imediatamente antes do cursor é espaço, olhar a palavra anterior ao espaço.
+
+**Arquivo**: `src/modules/conversas/hooks/useAutoCorrect.ts`
 
 ---
 
-### Detalhes Tecnicos
+#### 4. Auto-substituição ao pressionar Espaço
 
-**1. Dicionario (`dicionario-correcoes.ts`)**
+Quando a barra de sugestão está visível e o usuário pressiona **Espaço**, aplicar automaticamente a primeira sugestão (comportamento do teclado do celular). O usuário pode:
+- **Espaço**: aceita a primeira sugestão automaticamente
+- **Clicar no chip**: escolhe uma sugestão específica
+- **Escape**: dispensa a sugestão e mantém a palavra original
+- **Continuar digitando**: a barra atualiza ou some
 
-Mapa `Record<string, string[]>` onde a chave e a palavra sem acento (lowercase) e o valor sao as sugestoes ordenadas por relevancia:
+**Arquivo**: `src/modules/conversas/components/ChatInput.tsx` (handleKeyDown)
+
+---
+
+#### 5. Dispensar com Escape
+
+Adicionar estado `dismissed` no ChatInput que é setado ao pressionar Escape. Resetar quando a palavra muda.
+
+**Arquivo**: `src/modules/conversas/components/ChatInput.tsx`
+
+---
+
+### Resumo de Arquivos Impactados
+
+| Arquivo | Tipo | Ação |
+|---------|------|------|
+| `src/modules/conversas/utils/dicionario-correcoes.ts` | Existente | Limpar entradas inúteis + adicionar abreviaturas |
+| `src/modules/conversas/hooks/useAutoCorrect.ts` | Existente | Detectar palavra completada (após espaço) |
+| `src/modules/conversas/components/ChatInput.tsx` | Existente | Auto-substituição no Espaço + Escape para dispensar |
+
+---
+
+### Detalhes Técnicos
+
+**Hook `useAutoCorrect` — nova lógica de detecção:**
 
 ```typescript
-export const CORRECOES_PT_BR: Record<string, string[]> = {
-  'sao': ['Sao'],
-  'nao': ['Nao'],
-  'voce': ['Voce'],
-  'tambem': ['Tambem'],
-  'entao': ['Entao'],
-  'ja': ['Ja'],
-  'ate': ['Ate'],
-  'so': ['So'],
-  // ... ~200 palavras comuns
+// Se cursor está após espaço, olhar palavra anterior
+if (cursorPos > 0 && texto[cursorPos - 1] === ' ') {
+  let end = cursorPos - 1
+  let start = end
+  while (start > 0 && /\S/.test(texto[start - 1])) start--
+  palavra = texto.slice(start, end)
+  // range = { start, end }
 }
 ```
 
-**2. Hook `useAutoCorrect`**
+**ChatInput — auto-substituição no Espaço:**
 
 ```typescript
-function useAutoCorrect(texto: string, cursorPos: number) {
-  // Extrai palavra atual antes do cursor
-  // Busca no dicionario
-  // Retorna { palavraOriginal, sugestoes, range }
+const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+  if (e.key === 'Escape' && autoCorrect) {
+    setDismissedWord(autoCorrect.palavraOriginal)
+    return
+  }
+  if (e.key === ' ' && autoCorrect && !dismissed) {
+    // Aplicar primeira sugestão antes de inserir o espaço
+    handleAutoCorrectSelect(autoCorrect.sugestoes[0])
+    return // o espaço será inserido normalmente após a substituição
+  }
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault()
+    handleSend()
+  }
 }
 ```
 
-**3. Componente `SugestaoCorrecao`**
+**Estado de dismiss:**
 
-- Recebe: `palavraOriginal`, `sugestoes[]`, `onSelect(correcao)`
-- Renderiza chips clicaveis seguindo o design system
-- Chip da palavra original com aspas (manter como esta)
-- Chips de sugestao com destaque (`bg-accent`, `font-medium`)
-
-**4. Integracao no ChatInput**
-
-- Adicionar `spellcheck={true}` e `lang="pt-BR"` no textarea
-- Renderizar `<SugestaoCorrecao>` entre os icones e o textarea
-- Ao selecionar sugestao, substituir a palavra no texto e reposicionar cursor
+```typescript
+const [dismissedWord, setDismissedWord] = useState<string | null>(null)
+// Mostrar barra apenas se não foi dispensada para esta palavra
+const showAutoCorrect = autoCorrect && dismissedWord !== autoCorrect.palavraOriginal
+```
 
 ---
-
-### Arquivos impactados
-
-| Arquivo | Tipo |
-|---------|------|
-| `src/modules/conversas/utils/dicionario-correcoes.ts` | Novo |
-| `src/modules/conversas/hooks/useAutoCorrect.ts` | Novo |
-| `src/modules/conversas/components/SugestaoCorrecao.tsx` | Novo |
-| `src/modules/conversas/components/ChatInput.tsx` | Editado |
 
 ### Garantias
 
-- Nenhum componente existente alterado visualmente
-- ChatInput mantem todas as props e funcionalidades atuais
-- Barra de sugestoes e aditiva (nao interfere no fluxo existente)
-- Spellcheck nativo nao conflita com o sistema customizado
-- Performance: busca no dicionario e O(1) (hashmap), sem debounce necessario
-- Dicionario estatico, sem chamadas de rede
+- Nenhuma mudança visual nos componentes existentes
+- Comportamento idêntico ao teclado do celular (imagem de referência)
+- Performance mantida: O(1) lookup no dicionário
+- Sem chamadas de rede
+- Abreviaturas são aditivas (não quebram correções existentes)
+- Auto-substituição no espaço pode ser desfeita com Ctrl+Z (undo nativo do textarea)
 
