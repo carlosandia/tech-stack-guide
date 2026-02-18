@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
     // Buscar campos do formulário (apenas campos visíveis, não layout puro)
     const { data: campos, error: camposError } = await supabaseAdmin
       .from('campos_formularios')
-      .select('id, nome, label, tipo, obrigatorio, placeholder, ordem, opcoes, texto_ajuda, largura, etapa_numero, valor_padrao, validacoes, condicional_ativo, condicional_campo_id, condicional_operador, condicional_valor')
+      .select('id, nome, label, tipo, obrigatorio, placeholder, ordem, opcoes, texto_ajuda, largura, etapa_numero, valor_padrao, validacoes, condicional_ativo, condicional_campo_id, condicional_operador, condicional_valor, pai_campo_id, coluna_indice')
       .eq('formulario_id', formulario.id)
       .order('ordem', { ascending: true })
 
