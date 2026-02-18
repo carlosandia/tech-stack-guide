@@ -1,55 +1,68 @@
 
-## Adicionar Bandeira do Pais na Coluna de Telefone
+
+## Tornar Nome e Qualificacao configuraveis no Card Kanban
+
+### Situacao Atual
+No header do card Kanban, o **nome da oportunidade** ("Negocio Exemplo") e o **badge de qualificacao** (MQL/SQL) sao sempre exibidos, sem possibilidade de o usuario desativa-los na pagina de personalizacao de cards.
 
 ### O que muda
-Na listagem de contatos, a coluna "Telefone" passara a exibir a bandeira (emoji) do pais antes do numero, permitindo identificacao visual imediata de qual pais e aquele telefone.
+Ambos passam a ser **campos configuraveis** na lista de "Campos Visiveis no Card", com toggle para exibir ou ocultar:
 
-Exemplo visual:
-- Antes: `(27) 99809-5977`
-- Depois: `🇧🇷 (27) 99809-5977`
-- Antes: `+5513988506995`
-- Depois: `🇧🇷 +5513988506995`
-- Telefone internacional: `🇺🇸 (305) 555-1234`
+- **Nome da Oportunidade**: quando desativado, o card nao exibe o titulo (cenario raro, mas o usuario tem a opcao)
+- **Qualificacao**: quando desativado, o badge MQL/SQL/Lead desaparece do header
 
-### Abordagem
-
-Criar um componente `CellTelefone` dentro de `ContatosList.tsx` que:
-
-1. Recebe o valor do telefone (string)
-2. Detecta o pais pelo DDI usando a mesma lista de paises ja existente no projeto (`PhoneInputField.tsx`)
-3. Exibe a bandeira emoji seguida do numero formatado
+Ambos virao **habilitados por padrao** para manter o comportamento atual.
 
 ### Detalhes Tecnicos
 
-**1. Extrair lista de paises para arquivo compartilhado**
-
-Criar `src/shared/utils/countries.ts` com a lista `COUNTRIES` (extraida de `PhoneInputField.tsx`) e uma funcao utilitaria `detectCountryByPhone(phone: string)` que retorna o pais correspondente.
-
-A deteccao funciona assim:
-- Remove caracteres nao-numericos do telefone
-- Testa os DDIs em ordem decrescente de tamanho (ex: `+351` antes de `+3`) para evitar falsos positivos
-- Retorna o pais correspondente ou `null` se nao encontrar
-- Padrao: se comecar com `55`, assume Brasil
-
-**2. Novo componente `CellTelefone` em `ContatosList.tsx`**
+**1. `ConfigCardPage.tsx`** - Adicionar 2 novos campos em `CAMPOS_PADRAO`
 
 ```
-CellTelefone({ value })
-  -> detectCountryByPhone(value)
-  -> renderiza: [bandeira emoji] [numero formatado]
+{ key: 'titulo', label: 'Nome da Oportunidade', descricao: 'Titulo/nome do negocio', icon: FileText, cor: '...' }
+{ key: 'qualificacao', label: 'Qualificacao', descricao: 'Badge de qualificacao (Lead/MQL/SQL)', icon: Award, cor: '...' }
 ```
 
-Layout inline com `flex items-center gap-1.5`, bandeira em tamanho de texto normal, numero em `text-sm`.
+Adicionar `'titulo'` e `'qualificacao'` ao array `CAMPOS_DEFAULT_VISIVEIS`.
 
-**3. Atualizar `PhoneInputField.tsx`**
+**2. `KanbanCard.tsx`** - Condicionar exibicao no header
 
-Importar `COUNTRIES` do arquivo compartilhado ao inves de definir localmente, eliminando duplicacao.
+Linha ~379 (titulo):
+```
+{camposVisiveis.includes('titulo') && (
+  <p className="text-sm font-medium ...">{oportunidade.titulo}</p>
+)}
+```
 
-**4. Substituir no `ContatosList.tsx`**
+Linha ~382 (qualificacao):
+```
+{camposVisiveis.includes('qualificacao') && (
+  <span className="text-[10px] ...">{qualificacao.label}</span>
+)}
+```
 
-No case `'telefone'`, trocar `CellSimpleText` por `CellTelefone`.
+Quando ambos estiverem ocultos, o header continua existindo (para manter checkbox de selecao e tarefas), apenas sem texto/badge.
+
+**3. `KanbanCardPreview.tsx`** - Condicionar no preview
+
+Linha ~155 (titulo):
+```
+{camposVisiveis.includes('titulo') && (
+  <span className="text-sm font-semibold ...">Negocio Exemplo</span>
+)}
+```
+
+Linha ~159 (qualificacao):
+```
+{camposVisiveis.includes('qualificacao') && (
+  <span className="text-[10px] ...">MQL</span>
+)}
+```
 
 ### Arquivos modificados
-- **Novo**: `src/shared/utils/countries.ts` - lista de paises e funcao de deteccao
-- **Editado**: `src/modules/contatos/components/ContatosList.tsx` - novo `CellTelefone` + uso no case telefone
-- **Editado**: `src/modules/contatos/components/PhoneInputField.tsx` - importar COUNTRIES do shared
+- **`src/modules/configuracoes/pages/ConfigCardPage.tsx`** - 2 novos campos em CAMPOS_PADRAO e CAMPOS_DEFAULT_VISIVEIS
+- **`src/modules/negocios/components/kanban/KanbanCard.tsx`** - condicionar titulo e badge no header
+- **`src/modules/configuracoes/components/cards/KanbanCardPreview.tsx`** - condicionar titulo e badge no preview
+
+### Comportamento padrao
+Usuarios existentes continuarao vendo tudo normalmente pois `titulo` e `qualificacao` serao adicionados ao `CAMPOS_DEFAULT_VISIVEIS`. Somente se o usuario explicitamente remover esses campos eles deixarao de aparecer.
+
