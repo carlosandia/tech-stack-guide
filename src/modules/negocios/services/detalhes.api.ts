@@ -448,7 +448,7 @@ export const detalhesApi = {
         .select('id, email, status')
         .eq('usuario_id', userId)
         .is('deletado_em', null)
-        .eq('status', 'ativo')
+        .in('status', ['ativo', 'conectado'])
         .maybeSingle()
 
       if (error || !data) return { conectado: false }
