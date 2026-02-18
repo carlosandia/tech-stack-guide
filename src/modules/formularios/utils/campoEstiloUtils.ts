@@ -6,6 +6,19 @@
 
 import type { EstiloCampos, CampoFormulario } from '../services/formularios.api'
 
+/**
+ * AIDEV-NOTE: Garante que valores numéricos tenham unidade px
+ * Ex: "300" → "300px", "14px" → "14px", "" → fallback
+ */
+export function ensurePx(val: string | undefined, fallback: string): string {
+  if (!val || val.trim() === '') return fallback
+  const trimmed = val.trim()
+  // Se já tem unidade (px, %, em, rem, vh, vw), retorna como está
+  if (/[a-z%]/i.test(trimmed)) return trimmed
+  // Número puro → adiciona px
+  return `${trimmed}px`
+}
+
 export function mergeCampoEstilo(global: EstiloCampos, campo: CampoFormulario): EstiloCampos {
   const validacoes = (campo.validacoes || {}) as Record<string, unknown>
   const individual = (validacoes.estilo_campo || {}) as Partial<EstiloCampos>
