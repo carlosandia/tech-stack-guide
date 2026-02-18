@@ -7,8 +7,6 @@ import { useState } from 'react'
 import { useCriarFeedback } from '../hooks/useFeedback'
 import type { TipoFeedback } from '../services/feedback.api'
 import {
-  Lightbulb,
-  Settings2,
   HelpCircle,
   Loader2,
   X,
@@ -18,10 +16,10 @@ interface FeedbackPopoverProps {
   onClose: () => void
 }
 
-const TIPOS: { value: TipoFeedback; label: string; icon: React.ElementType; color: string }[] = [
-  { value: 'bug', label: 'Bug', icon: Settings2, color: 'text-red-600 bg-red-50 border-red-200 hover:bg-red-100' },
-  { value: 'sugestao', label: 'Sugestão', icon: Lightbulb, color: 'text-violet-600 bg-violet-50 border-violet-200 hover:bg-violet-100' },
-  { value: 'duvida', label: 'Dúvida', icon: HelpCircle, color: 'text-blue-600 bg-blue-50 border-blue-200 hover:bg-blue-100' },
+const TIPOS: { value: TipoFeedback; label: string; color: string }[] = [
+  { value: 'bug', label: 'Bug', color: 'text-red-600 bg-red-50 border-red-200 hover:bg-red-100' },
+  { value: 'sugestao', label: 'Sugestão', color: 'text-violet-600 bg-violet-50 border-violet-200 hover:bg-violet-100' },
+  { value: 'duvida', label: 'Dúvida', color: 'text-blue-600 bg-blue-50 border-blue-200 hover:bg-blue-100' },
 ]
 
 const MIN_CHARS = 10
@@ -52,7 +50,7 @@ export function FeedbackPopover({ onClose }: FeedbackPopoverProps) {
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Lightbulb className="w-5 h-5" />
+            <HelpCircle className="w-5 h-5" />
             <h3 className="font-semibold text-base">Nos ajude a melhorar</h3>
           </div>
           <button onClick={onClose} className="p-1 rounded hover:bg-white/20 transition-colors">
@@ -71,19 +69,17 @@ export function FeedbackPopover({ onClose }: FeedbackPopoverProps) {
           <label className="text-sm font-medium text-foreground mb-2 block">Tipo</label>
           <div className="flex gap-2">
             {TIPOS.map((t) => {
-              const Icon = t.icon
               const selected = tipo === t.value
               return (
                 <button
                   key={t.value}
                   onClick={() => setTipo(t.value)}
-                  className={`flex-1 flex items-center justify-center gap-1.5 h-9 rounded-md border text-sm font-medium transition-all ${
+                  className={`flex-1 flex items-center justify-center h-9 rounded-md border text-sm font-medium transition-all ${
                     selected
                       ? t.color + ' ring-1 ring-offset-1 ring-current'
                       : 'border-input text-muted-foreground hover:bg-accent'
                   }`}
                 >
-                  <Icon className="w-3.5 h-3.5" />
                   {t.label}
                 </button>
               )
