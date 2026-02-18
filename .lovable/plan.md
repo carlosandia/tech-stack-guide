@@ -1,128 +1,98 @@
 
 
-## Auditoria de Producao — Modulo /formularios
+## Auditoria de Producao — Modulo /automacoes
 
-Analise para 500+ usuarios, alto volume de formularios e submissoes, conforme diretrizes do Arquiteto de Produto.
+Analise para 500+ usuarios, alto volume de automacoes e execucoes, conforme diretrizes do Arquiteto de Produto.
 
 ---
 
 ### 1. Problemas Criticos
 
-#### 1.1 Cache auth duplicado (formularios.api.ts)
+#### 1.1 Auth inline em `criarAutomacao` (automacoes.api.ts)
 
-Linhas 13-34: Mesma duplicacao `_cachedOrgId + onAuthStateChange` ja corrigida nos modulos /negocios, /contatos, /conversas e /emails. O `auth-context.ts` compartilhado ja existe.
+Linhas 37-43: Faz `supabase.auth.getUser()` + `supabase.from('usuarios').select()` manualmente a cada criacao. O `auth-context.ts` compartilhado ja existe e foi adotado nos modulos /emails, /formularios, /configuracoes.
 
-**Correcao**: Remover linhas 13-34 e importar `getOrganizacaoId` de `@/shared/services/auth-context`.
+**Correcao**: Importar `getOrganizacaoId` e `getUsuarioId` de `@/shared/services/auth-context` e usar no lugar da query inline.
 
 **Risco**: Zero. Refactor DRY puro.
 
 ---
 
-#### 1.2 `reordenarCampos` — N queries individuais (GARGALO PRINCIPAL)
+#### 1.2 Auth inline em `SegmentoSelect` (AcaoConfig.tsx)
 
-Linhas 380-393: Faz um `UPDATE` **por campo** em um loop sequencial. Com 30 campos, sao 30 queries sequenciais. No drag-and-drop, isso e chamado a cada reordenamento.
+Linhas 177-180: Dentro de `criarSegmento()`, faz `supabase.auth.getUser()` + query de `usuarios` inline para obter `organizacao_id`. Duplicacao identica ao padrao ja corrigido.
 
-**Correcao**: Agrupar todos os updates em um unico `Promise.all` para execucao paralela, reduzindo o tempo de N*latencia para 1*latencia.
+**Correcao**: Importar e usar `getOrganizacaoId` do `auth-context`.
 
-```typescript
-async function reordenarCampos(formularioId: string, campos: { id: string; ordem: number }[]): Promise<void> {
-  const promises = campos.map(item =>
-    supabase.from('campos_formularios')
-      .update({ ordem: item.ordem })
-      .eq('formulario_id', formularioId)
-      .eq('id', item.id)
-  )
-  const results = await Promise.all(promises)
-  const failed = results.find(r => r.error)
-  if (failed?.error) throw new Error(`Erro ao reordenar: ${failed.error.message}`)
-}
-```
+**Risco**: Zero.
 
 ---
 
-#### 1.3 `contarPorStatus` — carrega TODOS os formularios para contar
+#### 1.3 Auth inline em `TriggerConfig` (TriggerConfig.tsx)
 
-Linhas 250-267: Busca todos os formularios (`.select('status')` sem limit) para contar no frontend. Com 500+ formularios por organizacao, transfere dados desnecessariamente.
+Linhas 25-38: Hook `useQuery` dedicado (`usuario-atual-trigger`) que faz `supabase.auth.getUser()` + query de `usuarios` para obter `organizacao_id`. Usado para buscar formularios e exibir o WebhookDebugPanel.
 
-**Correcao**: Usar `{ count: 'exact', head: true }` com filtros por status, fazendo 3 queries leves (sem dados) em paralelo ao inves de 1 query pesada.
+**Correcao**: Criar um hook simples `useOrganizacaoId()` que encapsula a chamada a `getOrganizacaoId` via `useQuery` com `staleTime: Infinity`, e reusar em vez da query inline. Alternativamente, importar diretamente `getOrganizacaoId` dentro das queryFn que precisam (formularios, webhooks).
 
-```typescript
-async function contarPorStatus(): Promise<Record<string, number>> {
-  const organizacao_id = await getOrganizacaoId()
-  const base = supabase.from('formularios').select('id', { count: 'exact', head: true })
-    .eq('organizacao_id', organizacao_id).is('deletado_em', null)
-
-  const [todos, rascunho, publicado, arquivado] = await Promise.all([
-    base,
-    supabase.from('formularios').select('id', { count: 'exact', head: true })
-      .eq('organizacao_id', organizacao_id).is('deletado_em', null).eq('status', 'rascunho'),
-    supabase.from('formularios').select('id', { count: 'exact', head: true })
-      .eq('organizacao_id', organizacao_id).is('deletado_em', null).eq('status', 'publicado'),
-    supabase.from('formularios').select('id', { count: 'exact', head: true })
-      .eq('organizacao_id', organizacao_id).is('deletado_em', null).eq('status', 'arquivado'),
-  ])
-  return {
-    todos: todos.count || 0,
-    rascunho: rascunho.count || 0,
-    publicado: publicado.count || 0,
-    arquivado: arquivado.count || 0,
-  }
-}
-```
+**Risco**: Zero.
 
 ---
 
-#### 1.4 `salvarEstilos` — upsert manual com 2 queries
+#### 1.4 `listarAutomacoes` sem limit (automacoes.api.ts)
 
-Linhas 585-614: Faz SELECT para verificar existencia, depois UPDATE ou INSERT. Sao 2 queries quando poderia ser 1 com `.upsert()`.
+Linha 13-22: `listarAutomacoes` busca TODAS as automacoes da organizacao sem `.limit()`. Com 500+ tenants, cada um pode ter dezenas de automacoes. A sidebar ja carrega tudo de uma vez.
 
-**Correcao**: Usar `.upsert()` com `onConflict: 'formulario_id'`, reduzindo para 1 query.
+**Correcao**: Adicionar `.limit(100)` como trava de seguranca.
 
----
-
-#### 1.5 `salvarConfigPopup` — upsert manual com 2 queries
-
-Linhas 660-685: Mesmo padrao de SELECT+UPDATE/INSERT.
-
-**Correcao**: Usar `.upsert()` com `onConflict: 'formulario_id'`.
+**Risco**: Zero. 100 automacoes e um limite generoso (nenhum tenant realista tera mais que isso).
 
 ---
 
-#### 1.6 `salvarConfigNewsletter` — upsert manual com 2 queries
+#### 1.5 Auto-save dispara `invalidateQueries` desnecessariamente
 
-Linhas 728-753: Mesmo padrao.
+Linha 55-56 (useAtualizarAutomacao): O auto-save com debounce de 1s chama `atualizarMutation.mutate()`, que no `onSuccess` faz `qc.invalidateQueries({ queryKey: QUERY_KEY })`. Isso re-fetcha a lista completa de automacoes a cada keystroke (com 1s de delay). Como o auto-save usa `silent: true` para evitar toast, deveria tambem evitar invalidacao desnecessaria.
 
-**Correcao**: Usar `.upsert()` com `onConflict: 'formulario_id'`.
+**Correcao**: No hook `useAtualizarAutomacao`, quando `variables.silent === true`, pular o `invalidateQueries` (os dados no canvas ja estao atualizados localmente).
 
----
-
-#### 1.7 Analytics — `obterMetricas` e `obterFunilConversao` buscam TODOS os eventos sem limit
-
-Linhas 986-1027: Ambos metodos buscam `.select('tipo_evento')` sem qualquer limit. Com formularios populares (10.000+ eventos), transfere megabytes so para contar tipos.
-
-**Correcao**: Manter a query (nao ha alternativa simples sem RPC), mas adicionar `.limit(10000)` como trava de seguranca para evitar downloads absurdos.
+**Risco**: Baixo. O estado local do canvas ja tem os dados mais recentes; a lista lateral sera invalidada na proxima operacao nao-silenciosa.
 
 ---
 
-#### 1.8 Analytics — `obterDesempenhoCampos` busca eventos sem limit
+#### 1.6 WebhookDebugPanel — polling sem cleanup no unmount
 
-Linhas 1030-1055: Mesmo problema — busca todos os eventos de campo sem limit.
+Linhas 94-109 (WebhookDebugPanel.tsx): O polling com `setInterval` de 3s nao tem timeout maximo. Se o usuario iniciar a escuta e esquecer, o polling roda indefinidamente.
 
-**Correcao**: Adicionar `.limit(10000)` como trava de seguranca.
+**Correcao**: Adicionar um timeout maximo de 120 segundos (40 iteracoes). Apos o timeout, parar automaticamente e exibir mensagem.
+
+**Risco**: Zero.
+
+---
+
+#### 1.7 WebhookDebugPanel — carrega webhooks com `useEffect` em vez de `useQuery`
+
+Linhas 50-63: Usa `useEffect` + `useState` manual para carregar webhooks, sem cache, staleTime, ou retry. Cada vez que o componente monta, refaz a query.
+
+**Correcao**: Converter para `useQuery` com `staleTime: 60_000`, consistente com os outros seletores do modulo (MembroSelector, SegmentoSelect, WebhookSaidaSelect).
+
+**Risco**: Zero.
 
 ---
 
 ### 2. O que ja esta BEM FEITO
 
-- Paginacao na listagem principal com `.range()` e `{ count: 'exact' }`
-- Paginacao nas submissoes
-- Soft delete padronizado
-- Optimistic updates no `useCriarCampo` e `useReordenarCampos` (UX instantanea)
-- Slug unico com timestamp
-- Tipos bem definidos para todos os sub-modulos
-- Webhooks com logs limitados (`.limit(limite)`)
+- Auto-save com debounce de 1s (evita saves excessivos)
+- Serializer/deserializer de grafo robusto (flowConverter.ts) com suporte a branching
+- `initialLoadRef` para evitar save ao carregar automacao (previne loop save-ao-carregar)
+- Refs estaveis para nodes/edges no auto-save (`nodesRef`, `edgesRef`)
 - Hooks React Query bem estruturados com queryKeys consistentes
-- Separacao clara de concerns (campos, estilos, config, regras, analytics, AB, webhooks)
+- `staleTime: 60_000` nos sub-seletores (membros, segmentos, webhooks saida)
+- `staleTime: Infinity` no usuario-atual-trigger (dado imutavel na sessao)
+- Logs com `.limit(50)` configuravel
+- Soft delete padronizado
+- Canvas React Flow com memoizacao correta (`useMemo` para nodeTypes, edgeTypes, callbacks)
+- Sidebar com busca client-side (aceitavel para volume de automacoes por tenant)
+- Edge deletavel com hover UX
+- Mobile responsive com overlay sidebar
 
 ---
 
@@ -130,54 +100,111 @@ Linhas 1030-1055: Mesmo problema — busca todos os eventos de campo sem limit.
 
 | # | Acao | Arquivo | Impacto |
 |---|------|---------|---------|
-| 1 | Importar auth-context compartilhado | `formularios.api.ts` | Elimina duplicacao DRY |
-| 2 | Paralelizar `reordenarCampos` com `Promise.all` | `formularios.api.ts` | Reduz latencia de N*RTT para 1*RTT |
-| 3 | Otimizar `contarPorStatus` com `head: true` | `formularios.api.ts` | Elimina transferencia de dados para contagem |
-| 4 | Converter `salvarEstilos` para upsert | `formularios.api.ts` | Reduz 2 queries para 1 |
-| 5 | Converter `salvarConfigPopup` para upsert | `formularios.api.ts` | Reduz 2 queries para 1 |
-| 6 | Converter `salvarConfigNewsletter` para upsert | `formularios.api.ts` | Reduz 2 queries para 1 |
-| 7 | Adicionar `.limit(10000)` nas queries de analytics | `formularios.api.ts` | Previne downloads massivos |
+| 1 | Importar auth-context em criarAutomacao | `automacoes.api.ts` | Elimina auth duplicado |
+| 2 | Importar auth-context em SegmentoSelect | `AcaoConfig.tsx` | Elimina auth duplicado |
+| 3 | Importar auth-context em TriggerConfig | `TriggerConfig.tsx` | Elimina auth duplicado |
+| 4 | Adicionar .limit(100) em listarAutomacoes | `automacoes.api.ts` | Trava de seguranca |
+| 5 | Pular invalidateQueries quando silent=true | `useAutomacoes.ts` | Elimina refetch desnecessario no auto-save |
+| 6 | Adicionar timeout de 120s no polling | `WebhookDebugPanel.tsx` | Previne polling infinito |
+| 7 | Converter load de webhooks para useQuery | `WebhookDebugPanel.tsx` | Cache + retry automatico |
 
 ---
 
 ### 4. Detalhes Tecnicos
 
-**4.1 Auth-context**
+**4.1 Auth-context em criarAutomacao (automacoes.api.ts)**
 
-Remover linhas 13-34 de `formularios.api.ts`. Adicionar:
+Adicionar no topo:
+```typescript
+import { getOrganizacaoId, getUsuarioId } from '@/shared/services/auth-context'
+```
+
+Substituir linhas 37-43:
+```typescript
+const organizacaoId = await getOrganizacaoId()
+const usuarioId = await getUsuarioId()
+```
+
+E usar `organizacaoId` e `usuarioId` no insert.
+
+**4.2 Auth-context em SegmentoSelect (AcaoConfig.tsx)**
+
+Substituir linhas 177-180 de `criarSegmento()`:
+```typescript
+import { getOrganizacaoId } from '@/shared/services/auth-context'
+// dentro de criarSegmento:
+const organizacaoId = await getOrganizacaoId()
+```
+
+Remover a busca manual de `supabase.auth.getUser()` + query de `usuarios`.
+
+**4.3 Auth-context em TriggerConfig (TriggerConfig.tsx)**
+
+Substituir o hook `useQuery(['usuario-atual-trigger'])` por chamada direta a `getOrganizacaoId` dentro das queryFn que precisam:
+
 ```typescript
 import { getOrganizacaoId } from '@/shared/services/auth-context'
 ```
 
-**4.2 `reordenarCampos` paralelizado**
-
-Substituir o loop `for...of` por `Promise.all` de todas as queries em paralelo.
-
-**4.3 `contarPorStatus` otimizado**
-
-Substituir a query que busca todos os registros por 4 queries `head: true` em paralelo (sem transferencia de dados, apenas contagem).
-
-**4.4 Upsert para estilos, popup e newsletter**
-
-Para `salvarEstilos`:
+No useQuery de formularios, usar `getOrganizacaoId()` diretamente. Para o `organizacaoId` passado ao `WebhookDebugPanel`, usar um `useQuery` simples:
 ```typescript
-const { data, error } = await supabase
-  .from('estilos_formularios')
-  .upsert({ formulario_id: formularioId, ...payload }, { onConflict: 'formulario_id' })
-  .select()
-  .single()
+const { data: organizacaoId } = useQuery({
+  queryKey: ['org-id'],
+  queryFn: getOrganizacaoId,
+  staleTime: Infinity,
+})
 ```
 
-Mesmo padrao para `salvarConfigPopup` e `salvarConfigNewsletter`.
+**4.4 Limit em listarAutomacoes (automacoes.api.ts)**
 
-**NOTA**: O upsert requer constraint UNIQUE em `formulario_id` nas tabelas `estilos_formularios`, `config_popup_formularios` e `config_newsletter_formularios`. Se nao existirem, manter o padrao SELECT+UPDATE/INSERT atual.
+Adicionar `.limit(100)` apos `.order()`.
 
-**4.5 Limits em analytics**
+**4.5 Pular invalidateQueries no silent (useAutomacoes.ts)**
 
-Adicionar `.limit(10000)` em:
-- `obterMetricas` (linha 989)
-- `obterFunilConversao` (linha 1012)
-- `obterDesempenhoCampos` (linha 1034)
+No `useAtualizarAutomacao`, alterar `onSuccess`:
+```typescript
+onSuccess: (_, variables) => {
+  if (!variables.silent) {
+    qc.invalidateQueries({ queryKey: QUERY_KEY })
+    toast.success('Automacao atualizada')
+  }
+},
+```
+
+**4.6 Timeout no polling (WebhookDebugPanel.tsx)**
+
+No `startListening`, adicionar contador:
+```typescript
+let iteracoes = 0
+pollingRef.current = setInterval(async () => {
+  iteracoes++
+  if (iteracoes >= 40) { // 40 * 3s = 120s
+    stopListening()
+    return
+  }
+  // ... resto do polling
+}, 3000)
+```
+
+**4.7 Converter load de webhooks para useQuery (WebhookDebugPanel.tsx)**
+
+Substituir o `useEffect` + `useState` por:
+```typescript
+const { data: webhooks = [], isLoading: loading } = useQuery({
+  queryKey: ['webhooks-entrada', organizacaoId],
+  queryFn: async () => {
+    const { data } = await supabase
+      .from('webhooks_entrada')
+      .select('id, nome, url_token, ativo')
+      .eq('organizacao_id', organizacaoId)
+      .is('deletado_em', null)
+      .order('criado_em', { ascending: false })
+    return data || []
+  },
+  enabled: !!organizacaoId,
+  staleTime: 60_000,
+})
+```
 
 ---
 
@@ -185,19 +212,21 @@ Adicionar `.limit(10000)` em:
 
 | Arquivo | Tipo de mudanca |
 |---------|----------------|
-| `src/modules/formularios/services/formularios.api.ts` | Todas as correcoes acima |
-
-Nenhum hook muda de assinatura. Nenhum componente visual alterado.
+| `src/modules/automacoes/services/automacoes.api.ts` | Auth-context, limit |
+| `src/modules/automacoes/hooks/useAutomacoes.ts` | Pular invalidate no silent |
+| `src/modules/automacoes/components/panels/AcaoConfig.tsx` | Auth-context em SegmentoSelect |
+| `src/modules/automacoes/components/panels/TriggerConfig.tsx` | Auth-context |
+| `src/modules/automacoes/components/panels/WebhookDebugPanel.tsx` | useQuery, timeout polling |
 
 ### 6. Garantias de seguranca
 
 - Nenhum componente visual alterado
 - Nenhuma prop removida ou renomeada
 - Hooks mantem mesma assinatura e comportamento
-- Optimistic updates preservados
-- Editor WYSIWYG inalterado
-- Widget embed inalterado
-- Pagina publica inalterada
-- Submissoes via Edge Function inalteradas
+- Auto-save com debounce preservado
+- Canvas React Flow inalterado
+- Flow converter (serializer/deserializer) inalterado
+- Triggers SQL de emissao de eventos inalterados
+- Motor de execucao (Edge Functions) inalterado
 - RLS continua como unica linha de defesa
 
