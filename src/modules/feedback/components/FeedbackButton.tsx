@@ -7,7 +7,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '@/providers/AuthProvider'
 import { FeedbackPopover } from './FeedbackPopover'
-import { Lightbulb } from 'lucide-react'
+import { HelpCircle } from 'lucide-react'
 
 export function FeedbackButton() {
   const { role } = useAuth()
@@ -40,7 +40,7 @@ export function FeedbackButton() {
         aria-label="Enviar feedback"
         title="Enviar feedback"
       >
-        <Lightbulb className="w-4 h-4" />
+        <HelpCircle className="w-4 h-4" />
       </button>
 
       {open && (
