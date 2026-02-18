@@ -249,7 +249,7 @@ function VideoContent({ mensagem, onViewMedia }: { mensagem: Mensagem; onViewMed
   )
 }
 
-function AudioContent({ mensagem, isMe, fotoUrl, myAvatarUrl }: { mensagem: Mensagem; isMe?: boolean; fotoUrl?: string | null; myAvatarUrl?: string | null }) {
+function AudioContent({ mensagem, isMe, fotoUrl, myAvatarUrl, timestamp, ackIndicator }: { mensagem: Mensagem; isMe?: boolean; fotoUrl?: string | null; myAvatarUrl?: string | null; timestamp?: string; ackIndicator?: React.ReactNode }) {
   if (!mensagem.media_url) {
     return (
       <div className="flex items-center gap-2 p-3 rounded-md bg-muted/50 border border-border/30 text-muted-foreground text-xs italic">
@@ -266,6 +266,8 @@ function AudioContent({ mensagem, isMe, fotoUrl, myAvatarUrl }: { mensagem: Mens
       duration={mensagem.media_duration ?? undefined}
       isMe={!!isMe}
       fotoUrl={avatarUrl}
+      timestamp={timestamp}
+      ackIndicator={ackIndicator}
     />
   )
 }
@@ -634,12 +636,14 @@ function renderContent(
   fotoUrl?: string | null,
   contactMap?: Map<string, string>,
   myAvatarUrl?: string | null,
+  audioTimestamp?: string,
+  audioAckIndicator?: React.ReactNode,
 ) {
   switch (mensagem.tipo) {
     case 'text': return <TextContent body={mensagem.body || ''} rawData={mensagem.raw_data} contactMap={contactMap} />
     case 'image': return <ImageContent mensagem={mensagem} onViewMedia={onViewMedia} />
     case 'video': return <VideoContent mensagem={mensagem} onViewMedia={onViewMedia} />
-    case 'audio': return <AudioContent mensagem={mensagem} isMe={isMe} fotoUrl={fotoUrl} myAvatarUrl={myAvatarUrl} />
+    case 'audio': return <AudioContent mensagem={mensagem} isMe={isMe} fotoUrl={fotoUrl} myAvatarUrl={myAvatarUrl} timestamp={audioTimestamp} ackIndicator={audioAckIndicator} />
     case 'document': return <DocumentContent mensagem={mensagem} />
     case 'location': return <LocationContent mensagem={mensagem} />
     case 'contact': return <ContactContent mensagem={mensagem} />
@@ -1085,6 +1089,10 @@ export function ChatMessageBubble({
                 {isMe && <AckIndicator ack={mensagem.ack} />}
               </span>
             </div>
+          ) : mensagem.tipo === 'audio' ? (
+              <>
+                {renderContent(mensagem, handleViewMedia, conversaId, isMe, fotoUrl, contactMap, myAvatarUrl, format(new Date(mensagem.criado_em), 'HH:mm'), isMe ? <AckIndicator ack={mensagem.ack} /> : undefined)}
+              </>
           ) : (
             <>
               {renderContent(mensagem, handleViewMedia, conversaId, isMe, fotoUrl, contactMap, myAvatarUrl)}
