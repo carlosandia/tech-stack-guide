@@ -5880,6 +5880,8 @@ export type Database = {
       }
       pre_cadastros_saas: {
         Row: {
+          aceite_termos: boolean
+          aceite_termos_em: string | null
           atualizado_em: string
           criado_em: string
           email: string
@@ -5897,6 +5899,8 @@ export type Database = {
           utms: Json | null
         }
         Insert: {
+          aceite_termos?: boolean
+          aceite_termos_em?: string | null
           atualizado_em?: string
           criado_em?: string
           email: string
@@ -5914,6 +5918,8 @@ export type Database = {
           utms?: Json | null
         }
         Update: {
+          aceite_termos?: boolean
+          aceite_termos_em?: string | null
           atualizado_em?: string
           criado_em?: string
           email?: string

@@ -265,8 +265,8 @@ export function TermosServicoPage() {
                 <p><strong className="text-foreground">Renove Digital</strong></p>
                 <p><strong className="text-foreground">CNPJ:</strong> 26.334.241/0001-60</p>
                 <p><strong className="text-foreground">E-mail:</strong>{' '}
-                  <a href="mailto:contato@renovedigital.com.br" className="text-primary hover:underline">
-                    contato@renovedigital.com.br
+                  <a href="mailto:crm@renovedigital.com.br" className="text-primary hover:underline">
+                    crm@renovedigital.com.br
                   </a>
                 </p>
               </div>

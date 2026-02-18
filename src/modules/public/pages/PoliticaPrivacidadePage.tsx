@@ -237,8 +237,8 @@ export function PoliticaPrivacidadePage() {
                 <p><strong className="text-foreground">Controlador:</strong> Renove Digital</p>
                 <p><strong className="text-foreground">CNPJ:</strong> 26.334.241/0001-60</p>
                 <p><strong className="text-foreground">E-mail do DPO:</strong>{' '}
-                  <a href="mailto:contato@renovedigital.com.br" className="text-primary hover:underline">
-                    contato@renovedigital.com.br
+                  <a href="mailto:crm@renovedigital.com.br" className="text-primary hover:underline">
+                    crm@renovedigital.com.br
                   </a>
                 </p>
               </div>
