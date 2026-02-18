@@ -62,7 +62,7 @@ export function LoginForm({ onSubmit, isLoading = false, error }: LoginFormProps
   return (
     <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
       {/* Titulo */}
-      <div className="text-center">
+      <div className="text-left">
         <h2 className="text-xl font-semibold text-foreground">
           Informe seus dados abaixo
         </h2>
