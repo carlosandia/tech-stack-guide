@@ -10,12 +10,7 @@ export function LandingFooter() {
         <div className="flex flex-col md:flex-row items-center justify-between gap-6">
           {/* Logo */}
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-md bg-primary flex items-center justify-center">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 2H20C21.1 2 22 2.9 22 4V8C22 9.7 20.7 11 19 11H12M4 22V2M4 22H8M4 22H0M8 22C8 22 13 22 15 18M15 18L22 22" />
-              </svg>
-            </div>
-            <span className="text-sm font-bold text-primary-foreground">CRM Renove</span>
+            <img src="/logo.svg" alt="CRM Renove" className="h-7 [filter:brightness(0)_invert(1)]" />
           </div>
 
           {/* Links */}
