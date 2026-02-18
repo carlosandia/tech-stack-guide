@@ -354,7 +354,7 @@ export const FormPreview = forwardRef<HTMLDivElement, Props>(function FormPrevie
         {/* Left: Visualizar Final */}
         <div className="flex items-center">
           {onToggleFinalPreview && (
-            <span className="text-xs text-muted-foreground select-none">Visualizar Final</span>
+            <span className="text-xs text-muted-foreground select-none">Visualização Final</span>
           )}
         </div>
 
