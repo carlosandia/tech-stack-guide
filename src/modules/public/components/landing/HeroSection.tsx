@@ -49,7 +49,7 @@ export function HeroSection() {
             </div>
 
             <p className="text-xs text-muted-foreground">
-              Sem cartão de crédito • Configuração em 2 minutos • Cancele quando quiser
+              Configuração em 2 minutos • Cancele quando quiser
             </p>
           </div>
 
