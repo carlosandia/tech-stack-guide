@@ -502,7 +502,6 @@ interface PlanoDb {
         <Dialog open={demoModalOpen} onOpenChange={setDemoModalOpen}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <div ref={demoContainerRef} className="min-h-[300px]" />
-            <div ref={demoContainerRef} className="min-h-[300px]" />
           </DialogContent>
         </Dialog>
 
