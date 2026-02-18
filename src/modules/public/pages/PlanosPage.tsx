@@ -3,7 +3,7 @@ import { useSearchParams, Link } from 'react-router-dom'
 import { Check, Loader2, Star, Zap, RefreshCw, AlertTriangle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { PreCadastroModal } from '../components/PreCadastroModal'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
  
  /**
   * AIDEV-NOTE: Pagina publica de planos
@@ -501,9 +501,7 @@ interface PlanoDb {
         {/* Modal Demonstração */}
         <Dialog open={demoModalOpen} onOpenChange={setDemoModalOpen}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Solicite uma demonstração</DialogTitle>
-            </DialogHeader>
+            <div ref={demoContainerRef} className="min-h-[300px]" />
             <div ref={demoContainerRef} className="min-h-[300px]" />
           </DialogContent>
         </Dialog>
