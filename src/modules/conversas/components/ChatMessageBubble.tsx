@@ -77,9 +77,12 @@ function AckIndicator({ ack }: { ack: number }) {
 }
 
 const DOMPURIFY_CONFIG = {
-  ALLOWED_TAGS: ['strong', 'em', 'del', 'code', 'span'],
-  ALLOWED_ATTR: ['class'],
+  ALLOWED_TAGS: ['strong', 'em', 'del', 'code', 'span', 'a'],
+  ALLOWED_ATTR: ['class', 'href', 'target', 'rel'],
 }
+
+// AIDEV-NOTE: Regex para detectar URLs no texto e converter em links clicáveis
+const URL_REGEX = /(https?:\/\/[^\s<>"']+)/g
 
 function sanitizeFormattedHtml(text: string): string {
   const formatted = text
@@ -87,6 +90,8 @@ function sanitizeFormattedHtml(text: string): string {
     .replace(/_(.*?)_/g, '<em>$1</em>')
     .replace(/~(.*?)~/g, '<del>$1</del>')
     .replace(/```(.*?)```/gs, '<code>$1</code>')
+    // Converter URLs em links clicáveis
+    .replace(URL_REGEX, '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-primary underline hover:text-primary/80 break-all">$1</a>')
   return DOMPurify.sanitize(formatted, DOMPURIFY_CONFIG)
 }
 
