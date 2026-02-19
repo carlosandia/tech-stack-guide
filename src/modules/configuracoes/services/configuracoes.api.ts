@@ -1512,13 +1512,26 @@ export const metaAdsApi = {
   },
   criarFormulario: async (payload: Record<string, unknown>) => {
     const orgId = await getOrganizacaoId()
+    // AIDEV-NOTE: page_id vindo do Facebook é string numérica, precisamos do UUID da tabela paginas_meta
+    const facebookPageId = payload.page_id as string
+    let paginaUuid = facebookPageId
+    // Tentar buscar o UUID correspondente na tabela paginas_meta
+    const { data: paginaMeta } = await supabase
+      .from('paginas_meta')
+      .select('id')
+      .eq('page_id', facebookPageId)
+      .eq('organizacao_id', orgId)
+      .maybeSingle()
+    if (paginaMeta?.id) {
+      paginaUuid = paginaMeta.id
+    }
     const { data, error } = await supabase
       .from('formularios_lead_ads')
       .insert({
         organizacao_id: orgId,
         form_id: payload.form_id as string,
         form_name: (payload.form_name as string) || null,
-        pagina_id: payload.page_id as string,
+        pagina_id: paginaUuid,
         funil_id: (payload.pipeline_id as string) || null,
         etapa_destino_id: (payload.etapa_id as string) || null,
         mapeamento_campos: payload.mapeamento_campos as any,
