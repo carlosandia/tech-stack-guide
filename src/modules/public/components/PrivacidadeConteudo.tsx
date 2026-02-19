@@ -104,6 +104,98 @@ export function PrivacidadeConteudo() {
         </div>
       </section>
 
+      {/* 5.1. Uso de Dados do Google */}
+      <section className="border-b border-border pb-6 mb-6">
+        <h2 className="text-lg font-semibold text-foreground mb-3">5.1. Uso de Dados do Google (Google API Services)</h2>
+        <div className="text-sm text-muted-foreground leading-relaxed space-y-3">
+          <p>
+            O CRM Renove integra-se com serviços do Google (Google Calendar e Gmail) para oferecer funcionalidades de sincronização de agenda e comunicação por e-mail dentro da plataforma. O acesso a esses serviços ocorre <strong className="text-foreground">exclusivamente mediante autorização explícita do usuário</strong> via protocolo OAuth 2.0.
+          </p>
+
+          <p className="font-medium text-foreground">5.1.1. Dados coletados via APIs do Google</p>
+          <ul className="list-disc pl-6 space-y-1">
+            <li><strong className="text-foreground">Google Calendar:</strong> eventos de calendário (título, data/hora, participantes, descrição) para sincronização com a agenda do CRM</li>
+            <li><strong className="text-foreground">Gmail:</strong> mensagens de e-mail (remetente, destinatário, assunto, corpo, anexos) para envio e leitura de e-mails dentro da plataforma CRM</li>
+            <li><strong className="text-foreground">Dados de perfil básico:</strong> nome e endereço de e-mail da conta Google autorizada, para identificação da conexão</li>
+          </ul>
+
+          <p className="font-medium text-foreground">5.1.2. Finalidade do uso</p>
+          <p>
+            Os dados obtidos via APIs do Google são utilizados <strong className="text-foreground">exclusivamente</strong> para fornecer e melhorar as funcionalidades da plataforma CRM Renove relacionadas à integração autorizada pelo usuário:
+          </p>
+          <ul className="list-disc pl-6 space-y-1">
+            <li>Sincronização bidirecional de eventos de calendário entre o Google Calendar e o CRM</li>
+            <li>Envio e leitura de e-mails diretamente pela interface do CRM, utilizando a conta Gmail autorizada</li>
+            <li>Criação automática de reuniões Google Meet vinculadas a eventos do CRM</li>
+          </ul>
+
+          <p className="font-medium text-foreground">5.1.3. Restrições de uso (Limited Use)</p>
+          <div className="bg-muted/50 rounded-lg p-4 border border-border space-y-2">
+            <p>
+              O uso de dados recebidos das APIs do Google pelo CRM Renove está em conformidade com a{' '}
+              <a
+                href="https://developers.google.com/terms/api-services-user-data-policy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline"
+              >
+                Google API Services User Data Policy
+              </a>
+              , incluindo os requisitos de <strong className="text-foreground">Limited Use</strong>. Especificamente:
+            </p>
+            <ul className="list-disc pl-6 space-y-1">
+              <li><strong className="text-foreground">NÃO</strong> utilizamos dados do Google para veicular, personalizar ou mensurar publicidade ou campanhas de marketing</li>
+              <li><strong className="text-foreground">NÃO</strong> vendemos, licenciamos ou transferimos dados do Google a terceiros para fins de publicidade, corretagem de dados ou revenda</li>
+              <li><strong className="text-foreground">NÃO</strong> utilizamos dados do Google para treinamento de modelos de inteligência artificial ou aprendizado de máquina</li>
+              <li><strong className="text-foreground">NÃO</strong> utilizamos dados do Google para determinação de crédito, avaliação financeira ou qualquer finalidade não relacionada às funcionalidades do CRM</li>
+              <li>Os dados do Google são utilizados <strong className="text-foreground">apenas</strong> para fornecer e melhorar funcionalidades voltadas ao usuário dentro da plataforma CRM Renove</li>
+            </ul>
+          </div>
+
+          <p className="font-medium text-foreground">5.1.4. Compartilhamento de dados do Google</p>
+          <p>
+            Dados obtidos via APIs do Google <strong className="text-foreground">não são compartilhados com terceiros</strong>, exceto nas seguintes situações estritamente necessárias:
+          </p>
+          <ul className="list-disc pl-6 space-y-1">
+            <li><strong className="text-foreground">Infraestrutura:</strong> Supabase (banco de dados e autenticação) — como operador técnico, sob obrigações contratuais de proteção de dados</li>
+            <li><strong className="text-foreground">Obrigação legal:</strong> quando exigido por lei, regulamento ou ordem judicial</li>
+            <li><strong className="text-foreground">Consentimento:</strong> quando o usuário autorizar expressamente o compartilhamento</li>
+          </ul>
+
+          <p className="font-medium text-foreground">5.1.5. Retenção e exclusão de dados do Google</p>
+          <ul className="list-disc pl-6 space-y-1">
+            <li>Tokens de acesso e refresh tokens são armazenados de forma criptografada enquanto a integração estiver ativa</li>
+            <li>Dados de calendário e e-mail são mantidos apenas durante a vigência da integração</li>
+            <li>Ao <strong className="text-foreground">desconectar a integração</strong> nas configurações do CRM, os tokens são revogados junto ao Google e eliminados dos nossos servidores</li>
+            <li>O usuário pode solicitar a exclusão completa dos dados do Google a qualquer momento, entrando em contato com nosso DPO (seção 11)</li>
+            <li>Ao cancelar a assinatura do CRM Renove, todos os tokens e dados de integrações Google são eliminados conforme os prazos da seção 8</li>
+          </ul>
+
+          <p className="font-medium text-foreground">5.1.6. Revogação de acesso</p>
+          <p>
+            O usuário pode revogar o acesso do CRM Renove aos seus dados do Google a qualquer momento por duas formas:
+          </p>
+          <ul className="list-disc pl-6 space-y-1">
+            <li>Nas <strong className="text-foreground">configurações do CRM Renove</strong>, desconectando a integração Google</li>
+            <li>Na página de{' '}
+              <a
+                href="https://myaccount.google.com/permissions"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline"
+              >
+                permissões da conta Google
+              </a>
+              , removendo o acesso do CRM Renove
+            </li>
+          </ul>
+
+          <p className="text-xs text-muted-foreground italic">
+            Nota: Os cookies de marketing mencionados na seção 6.3 (Google Ads) referem-se exclusivamente a tecnologias de rastreamento do nosso site institucional e <strong className="text-foreground">não têm relação</strong> com dados obtidos via APIs do Google (Calendar/Gmail). Dados de APIs do Google jamais são utilizados para fins publicitários.
+          </p>
+        </div>
+      </section>
+
       {/* 6. Cookies */}
       <section className="border-b border-border pb-6 mb-6">
         <h2 className="text-lg font-semibold text-foreground mb-3">6. Cookies e Tecnologias de Rastreamento</h2>
