@@ -1,4 +1,6 @@
-import { createContext, useContext, useState, useEffect, useCallback, forwardRef, type ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useRef, forwardRef, type ReactNode } from 'react'
+
+import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import type { User, Session } from '@supabase/supabase-js'
 
@@ -43,9 +45,11 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider = forwardRef<HTMLDivElement, AuthProviderProps>(function AuthProvider({ children }, _ref) {
+  const queryClient = useQueryClient()
   const [user, setUser] = useState<AuthUser | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
+  const previousUserIdRef = useRef<string | null>(null)
 
   // Extrai metadados do usuario
   const tenantId = user?.organizacao_id ?? null
@@ -140,8 +144,20 @@ export const AuthProvider = forwardRef<HTMLDivElement, AuthProviderProps>(functi
   useEffect(() => {
     // Configura listener de mudanca de estado
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, currentSession) => {
+      async (event, currentSession) => {
         setSession(currentSession)
+
+        // Limpa cache do React Query ao deslogar ou trocar de conta
+        if (event === 'SIGNED_OUT') {
+          queryClient.clear()
+          previousUserIdRef.current = null
+        } else if (event === 'SIGNED_IN' && currentSession?.user) {
+          const newUserId = currentSession.user.id
+          if (previousUserIdRef.current && previousUserIdRef.current !== newUserId) {
+            queryClient.clear()
+          }
+          previousUserIdRef.current = newUserId
+        }
         
         if (currentSession?.user) {
           // Usa setTimeout para evitar deadlock
@@ -213,6 +229,7 @@ export const AuthProvider = forwardRef<HTMLDivElement, AuthProviderProps>(functi
   // Logout
   const signOut = async () => {
     try {
+      queryClient.clear()
       await supabase.auth.signOut()
     } catch {
       // Ignora erros de logout
