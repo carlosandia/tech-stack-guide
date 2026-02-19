@@ -1271,7 +1271,7 @@ export const integracoesApi = {
           id: row.id as string,
           organizacao_id: row.organizacao_id as string,
           plataforma: 'meta_ads',
-          status: ['connected', 'ativo', 'active'].includes(row.status as string) ? 'conectado' : (row.status as string) || 'desconectado',
+          status: ['connected', 'conectado', 'ativo', 'active'].includes(row.status as string) ? 'conectado' : (row.status as string) || 'desconectado',
           meta_user_name: row.meta_user_name as string | null,
           meta_user_email: row.meta_user_email as string | null,
           ultimo_sync: row.ultimo_sync as string | null,
