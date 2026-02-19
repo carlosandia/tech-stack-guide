@@ -1050,8 +1050,16 @@ export async function testarConfigGlobal(plataforma: string): Promise<{ sucesso:
         }
       )
 
-      const result = await response.json()
-      return { sucesso: result.sucesso, mensagem: result.mensagem }
+      const text = await response.text()
+      if (!text) {
+        return { sucesso: false, mensagem: 'Resposta vazia da edge function. Tente novamente.' }
+      }
+      try {
+        const result = JSON.parse(text)
+        return { sucesso: result.sucesso, mensagem: result.mensagem }
+      } catch {
+        return { sucesso: false, mensagem: `Resposta inesperada: ${text.substring(0, 100)}` }
+      }
     } catch (error) {
       return { sucesso: false, mensagem: `Erro ao testar: ${(error as Error).message}` }
     }
