@@ -1,36 +1,29 @@
 
 
-## Habilitar botão "Enviar Evento Teste" somente após salvar configuração
+## Corrigir painel de Publicos Personalizados (Custom Audiences)
 
-### Problema atual
-O botão "Enviar Evento Teste" está habilitado sempre que há um `pixelId` preenchido no campo, mesmo que a configuração ainda não tenha sido salva no banco de dados. Isso pode causar erros pois a Edge Function depende do `pixel_id` salvo na tabela `config_conversions_api`.
+### Problema
+As funcoes `listarAudiences`, `criarAudience`, `atualizarAudience` e `sincronizarAudience` usam `api.get/post/patch` (backend Express em `localhost:3001`), que nao esta rodando neste ambiente. Precisam ser migradas para usar Supabase diretamente, seguindo o mesmo padrao ja usado no restante do arquivo.
 
-### Solução
+### Solucao
 
-Adicionar uma variável derivada `configSalva` que verifica se o `config` retornado pelo banco já possui um `pixel_id` salvo. O botão "Enviar Evento Teste" será desabilitado quando `configSalva` for `false`.
+Migrar as 4 funcoes do `metaAdsApi` para usar o cliente Supabase diretamente contra a tabela `custom_audiences_meta` que ja existe no banco.
 
-### Alteração no arquivo
+### Alteracoes
 
-**`src/modules/configuracoes/components/integracoes/meta/CapiConfigPanel.tsx`**
+**Arquivo: `src/modules/configuracoes/services/configuracoes.api.ts`**
 
-1. Criar variável `configSalva` derivada do query `config`:
-   ```typescript
-   const configSalva = !!config?.pixel_id
-   ```
+Substituir as 4 funcoes (linhas 1638-1653) por implementacoes Supabase:
 
-2. Alterar o `disabled` do botão "Enviar Evento Teste" de:
-   ```
-   disabled={testar.isPending || !pixelId}
-   ```
-   Para:
-   ```
-   disabled={testar.isPending || !configSalva}
-   ```
+1. **`listarAudiences`** - `supabase.from('custom_audiences_meta').select('*').is('deletado_em', null).order('criado_em', { ascending: false })`
+2. **`criarAudience`** - Insert com `organizacao_id` obtido via `getOrganizacaoId()`, gerando `audience_id` provisorio
+3. **`atualizarAudience`** - Update por `id` (para toggle ativo/inativo e outros campos)
+4. **`sincronizarAudience`** - Update do campo `ultimo_sync` com timestamp atual (sincronizacao real com Meta sera implementada futuramente)
 
-3. Adicionar tooltip/texto auxiliar quando desabilitado, indicando que é necessário salvar primeiro.
+### Detalhes tecnicos
 
-### Comportamento esperado
+- Tabela `custom_audiences_meta` ja existe com colunas: `id`, `organizacao_id`, `audience_id`, `audience_name`, `ad_account_id`, `tipo_sincronizacao`, `evento_gatilho`, `total_usuarios`, `ultimo_sync`, `ativo`, `criado_em`, `deletado_em`
+- O campo `audience_id` e `NOT NULL` na tabela, entao ao criar sera preenchido com valor provisorio (ex: `pending_<timestamp>`)
+- RLS filtra automaticamente por `organizacao_id`
+- Segue o padrao existente no arquivo usando `getOrganizacaoId()`
 
-- Usuário abre o painel CAPI pela primeira vez (sem config salva) -> botao teste desabilitado
-- Usuário preenche Pixel ID e clica "Salvar Configuração" -> query invalida e recarrega -> `config.pixel_id` agora existe -> botao teste habilitado
-- Se o usuário alterar o Pixel ID mas não salvar, o botão continua habilitado (pois a config anterior ainda existe no banco)
