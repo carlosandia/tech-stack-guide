@@ -667,7 +667,14 @@ function renderContent(
 // Quoted message preview (reply bubble)
 // =====================================================
 
-function QuotedMessagePreview({ quoted, isMe, isStatusReply }: { quoted: Mensagem; isMe: boolean; isStatusReply?: boolean }) {
+function QuotedMessagePreview({ quoted, isMe, isStatusReply, onViewMedia }: {
+  quoted: Mensagem
+  isMe: boolean
+  isStatusReply?: boolean
+  onViewMedia?: (url: string, tipo: 'image' | 'video') => void
+}) {
+  const [loading, setLoading] = useState(false)
+
   const getPreviewText = () => {
     // Para imagem/video com caption, mostrar o caption
     if ((quoted.tipo === 'image' || quoted.tipo === 'video') && quoted.caption) {
@@ -711,15 +718,60 @@ function QuotedMessagePreview({ quoted, isMe, isStatusReply }: { quoted: Mensage
 
   // AIDEV-NOTE: Verificar se há thumbnail disponível (base64 ou media_url de imagem)
   const hasThumbnail = quoted.media_url && (quoted.tipo === 'image' || quoted.tipo === 'video')
+  const isMediaType = quoted.tipo === 'image' || quoted.tipo === 'video'
+
+  // AIDEV-NOTE: Ao clicar, tenta buscar mídia full-res via WAHA API; fallback para thumbnail
+  const handleClick = useCallback(async () => {
+    if (!isMediaType || !onViewMedia) return
+
+    // Se já temos uma URL de mídia real (não base64), abrir direto
+    if (quoted.media_url && !quoted.media_url.startsWith('data:')) {
+      onViewMedia(quoted.media_url, quoted.tipo as 'image' | 'video')
+      return
+    }
+
+    // Tentar buscar mídia full-res via WAHA API
+    setLoading(true)
+    try {
+      const { conversasApi } = await import('../services/conversas.api')
+      const chatId = isStatusReply ? 'status@broadcast' : undefined
+      const result = await conversasApi.downloadMessageMedia(
+        quoted.conversa_id,
+        quoted.message_id,
+        chatId
+      )
+
+      if (result?.media_url) {
+        onViewMedia(result.media_url, quoted.tipo as 'image' | 'video')
+      } else if (quoted.media_url) {
+        // Fallback: abrir thumbnail base64
+        onViewMedia(quoted.media_url, quoted.tipo as 'image' | 'video')
+      } else {
+        toast('Mídia não disponível ou expirada')
+      }
+    } catch {
+      // Fallback para thumbnail
+      if (quoted.media_url) {
+        onViewMedia(quoted.media_url, quoted.tipo as 'image' | 'video')
+      } else {
+        toast('Erro ao carregar mídia')
+      }
+    } finally {
+      setLoading(false)
+    }
+  }, [quoted, isMediaType, isStatusReply, onViewMedia])
 
   return (
-    <div className={`
-      rounded-lg mb-1.5 border-l-[3px] cursor-pointer overflow-hidden flex
-      ${isMe
-        ? 'bg-primary/10 border-l-primary/60'
-        : 'bg-muted-foreground/15 border-l-muted-foreground/50'
-      }
-    `}>
+    <div
+      className={`
+        rounded-lg mb-1.5 border-l-[3px] cursor-pointer overflow-hidden flex
+        ${isMe
+          ? 'bg-primary/10 border-l-primary/60'
+          : 'bg-muted-foreground/15 border-l-muted-foreground/50'
+        }
+      `}
+      onClick={handleClick}
+    >
       <div className="flex-1 min-w-0 px-3 py-2">
         <div className="flex items-center gap-1.5">
           <p className="text-[11px] font-semibold text-primary truncate">
@@ -732,16 +784,21 @@ function QuotedMessagePreview({ quoted, isMe, isStatusReply }: { quoted: Mensage
           )}
         </div>
         <p className="text-[11px] text-muted-foreground/80 truncate max-w-[220px]">
-          {getPreviewText()}
+          {loading ? 'Carregando mídia...' : getPreviewText()}
         </p>
       </div>
       {hasThumbnail && (
-        <div className="w-[52px] h-[52px] flex-shrink-0">
+        <div className="w-[52px] h-[52px] flex-shrink-0 relative">
           <img
             src={quoted.media_url!}
             alt="Thumbnail"
             className="w-full h-full object-cover rounded-r-lg"
           />
+          {isMediaType && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-r-lg">
+              <Play className="w-4 h-4 text-white fill-white" />
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -1113,7 +1170,7 @@ export function ChatMessageBubble({
           )}
 
           {quotedMessage && (
-            <QuotedMessagePreview quoted={quotedMessage} isMe={isMe} isStatusReply={isStatusReply} />
+            <QuotedMessagePreview quoted={quotedMessage} isMe={isMe} isStatusReply={isStatusReply} onViewMedia={handleViewMedia} />
           )}
 
           {/* Inline text + timestamp (WhatsApp style) */}

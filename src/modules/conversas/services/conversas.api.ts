@@ -1124,6 +1124,38 @@ export const conversasApi = {
     return data
   },
 
+  /**
+   * AIDEV-NOTE: Download de mídia de uma mensagem via WAHA API (sem salvar no banco)
+   * Usado para visualizar mídia de Status/Stories ou mensagens antigas
+   */
+  async downloadMessageMedia(conversaId: string, messageId: string, chatId?: string): Promise<{ media_url: string; mimetype?: string } | null> {
+    const session = await getConversaWahaSession(conversaId)
+    if (!session) return null
+
+    const targetChatId = chatId || session.chatId
+
+    try {
+      const { data, error } = await supabase.functions.invoke('waha-proxy', {
+        body: {
+          action: 'download_message_media',
+          session_name: session.sessionName,
+          chat_id: targetChatId,
+          message_id: messageId,
+        },
+      })
+
+      if (error || !data?.ok) {
+        console.warn('[conversasApi] Mídia não disponível:', error || data?.error)
+        return null
+      }
+
+      return { media_url: data.media_url, mimetype: data.mimetype }
+    } catch (err) {
+      console.warn('[conversasApi] Erro ao baixar mídia:', err)
+      return null
+    }
+  },
+
   // --- Mensagens Prontas ---
 
   async listarProntas(params?: { busca?: string }): Promise<{ mensagens_prontas: MensagemPronta[]; total: number }> {
