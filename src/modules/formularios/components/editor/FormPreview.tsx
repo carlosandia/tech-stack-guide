@@ -188,11 +188,7 @@ export const FormPreview = forwardRef<HTMLDivElement, Props>(function FormPrevie
     }
   }, [onDropNewCampo, onReorderCampo])
 
-  const viewportWidths: Record<Viewport, string> = {
-    desktop: 'max-w-full',
-    tablet: 'max-w-[768px]',
-    mobile: 'max-w-[390px]',
-  }
+  // AIDEV-NOTE: viewportWidths removido - agora usa viewportPixelWidths com width real
 
   // AIDEV-NOTE: Larguras reais em pixels para simular viewport no container
   const viewportPixelWidths: Record<Viewport, number | null> = {
@@ -424,14 +420,19 @@ export const FormPreview = forwardRef<HTMLDivElement, Props>(function FormPrevie
         <ResponsiveCssInjector formId={formulario.id} botao={estiloBotao} container={estiloContainer} campos={estiloCampos} allCampos={campos} forceViewport={viewport !== 'desktop' ? viewport : undefined} />
 
         <div
-          className="flex items-start justify-center"
-          style={{ width: viewportPixelWidths[viewport] ? `${viewportPixelWidths[viewport]}px` : '100%' }}
+          className={cn(
+            "flex items-start justify-center mx-auto transition-all duration-300",
+            viewport !== 'desktop' && "shadow-[0_0_0_1px_hsl(var(--border))] rounded-lg bg-background"
+          )}
+          style={{ 
+            width: viewportPixelWidths[viewport] ? `${viewportPixelWidths[viewport]}px` : '100%',
+            maxWidth: '100%',
+          }}
         >
         <div
           className={cn(
-            'mx-auto transition-all duration-300 rounded-lg relative',
+            'w-full transition-all duration-300 rounded-lg relative',
             showFinalPreview && 'form-container',
-            viewportWidths[viewport],
             showFinalPreview
               ? (showContainerBorder ? 'border border-border' : '')
               : cn(
