@@ -1512,19 +1512,27 @@ export const metaAdsApi = {
   },
   criarFormulario: async (payload: Record<string, unknown>) => {
     const orgId = await getOrganizacaoId()
-    // AIDEV-NOTE: page_id vindo do Facebook é string numérica, precisamos do UUID da tabela paginas_meta
+    // AIDEV-NOTE: page_id do Facebook é string numérica. Fazemos upsert em paginas_meta para obter UUID interno.
     const facebookPageId = payload.page_id as string
-    let paginaUuid = facebookPageId
-    // Tentar buscar o UUID correspondente na tabela paginas_meta
-    const { data: paginaMeta } = await supabase
+    const conexaoId = payload.conexao_id as string
+
+    // Upsert garante que a página existe em paginas_meta (constraint unique: organizacao_id, page_id)
+    const { data: paginaMeta, error: errPagina } = await supabase
       .from('paginas_meta')
+      .upsert(
+        {
+          organizacao_id: orgId,
+          conexao_id: conexaoId,
+          page_id: facebookPageId,
+          page_name: (payload.page_name as string) || 'Página Facebook',
+        },
+        { onConflict: 'organizacao_id,page_id' }
+      )
       .select('id')
-      .eq('page_id', facebookPageId)
-      .eq('organizacao_id', orgId)
-      .maybeSingle()
-    if (paginaMeta?.id) {
-      paginaUuid = paginaMeta.id
-    }
+      .single()
+
+    if (errPagina) throw errPagina
+    const paginaUuid = paginaMeta.id
     const { data, error } = await supabase
       .from('formularios_lead_ads')
       .insert({
