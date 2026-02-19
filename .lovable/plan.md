@@ -1,64 +1,59 @@
 
-## Correção: Erro 400 ao salvar formulário Lead Ads
+## Correção: Conversions API - Mapeamento de Status e Conexão com Supabase
 
-### Causa Raiz
+### Problemas Encontrados
 
-A tabela `paginas_meta` está **vazia**. O campo `pagina_id` em `formularios_lead_ads` é `uuid NOT NULL` com FK para `paginas_meta.id`. O código recebe o Page ID do Facebook (string numérica como "123456789") da seleção do dropdown, tenta um lookup na `paginas_meta` (que retorna vazio), e insere essa string numérica como UUID, causando o erro 400 (Bad Request).
+**Problema 1 - Frontend usa Axios (localhost:3001)**
 
-### Solucao
+As funções `obterCapiConfig`, `salvarCapiConfig` e `testarCapi` em `configuracoes.api.ts` ainda usam `api.get`/`api.post` que apontam para um backend Node.js local (`localhost:3001`). Como esse backend não existe no ambiente, todas as operacoes CAPI falham com `ERR_CONNECTION_REFUSED`.
 
-Na função `criarFormulario`, antes de inserir em `formularios_lead_ads`, fazer **upsert** na tabela `paginas_meta` para garantir que a página existe. Usar os dados já disponíveis no payload (page_id, page_name) e o `integracaoId` como `conexao_id`.
+**Problema 2 - Trigger classifica Ganho/Perda incorretamente**
 
-### Alteracoes
+A trigger `emitir_evento_automacao` no banco de dados diferencia oportunidade ganha de perdida usando:
+```sql
+CASE WHEN NEW.motivo_resultado_id IS NULL THEN 'oportunidade_ganha' ELSE 'oportunidade_perdida' END
+```
+Porem, oportunidades ganhas tambem podem ter `motivo_resultado_id` preenchido (quando `exigir_motivo_resultado = true` no funil). Isso faz a trigger emitir `oportunidade_perdida` incorretamente para oportunidades ganhas que tem motivo.
 
-**Arquivo:** `src/modules/configuracoes/components/integracoes/meta/LeadAdsFormMappingModal.tsx`
+O correto seria consultar o tipo da etapa destino (campo `tipo` em `etapas_funil`, que sera `ganho` ou `perda`).
 
-1. Passar `integracaoId` (conexao_id) no payload enviado ao `salvar.mutate()`, junto com `page_name` (nome da página selecionada):
+### Mapeamento dos Eventos (validacao)
 
-```typescript
-const payload = {
-  form_id: selectedFormId,
-  form_name: selectedFormName,
-  page_id: selectedPageId || form?.page_id,
-  page_name: selectedPageName, // novo campo
-  conexao_id: _integracaoId,   // novo campo (era ignorado com _)
-  pipeline_id: selectedPipelineId,
-  etapa_id: etapaInicial?.id || '',
-  mapeamento_campos: mappings.filter((m) => m.crm_field),
-}
+| Evento | Meta Event | Fonte no Supabase | Status |
+|--------|-----------|-------------------|--------|
+| Lead | `Lead` | Contato tipo `pessoa` criado (tabela `contatos`) | Correto |
+| Schedule | `Schedule` | INSERT em `reunioes_oportunidades` (status `agendada`) | Correto |
+| MQL | `CompleteRegistration` | `oportunidades.qualificado_mql = true` | Correto |
+| Won | `Purchase` | `oportunidades.fechado_em` IS NOT NULL + etapa tipo `ganho` | Precisa correcao na trigger |
+| Lost | `Other` | `oportunidades.fechado_em` IS NOT NULL + etapa tipo `perda` | Precisa correcao na trigger |
+
+### Plano de Correcao
+
+**1. Migrar CAPI para Supabase direto (configuracoes.api.ts)**
+
+Substituir as 3 funcoes que usam Axios por chamadas diretas ao Supabase na tabela `config_conversions_api`:
+
+- `obterCapiConfig`: SELECT na tabela `config_conversions_api` filtrando por `organizacao_id`
+- `salvarCapiConfig`: UPSERT na tabela `config_conversions_api` com `pixel_id`, `eventos_habilitados`, `config_eventos`
+- `testarCapi`: Por enquanto, apenas salvar um registro de teste (o envio real ao Meta depende do access_token que esta no backend)
+
+**2. Corrigir trigger `emitir_evento_automacao` (migration SQL)**
+
+Alterar a logica de fechamento para consultar o tipo da etapa ao inves de depender de `motivo_resultado_id`:
+
+```sql
+-- Dentro do bloco de fechamento (OLD.fechado_em IS NULL AND NEW.fechado_em IS NOT NULL)
+-- Consultar o tipo da etapa para determinar se e ganho ou perda
+SELECT tipo INTO v_tipo_etapa FROM etapas_funil WHERE id = NEW.etapa_id LIMIT 1;
+
+INSERT INTO eventos_automacao (...) VALUES (
+  v_organizacao_id,
+  CASE WHEN v_tipo_etapa = 'ganho' THEN 'oportunidade_ganha' ELSE 'oportunidade_perdida' END,
+  ...
+);
 ```
 
-2. Adicionar state `selectedPageName` para capturar o nome da página ao selecionar.
+### Arquivos Afetados
 
-**Arquivo:** `src/modules/configuracoes/services/configuracoes.api.ts`
-
-3. Na função `criarFormulario`, substituir o lookup simples por um **upsert** na `paginas_meta`:
-
-```typescript
-// Upsert na paginas_meta para garantir que a página existe
-const { data: paginaMeta, error: errPagina } = await supabase
-  .from('paginas_meta')
-  .upsert({
-    organizacao_id: orgId,
-    conexao_id: payload.conexao_id,
-    page_id: facebookPageId,
-    page_name: payload.page_name || 'Página Facebook',
-  }, { onConflict: 'organizacao_id,page_id' })
-  .select('id')
-  .single()
-
-if (errPagina) throw errPagina
-const paginaUuid = paginaMeta.id
-```
-
-4. Se não existir constraint unique em `(organizacao_id, page_id)`, fazer busca + insert condicional como fallback.
-
-### Verificacao necessaria
-
-Confirmar se existe constraint unique em `paginas_meta(organizacao_id, page_id)`. Caso não exista, criar via migration.
-
-### Resultado esperado
-
-- A página do Facebook é registrada automaticamente em `paginas_meta` ao configurar o formulário
-- O UUID correto é usado em `formularios_lead_ads.pagina_id`
-- O erro 400 desaparece
+- `src/modules/configuracoes/services/configuracoes.api.ts` - Migrar obterCapiConfig, salvarCapiConfig, testarCapi
+- Migration SQL - Corrigir trigger `emitir_evento_automacao`
