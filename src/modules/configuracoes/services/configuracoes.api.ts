@@ -1636,19 +1636,51 @@ export const metaAdsApi = {
     return data as { sucesso: boolean; erro?: string; mensagem?: string; test_event_code?: string }
   },
   listarAudiences: async () => {
-    const { data } = await api.get('/v1/conexoes/meta/audiences')
-    return data as { audiences: CustomAudience[] }
+    const orgId = await getOrganizacaoId()
+    const { data, error } = await supabase
+      .from('custom_audiences_meta')
+      .select('*')
+      .eq('organizacao_id', orgId)
+      .is('deletado_em', null)
+      .order('criado_em', { ascending: false })
+    if (error) throw error
+    return { audiences: (data || []) as CustomAudience[] }
   },
   criarAudience: async (payload: Record<string, unknown>) => {
-    const { data } = await api.post('/v1/conexoes/meta/audiences', payload)
+    const orgId = await getOrganizacaoId()
+    const { data, error } = await supabase
+      .from('custom_audiences_meta')
+      .insert({
+        organizacao_id: orgId,
+        audience_id: `pending_${Date.now()}`,
+        audience_name: payload.audience_name as string,
+        ad_account_id: payload.ad_account_id as string,
+        tipo_sincronizacao: (payload.tipo_sincronizacao as string) || 'evento',
+        evento_gatilho: (payload.evento_gatilho as string) || null,
+      })
+      .select()
+      .single()
+    if (error) throw error
     return data
   },
   atualizarAudience: async (id: string, payload: Record<string, unknown>) => {
-    const { data } = await api.patch(`/v1/conexoes/meta/audiences/${id}`, payload)
+    const { data, error } = await supabase
+      .from('custom_audiences_meta')
+      .update(payload)
+      .eq('id', id)
+      .select()
+      .single()
+    if (error) throw error
     return data
   },
   sincronizarAudience: async (id: string) => {
-    const { data } = await api.post(`/v1/conexoes/meta/audiences/${id}/sync`)
+    const { data, error } = await supabase
+      .from('custom_audiences_meta')
+      .update({ ultimo_sync: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single()
+    if (error) throw error
     return data
   },
 }
