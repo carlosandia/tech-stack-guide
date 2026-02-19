@@ -82,8 +82,21 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Gerar state com org_id do usuario para o callback
-    const organizacaoId = user.user_metadata?.organizacao_id || "";
+    // Buscar organizacao_id do usuario na tabela usuarios
+    const { data: usuario } = await supabaseAdmin
+      .from("usuarios")
+      .select("organizacao_id")
+      .eq("auth_id", user.id)
+      .maybeSingle();
+
+    const organizacaoId = usuario?.organizacao_id || "";
+    if (!organizacaoId) {
+      return new Response(
+        JSON.stringify({ error: "Usuário não vinculado a nenhuma organização" }),
+        { status: 400, headers: jsonHeaders }
+      );
+    }
+
     const state = btoa(JSON.stringify({
       organizacao_id: organizacaoId,
       user_id: user.id,
