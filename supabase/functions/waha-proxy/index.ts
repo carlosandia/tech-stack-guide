@@ -1731,6 +1731,66 @@ Deno.serve(async (req) => {
         );
       }
 
+      // AIDEV-NOTE: Download de mídia de uma mensagem (Status/Stories ou qualquer mensagem)
+      // Usa GET /api/{session}/chats/{chatId}/messages/{messageId}?downloadMedia=true
+      case "download_message_media": {
+        const { chat_id: dlChatId, message_id: dlMessageId } = body as { chat_id?: string; message_id?: string };
+        if (!dlChatId || !dlMessageId) {
+          return new Response(
+            JSON.stringify({ error: "chat_id e message_id são obrigatórios" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        console.log(`[waha-proxy] Downloading media: chat=${dlChatId}, msg=${dlMessageId}, session=${sessionId}`);
+
+        const dlResp = await fetch(
+          `${baseUrl}/api/${sessionId}/chats/${encodeURIComponent(dlChatId)}/messages/${encodeURIComponent(dlMessageId)}?downloadMedia=true&limit=1`,
+          {
+            method: "GET",
+            headers: { "X-Api-Key": apiKey },
+          }
+        );
+
+        const dlData = await dlResp.json().catch(() => ({}));
+        console.log(`[waha-proxy] Download media response: ${dlResp.status}`);
+
+        if (!dlResp.ok) {
+          if (isEngineLimitation(dlResp.status, dlData as Record<string, unknown>)) {
+            return nowebPartialResponse('download_message_media');
+          }
+          return new Response(
+            JSON.stringify({ ok: false, error: dlData }),
+            { status: dlResp.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // WAHA retorna array de mensagens; pegar a primeira com media.url
+        const messages = Array.isArray(dlData) ? dlData : [dlData];
+        const msgWithMedia = messages.find((m: Record<string, unknown>) => {
+          const media = m.media as Record<string, unknown> | undefined;
+          return media?.url;
+        });
+
+        if (msgWithMedia) {
+          const media = msgWithMedia.media as Record<string, unknown>;
+          return new Response(
+            JSON.stringify({
+              ok: true,
+              media_url: media.url,
+              mimetype: media.mimetype || msgWithMedia.mimetype,
+              filename: media.filename,
+            }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        return new Response(
+          JSON.stringify({ ok: false, error: "Mídia não encontrada ou expirada" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       default:
         return new Response(
           JSON.stringify({ error: `Action '${action}' não reconhecida` }),
