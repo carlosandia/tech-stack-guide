@@ -421,10 +421,7 @@ export const FormPreview = forwardRef<HTMLDivElement, Props>(function FormPrevie
 
         {/* AIDEV-NOTE: Wrapper externo para simular viewport - controla largura máxima sem afetar o container do form */}
         <div
-          className={cn(
-            "flex items-start justify-center mx-auto transition-all duration-300",
-            viewport !== 'desktop' && "border border-dashed border-muted-foreground/30 rounded-lg p-2"
-          )}
+          className="flex items-start justify-center mx-auto transition-all duration-300"
           style={{
             width: viewportPixelWidths[viewport] ? `${viewportPixelWidths[viewport]}px` : '100%',
             maxWidth: '100%',
