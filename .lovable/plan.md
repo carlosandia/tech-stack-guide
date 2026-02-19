@@ -1,32 +1,57 @@
 
-# Corrigir formulario para pegar 100% do viewport no preview
+# Corrigir dropdown do usuario que nao fecha ao clicar fora
 
 ## Problema
-O `containerStyle` aplica o `max_width` configurado no estilo do container (ex: `600px`), o que limita a largura do formulario dentro do wrapper de viewport. Isso faz com que Desktop, Tablet e Mobile pareçam iguais porque o container interno nunca ultrapassa seu `max_width`.
+O overlay transparente que captura cliques fora do menu esta renderizado **dentro** do header (`z-[100]`). Isso cria um stacking context que impede o overlay de cobrir a area abaixo do header (conteudo principal, toolbar, etc). O clique fora so funciona se for dentro do proprio header.
+
+O mesmo bug existe em 3 arquivos:
+- `src/modules/app/layouts/AppLayout.tsx`
+- `src/modules/admin/layouts/AdminLayout.tsx`
+- `src/modules/configuracoes/components/layout/ConfigHeader.tsx`
 
 ## Solucao
-Remover o `maxWidth` do `containerStyle` quando estiver no preview do editor. Assim o formulario sempre ocupara 100% da largura disponivel no wrapper de viewport, e a diferença entre Desktop (100%), Tablet (768px) e Mobile (390px) ficara visivel.
+Substituir o dropdown manual (useState + overlay) pelo componente `DropdownMenu` do Radix UI, que ja existe no projeto e resolve automaticamente:
+- Posicionamento via portal (fora do stacking context)
+- Fecha ao clicar em qualquer lugar fora
+- Acessibilidade (keyboard navigation, ESC para fechar)
+- Animacoes de entrada/saida
 
-## Alteracao tecnica
+O projeto ja usa esse padrao no `OrganizacaoActionsMenu.tsx`.
 
-**Arquivo:** `src/modules/formularios/components/editor/FormPreview.tsx`
+## Alteracoes
 
-1. Na construcao do `containerStyle` (linha 218), remover a propriedade `maxWidth`:
+### Arquivo 1: `src/modules/app/layouts/AppLayout.tsx`
+- Remover estado `userMenuOpen` e `setUserMenuOpen`
+- Importar `DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel` de `@/components/ui/dropdown-menu`
+- Substituir o bloco do user menu (linhas ~296-353) por:
 
-```typescript
-// ANTES (linha 218):
-maxWidth: rv(estiloContainer as any, 'max_width') || estiloContainer.max_width || undefined,
-
-// DEPOIS - remover essa linha completamente do containerStyle
-// O max_width sera controlado apenas pelo wrapper de viewport
+```text
+<DropdownMenu>
+  <DropdownMenuTrigger asChild>
+    <button> ... avatar + nome + chevron ... </button>
+  </DropdownMenuTrigger>
+  <DropdownMenuContent align="end" className="w-56">
+    <DropdownMenuLabel>
+      ... nome, email, badge de role ...
+    </DropdownMenuLabel>
+    <DropdownMenuSeparator />
+    <DropdownMenuItem onClick => navigate('/perfil')>
+      Meu Perfil
+    </DropdownMenuItem>
+    <DropdownMenuItem onClick => handleLogout>
+      Sair
+    </DropdownMenuItem>
+  </DropdownMenuContent>
+</DropdownMenu>
 ```
 
-2. Isso fara com que o `div` do form container ocupe `w-full` (ja esta na classe), preenchendo todo o wrapper de viewport.
+### Arquivo 2: `src/modules/admin/layouts/AdminLayout.tsx`
+- Mesma substituicao: remover estado manual, usar `DropdownMenu` do Radix
 
-3. O wrapper externo (linhas 423-431) ja controla a largura corretamente: `100%` para desktop, `768px` para tablet, `390px` para mobile.
+### Arquivo 3: `src/modules/configuracoes/components/layout/ConfigHeader.tsx`
+- Mesma substituicao: remover estado manual, usar `DropdownMenu` do Radix
 
 ## Resultado esperado
-- **Desktop**: formulario ocupa toda a largura do preview
-- **Tablet**: formulario limitado a 768px com borda tracejada
-- **Mobile**: formulario limitado a 390px com borda tracejada
-- A diferença visual entre os viewports fica clara
+- O menu fecha corretamente ao clicar em qualquer area fora dele
+- Comportamento consistente em todos os layouts (App, Admin, Configuracoes)
+- Suporte a teclado (ESC fecha, setas navegam)
