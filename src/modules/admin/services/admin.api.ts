@@ -1033,6 +1033,30 @@ export async function testarConfigGlobal(plataforma: string): Promise<{ sucesso:
     }
   }
 
+  if (plataforma === 'meta') {
+    // Teste real via edge function
+    try {
+      const session = await supabase.auth.getSession()
+      const accessToken = session.data.session?.access_token
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/test-meta`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        }
+      )
+
+      const result = await response.json()
+      return { sucesso: result.sucesso, mensagem: result.mensagem }
+    } catch (error) {
+      return { sucesso: false, mensagem: `Erro ao testar: ${(error as Error).message}` }
+    }
+  }
+
   // Para outras plataformas, re-avaliar campos obrigatórios a partir dos dados reais
   const { data: config } = await supabase
     .from('configuracoes_globais')
