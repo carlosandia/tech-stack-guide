@@ -156,16 +156,8 @@ const App = forwardRef<HTMLDivElement>(function App(_props, _ref) {
         <Route path="evolucao" element={<AdminEvolucaoPage />} />
       </Route>
 
-      {/* Redireciona raiz baseado no role ou mostra landing */}
-      <Route path="/" element={
-        isAuthenticated && !isSetPasswordPage
-          ? isPendente
-            ? <Navigate to="/auth/set-password" replace />
-            : role === 'super_admin'
-              ? <Navigate to="/admin" replace />
-              : <Navigate to="/dashboard" replace />
-          : <LandingPage />
-      } />
+      {/* Landing page sempre acessivel, mesmo logado */}
+      <Route path="/" element={<LandingPage />} />
 
       {/* 404 - não redirecionar se está na pagina de set-password */}
       <Route path="*" element={
