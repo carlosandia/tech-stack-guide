@@ -43,6 +43,9 @@ export function CapiConfigPanel() {
     }
   }, [config])
 
+  // AIDEV-NOTE: Derivado do config do banco - botão teste só habilita após salvar
+  const configSalva = !!config?.pixel_id
+
   const salvar = useMutation({
     mutationFn: () =>
       metaAdsApi.salvarCapiConfig({
@@ -194,8 +197,9 @@ export function CapiConfigPanel() {
       <div className="flex items-center gap-3">
         <button
           onClick={() => testar.mutate()}
-          disabled={testar.isPending || !pixelId}
-          className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-md bg-secondary text-secondary-foreground hover:bg-accent transition-colors disabled:opacity-50"
+          disabled={testar.isPending || !configSalva}
+          title={!configSalva ? 'Salve a configuração primeiro' : undefined}
+          className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-md bg-secondary text-secondary-foreground hover:bg-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {testar.isPending ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
