@@ -20,7 +20,7 @@ const EVENTOS: EventoConfig[] = [
   { key: 'lead', label: 'Lead', descricao: 'Quando um novo contato é criado no CRM', metaEvent: 'Lead' },
   { key: 'schedule', label: 'Agendamento', descricao: 'Quando uma reunião é agendada', metaEvent: 'Schedule' },
   { key: 'mql', label: 'Lead Qualificado (MQL)', descricao: 'Quando contato recebe badge MQL', metaEvent: 'CompleteRegistration' },
-  { key: 'won', label: 'Venda Fechada (Won)', descricao: 'Oportunidade marcada como ganha', metaEvent: 'Purchase' },
+  { key: 'won', label: 'Oportunidade Ganha', descricao: 'Oportunidade marcada como ganha', metaEvent: 'Purchase' },
   { key: 'lost', label: 'Oportunidade Perdida', descricao: 'Oportunidade marcada como perdida', metaEvent: 'Other' },
 ]
 
@@ -60,10 +60,11 @@ export function CapiConfigPanel() {
   const testar = useMutation({
     mutationFn: () => metaAdsApi.testarCapi(),
     onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['meta-ads', 'capi-config'] })
       if (data.sucesso) {
-        toast.success('Evento de teste enviado com sucesso!')
+        toast.success('mensagem' in data && data.mensagem ? data.mensagem : 'Evento de teste enviado com sucesso!')
       } else {
-        toast.error('Falha no envio do evento de teste')
+        toast.error('erro' in data && data.erro ? data.erro : 'Falha no envio do evento de teste')
       }
     },
     onError: () => toast.error('Erro ao testar Conversions API'),

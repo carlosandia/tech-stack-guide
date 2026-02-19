@@ -1625,22 +1625,15 @@ export const metaAdsApi = {
     return data
   },
   testarCapi: async () => {
-    // AIDEV-NOTE: Teste real depende do access_token Meta no servidor.
-    // Por enquanto, registra timestamp de teste no banco.
-    const orgId = await getOrganizacaoId()
-    const { error } = await supabase
-      .from('config_conversions_api')
-      .update({
-        ultimo_teste: new Date().toISOString(),
-        ultimo_teste_sucesso: true,
-        atualizado_em: new Date().toISOString(),
-      })
-      .eq('organizacao_id', orgId)
+    // AIDEV-NOTE: Envia evento de teste real para Meta CAPI via Edge Function
+    const { data, error } = await supabase.functions.invoke('test-capi-event', {
+      method: 'POST',
+    })
     if (error) {
-      console.error('[CAPI] Erro ao registrar teste:', error)
-      return { sucesso: false }
+      console.error('[CAPI] Erro ao testar:', error)
+      return { sucesso: false, erro: error.message }
     }
-    return { sucesso: true }
+    return data as { sucesso: boolean; erro?: string; mensagem?: string; test_event_code?: string }
   },
   listarAudiences: async () => {
     const { data } = await api.get('/v1/conexoes/meta/audiences')
