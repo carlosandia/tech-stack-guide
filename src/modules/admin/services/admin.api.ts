@@ -1036,30 +1036,20 @@ export async function testarConfigGlobal(plataforma: string): Promise<{ sucesso:
   if (plataforma === 'meta') {
     // Teste real via edge function
     try {
-      const session = await supabase.auth.getSession()
-      const accessToken = session.data.session?.access_token
+      const { data, error } = await supabase.functions.invoke('test-meta', {
+        method: 'POST',
+      })
 
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/test-meta`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${accessToken}`,
-          },
+      if (error) {
+        // Se error.message contém HTML, é um 404
+        const msg = error.message || 'Erro ao chamar edge function'
+        if (msg.includes('<!') || msg.includes('doctype')) {
+          return { sucesso: false, mensagem: 'Edge function test-meta não encontrada. Verifique o deploy.' }
         }
-      )
+        return { sucesso: false, mensagem: `Erro ao testar: ${msg}` }
+      }
 
-      const text = await response.text()
-      if (!text) {
-        return { sucesso: false, mensagem: 'Resposta vazia da edge function. Tente novamente.' }
-      }
-      try {
-        const result = JSON.parse(text)
-        return { sucesso: result.sucesso, mensagem: result.mensagem }
-      } catch {
-        return { sucesso: false, mensagem: `Resposta inesperada: ${text.substring(0, 100)}` }
-      }
+      return { sucesso: data?.sucesso ?? false, mensagem: data?.mensagem ?? 'Sem resposta' }
     } catch (error) {
       return { sucesso: false, mensagem: `Erro ao testar: ${(error as Error).message}` }
     }
