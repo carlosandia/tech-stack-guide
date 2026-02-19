@@ -421,17 +421,7 @@ export const FormPreview = forwardRef<HTMLDivElement, Props>(function FormPrevie
 
         <div
           className={cn(
-            "flex items-start justify-center mx-auto transition-all duration-300",
-            viewport !== 'desktop' && "shadow-[0_0_0_1px_hsl(var(--border))] rounded-lg"
-          )}
-          style={{ 
-            width: viewportPixelWidths[viewport] ? `${viewportPixelWidths[viewport]}px` : '100%',
-            maxWidth: '100%',
-          }}
-        >
-        <div
-          className={cn(
-            'w-full transition-all duration-300 rounded-lg relative',
+            'mx-auto transition-all duration-300 rounded-lg relative',
             showFinalPreview && 'form-container',
             showFinalPreview
               ? (showContainerBorder ? 'border border-border' : '')
@@ -442,7 +432,11 @@ export const FormPreview = forwardRef<HTMLDivElement, Props>(function FormPrevie
                   selectedStyleElement === 'container' && 'outline outline-2 outline-dashed outline-primary outline-offset-4'
                 )
           )}
-          style={containerStyle}
+          style={{
+            ...containerStyle,
+            // AIDEV-NOTE: Quando viewport não é desktop, forçar largura máxima do viewport simulado
+            ...(viewportPixelWidths[viewport] ? { maxWidth: `${viewportPixelWidths[viewport]}px` } : {}),
+          }}
           onClick={showFinalPreview ? undefined : handleContainerClick}
           data-form-container
           data-form-id={formulario.id}
@@ -815,7 +809,6 @@ export const FormPreview = forwardRef<HTMLDivElement, Props>(function FormPrevie
 
             return formContent
           })()}
-        </div>
         </div>
       </div>
     </div>
