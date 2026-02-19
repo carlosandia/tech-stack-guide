@@ -1,19 +1,47 @@
 /**
  * AIDEV-NOTE: Popover de filtros avançados para o Kanban
  * Conforme PRD-07 RF-12
- * Filtros: Responsável, Qualificação, Valor (range), Origem
+ * UI: Lista accordion com sub-seleção por categoria
+ * Filtros aplicados em tempo real (sem botão Aplicar)
+ *
+ * Status derivado de etapa.tipo:
+ *   - Aberto = etapas tipo 'entrada' | 'normal'
+ *   - Ganho = etapa tipo 'ganho'
+ *   - Perdido = etapa tipo 'perda'
+ *
+ * Qualificação derivada de:
+ *   - Lead = !qualificado_mql && !qualificado_sql
+ *   - MQL = qualificado_mql === true
+ *   - SQL = qualificado_sql === true
+ *
+ * Origem vem de contatos.origem (não existe em oportunidades)
  */
 
-import { useState, useRef, useEffect, forwardRef } from 'react'
-import { Filter, Loader2 } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Filter, ChevronRight, ChevronDown, Loader2 } from 'lucide-react'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import { negociosApi } from '../../services/negocios.api'
 
+// =====================================================
+// Types
+// =====================================================
+
 export interface FiltrosKanban {
-  responsavelId?: string
+  status?: ('aberto' | 'ganho' | 'perdido')[]
   qualificacao?: ('lead' | 'mql' | 'sql')[]
+  responsavelId?: string
   valorMin?: number
   valorMax?: number
-  origem?: string
+  dataCriacaoInicio?: string
+  dataCriacaoFim?: string
+  previsaoFechamentoInicio?: string
+  previsaoFechamentoFim?: string
+  origem?: string[]
+  tarefasPendentes?: 'com' | 'sem'
 }
 
 interface FiltrosPopoverProps {
@@ -22,40 +50,65 @@ interface FiltrosPopoverProps {
   isAdmin: boolean
 }
 
-function contarFiltrosAtivos(f: FiltrosKanban): number {
+type SecaoId = 'status' | 'qualificacao' | 'responsavel' | 'valor' | 'dataCriacao' | 'previsaoFechamento' | 'origem' | 'tarefas'
+
+// =====================================================
+// Helpers
+// =====================================================
+
+export function contarFiltrosAtivos(f: FiltrosKanban): number {
   let count = 0
+  if (f.status?.length) count++
+  if (f.qualificacao?.length) count++
   if (f.responsavelId) count++
-  if (f.qualificacao && f.qualificacao.length > 0) count++
   if (f.valorMin !== undefined || f.valorMax !== undefined) count++
-  if (f.origem) count++
+  if (f.dataCriacaoInicio || f.dataCriacaoFim) count++
+  if (f.previsaoFechamentoInicio || f.previsaoFechamentoFim) count++
+  if (f.origem?.length) count++
+  if (f.tarefasPendentes) count++
   return count
 }
 
-export const FiltrosPopover = forwardRef<HTMLDivElement, FiltrosPopoverProps>(function FiltrosPopover({ filtros, onChange, isAdmin }, _ref) {
+function contarSecao(f: FiltrosKanban, secao: SecaoId): number {
+  switch (secao) {
+    case 'status': return f.status?.length || 0
+    case 'qualificacao': return f.qualificacao?.length || 0
+    case 'responsavel': return f.responsavelId ? 1 : 0
+    case 'valor': return (f.valorMin !== undefined || f.valorMax !== undefined) ? 1 : 0
+    case 'dataCriacao': return (f.dataCriacaoInicio || f.dataCriacaoFim) ? 1 : 0
+    case 'previsaoFechamento': return (f.previsaoFechamentoInicio || f.previsaoFechamentoFim) ? 1 : 0
+    case 'origem': return f.origem?.length || 0
+    case 'tarefas': return f.tarefasPendentes ? 1 : 0
+    default: return 0
+  }
+}
+
+// =====================================================
+// Sections config
+// =====================================================
+
+const SECOES: Array<{ id: SecaoId; label: string; adminOnly?: boolean }> = [
+  { id: 'status', label: 'Status' },
+  { id: 'qualificacao', label: 'Qualificação' },
+  { id: 'responsavel', label: 'Responsável', adminOnly: true },
+  { id: 'valor', label: 'Valor (R$)' },
+  { id: 'dataCriacao', label: 'Data de Criação' },
+  { id: 'previsaoFechamento', label: 'Previsão de Fechamento' },
+  { id: 'origem', label: 'Origem' },
+  { id: 'tarefas', label: 'Tarefas' },
+]
+
+// =====================================================
+// Component
+// =====================================================
+
+export function FiltrosPopover({ filtros, onChange, isAdmin }: FiltrosPopoverProps) {
   const [open, setOpen] = useState(false)
-  const containerRef = useRef<HTMLDivElement>(null)
+  const [expandida, setExpandida] = useState<SecaoId | null>(null)
   const [membros, setMembros] = useState<Array<{ id: string; nome: string; sobrenome?: string | null }>>([])
   const [carregando, setCarregando] = useState(false)
 
-  // Local state for editing
-  const [local, setLocal] = useState<FiltrosKanban>({ ...filtros })
-
-  // Sync local when external changes
-  useEffect(() => {
-    setLocal({ ...filtros })
-  }, [filtros])
-
-  // Click outside
-  useEffect(() => {
-    if (!open) return
-    const handler = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [open])
+  const totalAtivos = contarFiltrosAtivos(filtros)
 
   // Carregar membros quando abrir (admin only)
   useEffect(() => {
@@ -67,181 +120,312 @@ export const FiltrosPopover = forwardRef<HTMLDivElement, FiltrosPopoverProps>(fu
       .finally(() => setCarregando(false))
   }, [open, isAdmin, membros.length])
 
-  const totalAtivos = contarFiltrosAtivos(filtros)
-
-  const handleAplicar = () => {
-    onChange(local)
-    setOpen(false)
+  const toggleSecao = (secao: SecaoId) => {
+    setExpandida(prev => prev === secao ? null : secao)
   }
 
   const handleLimpar = () => {
-    const vazio: FiltrosKanban = {}
-    setLocal(vazio)
-    onChange(vazio)
+    onChange({})
   }
 
-  const toggleQualificacao = (q: 'lead' | 'mql' | 'sql') => {
-    const atual = local.qualificacao || []
-    setLocal({
-      ...local,
-      qualificacao: atual.includes(q) ? atual.filter(x => x !== q) : [...atual, q],
-    })
+  // Toggle multi-select helper
+  const toggleMulti = (
+    key: 'status' | 'qualificacao' | 'origem',
+    value: string,
+    current: string[] | undefined
+  ) => {
+    const arr = current || []
+    const next = arr.includes(value)
+      ? arr.filter(v => v !== value)
+      : [...arr, value]
+    onChange({ ...filtros, [key]: next.length > 0 ? next : undefined })
   }
 
-  return (
-    <div className="relative" ref={containerRef}>
-      <button
-        onClick={() => setOpen(!open)}
-        className={`
-          relative p-2 rounded-md text-muted-foreground transition-all duration-200
-          ${totalAtivos > 0 ? 'bg-primary/10 text-primary' : 'hover:bg-accent'}
-        `}
-        title="Filtros"
-      >
-        <Filter className="w-4 h-4" />
-        {totalAtivos > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center">
-            {totalAtivos}
-          </span>
-        )}
-      </button>
+  // =====================================================
+  // Render section content
+  // =====================================================
 
-      {open && (
-        <div className="fixed left-3 right-3 sm:absolute sm:left-auto sm:right-0 top-[calc(100%+6px)] sm:top-full sm:mt-1.5 sm:w-80 bg-card border border-border rounded-lg shadow-lg z-[60] animate-enter">
-          {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-            <span className="text-sm font-semibold text-foreground">Filtros</span>
-            {totalAtivos > 0 && (
-              <button
-                onClick={handleLimpar}
-                className="text-xs text-primary hover:underline"
-              >
-                Limpar tudo
-              </button>
-            )}
+  const renderConteudo = (secaoId: SecaoId) => {
+    switch (secaoId) {
+      case 'status':
+        return (
+          <div className="flex flex-wrap gap-2 pt-2">
+            {([
+              { value: 'aberto', label: 'Aberto', corAtiva: 'bg-blue-50 border-blue-300 text-blue-700' },
+              { value: 'ganho', label: 'Ganho', corAtiva: 'bg-emerald-50 border-emerald-300 text-emerald-700' },
+              { value: 'perdido', label: 'Perdido', corAtiva: 'bg-red-50 border-red-300 text-red-700' },
+            ] as const).map(item => {
+              const selecionado = (filtros.status || []).includes(item.value)
+              return (
+                <button
+                  key={item.value}
+                  onClick={() => toggleMulti('status', item.value, filtros.status)}
+                  className={`
+                    px-3 py-1.5 rounded-md text-xs font-medium border transition-all duration-200
+                    ${selecionado ? item.corAtiva : 'border-border text-muted-foreground hover:bg-accent'}
+                  `}
+                >
+                  {item.label}
+                </button>
+              )
+            })}
           </div>
+        )
 
-          <div className="p-4 space-y-4 max-h-[400px] overflow-y-auto">
-            {/* Responsável (admin only) */}
-            {isAdmin && (
-              <div>
-                <label className="block text-xs font-medium text-foreground mb-1.5">
-                  Responsável
-                </label>
-                {carregando ? (
-                  <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                ) : (
-                  <select
-                    value={local.responsavelId || ''}
-                    onChange={(e) => setLocal({ ...local, responsavelId: e.target.value || undefined })}
-                    className="w-full h-9 px-3 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30"
-                  >
-                    <option value="">Todos</option>
-                    {membros.map(m => (
-                      <option key={m.id} value={m.id}>
-                        {m.nome}{m.sobrenome ? ` ${m.sobrenome}` : ''}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-            )}
+      case 'qualificacao':
+        return (
+          <div className="flex flex-wrap gap-2 pt-2">
+            {(['lead', 'mql', 'sql'] as const).map(q => {
+              const selecionado = (filtros.qualificacao || []).includes(q)
+              return (
+                <button
+                  key={q}
+                  onClick={() => toggleMulti('qualificacao', q, filtros.qualificacao)}
+                  className={`
+                    px-3 py-1.5 rounded-md text-xs font-medium border transition-all duration-200
+                    ${selecionado
+                      ? 'bg-primary/10 border-primary text-primary'
+                      : 'border-border text-muted-foreground hover:bg-accent'
+                    }
+                  `}
+                >
+                  {q.toUpperCase()}
+                </button>
+              )
+            })}
+          </div>
+        )
 
-            {/* Qualificação */}
-            <div>
-              <label className="block text-xs font-medium text-foreground mb-1.5">
-                Qualificação
-              </label>
-              <div className="flex gap-2">
-                {(['lead', 'mql', 'sql'] as const).map(q => {
-                  const selecionado = (local.qualificacao || []).includes(q)
-                  return (
-                    <button
-                      key={q}
-                      onClick={() => toggleQualificacao(q)}
-                      className={`
-                        px-3 py-1.5 rounded-md text-xs font-medium border transition-all duration-200
-                        ${selecionado
-                          ? 'bg-primary/10 border-primary text-primary'
-                          : 'border-border text-muted-foreground hover:bg-accent'
-                        }
-                      `}
-                    >
-                      {q.toUpperCase()}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* Valor (range) */}
-            <div>
-              <label className="block text-xs font-medium text-foreground mb-1.5">
-                Valor (R$)
-              </label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  placeholder="Min"
-                  value={local.valorMin ?? ''}
-                  onChange={(e) => setLocal({
-                    ...local,
-                    valorMin: e.target.value ? Number(e.target.value) : undefined,
-                  })}
-                  className="flex-1 h-9 px-3 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground"
-                />
-                <span className="text-xs text-muted-foreground">—</span>
-                <input
-                  type="number"
-                  placeholder="Max"
-                  value={local.valorMax ?? ''}
-                  onChange={(e) => setLocal({
-                    ...local,
-                    valorMax: e.target.value ? Number(e.target.value) : undefined,
-                  })}
-                  className="flex-1 h-9 px-3 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground"
-                />
-              </div>
-            </div>
-
-            {/* Origem */}
-            <div>
-              <label className="block text-xs font-medium text-foreground mb-1.5">
-                Origem
-              </label>
+      case 'responsavel':
+        return (
+          <div className="pt-2">
+            {carregando ? (
+              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+            ) : (
               <select
-                value={local.origem || ''}
-                onChange={(e) => setLocal({ ...local, origem: e.target.value || undefined })}
+                value={filtros.responsavelId || ''}
+                onChange={(e) => onChange({ ...filtros, responsavelId: e.target.value || undefined })}
                 className="w-full h-9 px-3 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30"
               >
-                <option value="">Todas</option>
-                <option value="manual">Manual</option>
-                <option value="whatsapp">WhatsApp</option>
-                <option value="website">Website</option>
-                <option value="indicacao">Indicação</option>
-                <option value="leadads">Lead Ads</option>
+                <option value="">Todos</option>
+                {membros.map(m => (
+                  <option key={m.id} value={m.id}>
+                    {m.nome}{m.sobrenome ? ` ${m.sobrenome}` : ''}
+                  </option>
+                ))}
               </select>
-            </div>
+            )}
           </div>
+        )
 
-          {/* Footer */}
-          <div className="flex justify-end gap-2 px-4 py-3 border-t border-border">
-            <button
-              onClick={() => setOpen(false)}
-              className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-all duration-200"
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={handleAplicar}
-              className="px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-all duration-200"
-            >
-              Aplicar
-            </button>
+      case 'valor':
+        return (
+          <div className="flex items-center gap-2 pt-2">
+            <input
+              type="number"
+              placeholder="Min"
+              value={filtros.valorMin ?? ''}
+              onChange={(e) => onChange({
+                ...filtros,
+                valorMin: e.target.value ? Number(e.target.value) : undefined,
+              })}
+              className="flex-1 h-9 px-3 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground"
+            />
+            <span className="text-xs text-muted-foreground">—</span>
+            <input
+              type="number"
+              placeholder="Max"
+              value={filtros.valorMax ?? ''}
+              onChange={(e) => onChange({
+                ...filtros,
+                valorMax: e.target.value ? Number(e.target.value) : undefined,
+              })}
+              className="flex-1 h-9 px-3 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground"
+            />
           </div>
+        )
+
+      case 'dataCriacao':
+        return (
+          <div className="flex items-center gap-2 pt-2">
+            <input
+              type="date"
+              value={filtros.dataCriacaoInicio || ''}
+              onChange={(e) => onChange({ ...filtros, dataCriacaoInicio: e.target.value || undefined })}
+              className="flex-1 h-9 px-2 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30"
+            />
+            <span className="text-xs text-muted-foreground">até</span>
+            <input
+              type="date"
+              value={filtros.dataCriacaoFim || ''}
+              onChange={(e) => onChange({ ...filtros, dataCriacaoFim: e.target.value || undefined })}
+              className="flex-1 h-9 px-2 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30"
+            />
+          </div>
+        )
+
+      case 'previsaoFechamento':
+        return (
+          <div className="flex items-center gap-2 pt-2">
+            <input
+              type="date"
+              value={filtros.previsaoFechamentoInicio || ''}
+              onChange={(e) => onChange({ ...filtros, previsaoFechamentoInicio: e.target.value || undefined })}
+              className="flex-1 h-9 px-2 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30"
+            />
+            <span className="text-xs text-muted-foreground">até</span>
+            <input
+              type="date"
+              value={filtros.previsaoFechamentoFim || ''}
+              onChange={(e) => onChange({ ...filtros, previsaoFechamentoFim: e.target.value || undefined })}
+              className="flex-1 h-9 px-2 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30"
+            />
+          </div>
+        )
+
+      case 'origem':
+        return (
+          <div className="flex flex-wrap gap-2 pt-2">
+            {([
+              { value: 'manual', label: 'Manual' },
+              { value: 'whatsapp', label: 'WhatsApp' },
+              { value: 'website', label: 'Website' },
+              { value: 'indicacao', label: 'Indicação' },
+              { value: 'leadads', label: 'Lead Ads' },
+            ]).map(item => {
+              const selecionado = (filtros.origem || []).includes(item.value)
+              return (
+                <button
+                  key={item.value}
+                  onClick={() => toggleMulti('origem', item.value, filtros.origem)}
+                  className={`
+                    px-3 py-1.5 rounded-md text-xs font-medium border transition-all duration-200
+                    ${selecionado
+                      ? 'bg-primary/10 border-primary text-primary'
+                      : 'border-border text-muted-foreground hover:bg-accent'
+                    }
+                  `}
+                >
+                  {item.label}
+                </button>
+              )
+            })}
+          </div>
+        )
+
+      case 'tarefas':
+        return (
+          <div className="flex flex-wrap gap-2 pt-2">
+            {([
+              { value: 'com' as const, label: 'Com pendentes' },
+              { value: 'sem' as const, label: 'Sem pendentes' },
+            ]).map(item => {
+              const selecionado = filtros.tarefasPendentes === item.value
+              return (
+                <button
+                  key={item.value}
+                  onClick={() => onChange({
+                    ...filtros,
+                    tarefasPendentes: selecionado ? undefined : item.value,
+                  })}
+                  className={`
+                    px-3 py-1.5 rounded-md text-xs font-medium border transition-all duration-200
+                    ${selecionado
+                      ? 'bg-primary/10 border-primary text-primary'
+                      : 'border-border text-muted-foreground hover:bg-accent'
+                    }
+                  `}
+                >
+                  {item.label}
+                </button>
+              )
+            })}
+          </div>
+        )
+
+      default:
+        return null
+    }
+  }
+
+  // =====================================================
+  // Render
+  // =====================================================
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          className={`
+            relative p-2 rounded-md text-muted-foreground transition-all duration-200
+            ${totalAtivos > 0 ? 'bg-primary/10 text-primary' : 'hover:bg-accent'}
+          `}
+          title="Filtros"
+        >
+          <Filter className="w-4 h-4" />
+          {totalAtivos > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center">
+              {totalAtivos}
+            </span>
+          )}
+        </button>
+      </PopoverTrigger>
+
+      <PopoverContent
+        align="end"
+        className="w-80 p-0"
+        sideOffset={8}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <span className="text-sm font-semibold text-foreground">Filtros</span>
+          {totalAtivos > 0 && (
+            <button
+              onClick={handleLimpar}
+              className="text-xs text-primary hover:underline"
+            >
+              Limpar tudo
+            </button>
+          )}
         </div>
-      )}
-    </div>
+
+        {/* Accordion sections */}
+        <div className="max-h-[420px] overflow-y-auto">
+          {SECOES
+            .filter(s => !s.adminOnly || isAdmin)
+            .map(secao => {
+              const isExpanded = expandida === secao.id
+              const count = contarSecao(filtros, secao.id)
+              return (
+                <div key={secao.id} className="border-b border-border last:border-b-0">
+                  <button
+                    onClick={() => toggleSecao(secao.id)}
+                    className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-foreground hover:bg-accent/50 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      {isExpanded ? (
+                        <ChevronDown className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                      ) : (
+                        <ChevronRight className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                      )}
+                      <span className="font-medium">{secao.label}</span>
+                    </div>
+                    {count > 0 && (
+                      <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+                        {count}
+                      </span>
+                    )}
+                  </button>
+                  {isExpanded && (
+                    <div className="px-4 pb-3">
+                      {renderConteudo(secao.id)}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+        </div>
+      </PopoverContent>
+    </Popover>
   )
-})
-FiltrosPopover.displayName = 'FiltrosPopover'
+}

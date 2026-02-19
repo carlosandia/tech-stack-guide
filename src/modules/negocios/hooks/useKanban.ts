@@ -11,12 +11,14 @@ import { supabase } from '@/lib/supabase'
 interface KanbanFiltros {
   busca?: string
   responsavelId?: string
-  qualificacao?: ('lead' | 'mql' | 'sql')[]
   valorMin?: number
   valorMax?: number
-  origem?: string
   periodoInicio?: string
   periodoFim?: string
+  dataCriacaoInicio?: string
+  dataCriacaoFim?: string
+  previsaoFechamentoInicio?: string
+  previsaoFechamentoFim?: string
 }
 
 export function useKanban(funilId: string | null, filtros?: KanbanFiltros) {
