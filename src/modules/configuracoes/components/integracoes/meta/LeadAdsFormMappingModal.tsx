@@ -28,11 +28,12 @@ interface FieldMapping {
 
 export function LeadAdsFormMappingModal({
   form,
-  integracaoId: _integracaoId,
+  integracaoId,
   onClose,
   onSuccess,
 }: LeadAdsFormMappingModalProps) {
   const [selectedPageId, setSelectedPageId] = useState('')
+  const [selectedPageName, setSelectedPageName] = useState('')
   const [selectedFormId, setSelectedFormId] = useState(form?.form_id || '')
   const [selectedFormName, setSelectedFormName] = useState(form?.form_name || '')
   const [selectedPipelineId, setSelectedPipelineId] = useState(form?.pipeline_id || '')
@@ -130,6 +131,8 @@ export function LeadAdsFormMappingModal({
         form_id: selectedFormId,
         form_name: selectedFormName,
         page_id: selectedPageId || form?.page_id,
+        page_name: selectedPageName,
+        conexao_id: integracaoId,
         pipeline_id: selectedPipelineId,
         etapa_id: etapaInicial?.id || '',
         mapeamento_campos: mappings.filter((m) => m.crm_field),
@@ -224,7 +227,10 @@ export function LeadAdsFormMappingModal({
                 <select
                   value={selectedPageId}
                   onChange={(e) => {
-                    setSelectedPageId(e.target.value)
+                    const pageId = e.target.value
+                    setSelectedPageId(pageId)
+                    const pagina = (paginasData?.paginas || []).find((p: any) => p.id === pageId)
+                    setSelectedPageName(pagina?.name || '')
                     setSelectedFormId('')
                     setMappings([])
                   }}
