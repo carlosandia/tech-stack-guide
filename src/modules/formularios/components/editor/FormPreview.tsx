@@ -399,7 +399,7 @@ export const FormPreview = forwardRef<HTMLDivElement, Props>(function FormPrevie
 
       {/* Preview area */}
       <div
-        className="flex-1 overflow-auto p-4 flex justify-center"
+        className="flex-1 overflow-auto p-4 flex justify-center min-h-0"
         data-preview-scroll
         style={{ backgroundColor: showFinalPreview ? (paginaBackgroundColor || '#F3F4F6') : 'hsl(220 15% 97.5%)' }}
         onClick={(e) => {
@@ -414,7 +414,7 @@ export const FormPreview = forwardRef<HTMLDivElement, Props>(function FormPrevie
         )}
         <ResponsiveCssInjector formId={formulario.id} botao={estiloBotao} container={estiloContainer} campos={estiloCampos} allCampos={campos} />
 
-        <div className="flex items-center justify-center w-full min-h-full">
+        <div className="flex items-start justify-center w-full">
         <div
           className={cn(
             'mx-auto transition-all duration-300 rounded-lg relative',
