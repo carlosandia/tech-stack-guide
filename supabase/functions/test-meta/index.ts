@@ -66,8 +66,8 @@ Deno.serve(async (req) => {
     }
 
     const configuracoes = config.configuracoes as Record<string, unknown>;
-    const appId = configuracoes.app_id as string;
-    const appSecret = configuracoes.app_secret_encrypted as string;
+    const appId = (configuracoes.app_id as string) || "";
+    const appSecret = (configuracoes.app_secret_encrypted as string) || (configuracoes.app_secret as string) || "";
 
     if (!appId || !appSecret) {
       return new Response(
