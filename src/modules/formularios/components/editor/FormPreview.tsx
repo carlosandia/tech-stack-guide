@@ -215,7 +215,7 @@ export const FormPreview = forwardRef<HTMLDivElement, Props>(function FormPrevie
       ? `${rv(estiloContainer as any, 'padding_top') || '24'}px ${rv(estiloContainer as any, 'padding_right') || '24'}px ${rv(estiloContainer as any, 'padding_bottom') || '24'}px ${rv(estiloContainer as any, 'padding_left') || '24'}px`
       : (estiloContainer.padding || '24px'),
     fontFamily,
-    maxWidth: rv(estiloContainer as any, 'max_width') || estiloContainer.max_width || undefined,
+    // AIDEV-NOTE: maxWidth removido no preview para o formulário pegar 100% do viewport simulado
     boxShadow: SOMBRA_MAP[estiloContainer.sombra || 'md'] || SOMBRA_MAP.md,
   } : { fontFamily: "'Inter', system-ui, sans-serif" }
 
