@@ -6093,6 +6093,54 @@ export type Database = {
           },
         ]
       }
+      preferencias_filtros_kanban: {
+        Row: {
+          atualizado_em: string
+          criado_em: string
+          filtros: Json
+          id: string
+          nome: string
+          organizacao_id: string
+          padrao: boolean
+          usuario_id: string
+        }
+        Insert: {
+          atualizado_em?: string
+          criado_em?: string
+          filtros?: Json
+          id?: string
+          nome: string
+          organizacao_id: string
+          padrao?: boolean
+          usuario_id: string
+        }
+        Update: {
+          atualizado_em?: string
+          criado_em?: string
+          filtros?: Json
+          id?: string
+          nome?: string
+          organizacao_id?: string
+          padrao?: boolean
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "preferencias_filtros_kanban_organizacao_id_fkey"
+            columns: ["organizacao_id"]
+            isOneToOne: false
+            referencedRelation: "organizacoes_saas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "preferencias_filtros_kanban_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       preferencias_metricas: {
         Row: {
           atualizado_em: string

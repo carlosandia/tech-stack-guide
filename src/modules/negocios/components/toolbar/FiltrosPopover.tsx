@@ -18,13 +18,22 @@
  */
 
 import { useState, useEffect } from 'react'
-import { Filter, ChevronRight, ChevronDown, Loader2 } from 'lucide-react'
+import { Filter, ChevronRight, ChevronDown, Loader2, Save, Star, Trash2, BookmarkCheck } from 'lucide-react'
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { negociosApi } from '../../services/negocios.api'
+import { useAuth } from '@/providers/AuthProvider'
+import {
+  listarFiltrosSalvos,
+  salvarFiltro,
+  excluirFiltro,
+  definirFiltroPadrao,
+  type FiltroSalvo,
+} from '../../services/preferencias-filtros.api'
+import { toast } from 'sonner'
 
 // =====================================================
 // Types
@@ -108,6 +117,14 @@ export function FiltrosPopover({ filtros, onChange, isAdmin }: FiltrosPopoverPro
   const [membros, setMembros] = useState<Array<{ id: string; nome: string; sobrenome?: string | null }>>([])
   const [carregando, setCarregando] = useState(false)
 
+  // Filtros salvos state
+  const { user, tenantId } = useAuth()
+  const [filtrosSalvos, setFiltrosSalvos] = useState<FiltroSalvo[]>([])
+  const [mostrarSalvos, setMostrarSalvos] = useState(false)
+  const [nomeNovoFiltro, setNomeNovoFiltro] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  const [mostrarInputNome, setMostrarInputNome] = useState(false)
+
   const totalAtivos = contarFiltrosAtivos(filtros)
 
   // Carregar membros quando abrir (admin only)
@@ -119,6 +136,12 @@ export function FiltrosPopover({ filtros, onChange, isAdmin }: FiltrosPopoverPro
       .catch(console.error)
       .finally(() => setCarregando(false))
   }, [open, isAdmin, membros.length])
+
+  // Carregar filtros salvos quando abrir
+  useEffect(() => {
+    if (!open) return
+    listarFiltrosSalvos().then(setFiltrosSalvos).catch(console.error)
+  }, [open])
 
   const toggleSecao = (secao: SecaoId) => {
     setExpandida(prev => prev === secao ? null : secao)
@@ -139,6 +162,54 @@ export function FiltrosPopover({ filtros, onChange, isAdmin }: FiltrosPopoverPro
       ? arr.filter(v => v !== value)
       : [...arr, value]
     onChange({ ...filtros, [key]: next.length > 0 ? next : undefined })
+  }
+
+  // Salvar filtro
+  const handleSalvarFiltro = async () => {
+    if (!nomeNovoFiltro.trim() || !user?.id || !tenantId) return
+    setSalvando(true)
+    try {
+      await salvarFiltro(user.id, tenantId, nomeNovoFiltro.trim(), filtros)
+      const updated = await listarFiltrosSalvos()
+      setFiltrosSalvos(updated)
+      setNomeNovoFiltro('')
+      setMostrarInputNome(false)
+      toast.success('Filtro salvo com sucesso')
+    } catch {
+      toast.error('Erro ao salvar filtro')
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  // Carregar filtro salvo
+  const handleCarregarFiltro = (filtro: FiltroSalvo) => {
+    onChange(filtro.filtros)
+    setMostrarSalvos(false)
+  }
+
+  // Excluir filtro salvo
+  const handleExcluirFiltro = async (id: string) => {
+    try {
+      await excluirFiltro(id)
+      setFiltrosSalvos(prev => prev.filter(f => f.id !== id))
+      toast.success('Filtro excluído')
+    } catch {
+      toast.error('Erro ao excluir filtro')
+    }
+  }
+
+  // Definir como padrão
+  const handleDefinirPadrao = async (id: string) => {
+    if (!user?.id || !tenantId) return
+    try {
+      await definirFiltroPadrao(id, tenantId, user.id)
+      const updated = await listarFiltrosSalvos()
+      setFiltrosSalvos(updated)
+      toast.success('Filtro definido como padrão')
+    } catch {
+      toast.error('Erro ao definir padrão')
+    }
   }
 
   // =====================================================
@@ -378,7 +449,18 @@ export function FiltrosPopover({ filtros, onChange, isAdmin }: FiltrosPopoverPro
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-          <span className="text-sm font-semibold text-foreground">Filtros</span>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-foreground">Filtros</span>
+            {filtrosSalvos.length > 0 && (
+              <button
+                onClick={() => setMostrarSalvos(!mostrarSalvos)}
+                className={`p-1 rounded-md transition-colors ${mostrarSalvos ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-accent'}`}
+                title="Filtros salvos"
+              >
+                <BookmarkCheck className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
           {totalAtivos > 0 && (
             <button
               onClick={handleLimpar}
@@ -388,6 +470,49 @@ export function FiltrosPopover({ filtros, onChange, isAdmin }: FiltrosPopoverPro
             </button>
           )}
         </div>
+
+        {/* Filtros salvos panel */}
+        {mostrarSalvos && filtrosSalvos.length > 0 && (
+          <div className="border-b border-border bg-muted/30">
+            <div className="px-4 py-2">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Filtros Salvos</span>
+            </div>
+            <div className="max-h-[160px] overflow-y-auto">
+              {filtrosSalvos.map(f => (
+                <div
+                  key={f.id}
+                  className="flex items-center justify-between px-4 py-2 hover:bg-accent/50 transition-colors group"
+                >
+                  <button
+                    onClick={() => handleCarregarFiltro(f)}
+                    className="flex-1 text-left text-sm text-foreground truncate flex items-center gap-1.5"
+                  >
+                    {f.padrao && <Star className="w-3 h-3 text-amber-500 fill-amber-500 flex-shrink-0" />}
+                    {f.nome}
+                  </button>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {!f.padrao && (
+                      <button
+                        onClick={() => handleDefinirPadrao(f.id)}
+                        className="p-1 rounded text-muted-foreground hover:text-amber-500 transition-colors"
+                        title="Definir como padrão"
+                      >
+                        <Star className="w-3 h-3" />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleExcluirFiltro(f.id)}
+                      className="p-1 rounded text-muted-foreground hover:text-destructive transition-colors"
+                      title="Excluir"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Accordion sections */}
         <div className="max-h-[420px] overflow-y-auto">
@@ -425,6 +550,47 @@ export function FiltrosPopover({ filtros, onChange, isAdmin }: FiltrosPopoverPro
               )
             })}
         </div>
+
+        {/* Footer: salvar filtro */}
+        {totalAtivos > 0 && (
+          <div className="border-t border-border px-4 py-2.5">
+            {mostrarInputNome ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Nome do filtro..."
+                  value={nomeNovoFiltro}
+                  onChange={(e) => setNomeNovoFiltro(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSalvarFiltro()}
+                  className="flex-1 h-8 px-2.5 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground"
+                  autoFocus
+                />
+                <button
+                  onClick={handleSalvarFiltro}
+                  disabled={!nomeNovoFiltro.trim() || salvando}
+                  className="h-8 px-3 text-xs font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+                >
+                  {salvando ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                  Salvar
+                </button>
+                <button
+                  onClick={() => { setMostrarInputNome(false); setNomeNovoFiltro('') }}
+                  className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setMostrarInputNome(true)}
+                className="flex items-center gap-1.5 text-xs text-primary hover:underline"
+              >
+                <Save className="w-3 h-3" />
+                Salvar filtro atual
+              </button>
+            )}
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   )
