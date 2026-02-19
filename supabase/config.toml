@@ -101,3 +101,6 @@ verify_jwt = false
 
 [functions.meta-ads-pages]
 verify_jwt = false
+
+[functions.test-capi-event]
+verify_jwt = false
