@@ -92,6 +92,7 @@ export interface Oportunidade {
     endereco_cep?: string | null
     empresa_id?: string | null
     empresa?: Record<string, unknown> | null
+    origem?: string | null
   } | null
   responsavel?: {
     id: string
@@ -208,12 +209,14 @@ export const negociosApi = {
   carregarKanban: async (funilId: string, filtros?: {
     busca?: string
     responsavelId?: string
-    qualificacao?: ('lead' | 'mql' | 'sql')[]
     valorMin?: number
     valorMax?: number
-    origem?: string
     periodoInicio?: string
     periodoFim?: string
+    dataCriacaoInicio?: string
+    dataCriacaoFim?: string
+    previsaoFechamentoInicio?: string
+    previsaoFechamentoFim?: string
   }): Promise<KanbanData> => {
     // Buscar funil
     const { data: funil, error: funilError } = await supabase
@@ -290,6 +293,19 @@ export const negociosApi = {
       oportunidadesQuery = oportunidadesQuery.lte('criado_em', filtros.periodoFim)
     }
 
+    if (filtros?.dataCriacaoInicio) {
+      oportunidadesQuery = oportunidadesQuery.gte('criado_em', filtros.dataCriacaoInicio)
+    }
+    if (filtros?.dataCriacaoFim) {
+      oportunidadesQuery = oportunidadesQuery.lte('criado_em', filtros.dataCriacaoFim + 'T23:59:59.999Z')
+    }
+    if (filtros?.previsaoFechamentoInicio) {
+      oportunidadesQuery = oportunidadesQuery.gte('previsao_fechamento', filtros.previsaoFechamentoInicio)
+    }
+    if (filtros?.previsaoFechamentoFim) {
+      oportunidadesQuery = oportunidadesQuery.lte('previsao_fechamento', filtros.previsaoFechamentoFim)
+    }
+
     const { data: oportunidades, error: opError } = await oportunidadesQuery
 
     if (opError) throw new Error(opError.message)
@@ -306,7 +322,7 @@ export const negociosApi = {
     if (contatoIds.length > 0) {
       const { data: contatos } = await supabase
         .from('contatos')
-        .select('id, nome, sobrenome, email, telefone, tipo, nome_fantasia, razao_social')
+        .select('id, nome, sobrenome, email, telefone, tipo, nome_fantasia, razao_social, origem')
         .in('id', contatoIds)
 
       if (contatos) {
@@ -320,6 +336,7 @@ export const negociosApi = {
             tipo: c.tipo,
             nome_fantasia: c.nome_fantasia,
             razao_social: c.razao_social,
+            origem: (c as any).origem || null,
           }
         }
       }

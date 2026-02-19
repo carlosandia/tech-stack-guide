@@ -88,16 +88,78 @@ const NegociosPage = forwardRef<HTMLDivElement>(function NegociosPage(_props, re
   const kanbanFiltros = useMemo(() => ({
     busca: busca.length >= 3 ? busca : undefined,
     responsavelId: filtros.responsavelId,
-    qualificacao: filtros.qualificacao,
     valorMin: filtros.valorMin,
     valorMax: filtros.valorMax,
-    origem: filtros.origem,
     periodoInicio: periodo.inicio,
     periodoFim: periodo.fim,
+    dataCriacaoInicio: filtros.dataCriacaoInicio,
+    dataCriacaoFim: filtros.dataCriacaoFim,
+    previsaoFechamentoInicio: filtros.previsaoFechamentoInicio,
+    previsaoFechamentoFim: filtros.previsaoFechamentoFim,
   }), [busca, filtros, periodo])
 
   // Kanban data
   const { data: kanbanData, isLoading: kanbanLoading } = useKanban(funilAtivoId, kanbanFiltros)
+
+  // AIDEV-NOTE: Filtros client-side (status por etapa.tipo, qualificação, origem do contato, tarefas)
+  const filteredKanbanData = useMemo(() => {
+    if (!kanbanData) return null
+    let etapas = [...kanbanData.etapas]
+
+    // Status: filtra por tipo de etapa
+    if (filtros.status && filtros.status.length > 0) {
+      const tipoMap: Record<string, string[]> = {
+        aberto: ['entrada', 'normal'],
+        ganho: ['ganho'],
+        perdido: ['perda'],
+      }
+      const tiposPermitidos = filtros.status.flatMap(s => tipoMap[s] || [])
+      etapas = etapas.filter(e => tiposPermitidos.includes(e.tipo))
+    }
+
+    // Filtros em nível de oportunidade
+    const hasOpFilters = !!(filtros.qualificacao?.length || filtros.origem?.length || filtros.tarefasPendentes)
+    if (hasOpFilters) {
+      etapas = etapas.map(etapa => {
+        let ops = [...etapa.oportunidades]
+
+        if (filtros.qualificacao?.length) {
+          ops = ops.filter(o => {
+            const isMql = o.qualificado_mql === true
+            const isSql = o.qualificado_sql === true
+            const isLead = !isMql && !isSql
+            return (
+              (filtros.qualificacao!.includes('lead') && isLead) ||
+              (filtros.qualificacao!.includes('mql') && isMql) ||
+              (filtros.qualificacao!.includes('sql') && isSql)
+            )
+          })
+        }
+
+        if (filtros.origem?.length) {
+          ops = ops.filter(o => {
+            const origemContato = (o.contato as any)?.origem
+            return origemContato && filtros.origem!.includes(origemContato)
+          })
+        }
+
+        if (filtros.tarefasPendentes === 'com') {
+          ops = ops.filter(o => (o as any)._tarefas_pendentes > 0)
+        } else if (filtros.tarefasPendentes === 'sem') {
+          ops = ops.filter(o => (o as any)._tarefas_pendentes === 0)
+        }
+
+        return {
+          ...etapa,
+          oportunidades: ops,
+          total_oportunidades: ops.length,
+          valor_total: ops.reduce((sum, o) => sum + (o.valor || 0), 0),
+        }
+      })
+    }
+
+    return { ...kanbanData, etapas }
+  }, [kanbanData, filtros.status, filtros.qualificacao, filtros.origem, filtros.tarefasPendentes])
 
   const funilAtivo = funis?.find(f => f.id === funilAtivoId) || null
 
@@ -262,9 +324,9 @@ const NegociosPage = forwardRef<HTMLDivElement>(function NegociosPage(_props, re
       {/* Content */}
       {semPipelines ? (
         <KanbanEmptyState onCriarPipeline={() => setShowNovaPipeline(true)} />
-      ) : kanbanData ? (
+      ) : filteredKanbanData ? (
         <KanbanBoard
-          data={kanbanData}
+          data={filteredKanbanData}
           isLoading={kanbanLoading}
           onDropGanhoPerda={handleDropGanhoPerda}
           onCardClick={handleCardClick}
