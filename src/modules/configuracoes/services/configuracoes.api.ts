@@ -1492,38 +1492,12 @@ export const metaAdsApi = {
     return data as { formularios: LeadAdForm[] }
   },
   listarPaginas: async () => {
-    const session = await supabase.auth.getSession()
-    const token = session.data.session?.access_token || ''
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
-    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
-    const res = await fetch(`${supabaseUrl}/functions/v1/meta-pages?action=pages`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'apikey': anonKey,
-      },
-    })
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: 'Erro ao buscar páginas' }))
-      throw new Error(err.error || 'Erro ao buscar páginas')
-    }
-    return await res.json() as { paginas: Array<{ id: string; name: string }> }
+    const { data } = await api.get('/v1/conexoes/meta/paginas')
+    return data as { paginas: Array<{ id: string; name: string }> }
   },
   listarFormulariosPagina: async (pageId: string) => {
-    const session = await supabase.auth.getSession()
-    const token = session.data.session?.access_token || ''
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
-    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
-    const res = await fetch(`${supabaseUrl}/functions/v1/meta-pages?action=forms&page_id=${encodeURIComponent(pageId)}`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'apikey': anonKey,
-      },
-    })
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: 'Erro ao buscar formulários' }))
-      throw new Error(err.error || 'Erro ao buscar formulários')
-    }
-    return await res.json() as { formularios: Array<{ id: string; name: string; fields?: Array<{ key: string }> }> }
+    const { data } = await api.get(`/v1/conexoes/meta/formularios/${encodeURIComponent(pageId)}`)
+    return data as { formularios: Array<{ id: string; name: string; fields?: Array<{ key: string }> }> }
   },
   criarFormulario: async (payload: Record<string, unknown>) => {
     const { data } = await api.post('/v1/conexoes/meta/formularios', payload)

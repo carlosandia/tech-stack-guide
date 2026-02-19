@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
 import { FileText, Loader2, ArrowRight } from 'lucide-react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -68,7 +69,6 @@ export function LeadAdsFormMappingModal({
   const { data: funisData } = useQuery({
     queryKey: ['funis'],
     queryFn: async () => {
-      const { supabase } = await import('@/lib/supabase')
       const { data } = await supabase
         .from('funis')
         .select('id, nome, etapas_funil(id, nome, ordem)')
