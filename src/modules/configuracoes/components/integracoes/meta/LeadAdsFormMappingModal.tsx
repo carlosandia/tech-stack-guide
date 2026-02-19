@@ -224,6 +224,29 @@ export function LeadAdsFormMappingModal({
       }
     >
       <div className="p-4 sm:p-6 space-y-6">
+        {/* Destino do Lead (primeiro a escolher) */}
+        <div className="space-y-4">
+          <h4 className="text-sm font-semibold text-foreground">Destino do Lead</h4>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-foreground">Pipeline</label>
+            <select
+              value={selectedPipelineId}
+              onChange={(e) => setSelectedPipelineId(e.target.value)}
+              className="w-full px-3 py-2 text-sm rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="">Selecione</option>
+              {(funisData || []).map((f: any) => (
+                <option key={f.id} value={f.id}>
+                  {f.nome}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground">
+              Leads serão criados automaticamente na etapa "Novos Negócios"
+            </p>
+          </div>
+        </div>
+
         {/* Seleção de Página e Formulário (apenas ao criar) */}
         {!isEditing && (
           <div className="space-y-4">
@@ -280,29 +303,6 @@ export function LeadAdsFormMappingModal({
             )}
           </div>
         )}
-
-        {/* Destino do Lead */}
-        <div className="space-y-4">
-          <h4 className="text-sm font-semibold text-foreground">Destino do Lead</h4>
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground">Pipeline</label>
-            <select
-              value={selectedPipelineId}
-              onChange={(e) => setSelectedPipelineId(e.target.value)}
-              className="w-full px-3 py-2 text-sm rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              <option value="">Selecione</option>
-              {(funisData || []).map((f: any) => (
-                <option key={f.id} value={f.id}>
-                  {f.nome}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-muted-foreground">
-              Leads serão criados automaticamente na etapa "Novos Negócios"
-            </p>
-          </div>
-        </div>
 
         {/* Mapeamento de Campos */}
         {mappings.length > 0 && (
