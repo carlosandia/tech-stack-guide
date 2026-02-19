@@ -728,16 +728,21 @@ function QuotedMessagePreview({ quoted, isMe, isStatusReply, onViewMedia }: {
   }, [isStatusReply, quoted.caption, quoted.body, senderName])
 
   const handleClick = useCallback(async () => {
+    console.log('[QuotedClick] isMediaType:', isMediaType, 'isStatusReply:', isStatusReply)
+    console.log('[QuotedClick] quoted.id:', quoted.id, 'quoted.conversa_id:', quoted.conversa_id, 'quoted.message_id:', quoted.message_id)
+    console.log('[QuotedClick] quoted.media_url starts with:', quoted.media_url?.substring(0, 30))
     if (!isMediaType || !onViewMedia) return
 
     // Se já temos uma URL de mídia real (não base64), abrir direto
     if (quoted.media_url && !quoted.media_url.startsWith('data:')) {
+      console.log('[QuotedClick] Shortcut: opening non-base64 media_url directly')
       onViewMedia(quoted.media_url, quoted.tipo as 'image' | 'video', statusExtra)
       return
     }
 
     // Se não temos IDs válidos para buscar via API, abrir thumbnail direto
     if (!quoted.conversa_id || !quoted.message_id) {
+      console.log('[QuotedClick] No conversa_id or message_id, fallback to thumbnail')
       if (quoted.media_url) {
         onViewMedia(quoted.media_url, quoted.tipo as 'image' | 'video', statusExtra)
       } else {
@@ -747,24 +752,29 @@ function QuotedMessagePreview({ quoted, isMe, isStatusReply, onViewMedia }: {
     }
 
     // Tentar buscar mídia full-res via WAHA API
+    console.log('[QuotedClick] Attempting WAHA API download...')
     setLoading(true)
     try {
       const { conversasApi } = await import('../services/conversas.api')
       const chatId = isStatusReply ? 'status@broadcast' : undefined
+      console.log('[QuotedClick] Calling downloadMessageMedia:', quoted.conversa_id, quoted.message_id, chatId)
       const result = await conversasApi.downloadMessageMedia(
         quoted.conversa_id,
         quoted.message_id,
         chatId
       )
+      console.log('[QuotedClick] API result:', result)
 
       if (result?.media_url) {
         onViewMedia(result.media_url, quoted.tipo as 'image' | 'video', statusExtra)
       } else if (quoted.media_url) {
+        console.log('[QuotedClick] API returned null, fallback to thumbnail')
         onViewMedia(quoted.media_url, quoted.tipo as 'image' | 'video', statusExtra)
       } else {
         toast('Mídia não disponível ou expirada')
       }
-    } catch {
+    } catch (err) {
+      console.error('[QuotedClick] Error:', err)
       if (quoted.media_url) {
         onViewMedia(quoted.media_url, quoted.tipo as 'image' | 'video', statusExtra)
       } else {
