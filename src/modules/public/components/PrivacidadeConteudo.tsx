@@ -147,7 +147,7 @@ export function PrivacidadeConteudo() {
               <li><strong className="text-foreground">NÃO</strong> utilizamos dados do Google para veicular, personalizar ou mensurar publicidade ou campanhas de marketing</li>
               <li><strong className="text-foreground">NÃO</strong> vendemos, licenciamos ou transferimos dados do Google a terceiros para fins de publicidade, corretagem de dados ou revenda</li>
               <li><strong className="text-foreground">NÃO</strong> utilizamos dados do Google para treinamento de modelos de inteligência artificial ou aprendizado de máquina</li>
-              <li><strong className="text-foreground">NÃO</strong> utilizamos dados do Google para determinação de crédito, avaliação financeira ou qualquer finalidade não relacionada às funcionalidades do CRM</li>
+              <li><strong className="text-foreground">NÃO</strong> utilizamos dados do Google para determinação de crédito, concessão de empréstimos, avaliação financeira ou criação de bancos de dados independentes para qualquer finalidade não relacionada às funcionalidades do CRM</li>
               <li>Os dados do Google são utilizados <strong className="text-foreground">apenas</strong> para fornecer e melhorar funcionalidades voltadas ao usuário dentro da plataforma CRM Renove</li>
             </ul>
           </div>
