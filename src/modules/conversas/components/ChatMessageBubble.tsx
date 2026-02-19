@@ -638,7 +638,7 @@ function ReactionContent({ mensagem }: { mensagem: Mensagem }) {
 
 function renderContent(
   mensagem: Mensagem,
-  onViewMedia?: (url: string, tipo: 'image' | 'video') => void,
+  onViewMedia?: (url: string, tipo: 'image' | 'video', extra?: { caption?: string; senderName?: string }) => void,
   conversaId?: string,
   isMe?: boolean,
   fotoUrl?: string | null,
@@ -671,7 +671,7 @@ function QuotedMessagePreview({ quoted, isMe, isStatusReply, onViewMedia }: {
   quoted: Mensagem
   isMe: boolean
   isStatusReply?: boolean
-  onViewMedia?: (url: string, tipo: 'image' | 'video') => void
+  onViewMedia?: (url: string, tipo: 'image' | 'video', extra?: { caption?: string; senderName?: string }) => void
 }) {
   const [loading, setLoading] = useState(false)
 
@@ -720,20 +720,26 @@ function QuotedMessagePreview({ quoted, isMe, isStatusReply, onViewMedia }: {
   const hasThumbnail = quoted.media_url && (quoted.tipo === 'image' || quoted.tipo === 'video')
   const isMediaType = quoted.tipo === 'image' || quoted.tipo === 'video'
 
-  // AIDEV-NOTE: Ao clicar, tenta buscar mídia full-res via WAHA API; fallback para thumbnail
+  // AIDEV-NOTE: Dados extras para modo Status no MediaViewer
+  const statusExtra = useMemo(() => {
+    if (!isStatusReply) return undefined
+    const captionText = quoted.caption || quoted.body || undefined
+    return { caption: captionText, senderName }
+  }, [isStatusReply, quoted.caption, quoted.body, senderName])
+
   const handleClick = useCallback(async () => {
     if (!isMediaType || !onViewMedia) return
 
     // Se já temos uma URL de mídia real (não base64), abrir direto
     if (quoted.media_url && !quoted.media_url.startsWith('data:')) {
-      onViewMedia(quoted.media_url, quoted.tipo as 'image' | 'video')
+      onViewMedia(quoted.media_url, quoted.tipo as 'image' | 'video', statusExtra)
       return
     }
 
     // Se não temos IDs válidos para buscar via API, abrir thumbnail direto
     if (!quoted.conversa_id || !quoted.message_id || quoted.id?.startsWith('synthetic_')) {
       if (quoted.media_url) {
-        onViewMedia(quoted.media_url, quoted.tipo as 'image' | 'video')
+        onViewMedia(quoted.media_url, quoted.tipo as 'image' | 'video', statusExtra)
       } else {
         toast('Mídia não disponível ou expirada')
       }
@@ -752,24 +758,22 @@ function QuotedMessagePreview({ quoted, isMe, isStatusReply, onViewMedia }: {
       )
 
       if (result?.media_url) {
-        onViewMedia(result.media_url, quoted.tipo as 'image' | 'video')
+        onViewMedia(result.media_url, quoted.tipo as 'image' | 'video', statusExtra)
       } else if (quoted.media_url) {
-        // Fallback: abrir thumbnail base64
-        onViewMedia(quoted.media_url, quoted.tipo as 'image' | 'video')
+        onViewMedia(quoted.media_url, quoted.tipo as 'image' | 'video', statusExtra)
       } else {
         toast('Mídia não disponível ou expirada')
       }
     } catch {
-      // Fallback para thumbnail
       if (quoted.media_url) {
-        onViewMedia(quoted.media_url, quoted.tipo as 'image' | 'video')
+        onViewMedia(quoted.media_url, quoted.tipo as 'image' | 'video', statusExtra)
       } else {
         toast('Erro ao carregar mídia')
       }
     } finally {
       setLoading(false)
     }
-  }, [quoted, isMediaType, isStatusReply, onViewMedia])
+  }, [quoted, isMediaType, isStatusReply, onViewMedia, statusExtra])
 
   return (
     <div
@@ -996,7 +1000,7 @@ export function ChatMessageBubble({
   onDeleteMessage, onReplyMessage, onReactMessage, onForwardMessage: _onForwardMessage, onPinMessage: _onPinMessage,
   quotedMessage, isStatusReply, onStartConversation
 }: ChatMessageBubbleProps) {
-  const [viewerMedia, setViewerMedia] = useState<{ url: string; tipo: 'image' | 'video' } | null>(null)
+  const [viewerMedia, setViewerMedia] = useState<{ url: string; tipo: 'image' | 'video'; caption?: string; senderName?: string } | null>(null)
   const [, setHovered] = useState(false)
   const [actionMenuOpen, setActionMenuOpen] = useState(false)
   const [showReactionPicker, setShowReactionPicker] = useState(false)
@@ -1013,8 +1017,8 @@ export function ChatMessageBubble({
     return sanitizeFormattedHtml(mensagem.body)
   }, [mensagem.body])
 
-  const handleViewMedia = (url: string, tipo: 'image' | 'video') => {
-    setViewerMedia({ url, tipo })
+  const handleViewMedia = (url: string, tipo: 'image' | 'video', extra?: { caption?: string; senderName?: string }) => {
+    setViewerMedia({ url, tipo, caption: extra?.caption, senderName: extra?.senderName })
   }
 
   const handleDelete = (paraTodos: boolean) => {
@@ -1132,7 +1136,7 @@ export function ChatMessageBubble({
           </div>
         </div>
         {viewerMedia && (
-          <MediaViewer url={viewerMedia.url} tipo={viewerMedia.tipo} onClose={() => setViewerMedia(null)} />
+          <MediaViewer url={viewerMedia.url} tipo={viewerMedia.tipo} onClose={() => setViewerMedia(null)} caption={viewerMedia.caption} senderName={viewerMedia.senderName} />
         )}
       </>
     )
@@ -1259,7 +1263,7 @@ export function ChatMessageBubble({
       )}
 
       {viewerMedia && (
-        <MediaViewer url={viewerMedia.url} tipo={viewerMedia.tipo} onClose={() => setViewerMedia(null)} />
+        <MediaViewer url={viewerMedia.url} tipo={viewerMedia.tipo} onClose={() => setViewerMedia(null)} caption={viewerMedia.caption} senderName={viewerMedia.senderName} />
       )}
     </>
   )
