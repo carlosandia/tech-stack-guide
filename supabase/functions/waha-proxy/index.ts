@@ -1774,11 +1774,45 @@ Deno.serve(async (req) => {
 
         if (msgWithMedia) {
           const media = msgWithMedia.media as Record<string, unknown>;
+          const mediaUrl = media.url as string;
+          const mimetype = (media.mimetype || msgWithMedia.mimetype || 'image/jpeg') as string;
+
+          // AIDEV-NOTE: Proxy da mídia - baixar do WAHA e retornar como data URL base64
+          // A URL do WAHA é interna e requer X-Api-Key, o browser não consegue acessar diretamente
+          try {
+            const mediaResp = await fetch(mediaUrl, {
+              headers: { "X-Api-Key": apiKey },
+            });
+            if (mediaResp.ok) {
+              const arrayBuffer = await mediaResp.arrayBuffer();
+              const uint8 = new Uint8Array(arrayBuffer);
+              let binary = '';
+              for (let i = 0; i < uint8.length; i++) {
+                binary += String.fromCharCode(uint8[i]);
+              }
+              const base64 = btoa(binary);
+              const dataUrl = `data:${mimetype};base64,${base64}`;
+              console.log(`[waha-proxy] Media proxied successfully, size: ${uint8.length} bytes`);
+              return new Response(
+                JSON.stringify({
+                  ok: true,
+                  media_url: dataUrl,
+                  mimetype,
+                  filename: media.filename,
+                }),
+                { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+              );
+            }
+          } catch (proxyErr) {
+            console.warn(`[waha-proxy] Failed to proxy media, returning direct URL: ${proxyErr}`);
+          }
+
+          // Fallback: retornar URL direta (pode não funcionar no browser)
           return new Response(
             JSON.stringify({
               ok: true,
-              media_url: media.url,
-              mimetype: media.mimetype || msgWithMedia.mimetype,
+              media_url: mediaUrl,
+              mimetype,
               filename: media.filename,
             }),
             { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
