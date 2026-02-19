@@ -73,6 +73,121 @@ function getParticipantDisplayName(msg: Mensagem): string {
   return 'Desconhecido'
 }
 
+// AIDEV-NOTE: Fallback - extrai contextInfo.quotedMessage do raw_data quando a mensagem citada
+// não está na lista carregada (ex: respostas a Status/Stories ou mensagens muito antigas)
+function extractQuotedFromRawData(msg: Mensagem): { syntheticMessage: Mensagem; isStatusReply: boolean } | null {
+  const rawData = msg.raw_data as Record<string, unknown> | null
+  if (!rawData) return null
+
+  // Navegar na estrutura WAHA/GOWS para encontrar contextInfo
+  const _data = rawData._data as Record<string, unknown> | undefined
+  const message = (_data?.message || _data?.Message) as Record<string, unknown> | undefined
+  if (!message) return null
+
+  // contextInfo pode estar dentro de extendedTextMessage, imageMessage, videoMessage, etc.
+  let contextInfo: Record<string, unknown> | undefined
+  for (const key of Object.keys(message)) {
+    const inner = message[key] as Record<string, unknown> | undefined
+    if (inner?.contextInfo) {
+      contextInfo = inner.contextInfo as Record<string, unknown>
+      break
+    }
+  }
+  if (!contextInfo?.quotedMessage) return null
+
+  const quotedMessage = contextInfo.quotedMessage as Record<string, unknown>
+  const remoteJID = (contextInfo.remoteJid || contextInfo.remoteJID) as string | undefined
+  const isStatusReply = remoteJID === 'status@broadcast'
+  const participant = (contextInfo.participant || contextInfo.Participant) as string | undefined
+
+  // Resolver nome do remetente do status
+  const participantPushName = (contextInfo.quotedMessageSenderName || contextInfo.PushName) as string | undefined
+
+  // Detectar tipo da mensagem citada
+  let tipo: Mensagem['tipo'] = 'text'
+  let body: string | null = null
+  let caption: string | null = null
+  let thumbnailBase64: string | null = null
+  let mediaMimetype: string | null = null
+
+  if (quotedMessage.imageMessage) {
+    tipo = 'image'
+    const img = quotedMessage.imageMessage as Record<string, unknown>
+    caption = (img.caption as string) || null
+    mediaMimetype = (img.mimetype as string) || null
+    const thumb = img.jpegThumbnail || img.JPEGThumbnail || img.jpegthumb
+    if (thumb && typeof thumb === 'string') thumbnailBase64 = thumb
+  } else if (quotedMessage.videoMessage) {
+    tipo = 'video'
+    const vid = quotedMessage.videoMessage as Record<string, unknown>
+    caption = (vid.caption as string) || null
+    mediaMimetype = (vid.mimetype as string) || null
+    const thumb = vid.jpegThumbnail || vid.JPEGThumbnail
+    if (thumb && typeof thumb === 'string') thumbnailBase64 = thumb
+  } else if (quotedMessage.extendedTextMessage) {
+    tipo = 'text'
+    const ext = quotedMessage.extendedTextMessage as Record<string, unknown>
+    body = (ext.text as string) || null
+  } else if (quotedMessage.conversation) {
+    tipo = 'text'
+    body = quotedMessage.conversation as string
+  } else if (quotedMessage.audioMessage) {
+    tipo = 'audio'
+    mediaMimetype = ((quotedMessage.audioMessage as Record<string, unknown>).mimetype as string) || null
+  } else if (quotedMessage.documentMessage) {
+    tipo = 'document'
+    const doc = quotedMessage.documentMessage as Record<string, unknown>
+    caption = (doc.fileName as string) || null
+    mediaMimetype = (doc.mimetype as string) || null
+  } else if (quotedMessage.stickerMessage) {
+    tipo = 'sticker'
+  }
+
+  // Construir Mensagem sintética para o QuotedMessagePreview
+  const syntheticMessage: Mensagem = {
+    id: `synthetic_${contextInfo.stanzaId || Date.now()}`,
+    organizacao_id: msg.organizacao_id,
+    conversa_id: msg.conversa_id,
+    message_id: (contextInfo.stanzaId as string) || '',
+    from_me: false,
+    from_number: participant?.replace('@s.whatsapp.net', '').replace('@c.us', '').replace('@lid', '') || null,
+    participant: participant || null,
+    tipo,
+    body,
+    caption,
+    has_media: tipo !== 'text',
+    media_url: thumbnailBase64 ? `data:image/jpeg;base64,${thumbnailBase64}` : null,
+    media_mimetype: mediaMimetype,
+    media_filename: caption && tipo === 'document' ? caption : null,
+    media_size: null,
+    media_duration: null,
+    location_latitude: null,
+    location_longitude: null,
+    location_name: null,
+    location_address: null,
+    vcard: null,
+    poll_question: null,
+    poll_options: null,
+    poll_allow_multiple: null,
+    reaction_emoji: null,
+    reaction_message_id: null,
+    reply_to_message_id: null,
+    fixada: false,
+    ack: 0,
+    criado_em: msg.criado_em,
+    atualizado_em: msg.criado_em,
+    raw_data: {
+      _data: {
+        pushName: participantPushName || undefined,
+        PushName: participantPushName || undefined,
+      },
+      _synthetic_status_reply: isStatusReply,
+    },
+  }
+
+  return { syntheticMessage, isStatusReply }
+}
+
 export const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(function ChatMessages({
   mensagens, isLoading, hasMore, onLoadMore, isFetchingMore,
   highlightIds, focusedId, conversaTipo, conversaId, fotoUrl, myAvatarUrl,
@@ -252,6 +367,23 @@ export const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(functi
           ? (reactionsMap.get(msg.message_id) || reactionsMap.get(extractStanzaId(msg.message_id) || ''))
           : undefined
 
+        // AIDEV-NOTE: Resolver mensagem citada: primeiro tenta no mapa local,
+        // fallback para raw_data.contextInfo.quotedMessage (cobre Status/Stories e msgs antigas)
+        let resolvedQuoted: Mensagem | null = null
+        let isStatusReply = false
+
+        if (msg.reply_to_message_id) {
+          resolvedQuoted = messageByWahaId.get(msg.reply_to_message_id) || null
+
+          if (!resolvedQuoted) {
+            const fallback = extractQuotedFromRawData(msg)
+            if (fallback) {
+              resolvedQuoted = fallback.syntheticMessage
+              isStatusReply = fallback.isStatusReply
+            }
+          }
+        }
+
         return (
           <div
             key={msg.id}
@@ -286,7 +418,8 @@ export const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(functi
               onForwardMessage={onForwardMessage}
               onPinMessage={onPinMessage}
               onStartConversation={onStartConversation}
-              quotedMessage={msg.reply_to_message_id ? messageByWahaId.get(msg.reply_to_message_id) || null : null}
+              quotedMessage={resolvedQuoted}
+              isStatusReply={isStatusReply}
             />
           </div>
         )
