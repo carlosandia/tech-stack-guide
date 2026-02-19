@@ -9,7 +9,7 @@
  */
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
-import { X, Copy, Info } from 'lucide-react'
+import { X, Copy, Info, Files, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -33,6 +33,10 @@ interface Props {
   onUpdateCampoById?: (campoId: string, payload: Partial<CampoFormulario>) => void
   /** Renderizar como overlay fullscreen (mobile) */
   fullscreen?: boolean
+  /** Callback para duplicar o campo */
+  onDuplicate?: () => void
+  /** Callback para excluir o campo */
+  onRemove?: () => void
 }
 
 /**
@@ -118,7 +122,7 @@ function EspacamentoCampo({ campo, onUpdate }: { campo: CampoFormulario; onUpdat
   )
 }
 
-export function CampoSidebarPanel({ campo, onUpdate, onClose, showConfig, estiloCampos, onChangeEstiloCampos: _onChangeEstiloCampos, allCampos, onUpdateCampoById, fullscreen }: Props) {
+export function CampoSidebarPanel({ campo, onUpdate, onClose, showConfig, estiloCampos, onChangeEstiloCampos: _onChangeEstiloCampos, allCampos, onUpdateCampoById, fullscreen, onDuplicate, onRemove }: Props) {
   const [tab, setTab] = useState<TabType>('config')
 
   // AIDEV-NOTE: Estado local do campo para digitação fluída sem delay
@@ -198,6 +202,35 @@ export function CampoSidebarPanel({ campo, onUpdate, onClose, showConfig, estilo
     }
   }, [localCampo, allCampos, onUpdateCampoById, mergedEstilo])
 
+  const configFooter = (onDuplicate || onRemove) ? (
+    <div className="sticky bottom-0 border-t border-border bg-card p-3 mt-auto">
+      <div className="flex gap-2">
+        {onDuplicate && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="flex-1 text-xs gap-1.5"
+            onClick={onDuplicate}
+          >
+            <Files className="w-3.5 h-3.5" />
+            Duplicar
+          </Button>
+        )}
+        {onRemove && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="flex-1 text-xs gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+            onClick={onRemove}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Excluir
+          </Button>
+        )}
+      </div>
+    </div>
+  ) : null
+
   const estiloContent = (
     <>
       <EstiloCamposForm value={mergedEstilo} onChange={handleEstiloChange} />
@@ -264,6 +297,7 @@ export function CampoSidebarPanel({ campo, onUpdate, onClose, showConfig, estilo
           )}
           {tab === 'estilo' && estiloContent}
         </div>
+        {tab === 'config' && configFooter}
         {tab === 'estilo' && applyAllFooter}
       </div>
     )
@@ -292,6 +326,7 @@ export function CampoSidebarPanel({ campo, onUpdate, onClose, showConfig, estilo
         )}
         {tab === 'estilo' && estiloContent}
       </div>
+      {tab === 'config' && configFooter}
       {tab === 'estilo' && applyAllFooter}
     </div>
   )

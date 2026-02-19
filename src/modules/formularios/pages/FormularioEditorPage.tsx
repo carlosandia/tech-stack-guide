@@ -597,6 +597,8 @@ export function FormularioEditorPage() {
                 onChangeEstiloCampos={setCamposEstilo}
                 allCampos={campos}
                 onUpdateCampoById={handleUpdateCampoById}
+                onDuplicate={selectedCampoId ? () => handleDuplicateCampo(selectedCampoId) : undefined}
+                onRemove={selectedCampoId ? () => handleRemoveCampo(selectedCampoId) : undefined}
               />
             )}
 
@@ -767,6 +769,8 @@ export function FormularioEditorPage() {
               onChangeEstiloCampos={setCamposEstilo}
               allCampos={campos}
               onUpdateCampoById={handleUpdateCampoById}
+              onDuplicate={selectedCampoId ? () => handleDuplicateCampo(selectedCampoId) : undefined}
+              onRemove={selectedCampoId ? () => handleRemoveCampo(selectedCampoId) : undefined}
               fullscreen
             />
           )}
