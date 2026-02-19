@@ -479,7 +479,7 @@ export function FormularioEditorPage() {
       {activeTab === 'campos' && (
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Main content */}
-          <div className="flex-1 flex overflow-hidden relative">
+          <div className="flex-1 flex overflow-hidden relative min-h-0">
             {/* Paleta - hidden in final preview */}
             {!showFinalPreview && (
               <>
