@@ -52,7 +52,10 @@ export function ConfigHeader({ onMenuClick }: ConfigHeaderProps) {
           </button>
 
           <button
-            onClick={() => navigate('/app')}
+            onClick={() => {
+              const lastRoute = localStorage.getItem('crm_last_route') || '/dashboard'
+              navigate(lastRoute)
+            }}
             className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-all duration-200"
           >
             <ArrowLeft className="w-4 h-4" />

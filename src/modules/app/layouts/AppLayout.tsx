@@ -1,4 +1,4 @@
-import { useState, forwardRef } from 'react'
+import { useState, useEffect, forwardRef } from 'react'
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/providers/AuthProvider'
 import { useBlockedRedirect } from '@/hooks/useBlockedRedirect'
@@ -138,6 +138,11 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
   const { user, role, signOut } = useAuth()
   const [drawerOpen, setDrawerOpen] = useState(false)
   
+
+  // Salvar última rota do CRM para o botão "Voltar" das Configurações
+  useEffect(() => {
+    localStorage.setItem('crm_last_route', location.pathname)
+  }, [location.pathname])
 
   useBlockedRedirect()
 
