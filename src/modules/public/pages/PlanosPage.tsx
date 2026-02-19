@@ -64,7 +64,7 @@ interface PlanoDb {
       if (!demoContainerRef.current) return
       demoContainerRef.current.replaceChildren()
       const script = document.createElement('script')
-      script.src = 'https://ybzhlsalbnxwkfszkloa.supabase.co/functions/v1/widget-formulario-loader?slug=demonstracao-crm-mlrb6yoz&mode=inline&nocache=1'
+      script.src = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/widget-formulario-loader?slug=demonstracao-crm-mlrb6yoz&mode=inline&nocache=1`
       script.dataset.formSlug = 'demonstracao-crm-mlrb6yoz'
       script.async = true
       demoContainerRef.current.appendChild(script)

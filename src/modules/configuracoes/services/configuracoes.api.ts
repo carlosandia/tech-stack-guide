@@ -1408,22 +1408,20 @@ export const integracoesApi = {
   email: {
     salvarSmtp: async (payload: SmtpTestarPayload) => {
       // Chama Edge Function test-smtp modo salvar via Supabase (evita CORS com localhost)
-      console.log('[salvarSmtp] Chamando Edge Function test-smtp modo salvar...')
+      // AIDEV-NOTE: Console.logs removidos (Auditoria M3 - dados SMTP sensíveis)
       const { data, error } = await supabase.functions.invoke('test-smtp', {
         body: { modo: 'salvar', email: payload.email, senha: payload.senha },
       })
-      console.log('[salvarSmtp] Resposta:', { data, error })
       if (error) throw error
       if (data && !data.sucesso) throw new Error(data.mensagem || 'Falha ao salvar conexão')
       return data
     },
     testarSmtp: async (payload: SmtpTestarPayload) => {
       // Chama Edge Function test-smtp via Supabase (evita CORS com localhost)
-      console.log('[testarSmtp] Chamando Edge Function test-smtp...')
+      // AIDEV-NOTE: Console.logs removidos (Auditoria M3 - dados SMTP sensíveis)
       const { data, error } = await supabase.functions.invoke('test-smtp', {
         body: { modo: 'direto', email: payload.email, senha: payload.senha },
       })
-      console.log('[testarSmtp] Resposta:', { data, error })
       if (error) throw error
       if (data && !data.sucesso) throw new Error(data.mensagem || 'Falha no teste SMTP')
       return data
@@ -1574,7 +1572,7 @@ export const webhooksApi = {
 
     if (existente) {
       const wh = existente as unknown as WebhookEntrada
-      wh.url_completa = `https://ybzhlsalbnxwkfszkloa.supabase.co/functions/v1/webhook-entrada/${wh.url_token}`
+      wh.url_completa = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/webhook-entrada/${wh.url_token}`
       return wh
     }
 
@@ -1600,7 +1598,7 @@ export const webhooksApi = {
 
     if (error) throw new Error(`Erro ao criar webhook: ${error.message}`)
     const wh = data as unknown as WebhookEntrada
-    wh.url_completa = `https://ybzhlsalbnxwkfszkloa.supabase.co/functions/v1/webhook-entrada/${wh.url_token}`
+    wh.url_completa = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/webhook-entrada/${wh.url_token}`
     return wh
   },
 
@@ -1614,7 +1612,7 @@ export const webhooksApi = {
     if (error) throw new Error(`Erro ao listar webhooks: ${error.message}`)
     const webhooks = (data || []).map((d: any) => ({
       ...d,
-      url_completa: `https://ybzhlsalbnxwkfszkloa.supabase.co/functions/v1/webhook-entrada/${d.url_token}`,
+      url_completa: `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/webhook-entrada/${d.url_token}`,
     })) as unknown as WebhookEntrada[]
     return { webhooks, total: count || 0 }
   },

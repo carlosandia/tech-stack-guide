@@ -5,7 +5,8 @@
  * configurações reflete automaticamente no site sem trocar o script.
  */
 
-const SUPABASE_URL = 'https://ybzhlsalbnxwkfszkloa.supabase.co'
+// AIDEV-NOTE: Centralizado via env vars (Auditoria M1)
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 
 export function generateWidgetScript(organizacaoId: string): string {
   return `<!-- Widget WhatsApp - CRM Renove -->

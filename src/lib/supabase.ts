@@ -7,8 +7,9 @@
   * RLS é obrigatório em todas tabelas - nunca bypass
  */
  
- const SUPABASE_URL = "https://ybzhlsalbnxwkfszkloa.supabase.co"
- const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inliemhsc2FsYm54d2tmc3prbG9hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMDExNzAsImV4cCI6MjA4NTc3NzE3MH0.NyxN8T0XCpnFSF_-0grGGcvhSbwOif0qxxlC_PshA9M"
+ // AIDEV-NOTE: URLs centralizadas via env vars (Auditoria M1)
+ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://ybzhlsalbnxwkfszkloa.supabase.co"
+ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inliemhsc2FsYm54d2tmc3prbG9hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMDExNzAsImV4cCI6MjA4NTc3NzE3MH0.NyxN8T0XCpnFSF_-0grGGcvhSbwOif0qxxlC_PshA9M"
  
  // Timeout em ms para requisições
  const FETCH_TIMEOUT = 30000
