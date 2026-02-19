@@ -33,7 +33,8 @@ export interface ResponsiveRule {
 
 export function generateResponsiveCss(
   selector: string,
-  rules: ResponsiveRule[]
+  rules: ResponsiveRule[],
+  forceViewport?: 'desktop' | 'tablet' | 'mobile'
 ): string {
   const tabletRules: string[] = []
   const mobileRules: string[] = []
@@ -53,11 +54,26 @@ export function generateResponsiveCss(
   }
 
   let css = ''
-  if (tabletRules.length) {
-    css += `@media (min-width: 768px) and (max-width: 1023px) {\n  ${selector} {\n  ${tabletRules.join('\n  ')}\n  }\n}\n`
-  }
-  if (mobileRules.length) {
-    css += `@media (max-width: 767px) {\n  ${selector} {\n  ${mobileRules.join('\n  ')}\n  }\n}\n`
+
+  // AIDEV-NOTE: Se forceViewport definido, aplica regras diretamente sem @media (para preview do editor)
+  if (forceViewport === 'mobile') {
+    // Aplica mobile rules diretamente (sem @media), com fallback para tablet
+    const allRules = [...tabletRules, ...mobileRules]
+    if (allRules.length) {
+      css += `${selector} {\n${allRules.join('\n')}\n}\n`
+    }
+  } else if (forceViewport === 'tablet') {
+    if (tabletRules.length) {
+      css += `${selector} {\n${tabletRules.join('\n')}\n}\n`
+    }
+  } else {
+    // Modo normal com media queries (para página pública e desktop no editor)
+    if (tabletRules.length) {
+      css += `@media (min-width: 768px) and (max-width: 1023px) {\n  ${selector} {\n  ${tabletRules.join('\n  ')}\n  }\n}\n`
+    }
+    if (mobileRules.length) {
+      css += `@media (max-width: 767px) {\n  ${selector} {\n  ${mobileRules.join('\n  ')}\n  }\n}\n`
+    }
   }
   return css
 }
@@ -75,29 +91,47 @@ export function larguraToCSS(val: string): string {
  */
 export function generateColunasResponsiveCss(
   blocoId: string,
-  config: { colunas: number; larguras: string; larguras_tablet?: string; larguras_mobile?: string }
+  config: { colunas: number; larguras: string; larguras_tablet?: string; larguras_mobile?: string },
+  forceViewport?: 'desktop' | 'tablet' | 'mobile'
 ): string {
   const selector = `[data-bloco-id="${blocoId}"]`
   let css = ''
 
-  // Tablet
-  if (config.larguras_tablet) {
-    const widths = config.larguras_tablet.split(',').map(l => l.trim())
-    css += `@media (min-width: 768px) and (max-width: 1023px) {\n  ${selector} { flex-wrap: wrap !important; }\n`
-    widths.forEach((w, i) => {
+  if (forceViewport === 'mobile') {
+    const mobileLarguras = config.larguras_mobile || Array(config.colunas).fill('100%').join(',')
+    const mobileWidths = mobileLarguras.split(',').map(l => l.trim())
+    css += `${selector} { flex-wrap: wrap !important; }\n`
+    mobileWidths.forEach((w, i) => {
+      css += `${selector} > .col-${i} { width: ${w} !important; }\n`
+    })
+  } else if (forceViewport === 'tablet') {
+    if (config.larguras_tablet) {
+      const widths = config.larguras_tablet.split(',').map(l => l.trim())
+      css += `${selector} { flex-wrap: wrap !important; }\n`
+      widths.forEach((w, i) => {
+        css += `${selector} > .col-${i} { width: ${w} !important; }\n`
+      })
+    }
+  } else {
+    // Tablet
+    if (config.larguras_tablet) {
+      const widths = config.larguras_tablet.split(',').map(l => l.trim())
+      css += `@media (min-width: 768px) and (max-width: 1023px) {\n  ${selector} { flex-wrap: wrap !important; }\n`
+      widths.forEach((w, i) => {
+        css += `  ${selector} > .col-${i} { width: ${w} !important; }\n`
+      })
+      css += `}\n`
+    }
+
+    // Mobile
+    const mobileLarguras = config.larguras_mobile || Array(config.colunas).fill('100%').join(',')
+    const mobileWidths = mobileLarguras.split(',').map(l => l.trim())
+    css += `@media (max-width: 767px) {\n  ${selector} { flex-wrap: wrap !important; }\n`
+    mobileWidths.forEach((w, i) => {
       css += `  ${selector} > .col-${i} { width: ${w} !important; }\n`
     })
     css += `}\n`
   }
-
-  // Mobile - default to 100% each column (stacking) if not specified
-  const mobileLarguras = config.larguras_mobile || Array(config.colunas).fill('100%').join(',')
-  const mobileWidths = mobileLarguras.split(',').map(l => l.trim())
-  css += `@media (max-width: 767px) {\n  ${selector} { flex-wrap: wrap !important; }\n`
-  mobileWidths.forEach((w, i) => {
-    css += `  ${selector} > .col-${i} { width: ${w} !important; }\n`
-  })
-  css += `}\n`
 
   return css
 }
@@ -108,6 +142,7 @@ export function generateFormResponsiveCss(
   botao?: Record<string, unknown>,
   container?: Record<string, unknown>,
   campos?: Record<string, unknown>,
+  forceViewport?: 'desktop' | 'tablet' | 'mobile'
 ): string {
   let css = ''
   const prefix = `[data-form-id="${formId}"]`
@@ -117,19 +152,23 @@ export function generateFormResponsiveCss(
       { prop: 'width', field: 'largura', estilos: botao, transform: larguraToCSS },
       { prop: 'height', field: 'altura', estilos: botao },
       { prop: 'font-size', field: 'font_size', estilos: botao },
-    ])
+    ], forceViewport)
     css += generateResponsiveCss(`${prefix} .form-btn-whatsapp`, [
       { prop: 'width', field: 'whatsapp_largura', estilos: botao, transform: larguraToCSS },
       { prop: 'height', field: 'whatsapp_altura', estilos: botao },
       { prop: 'font-size', field: 'whatsapp_font_size', estilos: botao },
-    ])
+    ], forceViewport)
     // Responsive: botões wrapper - empilhar no mobile se necessário
     const mLargura = botao.largura_mobile as string | undefined
     const mWLargura = botao.whatsapp_largura_mobile as string | undefined
     if (mLargura || mWLargura) {
       const shouldStack = larguraToCSS(mLargura || botao.largura as string || 'full') === '100%' || larguraToCSS(mWLargura || botao.whatsapp_largura as string || 'full') === '100%'
       if (shouldStack) {
-        css += `@media (max-width: 767px) {\n  ${prefix} .form-btns-wrapper { flex-direction: column !important; }\n  ${prefix} .form-btns-wrapper > div { width: 100% !important; }\n}\n`
+        if (forceViewport === 'mobile') {
+          css += `${prefix} .form-btns-wrapper { flex-direction: column !important; }\n${prefix} .form-btns-wrapper > div { width: 100% !important; }\n`
+        } else if (!forceViewport || forceViewport === 'desktop') {
+          css += `@media (max-width: 767px) {\n  ${prefix} .form-btns-wrapper { flex-direction: column !important; }\n  ${prefix} .form-btns-wrapper > div { width: 100% !important; }\n}\n`
+        }
       }
     }
     const tLargura = botao.largura_tablet as string | undefined
@@ -137,7 +176,11 @@ export function generateFormResponsiveCss(
     if (tLargura || tWLargura) {
       const shouldStack = larguraToCSS(tLargura || botao.largura as string || 'full') === '100%' || larguraToCSS(tWLargura || botao.whatsapp_largura as string || 'full') === '100%'
       if (shouldStack) {
-        css += `@media (min-width: 768px) and (max-width: 1023px) {\n  ${prefix} .form-btns-wrapper { flex-direction: column !important; }\n  ${prefix} .form-btns-wrapper > div { width: 100% !important; }\n}\n`
+        if (forceViewport === 'tablet') {
+          css += `${prefix} .form-btns-wrapper { flex-direction: column !important; }\n${prefix} .form-btns-wrapper > div { width: 100% !important; }\n`
+        } else if (!forceViewport || forceViewport === 'desktop') {
+          css += `@media (min-width: 768px) and (max-width: 1023px) {\n  ${prefix} .form-btns-wrapper { flex-direction: column !important; }\n  ${prefix} .form-btns-wrapper > div { width: 100% !important; }\n}\n`
+        }
       }
     }
   }
@@ -149,16 +192,16 @@ export function generateFormResponsiveCss(
       { prop: 'padding-bottom', field: 'padding_bottom', estilos: container, transform: v => `${v}px` },
       { prop: 'padding-left', field: 'padding_left', estilos: container, transform: v => `${v}px` },
       { prop: 'max-width', field: 'max_width', estilos: container },
-    ])
+    ], forceViewport)
   }
 
   if (campos) {
     css += generateResponsiveCss(`${prefix} .form-input-field`, [
       { prop: 'height', field: 'input_height', estilos: campos },
-    ])
+    ], forceViewport)
     css += generateResponsiveCss(`${prefix} .form-label`, [
       { prop: 'font-size', field: 'label_tamanho', estilos: campos },
-    ])
+    ], forceViewport)
   }
 
   return css

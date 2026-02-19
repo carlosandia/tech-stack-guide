@@ -35,19 +35,21 @@ const SOMBRA_MAP: Record<string, string> = {
 }
 
 
-/** AIDEV-NOTE: Componente helper para injetar CSS responsivo via media queries */
-function ResponsiveCssInjector({ formId, botao, container, campos, allCampos }: {
+/** AIDEV-NOTE: Componente helper para injetar CSS responsivo via media queries ou forçado por viewport */
+function ResponsiveCssInjector({ formId, botao, container, campos, allCampos, forceViewport }: {
   formId: string
   botao?: EstiloBotao
   container?: EstiloContainer
   campos?: EstiloCampos
   allCampos?: CampoFormulario[]
+  forceViewport?: 'desktop' | 'tablet' | 'mobile'
 }) {
   let css = generateFormResponsiveCss(
     formId,
     botao as unknown as Record<string, unknown>,
     container as unknown as Record<string, unknown>,
     campos as unknown as Record<string, unknown>,
+    forceViewport,
   )
   // AIDEV-NOTE: Gerar CSS responsivo para cada bloco de colunas
   if (allCampos) {
@@ -60,7 +62,7 @@ function ResponsiveCssInjector({ formId, botao, container, campos, allCampos }: 
             larguras: p.larguras || '50%,50%',
             larguras_tablet: p.larguras_tablet,
             larguras_mobile: p.larguras_mobile,
-          })
+          }, forceViewport)
         } catch { /* skip */ }
       }
     }
@@ -190,6 +192,13 @@ export const FormPreview = forwardRef<HTMLDivElement, Props>(function FormPrevie
     desktop: 'max-w-full',
     tablet: 'max-w-[768px]',
     mobile: 'max-w-[390px]',
+  }
+
+  // AIDEV-NOTE: Larguras reais em pixels para simular viewport no container
+  const viewportPixelWidths: Record<Viewport, number | null> = {
+    desktop: null, // usa largura real
+    tablet: 768,
+    mobile: 390,
   }
 
   // Style-derived values
@@ -412,9 +421,12 @@ export const FormPreview = forwardRef<HTMLDivElement, Props>(function FormPrevie
         {cssCustomizado && (
           <style dangerouslySetInnerHTML={{ __html: cssCustomizado }} />
         )}
-        <ResponsiveCssInjector formId={formulario.id} botao={estiloBotao} container={estiloContainer} campos={estiloCampos} allCampos={campos} />
+        <ResponsiveCssInjector formId={formulario.id} botao={estiloBotao} container={estiloContainer} campos={estiloCampos} allCampos={campos} forceViewport={viewport !== 'desktop' ? viewport : undefined} />
 
-        <div className="flex items-start justify-center w-full">
+        <div
+          className="flex items-start justify-center"
+          style={{ width: viewportPixelWidths[viewport] ? `${viewportPixelWidths[viewport]}px` : '100%' }}
+        >
         <div
           className={cn(
             'mx-auto transition-all duration-300 rounded-lg relative',
