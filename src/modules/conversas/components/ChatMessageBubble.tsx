@@ -774,27 +774,31 @@ function MessageActionMenu({ mensagem, onDelete, onReply, onCopy, onReact, onOpe
     const handler = () => {
       setOpen(false)
     }
-    // Use setTimeout so the click that opened doesn't immediately close
+    // Fechar ao clicar fora ou ao scrollar o container de mensagens
     const timer = setTimeout(() => {
       document.addEventListener('mousedown', handler)
     }, 10)
+    const scrollContainer = buttonRef.current?.closest('.overflow-y-auto')
+    scrollContainer?.addEventListener('scroll', handler)
     return () => {
       clearTimeout(timer)
       document.removeEventListener('mousedown', handler)
+      scrollContainer?.removeEventListener('scroll', handler)
     }
   }, [open])
 
   const handleToggle = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
     if (!open && buttonRef.current) {
+      // AIDEV-NOTE: Recalcular posição no momento do clique para evitar deslocamento por scroll
       const rect = buttonRef.current.getBoundingClientRect()
       const menuWidth = 180
-      const menuHeight = 260 // estimated max menu height
-      let left = mensagem.from_me ? rect.left : rect.right - menuWidth
-      // Ensure it doesn't go off-screen horizontally
+      const menuHeight = 200
+      // Posicionar horizontalmente perto do botão
+      let left = mensagem.from_me ? rect.right - menuWidth : rect.left
       if (left + menuWidth > window.innerWidth) left = window.innerWidth - menuWidth - 8
       if (left < 8) left = 8
-      // Smart vertical positioning: open upward if not enough space below
+      // Posicionar verticalmente: abrir para cima se não houver espaço abaixo
       const spaceBelow = window.innerHeight - rect.bottom
       const top = spaceBelow < menuHeight
         ? Math.max(8, rect.top - menuHeight)
