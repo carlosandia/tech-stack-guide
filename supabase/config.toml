@@ -86,3 +86,6 @@ verify_jwt = false
 
 [functions.fetch-email-body]
 verify_jwt = false
+
+[functions.test-meta]
+verify_jwt = false
