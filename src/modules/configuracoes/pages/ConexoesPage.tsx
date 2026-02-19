@@ -21,6 +21,7 @@ import { Api4comConexaoModal } from '../components/integracoes/Api4comConexaoMod
 import { WhatsAppConfigModal } from '../components/integracoes/WhatsAppConfigModal'
 import { Api4comConfigModal } from '../components/integracoes/Api4comConfigModal'
 import { EmailConfigModal } from '../components/integracoes/EmailConfigModal'
+import { MetaAdsDetailModal } from '../components/integracoes/MetaAdsDetailModal'
 import type { PlataformaIntegracao, Integracao } from '../services/configuracoes.api'
 
 const PLATAFORMAS: PlataformaIntegracao[] = ['whatsapp', 'instagram', 'meta_ads', 'google', 'email', 'api4com']
@@ -219,6 +220,13 @@ export function ConexoesPage() {
           integracao={integracoesPorPlataforma['email']}
           onClose={() => setConfigAberto(null)}
           onDesconectar={handleDesconectar}
+        />
+      )}
+
+      {configAberto === 'meta_ads' && integracoesPorPlataforma['meta_ads'] && (
+        <MetaAdsDetailModal
+          integracaoId={integracoesPorPlataforma['meta_ads'].id}
+          onClose={() => setConfigAberto(null)}
         />
       )}
 
