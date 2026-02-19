@@ -80,7 +80,7 @@ function BannerEmailDesconectado() {
           Para enviar notificações por email, conecte primeiro uma conta de email nas Conexões.
         </p>
         <Link
-          to="/app/configuracoes/conexoes"
+          to="/configuracoes/conexoes"
           className="inline-flex items-center gap-1 mt-1.5 text-sm font-medium text-amber-900 hover:text-amber-950 underline underline-offset-2 transition-colors"
         >
           Ir para Conexões

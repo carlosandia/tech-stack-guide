@@ -68,7 +68,7 @@ export function StatusConexao({ tipo, conexaoTipo, onConexaoTipoChange }: Status
           <AlertTriangle className="w-3.5 h-3.5 text-amber-600 mt-0.5 flex-shrink-0" />
           <p className="text-[11px] text-amber-700">
             Nenhuma conexão {tipo === 'whatsapp' ? 'WhatsApp' : 'de e-mail'} ativa. Configure em{' '}
-            <a href="/app/configuracoes/conexoes" className="underline font-medium hover:text-amber-900">
+            <a href="/configuracoes/conexoes" className="underline font-medium hover:text-amber-900">
               Configurações → Conexões
             </a>.
           </p>

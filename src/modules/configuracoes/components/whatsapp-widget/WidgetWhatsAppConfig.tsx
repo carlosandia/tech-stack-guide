@@ -380,7 +380,7 @@ export function WidgetWhatsAppConfig({ value, onChange, organizacaoId }: Props) 
                   <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
                   <div className="text-xs">
                     <p>Nenhuma conexão de email ativa.</p>
-                    <Link to="/app/configuracoes/conexoes" className="inline-flex items-center gap-1 font-medium underline underline-offset-2 mt-0.5">
+                    <Link to="/configuracoes/conexoes" className="inline-flex items-center gap-1 font-medium underline underline-offset-2 mt-0.5">
                       Ir para Conexões <ArrowRight className="w-3 h-3" />
                     </Link>
                   </div>

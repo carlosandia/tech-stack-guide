@@ -29,7 +29,7 @@ export function InstagramConexaoModal({ onClose }: InstagramConexaoModalProps) {
 
   const handleConectar = async () => {
     try {
-      const redirectUri = `${window.location.origin}/app/configuracoes/conexoes`
+      const redirectUri = `${window.location.origin}/configuracoes/conexoes`
       const result = await obterAuthUrl.mutateAsync({
         plataforma: 'instagram',
         redirect_uri: redirectUri,

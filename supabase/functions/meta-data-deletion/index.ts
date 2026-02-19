@@ -146,7 +146,7 @@ Deno.serve(async (req) => {
     });
 
     // Retorno obrigatorio pelo Meta
-    const statusUrl = `https://crm.renovedigital.com.br/app/configuracoes/conexoes?deletion_status=${confirmationCode}`;
+    const statusUrl = `https://crm.renovedigital.com.br/configuracoes/conexoes?deletion_status=${confirmationCode}`;
 
     return new Response(
       JSON.stringify({
