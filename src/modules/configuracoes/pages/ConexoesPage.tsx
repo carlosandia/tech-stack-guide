@@ -63,7 +63,7 @@ export function ConexoesPage() {
     // AIDEV-NOTE: Meta Ads OAuth callback - Facebook redireciona aqui com code+state
     if (code && state && !callbackProcessado.current) {
       callbackProcessado.current = true
-      const redirectUri = `${window.location.origin}/app/configuracoes/conexoes`
+      const redirectUri = `${window.location.origin}/configuracoes/conexoes`
       processarCallback.mutate(
         { plataforma: 'meta_ads', code, state, redirect_uri: redirectUri },
         {

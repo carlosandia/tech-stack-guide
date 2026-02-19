@@ -35,7 +35,7 @@ export function MetaAdsConexaoModal({ onClose }: MetaAdsConexaoModalProps) {
   const handleConectar = async () => {
     try {
       // AIDEV-NOTE: Usa URL do frontend como redirect_uri - Facebook redireciona aqui com code
-      const redirectUri = `${window.location.origin}/app/configuracoes/conexoes`
+      const redirectUri = `${window.location.origin}/configuracoes/conexoes`
       const result = await obterAuthUrl.mutateAsync({
         plataforma: 'meta_ads',
         redirect_uri: redirectUri,
