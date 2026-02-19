@@ -1,57 +1,31 @@
 
-# Corrigir dropdown do usuario que nao fecha ao clicar fora
 
-## Problema
-O overlay transparente que captura cliques fora do menu esta renderizado **dentro** do header (`z-[100]`). Isso cria um stacking context que impede o overlay de cobrir a area abaixo do header (conteudo principal, toolbar, etc). O clique fora so funciona se for dentro do proprio header.
+# Substituir imagem do Hero por mockup real do modulo /negocios
 
-O mesmo bug existe em 3 arquivos:
-- `src/modules/app/layouts/AppLayout.tsx`
-- `src/modules/admin/layouts/AdminLayout.tsx`
-- `src/modules/configuracoes/components/layout/ConfigHeader.tsx`
+## Objetivo
+Trocar a imagem generica atual (`landing-hero-dashboard.jpg`) por um screenshot real do modulo `/negocios` (Kanban), transformado em estilo mockup profissional usando IA de geracao de imagem.
 
-## Solucao
-Substituir o dropdown manual (useState + overlay) pelo componente `DropdownMenu` do Radix UI, que ja existe no projeto e resolve automaticamente:
-- Posicionamento via portal (fora do stacking context)
-- Fecha ao clicar em qualquer lugar fora
-- Acessibilidade (keyboard navigation, ESC para fechar)
-- Animacoes de entrada/saida
+## Etapas
 
-O projeto ja usa esse padrao no `OrganizacaoActionsMenu.tsx`.
+### 1. Capturar screenshot real
+- Navegar ate `/negocios` no preview do projeto
+- Tirar um print da tela do Kanban com cards e pipeline visiveis
 
-## Alteracoes
+### 2. Gerar mockup via IA
+- Enviar o screenshot para o modelo de geracao de imagem (Gemini Flash Image)
+- Prompt de transformacao: criar uma versao "mockup" com visual polido, leve blur nos textos sensiveis, moldura de navegador estilizada, sombras e perspectiva 3D sutil
+- O resultado sera uma imagem que mostra a essencia do CRM sem expor o design exato
 
-### Arquivo 1: `src/modules/app/layouts/AppLayout.tsx`
-- Remover estado `userMenuOpen` e `setUserMenuOpen`
-- Importar `DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel` de `@/components/ui/dropdown-menu`
-- Substituir o bloco do user menu (linhas ~296-353) por:
+### 3. Substituir no projeto
+- Salvar a imagem gerada em `src/assets/landing-hero-dashboard.jpg` (substituindo a atual)
+- Nenhuma alteracao de codigo necessaria no `HeroSection.tsx` pois o import ja aponta para esse arquivo
 
-```text
-<DropdownMenu>
-  <DropdownMenuTrigger asChild>
-    <button> ... avatar + nome + chevron ... </button>
-  </DropdownMenuTrigger>
-  <DropdownMenuContent align="end" className="w-56">
-    <DropdownMenuLabel>
-      ... nome, email, badge de role ...
-    </DropdownMenuLabel>
-    <DropdownMenuSeparator />
-    <DropdownMenuItem onClick => navigate('/perfil')>
-      Meu Perfil
-    </DropdownMenuItem>
-    <DropdownMenuItem onClick => handleLogout>
-      Sair
-    </DropdownMenuItem>
-  </DropdownMenuContent>
-</DropdownMenu>
-```
+## Detalhes tecnicos
 
-### Arquivo 2: `src/modules/admin/layouts/AdminLayout.tsx`
-- Mesma substituicao: remover estado manual, usar `DropdownMenu` do Radix
-
-### Arquivo 3: `src/modules/configuracoes/components/layout/ConfigHeader.tsx`
-- Mesma substituicao: remover estado manual, usar `DropdownMenu` do Radix
+- Arquivo afetado: `src/assets/landing-hero-dashboard.jpg` (substituicao do asset)
+- Componente: `src/modules/public/components/landing/HeroSection.tsx` (sem alteracao de codigo)
+- Ferramenta: API de geracao de imagem Gemini para transformar screenshot em mockup
 
 ## Resultado esperado
-- O menu fecha corretamente ao clicar em qualquer area fora dele
-- Comportamento consistente em todos os layouts (App, Admin, Configuracoes)
-- Suporte a teclado (ESC fecha, setas navegam)
+A landing page exibira uma previa realista do CRM Renove mostrando o pipeline de vendas em formato mockup profissional, passando credibilidade sem revelar o design interno exato.
+
