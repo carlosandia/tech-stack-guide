@@ -737,7 +737,7 @@ function QuotedMessagePreview({ quoted, isMe, isStatusReply, onViewMedia }: {
     }
 
     // Se não temos IDs válidos para buscar via API, abrir thumbnail direto
-    if (!quoted.conversa_id || !quoted.message_id || quoted.id?.startsWith('synthetic_')) {
+    if (!quoted.conversa_id || !quoted.message_id) {
       if (quoted.media_url) {
         onViewMedia(quoted.media_url, quoted.tipo as 'image' | 'video', statusExtra)
       } else {
