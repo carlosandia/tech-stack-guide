@@ -37,7 +37,7 @@ export function LoginPage() {
   // Redireciona se ja autenticado
   useEffect(() => {
     if (isAuthenticated && !authLoading) {
-      const redirectTo = role === 'super_admin' ? '/admin' : '/app'
+      const redirectTo = role === 'super_admin' ? '/admin' : '/negocios'
       navigate(redirectTo, { replace: true })
     }
   }, [isAuthenticated, role, authLoading, navigate])
@@ -62,7 +62,7 @@ export function LoginPage() {
       }
 
       if (result.user) {
-        const redirectTo = result.user.role === 'super_admin' ? '/admin' : '/app'
+        const redirectTo = result.user.role === 'super_admin' ? '/admin' : '/negocios'
         navigate(redirectTo, { replace: true })
       }
     } catch {
