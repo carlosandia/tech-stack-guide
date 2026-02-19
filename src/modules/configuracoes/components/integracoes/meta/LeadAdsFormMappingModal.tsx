@@ -24,38 +24,7 @@ interface FieldMapping {
   crm_field: string
 }
 
-// AIDEV-NOTE: Campos padrão do sistema por entidade
-const CAMPOS_PADRAO_SISTEMA: Array<{ value: string; label: string; grupo: string }> = [
-  // Pessoa
-  { value: 'pessoa:nome', label: 'Nome', grupo: 'Pessoa' },
-  { value: 'pessoa:sobrenome', label: 'Sobrenome', grupo: 'Pessoa' },
-  { value: 'pessoa:email', label: 'Email', grupo: 'Pessoa' },
-  { value: 'pessoa:telefone', label: 'Telefone', grupo: 'Pessoa' },
-  { value: 'pessoa:cargo', label: 'Cargo', grupo: 'Pessoa' },
-  { value: 'pessoa:linkedin_url', label: 'LinkedIn', grupo: 'Pessoa' },
-  { value: 'pessoa:observacoes', label: 'Observações', grupo: 'Pessoa' },
-  // Empresa
-  { value: 'empresa:razao_social', label: 'Razão Social', grupo: 'Empresa' },
-  { value: 'empresa:nome_fantasia', label: 'Nome Fantasia', grupo: 'Empresa' },
-  { value: 'empresa:cnpj', label: 'CNPJ', grupo: 'Empresa' },
-  { value: 'empresa:email', label: 'Email', grupo: 'Empresa' },
-  { value: 'empresa:telefone', label: 'Telefone', grupo: 'Empresa' },
-  { value: 'empresa:website', label: 'Website', grupo: 'Empresa' },
-  { value: 'empresa:segmento', label: 'Segmento', grupo: 'Empresa' },
-  { value: 'empresa:porte', label: 'Porte', grupo: 'Empresa' },
-  // Endereço (compartilhado)
-  { value: 'endereco:endereco_logradouro', label: 'Logradouro', grupo: 'Endereço' },
-  { value: 'endereco:endereco_numero', label: 'Número', grupo: 'Endereço' },
-  { value: 'endereco:endereco_complemento', label: 'Complemento', grupo: 'Endereço' },
-  { value: 'endereco:endereco_bairro', label: 'Bairro', grupo: 'Endereço' },
-  { value: 'endereco:endereco_cidade', label: 'Cidade', grupo: 'Endereço' },
-  { value: 'endereco:endereco_estado', label: 'Estado', grupo: 'Endereço' },
-  { value: 'endereco:endereco_cep', label: 'CEP', grupo: 'Endereço' },
-  // Oportunidade
-  { value: 'oportunidade:titulo', label: 'Título', grupo: 'Oportunidade' },
-  { value: 'oportunidade:valor', label: 'Valor', grupo: 'Oportunidade' },
-  { value: 'oportunidade:observacoes', label: 'Observações', grupo: 'Oportunidade' },
-]
+// AIDEV-NOTE: Campos CRM vêm exclusivamente da tabela campos_customizados (sistema + custom)
 
 export function LeadAdsFormMappingModal({
   form,
@@ -104,7 +73,7 @@ export function LeadAdsFormMappingModal({
     queryFn: async () => {
       const { data } = await supabase
         .from('campos_customizados')
-        .select('id, nome, entidade, slug')
+        .select('id, nome, entidade, slug, sistema')
         .is('deletado_em', null)
         .eq('ativo', true)
         .order('ordem', { ascending: true })
@@ -112,28 +81,22 @@ export function LeadAdsFormMappingModal({
     },
   })
 
-  // Montar lista completa de campos CRM (padrão + customizados) agrupados
+  // AIDEV-NOTE: Lista unificada de campos CRM agrupados por entidade (fonte única: banco)
   const camposCrmAgrupados = useMemo(() => {
     const ENTIDADE_LABEL: Record<string, string> = {
       pessoa: 'Pessoa',
       empresa: 'Empresa',
       oportunidade: 'Oportunidade',
     }
-
-    // Agrupar campos padrão
     const grupos: Record<string, Array<{ value: string; label: string }>> = {}
-    for (const c of CAMPOS_PADRAO_SISTEMA) {
-      if (!grupos[c.grupo]) grupos[c.grupo] = []
-      grupos[c.grupo].push({ value: c.value, label: c.label })
-    }
-
-    // Adicionar campos customizados agrupados por entidade
     for (const c of camposCustomizados || []) {
-      const grupoLabel = `${ENTIDADE_LABEL[c.entidade] || c.entidade} (Customizado)`
+      const grupoLabel = ENTIDADE_LABEL[c.entidade] || c.entidade
       if (!grupos[grupoLabel]) grupos[grupoLabel] = []
-      grupos[grupoLabel].push({ value: `custom:${c.id}`, label: c.nome })
+      grupos[grupoLabel].push({
+        value: (c as any).sistema ? `${c.entidade}:${c.slug}` : `custom:${c.id}`,
+        label: c.nome,
+      })
     }
-
     return grupos
   }, [camposCustomizados])
 
