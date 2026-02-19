@@ -11,13 +11,15 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
+
   try {
     // Autenticar usuario
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(
         JSON.stringify({ sucesso: false, mensagem: "Não autorizado" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 401, headers: jsonHeaders }
       );
     }
 
@@ -27,21 +29,20 @@ Deno.serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
       return new Response(
         JSON.stringify({ sucesso: false, mensagem: "Token inválido" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 401, headers: jsonHeaders }
       );
     }
 
     // Verificar se é super_admin
-    const role = claimsData.claims.user_metadata?.role;
+    const role = user.user_metadata?.role;
     if (role !== "super_admin") {
       return new Response(
         JSON.stringify({ sucesso: false, mensagem: "Acesso restrito a Super Admin" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 403, headers: jsonHeaders }
       );
     }
 
@@ -55,12 +56,12 @@ Deno.serve(async (req) => {
       .from("configuracoes_globais")
       .select("configuracoes")
       .eq("plataforma", "meta")
-      .single();
+      .maybeSingle();
 
     if (configError || !config) {
       return new Response(
         JSON.stringify({ sucesso: false, mensagem: "Configuração Meta não encontrada" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: jsonHeaders }
       );
     }
 
@@ -71,15 +72,28 @@ Deno.serve(async (req) => {
     if (!appId || !appSecret) {
       return new Response(
         JSON.stringify({ sucesso: false, mensagem: "App ID ou App Secret não configurados" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: jsonHeaders }
       );
     }
 
     // Chamada real à API do Meta para gerar App Access Token
     const metaUrl = `https://graph.facebook.com/oauth/access_token?client_id=${encodeURIComponent(appId)}&client_secret=${encodeURIComponent(appSecret)}&grant_type=client_credentials`;
 
+    console.log(`[test-meta] Testando conexão com App ID: ${appId}`);
+
     const metaResponse = await fetch(metaUrl);
-    const metaData = await metaResponse.json();
+    const metaText = await metaResponse.text();
+
+    let metaData: Record<string, unknown>;
+    try {
+      metaData = JSON.parse(metaText);
+    } catch {
+      console.error(`[test-meta] Resposta não-JSON do Meta: ${metaText}`);
+      return new Response(
+        JSON.stringify({ sucesso: false, mensagem: "Resposta inesperada da API do Meta" }),
+        { status: 200, headers: jsonHeaders }
+      );
+    }
 
     if (metaResponse.ok && metaData.access_token) {
       // Atualizar status do teste no banco
@@ -91,15 +105,18 @@ Deno.serve(async (req) => {
         })
         .eq("plataforma", "meta");
 
+      console.log(`[test-meta] Conexão validada com sucesso`);
+
       return new Response(
         JSON.stringify({
           sucesso: true,
           mensagem: "Conexão com Meta validada com sucesso. App Access Token gerado.",
         }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: jsonHeaders }
       );
     } else {
-      const errorMsg = metaData.error?.message || "Credenciais inválidas";
+      const errorObj = metaData.error as Record<string, unknown> | undefined;
+      const errorMsg = (errorObj?.message as string) || "Credenciais inválidas";
 
       await supabaseAdmin
         .from("configuracoes_globais")
@@ -109,22 +126,24 @@ Deno.serve(async (req) => {
         })
         .eq("plataforma", "meta");
 
+      console.log(`[test-meta] Falha: ${errorMsg}`);
+
       return new Response(
         JSON.stringify({
           sucesso: false,
           mensagem: `Falha na validação: ${errorMsg}`,
         }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: jsonHeaders }
       );
     }
   } catch (error) {
-    console.error("Erro no test-meta:", error);
+    console.error("[test-meta] Erro:", error);
     return new Response(
       JSON.stringify({
         sucesso: false,
         mensagem: `Erro interno: ${(error as Error).message}`,
       }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: jsonHeaders }
     );
   }
 });
