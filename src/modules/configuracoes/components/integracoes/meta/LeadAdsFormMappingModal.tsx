@@ -322,8 +322,6 @@ function autoMapField(fieldKey: string): string {
     company_name: 'empresa:razao_social',
     company: 'empresa:razao_social',
     job_title: 'pessoa:cargo',
-    city: 'endereco:endereco_cidade',
-    state: 'endereco:endereco_estado',
   }
   return map[fieldKey.toLowerCase()] || ''
 }
