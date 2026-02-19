@@ -1,56 +1,78 @@
 
-# Validacao Real da Conexao Meta (Facebook/Instagram)
+# Plano: Criar Endpoints para Callbacks do Meta (Desautorizacao e Exclusao de Dados)
 
-## Problema Atual
+## Problema
 
-O botao "Testar Conexao" para Meta apenas verifica se os campos `app_id` e `app_secret` estao preenchidos. Ele **NAO** faz nenhuma chamada real a API do Meta para confirmar que as credenciais sao validas. Isso significa que o usuario pode ter digitado credenciais erradas e receber um falso positivo.
+Os campos "Desautorizar URL de retorno de chamada" e "Solicitacao de exclusao de dados" no Meta Developers Portal exigem **endpoints de API** que:
+- Recebam requisicoes **POST** com um `signed_request`
+- Processem o payload (parse + verificacao HMAC-SHA256)
+- Retornem resposta **JSON** apropriada
+
+Uma pagina frontend React nao pode cumprir esses requisitos.
 
 ## Solucao
 
-Criar uma Edge Function `test-meta` que faz uma chamada real a API do Meta usando o App ID e App Secret para gerar um App Access Token e validar que as credenciais funcionam.
+Criar duas Edge Functions no Supabase para lidar com esses callbacks.
 
-### Como funciona a validacao real
+### 1. Edge Function: `meta-deauthorize`
 
-O Meta permite gerar um **App Access Token** fazendo um GET para:
+**Responsabilidade:** Receber notificacao quando um usuario remove o app Meta.
+
+- Recebe POST com `signed_request`
+- Valida a assinatura usando o `app_secret`
+- Marca a conexao do usuario como desconectada no banco (tabela `conexoes_meta`)
+- Retorna status 200
+
+**URL para o Meta:** `https://ybzhlsalbnxwkfszkloa.supabase.co/functions/v1/meta-deauthorize`
+
+### 2. Edge Function: `meta-data-deletion`
+
+**Responsabilidade:** Processar solicitacoes de exclusao de dados do usuario.
+
+- Recebe POST com `signed_request`
+- Valida a assinatura HMAC-SHA256
+- Remove/marca dados do usuario para exclusao
+- Retorna JSON: `{ "url": "<status_url>", "confirmation_code": "<code>" }` (obrigatorio pela documentacao do Meta)
+
+**URL para o Meta:** `https://ybzhlsalbnxwkfszkloa.supabase.co/functions/v1/meta-data-deletion`
+
+### 3. Configuracao no Meta Developers Portal
+
+Apos implementacao, os campos devem ser preenchidos assim:
+
+| Campo | Valor |
+|-------|-------|
+| **URI de redirecionamento OAuth** | `https://crm.renovedigital.com.br/app/configuracoes/conexoes` |
+| **Desautorizar URL de retorno de chamada** | `https://ybzhlsalbnxwkfszkloa.supabase.co/functions/v1/meta-deauthorize` |
+| **URL de solicitacao de exclusao de dados** | `https://ybzhlsalbnxwkfszkloa.supabase.co/functions/v1/meta-data-deletion` |
+
+### Detalhes Tecnicos
+
+**Logica de parse do `signed_request`** (compartilhada entre as duas funcoes):
 
 ```text
-https://graph.facebook.com/oauth/access_token?client_id={APP_ID}&client_secret={APP_SECRET}&grant_type=client_credentials
+1. Receber signed_request do body (form-urlencoded)
+2. Separar em [encoded_sig, payload] pelo "."
+3. Decodificar payload (base64url) para obter { user_id, algorithm, ... }
+4. Verificar assinatura HMAC-SHA256 usando app_secret da tabela configuracoes_globais
+5. Processar a acao correspondente
 ```
 
-Se o App ID e App Secret estiverem corretos, retorna um token. Se estiverem errados, retorna erro. Esse e o teste mais simples e direto possivel.
+**meta-deauthorize:**
+- Busca conexao pelo user_id do Meta
+- Atualiza status para "desconectado" na tabela `conexoes_meta`
+- Retorna 200 OK
 
----
+**meta-data-deletion:**
+- Gera confirmation_code unico
+- Registra solicitacao de exclusao (pode usar tabela auxiliar ou log)
+- Remove tokens/dados do usuario da `conexoes_meta`
+- Retorna JSON com url de status e confirmation_code
 
-## Alteracoes
+**Ambas funcoes** precisam estar no `supabase/config.toml` como publicas (sem JWT), pois o Meta nao envia token de autenticacao.
 
-### 1. Nova Edge Function: `supabase/functions/test-meta/index.ts`
+### Arquivos a criar/editar
 
-- Recebe a requisicao autenticada (JWT do super_admin)
-- Busca as configuracoes do Meta na tabela `configuracoes_globais`
-- Descriptografa o `app_secret` (ou usa valor direto se nao estiver criptografado)
-- Faz chamada real ao endpoint `graph.facebook.com/oauth/access_token`
-- Retorna `{ sucesso: true/false, mensagem: "..." }`
-
-### 2. Alterar: `src/modules/admin/services/admin.api.ts`
-
-Na funcao `testarConfigGlobal`, adicionar um bloco para `plataforma === 'meta'` (similar ao que ja existe para `email`) que chama a edge function `test-meta` em vez de apenas validar campos.
-
-**De:**
-```
-// Para outras plataformas, re-avaliar campos obrigatórios...
-```
-
-**Para:**
-```
-if (plataforma === 'meta') {
-  // Chamada real a edge function test-meta
-  const response = await fetch(.../functions/v1/test-meta, ...)
-  return result
-}
-```
-
-### Resultado
-
-- O botao "Testar Conexao" para Meta passara a fazer uma chamada real a API do Facebook
-- Se o App ID ou App Secret estiverem errados, o usuario vera uma mensagem de erro clara
-- Se estiverem corretos, vera confirmacao de que as credenciais sao validas
+1. `supabase/functions/meta-deauthorize/index.ts` (novo)
+2. `supabase/functions/meta-data-deletion/index.ts` (novo)
+3. `supabase/config.toml` (adicionar as novas funcoes como publicas)
