@@ -34,10 +34,10 @@ export function MetaAdsConexaoModal({ onClose }: MetaAdsConexaoModalProps) {
 
   const handleConectar = async () => {
     try {
-      const redirectUri = `${window.location.origin}/app/configuracoes/conexoes`
+      // AIDEV-NOTE: Não passa redirect_uri - a edge function usa o callback do Supabase
       const result = await obterAuthUrl.mutateAsync({
         plataforma: 'meta_ads',
-        redirect_uri: redirectUri,
+        redirect_uri: '',
       })
       if (result.url) {
         window.location.href = result.url

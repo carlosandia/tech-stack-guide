@@ -101,7 +101,10 @@ Deno.serve(async (req) => {
       "business_management",
     ].join(",");
 
-    const finalRedirectUri = redirect_uri || `${Deno.env.get("SUPABASE_URL")}/functions/v1/meta-callback`;
+    // AIDEV-NOTE: Sempre usa a edge function meta-callback como redirect_uri
+    const finalRedirectUri = (redirect_uri && redirect_uri.length > 0)
+      ? redirect_uri
+      : `${Deno.env.get("SUPABASE_URL")}/functions/v1/meta-callback`;
 
     const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?` +
       `client_id=${encodeURIComponent(appId)}` +
