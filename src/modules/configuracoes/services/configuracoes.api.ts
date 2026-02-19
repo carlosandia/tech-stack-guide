@@ -1492,12 +1492,30 @@ export const metaAdsApi = {
     return data as { formularios: LeadAdForm[] }
   },
   listarPaginas: async () => {
-    const { data } = await api.get('/v1/conexoes/meta/paginas')
-    return data as { paginas: Array<{ id: string; name: string }> }
+    const session = await supabase.auth.getSession()
+    const token = session.data.session?.access_token || ''
+    const res = await fetch(
+      `https://ybzhlsalbnxwkfszkloa.supabase.co/functions/v1/meta-pages?action=pages`,
+      { headers: { Authorization: `Bearer ${token}`, apikey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inliemhsc2FsYm54d2tmc3prbG9hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMDExNzAsImV4cCI6MjA4NTc3NzE3MH0.NyxN8T0XCpnFSF_-0grGGcvhSbwOif0qxxlC_PshA9M' } }
+    )
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.error || 'Erro ao buscar páginas')
+    }
+    return await res.json() as { paginas: Array<{ id: string; name: string }> }
   },
   listarFormulariosPagina: async (pageId: string) => {
-    const { data } = await api.get(`/v1/conexoes/meta/formularios/${encodeURIComponent(pageId)}`)
-    return data as { formularios: Array<{ id: string; name: string; fields?: Array<{ key: string }> }> }
+    const session = await supabase.auth.getSession()
+    const token = session.data.session?.access_token || ''
+    const res = await fetch(
+      `https://ybzhlsalbnxwkfszkloa.supabase.co/functions/v1/meta-pages?action=forms&page_id=${encodeURIComponent(pageId)}`,
+      { headers: { Authorization: `Bearer ${token}`, apikey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inliemhsc2FsYm54d2tmc3prbG9hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMDExNzAsImV4cCI6MjA4NTc3NzE3MH0.NyxN8T0XCpnFSF_-0grGGcvhSbwOif0qxxlC_PshA9M' } }
+    )
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.error || 'Erro ao buscar formulários')
+    }
+    return await res.json() as { formularios: Array<{ id: string; name: string; fields?: Array<{ key: string }> }> }
   },
   criarFormulario: async (payload: Record<string, unknown>) => {
     const { data } = await api.post('/v1/conexoes/meta/formularios', payload)

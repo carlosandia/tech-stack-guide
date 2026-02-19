@@ -98,3 +98,6 @@ verify_jwt = false
 
 [functions.meta-data-deletion]
 verify_jwt = false
+
+[functions.meta-ads-pages]
+verify_jwt = false
