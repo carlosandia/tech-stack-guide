@@ -89,3 +89,6 @@ verify_jwt = false
 
 [functions.test-meta]
 verify_jwt = false
+
+[functions.meta-callback]
+verify_jwt = false
