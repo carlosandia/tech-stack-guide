@@ -246,19 +246,21 @@ serve(async (req) => {
         atualizado_em: new Date().toISOString(),
       };
 
-      // Check if connection already exists
+      // AIDEV-NOTE: Buscar ANY existing record (incluindo soft-deleted) para evitar violação de unique constraint
       const { data: existing } = await supabaseAdmin
         .from("conexoes_google")
         .select("id")
         .eq("organizacao_id", stateData.organizacao_id)
         .eq("usuario_id", stateData.usuario_id)
-        .is("deletado_em", null)
-        .single();
+        .order("criado_em", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
       if (existing) {
+        // Reativar e atualizar registro existente (incluindo limpar deletado_em)
         const { error: updateError } = await supabaseAdmin
           .from("conexoes_google")
-          .update(conexaoData)
+          .update({ ...conexaoData, deletado_em: null })
           .eq("id", existing.id);
 
         if (updateError) {
