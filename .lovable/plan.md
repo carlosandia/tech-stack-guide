@@ -1,55 +1,36 @@
 
-## Implementar envio real de evento teste para Meta CAPI + Renomear label
 
-### 1. Criar Edge Function `test-capi-event`
+## Habilitar botão "Enviar Evento Teste" somente após salvar configuração
 
-Nova Edge Function em `supabase/functions/test-capi-event/index.ts` que:
+### Problema atual
+O botão "Enviar Evento Teste" está habilitado sempre que há um `pixelId` preenchido no campo, mesmo que a configuração ainda não tenha sido salva no banco de dados. Isso pode causar erros pois a Edge Function depende do `pixel_id` salvo na tabela `config_conversions_api`.
 
-- Recebe POST autenticado do frontend
-- Busca `pixel_id` da tabela `config_conversions_api` pela `organizacao_id` do usuario
-- Busca `access_token` da tabela `conexoes_meta` pela mesma `organizacao_id`
-- Envia um evento de teste (`Lead` com `action_source: system_generated`) para `https://graph.facebook.com/v21.0/{pixel_id}/events`
-- Atualiza `config_conversions_api` com `ultimo_teste`, `ultimo_teste_sucesso` (true/false) baseado na resposta real do Meta
-- Retorna resultado (sucesso + event_id ou erro + mensagem do Meta)
+### Solução
 
-Payload enviado ao Meta (formato padrao CAPI):
-```json
-{
-  "data": [{
-    "event_name": "Lead",
-    "event_time": <unix_timestamp>,
-    "action_source": "system_generated",
-    "user_data": { "client_ip_address": "0.0.0.0" }
-  }],
-  "test_event_code": "TEST_EVENT_<timestamp>"
-}
-```
+Adicionar uma variável derivada `configSalva` que verifica se o `config` retornado pelo banco já possui um `pixel_id` salvo. O botão "Enviar Evento Teste" será desabilitado quando `configSalva` for `false`.
 
-### 2. Atualizar frontend - `configuracoes.api.ts`
+### Alteração no arquivo
 
-Substituir a funcao `testarCapi` para chamar a Edge Function via `supabase.functions.invoke('test-capi-event')` ao inves de apenas atualizar o banco localmente.
+**`src/modules/configuracoes/components/integracoes/meta/CapiConfigPanel.tsx`**
 
-### 3. Renomear label no `CapiConfigPanel.tsx`
+1. Criar variável `configSalva` derivada do query `config`:
+   ```typescript
+   const configSalva = !!config?.pixel_id
+   ```
 
-Alterar o evento `won` de:
-- `label: 'Venda Fechada (Won)'` para `label: 'Oportunidade Ganha'`
+2. Alterar o `disabled` do botão "Enviar Evento Teste" de:
+   ```
+   disabled={testar.isPending || !pixelId}
+   ```
+   Para:
+   ```
+   disabled={testar.isPending || !configSalva}
+   ```
 
-### 4. Registrar funcao no `config.toml`
+3. Adicionar tooltip/texto auxiliar quando desabilitado, indicando que é necessário salvar primeiro.
 
-Adicionar `[functions.test-capi-event]` com `verify_jwt = false`.
+### Comportamento esperado
 
-### Arquivos afetados
-
-| Arquivo | Acao |
-|---------|------|
-| `supabase/functions/test-capi-event/index.ts` | Criar (Edge Function) |
-| `supabase/config.toml` | Adicionar entrada da funcao |
-| `src/modules/configuracoes/services/configuracoes.api.ts` | Alterar `testarCapi` |
-| `src/modules/configuracoes/components/integracoes/meta/CapiConfigPanel.tsx` | Renomear label "won" |
-
-### Detalhes tecnicos
-
-- A Edge Function usa `SUPABASE_SERVICE_ROLE_KEY` para ler o `access_token` de `conexoes_meta` (dado sensivel protegido por RLS)
-- Validacao JWT via `getClaims()` para identificar o usuario e obter a `organizacao_id`
-- CORS headers padrao incluidos
-- Se o token Meta estiver expirado ou ausente, retorna erro claro orientando reconexao
+- Usuário abre o painel CAPI pela primeira vez (sem config salva) -> botao teste desabilitado
+- Usuário preenche Pixel ID e clica "Salvar Configuração" -> query invalida e recarrega -> `config.pixel_id` agora existe -> botao teste habilitado
+- Se o usuário alterar o Pixel ID mas não salvar, o botão continua habilitado (pois a config anterior ainda existe no banco)
