@@ -116,7 +116,7 @@ const App = forwardRef<HTMLDivElement>(function App(_props, _ref) {
             : <Navigate to="/login" replace />
         }
       >
-        <Route index element={<Navigate to="campos" replace />} />
+        <Route index element={<Navigate to="config-geral" replace />} />
         <Route path="campos" element={<CamposPage />} />
         <Route path="produtos" element={<ProdutosPage />} />
         <Route path="motivos" element={<MotivosPage />} />
