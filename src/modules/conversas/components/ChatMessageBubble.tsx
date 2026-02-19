@@ -54,6 +54,7 @@ interface ChatMessageBubbleProps {
   onForwardMessage?: (mensagem: Mensagem) => void
   onPinMessage?: (mensagem: Mensagem) => void
   quotedMessage?: Mensagem | null
+  isStatusReply?: boolean
   onStartConversation?: (telefone: string) => void
 }
 
@@ -666,8 +667,12 @@ function renderContent(
 // Quoted message preview (reply bubble)
 // =====================================================
 
-function QuotedMessagePreview({ quoted, isMe }: { quoted: Mensagem; isMe: boolean }) {
+function QuotedMessagePreview({ quoted, isMe, isStatusReply }: { quoted: Mensagem; isMe: boolean; isStatusReply?: boolean }) {
   const getPreviewText = () => {
+    // Para imagem/video com caption, mostrar o caption
+    if ((quoted.tipo === 'image' || quoted.tipo === 'video') && quoted.caption) {
+      return `${quoted.tipo === 'image' ? '📷' : '🎥'} ${quoted.caption}`
+    }
     switch (quoted.tipo) {
       case 'text': return quoted.body || ''
       case 'image': return '📷 Foto'
@@ -695,23 +700,50 @@ function QuotedMessagePreview({ quoted, isMe }: { quoted: Mensagem; isMe: boolea
         || rawData.pushName as string
       if (pushName) return pushName
     }
+    // Fallback: formatar número do remetente
+    if (quoted.from_number) {
+      const cleaned = quoted.from_number.replace(/@.*/, '')
+      if (/^\d+$/.test(cleaned)) return `+${cleaned}`
+      return cleaned
+    }
     return 'Contato'
   }, [quoted])
 
+  // AIDEV-NOTE: Verificar se há thumbnail disponível (base64 ou media_url de imagem)
+  const hasThumbnail = quoted.media_url && (quoted.tipo === 'image' || quoted.tipo === 'video')
+
   return (
     <div className={`
-      rounded-lg px-3 py-2 mb-1.5 border-l-[3px] cursor-pointer
+      rounded-lg mb-1.5 border-l-[3px] cursor-pointer overflow-hidden flex
       ${isMe
         ? 'bg-primary/10 border-l-primary/60'
         : 'bg-muted-foreground/15 border-l-muted-foreground/50'
       }
     `}>
-      <p className="text-[11px] font-semibold text-primary truncate">
-        {senderName}
-      </p>
-      <p className="text-[11px] text-muted-foreground/80 truncate max-w-[250px]">
-        {getPreviewText()}
-      </p>
+      <div className="flex-1 min-w-0 px-3 py-2">
+        <div className="flex items-center gap-1.5">
+          <p className="text-[11px] font-semibold text-primary truncate">
+            {senderName}
+          </p>
+          {isStatusReply && (
+            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 text-[9px] font-semibold uppercase tracking-wide flex-shrink-0">
+              ● Status
+            </span>
+          )}
+        </div>
+        <p className="text-[11px] text-muted-foreground/80 truncate max-w-[220px]">
+          {getPreviewText()}
+        </p>
+      </div>
+      {hasThumbnail && (
+        <div className="w-[52px] h-[52px] flex-shrink-0">
+          <img
+            src={quoted.media_url!}
+            alt="Thumbnail"
+            className="w-full h-full object-cover rounded-r-lg"
+          />
+        </div>
+      )}
     </div>
   )
 }
@@ -895,7 +927,7 @@ export function ChatMessageBubble({
   mensagem, participantName, participantColor, conversaId, fotoUrl, myAvatarUrl, contactMap,
   reactions,
   onDeleteMessage, onReplyMessage, onReactMessage, onForwardMessage: _onForwardMessage, onPinMessage: _onPinMessage,
-  quotedMessage, onStartConversation
+  quotedMessage, isStatusReply, onStartConversation
 }: ChatMessageBubbleProps) {
   const [viewerMedia, setViewerMedia] = useState<{ url: string; tipo: 'image' | 'video' } | null>(null)
   const [, setHovered] = useState(false)
@@ -1081,7 +1113,7 @@ export function ChatMessageBubble({
           )}
 
           {quotedMessage && (
-            <QuotedMessagePreview quoted={quotedMessage} isMe={isMe} />
+            <QuotedMessagePreview quoted={quotedMessage} isMe={isMe} isStatusReply={isStatusReply} />
           )}
 
           {/* Inline text + timestamp (WhatsApp style) */}
