@@ -1,6 +1,13 @@
-import { useNavigate, NavLink } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/providers/AuthProvider'
-import { useState } from 'react'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from '@/components/ui/dropdown-menu'
 import {
   ArrowLeft,
   ChevronDown,
@@ -22,7 +29,6 @@ interface ConfigHeaderProps {
 export function ConfigHeader({ onMenuClick }: ConfigHeaderProps) {
   const navigate = useNavigate()
   const { user, role, signOut } = useAuth()
-  const [userMenuOpen, setUserMenuOpen] = useState(false)
 
   const handleLogout = async () => {
     try {
@@ -61,55 +67,43 @@ export function ConfigHeader({ onMenuClick }: ConfigHeaderProps) {
         </div>
 
         {/* Right: User Menu */}
-        <div className="relative">
-          <button
-            onClick={() => setUserMenuOpen(!userMenuOpen)}
-            className="flex items-center gap-2 p-2 hover:bg-accent rounded-md transition-all duration-200"
-          >
-            <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center overflow-hidden">
-              {user?.avatar_url ? (
-                <img src={user.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
-              ) : (
-                <span className="text-sm font-medium text-muted-foreground">
-                  {user?.nome?.[0]?.toUpperCase() || 'U'}
-                </span>
-              )}
-            </div>
-            <span className="hidden sm:block text-sm font-medium text-foreground max-w-[150px] truncate">
-              {user?.nome || 'Usuário'}
-            </span>
-            <ChevronDown className="w-4 h-4 text-muted-foreground" />
-          </button>
-          {userMenuOpen && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setUserMenuOpen(false)} />
-              <div className="absolute right-0 mt-1 w-56 bg-white rounded-md shadow-lg border border-border py-1 z-[200]">
-                <div className="px-3 py-2 border-b border-gray-200/60">
-                  <p className="text-sm font-medium text-foreground">{user?.nome || 'Usuário'}</p>
-                  <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
-                  <span className="inline-flex items-center mt-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
-                    {role === 'admin' ? 'Admin' : 'Membro'}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="flex items-center gap-2 p-2 hover:bg-accent rounded-md transition-all duration-200">
+              <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center overflow-hidden">
+                {user?.avatar_url ? (
+                  <img src={user.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-sm font-medium text-muted-foreground">
+                    {user?.nome?.[0]?.toUpperCase() || 'U'}
                   </span>
-                </div>
-                <NavLink
-                  to="/perfil"
-                  onClick={() => setUserMenuOpen(false)}
-                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-foreground hover:bg-accent"
-                >
-                  <User className="w-4 h-4" />
-                  Meu Perfil
-                </NavLink>
-                <button
-                  onClick={handleLogout}
-                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-foreground hover:bg-accent"
-                >
-                  <LogOut className="w-4 h-4" />
-                  Sair
-                </button>
+                )}
               </div>
-            </>
-          )}
-        </div>
+              <span className="hidden sm:block text-sm font-medium text-foreground max-w-[150px] truncate">
+                {user?.nome || 'Usuário'}
+              </span>
+              <ChevronDown className="w-4 h-4 text-muted-foreground" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel className="font-normal">
+              <p className="text-sm font-medium text-foreground">{user?.nome || 'Usuário'}</p>
+              <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+              <span className="inline-flex items-center mt-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
+                {role === 'admin' ? 'Admin' : 'Membro'}
+              </span>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => navigate('/perfil')} className="cursor-pointer">
+              <User className="w-4 h-4 mr-2" />
+              Meu Perfil
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
+              <LogOut className="w-4 h-4 mr-2" />
+              Sair
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
   )

@@ -5,6 +5,14 @@ import { useAuth } from '@/providers/AuthProvider'
 import { ToolbarProvider, useToolbar } from '../contexts/ToolbarContext'
 import { NotificacoesSino } from '@/modules/feedback/components/NotificacoesSino'
 import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from '@/components/ui/dropdown-menu'
+import {
   LayoutDashboard,
   Building2,
   CreditCard,
@@ -110,7 +118,7 @@ function AdminLayoutInner() {
   const location = useLocation()
   const { user, signOut } = useAuth()
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [userMenuOpen, setUserMenuOpen] = useState(false)
+  
 
   const handleLogout = async () => {
     try {
@@ -229,52 +237,39 @@ function AdminLayoutInner() {
             <NotificacoesSino />
 
             {/* User menu */}
-            <div className="relative">
-              <button
-                onClick={() => setUserMenuOpen(!userMenuOpen)}
-                className="flex items-center gap-2 p-2 hover:bg-gray-100/70 rounded-md transition-all duration-200"
-              >
-                <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
-                  <span className="text-sm font-medium text-gray-600">
-                    {user?.nome?.[0]?.toUpperCase() || 'U'}
-                  </span>
-                </div>
-                <span className="hidden sm:block text-sm font-medium text-gray-700 max-w-[150px] truncate">
-                  {user?.nome || 'Usuário'}
-                </span>
-                <ChevronDown className="w-4 h-4 text-gray-500" />
-              </button>
-
-              {/* User dropdown */}
-              {userMenuOpen && (
-                <>
-                  <div
-                    className="fixed inset-0 z-40"
-                    onClick={() => setUserMenuOpen(false)}
-                  />
-                  <div className="absolute right-0 mt-1 w-56 bg-white rounded-md shadow-lg border border-border py-1 z-[200]">
-                    <div className="px-3 py-2 border-b border-gray-200/60">
-                    <p className="text-sm font-medium text-gray-800">
-                      {user?.nome || 'Usuário'}
-                      </p>
-                    <p className="text-xs text-gray-500 truncate">
-                      {user?.email}
-                    </p>
-                    <span className="inline-flex items-center mt-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
-                      Super Admin
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center gap-2 p-2 hover:bg-accent rounded-md transition-all duration-200">
+                  <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center">
+                    <span className="text-sm font-medium text-muted-foreground">
+                      {user?.nome?.[0]?.toUpperCase() || 'U'}
                     </span>
-                    </div>
-                    <button
-                      onClick={handleLogout}
-                      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100/70"
-                    >
-                      <LogOut className="w-4 h-4" />
-                      Sair
-                    </button>
                   </div>
-                </>
-              )}
-            </div>
+                  <span className="hidden sm:block text-sm font-medium text-foreground max-w-[150px] truncate">
+                    {user?.nome || 'Usuário'}
+                  </span>
+                  <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel className="font-normal">
+                  <p className="text-sm font-medium text-foreground">
+                    {user?.nome || 'Usuário'}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {user?.email}
+                  </p>
+                  <span className="inline-flex items-center mt-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
+                    Super Admin
+                  </span>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Sair
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </header>
