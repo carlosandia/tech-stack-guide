@@ -265,11 +265,57 @@ export function useReagirMensagem() {
     mutationFn: ({ conversaId, messageWahaId, emoji }: {
       conversaId: string; messageWahaId: string; emoji: string
     }) => conversasApi.reagirMensagem(conversaId, messageWahaId, emoji),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['mensagens'] })
+    // AIDEV-NOTE: Optimistic Update - reação aparece instantaneamente na UI
+    onMutate: async (variables) => {
+      await queryClient.cancelQueries({ queryKey: ['mensagens', variables.conversaId] })
+      const snapshot = queryClient.getQueryData(['mensagens', variables.conversaId])
+
+      // Injetar mensagem de reação fake no cache para renderização imediata
+      const optimisticReaction = {
+        id: `temp_reaction_${Date.now()}`,
+        conversa_id: variables.conversaId,
+        organizacao_id: '',
+        message_id: `temp_react_${Date.now()}`,
+        from_me: true,
+        from_number: null,
+        to_number: null,
+        participant: null,
+        tipo: 'reaction' as const,
+        body: null,
+        media_url: null,
+        media_mimetype: null,
+        media_filename: null,
+        media_caption: null,
+        ack: 0,
+        reply_to_message_id: null,
+        reaction_emoji: variables.emoji,
+        reaction_message_id: variables.messageWahaId,
+        raw_data: null,
+        criado_em: new Date().toISOString(),
+        atualizado_em: new Date().toISOString(),
+        deletado_em: null,
+      }
+
+      queryClient.setQueryData(['mensagens', variables.conversaId], (old: any) => {
+        if (!old?.pages?.length) return old
+        const newPages = [...old.pages]
+        newPages[0] = {
+          ...newPages[0],
+          mensagens: [optimisticReaction, ...(newPages[0].mensagens || [])],
+        }
+        return { ...old, pages: newPages }
+      })
+
+      return { snapshot }
     },
-    onError: (error: Error) => {
+    onError: (error: Error, variables, context) => {
+      if (context?.snapshot) {
+        queryClient.setQueryData(['mensagens', variables.conversaId], context.snapshot)
+      }
       toast.error(error.message || 'Erro ao reagir à mensagem')
+    },
+    onSettled: (_data, _err, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['mensagens', variables.conversaId] })
     },
   })
 }
