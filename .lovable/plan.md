@@ -1,26 +1,64 @@
 
-## Limpeza: Remover referências residuais a "endereço"
+## Correção: Erro 400 ao salvar formulário Lead Ads
 
-### Diagnóstico
+### Causa Raiz
 
-- A entidade `endereco` **não existe** no banco de dados. As únicas entidades são: `pessoa`, `empresa`, `oportunidade`.
-- A duplicação de "Pessoa" e "Empresa" já foi corrigida na edição anterior (remoção da lista hardcoded `CAMPOS_PADRAO_SISTEMA`).
-- O único resíduo é na função `autoMapField` no final do arquivo `LeadAdsFormMappingModal.tsx`, que ainda mapeia `city` e `state` para `endereco:endereco_cidade` e `endereco:endereco_estado`.
+A tabela `paginas_meta` está **vazia**. O campo `pagina_id` em `formularios_lead_ads` é `uuid NOT NULL` com FK para `paginas_meta.id`. O código recebe o Page ID do Facebook (string numérica como "123456789") da seleção do dropdown, tenta um lookup na `paginas_meta` (que retorna vazio), e insere essa string numérica como UUID, causando o erro 400 (Bad Request).
 
-### Alteração
+### Solucao
+
+Na função `criarFormulario`, antes de inserir em `formularios_lead_ads`, fazer **upsert** na tabela `paginas_meta` para garantir que a página existe. Usar os dados já disponíveis no payload (page_id, page_name) e o `integracaoId` como `conexao_id`.
+
+### Alteracoes
 
 **Arquivo:** `src/modules/configuracoes/components/integracoes/meta/LeadAdsFormMappingModal.tsx`
 
-Na função `autoMapField`, remover as linhas `city` e `state` que apontam para `endereco:...`, pois essa entidade não existe.
+1. Passar `integracaoId` (conexao_id) no payload enviado ao `salvar.mutate()`, junto com `page_name` (nome da página selecionada):
 
-Antes:
 ```typescript
-city: 'endereco:endereco_cidade',
-state: 'endereco:endereco_estado',
+const payload = {
+  form_id: selectedFormId,
+  form_name: selectedFormName,
+  page_id: selectedPageId || form?.page_id,
+  page_name: selectedPageName, // novo campo
+  conexao_id: _integracaoId,   // novo campo (era ignorado com _)
+  pipeline_id: selectedPipelineId,
+  etapa_id: etapaInicial?.id || '',
+  mapeamento_campos: mappings.filter((m) => m.crm_field),
+}
 ```
 
-Depois: remover essas duas linhas (ou, se futuramente existirem campos de cidade/estado em pessoa ou empresa, apontar para o slug correto — mas hoje não existem, então o correto é remover).
+2. Adicionar state `selectedPageName` para capturar o nome da página ao selecionar.
 
-### Sobre a duplicação (Pessoa/Empresa 2x)
+**Arquivo:** `src/modules/configuracoes/services/configuracoes.api.ts`
 
-A causa raiz já foi corrigida na edição anterior: existiam duas fontes de dados (lista hardcoded + banco). Agora o código usa **exclusivamente** o banco como fonte única. Não há mais risco de duplicação.
+3. Na função `criarFormulario`, substituir o lookup simples por um **upsert** na `paginas_meta`:
+
+```typescript
+// Upsert na paginas_meta para garantir que a página existe
+const { data: paginaMeta, error: errPagina } = await supabase
+  .from('paginas_meta')
+  .upsert({
+    organizacao_id: orgId,
+    conexao_id: payload.conexao_id,
+    page_id: facebookPageId,
+    page_name: payload.page_name || 'Página Facebook',
+  }, { onConflict: 'organizacao_id,page_id' })
+  .select('id')
+  .single()
+
+if (errPagina) throw errPagina
+const paginaUuid = paginaMeta.id
+```
+
+4. Se não existir constraint unique em `(organizacao_id, page_id)`, fazer busca + insert condicional como fallback.
+
+### Verificacao necessaria
+
+Confirmar se existe constraint unique em `paginas_meta(organizacao_id, page_id)`. Caso não exista, criar via migration.
+
+### Resultado esperado
+
+- A página do Facebook é registrada automaticamente em `paginas_meta` ao configurar o formulário
+- O UUID correto é usado em `formularios_lead_ads.pagina_id`
+- O erro 400 desaparece
