@@ -144,11 +144,13 @@ function extractQuotedFromRawData(msg: Mensagem): { syntheticMessage: Mensagem; 
   }
 
   // Construir Mensagem sintética para o QuotedMessagePreview
+  // AIDEV-NOTE: GOWS usa stanzaID (D maiúsculo), NOWEB usa stanzaId (d minúsculo)
+  const stanzaId = (contextInfo.stanzaId || contextInfo.stanzaID) as string | undefined
   const syntheticMessage: Mensagem = {
-    id: `synthetic_${contextInfo.stanzaId || Date.now()}`,
+    id: `synthetic_${stanzaId || Date.now()}`,
     organizacao_id: msg.organizacao_id,
     conversa_id: msg.conversa_id,
-    message_id: (contextInfo.stanzaId as string) || '',
+    message_id: stanzaId || '',
     from_me: false,
     from_number: participant?.replace('@s.whatsapp.net', '').replace('@c.us', '').replace('@lid', '') || null,
     participant: participant || null,
