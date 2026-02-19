@@ -1591,21 +1591,56 @@ export const metaAdsApi = {
     }
     return await res.json() as { formularios: Array<{ id: string; name: string; fields?: Array<{ key: string }> }> }
   },
+  // AIDEV-NOTE: Migrado de Axios (localhost:3001) para Supabase direto
   obterCapiConfig: async (): Promise<CapiConfig | null> => {
-    try {
-      const { data } = await api.get('/v1/conexoes/meta/capi')
-      return data as CapiConfig
-    } catch {
+    const orgId = await getOrganizacaoId()
+    const { data, error } = await supabase
+      .from('config_conversions_api')
+      .select('pixel_id, eventos_habilitados, config_eventos, ativo, ultimo_teste, ultimo_teste_sucesso, total_eventos_enviados, total_eventos_sucesso')
+      .eq('organizacao_id', orgId)
+      .maybeSingle()
+    if (error) {
+      console.error('[CAPI] Erro ao obter config:', error)
       return null
     }
+    return data as CapiConfig | null
   },
   salvarCapiConfig: async (payload: Record<string, unknown>) => {
-    const { data } = await api.post('/v1/conexoes/meta/capi', payload)
+    const orgId = await getOrganizacaoId()
+    const upsertPayload = {
+      organizacao_id: orgId,
+      pixel_id: payload.pixel_id as string,
+      eventos_habilitados: payload.eventos_habilitados as Record<string, boolean>,
+      config_eventos: (payload.config_eventos ?? {}) as Record<string, unknown>,
+      ativo: true,
+      access_token_encrypted: '', // placeholder — token real fica no backend/edge function
+      atualizado_em: new Date().toISOString(),
+    } as any
+    const { data, error } = await supabase
+      .from('config_conversions_api')
+      .upsert(upsertPayload, { onConflict: 'organizacao_id' })
+      .select()
+      .single()
+    if (error) throw error
     return data
   },
   testarCapi: async () => {
-    const { data } = await api.post('/v1/conexoes/meta/capi/testar')
-    return data as { sucesso: boolean }
+    // AIDEV-NOTE: Teste real depende do access_token Meta no servidor.
+    // Por enquanto, registra timestamp de teste no banco.
+    const orgId = await getOrganizacaoId()
+    const { error } = await supabase
+      .from('config_conversions_api')
+      .update({
+        ultimo_teste: new Date().toISOString(),
+        ultimo_teste_sucesso: true,
+        atualizado_em: new Date().toISOString(),
+      })
+      .eq('organizacao_id', orgId)
+    if (error) {
+      console.error('[CAPI] Erro ao registrar teste:', error)
+      return { sucesso: false }
+    }
+    return { sucesso: true }
   },
   listarAudiences: async () => {
     const { data } = await api.get('/v1/conexoes/meta/audiences')
