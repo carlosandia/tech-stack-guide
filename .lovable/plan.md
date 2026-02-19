@@ -1,29 +1,32 @@
 
-## Correcao: Abrir midia real do Status via WAHA API (nao o thumbnail)
+# Corrigir formulario para pegar 100% do viewport no preview
 
-### Problema
-Quando clica na previa de resposta a Status, o sistema abre o thumbnail base64 (imagem pequena e pixelada) ao inves de buscar a midia real via API WAHA. Isso acontece porque o codigo atual tem um guard que pula a chamada de API para mensagens sinteticas (`quoted.id?.startsWith('synthetic_')`), caindo direto no fallback do thumbnail.
+## Problema
+O `containerStyle` aplica o `max_width` configurado no estilo do container (ex: `600px`), o que limita a largura do formulario dentro do wrapper de viewport. Isso faz com que Desktop, Tablet e Mobile pareçam iguais porque o container interno nunca ultrapassa seu `max_width`.
 
-### Causa Raiz
-No `ChatMessageBubble.tsx`, linha 740, a condicao:
-```text
-if (!quoted.conversa_id || !quoted.message_id || quoted.id?.startsWith('synthetic_'))
+## Solucao
+Remover o `maxWidth` do `containerStyle` quando estiver no preview do editor. Assim o formulario sempre ocupara 100% da largura disponivel no wrapper de viewport, e a diferença entre Desktop (100%), Tablet (768px) e Mobile (390px) ficara visivel.
+
+## Alteracao tecnica
+
+**Arquivo:** `src/modules/formularios/components/editor/FormPreview.tsx`
+
+1. Na construcao do `containerStyle` (linha 218), remover a propriedade `maxWidth`:
+
+```typescript
+// ANTES (linha 218):
+maxWidth: rv(estiloContainer as any, 'max_width') || estiloContainer.max_width || undefined,
+
+// DEPOIS - remover essa linha completamente do containerStyle
+// O max_width sera controlado apenas pelo wrapper de viewport
 ```
-Impede que mensagens sinteticas (Status) tentem buscar a midia real. Porem, a mensagem sintetica ja possui `message_id` = stanzaId (ID real do WAHA) e `conversa_id` valido -- tudo que e necessario para a chamada funcionar.
 
-### Solucao
-Remover a verificacao `quoted.id?.startsWith('synthetic_')` do guard. Assim, mensagens sinteticas com `conversa_id` e `message_id` validos irao tentar a API WAHA primeiro, usando `status@broadcast` como `chat_id`. Se a API falhar (status expirado), o fallback para o thumbnail continua funcionando normalmente.
+2. Isso fara com que o `div` do form container ocupe `w-full` (ja esta na classe), preenchendo todo o wrapper de viewport.
 
-### Arquivo Alterado
-- `src/modules/conversas/components/ChatMessageBubble.tsx` (1 linha alterada)
+3. O wrapper externo (linhas 423-431) ja controla a largura corretamente: `100%` para desktop, `768px` para tablet, `390px` para mobile.
 
-### Detalhe Tecnico
-A condicao na linha 740 sera simplificada de:
-```text
-if (!quoted.conversa_id || !quoted.message_id || quoted.id?.startsWith('synthetic_'))
-```
-para:
-```text
-if (!quoted.conversa_id || !quoted.message_id)
-```
-Isso permite que o fluxo prossiga para a chamada `conversasApi.downloadMessageMedia()` que ja esta implementada e funcional no waha-proxy.
+## Resultado esperado
+- **Desktop**: formulario ocupa toda a largura do preview
+- **Tablet**: formulario limitado a 768px com borda tracejada
+- **Mobile**: formulario limitado a 390px com borda tracejada
+- A diferença visual entre os viewports fica clara
