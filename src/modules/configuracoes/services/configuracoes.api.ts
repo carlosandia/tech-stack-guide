@@ -1307,7 +1307,15 @@ export const integracoesApi = {
       if (error) throw new Error(error.message || 'Erro ao obter URL de autenticação Google')
       return data
     }
-    const { data } = await api.get(`/v1/conexoes/${plataforma === 'meta_ads' ? 'meta' : plataforma}/auth-url`, {
+    // AIDEV-NOTE: Meta Ads usa Edge Function para funcionar em producao (sem backend localhost)
+    if (plataforma === 'meta_ads') {
+      const { data, error } = await supabase.functions.invoke('meta-auth', {
+        body: { action: 'auth-url', redirect_uri },
+      })
+      if (error) throw new Error(error.message || 'Erro ao obter URL de autenticação Meta')
+      return data
+    }
+    const { data } = await api.get(`/v1/conexoes/${plataforma}/auth-url`, {
       params: { redirect_uri },
     })
     return data
