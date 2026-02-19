@@ -62,7 +62,7 @@ export function LeadAdsFormMappingModal({
         .from('funis')
         .select('id, nome, etapas_funil(id, nome, ordem)')
         .is('deletado_em', null)
-        .order('ordem', { ascending: true })
+        .order('nome', { ascending: true })
       return data || []
     },
   })
