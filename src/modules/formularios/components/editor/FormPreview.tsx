@@ -422,7 +422,7 @@ export const FormPreview = forwardRef<HTMLDivElement, Props>(function FormPrevie
         <div
           className={cn(
             "flex items-start justify-center mx-auto transition-all duration-300",
-            viewport !== 'desktop' && "shadow-[0_0_0_1px_hsl(var(--border))] rounded-lg bg-background"
+            viewport !== 'desktop' && "shadow-[0_0_0_1px_hsl(var(--border))] rounded-lg"
           )}
           style={{ 
             width: viewportPixelWidths[viewport] ? `${viewportPixelWidths[viewport]}px` : '100%',
