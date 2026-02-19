@@ -1488,8 +1488,61 @@ export const integracoesApi = {
 
 export const metaAdsApi = {
   listarFormularios: async () => {
-    const { data } = await api.get('/v1/conexoes/meta/formularios')
-    return data as { formularios: LeadAdForm[] }
+    const orgId = await getOrganizacaoId()
+    const { data, error } = await supabase
+      .from('formularios_lead_ads')
+      .select('id, form_id, form_name, pagina_id, funil_id, etapa_destino_id, mapeamento_campos, total_leads_recebidos, ultimo_lead_recebido, ativo')
+      .eq('organizacao_id', orgId)
+      .is('deletado_em', null)
+      .order('criado_em', { ascending: false })
+    if (error) throw error
+    const formularios: LeadAdForm[] = (data || []).map((r: any) => ({
+      id: r.id,
+      form_id: r.form_id,
+      form_name: r.form_name || '',
+      page_id: r.pagina_id,
+      pipeline_id: r.funil_id,
+      etapa_id: r.etapa_destino_id,
+      mapeamento_campos: (r.mapeamento_campos as any) || [],
+      leads_recebidos: r.total_leads_recebidos || 0,
+      ultimo_lead_em: r.ultimo_lead_recebido,
+      ativo: r.ativo ?? true,
+    }))
+    return { formularios }
+  },
+  criarFormulario: async (payload: Record<string, unknown>) => {
+    const orgId = await getOrganizacaoId()
+    const { data, error } = await supabase
+      .from('formularios_lead_ads')
+      .insert({
+        organizacao_id: orgId,
+        form_id: payload.form_id as string,
+        form_name: (payload.form_name as string) || null,
+        pagina_id: payload.page_id as string,
+        funil_id: (payload.pipeline_id as string) || null,
+        etapa_destino_id: (payload.etapa_id as string) || null,
+        mapeamento_campos: payload.mapeamento_campos as any,
+      })
+      .select()
+      .single()
+    if (error) throw error
+    return data
+  },
+  atualizarFormulario: async (id: string, payload: Record<string, unknown>) => {
+    const { data, error } = await supabase
+      .from('formularios_lead_ads')
+      .update({
+        form_name: (payload.form_name as string) || undefined,
+        funil_id: (payload.pipeline_id as string) || undefined,
+        etapa_destino_id: (payload.etapa_id as string) || undefined,
+        mapeamento_campos: payload.mapeamento_campos as any,
+        atualizado_em: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select()
+      .single()
+    if (error) throw error
+    return data
   },
   listarPaginas: async () => {
     const session = await supabase.auth.getSession()
@@ -1516,14 +1569,6 @@ export const metaAdsApi = {
       throw new Error(err.error || 'Erro ao buscar formulários')
     }
     return await res.json() as { formularios: Array<{ id: string; name: string; fields?: Array<{ key: string }> }> }
-  },
-  criarFormulario: async (payload: Record<string, unknown>) => {
-    const { data } = await api.post('/v1/conexoes/meta/formularios', payload)
-    return data
-  },
-  atualizarFormulario: async (id: string, payload: Record<string, unknown>) => {
-    const { data } = await api.patch(`/v1/conexoes/meta/formularios/${id}`, payload)
-    return data
   },
   obterCapiConfig: async (): Promise<CapiConfig | null> => {
     try {
