@@ -1,61 +1,29 @@
 
+## Correcao: Abrir midia real do Status via WAHA API (nao o thumbnail)
 
-## Correcao: Viewer de Status igual ao WhatsApp Web
+### Problema
+Quando clica na previa de resposta a Status, o sistema abre o thumbnail base64 (imagem pequena e pixelada) ao inves de buscar a midia real via API WAHA. Isso acontece porque o codigo atual tem um guard que pula a chamada de API para mensagens sinteticas (`quoted.id?.startsWith('synthetic_')`), caindo direto no fallback do thumbnail.
 
-### Problema Atual
-1. **Imagem pixelada/estourada**: O `minWidth: 60vw` / `minHeight: 60vh` forca thumbnails base64 (resolucao ~150px) a ocupar 60% da tela, causando pixelizacao extrema
-2. **Layout diferente do WhatsApp**: O viewer atual e generico (toolbar + imagem centralizada). O WhatsApp Web mostra Status com layout proprio: imagem em fullscreen com caption sobreposto na parte inferior
+### Causa Raiz
+No `ChatMessageBubble.tsx`, linha 740, a condicao:
+```text
+if (!quoted.conversa_id || !quoted.message_id || quoted.id?.startsWith('synthetic_'))
+```
+Impede que mensagens sinteticas (Status) tentem buscar a midia real. Porem, a mensagem sintetica ja possui `message_id` = stanzaId (ID real do WAHA) e `conversa_id` valido -- tudo que e necessario para a chamada funcionar.
 
 ### Solucao
+Remover a verificacao `quoted.id?.startsWith('synthetic_')` do guard. Assim, mensagens sinteticas com `conversa_id` e `message_id` validos irao tentar a API WAHA primeiro, usando `status@broadcast` como `chat_id`. Se a API falhar (status expirado), o fallback para o thumbnail continua funcionando normalmente.
 
-**1. `MediaViewer.tsx` - Remover stretching forcado e adicionar modo Status**
+### Arquivo Alterado
+- `src/modules/conversas/components/ChatMessageBubble.tsx` (1 linha alterada)
 
-Aceitar props opcionais `caption` e `senderName` para renderizar no estilo WhatsApp Status:
-- Remover `minWidth`/`minHeight` que causam pixelizacao
-- Quando `caption` ou `senderName` estiverem presentes, renderizar layout de Status:
-  - Fundo preto total (100%)
-  - Nome do contato + horario no topo (sobre a imagem)
-  - Imagem centralizada com `object-contain` respeitando resolucao nativa (sem stretching)
-  - Caption na parte inferior sobre fundo gradiente semitransparente
-- Para thumbnails base64, usar `max-width: 80vw` e `max-height: 70vh` sem forcar tamanho minimo -- a imagem fica no melhor tamanho possivel sem pixelar
-
-**2. `ChatMessageBubble.tsx` - Passar caption e senderName ao MediaViewer**
-
-Quando `QuotedMessagePreview` abre o viewer para um Status reply:
-- Passar `caption` (do `quoted.caption` ou `quoted.body`)
-- Passar `senderName` (ja resolvido no componente)
-- O `handleViewMedia` sera atualizado para aceitar esses dados extras
-
-**3. Ajuste no `handleClick` do `QuotedMessagePreview`**
-
-Atualizar a chamada de `onViewMedia` para incluir caption e senderName como parametros adicionais, permitindo que o MediaViewer renderize o layout de Status.
-
-### Resultado Visual Esperado
-- Imagem centralizada em fundo preto, sem pixelizacao
-- Nome do contato no topo
-- Caption "Bora fazer acontecer!" na parte inferior com gradiente
-- Botao de fechar e download no canto superior direito
-- Layout identico ao WhatsApp Web (segunda imagem de referencia)
-
-### Detalhes Tecnicos
-
-**Interface atualizada do MediaViewer:**
+### Detalhe Tecnico
+A condicao na linha 740 sera simplificada de:
 ```text
-MediaViewerProps {
-  url: string
-  tipo: 'image' | 'video'
-  onClose: () => void
-  caption?: string        // novo
-  senderName?: string     // novo
-}
+if (!quoted.conversa_id || !quoted.message_id || quoted.id?.startsWith('synthetic_'))
 ```
-
-**Callback atualizado do onViewMedia:**
+para:
 ```text
-onViewMedia(url, tipo, { caption, senderName })
+if (!quoted.conversa_id || !quoted.message_id)
 ```
-
-**Arquivos alterados:**
-- `src/modules/conversas/components/MediaViewer.tsx`
-- `src/modules/conversas/components/ChatMessageBubble.tsx`
-
+Isso permite que o fluxo prossiga para a chamada `conversasApi.downloadMessageMedia()` que ja esta implementada e funcional no waha-proxy.
