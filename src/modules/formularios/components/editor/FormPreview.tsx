@@ -419,9 +419,17 @@ export const FormPreview = forwardRef<HTMLDivElement, Props>(function FormPrevie
         )}
         <ResponsiveCssInjector formId={formulario.id} botao={estiloBotao} container={estiloContainer} campos={estiloCampos} allCampos={campos} forceViewport={viewport !== 'desktop' ? viewport : undefined} />
 
+        {/* AIDEV-NOTE: Wrapper externo para simular viewport - controla largura máxima sem afetar o container do form */}
+        <div
+          className="flex items-start justify-center mx-auto transition-all duration-300"
+          style={{
+            width: viewportPixelWidths[viewport] ? `${viewportPixelWidths[viewport]}px` : '100%',
+            maxWidth: '100%',
+          }}
+        >
         <div
           className={cn(
-            'mx-auto transition-all duration-300 rounded-lg relative',
+            'w-full transition-all duration-300 rounded-lg relative',
             showFinalPreview && 'form-container',
             showFinalPreview
               ? (showContainerBorder ? 'border border-border' : '')
@@ -432,11 +440,7 @@ export const FormPreview = forwardRef<HTMLDivElement, Props>(function FormPrevie
                   selectedStyleElement === 'container' && 'outline outline-2 outline-dashed outline-primary outline-offset-4'
                 )
           )}
-          style={{
-            ...containerStyle,
-            // AIDEV-NOTE: Quando viewport não é desktop, forçar largura máxima do viewport simulado
-            ...(viewportPixelWidths[viewport] ? { maxWidth: `${viewportPixelWidths[viewport]}px` } : {}),
-          }}
+          style={containerStyle}
           onClick={showFinalPreview ? undefined : handleContainerClick}
           data-form-container
           data-form-id={formulario.id}
@@ -809,6 +813,7 @@ export const FormPreview = forwardRef<HTMLDivElement, Props>(function FormPrevie
 
             return formContent
           })()}
+        </div>
         </div>
       </div>
     </div>
