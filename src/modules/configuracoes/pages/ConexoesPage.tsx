@@ -4,12 +4,12 @@
  * Admin Only - Members bloqueados
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Loader2, Link2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useConfigToolbar } from '../contexts/ConfigToolbarContext'
-import { useIntegracoes, useDesconectarIntegracao, useSincronizarIntegracao } from '../hooks/useIntegracoes'
+import { useIntegracoes, useDesconectarIntegracao, useSincronizarIntegracao, useProcessarCallback } from '../hooks/useIntegracoes'
 import { ConexaoCard } from '../components/integracoes/ConexaoCard'
 import { WhatsAppQrCodeModal } from '../components/integracoes/WhatsAppQrCodeModal'
 import { EmailConexaoModal } from '../components/integracoes/EmailConexaoModal'
@@ -30,9 +30,11 @@ export function ConexoesPage() {
   const { data, isLoading, refetch } = useIntegracoes()
   const desconectar = useDesconectarIntegracao()
   const sincronizar = useSincronizarIntegracao()
+  const processarCallback = useProcessarCallback()
   const [searchParams, setSearchParams] = useSearchParams()
   const [modalAberto, setModalAberto] = useState<PlataformaIntegracao | null>(null)
   const [configAberto, setConfigAberto] = useState<PlataformaIntegracao | null>(null)
+  const callbackProcessado = useRef(false)
 
   useEffect(() => {
     setSubtitle('Gerencie conexões com plataformas externas')
@@ -44,6 +46,8 @@ export function ConexoesPage() {
   useEffect(() => {
     const success = searchParams.get('success')
     const error = searchParams.get('error')
+    const code = searchParams.get('code')
+    const state = searchParams.get('state')
 
     if (success) {
       toast.success(`${success.charAt(0).toUpperCase() + success.slice(1)} conectado com sucesso!`)
@@ -55,7 +59,28 @@ export function ConexoesPage() {
       toast.error(`Erro na autenticação: ${error}`)
       setSearchParams({}, { replace: true })
     }
-  }, [searchParams, setSearchParams, refetch])
+
+    // AIDEV-NOTE: Meta Ads OAuth callback - Facebook redireciona aqui com code+state
+    if (code && state && !callbackProcessado.current) {
+      callbackProcessado.current = true
+      const redirectUri = `${window.location.origin}/app/configuracoes/conexoes`
+      processarCallback.mutate(
+        { plataforma: 'meta_ads', code, state, redirect_uri: redirectUri },
+        {
+          onSuccess: () => {
+            toast.success('Meta Ads conectado com sucesso!')
+            refetch()
+            setSearchParams({}, { replace: true })
+          },
+          onError: (err) => {
+            toast.error(`Erro ao conectar Meta Ads: ${(err as Error).message}`)
+            setSearchParams({}, { replace: true })
+            callbackProcessado.current = false
+          },
+        }
+      )
+    }
+  }, [searchParams, setSearchParams, refetch, processarCallback])
 
   // Criar mapa de integracoes por plataforma
   const integracoesPorPlataforma: Record<string, Integracao | undefined> = {}

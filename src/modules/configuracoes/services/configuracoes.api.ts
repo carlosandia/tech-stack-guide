@@ -1321,9 +1321,16 @@ export const integracoesApi = {
     return data
   },
 
-  processarCallback: async (plataforma: PlataformaIntegracao, payload: { code: string; state: string; redirect_uri: string }) => {
-    const routePlataforma = plataforma === 'meta_ads' ? 'meta' : plataforma
-    const { data } = await api.post(`/v1/conexoes/${routePlataforma}/callback`, payload)
+  processarCallback: async (plataforma: PlataformaIntegracao | 'meta_ads', payload: { code: string; state: string; redirect_uri: string }) => {
+    // AIDEV-NOTE: Meta Ads usa Edge Function para trocar code por token
+    if (plataforma === 'meta_ads') {
+      const { data, error } = await supabase.functions.invoke('meta-callback', {
+        body: payload,
+      })
+      if (error) throw new Error(error.message || 'Erro ao processar callback Meta')
+      return data
+    }
+    const { data } = await api.post(`/v1/conexoes/${plataforma}/callback`, payload)
     return data
   },
 

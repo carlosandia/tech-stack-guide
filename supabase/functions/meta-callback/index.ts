@@ -1,29 +1,37 @@
 /**
  * AIDEV-NOTE: Edge Function callback do OAuth Meta Ads
- * Recebe o code do Facebook, troca pelo access_token e salva em conexoes_meta
- * Redireciona o usuario de volta para a pagina de conexoes
+ * Recebe code+state via POST (chamado pelo frontend) e troca pelo access_token
+ * Salva na tabela conexoes_meta
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+};
+
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
+
   try {
-    const url = new URL(req.url);
-    const code = url.searchParams.get("code");
-    const state = url.searchParams.get("state");
-    const errorParam = url.searchParams.get("error");
-
-    // URL do frontend para redirect final
-    const frontendUrl = "https://crm.renovedigital.com.br/app/configuracoes/conexoes";
-
-    if (errorParam) {
-      const errorDesc = url.searchParams.get("error_description") || errorParam;
-      console.error("[meta-callback] Erro do Facebook:", errorDesc);
-      return Response.redirect(`${frontendUrl}?error=${encodeURIComponent(errorDesc)}`, 302);
-    }
+    const body = await req.json();
+    const { code, state, redirect_uri } = body as {
+      code: string;
+      state: string;
+      redirect_uri: string;
+    };
 
     if (!code || !state) {
-      return Response.redirect(`${frontendUrl}?error=${encodeURIComponent("Código ou state ausente")}`, 302);
+      return new Response(
+        JSON.stringify({ error: "Código ou state ausente" }),
+        { status: 400, headers: jsonHeaders }
+      );
     }
 
     // Decodificar state
@@ -31,7 +39,10 @@ Deno.serve(async (req) => {
     try {
       stateData = JSON.parse(atob(state));
     } catch {
-      return Response.redirect(`${frontendUrl}?error=${encodeURIComponent("State inválido")}`, 302);
+      return new Response(
+        JSON.stringify({ error: "State inválido" }),
+        { status: 400, headers: jsonHeaders }
+      );
     }
 
     // Buscar config global (app_id e app_secret)
@@ -47,22 +58,31 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (!config) {
-      return Response.redirect(`${frontendUrl}?error=${encodeURIComponent("Configuração Meta não encontrada")}`, 302);
+      return new Response(
+        JSON.stringify({ error: "Configuração Meta não encontrada" }),
+        { status: 400, headers: jsonHeaders }
+      );
     }
 
     const configuracoes = config.configuracoes as Record<string, unknown>;
     const appId = (configuracoes.app_id as string) || "";
-    const appSecret = (configuracoes.app_secret_encrypted as string) || (configuracoes.app_secret as string) || "";
+    const appSecret =
+      (configuracoes.app_secret_encrypted as string) ||
+      (configuracoes.app_secret as string) ||
+      "";
 
     if (!appId || !appSecret) {
-      return Response.redirect(`${frontendUrl}?error=${encodeURIComponent("App ID ou Secret não configurados")}`, 302);
+      return new Response(
+        JSON.stringify({ error: "App ID ou Secret não configurados" }),
+        { status: 400, headers: jsonHeaders }
+      );
     }
 
     // Trocar code por access_token
-    const callbackUri = `${Deno.env.get("SUPABASE_URL")}/functions/v1/meta-callback`;
-    const tokenUrl = `https://graph.facebook.com/v21.0/oauth/access_token?` +
+    const tokenUrl =
+      `https://graph.facebook.com/v21.0/oauth/access_token?` +
       `client_id=${encodeURIComponent(appId)}` +
-      `&redirect_uri=${encodeURIComponent(callbackUri)}` +
+      `&redirect_uri=${encodeURIComponent(redirect_uri)}` +
       `&client_secret=${encodeURIComponent(appSecret)}` +
       `&code=${encodeURIComponent(code)}`;
 
@@ -71,25 +91,28 @@ Deno.serve(async (req) => {
 
     if (tokenData.error) {
       console.error("[meta-callback] Erro ao trocar code:", tokenData.error);
-      return Response.redirect(
-        `${frontendUrl}?error=${encodeURIComponent(tokenData.error.message || "Erro ao obter token")}`,
-        302
+      return new Response(
+        JSON.stringify({
+          error: tokenData.error.message || "Erro ao obter token",
+        }),
+        { status: 400, headers: jsonHeaders }
       );
     }
 
     const accessToken = tokenData.access_token;
-    const expiresIn = tokenData.expires_in; // segundos
+    const expiresIn = tokenData.expires_in;
 
     // Buscar dados do usuario Meta
     let metaUser = { id: "", name: "", email: "" };
     try {
-      const meRes = await fetch(`https://graph.facebook.com/v21.0/me?fields=id,name,email&access_token=${accessToken}`);
+      const meRes = await fetch(
+        `https://graph.facebook.com/v21.0/me?fields=id,name,email&access_token=${accessToken}`
+      );
       metaUser = await meRes.json();
     } catch (e) {
-      console.warn("[meta-callback] Não foi possível obter dados do usuário Meta:", e);
+      console.warn("[meta-callback] Erro ao buscar dados do usuário Meta:", e);
     }
 
-    // Calcular expiracao do token
     const tokenExpiresAt = expiresIn
       ? new Date(Date.now() + expiresIn * 1000).toISOString()
       : null;
@@ -114,20 +137,26 @@ Deno.serve(async (req) => {
 
     if (upsertError) {
       console.error("[meta-callback] Erro ao salvar conexão:", upsertError);
-      return Response.redirect(
-        `${frontendUrl}?error=${encodeURIComponent("Erro ao salvar conexão: " + upsertError.message)}`,
-        302
+      return new Response(
+        JSON.stringify({
+          error: "Erro ao salvar conexão: " + upsertError.message,
+        }),
+        { status: 500, headers: jsonHeaders }
       );
     }
 
-    console.log(`[meta-callback] Conexão Meta salva para org: ${stateData.organizacao_id}`);
-    return Response.redirect(`${frontendUrl}?success=meta_ads`, 302);
-
+    console.log(
+      `[meta-callback] Conexão Meta salva para org: ${stateData.organizacao_id}`
+    );
+    return new Response(
+      JSON.stringify({ sucesso: true, mensagem: "Meta Ads conectado com sucesso!" }),
+      { status: 200, headers: jsonHeaders }
+    );
   } catch (error) {
     console.error("[meta-callback] Erro interno:", error);
-    return Response.redirect(
-      `https://crm.renovedigital.com.br/app/configuracoes/conexoes?error=${encodeURIComponent((error as Error).message)}`,
-      302
+    return new Response(
+      JSON.stringify({ error: (error as Error).message }),
+      { status: 500, headers: jsonHeaders }
     );
   }
 });
