@@ -46,7 +46,6 @@ export function LeadAdsFormMappingModal({
   const [selectedFormId, setSelectedFormId] = useState(form?.form_id || '')
   const [selectedFormName, setSelectedFormName] = useState(form?.form_name || '')
   const [selectedPipelineId, setSelectedPipelineId] = useState(form?.pipeline_id || '')
-  const [selectedEtapaId, setSelectedEtapaId] = useState(form?.etapa_id || '')
   const [mappings, setMappings] = useState<FieldMapping[]>(form?.mapeamento_campos || [])
 
   const isEditing = !!form
@@ -100,12 +99,17 @@ export function LeadAdsFormMappingModal({
 
   const salvar = useMutation({
     mutationFn: () => {
+      // AIDEV-NOTE: Sempre criar na etapa "Novos Negócios" (primeira etapa do funil)
+      const funilSelecionado = funisData?.find((f: any) => f.id === selectedPipelineId)
+      const etapas = (funilSelecionado as any)?.etapas_funil || []
+      const etapaInicial = etapas.sort((a: any, b: any) => (a.ordem || 0) - (b.ordem || 0))[0]
+
       const payload = {
         form_id: selectedFormId,
         form_name: selectedFormName,
         page_id: selectedPageId || form?.page_id,
         pipeline_id: selectedPipelineId,
-        etapa_id: selectedEtapaId,
+        etapa_id: etapaInicial?.id || '',
         mapeamento_campos: mappings.filter((m) => m.crm_field),
       }
       if (isEditing && form) {
@@ -125,10 +129,6 @@ export function LeadAdsFormMappingModal({
       prev.map((m, i) => (i === index ? { ...m, crm_field: crmField } : m))
     )
   }
-
-  // Obter etapas do funil selecionado
-  const funilSelecionado = funisData?.find((f: any) => f.id === selectedPipelineId)
-  const etapas = (funilSelecionado as any)?.etapas_funil || []
 
   return (
     <ModalBase
@@ -225,42 +225,23 @@ export function LeadAdsFormMappingModal({
         {/* Destino do Lead */}
         <div className="space-y-4">
           <h4 className="text-sm font-semibold text-foreground">Destino do Lead</h4>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">Pipeline</label>
-              <select
-                value={selectedPipelineId}
-                onChange={(e) => {
-                  setSelectedPipelineId(e.target.value)
-                  setSelectedEtapaId('')
-                }}
-                className="w-full px-3 py-2 text-sm rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                <option value="">Selecione</option>
-                {(funisData || []).map((f: any) => (
-                  <option key={f.id} value={f.id}>
-                    {f.nome}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">Etapa</label>
-              <select
-                value={selectedEtapaId}
-                onChange={(e) => setSelectedEtapaId(e.target.value)}
-                className="w-full px-3 py-2 text-sm rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                <option value="">Selecione</option>
-                {etapas
-                  .sort((a: any, b: any) => (a.ordem || 0) - (b.ordem || 0))
-                  .map((e: any) => (
-                    <option key={e.id} value={e.id}>
-                      {e.nome}
-                    </option>
-                  ))}
-              </select>
-            </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-foreground">Pipeline</label>
+            <select
+              value={selectedPipelineId}
+              onChange={(e) => setSelectedPipelineId(e.target.value)}
+              className="w-full px-3 py-2 text-sm rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="">Selecione</option>
+              {(funisData || []).map((f: any) => (
+                <option key={f.id} value={f.id}>
+                  {f.nome}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground">
+              Leads serão criados automaticamente na etapa "Novos Negócios"
+            </p>
           </div>
         </div>
 
