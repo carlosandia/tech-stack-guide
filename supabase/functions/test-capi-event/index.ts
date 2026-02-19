@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
       .from('conexoes_meta')
       .select('access_token_encrypted')
       .eq('organizacao_id', orgId)
-      .eq('status', 'ativo')
+      .in('status', ['ativo', 'conectado'])
       .maybeSingle()
 
     if (metaError || !conexaoMeta?.access_token_encrypted) {
