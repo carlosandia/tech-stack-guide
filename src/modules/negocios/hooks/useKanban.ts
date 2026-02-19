@@ -10,7 +10,7 @@ import { supabase } from '@/lib/supabase'
 
 interface KanbanFiltros {
   busca?: string
-  responsavelId?: string
+  responsavelIds?: string[]
   valorMin?: number
   valorMax?: number
   periodoInicio?: string

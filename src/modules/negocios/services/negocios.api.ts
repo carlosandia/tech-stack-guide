@@ -208,7 +208,7 @@ export const negociosApi = {
   // Members só veem suas próprias oportunidades
   carregarKanban: async (funilId: string, filtros?: {
     busca?: string
-    responsavelId?: string
+    responsavelIds?: string[]
     valorMin?: number
     valorMax?: number
     periodoInicio?: string
@@ -269,8 +269,8 @@ export const negociosApi = {
       oportunidadesQuery = oportunidadesQuery.eq('usuario_responsavel_id', currentUserId)
     }
 
-    if (filtros?.responsavelId) {
-      oportunidadesQuery = oportunidadesQuery.eq('usuario_responsavel_id', filtros.responsavelId)
+    if (filtros?.responsavelIds?.length) {
+      oportunidadesQuery = oportunidadesQuery.in('usuario_responsavel_id', filtros.responsavelIds)
     }
 
     if (filtros?.busca) {

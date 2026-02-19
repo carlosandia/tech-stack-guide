@@ -42,7 +42,7 @@ import { toast } from 'sonner'
 export interface FiltrosKanban {
   status?: ('aberto' | 'ganho' | 'perdido')[]
   qualificacao?: ('lead' | 'mql' | 'sql')[]
-  responsavelId?: string
+  responsavelIds?: string[]
   valorMin?: number
   valorMax?: number
   dataCriacaoInicio?: string
@@ -69,7 +69,7 @@ export function contarFiltrosAtivos(f: FiltrosKanban): number {
   let count = 0
   if (f.status?.length) count++
   if (f.qualificacao?.length) count++
-  if (f.responsavelId) count++
+  if (f.responsavelIds?.length) count++
   if (f.valorMin !== undefined || f.valorMax !== undefined) count++
   if (f.dataCriacaoInicio || f.dataCriacaoFim) count++
   if (f.previsaoFechamentoInicio || f.previsaoFechamentoFim) count++
@@ -82,7 +82,7 @@ function contarSecao(f: FiltrosKanban, secao: SecaoId): number {
   switch (secao) {
     case 'status': return f.status?.length || 0
     case 'qualificacao': return f.qualificacao?.length || 0
-    case 'responsavel': return f.responsavelId ? 1 : 0
+    case 'responsavel': return f.responsavelIds?.length || 0
     case 'valor': return (f.valorMin !== undefined || f.valorMax !== undefined) ? 1 : 0
     case 'dataCriacao': return (f.dataCriacaoInicio || f.dataCriacaoFim) ? 1 : 0
     case 'previsaoFechamento': return (f.previsaoFechamentoInicio || f.previsaoFechamentoFim) ? 1 : 0
@@ -269,22 +269,34 @@ export function FiltrosPopover({ filtros, onChange, isAdmin }: FiltrosPopoverPro
 
       case 'responsavel':
         return (
-          <div className="pt-2">
+          <div className="pt-2 flex flex-wrap gap-2">
             {carregando ? (
               <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
             ) : (
-              <select
-                value={filtros.responsavelId || ''}
-                onChange={(e) => onChange({ ...filtros, responsavelId: e.target.value || undefined })}
-                className="w-full h-9 px-3 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30"
-              >
-                <option value="">Todos</option>
-                {membros.map(m => (
-                  <option key={m.id} value={m.id}>
+              membros.map(m => {
+                const selecionado = (filtros.responsavelIds || []).includes(m.id)
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => {
+                      const arr = filtros.responsavelIds || []
+                      const next = arr.includes(m.id)
+                        ? arr.filter(v => v !== m.id)
+                        : [...arr, m.id]
+                      onChange({ ...filtros, responsavelIds: next.length > 0 ? next : undefined })
+                    }}
+                    className={`
+                      px-3 py-1.5 rounded-md text-xs font-medium border transition-all duration-200
+                      ${selecionado
+                        ? 'bg-primary/10 border-primary text-primary'
+                        : 'border-border text-muted-foreground hover:bg-accent'
+                      }
+                    `}
+                  >
                     {m.nome}{m.sobrenome ? ` ${m.sobrenome}` : ''}
-                  </option>
-                ))}
-              </select>
+                  </button>
+                )
+              })
             )}
           </div>
         )
@@ -444,7 +456,7 @@ export function FiltrosPopover({ filtros, onChange, isAdmin }: FiltrosPopoverPro
 
       <PopoverContent
         align="end"
-        className="w-80 p-0"
+        className="w-[min(20rem,calc(100vw-2rem))] p-0"
         sideOffset={8}
       >
         {/* Header */}
