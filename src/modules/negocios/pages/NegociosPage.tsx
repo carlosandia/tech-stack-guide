@@ -87,7 +87,7 @@ const NegociosPage = forwardRef<HTMLDivElement>(function NegociosPage(_props, re
   // Memoize kanban filters
   const kanbanFiltros = useMemo(() => ({
     busca: busca.length >= 3 ? busca : undefined,
-    responsavelId: filtros.responsavelId,
+    responsavelIds: filtros.responsavelIds,
     valorMin: filtros.valorMin,
     valorMax: filtros.valorMax,
     periodoInicio: periodo.inicio,
