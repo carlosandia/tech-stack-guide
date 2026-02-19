@@ -56,7 +56,7 @@ function useTemConexaoEmail() {
         .from('conexoes_email')
         .select('id, status')
         .is('deletado_em', null)
-        .in('status', ['connected', 'ativo'])
+        .in('status', ['connected', 'conectado', 'ativo', 'active'])
         .limit(1)
 
       if (error) throw error
