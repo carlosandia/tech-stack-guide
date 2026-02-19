@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { LoginBannerConfig } from '../components/LoginBannerConfig'
-import { Save, RefreshCw, CheckCircle, XCircle, Loader2, Eye, EyeOff, ToggleLeft, ToggleRight } from 'lucide-react'
+import { Save, RefreshCw, CheckCircle, XCircle, Loader2, Eye, EyeOff, ToggleLeft, ToggleRight, RotateCcw } from 'lucide-react'
 import { toast } from 'sonner'
 import { useConfigGlobais, useUpdateConfigGlobal, useTestarConfigGlobal } from '../hooks/useConfigGlobal'
 import type { ConfigGlobal } from '../services/admin.api'
@@ -113,6 +113,28 @@ function ConfigPlataformaForm({
 
   const updateMutation = useUpdateConfigGlobal()
   const testMutation = useTestarConfigGlobal()
+
+  const gerarToken = useCallback((tamanho = 32) => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+    let resultado = ''
+    const array = new Uint32Array(tamanho)
+    crypto.getRandomValues(array)
+    for (let i = 0; i < tamanho; i++) {
+      resultado += chars.charAt(array[i] % chars.length)
+    }
+    return resultado
+  }, [])
+
+  // Auto-gerar webhook_verify_token para Meta se não existir
+  useEffect(() => {
+    if (plataforma === 'meta') {
+      const tokenExistente = (config?.configuracoes as Record<string, unknown>)?.webhook_verify_token
+      if (!tokenExistente || tokenExistente === '' || tokenExistente === '********') {
+        const token = gerarToken()
+        setValores((prev) => ({ ...prev, webhook_verify_token: token }))
+      }
+    }
+  }, [plataforma, config, gerarToken])
 
   // Verifica se há alterações pendentes
   const temAlteracoes = Object.keys(valores).length > 0
@@ -229,14 +251,31 @@ function ConfigPlataformaForm({
       {/* Campos */}
       <div className="space-y-4">
         {camposMain.map((campo) => (
-          <CampoFormulario
-            key={campo.name}
-            campo={campo}
-            valor={getValor(campo.name)}
-            onChange={(value) => setValores((prev) => ({ ...prev, [campo.name]: value }))}
-            mostrarSecret={mostrarSecrets[campo.name]}
-            onToggleSecret={() => toggleMostrarSecret(campo.name)}
-          />
+          <div key={campo.name} className="flex items-end gap-2">
+            <div className="flex-1">
+              <CampoFormulario
+                campo={campo}
+                valor={getValor(campo.name)}
+                onChange={(value) => setValores((prev) => ({ ...prev, [campo.name]: value }))}
+                mostrarSecret={mostrarSecrets[campo.name]}
+                onToggleSecret={() => toggleMostrarSecret(campo.name)}
+              />
+            </div>
+            {campo.name === 'webhook_verify_token' && plataforma === 'meta' && (
+              <button
+                type="button"
+                onClick={() => {
+                  const novoToken = gerarToken()
+                  setValores((prev) => ({ ...prev, webhook_verify_token: novoToken }))
+                  toast.info('Novo token gerado. Salve para aplicar.')
+                }}
+                className="h-11 px-3 rounded-md border border-input bg-background text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                title="Gerar novo token"
+              >
+                <RotateCcw className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         ))}
       </div>
 
