@@ -22,7 +22,8 @@ const EMBED_LABELS: Record<EmbedType, string> = {
   sidebar: 'Sidebar (lateral)',
 }
 
-const SUPABASE_URL = 'https://ybzhlsalbnxwkfszkloa.supabase.co'
+// AIDEV-NOTE: Centralizado via env vars (Auditoria M1)
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 
 function generateEmbedCode(slug: string, type: EmbedType): string {
   const loaderUrl = `${SUPABASE_URL}/functions/v1/widget-formulario-loader?slug=${slug}&mode=${type}`

@@ -5,6 +5,7 @@
  */
 
 import { useState, useCallback } from 'react'
+import DOMPurify from 'dompurify'
 import { Mail, Send, ChevronDown, ChevronUp, Loader2, AlertCircle, CheckCircle2, Clock, Save } from 'lucide-react'
 import { toast } from 'sonner'
 import { format, parseISO } from 'date-fns'
@@ -205,9 +206,10 @@ function EmailItem({ email }: { email: EmailOportunidade }) {
 
       {expanded && (
         <div className="px-3 pb-3 border-t border-border">
+          {/* AIDEV-NOTE: Sanitização XSS obrigatória (Auditoria C2) */}
           <div
             className="mt-2 text-sm text-foreground prose prose-sm max-w-none"
-            dangerouslySetInnerHTML={{ __html: email.corpo || '<p>(Sem conteúdo)</p>' }}
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(email.corpo || '<p>(Sem conteúdo)</p>') }}
           />
           {email.erro_mensagem && (
             <p className="mt-2 text-xs text-destructive">

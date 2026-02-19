@@ -60,8 +60,9 @@ export function WebhookDebugPanel({ triggerConfig, onConfigUpdate, organizacaoId
   })
 
   const selectedWebhook = webhooks.find(w => w.id === selectedWebhookId)
+  // AIDEV-NOTE: Centralizado via env vars (Auditoria M1)
   const webhookUrl = selectedWebhook
-    ? `https://ybzhlsalbnxwkfszkloa.supabase.co/functions/v1/webhook-entrada/${selectedWebhook.url_token}`
+    ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/webhook-entrada/${selectedWebhook.url_token}`
     : ''
 
   const handleSelectWebhook = (webhookId: string) => {

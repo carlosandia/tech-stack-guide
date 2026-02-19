@@ -43,14 +43,15 @@ export function ForgotPasswordPage() {
       const session = await supabase.auth.getSession()
       const accessToken = session.data.session?.access_token
 
+      // AIDEV-NOTE: Centralizado via env vars (Auditoria M1/M2)
       const response = await fetch(
-        'https://ybzhlsalbnxwkfszkloa.supabase.co/functions/v1/send-password-reset',
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-password-reset`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {}),
-            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inliemhsc2FsYm54d2tmc3prbG9hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMDExNzAsImV4cCI6MjA4NTc3NzE3MH0.NyxN8T0XCpnFSF_-0grGGcvhSbwOif0qxxlC_PshA9M',
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
           },
           body: JSON.stringify({ email: data.email }),
         }

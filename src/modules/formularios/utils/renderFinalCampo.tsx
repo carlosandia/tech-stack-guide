@@ -4,6 +4,7 @@
  */
 
 import { useState } from 'react'
+import DOMPurify from 'dompurify'
 import { Info } from 'lucide-react'
 import { mergeCampoEstilo, ensureUnit } from './campoEstiloUtils'
 import { TermosModal } from '../components/campos/TermosModal'
@@ -262,13 +263,16 @@ export function renderFinalCampo(
     }
     case 'oculto':
       return null
-    case 'bloco_html':
+    case 'bloco_html': {
+      // AIDEV-NOTE: Sanitização XSS obrigatória (Auditoria C1)
+      const htmlSanitizado = DOMPurify.sanitize(campo.valor_padrao || '<p>Bloco HTML</p>')
       return (
         <div
           style={{ fontSize: '14px', fontFamily }}
-          dangerouslySetInnerHTML={{ __html: campo.valor_padrao || '<p>Bloco HTML</p>' }}
+          dangerouslySetInnerHTML={{ __html: htmlSanitizado }}
         />
       )
+    }
     case 'imagem_link': {
       let imgSrc = ''
       let linkUrl = ''
