@@ -145,8 +145,13 @@ export function MediaViewer({ url, tipo, onClose }: MediaViewerProps) {
           <img
             src={url}
             alt="Visualização"
-            className="max-w-full max-h-full object-contain select-none"
+            className="object-contain select-none"
             style={{
+              maxWidth: '90vw',
+              maxHeight: 'calc(100vh - 80px)',
+              minWidth: url.startsWith('data:') ? '60vw' : undefined,
+              minHeight: url.startsWith('data:') ? '60vh' : undefined,
+              imageRendering: url.startsWith('data:') ? 'auto' : undefined,
               transform: `translate(${position.x}px, ${position.y}px) scale(${zoom})`,
               cursor: zoom > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default',
               transition: isDragging ? 'none' : 'transform 0.2s ease',
