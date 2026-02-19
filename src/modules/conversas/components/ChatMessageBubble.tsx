@@ -730,6 +730,16 @@ function QuotedMessagePreview({ quoted, isMe, isStatusReply, onViewMedia }: {
       return
     }
 
+    // Se não temos IDs válidos para buscar via API, abrir thumbnail direto
+    if (!quoted.conversa_id || !quoted.message_id || quoted.id?.startsWith('synthetic_')) {
+      if (quoted.media_url) {
+        onViewMedia(quoted.media_url, quoted.tipo as 'image' | 'video')
+      } else {
+        toast('Mídia não disponível ou expirada')
+      }
+      return
+    }
+
     // Tentar buscar mídia full-res via WAHA API
     setLoading(true)
     try {
