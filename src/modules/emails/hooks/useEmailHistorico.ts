@@ -42,7 +42,9 @@ export function useEmailHistoricoAberturas() {
         ultima_abertura: e.aberto_em!,
       }))
     },
-    // AIDEV-NOTE: Polling removido — Realtime invalida cache quando emails são atualizados
-    staleTime: 30000,
+    // AIDEV-NOTE: Historico de aberturas nao muda frequentemente
+    // 5 minutos e suficiente - evita fetch excessivo
+    // PRD: melhorias-performance.md - Fase 2
+    staleTime: 5 * 60 * 1000, // 5 minutos
   })
 }

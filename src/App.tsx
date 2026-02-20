@@ -1,30 +1,99 @@
-import { forwardRef } from 'react'
+import { forwardRef, lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from '@/providers/AuthProvider'
+
+/**
+ * AIDEV-NOTE: Code Splitting com React.lazy()
+ * PRD: melhorias-performance.md - Fase 3
+ *
+ * Modulos carregados de forma lazy (sob demanda):
+ * - Admin (so Super Admin precisa)
+ * - App (CRM principal)
+ * - Configuracoes (modulo grande)
+ * - Modulos de features (contatos, negocios, etc)
+ *
+ * Modulos NAO lazy (carregam sempre):
+ * - Auth (rota inicial)
+ * - Public (landing, planos)
+ *
+ * AIDEV-NOTE: Fallback usa animate-pulse (padrao do projeto)
+ * Carregamento de chunks e rapido (<300ms), nao precisa de spinner elaborado
+ */
+
+// Fallback simples para Suspense - consistente com padrao do projeto
+const SuspenseFallback = () => (
+  <div className="flex items-center justify-center p-8">
+    <div className="animate-pulse text-muted-foreground text-sm">Carregando...</div>
+  </div>
+)
+
+const SuspenseFallbackFullScreen = ({ text = 'Carregando...' }: { text?: string }) => (
+  <div className="min-h-screen flex items-center justify-center bg-background">
+    <div className="animate-pulse text-muted-foreground">{text}</div>
+  </div>
+)
+
+// Auth - Carrega sempre (rota inicial, nao usar lazy)
 import { LoginPage, ForgotPasswordPage, ResetPasswordPage, SetPasswordPage } from '@/modules/auth'
-import {
-  AdminLayout,
-  AdminDashboardPage,
-  AdminOrganizacoesPage,
-  AdminOrganizacaoDetalhesPage,
-  AdminPlanosPage,
-  AdminConfiguracoesGlobaisPage,
-  AdminModulosPage,
-  AdminEvolucaoPage,
-} from '@/modules/admin'
-import { AppLayout, AppDashboardPage, PerfilPage } from '@/modules/app'
-import { FormulariosPage, FormularioEditorPage } from '@/modules/formularios'
-import { FormularioPublicoPage } from '@/modules/formularios/pages/FormularioPublicoPage'
-import { OAuthGoogleCallbackPage } from '@/pages/OAuthGoogleCallbackPage'
+
+// Public - Carrega sempre (landing page, rotas publicas frequentes)
 import { PlanosPage, TrialCadastroPage, CheckoutSucessoPage, OnboardingPage, PoliticaPrivacidadePage, TermosServicoPage, LandingPage } from '@/modules/public'
 import { BlockedPage } from '@/modules/blocked'
-import { ConfiguracoesLayout, CamposPage, ProdutosPage, MotivosPage, TarefasTemplatesPage, EtapasTemplatesPage, RegrasPage, ConfigCardPage, ConexoesPage, WebhooksEntradaPage, WebhooksSaidaPage, MembrosPage, EquipesPage, PerfisPermissaoPage, MetasPage, ConfigGeralPage } from '@/modules/configuracoes'
-import { AutomacoesPage } from '@/modules/automacoes'
-import { ContatosPage } from '@/modules/contatos'
-import { NegociosPage, PipelineConfigPage } from '@/modules/negocios'
-import { TarefasPage } from '@/modules/tarefas'
-import { ConversasPage } from '@/modules/conversas'
-import { EmailsPage } from '@/modules/emails'
+import { OAuthGoogleCallbackPage } from '@/pages/OAuthGoogleCallbackPage'
+
+// Formulario Publico - Carrega sempre (acesso direto via link)
+import { FormularioPublicoPage } from '@/modules/formularios/pages/FormularioPublicoPage'
+
+// ============================================
+// LAZY LOADING - Modulos pesados
+// ============================================
+
+// Admin Module (so Super Admin)
+// AIDEV-NOTE: Arquivos usam export default, nao named exports
+const AdminLayout = lazy(() => import('@/modules/admin/layouts/AdminLayout').then(m => ({ default: m.AdminLayout })))
+const AdminDashboardPage = lazy(() => import('@/modules/admin/pages/DashboardPage'))
+const AdminOrganizacoesPage = lazy(() => import('@/modules/admin/pages/OrganizacoesPage'))
+const AdminOrganizacaoDetalhesPage = lazy(() => import('@/modules/admin/pages/OrganizacaoDetalhesPage'))
+const AdminPlanosPage = lazy(() => import('@/modules/admin/pages/PlanosPage'))
+const AdminConfiguracoesGlobaisPage = lazy(() => import('@/modules/admin/pages/ConfiguracoesGlobaisPage'))
+const AdminModulosPage = lazy(() => import('@/modules/admin/pages/ModulosPage'))
+const AdminEvolucaoPage = lazy(() => import('@/modules/admin/pages/EvolucaoPage'))
+
+// App Module (CRM principal)
+const AppLayout = lazy(() => import('@/modules/app/layouts/AppLayout').then(m => ({ default: m.AppLayout })))
+const AppDashboardPage = lazy(() => import('@/modules/app/pages/DashboardPage'))
+const PerfilPage = lazy(() => import('@/modules/app/pages/PerfilPage'))
+
+// Configuracoes Module
+// AIDEV-NOTE: ConfiguracoesLayout tem default export, pages usam named exports
+const ConfiguracoesLayout = lazy(() => import('@/modules/configuracoes/layouts/ConfiguracoesLayout'))
+const CamposPage = lazy(() => import('@/modules/configuracoes/pages/CamposPage').then(m => ({ default: m.CamposPage })))
+const ProdutosPage = lazy(() => import('@/modules/configuracoes/pages/ProdutosPage').then(m => ({ default: m.ProdutosPage })))
+const MotivosPage = lazy(() => import('@/modules/configuracoes/pages/MotivosPage').then(m => ({ default: m.MotivosPage })))
+const TarefasTemplatesPage = lazy(() => import('@/modules/configuracoes/pages/TarefasTemplatesPage').then(m => ({ default: m.TarefasTemplatesPage })))
+const EtapasTemplatesPage = lazy(() => import('@/modules/configuracoes/pages/EtapasTemplatesPage').then(m => ({ default: m.EtapasTemplatesPage })))
+const RegrasPage = lazy(() => import('@/modules/configuracoes/pages/RegrasPage').then(m => ({ default: m.RegrasPage })))
+const ConfigCardPage = lazy(() => import('@/modules/configuracoes/pages/ConfigCardPage').then(m => ({ default: m.ConfigCardPage })))
+const ConexoesPage = lazy(() => import('@/modules/configuracoes/pages/ConexoesPage').then(m => ({ default: m.ConexoesPage })))
+const WebhooksEntradaPage = lazy(() => import('@/modules/configuracoes/pages/WebhooksEntradaPage').then(m => ({ default: m.WebhooksEntradaPage })))
+const WebhooksSaidaPage = lazy(() => import('@/modules/configuracoes/pages/WebhooksSaidaPage').then(m => ({ default: m.WebhooksSaidaPage })))
+const MembrosPage = lazy(() => import('@/modules/configuracoes/pages/MembrosPage').then(m => ({ default: m.MembrosPage })))
+const EquipesPage = lazy(() => import('@/modules/configuracoes/pages/EquipesPage').then(m => ({ default: m.EquipesPage })))
+const PerfisPermissaoPage = lazy(() => import('@/modules/configuracoes/pages/PerfisPermissaoPage').then(m => ({ default: m.PerfisPermissaoPage })))
+const MetasPage = lazy(() => import('@/modules/configuracoes/pages/MetasPage').then(m => ({ default: m.MetasPage })))
+const ConfigGeralPage = lazy(() => import('@/modules/configuracoes/pages/ConfigGeralPage').then(m => ({ default: m.ConfigGeralPage })))
+
+// Feature Modules
+// AIDEV-NOTE: Mistura de named exports e default exports - verificar cada arquivo
+const FormulariosPage = lazy(() => import('@/modules/formularios/pages/FormulariosPage').then(m => ({ default: m.FormulariosPage })))
+const FormularioEditorPage = lazy(() => import('@/modules/formularios/pages/FormularioEditorPage').then(m => ({ default: m.FormularioEditorPage })))
+const AutomacoesPage = lazy(() => import('@/modules/automacoes/pages/AutomacoesPage').then(m => ({ default: m.AutomacoesPage })))
+const ContatosPage = lazy(() => import('@/modules/contatos/pages/ContatosPage').then(m => ({ default: m.ContatosPage })))
+const NegociosPage = lazy(() => import('@/modules/negocios/pages/NegociosPage'))
+const PipelineConfigPage = lazy(() => import('@/modules/negocios/pages/PipelineConfigPage'))
+const TarefasPage = lazy(() => import('@/modules/tarefas/pages/TarefasPage'))
+const ConversasPage = lazy(() => import('@/modules/conversas/pages/ConversasPage'))
+const EmailsPage = lazy(() => import('@/modules/emails/pages/EmailsPage'))
 
 /**
  * AIDEV-NOTE: Roteamento principal da aplicacao
@@ -82,27 +151,28 @@ const App = forwardRef<HTMLDivElement>(function App(_props, _ref) {
        <Route path="/auth/set-password" element={<SetPasswordPage />} />
 
       {/* Rotas do CRM (Admin/Member) com AppLayout - sem prefixo /app */}
+      {/* AIDEV-NOTE: Suspense envolvendo lazy components - PRD: melhorias-performance.md */}
       <Route
         element={
           isAuthenticated && (role === 'admin' || role === 'member')
             ? isPendente
               ? <Navigate to="/auth/set-password" replace />
-              : <AppLayout />
+              : <Suspense fallback={<SuspenseFallbackFullScreen text="Carregando CRM..." />}><AppLayout /></Suspense>
             : <Navigate to="/login" replace />
         }
       >
-        <Route path="/dashboard" element={<AppDashboardPage />} />
-        <Route path="/perfil" element={<PerfilPage />} />
-        <Route path="/contatos" element={<ContatosPage />} />
-        <Route path="/contatos/:tipo" element={<ContatosPage />} />
-        <Route path="/negocios" element={<NegociosPage />} />
-        <Route path="/negocios/pipeline/:id" element={<PipelineConfigPage />} />
-        <Route path="/tarefas" element={<TarefasPage />} />
-        <Route path="/conversas" element={<ConversasPage />} />
-        <Route path="/emails" element={<EmailsPage />} />
-        <Route path="/formularios" element={<FormulariosPage />} />
-        <Route path="/formularios/:id" element={<FormularioEditorPage />} />
-        <Route path="/automacoes" element={<AutomacoesPage />} />
+        <Route path="/dashboard" element={<Suspense fallback={<SuspenseFallback />}><AppDashboardPage /></Suspense>} />
+        <Route path="/perfil" element={<Suspense fallback={<SuspenseFallback />}><PerfilPage /></Suspense>} />
+        <Route path="/contatos" element={<Suspense fallback={<SuspenseFallback />}><ContatosPage /></Suspense>} />
+        <Route path="/contatos/:tipo" element={<Suspense fallback={<SuspenseFallback />}><ContatosPage /></Suspense>} />
+        <Route path="/negocios" element={<Suspense fallback={<SuspenseFallback />}><NegociosPage /></Suspense>} />
+        <Route path="/negocios/pipeline/:id" element={<Suspense fallback={<SuspenseFallback />}><PipelineConfigPage /></Suspense>} />
+        <Route path="/tarefas" element={<Suspense fallback={<SuspenseFallback />}><TarefasPage /></Suspense>} />
+        <Route path="/conversas" element={<Suspense fallback={<SuspenseFallback />}><ConversasPage /></Suspense>} />
+        <Route path="/emails" element={<Suspense fallback={<SuspenseFallback />}><EmailsPage /></Suspense>} />
+        <Route path="/formularios" element={<Suspense fallback={<SuspenseFallback />}><FormulariosPage /></Suspense>} />
+        <Route path="/formularios/:id" element={<Suspense fallback={<SuspenseFallback />}><FormularioEditorPage /></Suspense>} />
+        <Route path="/automacoes" element={<Suspense fallback={<SuspenseFallback />}><AutomacoesPage /></Suspense>} />
       </Route>
 
       {/* Configuracoes - PRD-05 (layout próprio com header/toolbar) */}
@@ -112,28 +182,28 @@ const App = forwardRef<HTMLDivElement>(function App(_props, _ref) {
           isAuthenticated && (role === 'admin' || role === 'member')
             ? isPendente
               ? <Navigate to="/auth/set-password" replace />
-              : <ConfiguracoesLayout />
+              : <Suspense fallback={<SuspenseFallbackFullScreen text="Carregando configurações..." />}><ConfiguracoesLayout /></Suspense>
             : <Navigate to="/login" replace />
         }
       >
         <Route index element={<Navigate to="config-geral" replace />} />
-        <Route path="campos" element={<CamposPage />} />
-        <Route path="produtos" element={<ProdutosPage />} />
-        <Route path="motivos" element={<MotivosPage />} />
-        <Route path="tarefas-templates" element={<TarefasTemplatesPage />} />
-        <Route path="tarefas" element={<TarefasTemplatesPage />} />
-        <Route path="etapas-templates" element={<EtapasTemplatesPage />} />
-        <Route path="etapas" element={<EtapasTemplatesPage />} />
-        <Route path="regras" element={<RegrasPage />} />
-        <Route path="cards" element={<ConfigCardPage />} />
-        <Route path="conexoes" element={<ConexoesPage />} />
-        <Route path="webhooks-entrada" element={<WebhooksEntradaPage />} />
-        <Route path="webhooks-saida" element={<WebhooksSaidaPage />} />
-        <Route path="membros" element={<MembrosPage />} />
-        <Route path="equipes" element={<EquipesPage />} />
-        <Route path="perfis" element={<PerfisPermissaoPage />} />
-        <Route path="metas" element={<MetasPage />} />
-        <Route path="config-geral" element={<ConfigGeralPage />} />
+        <Route path="campos" element={<Suspense fallback={<SuspenseFallback />}><CamposPage /></Suspense>} />
+        <Route path="produtos" element={<Suspense fallback={<SuspenseFallback />}><ProdutosPage /></Suspense>} />
+        <Route path="motivos" element={<Suspense fallback={<SuspenseFallback />}><MotivosPage /></Suspense>} />
+        <Route path="tarefas-templates" element={<Suspense fallback={<SuspenseFallback />}><TarefasTemplatesPage /></Suspense>} />
+        <Route path="tarefas" element={<Suspense fallback={<SuspenseFallback />}><TarefasTemplatesPage /></Suspense>} />
+        <Route path="etapas-templates" element={<Suspense fallback={<SuspenseFallback />}><EtapasTemplatesPage /></Suspense>} />
+        <Route path="etapas" element={<Suspense fallback={<SuspenseFallback />}><EtapasTemplatesPage /></Suspense>} />
+        <Route path="regras" element={<Suspense fallback={<SuspenseFallback />}><RegrasPage /></Suspense>} />
+        <Route path="cards" element={<Suspense fallback={<SuspenseFallback />}><ConfigCardPage /></Suspense>} />
+        <Route path="conexoes" element={<Suspense fallback={<SuspenseFallback />}><ConexoesPage /></Suspense>} />
+        <Route path="webhooks-entrada" element={<Suspense fallback={<SuspenseFallback />}><WebhooksEntradaPage /></Suspense>} />
+        <Route path="webhooks-saida" element={<Suspense fallback={<SuspenseFallback />}><WebhooksSaidaPage /></Suspense>} />
+        <Route path="membros" element={<Suspense fallback={<SuspenseFallback />}><MembrosPage /></Suspense>} />
+        <Route path="equipes" element={<Suspense fallback={<SuspenseFallback />}><EquipesPage /></Suspense>} />
+        <Route path="perfis" element={<Suspense fallback={<SuspenseFallback />}><PerfisPermissaoPage /></Suspense>} />
+        <Route path="metas" element={<Suspense fallback={<SuspenseFallback />}><MetasPage /></Suspense>} />
+        <Route path="config-geral" element={<Suspense fallback={<SuspenseFallback />}><ConfigGeralPage /></Suspense>} />
       </Route>
 
       {/* Rotas Super Admin */}
@@ -143,17 +213,17 @@ const App = forwardRef<HTMLDivElement>(function App(_props, _ref) {
           isAuthenticated && role === 'super_admin'
             ? isPendente
               ? <Navigate to="/auth/set-password" replace />
-              : <AdminLayout />
+              : <Suspense fallback={<SuspenseFallbackFullScreen text="Carregando painel admin..." />}><AdminLayout /></Suspense>
             : <Navigate to="/login" replace />
         }
       >
-        <Route index element={<AdminDashboardPage />} />
-        <Route path="organizacoes" element={<AdminOrganizacoesPage />} />
-        <Route path="organizacoes/:id" element={<AdminOrganizacaoDetalhesPage />} />
-        <Route path="planos" element={<AdminPlanosPage />} />
-         <Route path="modulos" element={<AdminModulosPage />} />
-        <Route path="configuracoes" element={<AdminConfiguracoesGlobaisPage />} />
-        <Route path="evolucao" element={<AdminEvolucaoPage />} />
+        <Route index element={<Suspense fallback={<SuspenseFallback />}><AdminDashboardPage /></Suspense>} />
+        <Route path="organizacoes" element={<Suspense fallback={<SuspenseFallback />}><AdminOrganizacoesPage /></Suspense>} />
+        <Route path="organizacoes/:id" element={<Suspense fallback={<SuspenseFallback />}><AdminOrganizacaoDetalhesPage /></Suspense>} />
+        <Route path="planos" element={<Suspense fallback={<SuspenseFallback />}><AdminPlanosPage /></Suspense>} />
+        <Route path="modulos" element={<Suspense fallback={<SuspenseFallback />}><AdminModulosPage /></Suspense>} />
+        <Route path="configuracoes" element={<Suspense fallback={<SuspenseFallback />}><AdminConfiguracoesGlobaisPage /></Suspense>} />
+        <Route path="evolucao" element={<Suspense fallback={<SuspenseFallback />}><AdminEvolucaoPage /></Suspense>} />
       </Route>
 
       {/* Landing page sempre acessivel, mesmo logado */}

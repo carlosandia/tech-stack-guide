@@ -4,8 +4,8 @@
 |-------|-------|
 | **Autor** | Arquiteto de Produto |
 | **Data de criacao** | 2026-01-31 |
-| **Ultima atualizacao** | 2026-02-09 |
-| **Versao** | v2.16 |
+| **Ultima atualizacao** | 2026-02-20 |
+| **Versao** | v2.17 |
 | **Status** | Em desenvolvimento |
 
 ---
@@ -71,6 +71,12 @@
 | PRD-17 | Formularios | Em desenvolvimento | PRD-06 | Builder avancado, Logica Condicional, Progressive Profiling, A/B Testing, Webhooks |
 
 **NOTA:** PRD-14 (Super Admin) foi movido para Fase 0 por ser pre-requisito do bootstrap do sistema.
+
+### Documentos Tecnicos Complementares
+
+| Documento | Nome | Status | Descricao |
+|-----------|------|--------|-----------|
+| [melhorias-performance.md](../melhorias-performance.md) | Melhorias de Performance | Aprovado | Otimizacoes para 300+ usuarios: indices, code splitting, cache, realtime |
 
 ---
 
@@ -214,6 +220,7 @@
 - [PRD-14: Super Admin](./PRD-14-SUPER-ADMIN.md)
 - [PRD-15: Feedback/Evolucao](./PRD-15-FEEDBACK.md)
 - [PRD-17: Formularios](./PRD-17-FORMULARIOS.md)
+- [Melhorias de Performance](../melhorias-performance.md)
 - [Padrao de PRD](../prdpadrao.md)
 - [Arquiteto de Produto](../arquitetodeproduto.md)
 
@@ -271,3 +278,4 @@
 | v2.14 | 2026-02-03 | **CORRECAO ORDEM DE IMPLEMENTACAO**: PRD-14 (Super Admin) movido para Fase 0 (apos PRD-04) - Super Admin cria tenants e Admins, e pre-requisito do bootstrap do sistema; Usuario seed superadmin@renovedigital.com.br documentado; PRD-05 agora depende de PRD-14; Diagrama de fases atualizado com justificativas |
 | v2.15 | 2026-02-08 | Atualizacoes gerais |
 | v2.16 | 2026-02-09 | **PRD-17 Formularios v1.0**: Modulo completo de formularios backend com 16 tabelas, logica condicional (100 regras como HubSpot), progressive profiling, A/B testing, webhooks com retry, analytics granular, lead scoring, integracao pipeline, 4 tipos de formulario (padrao, popup_saida, newsletter, multi_etapas), 48 requisitos funcionais, comparativo com HubSpot/RD Station |
+| v2.17 | 2026-02-20 | **Documento Tecnico melhorias-performance.md**: PRD de otimizacoes para 300+ usuarios - indices compostos (contatos/oportunidades), code splitting com lazy loading, cache TanStack Query, Realtime para contatos, 5 fases de implementacao, regras de seguranca para deploy em producao |

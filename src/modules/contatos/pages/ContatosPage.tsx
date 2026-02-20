@@ -11,6 +11,7 @@ import { Plus, Search, Filter, Download, Upload, Users2, Building2, X, Tag, GitM
 import { useAuth } from '@/providers/AuthProvider'
 import { useAppToolbar } from '@/modules/app/contexts/AppToolbarContext'
 import { useContatos, useCriarContato, useAtualizarContato, useExcluirContato, useExcluirContatosLote, useDuplicatas } from '../hooks/useContatos'
+import { useContatosRealtime } from '../hooks/useContatosRealtime'
 import { useSegmentos } from '../hooks/useSegmentos'
 import { useUsuarios } from '@/modules/configuracoes/hooks/useEquipe'
 import type { Contato, TipoContato, ListarContatosParams } from '../services/contatos.api'
@@ -35,6 +36,10 @@ import { StatusContatoOptions, OrigemContatoOptions } from '../schemas/contatos.
 import { contatosApi } from '../services/contatos.api'
 
 export const ContatosPage = forwardRef<HTMLDivElement>(function ContatosPage(_props, _ref) {
+  // AIDEV-NOTE: Realtime subscription para sincronização automática
+  // PRD: melhorias-performance.md - Fase 4
+  useContatosRealtime()
+
   const location = useLocation()
   const navigate = useNavigate()
   const { role } = useAuth()
