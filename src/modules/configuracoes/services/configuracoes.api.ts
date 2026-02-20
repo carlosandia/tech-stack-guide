@@ -1646,13 +1646,29 @@ export const metaAdsApi = {
     if (error) throw error
     return { audiences: (data || []) as CustomAudience[] }
   },
+  // AIDEV-NOTE: Cria audience no Meta via Edge Function e depois salva no banco com ID real
   criarAudience: async (payload: Record<string, unknown>) => {
     const orgId = await getOrganizacaoId()
+
+    // 1. Criar no Meta via Edge Function
+    const { data: metaResult, error: metaError } = await supabase.functions.invoke('meta-audiences', {
+      body: {
+        action: 'create',
+        ad_account_id: payload.ad_account_id as string,
+        audience_name: payload.audience_name as string,
+      },
+    })
+
+    if (metaError) throw new Error(metaError.message || 'Erro ao criar público no Meta')
+    if (metaResult?.error) throw new Error(metaResult.error)
+    if (!metaResult?.audience_id) throw new Error('Meta não retornou o ID do público criado')
+
+    // 2. Salvar no banco com audience_id real do Meta
     const { data, error } = await supabase
       .from('custom_audiences_meta')
       .insert({
         organizacao_id: orgId,
-        audience_id: `pending_${Date.now()}`,
+        audience_id: metaResult.audience_id,
         audience_name: payload.audience_name as string,
         ad_account_id: payload.ad_account_id as string,
         tipo_sincronizacao: (payload.tipo_sincronizacao as string) || 'evento',
