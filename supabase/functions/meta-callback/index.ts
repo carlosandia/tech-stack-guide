@@ -130,6 +130,8 @@ Deno.serve(async (req) => {
           status: "conectado",
           token_expires_at: tokenExpiresAt,
           ultimo_erro: null,
+          deletado_em: null,
+          conectado_em: new Date().toISOString(),
           atualizado_em: new Date().toISOString(),
         },
         { onConflict: "organizacao_id" }
