@@ -1,29 +1,62 @@
 
 
-## Corrigir painel de Publicos Personalizados (Custom Audiences)
+## Importar Publicos Personalizados existentes do Meta Ads
 
-### Problema
-As funcoes `listarAudiences`, `criarAudience`, `atualizarAudience` e `sincronizarAudience` usam `api.get/post/patch` (backend Express em `localhost:3001`), que nao esta rodando neste ambiente. Precisam ser migradas para usar Supabase diretamente, seguindo o mesmo padrao ja usado no restante do arquivo.
+### Resumo
+Adicionar a funcionalidade de buscar publicos personalizados ja existentes na conta de anuncios do Meta, alem de manter a opcao de criar novos. O usuario podera clicar em "Importar do Meta" para ver os publicos existentes e selecionar quais deseja vincular ao CRM.
 
-### Solucao
+### 1. Criar Edge Function `meta-audiences`
 
-Migrar as 4 funcoes do `metaAdsApi` para usar o cliente Supabase diretamente contra a tabela `custom_audiences_meta` que ja existe no banco.
+Nova Edge Function em `supabase/functions/meta-audiences/index.ts` que:
 
-### Alteracoes
+- Recebe POST autenticado com `{ action: "list", ad_account_id: "act_xxx" }`
+- Busca `access_token` da tabela `conexoes_meta` (status `ativo` ou `conectado`)
+- Chama `GET https://graph.facebook.com/v21.0/act_{ad_account_id}/customaudiences?fields=id,name,approximate_count&access_token={token}`
+- Retorna a lista de publicos existentes no Meta
 
-**Arquivo: `src/modules/configuracoes/services/configuracoes.api.ts`**
+### 2. Atualizar `configuracoes.api.ts`
 
-Substituir as 4 funcoes (linhas 1638-1653) por implementacoes Supabase:
+Adicionar nova funcao `buscarAudiencesMeta(adAccountId: string)` no `metaAdsApi` que invoca a Edge Function `meta-audiences`.
 
-1. **`listarAudiences`** - `supabase.from('custom_audiences_meta').select('*').is('deletado_em', null).order('criado_em', { ascending: false })`
-2. **`criarAudience`** - Insert com `organizacao_id` obtido via `getOrganizacaoId()`, gerando `audience_id` provisorio
-3. **`atualizarAudience`** - Update por `id` (para toggle ativo/inativo e outros campos)
-4. **`sincronizarAudience`** - Update do campo `ultimo_sync` com timestamp atual (sincronizacao real com Meta sera implementada futuramente)
+### 3. Atualizar `CustomAudiencesPanel.tsx`
+
+- Adicionar botao "Importar do Meta" ao lado de "Criar Publico"
+- Ao clicar, exibe campo para informar o `ad_account_id` e botao "Buscar"
+- Lista os publicos retornados do Meta com checkbox para selecionar
+- Botao "Importar Selecionados" salva os publicos escolhidos na tabela `custom_audiences_meta` com o `audience_id` real do Meta (nao mais `pending_xxx`)
+
+### 4. Registrar funcao no `config.toml`
+
+Adicionar `[functions.meta-audiences]` com `verify_jwt = false`.
+
+### Fluxo do usuario
+
+```text
++---------------------------+      +---------------------------+
+| Publicos Personalizados   |      | Publicos Personalizados   |
+|                           |      |                           |
+| [+ Criar] [Importar Meta] |  ->  | Conta: [act_123] [Buscar] |
+|                           |      |                           |
+|  (lista vazia ou existente)|      | [ ] Lookalike BR (1.2M)  |
+|                           |      | [ ] Retargeting (500K)   |
+|                           |      | [Importar Selecionados]  |
++---------------------------+      +---------------------------+
+```
+
+### Arquivos afetados
+
+| Arquivo | Acao |
+|---------|------|
+| `supabase/functions/meta-audiences/index.ts` | Criar |
+| `supabase/config.toml` | Adicionar entrada |
+| `src/modules/configuracoes/services/configuracoes.api.ts` | Adicionar `buscarAudiencesMeta` |
+| `src/modules/configuracoes/components/integracoes/meta/CustomAudiencesPanel.tsx` | Adicionar UI de importacao |
 
 ### Detalhes tecnicos
 
-- Tabela `custom_audiences_meta` ja existe com colunas: `id`, `organizacao_id`, `audience_id`, `audience_name`, `ad_account_id`, `tipo_sincronizacao`, `evento_gatilho`, `total_usuarios`, `ultimo_sync`, `ativo`, `criado_em`, `deletado_em`
-- O campo `audience_id` e `NOT NULL` na tabela, entao ao criar sera preenchido com valor provisorio (ex: `pending_<timestamp>`)
-- RLS filtra automaticamente por `organizacao_id`
-- Segue o padrao existente no arquivo usando `getOrganizacaoId()`
+- Endpoint Meta: `GET /v21.0/act_{ad_account_id}/customaudiences?fields=id,name,approximate_count`
+- A Edge Function usa `SUPABASE_SERVICE_ROLE_KEY` para ler o `access_token` criptografado de `conexoes_meta`
+- Ao importar, o `audience_id` salvo sera o ID real do Meta (ex: `23851234567890`) em vez de `pending_xxx`
+- Publicos ja importados (mesmo `audience_id`) serao filtrados da lista para evitar duplicatas
+- CORS headers padrao incluidos na Edge Function
 
