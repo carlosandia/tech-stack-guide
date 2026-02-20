@@ -1,43 +1,51 @@
 
-## Sincronização Real do Meta Ads com a Graph API
 
-### Problema Atual
-O botão "Sincronizar" no card do Meta Ads chama `integracoesApi.sincronizar()` que é um **stub vazio** -- apenas retorna `{ success: true }` sem fazer nada real. Exibe "Sincronização iniciada com sucesso" mas nenhuma operação é executada.
+## Edge Function `meta-leadgen-webhook` + Contagem de Leads
 
-### Solução
-Criar uma Edge Function `meta-sync` que, ao ser chamada, faz requisições reais à **Graph API do Meta** para:
-1. Validar se o token de acesso ainda é válido
-2. Re-buscar as páginas do Facebook vinculadas e atualizar `paginas_meta`
-3. Atualizar o campo `ultimo_sync` em `conexoes_meta`
+### Contexto
+Atualmente nao existe nenhum endpoint para receber webhooks `leadgen` do Meta. Quando um lead preenche um formulario Lead Ads no Facebook, o Meta envia um POST para uma URL configurada, mas nao ha nada no sistema para recebe-lo. A contagem "Leads: 0" no card reflete isso -- nunca nenhum lead foi processado.
 
-O frontend chamará essa Edge Function ao invés do stub.
+### O que sera construido
 
-### Alterações
+**1. Nova Edge Function `meta-leadgen-webhook`**
 
-| Arquivo | O que muda |
-|---------|-----------|
-| `supabase/functions/meta-sync/index.ts` | **Novo** - Edge Function que consulta a Graph API e sincroniza dados |
-| `src/modules/configuracoes/services/configuracoes.api.ts` | Atualizar `sincronizar()` para chamar a Edge Function `meta-sync` quando a plataforma for Meta |
-| `src/modules/configuracoes/hooks/useIntegracoes.ts` | Ajustar `useSincronizarIntegracao` para aceitar plataforma e melhorar feedback |
-| `src/modules/configuracoes/pages/ConexoesPage.tsx` | Passar plataforma ao chamar sincronizar |
+Endpoint que recebe webhooks do Meta Lead Ads com duas responsabilidades:
+
+- **GET** (Verificacao): Responde ao challenge de verificacao do Meta usando `hub.verify_token` e `hub.challenge`
+- **POST** (Processamento de leads): Recebe eventos `leadgen`, busca dados completos do lead via Graph API, cria contato + oportunidade no CRM
+
+Fluxo do POST:
+1. Recebe payload `{ entry: [{ changes: [{ field: "leadgen", value: { form_id, leadgen_id, page_id } }] }] }`
+2. Busca a pagina em `paginas_meta` pelo `page_id` para obter `page_access_token_encrypted` e `organizacao_id`
+3. Busca configuracao em `formularios_lead_ads` pelo `form_id` e `organizacao_id` para obter `funil_id`, `etapa_destino_id` e `mapeamento_campos`
+4. Chama Graph API `GET /{leadgen_id}?access_token={page_token}` para obter os dados do lead (nome, email, telefone, etc.)
+5. Aplica o mapeamento de campos para extrair dados de contato
+6. Cria ou atualiza contato em `contatos`
+7. Cria oportunidade em `oportunidades` na pipeline/etapa configurada
+8. Incrementa `total_leads_recebidos` e atualiza `ultimo_lead_recebido` em `formularios_lead_ads`
+
+**2. Configuracao em `config.toml`**
+
+Adicionar `verify_jwt = false` pois o webhook e chamado pelo Meta (sem JWT).
+
+**3. Verify Token**
+
+Usar um token fixo armazenado em `configuracoes_globais` (campo `meta_webhook_verify_token`) ou como secret. O usuario configura esse mesmo token no Meta Developer Portal.
 
 ### Detalhes Tecnicos
 
-**1. Edge Function `meta-sync`**
-- Autentica o usuario via JWT
-- Busca `organizacao_id` do usuario
-- Busca `access_token_encrypted` da tabela `conexoes_meta`
-- Chama `GET /me?fields=id,name,email` para validar token
-- Chama `GET /me/accounts?fields=id,name,access_token` para listar paginas
-- Faz upsert em `paginas_meta` com os dados retornados
-- Atualiza `ultimo_sync` e `status` em `conexoes_meta`
-- Se token invalido, atualiza `status` para `erro` e `ultimo_erro` com mensagem
+| Arquivo | Alteracao |
+|---------|-----------|
+| `supabase/functions/meta-leadgen-webhook/index.ts` | Nova Edge Function completa |
+| `supabase/config.toml` | Adicionar `[functions.meta-leadgen-webhook]` com `verify_jwt = false` |
 
-**2. API Service**
-- `sincronizar()` passa a chamar `supabase.functions.invoke('meta-sync')` ao inves de retornar stub
-- Retorna resultado real (paginas sincronizadas, status do token)
+**Fluxo de mapeamento de campos:**
+O `mapeamento_campos` em `formularios_lead_ads` contem um array `[{ form_field, crm_field }]`. Os campos do lead retornados pela Graph API vem como `field_data: [{ name, values }]`. O sistema cruza `form_field` com `name` e aplica o valor ao campo CRM correspondente (ex: `crm_field = "nome"` vai para `contatos.nome`).
 
-**3. Feedback ao usuario**
-- Sucesso: "Sincronização concluída: X página(s) atualizada(s)"
-- Token expirado: "Token Meta expirado. Reconecte sua conta."
-- Erro genérico: mensagem do Meta
+**Contagem de leads:**
+Apos processar com sucesso, a function incrementa `total_leads_recebidos` e seta `ultimo_lead_recebido = NOW()` na tabela `formularios_lead_ads`. Isso faz o "Leads: 0" do card atualizar automaticamente.
+
+**Seguranca:**
+- Sem JWT (webhook externo), mas valida a origem pelo `page_id` existir em `paginas_meta`
+- Opcionalmente valida assinatura HMAC do Meta (usando `X-Hub-Signature-256` header e o `app_secret`)
+
