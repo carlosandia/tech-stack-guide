@@ -96,6 +96,13 @@ Deno.serve(async (req) => {
         totalErros++;
       }
 
+      // AIDEV-NOTE: Hook Custom Audiences - sincronizar contato com públicos Meta vinculados ao evento
+      try {
+        await sincronizarCustomAudiences(supabase, evento);
+      } catch (err) {
+        console.warn(`[automacao] Erro ao sincronizar audiences para evento ${evento.id}:`, err);
+      }
+
       // Marcar evento como processado independente do resultado
       await supabase
         .from("eventos_automacao")
@@ -975,6 +982,121 @@ async function atualizarContadores(
         ultima_execucao_em: new Date().toISOString(),
       })
       .eq("id", automacaoId);
+  }
+}
+
+// =====================================================
+// AIDEV-NOTE: Hook Custom Audiences - Mapeia eventos CRM para evento_gatilho
+// e sincroniza contatos com públicos Meta via sync-audience-capi
+// =====================================================
+
+const EVENTO_GATILHO_MAP: Record<string, string> = {
+  contato_criado: "lead",
+  oportunidade_qualificada: "mql",
+  reuniao_agendada: "schedule",
+  oportunidade_ganha: "won",
+  oportunidade_perdida: "lost",
+};
+
+async function sincronizarCustomAudiences(
+  supabase: ReturnType<typeof createClient>,
+  evento: Evento
+): Promise<void> {
+  // Mapear tipo do evento para evento_gatilho
+  let gatilho = EVENTO_GATILHO_MAP[evento.tipo];
+
+  // Para contato_criado, só sincronizar se for tipo pessoa
+  if (evento.tipo === "contato_criado") {
+    const tipoPessoa = (evento.dados as Record<string, unknown>)?.tipo;
+    if (tipoPessoa !== "pessoa") return;
+  }
+
+  // Para oportunidade_qualificada, só MQL
+  if (evento.tipo === "oportunidade_qualificada") {
+    const tipoQual = (evento.dados as Record<string, unknown>)?.tipo_qualificacao;
+    if (tipoQual !== "MQL") return;
+  }
+
+  if (!gatilho) return;
+
+  // Buscar audiences ativas com este evento_gatilho
+  const { data: audiences, error: audErr } = await supabase
+    .from("custom_audiences_meta")
+    .select("audience_id, ad_account_id, organizacao_id")
+    .eq("organizacao_id", evento.organizacao_id)
+    .eq("evento_gatilho", gatilho)
+    .eq("ativo", true)
+    .is("deletado_em", null);
+
+  if (audErr || !audiences || audiences.length === 0) return;
+
+  // Buscar dados do contato
+  let contatoId: string | null = null;
+  const dados = evento.dados as Record<string, unknown>;
+
+  if (evento.entidade_tipo === "contato") {
+    contatoId = evento.entidade_id;
+  } else if (dados?.contato_id) {
+    contatoId = dados.contato_id as string;
+  } else if (evento.entidade_tipo === "oportunidade") {
+    // Buscar contato_id da oportunidade
+    const { data: op } = await supabase
+      .from("oportunidades")
+      .select("contato_id")
+      .eq("id", evento.entidade_id)
+      .single();
+    contatoId = op?.contato_id || null;
+  }
+
+  if (!contatoId) {
+    console.warn(`[audiences] Sem contato_id para evento ${evento.id}`);
+    return;
+  }
+
+  const { data: contato, error: contErr } = await supabase
+    .from("contatos")
+    .select("email, telefone, nome")
+    .eq("id", contatoId)
+    .single();
+
+  if (contErr || !contato) {
+    console.warn(`[audiences] Contato ${contatoId} não encontrado`);
+    return;
+  }
+
+  // Para cada audience, invocar sync-audience-capi
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+  for (const aud of audiences) {
+    try {
+      const res = await fetch(`${supabaseUrl}/functions/v1/sync-audience-capi`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${serviceRoleKey}`,
+        },
+        body: JSON.stringify({
+          audience_id: aud.audience_id,
+          ad_account_id: aud.ad_account_id,
+          organizacao_id: aud.organizacao_id,
+          contato: {
+            email: contato.email,
+            telefone: contato.telefone,
+            nome: contato.nome,
+          },
+        }),
+      });
+
+      const result = await res.json();
+      if (!res.ok) {
+        console.warn(`[audiences] Erro ao sincronizar audience ${aud.audience_id}:`, result.error);
+      } else {
+        console.log(`[audiences] Contato sincronizado com audience ${aud.audience_id}`);
+      }
+    } catch (err) {
+      console.warn(`[audiences] Erro ao chamar sync-audience-capi:`, err);
+    }
   }
 }
 

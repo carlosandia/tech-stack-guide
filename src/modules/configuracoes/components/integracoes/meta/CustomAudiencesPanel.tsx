@@ -1,7 +1,8 @@
 /**
  * AIDEV-NOTE: Painel Custom Audiences (Públicos Personalizados)
  * Conforme PRD-08 Seção 4 - Gerenciamento de públicos Meta
- * Suporta criação de novos públicos e importação de existentes do Meta Ads
+ * Suporta criação de novos públicos, importação de existentes do Meta Ads
+ * e vinculação de evento gatilho para sincronização automática via CAPI
  */
 
 import { useState } from 'react'
@@ -57,11 +58,12 @@ export function CustomAudiencesPanel() {
 
   const sincronizar = useMutation({
     mutationFn: (id: string) => metaAdsApi.sincronizarAudience(id),
-    onSuccess: () => {
+    onSuccess: (result: any) => {
       queryClient.invalidateQueries({ queryKey: ['meta-ads', 'audiences'] })
-      toast.success('Sincronização iniciada')
+      const count = result?.num_received || 0
+      toast.success(`Sincronização concluída: ${count} contato(s) enviado(s)`)
     },
-    onError: () => toast.error('Erro ao sincronizar público'),
+    onError: (err: Error) => toast.error(err.message || 'Erro ao sincronizar público'),
   })
 
   const toggleAtivo = useMutation({
@@ -73,11 +75,21 @@ export function CustomAudiencesPanel() {
     onError: () => toast.error('Erro ao atualizar status'),
   })
 
+  // AIDEV-NOTE: Vincular evento gatilho inline
+  const vincularEvento = useMutation({
+    mutationFn: ({ id, evento_gatilho }: { id: string; evento_gatilho: string | null }) =>
+      metaAdsApi.vincularEventoAudience(id, evento_gatilho),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['meta-ads', 'audiences'] })
+      toast.success('Evento gatilho atualizado')
+    },
+    onError: () => toast.error('Erro ao vincular evento'),
+  })
+
   // Buscar audiences do Meta
   const buscarMeta = useMutation({
     mutationFn: (adAccountId: string) => metaAdsApi.buscarAudiencesMeta(adAccountId),
     onSuccess: (result) => {
-      // Filtrar já importados
       const existingIds = new Set((data?.audiences || []).map((a) => a.audience_id))
       const filtered = result.audiences.filter((a) => !existingIds.has(a.id))
       setMetaAudiences(filtered)
@@ -185,7 +197,6 @@ export function CustomAudiencesPanel() {
             </button>
           </div>
 
-          {/* Lista de audiences do Meta */}
           {metaAudiences.length > 0 && (
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">{metaAudiences.length} público(s) disponível(eis) para importar</p>
@@ -229,7 +240,6 @@ export function CustomAudiencesPanel() {
             </div>
           )}
 
-          {/* Estado vazio após busca */}
           {buscarMeta.isSuccess && metaAudiences.length === 0 && (
             <p className="text-xs text-muted-foreground text-center py-4">
               Nenhum público novo encontrado nesta conta.
@@ -323,11 +333,25 @@ export function CustomAudiencesPanel() {
                     <p className="text-xs text-muted-foreground">
                       Audience ID: {aud.audience_id || '—'} • Conta: {aud.ad_account_id}
                     </p>
-                    {aud.evento_gatilho && (
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Gatilho: {EVENTOS_GATILHO.find((e) => e.value === aud.evento_gatilho)?.label || aud.evento_gatilho}
-                      </p>
-                    )}
+                    {/* AIDEV-NOTE: Select inline para evento gatilho */}
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">Gatilho:</span>
+                      <select
+                        value={aud.evento_gatilho || ''}
+                        onChange={(e) => {
+                          const val = e.target.value || null
+                          vincularEvento.mutate({ id: aud.id, evento_gatilho: val })
+                        }}
+                        className="text-xs px-2 py-1 rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                      >
+                        <option value="">Nenhum (manual)</option>
+                        {EVENTOS_GATILHO.map((ev) => (
+                          <option key={ev.value} value={ev.value}>
+                            {ev.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                     <div className="flex items-center gap-3 mt-1.5">
                       <p className="text-xs text-muted-foreground">
                         Usuários: <span className="font-medium text-foreground">{aud.total_usuarios || 0}</span>
