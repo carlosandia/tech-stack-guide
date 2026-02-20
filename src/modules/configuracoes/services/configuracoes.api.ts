@@ -247,6 +247,7 @@ export interface LeadAdForm {
   form_id: string
   form_name: string
   page_id?: string
+  page_name?: string
   pipeline_id?: string
   pipeline_nome?: string
   etapa_id?: string
@@ -1511,7 +1512,7 @@ export const metaAdsApi = {
     const orgId = await getOrganizacaoId()
     const { data, error } = await supabase
       .from('formularios_lead_ads')
-      .select('id, form_id, form_name, pagina_id, funil_id, etapa_destino_id, mapeamento_campos, total_leads_recebidos, ultimo_lead_recebido, ativo')
+      .select('id, form_id, form_name, pagina_id, funil_id, etapa_destino_id, mapeamento_campos, total_leads_recebidos, ultimo_lead_recebido, ativo, paginas_meta(page_name)')
       .eq('organizacao_id', orgId)
       .is('deletado_em', null)
       .order('criado_em', { ascending: false })
@@ -1521,6 +1522,7 @@ export const metaAdsApi = {
       form_id: r.form_id,
       form_name: r.form_name || '',
       page_id: r.pagina_id,
+      page_name: r.paginas_meta?.page_name || '',
       pipeline_id: r.funil_id,
       etapa_id: r.etapa_destino_id,
       mapeamento_campos: (r.mapeamento_campos as any) || [],
