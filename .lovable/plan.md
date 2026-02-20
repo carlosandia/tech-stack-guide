@@ -1,66 +1,50 @@
 
 
-## Diagnosticar e Corrigir "Permissions error" ao Criar Publico Meta
+## Melhorar Tratamento de Erro na Criacao de Publico Meta Ads
 
-### Causa raiz identificada
+### Problema
 
-O callback salvou o token com sucesso (log de 00:59:44), mas ao criar audience (01:00:10) o Meta retorna "Permissions error". Isso significa que o token salvo **nao possui a permissao `ads_management` efetivamente concedida**, mesmo que ela esteja listada nos escopos do OAuth.
+1. **Mensagem generica na UI**: O `onError` do mutation mostra apenas "Erro ao criar publico", escondendo a mensagem real do Meta que explica exatamente o que o usuario precisa fazer.
+2. **Erro real do Meta**: `error_subcode: 1870050` - "A conta comercial e necessaria para criar/editar este publico". A conta de anuncios precisa estar vinculada a um Business Manager.
+3. **Possivel conta errada**: Os logs mostram `act_1278278927253301` sendo usada, mas a screenshot mostra a conta `620396347755218` no Business Manager. Pode ser que a conta selecionada no CRM nao seja a mesma vinculada ao Business Manager.
 
-Possiveis causas:
-- O app Meta nao tem `ads_management` habilitado nas "Permissoes e Recursos" do Developer Portal
-- O usuario nao aceitou a permissao na tela do OAuth (pode ter desmarcado)
-- O app esta em modo de desenvolvimento e o usuario nao tem role no app
-
-### Solucao
-
-Adicionar **verificacao de permissoes do token** na Edge Function `meta-audiences` antes de tentar criar o audience. Isso vai:
-1. Chamar `GET /me/permissions` para verificar quais permissoes o token realmente tem
-2. Se `ads_management` nao estiver concedida, retornar mensagem clara orientando o usuario
-3. Logar o erro completo do Meta (code, type, fbtrace_id) para debugging futuro
-
-### Arquivo afetado
+### Correcoes
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `supabase/functions/meta-audiences/index.ts` | Adicionar verificacao de permissoes antes do create, logar erro completo |
+| `src/modules/configuracoes/components/integracoes/meta/CustomAudiencesPanel.tsx` | Exibir mensagem de erro real do Meta no toast, incluindo `error_user_msg` quando disponivel |
+| `supabase/functions/meta-audiences/index.ts` | Retornar `error_user_title` e `error_user_msg` do Meta na resposta para que o frontend mostre a orientacao correta |
 
 ### Detalhes tecnicos
 
-**1. Verificacao de permissoes (antes do create):**
+**1. Edge Function - Retornar mensagens descritivas do Meta (`meta-audiences/index.ts`)**
+
+No bloco de erro do create (linhas 150-161), extrair `error_user_title` e `error_user_msg` da resposta do Meta e incluir na resposta JSON:
 
 ```text
-// Antes de criar, verificar se o token tem ads_management
-const permUrl = `https://graph.facebook.com/v21.0/me/permissions?access_token=${accessToken}`;
-const permRes = await fetch(permUrl);
-const permData = await permRes.json();
-const perms = permData.data || [];
-const adsManagement = perms.find(p => p.permission === 'ads_management');
-
-if (!adsManagement || adsManagement.status !== 'granted') {
-  // Listar permissoes concedidas para debug
-  const granted = perms.filter(p => p.status === 'granted').map(p => p.permission);
-  console.error(`[meta-audiences] Token nao tem ads_management. Permissoes: ${granted.join(', ')}`);
-  return Response com erro:
-    "Seu token Meta nao possui a permissao 'ads_management'. 
-     Verifique se a permissao esta habilitada no Meta Developer Portal 
-     (App > Permissoes e Recursos) e reconecte a conta."
+if (!createResponse.ok || createData.error) {
+  const metaError = createData.error || {};
+  const errorMsg = metaError.error_user_msg || metaError.message || "Erro ao criar publico no Meta";
+  // Retornar a mensagem amigavel do Meta diretamente
+  return Response com { error: errorMsg }
 }
 ```
 
-**2. Log completo do erro Meta:**
+Isso garante que mensagens como "Para criar ou editar um publico personalizado... seu administrador precisara adicionar essa conta de anuncios a uma empresa" cheguem ao frontend.
+
+**2. Frontend - Mostrar erro real no toast (`CustomAudiencesPanel.tsx`)**
+
+Alterar o `onError` do mutation `criar` (linha 67) para extrair e exibir a mensagem real:
 
 ```text
-// Ao logar erro, incluir code, type e fbtrace_id
-console.error(`[meta-audiences] Erro ao criar:`, JSON.stringify(createData.error));
+onError: (err: Error) => toast.error(err.message || 'Erro ao criar publico'),
 ```
 
-Isso vai revelar exatamente quais permissoes o token tem, permitindo diagnosticar se o problema esta no app Meta ou na autorizacao do usuario.
+Isso mostra a mensagem que veio do Meta em vez do texto generico.
 
-### Apos a correcao
+### Resultado esperado
 
-Se o log mostrar que `ads_management` nao esta nas permissoes:
-1. Acessar Meta Developer Portal > App > Permissoes e Recursos
-2. Garantir que `ads_management` esta habilitado
-3. Desconectar e reconectar a conta Meta no CRM
-4. Verificar que a tela do Facebook mostra e solicita `ads_management`
+Quando o usuario tentar criar um publico e o Meta retornar erro, o toast mostrara a mensagem exata do Meta, como:
+- "Para criar ou editar um publico personalizado com base em uma lista de clientes, seu administrador precisara adicionar essa conta de anuncios a uma empresa."
 
+Isso permite que o usuario entenda imediatamente o que precisa fazer no Meta Business Manager sem precisar de suporte.
