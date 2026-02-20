@@ -181,6 +181,28 @@ Deno.serve(async (req) => {
         );
       } else {
         paginasAtualizadas++;
+
+        // AIDEV-NOTE: Inscrever app nos eventos leadgen da página
+        try {
+          const subscribeRes = await fetch(
+            `${GRAPH_API}/${page.id}/subscribed_apps?subscribed_fields=leadgen&access_token=${page.access_token}`,
+            { method: "POST" }
+          );
+          const subscribeData = await subscribeRes.json();
+
+          if (subscribeData.success) {
+            console.log(`[meta-sync] App inscrito em leadgen para página ${page.name}`);
+            await supabase
+              .from("paginas_meta")
+              .update({ leads_retrieval: true, atualizado_em: new Date().toISOString() })
+              .eq("organizacao_id", orgId)
+              .eq("page_id", page.id);
+          } else {
+            console.warn(`[meta-sync] Falha ao inscrever app em leadgen para ${page.name}:`, JSON.stringify(subscribeData));
+          }
+        } catch (subErr) {
+          console.error(`[meta-sync] Erro ao inscrever app para ${page.name}:`, subErr);
+        }
       }
     }
 
