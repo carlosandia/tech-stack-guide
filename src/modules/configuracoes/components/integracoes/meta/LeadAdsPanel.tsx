@@ -7,6 +7,16 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, FileText, Loader2, CheckCircle2, Settings2 } from 'lucide-react'
 import { toast } from 'sonner'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { metaAdsApi } from '../../../services/configuracoes.api'
 import type { LeadAdForm } from '../../../services/configuracoes.api'
 import { LeadAdsFormMappingModal } from './LeadAdsFormMappingModal'
@@ -18,6 +28,7 @@ interface LeadAdsPanelProps {
 export function LeadAdsPanel({ integracaoId }: LeadAdsPanelProps) {
   const [mappingModalOpen, setMappingModalOpen] = useState(false)
   const [selectedForm, setSelectedForm] = useState<LeadAdForm | null>(null)
+  const [formToRemove, setFormToRemove] = useState<{ id: string; nome: string } | null>(null)
   const queryClient = useQueryClient()
 
   const { data, isLoading } = useQuery({
@@ -35,8 +46,13 @@ export function LeadAdsPanel({ integracaoId }: LeadAdsPanelProps) {
   })
 
   const handleRemover = (id: string, nome: string) => {
-    if (window.confirm(`Tem certeza que deseja remover o formulário "${nome}"? Esta ação não pode ser desfeita.`)) {
-      removerFormulario.mutate(id)
+    setFormToRemove({ id, nome })
+  }
+
+  const confirmarRemocao = () => {
+    if (formToRemove) {
+      removerFormulario.mutate(formToRemove.id)
+      setFormToRemove(null)
     }
   }
 
@@ -178,6 +194,26 @@ export function LeadAdsPanel({ integracaoId }: LeadAdsPanelProps) {
           }}
         />
       )}
+
+      <AlertDialog open={!!formToRemove} onOpenChange={(open) => !open && setFormToRemove(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover formulário</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja remover o formulário "{formToRemove?.nome}"? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmarRemocao}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Remover
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
