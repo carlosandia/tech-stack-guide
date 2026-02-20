@@ -124,6 +124,9 @@ export function LeadAdsPanel({ integracaoId }: LeadAdsPanelProps) {
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-foreground truncate">{form.form_name}</p>
                     <p className="text-xs text-muted-foreground">Form ID: {form.form_id}</p>
+                    {form.page_name && (
+                      <p className="text-xs text-muted-foreground">Página: {form.page_name}</p>
+                    )}
                     {form.pipeline_nome && (
                       <p className="text-xs text-muted-foreground mt-1">
                         Pipeline: {form.pipeline_nome} → {form.etapa_nome || '—'}
