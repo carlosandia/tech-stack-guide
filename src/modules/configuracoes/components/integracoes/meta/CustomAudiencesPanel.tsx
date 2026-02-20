@@ -7,10 +7,20 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Users, Loader2, RefreshCw, CheckCircle2, Download, Search } from 'lucide-react'
+import { Plus, Users, Loader2, RefreshCw, CheckCircle2, Download, Search, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { metaAdsApi } from '../../../services/configuracoes.api'
 import type { CustomAudience } from '../../../services/configuracoes.api'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 
 const EVENTOS_GATILHO = [
   { value: 'lead', label: 'Novo contato criado' },
@@ -33,6 +43,7 @@ export function CustomAudiencesPanel() {
   const [importAccountId, setImportAccountId] = useState('')
   const [metaAudiences, setMetaAudiences] = useState<MetaAudience[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [deleteTarget, setDeleteTarget] = useState<CustomAudience | null>(null)
   const [formData, setFormData] = useState({
     audience_name: '',
     ad_account_id: '',
@@ -73,6 +84,17 @@ export function CustomAudiencesPanel() {
       queryClient.invalidateQueries({ queryKey: ['meta-ads', 'audiences'] })
     },
     onError: () => toast.error('Erro ao atualizar status'),
+  })
+
+  // AIDEV-NOTE: Remover audience do Meta e do banco
+  const remover = useMutation({
+    mutationFn: (id: string) => metaAdsApi.removerAudience(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['meta-ads', 'audiences'] })
+      toast.success('Público removido com sucesso')
+      setDeleteTarget(null)
+    },
+    onError: (err: Error) => toast.error(err.message || 'Erro ao remover público'),
   })
 
   // AIDEV-NOTE: Vincular evento gatilho inline
@@ -403,11 +425,41 @@ export function CustomAudiencesPanel() {
                 >
                   {aud.ativo ? 'Desativar' : 'Ativar'}
                 </button>
+                <button
+                  onClick={() => setDeleteTarget(aud)}
+                  className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-md text-destructive hover:bg-destructive/10 transition-colors"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  Remover
+                </button>
               </div>
             </div>
           ))}
         </div>
       )}
+
+      {/* AIDEV-NOTE: Dialog de confirmação de remoção */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover Público Personalizado</AlertDialogTitle>
+            <AlertDialogDescription>
+              Isso removerá o público <strong>{deleteTarget?.audience_name}</strong> tanto do CRM quanto do Meta Ads. Essa ação não pode ser desfeita. Deseja continuar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={remover.isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteTarget && remover.mutate(deleteTarget.id)}
+              disabled={remover.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {remover.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+              Remover
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
