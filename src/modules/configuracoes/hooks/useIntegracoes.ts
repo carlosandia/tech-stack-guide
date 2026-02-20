@@ -42,13 +42,18 @@ export function useSincronizarIntegracao() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (id: string) => integracoesApi.sincronizar(id),
-    onSuccess: () => {
+    mutationFn: ({ id, plataforma }: { id: string; plataforma?: PlataformaIntegracao }) =>
+      integracoesApi.sincronizar(id, plataforma),
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['configuracoes', 'integracoes'] })
-      toast.success('Sincronização iniciada com sucesso')
+      if (data?.paginas_atualizadas !== undefined) {
+        toast.success(`Sincronização concluída: ${data.paginas_atualizadas} página(s) atualizada(s)`)
+      } else {
+        toast.success('Sincronização concluída com sucesso')
+      }
     },
-    onError: () => {
-      toast.error('Erro ao sincronizar integração')
+    onError: (err) => {
+      toast.error((err as Error).message || 'Erro ao sincronizar integração')
     },
   })
 }

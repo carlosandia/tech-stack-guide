@@ -31,7 +31,7 @@ interface ConexaoCardProps {
   integracao?: Integracao
   onConectar: (plataforma: PlataformaIntegracao) => void
   onDesconectar: (plataforma: PlataformaIntegracao, id: string) => void
-  onSincronizar: (id: string) => void
+  onSincronizar: (id: string, plataforma?: PlataformaIntegracao) => void
   onConfigurar?: (plataforma: PlataformaIntegracao) => void
   isLoading?: boolean
 }
@@ -326,7 +326,7 @@ export function ConexaoCard({
                 )}
 
                 <button
-                  onClick={() => onSincronizar(integracao.id)}
+                  onClick={() => onSincronizar(integracao.id, plataforma)}
                   disabled={isLoading}
                   className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-secondary text-secondary-foreground hover:bg-accent transition-colors disabled:opacity-50"
                 >

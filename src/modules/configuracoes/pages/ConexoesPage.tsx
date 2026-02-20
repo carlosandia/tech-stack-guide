@@ -101,8 +101,8 @@ export function ConexoesPage() {
     desconectar.mutate({ plataforma, id })
   }
 
-  const handleSincronizar = (id: string) => {
-    sincronizar.mutate(id)
+  const handleSincronizar = (id: string, plataforma?: PlataformaIntegracao) => {
+    sincronizar.mutate({ id, plataforma })
   }
 
   const handleConfigurar = (plataforma: PlataformaIntegracao) => {

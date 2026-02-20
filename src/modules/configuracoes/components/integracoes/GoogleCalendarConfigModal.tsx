@@ -95,7 +95,7 @@ export function GoogleCalendarConfigModal({ integracao, onClose, onDesconectar }
               </div>
             )}
             <button
-              onClick={() => sincronizar.mutate(integracao.id)}
+              onClick={() => sincronizar.mutate({ id: integracao.id, plataforma: 'google' })}
               disabled={sincronizar.isPending}
               className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-secondary text-secondary-foreground hover:bg-accent transition-colors disabled:opacity-50 mt-1"
             >

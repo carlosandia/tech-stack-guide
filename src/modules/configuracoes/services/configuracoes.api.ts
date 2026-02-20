@@ -1404,8 +1404,20 @@ export const integracoesApi = {
     }
   },
 
-  sincronizar: async (_id: string) => {
-    // Sync é genérico - pode ser extendido por plataforma
+  sincronizar: async (_id: string, plataforma?: PlataformaIntegracao) => {
+    // AIDEV-NOTE: Meta Ads usa Edge Function meta-sync para sincronização real
+    if (plataforma === 'meta_ads') {
+      const { data, error } = await supabase.functions.invoke('meta-sync')
+      if (error) throw new Error(error.message || 'Erro ao sincronizar Meta')
+      if (data?.error) {
+        const msg = data.error === 'token_invalido'
+          ? `Token Meta expirado. Reconecte sua conta.`
+          : data.message || data.error
+        throw new Error(msg)
+      }
+      return data
+    }
+    // Demais plataformas - stub genérico
     return { success: true }
   },
 
