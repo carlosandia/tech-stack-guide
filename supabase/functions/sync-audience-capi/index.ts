@@ -130,34 +130,31 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Atualizar total_usuarios e ultimo_sync na tabela
+    // AIDEV-NOTE: Consolidado em um único update - busca contagem real do Meta primeiro
     const accountId = ad_account_id?.replace("act_", "") || "";
-    await supabase
-      .from("custom_audiences_meta")
-      .update({
-        ultimo_sync: new Date().toISOString(),
-        total_usuarios: supabase.rpc ? undefined : undefined, // Incrementar via SQL seria ideal
-      })
-      .eq("audience_id", audience_id)
-      .eq("organizacao_id", organizacao_id);
+    let totalUsuarios: number | undefined;
 
-    // Buscar contagem atualizada do Meta para refletir no CRM
     if (accountId) {
       try {
         const countUrl = `https://graph.facebook.com/v21.0/${audience_id}?fields=approximate_count_lower_bound&access_token=${encodeURIComponent(accessToken)}`;
         const countRes = await fetch(countUrl);
         if (countRes.ok) {
           const countData = await countRes.json();
-          await supabase
-            .from("custom_audiences_meta")
-            .update({ total_usuarios: countData.approximate_count_lower_bound || 0 })
-            .eq("audience_id", audience_id)
-            .eq("organizacao_id", organizacao_id);
+          totalUsuarios = countData.approximate_count_lower_bound || 0;
         }
       } catch (e) {
         console.warn("[sync-audience-capi] Erro ao buscar contagem:", e);
       }
     }
+
+    const updateData: Record<string, unknown> = { ultimo_sync: new Date().toISOString() };
+    if (totalUsuarios !== undefined) updateData.total_usuarios = totalUsuarios;
+
+    await supabase
+      .from("custom_audiences_meta")
+      .update(updateData)
+      .eq("audience_id", audience_id)
+      .eq("organizacao_id", organizacao_id);
 
     console.log(`[sync-audience-capi] ${hashedData.length} contato(s) sincronizado(s) com audience ${audience_id}`);
 
