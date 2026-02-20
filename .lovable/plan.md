@@ -1,69 +1,52 @@
 
+# Correção: Inscrever App nos Eventos Leadgen da Página
 
-# Correção do Bug no Mapeamento de Campos do Meta Lead Ads
+## Problema
+O Meta nao envia eventos de leadgen para o webhook porque o app nao esta inscrito na pagina. A ferramenta de teste confirma: "A Pagina selecionada nao tem nenhum app associado a ela." Isso acontece porque nunca chamamos o endpoint `POST /{page-id}/subscribed_apps` da Graph API.
 
-## Contexto
+## Solucao
 
-Ao receber um lead do Meta, a Edge Function `meta-leadgen-webhook` aplica o mapeamento configurado pelo usuário. O mapeamento salvo no banco possui chaves prefixadas (ex: `pessoa:nome`, `pessoa:email`, `pessoa:telefone`, `custom:uuid`), mas a função que cria o contato e a oportunidade espera chaves simples (`nome`, `email`, `telefone`).
+### Arquivo: `supabase/functions/meta-sync/index.ts`
 
-Isso faz com que TODOS os dados do lead sejam perdidos, mesmo que o webhook funcione.
-
-## O que será corrigido
-
-### Arquivo: `supabase/functions/meta-leadgen-webhook/index.ts`
-
-### 1. Normalizar chaves do mapeamento na função `aplicarMapeamento`
-
-Após aplicar o mapeamento configurado, converter as chaves prefixadas para chaves simples:
-- `pessoa:nome` -> `nome`
-- `pessoa:email` -> `email`
-- `pessoa:telefone` -> `telefone`
-- `pessoa:cargo` -> `cargo`
-- `pessoa:sobrenome` -> `sobrenome`
-- `empresa:nome_fantasia` -> `empresa`
-- Chaves `custom:*` -> armazenadas separadamente para uso futuro
-
-Isso garante compatibilidade com a função `criarOuAtualizarContato` que espera chaves simples.
-
-### 2. Adicionar logs de diagnóstico
-
-Adicionar logs extras no fluxo para facilitar depuração futura:
-- Log dos dados brutos recebidos do mapeamento
-- Log dos dados normalizados que serão usados para criar o contato
-
-## Detalhes Técnicos
-
-Na função `aplicarMapeamento`, após o loop de mapeamento configurado (linha ~273), adicionar lógica de normalização:
+Apos o upsert de cada pagina (linha ~183), adicionar uma chamada para inscrever o app nos eventos `leadgen` da pagina:
 
 ```typescript
-// Normalizar chaves prefixadas (pessoa:nome -> nome, pessoa:email -> email, etc.)
-const normalizado: Record<string, string> = {};
-for (const [key, value] of Object.entries(resultado)) {
-  if (key.startsWith("pessoa:")) {
-    normalizado[key.replace("pessoa:", "")] = value;
-  } else if (key.startsWith("empresa:")) {
-    normalizado[key.replace("empresa:", "")] = value;
-  } else if (key.startsWith("oportunidade:")) {
-    normalizado[key.replace("oportunidade:", "")] = value;
-  } else if (!key.startsWith("custom:")) {
-    normalizado[key] = value;
-  }
+// Apos upsert bem-sucedido, inscrever app nos eventos leadgen da pagina
+const subscribeRes = await fetch(
+  `${GRAPH_API}/${page.id}/subscribed_apps?subscribed_fields=leadgen&access_token=${page.access_token}`,
+  { method: "POST" }
+);
+const subscribeData = await subscribeRes.json();
+
+if (subscribeData.success) {
+  console.log(`[meta-sync] App inscrito em leadgen para pagina ${page.name}`);
+  // Atualizar leads_retrieval para true
+  await supabase
+    .from("paginas_meta")
+    .update({ leads_retrieval: true })
+    .eq("organizacao_id", orgId)
+    .eq("page_id", page.id);
+} else {
+  console.warn(`[meta-sync] Falha ao inscrever app em leadgen para ${page.name}:`, subscribeData);
 }
-// Manter campos custom no resultado para uso futuro
-for (const [key, value] of Object.entries(resultado)) {
-  if (key.startsWith("custom:")) {
-    normalizado[key] = value;
-  }
-}
-return normalizado;
 ```
 
-## Sobre o Problema do Meta (configuração externa)
+### O que isso faz
 
-O webhook não está sendo chamado porque a página não está associada ao app no Meta. Isso precisa ser resolvido no Meta Developer Portal:
-1. Ir em **Configurações > Básico** do seu App
-2. Na seção "Página do App", selecionar "Carlos Andia"
-3. Salvar
+1. Para cada pagina sincronizada, chama `POST /{page_id}/subscribed_apps?subscribed_fields=leadgen` usando o page access token
+2. Se bem-sucedido, atualiza `leads_retrieval = true` na tabela `paginas_meta`
+3. Loga warnings se a inscricao falhar (ex: permissao faltando)
 
-Sem essa associação, o Meta não envia notificações de leads para o webhook, independentemente do código estar correto.
+### Apos o deploy
 
+O usuario precisa clicar em **"Sincronizar"** no card do Meta Ads na pagina de Conexoes. Isso vai:
+1. Re-buscar as paginas
+2. Inscrever o app nos eventos leadgen
+3. A partir desse momento, leads de teste e reais serao enviados para o webhook
+
+### Detalhes Tecnicos
+
+- Endpoint da Graph API: `POST /v21.0/{page-id}/subscribed_apps`
+- Parametro: `subscribed_fields=leadgen`
+- Autenticacao: `page_access_token` (ja armazenado)
+- Documentacao: https://developers.facebook.com/docs/graph-api/reference/page/subscribed_apps/
