@@ -1,68 +1,84 @@
 
 
-## Correções para Sincronização de Custom Audiences
+## Corrigir Criacao de Publico Personalizado no Meta
 
-### Problema 1: Codigo redundante no sync-audience-capi
+### Problema
 
-Na linha 135-142, o primeiro `update` define `total_usuarios` como `undefined` (que nao faz nada no Supabase) e so define `ultimo_sync`. Logo depois (linhas 145-159), o bloco busca a contagem real do Meta e faz outro update com `total_usuarios` correto.
+Ao clicar em "Criar Publico", o sistema salva apenas localmente no banco de dados com um `audience_id` temporario (`pending_xxx`). A chamada real para a Meta Graph API nunca acontece, por isso o publico nao aparece no Meta Ads Manager.
 
-**Correcao**: Remover o primeiro update redundante e consolidar em um unico update apos buscar a contagem do Meta. Mover o `ultimo_sync` para o segundo update.
+### Solucao
 
-### Problema 2: Sincronizacao manual nao filtra por evento
+Adicionar a action `create` na Edge Function `meta-audiences` para chamar a API do Meta e criar o publico de verdade, e atualizar o frontend para usar essa Edge Function.
 
-O `sincronizarAudience` no `configuracoes.api.ts` (linhas 1697-1705) sempre busca todos os contatos tipo "pessoa" da organizacao, independente do `evento_gatilho`. Por exemplo, se o gatilho e "won" (oportunidade ganha), deveria sincronizar apenas contatos vinculados a oportunidades ganhas, nao todos.
+### Alteracoes
 
-**Correcao**: Manter o comportamento atual como "sync geral" (util para o primeiro carregamento), mas adicionar um aviso na UI de que a sincronizacao manual envia todos os contatos. A filtragem automatica por evento ja funciona corretamente no `processar-eventos-automacao`.
+#### 1. Edge Function `meta-audiences/index.ts` - Adicionar action "create"
 
-### Problema 3: Audiences com audience_id "pending_" nao funcionam
+Expandir a Edge Function existente para suportar duas actions:
 
-Audiences criadas localmente recebem `audience_id: "pending_xxx"`. Ao clicar "Sincronizar Agora", o `sync-audience-capi` envia para `https://graph.facebook.com/v21.0/pending_xxx/users`, que retorna erro 404 do Meta.
+- `action: "list"` (existente, sem mudancas)
+- `action: "create"` (nova) - Chama `POST https://graph.facebook.com/v21.0/act_{accountId}/customaudiences` com:
+  - `name`: nome do publico
+  - `subtype`: `CUSTOM`
+  - `customer_file_source`: `USER_PROVIDED_ONLY`
+  - `access_token`: token da conexao Meta
 
-**Correcao**: 
-- Desabilitar botao "Sincronizar Agora" para audiences com `audience_id` que comeca com `pending_`
-- Mostrar tooltip explicando que o publico precisa ser criado no Meta primeiro ou importado
+Retorna o `audience_id` real criado pelo Meta.
+
+#### 2. Service `configuracoes.api.ts` - Atualizar `criarAudience`
+
+Em vez de inserir diretamente no banco com `pending_`, a funcao vai:
+
+1. Invocar `meta-audiences` com `action: "create"`, passando `audience_name` e `ad_account_id`
+2. Receber o `audience_id` real do Meta
+3. Inserir no banco com o `audience_id` real retornado pelo Meta
+4. Se a chamada ao Meta falhar, nao insere no banco e mostra o erro ao usuario
+
+#### 3. UI `CustomAudiencesPanel.tsx` - Sem mudancas estruturais
+
+O fluxo visual ja esta correto. A unica mudanca comportamental e que agora o publico criado tera um `audience_id` real (ex: `120241651347460787`) em vez de `pending_xxx`, e o botao "Sincronizar Agora" estara habilitado imediatamente.
+
+### Detalhes tecnicos
+
+**Meta Graph API - Criar Custom Audience:**
+
+```text
+POST https://graph.facebook.com/v21.0/act_{AD_ACCOUNT_ID}/customaudiences
+
+Parametros:
+- name: "Nome do Publico"
+- subtype: "CUSTOM"
+- customer_file_source: "USER_PROVIDED_ONLY"
+- access_token: {token}
+
+Resposta:
+{ "id": "120241651347460787" }
+```
+
+**Edge Function - Nova logica para action "create":**
+
+```text
+Recebe: { action: "create", ad_account_id: "act_xxx", audience_name: "Meu Publico" }
+
+1. Autentica usuario
+2. Busca organizacao_id
+3. Busca access_token de conexoes_meta
+4. POST para Meta API /customaudiences
+5. Retorna { audience_id: "120241651347460787", name: "Meu Publico" }
+```
+
+**Service - Nova logica de criarAudience:**
+
+```text
+1. Invoca supabase.functions.invoke('meta-audiences', { body: { action: 'create', ... } })
+2. Se sucesso, insere no banco com audience_id real
+3. Se erro, lanca excecao (toast de erro ja existe no componente)
+```
 
 ### Arquivos afetados
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `supabase/functions/sync-audience-capi/index.ts` | Remover update redundante, consolidar ultimo_sync + total_usuarios |
-| `src/modules/configuracoes/components/integracoes/meta/CustomAudiencesPanel.tsx` | Desabilitar sync para audiences pending_, tooltip |
-
-### Detalhes tecnicos
-
-**sync-audience-capi/index.ts** - Substituir linhas 133-160 por:
-
-```typescript
-// Atualizar ultimo_sync e buscar contagem real do Meta
-const accountId = ad_account_id?.replace("act_", "") || "";
-let totalUsuarios: number | undefined;
-
-if (accountId) {
-  try {
-    const countUrl = `https://graph.facebook.com/v21.0/${audience_id}?fields=approximate_count_lower_bound&access_token=${encodeURIComponent(accessToken)}`;
-    const countRes = await fetch(countUrl);
-    if (countRes.ok) {
-      const countData = await countRes.json();
-      totalUsuarios = countData.approximate_count_lower_bound || 0;
-    }
-  } catch (e) {
-    console.warn("[sync-audience-capi] Erro ao buscar contagem:", e);
-  }
-}
-
-const updateData: Record<string, unknown> = { ultimo_sync: new Date().toISOString() };
-if (totalUsuarios !== undefined) updateData.total_usuarios = totalUsuarios;
-
-await supabase
-  .from("custom_audiences_meta")
-  .update(updateData)
-  .eq("audience_id", audience_id)
-  .eq("organizacao_id", organizacao_id);
-```
-
-**CustomAudiencesPanel.tsx** - No botao "Sincronizar Agora":
-
-- Verificar `aud.audience_id?.startsWith('pending_')` para desabilitar
-- Adicionar `title` com mensagem explicativa
+| `supabase/functions/meta-audiences/index.ts` | Adicionar action "create" com POST para Meta API |
+| `src/modules/configuracoes/services/configuracoes.api.ts` | Atualizar criarAudience para invocar Edge Function primeiro |
 
