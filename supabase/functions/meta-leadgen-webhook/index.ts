@@ -272,7 +272,28 @@ function aplicarMapeamento(leadData: any, mapeamento: any[]): Record<string, str
     }
   }
 
-  return resultado;
+  console.log(`[meta-leadgen-webhook] Resultado bruto do mapeamento:`, JSON.stringify(resultado));
+
+  // AIDEV-NOTE: Normalizar chaves prefixadas (pessoa:nome -> nome, empresa:nome_fantasia -> nome_fantasia, etc.)
+  // O mapeamento salva chaves com prefixo de entidade, mas criarOuAtualizarContato espera chaves simples
+  const normalizado: Record<string, string> = {};
+  for (const [key, value] of Object.entries(resultado)) {
+    if (key.startsWith("pessoa:")) {
+      normalizado[key.replace("pessoa:", "")] = value;
+    } else if (key.startsWith("empresa:")) {
+      normalizado[key.replace("empresa:", "")] = value;
+    } else if (key.startsWith("oportunidade:")) {
+      normalizado[key.replace("oportunidade:", "")] = value;
+    } else if (key.startsWith("custom:")) {
+      normalizado[key] = value; // Manter campos custom para uso futuro
+    } else {
+      normalizado[key] = value;
+    }
+  }
+
+  console.log(`[meta-leadgen-webhook] Resultado normalizado:`, JSON.stringify(normalizado));
+
+  return normalizado;
 }
 
 // =====================================================
