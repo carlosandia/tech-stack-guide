@@ -104,3 +104,6 @@ verify_jwt = false
 
 [functions.test-capi-event]
 verify_jwt = false
+
+[functions.meta-audiences]
+verify_jwt = false
