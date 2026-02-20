@@ -64,7 +64,11 @@ export function CustomAudiencesPanel() {
       setShowForm(false)
       setFormData({ audience_name: '', ad_account_id: '', evento_gatilho: '', tipo_sincronizacao: 'evento' })
     },
-    onError: (err: Error) => toast.error(err.message || 'Erro ao criar público'),
+    onError: (err: Error) => {
+      const msg = err.message || 'Erro ao criar público'
+      // AIDEV-NOTE: Mensagens do Meta com links/orientações precisam de duração maior
+      toast.error(msg, { duration: msg.length > 100 ? 12000 : 5000 })
+    },
   })
 
   const sincronizar = useMutation({
