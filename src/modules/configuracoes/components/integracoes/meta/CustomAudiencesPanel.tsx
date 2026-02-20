@@ -379,11 +379,16 @@ export function CustomAudiencesPanel() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border">
+              {/* AIDEV-NOTE: Aviso sobre sync manual enviando todos os contatos */}
+              <p className="text-xs text-muted-foreground mt-2 italic">
+                ⚠ A sincronização manual envia todos os contatos do CRM. A filtragem por evento funciona apenas na sincronização automática.
+              </p>
+              <div className="flex items-center gap-2 mt-2 pt-3 border-t border-border">
                 <button
                   onClick={() => sincronizar.mutate(aud.id)}
-                  disabled={sincronizar.isPending}
-                  className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-md bg-secondary text-secondary-foreground hover:bg-accent transition-colors disabled:opacity-50"
+                  disabled={sincronizar.isPending || aud.audience_id?.startsWith('pending_')}
+                  title={aud.audience_id?.startsWith('pending_') ? 'Este público precisa ser criado ou importado do Meta antes de sincronizar' : 'Sincronizar todos os contatos do CRM com este público'}
+                  className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-md bg-secondary text-secondary-foreground hover:bg-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {sincronizar.isPending ? (
                     <Loader2 className="w-3 h-3 animate-spin" />
