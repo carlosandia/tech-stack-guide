@@ -216,6 +216,7 @@ export interface Integracao {
   // Meta específicos
   meta_user_name?: string | null
   meta_user_email?: string | null
+  meta_page_name?: string | null
 }
 
 export interface SmtpDetectResult {
@@ -1266,6 +1267,22 @@ export const integracoesApi = {
 
     // Meta Ads
     if (metaResult.data) {
+      // Buscar páginas conectadas para cada conexão Meta
+      const metaIds = metaResult.data.map((r: Record<string, unknown>) => r.id as string)
+      let paginasMap: Record<string, string> = {}
+      if (metaIds.length > 0) {
+        const { data: paginas } = await supabase
+          .from('paginas_meta')
+          .select('conexao_id, page_name')
+          .in('conexao_id', metaIds)
+          .eq('ativo', true)
+        if (paginas) {
+          paginas.forEach((p: Record<string, unknown>) => {
+            paginasMap[p.conexao_id as string] = p.page_name as string
+          })
+        }
+      }
+
       metaResult.data.forEach((row: Record<string, unknown>) => {
         integracoes.push({
           id: row.id as string,
@@ -1274,6 +1291,7 @@ export const integracoesApi = {
           status: ['connected', 'conectado', 'ativo', 'active'].includes(row.status as string) ? 'conectado' : (row.status as string) || 'desconectado',
           meta_user_name: row.meta_user_name as string | null,
           meta_user_email: row.meta_user_email as string | null,
+          meta_page_name: paginasMap[row.id as string] || null,
           ultimo_sync: row.ultimo_sync as string | null,
           ultimo_erro: row.ultimo_erro as string | null,
         })
