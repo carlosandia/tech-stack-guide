@@ -1,37 +1,25 @@
 
-## Exibir Pagina Conectada no Card Meta Ads
+## Remover Formulario Lead Ads (ao inves de apenas Desativar)
 
 ### Problema
-O card do Meta Ads mostra apenas o nome do usuario (`meta_user_name`), mas nao exibe a pagina do Facebook conectada. A informacao da pagina ja existe na tabela `paginas_meta` (campo `page_name`), vinculada pela `conexao_id`.
-
-### Dados existentes
-- Tabela `paginas_meta`: contem `conexao_id`, `page_name`, `page_id`, `ativo`
-- Exemplo atual: pagina "Carlos Andia" vinculada a conexao `76bea5e5-...`
+Atualmente o card do formulario Lead Ads so oferece "Desativar", mas o usuario quer poder **remover** a configuracao completamente.
 
 ### Alteracoes
 
 | Arquivo | O que muda |
 |---------|-----------|
-| `src/modules/configuracoes/services/configuracoes.api.ts` | Adicionar campo `meta_page_name` na interface `Integracao`. Na query de Meta Ads, buscar tambem a `paginas_meta` associada e preencher o campo. |
-| `src/modules/configuracoes/components/integracoes/ConexaoCard.tsx` | No bloco `PlataformaDetails` para `meta_ads`, exibir a pagina conectada com icone apropriado. |
+| `src/modules/configuracoes/services/configuracoes.api.ts` | Adicionar metodo `removerFormulario(id)` no `metaAdsApi` que faz soft delete (seta `deletado_em`) |
+| `src/modules/configuracoes/components/integracoes/meta/LeadAdsPanel.tsx` | Trocar o botao "Desativar" por "Remover" com confirmacao e cor vermelha. Remover logica de toggle ativo/inativo |
 
 ### Detalhes tecnicos
 
-**1. Interface Integracao** - Adicionar campo opcional:
-```text
-meta_page_name?: string | null
-```
+**1. API - `metaAdsApi.removerFormulario`**
+- Faz `update({ deletado_em: new Date().toISOString() }).eq('id', id)` na tabela `formularios_lead_ads`
+- A listagem ja filtra por `.is('deletado_em', null)`, entao o formulario desaparece automaticamente
 
-**2. Query de listagem (integracoesApi.listar)** - Apos montar as integracoes Meta, buscar as paginas associadas:
-```text
-- Fazer query em paginas_meta filtrando pelos conexao_ids das integracoes meta
-- Para cada integracao meta, encontrar a pagina ativa e preencher meta_page_name
-```
-
-**3. ConexaoCard - PlataformaDetails** - No bloco `meta_ads`, adicionar linha com icone de pagina (ex: `FileText` ou `BarChart3`) mostrando o nome da pagina quando disponivel:
-```text
-Pagina: Carlos Andia
-```
-
-### Resultado esperado
-O card Meta Ads exibira, alem do nome do usuario, o nome da pagina do Facebook conectada, melhorando a visibilidade para o usuario saber exatamente qual pagina esta vinculada.
+**2. LeadAdsPanel - Botao Remover**
+- Substituir o botao "Desativar/Ativar" por "Remover"
+- Estilo em vermelho (`text-destructive`) para indicar acao destrutiva
+- Adicionar confirmacao via `window.confirm()` antes de executar
+- Mutation chama `metaAdsApi.removerFormulario(id)`
+- Apos sucesso, invalidar query e exibir toast de sucesso
