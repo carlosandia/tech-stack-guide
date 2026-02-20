@@ -171,7 +171,7 @@ Deno.serve(async (req) => {
             ativo: true,
             atualizado_em: new Date().toISOString(),
           },
-          { onConflict: "conexao_id,page_id" }
+          { onConflict: "organizacao_id,page_id" }
         );
 
       if (upsertErr) {
