@@ -38,11 +38,18 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { action, ad_account_id } = body;
+    const { action, ad_account_id, audience_name } = body;
 
-    if (action !== "list" || !ad_account_id) {
+    if (!action || !ad_account_id) {
       return new Response(
-        JSON.stringify({ error: "Parâmetros inválidos. Envie { action: 'list', ad_account_id: 'act_xxx' }" }),
+        JSON.stringify({ error: "Parâmetros inválidos. Envie { action: 'list'|'create', ad_account_id: 'act_xxx' }" }),
+        { status: 400, headers: jsonHeaders }
+      );
+    }
+
+    if (!["list", "create"].includes(action)) {
+      return new Response(
+        JSON.stringify({ error: "Action inválida. Use 'list' ou 'create'" }),
         { status: 400, headers: jsonHeaders }
       );
     }
@@ -85,11 +92,51 @@ Deno.serve(async (req) => {
     }
 
     const accessToken = conexao.access_token_encrypted;
-
-    // Normalizar ad_account_id (remover prefixo act_ se presente para a URL)
     const accountId = ad_account_id.replace(/^act_/, "");
 
-    // Chamar Graph API do Meta
+    // === ACTION: CREATE ===
+    if (action === "create") {
+      if (!audience_name) {
+        return new Response(
+          JSON.stringify({ error: "audience_name é obrigatório para criar um público" }),
+          { status: 400, headers: jsonHeaders }
+        );
+      }
+
+      console.log(`[meta-audiences] Criando audience "${audience_name}" na conta act_${accountId}, org ${organizacaoId}`);
+
+      const createUrl = `https://graph.facebook.com/v21.0/act_${accountId}/customaudiences`;
+      const createResponse = await fetch(createUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: audience_name,
+          subtype: "CUSTOM",
+          customer_file_source: "USER_PROVIDED_ONLY",
+          access_token: accessToken,
+        }),
+      });
+
+      const createData = await createResponse.json();
+
+      if (!createResponse.ok || createData.error) {
+        const errorMsg = createData.error?.message || "Erro ao criar público no Meta";
+        console.error(`[meta-audiences] Erro ao criar: ${errorMsg}`);
+        return new Response(
+          JSON.stringify({ error: errorMsg }),
+          { status: 400, headers: jsonHeaders }
+        );
+      }
+
+      console.log(`[meta-audiences] Audience criada com ID: ${createData.id}`);
+
+      return new Response(
+        JSON.stringify({ audience_id: createData.id, name: audience_name }),
+        { status: 200, headers: jsonHeaders }
+      );
+    }
+
+    // === ACTION: LIST ===
     const metaUrl = `https://graph.facebook.com/v21.0/act_${accountId}/customaudiences?fields=id,name,approximate_count_lower_bound,approximate_count_upper_bound&limit=100&access_token=${encodeURIComponent(accessToken)}`;
 
     console.log(`[meta-audiences] Buscando audiences para conta act_${accountId}, org ${organizacaoId}`);
