@@ -1673,14 +1673,55 @@ export const metaAdsApi = {
     if (error) throw error
     return data
   },
-  sincronizarAudience: async (id: string) => {
+  // AIDEV-NOTE: Vincula evento gatilho a um audience existente
+  vincularEventoAudience: async (id: string, evento_gatilho: string | null) => {
     const { data, error } = await supabase
       .from('custom_audiences_meta')
-      .update({ ultimo_sync: new Date().toISOString() })
+      .update({ evento_gatilho, atualizado_em: new Date().toISOString() })
       .eq('id', id)
       .select()
       .single()
     if (error) throw error
+    return data
+  },
+  // AIDEV-NOTE: Sincroniza audience via Edge Function sync-audience-capi
+  sincronizarAudience: async (id: string) => {
+    // Buscar dados do audience
+    const { data: aud, error: audErr } = await supabase
+      .from('custom_audiences_meta')
+      .select('audience_id, ad_account_id, organizacao_id, evento_gatilho')
+      .eq('id', id)
+      .single()
+    if (audErr || !aud) throw new Error('Audience não encontrado')
+
+    // Buscar contatos do CRM para sincronizar (baseado no evento_gatilho)
+    const orgId = aud.organizacao_id
+    const { data: contatos, error: contErr } = await supabase
+      .from('contatos')
+      .select('email, telefone, nome')
+      .eq('organizacao_id', orgId)
+      .eq('tipo', 'pessoa')
+      .is('deletado_em', null)
+      .limit(500)
+    if (contErr) throw contErr
+
+    if (!contatos || contatos.length === 0) {
+      // Apenas atualizar ultimo_sync
+      await supabase.from('custom_audiences_meta').update({ ultimo_sync: new Date().toISOString() }).eq('id', id)
+      return { success: true, num_received: 0 }
+    }
+
+    // Invocar sync-audience-capi
+    const { data, error } = await supabase.functions.invoke('sync-audience-capi', {
+      body: {
+        audience_id: aud.audience_id,
+        ad_account_id: aud.ad_account_id,
+        organizacao_id: orgId,
+        contatos: contatos.map((c: any) => ({ email: c.email, telefone: c.telefone, nome: c.nome })),
+      },
+    })
+    if (error) throw new Error(error.message || 'Erro ao sincronizar')
+    if (data?.error) throw new Error(data.error)
     return data
   },
   // AIDEV-NOTE: Busca públicos personalizados existentes na conta Meta Ads via Edge Function

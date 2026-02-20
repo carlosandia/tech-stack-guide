@@ -107,3 +107,6 @@ verify_jwt = false
 
 [functions.meta-audiences]
 verify_jwt = false
+
+[functions.sync-audience-capi]
+verify_jwt = false
