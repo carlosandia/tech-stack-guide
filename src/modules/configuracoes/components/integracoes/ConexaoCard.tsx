@@ -45,7 +45,7 @@ const plataformaConfig: Record<PlataformaIntegracao, {
 }> = {
   whatsapp: {
     nome: 'WhatsApp',
-    descricao: 'Envio e recebimento de mensagens (não oficial)',
+    descricao: 'Envio e recebimento de mensagens',
     icon: WhatsAppIcon,
     cor: 'text-green-600',
     bgCor: 'bg-green-50',
