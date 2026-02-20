@@ -64,7 +64,7 @@ export function CustomAudiencesPanel() {
       setShowForm(false)
       setFormData({ audience_name: '', ad_account_id: '', evento_gatilho: '', tipo_sincronizacao: 'evento' })
     },
-    onError: () => toast.error('Erro ao criar público'),
+    onError: (err: Error) => toast.error(err.message || 'Erro ao criar público'),
   })
 
   const sincronizar = useMutation({

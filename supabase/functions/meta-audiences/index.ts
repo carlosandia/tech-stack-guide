@@ -148,14 +148,12 @@ Deno.serve(async (req) => {
       const createData = await createResponse.json();
 
       if (!createResponse.ok || createData.error) {
-        const errorMsg = createData.error?.message || "Erro ao criar público no Meta";
-        console.error(`[meta-audiences] Erro ao criar:`, JSON.stringify(createData.error));
-        const isPermError = errorMsg.toLowerCase().includes("permission");
-        const hint = isPermError
-          ? " Tente reconectar sua conta Meta em Configurações > Conexões para renovar as permissões."
-          : "";
+        const metaError = createData.error || {};
+        console.error(`[meta-audiences] Erro ao criar:`, JSON.stringify(metaError));
+        // AIDEV-NOTE: Priorizar error_user_msg (mensagem amigável do Meta) sobre message (técnica)
+        const errorMsg = metaError.error_user_msg || metaError.message || "Erro ao criar público no Meta";
         return new Response(
-          JSON.stringify({ error: errorMsg + hint }),
+          JSON.stringify({ error: errorMsg }),
           { status: 400, headers: jsonHeaders }
         );
       }
