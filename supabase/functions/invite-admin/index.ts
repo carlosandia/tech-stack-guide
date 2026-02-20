@@ -458,16 +458,31 @@ Deno.serve(async (req) => {
     const requestingUserId = claimsData.claims.sub;
     console.log("[invite-admin] Usuário autenticado:", requestingUserId);
 
+    // AIDEV-NOTE: SEGURANCA - Buscar usuario da tabela com todas verificacoes
+    // Fonte da verdade é sempre o banco, não JWT claims
     const { data: requestingUser, error: requestingUserError } = await supabaseAdmin
       .from("usuarios")
-      .select("role, organizacao_id, nome, email")
+      .select("id, role, organizacao_id, nome, email, status")
       .eq("auth_id", requestingUserId)
+      .is("deletado_em", null)
       .single();
 
     if (requestingUserError || !requestingUser) {
       console.warn("[invite-admin] Usuário não encontrado:", requestingUserError?.message);
       return new Response(
         JSON.stringify({ error: "Usuário não encontrado" }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // AIDEV-NOTE: Verificar status ativo antes de permitir operações
+    if (requestingUser.status !== "ativo") {
+      console.warn("[invite-admin] Usuário inativo tentando convidar:", requestingUserId);
+      return new Response(
+        JSON.stringify({ error: "Usuário inativo" }),
         {
           status: 403,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -628,6 +643,23 @@ Deno.serve(async (req) => {
       .eq("id", usuario_id);
 
     console.log("[invite-admin] Usuário atualizado para status 'ativo'");
+
+    // AIDEV-NOTE: Audit log para rastreabilidade de criação de usuários
+    await supabaseAdmin.from("audit_log").insert({
+      usuario_id: requestingUser.id,
+      organizacao_id,
+      acao: "usuario_convidado",
+      entidade: "usuarios",
+      entidade_id: usuario_id,
+      detalhes: {
+        email: email,
+        role: userRole,
+        convidado_por: requestingUser.email,
+        convidado_por_role: requestingUser.role,
+      },
+      ip: req.headers.get("x-forwarded-for") || null,
+      user_agent: req.headers.get("user-agent") || null,
+    });
 
     // =====================================================
     // ENVIAR EMAIL COM CREDENCIAIS VIA RESEND

@@ -8,6 +8,7 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { X, Plus, Loader2, AlignLeft, AlignCenter, AlignRight, Upload, Monitor, Tablet, Smartphone } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { getOrganizacaoId } from '@/shared/services/auth-context'
 import { DeviceSwitcher, type DeviceType } from '../estilos/DeviceSwitcher'
 
 import { useQueryClient } from '@tanstack/react-query'
@@ -832,7 +833,9 @@ export function CampoConfigPanel({ campo, onUpdate, onClose, className, hideHead
           const handleFileUpload = async (deviceKey: string, file: File) => {
             try {
               const ext = file.name.split('.').pop() || 'jpg'
-              const path = `formularios/imagens/${campo.id}_${deviceKey}_${Date.now()}.${ext}`
+              // AIDEV-NOTE: Path com organizacao_id para tenant isolation no Storage RLS
+              const organizacaoId = await getOrganizacaoId()
+              const path = `${organizacaoId}/imagens/${campo.id}_${deviceKey}_${Date.now()}.${ext}`
               const { error } = await supabase.storage.from('formularios').upload(path, file, { upsert: true })
               if (error) throw error
               const { data: urlData } = supabase.storage.from('formularios').getPublicUrl(path)

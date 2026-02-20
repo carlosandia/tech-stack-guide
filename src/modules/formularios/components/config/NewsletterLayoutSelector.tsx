@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { supabase } from '@/lib/supabase'
 import { compressImage } from '@/shared/utils/compressMedia'
 import { toast } from 'sonner'
+import { getOrganizacaoId } from '@/shared/services/auth-context'
 import type { NewsletterTemplate } from '../../services/formularios.api'
 
 interface Props {
@@ -98,9 +99,11 @@ export function NewsletterLayoutSelector({ formularioId, template, imagemUrl, im
 
     setUploading(true)
     try {
+      // AIDEV-NOTE: Path com organizacao_id para tenant isolation no Storage RLS
+      const organizacaoId = await getOrganizacaoId()
       const compressed = await compressImage(file)
       const ext = compressed instanceof File ? compressed.name.split('.').pop() : 'jpg'
-      const path = `${formularioId}/newsletter-image.${ext}`
+      const path = `${organizacaoId}/${formularioId}/newsletter-image.${ext}`
 
       const { error } = await supabase.storage
         .from('formularios')
@@ -123,9 +126,15 @@ export function NewsletterLayoutSelector({ formularioId, template, imagemUrl, im
 
   const handleRemoveImage = async () => {
     try {
+      // AIDEV-NOTE: Path com organizacao_id para tenant isolation
+      const organizacaoId = await getOrganizacaoId()
       await supabase.storage
         .from('formularios')
-        .remove([`${formularioId}/newsletter-image.jpg`, `${formularioId}/newsletter-image.png`, `${formularioId}/newsletter-image.webp`])
+        .remove([
+          `${organizacaoId}/${formularioId}/newsletter-image.jpg`,
+          `${organizacaoId}/${formularioId}/newsletter-image.png`,
+          `${organizacaoId}/${formularioId}/newsletter-image.webp`
+        ])
     } catch {
       // ignore
     }

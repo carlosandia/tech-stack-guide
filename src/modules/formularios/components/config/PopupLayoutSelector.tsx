@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { supabase } from '@/lib/supabase'
 import { compressImage } from '@/shared/utils/compressMedia'
 import { toast } from 'sonner'
+import { getOrganizacaoId } from '@/shared/services/auth-context'
 
 export type PopupTemplate =
   | 'so_campos'
@@ -142,7 +143,9 @@ export function PopupLayoutSelector({ formularioId, template, imagemUrl, imagemL
     try {
       const compressed = await compressImage(file)
       const ext = compressed instanceof File ? compressed.name.split('.').pop() : 'jpg'
-      const path = `${formularioId}/popup-image.${ext}`
+      // AIDEV-NOTE: Path com organizacao_id para tenant isolation no Storage RLS
+      const organizacaoId = await getOrganizacaoId()
+      const path = `${organizacaoId}/${formularioId}/popup-image.${ext}`
 
       const { error } = await supabase.storage
         .from('formularios')
@@ -165,10 +168,16 @@ export function PopupLayoutSelector({ formularioId, template, imagemUrl, imagemL
 
   const handleRemoveImage = async () => {
     try {
+      // AIDEV-NOTE: Path com organizacao_id para tenant isolation no Storage RLS
+      const organizacaoId = await getOrganizacaoId()
       // Try to delete from storage
       await supabase.storage
         .from('formularios')
-        .remove([`${formularioId}/popup-image.jpg`, `${formularioId}/popup-image.png`, `${formularioId}/popup-image.webp`])
+        .remove([
+          `${organizacaoId}/${formularioId}/popup-image.jpg`,
+          `${organizacaoId}/${formularioId}/popup-image.png`,
+          `${organizacaoId}/${formularioId}/popup-image.webp`
+        ])
     } catch {
       // ignore
     }

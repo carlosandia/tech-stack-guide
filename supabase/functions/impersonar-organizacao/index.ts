@@ -48,18 +48,41 @@ Deno.serve(async (req) => {
     }
 
     const callerAuthId = claimsData.claims.sub;
-    const callerRole = claimsData.claims.user_metadata?.role;
-
-    // Validar que é super_admin
-    if (callerRole !== "super_admin") {
-      return new Response(JSON.stringify({ error: "Acesso restrito a Super Admin" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
 
     // Cliente service_role para operações admin
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+    // AIDEV-NOTE: SEGURANCA - Verificar role contra tabela usuarios (nao confiar em JWT claims)
+    // JWT claims podem ser manipulados ou desatualizados. Fonte da verdade é sempre o banco.
+    const { data: callerFromDb, error: callerDbError } = await supabaseAdmin
+      .from("usuarios")
+      .select("id, role, status")
+      .eq("auth_id", callerAuthId)
+      .single();
+
+    if (callerDbError || !callerFromDb) {
+      console.error("[impersonar-organizacao] Usuario nao encontrado na tabela:", callerDbError);
+      return new Response(
+        JSON.stringify({ error: "Usuario nao encontrado" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (callerFromDb.role !== "super_admin") {
+      console.warn("[impersonar-organizacao] Tentativa de acesso nao autorizado por:", callerAuthId);
+      return new Response(
+        JSON.stringify({ error: "Acesso restrito a Super Admin" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (callerFromDb.status !== "ativo") {
+      console.warn("[impersonar-organizacao] Usuario inativo tentou acessar:", callerAuthId);
+      return new Response(
+        JSON.stringify({ error: "Usuario inativo" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     const body = await req.json();
     const { action } = body;
@@ -75,19 +98,8 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Buscar super_admin na tabela usuarios
-      const { data: superAdmin } = await supabaseAdmin
-        .from("usuarios")
-        .select("id")
-        .eq("auth_id", callerAuthId)
-        .single();
-
-      if (!superAdmin) {
-        return new Response(JSON.stringify({ error: "Super Admin não encontrado" }), {
-          status: 404,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+      // AIDEV-NOTE: superAdmin já foi validado acima (callerFromDb)
+      // Usar callerFromDb.id como super_admin_id
 
       // Buscar admin ativo da organização alvo
       const { data: adminAlvo, error: adminError } = await supabaseAdmin
@@ -140,7 +152,7 @@ Deno.serve(async (req) => {
       const expiraEm = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1h
 
       await supabaseAdmin.from("sessoes_impersonacao").insert({
-        super_admin_id: superAdmin.id,
+        super_admin_id: callerFromDb.id,
         organizacao_id,
         admin_alvo_id: adminAlvo.id,
         motivo: motivo.trim(),
@@ -154,7 +166,7 @@ Deno.serve(async (req) => {
       // Registrar no audit_log
       await supabaseAdmin.from("audit_log").insert({
         organizacao_id,
-        usuario_id: superAdmin.id,
+        usuario_id: callerFromDb.id,
         acao: "impersonacao_iniciada",
         entidade: "organizacoes_saas",
         entidade_id: organizacao_id,
@@ -179,7 +191,7 @@ Deno.serve(async (req) => {
         );
       }
 
-      console.log(`[impersonar] Super Admin ${superAdmin.id} impersonando org ${organizacao_id} (admin: ${adminAlvo.email})`);
+      console.log(`[impersonar] Super Admin ${callerFromDb.id} impersonando org ${organizacao_id} (admin: ${adminAlvo.email})`);
 
       return new Response(
         JSON.stringify({
@@ -217,21 +229,13 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Audit log
-      const { data: superAdmin } = await supabaseAdmin
-        .from("usuarios")
-        .select("id")
-        .eq("auth_id", callerAuthId)
-        .single();
-
-      if (superAdmin) {
-        await supabaseAdmin.from("audit_log").insert({
-          usuario_id: superAdmin.id,
-          acao: "impersonacao_encerrada",
-          entidade: "sessoes_impersonacao",
-          entidade_id: sessao_id,
-        });
-      }
+      // Audit log - usar callerFromDb que já foi validado no início
+      await supabaseAdmin.from("audit_log").insert({
+        usuario_id: callerFromDb.id,
+        acao: "impersonacao_encerrada",
+        entidade: "sessoes_impersonacao",
+        entidade_id: sessao_id,
+      });
 
       return new Response(
         JSON.stringify({ success: true }),

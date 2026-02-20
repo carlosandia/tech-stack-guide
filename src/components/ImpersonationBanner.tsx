@@ -1,51 +1,129 @@
 /**
  * AIDEV-NOTE: Banner fixo de impersonação
- * Exibido quando o usuário está em modo impersonação (detectado via URL params + sessionStorage)
+ * Exibido APENAS quando existe sessão de impersonação VÁLIDA no banco de dados
+ * Validação obrigatória: sessão ativa + não expirada + usuário atual é o admin_alvo
  * Não pode ser fechado - apenas encerrado via logout
+ *
+ * SEGURANÇA: URL params sozinhos NÃO ativam o banner - precisa de sessão válida no BD
  */
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { AlertTriangle, LogOut, Clock } from 'lucide-react'
 
+interface ImpersonationInfo {
+  sessao_id: string
+  org_nome: string
+  timestamp: string
+  expira_em: string
+}
+
 export function ImpersonationBanner() {
-  const [info, setInfo] = useState<{ org_nome: string; timestamp: string } | null>(null)
+  const [info, setInfo] = useState<ImpersonationInfo | null>(null)
   const [timeLeft, setTimeLeft] = useState('')
+  const [validating, setValidating] = useState(true)
 
   useEffect(() => {
-    // Detectar impersonação via URL params na primeira carga
-    const urlParams = new URLSearchParams(window.location.search)
-    const isImpersonation = urlParams.get('impersonation') === 'true'
-    const orgNome = urlParams.get('org_nome')
+    const validateImpersonation = async () => {
+      setValidating(true)
 
-    if (isImpersonation && orgNome) {
-      const data = { org_nome: decodeURIComponent(orgNome), timestamp: new Date().toISOString() }
-      sessionStorage.setItem('impersonation_active', JSON.stringify(data))
-      setInfo(data)
-      // Limpar params da URL sem reload
-      const newUrl = window.location.pathname
-      window.history.replaceState({}, '', newUrl)
-      return
-    }
-
-    // Verificar sessionStorage
-    const stored = sessionStorage.getItem('impersonation_active')
-    if (stored) {
       try {
-        setInfo(JSON.parse(stored))
-      } catch {
+        // 1. Verificar se há sessão de impersonação ativa para o usuário atual
+        const { data: { user } } = await supabase.auth.getUser()
+
+        if (!user) {
+          sessionStorage.removeItem('impersonation_active')
+          setInfo(null)
+          setValidating(false)
+          return
+        }
+
+        // 2. Buscar usuário no banco para obter o ID interno
+        const { data: usuario } = await supabase
+          .from('usuarios')
+          .select('id, organizacao_id')
+          .eq('auth_id', user.id)
+          .single()
+
+        if (!usuario) {
+          sessionStorage.removeItem('impersonation_active')
+          setInfo(null)
+          setValidating(false)
+          return
+        }
+
+        // 3. Verificar se existe sessão de impersonação ATIVA para este usuário como admin_alvo
+        // AIDEV-NOTE: Só super_admin pode criar sessões, então se existe uma sessão válida
+        // onde este usuário é o admin_alvo, significa que foi criada legitimamente
+        const { data: sessao, error: sessaoError } = await supabase
+          .from('sessoes_impersonacao')
+          .select(`
+            id,
+            expira_em,
+            motivo,
+            criado_em,
+            organizacoes_saas:organizacao_id (nome)
+          `)
+          .eq('admin_alvo_id', usuario.id)
+          .eq('ativo', true)
+          .gt('expira_em', new Date().toISOString())
+          .order('criado_em', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        if (sessaoError || !sessao) {
+          // Não há sessão válida - limpar qualquer estado residual
+          sessionStorage.removeItem('impersonation_active')
+          setInfo(null)
+
+          // Limpar URL params se existirem (tentativa de bypass)
+          const urlParams = new URLSearchParams(window.location.search)
+          if (urlParams.get('impersonation') === 'true') {
+            const newUrl = window.location.pathname
+            window.history.replaceState({}, '', newUrl)
+          }
+
+          setValidating(false)
+          return
+        }
+
+        // 4. Sessão válida encontrada - ativar banner
+        const orgNome = (sessao.organizacoes_saas as any)?.nome || 'Organização'
+        const impersonationData: ImpersonationInfo = {
+          sessao_id: sessao.id,
+          org_nome: orgNome,
+          timestamp: sessao.criado_em,
+          expira_em: sessao.expira_em
+        }
+
+        sessionStorage.setItem('impersonation_active', JSON.stringify(impersonationData))
+        setInfo(impersonationData)
+
+        // Limpar URL params após validação bem-sucedida
+        const urlParams = new URLSearchParams(window.location.search)
+        if (urlParams.has('impersonation') || urlParams.has('org_nome')) {
+          const newUrl = window.location.pathname
+          window.history.replaceState({}, '', newUrl)
+        }
+
+      } catch (error) {
+        console.error('[ImpersonationBanner] Erro ao validar sessão:', error)
         sessionStorage.removeItem('impersonation_active')
+        setInfo(null)
+      } finally {
+        setValidating(false)
       }
     }
+
+    validateImpersonation()
   }, [])
 
-  // Timer de tempo restante (1h desde início)
+  // Timer de tempo restante baseado em expira_em do banco
   useEffect(() => {
-    if (!info?.timestamp) return
+    if (!info?.expira_em) return
 
     const interval = setInterval(() => {
-      const start = new Date(info.timestamp).getTime()
-      const expiry = start + 60 * 60 * 1000 // 1h
+      const expiry = new Date(info.expira_em).getTime()
       const remaining = expiry - Date.now()
 
       if (remaining <= 0) {
@@ -60,16 +138,33 @@ export function ImpersonationBanner() {
     }, 1000)
 
     return () => clearInterval(interval)
-  }, [info?.timestamp])
+  }, [info?.expira_em])
 
   const handleEncerrar = async () => {
-    sessionStorage.removeItem('impersonation_active')
-    await supabase.auth.signOut()
-    // Redirecionar para login (Super Admin fará login novamente)
-    window.location.href = '/login'
+    try {
+      // 1. Encerrar sessão no banco de dados
+      if (info?.sessao_id) {
+        await supabase
+          .from('sessoes_impersonacao')
+          .update({
+            ativo: false,
+            encerrado_em: new Date().toISOString()
+          })
+          .eq('id', info.sessao_id)
+      }
+    } catch (error) {
+      console.error('[ImpersonationBanner] Erro ao encerrar sessão:', error)
+    } finally {
+      // 2. Limpar estado local e fazer logout
+      sessionStorage.removeItem('impersonation_active')
+      await supabase.auth.signOut()
+      // Redirecionar para login (Super Admin fará login novamente)
+      window.location.href = '/login'
+    }
   }
 
-  if (!info) return null
+  // Não exibir enquanto valida ou se não há sessão válida
+  if (validating || !info) return null
 
   return (
     <div className="flex-shrink-0 z-[999] bg-amber-500 text-amber-950">

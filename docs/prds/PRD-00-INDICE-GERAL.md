@@ -4,8 +4,8 @@
 |-------|-------|
 | **Autor** | Arquiteto de Produto |
 | **Data de criacao** | 2026-01-31 |
-| **Ultima atualizacao** | 2026-02-03 |
-| **Versao** | v2.14 |
+| **Ultima atualizacao** | 2026-02-09 |
+| **Versao** | v2.16 |
 | **Status** | Em desenvolvimento |
 
 ---
@@ -64,10 +64,11 @@
 
 | PRD | Nome | Status | Dependencias | Descricao |
 |-----|------|--------|--------------|-----------|
-| PRD-11 | Formularios | Pendente | PRD-06 | Builder, Lead Scoring, UTMs |
+| PRD-11 | Caixa de Entrada Email | Rascunho | PRD-06, PRD-08 | Receber, ler e responder emails via IMAP/Gmail API |
 | PRD-12 | Automacoes | Pendente | PRD-07, PRD-10 | Motor de automacao |
 | PRD-13 | Dashboard | Pendente | Todos | Relatorios e metricas |
 | PRD-15 | Feedback/Evolucao | Rascunho | PRD-02, PRD-03, PRD-14 | Botao flutuante feedback, modulo /evolucao Super Admin, notificacoes |
+| PRD-17 | Formularios | Em desenvolvimento | PRD-06 | Builder avancado, Logica Condicional, Progressive Profiling, A/B Testing, Webhooks |
 
 **NOTA:** PRD-14 (Super Admin) foi movido para Fase 0 por ser pre-requisito do bootstrap do sistema.
 
@@ -142,8 +143,8 @@
 │                         FASE 4: AVANÇADO                                    │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│       PRD-11 ──→ PRD-12 ──→ PRD-13 ──→ PRD-15                              │
-│      (Forms)   (Automacoes) (Dashboard) (Feedback)                         │
+│       PRD-11 ──→ PRD-12 ──→ PRD-13 ──→ PRD-15 ──→ PRD-17                   │
+│      (Email)   (Automacoes) (Dashboard) (Feedback) (Forms)                 │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -212,6 +213,7 @@
 - [PRD-10: Tarefas](./PRD-10-TAREFAS.md)
 - [PRD-14: Super Admin](./PRD-14-SUPER-ADMIN.md)
 - [PRD-15: Feedback/Evolucao](./PRD-15-FEEDBACK.md)
+- [PRD-17: Formularios](./PRD-17-FORMULARIOS.md)
 - [Padrao de PRD](../prdpadrao.md)
 - [Arquiteto de Produto](../arquitetodeproduto.md)
 
@@ -234,6 +236,7 @@
 | PRD-10 | v1.0 | 2026-02-03 | Modulo Acompanhamento de Tarefas: visao centralizada, metricas (4 cards), filtros, conclusao rapida, visibilidade por role (Admin ve equipe, Member ve apenas suas) |
 | PRD-14 | v1.2 | 2026-02-03 | RF-012 a RF-019: Detalhes do Tenant (3 tabs), rastreamento de ultimo acesso, relatorios de vendas (15 metricas em 5 categorias) |
 | PRD-15 | v1.0 | 2026-02-03 | Modulo Feedback/Evolucao: botao flutuante para Admin/Member, popover envio (tipo+descricao), modulo /evolucao exclusivo Super Admin, lista feedbacks com filtros, modal detalhes, marcar como resolvido, sistema notificacoes (sino header), 2 novas tabelas (feedbacks, notificacoes), 7 RFs |
+| PRD-17 | v1.0 | 2026-02-09 | Modulo Formularios Backend: 4 tipos (padrao, popup, newsletter, multi-etapas), 16 tabelas, logica condicional, progressive profiling, A/B testing, webhooks com retry, analytics, lead scoring, integracao pipeline, rate limiting + captcha |
 
 ---
 
@@ -266,3 +269,5 @@
 | v2.12 | 2026-02-03 | PRD-15 v1.0: Modulo Feedback/Evolucao - botao flutuante para Admin/Member enviar feedback (bug/sugestao/duvida), popover com tipo e descricao, modulo /evolucao exclusivo Super Admin para gerenciar feedbacks de todos tenants, lista com filtros (empresa/tipo/status), modal detalhes, marcar como resolvido notifica usuario automaticamente, sistema de notificacoes com sino no header, 2 novas tabelas (feedbacks, notificacoes), 7 RFs, integracao com PRD-14 Super Admin |
 | v2.13 | 2026-02-03 | PRD-03 v1.3: Interface de Login (RF-021 a RF-023) - Tela de login com titulo "Informe seus dados abaixo", campos E-mail e Senha obrigatorios, checkbox "Lembrar por 30 dias" (expira refresh token em 30d vs 7d), link "Esqueci minha senha" com fluxo completo de recuperacao (2 telas), links de Politica de Privacidade e Termos de Servico no rodape, especificacoes visuais detalhadas, mensagens de erro em PT-BR, sem opcao de criar conta |
 | v2.14 | 2026-02-03 | **CORRECAO ORDEM DE IMPLEMENTACAO**: PRD-14 (Super Admin) movido para Fase 0 (apos PRD-04) - Super Admin cria tenants e Admins, e pre-requisito do bootstrap do sistema; Usuario seed superadmin@renovedigital.com.br documentado; PRD-05 agora depende de PRD-14; Diagrama de fases atualizado com justificativas |
+| v2.15 | 2026-02-08 | Atualizacoes gerais |
+| v2.16 | 2026-02-09 | **PRD-17 Formularios v1.0**: Modulo completo de formularios backend com 16 tabelas, logica condicional (100 regras como HubSpot), progressive profiling, A/B testing, webhooks com retry, analytics granular, lead scoring, integracao pipeline, 4 tipos de formulario (padrao, popup_saida, newsletter, multi_etapas), 48 requisitos funcionais, comparativo com HubSpot/RD Station |
