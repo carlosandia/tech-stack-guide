@@ -943,6 +943,7 @@ export type Database = {
           criado_em: string
           deletado_em: string | null
           id: string
+          meta_business_name: string | null
           meta_user_email: string | null
           meta_user_id: string | null
           meta_user_name: string | null
@@ -959,6 +960,7 @@ export type Database = {
           criado_em?: string
           deletado_em?: string | null
           id?: string
+          meta_business_name?: string | null
           meta_user_email?: string | null
           meta_user_id?: string | null
           meta_user_name?: string | null
@@ -975,6 +977,7 @@ export type Database = {
           criado_em?: string
           deletado_em?: string | null
           id?: string
+          meta_business_name?: string | null
           meta_user_email?: string | null
           meta_user_id?: string | null
           meta_user_name?: string | null
