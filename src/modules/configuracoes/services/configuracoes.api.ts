@@ -1553,17 +1553,23 @@ export const metaAdsApi = {
 
     if (errPagina) throw errPagina
     const paginaUuid = paginaMeta.id
+    // AIDEV-NOTE: Upsert para reativar formulários previamente removidos (soft delete)
     const { data, error } = await supabase
       .from('formularios_lead_ads')
-      .insert({
-        organizacao_id: orgId,
-        form_id: payload.form_id as string,
-        form_name: (payload.form_name as string) || null,
-        pagina_id: paginaUuid,
-        funil_id: (payload.pipeline_id as string) || null,
-        etapa_destino_id: (payload.etapa_id as string) || null,
-        mapeamento_campos: payload.mapeamento_campos as any,
-      })
+      .upsert(
+        {
+          organizacao_id: orgId,
+          form_id: payload.form_id as string,
+          form_name: (payload.form_name as string) || null,
+          pagina_id: paginaUuid,
+          funil_id: (payload.pipeline_id as string) || null,
+          etapa_destino_id: (payload.etapa_id as string) || null,
+          mapeamento_campos: payload.mapeamento_campos as any,
+          ativo: true,
+          deletado_em: null,
+        },
+        { onConflict: 'organizacao_id,form_id' }
+      )
       .select()
       .single()
     if (error) throw error
