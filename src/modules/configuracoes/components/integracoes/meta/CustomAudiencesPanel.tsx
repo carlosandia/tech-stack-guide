@@ -1,11 +1,12 @@
 /**
  * AIDEV-NOTE: Painel Custom Audiences (Públicos Personalizados)
  * Conforme PRD-08 Seção 4 - Gerenciamento de públicos Meta
+ * Suporta criação de novos públicos e importação de existentes do Meta Ads
  */
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Users, Loader2, RefreshCw, CheckCircle2 } from 'lucide-react'
+import { Plus, Users, Loader2, RefreshCw, CheckCircle2, Download, Search } from 'lucide-react'
 import { toast } from 'sonner'
 import { metaAdsApi } from '../../../services/configuracoes.api'
 import type { CustomAudience } from '../../../services/configuracoes.api'
@@ -18,9 +19,19 @@ const EVENTOS_GATILHO = [
   { value: 'lost', label: 'Oportunidade perdida' },
 ]
 
+interface MetaAudience {
+  id: string
+  name: string
+  approximate_count: number
+}
+
 export function CustomAudiencesPanel() {
   const queryClient = useQueryClient()
   const [showForm, setShowForm] = useState(false)
+  const [showImport, setShowImport] = useState(false)
+  const [importAccountId, setImportAccountId] = useState('')
+  const [metaAudiences, setMetaAudiences] = useState<MetaAudience[]>([])
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [formData, setFormData] = useState({
     audience_name: '',
     ad_account_id: '',
@@ -62,6 +73,56 @@ export function CustomAudiencesPanel() {
     onError: () => toast.error('Erro ao atualizar status'),
   })
 
+  // Buscar audiences do Meta
+  const buscarMeta = useMutation({
+    mutationFn: (adAccountId: string) => metaAdsApi.buscarAudiencesMeta(adAccountId),
+    onSuccess: (result) => {
+      // Filtrar já importados
+      const existingIds = new Set((data?.audiences || []).map((a) => a.audience_id))
+      const filtered = result.audiences.filter((a) => !existingIds.has(a.id))
+      setMetaAudiences(filtered)
+      setSelectedIds(new Set())
+      if (filtered.length === 0 && result.audiences.length > 0) {
+        toast.info('Todos os públicos desta conta já foram importados')
+      }
+    },
+    onError: (err: Error) => toast.error(err.message || 'Erro ao buscar públicos do Meta'),
+  })
+
+  // Importar selecionados
+  const importar = useMutation({
+    mutationFn: () => {
+      const selecionados = metaAudiences
+        .filter((a) => selectedIds.has(a.id))
+        .map((a) => ({ ...a, ad_account_id: importAccountId }))
+      return metaAdsApi.importarAudiences(selecionados)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['meta-ads', 'audiences'] })
+      toast.success(`${selectedIds.size} público(s) importado(s) com sucesso`)
+      setShowImport(false)
+      setMetaAudiences([])
+      setSelectedIds(new Set())
+      setImportAccountId('')
+    },
+    onError: () => toast.error('Erro ao importar públicos'),
+  })
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const formatCount = (n: number) => {
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
+    return n.toString()
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -81,14 +142,101 @@ export function CustomAudiencesPanel() {
             Sincronize contatos do CRM para segmentação no Meta Ads
           </p>
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          Criar Público
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { setShowImport(!showImport); setShowForm(false) }}
+            className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-secondary text-secondary-foreground hover:bg-accent transition-colors"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Importar do Meta
+          </button>
+          <button
+            onClick={() => { setShowForm(!showForm); setShowImport(false) }}
+            className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Criar Público
+          </button>
+        </div>
       </div>
+
+      {/* Painel de importação do Meta */}
+      {showImport && (
+        <div className="border border-border rounded-lg p-4 space-y-4 bg-card">
+          <h4 className="text-sm font-semibold text-foreground">Importar Públicos do Meta Ads</h4>
+          <div className="flex items-end gap-3">
+            <div className="flex-1 space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Conta de Anúncios</label>
+              <input
+                type="text"
+                value={importAccountId}
+                onChange={(e) => setImportAccountId(e.target.value)}
+                placeholder="act_123456789"
+                className="w-full px-3 py-2 text-sm rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+            <button
+              onClick={() => buscarMeta.mutate(importAccountId)}
+              disabled={buscarMeta.isPending || !importAccountId}
+              className="inline-flex items-center gap-1.5 text-xs font-medium px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+            >
+              {buscarMeta.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+              Buscar
+            </button>
+          </div>
+
+          {/* Lista de audiences do Meta */}
+          {metaAudiences.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">{metaAudiences.length} público(s) disponível(eis) para importar</p>
+              <div className="max-h-60 overflow-y-auto space-y-1.5 border border-border rounded-md p-2">
+                {metaAudiences.map((aud) => (
+                  <label
+                    key={aud.id}
+                    className="flex items-center gap-3 p-2 rounded-md hover:bg-accent cursor-pointer transition-colors"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(aud.id)}
+                      onChange={() => toggleSelect(aud.id)}
+                      className="h-4 w-4 rounded border-input text-primary focus:ring-ring"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{aud.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        ID: {aud.id} • ~{formatCount(aud.approximate_count)} usuários
+                      </p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => importar.mutate()}
+                  disabled={importar.isPending || selectedIds.size === 0}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+                >
+                  {importar.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                  Importar {selectedIds.size > 0 ? `(${selectedIds.size})` : ''} Selecionados
+                </button>
+                <button
+                  onClick={() => { setShowImport(false); setMetaAudiences([]); setSelectedIds(new Set()) }}
+                  className="text-xs font-medium px-3 py-2 rounded-md text-muted-foreground hover:bg-accent transition-colors"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Estado vazio após busca */}
+          {buscarMeta.isSuccess && metaAudiences.length === 0 && (
+            <p className="text-xs text-muted-foreground text-center py-4">
+              Nenhum público novo encontrado nesta conta.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Formulário de criação */}
       {showForm && (
@@ -150,12 +298,12 @@ export function CustomAudiencesPanel() {
       )}
 
       {/* Lista de Audiences */}
-      {audiences.length === 0 && !showForm ? (
+      {audiences.length === 0 && !showForm && !showImport ? (
         <div className="border border-dashed border-border rounded-lg p-8 text-center">
           <Users className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
           <p className="text-sm font-medium text-foreground mb-1">Nenhum público criado</p>
           <p className="text-xs text-muted-foreground">
-            Crie públicos personalizados para sincronizar contatos com o Meta Ads
+            Crie públicos personalizados ou importe existentes do Meta Ads
           </p>
         </div>
       ) : (

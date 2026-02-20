@@ -1683,6 +1683,33 @@ export const metaAdsApi = {
     if (error) throw error
     return data
   },
+  // AIDEV-NOTE: Busca públicos personalizados existentes na conta Meta Ads via Edge Function
+  buscarAudiencesMeta: async (adAccountId: string) => {
+    const { data, error } = await supabase.functions.invoke('meta-audiences', {
+      body: { action: 'list', ad_account_id: adAccountId },
+    })
+    if (error) throw new Error(error.message || 'Erro ao buscar públicos do Meta')
+    if (data?.error) throw new Error(data.error)
+    return data as { audiences: Array<{ id: string; name: string; approximate_count: number }> }
+  },
+  // AIDEV-NOTE: Importa públicos selecionados do Meta para a tabela local
+  importarAudiences: async (audiences: Array<{ id: string; name: string; approximate_count: number; ad_account_id: string }>) => {
+    const orgId = await getOrganizacaoId()
+    const rows = audiences.map((a) => ({
+      organizacao_id: orgId,
+      audience_id: a.id,
+      audience_name: a.name,
+      ad_account_id: a.ad_account_id,
+      total_usuarios: a.approximate_count,
+      tipo_sincronizacao: 'manual',
+    }))
+    const { data, error } = await supabase
+      .from('custom_audiences_meta')
+      .insert(rows)
+      .select()
+    if (error) throw error
+    return data
+  },
 }
 
 // =====================================================
