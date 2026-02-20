@@ -1,51 +1,43 @@
 
 
-## Edge Function `meta-leadgen-webhook` + Contagem de Leads
+## Correção: Constraint Unique + Token de Página
 
-### Contexto
-Atualmente nao existe nenhum endpoint para receber webhooks `leadgen` do Meta. Quando um lead preenche um formulario Lead Ads no Facebook, o Meta envia um POST para uma URL configurada, mas nao ha nada no sistema para recebe-lo. A contagem "Leads: 0" no card reflete isso -- nunca nenhum lead foi processado.
+### Problema
+A tabela `paginas_meta` não possui nenhuma constraint unique. O `upsert` na função `meta-sync` usa `onConflict: "organizacao_id,page_id"`, mas essa constraint não existe no banco. Resultado: o upsert falha silenciosamente e o campo `page_access_token_encrypted` fica `null`. Sem esse token, o webhook `meta-leadgen-webhook` não consegue buscar dados do lead na Graph API.
 
-### O que sera construido
+Dados atuais confirmam o problema:
+- `page_access_token_encrypted` = **null**
+- Nenhuma constraint na tabela
 
-**1. Nova Edge Function `meta-leadgen-webhook`**
+### Plano de Ação
 
-Endpoint que recebe webhooks do Meta Lead Ads com duas responsabilidades:
+**Passo 1 - Criar constraint unique no banco**
 
-- **GET** (Verificacao): Responde ao challenge de verificacao do Meta usando `hub.verify_token` e `hub.challenge`
-- **POST** (Processamento de leads): Recebe eventos `leadgen`, busca dados completos do lead via Graph API, cria contato + oportunidade no CRM
+Executar SQL para adicionar a constraint:
 
-Fluxo do POST:
-1. Recebe payload `{ entry: [{ changes: [{ field: "leadgen", value: { form_id, leadgen_id, page_id } }] }] }`
-2. Busca a pagina em `paginas_meta` pelo `page_id` para obter `page_access_token_encrypted` e `organizacao_id`
-3. Busca configuracao em `formularios_lead_ads` pelo `form_id` e `organizacao_id` para obter `funil_id`, `etapa_destino_id` e `mapeamento_campos`
-4. Chama Graph API `GET /{leadgen_id}?access_token={page_token}` para obter os dados do lead (nome, email, telefone, etc.)
-5. Aplica o mapeamento de campos para extrair dados de contato
-6. Cria ou atualiza contato em `contatos`
-7. Cria oportunidade em `oportunidades` na pipeline/etapa configurada
-8. Incrementa `total_leads_recebidos` e atualiza `ultimo_lead_recebido` em `formularios_lead_ads`
+```sql
+ALTER TABLE paginas_meta
+ADD CONSTRAINT paginas_meta_org_page_unique UNIQUE (organizacao_id, page_id);
+```
 
-**2. Configuracao em `config.toml`**
+Isso precisa ser feito via **Cloud View > Run SQL** ou diretamente pelo Supabase Dashboard.
 
-Adicionar `verify_jwt = false` pois o webhook e chamado pelo Meta (sem JWT).
+**Passo 2 - Re-sincronizar**
 
-**3. Verify Token**
+Após criar a constraint, clicar em "Sincronizar" no card da integração Meta. O `meta-sync` vai executar o upsert corretamente e salvar o `page_access_token_encrypted`.
 
-Usar um token fixo armazenado em `configuracoes_globais` (campo `meta_webhook_verify_token`) ou como secret. O usuario configura esse mesmo token no Meta Developer Portal.
+**Passo 3 - Validar**
 
-### Detalhes Tecnicos
+Confirmar que o campo `page_access_token_encrypted` foi preenchido na tabela `paginas_meta`.
 
-| Arquivo | Alteracao |
-|---------|-----------|
-| `supabase/functions/meta-leadgen-webhook/index.ts` | Nova Edge Function completa |
-| `supabase/config.toml` | Adicionar `[functions.meta-leadgen-webhook]` com `verify_jwt = false` |
+### Detalhes Técnicos
 
-**Fluxo de mapeamento de campos:**
-O `mapeamento_campos` em `formularios_lead_ads` contem um array `[{ form_field, crm_field }]`. Os campos do lead retornados pela Graph API vem como `field_data: [{ name, values }]`. O sistema cruza `form_field` com `name` e aplica o valor ao campo CRM correspondente (ex: `crm_field = "nome"` vai para `contatos.nome`).
+| Ação | Detalhe |
+|------|---------|
+| Tabela | `paginas_meta` |
+| Constraint | `UNIQUE (organizacao_id, page_id)` |
+| Impacto | Permite que o `upsert` com `onConflict` funcione corretamente |
+| Arquivos alterados | Nenhum arquivo de código -- apenas DDL no banco |
 
-**Contagem de leads:**
-Apos processar com sucesso, a function incrementa `total_leads_recebidos` e seta `ultimo_lead_recebido = NOW()` na tabela `formularios_lead_ads`. Isso faz o "Leads: 0" do card atualizar automaticamente.
-
-**Seguranca:**
-- Sem JWT (webhook externo), mas valida a origem pelo `page_id` existir em `paginas_meta`
-- Opcionalmente valida assinatura HMAC do Meta (usando `X-Hub-Signature-256` header e o `app_secret`)
+Nenhuma alteração de código é necessária. O `meta-sync` já usa `onConflict: "organizacao_id,page_id"` corretamente -- só falta a constraint no banco para que funcione.
 
