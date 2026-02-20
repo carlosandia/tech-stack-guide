@@ -229,6 +229,12 @@ function PlataformaDetails({ integracao }: { integracao: Integracao }) {
             <p className="text-xs text-foreground">{integracao.meta_user_name}</p>
           </div>
         )}
+        {integracao.meta_page_name && (
+          <div className="flex items-center gap-1.5">
+            <BarChart3 className="w-3 h-3 text-muted-foreground" />
+            <p className="text-xs text-foreground">Página: {integracao.meta_page_name}</p>
+          </div>
+        )}
         {integracao.meta_user_email && (
           <div className="flex items-center gap-1.5">
             <Mail className="w-3 h-3 text-muted-foreground" />
