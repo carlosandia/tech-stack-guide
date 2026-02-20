@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -38,18 +38,25 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { action, ad_account_id, audience_name } = body;
+    const { action, ad_account_id, audience_name, audience_id } = body;
 
-    if (!action || !ad_account_id) {
+    if (!action) {
       return new Response(
-        JSON.stringify({ error: "Parâmetros inválidos. Envie { action: 'list'|'create', ad_account_id: 'act_xxx' }" }),
+        JSON.stringify({ error: "Parâmetro 'action' é obrigatório" }),
         { status: 400, headers: jsonHeaders }
       );
     }
 
-    if (!["list", "create"].includes(action)) {
+    if (!["list", "create", "delete"].includes(action)) {
       return new Response(
-        JSON.stringify({ error: "Action inválida. Use 'list' ou 'create'" }),
+        JSON.stringify({ error: "Action inválida. Use 'list', 'create' ou 'delete'" }),
+        { status: 400, headers: jsonHeaders }
+      );
+    }
+
+    if (["list", "create"].includes(action) && !ad_account_id) {
+      return new Response(
+        JSON.stringify({ error: "ad_account_id é obrigatório para list/create" }),
         { status: 400, headers: jsonHeaders }
       );
     }
@@ -121,9 +128,13 @@ Deno.serve(async (req) => {
 
       if (!createResponse.ok || createData.error) {
         const errorMsg = createData.error?.message || "Erro ao criar público no Meta";
+        const isPermError = errorMsg.toLowerCase().includes("permission");
+        const hint = isPermError
+          ? " Tente reconectar sua conta Meta em Configurações > Conexões para renovar as permissões."
+          : "";
         console.error(`[meta-audiences] Erro ao criar: ${errorMsg}`);
         return new Response(
-          JSON.stringify({ error: errorMsg }),
+          JSON.stringify({ error: errorMsg + hint }),
           { status: 400, headers: jsonHeaders }
         );
       }
@@ -132,6 +143,42 @@ Deno.serve(async (req) => {
 
       return new Response(
         JSON.stringify({ audience_id: createData.id, name: audience_name }),
+        { status: 200, headers: jsonHeaders }
+      );
+    }
+
+    // === ACTION: DELETE ===
+    if (action === "delete") {
+      if (!audience_id) {
+        return new Response(
+          JSON.stringify({ error: "audience_id é obrigatório para deletar um público" }),
+          { status: 400, headers: jsonHeaders }
+        );
+      }
+
+      console.log(`[meta-audiences] Deletando audience ${audience_id}, org ${organizacaoId}`);
+
+      const deleteUrl = `https://graph.facebook.com/v21.0/${audience_id}?access_token=${encodeURIComponent(accessToken)}`;
+      const deleteResponse = await fetch(deleteUrl, { method: "DELETE" });
+      const deleteData = await deleteResponse.json();
+
+      if (!deleteResponse.ok || deleteData.error) {
+        const errorMsg = deleteData.error?.message || "Erro ao deletar público no Meta";
+        const isPermError = errorMsg.toLowerCase().includes("permission");
+        const hint = isPermError
+          ? " Tente reconectar sua conta Meta em Configurações > Conexões para renovar as permissões."
+          : "";
+        console.error(`[meta-audiences] Erro ao deletar: ${errorMsg}`);
+        return new Response(
+          JSON.stringify({ error: errorMsg + hint }),
+          { status: 400, headers: jsonHeaders }
+        );
+      }
+
+      console.log(`[meta-audiences] Audience ${audience_id} deletada com sucesso`);
+
+      return new Response(
+        JSON.stringify({ success: true }),
         { status: 200, headers: jsonHeaders }
       );
     }

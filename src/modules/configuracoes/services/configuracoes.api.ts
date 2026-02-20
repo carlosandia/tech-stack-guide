@@ -1679,6 +1679,37 @@ export const metaAdsApi = {
     if (error) throw error
     return data
   },
+  // AIDEV-NOTE: Remove audience do Meta via Edge Function e faz soft delete no banco
+  removerAudience: async (id: string) => {
+    // 1. Buscar dados do audience
+    const { data: aud, error: audErr } = await supabase
+      .from('custom_audiences_meta')
+      .select('audience_id, ad_account_id')
+      .eq('id', id)
+      .single()
+    if (audErr || !aud) throw new Error('Audience não encontrado')
+
+    // 2. Se tem audience_id real (não pending_), deletar no Meta
+    if (aud.audience_id && !aud.audience_id.startsWith('pending_')) {
+      const { data: metaResult, error: metaError } = await supabase.functions.invoke('meta-audiences', {
+        body: {
+          action: 'delete',
+          audience_id: aud.audience_id,
+          ad_account_id: aud.ad_account_id,
+        },
+      })
+      if (metaError) throw new Error(metaError.message || 'Erro ao remover público do Meta')
+      if (metaResult?.error) throw new Error(metaResult.error)
+    }
+
+    // 3. Soft delete no banco
+    const { error } = await supabase
+      .from('custom_audiences_meta')
+      .update({ deletado_em: new Date().toISOString() })
+      .eq('id', id)
+    if (error) throw error
+    return { success: true }
+  },
   atualizarAudience: async (id: string, payload: Record<string, unknown>) => {
     const { data, error } = await supabase
       .from('custom_audiences_meta')
