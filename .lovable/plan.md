@@ -1,84 +1,90 @@
 
 
-## Corrigir Criacao de Publico Personalizado no Meta
+## Correções: Permissão e Remoção de Públicos Meta
 
-### Problema
+### Problema 1: "Permissions error" ao criar público
 
-Ao clicar em "Criar Publico", o sistema salva apenas localmente no banco de dados com um `audience_id` temporario (`pending_xxx`). A chamada real para a Meta Graph API nunca acontece, por isso o publico nao aparece no Meta Ads Manager.
+O escopo `ads_management` já está configurado no fluxo OAuth (linha 112 do `meta-auth/index.ts`). Porém, se a conta Meta foi conectada **antes** de adicionar esse escopo, o token salvo não inclui a permissão. A solução é **reconectar** a conta Meta para gerar um novo token.
 
-### Solucao
+**Ação necessária do usuário**: Desconectar e reconectar a conta Meta nas configurações de integração para renovar o token com `ads_management`.
 
-Adicionar a action `create` na Edge Function `meta-audiences` para chamar a API do Meta e criar o publico de verdade, e atualizar o frontend para usar essa Edge Function.
+**Melhoria no código**: Melhorar a mensagem de erro na Edge Function para sugerir a reconexão quando o Meta retornar "Permissions error".
 
-### Alteracoes
+### Problema 2: Adicionar botão "Remover" que deleta no Meta
 
-#### 1. Edge Function `meta-audiences/index.ts` - Adicionar action "create"
+A API Meta suporta deletar Custom Audiences via `DELETE /{audience_id}?access_token=xxx`. Vamos implementar:
 
-Expandir a Edge Function existente para suportar duas actions:
+### Alterações
 
-- `action: "list"` (existente, sem mudancas)
-- `action: "create"` (nova) - Chama `POST https://graph.facebook.com/v21.0/act_{accountId}/customaudiences` com:
-  - `name`: nome do publico
-  - `subtype`: `CUSTOM`
-  - `customer_file_source`: `USER_PROVIDED_ONLY`
-  - `access_token`: token da conexao Meta
+#### 1. Edge Function `meta-audiences/index.ts` - Adicionar action "delete"
 
-Retorna o `audience_id` real criado pelo Meta.
+- Aceitar `action: "delete"` com parametro `audience_id`
+- Chamar `DELETE https://graph.facebook.com/v21.0/{audience_id}?access_token=xxx`
+- Retornar sucesso ou erro
+- Atualizar validacao para aceitar `["list", "create", "delete"]`
 
-#### 2. Service `configuracoes.api.ts` - Atualizar `criarAudience`
+#### 2. Service `configuracoes.api.ts` - Adicionar `removerAudience`
 
-Em vez de inserir diretamente no banco com `pending_`, a funcao vai:
+Nova funcao que:
+1. Busca o audience do banco (para obter `audience_id` e `ad_account_id`)
+2. Invoca `meta-audiences` com `action: "delete"` para remover no Meta
+3. Faz soft delete no banco (`deletado_em = now()`)
+4. Se o audience tiver ID `pending_`, apenas remove localmente sem chamar o Meta
 
-1. Invocar `meta-audiences` com `action: "create"`, passando `audience_name` e `ad_account_id`
-2. Receber o `audience_id` real do Meta
-3. Inserir no banco com o `audience_id` real retornado pelo Meta
-4. Se a chamada ao Meta falhar, nao insere no banco e mostra o erro ao usuario
+#### 3. UI `CustomAudiencesPanel.tsx` - Adicionar botão "Remover"
 
-#### 3. UI `CustomAudiencesPanel.tsx` - Sem mudancas estruturais
+- Novo botão vermelho "Remover" ao lado de "Desativar/Ativar"
+- Dialogo de confirmacao antes de remover ("Isso removerá o público tanto do CRM quanto do Meta Ads. Deseja continuar?")
+- Mutation para chamar `removerAudience`
 
-O fluxo visual ja esta correto. A unica mudanca comportamental e que agora o publico criado tera um `audience_id` real (ex: `120241651347460787`) em vez de `pending_xxx`, e o botao "Sincronizar Agora" estara habilitado imediatamente.
+#### 4. Melhoria na mensagem de erro de permissão
 
-### Detalhes tecnicos
-
-**Meta Graph API - Criar Custom Audience:**
-
-```text
-POST https://graph.facebook.com/v21.0/act_{AD_ACCOUNT_ID}/customaudiences
-
-Parametros:
-- name: "Nome do Publico"
-- subtype: "CUSTOM"
-- customer_file_source: "USER_PROVIDED_ONLY"
-- access_token: {token}
-
-Resposta:
-{ "id": "120241651347460787" }
-```
-
-**Edge Function - Nova logica para action "create":**
-
-```text
-Recebe: { action: "create", ad_account_id: "act_xxx", audience_name: "Meu Publico" }
-
-1. Autentica usuario
-2. Busca organizacao_id
-3. Busca access_token de conexoes_meta
-4. POST para Meta API /customaudiences
-5. Retorna { audience_id: "120241651347460787", name: "Meu Publico" }
-```
-
-**Service - Nova logica de criarAudience:**
-
-```text
-1. Invoca supabase.functions.invoke('meta-audiences', { body: { action: 'create', ... } })
-2. Se sucesso, insere no banco com audience_id real
-3. Se erro, lanca excecao (toast de erro ja existe no componente)
-```
+Na Edge Function, quando o Meta retornar "Permissions error", adicionar sugestão:
+"Erro de permissão. Tente reconectar sua conta Meta em Configurações > Conexões para renovar as permissões."
 
 ### Arquivos afetados
 
-| Arquivo | Alteracao |
+| Arquivo | Alteração |
 |---------|-----------|
-| `supabase/functions/meta-audiences/index.ts` | Adicionar action "create" com POST para Meta API |
-| `src/modules/configuracoes/services/configuracoes.api.ts` | Atualizar criarAudience para invocar Edge Function primeiro |
+| `supabase/functions/meta-audiences/index.ts` | Adicionar action "delete", melhorar msg de erro |
+| `src/modules/configuracoes/services/configuracoes.api.ts` | Adicionar `removerAudience` |
+| `src/modules/configuracoes/components/integracoes/meta/CustomAudiencesPanel.tsx` | Botão "Remover" com confirmação |
+
+### Detalhes técnicos
+
+**Meta Graph API - Deletar Custom Audience:**
+
+```text
+DELETE https://graph.facebook.com/v21.0/{AUDIENCE_ID}?access_token={TOKEN}
+
+Resposta sucesso: { "success": true }
+```
+
+**Edge Function - action "delete":**
+
+```text
+Recebe: { action: "delete", ad_account_id: "act_xxx", audience_id: "120241651347460787" }
+
+1. Autentica usuario
+2. Busca access_token
+3. DELETE para Meta API /{audience_id}
+4. Retorna { success: true }
+```
+
+**Service - removerAudience:**
+
+```text
+1. Busca audience do banco por ID interno
+2. Se audience_id nao comeca com "pending_", invoca meta-audiences com action "delete"
+3. Faz soft delete: update deletado_em = now()
+4. Invalida query cache
+```
+
+### Sobre reconexão
+
+Apos implementar as mudanças, o usuario deve:
+1. Ir em Configurações > Conexões
+2. Desconectar a conta Meta
+3. Reconectar - o novo token incluirá `ads_management`
+4. Testar criação do público novamente
 
