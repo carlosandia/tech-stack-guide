@@ -70,7 +70,10 @@ export function CapiConfigPanel() {
         toast.error('erro' in data && data.erro ? data.erro : 'Falha no envio do evento de teste')
       }
     },
-    onError: () => toast.error('Erro ao testar Conversions API'),
+    onError: (err: Error) => {
+      const msg = err.message || 'Erro ao testar Conversions API'
+      toast.error(msg, { duration: msg.length > 100 ? 12000 : 5000 })
+    },
   })
 
   const toggleEvento = (key: string) => {

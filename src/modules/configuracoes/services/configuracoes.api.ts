@@ -1630,6 +1630,14 @@ export const metaAdsApi = {
       method: 'POST',
     })
     if (error) {
+      // AIDEV-NOTE: Extrair mensagem do body JSON quando SDK captura como FunctionsHttpError
+      const context = (error as any)?.context
+      if (context?.body) {
+        try {
+          const parsed = typeof context.body === 'string' ? JSON.parse(context.body) : context.body
+          if (parsed?.erro) return { sucesso: false, erro: parsed.erro }
+        } catch (_) { /* fallback abaixo */ }
+      }
       console.error('[CAPI] Erro ao testar:', error)
       return { sucesso: false, erro: error.message }
     }

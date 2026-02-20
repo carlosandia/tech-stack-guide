@@ -150,7 +150,14 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     } else {
-      const errorMsg = metaResult.error?.message || 'Erro desconhecido ao enviar evento'
+      const metaError = metaResult.error || {}
+      let errorMsg = metaError.error_user_msg || metaError.message || 'Erro desconhecido ao enviar evento'
+      
+      // AIDEV-NOTE: Detectar quando o Pixel ID é inválido (provavelmente é o Ad Account ID)
+      if (metaError.code === 100 || errorMsg.includes('does not exist') || errorMsg.includes('does not support this operation')) {
+        errorMsg = `O Pixel ID "${pixelId}" não é válido. Verifique se você inseriu o ID do Pixel (encontrado em Meta Events Manager > Data Sources) e não o ID da Conta de Anúncios. O Pixel ID correto pode ser encontrado em: https://business.facebook.com/events_manager`
+      }
+      
       return new Response(JSON.stringify({
         sucesso: false,
         erro: errorMsg,
