@@ -2,6 +2,7 @@ import { useState, useEffect, forwardRef } from 'react'
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/providers/AuthProvider'
 import { useBlockedRedirect } from '@/hooks/useBlockedRedirect'
+import { preloadCommonRoutes } from '@/shared/utils/preload'
 import { AppToolbarProvider, useAppToolbar } from '../contexts/AppToolbarContext'
 import { FeedbackButton } from '@/modules/feedback/components/FeedbackButton'
 import { NotificacoesSino } from '@/modules/feedback/components/NotificacoesSino'
@@ -143,6 +144,12 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
   useEffect(() => {
     localStorage.setItem('crm_last_route', location.pathname)
   }, [location.pathname])
+
+  // AIDEV-NOTE: Precarregar rotas comuns em background apos render inicial
+  // PRD: melhorias-performance.md - PARTE 5, Fase 3
+  useEffect(() => {
+    preloadCommonRoutes()
+  }, [])
 
   useBlockedRedirect()
 

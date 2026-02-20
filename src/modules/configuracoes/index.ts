@@ -1,25 +1,30 @@
 /**
- * AIDEV-NOTE: Barrel exports do módulo de Configurações
- * Conforme PRD-05
+ * AIDEV-NOTE: Barrel exports MINIMOS para modulo de Configuracoes
+ * PRD: melhorias-performance.md - PARTE 5, Fase 2
+ *
+ * Pages sao carregadas via lazy loading direto em App.tsx
+ * Aqui exportamos apenas o que e usado POR OUTROS MODULOS
+ *
+ * REGRA: Nao exportar componentes aqui - importar diretamente do arquivo
+ * Isso permite melhor tree-shaking e chunks menores
  */
 
-// Layout
-export { ConfiguracoesLayout } from './layouts/ConfiguracoesLayout'
+// Hooks compartilhados (usados por outros modulos)
+export { useUsuarios } from './hooks/useEquipe'
+export { useCampos, useTodosCampos, useCriarCampo } from './hooks/useCampos'
+export { useConfigCard } from './hooks/useRegras'
+export { useMetasEmpresa, useMetasIndividuais, useRanking } from './hooks/useMetas'
 
-// Pages
-export { CamposPage } from './pages/CamposPage'
-export { ProdutosPage } from './pages/ProdutosPage'
-export { MotivosPage } from './pages/MotivosPage'
-export { TarefasTemplatesPage } from './pages/TarefasTemplatesPage'
-export { EtapasTemplatesPage } from './pages/EtapasTemplatesPage'
-export { RegrasPage } from './pages/RegrasPage'
-export { ConfigCardPage } from './pages/ConfigCardPage'
-export { ConexoesPage } from './pages/ConexoesPage'
-export { WebhooksEntradaPage } from './pages/WebhooksEntradaPage'
-export { WebhooksSaidaPage } from './pages/WebhooksSaidaPage'
-export { MembrosPage } from './pages/MembrosPage'
-export { EquipesPage } from './pages/EquipesPage'
-export { PerfisPermissaoPage } from './pages/PerfisPermissaoPage'
-export { MetasPage } from './pages/MetasPage'
-export { ConfigGeralPage } from './pages/ConfigGeralPage'
-export { StubPage } from './pages/StubPage'
+// Types compartilhados
+export type {
+  CampoCustomizado,
+  Entidade,
+  MetaComProgresso,
+  RankingItem,
+  CriarCampoPayload,
+  Usuario,
+} from './services/configuracoes.api'
+
+// Schemas compartilhados
+export { tipoCampoOptions } from './schemas/campos.schema'
+export { getMetricaLabel, getMetricaUnidade } from './schemas/metas.schema'
