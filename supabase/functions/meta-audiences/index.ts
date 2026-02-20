@@ -110,6 +110,27 @@ Deno.serve(async (req) => {
         );
       }
 
+      // Verificar permissões do token antes de criar
+      const permUrl = `https://graph.facebook.com/v21.0/me/permissions?access_token=${encodeURIComponent(accessToken)}`;
+      const permRes = await fetch(permUrl);
+      const permData = await permRes.json();
+      const perms = (permData.data || []) as Array<{ permission: string; status: string }>;
+      const granted = perms.filter((p) => p.status === "granted").map((p) => p.permission);
+      const adsManagement = perms.find((p) => p.permission === "ads_management");
+
+      console.log(`[meta-audiences] Permissões do token: ${granted.join(", ")}`);
+
+      if (!adsManagement || adsManagement.status !== "granted") {
+        console.error(`[meta-audiences] Token NÃO tem ads_management. Concedidas: ${granted.join(", ")}`);
+        return new Response(
+          JSON.stringify({
+            error: "Seu token Meta não possui a permissão 'ads_management'. Verifique se a permissão está habilitada no Meta Developer Portal (App > Permissões e Recursos) e reconecte a conta em Configurações > Conexões.",
+            permissions_granted: granted,
+          }),
+          { status: 400, headers: jsonHeaders }
+        );
+      }
+
       console.log(`[meta-audiences] Criando audience "${audience_name}" na conta act_${accountId}, org ${organizacaoId}`);
 
       const createUrl = `https://graph.facebook.com/v21.0/act_${accountId}/customaudiences`;
@@ -128,11 +149,11 @@ Deno.serve(async (req) => {
 
       if (!createResponse.ok || createData.error) {
         const errorMsg = createData.error?.message || "Erro ao criar público no Meta";
+        console.error(`[meta-audiences] Erro ao criar:`, JSON.stringify(createData.error));
         const isPermError = errorMsg.toLowerCase().includes("permission");
         const hint = isPermError
           ? " Tente reconectar sua conta Meta em Configurações > Conexões para renovar as permissões."
           : "";
-        console.error(`[meta-audiences] Erro ao criar: ${errorMsg}`);
         return new Response(
           JSON.stringify({ error: errorMsg + hint }),
           { status: 400, headers: jsonHeaders }
