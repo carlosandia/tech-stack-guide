@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
     const accountId = ad_account_id.replace(/^act_/, "");
 
     // Chamar Graph API do Meta
-    const metaUrl = `https://graph.facebook.com/v21.0/act_${accountId}/customaudiences?fields=id,name,approximate_count&limit=100&access_token=${encodeURIComponent(accessToken)}`;
+    const metaUrl = `https://graph.facebook.com/v21.0/act_${accountId}/customaudiences?fields=id,name,approximate_count_lower_bound,approximate_count_upper_bound&limit=100&access_token=${encodeURIComponent(accessToken)}`;
 
     console.log(`[meta-audiences] Buscando audiences para conta act_${accountId}, org ${organizacaoId}`);
 
@@ -109,7 +109,7 @@ Deno.serve(async (req) => {
     const audiences = (metaData.data || []).map((a: any) => ({
       id: a.id,
       name: a.name,
-      approximate_count: a.approximate_count || 0,
+      approximate_count: a.approximate_count_lower_bound || 0,
     }));
 
     console.log(`[meta-audiences] Retornando ${audiences.length} audiences`);
