@@ -296,12 +296,10 @@ export function ConexaoCard({
           {conectado && integracao && (
             <div className="space-y-2 mb-3">
               <PlataformaDetails integracao={integracao} />
-              {plataforma !== 'meta_ads' && (
-                <p className="text-xs text-foreground">
-                  <span className="text-muted-foreground">Último sync: </span>
-                  {formatDate(integracao.ultimo_sync)}
-                </p>
-              )}
+              <p className="text-xs text-foreground">
+                <span className="text-muted-foreground">Último sync: </span>
+                {formatDate(integracao.ultimo_sync)}
+              </p>
               {integracao.ultimo_erro && (
                 <p className="text-xs text-destructive truncate">
                   <span className="text-muted-foreground">Erro: </span>
