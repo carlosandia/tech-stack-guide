@@ -1659,7 +1659,20 @@ export const metaAdsApi = {
       },
     })
 
-    if (metaError) throw new Error(metaError.message || 'Erro ao criar público no Meta')
+    // AIDEV-NOTE: Supabase SDK pode retornar o erro no metaError (status != 2xx) ou no metaResult.error
+    if (metaError) {
+      // Tentar extrair mensagem do body JSON quando o SDK captura como FunctionsHttpError
+      const context = (metaError as any)?.context
+      if (context?.body) {
+        try {
+          const parsed = typeof context.body === 'string' ? JSON.parse(context.body) : context.body
+          if (parsed?.error) throw new Error(parsed.error)
+        } catch (e) {
+          if (e instanceof Error && e.message !== metaError.message) throw e
+        }
+      }
+      throw new Error(metaError.message || 'Erro ao criar público no Meta')
+    }
     if (metaResult?.error) throw new Error(metaResult.error)
     if (!metaResult?.audience_id) throw new Error('Meta não retornou o ID do público criado')
 
