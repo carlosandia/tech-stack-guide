@@ -1,51 +1,66 @@
 
-## Corrigir "Permissions error" ao Criar Publico no Meta
 
-### Causa raiz
+## Diagnosticar e Corrigir "Permissions error" ao Criar Publico Meta
 
-A URL de autorizacao OAuth do Meta (`meta-auth/index.ts`) nao inclui o parametro `auth_type=rerequest`. Sem ele, quando o usuario reconecta a conta Meta, o Facebook **reutiliza as permissoes ja autorizadas anteriormente** e nao solicita as novas (como `ads_management`). O token gerado continua sem a permissao necessaria para criar Custom Audiences.
+### Causa raiz identificada
 
-### Correcao
+O callback salvou o token com sucesso (log de 00:59:44), mas ao criar audience (01:00:10) o Meta retorna "Permissions error". Isso significa que o token salvo **nao possui a permissao `ads_management` efetivamente concedida**, mesmo que ela esteja listada nos escopos do OAuth.
 
-Adicionar `&auth_type=rerequest` na URL OAuth em `supabase/functions/meta-auth/index.ts` (linha 127). Isso forca o Meta a exibir novamente a tela de permissoes, garantindo que todos os escopos listados sejam solicitados ao usuario.
+Possiveis causas:
+- O app Meta nao tem `ads_management` habilitado nas "Permissoes e Recursos" do Developer Portal
+- O usuario nao aceitou a permissao na tela do OAuth (pode ter desmarcado)
+- O app esta em modo de desenvolvimento e o usuario nao tem role no app
+
+### Solucao
+
+Adicionar **verificacao de permissoes do token** na Edge Function `meta-audiences` antes de tentar criar o audience. Isso vai:
+1. Chamar `GET /me/permissions` para verificar quais permissoes o token realmente tem
+2. Se `ads_management` nao estiver concedida, retornar mensagem clara orientando o usuario
+3. Logar o erro completo do Meta (code, type, fbtrace_id) para debugging futuro
 
 ### Arquivo afetado
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `supabase/functions/meta-auth/index.ts` | Adicionar `&auth_type=rerequest` na URL OAuth |
+| `supabase/functions/meta-audiences/index.ts` | Adicionar verificacao de permissoes antes do create, logar erro completo |
 
 ### Detalhes tecnicos
 
-**Antes (linha 122-127):**
+**1. Verificacao de permissoes (antes do create):**
 
 ```text
-const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?` +
-  `client_id=...` +
-  `&redirect_uri=...` +
-  `&state=...` +
-  `&scope=...` +
-  `&response_type=code`;
+// Antes de criar, verificar se o token tem ads_management
+const permUrl = `https://graph.facebook.com/v21.0/me/permissions?access_token=${accessToken}`;
+const permRes = await fetch(permUrl);
+const permData = await permRes.json();
+const perms = permData.data || [];
+const adsManagement = perms.find(p => p.permission === 'ads_management');
+
+if (!adsManagement || adsManagement.status !== 'granted') {
+  // Listar permissoes concedidas para debug
+  const granted = perms.filter(p => p.status === 'granted').map(p => p.permission);
+  console.error(`[meta-audiences] Token nao tem ads_management. Permissoes: ${granted.join(', ')}`);
+  return Response com erro:
+    "Seu token Meta nao possui a permissao 'ads_management'. 
+     Verifique se a permissao esta habilitada no Meta Developer Portal 
+     (App > Permissoes e Recursos) e reconecte a conta."
+}
 ```
 
-**Depois:**
+**2. Log completo do erro Meta:**
 
 ```text
-const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?` +
-  `client_id=...` +
-  `&redirect_uri=...` +
-  `&state=...` +
-  `&scope=...` +
-  `&response_type=code` +
-  `&auth_type=rerequest`;
+// Ao logar erro, incluir code, type e fbtrace_id
+console.error(`[meta-audiences] Erro ao criar:`, JSON.stringify(createData.error));
 ```
 
-O parametro `auth_type=rerequest` e documentado pela Meta para forcar a re-solicitacao de permissoes mesmo que o usuario ja tenha autorizado o app antes.
+Isso vai revelar exatamente quais permissoes o token tem, permitindo diagnosticar se o problema esta no app Meta ou na autorizacao do usuario.
 
 ### Apos a correcao
 
-O usuario deve:
-1. Desconectar a conta Meta no CRM
-2. Reconectar — desta vez a tela do Facebook mostrara as permissoes de `ads_management`
-3. Aceitar as permissoes
-4. Testar a criacao de publico novamente
+Se o log mostrar que `ads_management` nao esta nas permissoes:
+1. Acessar Meta Developer Portal > App > Permissoes e Recursos
+2. Garantir que `ads_management` esta habilitado
+3. Desconectar e reconectar a conta Meta no CRM
+4. Verificar que a tela do Facebook mostra e solicita `ads_management`
+
