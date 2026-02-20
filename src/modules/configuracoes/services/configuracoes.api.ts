@@ -217,6 +217,7 @@ export interface Integracao {
   meta_user_name?: string | null
   meta_user_email?: string | null
   meta_page_name?: string | null
+  meta_business_name?: string | null
 }
 
 export interface SmtpDetectResult {
@@ -1183,7 +1184,7 @@ export const integracoesApi = {
         .is('deletado_em', null),
       supabase
         .from('conexoes_meta')
-        .select('id, organizacao_id, status, meta_user_name, meta_user_email, ultimo_sync, ultimo_erro')
+        .select('id, organizacao_id, status, meta_user_name, meta_user_email, meta_business_name, ultimo_sync, ultimo_erro')
         .is('deletado_em', null),
       supabase
         .from('conexoes_api4com')
@@ -1292,6 +1293,7 @@ export const integracoesApi = {
           meta_user_name: row.meta_user_name as string | null,
           meta_user_email: row.meta_user_email as string | null,
           meta_page_name: paginasMap[row.id as string] || null,
+          meta_business_name: row.meta_business_name as string | null,
           ultimo_sync: row.ultimo_sync as string | null,
           ultimo_erro: row.ultimo_erro as string | null,
         })

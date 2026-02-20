@@ -104,6 +104,7 @@ Deno.serve(async (req) => {
 
     // Buscar dados do usuario Meta
     let metaUser = { id: "", name: "", email: "" };
+    let businessName = "";
     try {
       const meRes = await fetch(
         `https://graph.facebook.com/v21.0/me?fields=id,name,email&access_token=${accessToken}`
@@ -111,6 +112,19 @@ Deno.serve(async (req) => {
       metaUser = await meRes.json();
     } catch (e) {
       console.warn("[meta-callback] Erro ao buscar dados do usuário Meta:", e);
+    }
+
+    // Buscar Business Portfolio (Portfólio Empresarial) vinculado
+    try {
+      const bizRes = await fetch(
+        `https://graph.facebook.com/v21.0/me/businesses?fields=id,name&access_token=${accessToken}`
+      );
+      const bizData = await bizRes.json();
+      if (bizData.data && bizData.data.length > 0) {
+        businessName = bizData.data[0].name || "";
+      }
+    } catch (e) {
+      console.warn("[meta-callback] Erro ao buscar Business Portfolio:", e);
     }
 
     const tokenExpiresAt = expiresIn
@@ -127,6 +141,7 @@ Deno.serve(async (req) => {
           meta_user_id: metaUser.id || null,
           meta_user_name: metaUser.name || null,
           meta_user_email: metaUser.email || null,
+          meta_business_name: businessName || null,
           status: "conectado",
           token_expires_at: tokenExpiresAt,
           ultimo_erro: null,

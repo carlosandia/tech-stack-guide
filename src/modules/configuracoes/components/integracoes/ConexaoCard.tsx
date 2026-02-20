@@ -21,7 +21,7 @@ import {
   Phone,
   AtSign,
   User,
-  
+  Briefcase,
 } from 'lucide-react'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import type { Integracao, PlataformaIntegracao } from '../../services/configuracoes.api'
@@ -226,7 +226,7 @@ function PlataformaDetails({ integracao }: { integracao: Integracao }) {
         {integracao.meta_user_name && (
           <div className="flex items-center gap-1.5">
             <User className="w-3 h-3 text-muted-foreground" />
-            <p className="text-xs text-foreground">{integracao.meta_user_name}</p>
+            <p className="text-xs text-foreground">Usuário: {integracao.meta_user_name}</p>
           </div>
         )}
         {integracao.meta_page_name && (
@@ -235,10 +235,10 @@ function PlataformaDetails({ integracao }: { integracao: Integracao }) {
             <p className="text-xs text-foreground">Página: {integracao.meta_page_name}</p>
           </div>
         )}
-        {integracao.meta_user_email && (
+        {integracao.meta_business_name && (
           <div className="flex items-center gap-1.5">
-            <Mail className="w-3 h-3 text-muted-foreground" />
-            <p className="text-xs text-foreground">{integracao.meta_user_email}</p>
+            <Briefcase className="w-3 h-3 text-muted-foreground" />
+            <p className="text-xs text-foreground">Portfólio: {integracao.meta_business_name}</p>
           </div>
         )}
       </div>
@@ -296,10 +296,12 @@ export function ConexaoCard({
           {conectado && integracao && (
             <div className="space-y-2 mb-3">
               <PlataformaDetails integracao={integracao} />
-              <p className="text-xs text-foreground">
-                <span className="text-muted-foreground">Último sync: </span>
-                {formatDate(integracao.ultimo_sync)}
-              </p>
+              {plataforma !== 'meta_ads' && (
+                <p className="text-xs text-foreground">
+                  <span className="text-muted-foreground">Último sync: </span>
+                  {formatDate(integracao.ultimo_sync)}
+                </p>
+              )}
               {integracao.ultimo_erro && (
                 <p className="text-xs text-destructive truncate">
                   <span className="text-muted-foreground">Erro: </span>

@@ -1,0 +1,1 @@
+ALTER TABLE public.conexoes_meta ADD COLUMN meta_business_name text;
