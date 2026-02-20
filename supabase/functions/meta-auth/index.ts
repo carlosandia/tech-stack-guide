@@ -124,7 +124,8 @@ Deno.serve(async (req) => {
       `&redirect_uri=${encodeURIComponent(finalRedirectUri)}` +
       `&state=${encodeURIComponent(state)}` +
       `&scope=${encodeURIComponent(scopes)}` +
-      `&response_type=code`;
+      `&response_type=code` +
+      `&auth_type=rerequest`;
 
     console.log(`[meta-auth] URL gerada para org: ${organizacaoId}`);
 
