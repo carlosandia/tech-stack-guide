@@ -33,6 +33,7 @@
     "@tiptap/pm": "^3.19.0",
     "@tiptap/react": "^3.19.0",
     "@tiptap/starter-kit": "^3.19.0",
+    "@types/dompurify": "^3.0.5",
     "@xyflow/react": "^12.10.0",
     "axios": "^1.7.0",
     "class-variance-authority": "^0.7.0",

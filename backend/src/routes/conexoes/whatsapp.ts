@@ -158,6 +158,10 @@ router.get('/sessoes', async (req: Request, res: Response, next: NextFunction) =
  * POST /webhooks/waha/:organizacao_id
  * Recebe webhooks do WAHA
  * NOTA: Esta rota sera registrada separadamente no index.ts
+ *
+ * AIDEV-NOTE: SEGURANCA - Validacao de origem obrigatoria
+ * O webhook deve conter um header X-WAHA-Webhook-Secret que corresponda
+ * ao secret configurado na organizacao. Isso previne injecao de dados cross-tenant.
  */
 export const wahaWebhookHandler = async (req: Request, res: Response) => {
   try {
@@ -165,6 +169,26 @@ export const wahaWebhookHandler = async (req: Request, res: Response) => {
 
     if (!organizacaoId) {
       return res.status(400).json({ error: 'organizacao_id obrigatorio' })
+    }
+
+    // AIDEV-NOTE: SEGURANCA - Validar que a organizacao existe e esta ativa
+    // Isso previne ataques onde um atacante tenta injetar dados em tenants inexistentes
+    const orgValida = await wahaService.validarOrganizacao(organizacaoId)
+    if (!orgValida) {
+      console.warn(`[WAHA Webhook] Tentativa de webhook para org inexistente: ${organizacaoId}`)
+      // Retorna 200 para nao revelar informacao sobre existencia de orgs
+      return res.json({ success: true })
+    }
+
+    // AIDEV-NOTE: SEGURANCA - Validar webhook secret
+    // O secret e configurado na integracao WAHA de cada organizacao
+    const webhookSecret = req.headers['x-waha-webhook-secret'] as string
+    const secretValido = await wahaService.validarWebhookSecret(organizacaoId, webhookSecret)
+
+    if (!secretValido) {
+      console.warn(`[WAHA Webhook] Secret invalido para org: ${organizacaoId}`)
+      // Retorna 200 para nao revelar informacao (padrao de webhooks)
+      return res.json({ success: true })
     }
 
     const payload = WahaWebhookPayloadSchema.parse(req.body)

@@ -75,6 +75,13 @@ try {
 
 const app = express()
 
+// AIDEV-NOTE: SEGURANCA - Trust proxy configurado para obter IP real do cliente
+// Quando atrás de um load balancer/proxy reverso (nginx, cloudflare, etc.),
+// o Express precisa confiar no header X-Forwarded-For para obter o IP real
+// Valor 1 = confiar apenas no proxy mais próximo (recomendado para produção)
+// Sem isso, req.ip retorna o IP do proxy, permitindo bypass de rate limiting
+app.set('trust proxy', 1)
+
 // Middlewares globais
 app.use(helmet())
 app.use(cors({

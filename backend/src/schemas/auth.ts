@@ -23,14 +23,24 @@ export const ForgotPasswordSchema = z.object({
   email: z.string().email('Email invalido'),
 })
 
+// AIDEV-NOTE: SEGURANCA - Regex para validacao de senha forte
+// Exige: minimo 8 chars, 1 maiuscula, 1 numero, 1 caractere especial
+// Isso segue as melhores praticas de seguranca OWASP
+const senhaForteRegex = {
+  maiuscula: /[A-Z]/,
+  numero: /[0-9]/,
+  especial: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/,
+}
+
 // Schema de redefinicao de senha
 export const ResetPasswordSchema = z.object({
   token: z.string().min(1, 'Token obrigatorio'),
   nova_senha: z
     .string()
     .min(8, 'Minimo 8 caracteres')
-    .regex(/[A-Z]/, 'Deve conter pelo menos 1 letra maiuscula')
-    .regex(/[0-9]/, 'Deve conter pelo menos 1 numero'),
+    .regex(senhaForteRegex.maiuscula, 'Deve conter pelo menos 1 letra maiuscula')
+    .regex(senhaForteRegex.numero, 'Deve conter pelo menos 1 numero')
+    .regex(senhaForteRegex.especial, 'Deve conter pelo menos 1 caractere especial (!@#$%^&*...)'),
   confirmar_senha: z.string(),
 }).refine(data => data.nova_senha === data.confirmar_senha, {
   message: 'Senhas nao conferem',
@@ -43,8 +53,9 @@ export const AlterarSenhaSchema = z.object({
   nova_senha: z
     .string()
     .min(8, 'Minimo 8 caracteres')
-    .regex(/[A-Z]/, 'Deve conter pelo menos 1 letra maiuscula')
-    .regex(/[0-9]/, 'Deve conter pelo menos 1 numero'),
+    .regex(senhaForteRegex.maiuscula, 'Deve conter pelo menos 1 letra maiuscula')
+    .regex(senhaForteRegex.numero, 'Deve conter pelo menos 1 numero')
+    .regex(senhaForteRegex.especial, 'Deve conter pelo menos 1 caractere especial (!@#$%^&*...)'),
   confirmar_senha: z.string(),
 }).refine(data => data.nova_senha === data.confirmar_senha, {
   message: 'Senhas nao conferem',

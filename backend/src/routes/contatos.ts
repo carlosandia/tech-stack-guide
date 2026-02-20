@@ -6,6 +6,7 @@
  */
 
 import { Router, Request, Response, NextFunction } from 'express'
+import rateLimit from 'express-rate-limit'
 import { z } from 'zod'
 import contatosService from '../services/contatos.service.js'
 import segmentosService from '../services/segmentos.service.js'
@@ -27,6 +28,24 @@ import {
 import { VincularSegmentosSchema } from '../schemas/segmentos.js'
 
 const router = Router()
+
+// AIDEV-NOTE: SEGURANCA - Rate limit para exportacao CSV
+// Exportacao pode ser usada para exfiltrar dados em massa
+// Limita a 5 exportacoes por hora por usuario
+// Isso da tempo para admins detectarem atividade suspeita
+const exportRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hora
+  max: 5,
+  message: {
+    error: 'Limite de exportacoes excedido',
+    message: 'Voce pode exportar no maximo 5 vezes por hora. Tente novamente mais tarde.',
+    retry_after: 3600,
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  // Usa ID do usuario como chave (nao IP) para melhor controle
+  keyGenerator: (req) => (req as any).user?.id || req.ip || 'unknown',
+})
 
 function getOrganizacaoId(req: Request): string {
   const user = (req as any).user
@@ -108,9 +127,10 @@ router.get('/duplicatas', requireAdmin, async (req: Request, res: Response) => {
 
 // =====================================================
 // GET /exportar - Exportar contatos CSV
+// AIDEV-NOTE: SEGURANCA - Rate limit aplicado para prevenir exfiltracao em massa
 // =====================================================
 
-router.get('/exportar', async (req: Request, res: Response) => {
+router.get('/exportar', exportRateLimiter, async (req: Request, res: Response) => {
   try {
     const organizacaoId = getOrganizacaoId(req)
     const userId = getUserId(req)

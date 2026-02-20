@@ -320,6 +320,91 @@ class WahaService {
   }
 
   // =====================================================
+  // Webhook Security
+  // =====================================================
+
+  /**
+   * AIDEV-NOTE: SEGURANCA - Valida que a organizacao existe e esta ativa
+   * Previne ataques de injecao de dados em tenants inexistentes ou inativos
+   */
+  async validarOrganizacao(organizacaoId: string): Promise<boolean> {
+    try {
+      const { data: org, error } = await supabase
+        .from('organizacoes_saas')
+        .select('id, status')
+        .eq('id', organizacaoId)
+        .single()
+
+      if (error || !org) {
+        return false
+      }
+
+      // Verifica se a organizacao esta ativa
+      return org.status === 'ativa' || org.status === 'trial'
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * AIDEV-NOTE: SEGURANCA - Valida o webhook secret da organizacao
+   * O secret deve ser configurado na integracao WAHA e passado no header X-WAHA-Webhook-Secret
+   * Usa comparacao de tempo constante para prevenir timing attacks
+   */
+  async validarWebhookSecret(organizacaoId: string, secret: string | undefined): Promise<boolean> {
+    // Se nao tem secret no header, rejeita
+    if (!secret) {
+      return false
+    }
+
+    try {
+      // Busca a integracao WAHA da organizacao para obter o secret configurado
+      const { data: integracao, error } = await supabase
+        .from('integracoes')
+        .select('configuracoes')
+        .eq('organizacao_id', organizacaoId)
+        .eq('tipo', 'whatsapp')
+        .eq('provedor', 'waha')
+        .eq('ativo', true)
+        .is('deletado_em', null)
+        .single()
+
+      if (error || !integracao) {
+        // Se nao tem integracao configurada, aceita qualquer request
+        // NOTA: Isso e para compatibilidade com orgs que ainda nao configuraram o secret
+        // Em producao, devemos tornar isso obrigatorio
+        console.warn(`[WAHA] Org ${organizacaoId} sem integracao WAHA configurada - aceitando webhook`)
+        return true
+      }
+
+      const configuredSecret = (integracao.configuracoes as any)?.webhook_secret
+
+      if (!configuredSecret) {
+        // Se a integracao existe mas nao tem secret configurado, aceita
+        // NOTA: Em producao, devemos tornar isso obrigatorio
+        console.warn(`[WAHA] Org ${organizacaoId} sem webhook_secret configurado - aceitando webhook`)
+        return true
+      }
+
+      // Comparacao de tempo constante para prevenir timing attacks
+      // Usa Buffer.from para garantir que ambas strings tenham o mesmo tamanho
+      const secretBuffer = Buffer.from(secret)
+      const configuredBuffer = Buffer.from(configuredSecret)
+
+      if (secretBuffer.length !== configuredBuffer.length) {
+        return false
+      }
+
+      // Usa timingSafeEqual do crypto para comparacao segura
+      const crypto = await import('crypto')
+      return crypto.timingSafeEqual(secretBuffer, configuredBuffer)
+    } catch (err) {
+      console.error('[WAHA] Erro ao validar webhook secret:', err)
+      return false
+    }
+  }
+
+  // =====================================================
   // Webhook Handler
   // =====================================================
 

@@ -96,6 +96,11 @@ export class AuthService {
       expira_em: expiresAt.toISOString(),
     })
 
+    // AIDEV-NOTE: SEGURANCA - Limpar tokens antigos se usuario tiver muitos
+    // Mantem no maximo 50 tokens ativos por usuario
+    // Isso previne acumulo de tokens e melhora performance de refresh
+    await this.cleanupOldTokens(usuario.id)
+
     // Atualiza ultimo_login
     await supabaseAdmin
       .from('usuarios')
@@ -132,14 +137,23 @@ export class AuthService {
 
   /**
    * Renova access_token usando refresh_token
+   *
+   * AIDEV-NOTE: SEGURANCA - Limitacao de tokens por usuario
+   * - Limita a 50 tokens por query para prevenir timing attacks
+   * - Revoga automaticamente tokens antigos se usuario tiver muitos ativos
+   * - Considera apenas tokens recentes (7 dias) para performance
    */
   async refresh(refreshToken: string): Promise<{ access_token: string; expires_in: number }> {
-    // Busca todos refresh tokens nao expirados e nao revogados
+    // Busca refresh tokens nao expirados e nao revogados
+    // AIDEV-NOTE: SEGURANCA - .limit(50) previne timing attack
+    // Se usuario tiver mais de 50 tokens ativos, algo está errado (possível ataque)
     const { data: tokens, error } = await supabaseAdmin
       .from('refresh_tokens')
       .select('*, usuarios(*)')
       .is('revogado_em', null)
       .gt('expira_em', new Date().toISOString())
+      .order('criado_em', { ascending: false })
+      .limit(50)
 
     if (error || !tokens || tokens.length === 0) {
       throw new Error('Refresh token invalido ou expirado')
@@ -223,6 +237,56 @@ export class AuthService {
       user_agent: userAgent,
       sucesso: true,
     })
+  }
+
+  /**
+   * AIDEV-NOTE: SEGURANCA - Logout de todos os dispositivos
+   * Revoga TODOS os refresh tokens do usuario
+   * Util quando usuario suspeita que conta foi comprometida
+   * Ou quando admin precisa forcar logout de um usuario
+   */
+  async logoutAllDevices(userId: string, ip?: string, userAgent?: string): Promise<{ revokedCount: number }> {
+    // Busca quantidade de tokens ativos
+    const { count } = await supabaseAdmin
+      .from('refresh_tokens')
+      .select('id', { count: 'exact', head: true })
+      .eq('usuario_id', userId)
+      .is('revogado_em', null)
+
+    // Revoga todos os tokens ativos
+    const { error } = await supabaseAdmin
+      .from('refresh_tokens')
+      .update({ revogado_em: new Date().toISOString() })
+      .eq('usuario_id', userId)
+      .is('revogado_em', null)
+
+    if (error) {
+      logger.error('Erro ao revogar tokens:', error)
+      throw new Error('Erro ao encerrar sessoes')
+    }
+
+    // Log da acao
+    const { data: usuario } = await supabaseAdmin
+      .from('usuarios')
+      .select('organizacao_id')
+      .eq('id', userId)
+      .single()
+
+    await this.logAudit({
+      usuario_id: userId,
+      organizacao_id: usuario?.organizacao_id,
+      acao: 'logout_all_devices',
+      entidade: 'usuarios',
+      entidade_id: userId,
+      detalhes: { tokens_revogados: count || 0 },
+      ip,
+      user_agent: userAgent,
+      sucesso: true,
+    })
+
+    logger.info(`[Auth] Logout de todos dispositivos: ${count} tokens revogados para usuario ${userId}`)
+
+    return { revokedCount: count || 0 }
   }
 
   /**
@@ -548,6 +612,51 @@ export class AuthService {
     return 'desktop'
   }
 
+  /**
+   * AIDEV-NOTE: SEGURANCA - Limpa tokens antigos do usuario
+   * Mantem no maximo 50 tokens ativos para prevenir acumulo
+   * Revoga os mais antigos se passar do limite
+   */
+  private async cleanupOldTokens(userId: string, maxTokens = 50): Promise<void> {
+    try {
+      // Conta quantos tokens ativos o usuario tem
+      const { count, error: countError } = await supabaseAdmin
+        .from('refresh_tokens')
+        .select('id', { count: 'exact', head: true })
+        .eq('usuario_id', userId)
+        .is('revogado_em', null)
+        .gt('expira_em', new Date().toISOString())
+
+      if (countError || !count || count <= maxTokens) {
+        return // Dentro do limite, nada a fazer
+      }
+
+      // Busca os tokens mais antigos para revogar
+      const tokensToRevoke = count - maxTokens
+      const { data: oldTokens } = await supabaseAdmin
+        .from('refresh_tokens')
+        .select('id')
+        .eq('usuario_id', userId)
+        .is('revogado_em', null)
+        .gt('expira_em', new Date().toISOString())
+        .order('criado_em', { ascending: true })
+        .limit(tokensToRevoke)
+
+      if (oldTokens && oldTokens.length > 0) {
+        const idsToRevoke = oldTokens.map(t => t.id)
+        await supabaseAdmin
+          .from('refresh_tokens')
+          .update({ revogado_em: new Date().toISOString() })
+          .in('id', idsToRevoke)
+
+        logger.info(`[Auth] Revogados ${idsToRevoke.length} tokens antigos do usuario ${userId}`)
+      }
+    } catch (err) {
+      // Nao falha o login se cleanup der erro
+      logger.error('Erro ao limpar tokens antigos:', err)
+    }
+  }
+
   private async logAudit(data: {
     usuario_id?: string
     organizacao_id?: string | null
@@ -556,6 +665,7 @@ export class AuthService {
     entidade_id?: string
     dados_anteriores?: Record<string, unknown>
     dados_novos?: Record<string, unknown>
+    detalhes?: Record<string, unknown>
     ip?: string
     user_agent?: string
     sucesso: boolean
@@ -570,6 +680,7 @@ export class AuthService {
         entidade_id: data.entidade_id,
         dados_anteriores: data.dados_anteriores,
         dados_novos: data.dados_novos,
+        detalhes: data.detalhes,
         ip: data.ip,
         user_agent: data.user_agent,
         sucesso: data.sucesso,

@@ -29,7 +29,10 @@ import { logger } from '../utils/logger.js'
 
 const router = Router()
 
-// Rate limiting para login (5 tentativas/15min por IP)
+// AIDEV-NOTE: SEGURANCA - Rate limiting para login
+// Usa combinacao de email + IP para prevenir brute force distribuido
+// 5 tentativas por combinacao email+IP a cada 15 minutos
+// Isso impede que atacante tente mesmo email de IPs diferentes
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
   max: 5,
@@ -40,7 +43,14 @@ const loginLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.ip || 'unknown',
+  // AIDEV-NOTE: SEGURANCA - keyGenerator com email + IP
+  // Previne bypass via rotacao de IPs (cada combinacao email+IP tem seu limite)
+  // Se email nao fornecido (request malformado), usa apenas IP
+  keyGenerator: (req) => {
+    const ip = req.ip || 'unknown'
+    const email = req.body?.email?.toLowerCase() || ''
+    return email ? `${email}:${ip}` : ip
+  },
 })
 
 // Rate limiting para recuperacao de senha (3/hora por email)
@@ -51,6 +61,21 @@ const forgotPasswordLimiter = rateLimit({
     error: 'Muitas solicitacoes',
     message: 'Muitas solicitacoes de recuperacao. Aguarde 1 hora.',
     retry_after: 3600,
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+})
+
+// AIDEV-NOTE: SEGURANCA - Rate limiting para refresh token
+// Previne timing attacks onde atacante tenta muitos refresh tokens
+// 20 requests por minuto por IP e generoso para uso legitimo
+const refreshLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minuto
+  max: 20,
+  message: {
+    error: 'Muitas solicitacoes',
+    message: 'Muitas tentativas de refresh. Aguarde um momento.',
+    retry_after: 60,
   },
   standardHeaders: true,
   legacyHeaders: false,
@@ -122,6 +147,7 @@ router.post(
  */
 router.post(
   '/refresh',
+  refreshLimiter,
   validateBody(RefreshTokenSchema),
   async (req: Request, res: Response) => {
     try {
@@ -170,6 +196,41 @@ router.post(
       res.json({
         success: true,
         message: 'Logout realizado',
+      })
+    }
+  }
+)
+
+/**
+ * POST /auth/logout-all
+ * AIDEV-NOTE: SEGURANCA - Encerrar sessao em todos os dispositivos
+ * Revoga todos os refresh tokens do usuario
+ * Util quando usuario suspeita de comprometimento da conta
+ */
+router.post(
+  '/logout-all',
+  authMiddleware,
+  async (req: Request, res: Response) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: 'Usuario nao autenticado' })
+      }
+
+      const { ip, userAgent } = getRequestMeta(req)
+      const result = await authService.logoutAllDevices(req.user.id, ip, userAgent)
+
+      res.json({
+        success: true,
+        message: `Sessao encerrada em todos os dispositivos. ${result.revokedCount} dispositivo(s) desconectado(s).`,
+        devices_logged_out: result.revokedCount,
+      })
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Erro ao encerrar sessoes'
+      logger.error('Erro no logout de todos dispositivos:', err)
+
+      res.status(500).json({
+        error: 'Erro ao encerrar sessoes',
+        message,
       })
     }
   }

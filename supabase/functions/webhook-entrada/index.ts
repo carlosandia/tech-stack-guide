@@ -86,12 +86,44 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Validar API Key se configurada
+    // AIDEV-NOTE: SEGURANCA - Validar API Key com comparacao de tempo constante
+    // Isso previne timing attacks onde atacante pode inferir caracteres corretos
+    // baseado no tempo de resposta da comparacao
     if (webhook.api_key) {
       const apiKeyHeader = req.headers.get("x-api-key") ||
         req.headers.get("authorization")?.replace("Bearer ", "");
 
-      if (!apiKeyHeader || apiKeyHeader !== webhook.api_key) {
+      if (!apiKeyHeader) {
+        console.warn("[webhook-entrada] API Key ausente");
+        return new Response(
+          JSON.stringify({ error: "API Key inválida ou ausente" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // AIDEV-NOTE: SEGURANCA - Comparacao de tempo constante
+      // timingSafeEqual previne timing attacks comparando em tempo constante
+      const encoder = new TextEncoder();
+      const keyBuffer = encoder.encode(apiKeyHeader);
+      const expectedBuffer = encoder.encode(webhook.api_key);
+
+      // Se tamanhos diferentes, rejeita (mas ainda faz comparacao fake para manter tempo constante)
+      let isValid = keyBuffer.length === expectedBuffer.length;
+
+      // Cria buffer de tamanho igual para comparacao (previne short-circuit)
+      const safeKeyBuffer = new Uint8Array(expectedBuffer.length);
+      const safeExpectedBuffer = new Uint8Array(expectedBuffer.length);
+      safeKeyBuffer.set(keyBuffer.slice(0, expectedBuffer.length));
+      safeExpectedBuffer.set(expectedBuffer);
+
+      // Comparacao byte a byte em tempo constante
+      let diff = 0;
+      for (let i = 0; i < safeExpectedBuffer.length; i++) {
+        diff |= safeKeyBuffer[i] ^ safeExpectedBuffer[i];
+      }
+      isValid = isValid && diff === 0;
+
+      if (!isValid) {
         console.warn("[webhook-entrada] API Key inválida");
         return new Response(
           JSON.stringify({ error: "API Key inválida ou ausente" }),

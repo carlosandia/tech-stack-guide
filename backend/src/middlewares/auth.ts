@@ -48,26 +48,43 @@ export async function authMiddleware(
       })
     }
 
-    // AIDEV-NOTE: Busca role da tabela usuarios (mais confiavel que user_metadata)
+    // AIDEV-NOTE: SEGURANCA - Busca role EXCLUSIVAMENTE da tabela usuarios
     // A tabela usuarios e a fonte da verdade para roles
-    const { data: usuario } = await supabaseAdmin
+    // NUNCA usar user_metadata como fallback - pode ser manipulado/desatualizado
+    const { data: usuario, error: userError } = await supabaseAdmin
       .from('usuarios')
-      .select('id, role, organizacao_id')
+      .select('id, role, organizacao_id, status')
       .eq('auth_id', user.id)
+      .is('deletado_em', null)
       .single()
 
-    // Se usuario nao existe na tabela, usa metadata como fallback
-    const role = (usuario?.role as UserRole) || (user.user_metadata?.role as UserRole) || 'member'
-    const tenantId = usuario?.organizacao_id || (user.user_metadata?.tenant_id as string) || null
+    // AIDEV-NOTE: SEGURANCA - Se usuario nao existe na tabela, rejeita acesso
+    // Isso previne acesso por usuarios deletados ou que nao completaram onboarding
+    if (userError || !usuario) {
+      console.warn(`[Auth] Usuario com auth_id ${user.id} nao encontrado na tabela usuarios`)
+      return res.status(403).json({
+        error: 'Usuario nao encontrado no sistema',
+        message: 'Sua conta pode ter sido desativada. Entre em contato com o administrador.',
+      })
+    }
+
+    // AIDEV-NOTE: SEGURANCA - Verificar status do usuario
+    if (usuario.status !== 'ativo') {
+      console.warn(`[Auth] Usuario ${usuario.id} com status ${usuario.status} tentou acessar`)
+      return res.status(403).json({
+        error: 'Conta inativa',
+        message: 'Sua conta esta inativa ou pendente de ativacao.',
+      })
+    }
 
     // AIDEV-NOTE: req.user.id e o ID da tabela usuarios, NAO do auth.users
     // Isso facilita operacoes de audit e relacionamentos
     req.user = {
-      id: usuario?.id || user.id,
+      id: usuario.id,
       email: user.email!,
-      role,
-      tenantId,
-      organizacao_id: tenantId, // Alias para compatibilidade com services PRD-05
+      role: usuario.role as UserRole,
+      tenantId: usuario.organizacao_id,
+      organizacao_id: usuario.organizacao_id, // Alias para compatibilidade com services PRD-05
     }
 
     next()
