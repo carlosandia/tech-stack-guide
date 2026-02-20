@@ -1,43 +1,69 @@
 
 
-## Correção: Constraint Unique + Token de Página
+# Correção do Bug no Mapeamento de Campos do Meta Lead Ads
 
-### Problema
-A tabela `paginas_meta` não possui nenhuma constraint unique. O `upsert` na função `meta-sync` usa `onConflict: "organizacao_id,page_id"`, mas essa constraint não existe no banco. Resultado: o upsert falha silenciosamente e o campo `page_access_token_encrypted` fica `null`. Sem esse token, o webhook `meta-leadgen-webhook` não consegue buscar dados do lead na Graph API.
+## Contexto
 
-Dados atuais confirmam o problema:
-- `page_access_token_encrypted` = **null**
-- Nenhuma constraint na tabela
+Ao receber um lead do Meta, a Edge Function `meta-leadgen-webhook` aplica o mapeamento configurado pelo usuário. O mapeamento salvo no banco possui chaves prefixadas (ex: `pessoa:nome`, `pessoa:email`, `pessoa:telefone`, `custom:uuid`), mas a função que cria o contato e a oportunidade espera chaves simples (`nome`, `email`, `telefone`).
 
-### Plano de Ação
+Isso faz com que TODOS os dados do lead sejam perdidos, mesmo que o webhook funcione.
 
-**Passo 1 - Criar constraint unique no banco**
+## O que será corrigido
 
-Executar SQL para adicionar a constraint:
+### Arquivo: `supabase/functions/meta-leadgen-webhook/index.ts`
 
-```sql
-ALTER TABLE paginas_meta
-ADD CONSTRAINT paginas_meta_org_page_unique UNIQUE (organizacao_id, page_id);
+### 1. Normalizar chaves do mapeamento na função `aplicarMapeamento`
+
+Após aplicar o mapeamento configurado, converter as chaves prefixadas para chaves simples:
+- `pessoa:nome` -> `nome`
+- `pessoa:email` -> `email`
+- `pessoa:telefone` -> `telefone`
+- `pessoa:cargo` -> `cargo`
+- `pessoa:sobrenome` -> `sobrenome`
+- `empresa:nome_fantasia` -> `empresa`
+- Chaves `custom:*` -> armazenadas separadamente para uso futuro
+
+Isso garante compatibilidade com a função `criarOuAtualizarContato` que espera chaves simples.
+
+### 2. Adicionar logs de diagnóstico
+
+Adicionar logs extras no fluxo para facilitar depuração futura:
+- Log dos dados brutos recebidos do mapeamento
+- Log dos dados normalizados que serão usados para criar o contato
+
+## Detalhes Técnicos
+
+Na função `aplicarMapeamento`, após o loop de mapeamento configurado (linha ~273), adicionar lógica de normalização:
+
+```typescript
+// Normalizar chaves prefixadas (pessoa:nome -> nome, pessoa:email -> email, etc.)
+const normalizado: Record<string, string> = {};
+for (const [key, value] of Object.entries(resultado)) {
+  if (key.startsWith("pessoa:")) {
+    normalizado[key.replace("pessoa:", "")] = value;
+  } else if (key.startsWith("empresa:")) {
+    normalizado[key.replace("empresa:", "")] = value;
+  } else if (key.startsWith("oportunidade:")) {
+    normalizado[key.replace("oportunidade:", "")] = value;
+  } else if (!key.startsWith("custom:")) {
+    normalizado[key] = value;
+  }
+}
+// Manter campos custom no resultado para uso futuro
+for (const [key, value] of Object.entries(resultado)) {
+  if (key.startsWith("custom:")) {
+    normalizado[key] = value;
+  }
+}
+return normalizado;
 ```
 
-Isso precisa ser feito via **Cloud View > Run SQL** ou diretamente pelo Supabase Dashboard.
+## Sobre o Problema do Meta (configuração externa)
 
-**Passo 2 - Re-sincronizar**
+O webhook não está sendo chamado porque a página não está associada ao app no Meta. Isso precisa ser resolvido no Meta Developer Portal:
+1. Ir em **Configurações > Básico** do seu App
+2. Na seção "Página do App", selecionar "Carlos Andia"
+3. Salvar
 
-Após criar a constraint, clicar em "Sincronizar" no card da integração Meta. O `meta-sync` vai executar o upsert corretamente e salvar o `page_access_token_encrypted`.
-
-**Passo 3 - Validar**
-
-Confirmar que o campo `page_access_token_encrypted` foi preenchido na tabela `paginas_meta`.
-
-### Detalhes Técnicos
-
-| Ação | Detalhe |
-|------|---------|
-| Tabela | `paginas_meta` |
-| Constraint | `UNIQUE (organizacao_id, page_id)` |
-| Impacto | Permite que o `upsert` com `onConflict` funcione corretamente |
-| Arquivos alterados | Nenhum arquivo de código -- apenas DDL no banco |
-
-Nenhuma alteração de código é necessária. O `meta-sync` já usa `onConflict: "organizacao_id,page_id"` corretamente -- só falta a constraint no banco para que funcione.
+Sem essa associação, o Meta não envia notificações de leads para o webhook, independentemente do código estar correto.
 
