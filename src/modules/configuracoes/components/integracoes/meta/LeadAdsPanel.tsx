@@ -25,15 +25,20 @@ export function LeadAdsPanel({ integracaoId }: LeadAdsPanelProps) {
     queryFn: () => metaAdsApi.listarFormularios(),
   })
 
-  const toggleAtivo = useMutation({
-    mutationFn: ({ id, ativo }: { id: string; ativo: boolean }) =>
-      metaAdsApi.atualizarFormulario(id, { ativo }),
+  const removerFormulario = useMutation({
+    mutationFn: (id: string) => metaAdsApi.removerFormulario(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['meta-ads', 'lead-forms'] })
-      toast.success('Status atualizado')
+      toast.success('Formulário removido com sucesso')
     },
-    onError: () => toast.error('Erro ao atualizar status'),
+    onError: () => toast.error('Erro ao remover formulário'),
   })
+
+  const handleRemover = (id: string, nome: string) => {
+    if (window.confirm(`Tem certeza que deseja remover o formulário "${nome}"? Esta ação não pode ser desfeita.`)) {
+      removerFormulario.mutate(id)
+    }
+  }
 
   const handleEditMapping = (form: LeadAdForm) => {
     setSelectedForm(form)
@@ -146,11 +151,11 @@ export function LeadAdsPanel({ integracaoId }: LeadAdsPanelProps) {
                   Editar Mapeamento
                 </button>
                 <button
-                  onClick={() => toggleAtivo.mutate({ id: form.id, ativo: !form.ativo })}
-                  disabled={toggleAtivo.isPending}
-                  className="text-xs font-medium px-2.5 py-1 rounded-md text-muted-foreground hover:bg-accent transition-colors"
+                  onClick={() => handleRemover(form.id, form.form_name)}
+                  disabled={removerFormulario.isPending}
+                  className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-md text-destructive hover:bg-destructive/10 transition-colors"
                 >
-                  {form.ativo ? 'Desativar' : 'Ativar'}
+                  {removerFormulario.isPending ? 'Removendo...' : 'Remover'}
                 </button>
               </div>
             </div>

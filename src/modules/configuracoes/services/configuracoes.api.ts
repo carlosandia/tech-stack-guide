@@ -1585,6 +1585,13 @@ export const metaAdsApi = {
     if (error) throw error
     return data
   },
+  removerFormulario: async (id: string) => {
+    const { error } = await supabase
+      .from('formularios_lead_ads')
+      .update({ deletado_em: new Date().toISOString() })
+      .eq('id', id)
+    if (error) throw error
+  },
   listarPaginas: async () => {
     const session = await supabase.auth.getSession()
     const token = session.data.session?.access_token || ''
