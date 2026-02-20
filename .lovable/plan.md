@@ -1,40 +1,51 @@
 
-## Corrigir Card Meta Ads Nao Aparecendo Apos Reconexao
+## Corrigir "Permissions error" ao Criar Publico no Meta
 
 ### Causa raiz
 
-Ao desconectar o Meta, o frontend faz um soft delete: `{ deletado_em: "2026-02-20...", status: "desconectado" }`. Quando o usuario reconecta, o meta-callback faz um `upsert` com `onConflict: "organizacao_id"`, atualizando o registro existente. Porem, o upsert **nao limpa o campo `deletado_em`**, que permanece preenchido. A query do frontend filtra `deletado_em=is.null`, entao o registro "conectado" fica invisivel.
+A URL de autorizacao OAuth do Meta (`meta-auth/index.ts`) nao inclui o parametro `auth_type=rerequest`. Sem ele, quando o usuario reconecta a conta Meta, o Facebook **reutiliza as permissoes ja autorizadas anteriormente** e nao solicita as novas (como `ads_management`). O token gerado continua sem a permissao necessaria para criar Custom Audiences.
 
 ### Correcao
 
-No arquivo `supabase/functions/meta-callback/index.ts`, adicionar `deletado_em: null` e `conectado_em: new Date().toISOString()` no objeto do upsert (linha 124). Isso garante que ao reconectar, o soft delete anterior seja revertido.
+Adicionar `&auth_type=rerequest` na URL OAuth em `supabase/functions/meta-auth/index.ts` (linha 127). Isso forca o Meta a exibir novamente a tela de permissoes, garantindo que todos os escopos listados sejam solicitados ao usuario.
 
 ### Arquivo afetado
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `supabase/functions/meta-callback/index.ts` | Adicionar `deletado_em: null` e `conectado_em` no upsert |
+| `supabase/functions/meta-auth/index.ts` | Adicionar `&auth_type=rerequest` na URL OAuth |
 
 ### Detalhes tecnicos
 
-Na linha 124-135 do meta-callback, o objeto do upsert passa a incluir:
+**Antes (linha 122-127):**
 
-```typescript
-{
-  organizacao_id: stateData.organizacao_id,
-  access_token_encrypted: accessToken,
-  meta_user_id: metaUser.id || null,
-  meta_user_name: metaUser.name || null,
-  meta_user_email: metaUser.email || null,
-  status: "conectado",
-  token_expires_at: tokenExpiresAt,
-  ultimo_erro: null,
-  deletado_em: null,              // NOVO - limpa soft delete anterior
-  conectado_em: new Date().toISOString(),  // NOVO - atualiza data de conexao
-  atualizado_em: new Date().toISOString(),
-}
+```text
+const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?` +
+  `client_id=...` +
+  `&redirect_uri=...` +
+  `&state=...` +
+  `&scope=...` +
+  `&response_type=code`;
 ```
 
-### Correcao imediata do banco
+**Depois:**
 
-Alem da correcao no codigo, sera necessario corrigir o registro atual no banco que esta com `deletado_em` preenchido mas `status: conectado`, para que o card apareca imediatamente.
+```text
+const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?` +
+  `client_id=...` +
+  `&redirect_uri=...` +
+  `&state=...` +
+  `&scope=...` +
+  `&response_type=code` +
+  `&auth_type=rerequest`;
+```
+
+O parametro `auth_type=rerequest` e documentado pela Meta para forcar a re-solicitacao de permissoes mesmo que o usuario ja tenha autorizado o app antes.
+
+### Apos a correcao
+
+O usuario deve:
+1. Desconectar a conta Meta no CRM
+2. Reconectar — desta vez a tela do Facebook mostrara as permissoes de `ads_management`
+3. Aceitar as permissoes
+4. Testar a criacao de publico novamente
