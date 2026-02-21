@@ -4,13 +4,115 @@ import { createClient } from "npm:@supabase/supabase-js@2";
  * AIDEV-NOTE: Edge Function para buscar corpo do email sob demanda (lazy loading)
  * Conecta via IMAP usando o provider_id (UID) e salva corpo_html/corpo_texto no banco
  * Chamada pelo frontend quando o usuário abre um email sem corpo carregado
+ * Suporta Gmail OAuth (XOAUTH2) e SMTP manual (login)
  */
+
+const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+
+// =====================================================
+// Crypto helpers (compatível com sync-emails)
+// =====================================================
+
+function simpleDecrypt(encrypted: string, _key: string): string {
+  if (encrypted.startsWith("ef:")) {
+    return decodeURIComponent(escape(atob(encrypted.substring(3))));
+  }
+  return encrypted;
+}
+
+function simpleEncrypt(text: string, _key: string): string {
+  const encoded = btoa(unescape(encodeURIComponent(text)));
+  return `ef:${encoded}`;
+}
+
+// =====================================================
+// Google OAuth helpers
+// =====================================================
+
+async function getGoogleConfig(supabaseAdmin: ReturnType<typeof createClient>) {
+  const { data, error } = await supabaseAdmin
+    .from("configuracoes_globais")
+    .select("configuracoes, configurado")
+    .eq("plataforma", "google")
+    .single();
+
+  if (error || !data || !data.configurado) {
+    throw new Error("Google não configurado.");
+  }
+
+  const config = data.configuracoes as Record<string, string>;
+  if (!config.client_id || !config.client_secret) {
+    throw new Error("Credenciais Google incompletas.");
+  }
+
+  return { clientId: config.client_id, clientSecret: config.client_secret };
+}
+
+async function getGmailAccessToken(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  conexao: Record<string, unknown>
+): Promise<string> {
+  let accessToken = simpleDecrypt(conexao.access_token_encrypted as string, "");
+
+  const expiresAt = conexao.token_expires_at as string | null;
+  const isExpired = expiresAt && new Date(expiresAt) < new Date();
+
+  if (isExpired && conexao.refresh_token_encrypted) {
+    console.log("[fetch-email-body] Gmail token expirado, renovando...");
+    const googleConfig = await getGoogleConfig(supabaseAdmin);
+    const refreshToken = simpleDecrypt(conexao.refresh_token_encrypted as string, "");
+
+    const tokenResponse = await fetch(GOOGLE_TOKEN_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: googleConfig.clientId,
+        client_secret: googleConfig.clientSecret,
+        refresh_token: refreshToken,
+        grant_type: "refresh_token",
+      }),
+    });
+
+    const tokens = await tokenResponse.json();
+    if (tokens.access_token) {
+      accessToken = tokens.access_token;
+      const newExpiry = new Date(Date.now() + (tokens.expires_in || 3600) * 1000).toISOString();
+      const encryptedToken = simpleEncrypt(tokens.access_token, "");
+
+      await supabaseAdmin
+        .from("conexoes_email")
+        .update({
+          access_token_encrypted: encryptedToken,
+          token_expires_at: newExpiry,
+          atualizado_em: new Date().toISOString(),
+        })
+        .eq("id", conexao.id as string);
+
+      await supabaseAdmin
+        .from("conexoes_google")
+        .update({
+          access_token_encrypted: encryptedToken,
+          token_expires_at: newExpiry,
+          atualizado_em: new Date().toISOString(),
+        })
+        .eq("usuario_id", conexao.usuario_id as string)
+        .is("deletado_em", null);
+
+      console.log("[fetch-email-body] Gmail token renovado com sucesso");
+    } else {
+      console.error("[fetch-email-body] Falha ao renovar token Gmail:", tokens);
+      throw new Error("Token Gmail expirado e não foi possível renovar.");
+    }
+  }
+
+  return accessToken;
+}
 
 // =====================================================
 // IMAP Host Detection (mesmo do sync-emails)
@@ -107,10 +209,8 @@ function extractCharset(contentTypeHeader: string): string | undefined {
 
 // AIDEV-NOTE: Detecta charset declarado em tags <meta> do HTML (fallback quando MIME headers não declaram)
 function detectCharsetFromHtmlMeta(html: string): string | undefined {
-  // <meta charset="iso-8859-1">
   const m1 = html.match(/<meta\s+charset\s*=\s*"?([^"\s;>]+)"?\s*\/?>/i);
   if (m1) return m1[1].trim().toLowerCase();
-  // <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
   const m2 = html.match(/<meta\s+http-equiv\s*=\s*"?Content-Type"?\s+content\s*=\s*"[^"]*charset=([^"\s;>]+)"?\s*\/?>/i);
   if (m2) return m2[1].trim().toLowerCase();
   return undefined;
@@ -126,7 +226,6 @@ function reDecodeIfNeeded(decoded: string, rawContent: string, encoding: string,
       return reDecoded;
     }
   }
-  // Fallback: try latin1/iso-8859-1 if not already tried
   if (mimeCharset !== "iso-8859-1" && mimeCharset !== "latin1" && (!decoded.includes("\uFFFD") === false)) {
     const latin1 = decodeContentBody(rawContent, encoding, "iso-8859-1");
     if (!latin1.includes("\uFFFD")) return latin1;
@@ -148,7 +247,6 @@ function parseMimeMessage(raw: string): { html: string; text: string } {
     const boundaryMatch = headers.match(/boundary="?([^"\s;]+)"?/i);
     if (boundaryMatch) {
       const result = parseMultipart(body, boundaryMatch[1].trim());
-      // Re-decode if needed
       if (result.html) result.html = reDecodeIfNeeded(result.html, body, "7bit");
       if (result.text) result.text = reDecodeIfNeeded(result.text, body, "7bit");
       return result;
@@ -321,6 +419,15 @@ class ImapClient {
     return result.ok;
   }
 
+  /**
+   * AIDEV-NOTE: Autenticação IMAP via XOAUTH2 para Gmail OAuth
+   */
+  async authenticateXOAuth2(user: string, accessToken: string): Promise<boolean> {
+    const xoauth2Token = btoa(`user=${user}\x01auth=Bearer ${accessToken}\x01\x01`);
+    const result = await this.command(`AUTHENTICATE XOAUTH2 ${xoauth2Token}`);
+    return result.ok;
+  }
+
   async selectInbox(): Promise<boolean> {
     const result = await this.command("SELECT INBOX");
     return result.ok;
@@ -375,7 +482,6 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
 
-    // AIDEV-NOTE: Usar getUser() em vez de getClaims() (Supabase JS v2)
     const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
     if (userError || !user) {
       return new Response(
@@ -445,28 +551,61 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get connection
+    // AIDEV-NOTE: Busca conexão com status normalizado (ativo OU conectado)
     const { data: conexao } = await supabaseAdmin
       .from("conexoes_email")
       .select("*")
       .eq("usuario_id", usuario.id)
-      .eq("status", "ativo")
+      .in("status", ["ativo", "conectado", "active", "connected"])
       .is("deletado_em", null)
       .maybeSingle();
 
-    if (!conexao?.smtp_host || !conexao?.smtp_user || !conexao?.smtp_pass_encrypted) {
+    // AIDEV-NOTE: Gmail OAuth não precisa de smtp_host/smtp_user/smtp_pass
+    const isGmail = conexao?.tipo === 'gmail';
+    if (
+      !conexao ||
+      (!isGmail && (!conexao.smtp_host || !conexao.smtp_user || !conexao.smtp_pass_encrypted))
+    ) {
       return new Response(
         JSON.stringify({ sucesso: false, mensagem: "Nenhuma conexão de email ativa" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const imapConfig = detectImapHost(conexao.smtp_host);
+    // Determine IMAP config based on connection type
+    let imapHost: string;
+    let imapPort: number;
+    let imapUser: string;
+    let imapAuthMethod: 'login' | 'xoauth2' = 'login';
+    let imapPass: string;
+
+    if (isGmail) {
+      imapHost = "imap.gmail.com";
+      imapPort = 993;
+      imapUser = conexao.email;
+      imapAuthMethod = 'xoauth2';
+      imapPass = await getGmailAccessToken(supabaseAdmin, conexao as Record<string, unknown>);
+    } else {
+      const imapConfig = detectImapHost(conexao.smtp_host!);
+      imapHost = imapConfig.host;
+      imapPort = imapConfig.port;
+      imapUser = conexao.smtp_user!;
+      imapPass = conexao.smtp_pass_encrypted!;
+    }
+
+    console.log(`[fetch-email-body] IMAP: ${imapHost}:${imapPort} user: ${imapUser} auth: ${imapAuthMethod}`);
+
     const imap = new ImapClient();
 
     try {
-      await imap.connect(imapConfig.host, imapConfig.port);
-      const loginOk = await imap.login(conexao.smtp_user, conexao.smtp_pass_encrypted);
+      await imap.connect(imapHost, imapPort);
+
+      let loginOk: boolean;
+      if (imapAuthMethod === 'xoauth2') {
+        loginOk = await imap.authenticateXOAuth2(imapUser, imapPass);
+      } else {
+        loginOk = await imap.login(imapUser, imapPass);
+      }
       if (!loginOk) throw new Error("Falha na autenticação IMAP");
 
       await imap.selectInbox();
