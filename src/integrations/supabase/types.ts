@@ -7904,6 +7904,7 @@ export type Database = {
       }
     }
     Functions: {
+      belongs_to_tenant: { Args: { target_org_id: string }; Returns: boolean }
       calcular_storage_organizacao: {
         Args: { p_organizacao_id: string }
         Returns: number
@@ -7925,6 +7926,8 @@ export type Database = {
         Returns: boolean
       }
       get_current_usuario_id: { Args: never; Returns: string }
+      get_user_organizacao_id: { Args: never; Returns: string }
+      get_user_role: { Args: never; Returns: string }
       get_user_tenant_id: { Args: never; Returns: string }
       has_app_role: {
         Args: {
@@ -7946,9 +7949,12 @@ export type Database = {
         Args: { p_formulario_id: string }
         Returns: undefined
       }
+      is_admin_of_tenant: { Args: { target_org_id: string }; Returns: boolean }
       is_super_admin: { Args: never; Returns: boolean }
+      is_super_admin_from_table: { Args: never; Returns: boolean }
       is_super_admin_v2: { Args: never; Returns: boolean }
       is_tenant_admin: { Args: never; Returns: boolean }
+      is_tenant_member: { Args: never; Returns: boolean }
       limpar_rate_limits_formularios: { Args: never; Returns: undefined }
       log_audit: {
         Args: {
