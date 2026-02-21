@@ -860,13 +860,13 @@ Deno.serve(async (req) => {
 
     const authUserId = user.id;
 
-    const { data: usuario, error: userError } = await supabaseAdmin
+    const { data: usuario, error: usuarioError } = await supabaseAdmin
       .from("usuarios")
       .select("id, organizacao_id")
       .eq("auth_id", authUserId)
       .single();
 
-    if (userError || !usuario) {
+    if (usuarioError || !usuario) {
       return new Response(
         JSON.stringify({
           sucesso: false,
