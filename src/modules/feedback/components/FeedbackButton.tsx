@@ -49,8 +49,11 @@ export function FeedbackButton() {
             className="fixed inset-0 z-[199]"
             onClick={() => setOpen(false)}
           />
-          <div className="absolute right-0 mt-1 z-[200]">
-            <FeedbackPopover onClose={() => setOpen(false)} />
+          {/* Desktop: absolute ao botão / Mobile: centralizado na tela */}
+          <div className="fixed inset-0 flex items-start justify-center pt-16 z-[200] pointer-events-none sm:absolute sm:inset-auto sm:right-0 sm:mt-1 sm:pt-0 sm:block">
+            <div className="pointer-events-auto">
+              <FeedbackPopover onClose={() => setOpen(false)} />
+            </div>
           </div>
         </>
       )}

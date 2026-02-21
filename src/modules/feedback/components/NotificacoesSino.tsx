@@ -94,7 +94,8 @@ export const NotificacoesSino = forwardRef<HTMLDivElement>(function Notificacoes
         {open && (
           <>
             <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-            <div className="absolute right-0 mt-1 w-80 bg-background rounded-lg shadow-lg border border-border z-50 overflow-hidden">
+            {/* Desktop: absolute ao botão / Mobile: centralizado na tela */}
+            <div className="fixed left-1/2 -translate-x-1/2 top-14 w-[calc(100vw-2rem)] max-w-80 bg-background rounded-lg shadow-lg border border-border z-50 overflow-hidden sm:absolute sm:left-auto sm:translate-x-0 sm:top-auto sm:right-0 sm:mt-1 sm:w-80">
               {/* Header */}
               <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                 <h4 className="text-sm font-semibold text-foreground">Notificações</h4>
