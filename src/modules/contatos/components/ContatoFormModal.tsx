@@ -9,7 +9,7 @@
  * - ARIA, ESC to close, focus trap
  */
 
-import { useEffect, useMemo, useState, useRef, useId } from 'react'
+import { useEffect, useMemo, useState, forwardRef, useRef, useId } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { X, User, Building2, Search, Check, ChevronDown } from 'lucide-react'
 import { StatusContatoOptions, OrigemContatoOptions, PorteOptions } from '../schemas/contatos.schema'
