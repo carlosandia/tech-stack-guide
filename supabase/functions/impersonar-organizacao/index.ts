@@ -38,16 +38,16 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await supabaseUser.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
+    // AIDEV-NOTE: Usar getUser() em vez de getClaims() (Supabase JS v2)
+    const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
+    if (authError || !user) {
       return new Response(JSON.stringify({ error: "Token inválido" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const callerAuthId = claimsData.claims.sub;
+    const callerAuthId = user.id;
 
     // Cliente service_role para operações admin
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);

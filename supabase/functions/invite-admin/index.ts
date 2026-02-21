@@ -442,10 +442,10 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await supabaseAuth.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
-      console.warn("[invite-admin] Token inválido:", claimsError?.message);
+    // AIDEV-NOTE: Usar getUser() em vez de getClaims() (Supabase JS v2)
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
+    if (authError || !user) {
+      console.warn("[invite-admin] Token inválido:", authError?.message);
       return new Response(
         JSON.stringify({ error: "Token inválido ou expirado" }),
         {
@@ -455,7 +455,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const requestingUserId = claimsData.claims.sub;
+    const requestingUserId = user.id;
     console.log("[invite-admin] Usuário autenticado:", requestingUserId);
 
     // AIDEV-NOTE: SEGURANCA - Buscar usuario da tabela com todas verificacoes

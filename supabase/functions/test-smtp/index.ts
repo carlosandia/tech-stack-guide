@@ -162,17 +162,17 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await supabaseAuth.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
-      console.warn("[test-smtp] Token inválido:", claimsError?.message);
+    // AIDEV-NOTE: Usar getUser() em vez de getClaims() (Supabase JS v2)
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
+    if (authError || !user) {
+      console.warn("[test-smtp] Token inválido:", authError?.message);
       return new Response(
         JSON.stringify({ sucesso: false, mensagem: "Token inválido ou expirado" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const requestingUserId = claimsData.claims.sub;
+    const requestingUserId = user.id;
     console.log("[test-smtp] Usuário autenticado:", requestingUserId);
 
     // Verificar se o usuário é admin ou super_admin

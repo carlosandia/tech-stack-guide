@@ -58,16 +58,16 @@ Deno.serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claims, error: claimsError } = await supabase.auth.getClaims(token);
-    if (claimsError || !claims?.claims) {
+    // AIDEV-NOTE: Usar getUser() em vez de getClaims() (Supabase JS v2)
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
       return new Response(
         JSON.stringify({ error: "Token inválido" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const authUserId = claims.claims.sub as string;
+    const authUserId = user.id;
     console.log(`[waha-proxy] Auth user: ${authUserId}`);
 
     // Service role client for DB operations

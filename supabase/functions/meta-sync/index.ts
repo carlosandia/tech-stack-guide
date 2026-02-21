@@ -36,17 +36,16 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } =
-      await supabaseUser.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
+    // AIDEV-NOTE: Usar getUser() em vez de getClaims() (Supabase JS v2)
+    const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
+    if (authError || !user) {
       return new Response(JSON.stringify({ error: "Token inválido" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const userId = claimsData.claims.sub;
+    const userId = user.id;
 
     // Admin client para operações de escrita
     const supabase = createClient(supabaseUrl, serviceKey);
