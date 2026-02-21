@@ -30,44 +30,21 @@ export default defineConfig(({ mode }) => ({
     host: "::",
   },
   build: {
-    rollupOptions: {
-      output: {
-        /**
-         * AIDEV-NOTE: Vendor Splitting Strategy (CONSERVADORA)
-         * PRD: melhorias-performance.md - PARTE 5, Fase 1
-         *
-         * IMPORTANTE: Versao anterior causava erro de inicializacao circular
-         * "Cannot access 'M' before initialization"
-         *
-         * Esta versao agrupa apenas bibliotecas que NAO dependem umas das outras:
-         * - react-vendor: React + React DOM + Router (base de tudo)
-         * - vendor: Todas as outras dependencias juntas
-         *
-         * O code splitting por rota (lazy loading) ja separa os chunks de forma
-         * otimizada pelo Vite/Rollup automaticamente.
-         */
-        manualChunks(id) {
-          if (id.includes('node_modules')) {
-            // React Core - Agrupar React e suas dependencias diretas
-            // Isso evita problemas de inicializacao circular
-            if (
-              id.includes('/react/') ||
-              id.includes('/react-dom/') ||
-              id.includes('/react-router') ||
-              id.includes('/scheduler/') ||
-              id.includes('/@remix-run/')
-            ) {
-              return 'react-vendor';
-            }
-
-            // Todas as outras dependencias vao para vendor unico
-            // Isso e mais seguro e evita problemas de ordem de carregamento
-            return 'vendor';
-          }
-        },
-      },
-    },
-    // Aumentar warning limit para chunks maiores esperados
+    /**
+     * AIDEV-NOTE: Removido manualChunks - Deixar Vite/Rollup decidir automaticamente
+     * PRD: melhorias-performance.md - PARTE 5
+     *
+     * PROBLEMA RESOLVIDO: manualChunks causava dependencia circular entre chunks
+     * "Circular chunk: vendor -> react-vendor -> vendor"
+     * Resultando em: "Cannot access 'V' before initialization"
+     *
+     * O Vite/Rollup automaticamente:
+     * - Separa chunks por rota (lazy loading em App.tsx)
+     * - Agrupa dependencias de forma otimizada sem ciclos
+     * - Faz tree-shaking corretamente
+     *
+     * Vendor splitting manual so e seguro quando nao ha dependencias cruzadas.
+     */
     chunkSizeWarningLimit: 500,
   },
 }))
