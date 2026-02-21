@@ -4,7 +4,7 @@
  * Passa callbacks de ações de contexto para ConversaItem
  */
 
-import { useRef, useCallback, forwardRef } from 'react'
+import { useRef, useCallback } from 'react'
 import { ConversaItem } from './ConversaItem'
 import type { Conversa } from '../services/conversas.api'
 import { MessageSquare, Loader2 } from 'lucide-react'
@@ -23,7 +23,8 @@ interface ConversasListProps {
   onApagar?: (id: string) => void
 }
 
-export const ConversasList = forwardRef<HTMLDivElement, ConversasListProps>(function ConversasList({
+// AIDEV-NOTE: Removido forwardRef - componente usa listRef interno para scroll infinito
+export function ConversasList({
   conversas,
   conversaAtivaId,
   onSelectConversa,
@@ -96,5 +97,4 @@ export const ConversasList = forwardRef<HTMLDivElement, ConversasListProps>(func
       )}
     </div>
   )
-})
-ConversasList.displayName = 'ConversasList'
+}

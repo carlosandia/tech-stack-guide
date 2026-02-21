@@ -28,12 +28,15 @@ export function LabelsPopover({ conversaId, chatId, sessionName, children }: Lab
   const [autoSyncDone, setAutoSyncDone] = useState(false)
 
   // AIDEV-NOTE: Auto-sync labels ao abrir popover quando lista está vazia
+  // AIDEV-NOTE: Removido 'sincronizar' das deps pois o objeto muda de referência a cada render
+  // causando loop infinito. Usar apenas sincronizar.isPending é suficiente.
   useEffect(() => {
     if (open && !loadingLabels && allLabels.length === 0 && !autoSyncDone && sessionName && !sincronizar.isPending) {
       setAutoSyncDone(true)
       sincronizar.mutate(sessionName)
     }
-  }, [open, loadingLabels, allLabels.length, autoSyncDone, sessionName, sincronizar])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, loadingLabels, allLabels.length, autoSyncDone, sessionName, sincronizar.isPending])
 
   // Sync selected from conversaLabels
   useEffect(() => {

@@ -9,7 +9,7 @@
  * - ARIA, ESC to close, focus trap
  */
 
-import { useEffect, useMemo, useState, forwardRef, useRef, useId } from 'react'
+import { useEffect, useMemo, useState, useRef, useId } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { X, User, Building2, Search, Check, ChevronDown } from 'lucide-react'
 import { StatusContatoOptions, OrigemContatoOptions, PorteOptions } from '../schemas/contatos.schema'
@@ -62,7 +62,8 @@ function getCampoPlaceholderText(campo: CampoCustomizado): string {
   }
 }
 
-export const ContatoFormModal = forwardRef<HTMLDivElement, ContatoFormModalProps>(function ContatoFormModal({
+// AIDEV-NOTE: Removido forwardRef - componente usa modalRef interno para focus trap
+export function ContatoFormModal({
   open,
   onClose,
   onSubmit,
@@ -77,7 +78,7 @@ export const ContatoFormModal = forwardRef<HTMLDivElement, ContatoFormModalProps
 }: ContatoFormModalProps) {
   const isEditing = !!contato
   const isPessoa = tipo === 'pessoa'
-  const modalRef = useRef<HTMLDivElement>(null)
+  const modalRef = useRef<HTMLFormElement>(null)
   const titleId = useId()
 
   const [visibilityVersion, setVisibilityVersion] = useState(0)
@@ -484,7 +485,7 @@ export const ContatoFormModal = forwardRef<HTMLDivElement, ContatoFormModalProps
       {/* Dialog container - z-401 */}
       <div className="fixed inset-0 z-[401] flex items-center justify-center pointer-events-none">
         <form
-          ref={modalRef as any}
+          ref={modalRef}
           role="dialog"
           aria-modal="true"
           aria-labelledby={titleId}
@@ -597,8 +598,7 @@ export const ContatoFormModal = forwardRef<HTMLDivElement, ContatoFormModalProps
       </div>
     </>
   )
-})
-ContatoFormModal.displayName = 'ContatoFormModal'
+}
 
 // =====================================================
 // Empresa search field

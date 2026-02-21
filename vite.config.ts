@@ -27,7 +27,13 @@ export default defineConfig(({ mode }) => ({
   },
   server: {
     port: 8080,
-    host: "::",
+    host: "localhost",
+    // AIDEV-NOTE: HMR config para evitar erro de WebSocket em porta diferente
+    hmr: {
+      protocol: 'ws',
+      host: 'localhost',
+      port: 8080,
+    },
   },
   build: {
     /**
