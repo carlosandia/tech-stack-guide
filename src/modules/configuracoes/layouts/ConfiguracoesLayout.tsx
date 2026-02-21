@@ -61,7 +61,8 @@ function ConfiguracoesLayoutInner() {
   )
 }
 
-export function ConfiguracoesLayout() {
+// AIDEV-NOTE: Usar apenas export default para evitar erro de inicialização circular no bundler
+function ConfiguracoesLayout() {
   return (
     <ConfigToolbarProvider>
       <ConfiguracoesLayoutInner />

@@ -9,7 +9,7 @@
   * Exibe todos os módulos disponíveis na plataforma
   */
  
- export function ModulosPage() {
+ function ModulosPage() {
    const { setSubtitle } = useToolbar()
    const { data: modulos, isLoading, error } = useModulos()
  

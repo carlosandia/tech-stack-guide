@@ -22,7 +22,8 @@ import { ConversasMetricasPanel } from '../components/ConversasMetricasPanel'
 import { toast } from 'sonner'
 import type { ListarConversasParams } from '../services/conversas.api'
 
-export const ConversasPage = forwardRef<HTMLDivElement>(function ConversasPage(_props, _ref) {
+// AIDEV-NOTE: Usar apenas export default para evitar erro de inicialização circular no bundler
+const ConversasPage = forwardRef<HTMLDivElement>(function ConversasPage(_props, _ref) {
   const { setActions, setSubtitle, setCenterContent } = useAppToolbar()
   const [conversaAtivaId, setConversaAtivaId] = useState<string | null>(null)
   const [drawerAberto, setDrawerAberto] = useState(false)

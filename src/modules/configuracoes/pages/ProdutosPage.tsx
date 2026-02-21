@@ -330,3 +330,5 @@ function CategoriasList({ categorias, isAdmin, onEdit }: {
     </div>
   )
 }
+
+export default ProdutosPage

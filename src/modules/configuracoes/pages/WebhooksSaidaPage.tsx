@@ -343,3 +343,5 @@ export function WebhooksSaidaPage() {
     </div>
   )
 }
+
+export default WebhooksSaidaPage

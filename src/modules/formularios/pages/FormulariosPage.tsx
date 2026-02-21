@@ -73,7 +73,8 @@ const FormulariosToolbarFilters = forwardRef<HTMLDivElement, {
 })
 FormulariosToolbarFilters.displayName = 'FormulariosToolbarFilters'
 
-export const FormulariosPage = forwardRef<HTMLDivElement>(function FormulariosPage(_props, _ref) {
+// AIDEV-NOTE: Usar apenas export default para evitar erro de inicialização circular no bundler
+const FormulariosPage = forwardRef<HTMLDivElement>(function FormulariosPage(_props, _ref) {
   const navigate = useNavigate()
   const { setActions, setSubtitle, setCenterContent } = useAppToolbar()
 
@@ -195,3 +196,5 @@ export const FormulariosPage = forwardRef<HTMLDivElement>(function FormulariosPa
   )
 })
 FormulariosPage.displayName = 'FormulariosPage'
+
+export default FormulariosPage

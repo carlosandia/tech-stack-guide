@@ -29,7 +29,7 @@ const PLATAFORMAS = [
   { id: 'login_banner' as const, label: 'Login Banner', descricao: 'Banner da tela de login' },
 ]
 
-export function ConfiguracoesGlobaisPage() {
+function ConfiguracoesGlobaisPage() {
   const [activeTab, setActiveTab] = useState<PlataformaId>('meta')
   const { data: configs, isLoading, error } = useConfigGlobais()
    const { setSubtitle } = useToolbar()

@@ -174,3 +174,5 @@ export function PerfisPermissaoPage() {
     </div>
   )
 }
+
+export default PerfisPermissaoPage

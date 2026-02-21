@@ -305,3 +305,5 @@ export function WebhooksEntradaPage() {
     </div>
   )
 }
+
+export default WebhooksEntradaPage

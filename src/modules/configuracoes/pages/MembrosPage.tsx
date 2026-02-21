@@ -255,3 +255,5 @@ export function MembrosPage() {
     </div>
   )
 }
+
+export default MembrosPage

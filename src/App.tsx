@@ -49,8 +49,8 @@ import { FormularioPublicoPage } from '@/modules/formularios/pages/FormularioPub
 // ============================================
 
 // Admin Module (so Super Admin)
-// AIDEV-NOTE: Arquivos usam export default, nao named exports
-const AdminLayout = lazy(() => import('@/modules/admin/layouts/AdminLayout').then(m => ({ default: m.AdminLayout })))
+// AIDEV-NOTE: Todos arquivos normalizados para export default - removido .then() patterns
+const AdminLayout = lazy(() => import('@/modules/admin/layouts/AdminLayout'))
 const AdminDashboardPage = lazy(() => import('@/modules/admin/pages/DashboardPage'))
 const AdminOrganizacoesPage = lazy(() => import('@/modules/admin/pages/OrganizacoesPage'))
 const AdminOrganizacaoDetalhesPage = lazy(() => import('@/modules/admin/pages/OrganizacaoDetalhesPage'))
@@ -60,35 +60,35 @@ const AdminModulosPage = lazy(() => import('@/modules/admin/pages/ModulosPage'))
 const AdminEvolucaoPage = lazy(() => import('@/modules/admin/pages/EvolucaoPage'))
 
 // App Module (CRM principal)
-const AppLayout = lazy(() => import('@/modules/app/layouts/AppLayout').then(m => ({ default: m.AppLayout })))
+const AppLayout = lazy(() => import('@/modules/app/layouts/AppLayout'))
 const AppDashboardPage = lazy(() => import('@/modules/app/pages/DashboardPage'))
 const PerfilPage = lazy(() => import('@/modules/app/pages/PerfilPage'))
 
 // Configuracoes Module
-// AIDEV-NOTE: ConfiguracoesLayout tem default export, pages usam named exports
+// AIDEV-NOTE: Todos arquivos normalizados para export default - removido .then() patterns
 const ConfiguracoesLayout = lazy(() => import('@/modules/configuracoes/layouts/ConfiguracoesLayout'))
-const CamposPage = lazy(() => import('@/modules/configuracoes/pages/CamposPage').then(m => ({ default: m.CamposPage })))
-const ProdutosPage = lazy(() => import('@/modules/configuracoes/pages/ProdutosPage').then(m => ({ default: m.ProdutosPage })))
-const MotivosPage = lazy(() => import('@/modules/configuracoes/pages/MotivosPage').then(m => ({ default: m.MotivosPage })))
-const TarefasTemplatesPage = lazy(() => import('@/modules/configuracoes/pages/TarefasTemplatesPage').then(m => ({ default: m.TarefasTemplatesPage })))
-const EtapasTemplatesPage = lazy(() => import('@/modules/configuracoes/pages/EtapasTemplatesPage').then(m => ({ default: m.EtapasTemplatesPage })))
-const RegrasPage = lazy(() => import('@/modules/configuracoes/pages/RegrasPage').then(m => ({ default: m.RegrasPage })))
-const ConfigCardPage = lazy(() => import('@/modules/configuracoes/pages/ConfigCardPage').then(m => ({ default: m.ConfigCardPage })))
-const ConexoesPage = lazy(() => import('@/modules/configuracoes/pages/ConexoesPage').then(m => ({ default: m.ConexoesPage })))
-const WebhooksEntradaPage = lazy(() => import('@/modules/configuracoes/pages/WebhooksEntradaPage').then(m => ({ default: m.WebhooksEntradaPage })))
-const WebhooksSaidaPage = lazy(() => import('@/modules/configuracoes/pages/WebhooksSaidaPage').then(m => ({ default: m.WebhooksSaidaPage })))
-const MembrosPage = lazy(() => import('@/modules/configuracoes/pages/MembrosPage').then(m => ({ default: m.MembrosPage })))
-const EquipesPage = lazy(() => import('@/modules/configuracoes/pages/EquipesPage').then(m => ({ default: m.EquipesPage })))
-const PerfisPermissaoPage = lazy(() => import('@/modules/configuracoes/pages/PerfisPermissaoPage').then(m => ({ default: m.PerfisPermissaoPage })))
-const MetasPage = lazy(() => import('@/modules/configuracoes/pages/MetasPage').then(m => ({ default: m.MetasPage })))
-const ConfigGeralPage = lazy(() => import('@/modules/configuracoes/pages/ConfigGeralPage').then(m => ({ default: m.ConfigGeralPage })))
+const CamposPage = lazy(() => import('@/modules/configuracoes/pages/CamposPage'))
+const ProdutosPage = lazy(() => import('@/modules/configuracoes/pages/ProdutosPage'))
+const MotivosPage = lazy(() => import('@/modules/configuracoes/pages/MotivosPage'))
+const TarefasTemplatesPage = lazy(() => import('@/modules/configuracoes/pages/TarefasTemplatesPage'))
+const EtapasTemplatesPage = lazy(() => import('@/modules/configuracoes/pages/EtapasTemplatesPage'))
+const RegrasPage = lazy(() => import('@/modules/configuracoes/pages/RegrasPage'))
+const ConfigCardPage = lazy(() => import('@/modules/configuracoes/pages/ConfigCardPage'))
+const ConexoesPage = lazy(() => import('@/modules/configuracoes/pages/ConexoesPage'))
+const WebhooksEntradaPage = lazy(() => import('@/modules/configuracoes/pages/WebhooksEntradaPage'))
+const WebhooksSaidaPage = lazy(() => import('@/modules/configuracoes/pages/WebhooksSaidaPage'))
+const MembrosPage = lazy(() => import('@/modules/configuracoes/pages/MembrosPage'))
+const EquipesPage = lazy(() => import('@/modules/configuracoes/pages/EquipesPage'))
+const PerfisPermissaoPage = lazy(() => import('@/modules/configuracoes/pages/PerfisPermissaoPage'))
+const MetasPage = lazy(() => import('@/modules/configuracoes/pages/MetasPage'))
+const ConfigGeralPage = lazy(() => import('@/modules/configuracoes/pages/ConfigGeralPage'))
 
 // Feature Modules
-// AIDEV-NOTE: Mistura de named exports e default exports - verificar cada arquivo
-const FormulariosPage = lazy(() => import('@/modules/formularios/pages/FormulariosPage').then(m => ({ default: m.FormulariosPage })))
-const FormularioEditorPage = lazy(() => import('@/modules/formularios/pages/FormularioEditorPage').then(m => ({ default: m.FormularioEditorPage })))
-const AutomacoesPage = lazy(() => import('@/modules/automacoes/pages/AutomacoesPage').then(m => ({ default: m.AutomacoesPage })))
-const ContatosPage = lazy(() => import('@/modules/contatos/pages/ContatosPage').then(m => ({ default: m.ContatosPage })))
+// AIDEV-NOTE: Todos arquivos normalizados para export default - removido .then() patterns
+const FormulariosPage = lazy(() => import('@/modules/formularios/pages/FormulariosPage'))
+const FormularioEditorPage = lazy(() => import('@/modules/formularios/pages/FormularioEditorPage'))
+const AutomacoesPage = lazy(() => import('@/modules/automacoes/pages/AutomacoesPage'))
+const ContatosPage = lazy(() => import('@/modules/contatos/pages/ContatosPage'))
 const NegociosPage = lazy(() => import('@/modules/negocios/pages/NegociosPage'))
 const PipelineConfigPage = lazy(() => import('@/modules/negocios/pages/PipelineConfigPage'))
 const TarefasPage = lazy(() => import('@/modules/tarefas/pages/TarefasPage'))

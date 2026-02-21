@@ -317,7 +317,8 @@ function ToolbarWithActions({ pageTitle }: { pageTitle: string }) {
 }
 
 // Componente exportado que provê o contexto
-export function AdminLayout() {
+// AIDEV-NOTE: Usar apenas export default para evitar erro de inicialização circular no bundler
+function AdminLayout() {
   return (
     <ToolbarProvider>
       <AdminLayoutInner />

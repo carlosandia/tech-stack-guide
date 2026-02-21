@@ -39,7 +39,8 @@ import type { PastaEmail, AcaoLote, EmailRecebido } from '../types/email.types'
 // Extended type to include "starred" virtual folder
 type PastaEmailExtended = PastaEmail | 'starred'
 
-export function EmailsPage() {
+// AIDEV-NOTE: Usar apenas export default para evitar erro de inicialização circular no bundler
+function EmailsPage() {
   const [pasta, setPasta] = useState<PastaEmailExtended>('inbox')
   const [busca, setBusca] = useState('')
   const [page, setPage] = useState(1)

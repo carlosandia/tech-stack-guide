@@ -42,7 +42,7 @@ const TABS = [
   { id: 'configuracoes' as const, label: 'Configuracoes', icon: Settings },
 ]
 
-export function OrganizacaoDetalhesPage() {
+function OrganizacaoDetalhesPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<TabId>('dados')

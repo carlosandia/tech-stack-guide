@@ -1,5 +1,6 @@
 /**
  * AIDEV-NOTE: Barrel export do módulo de Conversas (PRD-09)
+ * AIDEV-NOTE: Pages usam export default - usar sintaxe { default as X }
  */
 
-export { ConversasPage } from './pages/ConversasPage'
+export { default as ConversasPage } from './pages/ConversasPage'

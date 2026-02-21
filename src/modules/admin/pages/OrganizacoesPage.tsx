@@ -52,7 +52,7 @@ const statusOptions = [
   { value: 'pendentes', label: 'Pendentes (Leads)' },
 ]
 
-export function OrganizacoesPage() {
+function OrganizacoesPage() {
   const navigate = useNavigate()
   const { setActions, setSubtitle } = useToolbar()
   const [busca, setBusca] = useState('')

@@ -103,3 +103,5 @@ export function CamposPage() {
     </div>
   )
 }
+
+export default CamposPage

@@ -226,3 +226,5 @@ function MotivosList({ motivos, isAdmin, onEdit }: {
     </div>
   )
 }
+
+export default MotivosPage

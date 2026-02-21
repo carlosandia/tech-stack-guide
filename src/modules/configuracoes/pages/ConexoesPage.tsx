@@ -240,3 +240,5 @@ export function ConexoesPage() {
     </div>
   )
 }
+
+export default ConexoesPage

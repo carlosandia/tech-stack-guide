@@ -160,3 +160,5 @@ export function EtapasTemplatesPage() {
     </div>
   )
 }
+
+export default EtapasTemplatesPage

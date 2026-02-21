@@ -285,3 +285,5 @@ function MetaCard({
     </div>
   )
 }
+
+export default MetasPage

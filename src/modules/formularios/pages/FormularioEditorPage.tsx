@@ -797,3 +797,5 @@ export function FormularioEditorPage() {
     </div>
   )
 }
+
+export default FormularioEditorPage

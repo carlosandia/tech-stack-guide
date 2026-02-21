@@ -34,7 +34,7 @@ import {
    '90d': 'últimos 90 dias',
  }
  
- export function DashboardPage() {
+ function DashboardPage() {
    const { setSubtitle } = useToolbar()
    const [periodo, setPeriodo] = useState<Periodo>('30d')
  

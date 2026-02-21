@@ -372,3 +372,5 @@ export function ConfigCardPage() {
     </div>
   )
 }
+
+export default ConfigCardPage

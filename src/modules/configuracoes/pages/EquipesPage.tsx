@@ -296,3 +296,5 @@ export function EquipesPage() {
     </div>
   )
 }
+
+export default EquipesPage

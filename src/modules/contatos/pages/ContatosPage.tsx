@@ -35,7 +35,8 @@ import { negociosApi } from '@/modules/negocios/services/negocios.api'
 import { StatusContatoOptions, OrigemContatoOptions } from '../schemas/contatos.schema'
 import { contatosApi } from '../services/contatos.api'
 
-export const ContatosPage = forwardRef<HTMLDivElement>(function ContatosPage(_props, _ref) {
+// AIDEV-NOTE: Usar apenas export default para evitar erro de inicialização circular no bundler
+const ContatosPage = forwardRef<HTMLDivElement>(function ContatosPage(_props, _ref) {
   // AIDEV-NOTE: Realtime subscription para sincronização automática
   // PRD: melhorias-performance.md - Fase 4
   useContatosRealtime()
@@ -883,3 +884,5 @@ export const ContatosPage = forwardRef<HTMLDivElement>(function ContatosPage(_pr
   )
 })
 ContatosPage.displayName = 'ContatosPage'
+
+export default ContatosPage

@@ -163,3 +163,5 @@ export function TarefasTemplatesPage() {
     </div>
   )
 }
+
+export default TarefasTemplatesPage

@@ -87,7 +87,7 @@ function useOrganizacoesSelect() {
 
 // --- Página principal ---
 
-export function EvolucaoPage() {
+function EvolucaoPage() {
   const { setActions, setSubtitle } = useToolbar()
 
   // Filtros

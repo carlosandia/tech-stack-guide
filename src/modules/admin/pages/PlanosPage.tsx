@@ -24,7 +24,7 @@ function isTrialPlan(plano: Plano): boolean {
  * - Modulos vinculados
  */
 
-export function PlanosPage() {
+function PlanosPage() {
    const { data: planos, isLoading, error, isError, refetch, fetchStatus } = usePlanos()
   const { data: modulos } = useModulos()
   const { data: configStripe } = useConfigGlobal('stripe')

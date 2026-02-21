@@ -401,7 +401,8 @@ const ToolbarWithActions = forwardRef<HTMLDivElement, { pageTitle: string }>(fun
   )
 })
 
-export const AppLayout = forwardRef<HTMLDivElement>(function AppLayout(_props, ref) {
+// AIDEV-NOTE: Usar apenas export default para evitar erro de inicialização circular no bundler
+const AppLayout = forwardRef<HTMLDivElement>(function AppLayout(_props, ref) {
   return (
     <AppToolbarProvider ref={ref}>
       <AppLayoutInner />

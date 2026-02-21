@@ -222,3 +222,5 @@ export function AutomacoesPage() {
     </div>
   )
 }
+
+export default AutomacoesPage

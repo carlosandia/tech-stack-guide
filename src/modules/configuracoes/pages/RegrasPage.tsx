@@ -180,3 +180,5 @@ export function RegrasPage() {
     </div>
   )
 }
+
+export default RegrasPage

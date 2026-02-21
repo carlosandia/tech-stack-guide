@@ -1,19 +1,20 @@
 /**
  * AIDEV-NOTE: Exports do modulo Admin
  * Conforme PRD-14 - Painel Super Admin
+ * AIDEV-NOTE: Pages usam export default - usar sintaxe { default as X }
  */
 
 // Layout
-export { AdminLayout } from './layouts/AdminLayout'
+export { default as AdminLayout } from './layouts/AdminLayout'
 
 // Pages
-export { DashboardPage as AdminDashboardPage } from './pages/DashboardPage'
- export { ModulosPage as AdminModulosPage } from './pages/ModulosPage'
-export { OrganizacoesPage as AdminOrganizacoesPage } from './pages/OrganizacoesPage'
-export { OrganizacaoDetalhesPage as AdminOrganizacaoDetalhesPage } from './pages/OrganizacaoDetalhesPage'
-export { PlanosPage as AdminPlanosPage } from './pages/PlanosPage'
-export { ConfiguracoesGlobaisPage as AdminConfiguracoesGlobaisPage } from './pages/ConfiguracoesGlobaisPage'
-export { EvolucaoPage as AdminEvolucaoPage } from './pages/EvolucaoPage'
+export { default as AdminDashboardPage } from './pages/DashboardPage'
+export { default as AdminModulosPage } from './pages/ModulosPage'
+export { default as AdminOrganizacoesPage } from './pages/OrganizacoesPage'
+export { default as AdminOrganizacaoDetalhesPage } from './pages/OrganizacaoDetalhesPage'
+export { default as AdminPlanosPage } from './pages/PlanosPage'
+export { default as AdminConfiguracoesGlobaisPage } from './pages/ConfiguracoesGlobaisPage'
+export { default as AdminEvolucaoPage } from './pages/EvolucaoPage'
 
 // Components
 export { NovaOrganizacaoModal } from './components/NovaOrganizacaoModal'
