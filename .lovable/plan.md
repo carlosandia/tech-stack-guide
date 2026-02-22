@@ -1,52 +1,62 @@
 
-# Correção: Inscrever App nos Eventos Leadgen da Página
 
-## Problema
-O Meta nao envia eventos de leadgen para o webhook porque o app nao esta inscrito na pagina. A ferramenta de teste confirma: "A Pagina selecionada nao tem nenhum app associado a ela." Isso acontece porque nunca chamamos o endpoint `POST /{page-id}/subscribed_apps` da Graph API.
+## Plano: Centralizar popovers no mobile + melhorar metricas
 
-## Solucao
+### Problema atual
+1. **Popover de Meta**: abre com `PopoverContent` do Radix que posiciona via portal com alinhamento lateral, cortando no mobile
+2. **Popover de Filtros**: mesmo problema - `PopoverContent` do Radix alinha a `end`, corta no mobile
+3. **Popover de Periodo**: posicionado com `absolute right-0`, corta a esquerda no mobile
+4. **Metricas (MetricasPanel)**: usa scroll horizontal no mobile (`overflow-x-auto`), experiencia ruim
 
-### Arquivo: `supabase/functions/meta-sync/index.ts`
+---
 
-Apos o upsert de cada pagina (linha ~183), adicionar uma chamada para inscrever o app nos eventos `leadgen` da pagina:
+### Solucao
 
-```typescript
-// Apos upsert bem-sucedido, inscrever app nos eventos leadgen da pagina
-const subscribeRes = await fetch(
-  `${GRAPH_API}/${page.id}/subscribed_apps?subscribed_fields=leadgen&access_token=${page.access_token}`,
-  { method: "POST" }
-);
-const subscribeData = await subscribeRes.json();
+#### 1. MetaToolbarIndicator - Centralizar no mobile
+- Trocar `PopoverContent` por implementacao manual (igual padrao ja usado em NotificacoesSino e FeedbackButton)
+- Mobile: `fixed left-1/2 -translate-x-1/2 top-14 w-[calc(100vw-2rem)]` + overlay escuro (`fixed inset-0 bg-black/40`)
+- Desktop (`sm:`): volta ao comportamento absoluto relativo ao botao
 
-if (subscribeData.success) {
-  console.log(`[meta-sync] App inscrito em leadgen para pagina ${page.name}`);
-  // Atualizar leads_retrieval para true
-  await supabase
-    .from("paginas_meta")
-    .update({ leads_retrieval: true })
-    .eq("organizacao_id", orgId)
-    .eq("page_id", page.id);
-} else {
-  console.warn(`[meta-sync] Falha ao inscrever app em leadgen para ${page.name}:`, subscribeData);
-}
+#### 2. FiltrosPopover - Centralizar no mobile
+- Trocar `Popover`/`PopoverContent` do Radix por controle manual com `useState`
+- Mobile: `fixed left-1/2 -translate-x-1/2 top-14 w-[calc(100vw-2rem)]` + overlay escuro
+- Desktop (`sm:`): `absolute right-0` como esta hoje
+
+#### 3. PeriodoSelector - Centralizar no mobile
+- Ja usa implementacao manual (bom), mas posiciona `absolute right-0`
+- Mobile: `fixed left-1/2 -translate-x-1/2 top-14 w-[calc(100vw-2rem)] max-w-64` + overlay escuro
+- Desktop (`sm:`): manter `absolute right-0`
+
+#### 4. MetricasPanel - Proposta de UI melhorada para mobile
+- **Remover** scroll horizontal no mobile
+- **Mobile**: grid `grid-cols-3` compacto, exibindo apenas 3 metricas principais (Ganhas, Perdidas, Valor Pipeline) por padrao
+- Cards menores e mais compactos no mobile, sem min-width
+- Se houver mais de 3 metricas visiveis, as 3 primeiras aparecem no grid e as demais ficam ocultas com um botao "Ver mais" que expande para mostrar todas em grid `grid-cols-3`
+- **Desktop**: manter layout atual com grid responsivo
+
+---
+
+### Detalhes tecnicos
+
+**Padrao de overlay mobile** (consistente com FeedbackButton e NotificacoesSino):
+```text
+{open && (
+  <>
+    {/* Overlay - mobile escuro, desktop transparente */}
+    <div className="fixed inset-0 z-[59] bg-black/40 sm:bg-transparent" onClick={close} />
+    {/* Content */}
+    <div className="fixed left-1/2 -translate-x-1/2 top-14 w-[calc(100vw-2rem)] max-w-[20rem] z-[60]
+                    sm:absolute sm:left-auto sm:translate-x-0 sm:top-auto sm:right-0 sm:mt-1.5 sm:w-80
+                    bg-card border border-border rounded-lg shadow-lg">
+      ...
+    </div>
+  </>
+)}
 ```
 
-### O que isso faz
+**Arquivos a editar:**
+1. `src/modules/negocios/components/toolbar/MetaToolbarIndicator.tsx` - trocar Radix Popover por controle manual
+2. `src/modules/negocios/components/toolbar/FiltrosPopover.tsx` - trocar Radix Popover por controle manual
+3. `src/modules/negocios/components/toolbar/PeriodoSelector.tsx` - adicionar overlay e centralizar
+4. `src/modules/negocios/components/toolbar/MetricasPanel.tsx` - novo layout mobile com grid compacto e expand
 
-1. Para cada pagina sincronizada, chama `POST /{page_id}/subscribed_apps?subscribed_fields=leadgen` usando o page access token
-2. Se bem-sucedido, atualiza `leads_retrieval = true` na tabela `paginas_meta`
-3. Loga warnings se a inscricao falhar (ex: permissao faltando)
-
-### Apos o deploy
-
-O usuario precisa clicar em **"Sincronizar"** no card do Meta Ads na pagina de Conexoes. Isso vai:
-1. Re-buscar as paginas
-2. Inscrever o app nos eventos leadgen
-3. A partir desse momento, leads de teste e reais serao enviados para o webhook
-
-### Detalhes Tecnicos
-
-- Endpoint da Graph API: `POST /v21.0/{page-id}/subscribed_apps`
-- Parametro: `subscribed_fields=leadgen`
-- Autenticacao: `page_access_token` (ja armazenado)
-- Documentacao: https://developers.facebook.com/docs/graph-api/reference/page/subscribed_apps/
