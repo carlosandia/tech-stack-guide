@@ -14,7 +14,7 @@ import { DetalhesCampos } from './DetalhesCampos'
 import { DetalhesAbas } from './DetalhesAbas'
 import { DetalhesHistorico } from './DetalhesHistorico'
 import { useMoverEtapa } from '../../hooks/useKanban'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -72,6 +72,8 @@ export function DetalhesOportunidadeModal({
     }
   }, [onClose])
 
+  const queryClient = useQueryClient()
+
   const handleMoverEtapa = useCallback((etapaId: string, tipoEtapa: string) => {
     if (!oportunidade) return
     if (oportunidade.etapa_id === etapaId) return
@@ -82,15 +84,28 @@ export function DetalhesOportunidadeModal({
       return
     }
 
+    // AIDEV-NOTE: Optimistic update — atualizar etapa_id no cache local imediatamente
+    queryClient.setQueryData(['oportunidade', oportunidade.id], (old: any) => {
+      if (!old) return old
+      return { ...old, etapa_id: etapaId }
+    })
+
     // Mover normalmente
     moverEtapa.mutate(
       { oportunidadeId: oportunidade.id, etapaDestinoId: etapaId },
       {
-        onError: () => toast.error('Erro ao mover oportunidade'),
+        onError: () => {
+          // Rollback
+          queryClient.setQueryData(['oportunidade', oportunidade.id], (old: any) => {
+            if (!old) return old
+            return { ...old, etapa_id: oportunidade.etapa_id }
+          })
+          toast.error('Erro ao mover oportunidade')
+        },
         onSuccess: () => toast.success('Oportunidade movida'),
       }
     )
-  }, [oportunidade, moverEtapa, onDropGanhoPerda])
+  }, [oportunidade, moverEtapa, onDropGanhoPerda, queryClient])
 
   const handleExcluir = useCallback(() => {
     if (!oportunidade) return

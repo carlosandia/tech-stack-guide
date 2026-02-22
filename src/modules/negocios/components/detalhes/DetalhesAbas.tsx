@@ -36,7 +36,7 @@ export function DetalhesAbas({ oportunidadeId, usuarioAtualId, emailContato, aba
     <div className="flex flex-col h-full">
       {/* Tab bar */}
       <div className="flex-shrink-0 border-b border-border overflow-x-auto">
-        <div className="flex min-w-max">
+        <div className="flex min-w-max justify-center w-full">
           {TABS.map(tab => {
             const Icon = tab.icon
             const isActive = activeTab === tab.id

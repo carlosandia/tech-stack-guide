@@ -161,7 +161,7 @@ export function AbaDocumentos({ oportunidadeId }: AbaDocumentosProps) {
                     {format(parseISO(doc.criado_em), 'dd/MM/yy', { locale: ptBR })}
                   </p>
                 </div>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                   <button
                     type="button"
                     onClick={() => handleDownload(doc)}
