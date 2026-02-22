@@ -6,6 +6,7 @@
  */
 
 import { useState, useMemo, useRef, useEffect, forwardRef } from 'react'
+import { createPortal } from 'react-dom'
 import { Target, ChevronDown, Building2, User, Trophy } from 'lucide-react'
 import { useAuth } from '@/providers/AuthProvider'
 import { useMetasEmpresa, useMetasIndividuais, useRanking } from '@/modules/configuracoes/hooks/useMetas'
@@ -222,7 +223,7 @@ export const MetaToolbarIndicator = forwardRef<HTMLDivElement>(function MetaTool
         <ChevronDown className="w-3 h-3 text-muted-foreground group-hover:text-foreground transition-colors" />
       </button>
 
-      {open && (
+      {open && createPortal(
         <>
           {/* Overlay mobile escuro */}
           <div className="fixed inset-0 z-[199] bg-black/40 sm:bg-transparent" onClick={() => setOpen(false)} />
@@ -336,7 +337,7 @@ export const MetaToolbarIndicator = forwardRef<HTMLDivElement>(function MetaTool
             </div>
           </div>
         </>
-      )}
+      , document.body)}
     </div>
   )
 })

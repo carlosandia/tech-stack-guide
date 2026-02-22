@@ -18,6 +18,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { Filter, ChevronRight, ChevronDown, Loader2, Save, Star, Trash2, BookmarkCheck } from 'lucide-react'
 import { negociosApi } from '../../services/negocios.api'
 import { useAuth } from '@/providers/AuthProvider'
@@ -461,7 +462,7 @@ export function FiltrosPopover({ filtros, onChange, isAdmin }: FiltrosPopoverPro
         )}
       </button>
 
-      {open && (
+      {open && createPortal(
         <>
           {/* Overlay mobile escuro */}
           <div className="fixed inset-0 z-[199] bg-black/40 sm:bg-transparent" onClick={() => setOpen(false)} />
@@ -614,7 +615,7 @@ export function FiltrosPopover({ filtros, onChange, isAdmin }: FiltrosPopoverPro
         )}
           </div>
         </>
-      )}
+      , document.body)}
     </div>
   )
 }

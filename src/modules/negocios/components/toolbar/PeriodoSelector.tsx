@@ -5,6 +5,7 @@
  */
 
 import { useState, useRef, useEffect, forwardRef } from 'react'
+import { createPortal } from 'react-dom'
 import { Calendar, ChevronDown } from 'lucide-react'
 import { startOfDay, subDays, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 
@@ -126,7 +127,7 @@ export const PeriodoSelector = forwardRef<HTMLDivElement, PeriodoSelectorProps>(
         <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
       </button>
 
-      {open && (
+      {open && createPortal(
         <>
           {/* Overlay mobile escuro */}
           <div className="fixed inset-0 z-[199] bg-black/40 sm:bg-transparent" onClick={() => setOpen(false)} />
@@ -189,7 +190,7 @@ export const PeriodoSelector = forwardRef<HTMLDivElement, PeriodoSelectorProps>(
           ))}
           </div>
         </>
-      )}
+      , document.body)}
     </div>
   )
 })
