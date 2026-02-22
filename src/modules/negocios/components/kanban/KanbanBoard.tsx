@@ -84,13 +84,19 @@ export const KanbanBoard = forwardRef<HTMLDivElement, KanbanBoardProps>(function
   }, [])
 
   // Mapear selectedIds para contato_ids (para segmentar)
-  const { selectedIdsArr, contatoIds } = useMemo(() => {
+  const { selectedIdsArr, contatoIds, etapasAtuaisIds } = useMemo(() => {
     const arr = Array.from(selectedIds)
     const allOps = data?.etapas?.flatMap(e => e.oportunidades) || []
     const cIds = arr
       .map(id => allOps.find(o => o.id === id)?.contato_id)
       .filter((id): id is string => !!id)
-    return { selectedIdsArr: arr, contatoIds: [...new Set(cIds)] }
+    // AIDEV-NOTE: Coletar etapas onde os cards selecionados estão para destacar no popover de mover
+    const eIds = new Set<string>()
+    for (const id of arr) {
+      const etapa = data?.etapas?.find(e => e.oportunidades.some(o => o.id === id))
+      if (etapa) eIds.add(etapa.id)
+    }
+    return { selectedIdsArr: arr, contatoIds: [...new Set(cIds)], etapasAtuaisIds: eIds }
   }, [selectedIds, data])
 
   const handleExcluir = useCallback(() => {
@@ -349,6 +355,7 @@ export const KanbanBoard = forwardRef<HTMLDivElement, KanbanBoardProps>(function
         selectedIds={selectedIdsArr}
         contatoIds={contatoIds}
         etapas={data.etapas}
+        etapasAtuaisIds={etapasAtuaisIds}
         funilAtualId={data.funil.id}
         onExcluir={handleExcluir}
         onExportar={handleExportar}

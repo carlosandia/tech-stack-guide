@@ -15,6 +15,7 @@ interface OportunidadeBulkActionsProps {
   selectedIds: string[]
   contatoIds: string[]
   etapas: EtapaFunil[]
+  etapasAtuaisIds: Set<string>
   funilAtualId: string
   onExcluir: () => void
   onExportar: () => void
@@ -31,6 +32,7 @@ export const OportunidadeBulkActions = React.forwardRef<HTMLDivElement, Oportuni
   selectedIds: _selectedIds,
   contatoIds,
   etapas,
+  etapasAtuaisIds,
   funilAtualId,
   onExcluir,
   onExportar,
@@ -139,16 +141,24 @@ export const OportunidadeBulkActions = React.forwardRef<HTMLDivElement, Oportuni
                 <div className="px-3 py-1.5">
                   <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Pipeline atual</p>
                 </div>
-                {etapasMoviveis.map(etapa => (
-                  <button
-                    key={etapa.id}
-                    onClick={() => { onMoverEtapa(etapa.id); setShowMover(false) }}
-                    className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-foreground hover:bg-accent transition-colors"
-                  >
-                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: etapa.cor || '#6B7280' }} />
-                    <span className="truncate">{etapa.nome}</span>
-                  </button>
-                ))}
+                {etapasMoviveis.map(etapa => {
+                  const isAtual = etapasAtuaisIds.has(etapa.id)
+                  return (
+                    <button
+                      key={etapa.id}
+                      onClick={() => { onMoverEtapa(etapa.id); setShowMover(false) }}
+                      className={`flex items-center gap-2 w-full px-3 py-1.5 text-sm transition-colors ${
+                        isAtual
+                          ? 'bg-primary/10 text-primary font-medium border-l-2 border-primary'
+                          : 'text-foreground hover:bg-accent'
+                      }`}
+                    >
+                      <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: etapa.cor || '#6B7280' }} />
+                      <span className="truncate">{etapa.nome}</span>
+                      {isAtual && <span className="ml-auto text-[10px] text-primary/70">atual</span>}
+                    </button>
+                  )
+                })}
 
                 {/* Seção: Outra pipeline */}
                 {outrasPipelines.length > 0 && (
