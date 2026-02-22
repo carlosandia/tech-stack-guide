@@ -306,7 +306,7 @@ function ReuniaoForm({ formData, setFormData, onSubmit, onCancel, isPending, isR
     setFormData(p => ({ ...p, [field]: value }))
 
   return (
-    <div className="p-4 border border-border rounded-lg space-y-3 bg-muted/30">
+    <div className="p-4 border border-border rounded-lg space-y-3 bg-muted/30 overflow-hidden">
       {isReagendamento && (
         <div className="text-xs font-medium text-purple-600 bg-purple-50 px-2.5 py-1.5 rounded-md">
           ↻ Reagendando reunião — selecione nova data/hora
@@ -347,38 +347,38 @@ function ReuniaoForm({ formData, setFormData, onSubmit, onCancel, isPending, isR
       </div>
 
       {/* Data/Hora início e fim */}
-      <div className="grid grid-cols-2 gap-2">
-        <div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div className="min-w-0">
           <label className="text-[10px] font-medium text-muted-foreground uppercase mb-0.5 block">Início</label>
           <div className="flex gap-1.5">
             <input
               type="date"
               value={formData.data_inicio}
               onChange={e => update('data_inicio', e.target.value)}
-              className="flex-1 text-xs bg-background border border-input rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring"
+              className="flex-1 min-w-0 text-xs bg-background border border-input rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring"
             />
             <input
               type="time"
               value={formData.hora_inicio}
               onChange={e => update('hora_inicio', e.target.value)}
-              className="w-20 text-xs bg-background border border-input rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-[72px] flex-shrink-0 text-xs bg-background border border-input rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring"
             />
           </div>
         </div>
-        <div>
+        <div className="min-w-0">
           <label className="text-[10px] font-medium text-muted-foreground uppercase mb-0.5 block">Fim</label>
           <div className="flex gap-1.5">
             <input
               type="date"
               value={formData.data_fim}
               onChange={e => update('data_fim', e.target.value)}
-              className="flex-1 text-xs bg-background border border-input rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring"
+              className="flex-1 min-w-0 text-xs bg-background border border-input rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring"
             />
             <input
               type="time"
               value={formData.hora_fim}
               onChange={e => update('hora_fim', e.target.value)}
-              className="w-20 text-xs bg-background border border-input rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-[72px] flex-shrink-0 text-xs bg-background border border-input rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring"
             />
           </div>
         </div>
