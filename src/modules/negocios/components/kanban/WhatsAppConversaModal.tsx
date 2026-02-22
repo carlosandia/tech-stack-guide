@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect } from 'react'
-import { Loader2, Send } from 'lucide-react'
+import { Loader2, Send, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { ChatWindow } from '@/modules/conversas/components/ChatWindow'
 import { useCriarConversa } from '@/modules/conversas/hooks/useConversas'
@@ -81,6 +81,19 @@ export function WhatsAppConversaModal({ isOpen, onClose, contatoId, contatoNome,
     <>
       <div className="fixed inset-0 z-[500] bg-foreground/30" onClick={onClose} />
       <div className="fixed inset-0 sm:inset-4 md:inset-8 lg:inset-y-8 lg:left-[15%] lg:right-[15%] z-[501] bg-background sm:border sm:border-border sm:rounded-xl shadow-2xl flex flex-col overflow-hidden">
+        {/* Botão fechar - visível quando ChatWindow não está renderizado (pois ChatWindow tem seu próprio header com onBack) */}
+        {(!conversa || loading || notFound) && (
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
+            <span className="text-sm font-medium text-foreground">WhatsApp</span>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-full hover:bg-accent transition-colors"
+              aria-label="Fechar"
+            >
+              <X className="w-5 h-5 text-muted-foreground" />
+            </button>
+          </div>
+        )}
         {/* Content - ChatWindow provides its own header */}
         <div className="flex-1 overflow-hidden flex flex-col">
           {loading ? (
