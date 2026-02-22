@@ -46,13 +46,9 @@ export const TarefasConversaPopover = forwardRef<HTMLDivElement, TarefasConversa
   const [pos, setPos] = useState({ top: 0, right: 0 })
   const btnRef = useRef<HTMLButtonElement>(null)
 
-  // AIDEV-NOTE: Centralizar na tela no mobile para não cortar o dropdown
+  // AIDEV-NOTE: Posição calculada apenas para desktop (sm+)
   const calcPos = useCallback(() => {
-    const isMobile = window.innerWidth < 640
-    if (isMobile) {
-      // Centralizado na tela
-      setPos({ top: 0, right: 0 })
-    } else if (btnRef.current) {
+    if (btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect()
       setPos({
         top: rect.bottom + 4,
@@ -154,18 +150,12 @@ export const TarefasConversaPopover = forwardRef<HTMLDivElement, TarefasConversa
 
       {open && createPortal(
         <>
-          <div className="fixed inset-0" style={{ zIndex: 590 }} onClick={() => setOpen(false)} />
+          <div className="fixed inset-0 z-[590] bg-black/40 sm:bg-transparent" onClick={() => setOpen(false)} />
           {/* Mobile: centralizado; Desktop: posicionado pelo botão */}
           <div
-            className={`fixed rounded-lg shadow-xl overflow-hidden border border-border ${
-              window.innerWidth < 640
-                ? 'inset-x-4 top-1/4 w-auto'
-                : 'w-80'
-            }`}
+            className="fixed z-[600] left-1/2 -translate-x-1/2 top-14 w-[calc(100vw-2rem)] max-w-80 sm:left-auto sm:translate-x-0 sm:top-auto sm:w-80 rounded-lg shadow-xl overflow-hidden border border-border bg-card"
             style={{
-              zIndex: 600,
               ...(window.innerWidth >= 640 ? { top: pos.top, right: pos.right } : {}),
-              backgroundColor: 'white',
             }}
           >
             {/* Header */}
@@ -187,7 +177,7 @@ export const TarefasConversaPopover = forwardRef<HTMLDivElement, TarefasConversa
             </div>
 
             {/* Lista */}
-            <div className="max-h-[320px] overflow-y-auto bg-white">
+            <div className="max-h-[320px] overflow-y-auto bg-card">
               {loading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
