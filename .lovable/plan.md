@@ -1,48 +1,29 @@
 
-## Correções Identificadas
+## Correção: Scroll duplo no LigacaoModal
 
-### 1. Deploy GitHub Actions (Erro SSH)
+### Problema
+No mobile/tablet, o modal de ligação apresenta 2 barras de scroll:
+1. O container externo tem `h-full overflow-y-auto`
+2. O painel de informações (coluna direita) tem `md:overflow-y-auto` que ativa em telas >= 768px
 
-O deploy falha no step **"Add known host"** com o erro:
-```
-ssh: connect to host *** port 22: Connection timed out
-Error: Process completed with exit code 255
-```
+Quando o dispositivo atinge o breakpoint `md`, ambos scrollam, criando a experiência ruim mostrada no screenshot.
 
-**Causa**: O servidor de produção nao esta acessivel via SSH no momento do deploy. Isso nao e um problema de codigo -- e infraestrutura.
+### Solução
 
-**Acoes necessarias (por voce, no servidor)**:
-- Verificar se o servidor esta online
-- Verificar se o firewall permite conexoes SSH (porta 22) de IPs externos
-- Os IPs do GitHub Actions sao dinamicos, entao o ideal e liberar a porta 22 para qualquer IP ou usar uma faixa de IPs do GitHub
-- Tentar re-executar o workflow manualmente depois de confirmar que o servidor esta acessivel
+**Arquivo**: `src/modules/negocios/components/modals/LigacaoModal.tsx`
 
-**Nenhuma alteracao de codigo necessaria para este item.**
+**Estratégia**: Usar layout flex com height constraints corretos para que apenas o painel de informações role internamente no desktop (2 colunas), e no mobile (1 coluna) apenas o container externo role.
 
----
+**Alterações**:
 
-### 2. AgendaQuickPopover no Mobile -- Fundo escuro e centralizacao
+1. **Container externo (linha ~1000)**: No mobile manter `h-full overflow-y-auto`. No desktop (`md:`), usar `md:h-auto md:max-h-[90vh] md:overflow-hidden` para que o container não role, delegando o scroll para o painel interno.
 
-**Problema**: No mobile, ao clicar no icone de agendar reuniao no card da oportunidade, o Popover aparece sem fundo escuro e sem centralizacao, ficando confuso e misturado com o conteudo de fundo.
+2. **Grid interno (linha ~1003)**: Adicionar `md:max-h-[90vh]` e `md:overflow-hidden` para constrair a altura no desktop.
 
-**Solucao**: Converter o componente para usar um modal/overlay no mobile (tela < sm), mantendo o Popover no desktop. O mesmo padrao ja usado no `ComposeEmailModal` e `WhatsAppConversaModal`.
+3. **Coluna esquerda (linha ~1005)**: Adicionar `md:overflow-y-auto` para permitir scroll se necessário no desktop.
 
-**Arquivo**: `src/modules/negocios/components/kanban/AgendaQuickPopover.tsx`
+4. **Painel de informações (linha ~1182)**: Trocar `flex-shrink-0 md:overflow-y-auto` por `md:flex-1 md:min-h-0 md:overflow-y-auto`. No mobile, remover `flex-shrink-0` para que o conteúdo flua naturalmente no scroll único do container pai.
 
-**Alteracoes**:
-1. Detectar se e mobile usando `window.innerWidth < 640` (ou media query)
-2. No mobile: renderizar como overlay `fixed inset-0` com `bg-foreground/30` de backdrop e conteudo centralizado (`items-center justify-center`)
-3. No desktop (sm+): manter o `Popover` atual do Radix sem alteracoes
-
-**Estrutura no mobile**:
-```
-<div fixed inset-0 bg-foreground/30 z-500>  <!-- backdrop -->
-  <div fixed inset-x-4 centered bg-background rounded-xl>  <!-- conteudo -->
-    ... formulario/info da reuniao (mesmo conteudo atual) ...
-  </div>
-</div>
-```
-
-**Comportamento esperado**:
-- Mobile: fundo escurecido, popover centralizado na tela, toque no backdrop fecha
-- Desktop: comportamento atual preservado (Popover flutuante posicionado ao lado do botao)
+Resultado:
+- **Mobile (< md)**: Uma única coluna, um único scroll no container externo
+- **Desktop (>= md)**: Duas colunas lado a lado, cada uma com scroll independente se necessário, container externo sem scroll
