@@ -1,32 +1,48 @@
 
-## Corrigir popover de Tarefas do Contato (Chat)
+## Correções Identificadas
 
-### Problema
-O popover de tarefas aparece distante do botao no mobile (`top-1/4`), sem overlay escuro, causando desconexao visual com o icone de tarefas no header do chat.
+### 1. Deploy GitHub Actions (Erro SSH)
 
-### Solucao
-Aplicar o mesmo padrao usado nos popovers da toolbar de negocios:
+O deploy falha no step **"Add known host"** com o erro:
+```
+ssh: connect to host *** port 22: Connection timed out
+Error: Process completed with exit code 255
+```
 
-**Mobile:**
-- Overlay escuro cobrindo tela inteira (`fixed inset-0 bg-black/40`)
-- Popover centralizado horizontalmente e proximo ao topo (`top-14` em vez de `top-1/4`)
-- Largura `w-[calc(100vw-2rem)]` com `max-w-80`
+**Causa**: O servidor de produção nao esta acessivel via SSH no momento do deploy. Isso nao e um problema de codigo -- e infraestrutura.
 
-**Desktop:**
-- Manter posicionamento atual calculado pelo `getBoundingClientRect` do botao
+**Acoes necessarias (por voce, no servidor)**:
+- Verificar se o servidor esta online
+- Verificar se o firewall permite conexoes SSH (porta 22) de IPs externos
+- Os IPs do GitHub Actions sao dinamicos, entao o ideal e liberar a porta 22 para qualquer IP ou usar uma faixa de IPs do GitHub
+- Tentar re-executar o workflow manualmente depois de confirmar que o servidor esta acessivel
 
-### Alteracoes tecnicas
+**Nenhuma alteracao de codigo necessaria para este item.**
 
-**Arquivo:** `src/modules/conversas/components/TarefasConversaPopover.tsx`
+---
 
-1. Substituir o overlay transparente por overlay escuro no mobile:
-   - De: `<div className="fixed inset-0" style={{ zIndex: 590 }}>`
-   - Para: `<div className="fixed inset-0 z-[590] bg-black/40 sm:bg-transparent">`
+### 2. AgendaQuickPopover no Mobile -- Fundo escuro e centralizacao
 
-2. Substituir logica de posicionamento mobile no container do popover:
-   - De: deteccao via `window.innerWidth < 640` com classes condicionais e inline styles
-   - Para: classes responsivas com Tailwind (`fixed left-1/2 -translate-x-1/2 top-14 w-[calc(100vw-2rem)] max-w-80` no mobile, `sm:left-auto sm:translate-x-0 sm:top-auto sm:w-80` no desktop com inline styles apenas para desktop)
+**Problema**: No mobile, ao clicar no icone de agendar reuniao no card da oportunidade, o Popover aparece sem fundo escuro e sem centralizacao, ficando confuso e misturado com o conteudo de fundo.
 
-3. Remover `calcPos` para mobile (manter apenas para desktop), simplificando a logica de `window.innerWidth`
+**Solucao**: Converter o componente para usar um modal/overlay no mobile (tela < sm), mantendo o Popover no desktop. O mesmo padrao ja usado no `ComposeEmailModal` e `WhatsAppConversaModal`.
 
-4. Usar `bg-card` em vez de `backgroundColor: 'white'` inline para consistencia com tema
+**Arquivo**: `src/modules/negocios/components/kanban/AgendaQuickPopover.tsx`
+
+**Alteracoes**:
+1. Detectar se e mobile usando `window.innerWidth < 640` (ou media query)
+2. No mobile: renderizar como overlay `fixed inset-0` com `bg-foreground/30` de backdrop e conteudo centralizado (`items-center justify-center`)
+3. No desktop (sm+): manter o `Popover` atual do Radix sem alteracoes
+
+**Estrutura no mobile**:
+```
+<div fixed inset-0 bg-foreground/30 z-500>  <!-- backdrop -->
+  <div fixed inset-x-4 centered bg-background rounded-xl>  <!-- conteudo -->
+    ... formulario/info da reuniao (mesmo conteudo atual) ...
+  </div>
+</div>
+```
+
+**Comportamento esperado**:
+- Mobile: fundo escurecido, popover centralizado na tela, toque no backdrop fecha
+- Desktop: comportamento atual preservado (Popover flutuante posicionado ao lado do botao)
