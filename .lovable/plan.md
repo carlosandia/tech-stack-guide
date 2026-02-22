@@ -1,62 +1,32 @@
 
+## Corrigir popover de Tarefas do Contato (Chat)
 
-## Plano: Centralizar popovers no mobile + melhorar metricas
-
-### Problema atual
-1. **Popover de Meta**: abre com `PopoverContent` do Radix que posiciona via portal com alinhamento lateral, cortando no mobile
-2. **Popover de Filtros**: mesmo problema - `PopoverContent` do Radix alinha a `end`, corta no mobile
-3. **Popover de Periodo**: posicionado com `absolute right-0`, corta a esquerda no mobile
-4. **Metricas (MetricasPanel)**: usa scroll horizontal no mobile (`overflow-x-auto`), experiencia ruim
-
----
+### Problema
+O popover de tarefas aparece distante do botao no mobile (`top-1/4`), sem overlay escuro, causando desconexao visual com o icone de tarefas no header do chat.
 
 ### Solucao
+Aplicar o mesmo padrao usado nos popovers da toolbar de negocios:
 
-#### 1. MetaToolbarIndicator - Centralizar no mobile
-- Trocar `PopoverContent` por implementacao manual (igual padrao ja usado em NotificacoesSino e FeedbackButton)
-- Mobile: `fixed left-1/2 -translate-x-1/2 top-14 w-[calc(100vw-2rem)]` + overlay escuro (`fixed inset-0 bg-black/40`)
-- Desktop (`sm:`): volta ao comportamento absoluto relativo ao botao
+**Mobile:**
+- Overlay escuro cobrindo tela inteira (`fixed inset-0 bg-black/40`)
+- Popover centralizado horizontalmente e proximo ao topo (`top-14` em vez de `top-1/4`)
+- Largura `w-[calc(100vw-2rem)]` com `max-w-80`
 
-#### 2. FiltrosPopover - Centralizar no mobile
-- Trocar `Popover`/`PopoverContent` do Radix por controle manual com `useState`
-- Mobile: `fixed left-1/2 -translate-x-1/2 top-14 w-[calc(100vw-2rem)]` + overlay escuro
-- Desktop (`sm:`): `absolute right-0` como esta hoje
+**Desktop:**
+- Manter posicionamento atual calculado pelo `getBoundingClientRect` do botao
 
-#### 3. PeriodoSelector - Centralizar no mobile
-- Ja usa implementacao manual (bom), mas posiciona `absolute right-0`
-- Mobile: `fixed left-1/2 -translate-x-1/2 top-14 w-[calc(100vw-2rem)] max-w-64` + overlay escuro
-- Desktop (`sm:`): manter `absolute right-0`
+### Alteracoes tecnicas
 
-#### 4. MetricasPanel - Proposta de UI melhorada para mobile
-- **Remover** scroll horizontal no mobile
-- **Mobile**: grid `grid-cols-3` compacto, exibindo apenas 3 metricas principais (Ganhas, Perdidas, Valor Pipeline) por padrao
-- Cards menores e mais compactos no mobile, sem min-width
-- Se houver mais de 3 metricas visiveis, as 3 primeiras aparecem no grid e as demais ficam ocultas com um botao "Ver mais" que expande para mostrar todas em grid `grid-cols-3`
-- **Desktop**: manter layout atual com grid responsivo
+**Arquivo:** `src/modules/conversas/components/TarefasConversaPopover.tsx`
 
----
+1. Substituir o overlay transparente por overlay escuro no mobile:
+   - De: `<div className="fixed inset-0" style={{ zIndex: 590 }}>`
+   - Para: `<div className="fixed inset-0 z-[590] bg-black/40 sm:bg-transparent">`
 
-### Detalhes tecnicos
+2. Substituir logica de posicionamento mobile no container do popover:
+   - De: deteccao via `window.innerWidth < 640` com classes condicionais e inline styles
+   - Para: classes responsivas com Tailwind (`fixed left-1/2 -translate-x-1/2 top-14 w-[calc(100vw-2rem)] max-w-80` no mobile, `sm:left-auto sm:translate-x-0 sm:top-auto sm:w-80` no desktop com inline styles apenas para desktop)
 
-**Padrao de overlay mobile** (consistente com FeedbackButton e NotificacoesSino):
-```text
-{open && (
-  <>
-    {/* Overlay - mobile escuro, desktop transparente */}
-    <div className="fixed inset-0 z-[59] bg-black/40 sm:bg-transparent" onClick={close} />
-    {/* Content */}
-    <div className="fixed left-1/2 -translate-x-1/2 top-14 w-[calc(100vw-2rem)] max-w-[20rem] z-[60]
-                    sm:absolute sm:left-auto sm:translate-x-0 sm:top-auto sm:right-0 sm:mt-1.5 sm:w-80
-                    bg-card border border-border rounded-lg shadow-lg">
-      ...
-    </div>
-  </>
-)}
-```
+3. Remover `calcPos` para mobile (manter apenas para desktop), simplificando a logica de `window.innerWidth`
 
-**Arquivos a editar:**
-1. `src/modules/negocios/components/toolbar/MetaToolbarIndicator.tsx` - trocar Radix Popover por controle manual
-2. `src/modules/negocios/components/toolbar/FiltrosPopover.tsx` - trocar Radix Popover por controle manual
-3. `src/modules/negocios/components/toolbar/PeriodoSelector.tsx` - adicionar overlay e centralizar
-4. `src/modules/negocios/components/toolbar/MetricasPanel.tsx` - novo layout mobile com grid compacto e expand
-
+4. Usar `bg-card` em vez de `backgroundColor: 'white'` inline para consistencia com tema
