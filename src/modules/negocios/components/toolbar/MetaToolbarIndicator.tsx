@@ -5,14 +5,8 @@
  * Member: vê sua meta individual + ranking para incentivo
  */
 
-import { useState, useMemo, forwardRef } from 'react'
+import { useState, useMemo, useRef, useEffect, forwardRef } from 'react'
 import { Target, ChevronDown, Building2, User, Trophy } from 'lucide-react'
-import {
-  Popover,
-
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
 import { useAuth } from '@/providers/AuthProvider'
 import { useMetasEmpresa, useMetasIndividuais, useRanking } from '@/modules/configuracoes/hooks/useMetas'
 import { getMetricaLabel, getMetricaUnidade } from '@/modules/configuracoes/schemas/metas.schema'
@@ -188,142 +182,162 @@ export const MetaToolbarIndicator = forwardRef<HTMLDivElement>(function MetaTool
 
   const ranking = rankingData?.ranking || []
 
+  const [open, setOpen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
   if (!metaPrincipal && ranking.length === 0) return null
 
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <button
-          className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-2.5 py-1.5 rounded-md hover:bg-accent transition-colors group"
-          title="Meta de vendas"
-        >
-          <Target className="w-4 h-4 text-primary flex-shrink-0" />
-          {metaPrincipal && (
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <div className="w-12 sm:w-20 h-1.5 bg-muted rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all duration-500 ${getProgressColor(pctPrincipal)}`}
-                  style={{ width: `${Math.min(pctPrincipal, 100)}%` }}
-                />
-              </div>
-              <span className="text-xs font-medium text-foreground whitespace-nowrap hidden sm:inline">
-                {formatValorMeta(valorAtualPrincipal, unidadePrincipal)}
-              </span>
+    <div className="relative" ref={containerRef}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-2.5 py-1.5 rounded-md hover:bg-accent transition-colors group"
+        title="Meta de vendas"
+      >
+        <Target className="w-4 h-4 text-primary flex-shrink-0" />
+        {metaPrincipal && (
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <div className="w-12 sm:w-20 h-1.5 bg-muted rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${getProgressColor(pctPrincipal)}`}
+                style={{ width: `${Math.min(pctPrincipal, 100)}%` }}
+              />
             </div>
-          )}
-          <ChevronDown className="w-3 h-3 text-muted-foreground group-hover:text-foreground transition-colors" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent align="center" className="w-[calc(100vw-24px)] sm:w-[380px]" sideOffset={8}>
-        {/* Tabs */}
-        <div className="flex border-b border-border">
-          <button
-            onClick={() => setVisao('empresa')}
-            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-colors ${
-              visao === 'empresa'
-                ? 'text-primary border-b-2 border-primary'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            {isAdmin ? (
-              <>
-                <Building2 className="w-3.5 h-3.5" />
-                Empresa
-              </>
-            ) : (
-              <>
-                <Target className="w-3.5 h-3.5" />
-                Minha Meta
-              </>
-            )}
-          </button>
-          <button
-            onClick={() => setVisao('individual')}
-            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-colors ${
-              visao === 'individual'
-                ? 'text-primary border-b-2 border-primary'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            {isAdmin ? (
-              <>
-                <User className="w-3.5 h-3.5" />
-                Individual
-              </>
-            ) : (
-              <>
-                <Trophy className="w-3.5 h-3.5" />
-                Ranking
-              </>
-            )}
-          </button>
-        </div>
+            <span className="text-xs font-medium text-foreground whitespace-nowrap hidden sm:inline">
+              {formatValorMeta(valorAtualPrincipal, unidadePrincipal)}
+            </span>
+          </div>
+        )}
+        <ChevronDown className="w-3 h-3 text-muted-foreground group-hover:text-foreground transition-colors" />
+      </button>
 
-        <div className="p-4 space-y-4 max-h-[400px] overflow-y-auto">
-          {visao === 'empresa' ? (
-            <>
-              {isAdmin ? (
+      {open && (
+        <>
+          {/* Overlay mobile escuro */}
+          <div className="fixed inset-0 z-[59] bg-black/40 sm:bg-transparent" onClick={() => setOpen(false)} />
+          {/* Content */}
+          <div className="fixed left-1/2 -translate-x-1/2 top-14 w-[calc(100vw-2rem)] max-w-[380px] z-[60]
+                          sm:absolute sm:left-auto sm:translate-x-0 sm:top-auto sm:right-0 sm:mt-1.5 sm:w-[380px]
+                          bg-card border border-border rounded-lg shadow-lg animate-enter">
+            {/* Tabs */}
+            <div className="flex border-b border-border">
+              <button
+                onClick={() => setVisao('empresa')}
+                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-colors ${
+                  visao === 'empresa'
+                    ? 'text-primary border-b-2 border-primary'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {isAdmin ? (
+                  <>
+                    <Building2 className="w-3.5 h-3.5" />
+                    Empresa
+                  </>
+                ) : (
+                  <>
+                    <Target className="w-3.5 h-3.5" />
+                    Minha Meta
+                  </>
+                )}
+              </button>
+              <button
+                onClick={() => setVisao('individual')}
+                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-colors ${
+                  visao === 'individual'
+                    ? 'text-primary border-b-2 border-primary'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {isAdmin ? (
+                  <>
+                    <User className="w-3.5 h-3.5" />
+                    Individual
+                  </>
+                ) : (
+                  <>
+                    <Trophy className="w-3.5 h-3.5" />
+                    Ranking
+                  </>
+                )}
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4 max-h-[400px] overflow-y-auto">
+              {visao === 'empresa' ? (
                 <>
-                  {/* Admin: resumo + metas da empresa */}
-                  {empresaData?.resumo && (
-                    <div className="grid grid-cols-2 gap-2">
-                      {[
-                        { label: 'Total', value: empresaData.resumo.total_metas },
-                        { label: 'Atingidas', value: empresaData.resumo.metas_atingidas },
-                        { label: 'Média', value: `${Math.round(empresaData.resumo.media_atingimento)}%` },
-                        { label: 'Em Risco', value: empresaData.resumo.metas_em_risco },
-                      ].map(s => (
-                        <div key={s.label} className="bg-muted/50 rounded-lg px-3 py-2">
-                          <p className="text-[10px] text-muted-foreground">{s.label}</p>
-                          <p className="text-sm font-semibold text-foreground">{s.value}</p>
+                  {isAdmin ? (
+                    <>
+                      {empresaData?.resumo && (
+                        <div className="grid grid-cols-2 gap-2">
+                          {[
+                            { label: 'Total', value: empresaData.resumo.total_metas },
+                            { label: 'Atingidas', value: empresaData.resumo.metas_atingidas },
+                            { label: 'Média', value: `${Math.round(empresaData.resumo.media_atingimento)}%` },
+                            { label: 'Em Risco', value: empresaData.resumo.metas_em_risco },
+                          ].map(s => (
+                            <div key={s.label} className="bg-muted/50 rounded-lg px-3 py-2">
+                              <p className="text-[10px] text-muted-foreground">{s.label}</p>
+                              <p className="text-sm font-semibold text-foreground">{s.value}</p>
+                            </div>
+                          ))}
                         </div>
+                      )}
+
+                      {empresaData?.metas?.map((meta: MetaComProgresso) => (
+                        <MetaProgressItem key={meta.id} meta={meta} />
                       ))}
-                    </div>
-                  )}
 
-                  {empresaData?.metas?.map((meta: MetaComProgresso) => (
-                    <MetaProgressItem key={meta.id} meta={meta} />
-                  ))}
-
-                  {(!empresaData?.metas || empresaData.metas.length === 0) && (
-                    <div className="text-center py-6">
-                      <Target className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-sm text-muted-foreground">Nenhuma meta configurada</p>
-                      <p className="text-xs text-muted-foreground mt-1">Configure em Configurações → Metas</p>
-                    </div>
+                      {(!empresaData?.metas || empresaData.metas.length === 0) && (
+                        <div className="text-center py-6">
+                          <Target className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                          <p className="text-sm text-muted-foreground">Nenhuma meta configurada</p>
+                          <p className="text-xs text-muted-foreground mt-1">Configure em Configurações → Metas</p>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {minhasMetas.length > 0 ? (
+                        minhasMetas.map((meta: MetaComProgresso) => (
+                          <MetaProgressItem key={meta.id} meta={meta} />
+                        ))
+                      ) : (
+                        <div className="text-center py-6">
+                          <Target className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                          <p className="text-sm text-muted-foreground">Nenhuma meta atribuída a você</p>
+                          <p className="text-xs text-muted-foreground mt-1">Peça ao administrador para definir suas metas</p>
+                        </div>
+                      )}
+                    </>
                   )}
                 </>
               ) : (
                 <>
-                  {/* Member: suas metas individuais */}
-                  {minhasMetas.length > 0 ? (
-                    minhasMetas.map((meta: MetaComProgresso) => (
-                      <MetaProgressItem key={meta.id} meta={meta} />
-                    ))
-                  ) : (
-                    <div className="text-center py-6">
-                      <Target className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-sm text-muted-foreground">Nenhuma meta atribuída a você</p>
-                      <p className="text-xs text-muted-foreground mt-1">Peça ao administrador para definir suas metas</p>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <Trophy className="w-4 h-4 text-warning" />
+                    <h4 className="text-sm font-semibold text-foreground">Ranking do Período</h4>
+                  </div>
+
+                  <RankingSection ranking={ranking} currentUserId={user?.id} />
                 </>
               )}
-            </>
-          ) : (
-            <>
-              {/* Ranking - visível para ambos */}
-              <div className="flex items-center gap-1.5 mb-2">
-                <Trophy className="w-4 h-4 text-warning" />
-                <h4 className="text-sm font-semibold text-foreground">Ranking do Período</h4>
-              </div>
-
-              <RankingSection ranking={ranking} currentUserId={user?.id} />
-            </>
-          )}
-        </div>
-      </PopoverContent>
-    </Popover>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
   )
 })
 MetaToolbarIndicator.displayName = 'MetaToolbarIndicator'
