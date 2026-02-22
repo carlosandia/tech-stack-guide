@@ -997,12 +997,12 @@ export function LigacaoModal({ telefone, contatoNome, onClose, oportunidadeId }:
 
       {/* Modal - fullscreen no mobile, centralizado no desktop */}
       <div className="fixed inset-0 z-[401] flex items-end sm:items-center sm:justify-center pointer-events-none">
-        <div className={`pointer-events-auto bg-card w-full h-full sm:h-auto sm:border sm:border-border sm:rounded-lg shadow-lg sm:w-[calc(100%-32px)] animate-enter flex flex-col overflow-y-auto sm:overflow-y-auto sm:max-h-[90vh] ${
+        <div className={`pointer-events-auto bg-card w-full h-full overflow-y-auto md:h-auto md:max-h-[90vh] md:overflow-hidden sm:border sm:border-border sm:rounded-lg shadow-lg sm:w-[calc(100%-32px)] animate-enter flex flex-col ${
           hasInfoPanel ? 'sm:max-w-2xl' : 'sm:max-w-sm'
         }`}>
-          <div className={`flex flex-col sm:h-auto ${hasInfoPanel ? 'md:grid md:grid-cols-2' : ''}`}>
-            {/* Coluna esquerda: Controles de ligação - não rola no mobile */}
-            <div className={`flex-shrink-0 ${hasInfoPanel ? 'md:border-r md:border-border' : ''}`}>
+          <div className={`flex flex-col ${hasInfoPanel ? 'md:grid md:grid-cols-2 md:max-h-[90vh] md:overflow-hidden' : ''}`}>
+            {/* Coluna esquerda: Controles de ligação */}
+            <div className={`flex-shrink-0 md:overflow-y-auto ${hasInfoPanel ? 'md:border-r md:border-border' : ''}`}>
               {/* Header com botão fechar no mobile */}
               <div className="px-6 py-4 border-b border-border text-center relative">
                 <button
@@ -1179,7 +1179,7 @@ export function LigacaoModal({ telefone, contatoNome, onClose, oportunidadeId }:
 
             {/* Coluna direita: Informações da oportunidade - scroll próprio no mobile */}
             {hasInfoPanel && (
-              <div className="flex-shrink-0 md:overflow-y-auto px-5 py-4 border-t border-border md:border-t-0">
+              <div className="md:flex-1 md:min-h-0 md:overflow-y-auto px-5 py-4 border-t border-border md:border-t-0">
                 <h3 className="text-sm font-bold text-primary uppercase tracking-wider mb-4 pb-2 border-b-2 border-primary/30">
                   Informações
                 </h3>
