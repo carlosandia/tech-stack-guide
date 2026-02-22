@@ -17,13 +17,8 @@
  * Origem vem de contatos.origem (não existe em oportunidades)
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Filter, ChevronRight, ChevronDown, Loader2, Save, Star, Trash2, BookmarkCheck } from 'lucide-react'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
 import { negociosApi } from '../../services/negocios.api'
 import { useAuth } from '@/providers/AuthProvider'
 import {
@@ -435,30 +430,44 @@ export function FiltrosPopover({ filtros, onChange, isAdmin }: FiltrosPopoverPro
   // Render
   // =====================================================
 
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          className={`
-            relative p-2 rounded-md text-muted-foreground transition-all duration-200
-            ${totalAtivos > 0 ? 'bg-primary/10 text-primary' : 'hover:bg-accent'}
-          `}
-          title="Filtros"
-        >
-          <Filter className="w-4 h-4" />
-          {totalAtivos > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center">
-              {totalAtivos}
-            </span>
-          )}
-        </button>
-      </PopoverTrigger>
+  const containerRef = useRef<HTMLDivElement>(null)
 
-      <PopoverContent
-        align="end"
-        className="w-[min(20rem,calc(100vw-2rem))] p-0"
-        sideOffset={8}
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <button
+        onClick={() => setOpen(!open)}
+        className={`
+          relative p-2 rounded-md text-muted-foreground transition-all duration-200
+          ${totalAtivos > 0 ? 'bg-primary/10 text-primary' : 'hover:bg-accent'}
+        `}
+        title="Filtros"
       >
+        <Filter className="w-4 h-4" />
+        {totalAtivos > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center">
+            {totalAtivos}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <>
+          {/* Overlay mobile escuro */}
+          <div className="fixed inset-0 z-[59] bg-black/40 sm:bg-transparent" onClick={() => setOpen(false)} />
+          <div className="fixed left-1/2 -translate-x-1/2 top-14 w-[calc(100vw-2rem)] max-w-[20rem] z-[60]
+                          sm:absolute sm:left-auto sm:translate-x-0 sm:top-auto sm:right-0 sm:mt-1.5 sm:w-[20rem]
+                          bg-card border border-border rounded-lg shadow-lg p-0 animate-enter">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <div className="flex items-center gap-2">
@@ -603,7 +612,9 @@ export function FiltrosPopover({ filtros, onChange, isAdmin }: FiltrosPopoverPro
             )}
           </div>
         )}
-      </PopoverContent>
-    </Popover>
+          </div>
+        </>
+      )}
+    </div>
   )
 }

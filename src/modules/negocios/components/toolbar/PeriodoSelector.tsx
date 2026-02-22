@@ -127,7 +127,12 @@ export const PeriodoSelector = forwardRef<HTMLDivElement, PeriodoSelectorProps>(
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1.5 w-64 bg-card border border-border rounded-lg shadow-lg z-[60] py-1 animate-enter">
+        <>
+          {/* Overlay mobile escuro */}
+          <div className="fixed inset-0 z-[59] bg-black/40 sm:bg-transparent" onClick={() => setOpen(false)} />
+          <div className="fixed left-1/2 -translate-x-1/2 top-14 w-[calc(100vw-2rem)] max-w-64 z-[60]
+                          sm:absolute sm:left-auto sm:translate-x-0 sm:top-auto sm:right-0 sm:mt-1.5 sm:w-64
+                          bg-card border border-border rounded-lg shadow-lg py-1 animate-enter">
           {PRESETS.map(preset => (
             <div key={preset.id}>
               {preset.id === 'custom' ? (
@@ -182,7 +187,8 @@ export const PeriodoSelector = forwardRef<HTMLDivElement, PeriodoSelectorProps>(
               )}
             </div>
           ))}
-        </div>
+          </div>
+        </>
       )}
     </div>
   )

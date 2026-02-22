@@ -6,10 +6,10 @@
  * Se todas as métricas forem desmarcadas, o painel desaparece completamente
  */
 
-import { useMemo, forwardRef } from 'react'
+import { useMemo, useState, forwardRef } from 'react'
 import {
   TrendingUp, TrendingDown, DollarSign, Target, Clock,
-  AlertTriangle, CheckCircle, XCircle, BarChart3,
+  AlertTriangle, CheckCircle, XCircle, BarChart3, ChevronDown, ChevronUp,
 } from 'lucide-react'
 import type { KanbanData } from '../../services/negocios.api'
 import { type MetricasVisiveis, isMetricaVisivel } from './FiltrarMetricasPopover'
@@ -138,8 +138,12 @@ function calcularMetricas(data: KanbanData): Metrica[] {
   ]
 }
 
+// AIDEV-NOTE: Métricas prioritárias exibidas por padrão no mobile (3 primeiras)
+const MOBILE_DEFAULT_COUNT = 3
+
 export const MetricasPanel = forwardRef<HTMLDivElement, MetricasPanelProps>(function MetricasPanel({ data, metricasVisiveis }, _ref) {
   const metricas = useMemo(() => calcularMetricas(data), [data])
+  const [expandido, setExpandido] = useState(false)
 
   const metricasFiltradas = useMemo(() => {
     if (Object.keys(metricasVisiveis).length === 0) return metricas
@@ -149,14 +153,17 @@ export const MetricasPanel = forwardRef<HTMLDivElement, MetricasPanelProps>(func
   // Se nenhuma métrica visível, não renderiza nada
   if (metricasFiltradas.length === 0) return null
 
+  const temMais = metricasFiltradas.length > MOBILE_DEFAULT_COUNT
+
   return (
     <div className="flex-shrink-0 px-3 sm:px-4 py-2 sm:py-3 animate-enter">
-      <div className="flex overflow-x-auto gap-2 pb-1 sm:pb-0 sm:grid sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 scrollbar-hide">
+      {/* Desktop: grid normal */}
+      <div className="hidden sm:grid sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-2">
         {metricasFiltradas.map(m => (
           <div
             key={m.id}
             className={`
-              flex items-center gap-2 px-2.5 py-2 rounded-lg flex-shrink-0 min-w-[120px] sm:min-w-0
+              flex items-center gap-2 px-2.5 py-2 rounded-lg
               ${COR_CLASSES[m.cor]}
               transition-all duration-200
             `}
@@ -172,6 +179,49 @@ export const MetricasPanel = forwardRef<HTMLDivElement, MetricasPanelProps>(func
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Mobile: grid compacto com expand */}
+      <div className="sm:hidden space-y-2">
+        <div className="grid grid-cols-3 gap-1.5">
+          {(expandido ? metricasFiltradas : metricasFiltradas.slice(0, MOBILE_DEFAULT_COUNT)).map(m => (
+            <div
+              key={m.id}
+              className={`
+                flex flex-col items-center gap-0.5 px-1.5 py-2 rounded-lg text-center
+                ${COR_CLASSES[m.cor]}
+                transition-all duration-200
+              `}
+            >
+              <m.icon className={`w-3.5 h-3.5 ${ICON_COR_CLASSES[m.cor]}`} />
+              <p className="text-[9px] text-muted-foreground leading-none truncate w-full">
+                {m.label}
+              </p>
+              <p className="text-xs font-semibold leading-tight truncate w-full">
+                {m.valor}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        {temMais && (
+          <button
+            onClick={() => setExpandido(!expandido)}
+            className="w-full flex items-center justify-center gap-1 py-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {expandido ? (
+              <>
+                <ChevronUp className="w-3 h-3" />
+                Menos métricas
+              </>
+            ) : (
+              <>
+                <ChevronDown className="w-3 h-3" />
+                Ver mais ({metricasFiltradas.length - MOBILE_DEFAULT_COUNT})
+              </>
+            )}
+          </button>
+        )}
       </div>
     </div>
   )
