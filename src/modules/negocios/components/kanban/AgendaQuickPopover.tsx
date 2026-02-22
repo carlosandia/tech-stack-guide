@@ -317,7 +317,7 @@ export const AgendaQuickPopover = forwardRef<HTMLDivElement, AgendaQuickPopoverP
   if (isMobile) {
     return (
       <>
-        <div onClick={(e) => { e.stopPropagation(); setOpen(true) }}>
+        <div onClickCapture={(e) => { e.stopPropagation(); e.preventDefault(); setOpen(true) }}>
           {children}
         </div>
         {open && (
