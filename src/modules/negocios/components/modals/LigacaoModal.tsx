@@ -995,16 +995,24 @@ export function LigacaoModal({ telefone, contatoNome, onClose, oportunidadeId }:
         aria-hidden="true"
       />
 
-      {/* Modal */}
-      <div className="fixed inset-0 z-[401] flex items-center justify-center pointer-events-none">
-        <div className={`pointer-events-auto bg-card border border-border rounded-lg shadow-lg w-[calc(100%-32px)] animate-enter ${
+      {/* Modal - fullscreen no mobile, centralizado no desktop */}
+      <div className="fixed inset-0 z-[401] flex items-end sm:items-center sm:justify-center pointer-events-none">
+        <div className={`pointer-events-auto bg-card w-full h-full sm:h-auto sm:border sm:border-border sm:rounded-lg shadow-lg sm:w-[calc(100%-32px)] animate-enter overflow-y-auto ${
           hasInfoPanel ? 'sm:max-w-2xl' : 'sm:max-w-sm'
         }`}>
           <div className={`${hasInfoPanel ? 'grid grid-cols-1 md:grid-cols-2' : ''}`}>
             {/* Coluna esquerda: Controles de ligação */}
             <div className={hasInfoPanel ? 'md:border-r md:border-border' : ''}>
-              {/* Header */}
-              <div className="px-6 py-4 border-b border-border text-center">
+              {/* Header com botão fechar no mobile */}
+              <div className="px-6 py-4 border-b border-border text-center relative">
+                <button
+                  onClick={onClose}
+                  disabled={status === 'chamando'}
+                  className="absolute top-3 right-3 sm:hidden p-2 rounded-full hover:bg-accent transition-colors disabled:opacity-50"
+                  aria-label="Fechar"
+                >
+                  <X className="w-5 h-5 text-muted-foreground" />
+                </button>
                 <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3 ${
                   emChamada ? 'bg-[hsl(var(--success))]/10' : 'bg-primary/10'
                 }`}>
@@ -1157,8 +1165,8 @@ export function LigacaoModal({ telefone, contatoNome, onClose, oportunidadeId }:
                 )}
               </div>
 
-              {/* Footer */}
-              <div className="px-6 py-3 border-t border-border">
+              {/* Footer - hidden no mobile (usa X no header), visível no desktop */}
+              <div className="hidden sm:block px-6 py-3 border-t border-border">
                 <button
                   onClick={onClose}
                   disabled={status === 'chamando'}
