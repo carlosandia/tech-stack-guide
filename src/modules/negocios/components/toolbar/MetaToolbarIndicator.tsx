@@ -225,9 +225,9 @@ export const MetaToolbarIndicator = forwardRef<HTMLDivElement>(function MetaTool
       {open && (
         <>
           {/* Overlay mobile escuro */}
-          <div className="fixed inset-0 z-[59] bg-black/40 sm:bg-transparent" onClick={() => setOpen(false)} />
+          <div className="fixed inset-0 z-[199] bg-black/40 sm:bg-transparent" onClick={() => setOpen(false)} />
           {/* Content */}
-          <div className="fixed left-1/2 -translate-x-1/2 top-14 w-[calc(100vw-2rem)] max-w-[380px] z-[60]
+          <div className="fixed left-1/2 -translate-x-1/2 top-14 w-[calc(100vw-2rem)] max-w-[380px] z-[200]
                           sm:absolute sm:left-auto sm:translate-x-0 sm:top-auto sm:right-0 sm:mt-1.5 sm:w-[380px]
                           bg-card border border-border rounded-lg shadow-lg animate-enter">
             {/* Tabs */}
