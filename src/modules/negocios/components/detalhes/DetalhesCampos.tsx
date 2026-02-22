@@ -7,7 +7,7 @@
  */
 
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { DollarSign, User, Calendar, Mail, Phone, Settings2, Check, Building2, RefreshCw, Link2, X, Search, Loader2, ChevronDown, Hash, Type, ToggleLeft, Globe, FileText, Package, Tag, Plus } from 'lucide-react'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import { WhatsAppConversaModal } from '../kanban/WhatsAppConversaModal'
@@ -80,6 +80,7 @@ function getCampoIcon(tipo: string) {
 function TagsSection({ contatoId }: { contatoId: string }) {
   const [showDropdown, setShowDropdown] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const queryClient = useQueryClient()
   const { data: segmentosData } = useSegmentos()
   const segmentarLote = useSegmentarLote()
   const segmentos = segmentosData?.segmentos || []
@@ -110,22 +111,50 @@ function TagsSection({ contatoId }: { contatoId: string }) {
     return () => document.removeEventListener('mousedown', handler)
   }, [showDropdown])
 
+  // AIDEV-NOTE: Optimistic update para tags - atualiza UI imediatamente
   const handleToggle = (segmentoId: string) => {
     const isActive = segmentoIds.includes(segmentoId)
+    const previousIds = [...segmentoIds]
+
+    // Optimistic: atualiza cache imediatamente
+    const newIds = isActive
+      ? segmentoIds.filter(id => id !== segmentoId)
+      : [...segmentoIds, segmentoId]
+    queryClient.setQueryData(['contato_segmentos', contatoId], newIds)
+
     segmentarLote.mutate(
       {
         ids: [contatoId],
         adicionar: isActive ? [] : [segmentoId],
         remover: isActive ? [segmentoId] : [],
       },
-      { onSuccess: () => refetch() }
+      {
+        onError: () => {
+          // Rollback em caso de erro
+          queryClient.setQueryData(['contato_segmentos', contatoId], previousIds)
+        },
+        onSettled: () => refetch(),
+      }
     )
   }
 
   const handleRemove = (segmentoId: string) => {
+    const previousIds = [...segmentoIds]
+
+    // Optimistic: remove da UI imediatamente
+    queryClient.setQueryData(
+      ['contato_segmentos', contatoId],
+      segmentoIds.filter(id => id !== segmentoId)
+    )
+
     segmentarLote.mutate(
       { ids: [contatoId], adicionar: [], remover: [segmentoId] },
-      { onSuccess: () => refetch() }
+      {
+        onError: () => {
+          queryClient.setQueryData(['contato_segmentos', contatoId], previousIds)
+        },
+        onSettled: () => refetch(),
+      }
     )
   }
 
