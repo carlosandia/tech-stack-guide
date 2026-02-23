@@ -84,6 +84,7 @@ export function PlanoFormModal({ plano, onClose }: Props) {
     },
   })
 
+  // Carregar dados do formulário quando editando
   useEffect(() => {
     if (plano) {
       reset({
@@ -106,6 +107,34 @@ export function PlanoFormModal({ plano, onClose }: Props) {
       })
     }
   }, [plano, reset])
+
+  // AIDEV-NOTE: Carregar módulos vinculados ao plano quando em modo edição
+  // ou inicializar com obrigatórios quando criando novo
+  useEffect(() => {
+    if (!modulos) return
+
+    const obrigatorioIds = modulos.filter((m: Modulo) => m.obrigatorio).map((m: Modulo) => m.id)
+
+    if (!plano) {
+      // Novo plano: apenas obrigatórios pré-selecionados
+      setSelectedModulos(obrigatorioIds)
+      return
+    }
+
+    // Edição: buscar módulos do plano
+    async function loadPlanoModulos() {
+      try {
+        const planoCompleto = await adminApi.obterPlano(plano!.id)
+        const moduloIds = planoCompleto.modulos.map((m: Modulo) => m.id)
+        const allIds = Array.from(new Set([...moduloIds, ...obrigatorioIds]))
+        setSelectedModulos(allIds)
+      } catch {
+        setSelectedModulos(obrigatorioIds)
+      }
+    }
+
+    loadPlanoModulos()
+  }, [plano, modulos])
 
   const createMutation = useMutation({
     mutationFn: (data: Omit<Plano, 'id'>) => adminApi.criarPlano(data),

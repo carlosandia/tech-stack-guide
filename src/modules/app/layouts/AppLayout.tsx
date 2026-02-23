@@ -1,6 +1,7 @@
 import { useState, useEffect, forwardRef } from 'react'
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/providers/AuthProvider'
+import { useModulosTenant } from '@/hooks/useModulosTenant'
 import { useBlockedRedirect } from '@/hooks/useBlockedRedirect'
 import { preloadCommonRoutes } from '@/shared/utils/preload'
 import { AppToolbarProvider, useAppToolbar } from '../contexts/AppToolbarContext'
@@ -47,41 +48,49 @@ const menuItems = [
     path: '/dashboard',
     icon: LayoutDashboard,
     exact: true,
+    slug: 'dashboard',
   },
   {
     label: 'Contatos',
     path: '/contatos',
     icon: Users,
+    slug: 'contatos',
   },
   {
     label: 'Negócios',
     path: '/negocios',
     icon: Briefcase,
+    slug: 'negocios',
   },
   {
     label: 'Conversas',
     path: '/conversas',
     icon: MessageSquare,
+    slug: 'conversas',
   },
   {
     label: 'Emails',
     path: '/emails',
     icon: Mail,
+    slug: 'caixa-entrada-email',
   },
   {
     label: 'Tarefas',
     path: '/tarefas',
     icon: CheckSquare,
+    slug: 'atividades',
   },
   {
     label: 'Formulários',
     path: '/formularios',
     icon: FileText,
+    slug: 'formularios',
   },
   {
     label: 'Automações',
     path: '/automacoes',
     icon: Zap,
+    slug: 'automacoes',
   },
 ]
 
@@ -138,7 +147,7 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
   const location = useLocation()
   const { user, role, signOut } = useAuth()
   const [drawerOpen, setDrawerOpen] = useState(false)
-  
+  const { data: modulosAtivos } = useModulosTenant()
 
   // Salvar última rota do CRM para o botão "Voltar" das Configurações
   useEffect(() => {
@@ -160,7 +169,11 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
   const isPerfilRoute = location.pathname === '/perfil'
   const hideToolbar = isEditorRoute || isPipelineConfig || isPerfilRoute
   const hideHeader = isEditorRoute
-  const visibleItems = menuItems
+
+  // AIDEV-NOTE: Filtrar menu com base nos módulos ativos do plano do tenant
+  const visibleItems = modulosAtivos
+    ? menuItems.filter(item => modulosAtivos.includes(item.slug))
+    : menuItems // Enquanto carrega, mostra todos (evita flash)
 
   const handleLogout = async () => {
     try {
