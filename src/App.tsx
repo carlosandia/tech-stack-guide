@@ -37,7 +37,7 @@ const SuspenseFallbackFullScreen = ({ text = 'Carregando...' }: { text?: string 
 import { LoginPage, ForgotPasswordPage, ResetPasswordPage, SetPasswordPage } from '@/modules/auth'
 
 // Public - Carrega sempre (landing page, rotas publicas frequentes)
-import { PlanosPage, TrialCadastroPage, CheckoutSucessoPage, OnboardingPage, PoliticaPrivacidadePage, TermosServicoPage, LandingPage } from '@/modules/public'
+import { PlanosPage, TrialCadastroPage, CheckoutSucessoPage, OnboardingPage, PoliticaPrivacidadePage, TermosServicoPage, LandingPage, ParceiroPage } from '@/modules/public'
 import { BlockedPage } from '@/modules/blocked'
 import { OAuthGoogleCallbackPage } from '@/pages/OAuthGoogleCallbackPage'
 
@@ -143,6 +143,7 @@ const App = forwardRef<HTMLDivElement>(function App(_props, _ref) {
        <Route path="/f/:slug" element={<FormularioPublicoPage />} />
        <Route path="/privacidade" element={<PoliticaPrivacidadePage />} />
        <Route path="/termos" element={<TermosServicoPage />} />
+       <Route path="/parceiro/:codigo" element={<ParceiroPage />} />
        <Route path="/oauth/google/callback" element={<OAuthGoogleCallbackPage />} />
        <Route path="/auth/google/callback" element={<OAuthGoogleCallbackPage />} />
  

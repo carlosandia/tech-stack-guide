@@ -29,6 +29,7 @@ const PreCadastroSchema = z.object({
   telefone: z.string().min(1, 'Telefone é obrigatório').max(20),
   nome_empresa: z.string().min(2, 'Nome da empresa deve ter no mínimo 2 caracteres').max(255),
   segmento: z.string().min(1, 'Selecione um segmento'),
+  codigo_parceiro: z.string().max(50).optional(),
   aceite_termos: z.literal(true, {
     errorMap: () => ({ message: 'Você precisa aceitar os termos para continuar' }),
   }),
@@ -44,6 +45,7 @@ interface PreCadastroModalProps {
   periodo: 'mensal' | 'anual'
   isTrial: boolean
   utms: Record<string, string>
+  codigoParceiro?: string
   onCheckout: (preCadastroId: string) => void
 }
 
@@ -55,6 +57,7 @@ export function PreCadastroModal({
   periodo,
   isTrial,
   utms,
+  codigoParceiro,
   onCheckout,
 }: PreCadastroModalProps) {
   const [loading, setLoading] = useState(false)
@@ -70,6 +73,7 @@ export function PreCadastroModal({
   } = useForm<PreCadastroData>({
     resolver: zodResolver(PreCadastroSchema),
     defaultValues: {
+      codigo_parceiro: codigoParceiro || '',
       aceite_termos: undefined as unknown as true,
     },
   })
@@ -92,6 +96,7 @@ export function PreCadastroModal({
           telefone: data.telefone?.trim() || null,
           nome_empresa: data.nome_empresa.trim(),
           segmento: data.segmento,
+          codigo_parceiro: data.codigo_parceiro?.toUpperCase().trim() || null,
           plano_id: planoId,
           periodo,
           is_trial: isTrial,
@@ -186,6 +191,23 @@ export function PreCadastroModal({
               {errors.nome_empresa && (
                 <p className="text-xs text-destructive mt-1">{errors.nome_empresa.message}</p>
               )}
+            </div>
+
+            {/* Código do Parceiro */}
+            <div>
+              <Label htmlFor="codigo_parceiro">
+                Código do Parceiro{' '}
+                <span className="text-xs text-muted-foreground">(opcional)</span>
+              </Label>
+              <Input
+                id="codigo_parceiro"
+                placeholder="Ex: RENOVE-MBP7VY"
+                {...register('codigo_parceiro')}
+                className="mt-1.5 uppercase"
+                onChange={(e) => {
+                  e.target.value = e.target.value.toUpperCase()
+                }}
+              />
             </div>
 
             {/* Segmento */}

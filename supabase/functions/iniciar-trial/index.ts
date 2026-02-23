@@ -24,7 +24,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
      const supabase = createClient<any>(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
  
      const body = await req.json()
-     const { nome, email, nome_empresa, telefone, utms } = body
+     const { nome, email, nome_empresa, telefone, utms, codigo_parceiro } = body
  
       console.log('Starting trial for:', email)
 
@@ -165,7 +165,33 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
        moeda_padrao: 'BRL',
        formato_data: 'DD/MM/YYYY',
      })
- 
+
+     // Vincular parceiro automaticamente (se código fornecido)
+     if (codigo_parceiro) {
+       const { data: parceiro } = await supabase
+         .from('parceiros')
+         .select('id, percentual_comissao')
+         .eq('codigo_indicacao', codigo_parceiro)
+         .eq('status', 'ativo')
+         .maybeSingle()
+
+       if (parceiro) {
+         const { error: indicacaoError } = await supabase.from('indicacoes_parceiro').insert({
+           parceiro_id: parceiro.id,
+           organizacao_id: novaOrg.id,
+           status: 'ativa',
+           percentual_comissao_snapshot: parceiro.percentual_comissao,
+         })
+         if (indicacaoError) {
+           console.error('Error creating partner indication:', indicacaoError)
+         } else {
+           console.log('Parceiro vinculado via trial:', codigo_parceiro)
+         }
+       } else {
+         console.warn('Código de parceiro inválido ou inativo:', codigo_parceiro)
+       }
+     }
+
      console.log('Trial started successfully for:', email)
  
      return new Response(

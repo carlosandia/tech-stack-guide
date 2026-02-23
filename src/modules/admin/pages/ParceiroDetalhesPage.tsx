@@ -10,6 +10,8 @@ import {
   Loader2,
   Trophy,
   Plus,
+  Copy,
+  Check,
 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -67,6 +69,7 @@ function ParceiroDetalhesPage() {
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<TabId>('indicados')
   const [comissaoModalOpen, setComissaoModalOpen] = useState(false)
+  const [copiadoUrl, setCopiadoUrl] = useState(false)
   const [confirmarGratuidade, setConfirmarGratuidade] = useState(false)
   const [gratuidadeValidade, setGratuidadeValidade] = useState('')
 
@@ -216,6 +219,23 @@ function ParceiroDetalhesPage() {
                 Admin: {parceiro.usuario.nome} • {parceiro.usuario.email}
               </p>
             )}
+            {/* Link de indicação copiável */}
+            <div className="flex items-center gap-2 mt-2">
+              <code className="text-xs bg-muted px-2 py-1 rounded text-muted-foreground select-all">
+                {window.location.origin}/parceiro/{parceiro.codigo_indicacao}
+              </code>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(`${window.location.origin}/parceiro/${parceiro.codigo_indicacao}`)
+                  setCopiadoUrl(true)
+                  setTimeout(() => setCopiadoUrl(false), 2000)
+                }}
+                className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                title="Copiar link de indicação"
+              >
+                {copiadoUrl ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+              </button>
+            </div>
           </div>
         </div>
 

@@ -75,7 +75,7 @@ interface PlanoDb {
     }
   }, [demoModalOpen])
  
-   // Capturar UTMs
+   // Capturar UTMs e código de parceiro
    const utms = {
      utm_source: searchParams.get('utm_source') || '',
      utm_medium: searchParams.get('utm_medium') || '',
@@ -83,6 +83,7 @@ interface PlanoDb {
      utm_term: searchParams.get('utm_term') || '',
      utm_content: searchParams.get('utm_content') || '',
    }
+   const codigoParceiro = searchParams.get('ref') || ''
  
    useEffect(() => {
      fetchPlanos()
@@ -492,6 +493,7 @@ interface PlanoDb {
            periodo={periodo}
            isTrial={modalPlano.isTrial}
            utms={utms}
+           codigoParceiro={codigoParceiro}
            onCheckout={handleCheckout}
          />
        )}

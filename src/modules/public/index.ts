@@ -9,3 +9,4 @@
  export { PoliticaPrivacidadePage } from './pages/PoliticaPrivacidadePage'
  export { TermosServicoPage } from './pages/TermosServicoPage'
  export { LandingPage } from './pages/LandingPage'
+ export { ParceiroPage } from './pages/ParceiroPage'

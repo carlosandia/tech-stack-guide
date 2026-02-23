@@ -241,7 +241,34 @@ import Stripe from 'npm:stripe@17'
        console.error('Error creating subscription:', assinaturaError)
        // Continua mesmo com erro - não é crítico
      }
- 
+
+     // 8b. Vincular parceiro automaticamente (se código fornecido)
+     const codigoParceiro = session.metadata?.codigo_parceiro
+     if (codigoParceiro) {
+       const { data: parceiro } = await supabase
+         .from('parceiros')
+         .select('id, percentual_comissao')
+         .eq('codigo_indicacao', codigoParceiro)
+         .eq('status', 'ativo')
+         .maybeSingle()
+
+       if (parceiro) {
+         const { error: indicacaoError } = await supabase.from('indicacoes_parceiro').insert({
+           parceiro_id: parceiro.id,
+           organizacao_id: org.id,
+           status: 'ativa',
+           percentual_comissao_snapshot: parceiro.percentual_comissao,
+         })
+         if (indicacaoError) {
+           console.error('Error creating partner indication:', indicacaoError)
+         } else {
+           console.log('Parceiro vinculado automaticamente:', codigoParceiro)
+         }
+       } else {
+         console.warn('Código de parceiro inválido ou inativo:', codigoParceiro)
+       }
+     }
+
      // 9. Marcar sessão como concluída
      if (pendingSession) {
        await supabase

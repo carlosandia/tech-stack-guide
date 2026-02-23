@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
- import { Plus, Edit, CreditCard, Users, HardDrive, Puzzle, Shield, RefreshCw, WifiOff, AlertTriangle } from 'lucide-react'
+ import { Plus, Edit, CreditCard, Users, HardDrive, Puzzle, Shield, RefreshCw, WifiOff, AlertTriangle, Copy, Check, Code2 } from 'lucide-react'
 import { usePlanos, useModulos } from '../hooks/usePlanos'
 import { useConfigGlobal } from '../hooks/useConfigGlobal'
  import { useToolbar } from '../contexts/ToolbarContext'
@@ -12,6 +12,52 @@ import type { Plano } from '../services/admin.api'
  */
 function isTrialPlan(plano: Plano): boolean {
   return plano.nome.toLowerCase() === 'trial' || plano.preco_mensal === 0
+}
+
+function EmbedWidgetSection() {
+  const [copiado, setCopiado] = useState(false)
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
+  const snippet = `<div id="renove-pricing-widget"></div>\n<script src="${supabaseUrl}/functions/v1/pricing-widget-loader?periodo=mensal" async></script>`
+
+  const copiar = () => {
+    navigator.clipboard.writeText(snippet)
+    setCopiado(true)
+    setTimeout(() => setCopiado(false), 2000)
+  }
+
+  return (
+    <div className="bg-card rounded-lg border border-border p-6">
+      <div className="flex items-start gap-3 mb-4">
+        <Code2 className="w-5 h-5 text-primary mt-0.5 shrink-0" />
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Widget de Planos</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Cole este código em qualquer página para exibir os planos sempre atualizados.
+            Para parceiros, adicione <code className="text-xs bg-muted px-1 rounded">?ref=CODIGO</code> à URL do script.
+          </p>
+        </div>
+      </div>
+      <pre className="bg-muted rounded-md p-3 text-xs font-mono text-foreground overflow-x-auto select-all whitespace-pre-wrap break-all">
+        {snippet}
+      </pre>
+      <button
+        onClick={copiar}
+        className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 text-sm border border-border rounded-md hover:bg-accent transition-colors text-foreground"
+      >
+        {copiado ? (
+          <>
+            <Check className="w-4 h-4 text-green-500" />
+            Copiado!
+          </>
+        ) : (
+          <>
+            <Copy className="w-4 h-4" />
+            Copiar Código
+          </>
+        )}
+      </button>
+    </div>
+  )
 }
 
 /**
@@ -158,6 +204,9 @@ function PlanosPage() {
           </div>
         )}
       </div>
+
+      {/* Widget Embed */}
+      <EmbedWidgetSection />
 
       {/* Modulos Disponiveis */}
       <div className="bg-card rounded-lg border border-border p-6">

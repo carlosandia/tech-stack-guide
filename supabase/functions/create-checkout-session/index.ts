@@ -54,6 +54,18 @@ serve(async (req) => {
 
     console.log('Creating checkout session:', { plano_id, periodo, email, is_trial, pre_cadastro_id })
 
+    // Buscar código de parceiro do pré-cadastro (se houver)
+    let codigoParceiro: string | null = null
+    if (pre_cadastro_id) {
+      const { data: preCadastro } = await supabase
+        .from('pre_cadastros_saas')
+        .select('codigo_parceiro')
+        .eq('id', pre_cadastro_id)
+        .maybeSingle()
+      codigoParceiro = preCadastro?.codigo_parceiro || null
+      if (codigoParceiro) console.log('Código de parceiro encontrado:', codigoParceiro)
+    }
+
     // Buscar configuração de trial se for trial
     let trialDias = 14
     let billingPlanoId = plano_id
@@ -162,6 +174,7 @@ serve(async (req) => {
         is_trial: is_trial ? 'true' : 'false',
         trial_dias: is_trial ? String(trialDias) : '0',
         pre_cadastro_id: pre_cadastro_id || '',
+        codigo_parceiro: codigoParceiro || '',
         utm_source: utms?.utm_source || '',
         utm_medium: utms?.utm_medium || '',
         utm_campaign: utms?.utm_campaign || '',

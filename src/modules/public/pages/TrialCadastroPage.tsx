@@ -1,5 +1,5 @@
  import { useState } from 'react'
- import { useNavigate, useLocation, Link } from 'react-router-dom'
+ import { useNavigate, useLocation, useSearchParams, Link } from 'react-router-dom'
  import { Loader2, Zap, ArrowLeft, Check } from 'lucide-react'
  import { supabase } from '@/lib/supabase'
  
@@ -13,18 +13,22 @@
    email: string
    nome_empresa: string
    telefone: string
+   codigo_parceiro: string
  }
  
  export function TrialCadastroPage() {
    const navigate = useNavigate()
    const location = useLocation()
+   const [searchParams] = useSearchParams()
    const utms = (location.state as { utms?: Record<string, string> })?.utms || {}
- 
+   const codigoParceiro = searchParams.get('ref') || ''
+
    const [formData, setFormData] = useState<FormData>({
      nome: '',
      email: '',
      nome_empresa: '',
      telefone: '',
+     codigo_parceiro: codigoParceiro,
    })
    const [loading, setLoading] = useState(false)
    const [error, setError] = useState<string | null>(null)
@@ -152,7 +156,21 @@
                    placeholder="(11) 99999-9999"
                  />
                </div>
- 
+
+               <div>
+                 <label className="block text-sm font-medium text-foreground mb-1.5">
+                   Código do Parceiro{' '}
+                   <span className="text-xs text-muted-foreground">(opcional)</span>
+                 </label>
+                 <input
+                   type="text"
+                   value={formData.codigo_parceiro}
+                   onChange={(e) => setFormData({ ...formData, codigo_parceiro: e.target.value.toUpperCase() })}
+                   className="w-full h-11 px-4 rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                   placeholder="Ex: RENOVE-MBP7VY"
+                 />
+               </div>
+
                {error && (
                  <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
                    <p className="text-sm text-destructive">{error}</p>
