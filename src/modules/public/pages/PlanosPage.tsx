@@ -273,35 +273,34 @@ interface PlanoDb {
        </header>
  
         {/* Hero */}
-        <section className={`py-16 sm:py-24 px-4 relative ${partnerName ? 'overflow-hidden' : ''}`}>
-          {/* Gradiente premium para parceiros */}
+        <section className={`py-16 sm:py-24 px-4 relative ${partnerName ? 'bg-[#0F172A] overflow-hidden border-b border-white/10' : ''}`}>
+          {/* Gradiente radial premium para parceiros */}
           {partnerName && (
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,hsl(var(--primary)/0.06)_0%,transparent_60%)] pointer-events-none" />
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,hsl(var(--primary)/0.15)_0%,transparent_70%)] pointer-events-none" />
           )}
           <div className="max-w-4xl mx-auto text-center relative">
             {/* Badge de indicação */}
             {partnerName && (
-              <div className="flex justify-center mb-5">
-                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/5 border border-primary/20 text-primary text-xs sm:text-sm font-medium">
+              <div className="flex justify-center mb-5 animate-in fade-in duration-700">
+                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 border border-white/20 text-white text-xs sm:text-sm font-medium backdrop-blur-sm">
                   <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
                   <span>Indicado por <strong className="font-semibold">{partnerName}</strong></span>
                 </div>
               </div>
             )}
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground mb-4">
+            <h1 className={`text-3xl sm:text-4xl lg:text-5xl font-bold mb-4 ${partnerName ? 'text-white' : 'text-foreground'}`}>
               Escolha o plano ideal para seu negócio
             </h1>
-            <p className="text-lg text-muted-foreground mb-8">
+            <p className={`text-lg mb-8 ${partnerName ? 'text-slate-300' : 'text-muted-foreground'}`}>
               {partnerName
-                ? <>Você foi indicado por <span className="font-semibold text-foreground">{partnerName}</span>. Cancele quando quiser.</>
+                ? <>Você foi indicado por <span className="font-semibold text-white">{partnerName}</span>. Cancele quando quiser.</>
                 : trialConfig.trial_habilitado
                   ? `Comece grátis por ${trialConfig.trial_dias} dias. Cancele quando quiser.`
                   : 'Escolha o plano que melhor se adapta às suas necessidades.'}
             </p>
- 
+
           {/* Toggle Periodo */}
           {(() => {
-            // Calcular desconto médio real dos planos
             const planosComAnual = planos.filter(p => 
               p.preco_mensal && p.preco_mensal > 0 && 
               p.preco_anual && p.preco_anual > 0
@@ -317,13 +316,17 @@ interface PlanoDb {
               : null
 
             return (
-              <div className="inline-flex items-center gap-3 p-1 bg-muted rounded-lg">
+              <div className={`inline-flex items-center gap-3 p-1 rounded-lg ${partnerName ? 'bg-white/10' : 'bg-muted'}`}>
                 <button
                   onClick={() => setPeriodo('mensal')}
                   className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
                     periodo === 'mensal'
-                      ? 'bg-background text-foreground shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground'
+                      ? partnerName
+                        ? 'bg-white/20 text-white shadow-sm'
+                        : 'bg-background text-foreground shadow-sm'
+                      : partnerName
+                        ? 'text-slate-400 hover:text-white'
+                        : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
                   Mensal
@@ -332,13 +335,17 @@ interface PlanoDb {
                   onClick={() => setPeriodo('anual')}
                   className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
                     periodo === 'anual'
-                      ? 'bg-background text-foreground shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground'
+                      ? partnerName
+                        ? 'bg-white/20 text-white shadow-sm'
+                        : 'bg-background text-foreground shadow-sm'
+                      : partnerName
+                        ? 'text-slate-400 hover:text-white'
+                        : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
                   Anual
                   {descontoMedio && descontoMedio > 0 && (
-                    <span className="ml-1.5 text-xs font-semibold text-primary">-{descontoMedio}%</span>
+                    <span className={`ml-1.5 text-xs font-semibold ${partnerName ? 'text-emerald-400' : 'text-primary'}`}>-{descontoMedio}%</span>
                   )}
                 </button>
               </div>
