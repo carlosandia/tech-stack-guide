@@ -1,4 +1,5 @@
-import { forwardRef, lazy, Suspense } from 'react'
+import { forwardRef, Suspense } from 'react'
+import { lazyWithRetry } from '@/utils/lazyWithRetry'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from '@/providers/AuthProvider'
 
@@ -50,52 +51,52 @@ import { FormularioPublicoPage } from '@/modules/formularios/pages/FormularioPub
 
 // Admin Module (so Super Admin)
 // AIDEV-NOTE: Todos arquivos normalizados para export default - removido .then() patterns
-const AdminLayout = lazy(() => import('@/modules/admin/layouts/AdminLayout'))
-const AdminDashboardPage = lazy(() => import('@/modules/admin/pages/DashboardPage'))
-const AdminOrganizacoesPage = lazy(() => import('@/modules/admin/pages/OrganizacoesPage'))
-const AdminOrganizacaoDetalhesPage = lazy(() => import('@/modules/admin/pages/OrganizacaoDetalhesPage'))
-const AdminPlanosPage = lazy(() => import('@/modules/admin/pages/PlanosPage'))
-const AdminConfiguracoesGlobaisPage = lazy(() => import('@/modules/admin/pages/ConfiguracoesGlobaisPage'))
-const AdminModulosPage = lazy(() => import('@/modules/admin/pages/ModulosPage'))
-const AdminEvolucaoPage = lazy(() => import('@/modules/admin/pages/EvolucaoPage'))
-const AdminParceirosPage = lazy(() => import('@/modules/admin/pages/ParceirosPage'))
-const AdminParceiroDetalhesPage = lazy(() => import('@/modules/admin/pages/ParceiroDetalhesPage'))
+const AdminLayout = lazyWithRetry(() => import('@/modules/admin/layouts/AdminLayout'), 'AdminLayout')
+const AdminDashboardPage = lazyWithRetry(() => import('@/modules/admin/pages/DashboardPage'), 'AdminDashboard')
+const AdminOrganizacoesPage = lazyWithRetry(() => import('@/modules/admin/pages/OrganizacoesPage'), 'AdminOrganizacoes')
+const AdminOrganizacaoDetalhesPage = lazyWithRetry(() => import('@/modules/admin/pages/OrganizacaoDetalhesPage'), 'AdminOrgDetalhes')
+const AdminPlanosPage = lazyWithRetry(() => import('@/modules/admin/pages/PlanosPage'), 'AdminPlanos')
+const AdminConfiguracoesGlobaisPage = lazyWithRetry(() => import('@/modules/admin/pages/ConfiguracoesGlobaisPage'), 'AdminConfigGlobais')
+const AdminModulosPage = lazyWithRetry(() => import('@/modules/admin/pages/ModulosPage'), 'AdminModulos')
+const AdminEvolucaoPage = lazyWithRetry(() => import('@/modules/admin/pages/EvolucaoPage'), 'AdminEvolucao')
+const AdminParceirosPage = lazyWithRetry(() => import('@/modules/admin/pages/ParceirosPage'), 'AdminParceiros')
+const AdminParceiroDetalhesPage = lazyWithRetry(() => import('@/modules/admin/pages/ParceiroDetalhesPage'), 'AdminParceiroDetalhes')
 
 // App Module (CRM principal)
-const AppLayout = lazy(() => import('@/modules/app/layouts/AppLayout'))
-const AppDashboardPage = lazy(() => import('@/modules/app/pages/DashboardPage'))
-const PerfilPage = lazy(() => import('@/modules/app/pages/PerfilPage'))
+const AppLayout = lazyWithRetry(() => import('@/modules/app/layouts/AppLayout'), 'AppLayout')
+const AppDashboardPage = lazyWithRetry(() => import('@/modules/app/pages/DashboardPage'), 'AppDashboard')
+const PerfilPage = lazyWithRetry(() => import('@/modules/app/pages/PerfilPage'), 'Perfil')
 
 // Configuracoes Module
 // AIDEV-NOTE: Todos arquivos normalizados para export default - removido .then() patterns
-const ConfiguracoesLayout = lazy(() => import('@/modules/configuracoes/layouts/ConfiguracoesLayout'))
-const CamposPage = lazy(() => import('@/modules/configuracoes/pages/CamposPage'))
-const ProdutosPage = lazy(() => import('@/modules/configuracoes/pages/ProdutosPage'))
-const MotivosPage = lazy(() => import('@/modules/configuracoes/pages/MotivosPage'))
-const TarefasTemplatesPage = lazy(() => import('@/modules/configuracoes/pages/TarefasTemplatesPage'))
-const EtapasTemplatesPage = lazy(() => import('@/modules/configuracoes/pages/EtapasTemplatesPage'))
-const RegrasPage = lazy(() => import('@/modules/configuracoes/pages/RegrasPage'))
-const ConfigCardPage = lazy(() => import('@/modules/configuracoes/pages/ConfigCardPage'))
-const ConexoesPage = lazy(() => import('@/modules/configuracoes/pages/ConexoesPage'))
-const WebhooksEntradaPage = lazy(() => import('@/modules/configuracoes/pages/WebhooksEntradaPage'))
-const WebhooksSaidaPage = lazy(() => import('@/modules/configuracoes/pages/WebhooksSaidaPage'))
-const MembrosPage = lazy(() => import('@/modules/configuracoes/pages/MembrosPage'))
-const EquipesPage = lazy(() => import('@/modules/configuracoes/pages/EquipesPage'))
-const PerfisPermissaoPage = lazy(() => import('@/modules/configuracoes/pages/PerfisPermissaoPage'))
-const MetasPage = lazy(() => import('@/modules/configuracoes/pages/MetasPage'))
-const ConfigGeralPage = lazy(() => import('@/modules/configuracoes/pages/ConfigGeralPage'))
+const ConfiguracoesLayout = lazyWithRetry(() => import('@/modules/configuracoes/layouts/ConfiguracoesLayout'), 'ConfigLayout')
+const CamposPage = lazyWithRetry(() => import('@/modules/configuracoes/pages/CamposPage'), 'Campos')
+const ProdutosPage = lazyWithRetry(() => import('@/modules/configuracoes/pages/ProdutosPage'), 'Produtos')
+const MotivosPage = lazyWithRetry(() => import('@/modules/configuracoes/pages/MotivosPage'), 'Motivos')
+const TarefasTemplatesPage = lazyWithRetry(() => import('@/modules/configuracoes/pages/TarefasTemplatesPage'), 'TarefasTemplates')
+const EtapasTemplatesPage = lazyWithRetry(() => import('@/modules/configuracoes/pages/EtapasTemplatesPage'), 'EtapasTemplates')
+const RegrasPage = lazyWithRetry(() => import('@/modules/configuracoes/pages/RegrasPage'), 'Regras')
+const ConfigCardPage = lazyWithRetry(() => import('@/modules/configuracoes/pages/ConfigCardPage'), 'ConfigCard')
+const ConexoesPage = lazyWithRetry(() => import('@/modules/configuracoes/pages/ConexoesPage'), 'Conexoes')
+const WebhooksEntradaPage = lazyWithRetry(() => import('@/modules/configuracoes/pages/WebhooksEntradaPage'), 'WebhooksEntrada')
+const WebhooksSaidaPage = lazyWithRetry(() => import('@/modules/configuracoes/pages/WebhooksSaidaPage'), 'WebhooksSaida')
+const MembrosPage = lazyWithRetry(() => import('@/modules/configuracoes/pages/MembrosPage'), 'Membros')
+const EquipesPage = lazyWithRetry(() => import('@/modules/configuracoes/pages/EquipesPage'), 'Equipes')
+const PerfisPermissaoPage = lazyWithRetry(() => import('@/modules/configuracoes/pages/PerfisPermissaoPage'), 'PerfisPermissao')
+const MetasPage = lazyWithRetry(() => import('@/modules/configuracoes/pages/MetasPage'), 'Metas')
+const ConfigGeralPage = lazyWithRetry(() => import('@/modules/configuracoes/pages/ConfigGeralPage'), 'ConfigGeral')
 
 // Feature Modules
 // AIDEV-NOTE: Todos arquivos normalizados para export default - removido .then() patterns
-const FormulariosPage = lazy(() => import('@/modules/formularios/pages/FormulariosPage'))
-const FormularioEditorPage = lazy(() => import('@/modules/formularios/pages/FormularioEditorPage'))
-const AutomacoesPage = lazy(() => import('@/modules/automacoes/pages/AutomacoesPage'))
-const ContatosPage = lazy(() => import('@/modules/contatos/pages/ContatosPage'))
-const NegociosPage = lazy(() => import('@/modules/negocios/pages/NegociosPage'))
-const PipelineConfigPage = lazy(() => import('@/modules/negocios/pages/PipelineConfigPage'))
-const TarefasPage = lazy(() => import('@/modules/tarefas/pages/TarefasPage'))
-const ConversasPage = lazy(() => import('@/modules/conversas/pages/ConversasPage'))
-const EmailsPage = lazy(() => import('@/modules/emails/pages/EmailsPage'))
+const FormulariosPage = lazyWithRetry(() => import('@/modules/formularios/pages/FormulariosPage'), 'Formularios')
+const FormularioEditorPage = lazyWithRetry(() => import('@/modules/formularios/pages/FormularioEditorPage'), 'FormularioEditor')
+const AutomacoesPage = lazyWithRetry(() => import('@/modules/automacoes/pages/AutomacoesPage'), 'Automacoes')
+const ContatosPage = lazyWithRetry(() => import('@/modules/contatos/pages/ContatosPage'), 'Contatos')
+const NegociosPage = lazyWithRetry(() => import('@/modules/negocios/pages/NegociosPage'), 'Negocios')
+const PipelineConfigPage = lazyWithRetry(() => import('@/modules/negocios/pages/PipelineConfigPage'), 'PipelineConfig')
+const TarefasPage = lazyWithRetry(() => import('@/modules/tarefas/pages/TarefasPage'), 'Tarefas')
+const ConversasPage = lazyWithRetry(() => import('@/modules/conversas/pages/ConversasPage'), 'Conversas')
+const EmailsPage = lazyWithRetry(() => import('@/modules/emails/pages/EmailsPage'), 'Emails')
 
 /**
  * AIDEV-NOTE: Roteamento principal da aplicacao
