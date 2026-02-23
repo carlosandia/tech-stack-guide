@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
- import { Plus, Edit, CreditCard, Users, HardDrive, Puzzle, Shield, RefreshCw, WifiOff, AlertTriangle, Copy, Check, Code2 } from 'lucide-react'
-import { usePlanos, useModulos } from '../hooks/usePlanos'
+ import { Plus, Edit, CreditCard, Users, HardDrive, Shield, RefreshCw, WifiOff, AlertTriangle, Copy, Check, Code2 } from 'lucide-react'
+import { usePlanos } from '../hooks/usePlanos'
 import { useConfigGlobal } from '../hooks/useConfigGlobal'
  import { useToolbar } from '../contexts/ToolbarContext'
 import { PlanoFormModal } from '../components/PlanoFormModal'
@@ -72,7 +72,7 @@ function EmbedWidgetSection() {
 
 function PlanosPage() {
    const { data: planos, isLoading, error, isError, refetch, fetchStatus } = usePlanos()
-  const { data: modulos } = useModulos()
+  
   const { data: configStripe } = useConfigGlobal('stripe')
   const { setActions, setSubtitle } = useToolbar()
   const [planoEditando, setPlanoEditando] = useState<Plano | null>(null)
@@ -208,31 +208,6 @@ function PlanosPage() {
       {/* Widget Embed */}
       <EmbedWidgetSection />
 
-      {/* Modulos Disponiveis */}
-      <div className="bg-card rounded-lg border border-border p-6">
-        <h2 className="text-lg font-semibold text-foreground mb-4">Modulos Disponiveis</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-          {modulos?.map((modulo) => (
-            <div
-              key={modulo.id}
-              className="p-3 rounded-lg border border-border bg-muted/30"
-            >
-              <div className="flex items-center gap-2">
-                <Puzzle className="w-4 h-4 text-primary" />
-                <span className="text-sm font-medium text-foreground">{modulo.nome}</span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                {modulo.descricao}
-              </p>
-              {modulo.obrigatorio && (
-                <span className="inline-block mt-2 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
-                  Obrigatorio
-                </span>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
 
       {/* Modal de Criação/Edição */}
       {showModal && (
