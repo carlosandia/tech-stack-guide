@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { Loader2, AlertCircle, Check, Star, Users, HardDrive, Briefcase } from 'lucide-react'
+import { Loader2, AlertCircle, Check, Sparkles, Users, HardDrive, Briefcase } from 'lucide-react'
 import renoveLogo from '@/assets/logotipo-renove.svg'
 import { supabase } from '@/lib/supabase'
 import { PreCadastroModal } from '../components/PreCadastroModal'
@@ -183,26 +183,33 @@ export function ParceiroPage() {
         </div>
       </header>
 
-      {/* Hero com contexto do parceiro */}
-      <section className="py-16 sm:py-24 px-4">
-        <div className="max-w-4xl mx-auto text-center">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary text-xs font-medium rounded-full mb-4">
-            <Star className="w-3.5 h-3.5" />
-            Indicado por {parceiro?.organizacao?.nome}
+      {/* Hero premium — sempre dark nesta página */}
+      <section className="py-16 sm:py-24 px-4 relative bg-[#0F172A] overflow-hidden border-b border-white/10">
+        {/* Gradiente radial premium */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,hsl(var(--primary)/0.18)_0%,transparent_70%)] pointer-events-none" />
+        <div className="max-w-4xl mx-auto text-center relative">
+          {/* Badge de indicação */}
+          <div className="flex justify-center mb-5 animate-in fade-in duration-700">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 border border-white/20 text-white text-xs sm:text-sm font-medium backdrop-blur-sm">
+              <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+              <span>Indicado por <strong className="font-semibold">{parceiro?.organizacao?.nome}</strong></span>
+            </div>
           </div>
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground mb-4">
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4">
             Escolha o plano ideal para seu negócio
           </h1>
-          <p className="text-lg text-muted-foreground mb-8">
-            Você foi indicado por <strong>{parceiro?.organizacao?.nome}</strong>. Cancele quando quiser.
+          <p className="text-lg text-slate-300 mb-8">
+            Você foi indicado por <strong className="text-white">{parceiro?.organizacao?.nome}</strong>. Cancele quando quiser.
           </p>
 
           {/* Toggle Período */}
-          <div className="inline-flex items-center gap-3 p-1 bg-muted rounded-lg">
+          <div className="inline-flex items-center gap-3 p-1 bg-white/10 rounded-lg">
             <button
               onClick={() => setPeriodo('mensal')}
               className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                periodo === 'mensal' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                periodo === 'mensal'
+                  ? 'bg-white/20 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-white'
               }`}
             >
               Mensal
@@ -210,12 +217,14 @@ export function ParceiroPage() {
             <button
               onClick={() => setPeriodo('anual')}
               className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                periodo === 'anual' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                periodo === 'anual'
+                  ? 'bg-white/20 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-white'
               }`}
             >
               Anual
               {descontoMedio && descontoMedio > 0 && (
-                <span className="ml-1.5 text-xs font-semibold text-primary">-{descontoMedio}%</span>
+                <span className="ml-1.5 text-xs font-semibold text-emerald-400">-{descontoMedio}%</span>
               )}
             </button>
           </div>
