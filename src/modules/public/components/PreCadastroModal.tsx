@@ -153,7 +153,7 @@ export function PreCadastroModal({
                 id="codigo_parceiro"
                 placeholder="Ex: RENOVE-MBP7VY"
                 {...register('codigo_parceiro')}
-                className={`mt-1.5 uppercase ${codigoParceiro ? 'bg-muted/80 border-primary/30 cursor-not-allowed' : ''}`}
+                className={`mt-1.5 uppercase ${codigoParceiro ? 'bg-[hsl(220,15%,88%)] border-primary/30 cursor-not-allowed text-foreground' : ''}`}
                 readOnly={!!codigoParceiro}
                 tabIndex={codigoParceiro ? -1 : undefined}
                 onKeyDown={codigoParceiro ? (e) => e.preventDefault() : undefined}
