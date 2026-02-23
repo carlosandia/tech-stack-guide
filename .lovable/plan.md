@@ -1,121 +1,94 @@
 
 
-# Correcao dos Ticks de Status (ACK) - Mensagens Enviadas pelo Dispositivo
+# Correcao de Ordem e ACK em Mensagens Rapidas do Dispositivo
 
-## Problema Identificado
+## Problema 1: Ordem das Mensagens no CRM
 
-Quando o usuario envia varias mensagens rapidas pelo dispositivo (WhatsApp no celular), os ticks de status (enviado/entregue/lido) nao atualizam corretamente no CRM, apesar de aparecerem corretos no WhatsApp Web.
+### Diagnostico
 
-## Causa Raiz (Race Condition)
+No WhatsApp (dispositivo), as mensagens enviadas rapidamente aparecem na ordem correta: `1, 2, 3, 4, 50`. No CRM, aparecem fora de ordem: `2, 3, 4, 1, 50`.
 
-Dois problemas foram identificados no webhook `waha-webhook`:
+**Causa raiz**: O `ChatMessages.tsx` ordena por `criado_em` (timestamp de insercao no banco de dados). Quando varias mensagens sao enviadas rapidamente pelo dispositivo, o WAHA dispara webhooks em paralelo. O tempo de processamento de cada webhook varia (ex: mensagem "1" pode demorar mais por media, ou simplesmente chegar em ordem diferente ao edge function). O `criado_em` reflete quando o banco INSERIU a linha, nao quando a mensagem foi enviada.
 
-### Problema 1: ACK nao e extraido do payload `message.any`
+**Solucao**: Ordenar por `timestamp_externo` (timestamp do WhatsApp, que reflete a ordem real no dispositivo), com fallback para `criado_em` quando `timestamp_externo` e nulo.
 
-Quando uma mensagem chega via evento `message.any`, o WAHA envia o `ack` atual no payload (ex: `ack=1` para PENDING). Porem, o `messageInsert` **nunca inclui o campo `ack`**, fazendo a mensagem ser salva com `ack=0` (default da coluna). Isso significa que mesmo mensagens ja entregues comecam com tick zerado.
+### Problema 2: ACKs Perdidos em Mensagens Rapidas
 
-### Problema 2: Race condition entre `message.any` e `message.ack`
+No CRM, algumas mensagens do segundo teste (A, S, D, F, G...) aparecem sem ticks. A mensagem "1" do primeiro teste tambem ficou sem tick.
 
-Quando varias mensagens sao enviadas em sequencia rapida:
+**Causa raiz**: O retry de 2 segundos implementado anteriormente cobre 1 race condition, mas quando 10+ mensagens sao enviadas em rafaga, multiplos `message.ack` eventos podem chegar antes dos respectivos `message.any` serem processados. O retry unico de 2s nao e suficiente para todos.
+
+**Solucao**: Implementar retry progressivo (2s + 3s = duas tentativas) para cobrir rafagas maiores.
+
+---
+
+## Mudancas Tecnicas
+
+### Arquivo 1: `src/modules/conversas/components/ChatMessages.tsx`
+
+Alterar a funcao de sort no `sortedMessages` para usar `timestamp_externo` como criterio primario:
+
+```typescript
+// ANTES:
+return [...filtered].sort(
+  (a, b) => new Date(a.criado_em).getTime() - new Date(b.criado_em).getTime()
+)
+
+// DEPOIS:
+return [...filtered].sort((a, b) => {
+  // Usar timestamp_externo (WhatsApp) como criterio primario para ordem correta
+  const tsA = a.timestamp_externo ? a.timestamp_externo * 1000 : new Date(a.criado_em).getTime()
+  const tsB = b.timestamp_externo ? b.timestamp_externo * 1000 : new Date(b.criado_em).getTime()
+  if (tsA !== tsB) return tsA - tsB
+  // Desempate por criado_em quando timestamps sao iguais
+  return new Date(a.criado_em).getTime() - new Date(b.criado_em).getTime()
+})
+```
+
+### Arquivo 2: `src/modules/conversas/services/conversas.api.ts`
+
+Na funcao `listarMensagens`, alterar a ordenacao da query para usar `timestamp_externo` tambem no banco:
+
+```typescript
+// ANTES:
+.order('criado_em', { ascending: orderDir === 'asc' })
+
+// DEPOIS:
+.order('timestamp_externo', { ascending: orderDir === 'asc', nullsFirst: false })
+.order('criado_em', { ascending: orderDir === 'asc' })
+```
+
+### Arquivo 3: `supabase/functions/waha-webhook/index.ts`
+
+No bloco de retry do `message.ack`, adicionar uma segunda tentativa apos 3 segundos adicionais (total 5s) para cobrir rafagas de 10+ mensagens:
 
 ```text
-Tempo  -->
-msg1: message.any -----> message.ack(2) --> message.ack(3) --> message.ack(4)
-msg2: message.any -----> message.ack(2) -----> message.ack(3)
-msg3:                    message.ack(2) --> message.any --> message.ack(3)
-                         ^^ ACK chega ANTES da mensagem existir no banco!
+Fluxo atual:
+  busca exata -> fallback ilike -> retry 2s -> (desiste)
+
+Fluxo novo:
+  busca exata -> fallback ilike -> retry 2s -> retry 3s -> (desiste)
 ```
 
-- O `message.ack` tenta atualizar uma mensagem que **ainda nao existe** no banco
-- O fallback por `ilike` tambem falha pois a mensagem nao foi inserida
-- Quando o `message.any` finalmente insere a mensagem, ela fica com `ack=0`
-- O `message.ack` ja foi processado (e descartado) -- o ACK e **perdido permanentemente**
+Apos o bloco de retry existente (que espera 2s), se ainda nao encontrou, esperar mais 3s e tentar novamente.
 
-## Solucao
+### Arquivo 4: `src/modules/conversas/hooks/useMensagens.ts`
 
-### Arquivo 1: `supabase/functions/waha-webhook/index.ts`
+Na funcao `useMensagens`, a query `listarMensagens` ja usa `order_dir: 'desc'`. Sem alteracao necessaria aqui, pois o sort final e feito no `ChatMessages.tsx`.
 
-**Mudanca A** - Extrair `ack` do payload no `message.any` (ao montar `messageInsert`):
+---
 
-Apos montar o `messageInsert` (linha ~2401), adicionar a extracao do ACK que vem no proprio payload da mensagem:
+## Resumo
 
-```typescript
-// Extrair ACK do payload da mensagem (WAHA envia ack atual junto com message.any)
-const payloadAck = payload.ack ?? payload._data?.ack;
-if (payloadAck !== undefined && payloadAck !== null && typeof payloadAck === 'number') {
-  messageInsert.ack = payloadAck;
-  const ackNameMap: Record<number, string> = { 0: 'ERROR', 1: 'PENDING', 2: 'SENT', 3: 'DELIVERED', 4: 'READ', 5: 'PLAYED' };
-  messageInsert.ack_name = ackNameMap[payloadAck] || null;
-}
-```
-
-**Mudanca B** - Implementar retry no `message.ack` quando mensagem nao existe:
-
-No bloco de processamento do `message.ack` (linhas ~165-248), quando nenhum match e encontrado (nem exato, nem fallback), adicionar uma espera curta e retentar **uma vez**. Isso cobre a race condition sem sobrecarregar:
-
-```typescript
-// Apos ambas as buscas (exata + ilike) falharem:
-if (!matched && !ilikeMatched) {
-  // Retry apos 2 segundos (race condition: message.any pode estar sendo processado)
-  console.log(`[waha-webhook] ACK: no match yet for ${messageId}, retrying in 2s...`);
-  await new Promise(r => setTimeout(r, 2000));
-  
-  // Re-tentar busca exata
-  const { data: retryMatch } = await supabaseAdmin
-    .from("mensagens")
-    .select("id, ack")
-    .eq("message_id", messageId)
-    .eq("organizacao_id", sessao.organizacao_id);
-  
-  if (retryMatch && retryMatch.length > 0) {
-    const currentAck = retryMatch[0].ack ?? 0;
-    if (ack > currentAck) {
-      await supabaseAdmin
-        .from("mensagens")
-        .update(ackUpdate)
-        .eq("id", retryMatch[0].id);
-      console.log(`[waha-webhook] ACK retry success: ${messageId}, ack=${currentAck}->${ack}`);
-    }
-  } else {
-    // Retry fallback ilike
-    const shortId = messageId.includes('_') ? messageId.split('_').pop() : null;
-    if (shortId) {
-      const { data: retryIlike } = await supabaseAdmin
-        .from("mensagens")
-        .select("id, ack")
-        .ilike("message_id", `%_${shortId}`)
-        .eq("organizacao_id", sessao.organizacao_id);
-      
-      if (retryIlike && retryIlike.length > 0) {
-        const currentAck = retryIlike[0].ack ?? 0;
-        if (ack > currentAck) {
-          await supabaseAdmin
-            .from("mensagens")
-            .update(ackUpdate)
-            .eq("id", retryIlike[0].id);
-          console.log(`[waha-webhook] ACK retry fallback success: ${shortId}, ack=${currentAck}->${ack}`);
-        }
-      } else {
-        console.warn(`[waha-webhook] ACK lost after retry: ${messageId}`);
-      }
-    }
-  }
-}
-```
-
-### Arquivo 2: Sem alteracao necessaria no frontend
-
-O `useAckRealtime` ja escuta `UPDATE` na tabela mensagens filtrado por `conversa_id`. Uma vez que o ACK e salvo corretamente no banco (via as correcoes acima), o Realtime do Supabase vai propagar o update para o cache do React Query e os ticks atualizarao automaticamente.
-
-## Resumo das Mudancas
-
-| Arquivo | Tipo | Descricao |
-|---------|------|-----------|
-| `supabase/functions/waha-webhook/index.ts` | Modificar | Extrair `ack` do payload no insert + retry no message.ack |
+| Arquivo | Alteracao |
+|---------|-----------|
+| `ChatMessages.tsx` | Sort por `timestamp_externo` (primario) + `criado_em` (fallback) |
+| `conversas.api.ts` | Query com `.order('timestamp_externo')` primario |
+| `waha-webhook/index.ts` | Segundo retry de 3s apos o retry de 2s existente |
 
 ## Impacto
 
-- Mensagens inseridas ja terao o ACK correto desde o inicio (ack=1 ao inves de ack=0)
-- ACKs que chegam antes da mensagem existir serao recuperados com retry de 2s
-- Nenhuma mudanca no frontend necessaria -- Realtime ja propaga os updates
+- Mensagens sempre aparecerao na ordem do WhatsApp, independente da ordem de processamento do webhook
+- ACKs de rafagas de ate ~15 mensagens serao recuperados com o retry duplo (2s + 3s)
+- Nenhuma migracao de banco necessaria (`timestamp_externo` ja existe como coluna)
 
