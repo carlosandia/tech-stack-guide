@@ -165,17 +165,17 @@ export function ParceiroPage() {
   })()
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/30">
-      {/* Header */}
-      <header className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <div className="min-h-screen bg-[#0F172A]">
+      {/* Header — semi-transparente sobre fundo dark */}
+      <header className="border-b border-white/10 bg-[#0F172A]/80 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-2">
-              <img src={renoveLogo} alt="CRM Renove" className="h-8" />
+              <img src={renoveLogo} alt="CRM Renove" className="h-8 brightness-0 invert opacity-90" />
             </div>
             <Link
               to="/login"
-              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+              className="text-sm font-medium text-slate-400 hover:text-white transition-colors"
             >
               Já tem conta? Entrar
             </Link>
@@ -232,9 +232,9 @@ export function ParceiroPage() {
       </section>
 
       {/* Planos Grid */}
-      <section className="pb-24 px-4">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <section className="pb-24 px-4 -mt-8 relative z-10">
+        <div className="max-w-5xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 justify-items-center">
             {planos.map((plano) => {
               const preco = periodo === 'anual' ? plano.preco_anual : plano.preco_mensal
               const precoAnualMensal = plano.preco_anual ? plano.preco_anual / 12 : null
@@ -243,8 +243,8 @@ export function ParceiroPage() {
               return (
                 <div
                   key={plano.id}
-                  className={`relative bg-card rounded-xl border p-6 flex flex-col ${
-                    plano.popular ? 'border-primary shadow-lg shadow-primary/10' : 'border-border'
+                  className={`relative bg-[#1E293B] rounded-xl border p-6 flex flex-col w-full ${
+                    plano.popular ? 'border-primary shadow-lg shadow-primary/20' : 'border-white/10'
                   }`}
                 >
                   {plano.popular && (
@@ -256,40 +256,40 @@ export function ParceiroPage() {
                   )}
 
                   <div className="mb-6">
-                    <h3 className="text-lg font-semibold text-foreground">{plano.nome}</h3>
+                    <h3 className="text-lg font-semibold text-white">{plano.nome}</h3>
                     {plano.descricao && (
-                      <p className="text-xs text-muted-foreground mt-1">{plano.descricao}</p>
+                      <p className="text-xs text-slate-400 mt-1">{plano.descricao}</p>
                     )}
                     <div className="mt-3">
                       {preco ? (
                         <>
                           <span className="text-3xl font-bold text-primary">{formatPrice(preco)}</span>
-                          <span className="text-sm text-muted-foreground ml-1">
+                          <span className="text-sm text-slate-400 ml-1">
                             {periodo === 'anual' ? '/ano' : '/mês'}
                           </span>
                           {periodo === 'anual' && precoAnualMensal && (
-                            <p className="text-xs text-muted-foreground mt-1">
+                            <p className="text-xs text-slate-500 mt-1">
                               {formatPrice(precoAnualMensal)}/mês
                             </p>
                           )}
                         </>
                       ) : (
-                        <span className="text-2xl font-bold text-foreground">Sob consulta</span>
+                        <span className="text-2xl font-bold text-white">Sob consulta</span>
                       )}
                     </div>
                   </div>
 
                   <ul className="space-y-2 flex-1 mb-6">
-                    <li className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <li className="flex items-center gap-2 text-sm text-slate-400">
                       <Users className="w-4 h-4 text-primary shrink-0" />
                       {formatLimit(plano.limite_usuarios)} usuários
                     </li>
-                    <li className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <li className="flex items-center gap-2 text-sm text-slate-400">
                       <HardDrive className="w-4 h-4 text-primary shrink-0" />
                       {formatStorage(plano.limite_storage_mb)} storage
                     </li>
                     {plano.limite_oportunidades && (
-                      <li className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <li className="flex items-center gap-2 text-sm text-slate-400">
                         <Briefcase className="w-4 h-4 text-primary shrink-0" />
                         {formatLimit(plano.limite_oportunidades)} oportunidades
                       </li>
@@ -305,7 +305,7 @@ export function ParceiroPage() {
                     className={`w-full py-2.5 text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2 ${
                       plano.popular
                         ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                        : 'border border-border text-foreground hover:bg-accent'
+                        : 'border border-white/20 text-white hover:bg-white/10'
                     }`}
                   >
                     {isLoading ? (
@@ -340,9 +340,9 @@ export function ParceiroPage() {
       )}
 
       {/* Footer */}
-      <footer className="border-t border-border py-8 px-4">
-        <div className="max-w-7xl mx-auto text-center text-sm text-muted-foreground">
-          <p>© 2024 CRM Renove. Todos os direitos reservados.</p>
+      <footer className="border-t border-white/10 py-8 px-4">
+        <div className="max-w-7xl mx-auto text-center text-sm text-slate-500">
+          <p>© {new Date().getFullYear()} CRM Renove. Todos os direitos reservados.</p>
         </div>
       </footer>
     </div>
