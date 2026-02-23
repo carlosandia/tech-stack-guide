@@ -1,61 +1,70 @@
 
 
-## Redesign Premium da Pagina de Planos (com Parceiro)
+## Proposta de Copy Premium para Pagina de Parceiro
 
-### Problema
+### Mudancas no Header
 
-A experiencia visual quando o visitante vem de um parceiro e praticamente identica a de um visitante comum. O gradiente aplicado (`primary/0.06`) e quase invisivel. Nao ha diferenciacao real que gere pertencimento ou exclusividade.
+Ao lado do logotipo Renove, adicionar o texto **"Programa de Parceiros"** em estilo leve (font-medium, text-slate-400), criando identidade propria para a tela:
 
-### Proposta
+```text
+[Logo Renove] Programa de Parceiros          [Badge: Parceiro Nome]
+```
 
-Quando `partnerName` estiver presente, transformar o **hero section inteiro** com uma abordagem visual escura e premium, criando contraste imediato com o restante da pagina.
+- O texto "Programa de Parceiros" fica separado do logo por um divisor sutil (`|` ou barra vertical em slate-600)
+- Fonte menor que o logo, cor `text-slate-400` para nao competir
 
-### Mudancas Visuais
+### Mudancas no Hero - Copy Premium
 
-**1. Hero Section com fundo escuro (apenas quando tem parceiro)**
+**Titulo principal (h1):**
+> Bem-vindo, cliente **[Nome do Parceiro]**.
+> Seu plano com condições exclusivas.
 
-| Elemento | Sem Parceiro (atual) | Com Parceiro (novo) |
-|----------|---------------------|---------------------|
-| Fundo do hero | `bg-gradient-to-b from-background to-muted/30` | `bg-[#0F172A]` (slate-900) com gradiente radial primary |
-| Texto do titulo | `text-foreground` | `text-white` |
-| Texto do subtitulo | `text-muted-foreground` | `text-slate-300` |
-| Badge de indicacao | `bg-primary/5 border-primary/20` | `bg-white/10 border-white/20 text-white` com glow sutil |
-| Toggle periodo | `bg-muted` | `bg-white/10` com botoes `bg-white/20` |
+- Quebra em duas linhas
+- Nome do parceiro em destaque com `text-primary`
+- "condições exclusivas" reforça pertencimento
 
-**2. Efeitos premium**
-- Gradiente radial no fundo: `radial-gradient(ellipse_at_top, hsl(var(--primary)/0.15), transparent 70%)`
-- Borda inferior com gradiente: `border-b border-white/10`
-- Animacao sutil de fade-in no badge
+**Subtitulo (p):**
+> Seu parceiro **[Nome]** garante vantagens especiais para você. Escolha o plano ideal e comece agora.
 
-**3. Cards dos planos (com parceiro)**
-- Adicionar uma faixa superior sutil nos cards: `border-t-2 border-primary/30` no card popular
-- Manter cards claros para contraste com o hero escuro
+- Tom pessoal e direto
+- Reforça a relacao parceiro-cliente
 
-### Sem Parceiro
+**Badge de indicacao:**
+> Parceiro Certificado
 
-A pagina permanece **exatamente como esta hoje** — fundo claro, sem nenhuma alteracao. Apenas quando `partnerName` existir a experiencia muda.
+- Troca "Indicado por [Nome]" por um selo mais institucional
+- Icone `ShieldCheck` no lugar de `Sparkles` para reforcar credibilidade
 
-### Responsividade
+### Resumo das Alteracoes
 
-Nenhuma mudanca estrutural de layout. Apenas cores e backgrounds condicionais que funcionam identicamente em qualquer viewport. A badge ja usa `text-xs sm:text-sm` e o hero ja tem `py-16 sm:py-24`.
+| Elemento | Atual | Proposta |
+|----------|-------|----------|
+| Header logo | Apenas logo Renove | Logo + "Programa de Parceiros" |
+| Badge header | "Indicação [Nome]" | "Parceiro Certificado" com ShieldCheck |
+| Titulo h1 | "Escolha o plano ideal para seu negócio" | "Bem-vindo, cliente **[Nome]**. Seu plano com condições exclusivas." |
+| Subtitulo | "Comece agora e cancele quando quiser." | "Seu parceiro **[Nome]** garante vantagens especiais para você." |
+| Badge hero | "Indicado por [Nome]" com Sparkles | "Parceiro Certificado" com ShieldCheck |
 
 ### Detalhes Tecnicos
 
-**Arquivo unico:** `src/modules/public/pages/PlanosPage.tsx`
+**Arquivo unico:** `src/modules/public/pages/ParceiroPage.tsx`
 
-1. No hero section (linha 276), aplicar classes condicionais baseadas em `!!partnerName`:
-   - Fundo: `partnerName ? 'bg-[#0F172A] relative overflow-hidden' : ''`
-   - Gradiente overlay: `bg-[radial-gradient(ellipse_at_top,hsl(var(--primary)/0.15)_0%,transparent_70%)]`
+1. **Header (linhas 170-188):**
+   - Adicionar texto "Programa de Parceiros" apos o logo com separador vertical
+   - Badge do header: trocar icone `Sparkles` por `ShieldCheck`, texto para "Parceiro Certificado"
 
-2. No titulo h1 (linha 291): `partnerName ? 'text-white' : 'text-foreground'`
+2. **Hero titulo (linha 198-200):**
+   - Conteudo dinamico usando `parceiro?.organizacao?.nome`
+   - Duas linhas: saudacao + proposta de valor
 
-3. No subtitulo p (linha 294): `partnerName ? 'text-slate-300' : 'text-muted-foreground'`
+3. **Hero subtitulo (linha 203-205):**
+   - Copy personalizada com nome do parceiro
 
-4. Na badge (linha 285): `bg-white/10 border-white/20 text-white`
+4. **Badge hero (linhas 208-213):**
+   - Trocar `Sparkles` por `ShieldCheck`
+   - Texto: "Parceiro Certificado" (sem repetir o nome, ja esta no titulo)
 
-5. No toggle de periodo (linhas 320-346): classes condicionais para fundo e botoes
+5. **Import:** Adicionar `ShieldCheck` ao import do lucide-react (ja existe `Sparkles`, manter ambos se necessario)
 
-6. No link "Ja tem conta?" do header: manter como esta (header e separado do hero)
-
-Nenhuma dependencia nova. Apenas Tailwind classes condicionais.
+Nenhuma dependencia nova. Apenas alteracoes de copy e icones.
 
