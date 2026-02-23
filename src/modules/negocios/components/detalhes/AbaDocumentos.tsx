@@ -1,6 +1,7 @@
 /**
  * AIDEV-NOTE: Aba Documentos (RF-14.3 Tab 3) - Implementação completa
  * Upload drag&drop, lista, download, preview, exclusão soft delete
+ * Inclui: barra de progresso visual, feedback de cota e deduplicação
  */
 
 import { useState, useCallback, useRef } from 'react'
@@ -17,6 +18,12 @@ import { detalhesApi, type Documento } from '../../services/detalhes.api'
 
 interface AbaDocumentosProps {
   oportunidadeId: string
+}
+
+interface UploadingFile {
+  name: string
+  size: number
+  progress: number // 0-100 simulado
 }
 
 function formatFileSize(bytes: number): string {
@@ -40,6 +47,27 @@ export function AbaDocumentos({ oportunidadeId }: AbaDocumentosProps) {
   const excluirDoc = useExcluirDocumento()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isDragOver, setIsDragOver] = useState(false)
+  const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([])
+
+  // AIDEV-NOTE: Progresso simulado baseado no tamanho do arquivo
+  const simulateProgress = useCallback((fileName: string, fileSize: number) => {
+    const steps = Math.max(3, Math.min(10, Math.ceil(fileSize / (1024 * 1024))))
+    const increment = 90 / steps
+    let step = 0
+
+    const interval = setInterval(() => {
+      step++
+      if (step >= steps) {
+        clearInterval(interval)
+        return
+      }
+      setUploadingFiles(prev =>
+        prev.map(f => f.name === fileName ? { ...f, progress: Math.min(90, f.progress + increment) } : f)
+      )
+    }, 300)
+
+    return () => clearInterval(interval)
+  }, [])
 
   const handleUpload = useCallback(async (files: FileList | File[]) => {
     const fileArray = Array.from(files)
@@ -48,14 +76,34 @@ export function AbaDocumentos({ oportunidadeId }: AbaDocumentosProps) {
         toast.error(`${file.name}: arquivo muito grande (máx. 10MB)`)
         continue
       }
+
+      // Adicionar à lista de uploading
+      setUploadingFiles(prev => [...prev, { name: file.name, size: file.size, progress: 5 }])
+      const stopProgress = simulateProgress(file.name, file.size)
+
       try {
         await uploadDoc.mutateAsync({ oportunidadeId, file })
+        // Completar progresso
+        setUploadingFiles(prev =>
+          prev.map(f => f.name === file.name ? { ...f, progress: 100 } : f)
+        )
         toast.success(`${file.name} enviado`)
-      } catch {
-        toast.error(`Erro ao enviar ${file.name}`)
+      } catch (err: any) {
+        const msg = err?.message || ''
+        if (msg.startsWith('COTA_EXCEDIDA:')) {
+          toast.error(msg.replace('COTA_EXCEDIDA:', ''))
+        } else {
+          toast.error(`Erro ao enviar ${file.name}`)
+        }
+      } finally {
+        stopProgress()
+        // Remover da lista após breve delay
+        setTimeout(() => {
+          setUploadingFiles(prev => prev.filter(f => f.name !== file.name))
+        }, 800)
       }
     }
-  }, [oportunidadeId, uploadDoc])
+  }, [oportunidadeId, uploadDoc, simulateProgress])
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -100,6 +148,8 @@ export function AbaDocumentos({ oportunidadeId }: AbaDocumentosProps) {
     )
   }
 
+  const isUploading = uploadingFiles.length > 0
+
   return (
     <div className="space-y-4">
       {/* Zona de upload drag & drop */}
@@ -107,22 +157,45 @@ export function AbaDocumentos({ oportunidadeId }: AbaDocumentosProps) {
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
-        onClick={() => fileInputRef.current?.click()}
+        onClick={() => !isUploading && fileInputRef.current?.click()}
         className={`
-          border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-all
+          border-2 border-dashed rounded-lg p-4 text-center transition-all
+          ${isUploading ? 'cursor-default' : 'cursor-pointer'}
           ${isDragOver
             ? 'border-primary bg-primary/5'
             : 'border-border hover:border-primary/50 hover:bg-accent/30'
           }
         `}
       >
-        <Upload className={`w-6 h-6 mx-auto mb-2 ${isDragOver ? 'text-primary' : 'text-muted-foreground/40'}`} />
-        <p className="text-xs text-muted-foreground">
-          {uploadDoc.isPending ? 'Enviando...' : 'Arraste arquivos ou clique para enviar'}
-        </p>
-        <p className="text-[10px] text-muted-foreground/60 mt-1">
-          PDF, DOC, XLS, JPG, PNG — máx. 10MB
-        </p>
+        {isUploading ? (
+          <div className="space-y-2">
+            {uploadingFiles.map(uf => (
+              <div key={uf.name} className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-primary flex-shrink-0" />
+                  <p className="text-xs text-foreground truncate flex-1 text-left">{uf.name}</p>
+                  <span className="text-[10px] text-muted-foreground">{Math.round(uf.progress)}%</span>
+                </div>
+                <div className="w-full bg-muted rounded-md h-1.5 overflow-hidden">
+                  <div
+                    className="h-full bg-primary rounded-md transition-all duration-300 ease-out"
+                    style={{ width: `${uf.progress}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <>
+            <Upload className={`w-6 h-6 mx-auto mb-2 ${isDragOver ? 'text-primary' : 'text-muted-foreground/40'}`} />
+            <p className="text-xs text-muted-foreground">
+              Arraste arquivos ou clique para enviar
+            </p>
+            <p className="text-[10px] text-muted-foreground/60 mt-1">
+              PDF, DOC, XLS, JPG, PNG — máx. 10MB
+            </p>
+          </>
+        )}
         <input
           ref={fileInputRef}
           type="file"

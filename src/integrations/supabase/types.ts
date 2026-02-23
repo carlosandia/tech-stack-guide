@@ -2148,6 +2148,7 @@ export type Database = {
         Row: {
           criado_em: string
           deletado_em: string | null
+          hash_arquivo: string | null
           id: string
           nome_arquivo: string
           oportunidade_id: string
@@ -2161,6 +2162,7 @@ export type Database = {
         Insert: {
           criado_em?: string
           deletado_em?: string | null
+          hash_arquivo?: string | null
           id?: string
           nome_arquivo: string
           oportunidade_id: string
@@ -2174,6 +2176,7 @@ export type Database = {
         Update: {
           criado_em?: string
           deletado_em?: string | null
+          hash_arquivo?: string | null
           id?: string
           nome_arquivo?: string
           oportunidade_id?: string
