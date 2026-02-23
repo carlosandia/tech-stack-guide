@@ -347,9 +347,10 @@ export const detalhesApi = {
       const fileName = `${crypto.randomUUID()}.${fileExt}`
       storagePath = `${organizacaoId}/${oportunidadeId}/${fileName}`
 
+      // AIDEV-NOTE: cacheControl=3600 alinha com expiração da signed URL (1h)
       const { error: uploadError } = await supabase.storage
         .from('documentos-oportunidades')
-        .upload(storagePath, processedFile)
+        .upload(storagePath, processedFile, { cacheControl: '3600' })
 
       if (uploadError) throw new Error(uploadError.message)
     }
