@@ -132,11 +132,13 @@ Deno.serve(async (req) => {
 
     // 3. Substituir no storage de forma atômica (upsert evita perda de dados se falhar)
     // AIDEV-NOTE: upsert:true substitui atomicamente sem delete prévio — sem risco de data loss
+    // AIDEV-NOTE: cacheControl necessário para CDN Cloudflare servir o PDF comprimido (não o original)
     const { error: uploadError } = await supabase.storage
       .from(bucketName)
       .upload(storage_path, compressedBytes, {
         contentType: 'application/pdf',
         upsert: true,
+        cacheControl: '31536000',
       })
 
     if (uploadError) {

@@ -288,7 +288,7 @@ export function AgendarMensagemPopover({ conversaId, textoPreenchido, disabled }
 
     const { error: uploadError } = await supabase.storage
       .from('chat-media')
-      .upload(path, blob, { contentType: blob.type })
+      .upload(path, blob, { contentType: blob.type, cacheControl: '86400' })
 
     if (uploadError) throw new Error(`Erro ao fazer upload do áudio: ${uploadError.message}`)
 

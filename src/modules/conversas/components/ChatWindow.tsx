@@ -256,17 +256,16 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
 
       updateProgress(30)
 
-      // Verificar se arquivo idêntico já existe no storage
+      // AIDEV-NOTE: Deduplicação com match exato — .search() do Storage faz substring, não exact
+      // Buscamos até 1000 arquivos e filtramos client-side para garantir nome idêntico ao SHA-256
       const { data: existingFiles } = await supabase.storage
         .from('chat-media')
-        .list(`${conversa.organizacao_id}/${conversa.id}`, {
-          search: `${hash}.${ext}`,
-          limit: 1,
-        })
+        .list(`${conversa.organizacao_id}/${conversa.id}`, { limit: 1000 })
+      const fileAlreadyExists = existingFiles?.some(f => f.name === `${hash}.${ext}`) ?? false
 
       let publicUrl: string
 
-      if (existingFiles && existingFiles.length > 0) {
+      if (fileAlreadyExists) {
         // Reutilizar URL existente — evita re-upload
         const { data: urlData } = supabase.storage
           .from('chat-media')

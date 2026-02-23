@@ -43,13 +43,18 @@ export function MediaUploader({ tipo, midiaUrl, onUrlChange }: MediaUploaderProp
   const uploadFile = useCallback(async (file: File | Blob, fileName: string) => {
     setUploading(true)
     try {
+      // AIDEV-NOTE: organizacao_id obrigatório no path — RLS do bucket exige prefixo org_id
+      const { data: { user } } = await supabase.auth.getUser()
+      const orgId = user?.user_metadata?.organizacao_id as string | undefined
+      if (!orgId) { toast.error('Erro de autenticação'); return }
+
       let fileToUpload: File | Blob = file
       if (tipo === 'imagem') {
         fileToUpload = await compressImage(file, fileName)
       }
 
       const ext = fileName.split('.').pop() || 'bin'
-      const path = `automacoes/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
+      const path = `${orgId}/automacoes/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
 
       const { error } = await supabase.storage
         .from('chat-media')
