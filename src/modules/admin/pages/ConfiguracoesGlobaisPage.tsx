@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { LoginBannerConfig } from '../components/LoginBannerConfig'
+import { EmblemaParceiroNivel } from '../components/EmblemaParceiroNivel'
 import { Save, RefreshCw, CheckCircle, XCircle, Loader2, Eye, EyeOff, ToggleLeft, ToggleRight, RotateCcw, Trash2, Plus, Trophy, Gift } from 'lucide-react'
 import { toast } from 'sonner'
 import { useConfigGlobais, useUpdateConfigGlobal, useTestarConfigGlobal } from '../hooks/useConfigGlobal'
@@ -590,7 +591,7 @@ function ConfigProgramaParceiroForm() {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6">
       <div>
         <h3 className="text-base font-semibold text-foreground">Programa de Parceiros</h3>
         <p className="text-sm text-muted-foreground mt-1">
@@ -643,30 +644,33 @@ function ConfigProgramaParceiroForm() {
 
         {programaAtivo && (
           <div className="space-y-4 pt-2">
-            {/* Lista de Níveis */}
-            <div className="space-y-3">
+            {/* Lista de Níveis — Layout em Colunas */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {niveis.map((nivel, index) => {
                 const corInfo = getCorClasses(nivel.cor)
                 return (
-                  <div key={index} className="p-3 border border-border rounded-lg bg-background">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${corInfo.bg} ${corInfo.text}`}>
-                          <Trophy className="w-3 h-3 mr-1" />
-                          {nivel.nome || 'Novo Nível'}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => removeNivel(index)}
-                        disabled={niveis.length <= 1}
-                        className="p-1 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-30"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                  <div key={index} className="relative p-4 border border-border rounded-lg bg-background flex flex-col items-center gap-3">
+                    {/* Botão excluir */}
+                    <button
+                      type="button"
+                      onClick={() => removeNivel(index)}
+                      disabled={niveis.length <= 1}
+                      className="absolute top-2 right-2 p-1 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-30"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {/* Emblema */}
+                    <EmblemaParceiroNivel cor={nivel.cor} size={64} />
+
+                    {/* Badge do nome */}
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${corInfo.bg} ${corInfo.text}`}>
+                      <Trophy className="w-3 h-3 mr-1" />
+                      {nivel.nome || 'Novo Nível'}
+                    </span>
+
+                    {/* Campos empilhados */}
+                    <div className="w-full space-y-2">
                       <div className="space-y-1">
                         <label className="text-xs font-medium text-muted-foreground">Nome</label>
                         <input
