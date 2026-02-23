@@ -1,40 +1,66 @@
 
 # Correcao: Formulario de demonstracao nao carrega no modal
 
-## Problema identificado
+## Problema raiz
 
-O formulario de demonstracao aparece vazio (modal branco) por **duas causas raiz**:
+As edge functions `widget-formulario-loader` e `widget-formulario-config` **nao estao deployadas** (retornam 404). Alem disso, o `fetch` no PricingSection usa `import.meta.env.VITE_SUPABASE_URL` que retorna `undefined` em certos contextos, fazendo a URL ser `undefined/functions/v1/...` que retorna o HTML do SPA ao inves de JavaScript.
 
-### Causa 1: Edge Functions nao deployadas
-As edge functions `widget-formulario-loader` e `widget-formulario-config` existem no codigo mas **nao estao deployadas** (retornam 404). O script que deveria ser carregado simplesmente nao existe no servidor.
+A abordagem de injetar scripts dinamicamente no DOM do React e inerentemente fragil e causa delays visiveis.
 
-### Causa 2: Injecao de script fragil dentro do Dialog
-O codigo atual cria um `<script>` dinamicamente e insere dentro de um `<div>` gerenciado pelo React (dentro do `DialogContent`). Isso tem problemas:
-- `document.currentScript` e `null` para scripts inseridos dinamicamente
-- O fallback `querySelector` pode falhar dependendo do timing do React
-- O widget usa `parent.insertBefore(div, el.nextSibling)` que depende do script estar no DOM
+## Solucao proposta: Formulario React nativo
 
-## Plano de correcao
+Ao inves de depender de edge functions para renderizar o formulario via script injection, construir um **componente React nativo** (`DemoFormModal`) que renderiza os campos diretamente. Isso garante:
 
-### Passo 1: Deploy das Edge Functions
-Deployar `widget-formulario-loader` e `widget-formulario-config` para que o script esteja acessivel via URL.
+- Carregamento **instantaneo** junto com o modal (zero delay)
+- Sem dependencia de edge functions para renderizacao
+- UX consistente com o resto da aplicacao
+- Submissao via Supabase direto na tabela `submissoes_formularios`
 
-### Passo 2: Refatorar injecao do script no PricingSection
-Substituir a abordagem de `appendChild(script)` por um `fetch` direto ao JS da edge function, seguido de `eval` ou `new Function()`, garantindo que o script execute no contexto correto.
+Os campos do formulario "Demonstracao Gratuita" (slug: `demonstracao-crm-mlrb6yoz`, id: `2fa1f6a1-...`) sao:
 
-Alternativa mais robusta: usar `fetch` para obter o JS como texto, criar um `Blob` e injetar como `<script src="blob:...">`, ou simplesmente usar um `<iframe>` apontando para uma pagina minima que carrega o widget.
+1. **Nome e sobrenome** (texto)
+2. **Telefone** (telefone_br com mascara)
+3. **Email** (email)
+4. **Nome da empresa** (texto)
+5. **Tamanho do time comercial** (numero)
 
-**Abordagem escolhida**: Manter a injecao de script mas corrigir o timing - usar `setTimeout` maior e garantir que o container tenha um `id` especifico que o widget possa encontrar. Adicionar tambem `DialogTitle` (oculto com `VisuallyHidden`) para resolver o erro de acessibilidade no console.
+## Alteracoes
+
+### 1. Criar componente `DemoFormModal.tsx`
+**Arquivo:** `src/modules/public/components/landing/DemoFormModal.tsx`
+
+- Dialog com titulo "Demonstracao Gratuita"
+- 5 campos nativos React com validacao basica
+- Mascara de telefone BR `(00) 00000-0000`
+- Prefixo fixo com bandeira BR +55
+- Botao "Solicitar uma demonstracao"
+- Ao submeter: insere na tabela `submissoes_formularios` com o `formulario_id` correto
+- Toast de sucesso e fecha o modal
+- Sem necessidade de edge function para renderizar
+
+### 2. Atualizar `PricingSection.tsx`
+- Remover toda a logica de script injection (useEffect com fetch/script)
+- Remover `demoContainerRef`
+- Substituir o Dialog manual pelo novo `DemoFormModal`
+- Passar `open` e `onOpenChange` como props
 
 ### Detalhes tecnicos
 
-**Arquivo: `src/modules/public/components/landing/PricingSection.tsx`**
-- Adicionar `DialogTitle` com `VisuallyHidden` no modal de demonstracao
-- Adicionar `aria-describedby={undefined}` no `DialogContent`
-- Manter a logica de script injection mas garantir que o `demoContainerRef` tenha um ID unico para o widget encontrar
+**Submissao do formulario:**
+```text
+INSERT INTO submissoes_formularios (
+  formulario_id,    -- '2fa1f6a1-f4d0-4b8e-8d9a-de9da4034b48'
+  dados,            -- { nome_e_sobrenome, telefone_br_mlrbc6o7, email_mlrbc399, texto_mlrbhq3a, numero_mlrbi1ys }
+  ip,
+  user_agent,
+  utm_params,
+  organizacao_id    -- (do formulario)
+)
+```
 
-**Deploy:**
-- `widget-formulario-loader`
-- `widget-formulario-config`
+A submissao usa os nomes dos campos conforme cadastrados: `nome_e_sobrenome`, `telefone_br_mlrbc6o7`, `email_mlrbc399`, `texto_mlrbhq3a`, `numero_mlrbi1ys`.
 
-Essas duas correcoes combinadas devem resolver o modal branco.
+O `organizacao_id` sera buscado do formulario para garantir que a submissao seja corretamente vinculada.
+
+**Mascara de telefone:**
+Reutilizar a mesma logica de mascara `(00) 00000-0000` ja existente no widget loader, porem implementada como React state handler.
