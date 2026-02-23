@@ -1,9 +1,10 @@
 import { useFormContext } from 'react-hook-form'
-import { useState } from 'react'
- import { ChevronDown, ChevronUp, MapPin, Loader2 } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+ import { ChevronDown, ChevronUp, MapPin, Loader2, Users2 } from 'lucide-react'
 import { SEGMENTOS, type CriarOrganizacaoData } from '../../schemas/organizacao.schema'
  import { formatTelefone, formatCep, normalizeSegmento } from '@/lib/formatters'
  import { useCepLookup } from '../../hooks/useCepLookup'
+import { validarCodigoParceiro } from '../../services/parceiros.api'
 
 /**
  * AIDEV-NOTE: Etapa 1 do Wizard - Dados da Empresa
@@ -12,6 +13,10 @@ import { SEGMENTOS, type CriarOrganizacaoData } from '../../schemas/organizacao.
 
 export function Step1Empresa() {
   const [mostrarEndereco, setMostrarEndereco] = useState(false)
+  const [mostrarParceiro, setMostrarParceiro] = useState(false)
+  const [statusValidacao, setStatusValidacao] = useState<'idle' | 'validando' | 'valido' | 'invalido'>('idle')
+  const [nomeParceiro, setNomeParceiro] = useState<string | null>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
    const { buscarCep, isLoading: buscandoCep } = useCepLookup()
   const {
     register,
@@ -277,6 +282,98 @@ export function Step1Empresa() {
           </div>
         )}
       </div>
+
+      {/* Seção colapsável: Indicação de Parceiro */}
+      <div className="border border-border rounded-lg overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setMostrarParceiro(!mostrarParceiro)}
+          className="w-full flex items-center justify-between px-4 py-3 bg-muted/50 hover:bg-muted transition-colors"
+        >
+          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <Users2 className="w-4 h-4 text-muted-foreground" />
+            Esta empresa foi indicada por um parceiro? (opcional)
+          </div>
+          {mostrarParceiro ? (
+            <ChevronUp className="w-4 h-4 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-muted-foreground" />
+          )}
+        </button>
+
+        {mostrarParceiro && (
+          <div className="p-4 border-t border-border space-y-3">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">
+                Código do Parceiro
+              </label>
+              <input
+                type="text"
+                maxLength={20}
+                autoComplete="off"
+                placeholder="RENOVE-XXXXXX"
+                {...register('codigo_parceiro')}
+                onChange={(e) => {
+                  // Registrar o valor via RHF
+                  register('codigo_parceiro').onChange(e)
+
+                  const valor = e.target.value.trim()
+                  if (!valor) {
+                    setStatusValidacao('idle')
+                    setNomeParceiro(null)
+                    if (debounceRef.current) clearTimeout(debounceRef.current)
+                    return
+                  }
+
+                  setStatusValidacao('validando')
+                  if (debounceRef.current) clearTimeout(debounceRef.current)
+
+                  // AIDEV-NOTE: Debounce 600ms para validar codigo sem spam de requests
+                  debounceRef.current = setTimeout(async () => {
+                    try {
+                      const resultado = await validarCodigoParceiro(valor)
+                      if (resultado.valido && resultado.parceiro) {
+                        setStatusValidacao('valido')
+                        setNomeParceiro(resultado.parceiro.nome_empresa)
+                      } else {
+                        setStatusValidacao('invalido')
+                        setNomeParceiro(null)
+                      }
+                    } catch {
+                      setStatusValidacao('invalido')
+                      setNomeParceiro(null)
+                    }
+                  }, 600)
+                }}
+                className="w-full h-11 px-4 rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent font-mono uppercase"
+              />
+
+              {/* Feedback visual */}
+              <div className="mt-1.5 min-h-5">
+                {statusValidacao === 'validando' && (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Validando código...
+                  </div>
+                )}
+                {statusValidacao === 'valido' && nomeParceiro && (
+                  <p className="text-xs text-green-600">
+                    ✓ Parceiro: {nomeParceiro}
+                  </p>
+                )}
+                {statusValidacao === 'invalido' && (
+                  <p className="text-xs text-destructive">
+                    Código não encontrado ou inativo
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
+
+// AIDEV-NOTE: useEffect cleanup para debounce — necessario para evitar leak
+// O cleanup e feito no proprio onChange handler via clearTimeout

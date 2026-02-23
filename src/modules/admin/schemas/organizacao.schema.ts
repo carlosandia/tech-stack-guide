@@ -164,6 +164,8 @@ export const CriarOrganizacaoSchema = Step1EmpresaBaseSchema.merge(
     admin_telefone: z.string().optional(),
     enviar_convite: z.boolean().default(true),
     senha_inicial: z.string().optional(),
+    // AIDEV-NOTE: Codigo de indicacao do parceiro — opcional, nao bloqueia criacao
+    codigo_parceiro: z.string().max(20).optional().or(z.literal('')),
   })
 ).refine(
   (data) => {

@@ -75,6 +75,8 @@ export interface CriarOrganizacaoPayload {
   admin_telefone?: string
   enviar_convite: boolean
   senha_inicial?: string
+  // AIDEV-NOTE: Codigo de indicacao do parceiro — opcional, nao bloqueia criacao
+  codigo_parceiro?: string
 }
 
 export interface Plano {
@@ -446,6 +448,49 @@ export async function criarOrganizacao(payload: CriarOrganizacaoPayload): Promis
     }
   }
 
+  // AIDEV-NOTE: Indicacao de parceiro — opcional, nao bloqueia criacao da org
+  if (payload.codigo_parceiro && payload.codigo_parceiro.trim() !== '') {
+    try {
+      const codigoParceiro = payload.codigo_parceiro.trim().toUpperCase()
+
+      const { data: parceiro } = await supabase
+        .from('parceiros')
+        .select('id, percentual_comissao')
+        .eq('codigo_indicacao', codigoParceiro)
+        .eq('status', 'ativo')
+        .maybeSingle()
+
+      if (parceiro) {
+        // Buscar percentual padrao da config se parceiro nao tem percentual individual
+        const { data: config } = await supabase
+          .from('config_programa_parceiros')
+          .select('percentual_padrao')
+          .limit(1)
+          .maybeSingle()
+
+        const pct = parceiro.percentual_comissao ?? config?.percentual_padrao ?? 10
+
+        // Gravar indicacao
+        await supabase.from('indicacoes_parceiro').insert({
+          parceiro_id: parceiro.id,
+          organizacao_id: org.id,
+          percentual_comissao_snapshot: pct,
+          origem: 'codigo_manual',
+        })
+
+        // Atualizar campo de rastreio na org
+        await supabase
+          .from('organizacoes_saas')
+          .update({ codigo_parceiro_origem: codigoParceiro })
+          .eq('id', org.id)
+      }
+      // Se parceiro nao encontrado: ignorar silenciosamente (campo e opcional)
+    } catch (indicacaoError) {
+      // Falha na indicacao NAO reverte a criacao da org
+      console.warn('Erro ao registrar indicacao de parceiro:', indicacaoError)
+    }
+  }
+
   return {
     organizacao_id: org.id,
     admin_id: adminUser.id,
@@ -486,6 +531,18 @@ export async function suspenderOrganizacao(id: string, _motivo: string): Promise
     .eq('id', id)
 
   if (error) throw new Error(error.message)
+
+  // AIDEV-NOTE: Atualizar indicacao do parceiro para refletir suspensao da org indicada
+  try {
+    await supabase
+      .from('indicacoes_parceiro')
+      .update({ status: 'inativa', atualizado_em: new Date().toISOString() })
+      .eq('organizacao_id', id)
+      .eq('status', 'ativa') // apenas atualiza se estava ativa (idempotente)
+  } catch (indicacaoError) {
+    // Falha aqui NAO reverte a suspensao da org
+    console.warn('Erro ao atualizar indicacao ao suspender org:', indicacaoError)
+  }
 }
 
 export async function reativarOrganizacao(id: string): Promise<void> {
@@ -495,6 +552,18 @@ export async function reativarOrganizacao(id: string): Promise<void> {
     .eq('id', id)
 
   if (error) throw new Error(error.message)
+
+  // AIDEV-NOTE: Reativar indicacao do parceiro ao reativar a org indicada
+  try {
+    await supabase
+      .from('indicacoes_parceiro')
+      .update({ status: 'ativa', atualizado_em: new Date().toISOString() })
+      .eq('organizacao_id', id)
+      .eq('status', 'inativa') // apenas reativa se estava inativa (idempotente)
+  } catch (indicacaoError) {
+    // Falha aqui NAO reverte a reativacao da org
+    console.warn('Erro ao atualizar indicacao ao reativar org:', indicacaoError)
+  }
 }
 
 export async function revogarCortesia(id: string): Promise<void> {

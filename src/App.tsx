@@ -58,6 +58,8 @@ const AdminPlanosPage = lazy(() => import('@/modules/admin/pages/PlanosPage'))
 const AdminConfiguracoesGlobaisPage = lazy(() => import('@/modules/admin/pages/ConfiguracoesGlobaisPage'))
 const AdminModulosPage = lazy(() => import('@/modules/admin/pages/ModulosPage'))
 const AdminEvolucaoPage = lazy(() => import('@/modules/admin/pages/EvolucaoPage'))
+const AdminParceirosPage = lazy(() => import('@/modules/admin/pages/ParceirosPage'))
+const AdminParceiroDetalhesPage = lazy(() => import('@/modules/admin/pages/ParceiroDetalhesPage'))
 
 // App Module (CRM principal)
 const AppLayout = lazy(() => import('@/modules/app/layouts/AppLayout'))
@@ -224,6 +226,8 @@ const App = forwardRef<HTMLDivElement>(function App(_props, _ref) {
         <Route path="modulos" element={<Suspense fallback={<SuspenseFallback />}><AdminModulosPage /></Suspense>} />
         <Route path="configuracoes" element={<Suspense fallback={<SuspenseFallback />}><AdminConfiguracoesGlobaisPage /></Suspense>} />
         <Route path="evolucao" element={<Suspense fallback={<SuspenseFallback />}><AdminEvolucaoPage /></Suspense>} />
+        <Route path="parceiros" element={<Suspense fallback={<SuspenseFallback />}><AdminParceirosPage /></Suspense>} />
+        <Route path="parceiros/:id" element={<Suspense fallback={<SuspenseFallback />}><AdminParceiroDetalhesPage /></Suspense>} />
       </Route>
 
       {/* Landing page sempre acessivel, mesmo logado */}

@@ -5,6 +5,8 @@ import { toast } from 'sonner'
 import { useConfigGlobais, useUpdateConfigGlobal, useTestarConfigGlobal } from '../hooks/useConfigGlobal'
 import type { ConfigGlobal } from '../services/admin.api'
  import { useToolbar } from '../contexts/ToolbarContext'
+import { useConfigPrograma, useUpdateConfigPrograma } from '../hooks/useParceiros'
+import type { AtualizarConfigProgramaData } from '../schemas/parceiro.schema'
 
 /**
  * AIDEV-NOTE: Pagina de Configuracoes Globais
@@ -18,7 +20,7 @@ import type { ConfigGlobal } from '../services/admin.api'
  * - Email (SMTP)
  */
 
-type PlataformaId = 'meta' | 'google' | 'waha' | 'stripe' | 'email' | 'login_banner'
+type PlataformaId = 'meta' | 'google' | 'waha' | 'stripe' | 'email' | 'login_banner' | 'parceiros'
 
 const PLATAFORMAS = [
   { id: 'meta' as const, label: 'Meta', descricao: 'Facebook e Instagram' },
@@ -27,6 +29,8 @@ const PLATAFORMAS = [
   { id: 'stripe' as const, label: 'Stripe', descricao: 'Pagamentos' },
   { id: 'email' as const, label: 'Email', descricao: 'SMTP' },
   { id: 'login_banner' as const, label: 'Login Banner', descricao: 'Banner da tela de login' },
+  // AIDEV-NOTE: Aba de parceiros usa hook separado (useConfigPrograma) — nao usa useConfigGlobais
+  { id: 'parceiros' as const, label: 'Parceiros', descricao: 'Programa de parceiros' },
 ]
 
 function ConfiguracoesGlobaisPage() {
@@ -89,6 +93,9 @@ function ConfiguracoesGlobaisPage() {
       <div className="bg-card rounded-lg border border-border p-6">
         {activeTab === 'login_banner' ? (
           <LoginBannerConfig />
+        ) : activeTab === 'parceiros' ? (
+          // AIDEV-NOTE: Aba Parceiros usa hook separado — nao usa configAtual de useConfigGlobais
+          <ConfigProgramaParceiroForm />
         ) : (
           <ConfigPlataformaForm
             plataforma={activeTab}
@@ -486,6 +493,208 @@ function getCamposPorPlataforma(plataforma: PlataformaId): CampoConfig[] {
     default:
       return []
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Formulário de configuração do Programa de Parceiros
+// AIDEV-NOTE: Usa useConfigPrograma/useUpdateConfigPrograma — hook separado das configs globais
+// ─────────────────────────────────────────────────────────────────────────────
+function ConfigProgramaParceiroForm() {
+  const { data: config, isLoading } = useConfigPrograma()
+  const updateConfig = useUpdateConfigPrograma()
+
+  const [percentual, setPercentual] = useState('')
+  const [metaAtiva, setMetaAtiva] = useState(false)
+  const [metaInicial, setMetaInicial] = useState('')
+  const [renovacaoMeses, setRenovacaoMeses] = useState('')
+  const [renovacaoMeta, setRenovacaoMeta] = useState('')
+  const [carencia, setCarencia] = useState('')
+  const [baseUrl, setBaseUrl] = useState('')
+  const [observacoes, setObservacoes] = useState('')
+
+  // Sincronizar com dados carregados
+  useEffect(() => {
+    if (!config) return
+    setPercentual(String(config.percentual_padrao ?? 10))
+    setMetaAtiva(config.regras_gratuidade?.ativo ?? false)
+    setMetaInicial(String(config.regras_gratuidade?.meta_inicial_indicados ?? ''))
+    setRenovacaoMeses(String(config.regras_gratuidade?.renovacao_periodo_meses ?? ''))
+    setRenovacaoMeta(String(config.regras_gratuidade?.renovacao_meta_indicados ?? ''))
+    setCarencia(String(config.regras_gratuidade?.carencia_dias ?? ''))
+    setBaseUrl(config.base_url_indicacao ?? '')
+    setObservacoes(config.observacoes ?? '')
+  }, [config])
+
+  const handleSalvar = () => {
+    const data: AtualizarConfigProgramaData = {
+      percentual_padrao: Number(percentual) || 10,
+      regras_gratuidade: {
+        ativo: metaAtiva,
+        meta_inicial_indicados: metaInicial ? Number(metaInicial) : undefined,
+        renovacao_periodo_meses: renovacaoMeses ? Number(renovacaoMeses) : undefined,
+        renovacao_meta_indicados: renovacaoMeta ? Number(renovacaoMeta) : undefined,
+        carencia_dias: carencia ? Number(carencia) : undefined,
+      },
+      base_url_indicacao: baseUrl || null,
+      observacoes: observacoes || null,
+    }
+    updateConfig.mutate(data)
+  }
+
+  if (isLoading) {
+    return (
+      <div className="animate-pulse space-y-4">
+        <div className="h-6 w-48 bg-muted rounded" />
+        <div className="h-10 w-full bg-muted rounded" />
+        <div className="h-10 w-full bg-muted rounded" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6 max-w-xl">
+      <div>
+        <h3 className="text-base font-semibold text-foreground">Programa de Parceiros</h3>
+        <p className="text-sm text-muted-foreground mt-1">
+          Configure as regras globais de comissão e gratuidade.
+        </p>
+      </div>
+
+      {/* % Padrão de Comissão */}
+      <div className="space-y-1">
+        <label className="text-sm font-medium text-foreground">
+          Percentual padrão de comissão (%)
+        </label>
+        <input
+          type="number"
+          min={0}
+          max={100}
+          step={0.1}
+          value={percentual}
+          onChange={(e) => setPercentual(e.target.value)}
+          className="w-full max-w-xs px-3 py-2 border border-border rounded-md text-sm bg-background outline-none focus:ring-2 focus:ring-primary/20"
+        />
+        <p className="text-xs text-muted-foreground">
+          Aplicado quando o parceiro não tem percentual individual configurado.
+        </p>
+      </div>
+
+      {/* Regras de Gratuidade */}
+      <div className="space-y-3 p-4 border border-border rounded-lg">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-foreground">Programa de Gratuidade</p>
+            <p className="text-xs text-muted-foreground">
+              Parceiros que atingirem a meta podem ter o plano custeado.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setMetaAtiva(!metaAtiva)}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              metaAtiva ? 'bg-primary' : 'bg-muted'
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                metaAtiva ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </div>
+
+        {metaAtiva && (
+          <div className="grid grid-cols-2 gap-3 pt-2">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-foreground">Meta inicial (indicados)</label>
+              <input
+                type="number"
+                min={1}
+                value={metaInicial}
+                onChange={(e) => setMetaInicial(e.target.value)}
+                placeholder="Ex: 2"
+                className="w-full px-3 py-2 border border-border rounded-md text-sm bg-background outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-foreground">Carência (dias)</label>
+              <input
+                type="number"
+                min={0}
+                value={carencia}
+                onChange={(e) => setCarencia(e.target.value)}
+                placeholder="Ex: 30"
+                className="w-full px-3 py-2 border border-border rounded-md text-sm bg-background outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-foreground">Meta renovação (indicados)</label>
+              <input
+                type="number"
+                min={1}
+                value={renovacaoMeta}
+                onChange={(e) => setRenovacaoMeta(e.target.value)}
+                placeholder="Ex: 3"
+                className="w-full px-3 py-2 border border-border rounded-md text-sm bg-background outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-foreground">Período renovação (meses)</label>
+              <input
+                type="number"
+                min={1}
+                value={renovacaoMeses}
+                onChange={(e) => setRenovacaoMeses(e.target.value)}
+                placeholder="Ex: 12"
+                className="w-full px-3 py-2 border border-border rounded-md text-sm bg-background outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* URL base */}
+      <div className="space-y-1">
+        <label className="text-sm font-medium text-foreground">URL base de indicação</label>
+        <input
+          type="url"
+          value={baseUrl}
+          onChange={(e) => setBaseUrl(e.target.value)}
+          placeholder="https://crm.renovedigital.com.br/cadastro"
+          className="w-full px-3 py-2 border border-border rounded-md text-sm bg-background outline-none focus:ring-2 focus:ring-primary/20"
+        />
+        <p className="text-xs text-muted-foreground">
+          URL base para links de indicação (V2).
+        </p>
+      </div>
+
+      {/* Observações */}
+      <div className="space-y-1">
+        <label className="text-sm font-medium text-foreground">Observações internas</label>
+        <textarea
+          value={observacoes}
+          onChange={(e) => setObservacoes(e.target.value)}
+          rows={3}
+          placeholder="Notas internas sobre o programa..."
+          className="w-full px-3 py-2 border border-border rounded-md text-sm bg-background outline-none focus:ring-2 focus:ring-primary/20 resize-none"
+        />
+      </div>
+
+      <button
+        type="button"
+        onClick={handleSalvar}
+        disabled={updateConfig.isPending}
+        className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50"
+      >
+        {updateConfig.isPending ? (
+          <Loader2 className="w-4 h-4 animate-spin" />
+        ) : (
+          <Save className="w-4 h-4" />
+        )}
+        Salvar configurações
+      </button>
+    </div>
+  )
 }
 
 export default ConfiguracoesGlobaisPage

@@ -23,6 +23,7 @@ import {
   Menu,
   X,
   ChevronDown,
+  Users2,
 } from 'lucide-react'
 
 /**
@@ -46,6 +47,11 @@ const menuItems = [
     label: 'Organizações',
     path: '/admin/organizacoes',
     icon: Building2,
+  },
+  {
+    label: 'Parceiros',
+    path: '/admin/parceiros',
+    icon: Users2,
   },
   {
     label: 'Planos',
@@ -106,6 +112,7 @@ function NavItem({
 function getPageTitle(pathname: string): string {
   if (pathname === '/admin') return 'Dashboard'
   if (pathname.startsWith('/admin/organizacoes')) return 'Organizações'
+  if (pathname.startsWith('/admin/parceiros')) return 'Parceiros'
   if (pathname.startsWith('/admin/planos')) return 'Planos'
   if (pathname.startsWith('/admin/modulos')) return 'Módulos'
   if (pathname.startsWith('/admin/evolucao')) return 'Evolução do Produto'
