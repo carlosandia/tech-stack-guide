@@ -479,7 +479,7 @@ export const negociosApi = {
 
       // AIDEV-NOTE: Batch update via RPC em 1 roundtrip (Plano de Escala 1.2)
       const items = listaOrdenada.map((id, i) => ({ id, posicao: i + 1 }))
-      const { error: rpcError } = await supabase.rpc('reordenar_posicoes_etapa', { items: JSON.stringify(items) } as any)
+      const { error: rpcError } = await supabase.rpc('reordenar_posicoes_etapa', { items } as any)
       if (rpcError) console.error('Erro RPC reordenar_posicoes_etapa:', rpcError)
     } catch (err) {
       console.error('Erro ao recalcular posições:', err)
