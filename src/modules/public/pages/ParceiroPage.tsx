@@ -198,13 +198,13 @@ export function ParceiroPage() {
         <div className="max-w-3xl mx-auto text-center relative">
           {/* Título principal — primeiro, hierarquia clara */}
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4 animate-fade-in leading-tight">
-            Bem-vindo, cliente <span className="text-primary">{parceiro?.organizacao?.nome}</span>.<br className="hidden sm:block" />
-            Seu plano com condições exclusivas.
+            Condições exclusivas via <span className="text-primary">{parceiro?.organizacao?.nome}</span>.
+            <br className="hidden sm:block" />
+            Escolha seu plano ideal.
           </h1>
 
-          {/* Subtítulo com contexto */}
           <p className="text-base sm:text-lg text-slate-400 mb-6 animate-fade-in" style={{ animationDelay: '100ms', animationFillMode: 'both' }}>
-            Seu parceiro <strong className="text-slate-300">{parceiro?.organizacao?.nome}</strong> garante vantagens especiais para você. Escolha o plano ideal e comece agora.
+            Vantagens especiais garantidas pelo seu parceiro. Comece agora, cancele quando quiser.
           </p>
 
           {/* Badge de indicação — destaque após contexto */}
