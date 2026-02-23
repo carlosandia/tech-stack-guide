@@ -24,21 +24,39 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
 
-      # 3. Instalar dependências frontend
+      # 3. Cache node_modules frontend
+      - name: Cache frontend node_modules
+        id: cache-frontend
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: frontend-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      # 4. Instalar dependências frontend (só quando package-lock mudou)
       - name: Install frontend dependencies
+        if: steps.cache-frontend.outputs.cache-hit != 'true'
         run: npm ci
 
-      # 4. Build frontend
+      # 5. Build frontend
       - name: Build frontend
         run: npm run build
 
-      # 5. Build backend
+      # 6. Cache node_modules backend
+      - name: Cache backend node_modules
+        id: cache-backend
+        uses: actions/cache@v4
+        with:
+          path: backend/node_modules
+          key: backend-${{ runner.os }}-${{ hashFiles('backend/package-lock.json') }}
+
+      # 7. Build backend
       - name: Build backend
         run: |
           cd backend
-          npm ci
+          if [ "${{ steps.cache-backend.outputs.cache-hit }}" != "true" ]; then
+            npm ci
+          fi
           npm run build
 
       # 6. Configurar SSH
