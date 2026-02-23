@@ -1,115 +1,100 @@
 
-# Programa de Parceiros com Gamificacao e Bonificacao
+# Melhorias no Upload de Documentos
 
 ## Visao Geral
 
-Transformar a configuracao atual (simples toggle de gratuidade) em um sistema de **niveis progressivos** com recompensas escalonadas, criando uma logica de atracao comercial mais robusta para parceiros.
+Implementar 3 melhorias no sistema de upload de documentos das oportunidades, seguindo boas praticas de grandes SaaS:
 
-## Conceito de Negocio: Niveis de Parceiro
-
-Em vez de apenas "atingiu meta = ganha gratuidade", o parceiro progride por niveis com beneficios crescentes:
-
-```text
-+------------------+------------------+------------------+------------------+
-|    BRONZE        |    PRATA         |    OURO          |    DIAMANTE      |
-|  2 indicados     |  5 indicados     |  10 indicados    |  20 indicados    |
-|                  |                  |                  |                  |
-|  Comissao: 10%   |  Comissao: 12%   |  Comissao: 15%   |  Comissao: 20%   |
-|  Bonus: -        |  Bonus: R$100    |  Bonus: R$300    |  Bonus: R$500    |
-|  Gratuidade: Nao |  Gratuidade: Nao |  Gratuidade: Sim |  Gratuidade: Sim |
-+------------------+------------------+------------------+------------------+
-```
-
-Cada nivel e **100% configuravel** pelo Super Admin na tela de Configuracoes > Parceiros.
-
-## O que muda na tela de Configuracoes (Parceiros)
-
-A secao "Programa de Gratuidade" sera substituida por uma secao mais completa: **"Niveis e Recompensas"**.
-
-### Estrutura da nova secao:
-
-1. **Percentual padrao de comissao** (mantem como esta)
-2. **Toggle "Programa de Niveis"** (substitui o toggle de gratuidade)
-3. **Lista de niveis configuravel** (quando ativado):
-   - Cada nivel tem: Nome, Icone/Cor, Meta (indicados ativos), Comissao (%), Bonus (R$), Gratuidade (sim/nao)
-   - Vem com 4 niveis pre-configurados (Bronze, Prata, Ouro, Diamante) mas o admin pode editar valores
-4. **Carencia (dias)** - mantem: tempo minimo que indicado precisa estar ativo para contar
-5. **Periodo de avaliacao (meses)** - mantem: janela de renovacao
-6. **URL base de indicacao** (mantem, mas campo exibe apenas o path editavel, com dominio fixo)
-7. **Observacoes internas** (mantem)
-
-## O que muda na Pagina de Detalhes do Parceiro
-
-O card de meta atual sera substituido por um **card de progresso gamificado** mostrando:
-- Nivel atual do parceiro (com icone e cor)
-- Barra de progresso ate o proximo nivel
-- Beneficios atuais (comissao %, bonus, gratuidade)
-- Proximo nivel e o que falta para atingi-lo
-
-## O que muda na Listagem de Parceiros
-
-A coluna "Meta" sera substituida por uma coluna "Nivel" mostrando o badge do nivel atual.
-
-## Alteracoes no Schema do Banco (regras_gratuidade -> regras_niveis)
-
-O campo JSONB `regras_gratuidade` sera expandido para suportar a nova estrutura de niveis. Compatibilidade retroativa mantida.
+1. **Verificacao de cota de storage** - Bloquear uploads quando o plano exceder o limite
+2. **Deduplicacao por hash SHA-256** - Evitar arquivos duplicados no storage
+3. **Barra de progresso visual** - Feedback de upload para o usuario
 
 ---
 
-## Plano Tecnico Detalhado
+## 1. Verificacao de Cota de Storage
 
-### 1. Migration SQL - Expandir regras no JSONB
+Antes de cada upload, consultar o uso atual de storage da organizacao e comparar com o limite do plano. Se exceder, bloquear o upload com mensagem clara.
 
-Nenhuma alteracao de schema na tabela e necessaria pois `regras_gratuidade` ja e JSONB. Apenas o conteudo muda. A migration atualiza o valor default do JSONB para incluir a estrutura de niveis.
+**Logica:**
+- Chamar `calcular_storage_organizacao(org_id)` (ja existe no banco)
+- Comparar com o limite do plano da organizacao (tabela `assinaturas` ou `planos`)
+- Se uso + tamanho do novo arquivo > limite, exibir toast de erro e abortar
 
-### 2. Schema Zod (`parceiro.schema.ts`)
+---
 
-Adicionar schema do nivel:
+## 2. Deduplicacao por Hash SHA-256
+
+Antes de subir o arquivo, calcular o hash SHA-256 no client-side usando a Web Crypto API. Verificar se ja existe um documento com o mesmo hash na organizacao.
+
+**Logica:**
+- Calcular `SHA-256` do arquivo via `crypto.subtle.digest`
+- Consultar `documentos_oportunidades` onde `hash_arquivo = <hash>` e `deletado_em IS NULL`
+- Se encontrar duplicata: reutilizar o `storage_path` existente e criar apenas o registro no banco (sem re-upload)
+- Se nao encontrar: fazer upload normalmente e salvar o hash
+
+**Migracao SQL necessaria:**
+- Adicionar coluna `hash_arquivo TEXT` na tabela `documentos_oportunidades`
+- Criar indice para buscas rapidas por hash
+
+---
+
+## 3. Barra de Progresso Visual
+
+Substituir o texto "Enviando..." por uma barra de progresso real usando `XMLHttpRequest` (o SDK do Supabase nao expoe progresso nativamente).
+
+**Alternativa mais simples:** Usar um progresso simulado (indeterminado) com animacao, ja que o Supabase SDK nao suporta `onUploadProgress`. Exibir:
+- Nome do arquivo sendo enviado
+- Barra animada de progresso indeterminado
+- Porcentagem simulada baseada no tamanho do arquivo
+
+---
+
+## Detalhes Tecnicos
+
+### Arquivos a modificar:
+
+1. **`src/shared/utils/fileHash.ts`** (novo) - Funcao utilitaria para calcular SHA-256
+2. **`src/modules/negocios/services/detalhes.api.ts`** - Adicionar verificacao de cota e deduplicacao no `uploadDocumento`
+3. **`src/modules/negocios/components/detalhes/AbaDocumentos.tsx`** - Adicionar barra de progresso e feedback visual
+4. **Migracao SQL** - Adicionar coluna `hash_arquivo` em `documentos_oportunidades`
+
+### Fluxo do upload atualizado:
+
 ```text
-NivelParceiroSchema = z.object({
-  nome: z.string(),           // "Bronze", "Prata", etc.
-  meta_indicados: z.number(), // qtd indicados ativos necessarios
-  percentual_comissao: z.number(), // % comissao neste nivel
-  bonus_valor: z.number(),    // valor fixo de bonificacao (R$)
-  gratuidade: z.boolean(),    // se ganha gratuidade neste nivel
-  cor: z.string(),            // tailwind color key (amber, gray, yellow, blue)
-})
+Arquivo selecionado
+       |
+  Comprimir (se imagem)
+       |
+  Calcular SHA-256
+       |
+  Verificar cota de storage --> [Excedeu] --> Toast erro, abortar
+       |
+  Verificar hash duplicado --> [Duplicado] --> Reutilizar path, criar registro
+       |
+  Upload ao Storage (com progresso visual)
+       |
+  Salvar registro no banco (com hash)
+       |
+  Toast sucesso
 ```
 
-Atualizar `ConfigProgramaParceiroSchema.regras_gratuidade` para incluir `niveis: NivelParceiroSchema[]`.
+### Migracao SQL:
 
-### 3. Hook `useParceiros.ts` - `useStatusMetaParceiro`
+```sql
+ALTER TABLE documentos_oportunidades
+ADD COLUMN IF NOT EXISTS hash_arquivo TEXT;
 
-Refatorar para calcular o nivel atual baseado nos niveis configurados (encontrar o maior nivel cujo `meta_indicados <= indicadosAtivos`).
+CREATE INDEX IF NOT EXISTS idx_docs_hash_org
+ON documentos_oportunidades (organizacao_id, hash_arquivo)
+WHERE deletado_em IS NULL;
+```
 
-### 4. Tela de Configuracoes (`ConfiguracoesGlobaisPage.tsx`)
+### Utilitario fileHash.ts:
 
-Refatorar `ConfigProgramaParceiroForm`:
-- Substituir os 4 campos de meta por uma lista editavel de niveis
-- Cada nivel exibido como um card inline com campos: nome, meta, comissao, bonus, gratuidade, cor
-- Botao para resetar aos valores padrao
-- URL base: mostrar dominio fixo + campo editavel para o path
+Funcao pura que recebe um `File | Blob` e retorna o hash SHA-256 como string hex usando `crypto.subtle.digest`.
 
-### 5. Detalhes do Parceiro (`ParceiroDetalhesPage.tsx`)
+### UI da barra de progresso:
 
-- Novo card de progresso com barra visual
-- Badge do nivel atual com icone e cor
-- Lista dos beneficios desbloqueados
-
-### 6. Listagem de Parceiros (`ParceirosPage.tsx`)
-
-- Coluna "Meta" vira "Nivel" com badge colorido
-
-### Arquivos a serem criados/editados:
-
-| Arquivo | Acao |
-|---------|------|
-| `supabase/migrations/xxx.sql` | Migration para popular niveis default no JSONB |
-| `src/modules/admin/schemas/parceiro.schema.ts` | Adicionar NivelParceiroSchema, expandir regras |
-| `src/modules/admin/hooks/useParceiros.ts` | Refatorar useStatusMetaParceiro para niveis |
-| `src/modules/admin/pages/ConfiguracoesGlobaisPage.tsx` | Redesenhar secao de niveis |
-| `src/modules/admin/pages/ParceiroDetalhesPage.tsx` | Card de progresso gamificado |
-| `src/modules/admin/pages/ParceirosPage.tsx` | Coluna nivel com badge |
-| `src/integrations/supabase/types.ts` | Atualizar tipos se necessario |
-
-**Nota sobre URL**: O campo `base_url_indicacao` sera separado em dominio fixo (exibido como texto, nao editavel) + path editavel (ex: `/cadastro`). O dominio sera extraido da URL atual salva no banco.
+- Dentro da zona de drag-and-drop, mostrar uma barra com animacao `animate-pulse` durante o upload
+- Exibir o nome do arquivo sendo enviado
+- Seguir o design system (cores `primary`, border-radius `rounded-md`, espacamentos padrao)
