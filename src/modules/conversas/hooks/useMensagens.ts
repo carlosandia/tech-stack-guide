@@ -102,59 +102,14 @@ export function useEnviarMedia() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ conversaId, dados }: { conversaId: string; dados: { tipo: string; media_url: string; caption?: string; filename?: string; mimetype?: string }; localPreview?: string }) =>
+    mutationFn: ({ conversaId, dados }: { conversaId: string; dados: { tipo: string; media_url: string; caption?: string; filename?: string; mimetype?: string } }) =>
       conversasApi.enviarMedia(conversaId, dados),
-    // AIDEV-NOTE: Optimistic Update - mídia aparece instantaneamente na UI com indicador "enviando"
-    onMutate: async (variables) => {
-      await queryClient.cancelQueries({ queryKey: ['mensagens', variables.conversaId] })
-      const snapshot = queryClient.getQueryData(['mensagens', variables.conversaId])
-
-      const optimisticMsg = {
-        id: `temp_${Date.now()}`,
-        conversa_id: variables.conversaId,
-        organizacao_id: '',
-        message_id: null,
-        from_me: true,
-        from_number: null,
-        to_number: null,
-        participant: null,
-        tipo: variables.dados.tipo as string,
-        body: variables.dados.caption || null,
-        media_url: variables.localPreview || variables.dados.media_url,
-        media_mimetype: variables.dados.mimetype || null,
-        media_filename: variables.dados.filename || null,
-        media_caption: variables.dados.caption || null,
-        ack: 0,
-        reply_to_message_id: null,
-        reaction_emoji: null,
-        reaction_message_id: null,
-        raw_data: null,
-        criado_em: new Date().toISOString(),
-        atualizado_em: new Date().toISOString(),
-        deletado_em: null,
-      }
-
-      queryClient.setQueryData(['mensagens', variables.conversaId], (old: any) => {
-        if (!old?.pages?.length) return old
-        const newPages = [...old.pages]
-        newPages[0] = {
-          ...newPages[0],
-          mensagens: [optimisticMsg, ...(newPages[0].mensagens || [])],
-        }
-        return { ...old, pages: newPages }
-      })
-
-      return { snapshot }
-    },
-    onError: (error: Error, variables, context) => {
-      if (context?.snapshot) {
-        queryClient.setQueryData(['mensagens', variables.conversaId], context.snapshot)
-      }
-      handleWahaError(error, 'Erro ao enviar mídia')
-    },
-    onSettled: (_data, _err, variables) => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['mensagens', variables.conversaId] })
       queryClient.invalidateQueries({ queryKey: ['conversas'] })
+    },
+    onError: (error: Error) => {
+      handleWahaError(error, 'Erro ao enviar mídia')
     },
   })
 }

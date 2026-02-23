@@ -13,7 +13,6 @@ import { format } from 'date-fns'
 import {
   Check,
   CheckCheck,
-  Clock,
   Play,
   Download,
   MapPin,
@@ -63,11 +62,7 @@ interface ChatMessageBubbleProps {
 // Sub-components
 // =====================================================
 
-// AIDEV-NOTE: Indicador de status da mensagem - ack 0 com id temp_ mostra relógio (enviando)
-function AckIndicator({ ack, isSending }: { ack: number; isSending?: boolean }) {
-  if (isSending) {
-    return <Clock className="w-3.5 h-3.5 text-muted-foreground/50 animate-pulse" />
-  }
+function AckIndicator({ ack }: { ack: number }) {
   if (ack <= 0) return null
   if (ack === 1) return <Check className="w-3.5 h-3.5 text-muted-foreground/50" />
   if (ack === 2) return <CheckCheck className="w-3.5 h-3.5 text-muted-foreground/50" />
@@ -980,7 +975,6 @@ export function ChatMessageBubble({
   const [reactionPos, setReactionPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
   const bubbleRef = useRef<HTMLDivElement>(null)
   const isMe = mensagem.from_me
-  const isSending = typeof mensagem.id === 'string' && mensagem.id.startsWith('temp_')
   const isSticker = mensagem.tipo === 'sticker'
   const isReaction = mensagem.tipo === 'reaction'
   const isTextType = mensagem.tipo === 'text'
@@ -1105,7 +1099,7 @@ export function ChatMessageBubble({
              {renderContent(mensagem, handleViewMedia, conversaId, isMe, fotoUrl, contactMap, myAvatarUrl, undefined, undefined, onStartConversation)}
             <span className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1 justify-end">
               {format(new Date(mensagem.criado_em), 'HH:mm')}
-              {isMe && <AckIndicator ack={mensagem.ack} isSending={isSending} />}
+              {isMe && <AckIndicator ack={mensagem.ack} />}
             </span>
           </div>
         </div>
@@ -1175,12 +1169,12 @@ export function ChatMessageBubble({
                   </span>
                 )}
                 {format(new Date(mensagem.criado_em), 'HH:mm')}
-                {isMe && <AckIndicator ack={mensagem.ack} isSending={isSending} />}
+                {isMe && <AckIndicator ack={mensagem.ack} />}
               </span>
             </div>
           ) : mensagem.tipo === 'audio' ? (
               <>
-                {renderContent(mensagem, handleViewMedia, conversaId, isMe, fotoUrl, contactMap, myAvatarUrl, format(new Date(mensagem.criado_em), 'HH:mm'), isMe ? <AckIndicator ack={mensagem.ack} isSending={isSending} /> : undefined, onStartConversation)}
+                {renderContent(mensagem, handleViewMedia, conversaId, isMe, fotoUrl, contactMap, myAvatarUrl, format(new Date(mensagem.criado_em), 'HH:mm'), isMe ? <AckIndicator ack={mensagem.ack} /> : undefined, onStartConversation)}
               </>
           ) : (
             <>
@@ -1189,7 +1183,7 @@ export function ChatMessageBubble({
                 <span className="text-[10px] text-muted-foreground">
                   {format(new Date(mensagem.criado_em), 'HH:mm')}
                 </span>
-                {isMe && <AckIndicator ack={mensagem.ack} isSending={isSending} />}
+                {isMe && <AckIndicator ack={mensagem.ack} />}
               </div>
             </>
           )}
