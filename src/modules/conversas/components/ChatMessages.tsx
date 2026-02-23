@@ -244,9 +244,13 @@ export const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(functi
     // filter out the empty ones (WAHA duplicates). But if ALL are empty, keep them to show activity.
     const withBody = mensagens.filter(m => !(m.tipo === 'text' && !m.body))
     const filtered = withBody.length > 0 ? withBody : mensagens
-    return [...filtered].sort(
-      (a, b) => new Date(a.criado_em).getTime() - new Date(b.criado_em).getTime()
-    )
+    // AIDEV-NOTE: Ordenar por timestamp_externo (WhatsApp) como criterio primario para ordem correta
+    return [...filtered].sort((a, b) => {
+      const tsA = a.timestamp_externo ? a.timestamp_externo * 1000 : new Date(a.criado_em).getTime()
+      const tsB = b.timestamp_externo ? b.timestamp_externo * 1000 : new Date(b.criado_em).getTime()
+      if (tsA !== tsB) return tsA - tsB
+      return new Date(a.criado_em).getTime() - new Date(b.criado_em).getTime()
+    })
   }, [mensagens])
 
   // AIDEV-NOTE: Extrair stanza ID (último segmento após '_') para fallback de matching
