@@ -1,5 +1,5 @@
 import { useFormContext } from 'react-hook-form'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useRef } from 'react'
  import { ChevronDown, ChevronUp, MapPin, Loader2, Users2 } from 'lucide-react'
 import { SEGMENTOS, type CriarOrganizacaoData } from '../../schemas/organizacao.schema'
  import { formatTelefone, formatCep, normalizeSegmento } from '@/lib/formatters'

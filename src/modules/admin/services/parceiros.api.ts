@@ -30,7 +30,7 @@ export async function listarParceiros(params?: {
     .select(
       `
       *,
-      organizacao:organizacoes_saas(nome, email_contato, plano, status),
+      organizacao:organizacoes_saas(nome, email, plano, status),
       usuario:usuarios(nome, sobrenome, email),
       indicacoes_parceiro!inner(status)
       `,
@@ -98,7 +98,7 @@ export async function obterParceiro(id: string): Promise<Parceiro> {
     .select(
       `
       *,
-      organizacao:organizacoes_saas(nome, email_contato, plano, status),
+      organizacao:organizacoes_saas(nome, email, plano, status),
       usuario:usuarios(nome, sobrenome, email)
       `,
     )
@@ -129,7 +129,7 @@ export async function obterParceiro(id: string): Promise<Parceiro> {
     ...data,
     total_indicados_ativos: indicadosAtivos ?? 0,
     total_comissoes_geradas: totalComissoes,
-  } as Parceiro
+  } as unknown as Parceiro
 }
 
 // AIDEV-NOTE: Gera codigo RENOVE-XXXXXX com retry para colisao de UNIQUE constraint
@@ -194,14 +194,14 @@ export async function criarParceiro(payload: CriarParceiroData): Promise<Parceir
     .select(
       `
       *,
-      organizacao:organizacoes_saas(nome, email_contato, plano, status),
+      organizacao:organizacoes_saas(nome, email, plano, status),
       usuario:usuarios(nome, sobrenome, email)
       `,
     )
     .single()
 
   if (error) throw new Error(`Erro ao cadastrar parceiro: ${error.message}`)
-  return data as Parceiro
+  return data as unknown as Parceiro
 }
 
 export async function atualizarParceiro(
@@ -228,14 +228,14 @@ export async function atualizarParceiro(
     .select(
       `
       *,
-      organizacao:organizacoes_saas(nome, email_contato, plano, status),
+      organizacao:organizacoes_saas(nome, email, plano, status),
       usuario:usuarios(nome, sobrenome, email)
       `,
     )
     .single()
 
   if (error) throw new Error(`Erro ao atualizar parceiro: ${error.message}`)
-  return atualizado as Parceiro
+  return atualizado as unknown as Parceiro
 }
 
 export async function aplicarGratuidade(
@@ -252,14 +252,14 @@ export async function aplicarGratuidade(
     .select(
       `
       *,
-      organizacao:organizacoes_saas(nome, email_contato, plano, status),
+      organizacao:organizacoes_saas(nome, email, plano, status),
       usuario:usuarios(nome, sobrenome, email)
       `,
     )
     .single()
 
   if (error) throw new Error(`Erro ao aplicar gratuidade: ${error.message}`)
-  return data as Parceiro
+  return data as unknown as Parceiro
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -486,7 +486,7 @@ export async function marcarComissaoPaga(comissaoId: string): Promise<ComissaoPa
 
 export async function listarOrganizacoesDisponiveis(
   busca?: string,
-): Promise<Array<{ id: string; nome: string; email_contato: string | null; status: string }>> {
+): Promise<Array<{ id: string; nome: string; email: string | null; status: string }>> {
   // 1. Buscar IDs de orgs que já são parceiras
   const { data: parceirosExistentes } = await supabase
     .from('parceiros')
@@ -497,7 +497,7 @@ export async function listarOrganizacoesDisponiveis(
   // 2. Buscar orgs ativas que ainda não são parceiras
   let query = supabase
     .from('organizacoes_saas')
-    .select('id, nome, email_contato, status')
+    .select('id, nome, email, status')
     .eq('status', 'ativa')
     .order('nome', { ascending: true })
     .limit(30)
@@ -508,13 +508,13 @@ export async function listarOrganizacoesDisponiveis(
   }
 
   if (busca) {
-    query = query.or(`nome.ilike.%${busca}%,email_contato.ilike.%${busca}%`)
+    query = query.or(`nome.ilike.%${busca}%,email.ilike.%${busca}%`)
   }
 
   const { data, error } = await query
 
   if (error) throw new Error(`Erro ao buscar organizações: ${error.message}`)
-  return (data ?? []) as Array<{ id: string; nome: string; email_contato: string | null; status: string }>
+  return (data ?? []) as Array<{ id: string; nome: string; email: string | null; status: string }>
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -542,7 +542,7 @@ export async function obterConfigPrograma(): Promise<ConfigProgramaParceiro> {
     return { id: '', ...CONFIG_DEFAULT } as ConfigProgramaParceiro
   }
 
-  return data as ConfigProgramaParceiro
+  return data as unknown as ConfigProgramaParceiro
 }
 
 export async function atualizarConfigPrograma(
@@ -583,5 +583,5 @@ export async function atualizarConfigPrograma(
     result = criado
   }
 
-  return result as ConfigProgramaParceiro
+  return result as unknown as ConfigProgramaParceiro
 }

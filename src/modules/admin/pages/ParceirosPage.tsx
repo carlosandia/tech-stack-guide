@@ -338,7 +338,7 @@ function ParceiroRow({
   metaIndicados: number
 }) {
   const orgNome = parceiro.organizacao?.nome ?? '—'
-  const orgEmail = parceiro.organizacao?.email_contato ?? ''
+  const orgEmail = parceiro.organizacao?.email ?? ''
   const indicadosAtivos = parceiro.total_indicados_ativos ?? 0
   const cumpriuMeta = metaIndicados > 0 && indicadosAtivos >= metaIndicados
 

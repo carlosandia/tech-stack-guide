@@ -16,7 +16,7 @@ interface Props {
 type OrgDisponivel = {
   id: string
   nome: string
-  email_contato: string | null
+  email: string | null
   status: string
 }
 
@@ -214,8 +214,8 @@ export function NovoParceirModal({ isOpen, onClose }: Props) {
                             className="w-full px-3 py-2 text-left hover:bg-accent transition-colors"
                           >
                             <p className="text-sm font-medium text-foreground">{org.nome}</p>
-                            {org.email_contato && (
-                              <p className="text-xs text-muted-foreground">{org.email_contato}</p>
+                            {org.email && (
+                              <p className="text-xs text-muted-foreground">{org.email}</p>
                             )}
                           </button>
                         ))
