@@ -45,10 +45,12 @@ Deno.serve(async (req) => {
       })
     }
 
-    const { storage_path, documento_id } = await req.json()
+    const { storage_path, documento_id, bucket } = await req.json()
+    // AIDEV-NOTE: bucket parametrizável — suporta 'chat-media' e 'documentos-oportunidades'
+    const bucketName = bucket || 'documentos-oportunidades'
 
-    if (!storage_path || !documento_id) {
-      return new Response(JSON.stringify({ erro: 'storage_path e documento_id são obrigatórios' }), {
+    if (!storage_path) {
+      return new Response(JSON.stringify({ erro: 'storage_path é obrigatório' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
@@ -56,7 +58,7 @@ Deno.serve(async (req) => {
 
     // 1. Baixar o PDF do storage
     const { data: fileData, error: downloadError } = await supabase.storage
-      .from('documentos-oportunidades')
+      .from(bucketName)
       .download(storage_path)
 
     if (downloadError || !fileData) {
@@ -129,10 +131,10 @@ Deno.serve(async (req) => {
     }
 
     // 3. Substituir no storage (update = remove + upload)
-    await supabase.storage.from('documentos-oportunidades').remove([storage_path])
+    await supabase.storage.from(bucketName).remove([storage_path])
 
     const { error: uploadError } = await supabase.storage
-      .from('documentos-oportunidades')
+      .from(bucketName)
       .upload(storage_path, compressedBytes, {
         contentType: 'application/pdf',
         upsert: false,
@@ -141,7 +143,7 @@ Deno.serve(async (req) => {
     if (uploadError) {
       // Tentar restaurar o original em caso de falha
       await supabase.storage
-        .from('documentos-oportunidades')
+        .from(bucketName)
         .upload(storage_path, new Uint8Array(originalBytes), {
           contentType: 'application/pdf',
           upsert: false,
@@ -157,11 +159,13 @@ Deno.serve(async (req) => {
       })
     }
 
-    // 4. Atualizar tamanho no banco
-    await supabase
-      .from('documentos_oportunidades')
-      .update({ tamanho_bytes: compressedSize })
-      .eq('id', documento_id)
+    // 4. Atualizar tamanho no banco (apenas para documentos-oportunidades)
+    if (documento_id && bucketName === 'documentos-oportunidades') {
+      await supabase
+        .from('documentos_oportunidades')
+        .update({ tamanho_bytes: compressedSize })
+        .eq('id', documento_id)
+    }
 
     return new Response(JSON.stringify({
       comprimido: true,

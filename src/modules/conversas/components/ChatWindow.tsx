@@ -6,7 +6,10 @@
  */
 
 import { useState, useMemo, useEffect, useCallback, useRef, forwardRef } from 'react'
-import { compressImage } from '@/shared/utils/compressMedia'
+import { compressImage, validateFileSize } from '@/shared/utils/compressMedia'
+import { compressVideo } from '@/shared/utils/compressVideo'
+import { compressAudio } from '@/shared/utils/compressAudio'
+import { calculateFileHash } from '@/shared/utils/fileHash'
 import { MediaQueue, type QueuedMedia } from './MediaQueue'
 import { useAuth } from '@/providers/AuthProvider'
 import { ChatHeader } from './ChatHeader'
@@ -212,8 +215,14 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
   const [sendingQueue, setSendingQueue] = useState(false)
 
   const handleFileSelected = useCallback(async (file: File, tipo: string) => {
+    // AIDEV-NOTE: 1. Validar limite de tamanho antes de qualquer processamento
+    const sizeError = validateFileSize(file, tipo)
+    if (sizeError) {
+      toast.error(sizeError)
+      return
+    }
+
     const uploadId = `${Date.now()}_${Math.random().toString(36).slice(2)}`
-    const correctMime = getCorrectMimeType(file)
     const icon = getFileIcon(file.name)
 
     const updateProgress = (progress: number) => {
@@ -221,31 +230,78 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
     }
 
     try {
-      setUploads(prev => [...prev, { id: uploadId, filename: file.name, progress: 10, icon }])
+      setUploads(prev => [...prev, { id: uploadId, filename: file.name, progress: 5, icon }])
 
-      const processed = await compressImage(file, file.name)
+      // AIDEV-NOTE: 2. Comprimir conforme o tipo
+      let processed: File | Blob
+      if (tipo === 'image') {
+        processed = await compressImage(file, file.name)
+      } else if (tipo === 'video') {
+        processed = await compressVideo(file)
+      } else if (tipo === 'audio') {
+        processed = await compressAudio(file)
+      } else {
+        processed = file
+      }
+
+      updateProgress(20)
+
       const finalFile = processed instanceof File ? processed : new File([processed], file.name)
+      const correctMime = getCorrectMimeType(finalFile)
+
+      // AIDEV-NOTE: 3. Deduplicação por SHA-256
+      const hash = await calculateFileHash(finalFile)
       const ext = finalFile.name.split('.').pop() || 'bin'
-      // AIDEV-NOTE: O path DEVE começar com organizacao_id para passar na RLS do bucket chat-media
-      const path = `${conversa.organizacao_id}/${conversa.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
+      const dedupPath = `${conversa.organizacao_id}/${conversa.id}/${hash}.${ext}`
 
       updateProgress(30)
 
-      const { error: uploadError } = await supabase.storage
+      // Verificar se arquivo idêntico já existe no storage
+      const { data: existingFiles } = await supabase.storage
         .from('chat-media')
-        .upload(path, finalFile, { contentType: correctMime })
+        .list(`${conversa.organizacao_id}/${conversa.id}`, {
+          search: `${hash}.${ext}`,
+          limit: 1,
+        })
 
-      if (uploadError) {
-        setUploads(prev => prev.filter(u => u.id !== uploadId))
-        toast.error(`Erro ao enviar ${file.name}`)
-        return
+      let publicUrl: string
+
+      if (existingFiles && existingFiles.length > 0) {
+        // Reutilizar URL existente — evita re-upload
+        const { data: urlData } = supabase.storage
+          .from('chat-media')
+          .getPublicUrl(dedupPath)
+        publicUrl = urlData.publicUrl
+        updateProgress(100)
+      } else {
+        // Upload normal
+        const { error: uploadError } = await supabase.storage
+          .from('chat-media')
+          .upload(dedupPath, finalFile, { contentType: correctMime })
+
+        if (uploadError) {
+          setUploads(prev => prev.filter(u => u.id !== uploadId))
+          toast.error(`Erro ao enviar ${file.name}`)
+          return
+        }
+
+        updateProgress(70)
+
+        const { data: urlData } = supabase.storage
+          .from('chat-media')
+          .getPublicUrl(dedupPath)
+        publicUrl = urlData.publicUrl
+
+        updateProgress(90)
+
+        // AIDEV-NOTE: 4. Compressão async de PDF via Edge Function
+        const isPdf = correctMime === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
+        if (isPdf) {
+          supabase.functions.invoke('compress-pdf', {
+            body: { storage_path: dedupPath, bucket: 'chat-media' },
+          }).catch(err => console.warn('[compress-pdf] chat-media failed:', err))
+        }
       }
-
-      updateProgress(70)
-
-      const { data: urlData } = supabase.storage
-        .from('chat-media')
-        .getPublicUrl(path)
 
       updateProgress(100)
 
@@ -260,7 +316,7 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
         id: uploadId,
         filename: file.name,
         tipo,
-        media_url: urlData.publicUrl,
+        media_url: publicUrl,
         mimetype: correctMime,
         thumbnail,
       }])
