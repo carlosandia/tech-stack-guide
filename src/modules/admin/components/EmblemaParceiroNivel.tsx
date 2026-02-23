@@ -1,59 +1,36 @@
-import emblemasSprite from '@/assets/emblemas-parceiro.png'
+import emblemaBronze from '@/assets/emblema-bronze.png'
+import emblemaPrata from '@/assets/emblema-prata.png'
+import emblemaOuro from '@/assets/emblema-ouro.png'
+import emblemaDiamante from '@/assets/emblema-diamante.png'
 
 /**
  * AIDEV-NOTE: Componente que exibe o emblema do nível do parceiro
- * Usa sprite sheet 2x2 (Bronze, Prata, Ouro, Diamante)
- * Posições: Bronze=top-left, Prata=top-right, Ouro=bottom-left, Diamante=bottom-right
+ * Cada nível tem sua própria imagem individual
  */
 
-// Mapeamento de cor do nível para posição no sprite (objectPosition)
-const POSICAO_SPRITE: Record<string, string> = {
-  amber: '0% 0%',       // Bronze - top-left
-  gray: '100% 0%',      // Prata - top-right
-  yellow: '0% 100%',    // Ouro - bottom-left
-  blue: '100% 100%',    // Diamante - bottom-right
+const EMBLEMA_POR_COR: Record<string, string> = {
+  amber: emblemaBronze,
+  gray: emblemaPrata,
+  yellow: emblemaOuro,
+  blue: emblemaDiamante,
 }
 
 interface EmblemaParceiroNivelProps {
   cor: string
-  size?: number // px
+  size?: number
   className?: string
 }
 
 export function EmblemaParceiroNivel({ cor, size = 48, className = '' }: EmblemaParceiroNivelProps) {
-  const posicao = POSICAO_SPRITE[cor]
-
-  // Se a cor não tem emblema mapeado, não renderiza
-  if (!posicao) return null
+  const src = EMBLEMA_POR_COR[cor]
+  if (!src) return null
 
   return (
-    <div
-      className={`overflow-hidden rounded-md flex-shrink-0 ${className}`}
+    <img
+      src={src}
+      alt=""
+      className={`object-contain flex-shrink-0 ${className}`}
       style={{ width: size, height: size }}
-    >
-      <img
-        src={emblemasSprite}
-        alt=""
-        className="block"
-        style={{
-          width: size * 2,
-          height: size * 2,
-          objectFit: 'none',
-          objectPosition: posicao,
-          // Use clip approach instead for precise cropping
-          display: 'none',
-        }}
-      />
-      <div
-        style={{
-          width: size,
-          height: size,
-          backgroundImage: `url(${emblemasSprite})`,
-          backgroundSize: `${size * 2}px ${size * 2}px`,
-          backgroundPosition: posicao,
-          backgroundRepeat: 'no-repeat',
-        }}
-      />
-    </div>
+    />
   )
 }
