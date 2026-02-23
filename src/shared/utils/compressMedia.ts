@@ -1,9 +1,30 @@
 /**
  * AIDEV-NOTE: Utilitário compartilhado de compressão client-side
  * Comprime imagens via Canvas API antes do upload ao Storage
+ * Inclui validateFileSize para limitar uploads por tipo
  */
 
 const COMPRESSIBLE_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+
+// AIDEV-NOTE: Limites de tamanho por tipo de arquivo para evitar uploads excessivos
+const FILE_SIZE_LIMITS: Record<string, { max: number; label: string }> = {
+  image: { max: 10 * 1024 * 1024, label: '10 MB' },
+  video: { max: 30 * 1024 * 1024, label: '30 MB' },
+  audio: { max: 10 * 1024 * 1024, label: '10 MB' },
+  document: { max: 15 * 1024 * 1024, label: '15 MB' },
+}
+
+/**
+ * Valida se o arquivo está dentro do limite de tamanho para o tipo.
+ * @returns null se OK, ou string de erro se exceder
+ */
+export function validateFileSize(file: File, tipo: string): string | null {
+  const limit = FILE_SIZE_LIMITS[tipo] || FILE_SIZE_LIMITS.document
+  if (file.size > limit.max) {
+    return `Arquivo excede o limite de ${limit.label} para ${tipo}`
+  }
+  return null
+}
 const MAX_DIMENSION = 1920
 const COMPRESS_QUALITY = 0.8
 
