@@ -216,13 +216,17 @@ CellEmpresaVinculada.displayName = 'CellEmpresaVinculada'
 function CellSegmentacao({ contato }: { contato: Contato }) {
   return (
     <InlineSegmentoPopover contatoId={contato.id} segmentosAtuais={contato.segmentos}>
-      <div className="flex flex-wrap gap-1 max-w-[200px] border-b border-dashed border-transparent hover:border-primary transition-colors">
+      <div className="flex items-center gap-1 max-w-[200px] border-b border-dashed border-transparent hover:border-primary transition-colors">
         {contato.segmentos && contato.segmentos.length > 0
-          ? contato.segmentos.slice(0, 2).map((s) => <SegmentoBadge key={s.id} nome={s.nome} cor={s.cor} />)
+          ? (
+            <>
+              <SegmentoBadge key={contato.segmentos[0].id} nome={contato.segmentos[0].nome} cor={contato.segmentos[0].cor} />
+              {contato.segmentos.length > 1 && (
+                <span className="text-xs text-muted-foreground">+{contato.segmentos.length - 1}</span>
+              )}
+            </>
+          )
           : <span className="text-sm text-muted-foreground/50">—</span>}
-        {contato.segmentos && contato.segmentos.length > 2 && (
-          <span className="text-xs text-muted-foreground">+{contato.segmentos.length - 2}</span>
-        )}
       </div>
     </InlineSegmentoPopover>
   )
