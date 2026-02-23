@@ -1,35 +1,30 @@
 
-# Corrigir Link de Parceiro Invalido no Mobile
+# Corrigir funcao validate_partner_code - tipo incompativel
 
-## Problema
+## Problema encontrado
 
-A pagina `/parceiro/:codigo` faz `supabase.from('parceiros').select(...)` diretamente, mas a policy de SELECT para usuarios anonimos (`anon_select_parceiro_ativo_por_codigo`) foi removida na migration `20260223034026`. Atualmente, a unica policy existente na tabela `parceiros` e `super_admin_parceiros` (requer `is_super_admin_v2()`).
+A funcao `validate_partner_code` falha com o erro:
 
-Como a pagina e publica (sem login), a query retorna `null` e exibe "Link de indicacao invalido".
+```
+Returned type character varying(20) does not match expected type text in column 2
+```
 
-Ja existe uma funcao `get_partner_name_by_code(p_codigo)` (SECURITY DEFINER) que retorna o nome da organizacao parceira, mas ela so retorna o nome -- a pagina precisa tambem do `id` do parceiro para o fluxo de checkout.
+A coluna `parceiros.codigo_indicacao` e do tipo `varchar(20)`, mas a funcao declara o retorno como `text`. O PostgreSQL rejeita a incompatibilidade de tipos.
 
 ## Solucao
 
-### 1. Criar funcao RPC `validate_partner_code` (SECURITY DEFINER)
+Criar uma nova migration que recria a funcao com um `CAST` explicito na coluna `codigo_indicacao`:
 
-Nova funcao que retorna `id`, `codigo_indicacao` e `nome_organizacao` do parceiro ativo, acessivel por anon sem expor a tabela inteira.
-
-```text
-CREATE FUNCTION public.validate_partner_code(p_codigo text)
-RETURNS TABLE(id uuid, codigo_indicacao text, organizacao_nome text)
-LANGUAGE plpgsql STABLE SECURITY DEFINER
+```sql
+p.codigo_indicacao::text
 ```
 
-### 2. Alterar `ParceiroPage.tsx`
-
-Substituir a query direta `supabase.from('parceiros').select(...)` por `supabase.rpc('validate_partner_code', { p_codigo: codigo })`.
-
-Adaptar o tipo `Parceiro` para usar a resposta da RPC.
-
-## Arquivos
+## Arquivo
 
 | Arquivo | Acao |
 |---------|------|
-| Nova migration SQL | Criar funcao `validate_partner_code` |
-| `src/modules/public/pages/ParceiroPage.tsx` | Alterar query para usar RPC |
+| Nova migration SQL | Recriar funcao com cast para text |
+
+## Detalhe tecnico
+
+A migration vai executar `CREATE OR REPLACE FUNCTION public.validate_partner_code(p_codigo text)` com a unica diferenca de adicionar `::text` no SELECT da coluna `codigo_indicacao`, corrigindo a incompatibilidade de tipo que impede a funcao de retornar resultados.
