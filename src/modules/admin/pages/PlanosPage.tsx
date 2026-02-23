@@ -5,6 +5,7 @@ import { useConfigGlobal } from '../hooks/useConfigGlobal'
  import { useToolbar } from '../contexts/ToolbarContext'
 import { PlanoFormModal } from '../components/PlanoFormModal'
 import type { Plano } from '../services/admin.api'
+import { env } from '@/config/env'
 
 /**
  * AIDEV-NOTE: Helper para identificar plano Trial (padrão do sistema)
@@ -16,8 +17,7 @@ function isTrialPlan(plano: Plano): boolean {
 
 function EmbedWidgetSection() {
   const [copiado, setCopiado] = useState(false)
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
-  const snippet = `<div id="renove-pricing-widget"></div>\n<script src="${supabaseUrl}/functions/v1/pricing-widget-loader?periodo=mensal" async></script>`
+  const snippet = `<div id="renove-pricing-widget"></div>\n<script src="${env.SUPABASE_URL}/functions/v1/pricing-widget-loader?periodo=mensal" async></script>`
 
   const copiar = () => {
     navigator.clipboard.writeText(snippet)

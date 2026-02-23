@@ -8,6 +8,7 @@
  */
 
 import { supabase } from '@/lib/supabase'
+import { env } from '@/config/env'
 import api from '@/lib/api'
 import { getOrganizacaoId, getUsuarioId } from '@/shared/services/auth-context'
 
@@ -1914,7 +1915,7 @@ export const webhooksApi = {
 
     if (existente) {
       const wh = existente as unknown as WebhookEntrada
-      wh.url_completa = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/webhook-entrada/${wh.url_token}`
+      wh.url_completa = `${env.SUPABASE_URL}/functions/v1/webhook-entrada/${wh.url_token}`
       return wh
     }
 
@@ -1940,7 +1941,7 @@ export const webhooksApi = {
 
     if (error) throw new Error(`Erro ao criar webhook: ${error.message}`)
     const wh = data as unknown as WebhookEntrada
-    wh.url_completa = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/webhook-entrada/${wh.url_token}`
+    wh.url_completa = `${env.SUPABASE_URL}/functions/v1/webhook-entrada/${wh.url_token}`
     return wh
   },
 
@@ -1954,7 +1955,7 @@ export const webhooksApi = {
     if (error) throw new Error(`Erro ao listar webhooks: ${error.message}`)
     const webhooks = (data || []).map((d: any) => ({
       ...d,
-      url_completa: `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/webhook-entrada/${d.url_token}`,
+      url_completa: `${env.SUPABASE_URL}/functions/v1/webhook-entrada/${d.url_token}`,
     })) as unknown as WebhookEntrada[]
     return { webhooks, total: count || 0 }
   },

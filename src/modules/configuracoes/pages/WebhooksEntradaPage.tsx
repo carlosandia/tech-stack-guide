@@ -124,25 +124,31 @@ export function WebhooksEntradaPage() {
 
       {/* Webhook URL */}
       <div className="space-y-1.5">
-        <label className="text-sm font-medium text-foreground">Webhook URL</label>
+        <label className="text-sm font-medium text-foreground">Endpoint de recebimento</label>
         <div className="flex items-center gap-2">
           <div className="flex-1 min-w-0 h-10 px-3 flex items-center rounded-md border border-input bg-muted/50 overflow-hidden">
             <code className="text-sm text-foreground font-mono truncate block">{webhookUrl}</code>
           </div>
           <button
             onClick={() => handleCopy(webhookUrl, 'url')}
-            className="h-10 w-10 flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent transition-colors flex-shrink-0"
+            className="h-10 px-4 flex items-center justify-center gap-2 rounded-md border border-input bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex-shrink-0 text-sm font-medium"
             title="Copiar URL"
           >
             {copiedField === 'url' ? (
-              <Check className="w-4 h-4 text-[hsl(var(--success))]" />
+              <>
+                <Check className="w-4 h-4" />
+                Copiado
+              </>
             ) : (
-              <Copy className="w-4 h-4 text-muted-foreground" />
+              <>
+                <Copy className="w-4 h-4" />
+                Copiar URL
+              </>
             )}
           </button>
         </div>
         <p className="text-xs text-muted-foreground">
-          Use esta URL em N8N, Zapier, Make.com e outras plataformas para receber leads
+          Cole esta URL na sua plataforma de automação (N8N, Zapier, Make.com) para receber leads automaticamente
         </p>
       </div>
 

@@ -7,6 +7,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import { env } from '@/config/env'
 import { getMaskForType } from '../utils/masks'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import DOMPurify from 'dompurify'
@@ -211,9 +212,9 @@ export function FormularioPublicoPage() {
   // AIDEV-NOTE: Registrar evento de abandono quando o usuário sai sem enviar
   useEffect(() => {
     if (!formulario) return
-    // AIDEV-NOTE: Centralizado via env vars (Auditoria M1/M2)
-    const sbUrl = import.meta.env.VITE_SUPABASE_URL
-    const sbKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
+    // AIDEV-NOTE: Centralizado via env.SUPABASE_URL com fallback (Auditoria M1/M2)
+    const sbUrl = env.SUPABASE_URL
+    const sbKey = env.SUPABASE_ANON_KEY
 
     const registrarAbandono = () => {
       if (!jaRegistrouInicio.current || enviado) return
@@ -289,9 +290,9 @@ export function FormularioPublicoPage() {
 
     // AIDEV-NOTE: Envia tudo via edge function (service_role) para evitar 401 em contexto público
     try {
-      // AIDEV-NOTE: URL e apikey via env vars (Auditoria Seguranca M1)
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      // AIDEV-NOTE: URL e apikey via env centralizado com fallback (Auditoria Seguranca M1)
+      const supabaseUrl = env.SUPABASE_URL;
+      const supabaseKey = env.SUPABASE_ANON_KEY;
       const resp = await fetch(`${supabaseUrl}/functions/v1/processar-submissao-formulario`, {
         method: 'POST',
         headers: {

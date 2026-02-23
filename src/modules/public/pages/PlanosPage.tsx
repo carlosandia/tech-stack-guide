@@ -3,6 +3,7 @@ import { useSearchParams, Link } from 'react-router-dom'
 import { Check, Loader2, Star, RefreshCw, AlertTriangle } from 'lucide-react'
 import renoveLogo from '@/assets/logotipo-renove.svg'
 import { supabase } from '@/lib/supabase'
+import { env } from '@/config/env'
 import { PreCadastroModal } from '../components/PreCadastroModal'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
  
@@ -64,7 +65,7 @@ interface PlanoDb {
       if (!demoContainerRef.current) return
       demoContainerRef.current.replaceChildren()
       const script = document.createElement('script')
-      script.src = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/widget-formulario-loader?slug=demonstracao-crm-mlrb6yoz&mode=inline&nocache=1`
+      script.src = `${env.SUPABASE_URL}/functions/v1/widget-formulario-loader?slug=demonstracao-crm-mlrb6yoz&mode=inline&nocache=1`
       script.dataset.formSlug = 'demonstracao-crm-mlrb6yoz'
       script.async = true
       demoContainerRef.current.appendChild(script)

@@ -5,10 +5,10 @@
  * configurações reflete automaticamente no site sem trocar o script.
  */
 
-// AIDEV-NOTE: Centralizado via env vars (Auditoria M1)
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
+// AIDEV-NOTE: Centralizado via env.SUPABASE_URL com fallback (Auditoria M1)
+import { env } from '@/config/env'
 
 export function generateWidgetScript(organizacaoId: string): string {
   return `<!-- Widget WhatsApp - CRM Renove -->
-<script data-org="${organizacaoId}" src="${SUPABASE_URL}/functions/v1/widget-whatsapp-loader" async></script>`
+<script data-org="${organizacaoId}" src="${env.SUPABASE_URL}/functions/v1/widget-whatsapp-loader" async></script>`
 }
