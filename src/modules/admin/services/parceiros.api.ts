@@ -36,8 +36,7 @@ export async function listarParceiros(params?: {
       `
       *,
       organizacao:organizacoes_saas(nome, email, plano, status),
-      usuario:usuarios(nome, sobrenome, email),
-      indicacoes_parceiro!inner(status)
+      usuario:usuarios(nome, sobrenome, email)
       `,
       { count: 'estimated' },
     )
