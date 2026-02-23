@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Loader2 } from 'lucide-react'
+import { Loader2, ShieldCheck } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { SEGMENTOS } from '@/modules/admin/schemas/organizacao.schema'
 import {
@@ -198,7 +198,10 @@ export function PreCadastroModal({
               <Label htmlFor="codigo_parceiro">
                 Código do Parceiro{' '}
                 {codigoParceiro ? (
-                  <span className="text-xs text-emerald-600 font-medium">✓ Validado</span>
+                  <span className="inline-flex items-center gap-1 text-xs text-primary font-medium">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    Certificado
+                  </span>
                 ) : (
                   <span className="text-xs text-muted-foreground">(opcional)</span>
                 )}
