@@ -1,63 +1,115 @@
 
-# Correcoes na Pagina de Detalhes do Parceiro e Meta de Gratuidade
+# Programa de Parceiros com Gamificacao e Bonificacao
 
-## Problema 1: URL do link de indicacao incorreta
+## Visao Geral
 
-Na pagina `ParceiroDetalhesPage.tsx`, o link de indicacao e montado usando `window.location.origin` (que retorna o dominio atual do preview/app). Porem, o campo `base_url_indicacao` ja existe na config do programa de parceiros exatamente para definir a URL base correta.
+Transformar a configuracao atual (simples toggle de gratuidade) em um sistema de **niveis progressivos** com recompensas escalonadas, criando uma logica de atracao comercial mais robusta para parceiros.
 
-**Atualmente:** `window.location.origin + /parceiro/CODIGO` = `https://app.renovedigital.com.br/parceiro/CODIGO`
+## Conceito de Negocio: Niveis de Parceiro
 
-**Correto:** Deveria usar o `base_url_indicacao` da config (que o admin configura em Configuracoes > Parceiros), montando algo como `https://crm.renovedigital.com.br/parceiro/CODIGO`.
-
-### Correcao
-
-No `ParceiroDetalhesPage.tsx`:
-- Importar `useConfigPrograma` para acessar o `base_url_indicacao`
-- Substituir `window.location.origin` pelo `base_url_indicacao` da config (com fallback para `window.location.origin`)
-- Montar o link como: `{baseUrl}/parceiro/{codigo}` onde `baseUrl` vem da config
-
-Porem, o campo `base_url_indicacao` hoje armazena `https://app.renovedigital.com.br/cadastro` (com `/cadastro` no final). Isso precisa ser corrigido no banco para `https://crm.renovedigital.com.br` (sem path). Ou alternativamente, o link pode ser montado como `{base_url_indicacao}?ref={codigo}` se o formato com `/cadastro` for intencional.
-
-**Pergunta ao usuario necessaria** sobre o formato da URL.
-
----
-
-## Problema 2: Meta para gratuidade nao e configuravel na tela
-
-Analisando a tela de configuracoes (`ConfiguracoesGlobaisPage.tsx`), a meta para gratuidade **ja e configuravel**. Quando o toggle "Programa de Gratuidade" esta ativado, aparecem 4 campos:
-- Meta inicial (indicados)
-- Carencia (dias)
-- Meta renovacao (indicados)
-- Periodo renovacao (meses)
-
-O toggle esta **desativado** na screenshot do usuario, por isso os campos nao aparecem.
-
-Na `ParceirosPage`, a coluna "Meta" so aparece quando `config.regras_gratuidade.ativo === true`. Como esta desativada, a coluna nao aparece - comportamento correto.
-
-**Nao ha bug aqui** - o programa de gratuidade esta desabilitado. Se o usuario quiser usar metas, basta ativar o toggle em Configuracoes > Parceiros.
-
----
-
-## Plano de implementacao
-
-### Arquivo: `src/modules/admin/pages/ParceiroDetalhesPage.tsx`
-
-1. Importar `useConfigPrograma` do hook de parceiros
-2. Buscar a config dentro do componente
-3. Substituir `window.location.origin` por uma funcao que monta a URL correta usando `config.base_url_indicacao` como base (removendo paths extras e usando apenas o origin)
-4. Fallback para `window.location.origin` caso `base_url_indicacao` esteja vazio
-
-### Detalhe tecnico
+Em vez de apenas "atingiu meta = ganha gratuidade", o parceiro progride por niveis com beneficios crescentes:
 
 ```text
-// Antes:
-`${window.location.origin}/parceiro/${parceiro.codigo_indicacao}`
-
-// Depois:
-const baseOrigin = config?.base_url_indicacao 
-  ? new URL(config.base_url_indicacao).origin 
-  : window.location.origin
-`${baseOrigin}/parceiro/${parceiro.codigo_indicacao}`
++------------------+------------------+------------------+------------------+
+|    BRONZE        |    PRATA         |    OURO          |    DIAMANTE      |
+|  2 indicados     |  5 indicados     |  10 indicados    |  20 indicados    |
+|                  |                  |                  |                  |
+|  Comissao: 10%   |  Comissao: 12%   |  Comissao: 15%   |  Comissao: 20%   |
+|  Bonus: -        |  Bonus: R$100    |  Bonus: R$300    |  Bonus: R$500    |
+|  Gratuidade: Nao |  Gratuidade: Nao |  Gratuidade: Sim |  Gratuidade: Sim |
++------------------+------------------+------------------+------------------+
 ```
 
-Isso extrai apenas o origin (protocolo + dominio) do `base_url_indicacao`, ignorando qualquer path como `/cadastro`, e monta o link correto para `/parceiro/CODIGO`.
+Cada nivel e **100% configuravel** pelo Super Admin na tela de Configuracoes > Parceiros.
+
+## O que muda na tela de Configuracoes (Parceiros)
+
+A secao "Programa de Gratuidade" sera substituida por uma secao mais completa: **"Niveis e Recompensas"**.
+
+### Estrutura da nova secao:
+
+1. **Percentual padrao de comissao** (mantem como esta)
+2. **Toggle "Programa de Niveis"** (substitui o toggle de gratuidade)
+3. **Lista de niveis configuravel** (quando ativado):
+   - Cada nivel tem: Nome, Icone/Cor, Meta (indicados ativos), Comissao (%), Bonus (R$), Gratuidade (sim/nao)
+   - Vem com 4 niveis pre-configurados (Bronze, Prata, Ouro, Diamante) mas o admin pode editar valores
+4. **Carencia (dias)** - mantem: tempo minimo que indicado precisa estar ativo para contar
+5. **Periodo de avaliacao (meses)** - mantem: janela de renovacao
+6. **URL base de indicacao** (mantem, mas campo exibe apenas o path editavel, com dominio fixo)
+7. **Observacoes internas** (mantem)
+
+## O que muda na Pagina de Detalhes do Parceiro
+
+O card de meta atual sera substituido por um **card de progresso gamificado** mostrando:
+- Nivel atual do parceiro (com icone e cor)
+- Barra de progresso ate o proximo nivel
+- Beneficios atuais (comissao %, bonus, gratuidade)
+- Proximo nivel e o que falta para atingi-lo
+
+## O que muda na Listagem de Parceiros
+
+A coluna "Meta" sera substituida por uma coluna "Nivel" mostrando o badge do nivel atual.
+
+## Alteracoes no Schema do Banco (regras_gratuidade -> regras_niveis)
+
+O campo JSONB `regras_gratuidade` sera expandido para suportar a nova estrutura de niveis. Compatibilidade retroativa mantida.
+
+---
+
+## Plano Tecnico Detalhado
+
+### 1. Migration SQL - Expandir regras no JSONB
+
+Nenhuma alteracao de schema na tabela e necessaria pois `regras_gratuidade` ja e JSONB. Apenas o conteudo muda. A migration atualiza o valor default do JSONB para incluir a estrutura de niveis.
+
+### 2. Schema Zod (`parceiro.schema.ts`)
+
+Adicionar schema do nivel:
+```text
+NivelParceiroSchema = z.object({
+  nome: z.string(),           // "Bronze", "Prata", etc.
+  meta_indicados: z.number(), // qtd indicados ativos necessarios
+  percentual_comissao: z.number(), // % comissao neste nivel
+  bonus_valor: z.number(),    // valor fixo de bonificacao (R$)
+  gratuidade: z.boolean(),    // se ganha gratuidade neste nivel
+  cor: z.string(),            // tailwind color key (amber, gray, yellow, blue)
+})
+```
+
+Atualizar `ConfigProgramaParceiroSchema.regras_gratuidade` para incluir `niveis: NivelParceiroSchema[]`.
+
+### 3. Hook `useParceiros.ts` - `useStatusMetaParceiro`
+
+Refatorar para calcular o nivel atual baseado nos niveis configurados (encontrar o maior nivel cujo `meta_indicados <= indicadosAtivos`).
+
+### 4. Tela de Configuracoes (`ConfiguracoesGlobaisPage.tsx`)
+
+Refatorar `ConfigProgramaParceiroForm`:
+- Substituir os 4 campos de meta por uma lista editavel de niveis
+- Cada nivel exibido como um card inline com campos: nome, meta, comissao, bonus, gratuidade, cor
+- Botao para resetar aos valores padrao
+- URL base: mostrar dominio fixo + campo editavel para o path
+
+### 5. Detalhes do Parceiro (`ParceiroDetalhesPage.tsx`)
+
+- Novo card de progresso com barra visual
+- Badge do nivel atual com icone e cor
+- Lista dos beneficios desbloqueados
+
+### 6. Listagem de Parceiros (`ParceirosPage.tsx`)
+
+- Coluna "Meta" vira "Nivel" com badge colorido
+
+### Arquivos a serem criados/editados:
+
+| Arquivo | Acao |
+|---------|------|
+| `supabase/migrations/xxx.sql` | Migration para popular niveis default no JSONB |
+| `src/modules/admin/schemas/parceiro.schema.ts` | Adicionar NivelParceiroSchema, expandir regras |
+| `src/modules/admin/hooks/useParceiros.ts` | Refatorar useStatusMetaParceiro para niveis |
+| `src/modules/admin/pages/ConfiguracoesGlobaisPage.tsx` | Redesenhar secao de niveis |
+| `src/modules/admin/pages/ParceiroDetalhesPage.tsx` | Card de progresso gamificado |
+| `src/modules/admin/pages/ParceirosPage.tsx` | Coluna nivel com badge |
+| `src/integrations/supabase/types.ts` | Atualizar tipos se necessario |
+
+**Nota sobre URL**: O campo `base_url_indicacao` sera separado em dominio fixo (exibido como texto, nao editavel) + path editavel (ex: `/cadastro`). O dominio sera extraido da URL atual salva no banco.
