@@ -141,8 +141,10 @@ export function NovoParceirModal({ isOpen, onClose }: Props) {
   const podeSubmeter = !semAdmin && !!orgSelecionada && !buscandoAdmin
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-      <div className="bg-card rounded-lg border border-border shadow-xl w-full max-w-md flex flex-col max-h-[90vh]">
+    <>
+      <div className="fixed inset-0 z-[400] bg-black/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 z-[401] flex items-center justify-center p-4 pointer-events-none">
+      <div className="pointer-events-auto bg-card rounded-lg border border-border shadow-xl w-full max-w-md flex flex-col max-h-[90vh]">
         {/* Header fixo */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
           <div className="flex items-center gap-2">
@@ -291,6 +293,7 @@ export function NovoParceirModal({ isOpen, onClose }: Props) {
           </div>
         </form>
       </div>
-    </div>
+      </div>
+    </>
   )
 }

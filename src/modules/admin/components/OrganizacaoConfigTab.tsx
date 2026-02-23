@@ -56,43 +56,46 @@ export function OrganizacaoConfigTab({ orgId, org }: Props) {
     <div className="space-y-6">
       {/* Modal de Confirmação de Revogação */}
       {showRevogarConfirm && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-card rounded-lg border border-border p-6 max-w-md w-full shadow-lg">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-destructive/10 rounded-full flex items-center justify-center">
-                <XCircle className="w-5 h-5 text-destructive" />
+        <>
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[400]" onClick={() => setShowRevogarConfirm(false)} />
+          <div className="fixed inset-0 z-[401] flex items-center justify-center p-4 pointer-events-none">
+            <div className="pointer-events-auto bg-card rounded-lg border border-border p-6 max-w-md w-full shadow-lg">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 bg-destructive/10 rounded-full flex items-center justify-center">
+                  <XCircle className="w-5 h-5 text-destructive" />
+                </div>
+                <h3 className="font-semibold text-foreground">Revogar Cortesia</h3>
               </div>
-              <h3 className="font-semibold text-foreground">Revogar Cortesia</h3>
-            </div>
-            <p className="text-sm text-muted-foreground mb-6">
-              Ao revogar a cortesia, a organização será <strong>bloqueada</strong> e os usuários precisarão escolher um plano pago para continuar usando o sistema.
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                type="button"
-                onClick={() => setShowRevogarConfirm(false)}
-                className="px-4 py-2 text-sm font-medium text-foreground bg-muted rounded-md hover:bg-muted/80 transition-colors"
-                disabled={revogarMutation.isPending}
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={() => revogarMutation.mutate()}
-                disabled={revogarMutation.isPending}
-                className="px-4 py-2 text-sm font-medium text-destructive-foreground bg-destructive rounded-md hover:bg-destructive/90 transition-colors inline-flex items-center gap-2"
-              >
-                {revogarMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-                Confirmar Revogação
-              </button>
-            </div>
-            {revogarMutation.isError && (
-              <p className="mt-3 text-sm text-destructive">
-                Erro: {(revogarMutation.error as Error)?.message || 'Falha ao revogar cortesia'}
+              <p className="text-sm text-muted-foreground mb-6">
+                Ao revogar a cortesia, a organização será <strong>bloqueada</strong> e os usuários precisarão escolher um plano pago para continuar usando o sistema.
               </p>
-            )}
+              <div className="flex gap-3 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowRevogarConfirm(false)}
+                  className="px-4 py-2 text-sm font-medium text-foreground bg-muted rounded-md hover:bg-muted/80 transition-colors"
+                  disabled={revogarMutation.isPending}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => revogarMutation.mutate()}
+                  disabled={revogarMutation.isPending}
+                  className="px-4 py-2 text-sm font-medium text-destructive-foreground bg-destructive rounded-md hover:bg-destructive/90 transition-colors inline-flex items-center gap-2"
+                >
+                  {revogarMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Confirmar Revogação
+                </button>
+              </div>
+              {revogarMutation.isError && (
+                <p className="mt-3 text-sm text-destructive">
+                  Erro: {(revogarMutation.error as Error)?.message || 'Falha ao revogar cortesia'}
+                </p>
+              )}
+            </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* Plano Atual */}

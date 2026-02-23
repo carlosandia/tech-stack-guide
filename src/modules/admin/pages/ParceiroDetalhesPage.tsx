@@ -159,39 +159,42 @@ function ParceiroDetalhesPage() {
 
       {/* Modal Confirmar Gratuidade */}
       {confirmarGratuidade && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-          <div className="bg-card rounded-lg border border-border shadow-xl w-full max-w-sm p-6">
-            <h3 className="text-base font-semibold text-foreground mb-2">Aplicar Gratuidade</h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              Defina a data de validade da gratuidade. Deixe em branco para validade indefinida.
-            </p>
-            <input
-              type="date"
-              value={gratuidadeValidade}
-              onChange={(e) => setGratuidadeValidade(e.target.value)}
-              className="w-full px-3 py-2 border border-border rounded-md text-sm mb-4 bg-background"
-            />
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => {
-                  setConfirmarGratuidade(false)
-                  setGratuidadeValidade('')
-                }}
-                className="px-4 py-2 border border-border rounded-md text-sm hover:bg-accent"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleAplicarGratuidade}
-                disabled={aplicarGratuidade.isPending}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 disabled:opacity-50"
-              >
-                {aplicarGratuidade.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-                Aplicar
-              </button>
+        <>
+          <div className="fixed inset-0 z-[400] bg-black/80 backdrop-blur-sm" onClick={() => setConfirmarGratuidade(false)} />
+          <div className="fixed inset-0 z-[401] flex items-center justify-center p-4 pointer-events-none">
+            <div className="pointer-events-auto bg-card rounded-lg border border-border shadow-xl w-full max-w-sm p-6">
+              <h3 className="text-base font-semibold text-foreground mb-2">Aplicar Gratuidade</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Defina a data de validade da gratuidade. Deixe em branco para validade indefinida.
+              </p>
+              <input
+                type="date"
+                value={gratuidadeValidade}
+                onChange={(e) => setGratuidadeValidade(e.target.value)}
+                className="w-full px-3 py-2 border border-border rounded-md text-sm mb-4 bg-background"
+              />
+              <div className="flex gap-2 justify-end">
+                <button
+                  onClick={() => {
+                    setConfirmarGratuidade(false)
+                    setGratuidadeValidade('')
+                  }}
+                  className="px-4 py-2 border border-border rounded-md text-sm hover:bg-accent"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleAplicarGratuidade}
+                  disabled={aplicarGratuidade.isPending}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {aplicarGratuidade.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Aplicar
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* Header */}

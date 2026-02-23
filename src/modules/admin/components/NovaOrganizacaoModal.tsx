@@ -118,12 +118,13 @@ export function NovaOrganizacaoModal({ isOpen, onClose, onSuccess }: Props) {
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <>
       {/* Overlay */}
-      <div className="fixed inset-0 bg-black/50" onClick={handleClose} />
+      <div className="fixed inset-0 z-[400] bg-black/80 backdrop-blur-sm" onClick={handleClose} />
 
       {/* Modal */}
-      <div className="relative bg-card rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] flex flex-col">
+      <div className="fixed inset-0 z-[401] flex items-center justify-center pointer-events-none">
+      <div className="pointer-events-auto bg-card rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="px-6 py-4 border-b border-border flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-3">
@@ -229,6 +230,7 @@ export function NovaOrganizacaoModal({ isOpen, onClose, onSuccess }: Props) {
           </form>
         </FormProvider>
       </div>
-    </div>
+      </div>
+    </>
   )
 }
