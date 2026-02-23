@@ -166,21 +166,25 @@ export function ParceiroPage() {
 
   return (
     <div className="min-h-screen bg-[#0F172A]">
-      {/* Header — semi-transparente sobre fundo dark */}
-      <header className="border-b border-white/10 bg-[#0F172A]/80 backdrop-blur-md">
+      {/* Header premium — glassmorphism minimalista */}
+      <header className="bg-white/[0.03] backdrop-blur-xl sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-2">
               <img src={renoveLogo} alt="CRM Renove" className="h-8 brightness-0 invert opacity-90" />
             </div>
-            <Link
-              to="/login"
-              className="text-sm font-medium text-slate-400 hover:text-white transition-colors"
-            >
-              Já tem conta? Entrar
-            </Link>
+            {parceiro?.organizacao?.nome && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.06] border border-white/10">
+                <Sparkles className="w-3.5 h-3.5 text-primary" />
+                <span className="text-xs font-medium text-slate-300">
+                  Indicação <span className="text-primary">{parceiro.organizacao.nome}</span>
+                </span>
+              </div>
+            )}
           </div>
         </div>
+        {/* Linha de brilho sutil no bottom */}
+        <div className="h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
       </header>
 
       {/* Hero premium — sempre dark nesta página */}
