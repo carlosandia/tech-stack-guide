@@ -64,13 +64,19 @@ export function HowItWorksSection() {
           ))}
         </div>
 
-        <div className="text-center">
+        <div className="flex flex-col items-center gap-3">
           <Link to="/trial">
             <Button size="lg" className="text-base px-8 h-12">
               Começar agora, é grátis
               <ArrowRight size={18} className="ml-2" />
             </Button>
           </Link>
+          <button
+            onClick={() => document.querySelector('#planos')?.scrollIntoView({ behavior: 'smooth' })}
+            className="text-sm text-muted-foreground hover:text-foreground underline underline-offset-4 transition-colors"
+          >
+            Ver planos
+          </button>
         </div>
       </div>
     </section>
