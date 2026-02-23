@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 
 import { Check, Loader2, Star } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useScrollReveal } from '../../hooks/useScrollReveal'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { PreCadastroModal } from '../../components/PreCadastroModal'
+import { DemoFormModal } from './DemoFormModal'
 
 /**
  * AIDEV-NOTE: Seção de planos na landing page - posição estratégica entre
@@ -72,7 +72,6 @@ export function PricingSection() {
   const [modalPlano, setModalPlano] = useState<{ id: string; nome: string; isTrial: boolean } | null>(null)
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
   const [demoModalOpen, setDemoModalOpen] = useState(false)
-  const demoContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     async function fetchData() {
@@ -118,39 +117,6 @@ export function PricingSection() {
     fetchData()
   }, [])
 
-  // Demo modal script injection - fetch JS text and execute directly
-  useEffect(() => {
-    if (!demoModalOpen) return
-    let cancelled = false
-    const timer = setTimeout(async () => {
-      const container = demoContainerRef.current
-      if (!container || cancelled) return
-      container.innerHTML = '<div style="display:flex;justify-content:center;padding:40px"><svg class="animate-spin" width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none" opacity="0.25"/><path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg></div>'
-      try {
-        const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/widget-formulario-loader?slug=demonstracao-crm-mlrb6yoz&mode=inline`
-        const resp = await fetch(url)
-        if (!resp.ok || cancelled) return
-        const jsText = await resp.text()
-        if (cancelled) return
-        // Clear loading spinner, add target container for the widget
-        container.innerHTML = '<div id="renove-form-demo-target"></div>'
-        // Execute the widget JS - it will find the container by data attribute or ID
-        const script = document.createElement('script')
-        script.setAttribute('data-form-slug', 'demonstracao-crm-mlrb6yoz')
-        script.textContent = jsText
-        container.appendChild(script)
-      } catch (err) {
-        if (!cancelled) {
-          container.innerHTML = '<p style="text-align:center;color:#6B7280;padding:20px">Erro ao carregar formulário. Tente novamente.</p>'
-        }
-      }
-    }, 200)
-    return () => {
-      cancelled = true
-      clearTimeout(timer)
-      if (demoContainerRef.current) demoContainerRef.current.innerHTML = ''
-    }
-  }, [demoModalOpen])
 
   const handleSelectPlan = (plano: PlanoDb) => {
     setModalPlano({ id: plano.id, nome: plano.nome, isTrial: false })
@@ -411,12 +377,7 @@ export function PricingSection() {
       )}
 
       {/* Modal Demonstração */}
-      <Dialog open={demoModalOpen} onOpenChange={setDemoModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
-          <span className="sr-only">Solicite uma demonstração</span>
-          <div ref={demoContainerRef} className="min-h-[300px]" />
-        </DialogContent>
-      </Dialog>
+      <DemoFormModal open={demoModalOpen} onOpenChange={setDemoModalOpen} />
     </section>
   )
 }
