@@ -9,6 +9,7 @@ import { getOrganizacaoId, getUsuarioId, getUserRole } from '@/shared/services/a
 
 // Compressão de imagens — usa utilitário compartilhado
 import { compressImage } from '@/shared/utils/compressMedia'
+import { calculateFileHash } from '@/shared/utils/fileHash'
 
 // =====================================================
 // Types
@@ -265,6 +266,57 @@ export const detalhesApi = {
     }))
   },
 
+  /**
+   * AIDEV-NOTE: Verifica cota de storage da organização
+   * Retorna { usado, limite } em bytes. Se não houver plano, limite = Infinity.
+   */
+  verificarCotaStorage: async (organizacaoId: string, tamanhoNovoArquivo: number): Promise<{ permitido: boolean; usadoMB: number; limiteMB: number }> => {
+    // Calcular uso atual via RPC
+    const { data: usado, error: rpcError } = await supabase.rpc('calcular_storage_organizacao', {
+      p_organizacao_id: organizacaoId,
+    })
+    if (rpcError) throw new Error(rpcError.message)
+
+    const usadoBytes = Number(usado) || 0
+
+    // Buscar limite do plano
+    const { data: assinatura } = await supabase
+      .from('assinaturas')
+      .select('plano_id, planos(limite_storage_bytes)')
+      .eq('organizacao_id', organizacaoId)
+      .in('status', ['ativa', 'trial', 'cortesia'])
+      .maybeSingle()
+
+    const limiteBytes = (assinatura as any)?.planos?.limite_storage_bytes || null
+    const usadoMB = Math.round(usadoBytes / (1024 * 1024))
+
+    // Se não há limite definido no plano, permitir (fallback generoso)
+    if (!limiteBytes) {
+      return { permitido: true, usadoMB, limiteMB: 0 }
+    }
+
+    const limiteMB = Math.round(limiteBytes / (1024 * 1024))
+    const permitido = (usadoBytes + tamanhoNovoArquivo) <= limiteBytes
+    return { permitido, usadoMB, limiteMB }
+  },
+
+  /**
+   * AIDEV-NOTE: Verifica deduplicação por hash SHA-256
+   * Se já existe doc com mesmo hash na org, retorna o storage_path existente
+   */
+  verificarDuplicata: async (organizacaoId: string, hash: string): Promise<string | null> => {
+    const { data } = await supabase
+      .from('documentos_oportunidades')
+      .select('storage_path')
+      .eq('organizacao_id', organizacaoId)
+      .eq('hash_arquivo', hash)
+      .is('deletado_em', null)
+      .limit(1)
+      .maybeSingle()
+
+    return (data as any)?.storage_path || null
+  },
+
   uploadDocumento: async (oportunidadeId: string, file: File): Promise<void> => {
     const organizacaoId = await getOrganizacaoId()
     const userId = await getUsuarioId()
@@ -272,28 +324,48 @@ export const detalhesApi = {
     // Comprimir imagem antes do upload (transparente para não-imagens)
     const processedFile = await compressImage(file) as File
 
-    const fileExt = processedFile.name.split('.').pop()
-    const fileName = `${crypto.randomUUID()}.${fileExt}`
-    const storagePath = `${organizacaoId}/${oportunidadeId}/${fileName}`
+    // 1. Verificar cota de storage
+    const cota = await detalhesApi.verificarCotaStorage(organizacaoId, processedFile.size)
+    if (!cota.permitido) {
+      throw new Error(`COTA_EXCEDIDA:Limite de storage atingido (${cota.usadoMB}MB / ${cota.limiteMB}MB). Libere espaço ou faça upgrade do plano.`)
+    }
 
-    // Upload para Supabase Storage
-    const { error: uploadError } = await supabase.storage
-      .from('documentos-oportunidades')
-      .upload(storagePath, processedFile)
+    // 2. Calcular hash SHA-256 para deduplicação
+    const hash = await calculateFileHash(processedFile)
 
-    if (uploadError) throw new Error(uploadError.message)
+    // 3. Verificar se já existe arquivo idêntico na organização
+    const existingPath = await detalhesApi.verificarDuplicata(organizacaoId, hash)
 
-    // Salvar registro no banco (tamanho após compressão)
+    let storagePath: string
+
+    if (existingPath) {
+      // Reutilizar arquivo existente no storage (sem re-upload)
+      storagePath = existingPath
+    } else {
+      // Upload novo ao Supabase Storage
+      const fileExt = processedFile.name.split('.').pop()
+      const fileName = `${crypto.randomUUID()}.${fileExt}`
+      storagePath = `${organizacaoId}/${oportunidadeId}/${fileName}`
+
+      const { error: uploadError } = await supabase.storage
+        .from('documentos-oportunidades')
+        .upload(storagePath, processedFile)
+
+      if (uploadError) throw new Error(uploadError.message)
+    }
+
+    // 4. Salvar registro no banco com hash
     const { error: dbError } = await supabase
       .from('documentos_oportunidades')
       .insert({
         organizacao_id: organizacaoId,
         oportunidade_id: oportunidadeId,
         usuario_id: userId,
-        nome_arquivo: file.name, // nome original do usuário
+        nome_arquivo: file.name,
         tipo_arquivo: processedFile.type || 'application/octet-stream',
-        tamanho_bytes: processedFile.size, // tamanho comprimido
+        tamanho_bytes: processedFile.size,
         storage_path: storagePath,
+        hash_arquivo: hash,
       } as any)
 
     if (dbError) throw new Error(dbError.message)
