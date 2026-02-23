@@ -29,7 +29,7 @@ interface PlanoDb {
 interface Parceiro {
   id: string
   codigo_indicacao: string
-  organizacao: { nome: string } | null
+  organizacao_nome: string | null
 }
 
 export function ParceiroPage() {
@@ -54,19 +54,15 @@ export function ParceiroPage() {
 
   const carregarDados = async () => {
     try {
-      // Validar parceiro
-      const { data: parceiroData } = await supabase
-        .from('parceiros')
-        .select('id, codigo_indicacao, organizacao:organizacoes_saas(nome)')
-        .eq('codigo_indicacao', codigo!.toUpperCase())
-        .eq('status', 'ativo')
-        .maybeSingle()
+      // Validar parceiro via RPC SECURITY DEFINER (acessível por anon)
+      const { data: parceiroData, error: parceiroError } = await supabase
+        .rpc('validate_partner_code', { p_codigo: codigo!.toUpperCase() })
 
-      if (!parceiroData) {
+      if (parceiroError || !parceiroData || parceiroData.length === 0) {
         setParceiroInvalido(true)
         return
       }
-      setParceiro(parceiroData)
+      setParceiro(parceiroData[0])
 
       // Buscar planos pagos (sem trial)
       const { data: planosData } = await supabase
@@ -176,14 +172,14 @@ export function ParceiroPage() {
                 <div className="hidden sm:block h-4 w-px bg-white/20" />
                 <span className="hidden sm:inline text-sm font-medium text-slate-400 tracking-wide">Programa de Parceiros</span>
               </div>
-              {parceiro?.organizacao?.nome && (
+            {parceiro?.organizacao_nome && (
                 <div className="flex sm:hidden items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[0.06] border border-white/10">
                   <ShieldCheck className="w-3 h-3 text-primary" />
                   <span className="text-[11px] font-medium text-slate-300">Programa de Parceiros</span>
                 </div>
               )}
             </div>
-            {parceiro?.organizacao?.nome && (
+            {parceiro?.organizacao_nome && (
               <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.06] border border-white/10">
                 <ShieldCheck className="w-3.5 h-3.5 text-primary" />
                 <span className="text-xs font-medium text-slate-300">Parceiro Certificado</span>
@@ -205,7 +201,7 @@ export function ParceiroPage() {
         <div className="max-w-3xl mx-auto text-center relative">
           {/* Título principal — primeiro, hierarquia clara */}
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-3 animate-fade-in leading-tight">
-            Condições exclusivas via <span className="text-primary">{parceiro?.organizacao?.nome}</span>.
+            Condições exclusivas via <span className="text-primary">{parceiro?.organizacao_nome}</span>.
             <br />
             Escolha seu plano ideal.
           </h1>

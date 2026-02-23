@@ -8202,6 +8202,14 @@ export type Database = {
         }[]
       }
       set_current_tenant: { Args: { tenant_id: string }; Returns: undefined }
+      validate_partner_code: {
+        Args: { p_codigo: string }
+        Returns: {
+          codigo_indicacao: string
+          id: string
+          organizacao_nome: string
+        }[]
+      }
       verificar_cortesias_expiradas: { Args: never; Returns: undefined }
     }
     Enums: {
