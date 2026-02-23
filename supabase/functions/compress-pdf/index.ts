@@ -130,25 +130,16 @@ Deno.serve(async (req) => {
       })
     }
 
-    // 3. Substituir no storage (update = remove + upload)
-    await supabase.storage.from(bucketName).remove([storage_path])
-
+    // 3. Substituir no storage de forma atômica (upsert evita perda de dados se falhar)
+    // AIDEV-NOTE: upsert:true substitui atomicamente sem delete prévio — sem risco de data loss
     const { error: uploadError } = await supabase.storage
       .from(bucketName)
       .upload(storage_path, compressedBytes, {
         contentType: 'application/pdf',
-        upsert: false,
+        upsert: true,
       })
 
     if (uploadError) {
-      // Tentar restaurar o original em caso de falha
-      await supabase.storage
-        .from(bucketName)
-        .upload(storage_path, new Uint8Array(originalBytes), {
-          contentType: 'application/pdf',
-          upsert: false,
-        })
-
       return new Response(JSON.stringify({
         comprimido: false,
         motivo: 'Erro ao substituir arquivo',

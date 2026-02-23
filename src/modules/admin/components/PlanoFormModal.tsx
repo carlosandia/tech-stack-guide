@@ -31,6 +31,8 @@ const planoSchema = z.object({
   visivel_parceiros: z.boolean().default(true),
   ordem: z.coerce.number().default(0),
   popular: z.boolean().default(false),
+  // AIDEV-NOTE: TTL de mídia em dias — Trial=30, Básico=60, Pro=90, Enterprise=365
+  ttl_midia_dias: z.coerce.number().min(7, 'Mínimo 7 dias').max(3650, 'Máximo 3650 dias').default(90),
 })
 
 type PlanoFormData = z.infer<typeof planoSchema>
@@ -82,6 +84,7 @@ export function PlanoFormModal({ plano, onClose }: Props) {
       visivel_parceiros: true,
       ordem: 0,
       popular: false,
+      ttl_midia_dias: 90,
     },
   })
 
@@ -105,6 +108,7 @@ export function PlanoFormModal({ plano, onClose }: Props) {
         visivel_parceiros: plano.visivel_parceiros ?? true,
         ordem: plano.ordem,
         popular: plano.popular,
+        ttl_midia_dias: plano.ttl_midia_dias ?? 90,
       })
     }
   }, [plano, reset])
@@ -419,6 +423,22 @@ export function PlanoFormModal({ plano, onClose }: Props) {
                     {...register('limite_contatos')}
                     className="w-full h-11 px-3 rounded-md border border-input bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-primary"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">
+                    Retenção de Mídia (dias) *
+                  </label>
+                  <input
+                    type="number"
+                    min={7}
+                    max={3650}
+                    {...register('ttl_midia_dias')}
+                    className="w-full h-11 px-3 rounded-md border border-input bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-primary"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Trial=30 · Básico=60 · Pro=90 · Enterprise=365
+                  </p>
                 </div>
               </div>
             </div>

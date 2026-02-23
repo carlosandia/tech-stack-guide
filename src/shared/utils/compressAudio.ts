@@ -40,16 +40,6 @@ export async function compressAudio(file: File): Promise<File> {
     const arrayBuffer = await file.arrayBuffer()
     const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer)
 
-    // Criar um OfflineAudioContext para renderizar o áudio
-    const offlineCtx = new OfflineAudioContext(
-      audioBuffer.numberOfChannels,
-      audioBuffer.length,
-      audioBuffer.sampleRate,
-    )
-
-    const source = offlineCtx.createBufferSource()
-    source.buffer = audioBuffer
-
     // Criar MediaStreamDestination para capturar o áudio
     const dest = audioCtx.createMediaStreamDestination()
     const liveSource = audioCtx.createBufferSource()

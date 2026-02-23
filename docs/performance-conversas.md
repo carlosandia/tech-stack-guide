@@ -5,7 +5,7 @@
 | **Autor** | Equipe CRM Renove |
 | **Data de criacao** | 2025-06-01 |
 | **Ultima atualizacao** | 2026-02-23 |
-| **Versao** | v1.2 |
+| **Versao** | v1.3 |
 | **Status** | Em desenvolvimento |
 | **Stakeholders** | Produto, Engenharia, Infra |
 | **Revisor tecnico** | Arquiteto Senior |
@@ -36,6 +36,7 @@ Antes das otimizacoes, o modulo apresentava os seguintes gargalos:
 | PDFs sem otimizacao (fontes embutidas, imagens internas full-res) | Storage desnecessario |
 | Sem limite de tamanho | Risco de uploads de 100MB+ travarem o sistema |
 | Sem deduplicacao | Mesmo arquivo enviado N vezes = N copias no storage |
+| Midia de conversas antigas acumulando indefinidamente | Custo de storage crescente sem controle |
 
 ### 2.2 Oportunidade de Mercado (Benchmark)
 
@@ -46,7 +47,7 @@ Grandes SaaS omnichannel adotam praticas maduras:
 | **Zendesk** | CDN global, lifecycle policy (90 dias em planos basicos), thumbnails server-side, rate limiting por conta |
 | **Intercom** | Compressao automatica de imagens, lazy loading, cursor-based pagination, archival de conversas antigas |
 | **Freshdesk** | Limite de 20MB por anexo, compressao de imagens, CDN com cache agressivo |
-| **WhatsApp Business API** | Limites nativos (16MB imagem, 64MB video), compressao automatica, media proxy |
+| **WhatsApp Business API** | Limites nativos (16MB imagem, 64MB video), compressao automatica, media proxy. Midia expira do servidor WhatsApp em 30 dias (arquivo ja esta no dispositivo do usuario) |
 
 ### 2.3 Alinhamento Estrategico
 
@@ -93,22 +94,23 @@ Grandes SaaS omnichannel adotam praticas maduras:
 | ID | Requisito | Prioridade | Status | Detalhes |
 |----|-----------|------------|--------|----------|
 | RF-001 | Limite de tamanho por tipo de arquivo | Must | ✅ Implementado | Imagem: 10MB, Video: 30MB, Audio: 10MB, Documento: 15MB |
-| RF-002 | Compressao de imagem client-side | Must | ✅ Implementado | Canvas API, max 1920px, JPEG 0.8 |
-| RF-003 | Compressao de video client-side | Must | ✅ Implementado | 720p, WebM VP8, 1Mbps via MediaRecorder |
-| RF-004 | Compressao de audio client-side | Must | ✅ Implementado | OGG/Opus 64kbps via AudioContext |
-| RF-005 | Compressao de PDF server-side | Should | ✅ Implementado | Edge Function `compress-pdf`, pdf-lib, fire-and-forget |
-| RF-006 | Deduplicacao por hash SHA-256 | Should | ✅ Implementado | Verifica duplicata antes do upload, reutiliza URL |
+| RF-002 | Compressao de imagem client-side | Must | ✅ Implementado | Canvas API, max 1920px, JPEG 0.8. Skip se < 500KB e ja em <= 1920px |
+| RF-003 | Compressao de video client-side | Must | ✅ Implementado | 720p, WebM VP9>VP8, 1Mbps via MediaRecorder. Skip se < 2MB **E** <= 720p. Limite: videos > 2min enviados sem compressao (evitar travar UI). Safari: sem suporte a WebM — fallback para arquivo original |
+| RF-004 | Compressao de audio client-side | Must | ✅ Implementado | OGG/Opus 64kbps via AudioContext+MediaRecorder. Skip se < 200KB ou ja OGG/Opus |
+| RF-005 | Compressao de PDF server-side | Should | ✅ Implementado | Edge Function `compress-pdf`, pdf-lib, fire-and-forget. **Limitacao:** pdf-lib faz otimizacao estrutural (metadados, object streams) — PDFs de scan/imagens escaneadas terao economia < 3% e nao serao substituidos |
+| RF-006 | Deduplicacao por hash SHA-256 | Should | ✅ Implementado | Verifica duplicata antes do upload, reutiliza URL. **Escopo:** deduplicacao por conversa (path inclui `conversa_id`) — o mesmo arquivo em duas conversas diferentes gera duas copias. Deduplicacao global e evolucao futura |
 
 ### 4.2 Backlog (Fases 3 e 4)
 
 | ID | Requisito | Prioridade | Status | Detalhes |
 |----|-----------|------------|--------|----------|
 | RF-007 | CDN/Cache para midia | Must | 🔲 Backlog | Media proxy com cache headers, Cloudflare ou Supabase CDN |
-| RF-008 | Lifecycle policy para midia antiga | Should | 🔲 Backlog | TTL 12 meses para conversas fechadas, via pg_cron |
+| RF-008 | Lifecycle policy de midia por plano | Should | 🔲 Backlog | TTL configuravel por plano no painel Super Admin (campo `ttl_midia_dias`). Padroes: Trial=30d, Basico=60d, Pro=90d, Enterprise=365d. Apenas arquivos no bucket `chat-media`. Texto de mensagens retido indefinidamente. Notificacao ao usuario 7 dias antes da expiracao |
 | RF-009 | Thumbnails server-side | Should | 🔲 Backlog | Gerar versao 300px no upload, servir thumbnail na lista |
-| RF-010 | Paginacao cursor-based em mensagens | Must | 🔲 Backlog | Substituir offset por cursor (criado_em) para escalar |
+| RF-010 | Paginacao cursor-based em mensagens | Must | 🔲 Backlog | Substituir offset por cursor composto `(criado_em, id)` — ver secao 8.4 |
 | RF-011 | Rate limiting de uploads por organizacao | Should | 🔲 Backlog | Max 30 uploads/min por tenant, 10 simultaneos |
 | RF-012 | Archival de historico antigo | Could | 🔲 Backlog | Mover mensagens > 18 meses para tabela fria |
+| RF-013 | WebCodecs progressive enhancement para video | Should | 🔲 Backlog | WebCodecs VideoEncoder (VP9) no Chrome 94+ + fallback MediaRecorder nos demais. Melhoria esperada: 20-40% mais compressao vs MediaRecorder no Chrome. Browser support: Chrome 94+ OK, Firefox 130+ parcial (VP9 OK, H264 bugs), Safari sem VideoEncoder |
 
 ---
 
@@ -117,7 +119,7 @@ Grandes SaaS omnichannel adotam praticas maduras:
 ### 5.1 Performance
 
 - Compressao de imagem: < 500ms para arquivos ate 10MB
-- Compressao de video: proporcional a duracao (1x tempo real)
+- Compressao de video: proporcional a duracao (1x tempo real), apenas videos <= 2min
 - Compressao de audio: proporcional a duracao (1x tempo real)
 - Carregamento de historico (50 mensagens): < 300ms no P95
 - Upload de midia comprimida: < 2s para arquivos ate 5MB
@@ -129,12 +131,21 @@ Grandes SaaS omnichannel adotam praticas maduras:
 - Hash SHA-256 calculado client-side (Web Crypto API)
 - Sem execucao de scripts em arquivos uploadados
 
-### 5.3 Compatibilidade
+### 5.3 Compatibilidade de Browser
 
-- Canvas API: todos os browsers modernos (Chrome 4+, Firefox 3.6+, Safari 4+)
-- MediaRecorder: Chrome 47+, Firefox 25+, Safari 14.1+
-- AudioContext: Chrome 35+, Firefox 25+, Safari 14.1+
-- Fallback: se API nao suportada, enviar arquivo original sem compressao
+| API / Funcao | Chrome | Firefox | Safari | Observacao |
+|--------------|--------|---------|--------|-----------|
+| Canvas API (compressImage) | ✅ 4+ | ✅ 3.6+ | ✅ 4+ | Suporte universal |
+| MediaRecorder audio (OGG/Opus) | ✅ 47+ | ✅ 25+ | ✅ 14.1+ | Suporte amplo |
+| MediaRecorder video/webm VP9 | ✅ | ✅ | ❌ | Safari nao suporta WebM |
+| MediaRecorder video/webm VP8 | ✅ | ✅ | ❌ | Idem |
+| WebCodecs VideoEncoder | ✅ 94+ | ⚠️ 130+ | ❌ | Safari sem VideoEncoder (maio/2025) |
+| Canvas captureStream iOS Safari | ⚠️ Buggy | - | ⚠️ | WebKit Bug 181663 |
+| Web Crypto API (SHA-256) | ✅ | ✅ | ✅ | Suporte universal |
+
+**Conclusao pratica para video:** Safari e iOS nunca comprimem video (fallback para arquivo original). Compressao de audio funciona normalmente em todos os browsers. WebCodecs e progressive enhancement — apenas Chrome 94+ se beneficia.
+
+**Fallback obrigatorio:** toda funcao de compressao retorna o arquivo original em caso de erro ou API nao suportada. O usuario nunca fica bloqueado.
 
 ---
 
@@ -144,8 +155,9 @@ Grandes SaaS omnichannel adotam praticas maduras:
 
 - Pipeline completo de compressao client-side (imagem, video, audio)
 - Compressao server-side de PDF via Edge Function
-- Deduplicacao por SHA-256 antes do upload
+- Deduplicacao por SHA-256 antes do upload (escopo: por conversa)
 - Validacao de limites de tamanho por tipo
+- TTL de midia configuravel por plano (campo `ttl_midia_dias`)
 - Documentacao de boas praticas para fases futuras
 
 ### 6.2 Fora do escopo
@@ -154,13 +166,15 @@ Grandes SaaS omnichannel adotam praticas maduras:
 - Compressao de arquivos ZIP/RAR
 - Preview de documentos Office (Word, Excel) no chat
 - Streaming de video/audio em tempo real
+- Deduplicacao global entre conversas
 
 ### 6.3 Escopo futuro
 
 - CDN com cache para midia (RF-007)
-- Lifecycle policy automatizada (RF-008)
+- Lifecycle policy automatizada via pg_cron (RF-008)
 - Thumbnails server-side (RF-009)
 - Cursor-based pagination (RF-010)
+- WebCodecs progressive enhancement (RF-013)
 
 ---
 
@@ -170,9 +184,9 @@ Grandes SaaS omnichannel adotam praticas maduras:
 
 | Arquivo | Descricao |
 |---------|-----------|
-| `src/shared/utils/compressVideo.ts` | Compressao de video via Canvas + MediaRecorder (720p, 1Mbps WebM VP8) |
-| `src/shared/utils/compressAudio.ts` | Conversao de MP3/WAV/M4A para OGG/Opus 64kbps via AudioContext |
-| `src/shared/utils/fileHash.ts` | Calculo de SHA-256 via Web Crypto API para deduplicacao |
+| `src/shared/utils/compressVideo.ts` | Compressao de video via WebCodecs (Chrome 94+) com fallback Canvas+MediaRecorder VP9>VP8 (720p, 1Mbps). Limite: videos > 2min enviados sem compressao |
+| `src/shared/utils/compressAudio.ts` | Conversao de MP3/WAV/M4A para OGG/Opus 64kbps via AudioContext+MediaRecorder |
+| `src/shared/utils/fileHash.ts` | Calculo de SHA-256 via Web Crypto API para deduplicacao por conversa |
 
 ### 7.2 Arquivos Modificados
 
@@ -180,7 +194,7 @@ Grandes SaaS omnichannel adotam praticas maduras:
 |---------|-------------|
 | `src/shared/utils/compressMedia.ts` | Adicionada funcao `validateFileSize` com limites por tipo |
 | `src/modules/conversas/components/ChatWindow.tsx` | Integrado: validacao → compressao → deduplicacao → upload → compress-pdf async |
-| `supabase/functions/compress-pdf/index.ts` | Parametro `bucket` dinamico (default: `documentos-oportunidades`, suporta `chat-media`) |
+| `supabase/functions/compress-pdf/index.ts` | Parametro `bucket` dinamico. Substituicao via `upsert: true` (elimina risco de data loss do remove+upload anterior) |
 
 ### 7.3 Fluxo de Upload de Midia
 
@@ -192,21 +206,24 @@ Arquivo selecionado pelo usuario
         │
         ▼
   Tipo = imagem? ──► compressImage (Canvas, 1920px, JPEG 0.8)
-  Tipo = video?  ──► compressVideo (720p, 1Mbps, WebM VP8)
-  Tipo = audio?  ──► compressAudio (OGG/Opus 64kbps, se MP3/WAV)
+  Tipo = video?  ──► compressVideo:
+                       1. WebCodecs VP9 (Chrome 94+)
+                       2. Fallback: Canvas+MediaRecorder VP9>VP8
+                       3. Fallback: arquivo original (Safari, erro, > 2min)
+  Tipo = audio?  ──► compressAudio (OGG/Opus 64kbps, se MP3/WAV/M4A)
   Tipo = outro?  ──► manter original
         │
         ▼
   Calcular SHA-256 (Web Crypto API)
         │
         ▼
-  Verificar duplicata no storage ──► [Duplicado] ──► Reutilizar URL
+  Verificar duplicata no storage (escopo: mesma conversa) ──► [Duplicado] ──► Reutilizar URL
         │
         ▼
   Upload ao Storage (bucket: chat-media)
         │
         ▼
-  Tipo = PDF? ──► Disparar compress-pdf (fire-and-forget)
+  Tipo = PDF? ──► Disparar compress-pdf (fire-and-forget, upsert:true)
         │
         ▼
   Adicionar a fila de envio (MediaQueue)
@@ -221,9 +238,12 @@ Arquivo selecionado pelo usuario
 | | Skip se < 500KB e <= 1920px | Sim |
 | **compressVideo** | Resolucao maxima | 1280x720 (720p) |
 | | Bitrate | 1 Mbps |
-| | Formato | WebM VP8 |
-| | Skip se < 2MB e <= 720p | Sim |
+| | Formato preferido | WebM VP9 (WebCodecs ou MediaRecorder) |
+| | Formato fallback | WebM VP8 |
+| | Skip se < 2MB **E** <= 720p | Sim (AND, nao OR) |
+| | Skip se > 2min | Sim (evitar travar UI) |
 | | Dimensoes pares (requisito codec) | Sim |
+| | Safari/iOS | Sempre fallback para original |
 | **compressAudio** | Bitrate | 64 kbps |
 | | Formato | OGG/Opus (fallback: WebM/Opus) |
 | | Skip se < 200KB | Sim |
@@ -231,7 +251,10 @@ Arquivo selecionado pelo usuario
 | | Tipos comprimiveis | MP3, WAV, M4A, AAC, FLAC |
 | **compress-pdf** | Engine | pdf-lib (server-side) |
 | | Trigger | Fire-and-forget apos upload |
+| | Substituicao | upsert: true (atomico, sem data loss) |
 | | Buckets suportados | `documentos-oportunidades`, `chat-media` |
+| | Eficaz para | PDFs de texto e formularios |
+| | Limitado para | PDFs de scan/imagens (economia < 3%) |
 
 ---
 
@@ -250,32 +273,37 @@ Arquivo selecionado pelo usuario
 
 **Referencia:** Zendesk usa CDN com cache de 1 ano para anexos. Intercom usa Cloudflare com transformacao de imagens on-the-fly.
 
+**Nota sobre cache e substituicao de arquivos:** ao substituir um arquivo no mesmo path (ex: apos compress-pdf), o CDN pode demorar ate 60s para invalidar o cache. Para arquivos de chat com hash no path, isso nao e problema (hash muda a cada upload novo). Para PDFs reprocessados in-place, e esperado que o cache possa servir a versao anterior brevemente.
+
 ### 8.2 Lifecycle Policy com pg_cron (RF-008)
 
-**Problema:** Midia de conversas encerradas ha meses continua ocupando storage premium.
+**Politica de retencao por plano:**
 
-**Solucao:**
+| Plano | `ttl_midia_dias` | Periodo de retencao |
+|-------|-----------------|---------------------|
+| Trial | 30 | 30 dias |
+| Basico | 60 | 60 dias |
+| Pro | 90 | 90 dias (padrao de mercado — Zendesk basic) |
+| Enterprise | 365 | 1 ano |
+
+**Regra critica:** TTL se aplica **somente a arquivos binarios** no bucket `chat-media`.
+O texto das mensagens (tabela `mensagens`) e retido indefinidamente — e o registro do negocio.
+
+**Implementacao pg_cron** (usa `ttl_midia_dias` do plano da organizacao):
 ```sql
--- Executar diariamente via pg_cron
-SELECT cron.schedule('cleanup-media-antiga', '0 3 * * *', $$
-  -- Marcar para delecao midias de conversas fechadas ha > 12 meses
-  UPDATE mensagens_midia
+SELECT cron.schedule('cleanup-media-ttl', '0 3 * * *', $$
+  UPDATE mensagens_midia mm
   SET lifecycle_status = 'pendente_delecao'
-  WHERE conversa_id IN (
-    SELECT id FROM conversas
-    WHERE status = 'fechada'
-    AND atualizado_em < NOW() - INTERVAL '12 months'
-  )
-  AND lifecycle_status = 'ativo';
+  FROM conversas c
+  JOIN organizacoes_saas o ON c.organizacao_id = o.id
+  JOIN planos p ON o.plano = p.id
+  WHERE mm.conversa_id = c.id
+    AND mm.lifecycle_status = 'ativo'
+    AND mm.criado_em < NOW() - (p.ttl_midia_dias || ' days')::interval;
 $$);
 ```
 
-**Politica sugerida:**
-| Periodo | Acao |
-|---------|------|
-| 0-6 meses | Midia completa disponivel |
-| 6-12 meses | Manter apenas thumbnails, midia original sob demanda |
-| 12+ meses | Mover para cold storage ou deletar (com notificacao) |
+**Alternativa se pg_cron indisponivel no plano Supabase:** Edge Function agendada via GitHub Actions cron ou Render Cron.
 
 ### 8.3 Thumbnails Server-side (RF-009)
 
@@ -293,26 +321,33 @@ $$);
 
 **Problema:** Paginacao offset-based (`LIMIT 50 OFFSET 500`) degrada com volume (scan sequencial).
 
-**Solucao:**
+**Solucao com cursor composto `(criado_em, id)`:**
 ```sql
--- Cursor-based (escalavel)
+-- CORRETO: cursor composto evita saltar mensagens com mesmo timestamp
 SELECT * FROM mensagens
 WHERE conversa_id = $1
-  AND criado_em < $cursor_timestamp
-ORDER BY criado_em DESC
+  AND (criado_em < $cursor_ts
+       OR (criado_em = $cursor_ts AND id < $cursor_id))
+ORDER BY criado_em DESC, id DESC
 LIMIT 50;
+```
+
+**Por que cursor composto e obrigatorio:** se duas mensagens tem o mesmo `criado_em` (milissegundo identico — comum em inserts rapidos ou importacao), usar apenas timestamp como cursor pula essas mensagens permanentemente.
+
+**Indice necessario (inclui `id` para cursor composto):**
+```sql
+-- CORRETO
+CREATE INDEX idx_mensagens_conversa_cursor
+  ON mensagens(conversa_id, criado_em DESC, id DESC);
+
+-- INCORRETO (nao suporta cursor composto)
+-- CREATE INDEX ... ON mensagens(conversa_id, criado_em DESC);
 ```
 
 **Vantagens:**
 - Performance constante independente do volume (usa indice)
 - Sem "pular" mensagens quando novas chegam durante paginacao
 - Compativel com scroll infinito bidirecional
-
-**Indice necessario:**
-```sql
-CREATE INDEX idx_mensagens_conversa_cursor
-  ON mensagens(conversa_id, criado_em DESC);
-```
 
 ### 8.5 Rate Limiting de Uploads (RF-011)
 
@@ -339,6 +374,22 @@ CREATE INDEX idx_mensagens_conversa_cursor
 
 **Referencia:** Slack arquiva mensagens em planos gratuitos apos 90 dias. Intercom move para cold storage apos 2 anos.
 
+### 8.7 WebCodecs Progressive Enhancement (RF-013)
+
+**Problema:** MediaRecorder com VP8/VP9 tem qualidade de compressao limitada e nao suporta Safari para video.
+
+**Solucao:** Usar WebCodecs API com feature detection + fallback:
+```
+1. typeof VideoEncoder !== 'undefined' (Chrome 94+)
+   → WebCodecs VP9: melhor compressao, sem overhead de Canvas
+2. Else: Canvas + MediaRecorder VP9 > VP8 > WebM
+3. Else: arquivo original (Safari, erro)
+```
+
+**Biblioteca:** `webm-muxer` (~12KB gzip, zero deps, TypeScript) para empacotar frames VP9 em WebM.
+
+**Melhoria esperada no Chrome:** 20-40% menos bytes vs MediaRecorder para o mesmo conteudo.
+
 ---
 
 ## 9. Fases de Entrega
@@ -347,7 +398,7 @@ CREATE INDEX idx_mensagens_conversa_cursor
 |------|--------|--------|-----|
 | **Fase 1** | Compressao client-side (imagem, video, audio) + limites de tamanho | ✅ Concluida | - |
 | **Fase 2** | Compressao PDF server-side + deduplicacao SHA-256 | ✅ Concluida | - |
-| **Fase 3** | CDN/Cache + Thumbnails server-side + Lifecycle policy | 🔲 Backlog | 3-4 semanas |
+| **Fase 3** | CDN/Cache + Thumbnails server-side + Lifecycle policy por plano + WebCodecs | 🔲 Backlog | 3-4 semanas |
 | **Fase 4** | Cursor-based pagination + Rate limiting + Archival | 🔲 Backlog | 4-6 semanas |
 
 ---
@@ -356,12 +407,17 @@ CREATE INDEX idx_mensagens_conversa_cursor
 
 | Risco | Probabilidade | Impacto | Mitigacao |
 |-------|---------------|---------|-----------|
-| Compressao de video longo (> 2min) trava o browser | Media | Alto | Limitar compressao a videos < 2min; acima, aplicar apenas limite de tamanho |
+| Compressao de video longo (> 2min) trava o browser | Media | Alto | Implementado: skip automatico para videos > 2min |
 | MediaRecorder sem suporte em browsers antigos | Baixa | Medio | Fallback: enviar arquivo original sem compressao |
-| Custo de storage crescente com adicao do Instagram | Alta | Alto | Implementar lifecycle policy (Fase 3) antes do lancamento do Instagram |
+| Safari nao comprime video (WebM nao suportado) | Certeza | Medio | Aceito: fallback para original. Safari comprime audio normalmente |
+| WebCodecs sem suporte em Firefox/Safari | Alta | Baixo | Progressive enhancement: Chrome usa WebCodecs, demais usam MediaRecorder |
+| compress-pdf: data loss em falha de upload apos remove | Media | Alto | **Corrigido:** substituir por `upsert: true` (atomico, sem delete previo) |
+| Custo de storage crescente com adicao do Instagram | Alta | Alto | Implementar lifecycle policy (RF-008) antes do lancamento do Instagram |
 | Deduplicacao por hash falha em arquivos levemente diferentes | Baixa | Baixo | SHA-256 e deterministico; arquivos diferentes sempre geram hashes diferentes |
 | pg_cron indisponivel no plano Supabase | Media | Medio | Alternativa: Edge Function agendada via cron externo (GitHub Actions, Render Cron) |
 | Thumbnails server-side aumentam tempo de upload | Baixa | Baixo | Gerar thumbnail async (fire-and-forget), nao bloquear o envio |
+| pdf-lib ineficaz para PDFs de imagem escaneada | Alta | Baixo | Aceito: economia < 3% → threshold de substituicao nao atingido, arquivo original mantido |
+| TTL apaga midia que cliente ainda precisa | Media | Alto | Notificacao 7 dias antes da expiracao + botao "Renovar" (evolucao futura) |
 
 ---
 
@@ -376,12 +432,14 @@ CREATE INDEX idx_mensagens_conversa_cursor
 | Tamanho medio de audio no storage | ~800 KB | < 150 KB | < 150 KB |
 | Duplicatas no storage | ~15% | < 1% | < 1% |
 | Tempo de carregamento (50 msgs) | ~1.2s | < 500ms | < 200ms |
+| Custo storage por tenant apos 90 dias | n/a | Controlado por TTL | Controlado por TTL |
 
 ### 11.2 KPIs Secundarios
 
 - Custo mensal de storage por tenant
-- Taxa de falha de compressao (fallback para original)
-- Percentual de browsers sem suporte a MediaRecorder
+- Taxa de fallback de compressao (original enviado sem compressao)
+- Percentual de browsers sem suporte a MediaRecorder video (expectativa: ~15% Safari)
+- Percentual de uploads usando WebCodecs vs MediaRecorder
 
 ---
 
@@ -392,3 +450,4 @@ CREATE INDEX idx_mensagens_conversa_cursor
 | v1.0 | 2025-06-01 | Equipe CRM | Versao inicial — diagnostico e plano |
 | v1.1 | 2025-06-15 | Equipe CRM | Fases 1 e 2 implementadas, detalhes tecnicos adicionados |
 | v1.2 | 2026-02-23 | Equipe CRM | Boas praticas de escalabilidade detalhadas, benchmarks de mercado, metricas de sucesso |
+| v1.3 | 2026-02-23 | Equipe CRM | Correcoes pos-analise: compatibilidade Safari corrigida, bug skip 720p documentado, bug cursor-based pagination corrigido (cursor composto), escopo deduplicacao documentado, risco compress-pdf data loss e mitigacao, limitacao pdf-lib para PDFs de imagem, TTL de midia por plano (RF-008 reescrito), RF-013 WebCodecs adicionado |

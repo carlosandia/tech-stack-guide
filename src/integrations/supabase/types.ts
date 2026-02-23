@@ -6015,6 +6015,7 @@ export type Database = {
           stripe_price_id_mensal: string | null
           visivel: boolean | null
           visivel_parceiros: boolean
+          ttl_midia_dias: number
         }
         Insert: {
           ativo?: boolean | null
@@ -6036,6 +6037,7 @@ export type Database = {
           stripe_price_id_mensal?: string | null
           visivel?: boolean | null
           visivel_parceiros?: boolean
+          ttl_midia_dias?: number
         }
         Update: {
           ativo?: boolean | null
@@ -6057,6 +6059,7 @@ export type Database = {
           stripe_price_id_mensal?: string | null
           visivel?: boolean | null
           visivel_parceiros?: boolean
+          ttl_midia_dias?: number
         }
         Relationships: []
       }

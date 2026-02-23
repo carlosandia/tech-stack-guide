@@ -98,6 +98,8 @@ export interface Plano {
   visivel_parceiros: boolean
   ordem: number
   popular: boolean
+  // AIDEV-NOTE: Dias de retenção de mídia no bucket chat-media — configurável por plano
+  ttl_midia_dias: number
 }
 
 export interface Modulo {
@@ -812,6 +814,7 @@ export async function listarPlanos(): Promise<Plano[]> {
     visivel_parceiros: p.visivel_parceiros ?? true,
     ordem: p.ordem ?? 0,
     popular: p.popular ?? false,
+    ttl_midia_dias: p.ttl_midia_dias ?? 90,
   }))
 }
 
@@ -869,6 +872,7 @@ export async function obterPlano(id: string): Promise<Plano & { modulos: Modulo[
     visivel_parceiros: data.visivel_parceiros ?? true,
     ordem: data.ordem ?? 0,
     popular: data.popular ?? false,
+    ttl_midia_dias: data.ttl_midia_dias ?? 90,
     modulos,
   }
 }
@@ -892,6 +896,7 @@ export async function criarPlano(plano: Omit<Plano, 'id'>): Promise<string> {
       visivel: plano.visivel,
       visivel_parceiros: plano.visivel_parceiros,
       ordem: plano.ordem,
+      ttl_midia_dias: plano.ttl_midia_dias ?? 90,
     })
     .select('id')
     .single()
