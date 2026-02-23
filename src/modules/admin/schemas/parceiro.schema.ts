@@ -25,7 +25,7 @@ export const ParceiroSchema = z.object({
   organizacao: z
     .object({
       nome: z.string(),
-      email_contato: z.string().nullable(),
+      email: z.string().nullable(),
       plano: z.string().nullable(),
       status: z.string(),
     })
