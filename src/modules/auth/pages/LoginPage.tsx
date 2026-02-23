@@ -180,7 +180,7 @@ export function LoginPage() {
 
       {/* === Lado Direito: Banner Desktop/Tablet (>= 768px) === */}
       <div
-        className="hidden md:flex flex-1 items-center justify-center rounded-l-2xl overflow-hidden"
+        className="hidden md:flex flex-1 items-center justify-center rounded-l-3xl overflow-hidden"
         style={{ backgroundColor: bgColor }}
       >
         {/* Tablet (768-1023px) */}
