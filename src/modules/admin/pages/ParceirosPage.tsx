@@ -15,6 +15,12 @@ import {
   CheckCircle2,
   AlertCircle,
 } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import type { Parceiro } from '../schemas/parceiro.schema'
 import { NovoParceirModal } from '../components/NovoParceirModal'
 
@@ -47,7 +53,7 @@ function ParceirosPage() {
   const [busca, setBusca] = useState('')
   const [statusFilter, setStatusFilter] = useState('todos')
   const [page, setPage] = useState(1)
-  const [menuAberto, setMenuAberto] = useState<string | null>(null)
+  
   const [modalOpen, setModalOpen] = useState(false)
 
   const statusParam =
@@ -116,12 +122,11 @@ function ParceirosPage() {
       id: parceiro.id,
       data: { status: 'suspenso', motivo_suspensao: 'Suspensão manual pelo Super Admin' },
     })
-    setMenuAberto(null)
   }
 
   const handleReativar = (parceiro: Parceiro) => {
     updateParceiro.mutate({ id: parceiro.id, data: { status: 'ativo' } })
-    setMenuAberto(null)
+    
   }
 
   const totalPaginas = data ? Math.ceil(data.total / 20) : 0
@@ -233,8 +238,6 @@ function ParceirosPage() {
                           parceiro={parceiro}
                           formatDate={formatDate}
                           getInitial={getInitial}
-                          menuAberto={menuAberto}
-                          setMenuAberto={setMenuAberto}
                           navigate={navigate}
                           onSuspender={handleSuspender}
                           onReativar={handleReativar}
@@ -318,8 +321,6 @@ function ParceiroRow({
   parceiro,
   formatDate: _formatDate,
   getInitial,
-  menuAberto,
-  setMenuAberto,
   navigate,
   onSuspender,
   onReativar,
@@ -329,8 +330,6 @@ function ParceiroRow({
   parceiro: Parceiro
   formatDate: (date: string) => string
   getInitial: (nome: string) => string
-  menuAberto: string | null
-  setMenuAberto: (id: string | null) => void
   navigate: ReturnType<typeof useNavigate>
   onSuspender: (p: Parceiro) => void
   onReativar: (p: Parceiro) => void
@@ -401,46 +400,39 @@ function ParceiroRow({
         className="px-6 py-4 text-right"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="relative inline-block">
-          <button
-            onClick={() => setMenuAberto(menuAberto === parceiro.id ? null : parceiro.id)}
-            className="p-1.5 hover:bg-accent rounded-md transition-colors"
-          >
-            <MoreVertical className="w-4 h-4 text-muted-foreground" />
-          </button>
-          {menuAberto === parceiro.id && (
-            <div className="absolute right-0 top-8 z-20 bg-popover border border-border rounded-md shadow-md min-w-[140px] py-1">
-              <button
-                className="w-full px-3 py-1.5 text-sm text-left hover:bg-accent flex items-center gap-2"
-                onClick={() => navigate(`/admin/parceiros/${parceiro.id}`)}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="p-1.5 hover:bg-accent rounded-md transition-colors">
+              <MoreVertical className="w-4 h-4 text-muted-foreground" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-[140px]">
+            <DropdownMenuItem onClick={() => navigate(`/admin/parceiros/${parceiro.id}`)}>
+              <Eye className="w-3.5 h-3.5 mr-2" />
+              Visualizar
+            </DropdownMenuItem>
+            {parceiro.status === 'ativo' && (
+              <DropdownMenuItem
+                className="text-amber-600 focus:text-amber-600"
+                onClick={() => onSuspender(parceiro)}
               >
-                <Eye className="w-3.5 h-3.5" />
-                Visualizar
-              </button>
-              {parceiro.status === 'ativo' && (
-                <button
-                  className="w-full px-3 py-1.5 text-sm text-left hover:bg-accent text-amber-600 flex items-center gap-2"
-                  onClick={() => onSuspender(parceiro)}
-                >
-                  Suspender
-                </button>
-              )}
-              {parceiro.status === 'suspenso' && (
-                <button
-                  className="w-full px-3 py-1.5 text-sm text-left hover:bg-accent text-green-600 flex items-center gap-2"
-                  onClick={() => onReativar(parceiro)}
-                >
-                  Reativar
-                </button>
-              )}
-            </div>
-          )}
-        </div>
+                Suspender
+              </DropdownMenuItem>
+            )}
+            {parceiro.status === 'suspenso' && (
+              <DropdownMenuItem
+                className="text-green-600 focus:text-green-600"
+                onClick={() => onReativar(parceiro)}
+              >
+                Reativar
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </td>
     </tr>
   )
 }
-
 function ParceiroCard({
   parceiro,
   formatDate: _formatDate,
