@@ -453,7 +453,7 @@ export async function criarOrganizacao(payload: CriarOrganizacaoPayload): Promis
     try {
       const codigoParceiro = payload.codigo_parceiro.trim().toUpperCase()
 
-      const { data: parceiro } = await supabase
+      const { data: parceiro } = await (supabase as any)
         .from('parceiros')
         .select('id, percentual_comissao')
         .eq('codigo_indicacao', codigoParceiro)
@@ -462,7 +462,7 @@ export async function criarOrganizacao(payload: CriarOrganizacaoPayload): Promis
 
       if (parceiro) {
         // Buscar percentual padrao da config se parceiro nao tem percentual individual
-        const { data: config } = await supabase
+        const { data: config } = await (supabase as any)
           .from('config_programa_parceiros')
           .select('percentual_padrao')
           .limit(1)
@@ -471,7 +471,7 @@ export async function criarOrganizacao(payload: CriarOrganizacaoPayload): Promis
         const pct = parceiro.percentual_comissao ?? config?.percentual_padrao ?? 10
 
         // Gravar indicacao
-        await supabase.from('indicacoes_parceiro').insert({
+        await (supabase as any).from('indicacoes_parceiro').insert({
           parceiro_id: parceiro.id,
           organizacao_id: org.id,
           percentual_comissao_snapshot: pct,
@@ -479,7 +479,7 @@ export async function criarOrganizacao(payload: CriarOrganizacaoPayload): Promis
         })
 
         // Atualizar campo de rastreio na org
-        await supabase
+        await (supabase as any)
           .from('organizacoes_saas')
           .update({ codigo_parceiro_origem: codigoParceiro })
           .eq('id', org.id)
@@ -534,11 +534,11 @@ export async function suspenderOrganizacao(id: string, _motivo: string): Promise
 
   // AIDEV-NOTE: Atualizar indicacao do parceiro para refletir suspensao da org indicada
   try {
-    await supabase
+    await (supabase as any)
       .from('indicacoes_parceiro')
       .update({ status: 'inativa', atualizado_em: new Date().toISOString() })
       .eq('organizacao_id', id)
-      .eq('status', 'ativa') // apenas atualiza se estava ativa (idempotente)
+      .eq('status', 'ativa')
   } catch (indicacaoError) {
     // Falha aqui NAO reverte a suspensao da org
     console.warn('Erro ao atualizar indicacao ao suspender org:', indicacaoError)
@@ -555,11 +555,11 @@ export async function reativarOrganizacao(id: string): Promise<void> {
 
   // AIDEV-NOTE: Reativar indicacao do parceiro ao reativar a org indicada
   try {
-    await supabase
+    await (supabase as any)
       .from('indicacoes_parceiro')
       .update({ status: 'ativa', atualizado_em: new Date().toISOString() })
       .eq('organizacao_id', id)
-      .eq('status', 'inativa') // apenas reativa se estava inativa (idempotente)
+      .eq('status', 'inativa')
   } catch (indicacaoError) {
     // Falha aqui NAO reverte a reativacao da org
     console.warn('Erro ao atualizar indicacao ao reativar org:', indicacaoError)

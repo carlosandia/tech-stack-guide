@@ -1,6 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import Stripe from 'npm:stripe@14.14.0'
+import Stripe from 'npm:stripe@17'
  
  /**
   * AIDEV-NOTE: Edge Function para finalizar o cadastro pós-checkout

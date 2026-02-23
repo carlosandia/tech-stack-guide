@@ -2,11 +2,12 @@ import { useState, useEffect, useCallback } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { X, Loader2, Search, Users2 } from 'lucide-react'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { supabase } from '@/lib/supabase'
 import { CriarParceiroSchema, type CriarParceiroData } from '../schemas/parceiro.schema'
 import { useCreateParceiro } from '../hooks/useParceiros'
 import { listarOrganizacoesDisponiveis } from '../services/parceiros.api'
-import { toast } from 'sonner'
+
 
 interface Props {
   isOpen: boolean
@@ -81,16 +82,12 @@ export function NovoParceirModal({ isOpen, onClose }: Props) {
     }
   }, [])
 
+  // AIDEV-NOTE: Buscar orgs quando o popover abre ou quando a busca muda
   useEffect(() => {
     if (!mostrarLista) return
     const timer = setTimeout(() => buscarOrgs(busca), 400)
     return () => clearTimeout(timer)
   }, [busca, buscarOrgs, mostrarLista])
-
-  const handleAbrirBusca = () => {
-    setMostrarLista(true)
-    buscarOrgs(busca)
-  }
 
   // AIDEV-NOTE: Ao selecionar org, buscar automaticamente o primeiro admin ativo
   const handleSelecionarOrg = async (org: OrgDisponivel) => {
@@ -132,8 +129,7 @@ export function NovoParceirModal({ isOpen, onClose }: Props) {
     if (erroAdmin) return
 
     createParceiro.mutate(data, {
-      onSuccess: (parceiro) => {
-        toast.success(`Parceiro cadastrado! Código: ${parceiro.codigo_indicacao}`)
+      onSuccess: () => {
         onClose()
       },
     })
@@ -170,69 +166,60 @@ export function NovoParceirModal({ isOpen, onClose }: Props) {
                 Empresa Parceira <span className="text-destructive">*</span>
               </label>
 
-              {/* Campo de seleção */}
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={handleAbrirBusca}
-                  className="w-full px-3 py-2 border border-border rounded-md text-sm text-left flex items-center justify-between hover:bg-accent/50 transition-colors"
+              <Popover open={mostrarLista} onOpenChange={setMostrarLista}>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className="w-full px-3 py-2 border border-border rounded-md text-sm text-left flex items-center justify-between hover:bg-accent/50 transition-colors"
+                  >
+                    <span className={orgSelecionada ? 'text-foreground' : 'text-muted-foreground'}>
+                      {orgSelecionada ? orgSelecionada.nome : 'Selecione uma empresa...'}
+                    </span>
+                    <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent
+                  className="w-[var(--radix-popover-trigger-width)] p-0"
+                  align="start"
+                  sideOffset={4}
                 >
-                  <span className={orgSelecionada ? 'text-foreground' : 'text-muted-foreground'}>
-                    {orgSelecionada ? orgSelecionada.nome : 'Selecione uma empresa...'}
-                  </span>
-                  <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                </button>
-
-                {/* Dropdown de busca */}
-                {mostrarLista && (
-                  <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-popover border border-border rounded-md shadow-md">
-                    <div className="p-2 border-b border-border">
-                      <input
-                        type="text"
-                        autoFocus
-                        value={busca}
-                        onChange={(e) => setBusca(e.target.value)}
-                        placeholder="Buscar por nome ou email..."
-                        className="w-full px-2 py-1.5 text-sm bg-background border border-border rounded-md outline-none focus:ring-2 focus:ring-primary/20"
-                      />
-                    </div>
-                    <div className="max-h-48 overflow-y-auto py-1">
-                      {buscandoOrgs ? (
-                        <div className="flex items-center justify-center py-4">
-                          <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                        </div>
-                      ) : orgs.length === 0 ? (
-                        <p className="text-sm text-muted-foreground text-center py-4">
-                          Nenhuma organização disponível
-                        </p>
-                      ) : (
-                        orgs.map((org) => (
-                          <button
-                            key={org.id}
-                            type="button"
-                            onClick={() => handleSelecionarOrg(org)}
-                            className="w-full px-3 py-2 text-left hover:bg-accent transition-colors"
-                          >
-                            <p className="text-sm font-medium text-foreground">{org.nome}</p>
-                            {org.email && (
-                              <p className="text-xs text-muted-foreground">{org.email}</p>
-                            )}
-                          </button>
-                        ))
-                      )}
-                    </div>
-                    <div className="p-2 border-t border-border">
-                      <button
-                        type="button"
-                        onClick={() => setMostrarLista(false)}
-                        className="w-full text-xs text-muted-foreground hover:text-foreground text-center"
-                      >
-                        Fechar
-                      </button>
-                    </div>
+                  <div className="p-2 border-b border-border">
+                    <input
+                      type="text"
+                      autoFocus
+                      value={busca}
+                      onChange={(e) => setBusca(e.target.value)}
+                      placeholder="Buscar por nome ou email..."
+                      className="w-full px-2 py-1.5 text-sm bg-background border border-border rounded-md outline-none focus:ring-2 focus:ring-primary/20"
+                    />
                   </div>
-                )}
-              </div>
+                  <div className="max-h-48 overflow-y-auto py-1">
+                    {buscandoOrgs ? (
+                      <div className="flex items-center justify-center py-4">
+                        <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : orgs.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        Nenhuma organização disponível
+                      </p>
+                    ) : (
+                      orgs.map((org) => (
+                        <button
+                          key={org.id}
+                          type="button"
+                          onClick={() => handleSelecionarOrg(org)}
+                          className="w-full px-3 py-2 text-left hover:bg-accent transition-colors"
+                        >
+                          <p className="text-sm font-medium text-foreground">{org.nome}</p>
+                          {org.email && (
+                            <p className="text-xs text-muted-foreground">{org.email}</p>
+                          )}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
 
               {errors.organizacao_id && (
                 <p className="text-xs text-destructive">{errors.organizacao_id.message}</p>
