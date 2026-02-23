@@ -251,7 +251,7 @@ export function ParceiroPage() {
       </section>
 
       {/* Planos Grid */}
-      <section className="pb-24 px-4 -mt-8 relative z-10">
+      <section className="pb-12 px-4 -mt-8 relative z-10">
         <div className="max-w-5xl mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 justify-items-center">
             {planos.map((plano) => {
@@ -359,8 +359,8 @@ export function ParceiroPage() {
       )}
 
       {/* Footer */}
-      <footer className="py-8 px-4">
-        <div className="max-w-7xl mx-auto text-center text-sm text-slate-500">
+      <footer className="py-6 px-4 border-t border-white/5">
+        <div className="max-w-7xl mx-auto text-center text-xs text-slate-500">
           <p>© {new Date().getFullYear()} CRM Renove. Todos os direitos reservados.</p>
         </div>
       </footer>
