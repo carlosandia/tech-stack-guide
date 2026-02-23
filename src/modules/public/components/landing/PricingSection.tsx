@@ -118,21 +118,37 @@ export function PricingSection() {
     fetchData()
   }, [])
 
-  // Demo modal script injection
+  // Demo modal script injection - fetch JS text and execute directly
   useEffect(() => {
     if (!demoModalOpen) return
-    const timer = setTimeout(() => {
-      if (!demoContainerRef.current) return
-      demoContainerRef.current.replaceChildren()
-      const script = document.createElement('script')
-      script.src = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/widget-formulario-loader?slug=demonstracao-crm-mlrb6yoz&mode=inline&nocache=1`
-      script.dataset.formSlug = 'demonstracao-crm-mlrb6yoz'
-      script.async = true
-      demoContainerRef.current.appendChild(script)
-    }, 100)
+    let cancelled = false
+    const timer = setTimeout(async () => {
+      const container = demoContainerRef.current
+      if (!container || cancelled) return
+      container.innerHTML = '<div style="display:flex;justify-content:center;padding:40px"><svg class="animate-spin" width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none" opacity="0.25"/><path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg></div>'
+      try {
+        const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/widget-formulario-loader?slug=demonstracao-crm-mlrb6yoz&mode=inline`
+        const resp = await fetch(url)
+        if (!resp.ok || cancelled) return
+        const jsText = await resp.text()
+        if (cancelled) return
+        // Clear loading spinner, add target container for the widget
+        container.innerHTML = '<div id="renove-form-demo-target"></div>'
+        // Execute the widget JS - it will find the container by data attribute or ID
+        const script = document.createElement('script')
+        script.setAttribute('data-form-slug', 'demonstracao-crm-mlrb6yoz')
+        script.textContent = jsText
+        container.appendChild(script)
+      } catch (err) {
+        if (!cancelled) {
+          container.innerHTML = '<p style="text-align:center;color:#6B7280;padding:20px">Erro ao carregar formulário. Tente novamente.</p>'
+        }
+      }
+    }, 200)
     return () => {
+      cancelled = true
       clearTimeout(timer)
-      demoContainerRef.current?.replaceChildren()
+      if (demoContainerRef.current) demoContainerRef.current.innerHTML = ''
     }
   }, [demoModalOpen])
 
@@ -396,7 +412,8 @@ export function PricingSection() {
 
       {/* Modal Demonstração */}
       <Dialog open={demoModalOpen} onOpenChange={setDemoModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+          <span className="sr-only">Solicite uma demonstração</span>
           <div ref={demoContainerRef} className="min-h-[300px]" />
         </DialogContent>
       </Dialog>
