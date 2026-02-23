@@ -198,8 +198,9 @@ export function ParceiroPage() {
       {/* Hero premium — sempre dark nesta página */}
       <section className="py-12 sm:py-20 px-4 relative overflow-hidden">
         {/* Gradientes premium empilhados */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,hsl(var(--primary)/0.20)_0%,transparent_60%)] pointer-events-none" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_right,hsl(var(--primary)/0.08)_0%,transparent_50%)] pointer-events-none" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,hsl(var(--primary)/0.15)_0%,transparent_60%)] pointer-events-none" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,hsl(var(--primary)/0.12)_0%,transparent_50%)] pointer-events-none" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,hsl(var(--primary)/0.15)_0%,transparent_60%)] pointer-events-none" />
 
         <div className="max-w-3xl mx-auto text-center relative">
           {/* Título principal — primeiro, hierarquia clara */}
