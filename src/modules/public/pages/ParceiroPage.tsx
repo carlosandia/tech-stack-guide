@@ -169,18 +169,24 @@ export function ParceiroPage() {
       {/* Header premium — glassmorphism minimalista */}
       <header className="bg-white/[0.03] backdrop-blur-xl sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-3">
-              <img src={renoveLogo} alt="CRM Renove" className="h-8 brightness-0 invert opacity-90" />
-              <div className="h-4 w-px bg-white/20" />
-              <span className="text-sm font-medium text-slate-400 tracking-wide">Programa de Parceiros</span>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 py-3 sm:py-0 sm:h-16">
+            <div className="flex items-center justify-between sm:justify-start gap-3">
+              <div className="flex items-center gap-3">
+                <img src={renoveLogo} alt="CRM Renove" className="h-7 sm:h-8 brightness-0 invert opacity-90" />
+                <div className="hidden sm:block h-4 w-px bg-white/20" />
+                <span className="hidden sm:inline text-sm font-medium text-slate-400 tracking-wide">Programa de Parceiros</span>
+              </div>
+              {parceiro?.organizacao?.nome && (
+                <div className="flex sm:hidden items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[0.06] border border-white/10">
+                  <ShieldCheck className="w-3 h-3 text-primary" />
+                  <span className="text-[11px] font-medium text-slate-300">Certificado</span>
+                </div>
+              )}
             </div>
             {parceiro?.organizacao?.nome && (
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.06] border border-white/10">
+              <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.06] border border-white/10">
                 <ShieldCheck className="w-3.5 h-3.5 text-primary" />
-                <span className="text-xs font-medium text-slate-300">
-                  Parceiro Certificado
-                </span>
+                <span className="text-xs font-medium text-slate-300">Parceiro Certificado</span>
               </div>
             )}
           </div>
