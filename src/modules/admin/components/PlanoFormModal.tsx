@@ -392,61 +392,60 @@ export function PlanoFormModal({ plano, onClose }: Props) {
               </div>
             </div>
 
-            {/* Status */}
+            {/* Status e Visibilidade */}
             <div className="space-y-4">
               <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                Status
+                Status e Visibilidade
               </h3>
               
-              <div className="flex flex-wrap gap-6">
-                <label className="flex items-center gap-2 cursor-pointer">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-accent/50 cursor-pointer transition-colors">
                   <input
                     type="checkbox"
                     {...register('ativo')}
                     className="w-4 h-4 rounded border-input text-primary focus:ring-primary"
                   />
-                  <span className="text-sm text-foreground">Plano Ativo</span>
+                  <div>
+                    <span className="text-sm font-medium text-foreground">Plano Ativo</span>
+                    <p className="text-xs text-muted-foreground">Disponível para contratação</p>
+                  </div>
                 </label>
 
-                <label className="flex items-center gap-2 cursor-pointer">
+                <label className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-accent/50 cursor-pointer transition-colors">
                   <input
                     type="checkbox"
                     {...register('visivel')}
                     className="w-4 h-4 rounded border-input text-primary focus:ring-primary"
                   />
-                  <span className="text-sm text-foreground">Visível para Clientes</span>
-                  <span className="text-xs text-muted-foreground">(landing /planos)</span>
+                  <div>
+                    <span className="text-sm font-medium text-foreground">Visível para Clientes</span>
+                    <p className="text-xs text-muted-foreground">Exibido na landing /planos</p>
+                  </div>
                 </label>
 
-                <label className="flex items-center gap-2 cursor-pointer">
+                <label className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-accent/50 cursor-pointer transition-colors">
                   <input
                     type="checkbox"
                     {...register('visivel_parceiros')}
                     className="w-4 h-4 rounded border-input text-primary focus:ring-primary"
                   />
-                  <span className="text-sm text-foreground">Visível para Parceiros</span>
-                  <span className="text-xs text-muted-foreground">(página /parceiro/:codigo)</span>
-                </label>
-
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    {...register('visivel_parceiros')}
-                    className="w-4 h-4 rounded border-input text-primary focus:ring-primary"
-                  />
-                  <span className="text-sm text-foreground">Visível para Parceiros</span>
-                  <span className="text-xs text-muted-foreground">(página /parceiro/:codigo)</span>
+                  <div>
+                    <span className="text-sm font-medium text-foreground">Visível para Parceiros</span>
+                    <p className="text-xs text-muted-foreground">Página /parceiro/:codigo</p>
+                  </div>
                 </label>
 
                 {!isTrial && (
-                  <label className="flex items-center gap-2 cursor-pointer">
+                  <label className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-accent/50 cursor-pointer transition-colors">
                     <input
                       type="checkbox"
                       {...register('popular')}
                       className="w-4 h-4 rounded border-input text-primary focus:ring-primary"
                     />
-                    <span className="text-sm text-foreground">Plano Popular</span>
-                    <span className="text-xs text-muted-foreground">(destacado na landing)</span>
+                    <div>
+                      <span className="text-sm font-medium text-foreground">Plano Popular</span>
+                      <p className="text-xs text-muted-foreground">Destacado na landing</p>
+                    </div>
                   </label>
                 )}
               </div>
