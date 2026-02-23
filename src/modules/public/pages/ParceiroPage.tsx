@@ -196,7 +196,7 @@ export function ParceiroPage() {
       </header>
 
       {/* Hero premium — sempre dark nesta página */}
-      <section className="py-12 sm:py-20 px-4 relative overflow-hidden">
+      <section className="py-10 sm:py-16 px-4 relative overflow-hidden">
         {/* Gradientes premium empilhados */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,hsl(var(--primary)/0.15)_0%,transparent_60%)] pointer-events-none" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,hsl(var(--primary)/0.12)_0%,transparent_50%)] pointer-events-none" />
@@ -204,26 +204,18 @@ export function ParceiroPage() {
 
         <div className="max-w-3xl mx-auto text-center relative">
           {/* Título principal — primeiro, hierarquia clara */}
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4 animate-fade-in leading-tight">
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-3 animate-fade-in leading-tight">
             Condições exclusivas via <span className="text-primary">{parceiro?.organizacao?.nome}</span>.
             <br />
             Escolha seu plano ideal.
           </h1>
 
-          <p className="text-base sm:text-lg text-slate-400 mb-6 animate-fade-in" style={{ animationDelay: '100ms', animationFillMode: 'both' }}>
+          <p className="text-base sm:text-lg text-slate-400 mb-5 animate-fade-in" style={{ animationDelay: '100ms', animationFillMode: 'both' }}>
             Vantagens especiais garantidas pelo seu parceiro. Comece agora, cancele quando quiser.
           </p>
 
-          {/* Badge de indicação — destaque após contexto */}
-          <div className="flex justify-center mb-8 animate-fade-in" style={{ animationDelay: '200ms', animationFillMode: 'both' }}>
-            <div className="inline-flex items-center gap-2.5 px-5 py-2.5 rounded-full bg-white/[0.07] border border-white/15 text-white text-xs sm:text-sm font-medium backdrop-blur-sm shadow-lg shadow-black/10 transition-all duration-300 hover:bg-white/[0.12] hover:border-white/25">
-              <ShieldCheck className="w-4 h-4 text-primary shrink-0" />
-              <span>Parceiro Certificado</span>
-            </div>
-          </div>
-
           {/* Toggle Período */}
-          <div className="inline-flex items-center p-1 bg-white/[0.07] rounded-lg border border-white/10 animate-fade-in" style={{ animationDelay: '300ms', animationFillMode: 'both' }}>
+          <div className="inline-flex items-center p-1 bg-white/[0.07] rounded-lg border border-white/10 animate-fade-in" style={{ animationDelay: '200ms', animationFillMode: 'both' }}>
             <button
               onClick={() => setPeriodo('mensal')}
               className={`px-5 py-2 text-sm font-medium rounded-md transition-all duration-200 ${
