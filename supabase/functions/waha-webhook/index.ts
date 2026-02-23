@@ -231,10 +231,59 @@ Deno.serve(async (req) => {
                 console.log(`[waha-webhook] ACK fallback skip downgrade: shortId=${shortId}, current=${currentAck}, new=${ack}`);
               }
             } else {
-              console.log(`[waha-webhook] ACK fallback: no match for ilike %_${shortId}`);
+              console.log(`[waha-webhook] ACK fallback: no match for ilike %_${shortId}, will retry...`);
             }
           } else if (!matched) {
-            console.log(`[waha-webhook] ACK: no match for messageId=${messageId}`);
+            console.log(`[waha-webhook] ACK: no match for messageId=${messageId}, will retry...`);
+          }
+
+          // AIDEV-NOTE: Retry após 2s para cobrir race condition (message.ack chega antes de message.any inserir)
+          if (!matched) {
+            console.log(`[waha-webhook] ACK: retrying in 2s for ${messageId}...`);
+            await new Promise(r => setTimeout(r, 2000));
+
+            // Re-tentar busca exata
+            const { data: retryMatch } = await supabaseAdmin
+              .from("mensagens")
+              .select("id, ack")
+              .eq("message_id", messageId)
+              .eq("organizacao_id", sessao.organizacao_id);
+
+            if (retryMatch && retryMatch.length > 0) {
+              const currentAck = retryMatch[0].ack ?? 0;
+              if (ack > currentAck) {
+                await supabaseAdmin
+                  .from("mensagens")
+                  .update(ackUpdate)
+                  .eq("id", retryMatch[0].id);
+                console.log(`[waha-webhook] ✅ ACK retry success: ${messageId}, ack=${currentAck}->${ack}`);
+              }
+            } else {
+              // Retry fallback ilike
+              const retryShortId = messageId.includes('_') ? messageId.split('_').pop() : null;
+              if (retryShortId) {
+                const { data: retryIlike } = await supabaseAdmin
+                  .from("mensagens")
+                  .select("id, ack")
+                  .ilike("message_id", `%_${retryShortId}`)
+                  .eq("organizacao_id", sessao.organizacao_id);
+
+                if (retryIlike && retryIlike.length > 0) {
+                  const currentAck = retryIlike[0].ack ?? 0;
+                  if (ack > currentAck) {
+                    await supabaseAdmin
+                      .from("mensagens")
+                      .update(ackUpdate)
+                      .eq("id", retryIlike[0].id);
+                    console.log(`[waha-webhook] ✅ ACK retry fallback success: ${retryShortId}, ack=${currentAck}->${ack}`);
+                  }
+                } else {
+                  console.warn(`[waha-webhook] ⚠️ ACK lost after retry: ${messageId}`);
+                }
+              } else {
+                console.warn(`[waha-webhook] ⚠️ ACK lost after retry (no shortId): ${messageId}`);
+              }
+            }
           }
         } else {
           console.log(`[waha-webhook] Session not found for ACK: ${sessionName}`);
@@ -2400,6 +2449,16 @@ Deno.serve(async (req) => {
       timestamp_externo: timestamp,
       raw_data: payload,
     };
+
+    // AIDEV-NOTE: Extrair ACK do payload da mensagem (WAHA envia ack atual junto com message.any)
+    // Isso evita que mensagens já entregues/lidas sejam salvas com ack=0 (default)
+    const payloadAck = payload.ack ?? payload._data?.ack;
+    if (payloadAck !== undefined && payloadAck !== null && typeof payloadAck === 'number') {
+      messageInsert.ack = payloadAck;
+      const ackNameMap: Record<number, string> = { 0: 'ERROR', 1: 'PENDING', 2: 'SENT', 3: 'DELIVERED', 4: 'READ', 5: 'PLAYED' };
+      messageInsert.ack_name = ackNameMap[payloadAck] || null;
+      console.log(`[waha-webhook] ACK extracted from payload: ack=${payloadAck} (${messageInsert.ack_name})`);
+    }
 
     // =====================================================
     // Extract reply/quote context (stanzaId from contextInfo)
