@@ -35,29 +35,42 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     window.location.reload()
   }
 
+  private isChunkError(): boolean {
+    const msg = this.state.error?.message?.toLowerCase() || ''
+    return (
+      msg.includes('failed to fetch dynamically imported module') ||
+      msg.includes('loading chunk') ||
+      msg.includes('loading css chunk')
+    )
+  }
+
   render() {
     if (this.state.hasError) {
       if (this.props.fallback) {
         return this.props.fallback
       }
 
+      const isChunk = this.isChunkError()
+
       return (
         <div className="min-h-screen flex items-center justify-center bg-background p-4">
           <div className="w-full max-w-md bg-card rounded-lg border border-border p-8 shadow-lg text-center">
-            <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto mb-4">
-              <AlertCircle className="w-8 h-8 text-destructive" />
+            <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${isChunk ? 'bg-primary/10' : 'bg-destructive/10'}`}>
+              <AlertCircle className={`w-8 h-8 ${isChunk ? 'text-primary' : 'text-destructive'}`} />
             </div>
             <h1 className="text-xl font-semibold text-foreground mb-2">
-              Algo deu errado
+              {isChunk ? 'Nova versão disponível' : 'Algo deu errado'}
             </h1>
             <p className="text-sm text-muted-foreground mb-6">
-              Ocorreu um erro inesperado. Tente recarregar a página.
+              {isChunk
+                ? 'Uma atualização foi publicada. Clique abaixo para carregar a versão mais recente.'
+                : 'Ocorreu um erro inesperado. Tente recarregar a página.'}
             </p>
             <button
               onClick={this.handleReload}
               className="w-full h-11 bg-primary text-primary-foreground rounded-md font-medium hover:bg-primary/90 transition-colors"
             >
-              Recarregar página
+              {isChunk ? 'Atualizar agora' : 'Recarregar página'}
             </button>
           </div>
         </div>
