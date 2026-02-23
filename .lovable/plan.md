@@ -1,64 +1,40 @@
 
+# Correcao: Formulario de demonstracao nao carrega no modal
 
-## Correcao: Planos nao aparecem na landing + CTAs faltando
+## Problema identificado
 
-### Problemas identificados
+O formulario de demonstracao aparece vazio (modal branco) por **duas causas raiz**:
 
-1. **Widget de planos nao carrega** -- O `PricingSection` injeta o script via `useEffect` mas o `scriptLoaded.current = true` impede que o script seja re-injetado apos navegacao SPA. Alem disso, o widget depende do container `#renove-pricing-widget` estar no DOM antes do script executar, e o `ref` de scroll reveal pode estar com `opacity: 0` bloqueando a renderizacao inicial.
+### Causa 1: Edge Functions nao deployadas
+As edge functions `widget-formulario-loader` e `widget-formulario-config` existem no codigo mas **nao estao deployadas** (retornam 404). O script que deveria ser carregado simplesmente nao existe no servidor.
 
-2. **CTA "Ver planos" faltando no HowItWorksSection** -- O plano aprovado incluia adicionar um CTA secundario "Ver planos" apontando para `#planos` na secao "Como Funciona", mas nao foi implementado.
+### Causa 2: Injecao de script fragil dentro do Dialog
+O codigo atual cria um `<script>` dinamicamente e insere dentro de um `<div>` gerenciado pelo React (dentro do `DialogContent`). Isso tem problemas:
+- `document.currentScript` e `null` para scripts inseridos dinamicamente
+- O fallback `querySelector` pode falhar dependendo do timing do React
+- O widget usa `parent.insertBefore(div, el.nextSibling)` que depende do script estar no DOM
 
-### Solucao
+## Plano de correcao
 
-**1. Corrigir `PricingSection.tsx`**
-- Remover o guard `scriptLoaded.current` que impede recarregamento
-- Usar cleanup mais robusto: remover script e limpar container no unmount
-- Garantir que o container `#renove-pricing-widget` exista antes do script carregar
-- Adicionar um pequeno delay para garantir que o DOM esta pronto
+### Passo 1: Deploy das Edge Functions
+Deployar `widget-formulario-loader` e `widget-formulario-config` para que o script esteja acessivel via URL.
 
-**2. Adicionar CTA secundario no `HowItWorksSection.tsx`**
-- Abaixo do botao "Comecar agora, e gratis", adicionar um link discreto "Ver planos" que faz scroll smooth para `#planos`
+### Passo 2: Refatorar injecao do script no PricingSection
+Substituir a abordagem de `appendChild(script)` por um `fetch` direto ao JS da edge function, seguido de `eval` ou `new Function()`, garantindo que o script execute no contexto correto.
 
-### Arquivos a editar
+Alternativa mais robusta: usar `fetch` para obter o JS como texto, criar um `Blob` e injetar como `<script src="blob:...">`, ou simplesmente usar um `<iframe>` apontando para uma pagina minima que carrega o widget.
 
-- `src/modules/public/components/landing/PricingSection.tsx` -- corrigir carregamento do widget
-- `src/modules/public/components/landing/HowItWorksSection.tsx` -- adicionar CTA "Ver planos"
+**Abordagem escolhida**: Manter a injecao de script mas corrigir o timing - usar `setTimeout` maior e garantir que o container tenha um `id` especifico que o widget possa encontrar. Adicionar tambem `DialogTitle` (oculto com `VisuallyHidden`) para resolver o erro de acessibilidade no console.
 
 ### Detalhes tecnicos
 
-**PricingSection.tsx:**
-```
-useEffect(() => {
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
-  if (!supabaseUrl || !widgetRef.current) return
+**Arquivo: `src/modules/public/components/landing/PricingSection.tsx`**
+- Adicionar `DialogTitle` com `VisuallyHidden` no modal de demonstracao
+- Adicionar `aria-describedby={undefined}` no `DialogContent`
+- Manter a logica de script injection mas garantir que o `demoContainerRef` tenha um ID unico para o widget encontrar
 
-  // Limpar conteudo anterior
-  const container = widgetRef.current
-  container.innerHTML = '<div id="renove-pricing-widget"></div>'
+**Deploy:**
+- `widget-formulario-loader`
+- `widget-formulario-config`
 
-  const script = document.createElement('script')
-  script.src = `${supabaseUrl}/functions/v1/pricing-widget-loader?periodo=mensal`
-  script.async = true
-  container.appendChild(script)
-
-  return () => {
-    script.remove()
-    // Limpar funcoes globais do widget
-    delete (window as any)._rnvSetPeriodo
-    delete (window as any)._rnvCheckout
-  }
-}, [])
-```
-
-**HowItWorksSection.tsx:**
-- Adicionar abaixo do botao principal:
-```
-<button
-  onClick={() => document.querySelector('#planos')?.scrollIntoView({ behavior: 'smooth' })}
-  className="text-sm text-muted-foreground hover:text-foreground underline underline-offset-4 transition-colors"
->
-  Ver planos
-</button>
-```
-- Wrapper dos CTAs muda de `text-center` para `flex flex-col items-center gap-3`
-
+Essas duas correcoes combinadas devem resolver o modal branco.
