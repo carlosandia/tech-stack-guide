@@ -813,6 +813,8 @@ export const conversasApi = {
       .select('*', { count: 'exact' })
       .eq('conversa_id', conversaId)
       .is('deletado_em', null)
+      // AIDEV-NOTE: Ordenar por timestamp_externo (WhatsApp) como primario, criado_em como fallback
+      .order('timestamp_externo', { ascending: orderDir === 'asc', nullsFirst: false })
       .order('criado_em', { ascending: orderDir === 'asc' })
       .range(from, to)
 

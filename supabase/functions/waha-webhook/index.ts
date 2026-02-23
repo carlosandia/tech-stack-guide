@@ -278,7 +278,50 @@ Deno.serve(async (req) => {
                     console.log(`[waha-webhook] ✅ ACK retry fallback success: ${retryShortId}, ack=${currentAck}->${ack}`);
                   }
                 } else {
-                  console.warn(`[waha-webhook] ⚠️ ACK lost after retry: ${messageId}`);
+                  // AIDEV-NOTE: Segundo retry após 3s adicionais (total 5s) para cobrir ráfagas de 10+ mensagens
+                  console.log(`[waha-webhook] ACK: retrying again in 3s for ${messageId}...`);
+                  await new Promise(r => setTimeout(r, 3000));
+
+                  const { data: retry2Match } = await supabaseAdmin
+                    .from("mensagens")
+                    .select("id, ack")
+                    .eq("message_id", messageId)
+                    .eq("organizacao_id", sessao.organizacao_id);
+
+                  if (retry2Match && retry2Match.length > 0) {
+                    const currentAck = retry2Match[0].ack ?? 0;
+                    if (ack > currentAck) {
+                      await supabaseAdmin
+                        .from("mensagens")
+                        .update(ackUpdate)
+                        .eq("id", retry2Match[0].id);
+                      console.log(`[waha-webhook] ✅ ACK retry2 success: ${messageId}, ack=${currentAck}->${ack}`);
+                    }
+                  } else {
+                    const retry2ShortId = messageId.includes('_') ? messageId.split('_').pop() : null;
+                    if (retry2ShortId) {
+                      const { data: retry2Ilike } = await supabaseAdmin
+                        .from("mensagens")
+                        .select("id, ack")
+                        .ilike("message_id", `%_${retry2ShortId}`)
+                        .eq("organizacao_id", sessao.organizacao_id);
+
+                      if (retry2Ilike && retry2Ilike.length > 0) {
+                        const currentAck = retry2Ilike[0].ack ?? 0;
+                        if (ack > currentAck) {
+                          await supabaseAdmin
+                            .from("mensagens")
+                            .update(ackUpdate)
+                            .eq("id", retry2Ilike[0].id);
+                          console.log(`[waha-webhook] ✅ ACK retry2 fallback success: ${retry2ShortId}, ack=${currentAck}->${ack}`);
+                        }
+                      } else {
+                        console.warn(`[waha-webhook] ⚠️ ACK lost after 2 retries (5s total): ${messageId}`);
+                      }
+                    } else {
+                      console.warn(`[waha-webhook] ⚠️ ACK lost after 2 retries (no shortId): ${messageId}`);
+                    }
+                  }
                 }
               } else {
                 console.warn(`[waha-webhook] ⚠️ ACK lost after retry (no shortId): ${messageId}`);
