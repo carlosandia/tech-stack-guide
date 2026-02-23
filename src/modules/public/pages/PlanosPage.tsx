@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
-import { Check, Loader2, Star, RefreshCw, AlertTriangle } from 'lucide-react'
+import { Check, Loader2, Star, RefreshCw, AlertTriangle, Sparkles } from 'lucide-react'
 import renoveLogo from '@/assets/logotipo-renove.svg'
 import { supabase } from '@/lib/supabase'
 import { PreCadastroModal } from '../components/PreCadastroModal'
@@ -83,12 +83,23 @@ interface PlanoDb {
      utm_term: searchParams.get('utm_term') || '',
      utm_content: searchParams.get('utm_content') || '',
    }
-   const codigoParceiro = searchParams.get('ref') || ''
+    const codigoParceiro = searchParams.get('ref') || ''
+    const [partnerName, setPartnerName] = useState<string | null>(null)
  
-   useEffect(() => {
-     fetchPlanos()
-     fetchTrialConfig()
-   }, [])
+    useEffect(() => {
+      fetchPlanos()
+      fetchTrialConfig()
+      if (codigoParceiro) fetchPartner(codigoParceiro)
+    }, [])
+
+    const fetchPartner = async (code: string) => {
+      try {
+        const { data } = await supabase.rpc('get_partner_name_by_code', { p_codigo: code })
+        if (data) setPartnerName(data)
+      } catch (err) {
+        console.warn('Parceiro não encontrado para ref:', code)
+      }
+    }
  
    const fetchPlanos = async () => {
      try {
@@ -169,15 +180,16 @@ interface PlanoDb {
      setCheckoutLoading(loadingKey)
 
      try {
-       const { data, error } = await supabase.functions.invoke('create-checkout-session', {
-         body: {
-           plano_id: modalPlano.id,
-           periodo: modalPlano.isTrial ? 'mensal' : periodo,
-           is_trial: modalPlano.isTrial,
-           pre_cadastro_id: preCadastroId,
-           utms,
-         },
-       })
+        const { data, error } = await supabase.functions.invoke('create-checkout-session', {
+          body: {
+            plano_id: modalPlano.id,
+            periodo: modalPlano.isTrial ? 'mensal' : periodo,
+            is_trial: modalPlano.isTrial,
+            pre_cadastro_id: preCadastroId,
+            utms,
+            codigo_parceiro: codigoParceiro || undefined,
+          },
+        })
 
        if (error) throw error
 
@@ -260,17 +272,32 @@ interface PlanoDb {
          </div>
        </header>
  
-       {/* Hero */}
-       <section className="py-16 sm:py-24 px-4">
-         <div className="max-w-4xl mx-auto text-center">
-           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground mb-4">
-             Escolha o plano ideal para seu negocio
-           </h1>
-           <p className="text-lg text-muted-foreground mb-8">
-             {trialConfig.trial_habilitado
-               ? `Comece gratis por ${trialConfig.trial_dias} dias. Cancele quando quiser.`
-               : 'Escolha o plano que melhor se adapta as suas necessidades.'}
-           </p>
+        {/* Hero */}
+        <section className={`py-16 sm:py-24 px-4 relative ${partnerName ? 'overflow-hidden' : ''}`}>
+          {/* Gradiente premium para parceiros */}
+          {partnerName && (
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,hsl(var(--primary)/0.06)_0%,transparent_60%)] pointer-events-none" />
+          )}
+          <div className="max-w-4xl mx-auto text-center relative">
+            {/* Badge de indicação */}
+            {partnerName && (
+              <div className="flex justify-center mb-5">
+                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/5 border border-primary/20 text-primary text-xs sm:text-sm font-medium">
+                  <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                  <span>Indicado por <strong className="font-semibold">{partnerName}</strong></span>
+                </div>
+              </div>
+            )}
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground mb-4">
+              Escolha o plano ideal para seu negócio
+            </h1>
+            <p className="text-lg text-muted-foreground mb-8">
+              {partnerName
+                ? <>Você foi indicado por <span className="font-semibold text-foreground">{partnerName}</span>. Cancele quando quiser.</>
+                : trialConfig.trial_habilitado
+                  ? `Comece grátis por ${trialConfig.trial_dias} dias. Cancele quando quiser.`
+                  : 'Escolha o plano que melhor se adapta às suas necessidades.'}
+            </p>
  
           {/* Toggle Periodo */}
           {(() => {
@@ -507,10 +534,10 @@ interface PlanoDb {
 
         {/* Footer */}
         <footer className="border-t border-border py-8 px-4">
-         <div className="max-w-7xl mx-auto text-center text-sm text-muted-foreground">
-           <p>© 2024 CRM Renove. Todos os direitos reservados.</p>
-         </div>
-       </footer>
+          <div className="max-w-7xl mx-auto text-center text-sm text-muted-foreground">
+            <p>© {new Date().getFullYear()} CRM Renove. Todos os direitos reservados.</p>
+          </div>
+        </footer>
      </div>
    )
  }

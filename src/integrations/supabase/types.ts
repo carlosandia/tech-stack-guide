@@ -8141,6 +8141,7 @@ export type Database = {
         Returns: boolean
       }
       get_current_usuario_id: { Args: never; Returns: string }
+      get_partner_name_by_code: { Args: { p_codigo: string }; Returns: string }
       get_user_organizacao_id: { Args: never; Returns: string }
       get_user_role: { Args: never; Returns: string }
       get_user_tenant_id: { Args: never; Returns: string }
