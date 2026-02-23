@@ -15,6 +15,7 @@ import {
   useConcluirTesteAB,
   useCriarVarianteAB,
   useExcluirVarianteAB,
+  useAtualizarVarianteAB,
 } from '../../hooks/useFormularioAB'
 import { TesteABForm } from '../ab/TesteABForm'
 import { VariantesList } from '../ab/VariantesList'
@@ -120,6 +121,7 @@ function TesteABCard({
   const { data: variantes = [], isLoading } = useVariantesAB(expandido ? teste.id : null)
   const criarVariante = useCriarVarianteAB(teste.id)
   const excluirVariante = useExcluirVarianteAB(teste.id)
+  const atualizarVariante = useAtualizarVarianteAB(teste.id)
 
   const testeAtivo = teste.status === 'em_andamento'
 
@@ -183,7 +185,11 @@ function TesteABCard({
                 variantes={variantes}
                 onCriar={(p) => criarVariante.mutate(p)}
                 onExcluir={(id) => excluirVariante.mutate(id)}
+                onAtualizarAlteracoes={(varianteId, alteracoes) =>
+                  atualizarVariante.mutate({ varianteId, alteracoes: alteracoes as Record<string, unknown> })
+                }
                 loading={criarVariante.isPending}
+                loadingAlteracoes={atualizarVariante.isPending}
                 testeAtivo={testeAtivo}
               />
 

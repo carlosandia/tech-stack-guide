@@ -1174,6 +1174,71 @@ async function excluirVarianteAB(varianteId: string): Promise<void> {
   if (error) throw new Error(`Erro ao excluir variante: ${error.message}`)
 }
 
+// AIDEV-NOTE: Atualizar alterações visuais de uma variante A/B
+async function atualizarVarianteAB(varianteId: string, alteracoes: Record<string, unknown>): Promise<VarianteAB> {
+  const { data, error } = await supabase
+    .from('variantes_ab_formularios')
+    .update({ alteracoes } as any)
+    .eq('id', varianteId)
+    .select()
+    .single()
+  if (error) throw new Error(`Erro ao atualizar variante: ${error.message}`)
+  return data as unknown as VarianteAB
+}
+
+// AIDEV-NOTE: Registrar visualização de variante A/B (chamado pelo formulário público)
+async function registrarVisualizacaoAB(varianteId: string): Promise<void> {
+  // Incrementar direto - sem RPC para evitar dependência de função DB
+  const { data } = await supabase
+    .from('variantes_ab_formularios')
+    .select('contagem_visualizacoes')
+    .eq('id', varianteId)
+    .single()
+  const atual = (data as any)?.contagem_visualizacoes ?? 0
+  await supabase
+    .from('variantes_ab_formularios')
+    .update({ contagem_visualizacoes: atual + 1 } as any)
+    .eq('id', varianteId)
+}
+
+// AIDEV-NOTE: Registrar conversão de variante A/B (chamado ao submeter formulário)
+async function registrarConversaoAB(varianteId: string): Promise<void> {
+  const { data } = await supabase
+    .from('variantes_ab_formularios')
+    .select('contagem_submissoes, contagem_visualizacoes')
+    .eq('id', varianteId)
+    .single()
+  const views = (data as any)?.contagem_visualizacoes ?? 0
+  const subs = (data as any)?.contagem_submissoes ?? 0
+  const novaSubs = subs + 1
+  const taxaConversao = views > 0 ? Math.round((novaSubs / views) * 10000) / 100 : 0
+  await supabase
+    .from('variantes_ab_formularios')
+    .update({ contagem_submissoes: novaSubs, taxa_conversao: taxaConversao } as any)
+    .eq('id', varianteId)
+}
+
+// AIDEV-NOTE: Buscar variantes do teste ativo de um formulário (para o formulário público)
+async function buscarVariantesTesteAtivo(formularioId: string): Promise<VarianteAB[]> {
+  // Buscar teste ativo
+  const { data: testes } = await supabase
+    .from('testes_ab_formularios')
+    .select('id')
+    .eq('formulario_id', formularioId)
+    .eq('status', 'em_andamento')
+    .limit(1)
+
+  if (!testes || testes.length === 0) return []
+
+  const { data: variantes } = await supabase
+    .from('variantes_ab_formularios')
+    .select('*')
+    .eq('teste_ab_id', testes[0].id)
+    .order('letra_variante', { ascending: true })
+
+  return (variantes || []) as unknown as VarianteAB[]
+}
+
 // =====================================================
 // Webhooks
 // =====================================================
@@ -1330,6 +1395,10 @@ export const formulariosApi = {
   listarVariantesAB,
   criarVarianteAB,
   excluirVarianteAB,
+  atualizarVarianteAB: atualizarVarianteAB,
+  registrarVisualizacaoAB,
+  registrarConversaoAB,
+  buscarVariantesTesteAtivo,
   // Webhooks
   listarWebhooks,
   criarWebhook,

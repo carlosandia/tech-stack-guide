@@ -8,6 +8,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { env } from '@/config/env'
+import { formulariosApi } from '../services/formularios.api'
+import type { VarianteAB } from '../services/formularios.api'
 import { getMaskForType } from '../utils/masks'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import DOMPurify from 'dompurify'
@@ -28,6 +30,8 @@ interface FormularioPublico {
   lgpd_texto_consentimento: string | null
   lgpd_url_politica: string | null
   lgpd_checkbox_obrigatorio: boolean | null
+  ab_testing_ativo?: boolean | null
+  teste_ab_atual_id?: string | null
 }
 
 const SOMBRA_MAP: Record<string, string> = {
@@ -99,6 +103,9 @@ export function FormularioPublicoPage() {
   const [enderecoValues, setEnderecoValues] = useState<Record<string, { rua: string; numero: string; complemento: string }>>({})
   const [buscandoCep, setBuscandoCep] = useState<Record<string, boolean>>({})
 
+  // AIDEV-NOTE: Estado da variante A/B selecionada
+  const [varianteAB, setVarianteAB] = useState<VarianteAB | null>(null)
+  const jaRegistrouVisualizacaoAB = useRef(false)
   // AIDEV-NOTE: Refs para tracking de analytics - evitar duplicatas
   const jaRegistrouVisualizacao = useRef(false)
   const jaRegistrouInicio = useRef(false)
@@ -120,7 +127,7 @@ export function FormularioPublicoPage() {
       setLoading(true)
       const { data: form, error: formErr } = await supabase
         .from('formularios')
-        .select('id, nome, slug, descricao, config_botoes, config_pos_envio, organizacao_id, lgpd_ativo, lgpd_texto_consentimento, lgpd_url_politica, lgpd_checkbox_obrigatorio')
+        .select('id, nome, slug, descricao, config_botoes, config_pos_envio, organizacao_id, lgpd_ativo, lgpd_texto_consentimento, lgpd_url_politica, lgpd_checkbox_obrigatorio, ab_testing_ativo, teste_ab_atual_id')
         .eq('slug', currentSlug)
         .eq('status', 'publicado')
         .is('deletado_em', null)
@@ -150,6 +157,39 @@ export function FormularioPublicoPage() {
       setCampos((camposRes.data || []) as unknown as CampoFormulario[])
       setEstilos(estilosRes.data as EstiloFormulario | null)
       setLoading(false)
+
+      // AIDEV-NOTE: A/B Testing - sortear variante se ativo
+      if ((form as any).ab_testing_ativo) {
+        try {
+          const variantes = await formulariosApi.buscarVariantesTesteAtivo(form.id)
+          if (variantes.length > 0) {
+            // Verificar localStorage para consistência
+            const storageKey = `ab_variante_${form.id}`
+            const savedVarianteId = localStorage.getItem(storageKey)
+            let selecionada = variantes.find(v => v.id === savedVarianteId)
+
+            if (!selecionada) {
+              // Sortear com base na porcentagem de tráfego
+              const rand = Math.random() * 100
+              let acc = 0
+              for (const v of variantes) {
+                acc += v.porcentagem_trafego ?? (100 / variantes.length)
+                if (rand <= acc) { selecionada = v; break }
+              }
+              selecionada = selecionada || variantes[0]
+              localStorage.setItem(storageKey, selecionada.id)
+            }
+
+            setVarianteAB(selecionada)
+
+            // Registrar visualização da variante
+            if (!jaRegistrouVisualizacaoAB.current) {
+              jaRegistrouVisualizacaoAB.current = true
+              formulariosApi.registrarVisualizacaoAB(selecionada.id)
+            }
+          }
+        } catch { /* silencioso */ }
+      }
 
       // AIDEV-NOTE: Registrar evento de visualização (analytics)
       if (!jaRegistrouVisualizacao.current) {
@@ -324,6 +364,11 @@ export function FormularioPublicoPage() {
 
     setEnviado(true)
 
+    // AIDEV-NOTE: Registrar conversão A/B se variante ativa
+    if (varianteAB) {
+      formulariosApi.registrarConversaoAB(varianteAB.id)
+    }
+
     // AIDEV-NOTE: Registrar evento de submissão para analytics/funil
     supabase.from('eventos_analytics_formularios').insert({
       formulario_id: formulario.id,
@@ -362,12 +407,35 @@ export function FormularioPublicoPage() {
 
   const container = (estilos?.container || {}) as EstiloContainer
   const camposEstilo = (estilos?.campos || {}) as EstiloCampos
-  const botao = (estilos?.botao || {}) as EstiloBotao
   const cabecalho = (estilos?.cabecalho || {}) as EstiloCabecalho
   const pagina = estilos?.pagina as any || {}
   const configBotoesRaw = formulario.config_botoes as any || {}
   const configBotoes = { ...configBotoesRaw, tipo_botao: configBotoesRaw.tipo_botao || 'enviar' }
   const posEnvio = formulario.config_pos_envio as any || {}
+
+  // AIDEV-NOTE: Aplicar overrides de variante A/B nos estilos
+  const abAlteracoes = (varianteAB?.alteracoes || {}) as Record<string, any>
+  const botaoBase = (estilos?.botao || {}) as EstiloBotao
+  const botao: EstiloBotao = {
+    ...botaoBase,
+    ...(abAlteracoes.botao?.cor_fundo ? { background_color: abAlteracoes.botao.cor_fundo } : {}),
+    ...(abAlteracoes.botao?.cor_texto ? { texto_cor: abAlteracoes.botao.cor_texto } : {}),
+  }
+
+  // Override container background se variante definir
+  const containerFinal: EstiloContainer = {
+    ...container,
+    ...(abAlteracoes.container?.cor_fundo ? { background_color: abAlteracoes.container.cor_fundo } : {}),
+  }
+
+  // Override textos do cabeçalho
+  const tituloExibido = abAlteracoes.cabecalho?.titulo || formulario.nome
+  const descricaoExibida = abAlteracoes.cabecalho?.descricao || formulario.descricao
+
+  // Override texto do botão - aplicado via estiloBotao.texto
+  if (abAlteracoes.botao?.texto) {
+    (botao as any).texto = abAlteracoes.botao.texto
+  }
   const fontFamily = container.font_family ? `${container.font_family}, 'Inter', system-ui, sans-serif` : "'Inter', system-ui, sans-serif"
 
   const mensagemSucesso = posEnvio.mensagem_sucesso || 'Formulário enviado com sucesso!'
@@ -459,28 +527,31 @@ export function FormularioPublicoPage() {
         onBlur={handleFormBlur}
         data-form-id={formulario.id}
         style={{
-          backgroundColor: container.background_color || '#FFFFFF',
-          borderRadius: container.border_radius || '8px',
-          padding: container.padding_top
-            ? `${container.padding_top}px ${container.padding_right || '24'}px ${container.padding_bottom || '24'}px ${container.padding_left || '24'}px`
-            : (container.padding || '24px'),
-          maxWidth: container.max_width || '600px',
+          backgroundColor: containerFinal.background_color || '#FFFFFF',
+          borderRadius: containerFinal.border_radius || '8px',
+          padding: containerFinal.padding_top
+            ? `${containerFinal.padding_top}px ${containerFinal.padding_right || '24'}px ${containerFinal.padding_bottom || '24'}px ${containerFinal.padding_left || '24'}px`
+            : (containerFinal.padding || '24px'),
+          maxWidth: containerFinal.max_width || '600px',
           width: '100%',
-          boxShadow: SOMBRA_MAP[container.sombra || 'md'],
+          boxShadow: SOMBRA_MAP[containerFinal.sombra || 'md'],
           fontFamily,
-          border: container.border_width && parseInt(container.border_width) > 0
-            ? `${container.border_width}px solid ${container.border_color || '#D1D5DB'}`
+          border: containerFinal.border_width && parseInt(containerFinal.border_width) > 0
+            ? `${containerFinal.border_width}px solid ${containerFinal.border_color || '#D1D5DB'}`
             : undefined,
         }}
       >
-        {/* Cabeçalho - só logo e descrição, sem título do formulário */}
-        {(cabecalho.logo_url || formulario.descricao) && (
+        {/* Cabeçalho - logo, título A/B e descrição A/B */}
+        {(cabecalho.logo_url || descricaoExibida || tituloExibido) && (
           <div style={{ marginBottom: '24px', textAlign: 'center' as const }}>
             {cabecalho.logo_url && (
               <img src={cabecalho.logo_url} alt="Logo" style={{ maxHeight: '40px', marginBottom: '8px', display: 'inline-block' }} />
             )}
-            {formulario.descricao && (
-              <p style={{ color: cabecalho.descricao_cor || '#6B7280', fontSize: cabecalho.descricao_tamanho || '14px', marginTop: '4px', fontFamily }}>{formulario.descricao}</p>
+            {tituloExibido && abAlteracoes.cabecalho?.titulo && (
+              <h2 style={{ fontSize: '20px', fontWeight: 600, color: cabecalho.titulo_cor || '#1F2937', marginBottom: '4px', fontFamily }}>{tituloExibido}</h2>
+            )}
+            {descricaoExibida && (
+              <p style={{ color: cabecalho.descricao_cor || '#6B7280', fontSize: cabecalho.descricao_tamanho || '14px', marginTop: '4px', fontFamily }}>{descricaoExibida}</p>
             )}
           </div>
         )}

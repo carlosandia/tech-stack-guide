@@ -105,3 +105,17 @@ export function useExcluirVarianteAB(testeId: string) {
     onError: (e: Error) => toast.error(e.message),
   })
 }
+
+// AIDEV-NOTE: Hook para atualizar alterações visuais de uma variante
+export function useAtualizarVarianteAB(testeId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ varianteId, alteracoes }: { varianteId: string; alteracoes: Record<string, unknown> }) =>
+      formulariosApi.atualizarVarianteAB(varianteId, alteracoes),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['testes-ab', testeId, 'variantes'] })
+      toast.success('Alterações da variante salvas')
+    },
+    onError: (e: Error) => toast.error(e.message),
+  })
+}
