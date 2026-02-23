@@ -1,76 +1,121 @@
 
 
-# Criar documento `docs/performance-conversas.md`
+# Correcao dos Ticks de Status (ACK) - Mensagens Enviadas pelo Dispositivo
 
-## Objetivo
+## Problema Identificado
 
-Criar um PRD seguindo o padrao oficial (`docs/prdpadrao.md`) que documenta todas as otimizacoes de midia do modulo de conversas -- tanto o que ja foi implementado quanto as boas praticas para implementacao futura.
+Quando o usuario envia varias mensagens rapidas pelo dispositivo (WhatsApp no celular), os ticks de status (enviado/entregue/lido) nao atualizam corretamente no CRM, apesar de aparecerem corretos no WhatsApp Web.
 
-## Estrutura do Documento
+## Causa Raiz (Race Condition)
 
-O documento seguira o template completo do PRD padrao com as seguintes secoes:
+Dois problemas foram identificados no webhook `waha-webhook`:
 
-### Cabecalho e Metadados
-- Titulo: "Performance e Otimizacao de Midia - Modulo de Conversas"
-- Status: "Em desenvolvimento" (parte implementada, parte backlog)
+### Problema 1: ACK nao e extraido do payload `message.any`
 
-### Resumo Executivo
-- Modulo omnichannel (WhatsApp + Instagram futuro) com alto volume de midia
-- Problema: uploads sem compressao, sem limites, sem deduplicacao
-- Solucao: pipeline de otimizacao client-side + server-side
+Quando uma mensagem chega via evento `message.any`, o WAHA envia o `ack` atual no payload (ex: `ack=1` para PENDING). Porem, o `messageInsert` **nunca inclui o campo `ack`**, fazendo a mensagem ser salva com `ack=0` (default da coluna). Isso significa que mesmo mensagens ja entregues comecam com tick zerado.
 
-### Contexto e Motivacao
-- Diagnostico atual (o que ja estava implementado vs gargalos)
-- Benchmarks de grandes SaaS omnichannel (Zendesk, Intercom, Freshdesk)
-- Impacto em custos de storage e banda
+### Problema 2: Race condition entre `message.any` e `message.ack`
 
-### Requisitos Funcionais
-Documentar as 6 otimizacoes do plano:
+Quando varias mensagens sao enviadas em sequencia rapida:
 
-| ID | Requisito | Status |
-|----|-----------|--------|
-| RF-001 | Limite de tamanho por tipo (10/30/10/15 MB) | Implementado |
-| RF-002 | Compressao de imagem (Canvas, 1920px, JPEG 0.8) | Implementado |
-| RF-003 | Compressao de video (720p, WebM VP8, 1Mbps) | Implementado |
-| RF-004 | Compressao de audio (OGG/Opus 64kbps) | Implementado |
-| RF-005 | Compressao de PDF (pdf-lib, server-side async) | Implementado |
-| RF-006 | Deduplicacao SHA-256 | Implementado |
-| RF-007 | CDN/Cache para midia | Backlog |
-| RF-008 | Lifecycle policy (TTL 12 meses) | Backlog |
-| RF-009 | Thumbnails server-side (300px) | Backlog |
-| RF-010 | Paginacao cursor-based em mensagens | Backlog |
-| RF-011 | Rate limiting de uploads | Backlog |
-| RF-012 | Archival de historico antigo | Backlog |
+```text
+Tempo  -->
+msg1: message.any -----> message.ack(2) --> message.ack(3) --> message.ack(4)
+msg2: message.any -----> message.ack(2) -----> message.ack(3)
+msg3:                    message.ack(2) --> message.any --> message.ack(3)
+                         ^^ ACK chega ANTES da mensagem existir no banco!
+```
 
-### Boas Praticas para Escalabilidade (secao dedicada)
-- CDN/Media Proxy com cache
-- Lifecycle policy com pg_cron
-- Thumbnails server-side
-- Cursor-based pagination
-- Rate limiting por organizacao
-- Archival de mensagens antigas
-- Lazy loading de midia (ja implementado)
+- O `message.ack` tenta atualizar uma mensagem que **ainda nao existe** no banco
+- O fallback por `ilike` tambem falha pois a mensagem nao foi inserida
+- Quando o `message.any` finalmente insere a mensagem, ela fica com `ack=0`
+- O `message.ack` ja foi processado (e descartado) -- o ACK e **perdido permanentemente**
 
-### Detalhes Tecnicos
-- Arquivos criados e modificados (com descricao da logica)
-- Fluxo completo do upload de midia (diagrama texto)
-- Logica do compressVideo, compressAudio, compress-pdf
-- Parametros e thresholds de cada compressor
+## Solucao
 
-### Fases de Entrega
-| Fase | Status |
-|------|--------|
-| Fase 1: Compressao client-side (img/video/audio) + limites | Concluida |
-| Fase 2: PDF server-side + deduplicacao SHA-256 | Concluida |
-| Fase 3: CDN + Thumbnails + Lifecycle | Backlog |
-| Fase 4: Cursor pagination + Rate limiting + Archival | Backlog |
+### Arquivo 1: `supabase/functions/waha-webhook/index.ts`
 
-### Riscos e Mitigacoes
-- Compressao de video longo trava browser
-- MediaRecorder sem suporte em browsers antigos
-- Custo de storage crescente com Instagram
+**Mudanca A** - Extrair `ack` do payload no `message.any` (ao montar `messageInsert`):
 
-## Arquivo a criar
+Apos montar o `messageInsert` (linha ~2401), adicionar a extracao do ACK que vem no proprio payload da mensagem:
 
-- **`docs/performance-conversas.md`** -- PRD completo seguindo o padrao oficial
+```typescript
+// Extrair ACK do payload da mensagem (WAHA envia ack atual junto com message.any)
+const payloadAck = payload.ack ?? payload._data?.ack;
+if (payloadAck !== undefined && payloadAck !== null && typeof payloadAck === 'number') {
+  messageInsert.ack = payloadAck;
+  const ackNameMap: Record<number, string> = { 0: 'ERROR', 1: 'PENDING', 2: 'SENT', 3: 'DELIVERED', 4: 'READ', 5: 'PLAYED' };
+  messageInsert.ack_name = ackNameMap[payloadAck] || null;
+}
+```
+
+**Mudanca B** - Implementar retry no `message.ack` quando mensagem nao existe:
+
+No bloco de processamento do `message.ack` (linhas ~165-248), quando nenhum match e encontrado (nem exato, nem fallback), adicionar uma espera curta e retentar **uma vez**. Isso cobre a race condition sem sobrecarregar:
+
+```typescript
+// Apos ambas as buscas (exata + ilike) falharem:
+if (!matched && !ilikeMatched) {
+  // Retry apos 2 segundos (race condition: message.any pode estar sendo processado)
+  console.log(`[waha-webhook] ACK: no match yet for ${messageId}, retrying in 2s...`);
+  await new Promise(r => setTimeout(r, 2000));
+  
+  // Re-tentar busca exata
+  const { data: retryMatch } = await supabaseAdmin
+    .from("mensagens")
+    .select("id, ack")
+    .eq("message_id", messageId)
+    .eq("organizacao_id", sessao.organizacao_id);
+  
+  if (retryMatch && retryMatch.length > 0) {
+    const currentAck = retryMatch[0].ack ?? 0;
+    if (ack > currentAck) {
+      await supabaseAdmin
+        .from("mensagens")
+        .update(ackUpdate)
+        .eq("id", retryMatch[0].id);
+      console.log(`[waha-webhook] ACK retry success: ${messageId}, ack=${currentAck}->${ack}`);
+    }
+  } else {
+    // Retry fallback ilike
+    const shortId = messageId.includes('_') ? messageId.split('_').pop() : null;
+    if (shortId) {
+      const { data: retryIlike } = await supabaseAdmin
+        .from("mensagens")
+        .select("id, ack")
+        .ilike("message_id", `%_${shortId}`)
+        .eq("organizacao_id", sessao.organizacao_id);
+      
+      if (retryIlike && retryIlike.length > 0) {
+        const currentAck = retryIlike[0].ack ?? 0;
+        if (ack > currentAck) {
+          await supabaseAdmin
+            .from("mensagens")
+            .update(ackUpdate)
+            .eq("id", retryIlike[0].id);
+          console.log(`[waha-webhook] ACK retry fallback success: ${shortId}, ack=${currentAck}->${ack}`);
+        }
+      } else {
+        console.warn(`[waha-webhook] ACK lost after retry: ${messageId}`);
+      }
+    }
+  }
+}
+```
+
+### Arquivo 2: Sem alteracao necessaria no frontend
+
+O `useAckRealtime` ja escuta `UPDATE` na tabela mensagens filtrado por `conversa_id`. Uma vez que o ACK e salvo corretamente no banco (via as correcoes acima), o Realtime do Supabase vai propagar o update para o cache do React Query e os ticks atualizarao automaticamente.
+
+## Resumo das Mudancas
+
+| Arquivo | Tipo | Descricao |
+|---------|------|-----------|
+| `supabase/functions/waha-webhook/index.ts` | Modificar | Extrair `ack` do payload no insert + retry no message.ack |
+
+## Impacto
+
+- Mensagens inseridas ja terao o ACK correto desde o inicio (ack=1 ao inves de ack=0)
+- ACKs que chegam antes da mensagem existir serao recuperados com retry de 2s
+- Nenhuma mudanca no frontend necessaria -- Realtime ja propaga os updates
 
