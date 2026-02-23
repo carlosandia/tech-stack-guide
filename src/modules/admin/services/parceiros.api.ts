@@ -488,7 +488,7 @@ export async function listarOrganizacoesDisponiveis(
   let query = db
     .from('organizacoes_saas')
     .select('id, nome, email, status')
-    .eq('status', 'ativa')
+    .eq('status', 'ativo')
     .order('nome', { ascending: true })
     .limit(30)
 
