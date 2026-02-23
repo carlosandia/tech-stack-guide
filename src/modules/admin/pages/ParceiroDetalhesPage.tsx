@@ -70,6 +70,7 @@ function ParceiroDetalhesPage() {
   const [activeTab, setActiveTab] = useState<TabId>('indicados')
   const [comissaoModalOpen, setComissaoModalOpen] = useState(false)
   const [copiadoUrl, setCopiadoUrl] = useState(false)
+  const [copiadoCodigo, setCopiadoCodigo] = useState(false)
   const [confirmarGratuidade, setConfirmarGratuidade] = useState(false)
   const [gratuidadeValidade, setGratuidadeValidade] = useState('')
 
@@ -248,9 +249,22 @@ function ParceiroDetalhesPage() {
         <div className="mt-4 pt-4 border-t border-border flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Código</span>
-            <span className="inline-flex items-center px-2.5 py-1 bg-muted text-foreground text-xs font-mono rounded-md">
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(parceiro.codigo_indicacao)
+                setCopiadoCodigo(true)
+                setTimeout(() => setCopiadoCodigo(false), 2000)
+              }}
+              className="inline-flex items-center gap-2 px-2.5 py-1 bg-muted hover:bg-accent text-foreground text-xs font-mono rounded-md transition-colors group"
+              title="Clique para copiar"
+            >
               {parceiro.codigo_indicacao}
-            </span>
+              {copiadoCodigo ? (
+                <Check className="w-3 h-3 text-green-500" />
+              ) : (
+                <Copy className="w-3 h-3 text-muted-foreground group-hover:text-foreground" />
+              )}
+            </button>
           </div>
           <div className="flex items-center gap-2 min-w-0 flex-1">
             <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider flex-shrink-0">Link</span>
