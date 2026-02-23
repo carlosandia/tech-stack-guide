@@ -48,15 +48,23 @@ jobs:
           ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
 
       # 7. Adicionar host conhecido
+      # AIDEV-NOTE: DEPLOY_PORT pode ser 22 (padrão) ou porta customizada do servidor
       - name: Add known host
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+          chmod 700 ~/.ssh
+          PORT="${{ secrets.DEPLOY_PORT }}"
+          PORT="${PORT:-22}"
+          echo "Verificando host ${{ secrets.DEPLOY_HOST }}:${PORT}..."
+          ssh-keyscan -p "${PORT}" -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+          echo "Host adicionado com sucesso."
 
       # 8. Criar backup no servidor
       - name: Create backup on server
         run: |
-          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'ENDSSH'
+          PORT="${{ secrets.DEPLOY_PORT }}"
+          PORT="${PORT:-22}"
+          ssh -p "${PORT}" ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'ENDSSH'
             # Backup frontend
             cd /var/www/crm.renovedigital.com.br/frontend
             [ -d dist.backup ] && rm -rf dist.backup || true
@@ -71,23 +79,31 @@ jobs:
       # 9. Deploy frontend
       - name: Deploy frontend
         run: |
+          PORT="${{ secrets.DEPLOY_PORT }}"
+          PORT="${PORT:-22}"
           rsync -avz --delete \
+            -e "ssh -p ${PORT}" \
             dist/ \
             ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/var/www/crm.renovedigital.com.br/frontend/dist/
 
       # 10. Deploy backend
       - name: Deploy backend
         run: |
+          PORT="${{ secrets.DEPLOY_PORT }}"
+          PORT="${PORT:-22}"
+
           # Copiar src (usando tsx em produção)
           rsync -avz --delete \
             --exclude='.env' \
             --exclude='node_modules' \
             --exclude='dist' \
+            -e "ssh -p ${PORT}" \
             backend/src/ \
             ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/var/www/crm.renovedigital.com.br/backend/src/
 
           # Copiar package.json, tsconfig e ecosystem
           rsync -avz \
+            -e "ssh -p ${PORT}" \
             backend/package.json \
             backend/package-lock.json \
             backend/tsconfig.json \
@@ -97,7 +113,9 @@ jobs:
       # 11. Instalar dependências e reiniciar serviços
       - name: Install deps and restart services
         run: |
-          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'ENDSSH'
+          PORT="${{ secrets.DEPLOY_PORT }}"
+          PORT="${PORT:-22}"
+          ssh -p "${PORT}" ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'ENDSSH'
             cd /var/www/crm.renovedigital.com.br/backend
 
             # Instalar dependências (inclui tsx como dep de produção)
@@ -137,8 +155,11 @@ jobs:
       # 13. Rollback em caso de falha
       - name: Rollback on failure
         if: failure()
+        continue-on-error: true
         run: |
-          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'ENDSSH'
+          PORT="${{ secrets.DEPLOY_PORT }}"
+          PORT="${PORT:-22}"
+          ssh -p "${PORT}" ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'ENDSSH'
             echo "🔄 Iniciando rollback..."
 
             # Restaurar frontend
