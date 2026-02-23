@@ -6,6 +6,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { Copy, Radio, Check, ArrowRight, Loader2 } from 'lucide-react'
 import { supabase } from '@/integrations/supabase/client'
+import { env } from '@/config/env'
 import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
@@ -60,9 +61,9 @@ export function WebhookDebugPanel({ triggerConfig, onConfigUpdate, organizacaoId
   })
 
   const selectedWebhook = webhooks.find(w => w.id === selectedWebhookId)
-  // AIDEV-NOTE: Centralizado via env vars (Auditoria M1)
+  // AIDEV-NOTE: Centralizado via env.SUPABASE_URL com fallback (Auditoria M1)
   const webhookUrl = selectedWebhook
-    ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/webhook-entrada/${selectedWebhook.url_token}`
+    ? `${env.SUPABASE_URL}/functions/v1/webhook-entrada/${selectedWebhook.url_token}`
     : ''
 
   const handleSelectWebhook = (webhookId: string) => {

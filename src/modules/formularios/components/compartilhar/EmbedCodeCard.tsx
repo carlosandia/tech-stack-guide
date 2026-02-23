@@ -22,11 +22,11 @@ const EMBED_LABELS: Record<EmbedType, string> = {
   sidebar: 'Sidebar (lateral)',
 }
 
-// AIDEV-NOTE: Centralizado via env vars (Auditoria M1)
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
+// AIDEV-NOTE: Centralizado via env.SUPABASE_URL com fallback (Auditoria M1)
+import { env } from '@/config/env'
 
 function generateEmbedCode(slug: string, type: EmbedType): string {
-  const loaderUrl = `${SUPABASE_URL}/functions/v1/widget-formulario-loader?slug=${slug}&mode=${type}`
+  const loaderUrl = `${env.SUPABASE_URL}/functions/v1/widget-formulario-loader?slug=${slug}&mode=${type}`
 
   return `<!-- Formulário CRM Renove -->
 <script data-form-slug="${slug}" src="${loaderUrl}" async></script>`

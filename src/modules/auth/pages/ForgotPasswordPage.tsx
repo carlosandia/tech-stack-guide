@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { Link } from 'react-router-dom'
 import { Loader2, ArrowLeft, CheckCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { env } from '@/config/env'
 
 /**
  * AIDEV-NOTE: Pagina de Recuperacao de Senha
@@ -43,15 +44,15 @@ export function ForgotPasswordPage() {
       const session = await supabase.auth.getSession()
       const accessToken = session.data.session?.access_token
 
-      // AIDEV-NOTE: Centralizado via env vars (Auditoria M1/M2)
+      // AIDEV-NOTE: Centralizado via env.SUPABASE_URL com fallback (Auditoria M1/M2)
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-password-reset`,
+        `${env.SUPABASE_URL}/functions/v1/send-password-reset`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {}),
-            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            'apikey': env.SUPABASE_ANON_KEY,
           },
           body: JSON.stringify({ email: data.email }),
         }

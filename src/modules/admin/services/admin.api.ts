@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { env } from '@/config/env'
 import type { Json } from '@/integrations/supabase/types'
 
 /**
@@ -417,7 +418,7 @@ export async function criarOrganizacao(payload: CriarOrganizacaoPayload): Promis
       const accessToken = session.data.session?.access_token
 
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/invite-admin`,
+        `${env.SUPABASE_URL}/functions/v1/invite-admin`,
         {
           method: 'POST',
           headers: {
@@ -594,7 +595,7 @@ export async function impersonarOrganizacao(id: string, motivo: string): Promise
   const accessToken = session.data.session?.access_token
 
   const response = await fetch(
-    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/impersonar-organizacao`,
+    `${env.SUPABASE_URL}/functions/v1/impersonar-organizacao`,
     {
       method: 'POST',
       headers: {
@@ -1088,7 +1089,7 @@ export async function testarConfigGlobal(plataforma: string): Promise<{ sucesso:
       const accessToken = session.data.session?.access_token
 
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/test-smtp`,
+        `${env.SUPABASE_URL}/functions/v1/test-smtp`,
         {
           method: 'POST',
           headers: {
@@ -1283,7 +1284,7 @@ export async function reenviarConvite(params: {
   const accessToken = session.data.session?.access_token
 
   const response = await fetch(
-    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/invite-admin`,
+    `${env.SUPABASE_URL}/functions/v1/invite-admin`,
     {
       method: 'POST',
       headers: {
