@@ -197,15 +197,24 @@ export function PreCadastroModal({
             <div>
               <Label htmlFor="codigo_parceiro">
                 Código do Parceiro{' '}
-                <span className="text-xs text-muted-foreground">(opcional)</span>
+                {codigoParceiro ? (
+                  <span className="text-xs text-emerald-600 font-medium">✓ Validado</span>
+                ) : (
+                  <span className="text-xs text-muted-foreground">(opcional)</span>
+                )}
               </Label>
               <Input
                 id="codigo_parceiro"
                 placeholder="Ex: RENOVE-MBP7VY"
                 {...register('codigo_parceiro')}
-                className="mt-1.5 uppercase"
+                className={`mt-1.5 uppercase ${codigoParceiro ? 'bg-muted cursor-not-allowed opacity-70' : ''}`}
+                readOnly={!!codigoParceiro}
+                tabIndex={codigoParceiro ? -1 : undefined}
+                onKeyDown={codigoParceiro ? (e) => e.preventDefault() : undefined}
                 onChange={(e) => {
-                  e.target.value = e.target.value.toUpperCase()
+                  if (!codigoParceiro) {
+                    e.target.value = e.target.value.toUpperCase()
+                  }
                 }}
               />
             </div>
