@@ -194,72 +194,85 @@ function ParceiroDetalhesPage() {
       )}
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-        <div className="flex items-start gap-4">
-          <button
-            onClick={() => navigate(-1)}
-            className="p-2 hover:bg-accent rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5 text-muted-foreground" />
-          </button>
-          <div>
-            <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-2xl font-bold text-foreground">{orgNome}</h1>
-              <span className="inline-flex items-center px-2 py-0.5 bg-muted text-muted-foreground text-xs font-mono rounded">
-                {parceiro.codigo_indicacao}
-              </span>
-              <span
-                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${parceirStatusColors[parceiro.status]}`}
-              >
-                {parceirStatusLabels[parceiro.status]}
-              </span>
+      <div className="bg-card border border-border rounded-lg p-5">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <button
+              onClick={() => navigate(-1)}
+              className="mt-1 p-2 hover:bg-accent rounded-lg transition-colors flex-shrink-0"
+            >
+              <ArrowLeft className="w-5 h-5 text-muted-foreground" />
+            </button>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h1 className="text-xl font-bold text-foreground">{orgNome}</h1>
+                <span
+                  className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${parceirStatusColors[parceiro.status]}`}
+                >
+                  {parceirStatusLabels[parceiro.status]}
+                </span>
+              </div>
+              {parceiro.usuario && (
+                <p className="text-muted-foreground mt-1 text-sm">
+                  Admin: {parceiro.usuario.nome} • {parceiro.usuario.email}
+                </p>
+              )}
             </div>
-            {parceiro.usuario && (
-              <p className="text-muted-foreground mt-1 text-sm">
-                Admin: {parceiro.usuario.nome} • {parceiro.usuario.email}
-              </p>
-            )}
-            {/* Link de indicação copiável */}
-            <div className="flex items-center gap-2 mt-2">
-              <code className="text-xs bg-muted px-2 py-1 rounded text-muted-foreground select-all">
-                {window.location.origin}/parceiro/{parceiro.codigo_indicacao}
-              </code>
+          </div>
+
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {parceiro.status === 'ativo' && (
               <button
-                onClick={() => {
-                  navigator.clipboard.writeText(`${window.location.origin}/parceiro/${parceiro.codigo_indicacao}`)
-                  setCopiadoUrl(true)
-                  setTimeout(() => setCopiadoUrl(false), 2000)
-                }}
-                className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-                title="Copiar link de indicação"
+                onClick={handleSuspender}
+                disabled={updateParceiro.isPending}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border border-destructive text-destructive rounded-md hover:bg-destructive/10 transition-colors disabled:opacity-50"
               >
-                {copiadoUrl ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+                <Pause className="w-4 h-4" />
+                Suspender
               </button>
-            </div>
+            )}
+            {parceiro.status === 'suspenso' && (
+              <button
+                onClick={handleReativar}
+                disabled={updateParceiro.isPending}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border border-primary text-primary rounded-md hover:bg-primary/10 transition-colors disabled:opacity-50"
+              >
+                <Play className="w-4 h-4" />
+                Reativar
+              </button>
+            )}
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {parceiro.status === 'ativo' && (
+        {/* Info row: código + link */}
+        <div className="mt-4 pt-4 border-t border-border flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Código</span>
+            <span className="inline-flex items-center px-2.5 py-1 bg-muted text-foreground text-xs font-mono rounded-md">
+              {parceiro.codigo_indicacao}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider flex-shrink-0">Link</span>
             <button
-              onClick={handleSuspender}
-              disabled={updateParceiro.isPending}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border border-destructive text-destructive rounded-md hover:bg-destructive/10 transition-colors disabled:opacity-50"
+              onClick={() => {
+                navigator.clipboard.writeText(`${window.location.origin}/parceiro/${parceiro.codigo_indicacao}`)
+                setCopiadoUrl(true)
+                setTimeout(() => setCopiadoUrl(false), 2000)
+              }}
+              className="inline-flex items-center gap-2 px-3 py-1.5 bg-muted hover:bg-accent rounded-md transition-colors min-w-0 group"
+              title="Clique para copiar"
             >
-              <Pause className="w-4 h-4" />
-              Suspender
+              <code className="text-xs text-muted-foreground group-hover:text-foreground truncate">
+                {window.location.origin}/parceiro/{parceiro.codigo_indicacao}
+              </code>
+              {copiadoUrl ? (
+                <Check className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
+              ) : (
+                <Copy className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground flex-shrink-0" />
+              )}
             </button>
-          )}
-          {parceiro.status === 'suspenso' && (
-            <button
-              onClick={handleReativar}
-              disabled={updateParceiro.isPending}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border border-primary text-primary rounded-md hover:bg-primary/10 transition-colors disabled:opacity-50"
-            >
-              <Play className="w-4 h-4" />
-              Reativar
-            </button>
-          )}
+          </div>
         </div>
       </div>
 
