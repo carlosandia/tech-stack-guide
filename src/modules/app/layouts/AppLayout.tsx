@@ -3,6 +3,7 @@ import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/providers/AuthProvider'
 import { useModulosTenant } from '@/hooks/useModulosTenant'
 import { useBlockedRedirect } from '@/hooks/useBlockedRedirect'
+import { ModuloGuard } from '@/components/ModuloGuard'
 import { preloadCommonRoutes } from '@/shared/utils/preload'
 import { AppToolbarProvider, useAppToolbar } from '../contexts/AppToolbarContext'
 import { FeedbackButton } from '@/modules/feedback/components/FeedbackButton'
@@ -32,6 +33,7 @@ import {
   Menu,
   X,
   ChevronDown,
+  Lock,
 } from 'lucide-react'
 
 
@@ -100,7 +102,26 @@ const NavItem = forwardRef<HTMLAnchorElement, {
   children: React.ReactNode
   icon: React.ElementType
   onClick?: () => void
-}>(function NavItem({ to, exact, children, icon: Icon, onClick }, ref) {
+  locked?: boolean
+}>(function NavItem({ to, exact, children, icon: Icon, onClick, locked }, ref) {
+  if (locked) {
+    return (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault()
+          // Could show a toast/tooltip in the future
+        }}
+        className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 border border-transparent text-muted-foreground/50 cursor-not-allowed opacity-60 relative group"
+        title="Módulo não disponível no seu plano"
+      >
+        <Icon className="w-4 h-4" />
+        <span>{children}</span>
+        <Lock className="w-3 h-3 ml-auto text-muted-foreground/40 group-hover:text-muted-foreground/60" />
+      </button>
+    )
+  }
+
   return (
     <NavLink
       ref={ref}
@@ -170,10 +191,11 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
   const hideToolbar = isEditorRoute || isPipelineConfig || isPerfilRoute
   const hideHeader = isEditorRoute
 
-  // AIDEV-NOTE: Filtrar menu com base nos módulos ativos do plano do tenant
-  const visibleItems = modulosAtivos
-    ? menuItems.filter(item => modulosAtivos.includes(item.slug))
-    : menuItems // Enquanto carrega, mostra todos (evita flash)
+  // AIDEV-NOTE: Mostrar todos os módulos, mas marcar como bloqueados os que não estão no plano
+  const itemsComStatus = menuItems.map(item => ({
+    ...item,
+    locked: modulosAtivos ? !modulosAtivos.includes(item.slug) : false,
+  }))
 
   const handleLogout = async () => {
     try {
@@ -217,23 +239,36 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
         </div>
 
         <nav className="p-4 space-y-1">
-          {visibleItems.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              end={item.exact}
-              onClick={() => setDrawerOpen(false)}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200 ${
-                  isActive
-                    ? 'border border-primary/40 bg-primary/5 text-primary'
-                    : 'border border-transparent text-muted-foreground hover:text-foreground hover:bg-accent'
-                }`
-              }
-            >
-              <item.icon className="w-5 h-5" />
-              {item.label}
-            </NavLink>
+          {itemsComStatus.map((item) => (
+            item.locked ? (
+              <button
+                key={item.path}
+                type="button"
+                className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200 border border-transparent text-muted-foreground/50 cursor-not-allowed opacity-60 w-full relative"
+                title="Módulo não disponível no seu plano"
+              >
+                <item.icon className="w-5 h-5" />
+                {item.label}
+                <Lock className="w-3.5 h-3.5 ml-auto text-muted-foreground/40" />
+              </button>
+            ) : (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                end={item.exact}
+                onClick={() => setDrawerOpen(false)}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200 ${
+                    isActive
+                      ? 'border border-primary/40 bg-primary/5 text-primary'
+                      : 'border border-transparent text-muted-foreground hover:text-foreground hover:bg-accent'
+                  }`
+                }
+              >
+                <item.icon className="w-5 h-5" />
+                {item.label}
+              </NavLink>
+            )
           ))}
           {/* Configurações link — admin only in mobile drawer */}
           {isAdmin && (
@@ -287,12 +322,13 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
 
               {/* Desktop Navigation */}
               <nav className="hidden md:flex items-center gap-1">
-                {visibleItems.map((item) => (
+                {itemsComStatus.map((item) => (
                   <NavItem
                     key={item.path}
                     to={item.path}
                     exact={item.exact}
                     icon={item.icon}
+                    locked={item.locked}
                   >
                     {item.label}
                   </NavItem>
@@ -377,7 +413,9 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
 
       {/* Main content - flex-1 preenche altura restante, overflow-hidden para scroll interno das páginas */}
       <main className="flex-1 overflow-hidden" style={{ backgroundColor: 'hsl(var(--content-bg))' }}>
-        <Outlet />
+        <ModuloGuard>
+          <Outlet />
+        </ModuloGuard>
       </main>
 
     </div>
