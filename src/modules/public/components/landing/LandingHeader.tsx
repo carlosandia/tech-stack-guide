@@ -15,7 +15,7 @@ export function LandingHeader() {
     { label: 'Funcionalidades', href: '#funcionalidades' },
     { label: 'Como Funciona', href: '#como-funciona' },
     { label: 'Depoimentos', href: '#depoimentos' },
-    { label: 'Planos', href: '/planos' },
+    { label: 'Planos', href: '#planos' },
     { label: 'FAQ', href: '#faq' },
   ]
 

@@ -7,6 +7,7 @@ import { ModulesSection } from '../components/landing/ModulesSection'
 import { HowItWorksSection } from '../components/landing/HowItWorksSection'
 import { TestimonialsSection } from '../components/landing/TestimonialsSection'
 import { ComparisonSection } from '../components/landing/ComparisonSection'
+import { PricingSection } from '../components/landing/PricingSection'
 import { FAQSection } from '../components/landing/FAQSection'
 import { FinalCTASection } from '../components/landing/FinalCTASection'
 import { LandingFooter } from '../components/landing/LandingFooter'
@@ -29,6 +30,7 @@ export function LandingPage() {
         <HowItWorksSection />
         <TestimonialsSection />
         <ComparisonSection />
+        <PricingSection />
         <FAQSection />
         <FinalCTASection />
       </main>

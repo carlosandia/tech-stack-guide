@@ -46,10 +46,20 @@ export function FinalCTASection() {
           </Button>
         </Link>
 
-        <div className="mt-6 flex items-center justify-center gap-4 text-sm text-primary-foreground/70">
-          <span>Cancele quando quiser</span>
-          <span>•</span>
-          <span>Suporte incluso</span>
+        <div className="mt-6 flex flex-col items-center gap-3">
+          <div className="flex items-center gap-4 text-sm text-primary-foreground/70">
+            <span>Cancele quando quiser</span>
+            <span>•</span>
+            <span>Suporte incluso</span>
+          </div>
+          <button
+            onClick={() => {
+              document.querySelector('#planos')?.scrollIntoView({ behavior: 'smooth' })
+            }}
+            className="text-sm text-primary-foreground/60 hover:text-primary-foreground/90 underline underline-offset-4 transition-colors"
+          >
+            Comparar planos
+          </button>
         </div>
       </div>
     </section>
