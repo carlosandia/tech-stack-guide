@@ -184,42 +184,48 @@ export function ParceiroPage() {
       </header>
 
       {/* Hero premium — sempre dark nesta página */}
-      <section className="py-16 sm:py-24 px-4 relative bg-[#0F172A] overflow-hidden border-b border-white/10">
-        {/* Gradiente radial premium */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,hsl(var(--primary)/0.18)_0%,transparent_70%)] pointer-events-none" />
-        <div className="max-w-4xl mx-auto text-center relative">
-          {/* Badge de indicação */}
-          <div className="flex justify-center mb-5 animate-in fade-in duration-700">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 border border-white/20 text-white text-xs sm:text-sm font-medium backdrop-blur-sm">
-              <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-              <span>Indicado por <strong className="font-semibold">{parceiro?.organizacao?.nome}</strong></span>
-            </div>
-          </div>
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4">
-            Escolha o plano ideal para seu negócio
+      <section className="py-20 sm:py-28 px-4 relative overflow-hidden border-b border-white/10">
+        {/* Gradientes premium empilhados */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,hsl(var(--primary)/0.20)_0%,transparent_60%)] pointer-events-none" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_right,hsl(var(--primary)/0.08)_0%,transparent_50%)] pointer-events-none" />
+
+        <div className="max-w-3xl mx-auto text-center relative">
+          {/* Título principal — primeiro, hierarquia clara */}
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4 animate-fade-in">
+            Escolha o plano ideal<br className="hidden sm:block" /> para seu negócio
           </h1>
-          <p className="text-lg text-slate-300 mb-8">
-            Você foi indicado por <strong className="text-white">{parceiro?.organizacao?.nome}</strong>. Cancele quando quiser.
+
+          {/* Subtítulo com contexto */}
+          <p className="text-base sm:text-lg text-slate-400 mb-6 animate-fade-in" style={{ animationDelay: '100ms', animationFillMode: 'both' }}>
+            Comece agora e cancele quando quiser. Sem surpresas.
           </p>
 
+          {/* Badge de indicação — destaque após contexto */}
+          <div className="flex justify-center mb-8 animate-fade-in" style={{ animationDelay: '200ms', animationFillMode: 'both' }}>
+            <div className="inline-flex items-center gap-2.5 px-5 py-2.5 rounded-full bg-white/[0.07] border border-white/15 text-white text-xs sm:text-sm font-medium backdrop-blur-sm shadow-lg shadow-black/10 transition-all duration-300 hover:bg-white/[0.12] hover:border-white/25">
+              <Sparkles className="w-4 h-4 text-primary shrink-0" />
+              <span>Indicado por <strong className="font-semibold text-primary">{parceiro?.organizacao?.nome}</strong></span>
+            </div>
+          </div>
+
           {/* Toggle Período */}
-          <div className="inline-flex items-center gap-3 p-1 bg-white/10 rounded-lg">
+          <div className="inline-flex items-center p-1 bg-white/[0.07] rounded-lg border border-white/10 animate-fade-in" style={{ animationDelay: '300ms', animationFillMode: 'both' }}>
             <button
               onClick={() => setPeriodo('mensal')}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+              className={`px-5 py-2 text-sm font-medium rounded-md transition-all duration-200 ${
                 periodo === 'mensal'
-                  ? 'bg-white/20 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-white'
+                  ? 'bg-white/15 text-white shadow-sm shadow-black/20'
+                  : 'text-slate-500 hover:text-slate-300'
               }`}
             >
               Mensal
             </button>
             <button
               onClick={() => setPeriodo('anual')}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+              className={`px-5 py-2 text-sm font-medium rounded-md transition-all duration-200 ${
                 periodo === 'anual'
-                  ? 'bg-white/20 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-white'
+                  ? 'bg-white/15 text-white shadow-sm shadow-black/20'
+                  : 'text-slate-500 hover:text-slate-300'
               }`}
             >
               Anual
