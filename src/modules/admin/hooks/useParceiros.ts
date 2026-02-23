@@ -80,6 +80,7 @@ export function useCreateParceiro() {
     mutationFn: (data: CriarParceiroData) => criarParceiro(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'parceiros'] })
+      queryClient.refetchQueries({ queryKey: ['admin', 'parceiros'] })
       toast.success('Parceiro cadastrado com sucesso')
     },
     onError: (error: Error) => {

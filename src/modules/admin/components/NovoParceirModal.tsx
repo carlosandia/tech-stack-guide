@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { CriarParceiroSchema, type CriarParceiroData } from '../schemas/parceiro.schema'
 import { useCreateParceiro } from '../hooks/useParceiros'
 import { listarOrganizacoesDisponiveis } from '../services/parceiros.api'
-import { toast } from 'sonner'
+
 
 interface Props {
   isOpen: boolean
@@ -129,8 +129,7 @@ export function NovoParceirModal({ isOpen, onClose }: Props) {
     if (erroAdmin) return
 
     createParceiro.mutate(data, {
-      onSuccess: (parceiro) => {
-        toast.success(`Parceiro cadastrado! Código: ${parceiro.codigo_indicacao}`)
+      onSuccess: () => {
         onClose()
       },
     })
