@@ -5,6 +5,7 @@
  */
 
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useResolverFeedback } from '@/modules/feedback/hooks/useFeedback'
 import { useAuth } from '@/providers/AuthProvider'
 import type { FeedbackComDetalhes } from '@/modules/feedback/services/feedback.api'
@@ -81,7 +82,7 @@ export function FeedbackDetalhesModal({ feedback: initialFeedback, open, onClose
     onResolved?.()
   }
 
-  return (
+  return createPortal(
     <>
       {/* Backdrop */}
       <div className="fixed inset-0 z-[500] bg-foreground/20 backdrop-blur-sm" onClick={onClose} />
@@ -187,7 +188,8 @@ export function FeedbackDetalhesModal({ feedback: initialFeedback, open, onClose
           </div>
         </div>
       </div>
-    </>
+    </>,
+    document.body
   )
 }
 

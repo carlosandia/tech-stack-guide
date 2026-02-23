@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+// AIDEV-NOTE: CTAs agora scrollam para #planos
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ArrowRight, Play, Building2 } from 'lucide-react'
@@ -36,12 +36,14 @@ export function HeroSection() {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-3 pt-2">
-              <Link to="/trial">
+              <button
+                onClick={() => document.querySelector('#planos')?.scrollIntoView({ behavior: 'smooth' })}
+              >
                 <Button size="lg" className="w-full sm:w-auto text-base px-8 h-12 shadow-md hover:shadow-lg transition-shadow">
                   Teste grátis por 14 dias
                   <ArrowRight size={18} className="ml-2" />
                 </Button>
-              </Link>
+              </button>
               <Button variant="outline" size="lg" className="w-full sm:w-auto text-base px-6 h-12 gap-2">
                 <Play size={16} className="text-primary" />
                 Ver demonstração

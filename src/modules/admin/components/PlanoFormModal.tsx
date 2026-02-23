@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -207,7 +208,7 @@ export function PlanoFormModal({ plano, onClose }: Props) {
     })
   }
 
-  return (
+  return createPortal(
     <>
       <div className="fixed inset-0 z-[400] bg-black/80 backdrop-blur-sm" onClick={onClose} />
       <div className="fixed inset-0 z-[401] flex items-center justify-center pointer-events-none">
@@ -585,6 +586,7 @@ export function PlanoFormModal({ plano, onClose }: Props) {
         </div>
       </div>
       </div>
-    </>
+    </>,
+    document.body
   )
 }

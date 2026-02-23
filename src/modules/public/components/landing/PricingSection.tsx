@@ -60,8 +60,7 @@ export function PricingSection() {
         .order('ordem', { ascending: true })
 
       if (!error && data) {
-        // Filtrar planos gratuitos (trial) da landing pública
-        setPlanos(data.filter((p) => (p.preco_mensal ?? 0) > 0) as Plano[])
+        setPlanos(data as Plano[])
       }
       setLoading(false)
     }
@@ -209,7 +208,7 @@ export function PricingSection() {
                       className="w-full"
                       variant={plano.popular ? 'default' : 'outline'}
                     >
-                      Assinar {plano.nome}
+                      {(plano.preco_mensal ?? 0) === 0 ? 'Começar grátis' : `Assinar ${plano.nome}`}
                     </Button>
                   </Link>
                 </div>
