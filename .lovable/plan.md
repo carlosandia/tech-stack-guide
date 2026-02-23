@@ -1,33 +1,33 @@
 
 
-## Ajuste no campo "Codigo do Parceiro" no PreCadastroModal
+## Corrigir gradiente da hero section na ParceiroPage
 
 ### Problema
-O campo "Codigo do Parceiro" quando certificado (readOnly) esta com fundo muito claro, quase invisivel, e posicionado no meio do formulario sem destaque.
+O gradiente radial na hero section tem um fade suave no lado esquerdo, mas no lado direito aparece uma transicao mais brusca (como uma "linha"), em vez de um degradê suave igual.
 
-### Proposta
+### Solucao
+Ajustar os dois gradientes radiais existentes para que ambos os lados tenham a mesma suavidade:
 
-**1. Posicionamento: Mover para o TOPO do formulario (primeiro campo)**
+1. O primeiro gradiente (`ellipse_at_top`) ja funciona bem no centro/esquerda. Manter.
+2. O segundo gradiente (`circle_at_bottom_right`) cria o efeito assimetrico. Trocar para um gradiente espelhado que repita o mesmo efeito suave nos dois lados.
 
-Recomendo colocar o campo de parceiro como **primeiro elemento** do formulario, antes do nome. Motivos:
-- Quando o usuario vem de um link de parceiro, o codigo certificado e a informacao mais relevante de contexto -- confirma que ele esta no fluxo correto
-- Funciona como um "selo de confianca" logo de cara, reforçando que as condicoes exclusivas estao aplicadas
-- Campos de dados pessoais (nome, email, telefone) ficam agrupados em sequencia logica abaixo
-
-**2. Estilo visual: Fundo escuro + borda sutil de destaque**
-
-Quando o codigo estiver certificado (readOnly):
-- Fundo `bg-muted/80` (cinza mais visivel)
-- Borda com tom de primary sutil: `border-primary/30`
-- Remover `opacity-70` para nao parecer desabilitado/apagado
-- Manter `cursor-not-allowed` e `readOnly`
-
-Quando nao certificado (editavel), manter o estilo padrao atual.
+Adicionar um terceiro gradiente radial posicionado no lado direito (`ellipse_at_top_right`) com a mesma intensidade e comportamento do lado esquerdo, criando simetria.
 
 ### Detalhes tecnicos
 
-**Arquivo:** `src/modules/public/components/PreCadastroModal.tsx`
+**Arquivo:** `src/modules/public/pages/ParceiroPage.tsx`
 
-- Recortar o bloco do campo "Codigo do Parceiro" (linhas 196-223) e movê-lo para antes do campo "Nome completo" (antes da linha 139)
-- Atualizar as classes do Input de `bg-muted cursor-not-allowed opacity-70` para `bg-muted/80 border-primary/30 cursor-not-allowed` quando certificado
+Nas linhas dos gradientes da hero section, substituir os dois `div` de gradiente por tres:
 
+```tsx
+{/* Gradiente central-esquerdo (existente) */}
+<div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,hsl(var(--primary)/0.15)_0%,transparent_60%)] pointer-events-none" />
+
+{/* Gradiente central topo (existente, ajustado) */}
+<div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,hsl(var(--primary)/0.12)_0%,transparent_50%)] pointer-events-none" />
+
+{/* NOVO: Gradiente espelhado no lado direito */}
+<div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,hsl(var(--primary)/0.15)_0%,transparent_60%)] pointer-events-none" />
+```
+
+Isso cria um efeito suave e simetrico em ambos os lados, sem linha de corte.
