@@ -67,7 +67,7 @@ export function WidgetWhatsAppConfig({ value, onChange, organizacaoId }: Props) 
       setUploading(true)
       const compressed = await compressImage(file)
       const ext = file.name.split('.').pop() || 'jpg'
-      const path = `widget-atendente/${Date.now()}.${ext}`
+      const path = `${organizacaoId}/widget-atendente/${Date.now()}.${ext}`
 
       const { error } = await supabase.storage.from('assinaturas').upload(path, compressed, {
         contentType: compressed.type,
