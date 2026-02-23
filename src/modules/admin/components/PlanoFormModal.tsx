@@ -428,6 +428,16 @@ export function PlanoFormModal({ plano, onClose }: Props) {
                   <span className="text-xs text-muted-foreground">(página /parceiro/:codigo)</span>
                 </label>
 
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    {...register('visivel_parceiros')}
+                    className="w-4 h-4 rounded border-input text-primary focus:ring-primary"
+                  />
+                  <span className="text-sm text-foreground">Visível para Parceiros</span>
+                  <span className="text-xs text-muted-foreground">(página /parceiro/:codigo)</span>
+                </label>
+
                 {!isTrial && (
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
