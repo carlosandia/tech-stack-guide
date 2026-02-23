@@ -89,7 +89,7 @@ export function CadenciaAudioRecorder({ audioUrl, onChange }: CadenciaAudioRecor
 
           const { data, error } = await supabase.storage
             .from('chat-media')
-            .upload(path, blob, { contentType: mimeType, upsert: true })
+            .upload(path, blob, { contentType: mimeType, upsert: true, cacheControl: '86400' })
 
           if (error) throw error
 

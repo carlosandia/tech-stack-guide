@@ -53,7 +53,7 @@ export function MediaUploader({ tipo, midiaUrl, onUrlChange }: MediaUploaderProp
 
       const { error } = await supabase.storage
         .from('chat-media')
-        .upload(path, fileToUpload, { upsert: true })
+        .upload(path, fileToUpload, { upsert: true, cacheControl: '86400' })
 
       if (error) throw error
 

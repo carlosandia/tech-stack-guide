@@ -274,10 +274,10 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
         publicUrl = urlData.publicUrl
         updateProgress(100)
       } else {
-        // Upload normal
+        // Upload normal — cacheControl 1 ano: path inclui SHA-256 (imutável)
         const { error: uploadError } = await supabase.storage
           .from('chat-media')
-          .upload(dedupPath, finalFile, { contentType: correctMime })
+          .upload(dedupPath, finalFile, { contentType: correctMime, cacheControl: '31536000' })
 
         if (uploadError) {
           setUploads(prev => prev.filter(u => u.id !== uploadId))
@@ -385,7 +385,7 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
 
       const { error: uploadError } = await supabase.storage
         .from('chat-media')
-        .upload(path, blob, { contentType })
+        .upload(path, blob, { contentType, cacheControl: '86400' })
 
       if (uploadError) {
         toast.error('Erro ao fazer upload do áudio')
@@ -419,7 +419,7 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
 
       const { error: uploadError } = await supabase.storage
         .from('chat-media')
-        .upload(path, compressed, { contentType: 'image/jpeg' })
+        .upload(path, compressed, { contentType: 'image/jpeg', cacheControl: '86400' })
 
       if (uploadError) {
         toast.error('Erro ao fazer upload da foto')

@@ -104,7 +104,7 @@ Grandes SaaS omnichannel adotam praticas maduras:
 
 | ID | Requisito | Prioridade | Status | Detalhes |
 |----|-----------|------------|--------|----------|
-| RF-007 | CDN/Cache para midia | Must | 🔲 Backlog | Media proxy com cache headers, Cloudflare ou Supabase CDN |
+| RF-007 | CDN/Cache para midia | Must | ✅ Implementado | bucket `chat-media` publico (UUID-path security) + `cacheControl: '31536000'` (hash) / `86400` (timestamp). CDN Cloudflare ativo no Supabase Pro. Fallback `createSignedUrl()` removido |
 | RF-008 | Lifecycle policy de midia por plano | Should | 🔲 Backlog | TTL configuravel por plano no painel Super Admin (campo `ttl_midia_dias`). Padroes: Trial=30d, Basico=60d, Pro=90d, Enterprise=365d. Apenas arquivos no bucket `chat-media`. Texto de mensagens retido indefinidamente. Notificacao ao usuario 7 dias antes da expiracao |
 | RF-009 | Thumbnails server-side | Should | 🔲 Backlog | Gerar versao 300px no upload, servir thumbnail na lista |
 | RF-010 | Paginacao cursor-based em mensagens | Must | 🔲 Backlog | Substituir offset por cursor composto `(criado_em, id)` — ver secao 8.4 |
@@ -398,7 +398,7 @@ CREATE INDEX idx_mensagens_conversa_cursor
 |------|--------|--------|-----|
 | **Fase 1** | Compressao client-side (imagem, video, audio) + limites de tamanho | ✅ Concluida | - |
 | **Fase 2** | Compressao PDF server-side + deduplicacao SHA-256 | ✅ Concluida | - |
-| **Fase 3** | CDN/Cache + Thumbnails server-side + Lifecycle policy por plano + WebCodecs | 🔲 Backlog | 3-4 semanas |
+| **Fase 3** | CDN/Cache ✅ + WebCodecs ✅ + Thumbnails server-side + Lifecycle policy por plano | 🔶 Em andamento | - |
 | **Fase 4** | Cursor-based pagination + Rate limiting + Archival | 🔲 Backlog | 4-6 semanas |
 
 ---
