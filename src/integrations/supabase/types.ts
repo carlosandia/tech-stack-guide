@@ -616,6 +616,66 @@ export type Database = {
           },
         ]
       }
+      comissoes_parceiro: {
+        Row: {
+          criado_em: string
+          id: string
+          indicacao_id: string
+          observacoes: string | null
+          pago_em: string | null
+          parceiro_id: string
+          percentual_aplicado: number
+          periodo_ano: number
+          periodo_mes: number
+          status: string
+          valor_assinatura: number
+          valor_comissao: number
+        }
+        Insert: {
+          criado_em?: string
+          id?: string
+          indicacao_id: string
+          observacoes?: string | null
+          pago_em?: string | null
+          parceiro_id: string
+          percentual_aplicado: number
+          periodo_ano: number
+          periodo_mes: number
+          status?: string
+          valor_assinatura: number
+          valor_comissao: number
+        }
+        Update: {
+          criado_em?: string
+          id?: string
+          indicacao_id?: string
+          observacoes?: string | null
+          pago_em?: string | null
+          parceiro_id?: string
+          percentual_aplicado?: number
+          periodo_ano?: number
+          periodo_mes?: number
+          status?: string
+          valor_assinatura?: number
+          valor_comissao?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comissoes_parceiro_indicacao_id_fkey"
+            columns: ["indicacao_id"]
+            isOneToOne: false
+            referencedRelation: "indicacoes_parceiro"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comissoes_parceiro_parceiro_id_fkey"
+            columns: ["parceiro_id"]
+            isOneToOne: false
+            referencedRelation: "parceiros"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conexoes_api4com: {
         Row: {
           access_token_encrypted: string
@@ -1240,6 +1300,44 @@ export type Database = {
             columns: ["formulario_id"]
             isOneToOne: true
             referencedRelation: "formularios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      config_programa_parceiros: {
+        Row: {
+          atualizado_em: string
+          atualizado_por: string | null
+          base_url_indicacao: string | null
+          id: string
+          observacoes: string | null
+          percentual_padrao: number
+          regras_gratuidade: Json
+        }
+        Insert: {
+          atualizado_em?: string
+          atualizado_por?: string | null
+          base_url_indicacao?: string | null
+          id?: string
+          observacoes?: string | null
+          percentual_padrao?: number
+          regras_gratuidade?: Json
+        }
+        Update: {
+          atualizado_em?: string
+          atualizado_por?: string | null
+          base_url_indicacao?: string | null
+          id?: string
+          observacoes?: string | null
+          percentual_padrao?: number
+          regras_gratuidade?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "config_programa_parceiros_atualizado_por_fkey"
+            columns: ["atualizado_por"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
             referencedColumns: ["id"]
           },
         ]
@@ -4142,6 +4240,54 @@ export type Database = {
           },
         ]
       }
+      indicacoes_parceiro: {
+        Row: {
+          atualizado_em: string
+          criado_em: string
+          id: string
+          organizacao_id: string
+          origem: string
+          parceiro_id: string
+          percentual_comissao_snapshot: number
+          status: string
+        }
+        Insert: {
+          atualizado_em?: string
+          criado_em?: string
+          id?: string
+          organizacao_id: string
+          origem?: string
+          parceiro_id: string
+          percentual_comissao_snapshot: number
+          status?: string
+        }
+        Update: {
+          atualizado_em?: string
+          criado_em?: string
+          id?: string
+          organizacao_id?: string
+          origem?: string
+          parceiro_id?: string
+          percentual_comissao_snapshot?: number
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "indicacoes_parceiro_organizacao_id_fkey"
+            columns: ["organizacao_id"]
+            isOneToOne: true
+            referencedRelation: "organizacoes_saas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "indicacoes_parceiro_parceiro_id_fkey"
+            columns: ["parceiro_id"]
+            isOneToOne: false
+            referencedRelation: "parceiros"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       integracoes: {
         Row: {
           access_token: string | null
@@ -5579,6 +5725,7 @@ export type Database = {
       organizacoes_saas: {
         Row: {
           atualizado_em: string
+          codigo_parceiro_origem: string | null
           criado_em: string
           deletado_em: string | null
           email: string
@@ -5604,6 +5751,7 @@ export type Database = {
         }
         Insert: {
           atualizado_em?: string
+          codigo_parceiro_origem?: string | null
           criado_em?: string
           deletado_em?: string | null
           email: string
@@ -5629,6 +5777,7 @@ export type Database = {
         }
         Update: {
           atualizado_em?: string
+          codigo_parceiro_origem?: string | null
           criado_em?: string
           deletado_em?: string | null
           email?: string
@@ -5734,6 +5883,69 @@ export type Database = {
           nome?: string
         }
         Relationships: []
+      }
+      parceiros: {
+        Row: {
+          aderiu_em: string
+          atualizado_em: string
+          codigo_indicacao: string
+          criado_em: string
+          gratuidade_aplicada_em: string | null
+          gratuidade_valida_ate: string | null
+          id: string
+          motivo_suspensao: string | null
+          organizacao_id: string
+          percentual_comissao: number | null
+          status: string
+          suspenso_em: string | null
+          usuario_id: string
+        }
+        Insert: {
+          aderiu_em?: string
+          atualizado_em?: string
+          codigo_indicacao: string
+          criado_em?: string
+          gratuidade_aplicada_em?: string | null
+          gratuidade_valida_ate?: string | null
+          id?: string
+          motivo_suspensao?: string | null
+          organizacao_id: string
+          percentual_comissao?: number | null
+          status?: string
+          suspenso_em?: string | null
+          usuario_id: string
+        }
+        Update: {
+          aderiu_em?: string
+          atualizado_em?: string
+          codigo_indicacao?: string
+          criado_em?: string
+          gratuidade_aplicada_em?: string | null
+          gratuidade_valida_ate?: string | null
+          id?: string
+          motivo_suspensao?: string | null
+          organizacao_id?: string
+          percentual_comissao?: number | null
+          status?: string
+          suspenso_em?: string | null
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "parceiros_organizacao_id_fkey"
+            columns: ["organizacao_id"]
+            isOneToOne: true
+            referencedRelation: "organizacoes_saas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "parceiros_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: true
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       perfis_permissao: {
         Row: {
@@ -5886,6 +6098,7 @@ export type Database = {
           aceite_termos: boolean
           aceite_termos_em: string | null
           atualizado_em: string
+          codigo_parceiro: string | null
           criado_em: string
           email: string
           id: string
@@ -5905,6 +6118,7 @@ export type Database = {
           aceite_termos?: boolean
           aceite_termos_em?: string | null
           atualizado_em?: string
+          codigo_parceiro?: string | null
           criado_em?: string
           email: string
           id?: string
@@ -5924,6 +6138,7 @@ export type Database = {
           aceite_termos?: boolean
           aceite_termos_em?: string | null
           atualizado_em?: string
+          codigo_parceiro?: string | null
           criado_em?: string
           email?: string
           id?: string
