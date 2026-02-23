@@ -1,55 +1,35 @@
 
-# Corrigir erro de chunks 404 apos deploy (dynamic import failure)
+# Corrigir Link de Parceiro Invalido no Mobile
 
 ## Problema
 
-Quando o usuario faz login apos um novo deploy, o browser carrega o `index.html` antigo (cacheado) que referencia chunks JS com hashes desatualizados (ex: `FormulariosPage-BYNHweCo.js`). Esses arquivos nao existem mais no servidor, causando 404 e o ErrorBoundary exibe "Algo deu errado".
+A pagina `/parceiro/:codigo` faz `supabase.from('parceiros').select(...)` diretamente, mas a policy de SELECT para usuarios anonimos (`anon_select_parceiro_ativo_por_codigo`) foi removida na migration `20260223034026`. Atualmente, a unica policy existente na tabela `parceiros` e `super_admin_parceiros` (requer `is_super_admin_v2()`).
 
-Isso acontece porque:
-1. O Vite gera nomes de arquivo com hash por build
-2. O browser cacheia o HTML principal
-3. Apos deploy, os chunks antigos sao removidos
-4. O `React.lazy()` falha ao importar modulos que nao existem mais
+Como a pagina e publica (sem login), a query retorna `null` e exibe "Link de indicacao invalido".
+
+Ja existe uma funcao `get_partner_name_by_code(p_codigo)` (SECURITY DEFINER) que retorna o nome da organizacao parceira, mas ela so retorna o nome -- a pagina precisa tambem do `id` do parceiro para o fluxo de checkout.
 
 ## Solucao
 
-### 1. Criar helper `lazyWithRetry` em `src/utils/lazyWithRetry.ts`
+### 1. Criar funcao RPC `validate_partner_code` (SECURITY DEFINER)
 
-Funcao wrapper que:
-- Tenta o import dinamico normalmente
-- Se falhar com erro de chunk (404/TypeError), faz `window.location.reload()` automaticamente uma unica vez
-- Usa `sessionStorage` para evitar loop infinito de reloads
-- Apos o reload, o browser busca o novo `index.html` com os hashes corretos
+Nova funcao que retorna `id`, `codigo_indicacao` e `nome_organizacao` do parceiro ativo, acessivel por anon sem expor a tabela inteira.
 
 ```text
-lazyWithRetry(importFn):
-  1. Tenta importFn()
-  2. Se falhar:
-     a. Verifica sessionStorage["chunk-reload-<path>"]
-     b. Se nao recarregou ainda -> marca e faz window.location.reload()
-     c. Se ja recarregou -> rejeita o erro (ErrorBoundary mostra fallback)
+CREATE FUNCTION public.validate_partner_code(p_codigo text)
+RETURNS TABLE(id uuid, codigo_indicacao text, organizacao_nome text)
+LANGUAGE plpgsql STABLE SECURITY DEFINER
 ```
 
-### 2. Substituir todos os `lazy()` por `lazyWithRetry()` em `src/App.tsx`
+### 2. Alterar `ParceiroPage.tsx`
 
-Trocar as 55 ocorrencias de `lazy(() => import(...))` por `lazyWithRetry(() => import(...))`.
+Substituir a query direta `supabase.from('parceiros').select(...)` por `supabase.rpc('validate_partner_code', { p_codigo: codigo })`.
 
-### 3. Melhorar o ErrorBoundary para detectar erros de chunk
-
-Quando o erro for especificamente de import dinamico ("Failed to fetch dynamically imported module"), o ErrorBoundary vai:
-- Exibir mensagem mais clara: "Nova versao disponivel"
-- O botao "Recarregar" ja existe e funciona corretamente para este caso
+Adaptar o tipo `Parceiro` para usar a resposta da RPC.
 
 ## Arquivos
 
 | Arquivo | Acao |
 |---------|------|
-| `src/utils/lazyWithRetry.ts` | Criar - helper com retry + auto-reload |
-| `src/App.tsx` | Alterar - trocar `lazy()` por `lazyWithRetry()` |
-| `src/components/ErrorBoundary.tsx` | Alterar - mensagem especifica para chunk errors |
-
-## Resultado
-
-- Apos deploy, usuario e redirecionado automaticamente para a versao nova (transparente)
-- Se o reload automatico falhar, ErrorBoundary mostra mensagem clara com botao recarregar
-- Zero loops infinitos gracas ao controle via sessionStorage
+| Nova migration SQL | Criar funcao `validate_partner_code` |
+| `src/modules/public/pages/ParceiroPage.tsx` | Alterar query para usar RPC |
