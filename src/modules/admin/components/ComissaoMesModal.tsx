@@ -80,8 +80,10 @@ export function ComissaoMesModal({ isOpen, onClose, parceiroId, nomeEmpresa }: P
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-      <div className="bg-card rounded-lg border border-border shadow-xl w-full max-w-sm flex flex-col">
+    <>
+      <div className="fixed inset-0 z-[400] bg-black/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 z-[401] flex items-center justify-center p-4 pointer-events-none">
+      <div className="pointer-events-auto bg-card rounded-lg border border-border shadow-xl w-full max-w-sm flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <div className="flex items-center gap-2">
@@ -164,6 +166,7 @@ export function ComissaoMesModal({ isOpen, onClose, parceiroId, nomeEmpresa }: P
           </div>
         </form>
       </div>
-    </div>
+      </div>
+    </>
   )
 }

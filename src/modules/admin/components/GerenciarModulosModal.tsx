@@ -63,9 +63,10 @@ export function GerenciarModulosModal({ orgId, orgNome, onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-card rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+    <>
+      <div className="fixed inset-0 z-[400] bg-black/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 z-[401] flex items-center justify-center pointer-events-none">
+      <div className="pointer-events-auto bg-card rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="px-6 py-4 border-b border-border flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -168,6 +169,7 @@ export function GerenciarModulosModal({ orgId, orgNome, onClose }: Props) {
           </button>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   )
 }
