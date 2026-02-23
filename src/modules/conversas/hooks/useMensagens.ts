@@ -3,8 +3,10 @@
  * Usa Supabase direto via conversas.api.ts
  */
 
+import { useEffect } from 'react'
 import { useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query'
 import { conversasApi } from '../services/conversas.api'
+import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 
 const SESSION_ERROR_MSG = 'WhatsApp desconectado. Reconecte em Configurações > Conexões.'
@@ -126,6 +128,45 @@ export function useEnviarContato() {
       handleWahaError(error, 'Erro ao enviar contato')
     },
   })
+}
+
+// AIDEV-NOTE: Realtime subscription para ACK — atualiza ticks (1→2→azuis) sem refresh
+// Webhook do WAHA atualiza campo `ack` no banco; esse hook sincroniza o cache local
+export function useAckRealtime(conversaId: string | null) {
+  const queryClient = useQueryClient()
+  useEffect(() => {
+    if (!conversaId) return
+    const channel = supabase
+      .channel(`mensagens-ack-${conversaId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'mensagens',
+          filter: `conversa_id=eq.${conversaId}`,
+        },
+        (payload) => {
+          const updated = payload.new as { id: string; ack: number; ack_name?: string }
+          queryClient.setQueryData(['mensagens', conversaId], (old: any) => {
+            if (!old?.pages) return old
+            return {
+              ...old,
+              pages: old.pages.map((page: any) => ({
+                ...page,
+                mensagens: page.mensagens.map((m: any) =>
+                  m.id === updated.id
+                    ? { ...m, ack: updated.ack, ack_name: updated.ack_name ?? m.ack_name }
+                    : m
+                ),
+              })),
+            }
+          })
+        }
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [conversaId, queryClient])
 }
 
 export function useEnviarEnquete() {

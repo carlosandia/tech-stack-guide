@@ -23,7 +23,7 @@ import { ContatoSelectorModal } from './ContatoSelectorModal'
 import { EnqueteModal } from './EnqueteModal'
 // AIDEV-NOTE: EncaminharModal removido - GOWS não suporta forward
 // AIDEV-NOTE: PinnedMessageBanner removido por solicitação do usuário
-import { useMensagens, useEnviarTexto, useEnviarContato, useEnviarEnquete } from '../hooks/useMensagens'
+import { useMensagens, useAckRealtime, useEnviarTexto, useEnviarContato, useEnviarEnquete } from '../hooks/useMensagens'
 import {
   useAlterarStatusConversa, useMarcarComoLida, useSilenciarConversa,
   useLimparConversa, useApagarConversa, useApagarMensagem,
@@ -129,6 +129,8 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
     fetchNextPage,
     isFetchingNextPage,
   } = useMensagens(conversa.id)
+
+  useAckRealtime(conversa.id)
 
   const enviarTexto = useEnviarTexto()
   const enviarContato = useEnviarContato()
