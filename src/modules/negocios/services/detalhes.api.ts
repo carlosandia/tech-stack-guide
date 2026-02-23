@@ -355,7 +355,7 @@ export const detalhesApi = {
     }
 
     // 4. Salvar registro no banco com hash
-    const { error: dbError } = await supabase
+    const { data: insertedDoc, error: dbError } = await supabase
       .from('documentos_oportunidades')
       .insert({
         organizacao_id: organizacaoId,
@@ -367,8 +367,20 @@ export const detalhesApi = {
         storage_path: storagePath,
         hash_arquivo: hash,
       } as any)
+      .select('id')
+      .single()
 
     if (dbError) throw new Error(dbError.message)
+
+    // 5. Compressão assíncrona de PDFs via Edge Function (fire-and-forget)
+    const isPdf = (processedFile.type === 'application/pdf') || file.name.toLowerCase().endsWith('.pdf')
+    if (isPdf && !existingPath && insertedDoc?.id) {
+      supabase.functions.invoke('compress-pdf', {
+        body: { storage_path: storagePath, documento_id: insertedDoc.id },
+      }).catch((err) => {
+        console.warn('[compress-pdf] Compressão assíncrona falhou (não-crítico):', err)
+      })
+    }
   },
 
   getDocumentoUrl: async (storagePath: string): Promise<string> => {
