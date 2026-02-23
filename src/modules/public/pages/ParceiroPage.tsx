@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { Loader2, AlertCircle, Check, Sparkles, Users, HardDrive, Briefcase } from 'lucide-react'
+import { Loader2, AlertCircle, Check, ShieldCheck, Users, HardDrive, Briefcase } from 'lucide-react'
 import renoveLogo from '@/assets/logotipo-renove.svg'
 import { supabase } from '@/lib/supabase'
 import { PreCadastroModal } from '../components/PreCadastroModal'
@@ -170,14 +170,16 @@ export function ParceiroPage() {
       <header className="bg-white/[0.03] backdrop-blur-xl sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <img src={renoveLogo} alt="CRM Renove" className="h-8 brightness-0 invert opacity-90" />
+              <div className="h-4 w-px bg-white/20" />
+              <span className="text-sm font-medium text-slate-400 tracking-wide">Programa de Parceiros</span>
             </div>
             {parceiro?.organizacao?.nome && (
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.06] border border-white/10">
-                <Sparkles className="w-3.5 h-3.5 text-primary" />
+                <ShieldCheck className="w-3.5 h-3.5 text-primary" />
                 <span className="text-xs font-medium text-slate-300">
-                  Indicação <span className="text-primary">{parceiro.organizacao.nome}</span>
+                  Parceiro Certificado
                 </span>
               </div>
             )}
@@ -195,20 +197,21 @@ export function ParceiroPage() {
 
         <div className="max-w-3xl mx-auto text-center relative">
           {/* Título principal — primeiro, hierarquia clara */}
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4 animate-fade-in">
-            Escolha o plano ideal<br className="hidden sm:block" /> para seu negócio
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4 animate-fade-in leading-tight">
+            Bem-vindo, cliente <span className="text-primary">{parceiro?.organizacao?.nome}</span>.<br className="hidden sm:block" />
+            Seu plano com condições exclusivas.
           </h1>
 
           {/* Subtítulo com contexto */}
           <p className="text-base sm:text-lg text-slate-400 mb-6 animate-fade-in" style={{ animationDelay: '100ms', animationFillMode: 'both' }}>
-            Comece agora e cancele quando quiser. Sem surpresas.
+            Seu parceiro <strong className="text-slate-300">{parceiro?.organizacao?.nome}</strong> garante vantagens especiais para você. Escolha o plano ideal e comece agora.
           </p>
 
           {/* Badge de indicação — destaque após contexto */}
           <div className="flex justify-center mb-8 animate-fade-in" style={{ animationDelay: '200ms', animationFillMode: 'both' }}>
             <div className="inline-flex items-center gap-2.5 px-5 py-2.5 rounded-full bg-white/[0.07] border border-white/15 text-white text-xs sm:text-sm font-medium backdrop-blur-sm shadow-lg shadow-black/10 transition-all duration-300 hover:bg-white/[0.12] hover:border-white/25">
-              <Sparkles className="w-4 h-4 text-primary shrink-0" />
-              <span>Indicado por <strong className="font-semibold text-primary">{parceiro?.organizacao?.nome}</strong></span>
+              <ShieldCheck className="w-4 h-4 text-primary shrink-0" />
+              <span>Parceiro Certificado</span>
             </div>
           </div>
 
