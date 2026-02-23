@@ -1,92 +1,64 @@
 
-## Adicionar Seção de Planos na Landing Page
 
-### Analise do funil atual
+## Correcao: Planos nao aparecem na landing + CTAs faltando
 
-O storytelling da landing segue uma jornada de convencimento classica:
+### Problemas identificados
 
-1. **Hero** -- Ataca a dor principal (leads escapando)
-2. **SocialProofBar** -- Credibilidade com numeros
-3. **PainSection** -- Aprofunda 3 dores do ICP
-4. **SolutionSection** -- Apresenta a solucao
-5. **ModulesSection** -- Mostra o produto em detalhe
-6. **HowItWorksSection** -- Simplifica a adesao (3 passos)
-7. **TestimonialsSection** -- Prova social real
-8. **ComparisonSection** -- Antes vs Depois (elimina duvidas)
-9. **FAQSection** -- Elimina objecoes finais
-10. **FinalCTASection** -- CTA de urgencia
+1. **Widget de planos nao carrega** -- O `PricingSection` injeta o script via `useEffect` mas o `scriptLoaded.current = true` impede que o script seja re-injetado apos navegacao SPA. Alem disso, o widget depende do container `#renove-pricing-widget` estar no DOM antes do script executar, e o `ref` de scroll reveal pode estar com `opacity: 0` bloqueando a renderizacao inicial.
 
-### Posicionamento estrategico da secao de Planos
+2. **CTA "Ver planos" faltando no HowItWorksSection** -- O plano aprovado incluia adicionar um CTA secundario "Ver planos" apontando para `#planos` na secao "Como Funciona", mas nao foi implementado.
 
-A secao de planos deve entrar **entre ComparisonSection e FAQSection** (posicao 9, empurrando FAQ para 10 e CTA Final para 11).
+### Solucao
 
-**Justificativa:** neste ponto do funil o visitante ja:
-- Entendeu sua dor (seções 1-3)
-- Conheceu a solucao e os modulos (seções 4-6)
-- Viu que e simples comecar (seção 7)
-- Foi convencido por prova social (seção 8)
-- Visualizou o antes/depois (seção 9)
+**1. Corrigir `PricingSection.tsx`**
+- Remover o guard `scriptLoaded.current` que impede recarregamento
+- Usar cleanup mais robusto: remover script e limpar container no unmount
+- Garantir que o container `#renove-pricing-widget` exista antes do script carregar
+- Adicionar um pequeno delay para garantir que o DOM esta pronto
 
-Agora ele esta pronto para a pergunta: **"Quanto custa?"**. Mostrar precos antes disso gera abandono. Mostrar depois do FAQ desperdiça o momento de decisao. O FAQ entao funciona como ultima barreira pos-preco, e o CTA final fecha.
+**2. Adicionar CTA secundario no `HowItWorksSection.tsx`**
+- Abaixo do botao "Comecar agora, e gratis", adicionar um link discreto "Ver planos" que faz scroll smooth para `#planos`
 
-### O que sera implementado
+### Arquivos a editar
 
-**1. Novo componente `PricingSection.tsx`**
-
-- Secao com `id="planos"` para navegacao por ancora
-- Titulo e subtitulo contextualizados no storytelling ("Escolha o plano ideal para o tamanho da sua operacao")
-- Carregamento dos planos via widget loader existente (`pricing-widget-loader`)
-- Toggle mensal/anual integrado (ja vem do widget)
-- Cards de planos com destaque no "Popular"
-- Animacao de scroll reveal consistente com as demais secoes
-- Background alternado (`bg-muted/50`) seguindo o ritmo visual da landing
-
-**2. Implementacao do widget**
-
-O widget sera carregado via `useEffect` injetando o script da edge function `pricing-widget-loader`. Ao inves de usar `<script>` inline (que React nao executa), o componente criara o script element dinamicamente no mount.
-
-**3. CTAs atualizados para apontar para `#planos`**
-
-Pontos que receberao link/ancora para `#planos`:
-- **Header nav**: o item "Planos" que hoje aponta para `/planos` passara a ser `#planos` (ancora na mesma pagina)
-- **HowItWorksSection**: o botao "Comecar agora, e gratis" ganhara um CTA secundario "Ver planos" apontando para `#planos`
-- **FinalCTASection**: alem do CTA principal de trial, adicionar um link discreto "Comparar planos" que leva a `#planos`
-
-**4. Ordem final do funil na LandingPage**
-
-```text
-Hero
-SocialProofBar
-PainSection
-SolutionSection
-ModulesSection
-HowItWorksSection
-TestimonialsSection
-ComparisonSection
-PricingSection    <-- NOVA
-FAQSection
-FinalCTASection
-```
+- `src/modules/public/components/landing/PricingSection.tsx` -- corrigir carregamento do widget
+- `src/modules/public/components/landing/HowItWorksSection.tsx` -- adicionar CTA "Ver planos"
 
 ### Detalhes tecnicos
 
-**Arquivos a criar:**
-- `src/modules/public/components/landing/PricingSection.tsx`
+**PricingSection.tsx:**
+```
+useEffect(() => {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
+  if (!supabaseUrl || !widgetRef.current) return
 
-**Arquivos a editar:**
-- `src/modules/public/pages/LandingPage.tsx` -- importar e posicionar PricingSection entre ComparisonSection e FAQSection
-- `src/modules/public/components/landing/LandingHeader.tsx` -- alterar link "Planos" de `/planos` para `#planos`
-- `src/modules/public/components/landing/FinalCTASection.tsx` -- adicionar link secundario "Comparar planos" apontando para `#planos`
+  // Limpar conteudo anterior
+  const container = widgetRef.current
+  container.innerHTML = '<div id="renove-pricing-widget"></div>'
 
-**PricingSection.tsx -- Abordagem tecnica:**
-- `useEffect` no mount para criar `<script>` apontando para a edge function `/functions/v1/pricing-widget-loader?periodo=mensal`
-- Container `<div id="renove-pricing-widget">` onde o widget renderiza
-- Wrapper com titulo, subtitulo e animacao `useScrollReveal`
-- Estilos seguindo o design system (cores semanticas, Inter, espacamento do DS)
-- URL do script montada a partir de `VITE_SUPABASE_URL`
+  const script = document.createElement('script')
+  script.src = `${supabaseUrl}/functions/v1/pricing-widget-loader?periodo=mensal`
+  script.async = true
+  container.appendChild(script)
 
-**LandingHeader.tsx:**
-- Linha do `navLinks`: mudar `{ label: 'Planos', href: '/planos' }` para `{ label: 'Planos', href: '#planos' }`
+  return () => {
+    script.remove()
+    // Limpar funcoes globais do widget
+    delete (window as any)._rnvSetPeriodo
+    delete (window as any)._rnvCheckout
+  }
+}, [])
+```
 
-**FinalCTASection.tsx:**
-- Abaixo do botao principal, adicionar um `<button>` com `onClick` scroll smooth para `#planos` com texto "Comparar planos" em estilo link discreto (underline, text-primary-foreground/70)
+**HowItWorksSection.tsx:**
+- Adicionar abaixo do botao principal:
+```
+<button
+  onClick={() => document.querySelector('#planos')?.scrollIntoView({ behavior: 'smooth' })}
+  className="text-sm text-muted-foreground hover:text-foreground underline underline-offset-4 transition-colors"
+>
+  Ver planos
+</button>
+```
+- Wrapper dos CTAs muda de `text-center` para `flex flex-col items-center gap-3`
+
