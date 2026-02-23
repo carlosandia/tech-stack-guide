@@ -1,132 +1,76 @@
 
 
-# Otimizacao de Midia no Modulo de Conversas
+# Criar documento `docs/performance-conversas.md`
 
-## Diagnostico Atual
+## Objetivo
 
-O modulo de conversas (`ChatWindow.tsx`) atualmente:
-- **Imagens**: Comprime via Canvas API (max 1920px, JPEG 0.8) -- OK
-- **Videos**: Upload RAW sem compressao -- GARGALO
-- **Audio**: Upload RAW sem compressao -- GARGALO
-- **Documentos**: Upload RAW sem compressao -- GARGALO
-- **Sem limite de tamanho** por arquivo -- RISCO
-- **Sem deduplicacao** -- DESPERDICIO
+Criar um PRD seguindo o padrao oficial (`docs/prdpadrao.md`) que documenta todas as otimizacoes de midia do modulo de conversas -- tanto o que ja foi implementado quanto as boas praticas para implementacao futura.
 
-## Plano de Otimizacao
+## Estrutura do Documento
 
-### 1. Limite de Tamanho por Tipo (Client-side)
+O documento seguira o template completo do PRD padrao com as seguintes secoes:
 
-Bloquear uploads que excedam limites razoaveis antes de consumir banda:
+### Cabecalho e Metadados
+- Titulo: "Performance e Otimizacao de Midia - Modulo de Conversas"
+- Status: "Em desenvolvimento" (parte implementada, parte backlog)
 
-| Tipo | Limite |
+### Resumo Executivo
+- Modulo omnichannel (WhatsApp + Instagram futuro) com alto volume de midia
+- Problema: uploads sem compressao, sem limites, sem deduplicacao
+- Solucao: pipeline de otimizacao client-side + server-side
+
+### Contexto e Motivacao
+- Diagnostico atual (o que ja estava implementado vs gargalos)
+- Benchmarks de grandes SaaS omnichannel (Zendesk, Intercom, Freshdesk)
+- Impacto em custos de storage e banda
+
+### Requisitos Funcionais
+Documentar as 6 otimizacoes do plano:
+
+| ID | Requisito | Status |
+|----|-----------|--------|
+| RF-001 | Limite de tamanho por tipo (10/30/10/15 MB) | Implementado |
+| RF-002 | Compressao de imagem (Canvas, 1920px, JPEG 0.8) | Implementado |
+| RF-003 | Compressao de video (720p, WebM VP8, 1Mbps) | Implementado |
+| RF-004 | Compressao de audio (OGG/Opus 64kbps) | Implementado |
+| RF-005 | Compressao de PDF (pdf-lib, server-side async) | Implementado |
+| RF-006 | Deduplicacao SHA-256 | Implementado |
+| RF-007 | CDN/Cache para midia | Backlog |
+| RF-008 | Lifecycle policy (TTL 12 meses) | Backlog |
+| RF-009 | Thumbnails server-side (300px) | Backlog |
+| RF-010 | Paginacao cursor-based em mensagens | Backlog |
+| RF-011 | Rate limiting de uploads | Backlog |
+| RF-012 | Archival de historico antigo | Backlog |
+
+### Boas Praticas para Escalabilidade (secao dedicada)
+- CDN/Media Proxy com cache
+- Lifecycle policy com pg_cron
+- Thumbnails server-side
+- Cursor-based pagination
+- Rate limiting por organizacao
+- Archival de mensagens antigas
+- Lazy loading de midia (ja implementado)
+
+### Detalhes Tecnicos
+- Arquivos criados e modificados (com descricao da logica)
+- Fluxo completo do upload de midia (diagrama texto)
+- Logica do compressVideo, compressAudio, compress-pdf
+- Parametros e thresholds de cada compressor
+
+### Fases de Entrega
+| Fase | Status |
 |------|--------|
-| Imagem | 10 MB (antes da compressao) |
-| Video | 30 MB |
-| Audio | 10 MB |
-| Documento | 15 MB |
+| Fase 1: Compressao client-side (img/video/audio) + limites | Concluida |
+| Fase 2: PDF server-side + deduplicacao SHA-256 | Concluida |
+| Fase 3: CDN + Thumbnails + Lifecycle | Backlog |
+| Fase 4: Cursor pagination + Rate limiting + Archival | Backlog |
 
-Se exceder, exibir toast de erro com o limite.
+### Riscos e Mitigacoes
+- Compressao de video longo trava browser
+- MediaRecorder sem suporte em browsers antigos
+- Custo de storage crescente com Instagram
 
-### 2. Compressao de Video (Client-side)
+## Arquivo a criar
 
-Usar a **Canvas API + MediaRecorder** para re-encodar videos no browser:
-- Resolucao max: 720p (1280x720)
-- Bitrate: 1 Mbps
-- Formato: WebM (VP8)
-- Videos menores que 2MB ou ja em 720p sao ignorados
-
-Limitacao: Funciona bem para videos curtos (ate ~2min). Videos longos podem travar o browser. Para esses, aplicar apenas o limite de tamanho.
-
-### 3. Compressao de Audio (Client-side)
-
-O audio ja chega em OGG/Opus (gravado pelo AudioRecorder), que ja e um formato otimizado. Para audios recebidos como MP3/WAV (importados via arquivo):
-- Converter para OGG/Opus via AudioContext + MediaRecorder
-- Bitrate: 64kbps (suficiente para voz)
-- Audios menores que 200KB sao ignorados
-
-### 4. Compressao de PDF (Server-side, async)
-
-Reaproveitar a Edge Function `compress-pdf` ja criada no modulo de negocios:
-- Apos upload de PDF ao bucket `chat-media`, disparar `compress-pdf` em fire-and-forget
-- A funcao baixa, otimiza com pdf-lib e substitui o arquivo no storage
-
-### 5. Deduplicacao por Hash SHA-256
-
-Antes de subir qualquer arquivo ao storage:
-- Calcular hash SHA-256 do arquivo (usando `calculateFileHash` ja existente)
-- Verificar se ja existe um arquivo identico no mesmo bucket/org
-- Se existir, reutilizar a URL publica sem re-upload
-
-### 6. Boas Praticas para Escalabilidade
-
-- **Lifecycle policy**: Configurar TTL no bucket `chat-media` para conversas fechadas ha mais de 12 meses (futuro, via Supabase Dashboard)
-- **Lazy loading de midia**: Ja implementado nas bolhas de chat
-- **Thumbnails**: Imagens ja geram thumbnail local para preview na fila
-
----
-
-## Detalhes Tecnicos
-
-### Arquivos a criar:
-
-1. **`src/shared/utils/compressVideo.ts`** -- Compressao de video via Canvas + MediaRecorder (720p, 1Mbps WebM)
-2. **`src/shared/utils/compressAudio.ts`** -- Conversao de MP3/WAV para OGG/Opus 64kbps via AudioContext
-
-### Arquivos a modificar:
-
-3. **`src/shared/utils/compressMedia.ts`** -- Adicionar funcao `validateFileSize` com limites por tipo
-4. **`src/modules/conversas/components/ChatWindow.tsx`** -- Integrar validacao de tamanho, compressao de video/audio, deduplicacao e trigger do compress-pdf
-5. **`supabase/functions/compress-pdf/index.ts`** -- Ajustar para aceitar bucket `chat-media` alem do `documentos-oportunidades`
-
-### Fluxo atualizado do upload de midia no chat:
-
-```text
-Arquivo selecionado pelo usuario
-        |
-  Validar tamanho maximo --> [Excedeu] --> Toast erro, abortar
-        |
-  Tipo = imagem? --> compressImage (Canvas, 1920px, JPEG 0.8)
-  Tipo = video?  --> compressVideo (720p, 1Mbps, WebM)
-  Tipo = audio?  --> compressAudio (OGG/Opus 64kbps, se MP3/WAV)
-  Tipo = outro?  --> manter original
-        |
-  Calcular SHA-256
-        |
-  Verificar duplicata no storage --> [Duplicado] --> Reutilizar URL, pular upload
-        |
-  Upload ao Storage (chat-media)
-        |
-  Tipo = PDF? --> Disparar compress-pdf (fire-and-forget)
-        |
-  Adicionar a fila de envio (MediaQueue)
-```
-
-### compressVideo.ts (logica):
-
-```text
-1. Criar elemento <video> com o arquivo
-2. Ler dimensoes originais
-3. Se <= 720p e tamanho < 2MB, retornar original
-4. Criar Canvas com resolucao alvo (720p)
-5. Iniciar MediaRecorder com canvas.captureStream()
-6. Desenhar frames do video no canvas via requestAnimationFrame
-7. Coletar chunks e montar Blob final
-8. Se resultado >= original, retornar original
-```
-
-### compressAudio.ts (logica):
-
-```text
-1. Verificar se tipo e MP3, WAV ou M4A (OGG ja e otimizado)
-2. Decodificar via AudioContext.decodeAudioData
-3. Criar MediaStreamDestination
-4. Iniciar MediaRecorder com mimeType 'audio/ogg; codecs=opus'
-5. Reproduzir AudioBuffer no destination em tempo real
-6. Coletar chunks e montar Blob final
-7. Se resultado >= original, retornar original
-```
-
-### Ajuste no compress-pdf Edge Function:
-
-Adicionar parametro `bucket` no body da request, com default `documentos-oportunidades`. No ChatWindow, enviar `bucket: 'chat-media'`.
+- **`docs/performance-conversas.md`** -- PRD completo seguindo o padrao oficial
 
