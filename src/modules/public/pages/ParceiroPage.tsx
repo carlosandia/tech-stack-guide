@@ -184,7 +184,7 @@ export function ParceiroPage() {
       </header>
 
       {/* Hero premium — sempre dark nesta página */}
-      <section className="py-20 sm:py-28 px-4 relative overflow-hidden border-b border-white/10">
+      <section className="py-20 sm:py-28 px-4 relative overflow-hidden">
         {/* Gradientes premium empilhados */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,hsl(var(--primary)/0.20)_0%,transparent_60%)] pointer-events-none" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_right,hsl(var(--primary)/0.08)_0%,transparent_50%)] pointer-events-none" />
@@ -346,7 +346,7 @@ export function ParceiroPage() {
       )}
 
       {/* Footer */}
-      <footer className="border-t border-white/10 py-8 px-4">
+      <footer className="py-8 px-4">
         <div className="max-w-7xl mx-auto text-center text-sm text-slate-500">
           <p>© {new Date().getFullYear()} CRM Renove. Todos os direitos reservados.</p>
         </div>
