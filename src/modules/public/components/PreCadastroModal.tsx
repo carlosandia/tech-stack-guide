@@ -136,6 +136,35 @@ export function PreCadastroModal({
           </DialogHeader>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-2">
+            {/* Código do Parceiro */}
+            <div>
+              <Label htmlFor="codigo_parceiro">
+                Código do Parceiro{' '}
+                {codigoParceiro ? (
+                  <span className="inline-flex items-center gap-1 text-xs text-primary font-medium">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    Certificado
+                  </span>
+                ) : (
+                  <span className="text-xs text-muted-foreground">(opcional)</span>
+                )}
+              </Label>
+              <Input
+                id="codigo_parceiro"
+                placeholder="Ex: RENOVE-MBP7VY"
+                {...register('codigo_parceiro')}
+                className={`mt-1.5 uppercase ${codigoParceiro ? 'bg-muted/80 border-primary/30 cursor-not-allowed' : ''}`}
+                readOnly={!!codigoParceiro}
+                tabIndex={codigoParceiro ? -1 : undefined}
+                onKeyDown={codigoParceiro ? (e) => e.preventDefault() : undefined}
+                onChange={(e) => {
+                  if (!codigoParceiro) {
+                    e.target.value = e.target.value.toUpperCase()
+                  }
+                }}
+              />
+            </div>
+
             {/* Nome */}
             <div>
               <Label htmlFor="nome_contato">Nome completo *</Label>
@@ -193,34 +222,6 @@ export function PreCadastroModal({
               )}
             </div>
 
-            {/* Código do Parceiro */}
-            <div>
-              <Label htmlFor="codigo_parceiro">
-                Código do Parceiro{' '}
-                {codigoParceiro ? (
-                  <span className="inline-flex items-center gap-1 text-xs text-primary font-medium">
-                    <ShieldCheck className="w-3.5 h-3.5" />
-                    Certificado
-                  </span>
-                ) : (
-                  <span className="text-xs text-muted-foreground">(opcional)</span>
-                )}
-              </Label>
-              <Input
-                id="codigo_parceiro"
-                placeholder="Ex: RENOVE-MBP7VY"
-                {...register('codigo_parceiro')}
-                className={`mt-1.5 uppercase ${codigoParceiro ? 'bg-muted cursor-not-allowed opacity-70' : ''}`}
-                readOnly={!!codigoParceiro}
-                tabIndex={codigoParceiro ? -1 : undefined}
-                onKeyDown={codigoParceiro ? (e) => e.preventDefault() : undefined}
-                onChange={(e) => {
-                  if (!codigoParceiro) {
-                    e.target.value = e.target.value.toUpperCase()
-                  }
-                }}
-              />
-            </div>
 
             {/* Segmento */}
             <div>
