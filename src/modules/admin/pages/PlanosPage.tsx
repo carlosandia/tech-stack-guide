@@ -282,6 +282,21 @@ function PlanoCard({
               PADRÃO
             </span>
           )}
+          {plano.ativo && !plano.visivel && !plano.visivel_parceiros && (
+            <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded">
+              Oculto
+            </span>
+          )}
+          {plano.ativo && plano.visivel && !plano.visivel_parceiros && (
+            <span className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 px-2 py-0.5 rounded">
+              Só clientes
+            </span>
+          )}
+          {plano.ativo && !plano.visivel && plano.visivel_parceiros && (
+            <span className="text-xs bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 px-2 py-0.5 rounded">
+              Só parceiros
+            </span>
+          )}
           {!plano.ativo && (
             <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded">
               Inativo

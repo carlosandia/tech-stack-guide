@@ -94,6 +94,7 @@ export interface Plano {
   stripe_price_id_anual: string | null
   ativo: boolean
   visivel: boolean
+  visivel_parceiros: boolean
   ordem: number
   popular: boolean
 }
@@ -807,6 +808,7 @@ export async function listarPlanos(): Promise<Plano[]> {
     stripe_price_id_anual: p.stripe_price_id_anual,
     ativo: p.ativo ?? true,
     visivel: p.visivel ?? true,
+    visivel_parceiros: p.visivel_parceiros ?? true,
     ordem: p.ordem ?? 0,
     popular: p.popular ?? false,
   }))
@@ -863,6 +865,7 @@ export async function obterPlano(id: string): Promise<Plano & { modulos: Modulo[
     stripe_price_id_anual: data.stripe_price_id_anual,
     ativo: data.ativo ?? true,
     visivel: data.visivel ?? true,
+    visivel_parceiros: data.visivel_parceiros ?? true,
     ordem: data.ordem ?? 0,
     popular: data.popular ?? false,
     modulos,
@@ -886,6 +889,7 @@ export async function criarPlano(plano: Omit<Plano, 'id'>): Promise<string> {
       stripe_price_id_anual: plano.stripe_price_id_anual || null,
       ativo: plano.ativo,
       visivel: plano.visivel,
+      visivel_parceiros: plano.visivel_parceiros,
       ordem: plano.ordem,
     })
     .select('id')

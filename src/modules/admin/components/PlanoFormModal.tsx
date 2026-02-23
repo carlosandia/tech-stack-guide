@@ -27,6 +27,7 @@ const planoSchema = z.object({
   stripe_price_id_anual: z.string().optional(),
   ativo: z.boolean().default(true),
   visivel: z.boolean().default(true),
+  visivel_parceiros: z.boolean().default(true),
   ordem: z.coerce.number().default(0),
   popular: z.boolean().default(false),
 })
@@ -77,6 +78,7 @@ export function PlanoFormModal({ plano, onClose }: Props) {
       stripe_price_id_anual: '',
       ativo: true,
       visivel: true,
+      visivel_parceiros: true,
       ordem: 0,
       popular: false,
     },
@@ -98,6 +100,7 @@ export function PlanoFormModal({ plano, onClose }: Props) {
         stripe_price_id_anual: plano.stripe_price_id_anual || '',
         ativo: plano.ativo,
         visivel: plano.visivel,
+        visivel_parceiros: plano.visivel_parceiros ?? true,
         ordem: plano.ordem,
         popular: plano.popular,
       })
@@ -412,6 +415,17 @@ export function PlanoFormModal({ plano, onClose }: Props) {
                     className="w-4 h-4 rounded border-input text-primary focus:ring-primary"
                   />
                   <span className="text-sm text-foreground">Visível para Clientes</span>
+                  <span className="text-xs text-muted-foreground">(landing /planos)</span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    {...register('visivel_parceiros')}
+                    className="w-4 h-4 rounded border-input text-primary focus:ring-primary"
+                  />
+                  <span className="text-sm text-foreground">Visível para Parceiros</span>
+                  <span className="text-xs text-muted-foreground">(página /parceiro/:codigo)</span>
                 </label>
 
                 {!isTrial && (

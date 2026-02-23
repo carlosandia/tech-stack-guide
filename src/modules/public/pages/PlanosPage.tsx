@@ -97,6 +97,7 @@ interface PlanoDb {
          .from('planos')
          .select('*')
          .eq('ativo', true)
+         .eq('visivel', true)
          .order('ordem', { ascending: true })
  
        if (error) throw error

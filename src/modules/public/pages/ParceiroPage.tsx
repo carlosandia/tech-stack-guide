@@ -73,7 +73,7 @@ export function ParceiroPage() {
         .from('planos')
         .select('id, nome, descricao, preco_mensal, preco_anual, limite_usuarios, limite_oportunidades, limite_storage_mb, ativo, ordem, popular')
         .eq('ativo', true)
-        .eq('visivel', true)
+        .eq('visivel_parceiros', true)
         .gt('preco_mensal', 0)
         .order('ordem', { ascending: true })
 
