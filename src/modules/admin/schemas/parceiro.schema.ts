@@ -89,12 +89,32 @@ export const ComissaoParceiroSchema = z.object({
     .optional(),
 })
 
+// AIDEV-NOTE: NivelParceiroSchema — nivel de gamificacao do programa de parceiros
+export const NivelParceiroSchema = z.object({
+  nome: z.string().min(1),
+  cor: z.string(), // tailwind color key: amber, gray, yellow, blue, etc.
+  meta_indicados: z.number().int().min(0),
+  percentual_comissao: z.number().min(0).max(100),
+  bonus_valor: z.number().min(0), // R$ fixo
+  gratuidade: z.boolean(),
+})
+
+// AIDEV-NOTE: Niveis padrao para resetar configuracao
+export const NIVEIS_PADRAO: NivelParceiro[] = [
+  { nome: 'Bronze', cor: 'amber', meta_indicados: 2, percentual_comissao: 10, bonus_valor: 0, gratuidade: false },
+  { nome: 'Prata', cor: 'gray', meta_indicados: 5, percentual_comissao: 12, bonus_valor: 100, gratuidade: false },
+  { nome: 'Ouro', cor: 'yellow', meta_indicados: 10, percentual_comissao: 15, bonus_valor: 300, gratuidade: true },
+  { nome: 'Diamante', cor: 'blue', meta_indicados: 20, percentual_comissao: 20, bonus_valor: 500, gratuidade: true },
+]
+
 // AIDEV-NOTE: ConfigProgramaParceiroSchema — tipo derivado via z.infer, nao editar manualmente
 export const ConfigProgramaParceiroSchema = z.object({
   id: z.string().uuid(),
   percentual_padrao: z.number().min(0).max(100),
   regras_gratuidade: z.object({
     ativo: z.boolean(),
+    niveis: z.array(NivelParceiroSchema).optional(),
+    // Campos legados mantidos para retrocompatibilidade
     meta_inicial_indicados: z.number().int().positive().optional(),
     renovacao_periodo_meses: z.number().int().positive().optional(),
     renovacao_meta_indicados: z.number().int().positive().optional(),
@@ -127,6 +147,7 @@ export const AtualizarConfigProgramaSchema = z.object({
   percentual_padrao: z.number().min(0).max(100),
   regras_gratuidade: z.object({
     ativo: z.boolean(),
+    niveis: z.array(NivelParceiroSchema).optional(),
     meta_inicial_indicados: z.number().int().positive().optional(),
     renovacao_periodo_meses: z.number().int().positive().optional(),
     renovacao_meta_indicados: z.number().int().positive().optional(),
@@ -155,6 +176,7 @@ export const AplicarGratuidadeSchema = z.object({
 // TIPOS DERIVADOS (NUNCA criar manualmente — sempre via z.infer)
 // ─────────────────────────────────────────────────────────────────────────────
 
+export type NivelParceiro = z.infer<typeof NivelParceiroSchema>
 export type Parceiro = z.infer<typeof ParceiroSchema>
 export type IndicacaoParceiro = z.infer<typeof IndicacaoParceiroSchema>
 export type ComissaoParceiro = z.infer<typeof ComissaoParceiroSchema>

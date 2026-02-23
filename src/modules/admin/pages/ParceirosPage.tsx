@@ -12,8 +12,6 @@ import {
   WifiOff,
   AlertTriangle,
   MoreVertical,
-  CheckCircle2,
-  AlertCircle,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -221,11 +219,9 @@ function ParceirosPage() {
                         <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                           Status
                         </th>
-                        {config?.regras_gratuidade.ativo && (
-                          <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                            Meta
-                          </th>
-                        )}
+                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                          Nível
+                        </th>
                         <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
                           Ações
                         </th>
@@ -241,8 +237,8 @@ function ParceirosPage() {
                           navigate={navigate}
                           onSuspender={handleSuspender}
                           onReativar={handleReativar}
-                          metaProgramaAtiva={config?.regras_gratuidade.ativo ?? false}
-                          metaIndicados={config?.regras_gratuidade.meta_inicial_indicados ?? 0}
+                          metaProgramaAtiva={config?.regras_gratuidade?.ativo ?? false}
+                          niveisConfig={config?.regras_gratuidade?.niveis ?? []}
                         />
                       ))}
                     </tbody>
@@ -300,19 +296,43 @@ function ParceirosPage() {
 // Subcomponentes
 // ─────────────────────────────────────────────────────────────────────────────
 
-function MetaBadge({ indicadosAtivos }: { indicadosAtivos: number }) {
-  if (indicadosAtivos > 0) {
+// AIDEV-NOTE: Mapa de cores para badges de nível na listagem
+const nivelCorMap: Record<string, { bg: string; text: string }> = {
+  amber: { bg: 'bg-amber-100', text: 'text-amber-700' },
+  gray: { bg: 'bg-gray-200', text: 'text-gray-700' },
+  yellow: { bg: 'bg-yellow-100', text: 'text-yellow-700' },
+  blue: { bg: 'bg-blue-100', text: 'text-blue-700' },
+  emerald: { bg: 'bg-emerald-100', text: 'text-emerald-700' },
+  purple: { bg: 'bg-purple-100', text: 'text-purple-700' },
+  rose: { bg: 'bg-rose-100', text: 'text-rose-700' },
+}
+
+function NivelBadge({ indicadosAtivos, niveis }: { indicadosAtivos: number; niveis: Array<{ nome: string; cor: string; meta_indicados: number }> }) {
+  if (!niveis.length) {
+    return <span className="text-xs text-muted-foreground">—</span>
+  }
+  
+  const sorted = [...niveis].sort((a, b) => a.meta_indicados - b.meta_indicados)
+  let nivelAtual: typeof sorted[0] | null = null
+  for (let i = sorted.length - 1; i >= 0; i--) {
+    if (indicadosAtivos >= sorted[i].meta_indicados) {
+      nivelAtual = sorted[i]
+      break
+    }
+  }
+  
+  if (!nivelAtual) {
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
-        <CheckCircle2 className="w-3 h-3" />
-        {indicadosAtivos} ativo{indicadosAtivos !== 1 ? 's' : ''}
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground">
+        Sem nível
       </span>
     )
   }
+
+  const cor = nivelCorMap[nivelAtual.cor] ?? nivelCorMap.amber
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground">
-      <AlertCircle className="w-3 h-3" />
-      Sem indicados
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${cor.bg} ${cor.text}`}>
+      {nivelAtual.nome}
     </span>
   )
 }
@@ -325,7 +345,7 @@ function ParceiroRow({
   onSuspender,
   onReativar,
   metaProgramaAtiva,
-  metaIndicados,
+  niveisConfig,
 }: {
   parceiro: Parceiro
   formatDate: (date: string) => string
@@ -334,12 +354,11 @@ function ParceiroRow({
   onSuspender: (p: Parceiro) => void
   onReativar: (p: Parceiro) => void
   metaProgramaAtiva: boolean
-  metaIndicados: number
+  niveisConfig: Array<{ nome: string; cor: string; meta_indicados: number }>
 }) {
   const orgNome = parceiro.organizacao?.nome ?? '—'
   const orgEmail = parceiro.organizacao?.email ?? ''
   const indicadosAtivos = parceiro.total_indicados_ativos ?? 0
-  const cumpriuMeta = metaIndicados > 0 && indicadosAtivos >= metaIndicados
 
   return (
     <tr
@@ -367,7 +386,7 @@ function ParceiroRow({
         </span>
       </td>
       <td className="px-6 py-4">
-        <MetaBadge indicadosAtivos={indicadosAtivos} />
+        <span className="text-sm text-foreground">{indicadosAtivos}</span>
       </td>
       <td className="px-6 py-4">
         <span className="text-sm text-foreground font-medium">
@@ -381,21 +400,13 @@ function ParceiroRow({
           {statusLabels[parceiro.status]}
         </span>
       </td>
-      {metaProgramaAtiva && (
-        <td className="px-6 py-4">
-          {cumpriuMeta ? (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
-              <CheckCircle2 className="w-3 h-3" />
-              Cumprindo ✓
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
-              <AlertCircle className="w-3 h-3" />
-              Em risco
-            </span>
-          )}
-        </td>
-      )}
+      <td className="px-6 py-4">
+        {metaProgramaAtiva ? (
+          <NivelBadge indicadosAtivos={indicadosAtivos} niveis={niveisConfig} />
+        ) : (
+          <span className="text-xs text-muted-foreground">—</span>
+        )}
+      </td>
       <td
         className="px-6 py-4 text-right"
         onClick={(e) => e.stopPropagation()}

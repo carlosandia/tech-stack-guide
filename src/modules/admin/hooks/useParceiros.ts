@@ -183,61 +183,106 @@ export function useUpdateConfigPrograma() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HOOK DERIVADO — Status da Meta de Gratuidade
+// HOOK DERIVADO — Status do Nível Gamificado do Parceiro
+// AIDEV-NOTE: Calcula nível atual baseado nos níveis configurados no JSONB
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function useStatusMetaParceiro(parceiroId: string) {
+import type { NivelParceiro } from '../schemas/parceiro.schema'
+
+export interface StatusNivelParceiro {
+  programaAtivo: boolean
+  nivelAtual: NivelParceiro | null
+  proximoNivel: NivelParceiro | null
+  indicadosAtuais: number
+  indicadosFaltam: number
+  percentualProgresso: number
+  descricao: string
+  // Retrocompat
+  cumpriuMeta: boolean
+  indicadosNecessarios: number
+}
+
+export function useStatusMetaParceiro(parceiroId: string): StatusNivelParceiro {
   const { data: parceiro } = useParceiro(parceiroId)
   const { data: config } = useConfigPrograma()
 
-  if (!parceiro || !config) {
-    return {
-      programaAtivo: false,
-      cumpriuMeta: false,
-      indicadosNecessarios: 0,
-      indicadosAtuais: 0,
-      percentualProgresso: 0,
-      descricao: 'Carregando...',
-    }
+  const vazio: StatusNivelParceiro = {
+    programaAtivo: false,
+    nivelAtual: null,
+    proximoNivel: null,
+    indicadosAtuais: 0,
+    indicadosFaltam: 0,
+    percentualProgresso: 0,
+    descricao: 'Carregando...',
+    cumpriuMeta: false,
+    indicadosNecessarios: 0,
   }
+
+  if (!parceiro || !config) return vazio
 
   const regras = config.regras_gratuidade
 
   if (!regras.ativo) {
-    return {
-      programaAtivo: false,
-      cumpriuMeta: false,
-      indicadosNecessarios: 0,
-      indicadosAtuais: parceiro.total_indicados_ativos ?? 0,
-      percentualProgresso: 0,
-      descricao: 'Programa de gratuidade inativo',
+    return { ...vazio, indicadosAtuais: parceiro.total_indicados_ativos ?? 0, descricao: 'Programa de níveis inativo' }
+  }
+
+  const niveis = [...(regras.niveis ?? [])].sort((a, b) => a.meta_indicados - b.meta_indicados)
+
+  if (niveis.length === 0) {
+    return { ...vazio, programaAtivo: true, indicadosAtuais: parceiro.total_indicados_ativos ?? 0, descricao: 'Nenhum nível configurado' }
+  }
+
+  const indicadosAtuais = parceiro.total_indicados_ativos ?? 0
+
+  // Encontrar o maior nível onde meta_indicados <= indicadosAtuais
+  let nivelAtual: NivelParceiro | null = null
+  let proximoNivel: NivelParceiro | null = null
+
+  for (let i = niveis.length - 1; i >= 0; i--) {
+    if (indicadosAtuais >= niveis[i].meta_indicados) {
+      nivelAtual = niveis[i]
+      proximoNivel = niveis[i + 1] ?? null
+      break
     }
   }
 
-  // Se já teve gratuidade aplicada, usa meta de renovação; se não, usa meta inicial
-  const meta = parceiro.gratuidade_aplicada_em
-    ? (regras.renovacao_meta_indicados ?? regras.meta_inicial_indicados ?? 0)
-    : (regras.meta_inicial_indicados ?? 0)
+  // Se não atingiu nenhum nível, o próximo é o primeiro
+  if (!nivelAtual) {
+    proximoNivel = niveis[0]
+  }
 
-  const indicadosAtuais = parceiro.total_indicados_ativos ?? 0
-  const cumpriuMeta = meta > 0 && indicadosAtuais >= meta
-  const percentualProgresso = meta > 0 ? Math.min(100, (indicadosAtuais / meta) * 100) : 0
+  const indicadosFaltam = proximoNivel ? Math.max(0, proximoNivel.meta_indicados - indicadosAtuais) : 0
+
+  // Progresso: do nível atual ao próximo
+  let percentualProgresso = 0
+  if (proximoNivel) {
+    const base = nivelAtual ? nivelAtual.meta_indicados : 0
+    const range = proximoNivel.meta_indicados - base
+    if (range > 0) {
+      percentualProgresso = Math.min(100, ((indicadosAtuais - base) / range) * 100)
+    }
+  } else {
+    percentualProgresso = 100 // Atingiu o nível máximo
+  }
 
   let descricao: string
-  if (cumpriuMeta) {
-    descricao = `Meta cumprida: ${indicadosAtuais}/${meta} indicado(s) ativo(s)`
-  } else if (meta > 0) {
-    descricao = `${indicadosAtuais}/${meta} indicado(s) ativo(s) para gratuidade`
+  if (!nivelAtual) {
+    descricao = `Faltam ${indicadosFaltam} indicado(s) para ${proximoNivel!.nome}`
+  } else if (proximoNivel) {
+    descricao = `${nivelAtual.nome} · Faltam ${indicadosFaltam} para ${proximoNivel.nome}`
   } else {
-    descricao = 'Meta não configurada'
+    descricao = `${nivelAtual.nome} · Nível máximo atingido!`
   }
 
   return {
     programaAtivo: true,
-    cumpriuMeta,
-    indicadosNecessarios: meta,
+    nivelAtual,
+    proximoNivel,
     indicadosAtuais,
+    indicadosFaltam,
     percentualProgresso,
     descricao,
+    cumpriuMeta: nivelAtual !== null,
+    indicadosNecessarios: proximoNivel?.meta_indicados ?? nivelAtual?.meta_indicados ?? 0,
   }
 }

@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
 import { LoginBannerConfig } from '../components/LoginBannerConfig'
-import { Save, RefreshCw, CheckCircle, XCircle, Loader2, Eye, EyeOff, ToggleLeft, ToggleRight, RotateCcw } from 'lucide-react'
+import { Save, RefreshCw, CheckCircle, XCircle, Loader2, Eye, EyeOff, ToggleLeft, ToggleRight, RotateCcw, Trash2, Plus, Trophy, Gift } from 'lucide-react'
 import { toast } from 'sonner'
 import { useConfigGlobais, useUpdateConfigGlobal, useTestarConfigGlobal } from '../hooks/useConfigGlobal'
 import type { ConfigGlobal } from '../services/admin.api'
  import { useToolbar } from '../contexts/ToolbarContext'
 import { useConfigPrograma, useUpdateConfigPrograma } from '../hooks/useParceiros'
 import type { AtualizarConfigProgramaData } from '../schemas/parceiro.schema'
+import { NIVEIS_PADRAO, type NivelParceiro } from '../schemas/parceiro.schema'
 
 /**
  * AIDEV-NOTE: Pagina de Configuracoes Globais
@@ -504,11 +505,10 @@ function ConfigProgramaParceiroForm() {
   const updateConfig = useUpdateConfigPrograma()
 
   const [percentual, setPercentual] = useState('')
-  const [metaAtiva, setMetaAtiva] = useState(false)
-  const [metaInicial, setMetaInicial] = useState('')
-  const [renovacaoMeses, setRenovacaoMeses] = useState('')
-  const [renovacaoMeta, setRenovacaoMeta] = useState('')
+  const [programaAtivo, setProgramaAtivo] = useState(false)
+  const [niveis, setNiveis] = useState<NivelParceiro[]>(NIVEIS_PADRAO)
   const [carencia, setCarencia] = useState('')
+  const [renovacaoMeses, setRenovacaoMeses] = useState('')
   const [baseUrl, setBaseUrl] = useState('')
   const [observacoes, setObservacoes] = useState('')
 
@@ -516,29 +516,67 @@ function ConfigProgramaParceiroForm() {
   useEffect(() => {
     if (!config) return
     setPercentual(String(config.percentual_padrao ?? 10))
-    setMetaAtiva(config.regras_gratuidade?.ativo ?? false)
-    setMetaInicial(String(config.regras_gratuidade?.meta_inicial_indicados ?? ''))
-    setRenovacaoMeses(String(config.regras_gratuidade?.renovacao_periodo_meses ?? ''))
-    setRenovacaoMeta(String(config.regras_gratuidade?.renovacao_meta_indicados ?? ''))
+    setProgramaAtivo(config.regras_gratuidade?.ativo ?? false)
+    if (config.regras_gratuidade?.niveis?.length) {
+      setNiveis(config.regras_gratuidade.niveis)
+    }
     setCarencia(String(config.regras_gratuidade?.carencia_dias ?? ''))
+    setRenovacaoMeses(String(config.regras_gratuidade?.renovacao_periodo_meses ?? ''))
     setBaseUrl(config.base_url_indicacao ?? '')
     setObservacoes(config.observacoes ?? '')
   }, [config])
 
   const handleSalvar = () => {
+    // Validar que niveis estão em ordem crescente de meta
+    const niveisOrdenados = [...niveis].sort((a, b) => a.meta_indicados - b.meta_indicados)
     const data: AtualizarConfigProgramaData = {
       percentual_padrao: Number(percentual) || 10,
       regras_gratuidade: {
-        ativo: metaAtiva,
-        meta_inicial_indicados: metaInicial ? Number(metaInicial) : undefined,
-        renovacao_periodo_meses: renovacaoMeses ? Number(renovacaoMeses) : undefined,
-        renovacao_meta_indicados: renovacaoMeta ? Number(renovacaoMeta) : undefined,
+        ativo: programaAtivo,
+        niveis: niveisOrdenados,
         carencia_dias: carencia ? Number(carencia) : undefined,
+        renovacao_periodo_meses: renovacaoMeses ? Number(renovacaoMeses) : undefined,
       },
       base_url_indicacao: baseUrl || null,
       observacoes: observacoes || null,
     }
     updateConfig.mutate(data)
+  }
+
+  const updateNivel = (index: number, field: keyof NivelParceiro, value: unknown) => {
+    setNiveis(prev => prev.map((n, i) => i === index ? { ...n, [field]: value } : n))
+  }
+
+  const removeNivel = (index: number) => {
+    if (niveis.length <= 1) return
+    setNiveis(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const addNivel = () => {
+    const lastMeta = niveis.length > 0 ? niveis[niveis.length - 1].meta_indicados : 0
+    setNiveis(prev => [...prev, {
+      nome: '',
+      cor: 'emerald',
+      meta_indicados: lastMeta + 5,
+      percentual_comissao: 10,
+      bonus_valor: 0,
+      gratuidade: false,
+    }])
+  }
+
+  // AIDEV-NOTE: Cores disponíveis para badges de nível
+  const coresDisponiveis = [
+    { value: 'amber', label: 'Bronze', bg: 'bg-amber-100', text: 'text-amber-700' },
+    { value: 'gray', label: 'Prata', bg: 'bg-gray-200', text: 'text-gray-700' },
+    { value: 'yellow', label: 'Ouro', bg: 'bg-yellow-100', text: 'text-yellow-700' },
+    { value: 'blue', label: 'Diamante', bg: 'bg-blue-100', text: 'text-blue-700' },
+    { value: 'emerald', label: 'Esmeralda', bg: 'bg-emerald-100', text: 'text-emerald-700' },
+    { value: 'purple', label: 'Roxo', bg: 'bg-purple-100', text: 'text-purple-700' },
+    { value: 'rose', label: 'Rosa', bg: 'bg-rose-100', text: 'text-rose-700' },
+  ]
+
+  const getCorClasses = (cor: string) => {
+    return coresDisponiveis.find(c => c.value === cor) ?? coresDisponiveis[0]
   }
 
   if (isLoading) {
@@ -552,11 +590,11 @@ function ConfigProgramaParceiroForm() {
   }
 
   return (
-    <div className="space-y-6 max-w-xl">
+    <div className="space-y-6 max-w-2xl">
       <div>
         <h3 className="text-base font-semibold text-foreground">Programa de Parceiros</h3>
         <p className="text-sm text-muted-foreground mt-1">
-          Configure as regras globais de comissão e gratuidade.
+          Configure as regras globais de comissão, níveis e bonificação.
         </p>
       </div>
 
@@ -572,82 +610,183 @@ function ConfigProgramaParceiroForm() {
           step={0.1}
           value={percentual}
           onChange={(e) => setPercentual(e.target.value)}
-          className="w-full max-w-xs px-3 py-2 border border-border rounded-md text-sm bg-background outline-none focus:ring-2 focus:ring-primary/20"
+          className="w-full max-w-xs px-3 py-2 border border-border rounded-md text-sm bg-background outline-none focus:ring-2 focus:ring-ring"
         />
         <p className="text-xs text-muted-foreground">
           Aplicado quando o parceiro não tem percentual individual configurado.
         </p>
       </div>
 
-      {/* Regras de Gratuidade */}
-      <div className="space-y-3 p-4 border border-border rounded-lg">
+      {/* Programa de Níveis */}
+      <div className="space-y-4 p-4 border border-border rounded-lg">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-foreground">Programa de Gratuidade</p>
+            <p className="text-sm font-medium text-foreground">Programa de Níveis e Recompensas</p>
             <p className="text-xs text-muted-foreground">
-              Parceiros que atingirem a meta podem ter o plano custeado.
+              Parceiros progridem por níveis com comissões crescentes e bonificações.
             </p>
           </div>
           <button
             type="button"
-            onClick={() => setMetaAtiva(!metaAtiva)}
+            onClick={() => setProgramaAtivo(!programaAtivo)}
             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              metaAtiva ? 'bg-primary' : 'bg-muted'
+              programaAtivo ? 'bg-primary' : 'bg-muted'
             }`}
           >
             <span
               className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
-                metaAtiva ? 'translate-x-6' : 'translate-x-1'
+                programaAtivo ? 'translate-x-6' : 'translate-x-1'
               }`}
             />
           </button>
         </div>
 
-        {metaAtiva && (
-          <div className="grid grid-cols-2 gap-3 pt-2">
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-foreground">Meta inicial (indicados)</label>
-              <input
-                type="number"
-                min={1}
-                value={metaInicial}
-                onChange={(e) => setMetaInicial(e.target.value)}
-                placeholder="Ex: 2"
-                className="w-full px-3 py-2 border border-border rounded-md text-sm bg-background outline-none focus:ring-2 focus:ring-primary/20"
-              />
+        {programaAtivo && (
+          <div className="space-y-4 pt-2">
+            {/* Lista de Níveis */}
+            <div className="space-y-3">
+              {niveis.map((nivel, index) => {
+                const corInfo = getCorClasses(nivel.cor)
+                return (
+                  <div key={index} className="p-3 border border-border rounded-lg bg-background">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${corInfo.bg} ${corInfo.text}`}>
+                          <Trophy className="w-3 h-3 mr-1" />
+                          {nivel.nome || 'Novo Nível'}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeNivel(index)}
+                        disabled={niveis.length <= 1}
+                        className="p-1 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-30"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-muted-foreground">Nome</label>
+                        <input
+                          type="text"
+                          value={nivel.nome}
+                          onChange={(e) => updateNivel(index, 'nome', e.target.value)}
+                          placeholder="Ex: Bronze"
+                          className="w-full px-2.5 py-1.5 border border-border rounded-md text-sm bg-background outline-none focus:ring-2 focus:ring-ring"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-muted-foreground">Meta (indicados)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={nivel.meta_indicados}
+                          onChange={(e) => updateNivel(index, 'meta_indicados', Number(e.target.value))}
+                          className="w-full px-2.5 py-1.5 border border-border rounded-md text-sm bg-background outline-none focus:ring-2 focus:ring-ring"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-muted-foreground">Comissão (%)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          step={0.1}
+                          value={nivel.percentual_comissao}
+                          onChange={(e) => updateNivel(index, 'percentual_comissao', Number(e.target.value))}
+                          className="w-full px-2.5 py-1.5 border border-border rounded-md text-sm bg-background outline-none focus:ring-2 focus:ring-ring"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-muted-foreground">Bônus (R$)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={nivel.bonus_valor}
+                          onChange={(e) => updateNivel(index, 'bonus_valor', Number(e.target.value))}
+                          className="w-full px-2.5 py-1.5 border border-border rounded-md text-sm bg-background outline-none focus:ring-2 focus:ring-ring"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-muted-foreground">Cor</label>
+                        <select
+                          value={nivel.cor}
+                          onChange={(e) => updateNivel(index, 'cor', e.target.value)}
+                          className="w-full px-2.5 py-1.5 border border-border rounded-md text-sm bg-background outline-none focus:ring-2 focus:ring-ring"
+                        >
+                          {coresDisponiveis.map(c => (
+                            <option key={c.value} value={c.value}>{c.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-muted-foreground">Gratuidade</label>
+                        <button
+                          type="button"
+                          onClick={() => updateNivel(index, 'gratuidade', !nivel.gratuidade)}
+                          className={`w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium border transition-colors ${
+                            nivel.gratuidade
+                              ? 'bg-green-50 border-green-200 text-green-700'
+                              : 'bg-background border-border text-muted-foreground'
+                          }`}
+                        >
+                          <Gift className="w-3 h-3" />
+                          {nivel.gratuidade ? 'Sim' : 'Não'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-foreground">Carência (dias)</label>
-              <input
-                type="number"
-                min={0}
-                value={carencia}
-                onChange={(e) => setCarencia(e.target.value)}
-                placeholder="Ex: 30"
-                className="w-full px-3 py-2 border border-border rounded-md text-sm bg-background outline-none focus:ring-2 focus:ring-primary/20"
-              />
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={addNivel}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-border rounded-md hover:bg-accent transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Adicionar nível
+              </button>
+              <button
+                type="button"
+                onClick={() => setNiveis([...NIVEIS_PADRAO])}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground border border-border rounded-md hover:bg-accent transition-colors"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Restaurar padrão
+              </button>
             </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-foreground">Meta renovação (indicados)</label>
-              <input
-                type="number"
-                min={1}
-                value={renovacaoMeta}
-                onChange={(e) => setRenovacaoMeta(e.target.value)}
-                placeholder="Ex: 3"
-                className="w-full px-3 py-2 border border-border rounded-md text-sm bg-background outline-none focus:ring-2 focus:ring-primary/20"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-foreground">Período renovação (meses)</label>
-              <input
-                type="number"
-                min={1}
-                value={renovacaoMeses}
-                onChange={(e) => setRenovacaoMeses(e.target.value)}
-                placeholder="Ex: 12"
-                className="w-full px-3 py-2 border border-border rounded-md text-sm bg-background outline-none focus:ring-2 focus:ring-primary/20"
-              />
+
+            {/* Carência e Período */}
+            <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-foreground">Carência (dias)</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={carencia}
+                  onChange={(e) => setCarencia(e.target.value)}
+                  placeholder="Ex: 30"
+                  className="w-full px-3 py-2 border border-border rounded-md text-sm bg-background outline-none focus:ring-2 focus:ring-ring"
+                />
+                <p className="text-xs text-muted-foreground">Tempo mínimo que indicado precisa estar ativo para contar.</p>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-foreground">Período avaliação (meses)</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={renovacaoMeses}
+                  onChange={(e) => setRenovacaoMeses(e.target.value)}
+                  placeholder="Ex: 12"
+                  className="w-full px-3 py-2 border border-border rounded-md text-sm bg-background outline-none focus:ring-2 focus:ring-ring"
+                />
+                <p className="text-xs text-muted-foreground">Janela de renovação dos benefícios.</p>
+              </div>
             </div>
           </div>
         )}
@@ -661,7 +800,7 @@ function ConfigProgramaParceiroForm() {
           value={baseUrl}
           onChange={(e) => setBaseUrl(e.target.value)}
           placeholder="https://crm.renovedigital.com.br/cadastro"
-          className="w-full px-3 py-2 border border-border rounded-md text-sm bg-background outline-none focus:ring-2 focus:ring-primary/20"
+          className="w-full px-3 py-2 border border-border rounded-md text-sm bg-background outline-none focus:ring-2 focus:ring-ring"
         />
         <p className="text-xs text-muted-foreground">
           URL base para links de indicação (V2).
@@ -676,7 +815,7 @@ function ConfigProgramaParceiroForm() {
           onChange={(e) => setObservacoes(e.target.value)}
           rows={3}
           placeholder="Notas internas sobre o programa..."
-          className="w-full px-3 py-2 border border-border rounded-md text-sm bg-background outline-none focus:ring-2 focus:ring-primary/20 resize-none"
+          className="w-full px-3 py-2 border border-border rounded-md text-sm bg-background outline-none focus:ring-2 focus:ring-ring resize-none"
         />
       </div>
 
