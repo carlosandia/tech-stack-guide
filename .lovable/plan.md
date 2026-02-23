@@ -1,61 +1,102 @@
 
-# Correcao: URLs `undefined` em todo o projeto
+# Completar Implementacao do Teste A/B de Formularios
 
-## Problema
+## Situacao Atual
 
-11 arquivos usam `import.meta.env.VITE_SUPABASE_URL` diretamente, sem fallback. Apenas `src/lib/supabase.ts` tem fallback. Quando a variavel nao resolve, todas as URLs ficam `undefined/functions/v1/...`.
+O sistema tem apenas o "esqueleto" do A/B Testing:
+- CRUD de testes e variantes funciona (criar, listar, iniciar, pausar, concluir)
+- Tabela `variantes_ab_formularios` tem coluna `alteracoes` (JSONB) mas nunca e preenchida
+- Nao existe UI para configurar O QUE muda em cada variante
+- O formulario publico ignora completamente o teste A/B
+- Visualizacoes e submissoes por variante nao sao rastreadas
 
-Isso afeta:
-- Webhooks de Entrada (URL exibida ao usuario)
-- Embed de Formularios (script gerado)
-- Widget WhatsApp (script gerado)
-- Debug de Webhooks nas automacoes
-- Admin (invite, impersonar, SMTP)
-- Reset de senha
-- Formulario publico (submissao)
-- Widget de pricing
-- Pagina de planos (demo)
+## O Que Falta Implementar
 
-## Solucao
+### 1. Editor de Alteracoes por Variante
 
-### Passo 1: Centralizar com fallback em `src/config/env.ts`
+Ao criar/editar uma variante, o usuario precisa poder configurar o que muda. As alteracoes mais comuns sao:
 
-Adicionar fallback na `SUPABASE_URL` (mesmo padrao do `supabase.ts`):
+- **Cor do botao** (ex: verde vs azul)
+- **Texto do botao** (ex: "Enviar" vs "Quero receber")
+- **Titulo do formulario**
+- **Descricao do formulario**
+- **Estilos do container** (cor de fundo, borda)
+
+A UI sera um painel que aparece ao clicar numa variante, com campos para cada propriedade alteravel. O JSON `alteracoes` sera estruturado assim:
 
 ```text
-SUPABASE_URL: (import.meta.env.VITE_SUPABASE_URL as string) || 'https://ybzhlsalbnxwkfszkloa.supabase.co',
-SUPABASE_ANON_KEY: (import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY) as string || '...',
+{
+  "botao": { "cor_fundo": "#22c55e", "texto": "Quero receber" },
+  "cabecalho": { "titulo": "Oferta Especial" },
+  "container": { "cor_fundo": "#f0f9ff" }
+}
 ```
 
-### Passo 2: Substituir todos os usos diretos
+### 2. Logica de Sorteio no Formulario Publico
 
-Nos 10 arquivos restantes, trocar `import.meta.env.VITE_SUPABASE_URL` por `env.SUPABASE_URL` (importando de `@/config/env`):
+Quando `ab_testing_ativo === true` no formulario:
+- Buscar variantes do teste ativo
+- Sortear uma variante com base na `porcentagem_trafego`
+- Aplicar as `alteracoes` da variante sobre os estilos padrao
+- Salvar no localStorage qual variante foi exibida (para consistencia)
+- Registrar a visualizacao (incrementar `contagem_visualizacoes`)
 
-| Arquivo | Linhas afetadas |
-|---------|-----------------|
-| `configuracoes/services/configuracoes.api.ts` | 1917, 1943, 1957 |
-| `formularios/components/compartilhar/EmbedCodeCard.tsx` | 26 |
-| `configuracoes/components/whatsapp-widget/generateWidgetScript.ts` | 9 |
-| `automacoes/components/panels/WebhookDebugPanel.tsx` | 65 |
-| `formularios/pages/FormularioPublicoPage.tsx` | 215, 293 |
-| `admin/services/admin.api.ts` | 420, 597, 1091, 1286 |
-| `admin/pages/PlanosPage.tsx` | 19 |
-| `public/pages/PlanosPage.tsx` | 67 |
-| `auth/pages/ForgotPasswordPage.tsx` | 48 |
+### 3. Tracking de Conversao
 
-### Passo 3: Melhoria de UX na pagina de Webhooks
+Ao submeter o formulario publico:
+- Se havia variante ativa, incrementar `contagem_submissoes` daquela variante
+- Recalcular `taxa_conversao`
 
-Na `WebhooksEntradaPage.tsx`, a URL longa do Supabase fica feia para o usuario. Melhorias:
+### 4. Redistribuicao de Trafego
 
-- Truncar visualmente a URL com `text-ellipsis` (ja tem `truncate`)
-- Adicionar label descritivo acima: "Endpoint de recebimento"
-- Manter botao "Copiar" como acao principal (o usuario nao precisa ler a URL, so colar)
-- Adicionar dica: "Cole esta URL na sua plataforma de automacao"
+Ao adicionar/remover variantes, recalcular automaticamente a `porcentagem_trafego` de forma equilibrada (ex: 2 variantes = 50/50, 3 variantes = 33/33/34).
 
-Isso segue o padrao dos grandes SaaS: campo read-only com URL truncada + botao copiar proeminente.
+## Arquivos a Criar/Alterar
+
+### Criar: `src/modules/formularios/components/ab/VarianteEditor.tsx`
+Painel com campos editaveis para configurar as alteracoes de cada variante:
+- Color picker para cor do botao
+- Input para texto do botao
+- Input para titulo alternativo
+- Input para descricao alternativa
+- Preview visual lado a lado
+
+### Alterar: `src/modules/formularios/components/ab/VariantesList.tsx`
+- Adicionar botao "Configurar" em cada variante para abrir o editor
+- Exibir indicador visual de quantas alteracoes estao configuradas
+
+### Alterar: `src/modules/formularios/services/formularios.api.ts`
+- Criar funcao `atualizarVarianteAB()` para salvar alteracoes
+- Criar funcao `registrarVisualizacaoAB()` para tracking
+- Criar funcao `registrarConversaoAB()` para tracking
+- Criar funcao `buscarVarianteAtiva()` para sorteio no publico
+
+### Alterar: `src/modules/formularios/hooks/useFormularioAB.ts`
+- Adicionar hooks para as novas funcoes da API
+
+### Alterar: `src/modules/formularios/pages/FormularioPublicoPage.tsx`
+- Verificar se formulario tem A/B ativo
+- Sortear variante e aplicar alteracoes visuais
+- Registrar visualizacao e conversao
+
+### Alterar: `src/modules/formularios/components/ab/TesteABForm.tsx`
+- Melhorar UX com selecao de metricas
+- Adicionar explicacao contextual
+
+## Fluxo do Usuario
+
+```text
+1. Usuario cria teste A/B (ex: "Teste cor do botao")
+2. Adiciona variante A "Botao Verde" -> clica "Configurar" -> muda cor do botao para verde
+3. Adiciona variante B "Botao Azul" -> clica "Configurar" -> muda cor do botao para azul  
+4. Clica "Iniciar" -> formulario publico comeca a sortear variantes
+5. Visitantes veem versoes diferentes -> sistema rastreia views e conversoes
+6. Apos minimo de submissoes, usuario clica "Concluir" -> sistema mostra vencedora
+```
 
 ## Resultado
 
-- Zero ocorrencias de `undefined` em URLs
-- Configuracao centralizada com fallback seguro
-- UX mais limpa na pagina de webhooks
+- Usuario consegue configurar visualmente o que muda em cada variante
+- Formulario publico exibe variantes diferentes automaticamente
+- Metricas de conversao sao rastreadas por variante
+- Ao concluir o teste, a variante vencedora e identificada com dados reais
