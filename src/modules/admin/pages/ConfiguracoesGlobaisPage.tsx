@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { LoginBannerConfig } from '../components/LoginBannerConfig'
 import { EmblemaParceiroNivel } from '../components/EmblemaParceiroNivel'
-import { Save, RefreshCw, CheckCircle, XCircle, Loader2, Eye, EyeOff, ToggleLeft, ToggleRight, RotateCcw, Trash2, Plus, Trophy, Gift } from 'lucide-react'
+import { Save, RefreshCw, CheckCircle, XCircle, Loader2, Eye, EyeOff, ToggleLeft, ToggleRight, RotateCcw, Trash2, Plus, Gift } from 'lucide-react'
 import { toast } from 'sonner'
 import { useConfigGlobais, useUpdateConfigGlobal, useTestarConfigGlobal } from '../hooks/useConfigGlobal'
 import type { ConfigGlobal } from '../services/admin.api'
@@ -576,9 +576,6 @@ function ConfigProgramaParceiroForm() {
     { value: 'rose', label: 'Rosa', bg: 'bg-rose-100', text: 'text-rose-700' },
   ]
 
-  const getCorClasses = (cor: string) => {
-    return coresDisponiveis.find(c => c.value === cor) ?? coresDisponiveis[0]
-  }
 
   if (isLoading) {
     return (
@@ -647,7 +644,6 @@ function ConfigProgramaParceiroForm() {
             {/* Lista de Níveis — Layout em Colunas */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {niveis.map((nivel, index) => {
-                const corInfo = getCorClasses(nivel.cor)
                 return (
                   <div key={index} className="relative p-4 border border-border rounded-lg bg-background flex flex-col items-center gap-3">
                     {/* Botão excluir */}
@@ -661,13 +657,7 @@ function ConfigProgramaParceiroForm() {
                     </button>
 
                     {/* Emblema */}
-                    <EmblemaParceiroNivel cor={nivel.cor} size={64} />
-
-                    {/* Badge do nome */}
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${corInfo.bg} ${corInfo.text}`}>
-                      <Trophy className="w-3 h-3 mr-1" />
-                      {nivel.nome || 'Novo Nível'}
-                    </span>
+                    <EmblemaParceiroNivel cor={nivel.cor} size={96} />
 
                     {/* Campos empilhados */}
                     <div className="w-full space-y-2">
