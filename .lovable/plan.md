@@ -1,66 +1,61 @@
 
-# Correcao: Formulario de demonstracao nao carrega no modal
+# Correcao: URLs `undefined` em todo o projeto
 
-## Problema raiz
+## Problema
 
-As edge functions `widget-formulario-loader` e `widget-formulario-config` **nao estao deployadas** (retornam 404). Alem disso, o `fetch` no PricingSection usa `import.meta.env.VITE_SUPABASE_URL` que retorna `undefined` em certos contextos, fazendo a URL ser `undefined/functions/v1/...` que retorna o HTML do SPA ao inves de JavaScript.
+11 arquivos usam `import.meta.env.VITE_SUPABASE_URL` diretamente, sem fallback. Apenas `src/lib/supabase.ts` tem fallback. Quando a variavel nao resolve, todas as URLs ficam `undefined/functions/v1/...`.
 
-A abordagem de injetar scripts dinamicamente no DOM do React e inerentemente fragil e causa delays visiveis.
+Isso afeta:
+- Webhooks de Entrada (URL exibida ao usuario)
+- Embed de Formularios (script gerado)
+- Widget WhatsApp (script gerado)
+- Debug de Webhooks nas automacoes
+- Admin (invite, impersonar, SMTP)
+- Reset de senha
+- Formulario publico (submissao)
+- Widget de pricing
+- Pagina de planos (demo)
 
-## Solucao proposta: Formulario React nativo
+## Solucao
 
-Ao inves de depender de edge functions para renderizar o formulario via script injection, construir um **componente React nativo** (`DemoFormModal`) que renderiza os campos diretamente. Isso garante:
+### Passo 1: Centralizar com fallback em `src/config/env.ts`
 
-- Carregamento **instantaneo** junto com o modal (zero delay)
-- Sem dependencia de edge functions para renderizacao
-- UX consistente com o resto da aplicacao
-- Submissao via Supabase direto na tabela `submissoes_formularios`
+Adicionar fallback na `SUPABASE_URL` (mesmo padrao do `supabase.ts`):
 
-Os campos do formulario "Demonstracao Gratuita" (slug: `demonstracao-crm-mlrb6yoz`, id: `2fa1f6a1-...`) sao:
-
-1. **Nome e sobrenome** (texto)
-2. **Telefone** (telefone_br com mascara)
-3. **Email** (email)
-4. **Nome da empresa** (texto)
-5. **Tamanho do time comercial** (numero)
-
-## Alteracoes
-
-### 1. Criar componente `DemoFormModal.tsx`
-**Arquivo:** `src/modules/public/components/landing/DemoFormModal.tsx`
-
-- Dialog com titulo "Demonstracao Gratuita"
-- 5 campos nativos React com validacao basica
-- Mascara de telefone BR `(00) 00000-0000`
-- Prefixo fixo com bandeira BR +55
-- Botao "Solicitar uma demonstracao"
-- Ao submeter: insere na tabela `submissoes_formularios` com o `formulario_id` correto
-- Toast de sucesso e fecha o modal
-- Sem necessidade de edge function para renderizar
-
-### 2. Atualizar `PricingSection.tsx`
-- Remover toda a logica de script injection (useEffect com fetch/script)
-- Remover `demoContainerRef`
-- Substituir o Dialog manual pelo novo `DemoFormModal`
-- Passar `open` e `onOpenChange` como props
-
-### Detalhes tecnicos
-
-**Submissao do formulario:**
 ```text
-INSERT INTO submissoes_formularios (
-  formulario_id,    -- '2fa1f6a1-f4d0-4b8e-8d9a-de9da4034b48'
-  dados,            -- { nome_e_sobrenome, telefone_br_mlrbc6o7, email_mlrbc399, texto_mlrbhq3a, numero_mlrbi1ys }
-  ip,
-  user_agent,
-  utm_params,
-  organizacao_id    -- (do formulario)
-)
+SUPABASE_URL: (import.meta.env.VITE_SUPABASE_URL as string) || 'https://ybzhlsalbnxwkfszkloa.supabase.co',
+SUPABASE_ANON_KEY: (import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY) as string || '...',
 ```
 
-A submissao usa os nomes dos campos conforme cadastrados: `nome_e_sobrenome`, `telefone_br_mlrbc6o7`, `email_mlrbc399`, `texto_mlrbhq3a`, `numero_mlrbi1ys`.
+### Passo 2: Substituir todos os usos diretos
 
-O `organizacao_id` sera buscado do formulario para garantir que a submissao seja corretamente vinculada.
+Nos 10 arquivos restantes, trocar `import.meta.env.VITE_SUPABASE_URL` por `env.SUPABASE_URL` (importando de `@/config/env`):
 
-**Mascara de telefone:**
-Reutilizar a mesma logica de mascara `(00) 00000-0000` ja existente no widget loader, porem implementada como React state handler.
+| Arquivo | Linhas afetadas |
+|---------|-----------------|
+| `configuracoes/services/configuracoes.api.ts` | 1917, 1943, 1957 |
+| `formularios/components/compartilhar/EmbedCodeCard.tsx` | 26 |
+| `configuracoes/components/whatsapp-widget/generateWidgetScript.ts` | 9 |
+| `automacoes/components/panels/WebhookDebugPanel.tsx` | 65 |
+| `formularios/pages/FormularioPublicoPage.tsx` | 215, 293 |
+| `admin/services/admin.api.ts` | 420, 597, 1091, 1286 |
+| `admin/pages/PlanosPage.tsx` | 19 |
+| `public/pages/PlanosPage.tsx` | 67 |
+| `auth/pages/ForgotPasswordPage.tsx` | 48 |
+
+### Passo 3: Melhoria de UX na pagina de Webhooks
+
+Na `WebhooksEntradaPage.tsx`, a URL longa do Supabase fica feia para o usuario. Melhorias:
+
+- Truncar visualmente a URL com `text-ellipsis` (ja tem `truncate`)
+- Adicionar label descritivo acima: "Endpoint de recebimento"
+- Manter botao "Copiar" como acao principal (o usuario nao precisa ler a URL, so colar)
+- Adicionar dica: "Cole esta URL na sua plataforma de automacao"
+
+Isso segue o padrao dos grandes SaaS: campo read-only com URL truncada + botao copiar proeminente.
+
+## Resultado
+
+- Zero ocorrencias de `undefined` em URLs
+- Configuracao centralizada com fallback seguro
+- UX mais limpa na pagina de webhooks
