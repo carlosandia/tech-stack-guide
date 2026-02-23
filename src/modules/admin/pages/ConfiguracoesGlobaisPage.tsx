@@ -642,22 +642,22 @@ function ConfigProgramaParceiroForm() {
         {programaAtivo && (
           <div className="space-y-4 pt-2">
             {/* Lista de Níveis — Layout em Colunas */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {niveis.map((nivel, index) => {
                 return (
-                  <div key={index} className="relative p-4 border border-border rounded-lg bg-background flex flex-col items-center gap-3">
+                  <div key={index} className="relative flex flex-col items-center gap-3">
                     {/* Botão excluir */}
                     <button
                       type="button"
                       onClick={() => removeNivel(index)}
                       disabled={niveis.length <= 1}
-                      className="absolute top-2 right-2 p-1 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-30"
+                      className="absolute -top-1 -right-1 p-1 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-30 z-10"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
 
                     {/* Emblema */}
-                    <EmblemaParceiroNivel cor={nivel.cor} size={96} />
+                    <EmblemaParceiroNivel cor={nivel.cor} size={120} />
 
                     {/* Campos empilhados */}
                     <div className="w-full space-y-2">
