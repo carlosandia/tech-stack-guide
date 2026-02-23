@@ -1,33 +1,41 @@
 
 
-## Corrigir gradiente da hero section na ParceiroPage
+## Reorganizar hero da ParceiroPage para uma UI mais coesa
 
-### Problema
-O gradiente radial na hero section tem um fade suave no lado esquerdo, mas no lado direito aparece uma transicao mais brusca (como uma "linha"), em vez de um degradê suave igual.
+### Problemas identificados
+1. **Badge "Parceiro Certificado" duplicado** -- aparece no header E no hero, gerando redundancia visual
+2. **Espacamento excessivo entre elementos** -- titulo, subtitulo, badge e toggle estao muito separados, criando sensacao de "solto"
+3. **Falta de agrupamento visual** -- cada elemento parece independente, sem conexao entre eles
 
-### Solucao
-Ajustar os dois gradientes radiais existentes para que ambos os lados tenham a mesma suavidade:
+### Solucao proposta
 
-1. O primeiro gradiente (`ellipse_at_top`) ja funciona bem no centro/esquerda. Manter.
-2. O segundo gradiente (`circle_at_bottom_right`) cria o efeito assimetrico. Trocar para um gradiente espelhado que repita o mesmo efeito suave nos dois lados.
+**1. Remover o badge "Parceiro Certificado" do hero**
+Ja existe no header. Manter no hero e redundante e ocupa espaco sem valor. Remover as linhas 217-223.
 
-Adicionar um terceiro gradiente radial posicionado no lado direito (`ellipse_at_top_right`) com a mesma intensidade e comportamento do lado esquerdo, criando simetria.
+**2. Reduzir espacamentos entre elementos do hero**
+- Titulo `mb-4` -> `mb-3`
+- Subtitulo `mb-6` -> `mb-5`  
+- Remover o `mb-8` do badge (que sera removido)
+- Toggle fica logo apos o subtitulo, com menos distancia
+
+**3. Agrupar subtitulo + toggle em um bloco coeso**
+Colocar o subtitulo e o toggle mais proximos, criando uma unidade visual. O subtitulo contextualiza e o toggle e a acao imediata -- devem estar juntos.
+
+**4. Reduzir padding vertical da hero**
+De `py-12 sm:py-20` para `py-10 sm:py-16`, aproximando o titulo dos cards de planos e eliminando o excesso de espaco vazio.
+
+### Resultado esperado
+- Titulo -> Subtitulo -> Toggle (sem badge no meio)
+- Tudo mais compacto e visualmente agrupado
+- Menos "ar" entre os elementos, sensacao de layout organizado
+- Badge de parceiro fica apenas no header, sem repeticao
 
 ### Detalhes tecnicos
 
 **Arquivo:** `src/modules/public/pages/ParceiroPage.tsx`
 
-Nas linhas dos gradientes da hero section, substituir os dois `div` de gradiente por tres:
-
-```tsx
-{/* Gradiente central-esquerdo (existente) */}
-<div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,hsl(var(--primary)/0.15)_0%,transparent_60%)] pointer-events-none" />
-
-{/* Gradiente central topo (existente, ajustado) */}
-<div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,hsl(var(--primary)/0.12)_0%,transparent_50%)] pointer-events-none" />
-
-{/* NOVO: Gradiente espelhado no lado direito */}
-<div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,hsl(var(--primary)/0.15)_0%,transparent_60%)] pointer-events-none" />
-```
-
-Isso cria um efeito suave e simetrico em ambos os lados, sem linha de corte.
+- Linha 199: Reduzir padding da section hero de `py-12 sm:py-20` para `py-10 sm:py-16`
+- Linha 207: Titulo `mb-4` -> `mb-3`
+- Linha 213: Subtitulo `mb-6` -> `mb-5`
+- Linhas 217-223: Remover bloco inteiro do badge "Parceiro Certificado" do hero
+- Toggle permanece como esta, sem o `mb-8` anterior separando
