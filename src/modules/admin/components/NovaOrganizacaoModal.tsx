@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useForm, FormProvider } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { X, Building2, Check, Loader2 } from 'lucide-react'
@@ -117,7 +118,7 @@ export function NovaOrganizacaoModal({ isOpen, onClose, onSuccess }: Props) {
 
   if (!isOpen) return null
 
-  return (
+  return createPortal(
     <>
       {/* Overlay */}
       <div className="fixed inset-0 z-[400] bg-black/80 backdrop-blur-sm" onClick={handleClose} />
@@ -231,6 +232,7 @@ export function NovaOrganizacaoModal({ isOpen, onClose, onSuccess }: Props) {
         </FormProvider>
       </div>
       </div>
-    </>
+    </>,
+    document.body
   )
 }

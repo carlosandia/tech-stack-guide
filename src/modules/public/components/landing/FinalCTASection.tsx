@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+// AIDEV-NOTE: Link mantido caso necessário para CTAs futuros
 import { Button } from '@/components/ui/button'
 import { ArrowRight } from 'lucide-react'
 import { useScrollReveal } from '../../hooks/useScrollReveal'
@@ -35,7 +35,7 @@ export function FinalCTASection() {
           com a Renove.
         </p>
 
-        <Link to="/trial">
+        <button onClick={() => document.querySelector('#planos')?.scrollIntoView({ behavior: 'smooth' })}>
           <Button
             size="lg"
             variant="secondary"
@@ -44,7 +44,7 @@ export function FinalCTASection() {
             Comece agora. 14 dias grátis
             <ArrowRight size={20} className="ml-2" />
           </Button>
-        </Link>
+        </button>
 
         <div className="mt-6 flex flex-col items-center gap-3">
           <div className="flex items-center gap-4 text-sm text-primary-foreground/70">

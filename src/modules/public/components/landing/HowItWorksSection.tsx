@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+// AIDEV-NOTE: Link removido - CTAs agora scrollam para #planos
 import { Button } from '@/components/ui/button'
 import { ArrowRight } from 'lucide-react'
 import { useScrollReveal } from '../../hooks/useScrollReveal'
@@ -65,12 +65,12 @@ export function HowItWorksSection() {
         </div>
 
         <div className="flex flex-col items-center gap-3">
-          <Link to="/trial">
+          <button onClick={() => document.querySelector('#planos')?.scrollIntoView({ behavior: 'smooth' })}>
             <Button size="lg" className="text-base px-8 h-12">
               Começar agora, é grátis
               <ArrowRight size={18} className="ml-2" />
             </Button>
-          </Link>
+          </button>
           <button
             onClick={() => document.querySelector('#planos')?.scrollIntoView({ behavior: 'smooth' })}
             className="text-sm text-muted-foreground hover:text-foreground underline underline-offset-4 transition-colors"

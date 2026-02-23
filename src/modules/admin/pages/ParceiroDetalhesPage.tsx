@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -158,7 +159,7 @@ function ParceiroDetalhesPage() {
       />
 
       {/* Modal Confirmar Gratuidade */}
-      {confirmarGratuidade && (
+      {confirmarGratuidade && createPortal(
         <>
           <div className="fixed inset-0 z-[400] bg-black/80 backdrop-blur-sm" onClick={() => setConfirmarGratuidade(false)} />
           <div className="fixed inset-0 z-[401] flex items-center justify-center p-4 pointer-events-none">
@@ -194,7 +195,8 @@ function ParceiroDetalhesPage() {
               </div>
             </div>
           </div>
-        </>
+        </>,
+        document.body
       )}
 
       {/* Header */}

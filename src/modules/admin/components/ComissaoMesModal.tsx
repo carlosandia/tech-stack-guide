@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { X, Loader2, DollarSign } from 'lucide-react'
@@ -79,7 +80,7 @@ export function ComissaoMesModal({ isOpen, onClose, parceiroId, nomeEmpresa }: P
 
   if (!isOpen) return null
 
-  return (
+  return createPortal(
     <>
       <div className="fixed inset-0 z-[400] bg-black/80 backdrop-blur-sm" onClick={onClose} />
       <div className="fixed inset-0 z-[401] flex items-center justify-center p-4 pointer-events-none">
@@ -167,6 +168,7 @@ export function ComissaoMesModal({ isOpen, onClose, parceiroId, nomeEmpresa }: P
         </form>
       </div>
       </div>
-    </>
+    </>,
+    document.body
   )
 }

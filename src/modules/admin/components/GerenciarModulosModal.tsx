@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { X, Puzzle, Loader2, GripVertical } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { adminApi, type Modulo } from '../services/admin.api'
@@ -62,7 +63,7 @@ export function GerenciarModulosModal({ orgId, orgNome, onClose }: Props) {
     )
   }
 
-  return (
+  return createPortal(
     <>
       <div className="fixed inset-0 z-[400] bg-black/80 backdrop-blur-sm" onClick={onClose} />
       <div className="fixed inset-0 z-[401] flex items-center justify-center pointer-events-none">
@@ -170,6 +171,7 @@ export function GerenciarModulosModal({ orgId, orgNome, onClose }: Props) {
         </div>
       </div>
       </div>
-    </>
+    </>,
+    document.body
   )
 }

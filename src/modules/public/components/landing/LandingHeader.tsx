@@ -63,9 +63,9 @@ export function LandingHeader() {
           <Link to="/login">
             <Button variant="ghost" size="sm">Entrar</Button>
           </Link>
-          <Link to="/trial">
+          <button onClick={() => document.querySelector('#planos')?.scrollIntoView({ behavior: 'smooth' })}>
             <Button size="sm">Teste grátis</Button>
-          </Link>
+          </button>
         </div>
 
         {/* Mobile hamburger */}
@@ -105,9 +105,9 @@ export function LandingHeader() {
             <Link to="/login" className="flex-1">
               <Button variant="outline" className="w-full" size="sm">Entrar</Button>
             </Link>
-            <Link to="/trial" className="flex-1">
+            <button className="flex-1" onClick={() => { setMenuOpen(false); document.querySelector('#planos')?.scrollIntoView({ behavior: 'smooth' }) }}>
               <Button className="w-full" size="sm">Teste grátis</Button>
-            </Link>
+            </button>
           </div>
         </div>
       )}

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useLimitesOrganizacao, useModulosOrganizacao } from '../hooks/useOrganizacoes'
 import { usePlanos } from '../hooks/usePlanos'
@@ -55,7 +56,7 @@ export function OrganizacaoConfigTab({ orgId, org }: Props) {
   return (
     <div className="space-y-6">
       {/* Modal de Confirmação de Revogação */}
-      {showRevogarConfirm && (
+      {showRevogarConfirm && createPortal(
         <>
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[400]" onClick={() => setShowRevogarConfirm(false)} />
           <div className="fixed inset-0 z-[401] flex items-center justify-center p-4 pointer-events-none">
@@ -95,7 +96,8 @@ export function OrganizacaoConfigTab({ orgId, org }: Props) {
               )}
             </div>
           </div>
-        </>
+        </>,
+        document.body
       )}
 
       {/* Plano Atual */}
