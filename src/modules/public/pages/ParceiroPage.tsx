@@ -205,7 +205,7 @@ export function ParceiroPage() {
           {/* Título principal — primeiro, hierarquia clara */}
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4 animate-fade-in leading-tight">
             Condições exclusivas via <span className="text-primary">{parceiro?.organizacao?.nome}</span>.
-            <br className="hidden sm:block" />
+            <br />
             Escolha seu plano ideal.
           </h1>
 
