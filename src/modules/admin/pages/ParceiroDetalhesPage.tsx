@@ -13,6 +13,8 @@ import {
   Plus,
   Copy,
   Check,
+  Gift,
+  TrendingUp,
 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -307,51 +309,9 @@ function ParceiroDetalhesPage() {
         </div>
       </div>
 
-      {/* Card de Meta de Gratuidade */}
+      {/* Card de Nível Gamificado */}
       {statusMeta.programaAtivo && (
-        <div className="bg-card border border-border rounded-lg p-5">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-amber-100 rounded-lg">
-                <Trophy className="w-5 h-5 text-amber-600" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-foreground">Meta do Programa de Parceiros</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{statusMeta.descricao}</p>
-              </div>
-            </div>
-            {statusMeta.cumpriuMeta && (
-              <button
-                onClick={() => setConfirmarGratuidade(true)}
-                disabled={aplicarGratuidade.isPending}
-                className="flex-shrink-0 inline-flex items-center gap-2 px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 transition-colors disabled:opacity-50"
-              >
-                {aplicarGratuidade.isPending ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Trophy className="w-4 h-4" />
-                )}
-                Aplicar Gratuidade
-              </button>
-            )}
-          </div>
-
-          {/* Barra de progresso HTML/Tailwind */}
-          <div className="mt-4">
-            <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
-              <span>{statusMeta.indicadosAtuais} indicado(s) ativo(s)</span>
-              <span>Meta: {statusMeta.indicadosNecessarios}</span>
-            </div>
-            <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-500 ${
-                  statusMeta.cumpriuMeta ? 'bg-green-500' : 'bg-amber-500'
-                }`}
-                style={{ width: `${statusMeta.percentualProgresso}%` }}
-              />
-            </div>
-          </div>
-        </div>
+        <CardNivelGamificado statusMeta={statusMeta} onAplicarGratuidade={() => setConfirmarGratuidade(true)} isPending={aplicarGratuidade.isPending} />
       )}
 
       {/* Tabs */}
@@ -624,6 +584,130 @@ function ParceiroDetalhesPage() {
               )}
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AIDEV-NOTE: Card de nível gamificado — mostra progresso, benefícios, próximo nível
+// ─────────────────────────────────────────────────────────────────────────────
+
+const nivelCorMap: Record<string, { bg: string; text: string; bar: string }> = {
+  amber: { bg: 'bg-amber-100', text: 'text-amber-700', bar: 'bg-amber-500' },
+  gray: { bg: 'bg-gray-200', text: 'text-gray-700', bar: 'bg-gray-500' },
+  yellow: { bg: 'bg-yellow-100', text: 'text-yellow-700', bar: 'bg-yellow-500' },
+  blue: { bg: 'bg-blue-100', text: 'text-blue-700', bar: 'bg-blue-500' },
+  emerald: { bg: 'bg-emerald-100', text: 'text-emerald-700', bar: 'bg-emerald-500' },
+  purple: { bg: 'bg-purple-100', text: 'text-purple-700', bar: 'bg-purple-500' },
+  rose: { bg: 'bg-rose-100', text: 'text-rose-700', bar: 'bg-rose-500' },
+}
+
+function CardNivelGamificado({
+  statusMeta,
+  onAplicarGratuidade,
+  isPending,
+}: {
+  statusMeta: import('../hooks/useParceiros').StatusNivelParceiro
+  onAplicarGratuidade: () => void
+  isPending: boolean
+}) {
+  const nivel = statusMeta.nivelAtual
+  const proximo = statusMeta.proximoNivel
+  const corAtual = nivel ? (nivelCorMap[nivel.cor] ?? nivelCorMap.amber) : nivelCorMap.amber
+
+  return (
+    <div className="bg-card border border-border rounded-lg p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className={`p-2.5 rounded-lg ${corAtual.bg}`}>
+            <Trophy className={`w-5 h-5 ${corAtual.text}`} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-semibold text-foreground">
+                {nivel ? `Nível ${nivel.nome}` : 'Sem nível'}
+              </p>
+              {nivel && (
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${corAtual.bg} ${corAtual.text}`}>
+                  {nivel.nome}
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">{statusMeta.descricao}</p>
+          </div>
+        </div>
+        {nivel?.gratuidade && (
+          <button
+            onClick={onAplicarGratuidade}
+            disabled={isPending}
+            className="flex-shrink-0 inline-flex items-center gap-2 px-3 py-1.5 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50"
+          >
+            {isPending ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Gift className="w-4 h-4" />
+            )}
+            Aplicar Gratuidade
+          </button>
+        )}
+      </div>
+
+      {/* Barra de progresso */}
+      <div className="mt-4">
+        <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
+          <span>{statusMeta.indicadosAtuais} indicado(s) ativo(s)</span>
+          {proximo && (
+            <span>Próximo: {proximo.nome} ({proximo.meta_indicados})</span>
+          )}
+          {!proximo && nivel && (
+            <span>Nível máximo!</span>
+          )}
+        </div>
+        <div className="w-full h-2.5 bg-muted rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-700 ease-out ${corAtual.bar}`}
+            style={{ width: `${statusMeta.percentualProgresso}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Benefícios atuais */}
+      {nivel && (
+        <div className="mt-4 pt-3 border-t border-border">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Benefícios atuais</p>
+          <div className="flex flex-wrap gap-2">
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-muted text-foreground">
+              <DollarSign className="w-3 h-3" />
+              {nivel.percentual_comissao}% comissão
+            </span>
+            {nivel.bonus_valor > 0 && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-muted text-foreground">
+                <TrendingUp className="w-3 h-3" />
+                R$ {nivel.bonus_valor} bônus
+              </span>
+            )}
+            {nivel.gratuidade && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                <Gift className="w-3 h-3" />
+                Gratuidade
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Próximo nível preview */}
+      {proximo && (
+        <div className="mt-3 p-2.5 rounded-md bg-muted/50">
+          <p className="text-xs text-muted-foreground">
+            <span className="font-medium">Próximo: {proximo.nome}</span>
+            {' · '}Faltam {statusMeta.indicadosFaltam} indicado(s)
+            {' · '}{proximo.percentual_comissao}% comissão
+            {proximo.bonus_valor > 0 && ` · R$ ${proximo.bonus_valor} bônus`}
+            {proximo.gratuidade && ' · Gratuidade'}
+          </p>
         </div>
       )}
     </div>
