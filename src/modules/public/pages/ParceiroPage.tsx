@@ -179,7 +179,7 @@ export function ParceiroPage() {
               {parceiro?.organizacao?.nome && (
                 <div className="flex sm:hidden items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[0.06] border border-white/10">
                   <ShieldCheck className="w-3 h-3 text-primary" />
-                  <span className="text-[11px] font-medium text-slate-300">Certificado</span>
+                  <span className="text-[11px] font-medium text-slate-300">Programa de Parceiros</span>
                 </div>
               )}
             </div>
