@@ -8,22 +8,24 @@ import { useScrollReveal } from '../../hooks/useScrollReveal'
 export function PricingSection() {
   const { ref, isVisible } = useScrollReveal()
   const widgetRef = useRef<HTMLDivElement>(null)
-  const scriptLoaded = useRef(false)
 
   useEffect(() => {
-    if (scriptLoaded.current) return
-    scriptLoaded.current = true
-
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
+    if (!supabaseUrl || !widgetRef.current) return
+
+    const container = widgetRef.current
+    container.innerHTML = '<div id="renove-pricing-widget"></div>'
+
     const script = document.createElement('script')
     script.src = `${supabaseUrl}/functions/v1/pricing-widget-loader?periodo=mensal`
     script.async = true
-
-    // Inserir script após o container do widget
-    widgetRef.current?.appendChild(script)
+    container.appendChild(script)
 
     return () => {
       script.remove()
+      // Limpar funções globais do widget
+      delete (window as any)._rnvSetPeriodo
+      delete (window as any)._rnvCheckout
     }
   }, [])
 
@@ -47,9 +49,7 @@ export function PricingSection() {
           </p>
         </div>
 
-        <div ref={widgetRef}>
-          <div id="renove-pricing-widget" />
-        </div>
+        <div ref={widgetRef} />
       </div>
     </section>
   )
