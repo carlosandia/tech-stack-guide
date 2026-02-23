@@ -66,16 +66,32 @@ export function useModulosTenant() {
 }
 
 /**
- * Mapeamento de slug do módulo → prefixo de path no menu
+ * Mapeamento de path prefix → slug do módulo
  */
-export const MODULO_SLUG_TO_PATH: Record<string, string> = {
-  dashboard: '/dashboard',
-  contatos: '/contatos',
-  negocios: '/negocios',
-  conversas: '/conversas',
-  'caixa-entrada-email': '/emails',
-  atividades: '/tarefas',
-  formularios: '/formularios',
-  automacoes: '/automacoes',
-  conexoes: '/configuracoes',
+export const PATH_TO_MODULO_SLUG: Record<string, string> = {
+  '/dashboard': 'dashboard',
+  '/contatos': 'contatos',
+  '/negocios': 'negocios',
+  '/conversas': 'conversas',
+  '/emails': 'caixa-entrada-email',
+  '/tarefas': 'atividades',
+  '/formularios': 'formularios',
+  '/automacoes': 'automacoes',
+}
+
+/**
+ * Verifica se o path atual corresponde a um módulo bloqueado
+ */
+export function useIsModuloBloqueado(pathname: string): boolean {
+  const { data: modulosAtivos } = useModulosTenant()
+  
+  if (!modulosAtivos) return false // enquanto carrega, não bloqueia
+  
+  for (const [pathPrefix, slug] of Object.entries(PATH_TO_MODULO_SLUG)) {
+    if (pathname.startsWith(pathPrefix)) {
+      return !modulosAtivos.includes(slug)
+    }
+  }
+  
+  return false
 }
