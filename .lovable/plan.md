@@ -1,30 +1,42 @@
 
-# Corrigir funcao validate_partner_code - tipo incompativel
+# Corrigir funcao validate_partner_code - segundo cast faltando
 
-## Problema encontrado
+## Problema
 
-A funcao `validate_partner_code` falha com o erro:
+A funcao `validate_partner_code` continua falhando com erro de tipo:
 
 ```
-Returned type character varying(20) does not match expected type text in column 2
+Returned type character varying(255) does not match expected type text in column 3
 ```
 
-A coluna `parceiros.codigo_indicacao` e do tipo `varchar(20)`, mas a funcao declara o retorno como `text`. O PostgreSQL rejeita a incompatibilidade de tipos.
+Na correcao anterior, foi adicionado `::text` na coluna `codigo_indicacao`, mas a coluna `o.nome` (da tabela `organizacoes_saas`) tambem e `varchar(255)` e precisa do mesmo cast.
 
 ## Solucao
 
-Criar uma nova migration que recria a funcao com um `CAST` explicito na coluna `codigo_indicacao`:
+Criar nova migration que recria a funcao com cast em ambas as colunas:
 
 ```sql
-p.codigo_indicacao::text
+CREATE OR REPLACE FUNCTION public.validate_partner_code(p_codigo text)
+RETURNS TABLE(id uuid, codigo_indicacao text, organizacao_nome text)
+LANGUAGE plpgsql STABLE SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT p.id, p.codigo_indicacao::text, o.nome::text AS organizacao_nome
+  FROM parceiros p
+  JOIN organizacoes_saas o ON o.id = p.organizacao_id
+  WHERE p.codigo_indicacao = UPPER(p_codigo)
+    AND p.status = 'ativo'
+  LIMIT 1;
+END;
+$$;
 ```
 
 ## Arquivo
 
 | Arquivo | Acao |
 |---------|------|
-| Nova migration SQL | Recriar funcao com cast para text |
+| Nova migration SQL | Recriar funcao com `o.nome::text` adicionado |
 
-## Detalhe tecnico
-
-A migration vai executar `CREATE OR REPLACE FUNCTION public.validate_partner_code(p_codigo text)` com a unica diferenca de adicionar `::text` no SELECT da coluna `codigo_indicacao`, corrigindo a incompatibilidade de tipo que impede a funcao de retornar resultados.
+Nenhuma alteracao no frontend e necessaria. O `ParceiroPage.tsx` ja esta correto chamando a RPC.
