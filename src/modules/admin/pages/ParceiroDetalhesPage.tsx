@@ -21,6 +21,7 @@ import {
   useIndicacoesParceiro,
   useComissoesParceiro,
   useStatusMetaParceiro,
+  useConfigPrograma,
   useUpdateParceiro,
   useAplicarGratuidade,
   useMarcarComissaoPaga,
@@ -78,7 +79,18 @@ function ParceiroDetalhesPage() {
   const { data: parceiro, isLoading, error } = useParceiro(id)
   const { data: indicacoes } = useIndicacoesParceiro(id)
   const { data: comissoesPagina } = useComissoesParceiro(id)
+  const { data: configPrograma } = useConfigPrograma()
   const statusMeta = useStatusMetaParceiro(id)
+
+  // AIDEV-NOTE: Monta URL base usando config do programa (base_url_indicacao) com fallback
+  const baseOrigin = (() => {
+    try {
+      if (configPrograma?.base_url_indicacao) {
+        return new URL(configPrograma.base_url_indicacao).origin
+      }
+    } catch { /* fallback */ }
+    return window.location.origin
+  })()
   const updateParceiro = useUpdateParceiro()
   const aplicarGratuidade = useAplicarGratuidade()
   const marcarPaga = useMarcarComissaoPaga()
@@ -275,7 +287,7 @@ function ParceiroDetalhesPage() {
             <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider flex-shrink-0">Link</span>
             <button
               onClick={() => {
-                navigator.clipboard.writeText(`${window.location.origin}/parceiro/${parceiro.codigo_indicacao}`)
+                navigator.clipboard.writeText(`${baseOrigin}/parceiro/${parceiro.codigo_indicacao}`)
                 setCopiadoUrl(true)
                 setTimeout(() => setCopiadoUrl(false), 2000)
               }}
@@ -283,7 +295,7 @@ function ParceiroDetalhesPage() {
               title="Clique para copiar"
             >
               <code className="text-xs text-muted-foreground group-hover:text-foreground truncate">
-                {window.location.origin}/parceiro/{parceiro.codigo_indicacao}
+                {baseOrigin}/parceiro/{parceiro.codigo_indicacao}
               </code>
               {copiadoUrl ? (
                 <Check className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
