@@ -1,80 +1,94 @@
 
+## Plano: Horario de Atendimento do Widget + Formatacao da Mensagem WhatsApp
 
-# Protecao contra exclusao de itens globais vinculados a pipelines + Correcao do Select
+### Verificacao de banco realizada
 
-## Contexto
+- Tabela `configuracoes_tenant` ja possui coluna `widget_whatsapp_config` (JSONB) -- confirmado
+- Nenhum campo `horario_atendimento` existe no projeto -- sem duplicacao
+- Nenhuma migracao de banco necessaria -- os novos campos ficam dentro do JSONB existente
 
-Atualmente, ao excluir um Campo, Etapa, Tarefa, Motivo ou Regra de Qualificacao nas configuracoes globais, nao ha verificacao se o item esta vinculado a alguma pipeline. Isso pode causar dados orfaos e inconsistencias. Alem disso, o dropdown `<select>` para campos do tipo "select" nao abre corretamente dentro do modal de criacao de oportunidade.
+---
 
-## Tabelas de vinculo por entidade
+### 1. Tipos (`types.ts`)
 
-| Entidade Global | Tabela de Vinculo | Chave |
-|---|---|---|
-| Campo customizado | `funis_campos` | `campo_id` |
-| Etapa template | `etapas_funil` | `etapa_template_id` (via campo `etapa_template_id` na etapa) |
-| Tarefa template | `funis_etapas_tarefas` | `tarefa_template_id` |
-| Motivo | `funis_motivos` | `motivo_id` |
-| Regra qualificacao | `funis_regras_qualificacao` | `regra_id` |
+Adicionar 4 novos campos ao tipo `WidgetWhatsAppConfig`:
 
-## Solucao
+```text
+horario_atendimento: 'sempre' | 'personalizado'
+horario_dias: number[]          // 0=Dom, 1=Seg ... 6=Sab
+horario_inicio: string          // "09:00"
+horario_fim: string             // "18:00"
+```
 
-### 1. Funcoes de verificacao de vinculos (configuracoes.api.ts)
+Defaults: `horario_atendimento: 'sempre'`, `horario_dias: [1,2,3,4,5]`, `horario_inicio: '09:00'`, `horario_fim: '18:00'`
 
-Criar funcoes que consultam as tabelas de vinculo e retornam os nomes das pipelines onde cada item esta vinculado:
+---
 
-- `buscarVinculosCampo(campoId)` - consulta `funis_campos` join `funis`
-- `buscarVinculosEtapa(etapaTemplateId)` - consulta `etapas_funil` onde `etapa_template_id` = id, join `funis`
-- `buscarVinculosTarefa(tarefaTemplateId)` - consulta `funis_etapas_tarefas` join etapa join `funis`
-- `buscarVinculosMotivo(motivoId)` - consulta `funis_motivos` join `funis`
-- `buscarVinculosRegra(regraId)` - consulta `funis_regras_qualificacao` join `funis`
+### 2. Schema Zod (`configuracoes.api.ts`)
 
-Cada funcao retorna `{ funil_id: string, funil_nome: string }[]`.
+Estender o schema `widget_whatsapp_config` (linhas 3278-3292) com:
 
-### 2. Hook generico (useVinculosPipelines.ts)
+```text
+horario_atendimento: z.enum(['sempre', 'personalizado']).optional()
+horario_dias: z.array(z.number().min(0).max(6)).optional()
+horario_inicio: z.string().regex(/^\d{2}:\d{2}$/).optional()
+horario_fim: z.string().regex(/^\d{2}:\d{2}$/).optional()
+```
 
-Criar um hook `useVinculosPipelines(tipo, itemId)` que chama a funcao correta baseado no tipo e retorna os vinculos. Ativado apenas quando `itemId` existe (modo edicao).
+---
 
-### 3. Protecao nos modais de edicao
+### 3. UI de Configuracao (`WidgetWhatsAppConfig.tsx`)
 
-Em cada modal, quando houver vinculos ativos:
+Nova secao "Horario de Atendimento" com:
+- Toggle pill: "Sempre Online" / "Horario Personalizado"
+- Quando personalizado: 7 botoes de dias da semana (Dom-Sab) + campos de horario inicio/fim (`type="time"`)
 
-- **Botao "Excluir" fica desabilitado**
-- **Mensagem informativa** aparece no lugar da confirmacao: "Este item esta vinculado a X pipeline(s): [nomes]. Desvincule-o de todas as pipelines antes de excluir."
-- **Badge visual** discreto no topo do modal indicando "Vinculado a N pipeline(s)"
+---
 
-Modais afetados:
-- `CampoFormModal.tsx` - verifica `funis_campos`
-- `EtapaTemplateFormModal.tsx` - verifica `etapas_funil`
-- `TarefaTemplateFormModal.tsx` - verifica `funis_etapas_tarefas`
-- `MotivoFormModal.tsx` - verifica `funis_motivos`
-- `RegraFormModal.tsx` - verifica `funis_regras_qualificacao`
+### 4. Preview (`WidgetWhatsAppPreview.tsx`)
 
-### 4. Badge na listagem de campos (CamposList.tsx)
+- Se `horario_atendimento === 'sempre'`: mostrar "Online"
+- Se `personalizado`: calcular com base no dia/hora atual, ocultar "Online" se fora do horario
 
-Para campos customizados, buscar vinculos e exibir um badge pequeno ao lado do tipo (ex: "2 pipelines") com tooltip listando os nomes.
+---
 
-### 5. Correcao do Select dropdown (ContatoInlineForm.tsx)
+### 5. Edge Function Loader (`widget-whatsapp-loader/index.ts`)
 
-Substituir o `<select>` nativo com `appearance-none` (que nao abre dentro de modais com z-index alto) por um componente `Popover` + lista clicavel, identico ao padrao ja usado para `multi_select` no mesmo arquivo. O `PopoverContent` do Radix usa portal por padrao, resolvendo o problema de z-index.
+**a) Logica Online/Offline:**
+- Gerar JS que verifica dia/hora no browser do visitante
+- Se fora do horario configurado, ocultar o texto "Online" do header do widget
 
-## Arquivos alterados
+**b) Formatacao da mensagem no submit:**
+Trocar o formato atual (uma linha com `|` separando tudo) por formato WhatsApp com bold:
+
+```text
+Atual:   "Rogeria Mendanha | (21) 98150-7584 | rogeria@gmail.com"
+
+Novo:
+*Nome:*
+Rogeria Mendanha
+
+*Telefone:*
+(21) 98150-7584
+
+*Email:*
+rogeria@gmail.com
+```
+
+Usando `*campo:*` (bold do WhatsApp) + `%0A` para quebras de linha na URL `wa.me`.
+
+---
+
+### Arquivos a modificar
 
 | Arquivo | Alteracao |
 |---|---|
-| `src/modules/configuracoes/services/configuracoes.api.ts` | 5 funcoes de busca de vinculos |
-| `src/modules/configuracoes/hooks/useVinculosPipelines.ts` | Novo hook generico |
-| `src/modules/configuracoes/components/campos/CampoFormModal.tsx` | Bloquear exclusao se vinculado + badge |
-| `src/modules/configuracoes/components/campos/CamposList.tsx` | Badge de pipelines vinculadas |
-| `src/modules/configuracoes/components/etapas/EtapaTemplateFormModal.tsx` | Bloquear exclusao se vinculado |
-| `src/modules/configuracoes/components/tarefas/TarefaTemplateFormModal.tsx` | Bloquear exclusao se vinculado |
-| `src/modules/configuracoes/components/motivos/MotivoFormModal.tsx` | Bloquear exclusao se vinculado |
-| `src/modules/configuracoes/components/regras/RegraFormModal.tsx` | Bloquear exclusao se vinculado |
-| `src/modules/negocios/components/modals/ContatoInlineForm.tsx` | Substituir `<select>` por Popover |
+| `src/modules/configuracoes/components/whatsapp-widget/types.ts` | 4 novos campos + defaults |
+| `src/modules/configuracoes/services/configuracoes.api.ts` | Estender schema Zod (4 campos) |
+| `src/modules/configuracoes/components/whatsapp-widget/WidgetWhatsAppConfig.tsx` | Secao de horario de atendimento |
+| `src/modules/configuracoes/components/whatsapp-widget/WidgetWhatsAppPreview.tsx` | Logica online/offline |
+| `supabase/functions/widget-whatsapp-loader/index.ts` | Online/offline + formatacao mensagem |
 
-## Comportamento esperado
+### Sem migracoes de banco
 
-- Ao abrir qualquer modal de edicao, o sistema consulta automaticamente os vinculos
-- Se existirem vinculos, exibe badge informativo e bloqueia exclusao com mensagem clara
-- Se nao existirem vinculos, comportamento normal de exclusao com confirmacao
-- O dropdown de campos select no modal de oportunidade abre corretamente via Popover/Portal
-
+Tudo armazenado no JSONB `widget_whatsapp_config` ja existente na tabela `configuracoes_tenant`.
