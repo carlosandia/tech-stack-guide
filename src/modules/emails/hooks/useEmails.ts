@@ -24,6 +24,9 @@ export function useEmails(params: ListarEmailsParams = {}) {
     queryKey: ['emails', params],
     queryFn: () => emailsApi.listar(params),
     // AIDEV-NOTE: Polling removido — useEmailRealtime + useAutoSyncEmails já cuidam da atualização
+    staleTime: 2 * 60 * 1000,   // 2 minutos — lista de emails (Performance 1.1)
+    gcTime: 10 * 60 * 1000,     // 10 minutos em cache
+    refetchOnWindowFocus: false, // Realtime invalida quando necessário
   })
 }
 
@@ -51,6 +54,9 @@ export function useEmail(id: string | null) {
       return email
     },
     enabled: !!id,
+    staleTime: 5 * 60 * 1000,   // 5 minutos — email individual (Performance 1.1)
+    gcTime: 15 * 60 * 1000,
+    refetchOnWindowFocus: false,
   })
 }
 
@@ -59,6 +65,9 @@ export function useContadorNaoLidos() {
     queryKey: ['emails', 'nao-lidos'],
     queryFn: () => emailsApi.contarNaoLidos(),
     // AIDEV-NOTE: Polling removido — useEmailRealtime invalida cache em tempo real
+    staleTime: 60 * 1000,        // 1 minuto — contador de não lidos (Performance 1.1)
+    gcTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   })
 }
 
@@ -174,6 +183,9 @@ export function useRascunhos() {
   return useQuery({
     queryKey: ['emails', 'rascunhos'],
     queryFn: () => emailsApi.listarRascunhos(),
+    staleTime: 3 * 60 * 1000,   // 3 minutos — rascunhos (Performance 1.1)
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
   })
 }
 
@@ -212,6 +224,9 @@ export function useAssinatura() {
   return useQuery({
     queryKey: ['emails', 'assinatura'],
     queryFn: () => emailsApi.obterAssinatura(),
+    staleTime: 15 * 60 * 1000,  // 15 minutos — assinatura raramente muda (Performance 1.1)
+    gcTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
   })
 }
 
@@ -307,6 +322,9 @@ export function useConexoesEmail() {
   return useQuery({
     queryKey: ['emails', 'conexoes'],
     queryFn: () => emailsApi.listarConexoes(),
+    staleTime: 15 * 60 * 1000,  // 15 minutos — conexões raramente mudam (Performance 1.1)
+    gcTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
   })
 }
 

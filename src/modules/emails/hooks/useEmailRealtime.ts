@@ -19,7 +19,7 @@ export function useEmailRealtime() {
       refreshTimer.current = setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ['emails'] })
         queryClient.invalidateQueries({ queryKey: ['email'] })
-      }, 2000)
+      }, 5000) // AIDEV-NOTE: 5s — absorve bursts do IMAP sync em lote (Performance 1.3)
     }
 
     const channel = supabase

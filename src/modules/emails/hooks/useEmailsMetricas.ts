@@ -63,7 +63,9 @@ async function fetchMetricas(filters: MetricasFilters): Promise<EmailsMetricas> 
   // AIDEV-NOTE: Auth centralizado via shared auth-context (DRY)
   const orgId = await getOrganizacaoId()
 
-  // Buscar emails enviados no período
+  // AIDEV-NOTE: Performance 2.2 — construir todas as 5 queries independentes antes do primeiro await
+  // e executá-las em paralelo com Promise.all (reduz 2-3s → <500ms)
+
   let enviadosQuery = supabase
     .from('emails_recebidos')
     .select('id, total_aberturas, aberto_em, data_email, thread_id', { count: 'exact' })
@@ -71,9 +73,7 @@ async function fetchMetricas(filters: MetricasFilters): Promise<EmailsMetricas> 
     .eq('pasta', 'sent')
     .is('deletado_em', null)
   if (dataInicio) enviadosQuery = enviadosQuery.gte('data_email', dataInicio)
-  const { data: enviados, count: enviadosCount } = await enviadosQuery
 
-  // Buscar emails recebidos no período
   let recebidosQuery = supabase
     .from('emails_recebidos')
     .select('id', { count: 'exact', head: true })
@@ -81,7 +81,36 @@ async function fetchMetricas(filters: MetricasFilters): Promise<EmailsMetricas> 
     .eq('pasta', 'inbox')
     .is('deletado_em', null)
   if (dataInicio) recebidosQuery = recebidosQuery.gte('data_email', dataInicio)
-  const { count: recebidosCount } = await recebidosQuery
+
+  let comAnexosQuery = supabase
+    .from('emails_recebidos')
+    .select('id', { count: 'exact', head: true })
+    .eq('organizacao_id', orgId)
+    .eq('tem_anexos', true)
+    .is('deletado_em', null)
+  if (dataInicio) comAnexosQuery = comAnexosQuery.gte('data_email', dataInicio)
+
+  const favoritosQuery = supabase
+    .from('emails_recebidos')
+    .select('id', { count: 'exact', head: true })
+    .eq('organizacao_id', orgId)
+    .eq('favorito', true)
+    .is('deletado_em', null)
+
+  const rascunhosQuery = supabase
+    .from('emails_rascunhos')
+    .select('id', { count: 'exact', head: true })
+    .eq('organizacao_id', orgId)
+    .is('deletado_em', null)
+
+  // Fase 1: 5 queries independentes em paralelo
+  const [
+    { data: enviados, count: enviadosCount },
+    { count: recebidosCount },
+    { count: comAnexosCount },
+    { count: favoritosCount },
+    { count: rascunhosCount },
+  ] = await Promise.all([enviadosQuery, recebidosQuery, comAnexosQuery, favoritosQuery, rascunhosQuery])
 
   const enviadosList = enviados || []
   const totalEnviados = enviadosCount || 0
@@ -108,25 +137,32 @@ async function fetchMetricas(filters: MetricasFilters): Promise<EmailsMetricas> 
     ? temposPrimeiraAbertura.reduce((a, b) => a + b, 0) / temposPrimeiraAbertura.length
     : null
 
-  // Sem resposta: enviados cujo thread_id não aparece em emails recebidos
+  // Fase 2: thread loop — depende de enviadosList (executa após Fase 1)
   let semResposta = 0
   const threadIds = enviadosList
     .filter(e => e.thread_id)
     .map(e => e.thread_id as string)
 
   if (threadIds.length > 0) {
-    // Buscar threads que tiveram resposta (email recebido com mesmo thread_id)
-    const batchSize = 100 // AIDEV-NOTE: Aumentado de 50 para 100 para reduzir roundtrips
+    // AIDEV-NOTE: Performance 2.2 — batches de threads em paralelo (vs. loop sequencial)
+    const batchSize = 100
     const threadsComResposta = new Set<string>()
+    const batches: string[][] = []
     for (let i = 0; i < threadIds.length; i += batchSize) {
-      const batch = threadIds.slice(i, i + batchSize)
-      const { data: respostas } = await supabase
-        .from('emails_recebidos')
-        .select('thread_id')
-        .eq('organizacao_id', orgId)
-        .eq('pasta', 'inbox')
-        .is('deletado_em', null)
-        .in('thread_id', batch)
+      batches.push(threadIds.slice(i, i + batchSize))
+    }
+    const resultados = await Promise.all(
+      batches.map(batch =>
+        supabase
+          .from('emails_recebidos')
+          .select('thread_id')
+          .eq('organizacao_id', orgId)
+          .eq('pasta', 'inbox')
+          .is('deletado_em', null)
+          .in('thread_id', batch)
+      )
+    )
+    for (const { data: respostas } of resultados) {
       if (respostas) {
         for (const r of respostas) {
           if (r.thread_id) threadsComResposta.add(r.thread_id)
@@ -140,35 +176,8 @@ async function fetchMetricas(filters: MetricasFilters): Promise<EmailsMetricas> 
     semResposta = totalEnviados
   }
 
-  // Tempo médio de resposta (inbox emails que são respostas a enviados)
-  // Simplificação: medir diferença entre último sent e primeiro inbox do mesmo thread
-  let tempoMedioResposta: number | null = null
-  // Simplificado por performance — pode ser expandido futuramente
-
-  // Com anexos no período
-  let comAnexosQuery = supabase
-    .from('emails_recebidos')
-    .select('id', { count: 'exact', head: true })
-    .eq('organizacao_id', orgId)
-    .eq('tem_anexos', true)
-    .is('deletado_em', null)
-  if (dataInicio) comAnexosQuery = comAnexosQuery.gte('data_email', dataInicio)
-  const { count: comAnexosCount } = await comAnexosQuery
-
-  // Favoritos
-  const { count: favoritosCount } = await supabase
-    .from('emails_recebidos')
-    .select('id', { count: 'exact', head: true })
-    .eq('organizacao_id', orgId)
-    .eq('favorito', true)
-    .is('deletado_em', null)
-
-  // Rascunhos
-  const { count: rascunhosCount } = await supabase
-    .from('emails_rascunhos')
-    .select('id', { count: 'exact', head: true })
-    .eq('organizacao_id', orgId)
-    .is('deletado_em', null)
+  // Tempo médio de resposta — simplificado por ora, pode ser expandido futuramente
+  const tempoMedioResposta: number | null = null
 
   return {
     emailsEnviados: totalEnviados,
@@ -191,6 +200,8 @@ export function useEmailsMetricas(filters: MetricasFilters) {
     queryKey: ['emails-metricas', filters, role],
     queryFn: () => fetchMetricas(filters),
     staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,     // manter cache por 30 min (Performance 1.2)
     enabled: !!role,
+    refetchOnWindowFocus: false,
   })
 }

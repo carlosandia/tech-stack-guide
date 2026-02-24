@@ -35,9 +35,16 @@ export const emailsApi = {
     const from = (page - 1) * perPage
     const to = from + perPage - 1
 
+    // AIDEV-NOTE: SELECT pontual — exclui corpo_html, corpo_texto, anexos_info (carregados on-demand) (Performance 3.1)
     let query = supabase
       .from('emails_recebidos')
-      .select('*', { count: 'exact' })
+      .select(
+        'id, organizacao_id, usuario_id, conexao_email_id, message_id, thread_id, provider_id, ' +
+        'de_email, de_nome, para_email, cc_email, bcc_email, assunto, preview, ' +
+        'tem_anexos, pasta, lido, favorito, contato_id, oportunidade_id, ' +
+        'data_email, criado_em, atualizado_em, deletado_em, tracking_id, aberto_em, total_aberturas',
+        { count: 'exact' }
+      )
       .eq('organizacao_id', orgId)
       .eq('usuario_id', userId)
       .is('deletado_em', null)
@@ -70,7 +77,7 @@ export const emailsApi = {
 
     const total = count || 0
     return {
-      data: (data || []) as EmailRecebido[],
+      data: (data || []) as unknown as EmailRecebido[],
       total,
       page,
       per_page: perPage,
