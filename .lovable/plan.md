@@ -1,75 +1,62 @@
 
 
-# Correcao: Audio desaparece apos envio + Timer acelerado
+# Correcao: Tela "Nova versao disponivel" nao deve aparecer para o usuario
 
-## Problema 1: Audio (e midias) aparece e some
+## Causa Raiz
 
-### Causa Raiz
-A query `listarMensagens` ordena por `timestamp_externo DESC NULLS LAST`. Mensagens inseridas pelo CRM (`enviarMedia`, `enviarTexto`) NAO definem `timestamp_externo`, ficando com valor `NULL`. Com `NULLS LAST` em ordem descendente, essas mensagens vao para o FINAL da lista - potencialmente alem da pagina 1 (limit 50), sumindo da UI quando o `invalidateQueries` refaz o fetch.
+Apos deploy, os chunks JS antigos sao removidos do servidor. O browser do usuario tenta carregar um chunk com hash antigo, recebe 404, e o `lazyWithRetry` faz `window.location.reload()`. Porem:
 
-Fluxo:
-1. `onMutate` → mensagem otimista aparece (corretamente)
-2. `mutationFn` executa → insere no banco SEM `timestamp_externo`
-3. `onSettled` → `invalidateQueries` → refetch
-4. Query retorna mensagens ordenadas por `timestamp_externo DESC NULLS LAST`
-5. A nova mensagem (timestamp NULL) cai apos todas com timestamp → fora da pagina 1
-6. Mensagem some da UI
+1. O `window.location.reload()` pode servir o `index.html` do cache do browser (que ainda aponta para os chunks antigos)
+2. O reload falha novamente
+3. O erro chega ao `ErrorBoundary`, que mostra a tela "Nova versao disponivel" exigindo clique manual
 
-### Correcao
-Adicionar `timestamp_externo: Math.floor(Date.now() / 1000)` nos inserts de `enviarMedia` e `enviarTexto` em `conversas.api.ts`. Isso garante que mensagens do CRM tenham a mesma prioridade de ordenacao que mensagens do webhook.
+## Solucao
 
-**Arquivo: `src/modules/conversas/services/conversas.api.ts`**
+### Arquivo 1: `src/utils/lazyWithRetry.ts`
 
-Na funcao `enviarTexto` (insert, ~linha 887): adicionar `timestamp_externo: Math.floor(Date.now() / 1000)`
+Substituir `window.location.reload()` por um reload com cache-busting:
 
-Na funcao `enviarMedia` (insert, ~linha 961): adicionar `timestamp_externo: Math.floor(Date.now() / 1000)`
+```typescript
+// Antes:
+window.location.reload()
 
----
-
-## Problema 2: Timer conta 2x mais rapido
-
-### Causa Raiz
-O `cleanup()` reseta `startedRef.current = false`. No React StrictMode:
-
-1. Mount → useEffect → startedRef=false → set true → startRecording() (getUserMedia = async, pendente)
-2. StrictMode unmount → cleanup() → clearInterval(null pois timer nao existe ainda), startedRef=false
-3. Remount → useEffect → startedRef=false → set true → startRecording() (novo getUserMedia async)
-4. getUserMedia do passo 1 resolve → cria interval #1
-5. getUserMedia do passo 3 resolve → cria interval #2 (sobrescreve ref, mas #1 continua rodando)
-
-Resultado: dois `setInterval` simultâneos, timer conta 2x por segundo.
-
-### Correcao
-Usar um "generation counter" (ref numerica) para invalidar callbacks de montagens anteriores. Apos o `await getUserMedia`, verificar se a geracao atual ainda e valida. Se nao for, descartar o stream e abortar.
-
-**Arquivo: `src/modules/conversas/components/AudioRecorder.tsx`**
-
-- Substituir `startedRef` por `generationRef` (useRef de numero)
-- No useEffect, incrementar a geracao e passar para `startRecording`
-- Em `startRecording`, apos o `await getUserMedia`, verificar se a geracao ainda e a atual. Se nao, parar o stream e retornar sem criar interval
-- Remover `startedRef.current = false` do cleanup (nao mais necessario)
-
-Logica:
-
-```text
-Mount #1: gen=1, startRecording(1) — getUserMedia pending
-Unmount:  cleanup() — limpa timer/stream
-Mount #2: gen=2, startRecording(2) — getUserMedia pending
-getUserMedia #1 resolve: gen(1) !== generationRef(2) → stop stream, return
-getUserMedia #2 resolve: gen(2) === generationRef(2) → cria UM unico interval
+// Depois:
+const url = new URL(window.location.href)
+url.searchParams.set('_cb', Date.now().toString())
+window.location.replace(url.toString())
 ```
 
----
+Isso forca o browser a buscar um `index.html` novo do servidor, que contera as referencias aos chunks atualizados.
 
-## Resumo de Alteracoes
+### Arquivo 2: `src/components/ErrorBoundary.tsx`
 
-| Arquivo | Alteracao |
-|---------|-----------|
-| `conversas.api.ts` | Adicionar `timestamp_externo` nos inserts de `enviarTexto` e `enviarMedia` |
-| `AudioRecorder.tsx` | Substituir guard `startedRef` por `generationRef` com verificacao pos-await |
+Para chunk errors que chegam ao ErrorBoundary (caso o lazyWithRetry nao tenha resolvido), fazer auto-reload em vez de mostrar a tela com botao:
 
-## Resultado esperado
+- No `componentDidCatch`, verificar se e chunk error
+- Se for, fazer reload automatico com cache-busting (usando uma flag diferente no sessionStorage para evitar loop)
+- A tela "Nova versao disponivel" so aparece se TODAS as tentativas automaticas falharem (situacao extremamente rara)
 
-- Midias enviadas permanecem visiveis no chat apos o refetch (timestamp_externo garante posicao na pagina 1)
-- Timer do audio conta exatamente 1 segundo por segundo, mesmo em StrictMode
+Logica no `componentDidCatch`:
 
+```typescript
+componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+  console.error('[ErrorBoundary] Erro capturado:', error, errorInfo)
+
+  if (this.isChunkErrorFromMsg(error.message)) {
+    const key = 'eb-chunk-reload'
+    if (!sessionStorage.getItem(key)) {
+      sessionStorage.setItem(key, '1')
+      const url = new URL(window.location.href)
+      url.searchParams.set('_cb', Date.now().toString())
+      window.location.replace(url.toString())
+      return
+    }
+    sessionStorage.removeItem(key)
+  }
+}
+```
+
+## Resultado
+
+- Na grande maioria dos casos, o usuario nunca vera a tela — o reload automatico com cache-busting resolve silenciosamente
+- Apenas em situacoes extremas (servidor fora, CDN com problema) a tela aparece como fallback final
