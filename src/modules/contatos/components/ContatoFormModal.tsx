@@ -7,11 +7,12 @@
  * - Footer FORA da área de scroll
  * - Responsividade: w-[calc(100%-32px)] mobile, max-w-2xl desktop
  * - ARIA, ESC to close, focus trap
+ * - Sistema de abas: Dados Básicos | Personalizado
  */
 
 import { useEffect, useMemo, useState, forwardRef, useRef, useId } from 'react'
 import { useForm, Controller } from 'react-hook-form'
-import { X, User, Building2, Search, Check, ChevronDown } from 'lucide-react'
+import { X, User, Building2, Search, Check, ChevronDown, FileText, Settings2 } from 'lucide-react'
 import { StatusContatoOptions, OrigemContatoOptions, PorteOptions } from '../schemas/contatos.schema'
 import type { Contato, TipoContato } from '../services/contatos.api'
 import { useCamposConfig } from '../hooks/useCamposConfig'
@@ -62,6 +63,8 @@ function getCampoPlaceholderText(campo: CampoCustomizado): string {
   }
 }
 
+type TabKey = 'dados' | 'personalizado'
+
 // AIDEV-NOTE: Removido forwardRef - componente usa modalRef interno para focus trap
 export function ContatoFormModal({
   open,
@@ -82,6 +85,7 @@ export function ContatoFormModal({
   const titleId = useId()
 
   const [visibilityVersion, setVisibilityVersion] = useState(0)
+  const [activeTab, setActiveTab] = useState<TabKey>('dados')
 
   // Segmentos
   const { data: segmentosData } = useSegmentos()
@@ -114,6 +118,9 @@ export function ContatoFormModal({
   }
 
   const form = useForm<Record<string, any>>({ defaultValues: {} })
+
+  // Determinar se há campos personalizados visíveis
+  const hasCustomFields = camposCustomizados.filter(c => isVisible(`custom_${c.slug}`, c.obrigatorio)).length > 0
 
   // ESC to close + focus trap
   useEffect(() => {
@@ -158,6 +165,7 @@ export function ContatoFormModal({
   useEffect(() => {
     if (!open) return
 
+    setActiveTab('dados')
     setSelectedSegmentoIds(contato?.segmentos?.map(s => s.id) || [])
 
     const defaults: Record<string, any> = {
@@ -370,9 +378,16 @@ export function ContatoFormModal({
 
   const renderCustomFields = () => {
     const visibleCustom = camposCustomizados.filter(c => isVisible(`custom_${c.slug}`, c.obrigatorio))
-    if (visibleCustom.length === 0) return null
+    if (visibleCustom.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <Settings2 className="w-10 h-10 text-muted-foreground/40 mb-3" />
+          <p className="text-sm text-muted-foreground">Nenhum campo personalizado configurado</p>
+          <p className="text-xs text-muted-foreground/70 mt-1">Configure campos em Configurações → Campos</p>
+        </div>
+      )
+    }
 
-    const rows: JSX.Element[] = []
     const fields: JSX.Element[] = visibleCustom.map(campo => {
       const key = `custom_${campo.slug}`
       const label = campo.nome + (campo.obrigatorio ? ' *' : '')
@@ -403,9 +418,9 @@ export function ContatoFormModal({
 
       if (campo.tipo === 'texto_longo') {
         return (
-          <div key={key}>
+          <div key={key} className="sm:col-span-2">
             <label className="block text-sm font-medium text-foreground mb-1.5">{label}</label>
-            <textarea {...form.register(key)} rows={2} placeholder={getCampoPlaceholderText(campo)}
+            <textarea {...form.register(key)} rows={3} placeholder={getCampoPlaceholderText(campo)}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
             />
           </div>
@@ -434,18 +449,11 @@ export function ContatoFormModal({
       )
     })
 
-    for (let i = 0; i < fields.length; i += 2) {
-      const pair = fields.slice(i, i + 2)
-      rows.push(<div key={`custom-row-${i}`} className="grid grid-cols-1 sm:grid-cols-2 gap-4">{pair}</div>)
-    }
-
+    // AIDEV-NOTE: Grid de 2 colunas para campos custom, texto_longo ocupa 2 colunas
     return (
-      <>
-        <div className="border-t border-border pt-4 mt-2">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">Campos Personalizados</p>
-        </div>
-        {rows}
-      </>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {fields}
+      </div>
     )
   }
 
@@ -475,6 +483,12 @@ export function ContatoFormModal({
     )
   }
 
+  // Contagem de campos custom preenchidos
+  const customFieldsCount = camposCustomizados.filter(c => {
+    const val = form.watch(`custom_${c.slug}`)
+    return val && val !== ''
+  }).length
+
   return (
     <>
       {/* Overlay - z-400 */}
@@ -501,90 +515,142 @@ export function ContatoFormModal({
           "
         >
           {/* Header - fixo */}
-          <div className="flex-shrink-0 px-4 sm:px-6 py-4 border-b border-border flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                {isPessoa ? <User className="w-5 h-5 text-primary" /> : <Building2 className="w-5 h-5 text-primary" />}
+          <div className="flex-shrink-0 px-4 sm:px-6 py-4 border-b border-border">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                  {isPessoa ? <User className="w-5 h-5 text-primary" /> : <Building2 className="w-5 h-5 text-primary" />}
+                </div>
+                <h2 id={titleId} className="text-lg font-semibold text-foreground">
+                  {isEditing ? 'Editar' : isPessoa ? 'Nova Pessoa' : 'Nova Empresa'}
+                </h2>
               </div>
-              <h2 id={titleId} className="text-lg font-semibold text-foreground">
-                {isEditing ? 'Editar' : isPessoa ? 'Nova Pessoa' : 'Nova Empresa'}
-              </h2>
+              <div className="flex items-center gap-1">
+                <ContatoFormFieldsToggle tipo={tipo} onChange={() => setVisibilityVersion(v => v + 1)} />
+                <button type="button" onClick={onClose} className="p-2 hover:bg-accent rounded-md transition-all duration-200" aria-label="Fechar">
+                  <X className="w-4 h-4 text-muted-foreground" />
+                </button>
+              </div>
             </div>
-            <div className="flex items-center gap-1">
-              <ContatoFormFieldsToggle tipo={tipo} onChange={() => setVisibilityVersion(v => v + 1)} />
-              <button type="button" onClick={onClose} className="p-2 hover:bg-accent rounded-md transition-all duration-200" aria-label="Fechar">
-                <X className="w-4 h-4 text-muted-foreground" />
-              </button>
-            </div>
+
+            {/* Abas - AIDEV-NOTE: Só exibe se há campos personalizados */}
+            {(hasCustomFields || camposCustomizados.length > 0) && (
+              <div className="flex gap-1 mt-3 -mb-[1px]">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('dados')}
+                  className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-t-md border transition-all duration-200 ${
+                    activeTab === 'dados'
+                      ? 'bg-card border-border border-b-card text-foreground'
+                      : 'bg-transparent border-transparent text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  Dados Básicos
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('personalizado')}
+                  className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-t-md border transition-all duration-200 ${
+                    activeTab === 'personalizado'
+                      ? 'bg-card border-border border-b-card text-foreground'
+                      : 'bg-transparent border-transparent text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                  }`}
+                >
+                  <Settings2 className="w-3.5 h-3.5" />
+                  Personalizado
+                  {customFieldsCount > 0 && (
+                    <span className="ml-1 inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold">
+                      {customFieldsCount}
+                    </span>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Content - scrollable */}
           <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 min-h-0 overscroll-contain">
-            <div className="space-y-5">
-              {isPessoa ? renderPessoaFields() : renderEmpresaFields()}
+            {activeTab === 'dados' ? (
+              <div className="space-y-5">
+                {isPessoa ? renderPessoaFields() : renderEmpresaFields()}
 
-              {/* Status + Origem (Origem só aparece em edição) */}
-              <div className={`grid grid-cols-1 ${isEditing ? 'sm:grid-cols-2' : ''} gap-4`}>
-                <SelectField label="Status" {...form.register('status')}>
-                  {StatusContatoOptions.map((s) => (<option key={s.value} value={s.value}>{s.label}</option>))}
-                </SelectField>
-                {isEditing && (
-                  <SelectField label="Origem" {...form.register('origem')}>
-                    {OrigemContatoOptions.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+                {/* Status + Origem (Origem só aparece em edição) */}
+                <div className={`grid grid-cols-1 ${isEditing ? 'sm:grid-cols-2' : ''} gap-4`}>
+                  <SelectField label="Status" {...form.register('status')}>
+                    {StatusContatoOptions.map((s) => (<option key={s.value} value={s.value}>{s.label}</option>))}
+                  </SelectField>
+                  {isEditing && (
+                    <SelectField label="Origem" {...form.register('origem')}>
+                      {OrigemContatoOptions.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+                    </SelectField>
+                  )}
+                </div>
+
+                {/* Responsável (Admin only) */}
+                {isAdmin && usuarios.length > 0 && (
+                  <SelectField label="Responsável" {...form.register('owner_id')}>
+                    <option value="">Sem responsável</option>
+                    {usuarios.map((u) => (<option key={u.id} value={u.id}>{u.nome} {u.sobrenome || ''}</option>))}
                   </SelectField>
                 )}
-              </div>
 
-              {/* Responsável (Admin only) */}
-              {isAdmin && usuarios.length > 0 && (
-                <SelectField label="Responsável" {...form.register('owner_id')}>
-                  <option value="">Sem responsável</option>
-                  {usuarios.map((u) => (<option key={u.id} value={u.id}>{u.nome} {u.sobrenome || ''}</option>))}
-                </SelectField>
-              )}
-
-              {/* Segmentos */}
-              {segmentosList.length > 0 && (
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1.5">Segmentos</label>
-                  <div className="flex flex-wrap gap-2 p-3 rounded-md border border-input bg-background min-h-[42px]">
-                    {segmentosList.map(seg => {
-                      const isSelected = selectedSegmentoIds.includes(seg.id)
-                      return (
-                        <button key={seg.id} type="button"
-                          onClick={() => {
-                            setSelectedSegmentoIds(prev =>
-                              isSelected ? prev.filter(id => id !== seg.id) : [...prev, seg.id]
-                            )
-                          }}
-                          className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium transition-all duration-200 ${
-                            isSelected
-                              ? 'bg-primary/10 text-primary border border-primary/30'
-                              : 'bg-muted text-muted-foreground border border-transparent hover:border-border'
-                          }`}
-                        >
-                          <span className="w-2 h-2 rounded-full mr-1.5" style={{ backgroundColor: seg.cor }} />
-                          {seg.nome}
-                        </button>
-                      )
-                    })}
+                {/* Segmentos */}
+                {segmentosList.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1.5">Segmentos</label>
+                    <div className="flex flex-wrap gap-2 p-3 rounded-md border border-input bg-background min-h-[42px]">
+                      {segmentosList.map(seg => {
+                        const isSelected = selectedSegmentoIds.includes(seg.id)
+                        return (
+                          <button key={seg.id} type="button"
+                            onClick={() => {
+                              setSelectedSegmentoIds(prev =>
+                                isSelected ? prev.filter(id => id !== seg.id) : [...prev, seg.id]
+                              )
+                            }}
+                            className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium transition-all duration-200 ${
+                              isSelected
+                                ? 'bg-primary/10 text-primary border border-primary/30'
+                                : 'bg-muted text-muted-foreground border border-transparent hover:border-border'
+                            }`}
+                          >
+                            <span className="w-2 h-2 rounded-full mr-1.5" style={{ backgroundColor: seg.cor }} />
+                            {seg.nome}
+                          </button>
+                        )
+                      })}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {renderCustomFields()}
-              {renderPessoasVinculadas()}
+                {renderPessoasVinculadas()}
 
-              {/* Observações */}
-              {isVisible('observacoes', false) && (
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1.5">Observações</label>
-                  <textarea {...form.register('observacoes')} rows={3}
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
-                  />
-                </div>
-              )}
-            </div>
+                {/* Observações */}
+                {isVisible('observacoes', false) && (
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1.5">Observações</label>
+                    <textarea {...form.register('observacoes')} rows={3}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+                    />
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-5">
+                {renderCustomFields()}
+
+                {/* Observações também na aba personalizado para fácil acesso */}
+                {isVisible('observacoes', false) && (
+                  <div className="border-t border-border pt-4 mt-2">
+                    <label className="block text-sm font-medium text-foreground mb-1.5">Observações</label>
+                    <textarea {...form.register('observacoes')} rows={3}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Footer - fixo, FORA do scroll */}
