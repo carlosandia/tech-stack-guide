@@ -1,35 +1,40 @@
 
-## Plano: Sincronizar alterações da configuração com o Kanban
 
-### Problema
-Quando o usuário edita a pipeline (etapas, campos, etc.) e volta ao Kanban, as mudanças não são refletidas automaticamente porque os dados do Kanban estão em cache (staleTime de 1 minuto).
+## Correção: Ordenação das Etapas no Kanban
 
-### Recomendação de abordagem
+### Problema Raiz
 
-**Invalidar cache ao sair da configuração** — esta é a melhor estratégia por 3 motivos:
+Existem **dois problemas** causando a desordem:
 
-1. **Performance**: Nenhuma requisição extra durante a edição. Apenas 1 refetch ao voltar
-2. **UX**: O Kanban carrega já atualizado quando o usuário chega, sem delay perceptível
-3. **Simplicidade**: Não precisa de polling, WebSocket ou invalidações parciais em cada mutation
+1. **`criarEtapa`** busca a maior `ordem` de TODAS as etapas (incluindo Ganho e Perda) e adiciona +1. Resultado: novas etapas personalizadas ficam com `ordem` MAIOR que Ganho/Perda no banco.
 
-### Implementação
+2. **O Kanban** renderiza as etapas puramente por `ordem` ascendente (`.order('ordem', { ascending: true })`), sem aplicar a regra de negócio: Entrada → Personalizados → Ganho → Perda.
 
-**Arquivo**: `src/modules/negocios/pages/PipelineConfigPage.tsx`
+A tela de configuração "esconde" esse bug porque aplica um `useMemo` que reordena visualmente por tipo. Mas no Kanban, as colunas aparecem na ordem errada do banco.
 
-- Criar uma função `handleVoltar` que:
-  1. Invalida as queries `['kanban']`, `['funis']` e `['funil', funilId]` via `useQueryClient()`
-  2. Navega para `/negocios`
-- Substituir os dois `navigate('/negocios')` existentes (botão voltar no header e link de fallback) por essa função
+### Solução (2 correções)
 
-### Detalhe técnico
+#### 1. `pipeline-config.api.ts` — Corrigir `criarEtapa`
+
+Ao criar uma nova etapa, buscar a maior `ordem` apenas das etapas do tipo `normal` e `entrada` (excluindo `ganho` e `perda`). Depois, incrementar a `ordem` de Ganho e Perda para que fiquem sempre no final.
 
 ```text
-Fluxo:
-  Usuário clica "Voltar" 
-    -> queryClient.invalidateQueries(['kanban'])
-    -> queryClient.invalidateQueries(['funis'])  
-    -> navigate('/negocios')
-    -> Kanban remonta e busca dados frescos automaticamente
+Antes:  Entrada(0), Ganho(1), Perda(2) → Nova etapa recebe ordem 3
+Depois: Entrada(0), Nova(1), Ganho(2), Perda(3) → Ganho e Perda são empurrados
 ```
 
-Isso garante que qualquer alteração feita em etapas, campos, distribuição, etc. seja refletida no Kanban com apenas 1 refetch, sem requisições desnecessárias durante a edição.
+#### 2. `negocios.api.ts` — Ordenação segura no `carregarKanban`
+
+Após buscar as etapas do banco, aplicar a mesma lógica de ordenação da ConfigEtapas como "safety net":
+
+```text
+Entrada → Normal (por ordem) → Ganho → Perda
+```
+
+Isso garante que mesmo com dados legados com `ordem` inconsistente, o Kanban sempre exibe na sequência correta.
+
+### Arquivos modificados
+
+- `src/modules/negocios/services/pipeline-config.api.ts` — Ajustar `criarEtapa` para inserir antes de ganho/perda
+- `src/modules/negocios/services/negocios.api.ts` — Adicionar sort por tipo após buscar etapas no `carregarKanban`
+
