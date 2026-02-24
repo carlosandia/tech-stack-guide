@@ -1,72 +1,75 @@
 
 
-# Correcao: Midias nao aparecem no chat + Timer do audio
+# Correcao: Audio desaparece apos envio + Timer acelerado
 
-## Diagnostico
+## Problema 1: Audio (e midias) aparece e some
 
-Analisei o fluxo completo de envio de midias e identifiquei **2 causas raiz**:
+### Causa Raiz
+A query `listarMensagens` ordena por `timestamp_externo DESC NULLS LAST`. Mensagens inseridas pelo CRM (`enviarMedia`, `enviarTexto`) NAO definem `timestamp_externo`, ficando com valor `NULL`. Com `NULLS LAST` em ordem descendente, essas mensagens vao para o FINAL da lista - potencialmente alem da pagina 1 (limit 50), sumindo da UI quando o `invalidateQueries` refaz o fetch.
 
-### Problema 1: Midias nao aparecem no chat apos envio
+Fluxo:
+1. `onMutate` → mensagem otimista aparece (corretamente)
+2. `mutationFn` executa → insere no banco SEM `timestamp_externo`
+3. `onSettled` → `invalidateQueries` → refetch
+4. Query retorna mensagens ordenadas por `timestamp_externo DESC NULLS LAST`
+5. A nova mensagem (timestamp NULL) cai apos todas com timestamp → fora da pagina 1
+6. Mensagem some da UI
 
-O hook `useEnviarMedia` **nao tem optimistic update** (ao contrario do `useEnviarTexto`, que tem). Ele depende exclusivamente do `invalidateQueries` no callback `onSuccess`, que so dispara APOS a API retornar. O fluxo atual:
+### Correcao
+Adicionar `timestamp_externo: Math.floor(Date.now() / 1000)` nos inserts de `enviarMedia` e `enviarTexto` em `conversas.api.ts`. Isso garante que mensagens do CRM tenham a mesma prioridade de ordenacao que mensagens do webhook.
 
-1. Usuario envia audio/foto/video/documento
-2. Upload ao Storage (1-5 segundos)
-3. Chamada a `conversasApi.enviarMedia()` via WAHA (1-3 segundos)
-4. Insert no banco
-5. `onSuccess` dispara `invalidateQueries`
-6. React Query refaz o fetch da lista de mensagens
-7. **So agora** a mensagem aparece
+**Arquivo: `src/modules/conversas/services/conversas.api.ts`**
 
-Total: 3-10 segundos sem nenhum feedback visual no chat. A lista lateral atualiza (via `invalidateQueries(['conversas'])`), mas o painel de mensagens nao mostra nada ate o refetch completar. Alem disso, se houver qualquer falha silenciosa entre os passos 5-6, a mensagem nunca aparece.
+Na funcao `enviarTexto` (insert, ~linha 887): adicionar `timestamp_externo: Math.floor(Date.now() / 1000)`
 
-**Solucao**: Adicionar `onMutate` com optimistic update no `useEnviarMedia`, injetando a mensagem no cache imediatamente (mesmo padrao ja funcionando para texto). Tambem mover a invalidacao para `onSettled` (executa sempre, independente de sucesso ou erro).
-
-### Problema 2: Camera ainda usa MediaQueue
-
-O `handleCameraCapture` adiciona a foto na fila (`setMediaQueue`) em vez de chamar `enviarMedia.mutateAsync()` diretamente. Isso exige que o usuario clique no botao "Enviar" da fila manualmente.
-
-**Solucao**: Enviar diretamente via `enviarMedia.mutateAsync()` apos upload.
-
-### Problema 3: Timer do audio (ja parcialmente corrigido)
-
-O guard `startedRef` foi adicionado, mas a funcao `cleanup()` nao reseta `startedRef`, entao se o componente for remontado (ex: usuario cancela e grava novamente), o guard impede a nova gravacao.
+Na funcao `enviarMedia` (insert, ~linha 961): adicionar `timestamp_externo: Math.floor(Date.now() / 1000)`
 
 ---
 
-## Alteracoes
+## Problema 2: Timer conta 2x mais rapido
 
-### Arquivo 1: `src/modules/conversas/hooks/useMensagens.ts`
+### Causa Raiz
+O `cleanup()` reseta `startedRef.current = false`. No React StrictMode:
 
-Adicionar `onMutate` ao `useEnviarMedia` com optimistic update:
+1. Mount → useEffect → startedRef=false → set true → startRecording() (getUserMedia = async, pendente)
+2. StrictMode unmount → cleanup() → clearInterval(null pois timer nao existe ainda), startedRef=false
+3. Remount → useEffect → startedRef=false → set true → startRecording() (novo getUserMedia async)
+4. getUserMedia do passo 1 resolve → cria interval #1
+5. getUserMedia do passo 3 resolve → cria interval #2 (sobrescreve ref, mas #1 continua rodando)
 
-- Criar mensagem temporaria com `id: temp_media_xxx`, `from_me: true`, tipo e `media_url` correspondentes
-- Injetar na primeira pagina do cache (mesma logica do `useEnviarTexto`)
-- Salvar snapshot para rollback no `onError`
-- Mover `invalidateQueries` de `onSuccess` para `onSettled` (mais robusto)
+Resultado: dois `setInterval` simultâneos, timer conta 2x por segundo.
 
-### Arquivo 2: `src/modules/conversas/components/ChatWindow.tsx`
+### Correcao
+Usar um "generation counter" (ref numerica) para invalidar callbacks de montagens anteriores. Apos o `await getUserMedia`, verificar se a geracao atual ainda e valida. Se nao for, descartar o stream e abortar.
 
-Alterar `handleCameraCapture` para enviar diretamente via `enviarMedia.mutateAsync()` em vez de acumular na `MediaQueue`.
+**Arquivo: `src/modules/conversas/components/AudioRecorder.tsx`**
 
-### Arquivo 3: `src/modules/conversas/components/AudioRecorder.tsx`
+- Substituir `startedRef` por `generationRef` (useRef de numero)
+- No useEffect, incrementar a geracao e passar para `startRecording`
+- Em `startRecording`, apos o `await getUserMedia`, verificar se a geracao ainda e a atual. Se nao, parar o stream e retornar sem criar interval
+- Remover `startedRef.current = false` do cleanup (nao mais necessario)
 
-Resetar `startedRef.current = false` dentro do `cleanup()` para permitir regravacao apos cancelamento.
+Logica:
+
+```text
+Mount #1: gen=1, startRecording(1) — getUserMedia pending
+Unmount:  cleanup() — limpa timer/stream
+Mount #2: gen=2, startRecording(2) — getUserMedia pending
+getUserMedia #1 resolve: gen(1) !== generationRef(2) → stop stream, return
+getUserMedia #2 resolve: gen(2) === generationRef(2) → cria UM unico interval
+```
 
 ---
 
-## Resumo
+## Resumo de Alteracoes
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `useMensagens.ts` | Optimistic update no `useEnviarMedia` (onMutate + rollback + onSettled) |
-| `ChatWindow.tsx` | `handleCameraCapture` envia direto via hook em vez de usar fila |
-| `AudioRecorder.tsx` | Reset do guard `startedRef` no cleanup |
+| `conversas.api.ts` | Adicionar `timestamp_externo` nos inserts de `enviarTexto` e `enviarMedia` |
+| `AudioRecorder.tsx` | Substituir guard `startedRef` por `generationRef` com verificacao pos-await |
 
 ## Resultado esperado
 
-- Audio, foto, video e documento aparecem **instantaneamente** no chat ao enviar (com `ack: 0` mostrando status pendente)
-- Apos confirmacao do backend, a mensagem real substitui a otimista via `invalidateQueries`
-- Se houver erro, rollback automatico remove a mensagem temporaria e exibe toast de erro
-- Camera envia direto sem passar pela fila
+- Midias enviadas permanecem visiveis no chat apos o refetch (timestamp_externo garante posicao na pagina 1)
+- Timer do audio conta exatamente 1 segundo por segundo, mesmo em StrictMode
 
