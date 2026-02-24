@@ -1,49 +1,164 @@
 
 
-# Correcao: Modal "Assinar Pro" com header e footer fixos
+# Implementar indicador de presenca (online/digitando) no ChatHeader
 
-## Problema
+## Contexto
 
-O modal `PreCadastroModal` usa o componente `DialogContent` padrao que aplica `overflow-y-auto` no container inteiro. Isso faz com que header (titulo), corpo do formulario e botao de submit rolem juntos — quando o conteudo excede a altura da tela, o botao "Continuar para o pagamento" some e o usuario precisa rolar ate o final.
+A API WAHA GOWS suporta presenca via:
+- `POST /api/{session}/presence/{chatId}/subscribe` — inscreve-se para receber updates de presenca de um contato
+- `GET /api/{session}/presence/{chatId}` — consulta a presenca atual
+- Evento webhook `presence.update` — recebe atualizacoes em tempo real
 
-## Solucao
+Atualmente o sistema nao utiliza nenhuma dessas funcionalidades. O header do chat exibe apenas nome + icone do canal + etiquetas, sem indicacao de status online/digitando.
 
-Reestruturar o conteudo interno do `DialogContent` em 3 secoes com layout flex-col:
+## Plano de implementacao
 
-1. **Header** (fixo no topo) — titulo + descricao
-2. **Corpo** (unica area com scroll) — campos do formulario
-3. **Footer** (fixo embaixo) — checkbox de termos + botao submit
+### 1. Nova action na Edge Function `waha-proxy` 
 
-### Arquivo: `src/modules/public/components/PreCadastroModal.tsx`
+**Arquivo:** `supabase/functions/waha-proxy/index.ts`
 
-Mudancas:
+Adicionar dois novos cases no switch de actions:
 
-- Remover o `overflow-y-auto` padrao do `DialogContent` adicionando classes para transformar em flex-col sem scroll proprio
-- Envolver o conteudo em estrutura flex com:
-  - Header: `flex-shrink-0`
-  - Corpo do form: `flex-1 overflow-y-auto min-h-0` com padding proprio
-  - Footer (termos + botao): `flex-shrink-0 border-t border-border`
+- **`presence_subscribe`** — Chama `POST /api/{session}/presence/{chatId}/subscribe` para ativar o monitoramento de presenca do contato. Sem body.
+- **`presence_get`** — Chama `GET /api/{session}/presence/{chatId}` e retorna o JSON com `lastKnownPresence` e `lastSeen`.
 
-### Arquivo: `src/components/ui/dialog.tsx`
+Ambos recebem `chat_id` no body da request.
 
-Nenhuma alteracao necessaria — o `DialogContent` ja aceita `className` customizado, entao basta sobrescrever as classes no componente `PreCadastroModal`.
+### 2. Adicionar evento `presence.update` ao webhook
 
-## Estrutura resultante
+**Arquivo:** `supabase/functions/waha-proxy/index.ts`
+
+Adicionar `"presence.update"` ao array `webhookEvents` (linha 144) para que novas sessoes recebam esse evento. Sessoes existentes precisarao reconectar para aplicar.
+
+### 3. Processar evento `presence.update` no webhook
+
+**Arquivo:** `supabase/functions/waha-webhook/index.ts`
+
+Adicionar handler para o evento `presence.update`. Ao receber, faz broadcast via Supabase Realtime (canal customizado) com o payload `{ chatId, presence, lastSeen }` para que o frontend receba em tempo real sem polling.
+
+A estrategia sera: inserir/atualizar um registro numa tabela lightweight ou usar Realtime Broadcast diretamente (sem persistencia em banco — presenca e efemera).
+
+### 4. Novo hook `usePresence`
+
+**Arquivo:** `src/modules/conversas/hooks/usePresence.ts`
+
+Hook que:
+- Recebe `conversaId`, `chatId`, `sessionName` e `canal`
+- Ao montar, chama `presence_subscribe` via waha-proxy para se inscrever
+- Chama `presence_get` para obter o status inicial
+- Escuta canal Realtime broadcast `presence:{chatId}` para updates em tempo real
+- Retorna `{ status: 'online' | 'offline' | 'typing' | 'recording' | null, lastSeen: number | null }`
+- Ao desmontar, limpa o canal Realtime
+- Ignora se `canal !== 'whatsapp'`
+
+### 5. Atualizar ChatHeader com indicador de presenca
+
+**Arquivo:** `src/modules/conversas/components/ChatHeader.tsx`
+
+- Chamar `usePresence` com os dados da conversa
+- Abaixo do nome do contato (dentro do `div.min-w-0`), adicionar uma segunda linha com texto pequeno:
+  - **"online"** — texto verde `text-[11px] text-green-500`
+  - **"digitando..."** — texto verde com animacao sutil
+  - **"gravando audio..."** — texto verde 
+  - **"offline"** / sem dados — nao exibe nada (comportamento atual)
+- A estrutura fica:
 
 ```text
-DialogContent (flex flex-col, sem overflow proprio)
-  +-- DialogHeader (flex-shrink-0)
-  |     Titulo + descricao
-  +-- div.form-body (flex-1 overflow-y-auto)
-  |     Codigo parceiro, nome, email, telefone, empresa, segmento
-  +-- div.form-footer (flex-shrink-0 border-t)
-        Checkbox termos + botao submit
+Nome do Contato  [icone WhatsApp]
+online                              <-- nova linha
+```
+
+## Estrutura visual resultante
+
+```text
++----------------------------------------------------------+
+| [<] [Avatar] Nome Contato [WA]  Etiquetas  | [Q][T][+] Aberta [...]
+|             digitando...                    |
++----------------------------------------------------------+
 ```
 
 ## Detalhes tecnicos
 
-1. Adicionar `className="sm:max-w-[480px] flex flex-col overflow-hidden"` no `DialogContent` — o `overflow-hidden` impede o scroll global do container e o `flex flex-col` permite que os filhos controlem o layout
-2. Mover o `DialogHeader` para fora do `form`, mantendo-o como primeiro filho direto do `DialogContent`
-3. O `form` recebe `className="flex flex-col flex-1 min-h-0"` 
-4. O corpo dos campos fica em `div.flex-1.overflow-y-auto.min-h-0.px-6.py-4.space-y-4`
-5. O aceite de termos e o botao de submit ficam num `div.flex-shrink-0.px-6.py-4.border-t.border-border`
+### Edge Function — actions presence
+
+```typescript
+case "presence_subscribe": {
+  const { chat_id } = body;
+  wahaResponse = await fetch(
+    `${baseUrl}/api/${sessionId}/presence/${chat_id}/subscribe`,
+    { method: "POST", headers: { "X-Api-Key": apiKey } }
+  );
+  break;
+}
+
+case "presence_get": {
+  const { chat_id } = body;
+  wahaResponse = await fetch(
+    `${baseUrl}/api/${sessionId}/presence/${chat_id}`,
+    { method: "GET", headers: { "X-Api-Key": apiKey } }
+  );
+  break;
+}
+```
+
+### Webhook — presence.update handler
+
+Usar Realtime Broadcast para enviar o evento diretamente ao frontend sem persistir em banco:
+
+```typescript
+if (event === "presence.update") {
+  const chatId = payload.id;
+  const presences = payload.presences;
+  // Broadcast via Supabase channel
+  await supabaseAdmin.channel(`presence:${sessionName}`)
+    .send({
+      type: 'broadcast',
+      event: 'presence_update',
+      payload: { chatId, presences }
+    });
+}
+```
+
+### Hook usePresence
+
+```typescript
+function usePresence(chatId: string, sessionName: string, canal: string) {
+  const [presence, setPresence] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (canal !== 'whatsapp' || !sessionName || !chatId) return;
+    // Subscribe via waha-proxy
+    supabase.functions.invoke('waha-proxy', {
+      body: { action: 'presence_subscribe', chat_id: chatId, session_name: sessionName }
+    });
+    // Get initial
+    supabase.functions.invoke('waha-proxy', {
+      body: { action: 'presence_get', chat_id: chatId, session_name: sessionName }
+    }).then(({ data }) => {
+      const p = data?.presences?.[0]?.lastKnownPresence;
+      if (p) setPresence(p);
+    });
+    // Listen broadcast
+    const channel = supabase.channel(`presence:${sessionName}`)
+      .on('broadcast', { event: 'presence_update' }, ({ payload }) => {
+        if (payload.chatId === chatId) {
+          setPresence(payload.presences?.[0]?.lastKnownPresence || 'offline');
+        }
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [chatId, sessionName, canal]);
+
+  return presence;
+}
+```
+
+### Arquivos modificados
+
+| Arquivo | Tipo |
+|---|---|
+| `supabase/functions/waha-proxy/index.ts` | Editar — adicionar actions + evento webhook |
+| `supabase/functions/waha-webhook/index.ts` | Editar — handler presence.update |
+| `src/modules/conversas/hooks/usePresence.ts` | Criar — hook de presenca |
+| `src/modules/conversas/components/ChatHeader.tsx` | Editar — exibir status abaixo do nome |
+
