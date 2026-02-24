@@ -216,7 +216,7 @@ CellEmpresaVinculada.displayName = 'CellEmpresaVinculada'
 function CellSegmentacao({ contato }: { contato: Contato }) {
   return (
     <InlineSegmentoPopover contatoId={contato.id} segmentosAtuais={contato.segmentos}>
-      <div className="flex items-center gap-1 max-w-[200px] border-b border-dashed border-transparent hover:border-primary transition-colors">
+      <div className="flex items-center gap-1.5 min-w-[120px] max-w-[260px] border-b border-dashed border-transparent hover:border-primary transition-colors">
         {contato.segmentos && contato.segmentos.length > 0
           ? (
             <>
