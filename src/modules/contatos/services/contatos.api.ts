@@ -895,6 +895,7 @@ export const contatosApi = {
         .from('contatos')
         .select('*')
         .is('deletado_em', null)
+        .neq('status', 'pre_lead')
         .order('criado_em', { ascending: false })
         .range(offset, offset + batchSize - 1)
 
