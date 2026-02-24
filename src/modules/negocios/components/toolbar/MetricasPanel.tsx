@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import type { KanbanData } from '../../services/negocios.api'
 import { type MetricasVisiveis, isMetricaVisivel } from './FiltrarMetricasPopover'
-import { differenceInDays } from 'date-fns'
+import { differenceInDays, differenceInHours } from 'date-fns'
 
 interface MetricasPanelProps {
   data: KanbanData
@@ -95,12 +95,19 @@ function calcularMetricas(data: KanbanData): Metrica[] {
   }, 0)
 
   // Tempo médio = ciclo de venda das oportunidades GANHAS (da criação até fechamento)
+  // AIDEV-NOTE: Usa horas para precisão, exibe em dias/horas conforme magnitude
   const agora = new Date()
-  const tempoTotalGanhas = ganhas.reduce((sum, o) => {
+  const tempoTotalHorasGanhas = ganhas.reduce((sum, o) => {
     const fechamento = o.fechado_em ? new Date(o.fechado_em) : agora
-    return sum + differenceInDays(fechamento, new Date(o.criado_em))
+    return sum + differenceInHours(fechamento, new Date(o.criado_em))
   }, 0)
-  const tempoMedio = ganhas.length > 0 ? Math.round(tempoTotalGanhas / ganhas.length) : 0
+  const tempoMedioHoras = ganhas.length > 0 ? Math.round(tempoTotalHorasGanhas / ganhas.length) : 0
+  // Formatar: <24h mostra horas, >=24h mostra dias
+  const tempoMedioLabel = tempoMedioHoras === 0 && ganhas.length > 0
+    ? '<1h'
+    : tempoMedioHoras < 24
+      ? `${tempoMedioHoras}h`
+      : `${Math.round(tempoMedioHoras / 24)}d`
 
   // Stagnadas (>7 dias sem atualização)
   const stagnadas = abertas.filter(o => {
@@ -130,7 +137,7 @@ function calcularMetricas(data: KanbanData): Metrica[] {
     { id: 'ticket_medio', label: 'Ticket Médio', valor: formatCurrency(ticketMedio), icon: DollarSign, cor: 'default' },
     { id: 'conversao', label: 'Conversão', valor: `${taxaConversao}%`, icon: TrendingUp, cor: 'default' },
     { id: 'forecast', label: 'Forecast', valor: formatCurrency(forecast), icon: Target, cor: 'default' },
-    { id: 'tempo_medio', label: 'Tempo Médio', valor: `${tempoMedio}d`, icon: Clock, cor: 'default' },
+    { id: 'tempo_medio', label: 'Tempo Médio', valor: tempoMedioLabel, icon: Clock, cor: 'default' },
     { id: 'stagnadas', label: 'Estagnadas', valor: String(stagnadas), icon: AlertTriangle, cor: 'default' },
     { id: 'vencendo', label: 'Vencendo 7d', valor: String(vencendo), icon: Clock, cor: 'default' },
     { id: 'atrasadas', label: 'Atrasadas', valor: String(atrasadas), icon: TrendingDown, cor: 'default' },
