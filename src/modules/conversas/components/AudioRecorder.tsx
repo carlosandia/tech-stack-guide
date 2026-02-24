@@ -33,6 +33,7 @@ export function AudioRecorder({ onSend, onCancel }: AudioRecorderProps) {
       streamRef.current = null
     }
     mediaRecorderRef.current = null
+    startedRef.current = false
     setIsRecording(false)
   }, [])
 

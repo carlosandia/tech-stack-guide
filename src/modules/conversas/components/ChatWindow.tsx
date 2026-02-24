@@ -438,16 +438,20 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
         .from('chat-media')
         .getPublicUrl(path)
 
-      // AIDEV-NOTE: Foto da câmera também vai pra fila
-      const thumbnail = URL.createObjectURL(compressed instanceof File ? compressed : new Blob([compressed]))
-      setMediaQueue(prev => [...prev, {
-        id: `cam_${Date.now()}`,
-        filename: 'foto.jpg',
-        tipo: 'image',
-        media_url: urlData.publicUrl,
-        mimetype: 'image/jpeg',
-        thumbnail,
-      }])
+      // AIDEV-NOTE: Foto da câmera envia direto via hook (optimistic update)
+      const localPreview = URL.createObjectURL(compressed instanceof File ? compressed : new Blob([compressed]))
+      await enviarMedia.mutateAsync({
+        conversaId: conversa.id,
+        dados: {
+          tipo: 'image',
+          media_url: urlData.publicUrl,
+          mimetype: 'image/jpeg',
+          filename: 'foto.jpg',
+          localPreview,
+        },
+      })
+      // Liberar object URL após envio
+      URL.revokeObjectURL(localPreview)
     } catch (error: any) {
       toast.error(error?.message || 'Erro ao enviar foto')
     }
