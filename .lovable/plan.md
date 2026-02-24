@@ -1,49 +1,71 @@
 
-# Plano: Vincular Pessoas a Empresas na Criacao/Edicao
 
-## Problema
-O modal de empresa ja possui a UI para selecionar pessoas vinculadas e envia `pessoa_ids` no payload. Porem, o `handleFormSubmit` em `ContatosPage.tsx` nunca processa esse campo -- ele simplesmente passa para a API que o ignora. Resultado: a vinculacao nunca acontece.
+# Plano: Rate Limiting de Exportacao — Padrao SaaS Escalavel
 
-## Logica de vinculo
-- Uma **Pessoa** possui coluna `empresa_id` que aponta para a **Empresa**
-- Para vincular pessoas a uma empresa, basta fazer `UPDATE contatos SET empresa_id = <empresa_id> WHERE id IN (<pessoa_ids>)`
-- Na edicao, tambem e necessario desvincular pessoas removidas (`SET empresa_id = null`)
+## Contexto Atual
 
-## Alteracoes
+O backend ja possui um rate limiter basico: **5 exportacoes por hora por usuario** (via `express-rate-limit`). Porem, nao ha controle diario ou mensal, e o frontend nao tem nenhuma protecao ou feedback sobre limites restantes.
 
-### Arquivo: `src/modules/contatos/pages/ContatosPage.tsx`
+## Recomendacao de Mercado para SaaS em Fase Inicial
 
-**Na funcao `handleFormSubmit`**, em ambos os blocos (criacao e edicao):
+Baseado em praticas de plataformas como HubSpot, Pipedrive e Salesforce:
 
-1. Extrair `pessoa_ids` do `cleanData` e remove-lo antes de enviar para a API (a API nao conhece esse campo)
-2. Apos a criacao/atualizacao do contato e dos campos custom, executar a vinculacao:
+| Janela    | Free/Starter | Pro/Scale |
+|-----------|-------------|-----------|
+| Por hora  | 3           | 10        |
+| Por dia   | 10          | 50        |
+| Por mes   | 50          | 500       |
 
-**Criacao de empresa:**
-```
-- Extrair pessoa_ids de cleanData (e deletar do payload)
-- Apos salvar campos custom e segmentos, chamar supabase
-  .from('contatos')
-  .update({ empresa_id: novaEmpresa.id })
-  .in('id', pessoaIds)
-```
+Para um SaaS iniciando, a recomendacao e aplicar **limites por usuario** (nao por org) e escalar conforme o plano. Como o sistema atual nao tem planos diferenciados, usaremos limites unicos generosos o suficiente para uso real, mas protetivos contra abuso:
 
-**Edicao de empresa:**
-```
-- Extrair pessoa_ids de cleanData (e deletar do payload)
-- Apos salvar campos custom e segmentos:
-  1. Desvincular pessoas removidas:
-     supabase.from('contatos')
-       .update({ empresa_id: null })
-       .eq('empresa_id', editingContato.id)
-       .eq('tipo', 'pessoa')
-     (se houver pessoa_ids, adicionar .not('id', 'in', `(ids)`) )
-  2. Vincular pessoas selecionadas:
-     supabase.from('contatos')
-       .update({ empresa_id: editingContato.id })
-       .in('id', pessoaIds)
+- **5 por hora** (ja existe)
+- **15 por dia** (novo)
+- **100 por mes** (novo)
+
+## Alteracoes Planejadas
+
+### 1. Backend — `backend/src/routes/contatos.ts`
+
+Adicionar dois rate limiters adicionais e encadea-los antes da rota `/exportar`:
+
+```text
+exportRateLimiterHourly  -> 5 req / 1h   (ja existe)
+exportRateLimiterDaily   -> 15 req / 24h  (novo)
+exportRateLimiterMonthly -> 100 req / 30d (novo)
 ```
 
-### Resumo das mudancas
-- **1 arquivo modificado**: `src/modules/contatos/pages/ContatosPage.tsx`
-- Nenhuma alteracao no banco de dados (a coluna `empresa_id` ja existe na tabela `contatos`)
-- Nenhuma alteracao no modal (a UI de selecao de pessoas ja funciona corretamente)
+A rota aplicara os tres middlewares em sequencia:
+```
+router.get('/exportar', exportRateLimiterHourly, exportRateLimiterDaily, exportRateLimiterMonthly, async ...)
+```
+
+Cada limiter retornara headers padrao (`RateLimit-*`) para o frontend poder exibir feedback.
+
+A mensagem de erro incluira qual limite foi atingido (hora/dia/mes) e o `retry_after` em segundos.
+
+### 2. Frontend — `src/modules/contatos/components/ExportarContatosModal.tsx`
+
+Tratar o erro 429 (Too Many Requests) retornado pelo rate limiter:
+
+- No `catch` do `handleExportar`, verificar se o status e 429
+- Exibir um toast com a mensagem do backend (ex: "Limite diario de exportacoes atingido. Tente novamente amanha.")
+- Desabilitar o botao temporariamente apos um 429
+
+### 3. Frontend — `src/modules/contatos/services/contatos.api.ts`
+
+Na funcao `exportarComColunas`, garantir que erros HTTP 429 sejam propagados com a mensagem correta do backend em vez de uma mensagem generica.
+
+## Resumo de Arquivos
+
+| Arquivo | Acao |
+|---------|------|
+| `backend/src/routes/contatos.ts` | Adicionar 2 rate limiters (diario + mensal) |
+| `src/modules/contatos/components/ExportarContatosModal.tsx` | Tratar erro 429 com feedback visual |
+| `src/modules/contatos/services/contatos.api.ts` | Propagar mensagem de erro 429 |
+
+## Observacoes
+
+- Os limites sao **por usuario** (usando `user.id` como chave), nao por IP — isso e mais justo e seguro
+- `express-rate-limit` usa store em memoria por padrao — em producao com multiplas instancias, seria recomendado migrar para `rate-limit-redis`, mas para a fase atual e suficiente
+- Os headers `RateLimit-Remaining` e `RateLimit-Reset` serao enviados automaticamente pelo `standardHeaders: true`, permitindo que no futuro o frontend mostre "X exportacoes restantes"
+
