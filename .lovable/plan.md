@@ -1,105 +1,128 @@
 
 
-## Plano: Atualizar Dicionario de Correcoes com base no Documento de Vicios de Linguagem
+## Plano: Implementar Logica Contextual dos 4 Porques
 
-### Analise de Impacto na Fluidez
+### O Problema
 
-Antes de adicionar qualquer palavra, classifiquei cada item do documento em 3 categorias:
+A lingua portuguesa tem 4 formas de "porque", cada uma com uso diferente. Hoje o dicionario tem `pq` mapeado para `['porque', 'por que']` sem contexto -- o usuario precisa saber qual escolher. Alem disso, quando alguem digita `porque` no lugar errado, o sistema nao corrige.
 
----
+### As 4 Regras
 
-### CATEGORIA 1: Seguro para adicionar (correcao clara, sem ambiguidade)
+```text
+1. "Por que"  → Inicio de pergunta ou antes de verbo
+               Ex: "Por que voce fez isso?"
 
-Palavras novas que nao existem no dicionario atual e tem correcao inequivoca:
+2. "Porque"   → Resposta/explicacao (= pois)
+               Ex: "Fui porque precisei."
 
-**Novas abreviacoes de chat:**
-| Chave | Sugestao | Motivo |
-|-------|----------|--------|
-| `oq` | o que | Abreviacao muito comum |
-| `oqe` | o que | Variacao |
-| `kd` | cadê | Abreviacao comum |
-| `cad` | cadê | Variacao |
-| `qnd` | quando | Variacao de `qdo` (ja existe) |
-| `qnto` | quanto | Variacao de `qto` (ja existe) |
-| `mtu` | muito | Variacao de `mto` (ja existe) |
-| `tmb` | também | Variacao de `tbm` (ja existe) |
-| `nd` | nada | Abreviacao comum |
-| `nda` | nada | Variacao |
-| `qlqr` | qualquer | Abreviacao |
-| `qq` | qualquer | Abreviacao |
-| `dnv` | de novo | Abreviacao comum |
-| `smp` | sempre | Abreviacao |
-| `sdds` | saudades | Abreviacao muito comum |
-| `sdd` | saudades | Variacao |
-| `sla` | sei lá | Abreviacao |
-| `vdd` | verdade | Abreviacao |
-| `pse` | pois é | Abreviacao |
-| `pdc` | pode crer | Abreviacao |
-| `btf` | boto fé | Abreviacao |
-| `mds` | meu Deus | Abreviacao |
-| `ft` | foto | Abreviacao |
-| `ctt` | contato | Abreviacao |
-| `amh` | amanhã | Abreviacao |
-| `obg` | obrigado | Ja existe -- manter |
+3. "Por que"  → Final de frase, antes de pontuacao
+               Ex: "Nao sei por que."
+               (Nota: a forma "por que" no final aceita
+                tanto "por quê" quanto "por que")
 
-**Novos erros ortograficos:**
-| Chave | Sugestao | Motivo |
-|-------|----------|--------|
-| `eh` | é | Erro de acentuacao muito comum em chat |
-| `nivel` | nível | Falta acento |
-| `benvindo` | bem-vindo | Erro ortografico comum |
+4. "O porque" → Substantivo, precedido de artigo
+               Ex: "Quero saber o porque."
+               Correcao: "o porquê"
+```
+
+### Abordagem Tecnica
+
+Em vez de tentar corrigir `porque` ja digitado (muito invasivo e impreciso), a estrategia e: **quando o usuario digitar `pq`, analisar o contexto para ordenar as sugestoes da forma mais provavel para a menos provavel**.
+
+Isso funciona dentro da arquitetura atual sem mudancas estruturais.
 
 ---
 
-### CATEGORIA 2: NAO adicionar (prejudica a fluidez)
+### Arquivos a modificar
 
-Palavras que, se adicionadas, vao **irritar o usuario** ou causar falsos positivos:
+#### 1. Novo arquivo: `src/modules/conversas/utils/porques-contexto.ts`
 
-| Palavra | Motivo para NAO adicionar |
-|---------|--------------------------|
-| `ta` / `tá` | Muito curta (2 letras), altissima frequencia em chat. Corrigir "ta" para "está" quebraria a fluidez natural da conversa |
-| `to` / `tô` | Mesmo problema -- 2 letras, uso universal em chat |
-| `tava` | Coloquial aceito em chat, corrigir para "estava" seria pedante no contexto de atendimento |
-| `pra` / `pro` | Contracoes aceitas universalmente, inclusive em comunicacao semi-formal |
-| `num` | Ambiguo: pode ser "não" (regional) ou "em um" -- impossivel decidir sem contexto |
-| `cê` | Variacao regional, corrigir seria invasivo |
-| `kkk` / `kkkk` / `rs` / `rsrs` / `haha` | Sao reacoes de riso, nao erros. Sugerir correcao seria absurdo |
-| `aff` / `ué` | Interjeicoes validas |
-| `zap` | Giria para WhatsApp, aceita no contexto |
-| `dm` | Sigla tecnica aceita |
-| `fb` / `ig` / `yt` | Siglas de redes sociais, aceitas |
-| `fds` | Ambiguo (pode ser palavrao ou "fim de semana") |
-| `slk` / `slc` / `tsv` / `dmr` / `vdb` | Girias muito informais -- o sistema nao deve tentar "traduzir" girias, apenas corrigir ortografia |
-| Estrangeirismos (`deletar`, `logar`, `printar`, `feedback`, `call`, etc.) | Sao termos consagrados no uso diario, especialmente em contexto CRM/tech |
+Funcao pura que recebe o texto completo, a posicao da palavra `pq` e retorna as sugestoes ordenadas por probabilidade contextual.
 
-**Palavras gramaticais complexas (requerem contexto de frase):**
-| Palavra | Motivo |
-|---------|--------|
-| `mal` / `mau` | Depende se e adverbio ou adjetivo -- lookup de palavra unica nao resolve |
-| `onde` / `aonde` | Depende de movimento vs localizacao |
-| `há` / `a` (tempo) | Depende de passado vs futuro |
-| `porque` / `por que` | 4 formas, depende da posicao na frase |
-| Pleonasmos (`entrar para dentro`, etc.) | Multi-palavra, o sistema atual faz lookup de palavra unica |
-| Regencias (`assistir ao`, etc.) | Multi-palavra |
+Logica de deteccao:
+
+```text
+Regra 1: "pq" no inicio da frase (apos . ! ? ou inicio do texto)
+  → Sugestoes: ["Por que", "Porque"]
+  → Provavel pergunta, priorizar "Por que"
+
+Regra 2: "pq" no meio da frase (nao e inicio)
+  → Sugestoes: ["porque", "por que"]
+  → Provavel explicacao, priorizar "porque"
+
+Regra 3: "pq" precedido de artigo "o" ou "do" ou "pelo"
+  → Sugestoes: ["porquê"]
+  → E substantivo
+
+Regra 4: "pq" seguido de ponto final ou interrogacao
+  → Sugestoes: ["por quê", "por que"]
+  → Final de frase
+```
+
+A funcao retorna `string[]` ordenado -- a primeira sugestao e a mais provavel.
+
+#### 2. Modificar: `src/modules/conversas/hooks/useAutoCorrect.ts`
+
+Antes de fazer o lookup no dicionario, verificar se a palavra e `pq` (ou variantes como `PQ`, `Pq`). Se for, chamar a funcao de contexto em vez do dicionario estatico.
+
+Mudanca minima -- apenas um `if` antes da linha 51:
+
+```text
+if (key === 'pq') {
+  // usar funcao contextual em vez do dicionario
+  const sugestoes = resolverPorques(texto, start, end)
+  return { palavraOriginal, sugestoes, start, end }
+}
+```
+
+#### 3. Remover entrada do dicionario: `src/modules/conversas/utils/dicionario-correcoes.ts`
+
+Remover a entrada `'pq': ['porque', 'por que']` do dicionario estatico, ja que agora sera tratada pela funcao contextual.
 
 ---
 
-### CATEGORIA 3: Remover do dicionario atual (problematico)
+### Detalhes da deteccao de contexto
 
-| Chave | Problema | Acao |
-|-------|----------|------|
-| `q` → `que` | Letra unica, dispara em qualquer "q" digitado. Extremamente invasivo | **Remover** |
-| `havia` → `havia` | Mapeia para si mesmo, entrada inutil | **Remover** |
+**Como saber se e inicio de frase:**
+- Verificar o texto antes de `start` (ignorando espacos)
+- Se o caractere anterior for `.`, `!`, `?`, ou se `start === 0` → inicio de frase
+
+**Como saber se tem artigo antes:**
+- Verificar a palavra imediatamente anterior a `pq`
+- Se for `o`, `do`, `pelo`, `todo` → e substantivo → sugerir `porquê`
+
+**Como saber se e final de frase:**
+- Verificar o texto apos `end` (ignorando espacos)
+- Se o caractere seguinte for `.`, `?`, `!`, ou fim do texto → final de frase
+
+**Capitalizacao automatica:**
+- Se inicio de frase, a primeira sugestao começa com maiuscula (`Por que`, `Porque`)
 
 ---
 
-### Resumo das alteracoes no arquivo
+### Exemplos praticos de como vai funcionar
 
-**Arquivo**: `src/modules/conversas/utils/dicionario-correcoes.ts`
+| Usuario digita | Contexto | Sugestoes mostradas |
+|----------------|----------|---------------------|
+| `pq voce...` | Inicio de frase | **Por que**, Porque |
+| `fui pq precisei` | Meio de frase | **porque**, por que |
+| `saber o pq` | Apos artigo "o" | **porquê** |
+| `nao sei pq.` | Antes de ponto | **por quê**, por que |
+| `pq?` | Antes de interrogacao | **Por quê**, Por que |
 
-1. **Adicionar ~28 novas entradas** (abreviacoes e erros ortograficos seguros)
-2. **Remover 2 entradas problematicas** (`q` e `havia`)
-3. **Reorganizar comentarios** para incluir as novas categorias
+---
 
-Nenhum outro arquivo precisa ser alterado -- o hook `useAutoCorrect` e a UI `SugestaoCorrecao` ja funcionam com qualquer entrada do dicionario.
+### O que NAO sera feito (e o motivo)
+
+- **NAO corrigir `porque` ja digitado** → Muito invasivo. O usuario pode ter digitado a forma correta e o sistema nao tem 100% de certeza sem analise completa da frase
+- **NAO tratar `por que` como duas palavras** → O sistema atual faz lookup de palavra unica, detectar pares de palavras exigiria refatoracao do hook inteiro
+- **NAO bloquear nenhuma forma** → Todas as sugestoes sao opcionais, o usuario escolhe qual aplicar
+
+### Resumo de arquivos
+
+| Arquivo | Acao |
+|---------|------|
+| `src/modules/conversas/utils/porques-contexto.ts` | **Criar** -- funcao de analise contextual |
+| `src/modules/conversas/hooks/useAutoCorrect.ts` | **Editar** -- adicionar if para `pq` antes do lookup |
+| `src/modules/conversas/utils/dicionario-correcoes.ts` | **Editar** -- remover entrada `pq` |
 
