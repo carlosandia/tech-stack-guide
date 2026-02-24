@@ -33,7 +33,7 @@ export function DetalhesHeader({ oportunidade, etapas, onMoverEtapa, onClose, on
       {/* Row 1: Título + Badge + Actions */}
       <div className="px-4 sm:px-6 py-3 flex items-center gap-2 sm:gap-3 flex-wrap">
         {/* Título + Badge */}
-        <div className="flex items-center gap-2 min-w-0 flex-1">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <h2 className="text-base sm:text-lg font-semibold text-foreground truncate max-w-[160px] sm:max-w-[200px] lg:max-w-[280px]">
             {oportunidade.titulo}
           </h2>
