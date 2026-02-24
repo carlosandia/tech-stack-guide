@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef, forwardRef } from 'react'
 import { toast } from 'sonner'
+import { useQueryClient } from '@tanstack/react-query'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Plus, Search, Filter, Download, Upload, Users2, Building2, X, Tag, GitMerge, ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
 import { useAuth } from '@/providers/AuthProvider'
@@ -42,6 +43,7 @@ const ContatosPage = forwardRef<HTMLDivElement>(function ContatosPage(_props, _r
   // PRD: melhorias-performance.md - Fase 4
   useContatosRealtime()
 
+  const queryClient = useQueryClient()
   const location = useLocation()
   const navigate = useNavigate()
   const { role } = useAuth()
@@ -463,7 +465,9 @@ const ContatosPage = forwardRef<HTMLDivElement>(function ContatosPage(_props, _r
           onSuccess: async () => {
             // Salvar campos customizados
             try {
+              console.log('[handleFormSubmit] Salvando campos custom. tipo:', editingContato.tipo, 'contatoId:', editingContato.id)
               await contatosApi.salvarCamposCustomizados(editingContato.id, editingContato.tipo as TipoContato, formData)
+              queryClient.invalidateQueries({ queryKey: ['valores-custom-contato-view'] })
             } catch (err: any) {
               console.error('[handleFormSubmit] Erro ao salvar campos customizados (edição):', err?.message || err)
               toast.error('Erro ao salvar campos personalizados. Tente editar o contato novamente.')
@@ -485,11 +489,13 @@ const ContatosPage = forwardRef<HTMLDivElement>(function ContatosPage(_props, _r
       criarContato.mutate(cleanData, {
         onSuccess: async (contato: any) => {
            // Salvar campos customizados
-          try {
-            await contatosApi.salvarCamposCustomizados(contato.id, tipo as TipoContato, formData)
+           try {
+              console.log('[handleFormSubmit] Salvando campos custom. tipo:', tipo, 'contatoId:', contato.id)
+              await contatosApi.salvarCamposCustomizados(contato.id, tipo as TipoContato, formData)
+              queryClient.invalidateQueries({ queryKey: ['valores-custom-contato-view'] })
            } catch (err: any) {
-             console.error('[handleFormSubmit] Erro ao salvar campos customizados (criação):', err?.message || err)
-             toast.error('Erro ao salvar campos personalizados. Edite o contato para tentar novamente.')
+              console.error('[handleFormSubmit] Erro ao salvar campos customizados (criação):', err?.message || err)
+              toast.error('Erro ao salvar campos personalizados. Edite o contato para tentar novamente.')
            }
           if (segmentoIds && segmentoIds.length > 0) {
             try { await contatosApi.vincularSegmentos(contato.id, segmentoIds) } catch {}
