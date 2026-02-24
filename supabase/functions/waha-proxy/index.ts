@@ -141,7 +141,7 @@ Deno.serve(async (req) => {
 
     // Webhook events to subscribe
     // message.any = both incoming and outgoing (sent from phone) messages
-    const webhookEvents = ["message.any", "message.ack", "message.reaction", "poll.vote", "poll.vote.failed", "label.upsert", "label.chat.added", "label.chat.deleted"];
+    const webhookEvents = ["message.any", "message.ack", "message.reaction", "poll.vote", "poll.vote.failed", "label.upsert", "label.chat.added", "label.chat.deleted", "presence.update"];
 
     console.log(`[waha-proxy] Action: ${action}, Session: ${sessionId}, WAHA URL: ${baseUrl}`);
 
@@ -1823,6 +1823,50 @@ Deno.serve(async (req) => {
           JSON.stringify({ ok: false, error: "Mídia não encontrada ou expirada" }),
           { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
+      }
+
+      // AIDEV-NOTE: Presence actions para indicador online/digitando no ChatHeader
+      case "presence_subscribe": {
+        const { chat_id } = body as { chat_id?: string };
+        if (!chat_id) {
+          return new Response(
+            JSON.stringify({ error: "chat_id é obrigatório para presence_subscribe" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        wahaResponse = await fetch(
+          `${baseUrl}/api/${sessionId}/presence/${chat_id}/subscribe`,
+          { method: "POST", headers: { "Content-Type": "application/json", "X-Api-Key": apiKey } }
+        );
+        // Engine limitation is OK — just means presence not supported
+        if (!wahaResponse.ok) {
+          const errData = await wahaResponse.json().catch(() => ({}));
+          if (isEngineLimitation(wahaResponse.status, errData)) {
+            return nowebPartialResponse("presence_subscribe");
+          }
+        }
+        break;
+      }
+
+      case "presence_get": {
+        const { chat_id } = body as { chat_id?: string };
+        if (!chat_id) {
+          return new Response(
+            JSON.stringify({ error: "chat_id é obrigatório para presence_get" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        wahaResponse = await fetch(
+          `${baseUrl}/api/${sessionId}/presence/${chat_id}`,
+          { method: "GET", headers: { "X-Api-Key": apiKey } }
+        );
+        if (!wahaResponse.ok) {
+          const errData = await wahaResponse.json().catch(() => ({}));
+          if (isEngineLimitation(wahaResponse.status, errData)) {
+            return nowebPartialResponse("presence_get");
+          }
+        }
+        break;
       }
 
       default:
