@@ -489,6 +489,41 @@ Deno.serve(async (req) => {
     }
 
     // =====================================================
+    // HANDLE presence.update EVENT (online/typing indicators)
+    // AIDEV-NOTE: Broadcast efêmero via Realtime — sem persistência em banco
+    // =====================================================
+    if (body.event === "presence.update") {
+      const payload = body.payload;
+      console.log(`[waha-webhook] presence.update:`, JSON.stringify(payload).substring(0, 500));
+
+      if (payload) {
+        const chatId = payload.id || payload.chatId || null;
+        const presences = payload.presences || [];
+
+        if (chatId) {
+          try {
+            const channel = supabaseAdmin.channel(`presence:${sessionName}`);
+            await channel.send({
+              type: 'broadcast',
+              event: 'presence_update',
+              payload: { chatId, presences },
+            });
+            // AIDEV-NOTE: removeChannel para não acumular canais no servidor
+            await supabaseAdmin.removeChannel(channel);
+            console.log(`[waha-webhook] ✅ Presence broadcast sent for ${chatId} on session ${sessionName}`);
+          } catch (broadcastErr) {
+            console.error(`[waha-webhook] Presence broadcast error:`, broadcastErr);
+          }
+        }
+      }
+
+      return new Response(
+        JSON.stringify({ ok: true, message: "Presence processed" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // =====================================================
     // HANDLE label.* EVENTS (WhatsApp Labels sync)
     // AIDEV-NOTE: Processa eventos de etiquetas ANTES do filtro de mensagens
     // =====================================================

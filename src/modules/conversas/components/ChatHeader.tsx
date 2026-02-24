@@ -13,6 +13,7 @@ import { TarefasConversaPopover } from './TarefasConversaPopover'
 import { LabelBadge } from './LabelBadge'
 import { LabelsPopover } from './LabelsPopover'
 import { useLabelsConversa } from '../hooks/useWhatsAppLabels'
+import { usePresence } from '../hooks/usePresence'
 import { toast } from 'sonner'
 import type { Conversa } from '../services/conversas.api'
 import { getValidWhatsAppUrl } from '@/shared/utils/whatsapp-url'
@@ -169,6 +170,7 @@ export const ChatHeader = forwardRef<HTMLDivElement, ChatHeaderProps>(function C
   const fotoUrlValida = getValidWhatsAppUrl(fotoUrl)
   const statusInfo = statusLabels[conversa.status] || statusLabels.aberta
   const { data: conversaLabels = [] } = useLabelsConversa(conversa.id)
+  const { status: presenceStatus } = usePresence(conversa.chat_id, sessionName || null, conversa.canal)
 
   // Fetch session_name for labels popover
   useEffect(() => {
@@ -230,6 +232,19 @@ export const ChatHeader = forwardRef<HTMLDivElement, ChatHeaderProps>(function C
                   </svg>
                 )}
               </div>
+              {/* AIDEV-NOTE: Indicador de presença — online/digitando/gravando */}
+              {presenceStatus && presenceStatus !== 'unavailable' && presenceStatus !== 'paused' && (
+                <span className={`text-[10px] sm:text-[11px] leading-tight ${
+                  presenceStatus === 'composing' || presenceStatus === 'recording'
+                    ? 'text-success-foreground animate-pulse'
+                    : 'text-success-foreground'
+                }`}>
+                  {presenceStatus === 'composing' ? 'digitando...'
+                    : presenceStatus === 'recording' ? 'gravando áudio...'
+                    : presenceStatus === 'available' ? 'online'
+                    : null}
+                </span>
+              )}
             </div>
           </button>
           {/* AIDEV-NOTE: Etiquetas fora do botão para não propagar clique ao drawer */}
