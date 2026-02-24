@@ -10,6 +10,8 @@ import { PhoneInputField } from '@/modules/contatos/components/PhoneInputField'
 import { ContatoFormFieldsToggle, getFieldVisibility } from '@/modules/contatos/components/ContatoFormFieldsToggle'
 import { formatCnpj } from '@/lib/formatters'
 import { PorteOptions } from '@/modules/contatos/schemas/contatos.schema'
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
+import { ChevronDown, Check } from 'lucide-react'
 import type { TipoContato } from '@/modules/contatos/services/contatos.api'
 
 // =====================================================
@@ -202,22 +204,45 @@ export function ContatoInlineForm({ tipo, fields, onChange, onCancel }: ContatoI
           <label className="block text-xs font-medium text-foreground mb-1">
             {label}{required && <span className="text-destructive ml-0.5">*</span>}
           </label>
-          <div className="space-y-0.5 border border-input rounded-md p-2 bg-background">
-            {campo.opcoes.map(opt => {
-              const isActive = selectedValues.includes(opt)
-              return (
-                <button key={opt} type="button" onClick={() => toggleOption(opt)}
-                  className="flex items-center gap-2 text-sm cursor-pointer hover:bg-accent rounded px-1 py-0.5 transition-colors w-full text-left">
-                  <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 ${
-                    isActive ? 'bg-primary border-primary' : 'border-input'
-                  }`}>
-                    {isActive && <span className="text-primary-foreground text-[10px]">✓</span>}
-                  </div>
-                  <span className="text-foreground">{opt}</span>
-                </button>
-              )
-            })}
-          </div>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="w-full h-9 px-3 text-sm bg-background border border-input rounded-md flex items-center justify-between gap-2 hover:border-ring/50 transition-colors text-left"
+              >
+                <span className={`truncate ${selectedValues.length === 0 ? 'text-muted-foreground' : 'text-foreground'}`}>
+                  {selectedValues.length === 0
+                    ? 'Selecione'
+                    : selectedValues.length === 1
+                      ? selectedValues[0]
+                      : `${selectedValues.length} selecionados`}
+                </span>
+                <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-1" align="start">
+              <div className="max-h-48 overflow-y-auto">
+                {campo.opcoes.map(opt => {
+                  const isActive = selectedValues.includes(opt)
+                  return (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => toggleOption(opt)}
+                      className="flex items-center gap-2 text-sm cursor-pointer hover:bg-accent rounded px-2 py-1.5 transition-colors w-full text-left"
+                    >
+                      <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
+                        isActive ? 'bg-primary border-primary' : 'border-input'
+                      }`}>
+                        {isActive && <Check className="w-3 h-3 text-primary-foreground" />}
+                      </div>
+                      <span className="text-foreground">{opt}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
       )
     }
