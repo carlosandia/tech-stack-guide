@@ -6,6 +6,7 @@
 
 import { useMemo } from 'react'
 import { CORRECOES_PT_BR } from '../utils/dicionario-correcoes'
+import { resolverPorques } from '../utils/porques-contexto'
 
 export interface AutoCorrectResult {
   palavraOriginal: string
@@ -48,6 +49,13 @@ export function useAutoCorrect(
 
     // Buscar no dicionário (lowercase)
     const key = palavra.toLowerCase()
+
+    // AIDEV-NOTE: Tratamento contextual para "pq" — lógica dos 4 porquês
+    if (key === 'pq') {
+      const sugestoesPq = resolverPorques(texto, start, end)
+      return { palavraOriginal: palavra, sugestoes: sugestoesPq, start, end }
+    }
+
     const sugestoes = CORRECOES_PT_BR[key]
 
     if (!sugestoes || sugestoes.length === 0) return null

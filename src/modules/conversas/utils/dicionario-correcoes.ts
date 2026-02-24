@@ -349,7 +349,7 @@ export const CORRECOES_PT_BR: Record<string, string[]> = {
   'vcs': ['vocês'],
   'tb': ['também'],
   'tbm': ['também'],
-  'pq': ['porque', 'por que'],
+  // AIDEV-NOTE: 'pq' removido — tratado pela lógica contextual em porques-contexto.ts
   'cmg': ['comigo'],
   'ctg': ['contigo'],
   'msg': ['mensagem'],
