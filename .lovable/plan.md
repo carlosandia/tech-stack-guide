@@ -1,56 +1,37 @@
 
 
-## Plano: Toggle de Ativar/Desativar Autocorretor
+## Plano: Corrigir Scroll do Chat ao Abrir Conversa
 
-### O que sera feito
+### O Problema
 
-Adicionar um **Switch (toggle)** no painel "Teclado" do ChatInput para ativar/desativar o autocorretor. O estado ja e persistido via `localStorage` pelo hook `useKeyboardLanguage` (valor `'off'`). A mudanca e puramente de UI -- adicionar o switch e vincular ao estado existente.
+Quando voce clica em uma conversa na sidebar, o chat abre com o scroll em posicao aleatoria ao inves de mostrar a ultima mensagem.
 
-### Como funciona hoje
+### Causa
 
-O select de idioma ja tem a opcao "Desativado" (`off`), e quando selecionada, o `useAutoCorrect` recebe `enabled = false` e para de sugerir. A logica de negocio ja esta pronta.
+O componente `ChatMessages.tsx` usa um `prevLengthRef` para decidir quando fazer scroll para o final. Esse ref guarda o numero de mensagens da conversa **anterior** e nao e resetado ao trocar de conversa. Se a nova conversa tiver menos mensagens, o scroll nao acontece.
 
-### O que muda
+### Solucao
 
-Adicionar um Switch visivel no topo do painel de configuracao, **antes** do select de idioma. Quando desligado, o select de idioma fica desabilitado (cinza) e nenhuma sugestao aparece.
+Adicionar um `useEffect` que reseta o `prevLengthRef` para `0` quando o `conversaId` muda. Isso faz com que, ao abrir qualquer conversa, o sistema trate como "primeira carga" e execute `scrollIntoView({ behavior: 'instant' })` automaticamente.
 
----
+### Alteracao
 
-### Arquivo a modificar
+**Arquivo**: `src/modules/conversas/components/ChatMessages.tsx`
 
-#### `src/modules/conversas/components/ConfiguracaoTeclado.tsx`
-
-1. Importar o componente `Switch` de `@/components/ui/switch`
-2. Importar icone `Sparkles` do lucide-react (para representar autocorrecao)
-3. Adicionar uma nova secao no topo com:
-   - Label "Corretor ortografico" com icone
-   - Switch toggle ao lado direito
-   - Descricao curta abaixo: "Sugere correcoes enquanto voce digita"
-4. O Switch fica `checked` quando `language !== 'off'`
-5. Ao desligar: chama `onLanguageChange('off')`
-6. Ao ligar: chama `onLanguageChange('pt-br')` (restaura o padrao)
-7. Quando desligado, as secoes de idioma e palavras ignoradas ficam com `opacity-50` e `pointer-events-none`
-
-### Layout do toggle
+Adicionar um `useEffect` simples (3 linhas) logo apos a declaracao do `prevLengthRef`:
 
 ```text
-+------------------------------------------+
-| [icon] Corretor ortografico    [==ON==]   |
-| Sugere correcoes enquanto voce digita     |
-+------------------------------------------+
-| [icon] Idioma das sugestoes               |
-| [ Portugues (BR) v ]                      |
-+------------------------------------------+
-| [icon] Palavras ignoradas                 |
-| ...                                       |
-+------------------------------------------+
+useEffect(() => {
+  prevLengthRef.current = 0
+}, [conversaId])
 ```
 
-### Nenhuma alteracao de banco necessaria
-
-A persistencia ja e feita via `localStorage` (`crm:autocorrect:lang`). O valor `'off'` desativa tudo. Nao precisa de coluna em tabela.
+Isso faz com que toda vez que `conversaId` mudar:
+1. `prevLengthRef` volta para `0`
+2. Quando as mensagens carregam, `mensagens.length > 0` e verdadeiro
+3. A condicao `prevLengthRef.current === 0` ativa o scroll instantaneo para o final
 
 ### Nenhum outro arquivo precisa mudar
 
-O `ChatInput.tsx` ja consome `language !== 'off'` para controlar o `enabled` do `useAutoCorrect`. O toggle apenas altera o mesmo estado.
+O `ChatWindow.tsx` ja passa `conversaId` como prop para `ChatMessages`. A logica de scroll existente (linhas 204-218) ja trata corretamente o caso de "primeira carga" -- so precisa garantir que o ref seja resetado na troca de conversa.
 
