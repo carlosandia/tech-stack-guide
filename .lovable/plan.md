@@ -1,35 +1,64 @@
 
-## Correção: Tela "Nova versão disponível" aparecendo ao navegar entre módulos
 
-### Problema Raiz
+## Correção: Presença (online/digitando) não aparece no chat
 
-Existem **dois mecanismos de retry para chunk errors** que conflitam entre si:
+### Diagnóstico confirmado pelos logs
 
-1. **`lazyWithRetry`** — detecta falha de import dinâmico, faz reload com `?_cb=timestamp`, usa chave `chunk-reload-{nome}`
-2. **`ErrorBoundary`** — detecta o mesmo erro no `componentDidCatch`, faz reload com `?_cb=timestamp`, usa chave diferente `eb-chunk-reload`
+A reconfiguração de webhooks que implementamos **funcionou** — os logs mostram:
+- `presence.update` com status `typing`, `offline`, `paused` chegando ao `waha-webhook`
+- Broadcast sendo enviado com sucesso via Supabase Realtime
 
-Quando um chunk falha (ex: após deploy, o browser tem referência a chunk antigo):
-1. `lazyWithRetry` recarrega a página (1o reload)
-2. Se ainda falha, `lazyWithRetry` propaga o erro para o `ErrorBoundary`
-3. `ErrorBoundary` recarrega novamente (2o reload) — usando SUA chave separada
-4. Se ainda falha, `lazyWithRetry` recarrega DE NOVO (chave dele foi limpa no passo 2)
-5. Na 4a tentativa, ambas as chaves estão esgotadas e a tela "Nova versão disponível" aparece
+Porém o frontend **nunca processa** esses eventos. Identifiquei **2 problemas**:
 
-O problema é que **2 reloads nunca são suficientes** se os chunks realmente não existem no servidor (ex: deploy novo pendente de publicação, ou CDN com cache antigo).
+### Problema 1: Mismatch de chatId (@lid vs @c.us)
+
+O WAHA envia o `chatId` no formato `@lid` (ex: `265412537221351@lid`), mas o frontend armazena e compara com o formato `@c.us` (ex: `5541999999999@c.us`).
+
+Na linha 63 do `usePresence.ts`:
+```
+if (payload?.chatId === chatId)  // NUNCA é true
+```
+
+Isso acontece porque o `presence.update` no `waha-webhook` envia o `chatId` diretamente como vem do WAHA, sem fazer a resolução `@lid → @c.us` que é feita para mensagens e labels.
+
+### Problema 2: Mismatch de status (typing vs composing)
+
+O WAHA GOWS envia status como `typing`, `offline`, `paused`. Mas o frontend espera os valores do tipo `PresenceStatus`: `composing`, `unavailable`, `available`, `recording`.
+
+Os logs confirmam:
+```
+lastKnownPresence: "typing"   → frontend espera "composing"
+lastKnownPresence: "offline"  → frontend espera "unavailable"
+```
+
+### Sobre a pergunta do status online
+
+No WhatsApp, o status "online" (`available`) só aparece se o contato tiver habilitado a visibilidade do "visto por último/online" nas configurações de privacidade dele. Se o contato desativou, o WAHA retorna `offline` sempre. Porém, o indicador de "digitando" funciona independente dessas configurações — é assim no WhatsApp nativo também.
 
 ### Solução
 
-#### 1. `ErrorBoundary.tsx` — Remover o retry duplicado de chunk errors
+#### 1. `waha-webhook/index.ts` — Resolver @lid no presence.update
 
-O `componentDidCatch` NÃO deve mais tentar recarregar para chunk errors. O `lazyWithRetry` já faz isso. Quando o erro chega ao ErrorBoundary, significa que o retry do `lazyWithRetry` já falhou — então o ErrorBoundary deve apenas exibir o fallback.
+No handler de `presence.update`, antes de fazer o broadcast, resolver o `chatId` de `@lid` para o `chat_id` (@c.us) armazenado na conversa. Usar a mesma estratégia já existente no webhook: buscar na tabela `conversas` por `chat_id` exato e, se for @lid, fazer fallback via RPC `resolve_lid_conversa`.
 
-Além disso, quando for chunk error e o botão "Atualizar agora" for clicado, fazer um **hard reload** que limpa todo cache: navegar para a URL raiz sem parâmetros e limpar todas as chaves de chunk do sessionStorage.
+Além disso, incluir o `chat_id` resolvido (@c.us) no payload do broadcast para que o frontend possa fazer a comparação corretamente.
 
-#### 2. `lazyWithRetry.ts` — Remover check genérico `failed to fetch`
+#### 2. `usePresence.ts` — Mapear status do WAHA para PresenceStatus
 
-A condição `msg.includes('failed to fetch')` é muito ampla — pode capturar erros de rede genéricos (não relacionados a chunks) e disparar reloads desnecessários. Manter apenas as condições específicas de chunk.
+Adicionar uma função de mapeamento no hook:
+```
+typing → composing
+offline → unavailable
+available → available
+recording → recording
+paused → paused
+```
+
+E aplicar esse mapeamento tanto no `presence_get` (linha 53) quanto no listener de broadcast (linha 67).
+
+Também ajustar a comparação de `chatId` no broadcast listener para aceitar tanto o `chatId` original quanto o resolvido.
 
 ### Arquivos modificados
 
-- **`src/components/ErrorBoundary.tsx`** — Remover auto-reload de chunk errors do `componentDidCatch`; melhorar o `handleReload` para limpar sessionStorage de chunks e fazer hard reload
-- **`src/utils/lazyWithRetry.ts`** — Remover `failed to fetch` genérico da detecção de chunk errors
+- `supabase/functions/waha-webhook/index.ts` — Resolver @lid para @c.us no handler de presence.update antes de broadcastar
+- `src/modules/conversas/hooks/usePresence.ts` — Mapear status WAHA para PresenceStatus e aceitar chatId resolvido no broadcast
