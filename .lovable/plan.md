@@ -1,37 +1,75 @@
 
 
-## Plano: Corrigir Scroll do Chat ao Abrir Conversa
+## Plano: Corrigir Scroll Forçado ao Abrir Conversa
 
-### O Problema
+### Diagnóstico
 
-Quando voce clica em uma conversa na sidebar, o chat abre com o scroll em posicao aleatoria ao inves de mostrar a ultima mensagem.
+A correção anterior (resetar `prevLengthRef` ao mudar `conversaId`) está parcialmente correta, mas falha por uma **race condition**:
 
-### Causa
+1. O `useEffect([conversaId])` reseta `prevLengthRef = 0`
+2. O `useEffect([mensagens.length])` deveria fazer scroll, mas **só re-executa quando `mensagens.length` muda**
+3. Se as mensagens da nova conversa já estão em cache (React Query), `mensagens.length` pode não mudar entre renders, e o efeito de scroll **nunca dispara**
+4. Mesmo quando dispara, o `scrollIntoView` pode executar antes do DOM renderizar as mensagens novas
 
-O componente `ChatMessages.tsx` usa um `prevLengthRef` para decidir quando fazer scroll para o final. Esse ref guarda o numero de mensagens da conversa **anterior** e nao e resetado ao trocar de conversa. Se a nova conversa tiver menos mensagens, o scroll nao acontece.
+### Solução
 
-### Solucao
+Unificar a lógica em um único `useEffect` que depende de **ambos** `conversaId` e `mensagens.length`. Usar `setTimeout(0)` para garantir que o DOM já foi atualizado antes de fazer o scroll.
 
-Adicionar um `useEffect` que reseta o `prevLengthRef` para `0` quando o `conversaId` muda. Isso faz com que, ao abrir qualquer conversa, o sistema trate como "primeira carga" e execute `scrollIntoView({ behavior: 'instant' })` automaticamente.
-
-### Alteracao
+### Alteração
 
 **Arquivo**: `src/modules/conversas/components/ChatMessages.tsx`
 
-Adicionar um `useEffect` simples (3 linhas) logo apos a declaracao do `prevLengthRef`:
+Substituir os dois efeitos separados (reset + scroll) por um único efeito:
 
 ```text
+// Remover o useEffect([conversaId]) separado (linhas 203-206)
+// Remover o useEffect([mensagens.length]) atual (linhas 209-224)
+
+// Substituir por um único efeito:
+const prevConversaRef = useRef<string | undefined>(undefined)
+
 useEffect(() => {
-  prevLengthRef.current = 0
-}, [conversaId])
+  const conversaMudou = prevConversaRef.current !== conversaId
+  prevConversaRef.current = conversaId
+
+  if (conversaMudou) {
+    // Conversa trocou: forçar scroll ao final com delay para DOM atualizar
+    prevLengthRef.current = 0
+    setTimeout(() => {
+      bottomRef.current?.scrollIntoView({ behavior: 'instant' })
+    }, 50)
+  } else if (mensagens.length > prevLengthRef.current) {
+    // Mesma conversa, novas mensagens chegaram
+    if (prevLengthRef.current === 0) {
+      setTimeout(() => {
+        bottomRef.current?.scrollIntoView({ behavior: 'instant' })
+      }, 50)
+    } else {
+      const container = containerRef.current
+      if (container) {
+        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150
+        if (isNearBottom) {
+          bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+        }
+      }
+    }
+  }
+
+  prevLengthRef.current = mensagens.length
+}, [conversaId, mensagens.length])
 ```
 
-Isso faz com que toda vez que `conversaId` mudar:
-1. `prevLengthRef` volta para `0`
-2. Quando as mensagens carregam, `mensagens.length > 0` e verdadeiro
-3. A condicao `prevLengthRef.current === 0` ativa o scroll instantaneo para o final
+### Como funciona
 
-### Nenhum outro arquivo precisa mudar
+1. **Troca de conversa**: `conversaMudou` detecta a mudança e força scroll instantâneo com `setTimeout(50ms)` para garantir que o DOM já renderizou
+2. **Novas mensagens na mesma conversa**: mantém a lógica original (scroll suave se perto do final)
+3. **Primeira carga**: `prevLengthRef === 0` garante scroll instantâneo
 
-O `ChatWindow.tsx` ja passa `conversaId` como prop para `ChatMessages`. A logica de scroll existente (linhas 204-218) ja trata corretamente o caso de "primeira carga" -- so precisa garantir que o ref seja resetado na troca de conversa.
+### Arquivos
+
+| Arquivo | Ação |
+|---------|------|
+| `src/modules/conversas/components/ChatMessages.tsx` | **Editar** -- unificar os 2 useEffects em 1 |
+
+Nenhum outro arquivo precisa ser alterado.
 
