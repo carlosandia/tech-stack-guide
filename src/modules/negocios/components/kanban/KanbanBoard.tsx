@@ -26,12 +26,13 @@ import { usePreOportunidadesPendentes } from '../../hooks/usePreOportunidades'
 interface KanbanBoardProps {
   data: KanbanData
   isLoading: boolean
+  busca?: string
   onDropGanhoPerda: (oportunidade: Oportunidade, etapaId: string, tipo: 'ganho' | 'perda') => void
   onCardClick: (oportunidade: Oportunidade) => void
   onAgendar?: (oportunidade: Oportunidade) => void
 }
 
-export const KanbanBoard = forwardRef<HTMLDivElement, KanbanBoardProps>(function KanbanBoard({ data, isLoading, onDropGanhoPerda, onCardClick, onAgendar }, _ref) {
+export const KanbanBoard = forwardRef<HTMLDivElement, KanbanBoardProps>(function KanbanBoard({ data, isLoading, onDropGanhoPerda, onCardClick, onAgendar, busca }, _ref) {
   const draggedOpRef = useRef<Oportunidade | null>(null)
   const moverEtapa = useMoverEtapa()
   const excluirEmMassa = useExcluirOportunidadesEmMassa()
@@ -314,7 +315,7 @@ export const KanbanBoard = forwardRef<HTMLDivElement, KanbanBoardProps>(function
     <SlaClockProvider>
       <div className="flex-1 overflow-x-auto overflow-y-hidden">
         <div className="flex gap-0 px-3 sm:px-4 pt-0 pb-3 h-full min-w-min">
-          <SolicitacoesColumn funilId={data.funil.id} />
+          <SolicitacoesColumn funilId={data.funil.id} busca={busca} />
 
           {data.etapas.map((etapa, idx) => {
             const normalEtapas = data.etapas.filter(e => e.tipo === 'normal')

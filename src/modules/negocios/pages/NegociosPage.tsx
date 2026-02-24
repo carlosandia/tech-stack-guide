@@ -331,6 +331,7 @@ const NegociosPage = forwardRef<HTMLDivElement>(function NegociosPage(_props, re
           onDropGanhoPerda={handleDropGanhoPerda}
           onCardClick={handleCardClick}
           onAgendar={handleAgendar}
+          busca={busca}
         />
       ) : kanbanLoading ? (
         <div className="flex-1 flex items-center justify-center">

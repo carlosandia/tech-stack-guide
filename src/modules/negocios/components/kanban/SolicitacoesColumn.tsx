@@ -2,9 +2,10 @@
  * AIDEV-NOTE: Coluna "Solicitações" do Kanban (RF-11)
  * Exibe pré-oportunidades pendentes vindas do WhatsApp
  * Posicionada antes das colunas de etapas
+ * Suporta filtro por busca (phone_name, phone_number, primeira_mensagem)
  */
 
-import { useState, forwardRef } from 'react'
+import { useState, useMemo, forwardRef } from 'react'
 import { Inbox, Loader2 } from 'lucide-react'
 import { usePreOportunidadesPendentes } from '../../hooks/usePreOportunidades'
 import { SolicitacaoCard } from './SolicitacaoCard'
@@ -15,17 +16,32 @@ import type { PreOportunidadeCard } from '../../services/pre-oportunidades.api'
 
 interface SolicitacoesColumnProps {
   funilId: string
+  busca?: string
 }
 
-export const SolicitacoesColumn = forwardRef<HTMLDivElement, SolicitacoesColumnProps>(function SolicitacoesColumn({ funilId }, _ref) {
+export const SolicitacoesColumn = forwardRef<HTMLDivElement, SolicitacoesColumnProps>(function SolicitacoesColumn({ funilId, busca }, _ref) {
   const { data: preOps, isLoading } = usePreOportunidadesPendentes(funilId)
   const [selectedPreOp, setSelectedPreOp] = useState<PreOportunidadeCard | null>(null)
   const [showRejeitar, setShowRejeitar] = useState<PreOportunidadeCard | null>(null)
   const [whatsAppPreOp, setWhatsAppPreOp] = useState<PreOportunidadeCard | null>(null)
 
-  const total = preOps?.length || 0
+  // AIDEV-NOTE: Filtrar pré-oportunidades pela busca (mesmo critério mínimo de 3 chars da toolbar)
+  const filteredPreOps = useMemo(() => {
+    if (!preOps) return []
+    if (!busca || busca.length < 3) return preOps
+    const q = busca.toLowerCase()
+    return preOps.filter(p =>
+      (p.phone_name && p.phone_name.toLowerCase().includes(q)) ||
+      p.phone_number.toLowerCase().includes(q) ||
+      (p.primeira_mensagem && p.primeira_mensagem.toLowerCase().includes(q)) ||
+      (p.ultima_mensagem && p.ultima_mensagem.toLowerCase().includes(q))
+    )
+  }, [preOps, busca])
 
-  if (total === 0 && !isLoading) return null
+  const total = filteredPreOps.length
+  const totalOriginal = preOps?.length || 0
+
+  if (totalOriginal === 0 && !isLoading) return null
 
   return (
     <>
@@ -53,7 +69,12 @@ export const SolicitacoesColumn = forwardRef<HTMLDivElement, SolicitacoesColumnP
               <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
             </div>
           ) : (
-            preOps?.map(preOp => (
+            filteredPreOps.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-4">
+                Nenhuma solicitação encontrada
+              </p>
+            ) : (
+            filteredPreOps.map(preOp => (
               <SolicitacaoCard
                 key={preOp.id}
                 preOp={preOp}
@@ -61,6 +82,7 @@ export const SolicitacoesColumn = forwardRef<HTMLDivElement, SolicitacoesColumnP
                 onWhatsApp={setWhatsAppPreOp}
               />
             ))
+            )
           )}
         </div>
       </div>
