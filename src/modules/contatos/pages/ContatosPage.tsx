@@ -463,12 +463,10 @@ const ContatosPage = forwardRef<HTMLDivElement>(function ContatosPage(_props, _r
         { id: editingContato.id, payload: cleanData },
         {
           onSuccess: async () => {
-            // Salvar campos customizados
+            // AIDEV-NOTE: Salvar campos custom + segmentos ANTES de refetch para garantir dados atualizados
             try {
               console.log('[handleFormSubmit] Salvando campos custom. tipo:', editingContato.tipo, 'contatoId:', editingContato.id)
               await contatosApi.salvarCamposCustomizados(editingContato.id, editingContato.tipo as TipoContato, formData)
-              queryClient.invalidateQueries({ queryKey: ['contatos'] })
-              queryClient.invalidateQueries({ queryKey: ['valores-custom-contato-view'] })
             } catch (err: any) {
               console.error('[handleFormSubmit] Erro ao salvar campos customizados (edição):', err?.message || err)
               toast.error('Erro ao salvar campos personalizados. Tente editar o contato novamente.')
@@ -476,6 +474,9 @@ const ContatosPage = forwardRef<HTMLDivElement>(function ContatosPage(_props, _r
             if (segmentoIds) {
               try { await contatosApi.vincularSegmentos(editingContato.id, segmentoIds) } catch {}
             }
+            // Refetch APÓS tudo salvo para garantir dados completos na UI
+            await queryClient.refetchQueries({ queryKey: ['contatos'] })
+            queryClient.invalidateQueries({ queryKey: ['valores-custom-contato-view'] })
             setFormModalOpen(false)
             if (openedFormFromView) {
               setViewingContato(editingContato)
@@ -489,12 +490,10 @@ const ContatosPage = forwardRef<HTMLDivElement>(function ContatosPage(_props, _r
     } else {
       criarContato.mutate(cleanData, {
         onSuccess: async (contato: any) => {
-           // Salvar campos customizados
+           // AIDEV-NOTE: Salvar campos custom + segmentos ANTES de refetch para garantir dados completos
            try {
               console.log('[handleFormSubmit] Salvando campos custom. tipo:', tipo, 'contatoId:', contato.id)
-               await contatosApi.salvarCamposCustomizados(contato.id, tipo as TipoContato, formData)
-               queryClient.invalidateQueries({ queryKey: ['contatos'] })
-               queryClient.invalidateQueries({ queryKey: ['valores-custom-contato-view'] })
+              await contatosApi.salvarCamposCustomizados(contato.id, tipo as TipoContato, formData)
            } catch (err: any) {
               console.error('[handleFormSubmit] Erro ao salvar campos customizados (criação):', err?.message || err)
               toast.error('Erro ao salvar campos personalizados. Edite o contato para tentar novamente.')
@@ -502,6 +501,9 @@ const ContatosPage = forwardRef<HTMLDivElement>(function ContatosPage(_props, _r
           if (segmentoIds && segmentoIds.length > 0) {
             try { await contatosApi.vincularSegmentos(contato.id, segmentoIds) } catch {}
           }
+          // Refetch APÓS tudo salvo para garantir dados completos na UI
+          await queryClient.refetchQueries({ queryKey: ['contatos'] })
+          queryClient.invalidateQueries({ queryKey: ['valores-custom-contato-view'] })
           setFormModalOpen(false)
           setEditingContato(null)
         }
