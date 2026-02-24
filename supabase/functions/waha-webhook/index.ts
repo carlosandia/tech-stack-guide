@@ -515,18 +515,78 @@ Deno.serve(async (req) => {
 
               if (sessao) {
                 const lidNumber = chatId.replace("@lid", "");
+                
+                // Estratégia 1: RPC resolve_lid_conversa
                 const { data: rpcResult } = await supabaseAdmin
                   .rpc("resolve_lid_conversa", {
                     p_org_id: sessao.organizacao_id,
                     p_lid_number: lidNumber,
                   });
+                console.log(`[waha-webhook] Presence RPC resolve_lid result for ${lidNumber}:`, JSON.stringify(rpcResult));
 
                 if (rpcResult && rpcResult.length > 0) {
                   const resolved = rpcResult[0];
                   if (resolved.chat_id && !resolved.chat_id.includes("@lid")) {
                     resolvedChatId = resolved.chat_id;
-                    console.log(`[waha-webhook] Presence @lid resolved: ${chatId} → ${resolvedChatId}`);
+                    console.log(`[waha-webhook] Presence @lid resolved via RPC: ${chatId} → ${resolvedChatId}`);
                   }
+                }
+
+                // Estratégia 2: Buscar mensagem recente com este @lid no raw_data
+                if (resolvedChatId === chatId) {
+                  const { data: msgMatch } = await supabaseAdmin
+                    .from("mensagens")
+                    .select("conversa_id")
+                    .eq("organizacao_id", sessao.organizacao_id)
+                    .filter("raw_data::text", "like", `%${lidNumber}%`)
+                    .is("deletado_em", null)
+                    .order("criado_em", { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+
+                  if (msgMatch?.conversa_id) {
+                    const { data: conv } = await supabaseAdmin
+                      .from("conversas")
+                      .select("chat_id")
+                      .eq("id", msgMatch.conversa_id)
+                      .maybeSingle();
+
+                    if (conv?.chat_id && !conv.chat_id.includes("@lid")) {
+                      resolvedChatId = conv.chat_id;
+                      console.log(`[waha-webhook] Presence @lid resolved via raw_data: ${chatId} → ${resolvedChatId}`);
+                    }
+                  }
+                }
+
+                // Estratégia 3: Buscar conversa com @lid como chat_id, pegar o contato e achar a conversa @c.us
+                if (resolvedChatId === chatId) {
+                  const { data: lidConversa } = await supabaseAdmin
+                    .from("conversas")
+                    .select("contato_id")
+                    .eq("organizacao_id", sessao.organizacao_id)
+                    .eq("chat_id", chatId)
+                    .is("deletado_em", null)
+                    .maybeSingle();
+
+                  if (lidConversa?.contato_id) {
+                    const { data: realConversa } = await supabaseAdmin
+                      .from("conversas")
+                      .select("chat_id")
+                      .eq("organizacao_id", sessao.organizacao_id)
+                      .eq("contato_id", lidConversa.contato_id)
+                      .not("chat_id", "like", "%@lid")
+                      .is("deletado_em", null)
+                      .maybeSingle();
+
+                    if (realConversa?.chat_id) {
+                      resolvedChatId = realConversa.chat_id;
+                      console.log(`[waha-webhook] Presence @lid resolved via contato: ${chatId} → ${resolvedChatId}`);
+                    }
+                  }
+                }
+
+                if (resolvedChatId === chatId) {
+                  console.warn(`[waha-webhook] ⚠️ Could not resolve presence @lid: ${chatId}`);
                 }
               }
             } catch (resolveErr) {
