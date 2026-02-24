@@ -18,8 +18,7 @@ function isChunkLoadError(error: unknown): boolean {
   return (
     msg.includes('failed to fetch dynamically imported module') ||
     msg.includes('loading chunk') ||
-    msg.includes('loading css chunk') ||
-    msg.includes('failed to fetch')
+    msg.includes('loading css chunk')
   )
 }
 
