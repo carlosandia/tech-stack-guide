@@ -1,50 +1,47 @@
 
 
-## Plano: Corrigir Scroll Forçado ao Abrir Conversa
+## Plano: Corrigir scroll inconsistente ao abrir conversas
 
-### Diagnóstico
+### Causa raiz
 
-A correção anterior (resetar `prevLengthRef` ao mudar `conversaId`) está parcialmente correta, mas falha por uma **race condition**:
+No efeito unificado atual, quando a conversa muda:
+1. `prevLengthRef = 0` (correto)
+2. `setTimeout(scroll, 50)` (correto)
+3. `prevLengthRef = mensagens.length` -- roda **imediatamente**, antes do scroll
 
-1. O `useEffect([conversaId])` reseta `prevLengthRef = 0`
-2. O `useEffect([mensagens.length])` deveria fazer scroll, mas **só re-executa quando `mensagens.length` muda**
-3. Se as mensagens da nova conversa já estão em cache (React Query), `mensagens.length` pode não mudar entre renders, e o efeito de scroll **nunca dispara**
-4. Mesmo quando dispara, o `scrollIntoView` pode executar antes do DOM renderizar as mensagens novas
+Se React re-renderizar o componente antes dos 50ms (o que depende do cache do React Query e da quantidade de dados), o scroll agendado pode falhar ou o segundo disparo do efeito nao reconhece que precisa scrollar.
 
-### Solução
+### Solucao
 
-Unificar a lógica em um único `useEffect` que depende de **ambos** `conversaId` e `mensagens.length`. Usar `setTimeout(0)` para garantir que o DOM já foi atualizado antes de fazer o scroll.
+Mover a logica de scroll e atualizacao do `prevLengthRef` para **dentro** do `setTimeout`, garantindo que:
+1. O DOM ja esteja atualizado
+2. O `prevLengthRef` so seja atualizado **apos** o scroll executar
+3. Quando `conversaMudou`, o scroll e **incondicional** (nao depende de comparacao de length)
 
-### Alteração
+### Alteracao
 
 **Arquivo**: `src/modules/conversas/components/ChatMessages.tsx`
 
-Substituir os dois efeitos separados (reset + scroll) por um único efeito:
+Substituir o efeito atual (linhas 206-233) por:
 
-```text
-// Remover o useEffect([conversaId]) separado (linhas 203-206)
-// Remover o useEffect([mensagens.length]) atual (linhas 209-224)
-
-// Substituir por um único efeito:
-const prevConversaRef = useRef<string | undefined>(undefined)
-
+```typescript
+// AIDEV-NOTE: Efeito unificado para scroll - resolve race condition entre troca de conversa e cache
 useEffect(() => {
   const conversaMudou = prevConversaRef.current !== conversaId
   prevConversaRef.current = conversaId
 
   if (conversaMudou) {
-    // Conversa trocou: forçar scroll ao final com delay para DOM atualizar
     prevLengthRef.current = 0
-    setTimeout(() => {
+  }
+
+  // Colocar scroll + atualizacao do ref dentro do setTimeout
+  // para garantir que o DOM ja renderizou as mensagens
+  setTimeout(() => {
+    if (conversaMudou || prevLengthRef.current === 0) {
+      // Conversa trocou ou primeira carga: scroll incondicional
       bottomRef.current?.scrollIntoView({ behavior: 'instant' })
-    }, 50)
-  } else if (mensagens.length > prevLengthRef.current) {
-    // Mesma conversa, novas mensagens chegaram
-    if (prevLengthRef.current === 0) {
-      setTimeout(() => {
-        bottomRef.current?.scrollIntoView({ behavior: 'instant' })
-      }, 50)
-    } else {
+    } else if (mensagens.length > prevLengthRef.current) {
+      // Novas mensagens na mesma conversa
       const container = containerRef.current
       if (container) {
         const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150
@@ -53,23 +50,21 @@ useEffect(() => {
         }
       }
     }
-  }
-
-  prevLengthRef.current = mensagens.length
+    prevLengthRef.current = mensagens.length
+  }, 80)
 }, [conversaId, mensagens.length])
 ```
 
-### Como funciona
+### O que muda
 
-1. **Troca de conversa**: `conversaMudou` detecta a mudança e força scroll instantâneo com `setTimeout(50ms)` para garantir que o DOM já renderizou
-2. **Novas mensagens na mesma conversa**: mantém a lógica original (scroll suave se perto do final)
-3. **Primeira carga**: `prevLengthRef === 0` garante scroll instantâneo
+1. `prevLengthRef.current = mensagens.length` agora roda **dentro** do timeout, apos o scroll
+2. Quando `conversaMudou`, o scroll e **incondicional** (sem `if mensagens.length > ...`)
+3. Timeout aumentado para 80ms para cobrir conversas com mais conteudo/midia
+4. Condicao `prevLengthRef.current === 0` tambem forca scroll (cobre a primeira carga)
 
-### Arquivos
+### Nenhum outro arquivo precisa mudar
 
-| Arquivo | Ação |
+| Arquivo | Acao |
 |---------|------|
-| `src/modules/conversas/components/ChatMessages.tsx` | **Editar** -- unificar os 2 useEffects em 1 |
-
-Nenhum outro arquivo precisa ser alterado.
+| `src/modules/conversas/components/ChatMessages.tsx` | Editar linhas 206-233 |
 
