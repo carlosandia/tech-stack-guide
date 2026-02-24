@@ -1,77 +1,69 @@
 
+# Filtrar Tarefas por Pipeline Atual
 
-# Plano: Corrigir "Nova versão disponível" + Recomendação sobre tarefas ao mover pipeline
+## Contexto
 
-## Problema 1: Tela "Nova versão disponível"
+Cada tarefa automatica tem `etapa_origem_id` que pertence a uma pipeline especifica. Quando uma oportunidade muda de pipeline, as tarefas da pipeline anterior devem ser **mantidas no banco** (auditoria) mas **ocultadas na interface**. Apenas tarefas da pipeline atual (ou tarefas manuais sem etapa) devem aparecer.
 
-### Diagnóstico
+## Locais Afetados
 
-O fluxo atual funciona assim:
-1. `lazyWithRetry` tenta carregar o chunk JS
-2. Se falha (chunk antigo apos deploy), faz reload automatico UMA vez (via sessionStorage)
-3. Se falha novamente, propaga o erro para o `ErrorBoundary`
-4. O `ErrorBoundary` exibe a tela "Nova versao disponivel" e para ali
+### 1. API de listagem de tarefas (detalhes.api.ts)
 
-O problema: o `ErrorBoundary` **nunca tenta auto-reload**. O comentario no codigo diz "lazyWithRetry ja cuida", mas se o erro chegou ao ErrorBoundary, significa que o retry ja falhou. Em vez de exibir uma tela bloqueante, deveria tentar mais uma vez silenciosamente.
+- `listarTarefas(oportunidadeId, funilId)` recebera o `funilId` como parametro
+- Antes de retornar, buscar as etapas do funil atual e filtrar: so retornar tarefas onde `etapa_origem_id` pertence ao funil atual OU `etapa_origem_id` e null (tarefas manuais)
 
-### Correção
+### 2. Hook useDetalhes.ts
 
-**Arquivo**: `src/components/ErrorBoundary.tsx`
+- `useTarefasOportunidade(oportunidadeId, funilId)` recebera funilId
+- Query key incluira funilId para invalidacao correta
 
-No metodo `componentDidCatch`, quando detectar erro de chunk:
-- Verificar uma flag propria no sessionStorage (`eb-chunk-reload`)
-- Se ainda nao tentou, setar a flag, limpar as flags do `lazyWithRetry`, e fazer `window.location.reload()` silenciosamente
-- Se ja tentou (flag existe), ai sim exibir o fallback visual
+### 3. DetalhesAbas.tsx
 
-Isso garante que o usuario tem **2 tentativas automaticas** (uma pelo lazyWithRetry, outra pelo ErrorBoundary) antes de ver qualquer tela de erro.
+- Recebera nova prop `funilId` e repassara para AbaTarefas
+
+### 4. AbaTarefas.tsx
+
+- Recebera `funilId` e passara para o hook `useTarefasOportunidade`
+
+### 5. DetalhesOportunidadeModal.tsx
+
+- Ja tem `funilId` via props -- passara para DetalhesAbas
+
+### 6. TarefasPopover.tsx (card do Kanban)
+
+- Recebera `funilId` como prop
+- Ao carregar tarefas, primeiro buscar etapas do funil, depois filtrar tarefas por essas etapas
+- Contagem ja sera correta pois vem do Kanban que e por funil
+
+### 7. Contagem de tarefas no Kanban (negocios.api.ts)
+
+- Na query de tarefas para contagem (linhas 370-390), adicionar join/filtro por `etapa_origem_id` pertencente as etapas do funil atual, ou `etapa_origem_id` nulo
+- Isso garante que o badge "2/5" no card reflita apenas tarefas da pipeline visivel
+
+## Logica de Filtro
 
 ```text
-Fluxo corrigido:
-
-Chunk falha
-  -> lazyWithRetry tenta reload (1a tentativa)
-    -> Falha de novo
-      -> ErrorBoundary.componentDidCatch
-        -> Auto-reload silencioso (2a tentativa)
-          -> Falha de novo
-            -> Exibe tela "Nova versao" (so em ultimo caso)
+Exibir tarefa SE:
+  - etapa_origem_id IS NULL (tarefa manual, sem vinculo a etapa)
+  - OU etapa_origem_id pertence a uma etapa do funil_id atual
 ```
 
-### Arquivos alterados
+## Arquivos Alterados
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `src/components/ErrorBoundary.tsx` | `componentDidCatch`: auto-reload silencioso para chunk errors antes de exibir fallback |
+| `src/modules/negocios/services/detalhes.api.ts` | `listarTarefas` recebe `funilId`, filtra por etapas do funil |
+| `src/modules/negocios/hooks/useDetalhes.ts` | Hook recebe e propaga `funilId` |
+| `src/modules/negocios/components/detalhes/DetalhesAbas.tsx` | Nova prop `funilId`, repassa a AbaTarefas |
+| `src/modules/negocios/components/detalhes/AbaTarefas.tsx` | Recebe `funilId`, passa ao hook |
+| `src/modules/negocios/components/detalhes/DetalhesOportunidadeModal.tsx` | Passa `funilId` para DetalhesAbas |
+| `src/modules/negocios/components/kanban/TarefasPopover.tsx` | Recebe `funilId`, filtra tarefas ao carregar |
+| `src/modules/negocios/components/kanban/KanbanCard.tsx` | Passa `funilId` para TarefasPopover |
+| `src/modules/negocios/services/negocios.api.ts` | Contagem de tarefas filtra por etapas do funil |
 
----
+## Resultado
 
-## Problema 2: Tarefas ao mover oportunidade entre pipelines
-
-### Minha recomendacao: **Manter as tarefas existentes + criar novas da pipeline destino**
-
-**Por que manter as tarefas existentes:**
-- Tarefas representam **historico de trabalho** realizado ou planejado. Excluir seria perder rastreabilidade
-- Para **relatorios e auditoria**, e essencial saber o que foi feito antes da transferencia
-- Se uma tarefa esta "em andamento" ou "pendente", o responsavel precisa continuar acompanhando
-- CRMs de mercado (Pipedrive, HubSpot) mantêm as tarefas ao mover entre pipelines
-
-**Por que tambem criar as novas tarefas da etapa destino:**
-- A nova pipeline pode ter automacoes configuradas (templates de tarefas por etapa)
-- O fluxo da nova pipeline deve ser respeitado normalmente
-
-**Sobre mencionar a pipeline de origem nas tarefas:**
-- **Nao recomendo**. Seria informacao excessiva no dia a dia. O historico da oportunidade ja registra a movimentacao entre pipelines, entao a rastreabilidade esta garantida sem poluir os cards de tarefa.
-
-### Implementacao (se aprovado)
-
-Nenhuma alteracao necessaria no momento -- o comportamento atual ja **mantem as tarefas** (elas ficam vinculadas a oportunidade, nao a pipeline). A unica pendencia seria garantir que as tarefas automaticas da etapa destino sejam criadas, mas isso depende da trigger de automacao de tarefas por etapa que ja existe no sistema.
-
----
-
-## Resumo
-
-| Item | Acao |
-|------|------|
-| "Nova versao disponivel" | Auto-reload silencioso no ErrorBoundary antes de mostrar tela |
-| Tarefas ao mover pipeline | Manter existentes + criar novas (comportamento atual ja correto) |
-
+- Tarefas de pipelines anteriores ficam preservadas no banco (auditoria completa)
+- Interface mostra apenas tarefas relevantes ao contexto atual
+- Sem poluicao visual ao transitar entre pipelines
+- Contagem no card do Kanban reflete corretamente
