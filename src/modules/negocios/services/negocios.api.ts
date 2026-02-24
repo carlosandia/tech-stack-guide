@@ -1113,15 +1113,55 @@ export const negociosApi = {
       }
     }
 
-    return eventos.map(ev => ({
-      ...ev,
-      usuario_nome: ev.usuario_id ? usersMap[ev.usuario_id] || null : null,
-      detalhes: ev.acao === 'movimentacao' && ev.detalhes ? {
-        ...ev.detalhes,
-        etapa_anterior_nome: etapasMap[ev.detalhes.etapa_anterior_id as string] || null,
-        etapa_nova_nome: etapasMap[ev.detalhes.etapa_nova_id as string] || null,
-      } : ev.detalhes,
-    }))
+    // Enriquecer nomes de responsáveis nos eventos de alteração de responsável
+    const responsavelIds = new Set<string>()
+    for (const ev of eventos) {
+      if (ev.acao === 'alteracao_campo' && ev.detalhes?.campo === 'responsavel') {
+        if (ev.detalhes.de) responsavelIds.add(ev.detalhes.de as string)
+        if (ev.detalhes.para) responsavelIds.add(ev.detalhes.para as string)
+      }
+    }
+
+    let responsaveisMap: Record<string, string> = {}
+    if (responsavelIds.size > 0) {
+      const { data: resps } = await supabase
+        .from('usuarios')
+        .select('id, nome, sobrenome')
+        .in('id', [...responsavelIds])
+      if (resps) {
+        for (const r of resps) {
+          responsaveisMap[r.id] = [r.nome, r.sobrenome].filter(Boolean).join(' ')
+        }
+      }
+    }
+
+    return eventos.map(ev => {
+      let detalhes = ev.detalhes
+
+      // Enriquecer movimentação com nomes de etapas
+      if (ev.acao === 'movimentacao' && detalhes) {
+        detalhes = {
+          ...detalhes,
+          etapa_anterior_nome: etapasMap[detalhes.etapa_anterior_id as string] || null,
+          etapa_nova_nome: etapasMap[detalhes.etapa_nova_id as string] || null,
+        }
+      }
+
+      // Enriquecer alteração de responsável com nomes
+      if (ev.acao === 'alteracao_campo' && detalhes?.campo === 'responsavel') {
+        detalhes = {
+          ...detalhes,
+          de_nome: detalhes.de ? responsaveisMap[detalhes.de as string] || null : null,
+          para_nome: detalhes.para ? responsaveisMap[detalhes.para as string] || null : null,
+        }
+      }
+
+      return {
+        ...ev,
+        usuario_nome: ev.usuario_id ? usersMap[ev.usuario_id] || null : null,
+        detalhes,
+      }
+    })
   },
 
   // =====================================================
