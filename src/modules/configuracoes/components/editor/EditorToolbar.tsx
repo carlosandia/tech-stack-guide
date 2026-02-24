@@ -72,6 +72,15 @@ function Divider() {
   return <div className="w-px h-5 bg-border mx-0.5" />
 }
 
+// AIDEV-NOTE: Seg — whitelist de MIME types seguros para upload (previne SVG/XML com XSS)
+const ALLOWED_IMAGE_MIMES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
+const MIME_TO_EXT: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+}
+
 export function EditorToolbar({ editor }: EditorToolbarProps) {
   const [showLinkInput, setShowLinkInput] = useState(false)
   const [linkUrl, setLinkUrl] = useState('')
@@ -81,14 +90,22 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
   if (!editor) return null
 
   const addLink = () => {
-    if (linkUrl) {
-      editor
-        .chain()
-        .focus()
-        .extendMarkRange('link')
-        .setLink({ href: linkUrl })
-        .run()
+    if (!linkUrl) return
+    // AIDEV-NOTE: Seg — whitelist de protocolos seguros (previne javascript: XSS)
+    const lower = linkUrl.toLowerCase().trim()
+    const SAFE_PROTOCOLS = ['http://', 'https://', 'mailto:', 'tel:']
+    if (lower.includes(':') && !SAFE_PROTOCOLS.some(p => lower.startsWith(p))) {
+      toast.error('URL inválida: use http://, https://, mailto: ou tel:')
+      setLinkUrl('')
+      setShowLinkInput(false)
+      return
     }
+    editor
+      .chain()
+      .focus()
+      .extendMarkRange('link')
+      .setLink({ href: linkUrl.trim() })
+      .run()
     setLinkUrl('')
     setShowLinkInput(false)
   }
@@ -101,9 +118,11 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
     const file = e.target.files?.[0]
     if (!file) return
 
-    // Validar tipo
-    if (!file.type.startsWith('image/')) {
-      toast.error('Apenas arquivos de imagem são permitidos')
+    // AIDEV-NOTE: Seg — whitelist de MIME types (SVG/XML podem conter XSS; file.type é falsificável
+    // mas bloqueia os tipos perigosos e a extensão é derivada do MIME, não do nome)
+    if (!ALLOWED_IMAGE_MIMES.has(file.type)) {
+      toast.error('Apenas imagens JPEG, PNG, GIF ou WebP são permitidas')
+      if (fileInputRef.current) fileInputRef.current.value = ''
       return
     }
 
@@ -115,7 +134,8 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
 
     setUploading(true)
     try {
-      const ext = file.name.split('.').pop() || 'png'
+      // AIDEV-NOTE: Seg — extensão derivada do MIME (não do filename — previne path traversal)
+      const ext = MIME_TO_EXT[file.type] || 'jpg'
       const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
       const filePath = `assinaturas/${fileName}`
 

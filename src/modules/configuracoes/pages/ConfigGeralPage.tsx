@@ -9,6 +9,7 @@ import { useState, useEffect } from 'react'
 import { Save, Loader2, Settings, AlertTriangle, ArrowRight } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { useAuth } from '@/providers/AuthProvider'
 import { useConfigToolbar } from '../contexts/ConfigToolbarContext'
 import { useConfigTenant, useAtualizarConfigTenant } from '../hooks/useConfigTenant'
@@ -186,10 +187,10 @@ export function ConfigGeralPage() {
         horario_inicio_envio: config.horario_inicio_envio || '08:00',
         horario_fim_envio: config.horario_fim_envio || '18:00',
       })
-      // Carregar widget config do JSONB
-      const raw = (config as any)?.widget_whatsapp_config
-      if (raw && typeof raw === 'object') {
-        setWidgetConfig({ ...DEFAULT_WIDGET_CONFIG, ...raw })
+      // AIDEV-NOTE: Seg — cast seguro sem 'as any'; validação da estrutura garante spread seguro
+      const raw = (config as { widget_whatsapp_config?: unknown })?.widget_whatsapp_config
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        setWidgetConfig({ ...DEFAULT_WIDGET_CONFIG, ...(raw as Partial<WidgetConfig>) })
       }
       setTemAlteracoes(false)
     }
@@ -212,6 +213,11 @@ export function ConfigGeralPage() {
   }
 
   const handleSave = async () => {
+    // AIDEV-NOTE: Seg — validar que horario_fim é após horario_inicio
+    if (form.horario_inicio_envio >= form.horario_fim_envio) {
+      toast.error('Horário de fim deve ser posterior ao horário de início')
+      return
+    }
     try {
       await atualizarConfig.mutateAsync({
         ...form,

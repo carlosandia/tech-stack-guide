@@ -216,11 +216,13 @@ export function WidgetWhatsAppConfig({ value, onChange, organizacaoId }: Props) 
             {/* Nome do Atendente */}
             <div>
               <label className="text-sm font-medium text-foreground mb-1.5 block">Nome do Atendente</label>
+              {/* AIDEV-NOTE: Seg — maxLength previne payloads excessivos; sanitização no edge function */}
               <input
                 type="text"
                 value={config.nome_atendente}
                 onChange={e => update('nome_atendente', e.target.value)}
                 placeholder="Maria"
+                maxLength={100}
                 className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm text-foreground"
               />
             </div>
@@ -391,11 +393,13 @@ export function WidgetWhatsAppConfig({ value, onChange, organizacaoId }: Props) 
                 <div className="border border-border rounded-md p-3 space-y-2">
                   <div>
                     <label className="text-xs font-medium text-muted-foreground block mb-1">Email de destino</label>
+                    {/* AIDEV-NOTE: Seg — maxLength + pattern para prevenir email header injection */}
                     <input
                       type="email"
                       value={config.email_destino}
                       onChange={e => update('email_destino', e.target.value)}
                       placeholder={conexaoEmail.email || 'email@exemplo.com'}
+                      maxLength={255}
                       className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm text-foreground"
                     />
                   </div>

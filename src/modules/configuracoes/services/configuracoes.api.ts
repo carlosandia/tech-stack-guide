@@ -7,6 +7,7 @@
  * Para INSERTs, organizacao_id é obtido via helper getOrganizacaoId()
  */
 
+import { z } from 'zod'
 import { supabase } from '@/lib/supabase'
 import { env } from '@/config/env'
 import api from '@/lib/api'
@@ -2860,6 +2861,37 @@ export const metasApi = {
 // API Functions - Configurações do Tenant
 // =====================================================
 
+// AIDEV-NOTE: Seg — schema Zod para prevenir field injection em configuracoes_tenant
+const ConfiguracaoTenantInputSchema = z.object({
+  moeda_padrao: z.enum(['BRL', 'USD', 'EUR']).optional(),
+  timezone: z.string().regex(/^[A-Za-z_]+\/[A-Za-z_]+$/, 'Timezone inválido').optional(),
+  formato_data: z.enum(['DD/MM/YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD']).optional(),
+  notificar_nova_oportunidade: z.boolean().optional(),
+  notificar_tarefa_vencida: z.boolean().optional(),
+  notificar_mudanca_etapa: z.boolean().optional(),
+  criar_tarefa_automatica: z.boolean().optional(),
+  dias_alerta_inatividade: z.number().int().min(1).max(90).optional(),
+  assinatura_mensagem: z.string().max(50000).optional(),
+  horario_inicio_envio: z.string().regex(/^\d{2}:\d{2}$/, 'Formato inválido HH:MM').optional(),
+  horario_fim_envio: z.string().regex(/^\d{2}:\d{2}$/, 'Formato inválido HH:MM').optional(),
+  widget_whatsapp_ativo: z.boolean().optional(),
+  widget_whatsapp_config: z.object({
+    ativo: z.boolean().optional(),
+    numero: z.string().max(20).optional(),
+    posicao: z.enum(['direita', 'esquerda']).optional(),
+    usar_formulario: z.boolean().optional(),
+    campos_formulario: z.array(z.string()).optional(),
+    campos_obrigatorios: z.array(z.string()).optional(),
+    nome_atendente: z.string().max(100).optional(),
+    foto_atendente_url: z.string().max(500).optional().or(z.literal('')),
+    mensagem_boas_vindas: z.string().max(500).optional(),
+    cor_botao: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+    funil_id: z.string().optional(),
+    notificar_email: z.boolean().optional(),
+    email_destino: z.string().email('Email inválido').max(255).optional().or(z.literal('')),
+  }).optional(),
+})
+
 export const configTenantApi = {
   buscar: async () => {
     const { data, error } = await supabase
@@ -2872,13 +2904,15 @@ export const configTenantApi = {
   },
 
   // AIDEV-NOTE: Upsert otimizado — 1 query ao invés de 2 (SELECT+UPDATE/INSERT)
-  atualizar: async (payload: Record<string, unknown>) => {
+  atualizar: async (payload: unknown) => {
+    // AIDEV-NOTE: Seg — validação Zod previne field injection (apenas campos conhecidos são aceitos)
+    const validated = ConfiguracaoTenantInputSchema.parse(payload)
     const orgId = await getOrganizacaoId()
 
     const { data, error } = await supabase
       .from('configuracoes_tenant')
       .upsert(
-        { organizacao_id: orgId, ...payload, atualizado_em: new Date().toISOString() } as any,
+        { organizacao_id: orgId, ...validated, atualizado_em: new Date().toISOString() } as any,
         { onConflict: 'organizacao_id' }
       )
       .select()
