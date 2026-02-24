@@ -4,7 +4,7 @@
  */
 
 import { useState } from 'react'
-import { Plus, Trash2, Eye, EyeOff, LayoutGrid, Search } from 'lucide-react'
+import { Plus, Trash2, Eye, EyeOff, LayoutGrid, Search, User, Building2, Briefcase } from 'lucide-react'
 import { useCamposVinculados, useCamposDisponiveis, useVincularCampo, useDesvincularCampo, useAtualizarVinculoCampo } from '../../hooks/usePipelineConfig'
 
 interface Props {
@@ -78,8 +78,8 @@ export function ConfigCampos({ funilId }: Props) {
               className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card"
             >
               {/* Ícone entidade */}
-              <span className="text-base flex-shrink-0">
-                {vinculo.campo?.entidade === 'empresa' ? '🏢' : vinculo.campo?.entidade === 'oportunidade' ? '💼' : '👤'}
+              <span className="flex-shrink-0 text-muted-foreground">
+                {vinculo.campo?.entidade === 'empresa' ? <Building2 className="w-4 h-4" /> : vinculo.campo?.entidade === 'oportunidade' ? <Briefcase className="w-4 h-4" /> : <User className="w-4 h-4" />}
               </span>
 
               {/* Nome */}
@@ -176,7 +176,7 @@ export function ConfigCampos({ funilId }: Props) {
                       : 'bg-muted text-muted-foreground hover:bg-accent'
                   }`}
                 >
-                  {f === 'todos' ? 'Todos' : f === 'pessoa' ? '👤 Pessoa' : f === 'empresa' ? '🏢 Empresa' : '💼 Oportunidade'}
+                  {f === 'todos' ? 'Todos' : f === 'pessoa' ? <><User className="w-3.5 h-3.5 inline -mt-0.5 mr-1" />Pessoa</> : f === 'empresa' ? <><Building2 className="w-3.5 h-3.5 inline -mt-0.5 mr-1" />Empresa</> : <><Briefcase className="w-3.5 h-3.5 inline -mt-0.5 mr-1" />Oportunidade</>}
                 </button>
               ))}
             </div>
@@ -195,8 +195,8 @@ export function ConfigCampos({ funilId }: Props) {
                   onClick={() => vincular.mutate({ campoId: campo.id })}
                   className="w-full flex items-center gap-3 p-2.5 rounded-md hover:bg-accent text-left transition-all duration-200"
                 >
-                  <span className="text-base">
-                    {campo.entidade === 'empresa' ? '🏢' : campo.entidade === 'oportunidade' ? '💼' : '👤'}
+                  <span className="text-muted-foreground">
+                    {campo.entidade === 'empresa' ? <Building2 className="w-4 h-4" /> : campo.entidade === 'oportunidade' ? <Briefcase className="w-4 h-4" /> : <User className="w-4 h-4" />}
                   </span>
                   <span className="text-sm text-foreground flex-1">{campo.nome}</span>
                   <span className="text-xs text-muted-foreground">{campo.tipo}</span>
