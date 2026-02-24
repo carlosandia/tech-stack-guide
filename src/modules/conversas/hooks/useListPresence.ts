@@ -53,6 +53,7 @@ export function useListPresence(sessionName: string | null): Map<string, Presenc
   useEffect(() => {
     if (!sessionName) return
 
+    // AIDEV-NOTE: Canal dedicado para presença na lista — webhook faz broadcast em ambos
     const channel = supabase.channel(`list-presence:${sessionName}`)
       .on('broadcast', { event: 'presence_update' }, ({ payload }) => {
         handleUpdate(payload)
