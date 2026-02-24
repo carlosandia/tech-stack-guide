@@ -60,6 +60,7 @@ export const ContatoViewModal = forwardRef<HTMLDivElement, ContatoViewModalProps
       return data || []
     },
     enabled: !!contato?.id && open,
+    staleTime: 0,
   })
 
   // Oportunidades vinculadas para o histórico
