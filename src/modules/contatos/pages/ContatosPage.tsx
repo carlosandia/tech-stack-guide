@@ -467,6 +467,7 @@ const ContatosPage = forwardRef<HTMLDivElement>(function ContatosPage(_props, _r
             try {
               console.log('[handleFormSubmit] Salvando campos custom. tipo:', editingContato.tipo, 'contatoId:', editingContato.id)
               await contatosApi.salvarCamposCustomizados(editingContato.id, editingContato.tipo as TipoContato, formData)
+              queryClient.invalidateQueries({ queryKey: ['contatos'] })
               queryClient.invalidateQueries({ queryKey: ['valores-custom-contato-view'] })
             } catch (err: any) {
               console.error('[handleFormSubmit] Erro ao salvar campos customizados (edição):', err?.message || err)
@@ -491,8 +492,9 @@ const ContatosPage = forwardRef<HTMLDivElement>(function ContatosPage(_props, _r
            // Salvar campos customizados
            try {
               console.log('[handleFormSubmit] Salvando campos custom. tipo:', tipo, 'contatoId:', contato.id)
-              await contatosApi.salvarCamposCustomizados(contato.id, tipo as TipoContato, formData)
-              queryClient.invalidateQueries({ queryKey: ['valores-custom-contato-view'] })
+               await contatosApi.salvarCamposCustomizados(contato.id, tipo as TipoContato, formData)
+               queryClient.invalidateQueries({ queryKey: ['contatos'] })
+               queryClient.invalidateQueries({ queryKey: ['valores-custom-contato-view'] })
            } catch (err: any) {
               console.error('[handleFormSubmit] Erro ao salvar campos customizados (criação):', err?.message || err)
               toast.error('Erro ao salvar campos personalizados. Edite o contato para tentar novamente.')
