@@ -5,6 +5,7 @@
 
 import { z } from 'zod'
 
+// AIDEV-NOTE: Seg — valor_meta com max para evitar overflow em cálculos de % (M4); refine data_fim >= data_inicio (B3)
 export const metaFormSchema = z.object({
   tipo: z.enum(['empresa', 'equipe', 'individual']),
   nome: z.string().min(1, 'Nome é obrigatório').max(255),
@@ -15,7 +16,7 @@ export const metaFormSchema = z.object({
     'novos_contatos', 'mqls', 'sqls',
     'tempo_fechamento', 'velocidade_pipeline',
   ]),
-  valor_meta: z.number().positive('Valor deve ser positivo'),
+  valor_meta: z.number().positive('Valor deve ser positivo').max(999_999_999, 'Valor máximo é 999.999.999'),
   periodo: z.enum(['mensal', 'trimestral', 'semestral', 'anual']),
   data_inicio: z.string().min(1, 'Data de início é obrigatória'),
   data_fim: z.string().min(1, 'Data de fim é obrigatória'),
@@ -29,6 +30,9 @@ export const metaFormSchema = z.object({
     return true
   },
   { message: 'Meta de equipe requer equipe, meta individual requer membro' }
+).refine(
+  (data) => new Date(data.data_fim) >= new Date(data.data_inicio),
+  { message: 'Data de fim deve ser igual ou posterior à data de início', path: ['data_fim'] }
 )
 
 export type MetaFormValues = z.infer<typeof metaFormSchema>

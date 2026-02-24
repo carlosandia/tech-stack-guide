@@ -2319,10 +2319,22 @@ export const equipeApi = {
   },
 
   atualizarEquipe: async (id: string, payload: Record<string, unknown>) => {
+    // AIDEV-NOTE: Seg — whitelist Zod + validação de tenant (IDOR + field injection)
+    const orgId = await getOrganizacaoId()
+    const AtualizarEquipeSchema = z.object({
+      nome: z.string().min(1).max(100).optional(),
+      descricao: z.string().optional(),
+      lider_id: z.string().uuid().nullable().optional(),
+      cor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+      ativo: z.boolean().optional(),
+    })
+    const validated = AtualizarEquipeSchema.parse(payload)
+
     const { data, error } = await supabase
       .from('equipes')
-      .update({ ...payload, atualizado_em: new Date().toISOString() } as any)
+      .update({ ...validated, atualizado_em: new Date().toISOString() })
       .eq('id', id)
+      .eq('organizacao_id', orgId)
       .select()
       .single()
 
@@ -2342,13 +2354,33 @@ export const equipeApi = {
   },
 
   adicionarMembro: async (equipeId: string, payload: { usuario_id: string; papel?: 'lider' | 'membro' }) => {
+    // AIDEV-NOTE: Seg — validar que equipe e usuário pertencem ao tenant (IDOR cruzado)
     const orgId = await getOrganizacaoId()
+
+    const { data: equipe } = await supabase
+      .from('equipes')
+      .select('id')
+      .eq('id', equipeId)
+      .eq('organizacao_id', orgId)
+      .maybeSingle()
+    if (!equipe) throw new Error('Equipe não encontrada')
+
+    const { data: usuario } = await supabase
+      .from('usuarios')
+      .select('id')
+      .eq('id', payload.usuario_id)
+      .eq('organizacao_id', orgId)
+      .maybeSingle()
+    if (!usuario) throw new Error('Usuário não encontrado')
+
+    // AIDEV-NOTE: `as any` cirúrgico — coluna `papel` existe na migration 00012 mas tipos gerados estão desatualizados
     const { data, error } = await supabase
       .from('equipes_membros')
       .insert({
         organizacao_id: orgId,
         equipe_id: equipeId,
         usuario_id: payload.usuario_id,
+        papel: payload.papel || 'membro',
       } as any)
       .select()
       .single()
@@ -2358,6 +2390,17 @@ export const equipeApi = {
   },
 
   removerMembro: async (equipeId: string, usuarioId: string) => {
+    // AIDEV-NOTE: Seg — validar que equipe pertence ao tenant antes de deletar (IDOR C1)
+    const orgId = await getOrganizacaoId()
+
+    const { data: equipe } = await supabase
+      .from('equipes')
+      .select('id')
+      .eq('id', equipeId)
+      .eq('organizacao_id', orgId)
+      .maybeSingle()
+    if (!equipe) throw new Error('Equipe não encontrada')
+
     const { error } = await supabase
       .from('equipes_membros')
       .delete()
@@ -2368,10 +2411,21 @@ export const equipeApi = {
   },
 
   alterarPapelMembro: async (equipeId: string, usuarioId: string, papel: 'lider' | 'membro') => {
-    // equipes_membros não tem coluna 'papel' confirmada, mas usamos o que o backend define
+    // AIDEV-NOTE: Seg — corrigido bug: papel era ignorado (.update({})); agora salva papel + valida tenant (A1)
+    const orgId = await getOrganizacaoId()
+
+    const { data: equipe } = await supabase
+      .from('equipes')
+      .select('id')
+      .eq('id', equipeId)
+      .eq('organizacao_id', orgId)
+      .maybeSingle()
+    if (!equipe) throw new Error('Equipe não encontrada')
+
+    // AIDEV-NOTE: `as any` cirúrgico — coluna `papel` existe na migration 00012 mas tipos gerados estão desatualizados
     const { error } = await supabase
       .from('equipes_membros')
-      .update({} as Record<string, unknown>)
+      .update({ papel } as any)
       .eq('equipe_id', equipeId)
       .eq('usuario_id', usuarioId)
 
@@ -2381,7 +2435,8 @@ export const equipeApi = {
 
   listarUsuarios: async (params?: Record<string, string>) => {
     const page = parseInt(params?.page || '1')
-    const limit = parseInt(params?.limit || '20')
+    // AIDEV-NOTE: Seg — cap de paginação para evitar resource exhaustion (M1)
+    const limit = Math.min(parseInt(params?.limit || '20'), 100)
     const offset = (page - 1) * limit
 
     let query = supabase
@@ -2389,7 +2444,11 @@ export const equipeApi = {
       .select('id, organizacao_id, nome, sobrenome, email, telefone, avatar_url, perfil_permissao_id, status, ultimo_login, criado_em, atualizado_em, role, deletado_em, papel:perfis_permissao(id, nome)', { count: 'exact' })
       .is('deletado_em', null)
 
-    if (params?.busca) query = query.or(`nome.ilike.%${params.busca}%,email.ilike.%${params.busca}%`)
+    if (params?.busca) {
+      // AIDEV-NOTE: Seg — limite de 50 chars na busca para evitar resource exhaustion (M3)
+      const searchTerm = params.busca.substring(0, 50)
+      query = query.or(`nome.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`)
+    }
     if (params?.status && params.status !== 'todos') query = query.eq('status', params.status)
     if (params?.papel_id) query = query.eq('perfil_permissao_id', params.papel_id)
 
@@ -2420,6 +2479,16 @@ export const equipeApi = {
   },
 
   convidarUsuario: async (payload: Record<string, unknown>) => {
+    // AIDEV-NOTE: Seg — whitelist Zod antes de inserir no banco (M2)
+    const ConvidarSchema = z.object({
+      nome: z.string().min(1).max(100),
+      sobrenome: z.string().max(100).optional(),
+      email: z.string().email().max(255),
+      papel_id: z.string().uuid().optional(),
+      equipe_ids: z.array(z.string().uuid()).optional(),
+    })
+    const validated = ConvidarSchema.parse(payload)
+
     const orgId = await getOrganizacaoId()
     const userId = await getUsuarioId()
 
@@ -2428,12 +2497,12 @@ export const equipeApi = {
       .from('usuarios')
       .insert({
         organizacao_id: orgId,
-        nome: payload.nome,
-        sobrenome: payload.sobrenome,
-        email: payload.email,
-        perfil_permissao_id: payload.papel_id,
+        nome: validated.nome,
+        sobrenome: validated.sobrenome,
+        email: validated.email,
+        perfil_permissao_id: validated.papel_id,
         status: 'pendente',
-      } as any)
+      })
       .select()
       .single()
 
@@ -2453,9 +2522,9 @@ export const equipeApi = {
     try {
       const { error: fnError } = await supabase.functions.invoke('invite-admin', {
         body: {
-          email: payload.email,
-          nome: payload.nome,
-          sobrenome: payload.sobrenome,
+          email: validated.email,
+          nome: validated.nome,
+          sobrenome: validated.sobrenome,
           usuario_id: data.id,
           organizacao_id: orgId,
           organizacao_nome: orgNome,
@@ -2475,12 +2544,23 @@ export const equipeApi = {
   },
 
   atualizarUsuario: async (id: string, payload: Record<string, unknown>) => {
-    const { equipe_ids, ...dadosUsuario } = payload as { equipe_ids?: string[] } & Record<string, unknown>
+    // AIDEV-NOTE: Seg — whitelist Zod: impede injeção de role/organizacao_id (C3)
+    const AtualizarUsuarioSchema = z.object({
+      nome: z.string().min(1).max(100).optional(),
+      sobrenome: z.string().max(100).nullable().optional(),
+      telefone: z.string().max(20).nullable().optional(),
+      perfil_permissao_id: z.string().uuid().nullable().optional(),
+      equipe_ids: z.array(z.string().uuid()).optional(),
+    })
+    const { equipe_ids, ...validated } = AtualizarUsuarioSchema.parse(payload)
+
+    const orgId = await getOrganizacaoId()
 
     const { data, error } = await supabase
       .from('usuarios')
-      .update({ ...dadosUsuario, atualizado_em: new Date().toISOString() } as any)
+      .update({ ...validated, atualizado_em: new Date().toISOString() })
       .eq('id', id)
+      .eq('organizacao_id', orgId)
       .select()
       .single()
 
@@ -2489,10 +2569,19 @@ export const equipeApi = {
   },
 
   alterarStatusUsuario: async (id: string, payload: { status: string; motivo?: string }) => {
+    // AIDEV-NOTE: Seg — validação de tenant: impede alterar status de usuário de outro tenant (C2)
+    const orgId = await getOrganizacaoId()
+    const StatusSchema = z.object({
+      status: z.enum(['ativo', 'inativo', 'pendente', 'suspenso']),
+      motivo: z.string().max(500).optional(),
+    })
+    const validated = StatusSchema.parse(payload)
+
     const { data, error } = await supabase
       .from('usuarios')
-      .update({ status: payload.status, atualizado_em: new Date().toISOString() })
+      .update({ status: validated.status, atualizado_em: new Date().toISOString() })
       .eq('id', id)
+      .eq('organizacao_id', orgId)
       .select()
       .single()
 
@@ -2560,13 +2649,21 @@ export const equipeApi = {
   },
 
   criarPerfil: async (payload: Record<string, unknown>) => {
+    // AIDEV-NOTE: Seg — whitelist Zod: impede injeção de is_admin/is_sistema/organizacao_id (C5)
+    const PerfilSchema = z.object({
+      nome: z.string().min(1).max(100),
+      descricao: z.string().optional(),
+      permissoes: z.array(z.object({
+        modulo: z.enum(['negocios', 'contatos', 'conversas', 'tarefas', 'metas', 'relatorios', 'configuracoes']),
+        acoes: z.array(z.enum(['visualizar', 'criar', 'editar', 'excluir', 'gerenciar'])).min(1),
+      })).optional(),
+    })
+    const validated = PerfilSchema.parse(payload)
     const orgId = await getOrganizacaoId()
-    // Remove campos que não existem na tabela
-    const { is_admin, is_sistema, ...dadosPerfil } = payload as { is_admin?: boolean; is_sistema?: boolean } & Record<string, unknown>
 
     const { data, error } = await supabase
       .from('perfis_permissao')
-      .insert({ organizacao_id: orgId, ...dadosPerfil } as any)
+      .insert({ organizacao_id: orgId, ...validated })
       .select()
       .single()
 
@@ -2575,13 +2672,23 @@ export const equipeApi = {
   },
 
   atualizarPerfil: async (id: string, payload: Record<string, unknown>) => {
-    // Remove campos que não existem na tabela
-    const { is_admin, is_sistema, ...dadosPerfil } = payload as { is_admin?: boolean; is_sistema?: boolean } & Record<string, unknown>
+    // AIDEV-NOTE: Seg — whitelist Zod + validação de tenant: impede injeção de is_admin/is_sistema (C5)
+    const AtualizarPerfilSchema = z.object({
+      nome: z.string().min(1).max(100).optional(),
+      descricao: z.string().optional(),
+      permissoes: z.array(z.object({
+        modulo: z.enum(['negocios', 'contatos', 'conversas', 'tarefas', 'metas', 'relatorios', 'configuracoes']),
+        acoes: z.array(z.enum(['visualizar', 'criar', 'editar', 'excluir', 'gerenciar'])).min(1),
+      })).optional(),
+    })
+    const validated = AtualizarPerfilSchema.parse(payload)
+    const orgId = await getOrganizacaoId()
 
     const { data, error } = await supabase
       .from('perfis_permissao')
-      .update({ ...dadosPerfil, atualizado_em: new Date().toISOString() } as any)
+      .update({ ...validated, atualizado_em: new Date().toISOString() })
       .eq('id', id)
+      .eq('organizacao_id', orgId)
       .select()
       .single()
 
@@ -2628,6 +2735,11 @@ function processarMetaProgresso(metaRaw: Record<string, unknown>): MetaComProgre
 
 export const metasApi = {
   listar: async (params?: Record<string, string>) => {
+    // AIDEV-NOTE: Seg — cap de paginação para evitar resource exhaustion (A5)
+    const page = parseInt(params?.page || '1')
+    const limit = Math.min(parseInt(params?.limit || '50'), 100)
+    const offset = (page - 1) * limit
+
     let query = supabase
       .from('metas')
       .select(
@@ -2643,7 +2755,9 @@ export const metasApi = {
     if (params?.usuario_id) query = query.eq('usuario_id', params.usuario_id)
     if (params?.ativa) query = query.eq('ativo', params.ativa === 'true')
 
-    const { data, error, count } = await query.order('criado_em', { ascending: false })
+    const { data, error, count } = await query
+      .order('criado_em', { ascending: false })
+      .range(offset, offset + limit - 1)
 
     if (error) throw new Error(`Erro ao listar metas: ${error.message}`)
     const metas = (data || []).map(m => processarMetaProgresso(m as Record<string, unknown>))
@@ -2678,12 +2792,41 @@ export const metasApi = {
   },
 
   criar: async (payload: Record<string, unknown>) => {
+    // AIDEV-NOTE: Seg — whitelist Zod + validação cross-tenant de usuario_id/equipe_id (C4/A4)
+    const CriarMetaSchema = z.object({
+      tipo: z.enum(['empresa', 'equipe', 'individual']),
+      nome: z.string().min(1).max(255),
+      metrica: z.enum(['valor_vendas', 'mrr', 'ticket_medio', 'quantidade_vendas', 'novos_negocios', 'taxa_conversao', 'reunioes', 'ligacoes', 'emails', 'tarefas', 'novos_contatos', 'mqls', 'sqls', 'tempo_fechamento', 'velocidade_pipeline']),
+      valor_meta: z.number().positive().max(999_999_999),
+      periodo: z.enum(['mensal', 'trimestral', 'semestral', 'anual']),
+      data_inicio: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      data_fim: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      equipe_id: z.string().uuid().optional(),
+      usuario_id: z.string().uuid().optional(),
+      funil_id: z.string().uuid().optional(),
+      meta_pai_id: z.string().uuid().optional(),
+    })
+    const validated = CriarMetaSchema.parse(payload)
     const orgId = await getOrganizacaoId()
     const userId = await getUsuarioId()
 
+    // Validar que usuario_id pertence ao tenant (se individual)
+    if (validated.tipo === 'individual' && validated.usuario_id) {
+      const { data: usr } = await supabase
+        .from('usuarios').select('id').eq('id', validated.usuario_id).eq('organizacao_id', orgId).maybeSingle()
+      if (!usr) throw new Error('Usuário não encontrado')
+    }
+
+    // Validar que equipe_id pertence ao tenant (se equipe)
+    if (validated.tipo === 'equipe' && validated.equipe_id) {
+      const { data: eq } = await supabase
+        .from('equipes').select('id').eq('id', validated.equipe_id).eq('organizacao_id', orgId).maybeSingle()
+      if (!eq) throw new Error('Equipe não encontrada')
+    }
+
     const { data, error } = await supabase
       .from('metas')
-      .insert({ organizacao_id: orgId, ...payload, criado_por: userId } as any)
+      .insert({ organizacao_id: orgId, ...validated, criado_por: userId })
       .select()
       .single()
 
@@ -2695,16 +2838,29 @@ export const metasApi = {
       meta_id: data.id,
       valor_atual: 0,
       percentual_atingido: 0,
-    } as any)
+    })
 
     return data as unknown as Meta
   },
 
   atualizar: async (id: string, payload: Record<string, unknown>) => {
+    // AIDEV-NOTE: Seg — whitelist Zod + validação de tenant: impede injeção de organizacao_id/criado_por (C4)
+    const AtualizarMetaSchema = z.object({
+      nome: z.string().min(1).max(255).optional(),
+      valor_meta: z.number().positive().max(999_999_999).optional(),
+      data_inicio: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      data_fim: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      ativo: z.boolean().optional(),
+      funil_id: z.string().uuid().nullable().optional(),
+    })
+    const validated = AtualizarMetaSchema.parse(payload)
+    const orgId = await getOrganizacaoId()
+
     const { data, error } = await supabase
       .from('metas')
-      .update({ ...payload, atualizado_em: new Date().toISOString() } as any)
+      .update({ ...validated, atualizado_em: new Date().toISOString() })
       .eq('id', id)
+      .eq('organizacao_id', orgId)
       .select()
       .single()
 

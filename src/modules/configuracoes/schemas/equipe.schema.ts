@@ -71,6 +71,7 @@ export const modulosDisponiveis = [
 
 export const acoesDisponiveis = ['visualizar', 'criar', 'editar', 'excluir', 'gerenciar'] as const
 
+// AIDEV-NOTE: Seg — modulo usa string pois UI já restringe via modulosDisponiveis; whitelist aplicada no API service (criarPerfil/atualizarPerfil)
 export const permissaoSchema = z.object({
   modulo: z.string().min(1),
   acoes: z.array(z.enum(['visualizar', 'criar', 'editar', 'excluir', 'gerenciar'])).min(1, 'Selecione ao menos uma ação'),
