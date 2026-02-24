@@ -5,9 +5,10 @@
  */
 
 import { useState, useEffect, useRef, useId, useMemo, forwardRef } from 'react'
-import { X, Download } from 'lucide-react'
+import { X, Download, ShieldAlert } from 'lucide-react'
 import { contatosApi, type ListarContatosParams, type TipoContato } from '../services/contatos.api'
 import { useCamposConfig } from '../hooks/useCamposConfig'
+import { useAuth } from '@/providers/AuthProvider'
 
 interface ColumnOption {
   key: string
@@ -38,6 +39,8 @@ export const ExportarContatosModal = forwardRef<HTMLDivElement, ExportarContatos
   selectedIds,
 }, _ref) {
   const { sistemaFields, customFields, isLoading: camposLoading } = useCamposConfig(tipo)
+  const { role } = useAuth()
+  const isMember = role === 'member'
 
   // AIDEV-NOTE: Montar colunas dinamicamente a partir dos campos globais
   const colunas = useMemo<ColumnOption[]>(() => {
@@ -209,12 +212,20 @@ export const ExportarContatosModal = forwardRef<HTMLDivElement, ExportarContatos
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 min-h-0 overscroll-contain space-y-4">
+            {isMember && (
+              <div className="flex items-start gap-2 p-3 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+                <ShieldAlert className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                <p className="text-xs text-amber-700 dark:text-amber-300">
+                  Você exportará apenas os contatos atribuídos a você.
+                </p>
+              </div>
+            )}
             <p className="text-sm text-muted-foreground">
               {selectedIds && selectedIds.length > 0
                 ? `Exportando ${selectedIds.length} contato(s) selecionado(s)`
                 : temFiltros
                   ? 'Exportando contatos com filtros aplicados'
-                  : `Exportando todos(as) ${tipo === 'pessoa' ? 'pessoas' : 'empresas'}`}
+                  : `Exportando todos(as) ${tipo === 'pessoa' ? 'pessoas' : 'empresas'}${isMember ? ' atribuídos a você' : ''}`}
             </p>
 
             <div>

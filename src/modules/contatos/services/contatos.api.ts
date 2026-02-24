@@ -8,7 +8,7 @@
  */
 
 import { supabase } from '@/lib/supabase'
-import { getOrganizacaoId, getUsuarioId } from '@/shared/services/auth-context'
+import { getOrganizacaoId, getUsuarioId, getUserRole } from '@/shared/services/auth-context'
 
 // =====================================================
 // Types
@@ -881,10 +881,14 @@ export const contatosApi = {
 
   exportarComColunas: async (params: ListarContatosParams & { colunas: Array<{ key: string; label: string; isCustom?: boolean }>; ids?: string[] }): Promise<string> => {
     // AIDEV-NOTE: Exportacao em batches de 1000 para prevenir timeout (Plano Escala 5.5)
+    // AIDEV-NOTE: Isolamento por role — members exportam apenas contatos atribuídos a eles
     const batchSize = 1000
     let allContatos: any[] = []
     let offset = 0
     let hasMore = true
+
+    const userId = await getUsuarioId()
+    const userRole = await getUserRole()
 
     while (hasMore) {
       let query = supabase
@@ -893,6 +897,11 @@ export const contatosApi = {
         .is('deletado_em', null)
         .order('criado_em', { ascending: false })
         .range(offset, offset + batchSize - 1)
+
+      // AIDEV-NOTE: Members só podem exportar contatos atribuídos a eles (owner_id)
+      if (userRole === 'member') {
+        query = query.eq('owner_id', userId)
+      }
 
       if (params.ids && params.ids.length > 0) {
         query = query.in('id', params.ids)
