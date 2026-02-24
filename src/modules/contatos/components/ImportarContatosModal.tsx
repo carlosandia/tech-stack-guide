@@ -6,6 +6,7 @@
 
 import { useState, useRef, useCallback, forwardRef } from 'react'
 import { X, Upload, FileSpreadsheet, ChevronRight, ChevronLeft, AlertTriangle, Loader2 } from 'lucide-react'
+import * as XLSX from 'xlsx'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { useSegmentos } from '../hooks/useSegmentos'
@@ -47,17 +48,76 @@ const CAMPOS_EMPRESA = [
   { value: 'observacoes', label: 'Observações' },
 ]
 
+/**
+ * AIDEV-NOTE: Parser CSV robusto que respeita campos entre aspas
+ * Trata corretamente separadores dentro de aspas e aspas escapadas ("")
+ */
+function parseCSVLine(line: string, separator: string): string[] {
+  const fields: string[] = []
+  let current = ''
+  let inQuotes = false
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i]
+    if (inQuotes) {
+      if (char === '"') {
+        if (i + 1 < line.length && line[i + 1] === '"') {
+          current += '"'
+          i++ // pula aspas escapadas
+        } else {
+          inQuotes = false
+        }
+      } else {
+        current += char
+      }
+    } else {
+      if (char === '"') {
+        inQuotes = true
+      } else if (char === separator) {
+        fields.push(current.trim())
+        current = ''
+      } else {
+        current += char
+      }
+    }
+  }
+  fields.push(current.trim())
+  return fields
+}
+
 function parseCSV(text: string): { headers: string[]; rows: ParsedRow[] } {
   const lines = text.split(/\r?\n/).filter(l => l.trim())
   if (lines.length === 0) return { headers: [], rows: [] }
 
   const separator = lines[0].includes(';') ? ';' : ','
-  const headers = lines[0].split(separator).map(h => h.trim().replace(/^"|"$/g, ''))
+  const headers = parseCSVLine(lines[0], separator)
   const rows = lines.slice(1).map(line => {
-    const values = line.split(separator).map(v => v.trim().replace(/^"|"$/g, ''))
+    const values = parseCSVLine(line, separator)
     const row: ParsedRow = {}
     headers.forEach((h, i) => { row[h] = values[i] || '' })
     return row
+  })
+
+  return { headers, rows }
+}
+
+/**
+ * AIDEV-NOTE: Parser XLSX usando SheetJS (client-side)
+ * Converte para o mesmo formato { headers, rows } do CSV
+ */
+function parseXLSX(buffer: ArrayBuffer): { headers: string[]; rows: ParsedRow[] } {
+  const workbook = XLSX.read(buffer, { type: 'array' })
+  const sheetName = workbook.SheetNames[0]
+  const sheet = workbook.Sheets[sheetName]
+  const jsonData = XLSX.utils.sheet_to_json<Record<string, any>>(sheet, { defval: '' })
+
+  if (jsonData.length === 0) return { headers: [], rows: [] }
+
+  const headers = Object.keys(jsonData[0])
+  const rows: ParsedRow[] = jsonData.map(row => {
+    const parsed: ParsedRow = {}
+    headers.forEach(h => { parsed[h] = String(row[h] ?? '') })
+    return parsed
   })
 
   return { headers, rows }
@@ -118,7 +178,27 @@ export const ImportarContatosModal = forwardRef<HTMLDivElement, ImportarContatos
       })
       setMapping(autoMap)
     } else {
-      setError('Para XLSX, o processamento será feito pelo backend. Por enquanto, use CSV.')
+      // AIDEV-NOTE: Parse XLSX/XLS no client-side via SheetJS
+      try {
+        const buffer = await selectedFile.arrayBuffer()
+        const parsed = parseXLSX(buffer)
+        if (parsed.rows.length > 10000) {
+          setError('Máximo de 10.000 registros por arquivo')
+          return
+        }
+        setParsedData(parsed)
+        const autoMap: Record<string, string> = {}
+        const campos = tipoContato === 'pessoa' ? CAMPOS_PESSOA : CAMPOS_EMPRESA
+        parsed.headers.forEach(h => {
+          const hl = h.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+          const match = campos.find(c => c.value && hl.includes(c.value.replace('_', '')))
+          if (match) autoMap[h] = match.value
+        })
+        setMapping(autoMap)
+      } catch (xlsxErr: any) {
+        console.error('[import] Erro ao ler XLSX:', xlsxErr)
+        setError(`Erro ao ler arquivo XLSX: ${xlsxErr?.message || 'formato inválido'}`)
+      }
     }
   }, [tipoContato])
 
@@ -131,7 +211,7 @@ export const ImportarContatosModal = forwardRef<HTMLDivElement, ImportarContatos
   const handleImport = async () => {
     setImporting(true)
     setError(null)
-    const totalRows = Math.min(parsedData.rows.length, 100)
+    const totalRows = parsedData.rows.length
     setImportProgress({ current: 0, total: totalRows, status: 'Preparando importação...' })
     try {
       const { contatosApi, segmentosApi } = await import('../services/contatos.api')
@@ -178,7 +258,9 @@ export const ImportarContatosModal = forwardRef<HTMLDivElement, ImportarContatos
       let erros = 0
       const importedIds: string[] = []
 
-      for (let i = 0; i < Math.min(contatos.length, 100); i++) {
+      // AIDEV-NOTE: Sem limite artificial - processa todos os registros
+      // Delay a cada 50 para não travar a UI
+      for (let i = 0; i < contatos.length; i++) {
         try {
           const created = await contatosApi.criar(contatos[i])
           importados++
@@ -188,6 +270,9 @@ export const ImportarContatosModal = forwardRef<HTMLDivElement, ImportarContatos
           erros++
         }
         setImportProgress({ current: i + 1, total: totalRows, status: `Importando contato ${i + 1} de ${totalRows}...` })
+        if ((i + 1) % 50 === 0) {
+          await new Promise(r => setTimeout(r, 100))
+        }
       }
 
       if (targetSegmentoId && importedIds.length > 0) {
