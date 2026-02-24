@@ -2,6 +2,7 @@
  * AIDEV-NOTE: Item individual na lista de conversas
  * Estilo WhatsApp Web: avatar, nome, preview, horário, badge canal, badge status, badge grupo/canal
  * Inclui menu de contexto (chevron hover) com arquivar, fixar, marcar não lida, apagar
+ * Presença: mostra "digitando..." em verde (estilo WhatsApp Web) substituindo preview
  */
 
 import { useState, useEffect, useRef, forwardRef } from 'react'
@@ -14,6 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import { LabelBadge } from './LabelBadge'
 import type { Conversa } from '../services/conversas.api'
+import type { PresenceStatus } from '../hooks/usePresence'
 import { getValidWhatsAppUrl } from '@/shared/utils/whatsapp-url'
 
 interface ConversaItemProps {
@@ -24,6 +26,7 @@ interface ConversaItemProps {
   onFixar?: (id: string, fixar: boolean) => void
   onMarcarNaoLida?: (id: string) => void
   onApagar?: (id: string) => void
+  presenceStatus?: PresenceStatus
 }
 
 function formatTimestamp(dateStr?: string | null): string {
@@ -115,7 +118,7 @@ function getTipoBadge(tipo: string): { label: string; className: string } | null
   return null
 }
 
-export const ConversaItem = forwardRef<HTMLDivElement, ConversaItemProps>(function ConversaItem({ conversa, isActive, onClick, onArquivar, onFixar, onMarcarNaoLida, onApagar }, _ref) {
+export const ConversaItem = forwardRef<HTMLDivElement, ConversaItemProps>(function ConversaItem({ conversa, isActive, onClick, onArquivar, onFixar, onMarcarNaoLida, onApagar, presenceStatus }, _ref) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [fotoError, setFotoError] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -246,10 +249,17 @@ export const ConversaItem = forwardRef<HTMLDivElement, ConversaItemProps>(functi
           </div>
 
           <div className="flex items-center justify-between gap-2 mt-0.5">
+            {/* AIDEV-NOTE: Presença substitui preview como no WhatsApp Web — verde para digitando/gravando */}
+            {presenceStatus === 'composing' || presenceStatus === 'recording' ? (
+              <span className="text-xs text-[#25D366] font-medium truncate">
+                {presenceStatus === 'composing' ? 'digitando...' : 'gravando áudio...'}
+              </span>
+            ) : (
             <div className={`flex items-center gap-1 text-xs truncate ${hasUnread ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
               {preview.icon}
               <span className="truncate">{preview.text}</span>
             </div>
+            )}
 
             <div className="flex items-center gap-1.5 flex-shrink-0">
               <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${status.className}`}>
