@@ -498,9 +498,11 @@ export interface WebhookSaidaLog {
 
 export const camposApi = {
   listarTodos: async () => {
+    const orgId = await getOrganizacaoId()
     const { data, error } = await supabase
       .from('campos_customizados')
       .select('id, nome, entidade')
+      .eq('organizacao_id', orgId)
       .is('deletado_em', null)
       .order('entidade')
       .order('ordem', { ascending: true })
@@ -510,9 +512,11 @@ export const camposApi = {
   },
 
   listar: async (entidade: Entidade) => {
+    const orgId = await getOrganizacaoId()
     const { data, error, count } = await supabase
       .from('campos_customizados')
       .select('*', { count: 'exact' })
+      .eq('organizacao_id', orgId)
       .eq('entidade', entidade)
       .is('deletado_em', null)
       .order('ordem', { ascending: true })
@@ -522,10 +526,12 @@ export const camposApi = {
   },
 
   buscar: async (id: string) => {
+    const orgId = await getOrganizacaoId()
     const { data, error } = await supabase
       .from('campos_customizados')
       .select('*')
       .eq('id', id)
+      .eq('organizacao_id', orgId)
       .is('deletado_em', null)
       .maybeSingle()
 
@@ -595,16 +601,30 @@ export const camposApi = {
     return data as unknown as CampoCustomizado
   },
 
+  // AIDEV-NOTE: Seg — whitelist Zod evita field injection; orgId no WHERE previne IDOR
   atualizar: async (id: string, payload: AtualizarCampoPayload) => {
+    const orgId = await getOrganizacaoId()
+    const AtualizarCampoSchema = z.object({
+      nome: z.string().min(1).max(100).optional(),
+      descricao: z.string().optional(),
+      obrigatorio: z.boolean().optional(),
+      valor_padrao: z.unknown().optional(),
+      placeholder: z.string().optional(),
+      validacoes: z.record(z.unknown()).optional(),
+      opcoes: z.array(z.unknown()).optional(),
+      ativo: z.boolean().optional(),
+    })
+    const validated = AtualizarCampoSchema.parse(payload)
     const { data, error } = await supabase
       .from('campos_customizados')
       .update({
-        ...payload,
-        validacoes: payload.validacoes ? (payload.validacoes as any) : undefined,
-        opcoes: payload.opcoes ? (payload.opcoes as any) : undefined,
+        ...validated,
+        validacoes: validated.validacoes ? (validated.validacoes as any) : undefined,
+        opcoes: validated.opcoes ? (validated.opcoes as any) : undefined,
         atualizado_em: new Date().toISOString(),
       } as any)
       .eq('id', id)
+      .eq('organizacao_id', orgId)
       .select()
       .single()
 
@@ -612,22 +632,28 @@ export const camposApi = {
     return data as unknown as CampoCustomizado
   },
 
+  // AIDEV-NOTE: Seg — orgId no WHERE previne IDOR (soft delete)
   excluir: async (id: string) => {
+    const orgId = await getOrganizacaoId()
     const { error } = await supabase
       .from('campos_customizados')
       .update({ deletado_em: new Date().toISOString(), ativo: false })
       .eq('id', id)
+      .eq('organizacao_id', orgId)
 
     if (error) throw new Error(`Erro ao excluir campo: ${error.message}`)
   },
 
+  // AIDEV-NOTE: Seg — orgId em cada update do batch previne IDOR na reordenação
   reordenar: async (entidade: Entidade, ordem: Array<{ id: string; ordem: number }>) => {
+    const orgId = await getOrganizacaoId()
     const updates = ordem.map(({ id, ordem: novaOrdem }) =>
       supabase
         .from('campos_customizados')
         .update({ ordem: novaOrdem, atualizado_em: new Date().toISOString() })
         .eq('id', id)
         .eq('entidade', entidade)
+        .eq('organizacao_id', orgId)
     )
     const results = await Promise.all(updates)
     const erros = results.filter(r => r.error)
@@ -641,17 +667,22 @@ export const camposApi = {
 
 export const produtosApi = {
   listar: async (params?: { categoria_id?: string; busca?: string; ativo?: string; recorrente?: string; page?: string; limit?: string }) => {
+    const orgId = await getOrganizacaoId()
     const page = parseInt(params?.page || '1')
-    const limit = parseInt(params?.limit || '20')
+    const limit = Math.min(parseInt(params?.limit || '20'), 100)
     const offset = (page - 1) * limit
 
     let query = supabase
       .from('produtos')
       .select('*, categoria:categorias_produtos(id, nome)', { count: 'exact' })
+      .eq('organizacao_id', orgId)
       .is('deletado_em', null)
 
     if (params?.categoria_id) query = query.eq('categoria_id', params.categoria_id)
-    if (params?.busca) query = query.or(`nome.ilike.%${params.busca}%`)
+    if (params?.busca) {
+      const busca = params.busca.substring(0, 50)
+      query = query.or(`nome.ilike.%${busca}%`)
+    }
     if (params?.ativo) query = query.eq('ativo', params.ativo === 'true')
     if (params?.recorrente) query = query.eq('recorrente', params.recorrente === 'true')
 
@@ -668,13 +699,24 @@ export const produtosApi = {
     }
   },
 
+  // AIDEV-NOTE: Seg — Zod whitelist evita que payload sobrescreva organizacao_id via spread
   criar: async (payload: Record<string, unknown>) => {
     const orgId = await getOrganizacaoId()
     const userId = await getUsuarioId()
-
+    const CriarProdutoSchema = z.object({
+      nome: z.string().min(1).max(255),
+      descricao: z.string().optional(),
+      preco: z.number().nonnegative().optional(),
+      preco_recorrente: z.number().nonnegative().optional(),
+      recorrente: z.boolean().optional(),
+      ativo: z.boolean().optional(),
+      categoria_id: z.string().uuid().optional(),
+      imagem_url: z.string().url().optional(),
+    })
+    const validated = CriarProdutoSchema.parse(payload)
     const { data, error } = await supabase
       .from('produtos')
-      .insert({ organizacao_id: orgId, ...payload, criado_por: userId } as any)
+      .insert({ ...validated, organizacao_id: orgId, criado_por: userId } as any)
       .select('*, categoria:categorias_produtos(id, nome)')
       .single()
 
@@ -682,11 +724,25 @@ export const produtosApi = {
     return data as unknown as Produto
   },
 
+  // AIDEV-NOTE: Seg — Zod whitelist + orgId no WHERE previnem field injection e IDOR
   atualizar: async (id: string, payload: Record<string, unknown>) => {
+    const orgId = await getOrganizacaoId()
+    const AtualizarProdutoSchema = z.object({
+      nome: z.string().min(1).max(255).optional(),
+      descricao: z.string().optional(),
+      preco: z.number().nonnegative().optional(),
+      preco_recorrente: z.number().nonnegative().optional(),
+      recorrente: z.boolean().optional(),
+      ativo: z.boolean().optional(),
+      categoria_id: z.string().uuid().nullable().optional(),
+      imagem_url: z.string().url().nullable().optional(),
+    })
+    const validated = AtualizarProdutoSchema.parse(payload)
     const { data, error } = await supabase
       .from('produtos')
-      .update({ ...payload, atualizado_em: new Date().toISOString() } as any)
+      .update({ ...validated, atualizado_em: new Date().toISOString() } as any)
       .eq('id', id)
+      .eq('organizacao_id', orgId)
       .select('*, categoria:categorias_produtos(id, nome)')
       .single()
 
@@ -694,19 +750,24 @@ export const produtosApi = {
     return data as unknown as Produto
   },
 
+  // AIDEV-NOTE: Seg — orgId no WHERE previne IDOR (soft delete)
   excluir: async (id: string) => {
+    const orgId = await getOrganizacaoId()
     const { error } = await supabase
       .from('produtos')
       .update({ deletado_em: new Date().toISOString(), ativo: false })
       .eq('id', id)
+      .eq('organizacao_id', orgId)
 
     if (error) throw new Error(`Erro ao excluir produto: ${error.message}`)
   },
 
   listarCategorias: async () => {
+    const orgId = await getOrganizacaoId()
     const { data, error, count } = await supabase
       .from('categorias_produtos')
       .select('*', { count: 'exact' })
+      .eq('organizacao_id', orgId)
       .is('deletado_em', null)
       .order('nome', { ascending: true })
 
@@ -714,13 +775,19 @@ export const produtosApi = {
     return { categorias: (data || []) as unknown as Categoria[], total: count || 0 }
   },
 
+  // AIDEV-NOTE: Seg — Zod whitelist evita que payload sobrescreva organizacao_id
   criarCategoria: async (payload: Record<string, unknown>) => {
     const orgId = await getOrganizacaoId()
     const userId = await getUsuarioId()
-
+    const CriarCategoriaSchema = z.object({
+      nome: z.string().min(1).max(100),
+      descricao: z.string().optional(),
+      ativo: z.boolean().optional(),
+    })
+    const validated = CriarCategoriaSchema.parse(payload)
     const { data, error } = await supabase
       .from('categorias_produtos')
-      .insert({ organizacao_id: orgId, ...payload, criado_por: userId } as any)
+      .insert({ ...validated, organizacao_id: orgId, criado_por: userId } as any)
       .select()
       .single()
 
@@ -728,11 +795,20 @@ export const produtosApi = {
     return data as unknown as Categoria
   },
 
+  // AIDEV-NOTE: Seg — Zod whitelist + orgId no WHERE previnem field injection e IDOR
   atualizarCategoria: async (id: string, payload: Record<string, unknown>) => {
+    const orgId = await getOrganizacaoId()
+    const AtualizarCategoriaSchema = z.object({
+      nome: z.string().min(1).max(100).optional(),
+      descricao: z.string().optional(),
+      ativo: z.boolean().optional(),
+    })
+    const validated = AtualizarCategoriaSchema.parse(payload)
     const { data, error } = await supabase
       .from('categorias_produtos')
-      .update({ ...payload, atualizado_em: new Date().toISOString() } as any)
+      .update({ ...validated, atualizado_em: new Date().toISOString() } as any)
       .eq('id', id)
+      .eq('organizacao_id', orgId)
       .select()
       .single()
 
@@ -740,11 +816,14 @@ export const produtosApi = {
     return data as unknown as Categoria
   },
 
+  // AIDEV-NOTE: Seg — orgId no WHERE previne IDOR (soft delete)
   excluirCategoria: async (id: string) => {
+    const orgId = await getOrganizacaoId()
     const { error } = await supabase
       .from('categorias_produtos')
       .update({ deletado_em: new Date().toISOString(), ativo: false })
       .eq('id', id)
+      .eq('organizacao_id', orgId)
 
     if (error) throw new Error(`Erro ao excluir categoria: ${error.message}`)
   },
@@ -756,9 +835,11 @@ export const produtosApi = {
 
 export const motivosApi = {
   listar: async (tipo?: TipoMotivo) => {
+    const orgId = await getOrganizacaoId()
     let query = supabase
       .from('motivos_resultado')
       .select('*', { count: 'exact' })
+      .eq('organizacao_id', orgId)
       .is('deletado_em', null)
 
     if (tipo) query = query.eq('tipo', tipo)
@@ -769,15 +850,25 @@ export const motivosApi = {
     return { motivos: (data || []) as unknown as MotivoResultado[], total: count || 0 }
   },
 
+  // AIDEV-NOTE: Seg — Zod whitelist evita que payload sobrescreva organizacao_id via spread
   criar: async (payload: Record<string, unknown>) => {
     const orgId = await getOrganizacaoId()
     const userId = await getUsuarioId()
+    const CriarMotivoSchema = z.object({
+      nome: z.string().min(1).max(200),
+      descricao: z.string().optional(),
+      tipo: z.enum(['ganho', 'perda']),
+      ativo: z.boolean().optional(),
+      cor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+    })
+    const validated = CriarMotivoSchema.parse(payload)
 
     // Buscar próxima ordem
     const { data: ultimo } = await supabase
       .from('motivos_resultado')
       .select('ordem')
-      .eq('tipo', payload.tipo as string)
+      .eq('tipo', validated.tipo)
+      .eq('organizacao_id', orgId)
       .is('deletado_em', null)
       .order('ordem', { ascending: false })
       .limit(1)
@@ -788,8 +879,8 @@ export const motivosApi = {
     const { data, error } = await supabase
       .from('motivos_resultado')
       .insert({
+        ...validated,
         organizacao_id: orgId,
-        ...payload,
         ordem: novaOrdem,
         padrao: false,
         criado_por: userId,
@@ -801,11 +892,21 @@ export const motivosApi = {
     return data as unknown as MotivoResultado
   },
 
+  // AIDEV-NOTE: Seg — Zod whitelist + orgId no WHERE previnem field injection e IDOR
   atualizar: async (id: string, payload: Record<string, unknown>) => {
+    const orgId = await getOrganizacaoId()
+    const AtualizarMotivoSchema = z.object({
+      nome: z.string().min(1).max(200).optional(),
+      descricao: z.string().optional(),
+      ativo: z.boolean().optional(),
+      cor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+    })
+    const validated = AtualizarMotivoSchema.parse(payload)
     const { data, error } = await supabase
       .from('motivos_resultado')
-      .update({ ...payload, atualizado_em: new Date().toISOString() } as any)
+      .update({ ...validated, atualizado_em: new Date().toISOString() } as any)
       .eq('id', id)
+      .eq('organizacao_id', orgId)
       .select()
       .single()
 
@@ -813,22 +914,28 @@ export const motivosApi = {
     return data as unknown as MotivoResultado
   },
 
+  // AIDEV-NOTE: Seg — orgId no WHERE previne IDOR (soft delete)
   excluir: async (id: string) => {
+    const orgId = await getOrganizacaoId()
     const { error } = await supabase
       .from('motivos_resultado')
       .update({ deletado_em: new Date().toISOString(), ativo: false })
       .eq('id', id)
+      .eq('organizacao_id', orgId)
 
     if (error) throw new Error(`Erro ao excluir motivo: ${error.message}`)
   },
 
+  // AIDEV-NOTE: Seg — orgId em cada update do batch previne IDOR na reordenação
   reordenar: async (tipo: TipoMotivo, ordem: Array<{ id: string; ordem: number }>) => {
+    const orgId = await getOrganizacaoId()
     const updates = ordem.map(({ id, ordem: novaOrdem }) =>
       supabase
         .from('motivos_resultado')
         .update({ ordem: novaOrdem, atualizado_em: new Date().toISOString() })
         .eq('id', id)
         .eq('tipo', tipo)
+        .eq('organizacao_id', orgId)
     )
     const results = await Promise.all(updates)
     if (results.some(r => r.error)) throw new Error('Erro ao reordenar motivos')
@@ -841,9 +948,11 @@ export const motivosApi = {
 
 export const tarefasTemplatesApi = {
   listar: async (params?: { tipo?: string; ativo?: string }) => {
+    const orgId = await getOrganizacaoId()
     let query = supabase
       .from('tarefas_templates')
       .select('*', { count: 'exact' })
+      .eq('organizacao_id', orgId)
       .is('deletado_em', null)
 
     if (params?.tipo) query = query.eq('tipo', params.tipo)
@@ -855,13 +964,26 @@ export const tarefasTemplatesApi = {
     return { templates: (data || []) as unknown as TarefaTemplate[], total: count || 0 }
   },
 
+  // AIDEV-NOTE: Seg — Zod whitelist evita que payload sobrescreva organizacao_id via spread
   criar: async (payload: Record<string, unknown>) => {
     const orgId = await getOrganizacaoId()
     const userId = await getUsuarioId()
-
+    const CriarTarefaTemplateSchema = z.object({
+      titulo: z.string().min(1).max(255),
+      descricao: z.string().optional(),
+      tipo: z.enum(['ligacao', 'email', 'reuniao', 'whatsapp', 'visita', 'outro']),
+      canal: z.string().optional(),
+      prioridade: z.enum(['baixa', 'media', 'alta', 'urgente']).optional(),
+      dias_prazo: z.number().int().nonnegative().optional(),
+      modo: z.enum(['comum', 'cadencia']).optional(),
+      assunto_email: z.string().optional(),
+      corpo_mensagem: z.string().optional(),
+      ativo: z.boolean().optional(),
+    })
+    const validated = CriarTarefaTemplateSchema.parse(payload)
     const { data, error } = await supabase
       .from('tarefas_templates')
-      .insert({ organizacao_id: orgId, ...payload, criado_por: userId } as any)
+      .insert({ ...validated, organizacao_id: orgId, criado_por: userId } as any)
       .select()
       .single()
 
@@ -869,11 +991,27 @@ export const tarefasTemplatesApi = {
     return data as unknown as TarefaTemplate
   },
 
+  // AIDEV-NOTE: Seg — Zod whitelist + orgId no WHERE previnem field injection e IDOR
   atualizar: async (id: string, payload: Record<string, unknown>) => {
+    const orgId = await getOrganizacaoId()
+    const AtualizarTarefaTemplateSchema = z.object({
+      titulo: z.string().min(1).max(255).optional(),
+      descricao: z.string().optional(),
+      tipo: z.enum(['ligacao', 'email', 'reuniao', 'whatsapp', 'visita', 'outro']).optional(),
+      canal: z.string().optional(),
+      prioridade: z.enum(['baixa', 'media', 'alta', 'urgente']).optional(),
+      dias_prazo: z.number().int().nonnegative().optional(),
+      modo: z.enum(['comum', 'cadencia']).optional(),
+      assunto_email: z.string().optional(),
+      corpo_mensagem: z.string().optional(),
+      ativo: z.boolean().optional(),
+    })
+    const validated = AtualizarTarefaTemplateSchema.parse(payload)
     const { data, error } = await supabase
       .from('tarefas_templates')
-      .update({ ...payload, atualizado_em: new Date().toISOString() } as any)
+      .update({ ...validated, atualizado_em: new Date().toISOString() } as any)
       .eq('id', id)
+      .eq('organizacao_id', orgId)
       .select()
       .single()
 
@@ -881,11 +1019,14 @@ export const tarefasTemplatesApi = {
     return data as unknown as TarefaTemplate
   },
 
+  // AIDEV-NOTE: Seg — orgId no WHERE previne IDOR (soft delete)
   excluir: async (id: string) => {
+    const orgId = await getOrganizacaoId()
     const { error } = await supabase
       .from('tarefas_templates')
       .update({ deletado_em: new Date().toISOString(), ativo: false })
       .eq('id', id)
+      .eq('organizacao_id', orgId)
 
     if (error) throw new Error(`Erro ao excluir template: ${error.message}`)
   },
@@ -897,12 +1038,14 @@ export const tarefasTemplatesApi = {
 
 export const etapasTemplatesApi = {
   listar: async (params?: { tipo?: string; ativo?: string }) => {
+    const orgId = await getOrganizacaoId()
     let query = supabase
       .from('etapas_templates')
       .select(
         `*, tarefas:etapas_tarefas(id, tarefa_template_id, criar_automaticamente, ordem, tarefa:tarefas_templates(id, titulo, tipo, descricao))`,
         { count: 'exact' }
       )
+      .eq('organizacao_id', orgId)
       .is('deletado_em', null)
 
     if (params?.tipo) query = query.eq('tipo', params.tipo)
@@ -914,15 +1057,26 @@ export const etapasTemplatesApi = {
     return { templates: (data || []) as unknown as EtapaTemplate[], total: count || 0 }
   },
 
+  // AIDEV-NOTE: Seg — Zod whitelist evita que etapaData sobrescreva organizacao_id via spread
   criar: async (payload: Record<string, unknown>) => {
     const orgId = await getOrganizacaoId()
     const userId = await getUsuarioId()
-    const { tarefas_ids, ...etapaData } = payload as { tarefas_ids?: string[] } & Record<string, unknown>
+    const { tarefas_ids, ...etapaRaw } = payload as { tarefas_ids?: string[] } & Record<string, unknown>
+    const CriarEtapaSchema = z.object({
+      nome: z.string().min(1).max(100),
+      descricao: z.string().optional(),
+      tipo: z.enum(['entrada', 'normal', 'ganho', 'perda']),
+      cor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+      probabilidade: z.number().int().min(0).max(100).optional(),
+      ativo: z.boolean().optional(),
+    })
+    const etapaData = CriarEtapaSchema.parse(etapaRaw)
 
     // Buscar próxima ordem
     const { data: ultima } = await supabase
       .from('etapas_templates')
       .select('ordem')
+      .eq('organizacao_id', orgId)
       .is('deletado_em', null)
       .order('ordem', { ascending: false })
       .limit(1)
@@ -933,8 +1087,8 @@ export const etapasTemplatesApi = {
     const { data: etapa, error } = await supabase
       .from('etapas_templates')
       .insert({
-        organizacao_id: orgId,
         ...etapaData,
+        organizacao_id: orgId,
         ordem: novaOrdem,
         sistema: false,
         criado_por: userId,
@@ -964,22 +1118,35 @@ export const etapasTemplatesApi = {
     return etapa as unknown as EtapaTemplate
   },
 
+  // AIDEV-NOTE: Seg — Zod whitelist + orgId no WHERE; cascade delete em etapas_tarefas também protegido por orgId
   atualizar: async (id: string, payload: Record<string, unknown>) => {
     const orgId = await getOrganizacaoId()
-    const { tarefas_ids, ...etapaData } = payload as { tarefas_ids?: string[] } & Record<string, unknown>
+    const { tarefas_ids, ...etapaRaw } = payload as { tarefas_ids?: string[] } & Record<string, unknown>
+    const AtualizarEtapaSchema = z.object({
+      nome: z.string().min(1).max(100).optional(),
+      descricao: z.string().optional(),
+      tipo: z.enum(['entrada', 'normal', 'ganho', 'perda']).optional(),
+      cor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+      probabilidade: z.number().int().min(0).max(100).optional(),
+      ativo: z.boolean().optional(),
+    })
+    const etapaData = AtualizarEtapaSchema.parse(etapaRaw)
 
     const { data, error } = await supabase
       .from('etapas_templates')
       .update({ ...etapaData, atualizado_em: new Date().toISOString() } as any)
       .eq('id', id)
+      .eq('organizacao_id', orgId)
       .select()
       .single()
 
     if (error) throw new Error(`Erro ao atualizar etapa: ${error.message}`)
 
-    // Se tarefas_ids foi passado, recriar vínculos
+    // Se tarefas_ids foi passado, recriar vínculos (apenas para etapas do tenant)
     if (tarefas_ids !== undefined) {
-      await supabase.from('etapas_tarefas').delete().eq('etapa_template_id', id)
+      await supabase.from('etapas_tarefas').delete()
+        .eq('etapa_template_id', id)
+        .eq('organizacao_id', orgId)
 
       if (tarefas_ids.length > 0) {
         const vinculos = tarefas_ids.map((tarefaId, index) => ({
@@ -996,34 +1163,57 @@ export const etapasTemplatesApi = {
     return data as unknown as EtapaTemplate
   },
 
+  // AIDEV-NOTE: Seg — cascade delete protegido por orgId em ambas as tabelas
   excluir: async (id: string) => {
-    // Remover vínculos de tarefas primeiro
-    await supabase.from('etapas_tarefas').delete().eq('etapa_template_id', id)
+    const orgId = await getOrganizacaoId()
+    // Remover vínculos de tarefas primeiro (filtrado por orgId)
+    await supabase.from('etapas_tarefas').delete()
+      .eq('etapa_template_id', id)
+      .eq('organizacao_id', orgId)
 
     const { error } = await supabase
       .from('etapas_templates')
       .update({ deletado_em: new Date().toISOString(), ativo: false })
       .eq('id', id)
+      .eq('organizacao_id', orgId)
 
     if (error) throw new Error(`Erro ao excluir etapa: ${error.message}`)
   },
 
+  // AIDEV-NOTE: Seg — orgId em cada update do batch previne IDOR na reordenação
   reordenar: async (ordem: Array<{ id: string; ordem: number }>) => {
+    const orgId = await getOrganizacaoId()
     const updates = ordem.map(({ id, ordem: novaOrdem }) =>
       supabase
         .from('etapas_templates')
         .update({ ordem: novaOrdem, atualizado_em: new Date().toISOString() })
         .eq('id', id)
+        .eq('organizacao_id', orgId)
     )
     const results = await Promise.all(updates)
     if (results.some(r => r.error)) throw new Error('Erro ao reordenar etapas')
   },
 
+  // AIDEV-NOTE: Seg — valida que etapaId pertence ao tenant antes de vincular
   vincularTarefa: async (etapaId: string, payload: Record<string, unknown>) => {
     const orgId = await getOrganizacaoId()
+    const { data: etapa } = await supabase
+      .from('etapas_templates')
+      .select('id')
+      .eq('id', etapaId)
+      .eq('organizacao_id', orgId)
+      .maybeSingle()
+    if (!etapa) throw new Error('Etapa não encontrada')
+
+    const VincularTarefaSchema = z.object({
+      tarefa_template_id: z.string().uuid(),
+      criar_automaticamente: z.boolean().optional(),
+      ordem: z.number().int().nonnegative().optional(),
+    })
+    const validated = VincularTarefaSchema.parse(payload)
     const { data, error } = await supabase
       .from('etapas_tarefas')
-      .insert({ organizacao_id: orgId, etapa_template_id: etapaId, ...payload } as any)
+      .insert({ ...validated, organizacao_id: orgId, etapa_template_id: etapaId } as any)
       .select()
       .single()
 
@@ -1031,12 +1221,23 @@ export const etapasTemplatesApi = {
     return data
   },
 
+  // AIDEV-NOTE: Seg — valida que etapaId pertence ao tenant antes de desvincular
   desvincularTarefa: async (etapaId: string, tarefaId: string) => {
+    const orgId = await getOrganizacaoId()
+    const { data: etapa } = await supabase
+      .from('etapas_templates')
+      .select('id')
+      .eq('id', etapaId)
+      .eq('organizacao_id', orgId)
+      .maybeSingle()
+    if (!etapa) throw new Error('Etapa não encontrada')
+
     const { error } = await supabase
       .from('etapas_tarefas')
       .delete()
       .eq('etapa_template_id', etapaId)
       .eq('tarefa_template_id', tarefaId)
+      .eq('organizacao_id', orgId)
 
     if (error) throw new Error(`Erro ao desvincular tarefa: ${error.message}`)
   },
@@ -1047,10 +1248,13 @@ export const etapasTemplatesApi = {
 // =====================================================
 
 export const regrasApi = {
+  // AIDEV-NOTE: Seg — CRÍTICO: orgId é obrigatório aqui, sem ele retorna regras de todos os tenants
   listar: async (params?: { ativa?: string }) => {
+    const orgId = await getOrganizacaoId()
     let query = supabase
       .from('regras_qualificacao')
       .select('*', { count: 'exact' })
+      .eq('organizacao_id', orgId)
       .is('deletado_em', null)
 
     if (params?.ativa) query = query.eq('ativa', params.ativa === 'true')
@@ -1061,14 +1265,26 @@ export const regrasApi = {
     return { regras: (data || []) as unknown as RegraQualificacao[], total: count || 0 }
   },
 
+  // AIDEV-NOTE: Seg — Zod whitelist evita que payload sobrescreva organizacao_id via spread
   criar: async (payload: Record<string, unknown>) => {
     const orgId = await getOrganizacaoId()
     const userId = await getUsuarioId()
+    const CriarRegraSchema = z.object({
+      nome: z.string().min(1).max(200),
+      descricao: z.string().optional(),
+      campo_id: z.string().uuid().optional(),
+      operador: z.enum(['igual', 'diferente', 'contem', 'nao_contem', 'maior_que', 'menor_que', 'maior_igual', 'menor_igual', 'vazio', 'nao_vazio']),
+      valor: z.string().optional(),
+      valores: z.array(z.string()).optional(),
+      ativo: z.boolean().optional(),
+    })
+    const validated = CriarRegraSchema.parse(payload)
 
     // Buscar próxima ordem
     const { data: ultima } = await supabase
       .from('regras_qualificacao')
       .select('ordem')
+      .eq('organizacao_id', orgId)
       .is('deletado_em', null)
       .order('ordem', { ascending: false })
       .limit(1)
@@ -1079,8 +1295,8 @@ export const regrasApi = {
     const { data, error } = await supabase
       .from('regras_qualificacao')
       .insert({
+        ...validated,
         organizacao_id: orgId,
-        ...payload,
         ordem: novaOrdem,
         criado_por: userId,
       } as any)
@@ -1091,11 +1307,24 @@ export const regrasApi = {
     return data as unknown as RegraQualificacao
   },
 
+  // AIDEV-NOTE: Seg — Zod whitelist + orgId no WHERE previnem field injection e IDOR
   atualizar: async (id: string, payload: Record<string, unknown>) => {
+    const orgId = await getOrganizacaoId()
+    const AtualizarRegraSchema = z.object({
+      nome: z.string().min(1).max(200).optional(),
+      descricao: z.string().optional(),
+      campo_id: z.string().uuid().nullable().optional(),
+      operador: z.enum(['igual', 'diferente', 'contem', 'nao_contem', 'maior_que', 'menor_que', 'maior_igual', 'menor_igual', 'vazio', 'nao_vazio']).optional(),
+      valor: z.string().nullable().optional(),
+      valores: z.array(z.string()).optional(),
+      ativo: z.boolean().optional(),
+    })
+    const validated = AtualizarRegraSchema.parse(payload)
     const { data, error } = await supabase
       .from('regras_qualificacao')
-      .update({ ...payload, atualizado_em: new Date().toISOString() } as any)
+      .update({ ...validated, atualizado_em: new Date().toISOString() } as any)
       .eq('id', id)
+      .eq('organizacao_id', orgId)
       .select()
       .single()
 
@@ -1103,21 +1332,27 @@ export const regrasApi = {
     return data as unknown as RegraQualificacao
   },
 
+  // AIDEV-NOTE: Seg — orgId no WHERE previne IDOR (soft delete)
   excluir: async (id: string) => {
+    const orgId = await getOrganizacaoId()
     const { error } = await supabase
       .from('regras_qualificacao')
       .update({ deletado_em: new Date().toISOString(), ativa: false })
       .eq('id', id)
+      .eq('organizacao_id', orgId)
 
     if (error) throw new Error(`Erro ao excluir regra: ${error.message}`)
   },
 
+  // AIDEV-NOTE: Seg — orgId em cada update do batch previne IDOR na reordenação
   reordenar: async (prioridades: Array<{ id: string; ordem: number }>) => {
+    const orgId = await getOrganizacaoId()
     const updates = prioridades.map(({ id, ordem }) =>
       supabase
         .from('regras_qualificacao')
         .update({ ordem, atualizado_em: new Date().toISOString() })
         .eq('id', id)
+        .eq('organizacao_id', orgId)
     )
     const results = await Promise.all(updates)
     if (results.some(r => r.error)) throw new Error('Erro ao reordenar regras')
@@ -1129,8 +1364,10 @@ export const regrasApi = {
 // =====================================================
 
 export const configCardApi = {
+  // AIDEV-NOTE: Seg — orgId no WHERE como defense-in-depth além do RLS
   buscar: async (funil_id?: string) => {
-    let query = supabase.from('configuracoes_card').select('*')
+    const orgId = await getOrganizacaoId()
+    let query = supabase.from('configuracoes_card').select('*').eq('organizacao_id', orgId)
     if (funil_id) query = query.eq('funil_id', funil_id)
 
     const { data, error } = await query.maybeSingle()
@@ -1140,13 +1377,20 @@ export const configCardApi = {
   },
 
   // AIDEV-NOTE: Upsert otimizado — 1 query ao invés de 2 (SELECT+UPDATE/INSERT)
+  // AIDEV-NOTE: Seg — Zod whitelist evita field injection via spread no upsert
   atualizar: async (payload: Record<string, unknown>) => {
     const orgId = await getOrganizacaoId()
+    const ConfigCardSchema = z.object({
+      funil_id: z.string().uuid().nullable().optional(),
+      campos_visiveis: z.array(z.string()).optional(),
+      campos_customizados_visiveis: z.array(z.string()).optional(),
+    })
+    const validated = ConfigCardSchema.parse(payload)
 
     const { data, error } = await supabase
       .from('configuracoes_card')
       .upsert(
-        { organizacao_id: orgId, ...payload, atualizado_em: new Date().toISOString() } as any,
+        { ...validated, organizacao_id: orgId, atualizado_em: new Date().toISOString() } as any,
         { onConflict: 'organizacao_id' }
       )
       .select()
@@ -3159,8 +3403,19 @@ export const vinculosPipelinesApi = {
 
   /**
    * Busca pipelines vinculadas a uma regra de qualificação via funis_regras_qualificacao
+   * AIDEV-NOTE: Seg — valida que regraId pertence ao tenant antes de buscar vínculos
    */
   buscarVinculosRegra: async (regraId: string): Promise<VinculoPipeline[]> => {
+    const orgId = await getOrganizacaoId()
+    // Validar que a regra pertence ao tenant
+    const { data: regra } = await supabase
+      .from('regras_qualificacao')
+      .select('id')
+      .eq('id', regraId)
+      .eq('organizacao_id', orgId)
+      .maybeSingle()
+    if (!regra) throw new Error('Regra não encontrada')
+
     const { data, error } = await supabase
       .from('funis_regras_qualificacao')
       .select('funil_id, funis!inner(nome)')
@@ -3175,14 +3430,17 @@ export const vinculosPipelinesApi = {
 
   /**
    * Busca vínculos em lote para múltiplos campos (usado na CamposList)
+   * AIDEV-NOTE: Seg — filtra por organizacao_id para garantir isolamento de tenant
    */
   buscarVinculosCamposEmLote: async (campoIds: string[]): Promise<Record<string, VinculoPipeline[]>> => {
     if (campoIds.length === 0) return {}
 
+    const orgId = await getOrganizacaoId()
     const { data, error } = await supabase
       .from('funis_campos')
       .select('campo_id, funil_id, funis!inner(nome)')
       .in('campo_id', campoIds)
+      .eq('organizacao_id', orgId)
 
     if (error) throw new Error(`Erro ao buscar vínculos em lote: ${error.message}`)
 
