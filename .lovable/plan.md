@@ -1,65 +1,35 @@
 
-# Correção: Cache Stale de Campos Customizados + Garantia de Persistência
+## Plano: Sincronizar alterações da configuração com o Kanban
 
-## Diagnóstico Final
+### Problema
+Quando o usuário edita a pipeline (etapas, campos, etc.) e volta ao Kanban, as mudanças não são refletidas automaticamente porque os dados do Kanban estão em cache (staleTime de 1 minuto).
 
-Após investigação no banco de dados:
+### Recomendação de abordagem
 
-- **Dados ESTÃO sendo salvos corretamente** — contato "teste show" tem owner_id + 5 campos custom no banco
-- **Empresa "Renove Digital"** tem owner_id mas 0 campos custom — provavelmente criada antes do deploy do fix anterior
-- **Screenshot mostra contato diferente** ("Djavan teste", origem WhatsApp) que nunca teve campos custom preenchidos
+**Invalidar cache ao sair da configuração** — esta é a melhor estratégia por 3 motivos:
 
-## Problema Real: Cache Stale
+1. **Performance**: Nenhuma requisição extra durante a edição. Apenas 1 refetch ao voltar
+2. **UX**: O Kanban carrega já atualizado quando o usuário chega, sem delay perceptível
+3. **Simplicidade**: Não precisa de polling, WebSocket ou invalidações parciais em cada mutation
 
-Após salvar campos customizados, a query `['valores-custom-contato-view', contato.id]` no `ContatoViewModal` **não é invalidada**. Isso causa:
+### Implementação
 
-1. No fluxo de **edição** (abrir view -> editar -> salvar -> reabrir view): mostra dados antigos do cache
-2. No fluxo de **criação** seguido de visualização: pode mostrar dados vazios se houve visualização anterior
+**Arquivo**: `src/modules/negocios/pages/PipelineConfigPage.tsx`
 
-## Plano de Correção
+- Criar uma função `handleVoltar` que:
+  1. Invalida as queries `['kanban']`, `['funis']` e `['funil', funilId]` via `useQueryClient()`
+  2. Navega para `/negocios`
+- Substituir os dois `navigate('/negocios')` existentes (botão voltar no header e link de fallback) por essa função
 
-### 1. Invalidar cache de valores custom após salvar
+### Detalhe técnico
 
-**Arquivo:** `src/modules/contatos/pages/ContatosPage.tsx`
-
-Após cada chamada bem-sucedida de `salvarCamposCustomizados`, adicionar invalidação explícita do cache:
-
-```typescript
-// Após salvarCamposCustomizados no onSuccess (tanto criação quanto edição)
-await contatosApi.salvarCamposCustomizados(...)
-queryClient.invalidateQueries({ queryKey: ['valores-custom-contato-view'] })
+```text
+Fluxo:
+  Usuário clica "Voltar" 
+    -> queryClient.invalidateQueries(['kanban'])
+    -> queryClient.invalidateQueries(['funis'])  
+    -> navigate('/negocios')
+    -> Kanban remonta e busca dados frescos automaticamente
 ```
 
-Isso requer importar `useQueryClient` e obter a instância no componente.
-
-### 2. Forçar refetch no ViewModal ao abrir
-
-**Arquivo:** `src/modules/contatos/components/ContatoViewModal.tsx`
-
-Configurar a query de valores custom com `staleTime: 0` para garantir refetch sempre que o modal abrir:
-
-```typescript
-const { data: valoresCustom } = useQuery({
-  queryKey: ['valores-custom-contato-view', contato?.id],
-  queryFn: async () => { ... },
-  enabled: !!contato?.id && open,
-  staleTime: 0, // Sempre refetch ao abrir
-})
-```
-
-### 3. Log mais claro no fluxo de empresa
-
-**Arquivo:** `src/modules/contatos/pages/ContatosPage.tsx`
-
-Adicionar log do `tipo` sendo passado para `salvarCamposCustomizados` para confirmar que empresa usa o tipo correto:
-
-```typescript
-console.log('[handleFormSubmit] Salvando campos custom. tipo:', tipo, 'contatoId:', contato.id)
-```
-
-## Resumo de Arquivos
-
-| Arquivo | Alteração |
-|---|---|
-| `src/modules/contatos/pages/ContatosPage.tsx` | Invalidar cache `valores-custom-contato-view` após salvar; adicionar log do tipo |
-| `src/modules/contatos/components/ContatoViewModal.tsx` | Adicionar `staleTime: 0` na query de valores custom |
+Isso garante que qualquer alteração feita em etapas, campos, distribuição, etc. seja refletida no Kanban com apenas 1 refetch, sem requisições desnecessárias durante a edição.
