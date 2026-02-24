@@ -6,6 +6,7 @@
 
 import { useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Layers, LayoutGrid, RefreshCw, Zap, ShieldCheck, CircleDot, Loader2, Pencil, Check, X } from 'lucide-react'
 import { useFunilComEtapas, useAtualizarFunil } from '../hooks/useFunis'
 import { toast } from 'sonner'
@@ -47,6 +48,14 @@ export default function PipelineConfigPage() {
 
   const { data: funil, isLoading } = useFunilComEtapas(funilId || null)
   const atualizarFunil = useAtualizarFunil()
+  const queryClient = useQueryClient()
+
+  const handleVoltar = () => {
+    queryClient.invalidateQueries({ queryKey: ['kanban'] })
+    queryClient.invalidateQueries({ queryKey: ['funis'] })
+    if (funilId) queryClient.invalidateQueries({ queryKey: ['funil', funilId] })
+    navigate('/negocios')
+  }
 
   const handleStartEdit = () => {
     if (!funil) return
@@ -89,7 +98,7 @@ export default function PipelineConfigPage() {
         <div className="text-center">
           <p className="text-sm text-muted-foreground mb-4">Pipeline não encontrada</p>
           <button
-            onClick={() => navigate('/negocios')}
+            onClick={handleVoltar}
             className="text-sm text-primary hover:underline"
           >
             Voltar para Negócios
@@ -123,7 +132,7 @@ export default function PipelineConfigPage() {
       {/* Header */}
       <header className="h-14 border-b border-border bg-card flex items-center px-4 gap-3 flex-shrink-0">
         <button
-          onClick={() => navigate('/negocios')}
+          onClick={handleVoltar}
           className="p-2 rounded-md hover:bg-accent text-muted-foreground transition-all duration-200"
           title="Voltar"
         >
