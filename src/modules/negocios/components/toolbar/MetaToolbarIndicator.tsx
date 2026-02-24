@@ -184,12 +184,26 @@ export const MetaToolbarIndicator = forwardRef<HTMLDivElement>(function MetaTool
   const ranking = rankingData?.ranking || []
 
   const [open, setOpen] = useState(false)
-  const containerRef = useRef<HTMLDivElement>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const [coords, setCoords] = useState({ top: 0, right: 0 })
+
+  const handleToggle = () => {
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect()
+      setCoords({ top: rect.bottom + 6, right: window.innerWidth - rect.right })
+    }
+    setOpen(!open)
+  }
 
   useEffect(() => {
     if (!open) return
     const handler = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node
+      if (
+        dropdownRef.current && !dropdownRef.current.contains(target) &&
+        btnRef.current && !btnRef.current.contains(target)
+      ) {
         setOpen(false)
       }
     }
@@ -200,9 +214,10 @@ export const MetaToolbarIndicator = forwardRef<HTMLDivElement>(function MetaTool
   if (!metaPrincipal && ranking.length === 0) return null
 
   return (
-    <div className="relative" ref={containerRef}>
+    <div className="relative">
       <button
-        onClick={() => setOpen(!open)}
+        ref={btnRef}
+        onClick={handleToggle}
         className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-2.5 py-1.5 rounded-md hover:bg-accent transition-colors group"
         title="Meta de vendas"
       >
@@ -228,9 +243,13 @@ export const MetaToolbarIndicator = forwardRef<HTMLDivElement>(function MetaTool
           {/* Overlay mobile escuro */}
           <div className="fixed inset-0 z-[199] bg-black/40 sm:bg-transparent" onClick={() => setOpen(false)} />
           {/* Content */}
-          <div className="fixed left-1/2 -translate-x-1/2 top-14 w-[calc(100vw-2rem)] max-w-[380px] z-[200]
-                          sm:absolute sm:left-auto sm:translate-x-0 sm:top-auto sm:right-0 sm:mt-1.5 sm:w-[380px]
-                          bg-card border border-border rounded-lg shadow-lg animate-enter">
+          <div
+            ref={dropdownRef}
+            className="fixed left-1/2 -translate-x-1/2 top-14 w-[calc(100vw-2rem)] max-w-[380px] z-[200]
+                        sm:left-auto sm:translate-x-0 sm:top-auto sm:w-[380px]
+                        bg-card border border-border rounded-lg shadow-lg animate-enter"
+            style={{ ...(window.innerWidth >= 640 ? { top: coords.top, right: coords.right, left: 'auto', transform: 'none' } : {}) }}
+          >
             {/* Tabs */}
             <div className="flex border-b border-border">
               <button

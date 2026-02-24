@@ -431,12 +431,26 @@ export function FiltrosPopover({ filtros, onChange, isAdmin }: FiltrosPopoverPro
   // Render
   // =====================================================
 
-  const containerRef = useRef<HTMLDivElement>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const [coords, setCoords] = useState({ top: 0, right: 0 })
+
+  const handleToggle = () => {
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect()
+      setCoords({ top: rect.bottom + 6, right: window.innerWidth - rect.right })
+    }
+    setOpen(!open)
+  }
 
   useEffect(() => {
     if (!open) return
     const handler = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node
+      if (
+        dropdownRef.current && !dropdownRef.current.contains(target) &&
+        btnRef.current && !btnRef.current.contains(target)
+      ) {
         setOpen(false)
       }
     }
@@ -445,9 +459,10 @@ export function FiltrosPopover({ filtros, onChange, isAdmin }: FiltrosPopoverPro
   }, [open])
 
   return (
-    <div className="relative" ref={containerRef}>
+    <div className="relative">
       <button
-        onClick={() => setOpen(!open)}
+        ref={btnRef}
+        onClick={handleToggle}
         className={`
           relative p-2 rounded-md text-muted-foreground transition-all duration-200
           ${totalAtivos > 0 ? 'bg-primary/10 text-primary' : 'hover:bg-accent'}
@@ -466,9 +481,13 @@ export function FiltrosPopover({ filtros, onChange, isAdmin }: FiltrosPopoverPro
         <>
           {/* Overlay mobile escuro */}
           <div className="fixed inset-0 z-[199] bg-black/40 sm:bg-transparent" onClick={() => setOpen(false)} />
-          <div className="fixed left-1/2 -translate-x-1/2 top-14 w-[calc(100vw-2rem)] max-w-[20rem] z-[200]
-                          sm:absolute sm:left-auto sm:translate-x-0 sm:top-auto sm:right-0 sm:mt-1.5 sm:w-[20rem]
-                          bg-card border border-border rounded-lg shadow-lg p-0 animate-enter">
+          <div
+            ref={dropdownRef}
+            className="fixed left-1/2 -translate-x-1/2 top-14 w-[calc(100vw-2rem)] max-w-[20rem] z-[200]
+                        sm:left-auto sm:translate-x-0 sm:top-auto sm:w-[20rem]
+                        bg-card border border-border rounded-lg shadow-lg p-0 animate-enter"
+            style={{ ...(window.innerWidth >= 640 ? { top: coords.top, right: coords.right, left: 'auto', transform: 'none' } : {}) }}
+          >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <div className="flex items-center gap-2">
