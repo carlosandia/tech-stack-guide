@@ -997,8 +997,8 @@ export function LigacaoModal({ telefone, contatoNome, onClose, oportunidadeId }:
 
       {/* Modal - fullscreen no mobile, centralizado no desktop */}
       <div className="fixed inset-0 z-[401] flex items-end sm:items-center sm:justify-center pointer-events-none">
-        <div className={`pointer-events-auto bg-card w-full h-full overflow-y-auto md:h-auto md:max-h-[90vh] md:overflow-hidden sm:border sm:border-border sm:rounded-lg shadow-lg sm:w-[calc(100%-32px)] animate-enter flex flex-col ${
-          hasInfoPanel ? 'sm:max-w-2xl' : 'sm:max-w-sm'
+        <div className={`pointer-events-auto bg-card w-full h-full overflow-y-auto md:h-auto md:max-h-[90vh] md:overflow-hidden sm:border sm:border-border sm:rounded-lg shadow-lg sm:w-[calc(100%-32px)] animate-enter flex flex-col overflow-x-hidden ${
+          hasInfoPanel ? 'sm:max-w-3xl' : 'sm:max-w-sm'
         }`}>
           <div className={`flex flex-col ${hasInfoPanel ? 'md:grid md:grid-cols-2 md:max-h-[90vh] md:overflow-hidden' : ''}`}>
             {/* Coluna esquerda: Controles de ligação */}
