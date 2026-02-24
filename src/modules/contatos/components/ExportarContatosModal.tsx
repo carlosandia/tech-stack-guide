@@ -5,7 +5,8 @@
  */
 
 import { useState, useEffect, useRef, useId, useMemo, forwardRef } from 'react'
-import { X, Download, ShieldAlert } from 'lucide-react'
+import { X, Download, ShieldAlert, AlertTriangle } from 'lucide-react'
+import { toast } from 'sonner'
 import { contatosApi, type ListarContatosParams, type TipoContato } from '../services/contatos.api'
 import { useCamposConfig } from '../hooks/useCamposConfig'
 import { useAuth } from '@/providers/AuthProvider'
@@ -72,6 +73,7 @@ export const ExportarContatosModal = forwardRef<HTMLDivElement, ExportarContatos
 
   const [selectedColumns, setSelectedColumns] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(false)
+  const [rateLimited, setRateLimited] = useState(false)
   const modalRef = useRef<HTMLDivElement>(null)
   const titleId = useId()
 
@@ -162,8 +164,17 @@ export const ExportarContatosModal = forwardRef<HTMLDivElement, ExportarContatos
       a.click()
       URL.revokeObjectURL(url)
       onClose()
-    } catch {
-      // Error handled by toast
+    } catch (err: any) {
+      // AIDEV-NOTE: Tratamento de erro 429 (rate limit) com feedback visual
+      const status = err?.response?.status || err?.status
+      const msg = err?.response?.data?.message || err?.message
+      if (status === 429) {
+        toast.error(msg || 'Limite de exportações atingido. Tente novamente mais tarde.')
+        setRateLimited(true)
+        setTimeout(() => setRateLimited(false), 30000)
+      } else {
+        toast.error(msg || 'Erro ao exportar contatos.')
+      }
     } finally {
       setLoading(false)
     }
@@ -275,11 +286,11 @@ export const ExportarContatosModal = forwardRef<HTMLDivElement, ExportarContatos
               </button>
               <button
                 onClick={handleExportar}
-                disabled={loading || selectedColumns.size === 0 || camposLoading}
+                disabled={loading || selectedColumns.size === 0 || camposLoading || rateLimited}
                 className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-200 disabled:opacity-50"
               >
-                <Download className="w-4 h-4" />
-                {loading ? 'Exportando...' : 'Exportar CSV'}
+                {rateLimited ? <AlertTriangle className="w-4 h-4" /> : <Download className="w-4 h-4" />}
+                {rateLimited ? 'Limite atingido' : loading ? 'Exportando...' : 'Exportar CSV'}
               </button>
             </div>
           </div>

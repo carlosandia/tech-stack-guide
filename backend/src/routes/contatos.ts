@@ -29,22 +29,50 @@ import { VincularSegmentosSchema } from '../schemas/segmentos.js'
 
 const router = Router()
 
-// AIDEV-NOTE: SEGURANCA - Rate limit para exportacao CSV
-// Exportacao pode ser usada para exfiltrar dados em massa
-// Limita a 5 exportacoes por hora por usuario
-// Isso da tempo para admins detectarem atividade suspeita
-const exportRateLimiter = rateLimit({
+// AIDEV-NOTE: SEGURANCA - Rate limit multi-camada para exportacao CSV
+// Padrao SaaS escalavel: limites por hora, dia e mes por usuario
+// Previne exfiltracao em massa e abuso de recursos
+
+const exportRateLimiterHourly = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hora
   max: 5,
   message: {
     error: 'Limite de exportacoes excedido',
-    message: 'Voce pode exportar no maximo 5 vezes por hora. Tente novamente mais tarde.',
+    message: 'Limite horario de exportacoes atingido (5/hora). Tente novamente em breve.',
+    limite: 'hora',
     retry_after: 3600,
   },
   standardHeaders: true,
   legacyHeaders: false,
-  // Usa ID do usuario como chave (nao IP) para melhor controle
-  keyGenerator: (req) => (req as any).user?.id || req.ip || 'unknown',
+  keyGenerator: (req) => `hourly_${(req as any).user?.id || req.ip || 'unknown'}`,
+})
+
+const exportRateLimiterDaily = rateLimit({
+  windowMs: 24 * 60 * 60 * 1000, // 24 horas
+  max: 15,
+  message: {
+    error: 'Limite de exportacoes excedido',
+    message: 'Limite diario de exportacoes atingido (15/dia). Tente novamente amanha.',
+    limite: 'dia',
+    retry_after: 86400,
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `daily_${(req as any).user?.id || req.ip || 'unknown'}`,
+})
+
+const exportRateLimiterMonthly = rateLimit({
+  windowMs: 30 * 24 * 60 * 60 * 1000, // 30 dias
+  max: 100,
+  message: {
+    error: 'Limite de exportacoes excedido',
+    message: 'Limite mensal de exportacoes atingido (100/mes). Tente novamente no proximo mes.',
+    limite: 'mes',
+    retry_after: 2592000,
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `monthly_${(req as any).user?.id || req.ip || 'unknown'}`,
 })
 
 function getOrganizacaoId(req: Request): string {
@@ -130,7 +158,7 @@ router.get('/duplicatas', requireAdmin, async (req: Request, res: Response) => {
 // AIDEV-NOTE: SEGURANCA - Rate limit aplicado para prevenir exfiltracao em massa
 // =====================================================
 
-router.get('/exportar', exportRateLimiter, async (req: Request, res: Response) => {
+router.get('/exportar', exportRateLimiterHourly, exportRateLimiterDaily, exportRateLimiterMonthly, async (req: Request, res: Response) => {
   try {
     const organizacaoId = getOrganizacaoId(req)
     const userId = getUserId(req)
