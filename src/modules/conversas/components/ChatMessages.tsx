@@ -200,16 +200,24 @@ export const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(functi
   const prevLengthRef = useRef(0)
   const isGroup = conversaTipo === 'grupo' || conversaTipo === 'canal'
 
-  // AIDEV-NOTE: Resetar ref ao trocar de conversa para forcar scroll ao final
-  useEffect(() => {
-    prevLengthRef.current = 0
-  }, [conversaId])
+  const prevConversaRef = useRef<string | undefined>(undefined)
   const { contactMap } = useMentionResolver(mensagens)
 
+  // AIDEV-NOTE: Efeito unificado para scroll - resolve race condition entre troca de conversa e cache
   useEffect(() => {
-    if (mensagens.length > prevLengthRef.current) {
-      if (prevLengthRef.current === 0) {
+    const conversaMudou = prevConversaRef.current !== conversaId
+    prevConversaRef.current = conversaId
+
+    if (conversaMudou) {
+      prevLengthRef.current = 0
+      setTimeout(() => {
         bottomRef.current?.scrollIntoView({ behavior: 'instant' })
+      }, 50)
+    } else if (mensagens.length > prevLengthRef.current) {
+      if (prevLengthRef.current === 0) {
+        setTimeout(() => {
+          bottomRef.current?.scrollIntoView({ behavior: 'instant' })
+        }, 50)
       } else {
         const container = containerRef.current
         if (container) {
@@ -220,8 +228,9 @@ export const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(functi
         }
       }
     }
+
     prevLengthRef.current = mensagens.length
-  }, [mensagens.length])
+  }, [conversaId, mensagens.length])
 
   useEffect(() => {
     const container = containerRef.current
