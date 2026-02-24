@@ -894,6 +894,7 @@ export const conversasApi = {
         has_media: false,
         ack: wahaMessageId ? 1 : 0,
         reply_to_message_id: replyTo || null,
+        timestamp_externo: Math.floor(Date.now() / 1000),
         ...(isTemplate ? { raw_data: { is_template: true } } : {}),
       })
       .select('*')
@@ -968,6 +969,7 @@ export const conversasApi = {
         tipo: dados.tipo,
         caption: dados.caption || null,
         has_media: true,
+        timestamp_externo: Math.floor(Date.now() / 1000),
         media_url: dados.media_url,
         media_filename: dados.filename || null,
         media_mimetype: dados.mimetype || null,

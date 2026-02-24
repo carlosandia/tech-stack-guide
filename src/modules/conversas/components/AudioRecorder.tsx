@@ -2,6 +2,7 @@
  * AIDEV-NOTE: Gravador de áudio inline para chat (PRD-09)
  * Usa MediaRecorder API com codec WebM/Opus
  * UI: barra inline com Cancelar | Tempo | Enviar
+ * AIDEV-NOTE: Usa generation counter para evitar intervals duplicados em StrictMode
  */
 
 import { useState, useRef, useCallback, useEffect } from 'react'
@@ -21,7 +22,8 @@ export function AudioRecorder({ onSend, onCancel }: AudioRecorderProps) {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const durationRef = useRef(0)
-  const startedRef = useRef(false)
+  // AIDEV-NOTE: Generation counter — invalida callbacks de montagens anteriores (StrictMode safe)
+  const generationRef = useRef(0)
 
   const cleanup = useCallback(() => {
     if (timerRef.current) {
@@ -33,15 +35,21 @@ export function AudioRecorder({ onSend, onCancel }: AudioRecorderProps) {
       streamRef.current = null
     }
     mediaRecorderRef.current = null
-    startedRef.current = false
     setIsRecording(false)
   }, [])
 
-  const startRecording = useCallback(async () => {
+  const startRecording = useCallback(async (gen: number) => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 48000 }
       })
+
+      // Se a geração mudou enquanto getUserMedia era async, descartar
+      if (gen !== generationRef.current) {
+        stream.getTracks().forEach(t => t.stop())
+        return
+      }
+
       streamRef.current = stream
 
       const mimeType = MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')
@@ -66,7 +74,6 @@ export function AudioRecorder({ onSend, onCancel }: AudioRecorderProps) {
         cleanup()
       }
 
-      // No timeslice = single chunk with complete container metadata (duration)
       recorder.start()
       setIsRecording(true)
       setDuration(0)
@@ -80,6 +87,7 @@ export function AudioRecorder({ onSend, onCancel }: AudioRecorderProps) {
         })
       }, 1000)
     } catch (err) {
+      if (gen !== generationRef.current) return
       console.error('[AudioRecorder] Error:', err)
       setError('Não foi possível acessar o microfone')
     }
@@ -101,11 +109,9 @@ export function AudioRecorder({ onSend, onCancel }: AudioRecorderProps) {
     }
   }, [])
 
-  // Auto-start recording on mount (guard prevents double execution in StrictMode)
   useEffect(() => {
-    if (startedRef.current) return
-    startedRef.current = true
-    startRecording()
+    const currentGen = ++generationRef.current
+    startRecording(currentGen)
     return () => {
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
         mediaRecorderRef.current.ondataavailable = null
@@ -136,7 +142,6 @@ export function AudioRecorder({ onSend, onCancel }: AudioRecorderProps) {
 
   return (
     <div className="flex items-center gap-3 p-3 bg-destructive/5 border border-destructive/20 rounded-md animate-in fade-in duration-200">
-      {/* Cancel */}
       <button
         onClick={handleCancel}
         className="p-2 rounded-full hover:bg-destructive/10 text-destructive transition-colors"
@@ -145,14 +150,12 @@ export function AudioRecorder({ onSend, onCancel }: AudioRecorderProps) {
         <Trash2 className="w-4 h-4" />
       </button>
 
-      {/* Recording indicator + timer */}
       <div className="flex items-center gap-2 flex-1">
         <div className="w-2.5 h-2.5 rounded-full bg-destructive animate-pulse" />
         <span className="text-sm font-mono text-foreground">{formatTime(duration)}</span>
         <span className="text-xs text-muted-foreground">Gravando...</span>
       </div>
 
-      {/* Send */}
       <button
         onClick={handleSend}
         disabled={!isRecording || duration < 1}
