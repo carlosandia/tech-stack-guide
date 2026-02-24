@@ -158,6 +158,7 @@ MenuDropdown.displayName = 'MenuDropdown'
 export const ChatHeader = forwardRef<HTMLDivElement, ChatHeaderProps>(function ChatHeader({ conversa, onBack, onOpenDrawer, onAlterarStatus, onCriarOportunidade, onToggleBusca, onSilenciar, onLimparConversa, onApagarConversa }, _ref) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirmAction, setConfirmAction] = useState<'limpar' | 'apagar' | null>(null)
+  const [fotoError, setFotoError] = useState(false)
   const [sessionName, setSessionName] = useState('')
   // AIDEV-NOTE: Grupos/canais priorizam conversa.nome sobre contato.nome (pode ser ID numérico)
   const nome = (conversa.tipo === 'grupo' || conversa.tipo === 'canal')
@@ -202,8 +203,8 @@ export const ChatHeader = forwardRef<HTMLDivElement, ChatHeaderProps>(function C
             onClick={onOpenDrawer}
             className="flex items-center gap-2 min-w-0 hover:opacity-80 transition-opacity"
           >
-            {fotoUrl ? (
-              <img src={fotoUrl} alt={nome} className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover flex-shrink-0" />
+            {fotoUrl && !fotoError ? (
+              <img src={fotoUrl} alt={nome} className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover flex-shrink-0" onError={() => setFotoError(true)} />
             ) : (
               <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                 <span className="text-xs sm:text-sm font-semibold text-primary">{getInitials(nome)}</span>

@@ -116,6 +116,7 @@ function getTipoBadge(tipo: string): { label: string; className: string } | null
 
 export const ConversaItem = forwardRef<HTMLDivElement, ConversaItemProps>(function ConversaItem({ conversa, isActive, onClick, onArquivar, onFixar, onMarcarNaoLida, onApagar }, _ref) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [fotoError, setFotoError] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   // AIDEV-NOTE: Grupos/canais priorizam conversa.nome (nome real do grupo) sobre contato.nome (ID numérico)
   const nome = (conversa.tipo === 'grupo' || conversa.tipo === 'canal')
@@ -160,8 +161,8 @@ export const ConversaItem = forwardRef<HTMLDivElement, ConversaItemProps>(functi
       >
         {/* Avatar */}
         <div className="relative flex-shrink-0">
-          {fotoUrl ? (
-            <img src={fotoUrl} alt={nome} className="w-12 h-12 rounded-full object-cover" />
+          {fotoUrl && !fotoError ? (
+            <img src={fotoUrl} alt={nome} className="w-12 h-12 rounded-full object-cover" onError={() => setFotoError(true)} />
           ) : (
             <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold text-sm ${getAvatarColor(conversa.id)}`}>
               {getInitials(nome)}

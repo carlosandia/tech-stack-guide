@@ -27,6 +27,7 @@ export function AceitarPreOportunidadeModal({ preOp, funilId: _funilId, onClose,
   const [contatoEmail, setContatoEmail] = useState('')
   const [valor, setValor] = useState('')
   const [responsavelId, setResponsavelId] = useState('')
+  const [fotoError, setFotoError] = useState(false)
 
   // Buscar membros
   const { data: membros } = useQuery({
@@ -84,8 +85,8 @@ export function AceitarPreOportunidadeModal({ preOp, funilId: _funilId, onClose,
           {/* Info do lead */}
           <div className="px-6 py-4 bg-muted/30 border-b border-border">
             <div className="flex items-center gap-3">
-              {preOp.profile_picture_url ? (
-                <img src={preOp.profile_picture_url} alt="" className="w-10 h-10 rounded-full object-cover" />
+              {preOp.profile_picture_url && !fotoError ? (
+                <img src={preOp.profile_picture_url} alt="" className="w-10 h-10 rounded-full object-cover" onError={() => setFotoError(true)} />
               ) : (
                 <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
                   <User className="w-5 h-5 text-muted-foreground" />

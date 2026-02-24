@@ -206,7 +206,7 @@ export function EncaminharModal({ mensagem, onForward, onClose, onNavigateConver
                   </div>
                   <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
                     {c.foto_url ? (
-                      <img src={c.foto_url} alt="" className="w-9 h-9 rounded-full object-cover" />
+                      <img src={c.foto_url} alt="" className="w-9 h-9 rounded-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
                     ) : (
                       <User className="w-4 h-4 text-muted-foreground" />
                     )}
