@@ -76,12 +76,29 @@ export function MediaUploader({ tipo, midiaUrl, onUrlChange }: MediaUploaderProp
     }
   }, [tipo, onUrlChange])
 
+  // AIDEV-NOTE: Seg — whitelist de MIME types por categoria para prevenir upload malicioso
+  const ALLOWED_MIMES: Record<string, string[]> = {
+    imagem: ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp'],
+    audio: ['audio/mpeg', 'audio/wav', 'audio/webm', 'audio/mp4', 'audio/ogg'],
+    documento: ['application/pdf', 'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'text/plain', 'text/csv'],
+  }
+
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    const allowed = ALLOWED_MIMES[tipo] || []
+    if (allowed.length > 0 && !allowed.includes(file.type)) {
+      toast.error(`Tipo de arquivo não permitido: ${file.type || 'desconhecido'}`)
+      e.target.value = ''
+      return
+    }
     uploadFile(file, file.name)
     e.target.value = '' // reset input
-  }, [uploadFile])
+  }, [uploadFile, tipo])
 
   // Gravação de áudio
   const iniciarGravacao = useCallback(async () => {

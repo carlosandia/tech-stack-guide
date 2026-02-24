@@ -8,6 +8,7 @@ import { ChevronDown, ChevronUp, ChevronRight, Variable, X, Search, User } from 
 import { useState, useRef, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/integrations/supabase/client'
+import { toast } from 'sonner'
 import { getOrganizacaoId } from '@/shared/services/auth-context'
 import { useCampos } from '@/modules/configuracoes/hooks/useCampos'
 import type { Entidade } from '@/modules/configuracoes/services/configuracoes.api'
@@ -307,7 +308,32 @@ function WebhookSaidaSelect({ config, updateConfig, appendToConfig }: {
       {!config.webhook_id && (
         <div>
           <label className="text-xs font-medium text-muted-foreground">URL do Webhook</label>
-          <input type="url" value={config.url || ''} onChange={e => updateConfig({ url: e.target.value })} placeholder="https://..." className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
+          {/* AIDEV-NOTE: Seg — validação SSRF: bloquear localhost, IPs internos e protocolos não-HTTP */}
+          <input
+            type="url"
+            value={config.url || ''}
+            onChange={e => {
+              const url = e.target.value
+              if (url) {
+                try {
+                  const parsed = new URL(url)
+                  if (!['http:', 'https:'].includes(parsed.protocol)) {
+                    toast.error('Apenas URLs HTTP/HTTPS são permitidas')
+                    return
+                  }
+                  if (/^(localhost|127\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.|0\.0\.0\.0|::1)/.test(parsed.hostname)) {
+                    toast.error('URLs internas/privadas não são permitidas')
+                    return
+                  }
+                } catch {
+                  // URL incompleta ainda sendo digitada — não bloquear
+                }
+              }
+              updateConfig({ url })
+            }}
+            placeholder="https://..."
+            className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
+          />
         </div>
       )}
       {config.webhook_id && (

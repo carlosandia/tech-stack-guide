@@ -5,6 +5,20 @@
 
 import { Plus, Trash2 } from 'lucide-react'
 import { VALIDACAO_OPERADORES, VALIDACAO_TIPOS_CONTEUDO } from '../../schemas/automacoes.schema'
+import { toast } from 'sonner'
+
+// AIDEV-NOTE: Seg — validação básica de regex para prevenir ReDoS
+function isRegexSegura(pattern: string): boolean {
+  if (!pattern) return true
+  try {
+    // Rejeitar padrões com backtracking catastrófico
+    if (/(\(.*\+\).*\+|\(.*\*\).*\+|\(\w+\|\w+\)[*+])/.test(pattern)) return false
+    new RegExp(pattern)
+    return true
+  } catch {
+    return false
+  }
+}
 
 interface ValidacaoCondicaoLocal {
   operador: string
@@ -109,7 +123,14 @@ export function ValidacaoConfig({ data, onUpdate }: ValidacaoConfigProps) {
               <input
                 type="text"
                 value={cond.valor}
-                onChange={e => updateCondicao(index, { valor: e.target.value })}
+                onChange={e => {
+                  // AIDEV-NOTE: Seg — validar regex antes de salvar para prevenir ReDoS
+                  if (cond.operador === 'expressao_regular' && e.target.value && !isRegexSegura(e.target.value)) {
+                    toast.error('Expressão regular inválida ou potencialmente perigosa')
+                    return
+                  }
+                  updateCondicao(index, { valor: e.target.value })
+                }}
                 placeholder={cond.operador === 'expressao_regular' ? 'Ex: ^[0-9]+$' : 'Digite o valor...'}
                 className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
               />

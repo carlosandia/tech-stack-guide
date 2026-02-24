@@ -43,21 +43,44 @@ const SOMBRA_MAP: Record<string, string> = {
   xl: '0 20px 25px -5px rgb(0 0 0 / 0.1)',
 }
 
+// AIDEV-NOTE: Seg — validação estrita de valores CSS para prevenir CSS/HTML injection
+const ALINHAMENTOS_VALIDOS = new Set(['left', 'center', 'right', 'justify'])
+const ESTILOS_DIVISOR_VALIDOS = new Set(['solid', 'dashed', 'dotted'])
+const COR_HEX_RE = /^#[0-9A-Fa-f]{3}([0-9A-Fa-f]{3})?$/
+const NUMERO_RE = /^\d{1,4}$/
+
 function parseLayoutConfig(valorPadrao: string | null | undefined, tipo: string): Record<string, string> {
   if (tipo === 'titulo' || tipo === 'paragrafo') {
     const defaults = { alinhamento: 'left', cor: '#374151', tamanho: tipo === 'titulo' ? '18' : '14' }
     if (!valorPadrao) return defaults
-    try { const p = JSON.parse(valorPadrao); return { alinhamento: p.alinhamento || defaults.alinhamento, cor: p.cor || defaults.cor, tamanho: p.tamanho || defaults.tamanho } } catch { return defaults }
+    try {
+      const p = JSON.parse(valorPadrao)
+      return {
+        alinhamento: ALINHAMENTOS_VALIDOS.has(p.alinhamento) ? p.alinhamento : defaults.alinhamento,
+        cor: COR_HEX_RE.test(p.cor) ? p.cor : defaults.cor,
+        tamanho: NUMERO_RE.test(p.tamanho) ? p.tamanho : defaults.tamanho,
+      }
+    } catch { return defaults }
   }
   if (tipo === 'divisor') {
     const defaults = { cor: '#D1D5DB', espessura: '1', estilo: 'solid' }
     if (!valorPadrao) return defaults
-    try { const p = JSON.parse(valorPadrao); return { cor: p.cor || defaults.cor, espessura: p.espessura || defaults.espessura, estilo: p.estilo || defaults.estilo } } catch { return defaults }
+    try {
+      const p = JSON.parse(valorPadrao)
+      return {
+        cor: COR_HEX_RE.test(p.cor) ? p.cor : defaults.cor,
+        espessura: NUMERO_RE.test(p.espessura) ? p.espessura : defaults.espessura,
+        estilo: ESTILOS_DIVISOR_VALIDOS.has(p.estilo) ? p.estilo : defaults.estilo,
+      }
+    } catch { return defaults }
   }
   if (tipo === 'espacador') {
     const defaults = { altura: '16' }
     if (!valorPadrao) return defaults
-    try { const p = JSON.parse(valorPadrao); return { altura: p.altura || defaults.altura } } catch { return defaults }
+    try {
+      const p = JSON.parse(valorPadrao)
+      return { altura: NUMERO_RE.test(p.altura) ? p.altura : defaults.altura }
+    } catch { return defaults }
   }
   return {}
 }
@@ -381,7 +404,8 @@ export function FormularioPublicoPage() {
     if (posEnvio?.tipo_acao_sucesso === 'redirecionar' || posEnvio?.tipo_acao_sucesso === 'ambos') {
       const url = posEnvio?.url_redirecionamento
       const tempo = (posEnvio?.tempo_redirecionamento || 3) * 1000
-      if (url) {
+      // AIDEV-NOTE: Seg — validar URL antes de redirecionar (previne Open Redirect via javascript: e data:)
+      if (url && /^https?:\/\//.test(url)) {
         setTimeout(() => { window.location.href = url }, tempo)
       }
     }
@@ -927,7 +951,12 @@ function renderCampoPublico(props: RenderCampoProps) {
     case 'oculto':
       return null
     case 'bloco_html':
-      return <div style={{ fontSize: '14px', fontFamily }} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(campo.valor_padrao || '') }} />
+      // AIDEV-NOTE: Seg — whitelist restrita de tags/atributos para prevenir XSS em bloco HTML
+      return <div style={{ fontSize: '14px', fontFamily }} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(campo.valor_padrao || '', {
+        ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'a', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'span'],
+        ALLOWED_ATTR: ['href', 'target', 'rel', 'style'],
+        FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'onmouseout', 'onfocus', 'onblur'],
+      }) }} />
     case 'imagem_link': {
       let imgUrl = ''
       let linkUrl = ''
@@ -1398,7 +1427,10 @@ function renderCampoPublico(props: RenderCampoProps) {
             📎 {valor ? valor.split('/').pop() : (labelMap[campo.tipo] || 'Selecionar arquivo')}
             <input type="file" accept={typeMap[campo.tipo] || '*/*'} style={{ display: 'none' }} onChange={e => {
               const file = e.target.files?.[0]
-              if (file) onChange(file.name)
+              if (!file) return
+              // AIDEV-NOTE: Seg — sanitizar filename para prevenir path traversal
+              const safeFilename = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 255)
+              onChange(safeFilename)
             }} />
           </label>
         </div>
@@ -1539,7 +1571,9 @@ function renderBotoesPublico(
       msg = lines.join('\n')
     } else {
       campos.forEach(c => {
-        msg = msg.replace(new RegExp(`{{${c.nome}}}`, 'g'), valores[c.id] || '')
+        // AIDEV-NOTE: Seg — escapar nome do campo antes de usar em RegExp (previne ReDoS)
+        const nomeEscapado = c.nome.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        msg = msg.replace(new RegExp(`{{${nomeEscapado}}}`, 'g'), valores[c.id] || '')
       })
     }
     const url = `https://wa.me/${numero}?text=${encodeURIComponent(msg)}`

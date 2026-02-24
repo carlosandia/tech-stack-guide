@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Plus } from 'lucide-react'
+import { toast } from 'sonner'
 
 interface Props {
   onCriar: (payload: {
@@ -32,6 +33,21 @@ export function WebhookFormularioForm({ onCriar, loading }: Props) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!nome.trim() || !url.trim()) return
+    // AIDEV-NOTE: Seg — validação SSRF: bloquear protocolos não-HTTP e IPs internos
+    try {
+      const parsed = new URL(url.trim())
+      if (!['http:', 'https:'].includes(parsed.protocol)) {
+        toast.error('Apenas URLs HTTP/HTTPS são permitidas')
+        return
+      }
+      if (/^(localhost|127\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.|0\.0\.0\.0|::1)/.test(parsed.hostname)) {
+        toast.error('URLs internas/privadas não são permitidas')
+        return
+      }
+    } catch {
+      toast.error('URL inválida')
+      return
+    }
     onCriar({
       nome_webhook: nome.trim(),
       url_webhook: url.trim(),

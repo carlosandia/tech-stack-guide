@@ -12,9 +12,12 @@ import type { Automacao, CriarAutomacaoInput, LogAutomacao, Acao, Condicao } fro
 // =====================================================
 
 export async function listarAutomacoes(): Promise<Automacao[]> {
+  // AIDEV-NOTE: Seg — filtro organizacao_id obrigatório para isolamento multi-tenant
+  const organizacaoId = await getOrganizacaoId()
   const { data, error } = await (supabase
     .from('automacoes') as any)
     .select('*')
+    .eq('organizacao_id', organizacaoId)
     .is('deletado_em', null)
     .order('criado_em', { ascending: false })
     .limit(100)
@@ -24,10 +27,13 @@ export async function listarAutomacoes(): Promise<Automacao[]> {
 }
 
 export async function obterAutomacao(id: string): Promise<Automacao> {
+  // AIDEV-NOTE: Seg — validar ownership de tenant antes de retornar
+  const organizacaoId = await getOrganizacaoId()
   const { data, error } = await (supabase
     .from('automacoes') as any)
     .select('*')
     .eq('id', id)
+    .eq('organizacao_id', organizacaoId)
     .is('deletado_em', null)
     .single()
 
@@ -35,9 +41,23 @@ export async function obterAutomacao(id: string): Promise<Automacao> {
   return mapAutomacao(data)
 }
 
+// AIDEV-NOTE: Seg — limite de automações por tenant para prevenir resource exhaustion
+const MAX_AUTOMACOES_POR_TENANT = 500
+
 export async function criarAutomacao(input: CriarAutomacaoInput): Promise<Automacao> {
   const organizacaoId = await getOrganizacaoId()
   const usuarioId = await getUsuarioId()
+
+  const { count, error: countError } = await (supabase
+    .from('automacoes') as any)
+    .select('id', { count: 'exact', head: true })
+    .eq('organizacao_id', organizacaoId)
+    .is('deletado_em', null)
+
+  if (countError) throw countError
+  if ((count ?? 0) >= MAX_AUTOMACOES_POR_TENANT) {
+    throw new Error(`Limite de ${MAX_AUTOMACOES_POR_TENANT} automações atingido`)
+  }
 
   const { data, error } = await (supabase
     .from('automacoes') as any)
@@ -71,6 +91,8 @@ export async function atualizarAutomacao(
     acoes: Acao[]
   }>
 ): Promise<Automacao> {
+  // AIDEV-NOTE: Seg — validar ownership de tenant antes de atualizar
+  const organizacaoId = await getOrganizacaoId()
   const updatePayload: Record<string, unknown> = { ...payload }
   if (payload.condicoes) {
     updatePayload.condicoes = payload.condicoes as unknown as Record<string, unknown>[]
@@ -83,6 +105,7 @@ export async function atualizarAutomacao(
     .from('automacoes') as any)
     .update(updatePayload)
     .eq('id', id)
+    .eq('organizacao_id', organizacaoId)
     .select()
     .single()
 
@@ -91,10 +114,13 @@ export async function atualizarAutomacao(
 }
 
 export async function excluirAutomacao(id: string): Promise<void> {
+  // AIDEV-NOTE: Seg — validar ownership de tenant antes de excluir
+  const organizacaoId = await getOrganizacaoId()
   const { error } = await (supabase
     .from('automacoes') as any)
     .update({ deletado_em: new Date().toISOString() })
     .eq('id', id)
+    .eq('organizacao_id', organizacaoId)
 
   if (error) throw error
 }
@@ -108,9 +134,12 @@ export async function listarLogs(
   limit = 50,
   status?: string
 ): Promise<LogAutomacao[]> {
+  // AIDEV-NOTE: Seg — filtro organizacao_id obrigatório para isolamento de logs
+  const organizacaoId = await getOrganizacaoId()
   let query = (supabase
     .from('log_automacoes') as any)
     .select('*')
+    .eq('organizacao_id', organizacaoId)
     .order('criado_em', { ascending: false })
     .limit(limit)
 

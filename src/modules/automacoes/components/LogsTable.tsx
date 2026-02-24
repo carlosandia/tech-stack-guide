@@ -67,7 +67,10 @@ export function LogsTable({ automacaoId, onClose }: LogsTableProps) {
                       </div>
                     </div>
                     {log.erro_mensagem && (
-                      <p className="text-xs text-destructive mt-1 pl-6">{log.erro_mensagem}</p>
+                      // AIDEV-NOTE: Seg — usar <pre> para evitar rendering de HTML em mensagens de erro
+                      <pre className="text-xs text-destructive mt-1 pl-6 whitespace-pre-wrap break-words font-sans">
+                        {log.erro_mensagem}
+                      </pre>
                     )}
                     {log.acoes_executadas && log.acoes_executadas.length > 0 && (
                       <div className="mt-1 pl-6 flex flex-wrap gap-1">

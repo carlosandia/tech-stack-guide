@@ -103,7 +103,9 @@ async function listar(params?: ListarFormulariosParams): Promise<ListarFormulari
     .order('criado_em', { ascending: false })
 
   if (params?.busca) {
-    query = query.ilike('nome', `%${params.busca}%`)
+    // AIDEV-NOTE: Seg — escape de wildcards SQL para prevenir injeção via LIKE
+    const buscaEscapada = params.busca.replace(/[%_\\]/g, '\\$&')
+    query = query.ilike('nome', `%${buscaEscapada}%`)
   }
   if (params?.status) {
     query = query.eq('status', params.status)
