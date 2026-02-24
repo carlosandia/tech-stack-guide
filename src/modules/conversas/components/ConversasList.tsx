@@ -7,6 +7,7 @@
 import { useRef, useCallback } from 'react'
 import { ConversaItem } from './ConversaItem'
 import type { Conversa } from '../services/conversas.api'
+import type { PresenceStatus } from '../hooks/usePresence'
 import { MessageSquare, Loader2 } from 'lucide-react'
 
 interface ConversasListProps {
@@ -21,6 +22,7 @@ interface ConversasListProps {
   onFixar?: (id: string, fixar: boolean) => void
   onMarcarNaoLida?: (id: string) => void
   onApagar?: (id: string) => void
+  presenceMap?: Map<string, PresenceStatus>
 }
 
 // AIDEV-NOTE: Removido forwardRef - componente usa listRef interno para scroll infinito
@@ -36,6 +38,7 @@ export function ConversasList({
   onFixar,
   onMarcarNaoLida,
   onApagar,
+  presenceMap,
 }: ConversasListProps) {
   const listRef = useRef<HTMLDivElement>(null)
 
@@ -87,6 +90,7 @@ export function ConversasList({
           onFixar={onFixar}
           onMarcarNaoLida={onMarcarNaoLida}
           onApagar={onApagar}
+          presenceStatus={presenceMap?.get(conversa.chat_id) || null}
         />
       ))}
 

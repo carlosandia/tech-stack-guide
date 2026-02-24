@@ -232,11 +232,11 @@ export const ChatHeader = forwardRef<HTMLDivElement, ChatHeaderProps>(function C
                   </svg>
                 )}
               </div>
-              {/* AIDEV-NOTE: Indicador de presença — online/digitando/gravando */}
+              {/* AIDEV-NOTE: Indicador de presença — estilo WhatsApp Web: cinza no header */}
               {presenceStatus && presenceStatus !== 'unavailable' && presenceStatus !== 'paused' && (
                 <span className={`text-[10px] sm:text-[11px] leading-tight ${
                   presenceStatus === 'composing' || presenceStatus === 'recording'
-                    ? 'text-success-foreground animate-pulse'
+                    ? 'text-muted-foreground'
                     : 'text-success-foreground'
                 }`}>
                   {presenceStatus === 'composing' ? 'digitando...'

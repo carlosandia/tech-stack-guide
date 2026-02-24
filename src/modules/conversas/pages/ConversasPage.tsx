@@ -12,6 +12,7 @@ import { useAppToolbar } from '@/modules/app/contexts/AppToolbarContext'
 import { useConversas, useArquivarConversa, useDesarquivarConversa, useFixarConversa, useMarcarNaoLida, useApagarConversa } from '../hooks/useConversas'
 import { useConversasRealtime } from '../hooks/useConversasRealtime'
 import { useLabels, useSincronizarLabels } from '../hooks/useWhatsAppLabels'
+import { useListPresence } from '../hooks/useListPresence'
 import { ConversasList } from '../components/ConversasList'
 import { FiltrosConversas } from '../components/FiltrosConversas'
 import { ConversaEmpty } from '../components/ConversaEmpty'
@@ -64,6 +65,8 @@ const ConversasPage = forwardRef<HTMLDivElement>(function ConversasPage(_props, 
   const sincronizarLabels = useSincronizarLabels()
   const labelsSyncRef = useRef(false)
   const sessionNameRef = useRef<string | null>(null)
+  const [sessionNameState, setSessionNameState] = useState<string | null>(null)
+  const presenceMap = useListPresence(sessionNameState)
 
   const arquivarConversa = useArquivarConversa()
   const desarquivarConversa = useDesarquivarConversa()
@@ -96,6 +99,7 @@ const ConversasPage = forwardRef<HTMLDivElement>(function ConversasPage(_props, 
           .then(({ data: sessao }) => {
             if (sessao?.session_name) {
               sessionNameRef.current = sessao.session_name
+              setSessionNameState(sessao.session_name)
               sincronizarLabels.mutate(sessao.session_name)
             }
           })
@@ -244,6 +248,7 @@ const ConversasPage = forwardRef<HTMLDivElement>(function ConversasPage(_props, 
             onFixar={handleFixar}
             onMarcarNaoLida={handleMarcarNaoLida}
             onApagar={handleApagarFromList}
+            presenceMap={presenceMap}
           />
         </div>
 
