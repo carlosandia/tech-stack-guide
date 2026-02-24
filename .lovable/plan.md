@@ -1,64 +1,49 @@
 
+# Plano: Vincular Pessoas a Empresas na Criacao/Edicao
 
-## Correção: Presença (online/digitando) não aparece no chat
+## Problema
+O modal de empresa ja possui a UI para selecionar pessoas vinculadas e envia `pessoa_ids` no payload. Porem, o `handleFormSubmit` em `ContatosPage.tsx` nunca processa esse campo -- ele simplesmente passa para a API que o ignora. Resultado: a vinculacao nunca acontece.
 
-### Diagnóstico confirmado pelos logs
+## Logica de vinculo
+- Uma **Pessoa** possui coluna `empresa_id` que aponta para a **Empresa**
+- Para vincular pessoas a uma empresa, basta fazer `UPDATE contatos SET empresa_id = <empresa_id> WHERE id IN (<pessoa_ids>)`
+- Na edicao, tambem e necessario desvincular pessoas removidas (`SET empresa_id = null`)
 
-A reconfiguração de webhooks que implementamos **funcionou** — os logs mostram:
-- `presence.update` com status `typing`, `offline`, `paused` chegando ao `waha-webhook`
-- Broadcast sendo enviado com sucesso via Supabase Realtime
+## Alteracoes
 
-Porém o frontend **nunca processa** esses eventos. Identifiquei **2 problemas**:
+### Arquivo: `src/modules/contatos/pages/ContatosPage.tsx`
 
-### Problema 1: Mismatch de chatId (@lid vs @c.us)
+**Na funcao `handleFormSubmit`**, em ambos os blocos (criacao e edicao):
 
-O WAHA envia o `chatId` no formato `@lid` (ex: `265412537221351@lid`), mas o frontend armazena e compara com o formato `@c.us` (ex: `5541999999999@c.us`).
+1. Extrair `pessoa_ids` do `cleanData` e remove-lo antes de enviar para a API (a API nao conhece esse campo)
+2. Apos a criacao/atualizacao do contato e dos campos custom, executar a vinculacao:
 
-Na linha 63 do `usePresence.ts`:
+**Criacao de empresa:**
 ```
-if (payload?.chatId === chatId)  // NUNCA é true
-```
-
-Isso acontece porque o `presence.update` no `waha-webhook` envia o `chatId` diretamente como vem do WAHA, sem fazer a resolução `@lid → @c.us` que é feita para mensagens e labels.
-
-### Problema 2: Mismatch de status (typing vs composing)
-
-O WAHA GOWS envia status como `typing`, `offline`, `paused`. Mas o frontend espera os valores do tipo `PresenceStatus`: `composing`, `unavailable`, `available`, `recording`.
-
-Os logs confirmam:
-```
-lastKnownPresence: "typing"   → frontend espera "composing"
-lastKnownPresence: "offline"  → frontend espera "unavailable"
+- Extrair pessoa_ids de cleanData (e deletar do payload)
+- Apos salvar campos custom e segmentos, chamar supabase
+  .from('contatos')
+  .update({ empresa_id: novaEmpresa.id })
+  .in('id', pessoaIds)
 ```
 
-### Sobre a pergunta do status online
-
-No WhatsApp, o status "online" (`available`) só aparece se o contato tiver habilitado a visibilidade do "visto por último/online" nas configurações de privacidade dele. Se o contato desativou, o WAHA retorna `offline` sempre. Porém, o indicador de "digitando" funciona independente dessas configurações — é assim no WhatsApp nativo também.
-
-### Solução
-
-#### 1. `waha-webhook/index.ts` — Resolver @lid no presence.update
-
-No handler de `presence.update`, antes de fazer o broadcast, resolver o `chatId` de `@lid` para o `chat_id` (@c.us) armazenado na conversa. Usar a mesma estratégia já existente no webhook: buscar na tabela `conversas` por `chat_id` exato e, se for @lid, fazer fallback via RPC `resolve_lid_conversa`.
-
-Além disso, incluir o `chat_id` resolvido (@c.us) no payload do broadcast para que o frontend possa fazer a comparação corretamente.
-
-#### 2. `usePresence.ts` — Mapear status do WAHA para PresenceStatus
-
-Adicionar uma função de mapeamento no hook:
+**Edicao de empresa:**
 ```
-typing → composing
-offline → unavailable
-available → available
-recording → recording
-paused → paused
+- Extrair pessoa_ids de cleanData (e deletar do payload)
+- Apos salvar campos custom e segmentos:
+  1. Desvincular pessoas removidas:
+     supabase.from('contatos')
+       .update({ empresa_id: null })
+       .eq('empresa_id', editingContato.id)
+       .eq('tipo', 'pessoa')
+     (se houver pessoa_ids, adicionar .not('id', 'in', `(ids)`) )
+  2. Vincular pessoas selecionadas:
+     supabase.from('contatos')
+       .update({ empresa_id: editingContato.id })
+       .in('id', pessoaIds)
 ```
 
-E aplicar esse mapeamento tanto no `presence_get` (linha 53) quanto no listener de broadcast (linha 67).
-
-Também ajustar a comparação de `chatId` no broadcast listener para aceitar tanto o `chatId` original quanto o resolvido.
-
-### Arquivos modificados
-
-- `supabase/functions/waha-webhook/index.ts` — Resolver @lid para @c.us no handler de presence.update antes de broadcastar
-- `src/modules/conversas/hooks/usePresence.ts` — Mapear status WAHA para PresenceStatus e aceitar chatId resolvido no broadcast
+### Resumo das mudancas
+- **1 arquivo modificado**: `src/modules/contatos/pages/ContatosPage.tsx`
+- Nenhuma alteracao no banco de dados (a coluna `empresa_id` ja existe na tabela `contatos`)
+- Nenhuma alteracao no modal (a UI de selecao de pessoas ja funciona corretamente)
