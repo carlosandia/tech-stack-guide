@@ -1946,9 +1946,12 @@ export const webhooksApi = {
   },
 
   listarEntrada: async () => {
+    // AIDEV-NOTE: Seg — filtro organizacao_id obrigatório para isolamento multi-tenant
+    const orgId = await getOrganizacaoId()
     const { data, error, count } = await supabase
       .from('webhooks_entrada')
       .select('*', { count: 'exact' })
+      .eq('organizacao_id', orgId)
       .is('deletado_em', null)
       .order('criado_em', { ascending: false })
 
@@ -1976,10 +1979,13 @@ export const webhooksApi = {
   },
 
   atualizarEntrada: async (id: string, payload: Record<string, unknown>) => {
+    // AIDEV-NOTE: Seg — validar ownership de tenant antes de atualizar (IDOR prevention)
+    const orgId = await getOrganizacaoId()
     const { data, error } = await supabase
       .from('webhooks_entrada')
       .update({ ...payload, atualizado_em: new Date().toISOString() } as any)
       .eq('id', id)
+      .eq('organizacao_id', orgId)
       .select()
       .single()
 
@@ -1988,20 +1994,26 @@ export const webhooksApi = {
   },
 
   excluirEntrada: async (id: string) => {
+    // AIDEV-NOTE: Seg — validar ownership de tenant antes de excluir (IDOR prevention)
+    const orgId = await getOrganizacaoId()
     const { error } = await supabase
       .from('webhooks_entrada')
       .update({ deletado_em: new Date().toISOString(), ativo: false })
       .eq('id', id)
+      .eq('organizacao_id', orgId)
 
     if (error) throw new Error(`Erro ao excluir webhook: ${error.message}`)
   },
 
   regenerarToken: async (id: string) => {
+    // AIDEV-NOTE: Seg — validar ownership de tenant antes de regenerar token (IDOR prevention)
+    const orgId = await getOrganizacaoId()
     const novoToken = crypto.randomUUID().replace(/-/g, '')
     const { data, error } = await supabase
       .from('webhooks_entrada')
       .update({ url_token: novoToken, atualizado_em: new Date().toISOString() })
       .eq('id', id)
+      .eq('organizacao_id', orgId)
       .select()
       .single()
 
@@ -2010,6 +2022,8 @@ export const webhooksApi = {
   },
 
   regenerarChaves: async (id: string) => {
+    // AIDEV-NOTE: Seg — validar ownership de tenant antes de regenerar chaves (IDOR prevention)
+    const orgId = await getOrganizacaoId()
     const novaApiKey = `whk_${crypto.randomUUID().replace(/-/g, '')}`
     const novaSecretKey = `whs_${crypto.randomUUID().replace(/-/g, '')}`
 
@@ -2021,6 +2035,7 @@ export const webhooksApi = {
         atualizado_em: new Date().toISOString(),
       })
       .eq('id', id)
+      .eq('organizacao_id', orgId)
       .select()
       .single()
 
@@ -2029,9 +2044,12 @@ export const webhooksApi = {
   },
 
   listarSaida: async () => {
+    // AIDEV-NOTE: Seg — filtro organizacao_id obrigatório para isolamento multi-tenant
+    const orgId = await getOrganizacaoId()
     const { data, error, count } = await supabase
       .from('webhooks_saida')
       .select('*', { count: 'exact' })
+      .eq('organizacao_id', orgId)
       .is('deletado_em', null)
       .order('criado_em', { ascending: false })
 
@@ -2054,10 +2072,13 @@ export const webhooksApi = {
   },
 
   atualizarSaida: async (id: string, payload: Record<string, unknown>) => {
+    // AIDEV-NOTE: Seg — validar ownership de tenant antes de atualizar (IDOR prevention)
+    const orgId = await getOrganizacaoId()
     const { data, error } = await supabase
       .from('webhooks_saida')
       .update({ ...payload, atualizado_em: new Date().toISOString() } as any)
       .eq('id', id)
+      .eq('organizacao_id', orgId)
       .select()
       .single()
 
@@ -2066,25 +2087,57 @@ export const webhooksApi = {
   },
 
   excluirSaida: async (id: string) => {
+    // AIDEV-NOTE: Seg — validar ownership de tenant antes de excluir (IDOR prevention)
+    const orgId = await getOrganizacaoId()
     const { error } = await supabase
       .from('webhooks_saida')
       .update({ deletado_em: new Date().toISOString(), ativo: false })
       .eq('id', id)
+      .eq('organizacao_id', orgId)
 
     if (error) throw new Error(`Erro ao excluir webhook: ${error.message}`)
   },
 
   testarSaida: async (id: string) => {
-    // Buscar webhook
+    // AIDEV-NOTE: Seg — validar ownership de tenant antes de testar (IDOR prevention)
+    const orgId = await getOrganizacaoId()
+    // Buscar webhook validando tenant
     const { data: webhook, error: fetchError } = await supabase
       .from('webhooks_saida')
       .select('*')
       .eq('id', id)
+      .eq('organizacao_id', orgId)
       .single()
 
     if (fetchError || !webhook) throw new Error('Webhook não encontrado')
 
     const wh = webhook as unknown as WebhookSaida
+
+    // AIDEV-NOTE: Seg — SSRF prevention: bloquear IPs privados/localhost
+    try {
+      const parsed = new URL(wh.url)
+      if (!['http:', 'https:'].includes(parsed.protocol)) {
+        throw new Error('URL inválida: apenas HTTP/HTTPS permitido')
+      }
+      const host = parsed.hostname.toLowerCase()
+      if (
+        host === 'localhost' ||
+        host === '0.0.0.0' ||
+        /^127\./.test(host) ||
+        /^10\./.test(host) ||
+        /^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
+        /^192\.168\./.test(host) ||
+        /^169\.254\./.test(host) ||
+        host.endsWith('.local') ||
+        host === '[::1]'
+      ) {
+        throw new Error('URL inválida: endereços privados não são permitidos')
+      }
+    } catch (urlErr) {
+      const msg = (urlErr as Error).message
+      throw new Error(msg.startsWith('URL inválida') ? msg : 'URL do webhook inválida')
+    }
+
     const testPayload = {
       evento: 'teste',
       dados: {
@@ -2094,12 +2147,17 @@ export const webhooksApi = {
       },
     }
 
-    // Montar headers
+    // AIDEV-NOTE: Seg — Header injection prevention: validar nome do header
+    const HEADER_NAME_SAFE = /^[a-zA-Z0-9\-_]+$/
+    const FORBIDDEN_HEADERS = new Set(['host', 'content-length', 'transfer-encoding', 'connection'])
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (wh.auth_tipo === 'bearer' && wh.auth_valor) {
       headers['Authorization'] = `Bearer ${wh.auth_valor}`
     } else if (wh.auth_tipo === 'api_key' && wh.auth_header && wh.auth_valor) {
-      headers[wh.auth_header] = wh.auth_valor
+      const headerName = wh.auth_header.trim()
+      if (HEADER_NAME_SAFE.test(headerName) && !FORBIDDEN_HEADERS.has(headerName.toLowerCase())) {
+        headers[headerName] = wh.auth_valor
+      }
     } else if (wh.auth_tipo === 'basic' && wh.auth_header && wh.auth_valor) {
       headers['Authorization'] = `Basic ${btoa(`${wh.auth_header}:${wh.auth_valor}`)}`
     }
@@ -2127,7 +2185,6 @@ export const webhooksApi = {
     const duracao = Date.now() - startTime
 
     // Registrar log
-    const orgId = await getOrganizacaoId()
     await supabase.from('webhooks_saida_logs').insert({
       organizacao_id: orgId,
       webhook_id: id,
@@ -2146,7 +2203,8 @@ export const webhooksApi = {
 
   listarLogsSaida: async (id: string, params?: { evento?: string; sucesso?: string; page?: string; limit?: string }) => {
     const page = parseInt(params?.page || '1')
-    const limit = parseInt(params?.limit || '20')
+    // AIDEV-NOTE: Seg — cap de 100 para prevenir resource exhaustion
+    const limit = Math.min(parseInt(params?.limit || '20'), 100)
     const offset = (page - 1) * limit
 
     let query = supabase
