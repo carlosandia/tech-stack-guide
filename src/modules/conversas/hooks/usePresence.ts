@@ -44,10 +44,24 @@ export function usePresence(
   const [status, setStatus] = useState<PresenceStatus>(null)
   const [lastSeen, setLastSeen] = useState<number | null>(null)
   const subscribedRef = useRef(false)
+  const clearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // AIDEV-NOTE: Auto-clear de status composing/recording após 7s sem novo evento
+  const updateStatus = (newStatus: PresenceStatus) => {
+    if (clearTimerRef.current) {
+      clearTimeout(clearTimerRef.current)
+      clearTimerRef.current = null
+    }
+    setStatus(newStatus)
+    if (newStatus === 'composing' || newStatus === 'recording') {
+      clearTimerRef.current = setTimeout(() => setStatus(null), 7000)
+    }
+  }
 
   useEffect(() => {
     if (canal !== 'whatsapp' || !sessionName || !chatId) {
       setStatus(null)
+      if (clearTimerRef.current) { clearTimeout(clearTimerRef.current); clearTimerRef.current = null }
       return
     }
 
@@ -67,11 +81,10 @@ export function usePresence(
       body: { action: 'presence_get', chat_id: chatId, session_name: sessionName },
     }).then(({ data }) => {
       if (data?.waha_unsupported) return
-      // AIDEV-NOTE: WAHA retorna array de presences ou objeto direto
       const presences = data?.presences || (data?.lastKnownPresence ? [data] : [])
       if (presences.length > 0) {
         const p = presences[0]
-        setStatus(mapWahaStatus(p.lastKnownPresence))
+        updateStatus(mapWahaStatus(p.lastKnownPresence))
         setLastSeen(p.lastSeen || null)
       }
     }).catch((err) => {
@@ -86,7 +99,7 @@ export function usePresence(
           const presences = payload.presences || []
           if (presences.length > 0) {
             const p = presences[0]
-            setStatus(mapWahaStatus(p.lastKnownPresence) ?? 'unavailable')
+            updateStatus(mapWahaStatus(p.lastKnownPresence) ?? 'unavailable')
             setLastSeen(p.lastSeen || null)
           }
         }
@@ -95,6 +108,7 @@ export function usePresence(
 
     return () => {
       supabase.removeChannel(channel)
+      if (clearTimerRef.current) clearTimeout(clearTimerRef.current)
     }
   }, [chatId, sessionName, canal])
 
