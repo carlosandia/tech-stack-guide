@@ -1834,6 +1834,89 @@ Deno.serve(async (req) => {
             { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
+
+        // AIDEV-NOTE: Auto-reconfigurar webhooks se sessão não tem presence.update
+        // Sessões criadas antes dessa feature não enviam eventos de presença
+        try {
+          const currentSessionResp = await fetch(`${baseUrl}/api/sessions/${sessionId}`, {
+            method: "GET",
+            headers: { "X-Api-Key": apiKey },
+          });
+          if (currentSessionResp.ok) {
+            const sessionData = await currentSessionResp.json();
+            const currentWebhooks = sessionData?.config?.webhooks || [];
+            const hasPresenceEvent = currentWebhooks.some((wh: { events?: string[] }) =>
+              wh.events?.includes("presence.update")
+            );
+            if (!hasPresenceEvent) {
+              console.log(`[waha-proxy] ⚠️ Session ${sessionId} missing presence.update — reconfiguring webhooks`);
+              const putResp = await fetch(`${baseUrl}/api/sessions/${sessionId}/`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
+                body: JSON.stringify({
+                  name: sessionId,
+                  config: {
+                    webhooks: [{ url: webhookUrl, events: webhookEvents }]
+                  }
+                }),
+              });
+              const putStatus = putResp.status;
+              await putResp.text();
+              console.log(`[waha-proxy] Presence webhook reconfig PUT: ${putStatus}`);
+
+              // Verify the PUT actually applied
+              const verifyResp = await fetch(`${baseUrl}/api/sessions/${sessionId}`, {
+                method: "GET",
+                headers: { "X-Api-Key": apiKey },
+              });
+              let verified = false;
+              if (verifyResp.ok) {
+                const verifyData = await verifyResp.json();
+                const verifyWebhooks = verifyData?.config?.webhooks || [];
+                verified = verifyWebhooks.some((wh: { events?: string[] }) =>
+                  wh.events?.includes("presence.update")
+                );
+              } else {
+                await verifyResp.text();
+              }
+
+              if (!verified) {
+                // Fallback: stop+start (keep connection with logout: false)
+                console.log(`[waha-proxy] PUT did not apply presence.update, using stop+start fallback`);
+                const stopResp = await fetch(`${baseUrl}/api/sessions/stop`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
+                  body: JSON.stringify({ name: sessionId, logout: false }),
+                });
+                console.log(`[waha-proxy] Stop for presence reconfig: ${stopResp.status}`);
+                await stopResp.text();
+                await new Promise(r => setTimeout(r, 2000));
+
+                const startResp = await fetch(`${baseUrl}/api/sessions/start`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
+                  body: JSON.stringify({
+                    name: sessionId,
+                    config: {
+                      webhooks: [{ url: webhookUrl, events: webhookEvents }]
+                    }
+                  }),
+                });
+                console.log(`[waha-proxy] Start for presence reconfig: ${startResp.status}`);
+                await startResp.text();
+              } else {
+                console.log(`[waha-proxy] ✅ presence.update webhook event verified after PUT`);
+              }
+            } else {
+              console.log(`[waha-proxy] ✅ Session already has presence.update event`);
+            }
+          } else {
+            await currentSessionResp.text();
+          }
+        } catch (e) {
+          console.warn(`[waha-proxy] Non-critical: presence webhook reconfig failed:`, e);
+        }
+
         wahaResponse = await fetch(
           `${baseUrl}/api/${sessionId}/presence/${chat_id}/subscribe`,
           { method: "POST", headers: { "Content-Type": "application/json", "X-Api-Key": apiKey } }
