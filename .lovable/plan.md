@@ -1,81 +1,65 @@
 
+# Correção: Cache Stale de Campos Customizados + Garantia de Persistência
 
-# Correcao: Contagem de Contatos por Segmento + Exportacao Dinamica com Campos Globais
+## Diagnóstico Final
 
-## Problema 1: Contagem incorreta de contatos nos segmentos
+Após investigação no banco de dados:
 
-A funcao `segmentosApi.listar` (linha 1106 de `contatos.api.ts`) conta os vinculos na tabela `contatos_segmentos` sem verificar se o contato vinculado foi excluido (soft delete via `deletado_em`). Contatos removidos continuam sendo contados.
+- **Dados ESTÃO sendo salvos corretamente** — contato "teste show" tem owner_id + 5 campos custom no banco
+- **Empresa "Renove Digital"** tem owner_id mas 0 campos custom — provavelmente criada antes do deploy do fix anterior
+- **Screenshot mostra contato diferente** ("Djavan teste", origem WhatsApp) que nunca teve campos custom preenchidos
 
-**Exemplo:** "Feira XPTO" mostra 5 contatos, mas pode ter apenas 2 ativos — os outros 3 foram soft-deleted.
+## Problema Real: Cache Stale
 
-**Correcao:** Ao contar vinculos, fazer um join com a tabela `contatos` para filtrar apenas contatos com `deletado_em IS NULL`. A abordagem sera buscar os IDs de contatos ativos vinculados a cada segmento.
+Após salvar campos customizados, a query `['valores-custom-contato-view', contato.id]` no `ContatoViewModal` **não é invalidada**. Isso causa:
 
-### Arquivo: `src/modules/contatos/services/contatos.api.ts` (linhas ~1116-1132)
+1. No fluxo de **edição** (abrir view -> editar -> salvar -> reabrir view): mostra dados antigos do cache
+2. No fluxo de **criação** seguido de visualização: pode mostrar dados vazios se houve visualização anterior
 
-Logica atual:
+## Plano de Correção
+
+### 1. Invalidar cache de valores custom após salvar
+
+**Arquivo:** `src/modules/contatos/pages/ContatosPage.tsx`
+
+Após cada chamada bem-sucedida de `salvarCamposCustomizados`, adicionar invalidação explícita do cache:
+
 ```typescript
-const { data: vinculosData } = await supabase
-  .from('contatos_segmentos')
-  .select('segmento_id')
-  .in('segmento_id', segmentoIds)
+// Após salvarCamposCustomizados no onSuccess (tanto criação quanto edição)
+await contatosApi.salvarCamposCustomizados(...)
+queryClient.invalidateQueries({ queryKey: ['valores-custom-contato-view'] })
 ```
 
-Logica corrigida — buscar vinculos com join inner no contato para filtrar deletados:
+Isso requer importar `useQueryClient` e obter a instância no componente.
+
+### 2. Forçar refetch no ViewModal ao abrir
+
+**Arquivo:** `src/modules/contatos/components/ContatoViewModal.tsx`
+
+Configurar a query de valores custom com `staleTime: 0` para garantir refetch sempre que o modal abrir:
+
 ```typescript
-const { data: vinculosData } = await supabase
-  .from('contatos_segmentos')
-  .select('segmento_id, contatos!inner(id)')
-  .in('segmento_id', segmentoIds)
-  .is('contatos.deletado_em', null)
+const { data: valoresCustom } = useQuery({
+  queryKey: ['valores-custom-contato-view', contato?.id],
+  queryFn: async () => { ... },
+  enabled: !!contato?.id && open,
+  staleTime: 0, // Sempre refetch ao abrir
+})
 ```
 
-Se o Supabase nao suportar o join com filtro dessa forma (depende do FK), alternativa: buscar IDs de contatos ativos separadamente e cruzar com vinculos. Sera testada a abordagem com join primeiro.
+### 3. Log mais claro no fluxo de empresa
 
----
+**Arquivo:** `src/modules/contatos/pages/ContatosPage.tsx`
 
-## Problema 2: Modal de exportacao nao inclui campos customizados
+Adicionar log do `tipo` sendo passado para `salvarCamposCustomizados` para confirmar que empresa usa o tipo correto:
 
-O `ExportarContatosModal` tem colunas **hardcoded** (`COLUNAS_PESSOA` e `COLUNAS_EMPRESA`). Nao busca os campos globais do banco (padrao + customizados).
-
-Na imagem da configuracao de campos, existem campos como "Qual e o seu nivel de decisao na empresa?", "Texto Longo" etc. que nao aparecem no modal de exportacao.
-
-**Correcao:** Tornar o modal dinamico — buscar campos via `useCamposConfig` e construir a lista de colunas automaticamente.
-
-### Arquivo: `src/modules/contatos/components/ExportarContatosModal.tsx`
-
-**Mudancas:**
-
-1. Importar `useCamposConfig` e remover as constantes hardcoded `COLUNAS_PESSOA` e `COLUNAS_EMPRESA`
-2. Dentro do componente, chamar `useCamposConfig(tipo)` para obter todos os campos (sistema + customizados)
-3. Montar a lista de colunas dinamicamente:
-   - Campos sistema: `{ key: campo.slug_ou_field_key, label: campo.label, dbField: campo.field_key }`
-   - Campos custom: `{ key: 'custom_' + campo.slug, label: campo.label, dbField: campo.slug, isCustom: true }`
-4. Adicionar campos fixos que nao estao em `campos_customizados` (status, origem, criado_em)
-
-### Arquivo: `src/modules/contatos/services/contatos.api.ts` (funcao `exportarComColunas`)
-
-**Mudancas:**
-
-1. Aceitar flag `isCustom` nas colunas
-2. Para colunas custom, apos buscar os contatos, buscar tambem `valores_campos_customizados` para os IDs dos contatos exportados
-3. Montar um mapa `contatoId -> { slug: valor }` dos campos customizados
-4. Na geracao do CSV, para colunas custom, buscar o valor no mapa ao inves de direto do contato
-
-Fluxo da exportacao:
-```text
-1. Buscar contatos (como ja faz)
-2. Identificar colunas custom selecionadas
-3. Se houver custom, buscar valores_campos_customizados para os IDs
-4. Buscar definicoes de campos para mapear campo_id -> slug
-5. Montar CSV mesclando dados da tabela contatos + valores customizados
+```typescript
+console.log('[handleFormSubmit] Salvando campos custom. tipo:', tipo, 'contatoId:', contato.id)
 ```
 
----
+## Resumo de Arquivos
 
-## Resumo de arquivos
-
-| Arquivo | Alteracao |
+| Arquivo | Alteração |
 |---|---|
-| `src/modules/contatos/services/contatos.api.ts` | Corrigir contagem de segmentos (filtrar deletados); Expandir exportacao para incluir campos custom |
-| `src/modules/contatos/components/ExportarContatosModal.tsx` | Tornar colunas dinamicas via `useCamposConfig`; remover listas hardcoded |
-
+| `src/modules/contatos/pages/ContatosPage.tsx` | Invalidar cache `valores-custom-contato-view` após salvar; adicionar log do tipo |
+| `src/modules/contatos/components/ContatoViewModal.tsx` | Adicionar `staleTime: 0` na query de valores custom |
