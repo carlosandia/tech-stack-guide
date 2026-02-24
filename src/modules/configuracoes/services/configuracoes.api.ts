@@ -3289,6 +3289,10 @@ const ConfiguracaoTenantInputSchema = z.object({
     funil_id: z.string().optional(),
     notificar_email: z.boolean().optional(),
     email_destino: z.string().email('Email inválido').max(255).optional().or(z.literal('')),
+    horario_atendimento: z.enum(['sempre', 'personalizado']).optional(),
+    horario_dias: z.array(z.number().int().min(0).max(6)).optional(),
+    horario_inicio: z.string().regex(/^\d{2}:\d{2}$/, 'Formato inválido HH:MM').optional(),
+    horario_fim: z.string().regex(/^\d{2}:\d{2}$/, 'Formato inválido HH:MM').optional(),
   }).optional(),
 })
 

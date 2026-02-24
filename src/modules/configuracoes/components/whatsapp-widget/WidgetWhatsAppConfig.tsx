@@ -275,6 +275,75 @@ export function WidgetWhatsAppConfig({ value, onChange, organizacaoId }: Props) 
               />
             </div>
 
+            {/* Horário de Atendimento */}
+            <div className="space-y-3">
+              <label className="text-sm font-medium text-foreground block">Horário de Atendimento</label>
+              <div className="flex gap-2">
+                {(['sempre', 'personalizado'] as const).map(opt => (
+                  <button
+                    key={opt}
+                    onClick={() => update('horario_atendimento', opt)}
+                    className={`flex-1 h-10 rounded-md border text-sm font-medium transition-colors ${
+                      config.horario_atendimento === opt
+                        ? 'border-primary bg-primary/5 text-primary'
+                        : 'border-input bg-background text-foreground hover:bg-accent'
+                    }`}
+                  >
+                    {opt === 'sempre' ? 'Sempre Online' : 'Horário Personalizado'}
+                  </button>
+                ))}
+              </div>
+
+              {config.horario_atendimento === 'personalizado' && (
+                <div className="border border-border rounded-md p-3 space-y-3">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-2">Dias da semana</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((label, idx) => {
+                        const ativo = (config.horario_dias || []).includes(idx)
+                        return (
+                          <button
+                            key={idx}
+                            onClick={() => {
+                              const dias = config.horario_dias || []
+                              update('horario_dias', ativo ? dias.filter(d => d !== idx) : [...dias, idx].sort())
+                            }}
+                            className={`w-10 h-9 rounded-md text-xs font-medium border transition-colors ${
+                              ativo
+                                ? 'border-primary bg-primary/10 text-primary'
+                                : 'border-input bg-background text-muted-foreground hover:bg-accent'
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <label className="text-xs font-medium text-muted-foreground block mb-1">Início</label>
+                      <input
+                        type="time"
+                        value={config.horario_inicio || '09:00'}
+                        onChange={e => update('horario_inicio', e.target.value)}
+                        className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm text-foreground"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="text-xs font-medium text-muted-foreground block mb-1">Fim</label>
+                      <input
+                        type="time"
+                        value={config.horario_fim || '18:00'}
+                        onChange={e => update('horario_fim', e.target.value)}
+                        className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm text-foreground"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Pré-Formulário */}
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-3">

@@ -48,6 +48,18 @@ function getWidgetScript(): string {
     var h=new Date().getHours().toString().padStart(2,'0');
     var m=new Date().getMinutes().toString().padStart(2,'0');
 
+    var horarioTipo=cfg.horario_atendimento||'sempre';
+    var horarioDias=cfg.horario_dias||[1,2,3,4,5];
+    var horarioInicio=cfg.horario_inicio||'09:00';
+    var horarioFim=cfg.horario_fim||'18:00';
+    var isOnline=true;
+    if(horarioTipo==='personalizado'){
+      var dNow=new Date();var diaAtual=dNow.getDay();
+      var hhmmNow=dNow.getHours().toString().padStart(2,'0')+':'+dNow.getMinutes().toString().padStart(2,'0');
+      isOnline=horarioDias.indexOf(diaAtual)>=0&&hhmmNow>=horarioInicio&&hhmmNow<=horarioFim;
+    }
+    var onlineHtml=isOnline?'<div style="color:rgba(255,255,255,.6);font-size:12px">Online</div>':'';
+
     var avatarHtml=foto
       ?'<img src="'+foto+'" alt="'+nome+'" style="width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0" />'
       :'<div style="width:36px;height:36px;border-radius:50%;background:#128C7E;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:14px;flex-shrink:0">'+nome[0].toUpperCase()+'</div>';
@@ -100,7 +112,7 @@ function getWidgetScript(): string {
     root.innerHTML='<div id="wa-widget-chat">'
       +'<div style="background:#075E54;padding:12px 16px;display:flex;align-items:center;gap:12px">'
       +avatarHtml
-      +'<div style="flex:1;min-width:0"><div style="color:#fff;font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+nome+'</div><div style="color:rgba(255,255,255,.6);font-size:12px">Online</div></div>'
+      +'<div style="flex:1;min-width:0"><div style="color:#fff;font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+nome+'</div>'+onlineHtml+'</div>'
       +'</div>'
       +'<div style="background:#ECE5DD;padding:12px"><div style="background:#fff;padding:8px 12px;border-radius:0 12px 12px 12px;max-width:85%;font-size:14px;color:#1f2937;box-shadow:0 1px 1px rgba(0,0,0,.1)">'+msg+'<div style="text-align:right;font-size:10px;color:#9ca3af;margin-top:4px">'+h+':'+m+'</div></div></div>'
       +formHtml
@@ -162,19 +174,19 @@ function getWidgetScript(): string {
         else{reqs[k].style.borderColor='#e5e7eb'}
       }
       if(!valid)return;
-      var parts=[];
       var dadosObj={};
+      var partsFormatted=[];
       var allFields=form.querySelectorAll('input[name],select[name]');
       for(var ki=0;ki<allFields.length;ki++){
         var fld=allFields[ki];
         var label=fld.getAttribute('data-nome')||fld.name;
         if(fld.value)dadosObj[label]=fld.value;
-        if(fld.value&&fld.type!=='hidden')parts.push(fld.value);
+        if(fld.value&&fld.type!=='hidden')partsFormatted.push('*'+label+':*\\n'+fld.value);
       }
       try{
         fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dados:dadosObj,config:cfg})}).catch(function(){});
       }catch(ex){}
-      var text=parts.length?encodeURIComponent(parts.join(' | ')):'';
+      var text=partsFormatted.length?encodeURIComponent(partsFormatted.join('\\n\\n')):'';
       window.open('https://wa.me/'+numero+(text?'?text='+text:''),'_blank');
     });
 
