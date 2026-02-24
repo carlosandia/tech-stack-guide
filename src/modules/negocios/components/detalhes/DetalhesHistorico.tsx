@@ -287,8 +287,9 @@ export function DetalhesHistorico({ oportunidadeId }: DetalhesHistoricoProps) {
 
   return (
     <div className="space-y-4">
-      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
         Histórico
+        <span className="text-[10px] font-normal normal-case tracking-normal text-muted-foreground/70">({historico.length})</span>
       </h3>
 
       {sortedDays.map(day => (
