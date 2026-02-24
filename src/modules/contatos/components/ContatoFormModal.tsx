@@ -521,14 +521,16 @@ export function ContatoFormModal({
             <div className="space-y-5">
               {isPessoa ? renderPessoaFields() : renderEmpresaFields()}
 
-              {/* Status + Origem */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Status + Origem (Origem só aparece em edição) */}
+              <div className={`grid grid-cols-1 ${isEditing ? 'sm:grid-cols-2' : ''} gap-4`}>
                 <SelectField label="Status" {...form.register('status')}>
                   {StatusContatoOptions.map((s) => (<option key={s.value} value={s.value}>{s.label}</option>))}
                 </SelectField>
-                <SelectField label="Origem" {...form.register('origem')}>
-                  {OrigemContatoOptions.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
-                </SelectField>
+                {isEditing && (
+                  <SelectField label="Origem" {...form.register('origem')}>
+                    {OrigemContatoOptions.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+                  </SelectField>
+                )}
               </div>
 
               {/* Responsável (Admin only) */}
