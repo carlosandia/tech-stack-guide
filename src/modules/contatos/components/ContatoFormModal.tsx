@@ -659,8 +659,8 @@ export function ContatoFormModal({
                   )}
                 </div>
 
-                {/* Responsável (Admin only) */}
-                {isAdmin && usuarios.length > 0 && (
+                {/* Responsável (Admin only, apenas para Pessoas) */}
+                {isAdmin && isPessoa && usuarios.length > 0 && (
                   <SelectField label="Responsável" {...form.register('owner_id')}>
                     <option value="">Sem responsável</option>
                     {usuarios.map((u) => (<option key={u.id} value={u.id}>{u.nome} {u.sobrenome || ''}</option>))}
