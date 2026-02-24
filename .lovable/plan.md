@@ -1,59 +1,86 @@
 
 
-# Correção: Persistência de Posição no Drag-and-Drop do Kanban
+# Correção: Mídias Enviadas Não Aparecem na UI
 
 ## Problema
 
-Ao dropar um card em uma posição específica na coluna, o card aparece corretamente por um instante (optimistic update), mas após o refetch do servidor, ele vai para a última posição. Isso indica que a **posição não está sendo salva no banco de dados**.
+Áudio, imagens, vídeos e documentos enviados pelo CRM são persistidos no banco e chegam ao WhatsApp, mas **não aparecem na interface do chat**. Apenas mensagens de texto aparecem.
 
 ## Causa Raiz
 
-A chamada RPC `reordenar_posicoes_etapa` recebe um parâmetro do tipo `jsonb`, mas o código passa `JSON.stringify(items)` -- uma **string**. O Supabase client já serializa automaticamente os parâmetros para JSON, causando **double-encoding**:
+As funções de envio de mídia no `ChatWindow.tsx` chamam `conversasApi.enviarMedia()` diretamente, **sem passar pelo hook `useEnviarMedia`** do React Query. Como resultado:
+
+- O cache do React Query **nunca é invalidado** após o envio
+- Não existe subscription Realtime para eventos INSERT (só UPDATE para ACKs)
+- A UI fica "presa" no estado anterior, sem saber que há mensagens novas
 
 ```text
-Esperado pelo PostgreSQL: [{"id":"abc","posicao":1}]  (jsonb array)
-Enviado atualmente:       "[{\"id\":\"abc\",\"posicao\":1}]"  (jsonb string scalar)
-```
+Fluxo atual (QUEBRADO):
+  handleSendQueue / handleAudioSend
+    -> conversasApi.enviarMedia() (direto)
+    -> toast.success()
+    -> (nenhuma invalidação de cache)
+    -> UI não atualiza
 
-A funcao `jsonb_array_elements()` falha silenciosamente ao receber uma string ao invés de um array, e o `catch` apenas loga o erro no console sem informar o usuário. Resultado: posicoes nunca sao salvas, e no refetch seguinte o card volta para a posicao default (NULL = final da lista).
+Fluxo correto:
+  handleSendQueue / handleAudioSend
+    -> useEnviarMedia.mutate() (via hook)
+    -> onSuccess: invalidateQueries(['mensagens'])
+    -> UI refaz fetch e mostra a mensagem
+```
 
 ## Correção
 
-Remover o `JSON.stringify()` das duas chamadas RPC e passar o array diretamente. O Supabase client se encarrega da serialização.
+### Arquivo: `src/modules/conversas/components/ChatWindow.tsx`
 
-### Arquivo 1: `src/modules/negocios/services/negocios.api.ts` (linha ~482)
+**1. Importar o hook `useEnviarMedia`**
 
-**Antes:**
+Adicionar `useEnviarMedia` na importação existente do `useMensagens.ts` (linha 26).
+
+**2. Instanciar o hook no componente**
+
+Criar `const enviarMedia = useEnviarMedia()` junto com os outros hooks (após linha 144).
+
+**3. Alterar `handleSendQueue` (linha 346-373)**
+
+Substituir a chamada direta `conversasApi.enviarMedia()` por `enviarMedia.mutateAsync()`:
+
 ```typescript
-const { error: rpcError } = await supabase.rpc('reordenar_posicoes_etapa', { items: JSON.stringify(items) } as any)
+// ANTES:
+await conversasApi.enviarMedia(conversa.id, { ... })
+
+// DEPOIS:
+await enviarMedia.mutateAsync({
+  conversaId: conversa.id,
+  dados: { tipo: item.tipo, media_url: item.media_url, filename: item.filename, mimetype: item.mimetype }
+})
 ```
 
-**Depois:**
-```typescript
-const { error: rpcError } = await supabase.rpc('reordenar_posicoes_etapa', { items } as any)
-```
+**4. Alterar `handleAudioSend` (linha 400-404)**
 
-### Arquivo 2: `src/modules/negocios/components/kanban/KanbanBoard.tsx` (linha ~195)
+Substituir a chamada direta por `enviarMedia.mutateAsync()`:
 
-**Antes:**
 ```typescript
-const { error: rpcError } = await supabase.rpc('reordenar_posicoes_etapa', { items: JSON.stringify(items) } as any)
-```
+// ANTES:
+await conversasApi.enviarMedia(conversa.id, { tipo: 'audio', media_url: urlData.publicUrl, mimetype: contentType })
 
-**Depois:**
-```typescript
-const { error: rpcError } = await supabase.rpc('reordenar_posicoes_etapa', { items } as any)
+// DEPOIS:
+await enviarMedia.mutateAsync({
+  conversaId: conversa.id,
+  dados: { tipo: 'audio', media_url: urlData.publicUrl, mimetype: contentType }
+})
 ```
 
 ## Resumo
 
-| Arquivo | Linha | Alteração |
-|---------|-------|-----------|
-| `negocios.api.ts` | ~482 | Remover `JSON.stringify()` na chamada RPC do `moverEtapa` |
-| `KanbanBoard.tsx` | ~195 | Remover `JSON.stringify()` na chamada RPC do `handleSortColumn` |
+| Local | Problema | Correção |
+|-------|----------|----------|
+| `handleSendQueue` | Chama API direto, sem invalidar cache | Usar `enviarMedia.mutateAsync()` |
+| `handleAudioSend` | Chama API direto, sem invalidar cache | Usar `enviarMedia.mutateAsync()` |
+| Import + instância | Hook não estava sendo usado | Importar e instanciar `useEnviarMedia` |
 
 ## Impacto
 
-- Cards mantêm a posição exata onde foram dropados, mesmo após refetch
-- Ordenação via menu 3 pontos (por valor, data, alfabético) também persiste corretamente
-- Nenhuma alteração no banco de dados ou na function RPC necessária
+- Todas as mídias enviadas (áudio, foto, vídeo, documento) aparecerão na UI imediatamente após o backend confirmar
+- O hook `useEnviarMedia` já tem `onSuccess` com `invalidateQueries`, garantindo o refetch automático
+- Nenhuma alteração no backend necessária
