@@ -92,6 +92,30 @@ export function ContatoFormModal({
   const segmentosList: Segmento[] = segmentosData?.segmentos || []
   const [selectedSegmentoIds, setSelectedSegmentoIds] = useState<string[]>([])
 
+  // AIDEV-NOTE: Pessoas vinculáveis à empresa (busca pessoas sem empresa ou já vinculadas a esta)
+  const [selectedPessoaIds, setSelectedPessoaIds] = useState<string[]>([])
+  const [pessoaSearch, setPessoaSearch] = useState('')
+  const { data: pessoasData } = useContatos({ tipo: 'pessoa', limit: 200 })
+  const pessoasDisponiveis = useMemo(() => {
+    if (isPessoa || !pessoasData?.contatos) return []
+    return pessoasData.contatos.filter(p => {
+      // Mostrar: sem empresa, ou já vinculada a esta empresa (edição)
+      const semEmpresa = !p.empresa_id
+      const vinculadaAEsta = isEditing && contato && p.empresa_id === contato.id
+      return semEmpresa || vinculadaAEsta
+    })
+  }, [pessoasData?.contatos, isPessoa, isEditing, contato])
+
+  const pessoasFiltradas = useMemo(() => {
+    if (!pessoaSearch.trim()) return pessoasDisponiveis
+    const q = pessoaSearch.toLowerCase()
+    return pessoasDisponiveis.filter(p =>
+      (p.nome || '').toLowerCase().includes(q) ||
+      (p.sobrenome || '').toLowerCase().includes(q) ||
+      (p.email || '').toLowerCase().includes(q)
+    )
+  }, [pessoasDisponiveis, pessoaSearch])
+
   // Campos config
   const { campos: todosOsCampos, getLabel, getPlaceholder: getCampoPlaceholder, isRequired: isCampoRequired } = useCamposConfig(tipo)
   const camposCustomizados = todosOsCampos.filter(c => !c.sistema && c.ativo)
@@ -103,11 +127,7 @@ export function ContatoFormModal({
   const regOpts = (key: string, fallback: string, fallbackReq?: boolean) =>
     isCampoRequired(key, fallbackReq) ? { required: `${getLabel(key, fallback)} é obrigatório` } : {}
 
-  // Pessoas para empresa
-  const { data: pessoasData } = useContatos(
-    !isPessoa ? { tipo: 'pessoa', limit: 200 } : undefined
-  )
-  const pessoasDisponiveis = pessoasData?.contatos || []
+  // AIDEV-NOTE: pessoasData e pessoasDisponiveis já declarados acima (linhas 96-117)
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const fieldVisibility = useMemo(() => getFieldVisibility(tipo), [tipo, open, visibilityVersion])
@@ -166,6 +186,13 @@ export function ContatoFormModal({
     if (!open) return
 
     setActiveTab('dados')
+    setPessoaSearch('')
+    // Inicializar pessoas vinculadas (edição de empresa)
+    if (!isPessoa && contato && pessoasData?.contatos) {
+      setSelectedPessoaIds(pessoasData.contatos.filter(p => p.empresa_id === contato.id).map(p => p.id))
+    } else {
+      setSelectedPessoaIds([])
+    }
     setSelectedSegmentoIds(contato?.segmentos?.map(s => s.id) || [])
 
     const defaults: Record<string, any> = {
@@ -250,6 +277,10 @@ export function ContatoFormModal({
     }
     if (selectedSegmentoIds.length > 0) {
       cleanData.segmento_ids = selectedSegmentoIds
+    }
+    // AIDEV-NOTE: Incluir pessoa_ids para vincular pessoas à empresa após criação/edição
+    if (!isPessoa && selectedPessoaIds.length > 0) {
+      cleanData.pessoa_ids = selectedPessoaIds
     }
     onSubmit(cleanData)
   }
@@ -457,28 +488,69 @@ export function ContatoFormModal({
     )
   }
 
+  // AIDEV-NOTE: Seletor de pessoas para vincular à empresa (criação e edição)
   const renderPessoasVinculadas = () => {
-    if (isPessoa || !isEditing || !contato) return null
-    const pessoasVinculadas = pessoasDisponiveis.filter(p => p.empresa_id === contato.id)
+    if (isPessoa) return null
 
     return (
       <div className="border-t border-border pt-4 mt-2">
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
-          Pessoas Vinculadas ({pessoasVinculadas.length})
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+          Pessoas Vinculadas ({selectedPessoaIds.length})
         </p>
-        {pessoasVinculadas.length > 0 ? (
-          <div className="space-y-1">
-            {pessoasVinculadas.map(p => (
-              <div key={p.id} className="flex items-center gap-2 py-1.5 px-2 rounded-md bg-muted/50">
-                <User className="w-3.5 h-3.5 text-muted-foreground" />
-                <span className="text-sm text-foreground">{p.nome} {p.sobrenome || ''}</span>
-                {p.email && <span className="text-xs text-muted-foreground ml-auto">{p.email}</span>}
-              </div>
-            ))}
+
+        {/* Pessoas já selecionadas */}
+        {selectedPessoaIds.length > 0 && (
+          <div className="space-y-1 mb-3">
+            {selectedPessoaIds.map(pid => {
+              const pessoa = pessoasDisponiveis.find(p => p.id === pid) || pessoasData?.contatos?.find(p => p.id === pid)
+              if (!pessoa) return null
+              return (
+                <div key={pid} className="flex items-center gap-2 py-1.5 px-2 rounded-md bg-muted/50">
+                  <User className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-sm text-foreground">{pessoa.nome} {pessoa.sobrenome || ''}</span>
+                  {pessoa.email && <span className="text-xs text-muted-foreground ml-auto mr-2">{pessoa.email}</span>}
+                  <button type="button" onClick={() => setSelectedPessoaIds(prev => prev.filter(id => id !== pid))}
+                    className="p-0.5 hover:bg-accent rounded transition-colors" aria-label="Remover vínculo">
+                    <X className="w-3.5 h-3.5 text-muted-foreground" />
+                  </button>
+                </div>
+              )
+            })}
           </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">Nenhuma pessoa vinculada a esta empresa</p>
         )}
+
+        {/* Busca para adicionar */}
+        <div className="relative">
+          <div className="flex items-center gap-2 px-3 py-2 border border-input rounded-md bg-background">
+            <Search className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+            <input
+              type="text"
+              value={pessoaSearch}
+              onChange={e => setPessoaSearch(e.target.value)}
+              placeholder="Buscar pessoa para vincular..."
+              className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            />
+          </div>
+          {pessoaSearch.trim() && pessoasFiltradas.length > 0 && (
+            <div className="absolute z-10 w-full mt-1 max-h-[160px] overflow-y-auto border border-border rounded-md bg-card shadow-lg">
+              {pessoasFiltradas.filter(p => !selectedPessoaIds.includes(p.id)).slice(0, 10).map(p => (
+                <button key={p.id} type="button"
+                  onClick={() => { setSelectedPessoaIds(prev => [...prev, p.id]); setPessoaSearch('') }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-accent/50 transition-colors text-sm"
+                >
+                  <User className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span>{p.nome} {p.sobrenome || ''}</span>
+                  {p.email && <span className="text-xs text-muted-foreground ml-auto">{p.email}</span>}
+                </button>
+              ))}
+            </div>
+          )}
+          {pessoaSearch.trim() && pessoasFiltradas.filter(p => !selectedPessoaIds.includes(p.id)).length === 0 && (
+            <div className="absolute z-10 w-full mt-1 border border-border rounded-md bg-card shadow-lg px-3 py-2">
+              <p className="text-xs text-muted-foreground">Nenhuma pessoa encontrada</p>
+            </div>
+          )}
+        </div>
       </div>
     )
   }
