@@ -40,8 +40,10 @@ export function lazyWithRetry<T extends ComponentType<any>>(
       if (!hasReloaded) {
         // Marca que ja tentou reload para este chunk
         sessionStorage.setItem(key, '1')
-        console.warn(`[lazyWithRetry] Chunk desatualizado detectado. Recarregando pagina...`)
-        window.location.reload()
+        console.warn(`[lazyWithRetry] Chunk desatualizado detectado. Recarregando com cache-busting...`)
+        const url = new URL(window.location.href)
+        url.searchParams.set('_cb', Date.now().toString())
+        window.location.replace(url.toString())
         // Retorna promise que nunca resolve (pagina vai recarregar)
         return new Promise<{ default: T }>(() => {})
       }

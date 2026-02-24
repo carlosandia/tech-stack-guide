@@ -29,6 +29,26 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('[ErrorBoundary] Erro capturado:', error, errorInfo)
+
+    // AIDEV-NOTE: Auto-reload com cache-busting para chunk errors
+    // Evita mostrar tela "Nova versao disponivel" ao usuario
+    const msg = error.message?.toLowerCase() || ''
+    const isChunk =
+      msg.includes('failed to fetch dynamically imported module') ||
+      msg.includes('loading chunk') ||
+      msg.includes('loading css chunk')
+
+    if (isChunk) {
+      const key = 'eb-chunk-reload'
+      if (!sessionStorage.getItem(key)) {
+        sessionStorage.setItem(key, '1')
+        const url = new URL(window.location.href)
+        url.searchParams.set('_cb', Date.now().toString())
+        window.location.replace(url.toString())
+        return
+      }
+      sessionStorage.removeItem(key)
+    }
   }
 
   handleReload = () => {
