@@ -26,11 +26,13 @@ export function useContato(id: string | null) {
 }
 
 export function useCriarContato() {
-  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (payload: Record<string, unknown>) => contatosApi.criar(payload),
+    // AIDEV-NOTE: Não invalidar ['contatos'] aqui — ContatosPage faz refetchQueries
+    // APÓS salvar campos customizados, evitando race condition onde a lista
+    // refaz a busca antes dos campos custom serem persistidos.
+    // Outros consumidores (InlinePopovers, emails) devem invalidar no próprio onSuccess.
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['contatos'] })
       toast.success('Contato criado com sucesso')
     },
     onError: (err: any) => {
@@ -45,6 +47,8 @@ export function useAtualizarContato() {
     mutationFn: ({ id, payload }: { id: string; payload: Record<string, unknown> }) =>
       contatosApi.atualizar(id, payload),
     onSuccess: () => {
+      // AIDEV-NOTE: Invalidar para consumidores inline (InlinePopovers, negocios)
+      // ContatosPage sobrescreve com refetchQueries após salvar campos custom
       queryClient.invalidateQueries({ queryKey: ['contatos'] })
       toast.success('Contato atualizado com sucesso')
     },
