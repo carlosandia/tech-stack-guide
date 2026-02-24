@@ -232,7 +232,9 @@ export function ContatoFormModal({
   const handleSubmit = (data: Record<string, any>) => {
     const cleanData: Record<string, unknown> = { ...data, tipo }
     for (const key of Object.keys(cleanData)) {
-      if (cleanData[key] === '') cleanData[key] = null
+      // AIDEV-NOTE: Preservar strings vazias em campos custom_* para que
+      // salvarCamposCustomizados possa distinguir "não preenchido" de "não existente"
+      if (cleanData[key] === '' && !key.startsWith('custom_')) cleanData[key] = null
     }
     // Nota: obrigatoriedade controlada pela config global de campos
     if (cleanData.cnpj && typeof cleanData.cnpj === 'string') {
