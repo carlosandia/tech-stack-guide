@@ -17,6 +17,7 @@ import { format, isPast } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { toast } from 'sonner'
 import { useNavigate } from 'react-router-dom'
+import { getValidWhatsAppUrl } from '@/shared/utils/whatsapp-url'
 
 interface ContatoDrawerProps {
   conversa: Conversa
@@ -331,6 +332,7 @@ export function ContatoDrawer({ conversa, isOpen, onClose, onInsertQuickReply, o
 
   const contato = conversa.contato
   const nome = contato?.nome || contato?.nome_fantasia || conversa.nome || 'Sem nome'
+  const fotoUrlValida = getValidWhatsAppUrl(contato?.foto_url)
 
   // Notas do contato
   const { data: notasData, isLoading: notasLoading } = useQuery({
@@ -388,8 +390,8 @@ export function ContatoDrawer({ conversa, isOpen, onClose, onInsertQuickReply, o
         <div className="flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom)]">
           {/* Avatar + Name */}
           <div className="flex flex-col items-center py-6 px-4 border-b border-border/50">
-            {contato?.foto_url && !fotoError ? (
-              <img src={contato.foto_url} alt={nome} className="w-20 h-20 rounded-full object-cover" onError={() => setFotoError(true)} />
+            {fotoUrlValida && !fotoError ? (
+              <img src={fotoUrlValida} alt={nome} className="w-20 h-20 rounded-full object-cover" onError={() => setFotoError(true)} />
             ) : (
               <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
                 <span className="text-xl font-bold text-primary">{getInitials(nome)}</span>

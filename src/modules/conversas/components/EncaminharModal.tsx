@@ -6,6 +6,7 @@
 
 import { useState, useMemo } from 'react'
 import { Search, X, MessageSquare, User, Check, AlertTriangle, Loader2 } from 'lucide-react'
+import { getValidWhatsAppUrl } from '@/shared/utils/whatsapp-url'
 import { useConversas } from '../hooks/useConversas'
 import type { Mensagem } from '../services/conversas.api'
 
@@ -205,8 +206,8 @@ export function EncaminharModal({ mensagem, onForward, onClose, onNavigateConver
                     {selected && <Check className="w-3 h-3 text-primary-foreground" />}
                   </div>
                   <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-                    {c.foto_url ? (
-                      <img src={c.foto_url} alt="" className="w-9 h-9 rounded-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                    {getValidWhatsAppUrl(c.foto_url) ? (
+                      <img src={getValidWhatsAppUrl(c.foto_url)!} alt="" className="w-9 h-9 rounded-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
                     ) : (
                       <User className="w-4 h-4 text-muted-foreground" />
                     )}

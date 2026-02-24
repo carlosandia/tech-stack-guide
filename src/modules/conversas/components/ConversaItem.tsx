@@ -14,6 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import { LabelBadge } from './LabelBadge'
 import type { Conversa } from '../services/conversas.api'
+import { getValidWhatsAppUrl } from '@/shared/utils/whatsapp-url'
 
 interface ConversaItemProps {
   conversa: Conversa
@@ -123,6 +124,7 @@ export const ConversaItem = forwardRef<HTMLDivElement, ConversaItemProps>(functi
     ? (conversa.nome || conversa.contato?.nome || 'Sem nome')
     : (conversa.contato?.nome || conversa.contato?.nome_fantasia || conversa.nome || 'Sem nome')
   const fotoUrl = conversa.contato?.foto_url || conversa.foto_url
+  const fotoUrlValida = getValidWhatsAppUrl(fotoUrl)
   const hasUnread = conversa.mensagens_nao_lidas > 0
   const preview = getMessagePreview(conversa)
   const status = statusConfig[conversa.status] || statusConfig.aberta
@@ -161,8 +163,8 @@ export const ConversaItem = forwardRef<HTMLDivElement, ConversaItemProps>(functi
       >
         {/* Avatar */}
         <div className="relative flex-shrink-0">
-          {fotoUrl && !fotoError ? (
-            <img src={fotoUrl} alt={nome} className="w-12 h-12 rounded-full object-cover" onError={() => setFotoError(true)} />
+          {fotoUrlValida && !fotoError ? (
+            <img src={fotoUrlValida} alt={nome} className="w-12 h-12 rounded-full object-cover" onError={() => setFotoError(true)} />
           ) : (
             <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold text-sm ${getAvatarColor(conversa.id)}`}>
               {getInitials(nome)}

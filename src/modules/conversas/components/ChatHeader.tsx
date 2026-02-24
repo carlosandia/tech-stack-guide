@@ -15,6 +15,7 @@ import { LabelsPopover } from './LabelsPopover'
 import { useLabelsConversa } from '../hooks/useWhatsAppLabels'
 import { toast } from 'sonner'
 import type { Conversa } from '../services/conversas.api'
+import { getValidWhatsAppUrl } from '@/shared/utils/whatsapp-url'
 
 interface ChatHeaderProps {
   conversa: Conversa
@@ -165,6 +166,7 @@ export const ChatHeader = forwardRef<HTMLDivElement, ChatHeaderProps>(function C
     ? (conversa.nome || conversa.contato?.nome || 'Sem nome')
     : (conversa.contato?.nome || conversa.nome || 'Sem nome')
   const fotoUrl = conversa.contato?.foto_url || conversa.foto_url
+  const fotoUrlValida = getValidWhatsAppUrl(fotoUrl)
   const statusInfo = statusLabels[conversa.status] || statusLabels.aberta
   const { data: conversaLabels = [] } = useLabelsConversa(conversa.id)
 
@@ -203,8 +205,8 @@ export const ChatHeader = forwardRef<HTMLDivElement, ChatHeaderProps>(function C
             onClick={onOpenDrawer}
             className="flex items-center gap-2 min-w-0 hover:opacity-80 transition-opacity"
           >
-            {fotoUrl && !fotoError ? (
-              <img src={fotoUrl} alt={nome} className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover flex-shrink-0" onError={() => setFotoError(true)} />
+            {fotoUrlValida && !fotoError ? (
+              <img src={fotoUrlValida} alt={nome} className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover flex-shrink-0" onError={() => setFotoError(true)} />
             ) : (
               <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                 <span className="text-xs sm:text-sm font-semibold text-primary">{getInitials(nome)}</span>
