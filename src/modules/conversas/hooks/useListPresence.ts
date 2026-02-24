@@ -5,7 +5,7 @@
  * Não faz subscribe individual por chat (isso é feito pelo usePresence no header)
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { PresenceStatus } from './usePresence'
 
@@ -26,6 +26,8 @@ function mapWahaStatus(raw: string | null | undefined): PresenceStatus {
 
 export function useListPresence(sessionName: string | null): Map<string, PresenceStatus> {
   const [presenceMap, setPresenceMap] = useState<Map<string, PresenceStatus>>(new Map())
+  // AIDEV-NOTE: Timers por chatId para auto-clear de composing/recording após 7s
+  const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
 
   const handleUpdate = useCallback((payload: any) => {
     const chatId = payload?.chatId || payload?.originalChatId
@@ -33,11 +35,19 @@ export function useListPresence(sessionName: string | null): Map<string, Presenc
     const presences = payload.presences || []
     if (presences.length > 0) {
       const status = mapWahaStatus(presences[0].lastKnownPresence)
+
+      // Limpar timer anterior deste chatId
+      const prevTimer = timersRef.current.get(chatId)
+      if (prevTimer) clearTimeout(prevTimer)
+      if (payload.originalChatId) {
+        const prevTimer2 = timersRef.current.get(payload.originalChatId)
+        if (prevTimer2) clearTimeout(prevTimer2)
+      }
+
       setPresenceMap(prev => {
         const next = new Map(prev)
         if (status && status !== 'unavailable' && status !== 'paused') {
           next.set(chatId, status)
-          // AIDEV-NOTE: Also set originalChatId for @lid resolution
           if (payload.originalChatId && payload.originalChatId !== chatId) {
             next.set(payload.originalChatId, status)
           }
@@ -47,6 +57,21 @@ export function useListPresence(sessionName: string | null): Map<string, Presenc
         }
         return next
       })
+
+      // Auto-clear após 7s para composing/recording
+      if (status === 'composing' || status === 'recording') {
+        const clearIds = [chatId]
+        if (payload.originalChatId && payload.originalChatId !== chatId) clearIds.push(payload.originalChatId)
+        const timer = setTimeout(() => {
+          setPresenceMap(prev => {
+            const next = new Map(prev)
+            clearIds.forEach(id => next.delete(id))
+            return next
+          })
+          clearIds.forEach(id => timersRef.current.delete(id))
+        }, 7000)
+        clearIds.forEach(id => timersRef.current.set(id, timer))
+      }
     }
   }, [])
 
@@ -62,6 +87,8 @@ export function useListPresence(sessionName: string | null): Map<string, Presenc
 
     return () => {
       supabase.removeChannel(channel)
+      timersRef.current.forEach(t => clearTimeout(t))
+      timersRef.current.clear()
     }
   }, [sessionName, handleUpdate])
 
