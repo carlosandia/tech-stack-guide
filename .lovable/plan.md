@@ -1,47 +1,77 @@
 
 
-# Correção: Importação limitada a 100 registros + Suporte XLSX
+# Correção: Histórico de "Oportunidade fechada" não registra em re-fechamentos
 
-## Problema 1: Limite de 100 registros hardcoded
+## Diagnóstico
 
-Na função `handleImport` (linhas 134 e 181), há um `Math.min(..., 100)` que limita a importação a apenas 100 registros, independente do tamanho do arquivo. Isso explica porque de 3.558 registros encontrados, apenas 88 foram importados (100 - 12 erros = 88).
+O problema está na **trigger do banco de dados** que registra o evento de fechamento. A condição atual é:
 
-## Problema 2: Sem suporte a XLSX
+```sql
+IF OLD.fechado_em IS NULL AND NEW.fechado_em IS NOT NULL THEN
+  -- registra "fechamento" no audit_log
+```
 
-Na linha 121, quando o arquivo é `.xlsx`, o modal exibe um erro dizendo "Por enquanto, use CSV" em vez de processar o arquivo.
+Isso significa que o evento só é registrado quando `fechado_em` passa de NULL para um valor. No cenário reportado:
 
-## Problema 3: Parser CSV frágil
+1. **Normal -> Ganho**: `fechado_em` era NULL, vira timestamp -- trigger dispara "Oportunidade fechada" (correto)
+2. **Ganho -> Perdido**: `fechado_em` já tinha valor, recebe novo timestamp -- trigger **NÃO** dispara (bug)
+3. **Perdido -> Ganho**: Mesma situação -- trigger **NÃO** dispara (bug)
 
-A função `parseCSV` (linha 55-57) usa `line.split(separator)` simples, que quebra campos entre aspas que contenham o separador (ex: `"Rua X, 123"` seria dividido incorretamente).
-
----
+Além disso, há outro gap: ao mover de Ganho/Perdido de volta para uma etapa normal (ex: "Contatar hoje"), o `fechado_em` permanece preenchido, o que é semanticamente incorreto -- a oportunidade deveria voltar a ficar "aberta".
 
 ## Plano de Correção
 
-### 1. Remover limite de 100 e implementar batch processing
+### 1. Frontend: `fecharOportunidade` faz reset antes de fechar (workaround imediato)
 
-**Arquivo**: `src/modules/contatos/components/ImportarContatosModal.tsx`
+**Arquivo**: `src/modules/negocios/services/negocios.api.ts`
 
-- Remover `Math.min(contatos.length, 100)` nas linhas 134 e 181
-- Usar `contatos.length` completo
-- Manter processamento sequencial (1 a 1 via API) mas sem limite artificial
-- Adicionar pequeno `await delay` a cada 50 registros para não travar a UI
+Na função `fecharOportunidade` (linha 598-616), antes de fazer o update com o novo `fechado_em`, primeiro limpar o campo para NULL e depois setar o novo valor. Isso garante que a trigger detecte a transição NULL -> timestamp:
 
-### 2. Adicionar suporte XLSX com biblioteca `xlsx` (SheetJS)
+```typescript
+// Primeiro: limpar fechado_em para garantir que a trigger detecte
+await supabase
+  .from('oportunidades')
+  .update({ fechado_em: null } as any)
+  .eq('id', oportunidadeId)
 
-- Instalar dependência `xlsx` (SheetJS Community Edition)
-- No bloco `else` (linha 120-122), ao invés de mostrar erro, ler o arquivo XLSX no client-side usando `XLSX.read()` e converter para o mesmo formato `{ headers, rows }` que o CSV usa
-- O restante do fluxo (mapeamento, importação) permanece idêntico
+// Depois: setar os dados reais
+await supabase
+  .from('oportunidades')
+  .update({
+    etapa_id: etapaDestinoId,
+    motivo_resultado_id: motivoId || null,
+    observacoes: observacoes || null,
+    fechado_em: new Date().toISOString(),
+  } as any)
+  .eq('id', oportunidadeId)
+```
 
-### 3. Melhorar parser CSV
+### 2. Frontend: `moverEtapa` limpa `fechado_em` ao mover para etapa normal
 
-- Implementar parser que respeita campos entre aspas (quoted fields)
-- Tratar corretamente separadores dentro de aspas e aspas escapadas
+**Arquivo**: `src/modules/negocios/services/negocios.api.ts`
 
-### Resumo técnico de alterações
+Na função `moverEtapa` (linha 465-522), ao mover para qualquer etapa, limpar `fechado_em` e `motivo_resultado_id` para que a oportunidade volte ao estado "aberta":
+
+```typescript
+// Linha 474-477: adicionar fechado_em: null e motivo_resultado_id: null
+const { error } = await supabase
+  .from('oportunidades')
+  .update({
+    etapa_id: etapaDestinoId,
+    fechado_em: null,
+    motivo_resultado_id: null,
+  } as any)
+  .eq('id', oportunidadeId)
+```
+
+Isso é seguro porque `moverEtapa` só é chamado para etapas normais (entrada/normal). Para ganho/perda, o fluxo passa por `fecharOportunidade`.
+
+### Resumo das alterações
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/modules/contatos/components/ImportarContatosModal.tsx` | Remover limite 100, adicionar parse XLSX, melhorar parseCSV |
-| `package.json` | Adicionar dependência `xlsx` |
+| `src/modules/negocios/services/negocios.api.ts` | `fecharOportunidade`: reset `fechado_em` para NULL antes de re-fechar |
+| `src/modules/negocios/services/negocios.api.ts` | `moverEtapa`: limpar `fechado_em` e `motivo_resultado_id` ao mover para etapa normal |
+
+Nenhuma alteração de migration/trigger necessária -- o fix é inteiramente no frontend.
 
