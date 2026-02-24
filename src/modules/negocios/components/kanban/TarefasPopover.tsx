@@ -213,7 +213,7 @@ export const TarefasPopover = forwardRef<HTMLDivElement, TarefasPopoverProps>(fu
         }`}
         title={`${totalConcluidas}/${totalTarefas} tarefa(s) concluída(s)`}
       >
-        <CheckSquare className="w-3 h-3" />
+        <CheckSquare className="w-3.5 h-3.5" />
         <span>{totalConcluidas}/{totalTarefas}</span>
       </button>
 
