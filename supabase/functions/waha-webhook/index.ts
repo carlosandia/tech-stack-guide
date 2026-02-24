@@ -501,16 +501,49 @@ Deno.serve(async (req) => {
         const presences = payload.presences || [];
 
         if (chatId) {
+          // AIDEV-NOTE: Resolver @lid para @c.us antes de broadcastar
+          // O frontend armazena chat_id no formato @c.us, mas WAHA pode enviar @lid
+          let resolvedChatId = chatId;
+
+          if (chatId.includes("@lid")) {
+            try {
+              const { data: sessao } = await supabaseAdmin
+                .from("sessoes_whatsapp")
+                .select("id, organizacao_id")
+                .eq("session_name", sessionName)
+                .maybeSingle();
+
+              if (sessao) {
+                const lidNumber = chatId.replace("@lid", "");
+                const { data: rpcResult } = await supabaseAdmin
+                  .rpc("resolve_lid_conversa", {
+                    p_org_id: sessao.organizacao_id,
+                    p_lid_number: lidNumber,
+                  });
+
+                if (rpcResult && rpcResult.length > 0) {
+                  const resolved = rpcResult[0];
+                  if (resolved.chat_id && !resolved.chat_id.includes("@lid")) {
+                    resolvedChatId = resolved.chat_id;
+                    console.log(`[waha-webhook] Presence @lid resolved: ${chatId} → ${resolvedChatId}`);
+                  }
+                }
+              }
+            } catch (resolveErr) {
+              console.warn(`[waha-webhook] Presence @lid resolve error:`, resolveErr);
+            }
+          }
+
           try {
             const channel = supabaseAdmin.channel(`presence:${sessionName}`);
             await channel.send({
               type: 'broadcast',
               event: 'presence_update',
-              payload: { chatId, presences },
+              payload: { chatId: resolvedChatId, originalChatId: chatId, presences },
             });
             // AIDEV-NOTE: removeChannel para não acumular canais no servidor
             await supabaseAdmin.removeChannel(channel);
-            console.log(`[waha-webhook] ✅ Presence broadcast sent for ${chatId} on session ${sessionName}`);
+            console.log(`[waha-webhook] ✅ Presence broadcast sent for ${resolvedChatId} on session ${sessionName}`);
           } catch (broadcastErr) {
             console.error(`[waha-webhook] Presence broadcast error:`, broadcastErr);
           }
