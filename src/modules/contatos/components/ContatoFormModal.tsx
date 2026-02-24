@@ -450,7 +450,7 @@ export function ContatoFormModal({
       if (campo.tipo === 'texto_longo') {
         return (
           <div key={key} className="sm:col-span-2">
-            <label className="block text-sm font-medium text-foreground mb-1.5">{label}</label>
+            <label className="block text-sm font-medium text-foreground mb-1.5 truncate" title={label}>{label}</label>
             <textarea {...form.register(key)} rows={3} placeholder={getCampoPlaceholderText(campo)}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
             />
@@ -829,7 +829,7 @@ function EmpresaSearchField({
 const InputField = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement> & { label: string; error?: string }>(
   ({ label, error, className, ...props }, ref) => (
     <div>
-      <label className="block text-sm font-medium text-foreground mb-1.5">{label}</label>
+      <label className="block text-sm font-medium text-foreground mb-1.5 truncate" title={label}>{label}</label>
       <input ref={ref} {...props}
         className={`w-full h-10 rounded-md border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring ${error ? 'border-destructive' : ''} ${className || ''}`}
       />
@@ -842,7 +842,7 @@ InputField.displayName = 'InputField'
 const SelectField = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement> & { label: string; children: React.ReactNode }>(
   ({ label, children, className, ...props }, ref) => (
     <div>
-      <label className="block text-sm font-medium text-foreground mb-1.5">{label}</label>
+      <label className="block text-sm font-medium text-foreground mb-1.5 truncate" title={label}>{label}</label>
       <select ref={ref} {...props}
         className={`w-full h-10 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring ${className || ''}`}
       >
@@ -886,7 +886,7 @@ function MultiSelectDropdown({ label, opcoes, value, onChange }: {
 
   return (
     <div ref={ref} className="relative">
-      <label className="block text-sm font-medium text-foreground mb-1.5">{label}</label>
+      <label className="block text-sm font-medium text-foreground mb-1.5 truncate" title={label}>{label}</label>
       <button
         type="button"
         onClick={() => setOpen(!open)}
