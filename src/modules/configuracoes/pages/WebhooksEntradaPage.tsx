@@ -305,9 +305,6 @@ export function WebhooksEntradaPage() {
         />
       )}
 
-      <p className="text-xs text-muted-foreground">
-        Configure suas integrações para receber leads automaticamente
-      </p>
     </div>
   )
 }
