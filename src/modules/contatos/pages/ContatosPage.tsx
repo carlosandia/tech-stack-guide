@@ -460,6 +460,8 @@ const ContatosPage = forwardRef<HTMLDivElement>(function ContatosPage(_props, _r
         { id: editingContato.id, payload: cleanData },
         {
           onSuccess: async () => {
+            // Salvar campos customizados
+            try { await contatosApi.salvarCamposCustomizados(editingContato.id, editingContato.tipo as TipoContato, formData) } catch {}
             if (segmentoIds) {
               try { await contatosApi.vincularSegmentos(editingContato.id, segmentoIds) } catch {}
             }
@@ -476,6 +478,8 @@ const ContatosPage = forwardRef<HTMLDivElement>(function ContatosPage(_props, _r
     } else {
       criarContato.mutate(cleanData, {
         onSuccess: async (contato: any) => {
+          // Salvar campos customizados
+          try { await contatosApi.salvarCamposCustomizados(contato.id, tipo as TipoContato, formData) } catch {}
           if (segmentoIds && segmentoIds.length > 0) {
             try { await contatosApi.vincularSegmentos(contato.id, segmentoIds) } catch {}
           }
