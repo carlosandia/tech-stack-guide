@@ -11,6 +11,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Plus, Search, Filter, Download, Upload, Users2, Building2, X, Tag, GitMerge, ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
 import { useAuth } from '@/providers/AuthProvider'
+import { supabase } from '@/lib/supabase'
 import { useAppToolbar } from '@/modules/app/contexts/AppToolbarContext'
 import { useContatos, useCriarContato, useAtualizarContato, useExcluirContato, useExcluirContatosLote, useDuplicatas } from '../hooks/useContatos'
 import { useContatosRealtime } from '../hooks/useContatosRealtime'
@@ -455,8 +456,39 @@ const ContatosPage = forwardRef<HTMLDivElement>(function ContatosPage(_props, _r
 
   const handleFormSubmit = async (formData: Record<string, unknown>) => {
     const segmentoIds = formData.segmento_ids as string[] | undefined
+    // AIDEV-NOTE: Extrair pessoa_ids antes de enviar para a API (campo apenas de UI)
+    const pessoaIds = formData.pessoa_ids as string[] | undefined
     const cleanData = { ...formData }
     delete cleanData.segmento_ids
+    delete cleanData.pessoa_ids
+
+    // Helper para vincular/desvincular pessoas à empresa
+    const vincularPessoasEmpresa = async (empresaId: string, isEdicao: boolean) => {
+      if (cleanData.tipo !== 'empresa') return
+      try {
+        if (isEdicao) {
+          // Desvincular pessoas removidas
+          let desvinculoQuery = supabase
+            .from('contatos')
+            .update({ empresa_id: null })
+            .eq('empresa_id', empresaId)
+            .eq('tipo', 'pessoa')
+          if (pessoaIds && pessoaIds.length > 0) {
+            desvinculoQuery = desvinculoQuery.not('id', 'in', `(${pessoaIds.join(',')})`)
+          }
+          await desvinculoQuery
+        }
+        // Vincular pessoas selecionadas
+        if (pessoaIds && pessoaIds.length > 0) {
+          await supabase
+            .from('contatos')
+            .update({ empresa_id: empresaId })
+            .in('id', pessoaIds)
+        }
+      } catch (err: any) {
+        console.error('[handleFormSubmit] Erro ao vincular pessoas à empresa:', err?.message || err)
+      }
+    }
 
     if (editingContato) {
       atualizarContato.mutate(
@@ -474,6 +506,8 @@ const ContatosPage = forwardRef<HTMLDivElement>(function ContatosPage(_props, _r
             if (segmentoIds) {
               try { await contatosApi.vincularSegmentos(editingContato.id, segmentoIds) } catch {}
             }
+            // AIDEV-NOTE: Vincular/desvincular pessoas à empresa (PRD-06)
+            await vincularPessoasEmpresa(editingContato.id, true)
             // AIDEV-NOTE: Cancelar refetch em andamento (pode ter sido disparado pelo Realtime
             // antes dos campos custom serem salvos) e forçar novo refetch com dados completos
             await queryClient.cancelQueries({ queryKey: ['contatos'] })
@@ -503,6 +537,8 @@ const ContatosPage = forwardRef<HTMLDivElement>(function ContatosPage(_props, _r
           if (segmentoIds && segmentoIds.length > 0) {
             try { await contatosApi.vincularSegmentos(contato.id, segmentoIds) } catch {}
           }
+          // AIDEV-NOTE: Vincular pessoas à empresa recém-criada (PRD-06)
+          await vincularPessoasEmpresa(contato.id, false)
            // AIDEV-NOTE: Cancelar refetch em andamento (pode ter sido disparado pelo Realtime
            // antes dos campos custom serem salvos) e forçar novo refetch com dados completos
            await queryClient.cancelQueries({ queryKey: ['contatos'] })
