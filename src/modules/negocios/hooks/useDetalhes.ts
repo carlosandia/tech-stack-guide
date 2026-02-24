@@ -10,10 +10,10 @@ import { detalhesApi } from '../services/detalhes.api'
 // TAREFAS
 // =====================================================
 
-export function useTarefasOportunidade(oportunidadeId: string | null) {
+export function useTarefasOportunidade(oportunidadeId: string | null, funilId?: string | null) {
   return useQuery({
-    queryKey: ['tarefas_oportunidade', oportunidadeId],
-    queryFn: () => detalhesApi.listarTarefas(oportunidadeId!),
+    queryKey: ['tarefas_oportunidade', oportunidadeId, funilId],
+    queryFn: () => detalhesApi.listarTarefas(oportunidadeId!, funilId || undefined),
     enabled: !!oportunidadeId,
     staleTime: 15 * 1000,
   })

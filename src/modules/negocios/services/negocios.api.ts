@@ -357,7 +357,9 @@ export const negociosApi = {
     }
 
     // Buscar contagem de tarefas por oportunidade (pendentes E total)
+    // AIDEV-NOTE: Filtra por etapas do funil atual — tarefas de outras pipelines são ocultadas
     const opIds = ops.map(o => o.id)
+    const etapaIdsFunil = new Set((etapas || []).map(e => e.id))
     let tarefasPendentesMap: Record<string, number> = {}
     let tarefasTotalMap: Record<string, number> = {}
 
@@ -372,7 +374,7 @@ export const negociosApi = {
         batches.map(batch =>
           supabase
             .from('tarefas')
-            .select('oportunidade_id, status')
+            .select('oportunidade_id, status, etapa_origem_id')
             .in('oportunidade_id', batch)
             .is('deletado_em', null)
         )
@@ -380,6 +382,9 @@ export const negociosApi = {
       for (const { data: tarefas } of resultados) {
         if (tarefas) {
           for (const t of tarefas) {
+            // Filtrar: só contar tarefas manuais (sem etapa) ou da pipeline atual
+            if (t.etapa_origem_id && !etapaIdsFunil.has(t.etapa_origem_id)) continue
+
             if (t.oportunidade_id) {
               tarefasTotalMap[t.oportunidade_id] = (tarefasTotalMap[t.oportunidade_id] || 0) + 1
               if (t.status === 'pendente') {

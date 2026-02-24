@@ -100,7 +100,7 @@ export interface MotivoNoShow {
 export const detalhesApi = {
   // ---------- TAREFAS ----------
 
-  listarTarefas: async (oportunidadeId: string): Promise<Tarefa[]> => {
+  listarTarefas: async (oportunidadeId: string, funilId?: string): Promise<Tarefa[]> => {
     const { data, error } = await supabase
       .from('tarefas')
       .select('*')
@@ -112,7 +112,23 @@ export const detalhesApi = {
 
     if (error) throw new Error(error.message)
 
-    const tarefas = data || []
+    let tarefas = data || []
+
+    // AIDEV-NOTE: Filtrar por pipeline — só exibir tarefas manuais (sem etapa) ou da pipeline atual
+    if (funilId && tarefas.length > 0) {
+      const { data: etapasFunil } = await supabase
+        .from('etapas_funil')
+        .select('id')
+        .eq('funil_id', funilId)
+        .is('deletado_em', null)
+
+      if (etapasFunil) {
+        const etapaIdsFunil = new Set(etapasFunil.map(e => e.id))
+        tarefas = tarefas.filter(t =>
+          !t.etapa_origem_id || etapaIdsFunil.has(t.etapa_origem_id)
+        )
+      }
+    }
 
     // Enriquecer com owner
     const ownerIds = [...new Set(tarefas.filter(t => t.owner_id).map(t => t.owner_id!))]

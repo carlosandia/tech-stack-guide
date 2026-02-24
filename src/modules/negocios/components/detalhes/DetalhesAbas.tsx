@@ -14,6 +14,7 @@ import { AbaAgenda } from './AbaAgenda'
 
 interface DetalhesAbasProps {
   oportunidadeId: string
+  funilId?: string
   usuarioAtualId?: string
   emailContato?: string | null
   abaInicial?: string
@@ -29,7 +30,7 @@ const TABS = [
 
 type TabId = typeof TABS[number]['id']
 
-export function DetalhesAbas({ oportunidadeId, usuarioAtualId, emailContato, abaInicial }: DetalhesAbasProps) {
+export function DetalhesAbas({ oportunidadeId, funilId, usuarioAtualId, emailContato, abaInicial }: DetalhesAbasProps) {
   const [activeTab, setActiveTab] = useState<TabId>((abaInicial as TabId) || 'anotacoes')
 
   return (
@@ -68,7 +69,7 @@ export function DetalhesAbas({ oportunidadeId, usuarioAtualId, emailContato, aba
           <AbaAnotacoes oportunidadeId={oportunidadeId} usuarioAtualId={usuarioAtualId} />
         )}
         {activeTab === 'tarefas' && (
-          <AbaTarefas oportunidadeId={oportunidadeId} />
+          <AbaTarefas oportunidadeId={oportunidadeId} funilId={funilId} />
         )}
         {activeTab === 'documentos' && (
           <AbaDocumentos oportunidadeId={oportunidadeId} />

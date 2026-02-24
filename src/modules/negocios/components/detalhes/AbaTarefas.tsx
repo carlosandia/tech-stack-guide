@@ -19,6 +19,7 @@ import type { Tarefa } from '../../services/detalhes.api'
 
 interface AbaTarefasProps {
   oportunidadeId: string
+  funilId?: string
 }
 
 const PRIORIDADE_MAP: Record<string, { label: string; class: string }> = {
@@ -62,8 +63,8 @@ function agruparPorEtapa(tarefas: Tarefa[]): TarefasPorEtapa[] {
   })
 }
 
-export function AbaTarefas({ oportunidadeId }: AbaTarefasProps) {
-  const { data: tarefas, isLoading } = useTarefasOportunidade(oportunidadeId)
+export function AbaTarefas({ oportunidadeId, funilId }: AbaTarefasProps) {
+  const { data: tarefas, isLoading } = useTarefasOportunidade(oportunidadeId, funilId)
   const criarTarefa = useCriarTarefa()
   const atualizarStatus = useAtualizarStatusTarefa()
   const excluirTarefa = useExcluirTarefa()

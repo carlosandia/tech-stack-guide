@@ -33,12 +33,13 @@ interface Tarefa {
 
 interface TarefasPopoverProps {
   oportunidadeId: string
+  funilId?: string
   totalPendentes: number
   totalTarefas: number
   totalConcluidas: number
 }
 
-export const TarefasPopover = forwardRef<HTMLDivElement, TarefasPopoverProps>(function TarefasPopover({ oportunidadeId, totalPendentes, totalTarefas, totalConcluidas }, _ref) {
+export const TarefasPopover = forwardRef<HTMLDivElement, TarefasPopoverProps>(function TarefasPopover({ oportunidadeId, funilId, totalPendentes, totalTarefas, totalConcluidas }, _ref) {
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
   const [tarefas, setTarefas] = useState<Tarefa[]>([])
@@ -118,7 +119,23 @@ export const TarefasPopover = forwardRef<HTMLDivElement, TarefasPopoverProps>(fu
           return
         }
 
-        const tarefasRaw = (data || []) as Tarefa[]
+        let tarefasRaw = (data || []) as Tarefa[]
+
+        // AIDEV-NOTE: Filtrar por pipeline — só exibir tarefas manuais ou da pipeline atual
+        if (funilId && tarefasRaw.length > 0) {
+          const { data: etapasFunil } = await supabase
+            .from('etapas_funil')
+            .select('id')
+            .eq('funil_id', funilId)
+            .is('deletado_em', null)
+
+          if (etapasFunil) {
+            const etapaIdsFunil = new Set(etapasFunil.map(e => e.id))
+            tarefasRaw = tarefasRaw.filter(t =>
+              !t.etapa_origem_id || etapaIdsFunil.has(t.etapa_origem_id)
+            )
+          }
+        }
 
         const etapaIds = [...new Set(tarefasRaw.filter(t => t.etapa_origem_id).map(t => t.etapa_origem_id!))]
         let etapasMap: Record<string, string> = {}
@@ -148,7 +165,7 @@ export const TarefasPopover = forwardRef<HTMLDivElement, TarefasPopoverProps>(fu
     }
 
     loadTarefas()
-  }, [open, oportunidadeId])
+  }, [open, oportunidadeId, funilId])
 
   const handleToggleConcluir = async (e: React.MouseEvent, tarefa: Tarefa) => {
     e.stopPropagation()
