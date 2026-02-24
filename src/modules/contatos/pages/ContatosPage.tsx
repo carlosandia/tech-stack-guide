@@ -461,7 +461,11 @@ const ContatosPage = forwardRef<HTMLDivElement>(function ContatosPage(_props, _r
         {
           onSuccess: async () => {
             // Salvar campos customizados
-            try { await contatosApi.salvarCamposCustomizados(editingContato.id, editingContato.tipo as TipoContato, formData) } catch {}
+            try {
+              await contatosApi.salvarCamposCustomizados(editingContato.id, editingContato.tipo as TipoContato, formData)
+            } catch (err: any) {
+              console.error('[handleFormSubmit] Erro ao salvar campos customizados (edição):', err?.message || err)
+            }
             if (segmentoIds) {
               try { await contatosApi.vincularSegmentos(editingContato.id, segmentoIds) } catch {}
             }
@@ -478,8 +482,12 @@ const ContatosPage = forwardRef<HTMLDivElement>(function ContatosPage(_props, _r
     } else {
       criarContato.mutate(cleanData, {
         onSuccess: async (contato: any) => {
-          // Salvar campos customizados
-          try { await contatosApi.salvarCamposCustomizados(contato.id, tipo as TipoContato, formData) } catch {}
+           // Salvar campos customizados
+          try {
+            await contatosApi.salvarCamposCustomizados(contato.id, tipo as TipoContato, formData)
+          } catch (err: any) {
+            console.error('[handleFormSubmit] Erro ao salvar campos customizados (criação):', err?.message || err)
+          }
           if (segmentoIds && segmentoIds.length > 0) {
             try { await contatosApi.vincularSegmentos(contato.id, segmentoIds) } catch {}
           }
