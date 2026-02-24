@@ -210,15 +210,16 @@ export const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(functi
 
     if (conversaMudou) {
       prevLengthRef.current = 0
-      setTimeout(() => {
+    }
+
+    // Colocar scroll + atualizacao do ref dentro do setTimeout
+    // para garantir que o DOM ja renderizou as mensagens
+    setTimeout(() => {
+      if (conversaMudou || prevLengthRef.current === 0) {
+        // Conversa trocou ou primeira carga: scroll incondicional
         bottomRef.current?.scrollIntoView({ behavior: 'instant' })
-      }, 50)
-    } else if (mensagens.length > prevLengthRef.current) {
-      if (prevLengthRef.current === 0) {
-        setTimeout(() => {
-          bottomRef.current?.scrollIntoView({ behavior: 'instant' })
-        }, 50)
-      } else {
+      } else if (mensagens.length > prevLengthRef.current) {
+        // Novas mensagens na mesma conversa
         const container = containerRef.current
         if (container) {
           const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150
@@ -227,9 +228,8 @@ export const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(functi
           }
         }
       }
-    }
-
-    prevLengthRef.current = mensagens.length
+      prevLengthRef.current = mensagens.length
+    }, 80)
   }, [conversaId, mensagens.length])
 
   useEffect(() => {
