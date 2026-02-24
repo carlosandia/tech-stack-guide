@@ -60,10 +60,10 @@ export const OportunidadeBulkActions = React.forwardRef<HTMLDivElement, Oportuni
     (f: any) => f.id !== funilAtualId && !f.arquivado
   )
 
-  // Etapas da pipeline selecionada
+  // AIDEV-NOTE: Ao mover para outra pipeline, só exibe etapa tipo 'entrada' (Novos Negócios)
   const { data: funilSelecionado } = useFunilComEtapas(selectedPipelineId)
   const etapasPipelineSelecionada = funilSelecionado?.etapas?.filter(
-    (e: any) => e.tipo !== 'ganho' && e.tipo !== 'perda'
+    (e: any) => e.tipo === 'entrada'
   ) || []
 
   // Reset selectedPipeline quando dropdown fecha
