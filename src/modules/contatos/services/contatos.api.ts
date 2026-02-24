@@ -177,14 +177,64 @@ export const contatosApi = {
 
     let contatos = (data || []) as Contato[]
 
-    // Enriquecer com segmentos
+    // AIDEV-NOTE: Promise.all paraleliza 6 queries de enriquecimento (antes eram sequenciais)
     if (contatos.length > 0) {
       const contatoIds = contatos.map(c => c.id)
-      const { data: vinculosData } = await supabase
-        .from('contatos_segmentos')
-        .select('contato_id, segmento_id, segmentos:segmento_id(id, nome, cor)')
-        .in('contato_id', contatoIds)
+      const ownerIds = [...new Set(contatos.filter(c => c.owner_id).map(c => c.owner_id!))]
+      const tipoEntidade = params?.tipo === 'empresa' ? 'empresa' : 'pessoa'
+      const empresaIdsDePessoas = params?.tipo === 'pessoa'
+        ? [...new Set(contatos.filter(c => c.empresa_id).map(c => c.empresa_id!))]
+        : []
 
+      const [
+        vinculosResult,
+        ownersResult,
+        tipoEnrichResult,
+        camposDefsResult,
+        valoresCustomResult,
+        opsResult,
+      ] = await Promise.all([
+        // 1. segmentos
+        supabase
+          .from('contatos_segmentos')
+          .select('contato_id, segmento_id, segmentos:segmento_id(id, nome, cor)')
+          .in('contato_id', contatoIds),
+
+        // 2. owners
+        ownerIds.length > 0
+          ? supabase.from('usuarios').select('id, nome, sobrenome').in('id', ownerIds)
+          : Promise.resolve({ data: [] as { id: string; nome: string; sobrenome: string | null }[], error: null }),
+
+        // 3. tipo-based enrichment (empresas para pessoas | pessoas para empresas)
+        params?.tipo === 'pessoa' && empresaIdsDePessoas.length > 0
+          ? supabase.from('contatos').select('id, razao_social, nome_fantasia').in('id', empresaIdsDePessoas)
+          : params?.tipo === 'empresa'
+            ? supabase.from('contatos')
+                .select('id, nome, sobrenome, email, telefone, cargo, status, empresa_id')
+                .in('empresa_id', contatoIds)
+                .is('deletado_em', null)
+            : Promise.resolve({ data: null as any, error: null }),
+
+        // 4. definições dos campos customizados
+        supabase.from('campos_customizados').select('id, slug, tipo').is('deletado_em', null),
+
+        // 5. valores de campos customizados
+        supabase
+          .from('valores_campos_customizados')
+          .select('entidade_id, campo_id, valor_texto, valor_numero, valor_data, valor_booleano, valor_json')
+          .eq('entidade_tipo', tipoEntidade)
+          .in('entidade_id', contatoIds),
+
+        // 6. contagem de oportunidades
+        supabase
+          .from('oportunidades')
+          .select('contato_id', { count: 'exact', head: false })
+          .in('contato_id', contatoIds)
+          .is('deletado_em', null),
+      ])
+
+      // Aplicar segmentos
+      const vinculosData = vinculosResult.data
       if (vinculosData) {
         const segmentosByContato: Record<string, Array<{ id: string; nome: string; cor: string }>> = {}
         for (const v of vinculosData as any[]) {
@@ -203,60 +253,34 @@ export const contatosApi = {
         }))
       }
 
-      // Enriquecer com owner
-      const ownerIds = [...new Set(contatos.filter(c => c.owner_id).map(c => c.owner_id!))]
-      if (ownerIds.length > 0) {
-        const { data: ownersData } = await supabase
-          .from('usuarios')
-          .select('id, nome, sobrenome')
-          .in('id', ownerIds)
+      // Aplicar owners
+      const ownersData = ownersResult.data
+      if (ownersData && ownersData.length > 0) {
+        const ownersMap: Record<string, { nome: string; sobrenome?: string }> = {}
+        for (const o of ownersData) {
+          ownersMap[o.id] = { nome: o.nome, sobrenome: o.sobrenome || undefined }
+        }
+        contatos = contatos.map(c => ({
+          ...c,
+          owner: c.owner_id ? ownersMap[c.owner_id] || null : null,
+        }))
+      }
 
-        if (ownersData) {
-          const ownersMap: Record<string, { nome: string; sobrenome?: string }> = {}
-          for (const o of ownersData) {
-            ownersMap[o.id] = { nome: o.nome, sobrenome: o.sobrenome || undefined }
+      // Aplicar enrichment de tipo (empresas para pessoas | pessoas para empresas)
+      const tipoEnrichData = tipoEnrichResult.data
+      if (tipoEnrichData) {
+        if (params?.tipo === 'pessoa') {
+          const empresasMap: Record<string, { id: string; razao_social?: string; nome_fantasia?: string }> = {}
+          for (const e of tipoEnrichData as any[]) {
+            empresasMap[e.id] = { id: e.id, razao_social: e.razao_social || undefined, nome_fantasia: e.nome_fantasia || undefined }
           }
           contatos = contatos.map(c => ({
             ...c,
-            owner: c.owner_id ? ownersMap[c.owner_id] || null : null,
+            empresa: c.empresa_id ? empresasMap[c.empresa_id] || null : null,
           }))
-        }
-      }
-
-      // Enriquecer empresas para pessoas
-      if (params?.tipo === 'pessoa') {
-        const empresaIds = [...new Set(contatos.filter(c => c.empresa_id).map(c => c.empresa_id!))]
-        if (empresaIds.length > 0) {
-          const { data: empresasData } = await supabase
-            .from('contatos')
-            .select('id, razao_social, nome_fantasia')
-            .in('id', empresaIds)
-
-          if (empresasData) {
-            const empresasMap: Record<string, { id: string; razao_social?: string; nome_fantasia?: string }> = {}
-            for (const e of empresasData) {
-              empresasMap[e.id] = { id: e.id, razao_social: e.razao_social || undefined, nome_fantasia: e.nome_fantasia || undefined }
-            }
-            contatos = contatos.map(c => ({
-              ...c,
-              empresa: c.empresa_id ? empresasMap[c.empresa_id] || null : null,
-            }))
-          }
-        }
-      }
-
-      // Enriquecer empresas com pessoas vinculadas
-      if (params?.tipo === 'empresa') {
-        const empresaIds = contatos.map(c => c.id)
-        const { data: pessoasData } = await supabase
-          .from('contatos')
-          .select('id, nome, sobrenome, email, telefone, cargo, status, empresa_id')
-          .in('empresa_id', empresaIds)
-          .is('deletado_em', null)
-
-        if (pessoasData) {
+        } else if (params?.tipo === 'empresa') {
           const pessoasByEmpresa: Record<string, Array<{ id: string; nome: string; sobrenome?: string; email?: string; telefone?: string; cargo?: string; status: string }>> = {}
-          for (const p of pessoasData) {
+          for (const p of tipoEnrichData as any[]) {
             if (!p.empresa_id) continue
             if (!pessoasByEmpresa[p.empresa_id]) pessoasByEmpresa[p.empresa_id] = []
             pessoasByEmpresa[p.empresa_id].push({
@@ -278,27 +302,15 @@ export const contatosApi = {
 
       // AIDEV-NOTE: Filtro de segmento movido para pre-query (Plano Escala 5.4)
 
-      // Enriquecer com campos customizados
+      // Aplicar campos customizados
       {
-        const contatoIdsForCustom = contatos.map(c => c.id)
-        const tipoEntidade = params?.tipo === 'empresa' ? 'empresa' : 'pessoa'
-
-        // Buscar definições dos campos para mapear campo_id → slug
-        const { data: camposDefs } = await supabase
-          .from('campos_customizados')
-          .select('id, slug, tipo')
-          .is('deletado_em', null)
+        const camposDefs = camposDefsResult.data
+        const valoresCustom = valoresCustomResult.data
 
         const slugMap = new Map<string, { slug: string; tipo: string }>()
         for (const cd of camposDefs || []) {
           slugMap.set(cd.id, { slug: cd.slug, tipo: cd.tipo })
         }
-
-        const { data: valoresCustom } = await supabase
-          .from('valores_campos_customizados')
-          .select('entidade_id, campo_id, valor_texto, valor_numero, valor_data, valor_booleano, valor_json')
-          .eq('entidade_tipo', tipoEntidade)
-          .in('entidade_id', contatoIdsForCustom)
 
         if (valoresCustom) {
           const camposCustomMap: Record<string, Record<string, unknown>> = {}
@@ -338,24 +350,16 @@ export const contatosApi = {
       }
 
       // AIDEV-NOTE: Contagem otimizada de oportunidades — usa count agrupado (Plano Escala 5.6)
-      const contatoIdsAll = contatos.map(c => c.id)
-      if (contatoIdsAll.length > 0) {
-        const { data: opsData } = await supabase
-          .from('oportunidades')
-          .select('contato_id', { count: 'exact', head: false })
-          .in('contato_id', contatoIdsAll)
-          .is('deletado_em', null)
-
-        if (opsData) {
-          const opsCount: Record<string, number> = {}
-          for (const op of opsData) {
-            opsCount[op.contato_id] = (opsCount[op.contato_id] || 0) + 1
-          }
-          contatos = contatos.map(c => ({
-            ...c,
-            total_oportunidades: opsCount[c.id] || 0,
-          }))
+      const opsData = opsResult.data
+      if (opsData) {
+        const opsCount: Record<string, number> = {}
+        for (const op of opsData) {
+          opsCount[op.contato_id] = (opsCount[op.contato_id] || 0) + 1
         }
+        contatos = contatos.map(c => ({
+          ...c,
+          total_oportunidades: opsCount[c.id] || 0,
+        }))
       }
     }
 

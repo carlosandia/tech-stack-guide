@@ -25,6 +25,7 @@ export function useAgendadas(conversaId: string) {
     queryKey: ['mensagens-agendadas', conversaId],
     queryFn: () => conversasApi.listarAgendadas(conversaId),
     enabled: !!conversaId,
+    refetchOnWindowFocus: false,
   })
 }
 
@@ -33,6 +34,7 @@ export function useContarAgendadasConversa(conversaId: string) {
     queryKey: ['mensagens-agendadas-count', conversaId],
     queryFn: () => conversasApi.contarAgendadasConversa(conversaId),
     enabled: !!conversaId,
+    refetchOnWindowFocus: false,
   })
 }
 
@@ -40,6 +42,7 @@ export function useContarAgendadasUsuario() {
   return useQuery({
     queryKey: ['mensagens-agendadas-count-usuario'],
     queryFn: () => conversasApi.contarAgendadasUsuario(),
+    refetchOnWindowFocus: false,
   })
 }
 

@@ -53,7 +53,7 @@ export function DetalhesOportunidadeModal({
   const { data: membros } = useQuery({
     queryKey: ['membros_tenant'],
     queryFn: () => negociosApi.listarMembros(),
-    staleTime: 60 * 1000,
+    staleTime: 15 * 60 * 1000, // 15 minutos — membros nao mudam com frequencia
   })
 
   // ESC to close

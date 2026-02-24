@@ -24,6 +24,7 @@ export function useConversa(id: string | null) {
     queryKey: ['conversa', id],
     queryFn: () => conversasApi.buscarPorId(id!),
     enabled: !!id,
+    refetchOnWindowFocus: false,
   })
 }
 

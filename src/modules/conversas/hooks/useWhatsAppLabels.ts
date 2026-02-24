@@ -38,6 +38,7 @@ export function useLabels() {
       return (data || []) as WhatsAppLabel[]
     },
     enabled: !!organizacaoId,
+    refetchOnWindowFocus: false,
   })
 }
 
@@ -57,6 +58,7 @@ export function useLabelsConversa(conversaId?: string | null) {
       return (data || []) as unknown as ConversaLabel[]
     },
     enabled: !!conversaId,
+    refetchOnWindowFocus: false,
   })
 }
 

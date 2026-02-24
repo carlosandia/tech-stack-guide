@@ -20,6 +20,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import type { CardConfig, SlaConfig } from './KanbanCard'
 import { useReordenarEtapas } from '../../hooks/usePipelineConfig'
+import { SlaClockProvider } from '../../contexts/SlaClockContext'
 import { usePreOportunidadesPendentes } from '../../hooks/usePreOportunidades'
 
 interface KanbanBoardProps {
@@ -68,6 +69,8 @@ export const KanbanBoard = forwardRef<HTMLDivElement, KanbanBoardProps>(function
       }
     },
     enabled: !!data?.funil?.id,
+    staleTime: 10 * 60 * 1000, // SLA config muda raramente — 10 minutos
+    gcTime: 30 * 60 * 1000,
   })
 
   const handleToggleSelect = useCallback((id: string) => {
@@ -308,7 +311,7 @@ export const KanbanBoard = forwardRef<HTMLDivElement, KanbanBoardProps>(function
   }
 
   return (
-    <>
+    <SlaClockProvider>
       <div className="flex-1 overflow-x-auto overflow-y-hidden">
         <div className="flex gap-0 px-3 sm:px-4 pt-0 pb-3 h-full min-w-min">
           <SolicitacoesColumn funilId={data.funil.id} />
@@ -365,7 +368,7 @@ export const KanbanBoard = forwardRef<HTMLDivElement, KanbanBoardProps>(function
         isDeleting={excluirEmMassa.isPending}
         isMoving={moverEmMassa.isPending || moverParaOutraPipeline.isPending}
       />
-    </>
+    </SlaClockProvider>
   )
 })
 KanbanBoard.displayName = 'KanbanBoard'

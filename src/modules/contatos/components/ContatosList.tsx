@@ -5,7 +5,7 @@
  * Colunas Empresa, Segmentação e Responsável são clicáveis com popovers inline
  */
 
-import { useState, useRef, useEffect, useCallback, forwardRef } from 'react'
+import { useState, useRef, useEffect, useCallback, forwardRef, memo } from 'react'
 import { detectCountryByPhone } from '@/shared/utils/countries'
 import { createPortal } from 'react-dom'
 import { Eye, Pencil, Trash2, MoreHorizontal, Users2, Plus } from 'lucide-react'
@@ -161,7 +161,7 @@ ContatosList.displayName = 'ContatosList'
 
 // ===== Cell Renderers =====
 
-const CellNomePessoa = forwardRef<HTMLDivElement, { contato: Contato; onCriarOportunidade?: () => void }>(function CellNomePessoa({ contato, onCriarOportunidade }, _ref) {
+const CellNomePessoa = memo(forwardRef<HTMLDivElement, { contato: Contato; onCriarOportunidade?: () => void }>(function CellNomePessoa({ contato, onCriarOportunidade }, _ref) {
   const semOportunidade = contato.total_oportunidades === 0
   return (
     <div className="min-w-0 flex items-center gap-2">
@@ -186,10 +186,10 @@ const CellNomePessoa = forwardRef<HTMLDivElement, { contato: Contato; onCriarOpo
       )}
     </div>
   )
-})
+}))
 CellNomePessoa.displayName = 'CellNomePessoa'
 
-function CellNomeEmpresa({ contato }: { contato: Contato }) {
+const CellNomeEmpresa = memo(function CellNomeEmpresa({ contato }: { contato: Contato }) {
   return (
     <div className="min-w-0">
       <p className="text-sm font-medium text-foreground truncate">
@@ -200,9 +200,9 @@ function CellNomeEmpresa({ contato }: { contato: Contato }) {
       )}
     </div>
   )
-}
+})
 
-const CellEmpresaVinculada = forwardRef<HTMLDivElement, { contato: Contato }>(function CellEmpresaVinculada({ contato }, _ref) {
+const CellEmpresaVinculada = memo(forwardRef<HTMLDivElement, { contato: Contato }>(function CellEmpresaVinculada({ contato }, _ref) {
   return (
     <InlineEmpresaPopover contatoId={contato.id} empresaAtual={contato.empresa}>
       <span className="text-sm text-foreground truncate block max-w-[150px] border-b border-dashed border-muted-foreground/30 hover:border-primary hover:text-primary transition-colors">
@@ -210,10 +210,10 @@ const CellEmpresaVinculada = forwardRef<HTMLDivElement, { contato: Contato }>(fu
       </span>
     </InlineEmpresaPopover>
   )
-})
+}))
 CellEmpresaVinculada.displayName = 'CellEmpresaVinculada'
 
-function CellSegmentacao({ contato }: { contato: Contato }) {
+const CellSegmentacao = memo(function CellSegmentacao({ contato }: { contato: Contato }) {
   return (
     <InlineSegmentoPopover contatoId={contato.id} segmentosAtuais={contato.segmentos}>
       <div className="flex items-center gap-1.5 min-w-[120px] max-w-[260px] border-b border-dashed border-transparent hover:border-primary transition-colors">
@@ -230,9 +230,9 @@ function CellSegmentacao({ contato }: { contato: Contato }) {
       </div>
     </InlineSegmentoPopover>
   )
-}
+})
 
-function CellResponsavel({ contato }: { contato: Contato }) {
+const CellResponsavel = memo(function CellResponsavel({ contato }: { contato: Contato }) {
   return (
     <InlineResponsavelPopover contatoId={contato.id} ownerId={contato.owner_id}>
       <span className="text-sm text-foreground truncate block max-w-[120px] border-b border-dashed border-muted-foreground/30 hover:border-primary hover:text-primary transition-colors">
@@ -240,9 +240,9 @@ function CellResponsavel({ contato }: { contato: Contato }) {
       </span>
     </InlineResponsavelPopover>
   )
-}
+})
 
-function CellPessoaVinculada({ contato }: { contato: Contato }) {
+const CellPessoaVinculada = memo(function CellPessoaVinculada({ contato }: { contato: Contato }) {
   const pessoas = contato.pessoas || []
   const firstName = pessoas.length > 0
     ? (pessoas[0].nome || '').toLowerCase()
@@ -262,9 +262,9 @@ function CellPessoaVinculada({ contato }: { contato: Contato }) {
       </div>
     </InlinePessoaPopover>
   )
-}
+})
 
-function CellStatus({ contato }: { contato: Contato }) {
+const CellStatus = memo(function CellStatus({ contato }: { contato: Contato }) {
   const statusLabel = StatusContatoOptions.find(s => s.value === contato.status)?.label || contato.status
   const statusColor: Record<string, string> = {
     novo: 'bg-blue-100 text-blue-700',
@@ -279,14 +279,14 @@ function CellStatus({ contato }: { contato: Contato }) {
       {statusLabel}
     </span>
   )
-}
-
-const CellSimpleText = forwardRef<HTMLSpanElement, { value: string | null | undefined }>(function CellSimpleText({ value }, ref) {
-  return <span ref={ref} className="text-sm text-foreground truncate block max-w-[200px]">{value || '—'}</span>
 })
+
+const CellSimpleText = memo(forwardRef<HTMLSpanElement, { value: string | null | undefined }>(function CellSimpleText({ value }, ref) {
+  return <span ref={ref} className="text-sm text-foreground truncate block max-w-[200px]">{value || '—'}</span>
+}))
 CellSimpleText.displayName = 'CellSimpleText'
 
-function CellTelefone({ value }: { value: string | null | undefined }) {
+const CellTelefone = memo(function CellTelefone({ value }: { value: string | null | undefined }) {
   if (!value) return <span className="text-sm text-muted-foreground">—</span>
   const country = detectCountryByPhone(value)
   return (
@@ -295,20 +295,20 @@ function CellTelefone({ value }: { value: string | null | undefined }) {
       <span className="truncate">{value}</span>
     </span>
   )
-}
+})
 
-function CellOrigem({ contato }: { contato: Contato }) {
+const CellOrigem = memo(function CellOrigem({ contato }: { contato: Contato }) {
   const origemLabel = OrigemContatoOptions.find(o => o.value === contato.origem)?.label || contato.origem
   return <span className="text-sm text-foreground">{origemLabel}</span>
-}
+})
 
-function CellCriadoEm({ contato }: { contato: Contato }) {
+const CellCriadoEm = memo(function CellCriadoEm({ contato }: { contato: Contato }) {
   try {
     return <span className="text-sm text-foreground whitespace-nowrap">{format(new Date(contato.criado_em), 'dd/MM/yyyy')}</span>
   } catch {
     return <span className="text-sm text-muted-foreground">—</span>
   }
-}
+})
 
 // Decide which cell to render based on column key and tipo
 function renderCell(col: ColumnConfig, contato: Contato, _tipo: TipoContato, stopPropagation: boolean, onCriarOportunidade?: () => void) {

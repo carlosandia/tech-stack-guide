@@ -44,7 +44,7 @@ export function useKanban(funilId: string | null, filtros?: KanbanFiltros) {
           if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
           debounceTimerRef.current = setTimeout(() => {
             queryClient.invalidateQueries({ queryKey: ['kanban', funilId] })
-          }, 2000)
+          }, 500)
         }
       )
       .subscribe()
@@ -59,8 +59,9 @@ export function useKanban(funilId: string | null, filtros?: KanbanFiltros) {
     queryKey: ['kanban', funilId, filtros],
     queryFn: () => negociosApi.carregarKanban(funilId!, filtros),
     enabled: !!funilId,
-    staleTime: 30 * 1000,
-    refetchOnWindowFocus: true,
+    staleTime: 60 * 1000,         // aumentado de 30s para 60s
+    gcTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,  // evitar refetch ao trocar aba
   })
 }
 

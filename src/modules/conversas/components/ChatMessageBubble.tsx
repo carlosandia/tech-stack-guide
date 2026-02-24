@@ -6,7 +6,7 @@
  * Menu de ações via Portal: Responder, Copiar, Reagir, Encaminhar, Fixar, Apagar
  */
 
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react'
 import { createPortal } from 'react-dom'
 import DOMPurify from 'dompurify'
 import { format } from 'date-fns'
@@ -964,7 +964,7 @@ function MessageActionMenu({ mensagem, onDelete, onReply, onCopy, onReact, onOpe
 // Main component
 // =====================================================
 
-export function ChatMessageBubble({
+export const ChatMessageBubble = memo(function ChatMessageBubble({
   mensagem, participantName, participantColor, conversaId, fotoUrl, myAvatarUrl, contactMap,
   reactions,
   onDeleteMessage, onReplyMessage, onReactMessage, onForwardMessage: _onForwardMessage, onPinMessage: _onPinMessage,
@@ -1237,4 +1237,4 @@ export function ChatMessageBubble({
       )}
     </>
   )
-}
+})

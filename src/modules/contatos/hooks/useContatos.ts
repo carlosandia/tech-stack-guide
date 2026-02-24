@@ -11,6 +11,9 @@ export function useContatos(params?: ListarContatosParams) {
   return useQuery({
     queryKey: ['contatos', params],
     queryFn: () => contatosApi.listar(params),
+    staleTime: 2 * 60 * 1000,   // 2 minutos — dados de lista
+    gcTime: 10 * 60 * 1000,     // 10 minutos — manter em cache
+    refetchOnWindowFocus: false, // evitar refetch ao trocar aba
   })
 }
 

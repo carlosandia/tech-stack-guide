@@ -5,7 +5,8 @@
  * Ações rápidas: WhatsApp abre modal de conversa, Email abre compose modal.
  */
 
-import { useState, useEffect, forwardRef } from 'react'
+import { useState, forwardRef, memo } from 'react'
+import { useSlaAgora } from '../../contexts/SlaClockContext'
 import {
   User,
   DollarSign,
@@ -125,7 +126,7 @@ const ACOES_ICONS: Record<string, { icon: React.ElementType; label: string }> = 
 // Component
 // =====================================================
 
-export const KanbanCard = forwardRef<HTMLDivElement, KanbanCardProps>(function KanbanCard({ oportunidade, onDragStart, onClick, onAgendar, config, slaConfig, etapaTipo, isSelected, onToggleSelect }, _ref) {
+export const KanbanCard = memo(forwardRef<HTMLDivElement, KanbanCardProps>(function KanbanCard({ oportunidade, onDragStart, onClick, onAgendar, config, slaConfig, etapaTipo, isSelected, onToggleSelect }, _ref) {
   const { camposVisiveis, acoesRapidas } = config || DEFAULT_CONFIG
   const qualificacao = getQualificacaoLabel(oportunidade)
   const tarefasPendentes = (oportunidade as any)._tarefas_pendentes ?? 0
@@ -137,19 +138,16 @@ export const KanbanCard = forwardRef<HTMLDivElement, KanbanCardProps>(function K
   const [emailOpen, setEmailOpen] = useState(false)
   const [emailResetKey, setEmailResetKey] = useState(0)
   const [ligacaoOpen, setLigacaoOpen] = useState(false)
+  // AIDEV-NOTE: Lazy-mount — AgendaQuickPopover só instanciado na 1ª interação (Performance 4.5)
+  const [agendaMounted, setAgendaMounted] = useState(false)
 
   const enviarEmail = useEnviarEmail()
   const salvarRascunho = useSalvarRascunho()
 
   // AIDEV-NOTE: Countdown reativo de SLA (RF-06) — só exibe na etapa de entrada
+  // AIDEV-NOTE: Usa SlaClockContext (um único timer compartilhado) em vez de setInterval por card
   const slaAtivo = slaConfig?.sla_ativo && slaConfig.sla_tempo_minutos > 0 && etapaTipo === 'entrada'
-  const [agora, setAgora] = useState(Date.now())
-
-  useEffect(() => {
-    if (!slaAtivo) return
-    const interval = setInterval(() => setAgora(Date.now()), 1000)
-    return () => clearInterval(interval)
-  }, [slaAtivo])
+  const agora = useSlaAgora()
 
   const tempoDecorridoSeg = Math.floor((agora - new Date(oportunidade.atualizado_em).getTime()) / 1000)
   const tempoTotalSeg = slaAtivo ? slaConfig!.sla_tempo_minutos * 60 : 0
@@ -422,8 +420,23 @@ export const KanbanCard = forwardRef<HTMLDivElement, KanbanCardProps>(function K
                 if (!acao) return null
                 const Icon = acao.icon
 
-                // Ícone de agendar usa o AgendaQuickPopover
+                // Ícone de agendar: lazy-mount do AgendaQuickPopover (só instancia na 1ª interação)
                 if (key === 'agendar') {
+                  if (!agendaMounted) {
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        draggable={false}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => { e.stopPropagation(); setAgendaMounted(true) }}
+                        className="w-5 h-5 flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                        title={acao.label}
+                      >
+                        <Icon className="w-3.5 h-3.5" />
+                      </button>
+                    )
+                  }
                   return (
                     <AgendaQuickPopover
                       key={key}
@@ -508,5 +521,5 @@ export const KanbanCard = forwardRef<HTMLDivElement, KanbanCardProps>(function K
       )}
     </>
   )
-})
+}))
 KanbanCard.displayName = 'KanbanCard'

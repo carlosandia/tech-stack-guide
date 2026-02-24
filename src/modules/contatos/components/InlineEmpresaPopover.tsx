@@ -17,12 +17,19 @@ interface InlineEmpresaPopoverProps {
 export function InlineEmpresaPopover({ contatoId, empresaAtual, children }: InlineEmpresaPopoverProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
+  // AIDEV-NOTE: Debounce 500ms — evita query a cada keystroke (Performance 4.6)
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [pos, setPos] = useState({ top: 0, left: 0 })
   const triggerRef = useRef<HTMLDivElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
   const atualizar = useAtualizarContato()
 
-  const { data: empresasData } = useContatos({ tipo: 'empresa', limit: 100, busca: search || undefined })
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 500)
+    return () => clearTimeout(timer)
+  }, [search])
+
+  const { data: empresasData } = useContatos({ tipo: 'empresa', limit: 100, busca: debouncedSearch || undefined })
   const empresas = empresasData?.contatos || []
 
   const updatePosition = useCallback(() => {

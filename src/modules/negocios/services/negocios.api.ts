@@ -257,9 +257,10 @@ export const negociosApi = {
     }
 
     // Buscar oportunidades
+    // AIDEV-NOTE: SELECT pontual — sem utm_*, fechado_em, motivo, qualificado_*_em (Performance 4.3)
     let oportunidadesQuery = supabase
       .from('oportunidades')
-      .select('*')
+      .select('id, organizacao_id, funil_id, etapa_id, contato_id, titulo, valor, moeda, usuario_responsavel_id, previsao_fechamento, qualificado_mql, qualificado_sql, observacoes, posicao, criado_em, atualizado_em')
       .eq('funil_id', funilId)
       .is('deletado_em', null)
       .order('posicao', { ascending: true })
@@ -362,14 +363,21 @@ export const negociosApi = {
 
     if (opIds.length > 0) {
       const batchSize = 50
+      const batches: string[][] = []
       for (let i = 0; i < opIds.length; i += batchSize) {
-        const batch = opIds.slice(i, i + batchSize)
-        const { data: tarefas } = await supabase
-          .from('tarefas')
-          .select('oportunidade_id, status')
-          .in('oportunidade_id', batch)
-          .is('deletado_em', null)
-
+        batches.push(opIds.slice(i, i + batchSize))
+      }
+      // AIDEV-NOTE: Promise.all paralleliza os batches — N queries seriais → N queries paralelas
+      const resultados = await Promise.all(
+        batches.map(batch =>
+          supabase
+            .from('tarefas')
+            .select('oportunidade_id, status')
+            .in('oportunidade_id', batch)
+            .is('deletado_em', null)
+        )
+      )
+      for (const { data: tarefas } of resultados) {
         if (tarefas) {
           for (const t of tarefas) {
             if (t.oportunidade_id) {
