@@ -21,6 +21,7 @@ export function AudioRecorder({ onSend, onCancel }: AudioRecorderProps) {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const durationRef = useRef(0)
+  const startedRef = useRef(false)
 
   const cleanup = useCallback(() => {
     if (timerRef.current) {
@@ -99,8 +100,10 @@ export function AudioRecorder({ onSend, onCancel }: AudioRecorderProps) {
     }
   }, [])
 
-  // Auto-start recording on mount
+  // Auto-start recording on mount (guard prevents double execution in StrictMode)
   useEffect(() => {
+    if (startedRef.current) return
+    startedRef.current = true
     startRecording()
     return () => {
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {

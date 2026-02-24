@@ -374,7 +374,7 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
     } finally {
       setSendingQueue(false)
     }
-  }, [mediaQueue, sendingQueue, conversa.id])
+  }, [mediaQueue, sendingQueue, conversa.id, enviarMedia])
 
   const [audioSending, setAudioSending] = useState(false)
 
@@ -416,7 +416,7 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
     } finally {
       setAudioSending(false)
     }
-  }, [conversa.id])
+  }, [conversa.id, conversa.organizacao_id, enviarMedia])
 
   const handleCameraCapture = useCallback(async (blob: Blob) => {
     setCameraOpen(false)
