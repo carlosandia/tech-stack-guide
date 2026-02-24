@@ -516,7 +516,7 @@ Deno.serve(async (req) => {
               if (sessao) {
                 const lidNumber = chatId.replace("@lid", "");
                 
-                // Estratégia 1: RPC resolve_lid_conversa
+                // Estratégia 1: RPC resolve_lid_conversa → retorna conversa_id, buscar chat_id
                 const { data: rpcResult } = await supabaseAdmin
                   .rpc("resolve_lid_conversa", {
                     p_org_id: sessao.organizacao_id,
@@ -525,10 +525,18 @@ Deno.serve(async (req) => {
                 console.log(`[waha-webhook] Presence RPC resolve_lid result for ${lidNumber}:`, JSON.stringify(rpcResult));
 
                 if (rpcResult && rpcResult.length > 0) {
-                  const resolved = rpcResult[0];
-                  if (resolved.chat_id && !resolved.chat_id.includes("@lid")) {
-                    resolvedChatId = resolved.chat_id;
-                    console.log(`[waha-webhook] Presence @lid resolved via RPC: ${chatId} → ${resolvedChatId}`);
+                  const conversaId = rpcResult[0].conversa_id;
+                  if (conversaId) {
+                    // AIDEV-NOTE: RPC retorna conversa_id, precisamos buscar o chat_id real
+                    const { data: convData } = await supabaseAdmin
+                      .from("conversas")
+                      .select("chat_id")
+                      .eq("id", conversaId)
+                      .maybeSingle();
+                    if (convData?.chat_id && !convData.chat_id.includes("@lid")) {
+                      resolvedChatId = convData.chat_id;
+                      console.log(`[waha-webhook] Presence @lid resolved via RPC+lookup: ${chatId} → ${resolvedChatId}`);
+                    }
                   }
                 }
 
