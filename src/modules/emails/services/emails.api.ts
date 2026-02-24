@@ -48,7 +48,7 @@ export const emailsApi = {
       .eq('organizacao_id', orgId)
       .eq('usuario_id', userId)
       .is('deletado_em', null)
-      .eq('pasta', params.pasta || 'inbox')
+      .eq('pasta', (['inbox','archived','trash','sent','drafts'] as const).includes(params.pasta as any) ? params.pasta! : 'inbox')
       .order('data_email', { ascending: false })
       .range(from, to)
 
@@ -68,7 +68,9 @@ export const emailsApi = {
       query = query.eq('conexao_email_id', params.conexao_email_id)
     }
     if (params.busca) {
-      query = query.or(`assunto.ilike.%${params.busca}%,de_email.ilike.%${params.busca}%,de_nome.ilike.%${params.busca}%,preview.ilike.%${params.busca}%`)
+      // AIDEV-NOTE: Seg #7 — escape de caracteres especiais do LIKE para evitar query injection
+      const buscaEscapada = params.busca.replace(/[%_\\]/g, '\\$&')
+      query = query.or(`assunto.ilike.%${buscaEscapada}%,de_email.ilike.%${buscaEscapada}%,de_nome.ilike.%${buscaEscapada}%,preview.ilike.%${buscaEscapada}%`)
     }
 
     const { data, error, count } = await query
@@ -158,6 +160,8 @@ export const emailsApi = {
    * Ações em lote
    */
   acaoLote: async (payload: AcaoLotePayload): Promise<{ total: number }> => {
+    // AIDEV-NOTE: Seg #5 — limite de 100 IDs por lote para prevenir DoS
+    if (payload.ids.length > 100) throw new Error('Máximo de 100 emails por operação em lote')
     const orgId = await getOrganizacaoId()
     const userId = await getUsuarioId()
 
@@ -198,7 +202,9 @@ export const emailsApi = {
       const timestamp = Date.now()
 
       for (const file of payload.anexos) {
-        const path = `${orgId}/${userId}/${timestamp}/${file.name}`
+        // AIDEV-NOTE: Seg #8 — sanitizar filename para prevenir path traversal
+        const safeFilename = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 255)
+        const path = `${orgId}/${userId}/${timestamp}/${safeFilename}`
         const { error: uploadError } = await supabase.storage
           .from('email-anexos')
           .upload(path, file)
@@ -257,8 +263,24 @@ export const emailsApi = {
   /**
    * AIDEV-NOTE: Buscar corpo do email sob demanda (lazy loading)
    * Chamada quando o usuário abre um email que não tem corpo_html carregado
+   * AIDEV-NOTE: Seg #3 — valida pertencimento ao tenant ANTES de chamar edge function
    */
   fetchEmailBody: async (emailId: string): Promise<{ corpo_html: string | null; corpo_texto: string | null }> => {
+    const orgId = await getOrganizacaoId()
+    const userId = await getUsuarioId()
+
+    // Verificar que o email pertence ao tenant+user antes de invocar a edge function
+    const { data: ownership, error: ownershipError } = await supabase
+      .from('emails_recebidos')
+      .select('id')
+      .eq('id', emailId)
+      .eq('organizacao_id', orgId)
+      .eq('usuario_id', userId)
+      .maybeSingle()
+
+    if (ownershipError) throw new Error(ownershipError.message)
+    if (!ownership) throw new Error('Email não encontrado')
+
     const { data, error } = await supabase.functions.invoke('fetch-email-body', {
       body: { email_id: emailId },
     })

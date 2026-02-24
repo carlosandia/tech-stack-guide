@@ -13,11 +13,26 @@ import { useAssinatura } from '../hooks/useEmails'
 import { compressImage } from '@/shared/utils/compressMedia'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { getOrganizacaoId } from '@/shared/services/auth-context'
 
 export type ComposerMode = 'novo' | 'responder' | 'responder_todos' | 'encaminhar'
 
 const MAX_TOTAL_SIZE = 25 * 1024 * 1024 // 25MB
 const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20MB por arquivo
+
+// AIDEV-NOTE: Seg #4 — whitelist de MIME types permitidos para upload de anexos
+const ALLOWED_MIME_TYPES = new Set([
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp',
+  'application/pdf',
+  'text/plain', 'text/csv',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/zip', 'application/x-zip-compressed',
+])
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
@@ -88,16 +103,21 @@ export const ComposeEmailModal = React.forwardRef<HTMLDivElement, ComposeEmailMo
   const { data: contatosBusca, isFetching: buscandoContatos } = useQuery({
     queryKey: ['contatos-email-picker', contatoSearch],
     queryFn: async () => {
+      // AIDEV-NOTE: Seg #6 — filtro por organizacao_id obrigatório para isolamento de tenant
+      const orgId = await getOrganizacaoId()
       let query = supabase
         .from('contatos')
         .select('id, nome, sobrenome, email, tipo')
+        .eq('organizacao_id', orgId)
         .eq('tipo', 'pessoa')
         .is('deletado_em', null)
         .not('email', 'is', null)
         .limit(8)
 
       if (contatoSearch.trim().length > 0) {
-        query = query.or(`nome.ilike.%${contatoSearch}%,sobrenome.ilike.%${contatoSearch}%,email.ilike.%${contatoSearch}%`)
+        // AIDEV-NOTE: Seg #7 — escape de caracteres especiais do LIKE
+        const buscaEscapada = contatoSearch.replace(/[%_\\]/g, '\\$&')
+        query = query.or(`nome.ilike.%${buscaEscapada}%,sobrenome.ilike.%${buscaEscapada}%,email.ilike.%${buscaEscapada}%`)
       }
 
       const { data } = await query.order('nome')
@@ -162,6 +182,12 @@ export const ComposeEmailModal = React.forwardRef<HTMLDivElement, ComposeEmailMo
     let currentTotal = totalAnexosSize
 
     for (const file of Array.from(files)) {
+      // AIDEV-NOTE: Seg #4 — validação de MIME type antes de processar
+      if (!ALLOWED_MIME_TYPES.has(file.type)) {
+        toast.error(`${file.name}: tipo de arquivo não permitido`)
+        continue
+      }
+
       if (file.size > MAX_FILE_SIZE) {
         toast.error(`${file.name} excede o limite de 20MB`)
         continue

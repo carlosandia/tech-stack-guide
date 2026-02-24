@@ -4,6 +4,7 @@
  */
 
 import { useState, useCallback } from 'react'
+import { toast } from 'sonner'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
@@ -75,9 +76,15 @@ export function EmailRichEditor({
       const file = input.files?.[0]
       if (!file) return
 
+      // AIDEV-NOTE: Seg #9 — validar MIME type real (não confiar apenas no accept do input)
+      if (!file.type.startsWith('image/') || ['image/svg+xml', 'image/x-icon'].includes(file.type)) {
+        toast.error('Apenas imagens JPG, PNG, GIF ou WebP são permitidas')
+        return
+      }
+
       // Upload to Supabase storage
-      const ext = file.name.split('.').pop()
-      const path = `email-images/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+      const safeExt = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp', 'image/bmp': 'bmp' }[file.type] || 'bin'
+      const path = `email-images/${Date.now()}-${Math.random().toString(36).slice(2)}.${safeExt}`
 
       const { data, error } = await supabase.storage
         .from('assinaturas')

@@ -234,11 +234,9 @@ export function EmailViewer({
       html = decodeQuotedPrintableString(html)
     }
 
-    // AIDEV-NOTE: PRE-LIMPEZA — remover scripts ANTES do DOMPurify para evitar "Blocked script execution"
-    html = html.replace(/<script\b[\s\S]*?<\/script\s*>/gi, '')
-    html = html.replace(/<script\b[^>]*\/>/gi, '')
-    html = html.replace(/<noscript\b[\s\S]*?<\/noscript\s*>/gi, '')
-    // Remover link tags que carregam scripts
+    // AIDEV-NOTE: PRE-LIMPEZA — somente o que DOMPurify NÃO remove (Seg #2)
+    // script/noscript são tratados por DOMPurify (FORBID_TAGS) — regex removidas (redundantes + frágeis)
+    // Remover link tags que carregam scripts (DOMPurify preserva <link>)
     html = html.replace(/<link\b[^>]*\bas\s*=\s*["']?script["']?[^>]*\/?>/gi, '')
     // Remover referências ao tailwindcss CDN
     html = html.replace(/<link[^>]*cdn\.tailwindcss\.com[^>]*\/?>/gi, '')
@@ -264,10 +262,6 @@ export function EmailViewer({
       FORBID_TAGS: ['script', 'noscript', 'iframe', 'object', 'embed', 'applet'],
       FORBID_ATTR: ALL_EVENT_HANDLERS,
     })
-
-    // POS-LIMPEZA: segurança extra para qualquer resíduo
-    sanitized = sanitized.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    sanitized = sanitized.replace(/<noscript\b[^<]*(?:(?!<\/noscript>)<[^<]*)*<\/noscript>/gi, '')
 
     // AIDEV-NOTE: CSP meta tag para silenciar warnings residuais no iframe sandbox
     const cspMeta = '<meta http-equiv="Content-Security-Policy" content="script-src \'none\'">'
@@ -524,9 +518,9 @@ a { word-break: break-all; }
           <iframe
             ref={iframeRef}
             srcDoc={cleanHtml}
-            sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+            sandbox="allow-popups"
             className="w-full border-0"
-            style={{ minHeight: '200px' }}
+            style={{ minHeight: '400px' }}
             onLoad={adjustIframeHeight}
             title="Conteúdo do email"
           />
