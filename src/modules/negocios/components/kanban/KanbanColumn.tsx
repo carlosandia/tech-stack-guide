@@ -26,6 +26,7 @@ interface KanbanColumnProps {
     total_oportunidades: number
     valor_total: number
   }
+  funilId?: string
   onDragStart: (e: React.DragEvent, oportunidade: Oportunidade) => void
   onDragOver: (e: React.DragEvent) => void
   onDrop: (e: React.DragEvent, etapaId: string, tipoEtapa: string, dropIndex?: number) => void
@@ -62,7 +63,7 @@ function canMoveEtapa(tipo: string): boolean {
   return tipo === 'normal'
 }
 
-export const KanbanColumn = memo(forwardRef<HTMLDivElement, KanbanColumnProps>(function KanbanColumn({ etapa, onDragStart, onDragOver, onDrop, onCardClick, onAgendar, cardConfig, slaConfig, selectedIds, onToggleSelect, onSelectAll, onSortColumn, onMoveColumn, isFirst, isLast }, _ref) {
+export const KanbanColumn = memo(forwardRef<HTMLDivElement, KanbanColumnProps>(function KanbanColumn({ etapa, funilId, onDragStart, onDragOver, onDrop, onCardClick, onAgendar, cardConfig, slaConfig, selectedIds, onToggleSelect, onSelectAll, onSortColumn, onMoveColumn, isFirst, isLast }, _ref) {
   const [isDragOver, setIsDragOver] = useState(false)
   const [dropIndex, setDropIndex] = useState<number | null>(null)
   const cardsContainerRef = useRef<HTMLDivElement>(null)
@@ -143,6 +144,7 @@ export const KanbanColumn = memo(forwardRef<HTMLDivElement, KanbanColumnProps>(f
         <div key={op.id} data-kanban-card>
           <KanbanCard
             oportunidade={op}
+            funilId={funilId}
             onDragStart={onDragStart}
             onClick={onCardClick}
             onAgendar={onAgendar}

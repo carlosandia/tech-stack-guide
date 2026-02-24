@@ -333,6 +333,7 @@ export const KanbanBoard = forwardRef<HTMLDivElement, KanbanBoardProps>(function
                 )}
                 <KanbanColumn
                   etapa={etapa}
+                  funilId={data.funil.id}
                   onDragStart={handleDragStart}
                   onDragOver={handleDragOver}
                   onDrop={handleDrop}

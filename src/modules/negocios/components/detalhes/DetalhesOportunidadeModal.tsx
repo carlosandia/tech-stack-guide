@@ -29,7 +29,7 @@ interface DetalhesOportunidadeModalProps {
 
 export function DetalhesOportunidadeModal({
   oportunidadeId,
-  funilId: _funilId,
+  funilId,
   etapas,
   onClose,
   onDropGanhoPerda,
@@ -217,6 +217,7 @@ export function DetalhesOportunidadeModal({
                 `}>
                   <DetalhesAbas
                     oportunidadeId={oportunidade.id}
+                    funilId={funilId}
                     usuarioAtualId={undefined}
                     emailContato={oportunidade.contato?.email}
                     abaInicial={abaInicial}

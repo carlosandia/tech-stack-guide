@@ -45,6 +45,7 @@ export interface SlaConfig {
 
 interface KanbanCardProps {
   oportunidade: Oportunidade
+  funilId?: string
   onDragStart: (e: React.DragEvent, oportunidade: Oportunidade) => void
   onClick: (oportunidade: Oportunidade) => void
   onAgendar?: (oportunidade: Oportunidade) => void
@@ -126,7 +127,7 @@ const ACOES_ICONS: Record<string, { icon: React.ElementType; label: string }> = 
 // Component
 // =====================================================
 
-export const KanbanCard = memo(forwardRef<HTMLDivElement, KanbanCardProps>(function KanbanCard({ oportunidade, onDragStart, onClick, onAgendar, config, slaConfig, etapaTipo, isSelected, onToggleSelect }, _ref) {
+export const KanbanCard = memo(forwardRef<HTMLDivElement, KanbanCardProps>(function KanbanCard({ oportunidade, funilId, onDragStart, onClick, onAgendar, config, slaConfig, etapaTipo, isSelected, onToggleSelect }, _ref) {
   const { camposVisiveis, acoesRapidas } = config || DEFAULT_CONFIG
   const qualificacao = getQualificacaoLabel(oportunidade)
   const tarefasPendentes = (oportunidade as any)._tarefas_pendentes ?? 0
@@ -390,6 +391,7 @@ export const KanbanCard = memo(forwardRef<HTMLDivElement, KanbanCardProps>(funct
               <div className="flex-shrink-0 ml-1.5">
                 <TarefasPopover
                   oportunidadeId={oportunidade.id}
+                  funilId={funilId}
                   totalPendentes={tarefasPendentes}
                   totalTarefas={tarefasTotal}
                   totalConcluidas={tarefasConcluidas}
