@@ -879,7 +879,7 @@ export const contatosApi = {
     return { temVinculos: vinculos.length > 0, vinculos }
   },
 
-  exportarComColunas: async (params: ListarContatosParams & { colunas: Array<{ key: string; label: string }>; ids?: string[] }): Promise<string> => {
+  exportarComColunas: async (params: ListarContatosParams & { colunas: Array<{ key: string; label: string; isCustom?: boolean }>; ids?: string[] }): Promise<string> => {
     // AIDEV-NOTE: Exportacao em batches de 1000 para prevenir timeout (Plano Escala 5.5)
     const batchSize = 1000
     let allContatos: any[] = []
@@ -915,15 +915,61 @@ export const contatosApi = {
 
       const batch = data || []
       allContatos = allContatos.concat(batch)
-      // Se filtrando por IDs específicos, não precisa paginar
       hasMore = !(params.ids && params.ids.length > 0) && batch.length === batchSize
       offset += batchSize
     }
 
     const contatos = allContatos
+
+    // AIDEV-NOTE: Buscar valores de campos customizados se houver colunas custom selecionadas
+    const colunasCustom = params.colunas.filter(c => c.isCustom)
+    let customValuesMap: Record<string, Record<string, string>> = {}
+
+    if (colunasCustom.length > 0 && contatos.length > 0) {
+      const contatoIds = contatos.map((c: any) => c.id)
+
+      // Buscar definições de campos para mapear campo_id -> slug
+      const { data: camposDefs } = await supabase
+        .from('campos_customizados')
+        .select('id, slug')
+        .is('deletado_em', null)
+
+      const campoIdToSlug = new Map<string, string>()
+      for (const cd of camposDefs || []) {
+        campoIdToSlug.set(cd.id, cd.slug)
+      }
+
+      // Buscar valores em batches (usa entidade_id + entidade_tipo)
+      const entidadeTipo = params.tipo === 'empresa' ? 'empresa' : 'pessoa'
+      for (let i = 0; i < contatoIds.length; i += batchSize) {
+        const batchIds = contatoIds.slice(i, i + batchSize)
+        const { data: valoresData } = await supabase
+          .from('valores_campos_customizados')
+          .select('entidade_id, campo_id, valor_texto, valor_numero, valor_booleano, valor_data')
+          .in('entidade_id', batchIds)
+          .eq('entidade_tipo', entidadeTipo)
+
+        for (const v of (valoresData || []) as any[]) {
+          const slug = campoIdToSlug.get(v.campo_id)
+          if (!slug) continue
+          if (!customValuesMap[v.entidade_id]) customValuesMap[v.entidade_id] = {}
+          // Resolver valor pelo tipo preenchido
+          const valor = v.valor_texto ?? v.valor_numero?.toString() ?? v.valor_data ?? (v.valor_booleano != null ? (v.valor_booleano ? 'Sim' : 'Não') : '')
+          customValuesMap[v.entidade_id][slug] = valor
+        }
+      }
+    }
+
     const headers = params.colunas.map(c => c.label)
-    const rows = contatos.map(c =>
-      params.colunas.map(col => (c as any)[col.key] ?? '')
+    const rows = contatos.map((c: any) =>
+      params.colunas.map(col => {
+        if (col.isCustom) {
+          // key é 'custom_slug', dbField/key contém o slug
+          const slug = col.key.replace(/^custom_/, '')
+          return customValuesMap[c.id]?.[slug] ?? ''
+        }
+        return c[col.key] ?? ''
+      })
     )
 
     const csvRows = [headers.join(',')]
@@ -1113,14 +1159,17 @@ export const segmentosApi = {
 
     if (error) throw new Error(error.message)
 
-    // Contar contatos por segmento
+    // AIDEV-NOTE: Contar apenas contatos ativos (deletado_em IS NULL) por segmento
     const segmentos = data || []
     if (segmentos.length > 0) {
       const segmentoIds = segmentos.map(s => s.id)
+
+      // Join inner com contatos para filtrar soft-deleted
       const { data: vinculosData } = await supabase
         .from('contatos_segmentos')
-        .select('segmento_id')
+        .select('segmento_id, contatos!inner(id)')
         .in('segmento_id', segmentoIds)
+        .is('contatos.deletado_em', null)
 
       const counts: Record<string, number> = {}
       for (const v of vinculosData || []) {
