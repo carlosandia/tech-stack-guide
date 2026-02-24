@@ -225,7 +225,7 @@ export function ConfigDistribuicao({ funilId }: Props) {
             />
 
             {slaAtivo && (
-              <div className="pl-4 border-l-2 border-primary/20 space-y-3 mt-3">
+              <div className="pl-4 space-y-3 mt-3">
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-foreground">Tempo Limite (minutos)</label>
                   <input
