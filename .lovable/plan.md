@@ -1,51 +1,105 @@
 
 
-## Plano: Auto-clear do indicador "digitando..."
+## Plano: Atualizar Dicionario de Correcoes com base no Documento de Vicios de Linguagem
 
-### Problema
+### Analise de Impacto na Fluidez
 
-Quando o WAHA envia um evento `composing` (digitando), os hooks `usePresence` e `useListPresence` atualizam o estado corretamente. Porem, se o WAHA nao enviar um evento subsequente de `paused` ou `unavailable` (o que acontece frequentemente), o status fica travado em "digitando..." para sempre na UI.
-
-### Solucao
-
-Adicionar um **timeout de auto-clear** em ambos os hooks. Sempre que um status `composing` ou `recording` for recebido, um timer de ~7 segundos e iniciado. Se nenhum novo evento chegar nesse periodo, o status e resetado automaticamente. Se um novo evento `composing` chegar antes do timeout, o timer e reiniciado.
+Antes de adicionar qualquer palavra, classifiquei cada item do documento em 3 categorias:
 
 ---
 
-### Arquivos a modificar
+### CATEGORIA 1: Seguro para adicionar (correcao clara, sem ambiguidade)
 
-#### 1. `src/modules/conversas/hooks/usePresence.ts`
+Palavras novas que nao existem no dicionario atual e tem correcao inequivoca:
 
-- Adicionar um `useRef` para o timer de timeout
-- Quando `setStatus('composing')` ou `setStatus('recording')` for chamado (tanto no `presence_get` inicial quanto no broadcast), iniciar um `setTimeout` de 7s que faz `setStatus(null)`
-- Limpar o timer no cleanup do `useEffect` e quando um novo evento chegar
+**Novas abreviacoes de chat:**
+| Chave | Sugestao | Motivo |
+|-------|----------|--------|
+| `oq` | o que | Abreviacao muito comum |
+| `oqe` | o que | Variacao |
+| `kd` | cadê | Abreviacao comum |
+| `cad` | cadê | Variacao |
+| `qnd` | quando | Variacao de `qdo` (ja existe) |
+| `qnto` | quanto | Variacao de `qto` (ja existe) |
+| `mtu` | muito | Variacao de `mto` (ja existe) |
+| `tmb` | também | Variacao de `tbm` (ja existe) |
+| `nd` | nada | Abreviacao comum |
+| `nda` | nada | Variacao |
+| `qlqr` | qualquer | Abreviacao |
+| `qq` | qualquer | Abreviacao |
+| `dnv` | de novo | Abreviacao comum |
+| `smp` | sempre | Abreviacao |
+| `sdds` | saudades | Abreviacao muito comum |
+| `sdd` | saudades | Variacao |
+| `sla` | sei lá | Abreviacao |
+| `vdd` | verdade | Abreviacao |
+| `pse` | pois é | Abreviacao |
+| `pdc` | pode crer | Abreviacao |
+| `btf` | boto fé | Abreviacao |
+| `mds` | meu Deus | Abreviacao |
+| `ft` | foto | Abreviacao |
+| `ctt` | contato | Abreviacao |
+| `amh` | amanhã | Abreviacao |
+| `obg` | obrigado | Ja existe -- manter |
 
-#### 2. `src/modules/conversas/hooks/useListPresence.ts`
-
-- Adicionar um `Map<string, ReturnType<typeof setTimeout>>` como ref para timers por chatId
-- Dentro do `handleUpdate`, quando o status for `composing` ou `recording`, iniciar um timeout de 7s que remove o chatId do `presenceMap`
-- Limpar o timer anterior do mesmo chatId antes de criar um novo
-- Limpar todos os timers no cleanup do `useEffect`
+**Novos erros ortograficos:**
+| Chave | Sugestao | Motivo |
+|-------|----------|--------|
+| `eh` | é | Erro de acentuacao muito comum em chat |
+| `nivel` | nível | Falta acento |
+| `benvindo` | bem-vindo | Erro ortografico comum |
 
 ---
 
-### Detalhes tecnicos
+### CATEGORIA 2: NAO adicionar (prejudica a fluidez)
 
-**Timeout de 7 segundos**: O WhatsApp Web usa ~5-10s para considerar que o usuario parou de digitar. 7s e um meio-termo seguro -- curto o suficiente para nao parecer travado, longo o suficiente para nao piscar durante digitacao continua.
+Palavras que, se adicionadas, vao **irritar o usuario** ou causar falsos positivos:
 
-**Logica do timer (pseudo-codigo):**
+| Palavra | Motivo para NAO adicionar |
+|---------|--------------------------|
+| `ta` / `tá` | Muito curta (2 letras), altissima frequencia em chat. Corrigir "ta" para "está" quebraria a fluidez natural da conversa |
+| `to` / `tô` | Mesmo problema -- 2 letras, uso universal em chat |
+| `tava` | Coloquial aceito em chat, corrigir para "estava" seria pedante no contexto de atendimento |
+| `pra` / `pro` | Contracoes aceitas universalmente, inclusive em comunicacao semi-formal |
+| `num` | Ambiguo: pode ser "não" (regional) ou "em um" -- impossivel decidir sem contexto |
+| `cê` | Variacao regional, corrigir seria invasivo |
+| `kkk` / `kkkk` / `rs` / `rsrs` / `haha` | Sao reacoes de riso, nao erros. Sugerir correcao seria absurdo |
+| `aff` / `ué` | Interjeicoes validas |
+| `zap` | Giria para WhatsApp, aceita no contexto |
+| `dm` | Sigla tecnica aceita |
+| `fb` / `ig` / `yt` | Siglas de redes sociais, aceitas |
+| `fds` | Ambiguo (pode ser palavrao ou "fim de semana") |
+| `slk` / `slc` / `tsv` / `dmr` / `vdb` | Girias muito informais -- o sistema nao deve tentar "traduzir" girias, apenas corrigir ortografia |
+| Estrangeirismos (`deletar`, `logar`, `printar`, `feedback`, `call`, etc.) | Sao termos consagrados no uso diario, especialmente em contexto CRM/tech |
 
-```text
-ao receber status 'composing' ou 'recording':
-  1. limpar timer anterior (se existir)
-  2. setar o status na UI
-  3. iniciar novo timer de 7s que reseta o status para null/remove do map
+**Palavras gramaticais complexas (requerem contexto de frase):**
+| Palavra | Motivo |
+|---------|--------|
+| `mal` / `mau` | Depende se e adverbio ou adjetivo -- lookup de palavra unica nao resolve |
+| `onde` / `aonde` | Depende de movimento vs localizacao |
+| `há` / `a` (tempo) | Depende de passado vs futuro |
+| `porque` / `por que` | 4 formas, depende da posicao na frase |
+| Pleonasmos (`entrar para dentro`, etc.) | Multi-palavra, o sistema atual faz lookup de palavra unica |
+| Regencias (`assistir ao`, etc.) | Multi-palavra |
 
-ao receber status 'unavailable', 'paused', 'available' ou null:
-  1. limpar timer (se existir)
-  2. setar/limpar o status normalmente (comportamento atual)
-```
+---
 
-### Nenhuma alteracao de banco ou backend necessaria
+### CATEGORIA 3: Remover do dicionario atual (problematico)
 
-A correcao e puramente frontend nos dois hooks de presenca.
+| Chave | Problema | Acao |
+|-------|----------|------|
+| `q` → `que` | Letra unica, dispara em qualquer "q" digitado. Extremamente invasivo | **Remover** |
+| `havia` → `havia` | Mapeia para si mesmo, entrada inutil | **Remover** |
+
+---
+
+### Resumo das alteracoes no arquivo
+
+**Arquivo**: `src/modules/conversas/utils/dicionario-correcoes.ts`
+
+1. **Adicionar ~28 novas entradas** (abreviacoes e erros ortograficos seguros)
+2. **Remover 2 entradas problematicas** (`q` e `havia`)
+3. **Reorganizar comentarios** para incluir as novas categorias
+
+Nenhum outro arquivo precisa ser alterado -- o hook `useAutoCorrect` e a UI `SugestaoCorrecao` ja funcionam com qualquer entrada do dicionario.
+
