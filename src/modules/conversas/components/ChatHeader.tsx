@@ -215,7 +215,7 @@ export const ChatHeader = forwardRef<HTMLDivElement, ChatHeaderProps>(function C
               </div>
             )}
             {/* AIDEV-NOTE: Layout WhatsApp Web — nome + ícone canal na linha 1, digitando na linha 2 */}
-            <div className="min-w-0 flex flex-col justify-center">
+            <div className="min-w-0 flex flex-col items-start justify-center">
               <div className="flex items-center gap-1 sm:gap-1.5">
                 <span className="text-xs sm:text-sm font-semibold text-foreground truncate max-w-[80px] sm:max-w-[200px]">{nome}</span>
                 {conversa.canal === 'whatsapp' ? (
