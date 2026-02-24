@@ -470,10 +470,14 @@ export const negociosApi = {
       .eq('id', oportunidadeId)
       .single()
 
-    // Atualizar etapa
+    // AIDEV-NOTE: Limpar fechado_em e motivo ao mover para etapa normal (reabre a oportunidade)
     const { error } = await supabase
       .from('oportunidades')
-      .update({ etapa_id: etapaDestinoId } as any)
+      .update({
+        etapa_id: etapaDestinoId,
+        fechado_em: null,
+        motivo_resultado_id: null,
+      } as any)
       .eq('id', oportunidadeId)
 
     if (error) throw new Error(error.message)
@@ -602,6 +606,13 @@ export const negociosApi = {
     motivoId?: string,
     observacoes?: string
   ): Promise<void> => {
+    // AIDEV-NOTE: Reset fechado_em para NULL antes de re-fechar, garantindo que a trigger
+    // de audit_log detecte a transição NULL -> timestamp mesmo em re-fechamentos (Ganho->Perdido, etc.)
+    await supabase
+      .from('oportunidades')
+      .update({ fechado_em: null } as any)
+      .eq('id', oportunidadeId)
+
     const { error } = await supabase
       .from('oportunidades')
       .update({
