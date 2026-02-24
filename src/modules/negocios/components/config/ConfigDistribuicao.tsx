@@ -161,7 +161,7 @@ export function ConfigDistribuicao({ funilId }: Props) {
           />
 
           {horarioEspecifico && (
-            <div className="pl-4 border-l-2 border-primary/20 space-y-3">
+            <div className="pl-4 space-y-3">
               <div className="flex items-center gap-2">
                 <input
                   type="time"
