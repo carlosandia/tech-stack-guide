@@ -3272,8 +3272,8 @@ const ConfiguracaoTenantInputSchema = z.object({
   criar_tarefa_automatica: z.boolean().optional(),
   dias_alerta_inatividade: z.number().int().min(1).max(90).optional(),
   assinatura_mensagem: z.string().max(50000).optional(),
-  horario_inicio_envio: z.string().regex(/^\d{2}:\d{2}$/, 'Formato inválido HH:MM').optional(),
-  horario_fim_envio: z.string().regex(/^\d{2}:\d{2}$/, 'Formato inválido HH:MM').optional(),
+  horario_inicio_envio: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, 'Formato inválido HH:MM').optional(),
+  horario_fim_envio: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, 'Formato inválido HH:MM').optional(),
   widget_whatsapp_ativo: z.boolean().optional(),
   widget_whatsapp_config: z.object({
     ativo: z.boolean().optional(),
