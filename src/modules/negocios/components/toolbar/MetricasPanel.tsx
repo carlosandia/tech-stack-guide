@@ -82,10 +82,9 @@ function calcularMetricas(data: KanbanData): Metrica[] {
     ? valorGanho / ganhas.length
     : 0
 
-  // Taxa de conversão = ganhas / (ganhas + perdidas)
-  const finalizadas = ganhas.length + perdidas.length
-  const taxaConversao = finalizadas > 0
-    ? Math.round((ganhas.length / finalizadas) * 100)
+  // Taxa de conversão = ganhas / total de oportunidades criadas * 100
+  const taxaConversao = total > 0
+    ? Math.round((ganhas.length / total) * 100)
     : 0
 
   // Forecast (valor ponderado pela probabilidade da etapa)
