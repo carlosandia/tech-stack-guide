@@ -1,94 +1,51 @@
 
-## Plano: Horario de Atendimento do Widget + Formatacao da Mensagem WhatsApp
 
-### Verificacao de banco realizada
+## Plano: Auto-clear do indicador "digitando..."
 
-- Tabela `configuracoes_tenant` ja possui coluna `widget_whatsapp_config` (JSONB) -- confirmado
-- Nenhum campo `horario_atendimento` existe no projeto -- sem duplicacao
-- Nenhuma migracao de banco necessaria -- os novos campos ficam dentro do JSONB existente
+### Problema
 
----
+Quando o WAHA envia um evento `composing` (digitando), os hooks `usePresence` e `useListPresence` atualizam o estado corretamente. Porem, se o WAHA nao enviar um evento subsequente de `paused` ou `unavailable` (o que acontece frequentemente), o status fica travado em "digitando..." para sempre na UI.
 
-### 1. Tipos (`types.ts`)
+### Solucao
 
-Adicionar 4 novos campos ao tipo `WidgetWhatsAppConfig`:
-
-```text
-horario_atendimento: 'sempre' | 'personalizado'
-horario_dias: number[]          // 0=Dom, 1=Seg ... 6=Sab
-horario_inicio: string          // "09:00"
-horario_fim: string             // "18:00"
-```
-
-Defaults: `horario_atendimento: 'sempre'`, `horario_dias: [1,2,3,4,5]`, `horario_inicio: '09:00'`, `horario_fim: '18:00'`
-
----
-
-### 2. Schema Zod (`configuracoes.api.ts`)
-
-Estender o schema `widget_whatsapp_config` (linhas 3278-3292) com:
-
-```text
-horario_atendimento: z.enum(['sempre', 'personalizado']).optional()
-horario_dias: z.array(z.number().min(0).max(6)).optional()
-horario_inicio: z.string().regex(/^\d{2}:\d{2}$/).optional()
-horario_fim: z.string().regex(/^\d{2}:\d{2}$/).optional()
-```
-
----
-
-### 3. UI de Configuracao (`WidgetWhatsAppConfig.tsx`)
-
-Nova secao "Horario de Atendimento" com:
-- Toggle pill: "Sempre Online" / "Horario Personalizado"
-- Quando personalizado: 7 botoes de dias da semana (Dom-Sab) + campos de horario inicio/fim (`type="time"`)
-
----
-
-### 4. Preview (`WidgetWhatsAppPreview.tsx`)
-
-- Se `horario_atendimento === 'sempre'`: mostrar "Online"
-- Se `personalizado`: calcular com base no dia/hora atual, ocultar "Online" se fora do horario
-
----
-
-### 5. Edge Function Loader (`widget-whatsapp-loader/index.ts`)
-
-**a) Logica Online/Offline:**
-- Gerar JS que verifica dia/hora no browser do visitante
-- Se fora do horario configurado, ocultar o texto "Online" do header do widget
-
-**b) Formatacao da mensagem no submit:**
-Trocar o formato atual (uma linha com `|` separando tudo) por formato WhatsApp com bold:
-
-```text
-Atual:   "Rogeria Mendanha | (21) 98150-7584 | rogeria@gmail.com"
-
-Novo:
-*Nome:*
-Rogeria Mendanha
-
-*Telefone:*
-(21) 98150-7584
-
-*Email:*
-rogeria@gmail.com
-```
-
-Usando `*campo:*` (bold do WhatsApp) + `%0A` para quebras de linha na URL `wa.me`.
+Adicionar um **timeout de auto-clear** em ambos os hooks. Sempre que um status `composing` ou `recording` for recebido, um timer de ~7 segundos e iniciado. Se nenhum novo evento chegar nesse periodo, o status e resetado automaticamente. Se um novo evento `composing` chegar antes do timeout, o timer e reiniciado.
 
 ---
 
 ### Arquivos a modificar
 
-| Arquivo | Alteracao |
-|---|---|
-| `src/modules/configuracoes/components/whatsapp-widget/types.ts` | 4 novos campos + defaults |
-| `src/modules/configuracoes/services/configuracoes.api.ts` | Estender schema Zod (4 campos) |
-| `src/modules/configuracoes/components/whatsapp-widget/WidgetWhatsAppConfig.tsx` | Secao de horario de atendimento |
-| `src/modules/configuracoes/components/whatsapp-widget/WidgetWhatsAppPreview.tsx` | Logica online/offline |
-| `supabase/functions/widget-whatsapp-loader/index.ts` | Online/offline + formatacao mensagem |
+#### 1. `src/modules/conversas/hooks/usePresence.ts`
 
-### Sem migracoes de banco
+- Adicionar um `useRef` para o timer de timeout
+- Quando `setStatus('composing')` ou `setStatus('recording')` for chamado (tanto no `presence_get` inicial quanto no broadcast), iniciar um `setTimeout` de 7s que faz `setStatus(null)`
+- Limpar o timer no cleanup do `useEffect` e quando um novo evento chegar
 
-Tudo armazenado no JSONB `widget_whatsapp_config` ja existente na tabela `configuracoes_tenant`.
+#### 2. `src/modules/conversas/hooks/useListPresence.ts`
+
+- Adicionar um `Map<string, ReturnType<typeof setTimeout>>` como ref para timers por chatId
+- Dentro do `handleUpdate`, quando o status for `composing` ou `recording`, iniciar um timeout de 7s que remove o chatId do `presenceMap`
+- Limpar o timer anterior do mesmo chatId antes de criar um novo
+- Limpar todos os timers no cleanup do `useEffect`
+
+---
+
+### Detalhes tecnicos
+
+**Timeout de 7 segundos**: O WhatsApp Web usa ~5-10s para considerar que o usuario parou de digitar. 7s e um meio-termo seguro -- curto o suficiente para nao parecer travado, longo o suficiente para nao piscar durante digitacao continua.
+
+**Logica do timer (pseudo-codigo):**
+
+```text
+ao receber status 'composing' ou 'recording':
+  1. limpar timer anterior (se existir)
+  2. setar o status na UI
+  3. iniciar novo timer de 7s que reseta o status para null/remove do map
+
+ao receber status 'unavailable', 'paused', 'available' ou null:
+  1. limpar timer (se existir)
+  2. setar/limpar o status normalmente (comportamento atual)
+```
+
+### Nenhuma alteracao de banco ou backend necessaria
+
+A correcao e puramente frontend nos dois hooks de presenca.
