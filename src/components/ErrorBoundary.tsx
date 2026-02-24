@@ -30,31 +30,37 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('[ErrorBoundary] Erro capturado:', error, errorInfo)
 
-    // AIDEV-NOTE: Auto-reload silencioso para chunk errors (2a tentativa).
-    // O lazyWithRetry já fez a 1a tentativa. Se chegou aqui, tentamos
-    // mais uma vez antes de exibir o fallback visual.
+    // AIDEV-NOTE: Auto-reload silencioso para qualquer erro na primeira ocorrência.
+    // Chunk errors e erros transitórios de deploy são resolvidos com reload.
     const msg = error?.message?.toLowerCase() || ''
     const isChunk =
       msg.includes('failed to fetch dynamically imported module') ||
       msg.includes('loading chunk') ||
       msg.includes('loading css chunk')
 
+    // Para chunk errors: tentar reload se ainda não tentou
     if (isChunk && !sessionStorage.getItem('eb-chunk-reload')) {
       sessionStorage.setItem('eb-chunk-reload', '1')
-      // Limpar flags do lazyWithRetry para evitar conflito
       Object.keys(sessionStorage).forEach(key => {
         if (key.startsWith('chunk-reload-')) sessionStorage.removeItem(key)
       })
       window.location.reload()
       return
     }
+
+    // Para QUALQUER erro: tentar reload automático uma vez
+    // Resolve erros transitórios pós-deploy sem intervenção do usuário
+    if (!sessionStorage.getItem('eb-generic-reload')) {
+      sessionStorage.setItem('eb-generic-reload', '1')
+      window.location.reload()
+      return
+    }
   }
 
   handleReload = () => {
-    // AIDEV-NOTE: Limpar todas as chaves de chunk retry do sessionStorage
-    // e fazer hard reload para a URL raiz (sem query params de cache-busting)
+    // AIDEV-NOTE: Limpar todas as chaves de retry do sessionStorage
     Object.keys(sessionStorage).forEach(key => {
-      if (key.startsWith('chunk-reload-') || key === 'eb-chunk-reload') {
+      if (key.startsWith('chunk-reload-') || key === 'eb-chunk-reload' || key === 'eb-generic-reload') {
         sessionStorage.removeItem(key)
       }
     })
