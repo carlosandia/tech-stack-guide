@@ -51,6 +51,7 @@ export function WhatsAppAudioPlayer({ src, duration: propDuration, isMe, fotoUrl
   const [duration, setDuration] = useState(propDuration || 0)
   const [speed, setSpeed] = useState<number>(1)
   const [waveform] = useState(() => generateWaveform(src, 40))
+  const [fotoError, setFotoError] = useState(false)
 
   useEffect(() => {
     const audio = audioRef.current
@@ -199,11 +200,12 @@ export function WhatsAppAudioPlayer({ src, duration: propDuration, isMe, fotoUrl
 
       {/* Avatar with mic badge */}
       <div className="relative flex-shrink-0">
-        {fotoUrl ? (
+        {fotoUrl && !fotoError ? (
           <img
             src={fotoUrl}
             alt=""
             className="w-11 h-11 rounded-full object-cover border-2 border-background"
+            onError={() => setFotoError(true)}
           />
         ) : (
           <div className={`

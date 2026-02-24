@@ -430,6 +430,7 @@ function PollContent({ mensagem, conversaId, fotoUrl }: { mensagem: Mensagem; co
   const [loading, setLoading] = useState(false)
   const [options, setOptions] = useState(mensagem.poll_options)
   const [showVoters, setShowVoters] = useState(false)
+  const [fotoError, setFotoError] = useState(false)
 
   // AIDEV-NOTE: Sincronizar estado local com props quando Realtime/cache invalidation atualizar os dados
   useEffect(() => {
@@ -564,11 +565,12 @@ function PollContent({ mensagem, conversaId, fotoUrl }: { mensagem: Mensagem; co
 
                       return (
                         <div key={vIdx} className="flex items-center gap-2 py-1">
-                          {fotoUrl ? (
+                          {fotoUrl && !fotoError ? (
                             <img
                               src={fotoUrl}
                               alt=""
                               className="w-6 h-6 rounded-full object-cover flex-shrink-0"
+                              onError={() => setFotoError(true)}
                             />
                           ) : (
                             <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">

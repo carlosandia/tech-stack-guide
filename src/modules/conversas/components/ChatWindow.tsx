@@ -10,6 +10,7 @@ import { compressImage, validateFileSize } from '@/shared/utils/compressMedia'
 import { compressVideo } from '@/shared/utils/compressVideo'
 import { compressAudio } from '@/shared/utils/compressAudio'
 import { calculateFileHash } from '@/shared/utils/fileHash'
+import { getValidWhatsAppUrl } from '@/shared/utils/whatsapp-url'
 import { MediaQueue, type QueuedMedia } from './MediaQueue'
 import { useAuth } from '@/providers/AuthProvider'
 import { ChatHeader } from './ChatHeader'
@@ -595,7 +596,7 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
         focusedId={mensagemFocadaId}
         conversaTipo={conversa.tipo}
         conversaId={conversa.id}
-        fotoUrl={conversa.contato?.foto_url || conversa.foto_url}
+        fotoUrl={getValidWhatsAppUrl(conversa.contato?.foto_url || conversa.foto_url)}
         myAvatarUrl={myAvatarUrl}
         onDeleteMessage={(mensagemId, messageWahaId, paraTodos) => {
           apagarMensagem.mutate({ conversaId: conversa.id, mensagemId, messageWahaId, paraTodos })
