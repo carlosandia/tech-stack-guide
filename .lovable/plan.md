@@ -1,61 +1,49 @@
 
 
-# Correcao: Popovers/Dropdowns nao aparecem na toolbar de Negocios
+# Correcao: Modal "Assinar Pro" com header e footer fixos
 
-## Causa Raiz
+## Problema
 
-Tres componentes (PeriodoSelector, FiltrosPopover, MetaToolbarIndicator) usam `createPortal(content, document.body)` mas aplicam `sm:absolute sm:right-0 sm:mt-1.5` para desktop. O problema: `absolute` posiciona relativo ao ancestral posicionado mais proximo, que dentro de `document.body` e o proprio viewport. Sem um parent `relative`, o dropdown fica posicionado incorretamente (no topo/canto da pagina, atras da toolbar ou fora da tela).
-
-Alem disso, o click-outside handler usa `containerRef` que aponta para o `div.relative` dentro da toolbar, mas o dropdown esta no `document.body` via portal — entao clicar no dropdown e detectado como "fora" e fecha imediatamente.
+O modal `PreCadastroModal` usa o componente `DialogContent` padrao que aplica `overflow-y-auto` no container inteiro. Isso faz com que header (titulo), corpo do formulario e botao de submit rolem juntos — quando o conteudo excede a altura da tela, o botao "Continuar para o pagamento" some e o usuario precisa rolar ate o final.
 
 ## Solucao
 
-Calcular a posicao do dropdown a partir do `getBoundingClientRect()` do botao trigger e usar `fixed` em ambos os breakpoints (mesmo padrao ja usado com sucesso no `FiltrosConversas`).
+Reestruturar o conteudo interno do `DialogContent` em 3 secoes com layout flex-col:
 
-### Arquivo 1: `src/modules/negocios/components/toolbar/PeriodoSelector.tsx`
+1. **Header** (fixo no topo) — titulo + descricao
+2. **Corpo** (unica area com scroll) — campos do formulario
+3. **Footer** (fixo embaixo) — checkbox de termos + botao submit
 
-- Usar `useRef` no botao trigger para obter `getBoundingClientRect()`
-- Calcular `top` e `right` quando abrir
-- Substituir `sm:absolute sm:right-0 sm:mt-1.5` por `fixed` com coordenadas calculadas
-- Atualizar click-outside para incluir o dropdown ref no portal
+### Arquivo: `src/modules/public/components/PreCadastroModal.tsx`
 
-### Arquivo 2: `src/modules/negocios/components/toolbar/FiltrosPopover.tsx`
+Mudancas:
 
-- Mesma logica: calcular posicao a partir do botao trigger
-- Usar `fixed` com coordenadas calculadas
-- Atualizar click-outside para verificar ambos os refs (trigger + dropdown)
+- Remover o `overflow-y-auto` padrao do `DialogContent` adicionando classes para transformar em flex-col sem scroll proprio
+- Envolver o conteudo em estrutura flex com:
+  - Header: `flex-shrink-0`
+  - Corpo do form: `flex-1 overflow-y-auto min-h-0` com padding proprio
+  - Footer (termos + botao): `flex-shrink-0 border-t border-border`
 
-### Arquivo 3: `src/modules/negocios/components/toolbar/MetaToolbarIndicator.tsx`
+### Arquivo: `src/components/ui/dialog.tsx`
 
-- Mesma logica: calcular posicao a partir do botao trigger
-- Usar `fixed` com coordenadas calculadas
-- Atualizar click-outside para verificar ambos os refs
+Nenhuma alteracao necessaria — o `DialogContent` ja aceita `className` customizado, entao basta sobrescrever as classes no componente `PreCadastroModal`.
 
-### Padrao comum para os 3 arquivos
+## Estrutura resultante
 
 ```text
-// Ao abrir:
-const rect = btnRef.current.getBoundingClientRect()
-const top = rect.bottom + 6
-const right = window.innerWidth - rect.right
-
-// No portal:
-<div
-  ref={dropdownRef}
-  className="fixed z-[200] bg-card border border-border rounded-lg shadow-lg ..."
-  style={{ top, right }}
->
-
-// Click-outside:
-if (
-  dropdownRef.current && !dropdownRef.current.contains(target) &&
-  btnRef.current && !btnRef.current.contains(target)
-) setOpen(false)
+DialogContent (flex flex-col, sem overflow proprio)
+  +-- DialogHeader (flex-shrink-0)
+  |     Titulo + descricao
+  +-- div.form-body (flex-1 overflow-y-auto)
+  |     Codigo parceiro, nome, email, telefone, empresa, segmento
+  +-- div.form-footer (flex-shrink-0 border-t)
+        Checkbox termos + botao submit
 ```
 
-## Resultado
+## Detalhes tecnicos
 
-- Todos os popovers/dropdowns da toolbar aparecem corretamente posicionados logo abaixo do botao trigger
-- Funcionam em mobile (centralizados) e desktop (alinhados ao botao)
-- Z-index z-[200] garante que fiquem acima da toolbar (z-50) e de qualquer outro elemento
-
+1. Adicionar `className="sm:max-w-[480px] flex flex-col overflow-hidden"` no `DialogContent` — o `overflow-hidden` impede o scroll global do container e o `flex flex-col` permite que os filhos controlem o layout
+2. Mover o `DialogHeader` para fora do `form`, mantendo-o como primeiro filho direto do `DialogContent`
+3. O `form` recebe `className="flex flex-col flex-1 min-h-0"` 
+4. O corpo dos campos fica em `div.flex-1.overflow-y-auto.min-h-0.px-6.py-4.space-y-4`
+5. O aceite de termos e o botao de submit ficam num `div.flex-shrink-0.px-6.py-4.border-t.border-border`
