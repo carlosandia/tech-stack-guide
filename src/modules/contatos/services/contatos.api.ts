@@ -462,12 +462,15 @@ export const contatosApi = {
    * AIDEV-NOTE: Salva valores de campos customizados (custom_*) para um contato.
    * Busca campo_id pelo slug, faz upsert na tabela valores_campos_customizados.
    */
+  // AIDEV-NOTE: Salva valores de campos customizados (custom_*) para um contato.
+  // Busca campo_id pelo slug + entidade, faz delete + insert na tabela valores_campos_customizados.
   salvarCamposCustomizados: async (
     contatoId: string,
     tipo: TipoContato,
     payload: Record<string, unknown>
   ): Promise<void> => {
     const organizacaoId = await getOrganizacaoId()
+    const entidadeTipo = tipo === 'empresa' ? 'empresa' : 'pessoa'
 
     // Extrair campos custom_* do payload
     const customEntries: Array<{ slug: string; valor: unknown }> = []
@@ -476,36 +479,59 @@ export const contatosApi = {
         customEntries.push({ slug: key.replace('custom_', ''), valor: value })
       }
     }
-    if (customEntries.length === 0) return
 
-    // Buscar campo_id e tipo pelo slug
+    console.log('[salvarCamposCustomizados] contatoId:', contatoId, 'tipo:', tipo, 'entries:', customEntries.length, 'slugs:', customEntries.map(e => `${e.slug}=${e.valor}`))
+
+    if (customEntries.length === 0) {
+      console.warn('[salvarCamposCustomizados] Nenhum campo custom_* encontrado no payload')
+      return
+    }
+
+    // Buscar campo_id e tipo pelo slug — FILTRAR POR ENTIDADE para evitar mismatch
     const slugs = customEntries.map(e => e.slug)
-    const { data: camposDefs } = await supabase
+    const { data: camposDefs, error: camposError } = await supabase
       .from('campos_customizados')
       .select('id, slug, tipo')
       .eq('organizacao_id', organizacaoId)
+      .eq('entidade', entidadeTipo)
       .in('slug', slugs)
       .is('deletado_em', null)
 
-    if (!camposDefs || camposDefs.length === 0) return
+    if (camposError) {
+      console.error('[salvarCamposCustomizados] Erro ao buscar definições:', camposError.message)
+      throw new Error(`Erro ao buscar campos customizados: ${camposError.message}`)
+    }
+
+    console.log('[salvarCamposCustomizados] camposDefs encontrados:', camposDefs?.length, camposDefs?.map(c => c.slug))
+
+    if (!camposDefs || camposDefs.length === 0) {
+      console.warn('[salvarCamposCustomizados] Nenhuma definição encontrada para slugs:', slugs, 'entidade:', entidadeTipo)
+      return
+    }
 
     const slugToCampo = new Map(camposDefs.map(c => [c.slug, c]))
-    const entidadeTipo = tipo === 'empresa' ? 'empresa' : 'pessoa'
 
     // Deletar valores existentes para esses campos e re-inserir
     const campoIds = camposDefs.map(c => c.id)
-    await supabase
+    const { error: deleteError } = await supabase
       .from('valores_campos_customizados')
       .delete()
       .eq('entidade_id', contatoId)
       .eq('entidade_tipo', entidadeTipo)
       .in('campo_id', campoIds)
 
+    if (deleteError) {
+      console.error('[salvarCamposCustomizados] Erro ao deletar existentes:', deleteError.message)
+    }
+
     // Preparar rows para insert
     const rows: any[] = []
     for (const entry of customEntries) {
       const campo = slugToCampo.get(entry.slug)
-      if (!campo) continue
+      if (!campo) {
+        console.warn('[salvarCamposCustomizados] Slug não encontrado na definição:', entry.slug)
+        continue
+      }
 
       const valor = entry.valor
       if (valor === null || valor === undefined || valor === '') continue
@@ -532,7 +558,6 @@ export const contatosApi = {
           row.valor_booleano = Boolean(valor)
           break
         case 'multi_select':
-          // Valor pode ser pipe-delimited string
           if (typeof valor === 'string' && valor.includes('|')) {
             row.valor_json = valor.split('|').map(v => v.trim())
           } else if (Array.isArray(valor)) {
@@ -548,14 +573,18 @@ export const contatosApi = {
       rows.push(row)
     }
 
+    console.log('[salvarCamposCustomizados] Rows para inserir:', rows.length)
+
     if (rows.length > 0) {
       const { error } = await supabase
         .from('valores_campos_customizados')
         .insert(rows)
 
       if (error) {
-        console.error('[salvarCamposCustomizados] Erro ao salvar:', error.message)
+        console.error('[salvarCamposCustomizados] Erro ao inserir:', error.message, 'rows:', JSON.stringify(rows))
+        throw new Error(`Erro ao salvar campos customizados: ${error.message}`)
       }
+      console.log('[salvarCamposCustomizados] Salvos com sucesso:', rows.length, 'campos')
     }
   },
 
