@@ -8,7 +8,8 @@ import { visualizer } from 'rollup-plugin-visualizer';
 export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
-    mode === 'development' && componentTagger(),
+    // AIDEV-NOTE: componentTagger só ativo no Lovable.dev — evita erro ws://localhost:8081/ localmente
+    mode === 'development' && process.env.VITE_LOVABLE === 'true' && componentTagger(),
     // AIDEV-NOTE: Gera relatorio visual do bundle em dist/stats.html
     // PRD: melhorias-performance.md - PARTE 5, Fase 4
     mode === 'production' && visualizer({
