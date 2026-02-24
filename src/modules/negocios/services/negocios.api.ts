@@ -434,8 +434,18 @@ export const negociosApi = {
       _segmentos: segmentosContatoMap[o.contato_id] || [],
     }))
 
+    // AIDEV-NOTE: Safety net — ordenar etapas por tipo (Entrada → Normal → Ganho → Perda)
+    // Garante ordem correta mesmo com dados legados inconsistentes
+    const ordemTipo: Record<string, number> = { entrada: 0, normal: 1, ganho: 2, perda: 3 }
+    const etapasOrdenadas = [...(etapas || [])].sort((a, b) => {
+      const tipoA = ordemTipo[a.tipo] ?? 1
+      const tipoB = ordemTipo[b.tipo] ?? 1
+      if (tipoA !== tipoB) return tipoA - tipoB
+      return (a.ordem ?? 0) - (b.ordem ?? 0)
+    })
+
     // Agrupar por etapa
-    const etapasComOps = (etapas || []).map(etapa => {
+    const etapasComOps = etapasOrdenadas.map(etapa => {
       const opsEtapa = opsEnriquecidas.filter(o => o.etapa_id === etapa.id)
       return {
         ...(etapa as EtapaFunil),
