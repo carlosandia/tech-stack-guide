@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef, forwardRef } from 'react'
+import { toast } from 'sonner'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Plus, Search, Filter, Download, Upload, Users2, Building2, X, Tag, GitMerge, ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
 import { useAuth } from '@/providers/AuthProvider'
@@ -465,6 +466,7 @@ const ContatosPage = forwardRef<HTMLDivElement>(function ContatosPage(_props, _r
               await contatosApi.salvarCamposCustomizados(editingContato.id, editingContato.tipo as TipoContato, formData)
             } catch (err: any) {
               console.error('[handleFormSubmit] Erro ao salvar campos customizados (edição):', err?.message || err)
+              toast.error('Erro ao salvar campos personalizados. Tente editar o contato novamente.')
             }
             if (segmentoIds) {
               try { await contatosApi.vincularSegmentos(editingContato.id, segmentoIds) } catch {}
@@ -485,9 +487,10 @@ const ContatosPage = forwardRef<HTMLDivElement>(function ContatosPage(_props, _r
            // Salvar campos customizados
           try {
             await contatosApi.salvarCamposCustomizados(contato.id, tipo as TipoContato, formData)
-          } catch (err: any) {
-            console.error('[handleFormSubmit] Erro ao salvar campos customizados (criação):', err?.message || err)
-          }
+           } catch (err: any) {
+             console.error('[handleFormSubmit] Erro ao salvar campos customizados (criação):', err?.message || err)
+             toast.error('Erro ao salvar campos personalizados. Edite o contato para tentar novamente.')
+           }
           if (segmentoIds && segmentoIds.length > 0) {
             try { await contatosApi.vincularSegmentos(contato.id, segmentoIds) } catch {}
           }
