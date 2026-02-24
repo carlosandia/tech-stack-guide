@@ -9,7 +9,7 @@
 
 import React, { useState, useRef, useCallback, useEffect, forwardRef } from 'react'
 import { getMaskForType } from '../../utils/masks'
-
+import { sanitizeCss } from '@/shared/utils/sanitizeCss'
 import { generateFormResponsiveCss, generateColunasResponsiveCss, resolveValue } from '../../utils/responsiveStyles'
 import { renderFinalCampo, PAISES_COMUNS } from '../../utils/renderFinalCampo'
 import { Monitor, Tablet, Smartphone, Settings, Code, EyeOff, Eye } from 'lucide-react'
@@ -68,7 +68,7 @@ function ResponsiveCssInjector({ formId, botao, container, campos, allCampos, fo
     }
   }
   if (!css) return null
-  return <style dangerouslySetInnerHTML={{ __html: css }} />
+  return <style dangerouslySetInnerHTML={{ __html: sanitizeCss(css) }} />
 }
 
 
@@ -415,7 +415,7 @@ export const FormPreview = forwardRef<HTMLDivElement, Props>(function FormPrevie
       >
         {/* Inject custom CSS + responsive overrides */}
         {cssCustomizado && (
-          <style dangerouslySetInnerHTML={{ __html: cssCustomizado }} />
+          <style dangerouslySetInnerHTML={{ __html: sanitizeCss(cssCustomizado) }} />
         )}
         <ResponsiveCssInjector formId={formulario.id} botao={estiloBotao} container={estiloContainer} campos={estiloCampos} allCampos={campos} forceViewport={viewport !== 'desktop' ? viewport : undefined} />
 

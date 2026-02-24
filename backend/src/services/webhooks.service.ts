@@ -7,6 +7,25 @@ import { supabaseAdmin } from '../config/supabase'
 
 const supabase = supabaseAdmin
 import { randomBytes } from 'crypto'
+
+// AIDEV-NOTE: Proteção SSRF — bloqueia requests para redes internas/localhost
+// Previne que admin registre webhook apontando para serviços internos (metadata AWS, Redis, etc.)
+const BLOCKED_HOSTNAMES = ['localhost', '127.0.0.1', '0.0.0.0', '169.254.169.254', '::1', '[::1]']
+const BLOCKED_PORTS = ['22', '23', '25', '3306', '5432', '6379', '9200', '8500', '2375']
+
+function isValidWebhookUrl(urlString: string): boolean {
+  try {
+    const url = new URL(urlString)
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return false
+    const hostname = url.hostname.toLowerCase()
+    if (BLOCKED_HOSTNAMES.includes(hostname)) return false
+    if (hostname.startsWith('192.168.') || hostname.startsWith('10.') || hostname.startsWith('172.16.')) return false
+    if (url.port && BLOCKED_PORTS.includes(url.port)) return false
+    return true
+  } catch {
+    return false
+  }
+}
 import type {
   WebhookEntrada,
   WebhookSaida,
@@ -362,7 +381,13 @@ async function enviarWebhook(
       }
     }
 
-    // Fazer request
+    // AIDEV-NOTE: Validar URL contra SSRF antes de fazer o request
+    if (!isValidWebhookUrl(webhook.url)) {
+      console.warn(`[Webhook] URL bloqueada por SSRF protection: ${webhook.url}`)
+      throw new Error('URL de webhook não permitida')
+    }
+
+    // Fazer request com timeout para evitar hanging
     const response = await fetch(webhook.url, {
       method: 'POST',
       headers,
@@ -371,6 +396,7 @@ async function enviarWebhook(
         dados: payload,
         timestamp: new Date().toISOString(),
       }),
+      signal: AbortSignal.timeout(30000),
     })
 
     const duracao = Date.now() - inicio

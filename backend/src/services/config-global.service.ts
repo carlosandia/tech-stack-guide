@@ -298,6 +298,7 @@ class ConfigGlobalService {
         headers: {
           Authorization: `Bearer ${secretKey}`,
         },
+        signal: AbortSignal.timeout(10000),
       })
 
       if (response.ok) {
@@ -336,7 +337,8 @@ class ConfigGlobalService {
 
     try {
       const response = await fetch(
-        `https://graph.facebook.com/v18.0/${appId}?access_token=${appId}|${appSecret}`
+        `https://graph.facebook.com/v18.0/${appId}?access_token=${appId}|${appSecret}`,
+        { signal: AbortSignal.timeout(10000) }
       )
 
       if (response.ok) {

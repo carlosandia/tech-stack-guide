@@ -13,6 +13,7 @@ import type { VarianteAB } from '../services/formularios.api'
 import { getMaskForType } from '../utils/masks'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import DOMPurify from 'dompurify'
+import { sanitizeCss } from '@/shared/utils/sanitizeCss'
 import type { CampoFormulario, EstiloFormulario, EstiloContainer, EstiloCampos, EstiloBotao, EstiloCabecalho } from '../services/formularios.api'
 import { generateFormResponsiveCss, generateColunasResponsiveCss } from '../utils/responsiveStyles'
 import { mergeCampoEstilo, ensureUnit } from '../utils/campoEstiloUtils'
@@ -520,7 +521,7 @@ export function FormularioPublicoPage() {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: pagina.background_color || '#F3F4F6', padding: '16px' }}>
-      {responsiveCss && <style dangerouslySetInnerHTML={{ __html: responsiveCss }} />}
+      {responsiveCss && <style dangerouslySetInnerHTML={{ __html: sanitizeCss(responsiveCss) }} />}
       <form
         onSubmit={handleSubmit}
         onFocus={handleFormFocus}

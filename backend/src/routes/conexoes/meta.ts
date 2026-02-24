@@ -5,6 +5,7 @@
 
 import { Router, Request, Response, NextFunction } from 'express'
 import { z } from 'zod'
+import crypto from 'crypto'
 import metaService from '../../services/meta.service'
 import { supabaseAdmin } from '../../config/supabase'
 import {
@@ -414,6 +415,21 @@ router.delete('/audiences/:audience_id', async (req: Request, res: Response, nex
 // Webhook Lead Ads (rota publica)
 // =====================================================
 
+// AIDEV-NOTE: Validação HMAC-SHA256 conforme spec Meta X-Hub-Signature-256
+// Se META_APP_SECRET não estiver configurado, loga warning e permite (backward compat)
+function validateMetaHmac(rawBody: string, signatureHeader: string | undefined, appSecret: string | undefined): boolean {
+  if (!appSecret) {
+    console.warn('[Meta Webhook] META_APP_SECRET não configurado — HMAC não validado')
+    return true // backward compat: não bloquear sem secret
+  }
+  if (!signatureHeader) return false
+  const expected = `sha256=${crypto.createHmac('sha256', appSecret).update(rawBody, 'utf8').digest('hex')}`
+  const received = Buffer.from(signatureHeader)
+  const expectedBuf = Buffer.from(expected)
+  if (received.length !== expectedBuf.length) return false
+  return crypto.timingSafeEqual(received, expectedBuf)
+}
+
 /**
  * GET /webhooks/meta-leads
  * Verificacao do webhook (Meta envia challenge)
@@ -436,8 +452,18 @@ export const metaLeadsWebhookVerify = (req: Request, res: Response) => {
 /**
  * POST /webhooks/meta-leads
  * Recebe webhooks de Lead Ads
+ * AIDEV-NOTE: Valida X-Hub-Signature-256 (HMAC-SHA256) antes de processar
  */
 export const metaLeadsWebhookHandler = async (req: Request, res: Response) => {
+  const rawBody = (req as any).rawBody || ''
+  const signature = req.headers['x-hub-signature-256'] as string | undefined
+  const appSecret = process.env.META_APP_SECRET
+
+  if (!validateMetaHmac(rawBody, signature, appSecret)) {
+    console.warn('[Meta Webhook] Assinatura inválida — requisição rejeitada')
+    return res.status(401).json({ error: 'Assinatura inválida' })
+  }
+
   try {
     await metaService.processarWebhookLeadAds(req.body)
     res.json({ success: true })

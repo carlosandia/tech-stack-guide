@@ -7,10 +7,21 @@
 
 import { Router, Request, Response } from 'express'
 import { z } from 'zod'
+import rateLimit from 'express-rate-limit'
 import submissoesService from '../services/submissoes-formularios.service.js'
 import { SubmeterFormularioPublicoSchema } from '../schemas/formularios.js'
 
 const router = Router()
+
+// AIDEV-NOTE: SEGURANCA - Rate limit por IP para prevenir spam de submissao publica
+const submissaoLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minuto
+  max: 5,
+  keyGenerator: (req) => req.ip || 'unknown',
+  message: { error: 'Muitas submissoes. Tente novamente em alguns instantes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+})
 
 // =====================================================
 // GET /:slug - Buscar formulario publico por slug
@@ -36,7 +47,7 @@ router.get('/:slug', async (req: Request, res: Response) => {
 // POST /:slug/submeter - Submeter formulario publico
 // =====================================================
 
-router.post('/:slug/submeter', async (req: Request, res: Response) => {
+router.post('/:slug/submeter', submissaoLimiter, async (req: Request, res: Response) => {
   try {
     const { slug } = req.params
     const payload = SubmeterFormularioPublicoSchema.parse(req.body)

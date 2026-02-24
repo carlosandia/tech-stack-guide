@@ -7,6 +7,7 @@
 
 import { Router, Request, Response, NextFunction } from 'express'
 import { z } from 'zod'
+import rateLimit from 'express-rate-limit'
 import webhooksService from '../services/webhooks.service'
 import {
   CriarWebhookEntradaSchema,
@@ -314,8 +315,18 @@ export default router
 
 export const webhookReceiverRouter = Router()
 
+// AIDEV-NOTE: Rate limit por token para prevenir flood/DoS no receiver público
+const webhookReceiverLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  keyGenerator: (req) => req.params.token || req.ip || 'unknown',
+  message: { error: 'Muitos webhooks recebidos. Tente novamente em alguns instantes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+})
+
 // POST /v1/webhook/:token - Receber webhook de entrada
-webhookReceiverRouter.post('/:token', async (req: Request, res: Response) => {
+webhookReceiverRouter.post('/:token', webhookReceiverLimiter, async (req: Request, res: Response) => {
   try {
     const { token } = req.params
 

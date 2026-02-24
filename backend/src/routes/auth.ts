@@ -68,10 +68,10 @@ const forgotPasswordLimiter = rateLimit({
 
 // AIDEV-NOTE: SEGURANCA - Rate limiting para refresh token
 // Previne timing attacks onde atacante tenta muitos refresh tokens
-// 20 requests por minuto por IP e generoso para uso legitimo
+// 5 requests por minuto por IP (reduzido de 20 para limitar abuso)
 const refreshLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minuto
-  max: 20,
+  max: 5,
   message: {
     error: 'Muitas solicitacoes',
     message: 'Muitas tentativas de refresh. Aguarde um momento.',

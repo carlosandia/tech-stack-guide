@@ -5,6 +5,7 @@
 
 import { Router, Request, Response, NextFunction } from 'express'
 import { z } from 'zod'
+import crypto from 'crypto'
 import instagramService from '../../services/instagram.service'
 import {
   ConectarContaInstagramSchema,
@@ -192,6 +193,20 @@ router.post('/mensagens', async (req: Request, res: Response, next: NextFunction
 // Webhook Instagram (rota publica)
 // =====================================================
 
+// AIDEV-NOTE: Validação HMAC-SHA256 compartilhada com Meta (mesma app secret)
+function validateMetaHmac(rawBody: string, signatureHeader: string | undefined, appSecret: string | undefined): boolean {
+  if (!appSecret) {
+    console.warn('[Instagram Webhook] META_APP_SECRET não configurado — HMAC não validado')
+    return true
+  }
+  if (!signatureHeader) return false
+  const expected = `sha256=${crypto.createHmac('sha256', appSecret).update(rawBody, 'utf8').digest('hex')}`
+  const received = Buffer.from(signatureHeader)
+  const expectedBuf = Buffer.from(expected)
+  if (received.length !== expectedBuf.length) return false
+  return crypto.timingSafeEqual(received, expectedBuf)
+}
+
 /**
  * GET /webhooks/instagram
  * Verificacao do webhook (Meta envia challenge)
@@ -214,8 +229,18 @@ export const instagramWebhookVerify = (req: Request, res: Response) => {
 /**
  * POST /webhooks/instagram
  * Recebe webhooks do Instagram
+ * AIDEV-NOTE: Valida X-Hub-Signature-256 (HMAC-SHA256) antes de processar
  */
 export const instagramWebhookHandler = async (req: Request, res: Response) => {
+  const rawBody = (req as any).rawBody || ''
+  const signature = req.headers['x-hub-signature-256'] as string | undefined
+  const appSecret = process.env.META_APP_SECRET
+
+  if (!validateMetaHmac(rawBody, signature, appSecret)) {
+    console.warn('[Instagram Webhook] Assinatura inválida — requisição rejeitada')
+    return res.status(401).json({ error: 'Assinatura inválida' })
+  }
+
   try {
     await instagramService.processarWebhook(req.body)
     res.json({ success: true })

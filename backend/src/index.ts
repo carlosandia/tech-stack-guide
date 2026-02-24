@@ -83,12 +83,39 @@ const app = express()
 app.set('trust proxy', 1)
 
 // Middlewares globais
-app.use(helmet())
+// AIDEV-NOTE: helmet com CSP explícito — previne XSS, clickjacking e MIME sniffing
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "https://*.supabase.co", "https://api.stripe.com", "https://graph.facebook.com"],
+      fontSrc: ["'self'", "https:", "data:"],
+      objectSrc: ["'none'"],
+      frameSrc: ["'none'"],
+      upgradeInsecureRequests: [],
+    },
+  },
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true,
+  },
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+}))
 app.use(cors({
   origin: env.CORS_ORIGIN,
   credentials: true,
 }))
-app.use(express.json())
+// AIDEV-NOTE: limit evita DoS via payload gigante; rawBody necessário para validação HMAC de webhooks
+app.use(express.json({
+  limit: '1mb',
+  verify: (req: any, _res, buf) => {
+    req.rawBody = buf.toString('utf8')
+  },
+}))
 
 // Rate limiting
 const limiter = rateLimit({
