@@ -125,23 +125,48 @@ export function ContatoInlineForm({ tipo, fields, onChange, onCancel }: ContatoI
       )
     }
 
-    // Campo porte → select
+    // Campo porte → Popover select (portal para z-index correto em modais)
     if (key === 'porte') {
       return (
         <div key={key}>
           <label className="block text-xs font-medium text-foreground mb-1">
             {label}{required && <span className="text-destructive ml-0.5">*</span>}
           </label>
-          <select
-            value={value}
-            onChange={(e) => updateField(key, e.target.value)}
-            className="w-full h-9 px-3 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30 appearance-none"
-          >
-            <option value="">Selecione</option>
-            {PorteOptions.map(p => (
-              <option key={p.value} value={p.value}>{p.label}</option>
-            ))}
-          </select>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="w-full h-9 px-3 text-sm bg-background border border-input rounded-md flex items-center justify-between gap-2 hover:border-ring/50 transition-colors text-left"
+              >
+                <span className={`truncate ${!value ? 'text-muted-foreground' : 'text-foreground'}`}>
+                  {value ? PorteOptions.find(p => p.value === value)?.label || value : 'Selecione'}
+                </span>
+                <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-1" align="start">
+              <div className="max-h-48 overflow-y-auto">
+                <button
+                  type="button"
+                  onClick={() => updateField(key, '')}
+                  className="flex items-center gap-2 text-sm cursor-pointer hover:bg-accent rounded px-2 py-1.5 transition-colors w-full text-left text-muted-foreground"
+                >
+                  Selecione
+                </button>
+                {PorteOptions.map(p => (
+                  <button
+                    key={p.value}
+                    type="button"
+                    onClick={() => updateField(key, p.value)}
+                    className="flex items-center gap-2 text-sm cursor-pointer hover:bg-accent rounded px-2 py-1.5 transition-colors w-full text-left"
+                  >
+                    <span className="text-foreground">{p.label}</span>
+                    {value === p.value && <Check className="w-3 h-3 text-primary ml-auto" />}
+                  </button>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
       )
     }
@@ -177,16 +202,41 @@ export function ContatoInlineForm({ tipo, fields, onChange, onCancel }: ContatoI
           <label className="block text-xs font-medium text-foreground mb-1">
             {label}{required && <span className="text-destructive ml-0.5">*</span>}
           </label>
-          <select
-            value={value}
-            onChange={(e) => updateField(key, e.target.value)}
-            className="w-full h-9 px-3 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30 appearance-none"
-          >
-            <option value="">Selecione</option>
-            {campo.opcoes.map(opt => (
-              <option key={opt} value={opt}>{opt}</option>
-            ))}
-          </select>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="w-full h-9 px-3 text-sm bg-background border border-input rounded-md flex items-center justify-between gap-2 hover:border-ring/50 transition-colors text-left"
+              >
+                <span className={`truncate ${!value ? 'text-muted-foreground' : 'text-foreground'}`}>
+                  {value || 'Selecione'}
+                </span>
+                <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-1" align="start">
+              <div className="max-h-48 overflow-y-auto">
+                <button
+                  type="button"
+                  onClick={() => updateField(key, '')}
+                  className="flex items-center gap-2 text-sm cursor-pointer hover:bg-accent rounded px-2 py-1.5 transition-colors w-full text-left text-muted-foreground"
+                >
+                  Selecione
+                </button>
+                {campo.opcoes.map(opt => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => updateField(key, opt)}
+                    className="flex items-center gap-2 text-sm cursor-pointer hover:bg-accent rounded px-2 py-1.5 transition-colors w-full text-left"
+                  >
+                    <span className="text-foreground">{opt}</span>
+                    {value === opt && <Check className="w-3 h-3 text-primary ml-auto" />}
+                  </button>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
       )
     }

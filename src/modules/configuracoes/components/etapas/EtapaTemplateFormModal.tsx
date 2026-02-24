@@ -1,16 +1,18 @@
 /**
  * AIDEV-NOTE: Modal de criação/edição de Template de Etapa
  * Migrado para usar ModalBase (Design System 10.5)
+ * Protege exclusão de etapas vinculadas a pipelines
  */
 
 import { useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Link2 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { etapaTemplateFormSchema, tipoEtapaOptions, coresEtapaDefault } from '../../schemas/etapas-templates.schema'
 import type { EtapaTemplateFormData } from '../../schemas/etapas-templates.schema'
 import { useCriarEtapaTemplate, useAtualizarEtapaTemplate, useExcluirEtapaTemplate } from '../../hooks/useEtapasTemplates'
 import { useTarefasTemplates } from '../../hooks/useTarefasTemplates'
+import { useVinculosPipelines } from '../../hooks/useVinculosPipelines'
 import type { EtapaTemplate } from '../../services/configuracoes.api'
 import { ModalBase } from '../ui/ModalBase'
 
@@ -21,7 +23,6 @@ interface EtapaTemplateFormModalProps {
 
 export function EtapaTemplateFormModal({ template, onClose }: EtapaTemplateFormModalProps) {
   const isEditing = !!template
-  // Etapas de tipo entrada, ganho e perda são sistema (únicas por tenant, imutáveis)
   const isTipoSistema = template?.tipo === 'entrada' || template?.tipo === 'ganho' || template?.tipo === 'perda'
   const isProtegido = !!template?.sistema || isTipoSistema
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -30,6 +31,10 @@ export function EtapaTemplateFormModal({ template, onClose }: EtapaTemplateFormM
   const atualizar = useAtualizarEtapaTemplate()
   const excluir = useExcluirEtapaTemplate()
   const { data: tarefasData } = useTarefasTemplates({ ativo: 'true' })
+
+  // AIDEV-NOTE: Buscar vínculos com pipelines para bloquear exclusão
+  const { data: vinculos = [] } = useVinculosPipelines('etapa', template?.id)
+  const temVinculos = vinculos.length > 0
 
   const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm<EtapaTemplateFormData>({
     resolver: zodResolver(etapaTemplateFormSchema),
@@ -46,7 +51,6 @@ export function EtapaTemplateFormModal({ template, onClose }: EtapaTemplateFormM
   const tipoSelecionado = watch('tipo')
   const tarefasIds = watch('tarefas_ids') || []
 
-  // Na criação, apenas tipo "Normal" é permitido (entrada/ganho/perda são criados automaticamente com o tenant)
   const tiposDisponiveis = isEditing
     ? tipoEtapaOptions
     : tipoEtapaOptions.filter(opt => opt.value === 'normal')
@@ -73,15 +77,21 @@ export function EtapaTemplateFormModal({ template, onClose }: EtapaTemplateFormM
   const footerContent = (
     <div className="flex items-center justify-between w-full">
       <div>
-        {isEditing && !isProtegido && !confirmDelete && (
-          <button type="button" onClick={() => setConfirmDelete(true)} className="flex items-center gap-1.5 px-3 h-9 rounded-md text-sm text-destructive hover:bg-destructive/10 transition-all duration-200">Excluir</button>
-        )}
-        {confirmDelete && (
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-destructive">Confirmar?</span>
-            <button type="button" onClick={handleDelete} disabled={excluir.isPending} className="px-3 h-9 rounded-md bg-destructive text-destructive-foreground text-sm font-medium hover:bg-destructive/90 transition-all duration-200">{excluir.isPending ? 'Excluindo...' : 'Sim'}</button>
-            <button type="button" onClick={() => setConfirmDelete(false)} className="px-3 h-9 rounded-md border border-input text-sm font-medium hover:bg-accent transition-all duration-200">Não</button>
-          </div>
+        {isEditing && !isProtegido && (
+          temVinculos ? (
+            <div className="flex items-center gap-1.5 px-3 h-9 text-sm text-muted-foreground">
+              <Link2 className="w-4 h-4" />
+              <span>Vinculado a {vinculos.length} pipeline(s)</span>
+            </div>
+          ) : confirmDelete ? (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-destructive">Confirmar?</span>
+              <button type="button" onClick={handleDelete} disabled={excluir.isPending} className="px-3 h-9 rounded-md bg-destructive text-destructive-foreground text-sm font-medium hover:bg-destructive/90 transition-all duration-200">{excluir.isPending ? 'Excluindo...' : 'Sim'}</button>
+              <button type="button" onClick={() => setConfirmDelete(false)} className="px-3 h-9 rounded-md border border-input text-sm font-medium hover:bg-accent transition-all duration-200">Não</button>
+            </div>
+          ) : (
+            <button type="button" onClick={() => setConfirmDelete(true)} className="flex items-center gap-1.5 px-3 h-9 rounded-md text-sm text-destructive hover:bg-destructive/10 transition-all duration-200">Excluir</button>
+          )
         )}
       </div>
       <div className="flex items-center gap-2 sm:gap-3">
@@ -100,6 +110,19 @@ export function EtapaTemplateFormModal({ template, onClose }: EtapaTemplateFormM
   return (
     <ModalBase onClose={onClose} title={isEditing ? (isProtegido ? 'Etapa do Sistema' : 'Editar Etapa') : 'Nova Etapa'} description="Templates de Etapas" variant={isEditing ? 'edit' : 'create'} size="md" footer={footerContent}>
       <form id="etapa-tpl-form" onSubmit={handleSubmit(onSubmit)} className="px-4 sm:px-6 py-4 space-y-4">
+        {/* Badge de vínculos */}
+        {isEditing && temVinculos && (
+          <div className="p-3 rounded-md bg-primary/5 border border-primary/20">
+            <div className="flex items-center gap-2 mb-1">
+              <Link2 className="w-4 h-4 text-primary" />
+              <span className="text-sm font-medium text-primary">Vinculado a {vinculos.length} pipeline(s)</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {vinculos.map(v => v.funil_nome).join(', ')}. Desvincule de todas as pipelines antes de excluir.
+            </p>
+          </div>
+        )}
+
         {isProtegido && (
           <div className="px-3 py-2 rounded-md bg-muted text-xs text-muted-foreground">
             Etapas do sistema (Entrada, Ganho, Perda) são únicas por organização e não podem ser editadas ou excluídas.
@@ -123,7 +146,7 @@ export function EtapaTemplateFormModal({ template, onClose }: EtapaTemplateFormM
             rows={2} placeholder="Descrição opcional..." />
         </div>
 
-        {/* Tipo - Na criação só mostra "Normal"; na edição mostra o tipo atual (desabilitado se protegido) */}
+        {/* Tipo */}
         <div>
           <label className="block text-sm font-medium text-foreground mb-1">Tipo <span className="text-destructive">*</span></label>
           <div className={`grid gap-2 ${tiposDisponiveis.length === 1 ? 'grid-cols-1' : 'grid-cols-4'}`}>
@@ -163,7 +186,7 @@ export function EtapaTemplateFormModal({ template, onClose }: EtapaTemplateFormM
           {errors.probabilidade && <p className="text-xs text-destructive mt-1">{errors.probabilidade.message}</p>}
         </div>
 
-        {/* Tarefas vinculadas - apenas para etapas normais */}
+        {/* Tarefas vinculadas */}
         {!isProtegido && tarefasData?.templates && tarefasData.templates.length > 0 && (
           <div>
             <label className="block text-sm font-medium text-foreground mb-1">Tarefas automáticas</label>

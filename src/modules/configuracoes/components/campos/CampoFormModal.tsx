@@ -1,17 +1,19 @@
 import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Loader2, Trash2 } from 'lucide-react'
+import { Loader2, Trash2, Link2 } from 'lucide-react'
 import { X } from 'lucide-react'
 import { criarCampoSchema, type CriarCampoFormData, tipoCampoOptions } from '../../schemas/campos.schema'
 import { getTipoLabel } from './CamposList'
 import { useCriarCampo, useAtualizarCampo, useExcluirCampo } from '../../hooks/useCampos'
+import { useVinculosPipelines } from '../../hooks/useVinculosPipelines'
 import type { CampoCustomizado, Entidade } from '../../services/configuracoes.api'
 import { ModalBase } from '../ui/ModalBase'
 
 /**
  * AIDEV-NOTE: Modal de Criar/Editar Campo Personalizado
  * Migrado para usar ModalBase (Design System 10.5)
+ * Protege exclusão de campos vinculados a pipelines
  */
 
 interface Props {
@@ -32,24 +34,17 @@ export function CampoFormModal({ entidade, campo, onClose }: Props) {
   const atualizarMutation = useAtualizarCampo(entidade)
   const excluirMutation = useExcluirCampo(entidade)
 
+  // AIDEV-NOTE: Buscar vínculos com pipelines para bloquear exclusão
+  const { data: vinculos = [] } = useVinculosPipelines('campo', campo?.id)
+  const temVinculos = vinculos.length > 0
+
   const {
-    register,
-    handleSubmit,
-    watch,
-    setValue,
-    formState: { errors },
-    reset,
+    register, handleSubmit, watch, setValue, formState: { errors }, reset,
   } = useForm<CriarCampoFormData>({
     resolver: zodResolver(criarCampoSchema),
     defaultValues: {
-      nome: '',
-      descricao: '',
-      entidade,
-      tipo: 'texto',
-      obrigatorio: false,
-      valor_padrao: '',
-      placeholder: '',
-      opcoes: [],
+      nome: '', descricao: '', entidade, tipo: 'texto',
+      obrigatorio: false, valor_padrao: '', placeholder: '', opcoes: [],
     },
   })
 
@@ -59,14 +54,9 @@ export function CampoFormModal({ entidade, campo, onClose }: Props) {
   useEffect(() => {
     if (campo) {
       reset({
-        nome: campo.nome,
-        descricao: campo.descricao || '',
-        entidade: campo.entidade,
-        tipo: campo.tipo,
-        obrigatorio: campo.obrigatorio,
-        valor_padrao: campo.valor_padrao || '',
-        placeholder: campo.placeholder || '',
-        opcoes: campo.opcoes || [],
+        nome: campo.nome, descricao: campo.descricao || '', entidade: campo.entidade,
+        tipo: campo.tipo, obrigatorio: campo.obrigatorio, valor_padrao: campo.valor_padrao || '',
+        placeholder: campo.placeholder || '', opcoes: campo.opcoes || [],
       })
     }
   }, [campo, reset])
@@ -75,7 +65,6 @@ export function CampoFormModal({ entidade, campo, onClose }: Props) {
 
   const onSubmit = (data: CriarCampoFormData) => {
     if (isSistema && campo) {
-      // Campos do sistema: só permite alterar obrigatorio
       atualizarMutation.mutate(
         { id: campo.id, payload: { obrigatorio: data.obrigatorio } },
         { onSuccess: onClose }
@@ -122,7 +111,12 @@ export function CampoFormModal({ entidade, campo, onClose }: Props) {
     <div className="flex items-center justify-between w-full">
       <div>
         {isEditing && !campo?.sistema && (
-          showDeleteConfirm ? (
+          temVinculos ? (
+            <div className="flex items-center gap-1.5 px-3 h-9 text-sm text-muted-foreground">
+              <Link2 className="w-4 h-4" />
+              <span>Vinculado a {vinculos.length} pipeline(s)</span>
+            </div>
+          ) : showDeleteConfirm ? (
             <div className="flex items-center gap-2">
               <span className="text-sm text-destructive">Confirmar?</span>
               <button type="button" onClick={handleDelete} disabled={excluirMutation.isPending}
@@ -167,9 +161,21 @@ export function CampoFormModal({ entidade, campo, onClose }: Props) {
       footer={footerContent}
     >
       <form id="campo-form" onSubmit={handleSubmit(onSubmit)} className="px-4 sm:px-6 py-4 space-y-4">
+        {/* Badge de vínculos */}
+        {isEditing && temVinculos && (
+          <div className="p-3 rounded-md bg-primary/5 border border-primary/20">
+            <div className="flex items-center gap-2 mb-1">
+              <Link2 className="w-4 h-4 text-primary" />
+              <span className="text-sm font-medium text-primary">Vinculado a {vinculos.length} pipeline(s)</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {vinculos.map(v => v.funil_nome).join(', ')}. Desvincule de todas as pipelines antes de excluir.
+            </p>
+          </div>
+        )}
+
         {isSistema ? (
           <>
-            {/* Modo sistema: exibe info read-only + checkbox obrigatório */}
             <div className="space-y-3">
               <div>
                 <span className="block text-sm font-medium text-muted-foreground mb-1">Nome</span>
@@ -200,9 +206,7 @@ export function CampoFormModal({ entidade, campo, onClose }: Props) {
               </label>
               <input id="campo-nome" {...register('nome')}
                 className="w-full h-10 px-3 rounded-md border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-ring focus:border-ring transition-all duration-200"
-                placeholder="Ex: Origem do Lead"
-                aria-invalid={!!errors.nome}
-              />
+                placeholder="Ex: Origem do Lead" aria-invalid={!!errors.nome} />
               {errors.nome && <p className="text-xs text-destructive mt-1">{errors.nome.message}</p>}
             </div>
 

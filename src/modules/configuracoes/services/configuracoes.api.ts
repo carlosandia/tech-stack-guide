@@ -2830,3 +2830,122 @@ export const configTenantApi = {
     return data as unknown as ConfiguracaoTenant
   },
 }
+
+// =====================================================
+// Vínculos de itens globais com pipelines
+// =====================================================
+
+export interface VinculoPipeline {
+  funil_id: string
+  funil_nome: string
+}
+
+export const vinculosPipelinesApi = {
+  /**
+   * Busca pipelines vinculadas a um campo customizado via funis_campos
+   */
+  buscarVinculosCampo: async (campoId: string): Promise<VinculoPipeline[]> => {
+    const { data, error } = await supabase
+      .from('funis_campos')
+      .select('funil_id, funis!inner(nome)')
+      .eq('campo_id', campoId)
+
+    if (error) throw new Error(`Erro ao buscar vínculos do campo: ${error.message}`)
+    return (data || []).map((row: any) => ({
+      funil_id: row.funil_id,
+      funil_nome: row.funis?.nome || 'Pipeline',
+    }))
+  },
+
+  /**
+   * Busca pipelines vinculadas a uma etapa template via etapas_funil
+   */
+  buscarVinculosEtapa: async (etapaTemplateId: string): Promise<VinculoPipeline[]> => {
+    const { data, error } = await supabase
+      .from('etapas_funil')
+      .select('funil_id, funis!inner(nome)')
+      .eq('etapa_template_id', etapaTemplateId)
+
+    if (error) throw new Error(`Erro ao buscar vínculos da etapa: ${error.message}`)
+    return (data || []).map((row: any) => ({
+      funil_id: row.funil_id,
+      funil_nome: row.funis?.nome || 'Pipeline',
+    }))
+  },
+
+  /**
+   * Busca pipelines vinculadas a uma tarefa template via funis_etapas_tarefas → etapas_funil → funis
+   */
+  buscarVinculosTarefa: async (tarefaTemplateId: string): Promise<VinculoPipeline[]> => {
+    const { data, error } = await supabase
+      .from('funis_etapas_tarefas')
+      .select('etapa_funil_id, etapas_funil!inner(funil_id, funis!inner(nome))')
+      .eq('tarefa_template_id', tarefaTemplateId)
+
+    if (error) throw new Error(`Erro ao buscar vínculos da tarefa: ${error.message}`)
+    // Deduplicate by funil_id
+    const map = new Map<string, string>()
+    for (const row of (data || []) as any[]) {
+      const funilId = row.etapas_funil?.funil_id
+      const funilNome = row.etapas_funil?.funis?.nome || 'Pipeline'
+      if (funilId && !map.has(funilId)) map.set(funilId, funilNome)
+    }
+    return Array.from(map.entries()).map(([funil_id, funil_nome]) => ({ funil_id, funil_nome }))
+  },
+
+  /**
+   * Busca pipelines vinculadas a um motivo via funis_motivos
+   */
+  buscarVinculosMotivo: async (motivoId: string): Promise<VinculoPipeline[]> => {
+    const { data, error } = await supabase
+      .from('funis_motivos')
+      .select('funil_id, funis!inner(nome)')
+      .eq('motivo_id', motivoId)
+
+    if (error) throw new Error(`Erro ao buscar vínculos do motivo: ${error.message}`)
+    return (data || []).map((row: any) => ({
+      funil_id: row.funil_id,
+      funil_nome: row.funis?.nome || 'Pipeline',
+    }))
+  },
+
+  /**
+   * Busca pipelines vinculadas a uma regra de qualificação via funis_regras_qualificacao
+   */
+  buscarVinculosRegra: async (regraId: string): Promise<VinculoPipeline[]> => {
+    const { data, error } = await supabase
+      .from('funis_regras_qualificacao')
+      .select('funil_id, funis!inner(nome)')
+      .eq('regra_id', regraId)
+
+    if (error) throw new Error(`Erro ao buscar vínculos da regra: ${error.message}`)
+    return (data || []).map((row: any) => ({
+      funil_id: row.funil_id,
+      funil_nome: row.funis?.nome || 'Pipeline',
+    }))
+  },
+
+  /**
+   * Busca vínculos em lote para múltiplos campos (usado na CamposList)
+   */
+  buscarVinculosCamposEmLote: async (campoIds: string[]): Promise<Record<string, VinculoPipeline[]>> => {
+    if (campoIds.length === 0) return {}
+
+    const { data, error } = await supabase
+      .from('funis_campos')
+      .select('campo_id, funil_id, funis!inner(nome)')
+      .in('campo_id', campoIds)
+
+    if (error) throw new Error(`Erro ao buscar vínculos em lote: ${error.message}`)
+
+    const result: Record<string, VinculoPipeline[]> = {}
+    for (const row of (data || []) as any[]) {
+      if (!result[row.campo_id]) result[row.campo_id] = []
+      result[row.campo_id].push({
+        funil_id: row.funil_id,
+        funil_nome: row.funis?.nome || 'Pipeline',
+      })
+    }
+    return result
+  },
+}

@@ -4,15 +4,17 @@
  * Suporta modo 'comum' e 'cadencia' (PRD-05 evolução)
  * Editor rico com emoji, formatação e upload de imagem para cadência
  * Suporta gravação de áudio para templates WhatsApp (substitui texto)
+ * Protege exclusão de tarefas vinculadas a pipelines
  */
 
 import { useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Link2 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { tarefaTemplateFormSchema, tipoTarefaOptions, canalTarefaOptions, prioridadeTarefaOptions, modoTarefaOptions } from '../../schemas/tarefas-templates.schema'
 import type { TarefaTemplateFormData } from '../../schemas/tarefas-templates.schema'
 import { useCriarTarefaTemplate, useAtualizarTarefaTemplate, useExcluirTarefaTemplate } from '../../hooks/useTarefasTemplates'
+import { useVinculosPipelines } from '../../hooks/useVinculosPipelines'
 import type { TarefaTemplate } from '../../services/configuracoes.api'
 import { ModalBase } from '../ui/ModalBase'
 import { CadenciaMessageEditor } from './CadenciaMessageEditor'
@@ -31,6 +33,10 @@ export function TarefaTemplateFormModal({ template, onClose }: TarefaTemplateFor
   const criar = useCriarTarefaTemplate()
   const atualizar = useAtualizarTarefaTemplate()
   const excluir = useExcluirTarefaTemplate()
+
+  // AIDEV-NOTE: Buscar vínculos com pipelines para bloquear exclusão
+  const { data: vinculos = [] } = useVinculosPipelines('tarefa', template?.id)
+  const temVinculos = vinculos.length > 0
 
   const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm<TarefaTemplateFormData>({
     resolver: zodResolver(tarefaTemplateFormSchema),
@@ -54,12 +60,10 @@ export function TarefaTemplateFormModal({ template, onClose }: TarefaTemplateFor
   const audioUrlAtual = watch('audio_url')
   const hasAudio = !!audioUrlAtual
 
-  // Tipos permitidos para cadência
   const tiposFiltrados = modoSelecionado === 'cadencia'
     ? tipoTarefaOptions.filter(opt => opt.value === 'email' || opt.value === 'whatsapp')
     : tipoTarefaOptions
 
-  // Quando muda modo para cadência, forçar tipo válido
   const handleModoChange = (modo: 'comum' | 'cadencia') => {
     setValue('modo', modo)
     if (modo === 'cadencia' && tipoSelecionado !== 'email' && tipoSelecionado !== 'whatsapp') {
@@ -72,18 +76,15 @@ export function TarefaTemplateFormModal({ template, onClose }: TarefaTemplateFor
 
   const onSubmit = async (data: TarefaTemplateFormData) => {
     try {
-      // Limpar campos de cadência se modo comum
       const payload = { ...data }
       if (payload.modo === 'comum') {
         payload.assunto_email = null
         payload.corpo_mensagem = null
         payload.audio_url = null
       }
-      // Se WhatsApp com áudio, limpar corpo_mensagem
       if (payload.audio_url && payload.tipo === 'whatsapp') {
         payload.corpo_mensagem = null
       }
-      // Garantir que canal vazio vire null
       if (!payload.canal) {
         payload.canal = null
       }
@@ -101,15 +102,21 @@ export function TarefaTemplateFormModal({ template, onClose }: TarefaTemplateFor
   const footerContent = (
     <div className="flex items-center justify-between w-full">
       <div>
-        {isEditing && !confirmDelete && (
-          <button type="button" onClick={() => setConfirmDelete(true)} className="flex items-center gap-1.5 px-3 h-9 rounded-md text-sm text-destructive hover:bg-destructive/10 transition-all duration-200">Excluir</button>
-        )}
-        {confirmDelete && (
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-destructive">Confirmar?</span>
-            <button type="button" onClick={handleDelete} disabled={excluir.isPending} className="px-3 h-9 rounded-md bg-destructive text-destructive-foreground text-sm font-medium hover:bg-destructive/90 transition-all duration-200">{excluir.isPending ? 'Excluindo...' : 'Sim'}</button>
-            <button type="button" onClick={() => setConfirmDelete(false)} className="px-3 h-9 rounded-md border border-input text-sm font-medium hover:bg-accent transition-all duration-200">Não</button>
-          </div>
+        {isEditing && (
+          temVinculos ? (
+            <div className="flex items-center gap-1.5 px-3 h-9 text-sm text-muted-foreground">
+              <Link2 className="w-4 h-4" />
+              <span>Vinculado a {vinculos.length} pipeline(s)</span>
+            </div>
+          ) : confirmDelete ? (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-destructive">Confirmar?</span>
+              <button type="button" onClick={handleDelete} disabled={excluir.isPending} className="px-3 h-9 rounded-md bg-destructive text-destructive-foreground text-sm font-medium hover:bg-destructive/90 transition-all duration-200">{excluir.isPending ? 'Excluindo...' : 'Sim'}</button>
+              <button type="button" onClick={() => setConfirmDelete(false)} className="px-3 h-9 rounded-md border border-input text-sm font-medium hover:bg-accent transition-all duration-200">Não</button>
+            </div>
+          ) : (
+            <button type="button" onClick={() => setConfirmDelete(true)} className="flex items-center gap-1.5 px-3 h-9 rounded-md text-sm text-destructive hover:bg-destructive/10 transition-all duration-200">Excluir</button>
+          )
         )}
       </div>
       <div className="flex items-center gap-2 sm:gap-3">
@@ -126,7 +133,20 @@ export function TarefaTemplateFormModal({ template, onClose }: TarefaTemplateFor
   return (
     <ModalBase onClose={onClose} title={isEditing ? 'Editar Template' : 'Novo Template de Tarefa'} description="Templates" variant={isEditing ? 'edit' : 'create'} size="md" footer={footerContent}>
       <form id="tarefa-tpl-form" onSubmit={handleSubmit(onSubmit, (errs) => console.error('Validação falhou:', errs))} className="px-4 sm:px-6 py-4 space-y-4">
-        {/* Modo: Comum vs Cadência */}
+        {/* Badge de vínculos */}
+        {isEditing && temVinculos && (
+          <div className="p-3 rounded-md bg-primary/5 border border-primary/20">
+            <div className="flex items-center gap-2 mb-1">
+              <Link2 className="w-4 h-4 text-primary" />
+              <span className="text-sm font-medium text-primary">Vinculado a {vinculos.length} pipeline(s)</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {vinculos.map(v => v.funil_nome).join(', ')}. Desvincule de todas as pipelines antes de excluir.
+            </p>
+          </div>
+        )}
+
+        {/* Modo */}
         <div>
           <label className="block text-sm font-medium text-foreground mb-2">Modo</label>
           <div className="grid grid-cols-2 gap-2">
@@ -176,47 +196,27 @@ export function TarefaTemplateFormModal({ template, onClose }: TarefaTemplateFor
           <div className="space-y-4 p-3 rounded-lg border border-primary/20 bg-primary/5">
             <p className="text-xs font-medium text-primary">Configuração da Mensagem</p>
 
-            {/* Assunto (só para email) - com emoji */}
             {tipoSelecionado === 'email' && (
               <div>
                 <label htmlFor="tt-assunto" className="block text-sm font-medium text-foreground mb-1">Assunto do E-mail <span className="text-destructive">*</span></label>
-                <EmojiInput
-                  id="tt-assunto"
-                  value={assuntoAtual}
-                  onChange={(val) => setValue('assunto_email', val, { shouldValidate: true })}
-                  placeholder="Ex: Proposta comercial 🎯"
-                />
+                <EmojiInput id="tt-assunto" value={assuntoAtual} onChange={(val) => setValue('assunto_email', val, { shouldValidate: true })} placeholder="Ex: Proposta comercial 🎯" />
                 {errors.assunto_email && <p className="text-xs text-destructive mt-1">{errors.assunto_email.message}</p>}
               </div>
             )}
 
-            {/* Gravação de áudio (só para WhatsApp) */}
             {tipoSelecionado === 'whatsapp' && (
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Áudio da Mensagem</label>
-                <CadenciaAudioRecorder
-                  audioUrl={audioUrlAtual || null}
-                  onChange={(url) => {
-                    setValue('audio_url', url, { shouldValidate: true })
-                    if (url) setValue('corpo_mensagem', '', { shouldValidate: true })
-                  }}
-                />
+                <CadenciaAudioRecorder audioUrl={audioUrlAtual || null} onChange={(url) => { setValue('audio_url', url, { shouldValidate: true }); if (url) setValue('corpo_mensagem', '', { shouldValidate: true }) }} />
               </div>
             )}
 
-            {/* Corpo da mensagem - editor rico (oculto se tem áudio no whatsapp) */}
             {!(tipoSelecionado === 'whatsapp' && hasAudio) && (
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">
                   {tipoSelecionado === 'email' ? 'Corpo do E-mail' : 'Mensagem do WhatsApp'} <span className="text-destructive">*</span>
                 </label>
-                <CadenciaMessageEditor
-                  content={corpoAtual}
-                  onChange={(html) => setValue('corpo_mensagem', html, { shouldValidate: true })}
-                  mode={tipoSelecionado === 'email' ? 'email' : 'whatsapp'}
-                  placeholder={tipoSelecionado === 'email' ? 'Corpo do e-mail que será enviado...' : 'Mensagem que será enviada via WhatsApp...'}
-                  minHeight="100px"
-                />
+                <CadenciaMessageEditor content={corpoAtual} onChange={(html) => setValue('corpo_mensagem', html, { shouldValidate: true })} mode={tipoSelecionado === 'email' ? 'email' : 'whatsapp'} placeholder={tipoSelecionado === 'email' ? 'Corpo do e-mail que será enviado...' : 'Mensagem que será enviada via WhatsApp...'} minHeight="100px" />
                 {errors.corpo_mensagem && <p className="text-xs text-destructive mt-1">{errors.corpo_mensagem.message}</p>}
               </div>
             )}

@@ -1,16 +1,18 @@
 /**
  * AIDEV-NOTE: Modal de criação/edição de Regra de Qualificação (MQL)
  * Migrado para usar ModalBase (Design System 10.5)
+ * Protege exclusão de regras vinculadas a pipelines
  */
 
 import { useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Link2 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { regraFormSchema, operadorOptions } from '../../schemas/regras.schema'
 import type { RegraFormData } from '../../schemas/regras.schema'
 import { useCriarRegra, useAtualizarRegra, useExcluirRegra } from '../../hooks/useRegras'
 import { useCampos } from '../../hooks/useCampos'
+import { useVinculosPipelines } from '../../hooks/useVinculosPipelines'
 import type { RegraQualificacao } from '../../services/configuracoes.api'
 import { ModalBase } from '../ui/ModalBase'
 
@@ -29,6 +31,10 @@ export function RegraFormModal({ regra, onClose }: RegraFormModalProps) {
   const { data: camposPessoa } = useCampos('pessoa')
   const { data: camposEmpresa } = useCampos('empresa')
   const { data: camposOportunidade } = useCampos('oportunidade')
+
+  // AIDEV-NOTE: Buscar vínculos com pipelines para bloquear exclusão
+  const { data: vinculos = [] } = useVinculosPipelines('regra', regra?.id)
+  const temVinculos = vinculos.length > 0
 
   const { register, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm<RegraFormData>({
     resolver: zodResolver(regraFormSchema),
@@ -58,15 +64,21 @@ export function RegraFormModal({ regra, onClose }: RegraFormModalProps) {
   const footerContent = (
     <div className="flex items-center justify-between w-full">
       <div>
-        {isEditing && !confirmDelete && (
-          <button type="button" onClick={() => setConfirmDelete(true)} className="flex items-center gap-1.5 px-3 h-9 rounded-md text-sm text-destructive hover:bg-destructive/10 transition-all duration-200">Excluir</button>
-        )}
-        {confirmDelete && (
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-destructive">Confirmar?</span>
-            <button type="button" onClick={handleDelete} disabled={excluir.isPending} className="px-3 h-9 rounded-md bg-destructive text-destructive-foreground text-sm font-medium hover:bg-destructive/90 transition-all duration-200">{excluir.isPending ? 'Excluindo...' : 'Sim'}</button>
-            <button type="button" onClick={() => setConfirmDelete(false)} className="px-3 h-9 rounded-md border border-input text-sm font-medium hover:bg-accent transition-all duration-200">Não</button>
-          </div>
+        {isEditing && (
+          temVinculos ? (
+            <div className="flex items-center gap-1.5 px-3 h-9 text-sm text-muted-foreground">
+              <Link2 className="w-4 h-4" />
+              <span>Vinculado a {vinculos.length} pipeline(s)</span>
+            </div>
+          ) : confirmDelete ? (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-destructive">Confirmar?</span>
+              <button type="button" onClick={handleDelete} disabled={excluir.isPending} className="px-3 h-9 rounded-md bg-destructive text-destructive-foreground text-sm font-medium hover:bg-destructive/90 transition-all duration-200">{excluir.isPending ? 'Excluindo...' : 'Sim'}</button>
+              <button type="button" onClick={() => setConfirmDelete(false)} className="px-3 h-9 rounded-md border border-input text-sm font-medium hover:bg-accent transition-all duration-200">Não</button>
+            </div>
+          ) : (
+            <button type="button" onClick={() => setConfirmDelete(true)} className="flex items-center gap-1.5 px-3 h-9 rounded-md text-sm text-destructive hover:bg-destructive/10 transition-all duration-200">Excluir</button>
+          )
         )}
       </div>
       <div className="flex items-center gap-2 sm:gap-3">
@@ -83,6 +95,19 @@ export function RegraFormModal({ regra, onClose }: RegraFormModalProps) {
   return (
     <ModalBase onClose={onClose} title={isEditing ? 'Editar Regra' : 'Nova Regra de Qualificação'} description="Qualificação MQL" variant={isEditing ? 'edit' : 'create'} size="md" footer={footerContent}>
       <form id="regra-form" onSubmit={handleSubmit(onSubmit)} className="px-4 sm:px-6 py-4 space-y-4">
+        {/* Badge de vínculos */}
+        {isEditing && temVinculos && (
+          <div className="p-3 rounded-md bg-primary/5 border border-primary/20">
+            <div className="flex items-center gap-2 mb-1">
+              <Link2 className="w-4 h-4 text-primary" />
+              <span className="text-sm font-medium text-primary">Vinculado a {vinculos.length} pipeline(s)</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {vinculos.map(v => v.funil_nome).join(', ')}. Desvincule de todas as pipelines antes de excluir.
+            </p>
+          </div>
+        )}
+
         <div>
           <label htmlFor="rg-nome" className="block text-sm font-medium text-foreground mb-1">Nome <span className="text-destructive">*</span></label>
           <input id="rg-nome" {...register('nome')} className="w-full h-10 px-3 rounded-md border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-ring focus:border-ring transition-all duration-200" placeholder="Ex: Email corporativo" aria-invalid={!!errors.nome} />
