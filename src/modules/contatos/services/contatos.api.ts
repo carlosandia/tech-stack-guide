@@ -458,6 +458,107 @@ export const contatosApi = {
     return data as Contato
   },
 
+  /**
+   * AIDEV-NOTE: Salva valores de campos customizados (custom_*) para um contato.
+   * Busca campo_id pelo slug, faz upsert na tabela valores_campos_customizados.
+   */
+  salvarCamposCustomizados: async (
+    contatoId: string,
+    tipo: TipoContato,
+    payload: Record<string, unknown>
+  ): Promise<void> => {
+    const organizacaoId = await getOrganizacaoId()
+
+    // Extrair campos custom_* do payload
+    const customEntries: Array<{ slug: string; valor: unknown }> = []
+    for (const [key, value] of Object.entries(payload)) {
+      if (key.startsWith('custom_')) {
+        customEntries.push({ slug: key.replace('custom_', ''), valor: value })
+      }
+    }
+    if (customEntries.length === 0) return
+
+    // Buscar campo_id e tipo pelo slug
+    const slugs = customEntries.map(e => e.slug)
+    const { data: camposDefs } = await supabase
+      .from('campos_customizados')
+      .select('id, slug, tipo')
+      .eq('organizacao_id', organizacaoId)
+      .in('slug', slugs)
+      .is('deletado_em', null)
+
+    if (!camposDefs || camposDefs.length === 0) return
+
+    const slugToCampo = new Map(camposDefs.map(c => [c.slug, c]))
+    const entidadeTipo = tipo === 'empresa' ? 'empresa' : 'pessoa'
+
+    // Deletar valores existentes para esses campos e re-inserir
+    const campoIds = camposDefs.map(c => c.id)
+    await supabase
+      .from('valores_campos_customizados')
+      .delete()
+      .eq('entidade_id', contatoId)
+      .eq('entidade_tipo', entidadeTipo)
+      .in('campo_id', campoIds)
+
+    // Preparar rows para insert
+    const rows: any[] = []
+    for (const entry of customEntries) {
+      const campo = slugToCampo.get(entry.slug)
+      if (!campo) continue
+
+      const valor = entry.valor
+      if (valor === null || valor === undefined || valor === '') continue
+
+      const row: any = {
+        organizacao_id: organizacaoId,
+        entidade_id: contatoId,
+        entidade_tipo: entidadeTipo,
+        campo_id: campo.id,
+      }
+
+      // Mapear valor para coluna correta baseado no tipo do campo
+      switch (campo.tipo) {
+        case 'numero':
+        case 'decimal':
+        case 'moeda':
+          row.valor_numero = Number(valor) || null
+          break
+        case 'data':
+          row.valor_data = String(valor)
+          break
+        case 'booleano':
+        case 'checkbox':
+          row.valor_booleano = Boolean(valor)
+          break
+        case 'multi_select':
+          // Valor pode ser pipe-delimited string
+          if (typeof valor === 'string' && valor.includes('|')) {
+            row.valor_json = valor.split('|').map(v => v.trim())
+          } else if (Array.isArray(valor)) {
+            row.valor_json = valor
+          } else {
+            row.valor_texto = String(valor)
+          }
+          break
+        default:
+          row.valor_texto = String(valor)
+      }
+
+      rows.push(row)
+    }
+
+    if (rows.length > 0) {
+      const { error } = await supabase
+        .from('valores_campos_customizados')
+        .insert(rows)
+
+      if (error) {
+        console.error('[salvarCamposCustomizados] Erro ao salvar:', error.message)
+      }
+    }
+  },
+
   atualizar: async (id: string, payload: Record<string, unknown>): Promise<Contato> => {
     const cleanPayload = sanitizeContatoPayload(payload)
 
