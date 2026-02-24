@@ -1495,31 +1495,39 @@ export const negociosApi = {
     if (error) throw new Error(error.message)
 
     // Aplicar configurações da pipeline destino para cada oportunidade
+    // AIDEV-NOTE: Executado APÓS o update para garantir que a oportunidade já está no funil destino
     if (opsData && opsData.length > 0) {
       const userId = await getUsuarioId()
+      const orgId = await getOrganizacaoId()
 
       for (const op of opsData) {
+        const contatoId = op.contato_id
+        const orgIdOp = op.organizacao_id || orgId
+
         // 1. Criar tarefas automáticas da etapa destino
         try {
+          console.log(`[MoverPipeline] Criando tarefas para op=${op.id}, etapa=${etapaDestinoId}`)
           await negociosApi.criarTarefasAutomaticas(
             op.id,
             etapaDestinoId,
-            op.contato_id,
-            op.organizacao_id,
+            contatoId,
+            orgIdOp,
             op.usuario_responsavel_id || userId,
             userId,
           )
         } catch (err) {
-          console.error(`Erro ao criar tarefas automáticas para op ${op.id}:`, err)
+          console.error(`[MoverPipeline] Erro ao criar tarefas para op ${op.id}:`, err)
         }
 
         // 2. Reavaliar qualificação MQL com regras do novo funil
         try {
           await negociosApi.avaliarQualificacaoMQL(op.id)
         } catch (err) {
-          console.error(`Erro ao reavaliar MQL para op ${op.id}:`, err)
+          console.error(`[MoverPipeline] Erro ao reavaliar MQL para op ${op.id}:`, err)
         }
       }
+    } else {
+      console.warn('[MoverPipeline] Nenhuma oportunidade encontrada para aplicar config destino. IDs:', ids)
     }
   },
 
