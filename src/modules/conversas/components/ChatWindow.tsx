@@ -23,7 +23,7 @@ import { ContatoSelectorModal } from './ContatoSelectorModal'
 import { EnqueteModal } from './EnqueteModal'
 // AIDEV-NOTE: EncaminharModal removido - GOWS não suporta forward
 // AIDEV-NOTE: PinnedMessageBanner removido por solicitação do usuário
-import { useMensagens, useAckRealtime, useEnviarTexto, useEnviarContato, useEnviarEnquete } from '../hooks/useMensagens'
+import { useMensagens, useAckRealtime, useEnviarTexto, useEnviarMedia, useEnviarContato, useEnviarEnquete } from '../hooks/useMensagens'
 import {
   useAlterarStatusConversa, useMarcarComoLida, useSilenciarConversa,
   useLimparConversa, useApagarConversa, useApagarMensagem,
@@ -142,6 +142,7 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
   const apagarConversa = useApagarConversa()
   const apagarMensagem = useApagarMensagem()
   const reagirMensagem = useReagirMensagem()
+  const enviarMedia = useEnviarMedia()
   // AIDEV-NOTE: fixarMensagem/desafixarMensagem removidos por solicitação do usuário
 
   // Flatten paginated messages
@@ -348,14 +349,17 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
     setSendingQueue(true)
 
     try {
-      // AIDEV-NOTE: Enviar itens em ordem sequencial (fila)
+      // AIDEV-NOTE: Enviar itens em ordem sequencial via hook (invalida cache automaticamente)
       for (const item of mediaQueue) {
-        await conversasApi.enviarMedia(conversa.id, {
-          tipo: item.tipo,
-          media_url: item.media_url,
-          caption: undefined,
-          filename: item.filename,
-          mimetype: item.mimetype,
+        await enviarMedia.mutateAsync({
+          conversaId: conversa.id,
+          dados: {
+            tipo: item.tipo,
+            media_url: item.media_url,
+            caption: undefined,
+            filename: item.filename,
+            mimetype: item.mimetype,
+          },
         })
       }
 
@@ -397,10 +401,13 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
         .from('chat-media')
         .getPublicUrl(path)
 
-      await conversasApi.enviarMedia(conversa.id, {
-        tipo: 'audio',
-        media_url: urlData.publicUrl,
-        mimetype: contentType,
+      await enviarMedia.mutateAsync({
+        conversaId: conversa.id,
+        dados: {
+          tipo: 'audio',
+          media_url: urlData.publicUrl,
+          mimetype: contentType,
+        },
       })
 
       toast.success('Áudio enviado')
