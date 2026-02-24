@@ -1,69 +1,80 @@
 
-# Filtrar Tarefas por Pipeline Atual
+
+# Protecao contra exclusao de itens globais vinculados a pipelines + Correcao do Select
 
 ## Contexto
 
-Cada tarefa automatica tem `etapa_origem_id` que pertence a uma pipeline especifica. Quando uma oportunidade muda de pipeline, as tarefas da pipeline anterior devem ser **mantidas no banco** (auditoria) mas **ocultadas na interface**. Apenas tarefas da pipeline atual (ou tarefas manuais sem etapa) devem aparecer.
+Atualmente, ao excluir um Campo, Etapa, Tarefa, Motivo ou Regra de Qualificacao nas configuracoes globais, nao ha verificacao se o item esta vinculado a alguma pipeline. Isso pode causar dados orfaos e inconsistencias. Alem disso, o dropdown `<select>` para campos do tipo "select" nao abre corretamente dentro do modal de criacao de oportunidade.
 
-## Locais Afetados
+## Tabelas de vinculo por entidade
 
-### 1. API de listagem de tarefas (detalhes.api.ts)
+| Entidade Global | Tabela de Vinculo | Chave |
+|---|---|---|
+| Campo customizado | `funis_campos` | `campo_id` |
+| Etapa template | `etapas_funil` | `etapa_template_id` (via campo `etapa_template_id` na etapa) |
+| Tarefa template | `funis_etapas_tarefas` | `tarefa_template_id` |
+| Motivo | `funis_motivos` | `motivo_id` |
+| Regra qualificacao | `funis_regras_qualificacao` | `regra_id` |
 
-- `listarTarefas(oportunidadeId, funilId)` recebera o `funilId` como parametro
-- Antes de retornar, buscar as etapas do funil atual e filtrar: so retornar tarefas onde `etapa_origem_id` pertence ao funil atual OU `etapa_origem_id` e null (tarefas manuais)
+## Solucao
 
-### 2. Hook useDetalhes.ts
+### 1. Funcoes de verificacao de vinculos (configuracoes.api.ts)
 
-- `useTarefasOportunidade(oportunidadeId, funilId)` recebera funilId
-- Query key incluira funilId para invalidacao correta
+Criar funcoes que consultam as tabelas de vinculo e retornam os nomes das pipelines onde cada item esta vinculado:
 
-### 3. DetalhesAbas.tsx
+- `buscarVinculosCampo(campoId)` - consulta `funis_campos` join `funis`
+- `buscarVinculosEtapa(etapaTemplateId)` - consulta `etapas_funil` onde `etapa_template_id` = id, join `funis`
+- `buscarVinculosTarefa(tarefaTemplateId)` - consulta `funis_etapas_tarefas` join etapa join `funis`
+- `buscarVinculosMotivo(motivoId)` - consulta `funis_motivos` join `funis`
+- `buscarVinculosRegra(regraId)` - consulta `funis_regras_qualificacao` join `funis`
 
-- Recebera nova prop `funilId` e repassara para AbaTarefas
+Cada funcao retorna `{ funil_id: string, funil_nome: string }[]`.
 
-### 4. AbaTarefas.tsx
+### 2. Hook generico (useVinculosPipelines.ts)
 
-- Recebera `funilId` e passara para o hook `useTarefasOportunidade`
+Criar um hook `useVinculosPipelines(tipo, itemId)` que chama a funcao correta baseado no tipo e retorna os vinculos. Ativado apenas quando `itemId` existe (modo edicao).
 
-### 5. DetalhesOportunidadeModal.tsx
+### 3. Protecao nos modais de edicao
 
-- Ja tem `funilId` via props -- passara para DetalhesAbas
+Em cada modal, quando houver vinculos ativos:
 
-### 6. TarefasPopover.tsx (card do Kanban)
+- **Botao "Excluir" fica desabilitado**
+- **Mensagem informativa** aparece no lugar da confirmacao: "Este item esta vinculado a X pipeline(s): [nomes]. Desvincule-o de todas as pipelines antes de excluir."
+- **Badge visual** discreto no topo do modal indicando "Vinculado a N pipeline(s)"
 
-- Recebera `funilId` como prop
-- Ao carregar tarefas, primeiro buscar etapas do funil, depois filtrar tarefas por essas etapas
-- Contagem ja sera correta pois vem do Kanban que e por funil
+Modais afetados:
+- `CampoFormModal.tsx` - verifica `funis_campos`
+- `EtapaTemplateFormModal.tsx` - verifica `etapas_funil`
+- `TarefaTemplateFormModal.tsx` - verifica `funis_etapas_tarefas`
+- `MotivoFormModal.tsx` - verifica `funis_motivos`
+- `RegraFormModal.tsx` - verifica `funis_regras_qualificacao`
 
-### 7. Contagem de tarefas no Kanban (negocios.api.ts)
+### 4. Badge na listagem de campos (CamposList.tsx)
 
-- Na query de tarefas para contagem (linhas 370-390), adicionar join/filtro por `etapa_origem_id` pertencente as etapas do funil atual, ou `etapa_origem_id` nulo
-- Isso garante que o badge "2/5" no card reflita apenas tarefas da pipeline visivel
+Para campos customizados, buscar vinculos e exibir um badge pequeno ao lado do tipo (ex: "2 pipelines") com tooltip listando os nomes.
 
-## Logica de Filtro
+### 5. Correcao do Select dropdown (ContatoInlineForm.tsx)
 
-```text
-Exibir tarefa SE:
-  - etapa_origem_id IS NULL (tarefa manual, sem vinculo a etapa)
-  - OU etapa_origem_id pertence a uma etapa do funil_id atual
-```
+Substituir o `<select>` nativo com `appearance-none` (que nao abre dentro de modais com z-index alto) por um componente `Popover` + lista clicavel, identico ao padrao ja usado para `multi_select` no mesmo arquivo. O `PopoverContent` do Radix usa portal por padrao, resolvendo o problema de z-index.
 
-## Arquivos Alterados
+## Arquivos alterados
 
 | Arquivo | Alteracao |
-|---------|-----------|
-| `src/modules/negocios/services/detalhes.api.ts` | `listarTarefas` recebe `funilId`, filtra por etapas do funil |
-| `src/modules/negocios/hooks/useDetalhes.ts` | Hook recebe e propaga `funilId` |
-| `src/modules/negocios/components/detalhes/DetalhesAbas.tsx` | Nova prop `funilId`, repassa a AbaTarefas |
-| `src/modules/negocios/components/detalhes/AbaTarefas.tsx` | Recebe `funilId`, passa ao hook |
-| `src/modules/negocios/components/detalhes/DetalhesOportunidadeModal.tsx` | Passa `funilId` para DetalhesAbas |
-| `src/modules/negocios/components/kanban/TarefasPopover.tsx` | Recebe `funilId`, filtra tarefas ao carregar |
-| `src/modules/negocios/components/kanban/KanbanCard.tsx` | Passa `funilId` para TarefasPopover |
-| `src/modules/negocios/services/negocios.api.ts` | Contagem de tarefas filtra por etapas do funil |
+|---|---|
+| `src/modules/configuracoes/services/configuracoes.api.ts` | 5 funcoes de busca de vinculos |
+| `src/modules/configuracoes/hooks/useVinculosPipelines.ts` | Novo hook generico |
+| `src/modules/configuracoes/components/campos/CampoFormModal.tsx` | Bloquear exclusao se vinculado + badge |
+| `src/modules/configuracoes/components/campos/CamposList.tsx` | Badge de pipelines vinculadas |
+| `src/modules/configuracoes/components/etapas/EtapaTemplateFormModal.tsx` | Bloquear exclusao se vinculado |
+| `src/modules/configuracoes/components/tarefas/TarefaTemplateFormModal.tsx` | Bloquear exclusao se vinculado |
+| `src/modules/configuracoes/components/motivos/MotivoFormModal.tsx` | Bloquear exclusao se vinculado |
+| `src/modules/configuracoes/components/regras/RegraFormModal.tsx` | Bloquear exclusao se vinculado |
+| `src/modules/negocios/components/modals/ContatoInlineForm.tsx` | Substituir `<select>` por Popover |
 
-## Resultado
+## Comportamento esperado
 
-- Tarefas de pipelines anteriores ficam preservadas no banco (auditoria completa)
-- Interface mostra apenas tarefas relevantes ao contexto atual
-- Sem poluicao visual ao transitar entre pipelines
-- Contagem no card do Kanban reflete corretamente
+- Ao abrir qualquer modal de edicao, o sistema consulta automaticamente os vinculos
+- Se existirem vinculos, exibe badge informativo e bloqueia exclusao com mensagem clara
+- Se nao existirem vinculos, comportamento normal de exclusao com confirmacao
+- O dropdown de campos select no modal de oportunidade abre corretamente via Popover/Portal
+
