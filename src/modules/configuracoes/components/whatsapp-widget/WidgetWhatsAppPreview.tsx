@@ -15,6 +15,16 @@ export function WidgetWhatsAppPreview({ config, camposNomes }: Props) {
     .map(id => ({ id, nome: camposNomes[id] }))
     .filter(c => c.nome)
 
+  // AIDEV-NOTE: Calcula se está online com base no horário configurado
+  const isOnline = (() => {
+    if (!config.horario_atendimento || config.horario_atendimento === 'sempre') return true
+    const now = new Date()
+    const dia = now.getDay()
+    if (!(config.horario_dias || []).includes(dia)) return false
+    const hhmm = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0')
+    return hhmm >= (config.horario_inicio || '09:00') && hhmm <= (config.horario_fim || '18:00')
+  })()
+
   return (
     <div className="relative bg-muted/50 rounded-lg border border-border p-4 sm:p-6 min-h-[520px] sm:min-h-[540px] flex items-end overflow-hidden" style={{ justifyContent: config.posicao === 'esquerda' ? 'flex-start' : 'flex-end' }}>
       {/* Label */}
@@ -41,7 +51,7 @@ export function WidgetWhatsAppPreview({ config, camposNomes }: Props) {
               )}
               <div className="flex-1 min-w-0">
                 <p className="text-white font-semibold text-sm truncate">{config.nome_atendente || 'Atendente'}</p>
-                <p className="text-white/60 text-xs">Online</p>
+                {isOnline && <p className="text-white/60 text-xs">Online</p>}
               </div>
             </div>
 
