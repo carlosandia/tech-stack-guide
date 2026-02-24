@@ -123,8 +123,8 @@ export function PreCadastroModal({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[480px]">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-[480px] flex flex-col overflow-hidden">
+          <DialogHeader className="flex-shrink-0">
             <DialogTitle className="text-lg font-semibold text-foreground">
               {isTrial ? 'Iniciar teste grátis' : `Assinar ${planoNome}`}
             </DialogTitle>
@@ -135,155 +135,158 @@ export function PreCadastroModal({
             </p>
           </DialogHeader>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-2">
-            {/* Código do Parceiro */}
-            <div>
-              <Label htmlFor="codigo_parceiro">
-                Código do Parceiro{' '}
-                {codigoParceiro ? (
-                  <span className="inline-flex items-center gap-1 text-xs text-primary font-medium">
-                    <ShieldCheck className="w-3.5 h-3.5" />
-                    Certificado
-                  </span>
-                ) : (
-                  <span className="text-xs text-muted-foreground">(opcional)</span>
-                )}
-              </Label>
-              <Input
-                id="codigo_parceiro"
-                placeholder="Ex: RENOVE-MBP7VY"
-                {...register('codigo_parceiro')}
-                className={`mt-1.5 uppercase ${codigoParceiro ? 'bg-[hsl(220,10%,92%)] border-primary/30 cursor-not-allowed text-foreground' : ''}`}
-                readOnly={!!codigoParceiro}
-                tabIndex={codigoParceiro ? -1 : undefined}
-                onKeyDown={codigoParceiro ? (e) => e.preventDefault() : undefined}
-                onChange={(e) => {
-                  if (!codigoParceiro) {
-                    e.target.value = e.target.value.toUpperCase()
-                  }
-                }}
-              />
-            </div>
-
-            {/* Nome */}
-            <div>
-              <Label htmlFor="nome_contato">Nome completo *</Label>
-              <Input
-                id="nome_contato"
-                placeholder="Seu nome completo"
-                {...register('nome_contato')}
-                className="mt-1.5"
-              />
-              {errors.nome_contato && (
-                <p className="text-xs text-destructive mt-1">{errors.nome_contato.message}</p>
-              )}
-            </div>
-
-            {/* Email */}
-            <div>
-              <Label htmlFor="email">Email *</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="seu@email.com"
-                {...register('email')}
-                className="mt-1.5"
-              />
-              {errors.email && (
-                <p className="text-xs text-destructive mt-1">{errors.email.message}</p>
-              )}
-            </div>
-
-            {/* Telefone */}
-            <div>
-              <Label htmlFor="telefone">Telefone <span className="text-destructive">*</span></Label>
-              <Input
-                id="telefone"
-                placeholder="(11) 99999-9999"
-                {...register('telefone')}
-                onChange={(e) => {
-                  e.target.value = formatTelefone(e.target.value)
-                }}
-                className="mt-1.5"
-              />
-            </div>
-
-            {/* Nome Empresa */}
-            <div>
-              <Label htmlFor="nome_empresa">Nome da empresa *</Label>
-              <Input
-                id="nome_empresa"
-                placeholder="Nome da sua empresa"
-                {...register('nome_empresa')}
-                className="mt-1.5"
-              />
-              {errors.nome_empresa && (
-                <p className="text-xs text-destructive mt-1">{errors.nome_empresa.message}</p>
-              )}
-            </div>
-
-
-            {/* Segmento */}
-            <div>
-              <Label htmlFor="segmento">Qual o segmento da sua empresa? *</Label>
-              <select
-                id="segmento"
-                {...register('segmento')}
-                className="mt-1.5 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              >
-                <option value="">Selecione um segmento</option>
-                {SEGMENTOS.map((seg) => (
-                  <option key={seg.value} value={seg.value}>
-                    {seg.label}
-                  </option>
-                ))}
-              </select>
-              {errors.segmento && (
-                <p className="text-xs text-destructive mt-1">{errors.segmento.message}</p>
-              )}
-            </div>
-
-            {/* Aceite de Termos */}
-            <div className="pt-1">
-              <Controller
-                name="aceite_termos"
-                control={control}
-                render={({ field }) => (
-                  <label className="flex items-start gap-2.5 cursor-pointer group">
-                    <input
-                      type="checkbox"
-                      checked={field.value === true}
-                      onChange={(e) => field.onChange(e.target.checked ? true : undefined)}
-                      className="mt-0.5 h-4 w-4 rounded border-input accent-primary shrink-0"
-                    />
-                    <span className="text-xs text-muted-foreground leading-relaxed">
-                      Li e aceito os{' '}
-                      <button
-                        type="button"
-                        onClick={(e) => { e.preventDefault(); setTermosOpen(true) }}
-                        className="text-primary hover:underline font-medium"
-                      >
-                        Termos de Serviço
-                      </button>
-                      {' '}e a{' '}
-                      <button
-                        type="button"
-                        onClick={(e) => { e.preventDefault(); setPrivacidadeOpen(true) }}
-                        className="text-primary hover:underline font-medium"
-                      >
-                        Política de Privacidade
-                      </button>
+          <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
+            {/* Corpo scrollável */}
+            <div className="flex-1 overflow-y-auto min-h-0 space-y-4 px-1 py-2">
+              {/* Código do Parceiro */}
+              <div>
+                <Label htmlFor="codigo_parceiro">
+                  Código do Parceiro{' '}
+                  {codigoParceiro ? (
+                    <span className="inline-flex items-center gap-1 text-xs text-primary font-medium">
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      Certificado
                     </span>
-                  </label>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">(opcional)</span>
+                  )}
+                </Label>
+                <Input
+                  id="codigo_parceiro"
+                  placeholder="Ex: RENOVE-MBP7VY"
+                  {...register('codigo_parceiro')}
+                  className={`mt-1.5 uppercase ${codigoParceiro ? 'bg-[hsl(220,10%,92%)] border-primary/30 cursor-not-allowed text-foreground' : ''}`}
+                  readOnly={!!codigoParceiro}
+                  tabIndex={codigoParceiro ? -1 : undefined}
+                  onKeyDown={codigoParceiro ? (e) => e.preventDefault() : undefined}
+                  onChange={(e) => {
+                    if (!codigoParceiro) {
+                      e.target.value = e.target.value.toUpperCase()
+                    }
+                  }}
+                />
+              </div>
+
+              {/* Nome */}
+              <div>
+                <Label htmlFor="nome_contato">Nome completo *</Label>
+                <Input
+                  id="nome_contato"
+                  placeholder="Seu nome completo"
+                  {...register('nome_contato')}
+                  className="mt-1.5"
+                />
+                {errors.nome_contato && (
+                  <p className="text-xs text-destructive mt-1">{errors.nome_contato.message}</p>
                 )}
-              />
-              {errors.aceite_termos && (
-                <p className="text-xs text-destructive mt-1">{errors.aceite_termos.message}</p>
-              )}
+              </div>
+
+              {/* Email */}
+              <div>
+                <Label htmlFor="email">Email *</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="seu@email.com"
+                  {...register('email')}
+                  className="mt-1.5"
+                />
+                {errors.email && (
+                  <p className="text-xs text-destructive mt-1">{errors.email.message}</p>
+                )}
+              </div>
+
+              {/* Telefone */}
+              <div>
+                <Label htmlFor="telefone">Telefone <span className="text-destructive">*</span></Label>
+                <Input
+                  id="telefone"
+                  placeholder="(11) 99999-9999"
+                  {...register('telefone')}
+                  onChange={(e) => {
+                    e.target.value = formatTelefone(e.target.value)
+                  }}
+                  className="mt-1.5"
+                />
+              </div>
+
+              {/* Nome Empresa */}
+              <div>
+                <Label htmlFor="nome_empresa">Nome da empresa *</Label>
+                <Input
+                  id="nome_empresa"
+                  placeholder="Nome da sua empresa"
+                  {...register('nome_empresa')}
+                  className="mt-1.5"
+                />
+                {errors.nome_empresa && (
+                  <p className="text-xs text-destructive mt-1">{errors.nome_empresa.message}</p>
+                )}
+              </div>
+
+              {/* Segmento */}
+              <div>
+                <Label htmlFor="segmento">Qual o segmento da sua empresa? *</Label>
+                <select
+                  id="segmento"
+                  {...register('segmento')}
+                  className="mt-1.5 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                  <option value="">Selecione um segmento</option>
+                  {SEGMENTOS.map((seg) => (
+                    <option key={seg.value} value={seg.value}>
+                      {seg.label}
+                    </option>
+                  ))}
+                </select>
+                {errors.segmento && (
+                  <p className="text-xs text-destructive mt-1">{errors.segmento.message}</p>
+                )}
+              </div>
             </div>
 
-            {/* Botão Submit */}
-            <div className="pt-2">
+            {/* Footer fixo */}
+            <div className="flex-shrink-0 border-t border-border pt-4 space-y-3">
+              {/* Aceite de Termos */}
+              <div>
+                <Controller
+                  name="aceite_termos"
+                  control={control}
+                  render={({ field }) => (
+                    <label className="flex items-start gap-2.5 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={field.value === true}
+                        onChange={(e) => field.onChange(e.target.checked ? true : undefined)}
+                        className="mt-0.5 h-4 w-4 rounded border-input accent-primary shrink-0"
+                      />
+                      <span className="text-xs text-muted-foreground leading-relaxed">
+                        Li e aceito os{' '}
+                        <button
+                          type="button"
+                          onClick={(e) => { e.preventDefault(); setTermosOpen(true) }}
+                          className="text-primary hover:underline font-medium"
+                        >
+                          Termos de Serviço
+                        </button>
+                        {' '}e a{' '}
+                        <button
+                          type="button"
+                          onClick={(e) => { e.preventDefault(); setPrivacidadeOpen(true) }}
+                          className="text-primary hover:underline font-medium"
+                        >
+                          Política de Privacidade
+                        </button>
+                      </span>
+                    </label>
+                  )}
+                />
+                {errors.aceite_termos && (
+                  <p className="text-xs text-destructive mt-1">{errors.aceite_termos.message}</p>
+                )}
+              </div>
+
+              {/* Botão Submit */}
               <button
                 type="submit"
                 disabled={loading}
