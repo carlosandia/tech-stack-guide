@@ -603,14 +603,19 @@ Deno.serve(async (req) => {
           }
 
           try {
-            const channel = supabaseAdmin.channel(`presence:${sessionName}`);
-            await channel.send({
-              type: 'broadcast',
-              event: 'presence_update',
-              payload: { chatId: resolvedChatId, originalChatId: chatId, presences },
-            });
-            // AIDEV-NOTE: removeChannel para não acumular canais no servidor
-            await supabaseAdmin.removeChannel(channel);
+            // AIDEV-NOTE: Broadcast para DOIS canais:
+            // 1. presence:${sessionName} → usado pelo usePresence (ChatHeader individual)
+            // 2. list-presence:${sessionName} → usado pelo useListPresence (lista de conversas)
+            const broadcastPayload = { chatId: resolvedChatId, originalChatId: chatId, presences };
+
+            const ch1 = supabaseAdmin.channel(`presence:${sessionName}`);
+            await ch1.send({ type: 'broadcast', event: 'presence_update', payload: broadcastPayload });
+            await supabaseAdmin.removeChannel(ch1);
+
+            const ch2 = supabaseAdmin.channel(`list-presence:${sessionName}`);
+            await ch2.send({ type: 'broadcast', event: 'presence_update', payload: broadcastPayload });
+            await supabaseAdmin.removeChannel(ch2);
+
             console.log(`[waha-webhook] ✅ Presence broadcast sent for ${resolvedChatId} on session ${sessionName}`);
           } catch (broadcastErr) {
             console.error(`[waha-webhook] Presence broadcast error:`, broadcastErr);
