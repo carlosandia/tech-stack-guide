@@ -28,31 +28,21 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    // AIDEV-NOTE: Não fazer auto-reload aqui para chunk errors.
+    // O lazyWithRetry já cuida do retry. Se o erro chegou aqui,
+    // significa que o retry já falhou — exibir o fallback.
     console.error('[ErrorBoundary] Erro capturado:', error, errorInfo)
-
-    // AIDEV-NOTE: Auto-reload com cache-busting para chunk errors
-    // Evita mostrar tela "Nova versao disponivel" ao usuario
-    const msg = error.message?.toLowerCase() || ''
-    const isChunk =
-      msg.includes('failed to fetch dynamically imported module') ||
-      msg.includes('loading chunk') ||
-      msg.includes('loading css chunk')
-
-    if (isChunk) {
-      const key = 'eb-chunk-reload'
-      if (!sessionStorage.getItem(key)) {
-        sessionStorage.setItem(key, '1')
-        const url = new URL(window.location.href)
-        url.searchParams.set('_cb', Date.now().toString())
-        window.location.replace(url.toString())
-        return
-      }
-      sessionStorage.removeItem(key)
-    }
   }
 
   handleReload = () => {
-    window.location.reload()
+    // AIDEV-NOTE: Limpar todas as chaves de chunk retry do sessionStorage
+    // e fazer hard reload para a URL raiz (sem query params de cache-busting)
+    Object.keys(sessionStorage).forEach(key => {
+      if (key.startsWith('chunk-reload-') || key === 'eb-chunk-reload') {
+        sessionStorage.removeItem(key)
+      }
+    })
+    window.location.href = window.location.origin + window.location.pathname
   }
 
   private isChunkError(): boolean {
