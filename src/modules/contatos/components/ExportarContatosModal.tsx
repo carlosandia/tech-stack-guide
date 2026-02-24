@@ -1,47 +1,25 @@
 /**
- * AIDEV-NOTE: Modal de exportação com seleção de colunas
+ * AIDEV-NOTE: Modal de exportação com seleção de colunas dinâmicas
  * Conforme PRD-06 RF-009 e Design System 10.5 - Modal/Dialog
- * - z-index: overlay 400, content 401
- * - Overlay: bg-black/80 backdrop-blur-sm
- * - Estrutura flex-col: header fixo, content scrollable, footer fixo
- * - Responsividade: w-[calc(100%-32px)] mobile, max-w-md desktop
- * - ARIA, ESC to close, focus trap
+ * Usa useCamposConfig para sincronizar campos globais (padrão + customizados)
  */
 
-import { useState, useEffect, useRef, useId, forwardRef } from 'react'
+import { useState, useEffect, useRef, useId, useMemo, forwardRef } from 'react'
 import { X, Download } from 'lucide-react'
 import { contatosApi, type ListarContatosParams, type TipoContato } from '../services/contatos.api'
+import { useCamposConfig } from '../hooks/useCamposConfig'
 
 interface ColumnOption {
   key: string
   label: string
-  dbField: string
+  isCustom?: boolean
 }
 
-const COLUNAS_PESSOA: ColumnOption[] = [
-  { key: 'nome', label: 'Nome', dbField: 'nome' },
-  { key: 'sobrenome', label: 'Sobrenome', dbField: 'sobrenome' },
-  { key: 'email', label: 'Email', dbField: 'email' },
-  { key: 'telefone', label: 'Telefone', dbField: 'telefone' },
-  { key: 'cargo', label: 'Cargo', dbField: 'cargo' },
-  { key: 'linkedin_url', label: 'LinkedIn', dbField: 'linkedin_url' },
-  { key: 'status', label: 'Status', dbField: 'status' },
-  { key: 'origem', label: 'Origem', dbField: 'origem' },
-  { key: 'criado_em', label: 'Criado em', dbField: 'criado_em' },
-]
-
-const COLUNAS_EMPRESA: ColumnOption[] = [
-  { key: 'razao_social', label: 'Razão Social', dbField: 'razao_social' },
-  { key: 'nome_fantasia', label: 'Nome Fantasia', dbField: 'nome_fantasia' },
-  { key: 'cnpj', label: 'CNPJ', dbField: 'cnpj' },
-  { key: 'email', label: 'Email', dbField: 'email' },
-  { key: 'telefone', label: 'Telefone', dbField: 'telefone' },
-  { key: 'website', label: 'Website', dbField: 'website' },
-  { key: 'segmento', label: 'Segmento', dbField: 'segmento' },
-  { key: 'porte', label: 'Porte', dbField: 'porte' },
-  { key: 'status', label: 'Status', dbField: 'status' },
-  { key: 'origem', label: 'Origem', dbField: 'origem' },
-  { key: 'criado_em', label: 'Criado em', dbField: 'criado_em' },
+/** Campos fixos que não estão em campos_customizados mas existem na tabela contatos */
+const CAMPOS_FIXOS: ColumnOption[] = [
+  { key: 'status', label: 'Status' },
+  { key: 'origem', label: 'Origem' },
+  { key: 'criado_em', label: 'Criado em' },
 ]
 
 interface ExportarContatosModalProps {
@@ -59,13 +37,47 @@ export const ExportarContatosModal = forwardRef<HTMLDivElement, ExportarContatos
   filtros,
   selectedIds,
 }, _ref) {
-  const colunas = tipo === 'pessoa' ? COLUNAS_PESSOA : COLUNAS_EMPRESA
-  const [selectedColumns, setSelectedColumns] = useState<Set<string>>(
-    () => new Set(colunas.map(c => c.key))
-  )
+  const { sistemaFields, customFields, isLoading: camposLoading } = useCamposConfig(tipo)
+
+  // AIDEV-NOTE: Montar colunas dinamicamente a partir dos campos globais
+  const colunas = useMemo<ColumnOption[]>(() => {
+    const cols: ColumnOption[] = []
+
+    // Campos sistema (padrão) do banco
+    for (const campo of sistemaFields) {
+      cols.push({ key: campo.key, label: campo.label })
+    }
+
+    // Campos fixos que não são gerenciados em campos_customizados
+    for (const fixo of CAMPOS_FIXOS) {
+      if (!cols.some(c => c.key === fixo.key)) {
+        cols.push(fixo)
+      }
+    }
+
+    // Campos customizados criados pelo usuário
+    for (const campo of customFields) {
+      cols.push({
+        key: `custom_${campo.slug}`,
+        label: campo.label,
+        isCustom: true,
+      })
+    }
+
+    return cols
+  }, [sistemaFields, customFields])
+
+  const [selectedColumns, setSelectedColumns] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(false)
   const modalRef = useRef<HTMLDivElement>(null)
   const titleId = useId()
+
+  // Resetar seleção quando colunas mudarem
+  useEffect(() => {
+    if (colunas.length > 0) {
+      setSelectedColumns(new Set(colunas.map(c => c.key)))
+    }
+  }, [colunas])
 
   const allSelected = selectedColumns.size === colunas.length
 
@@ -122,7 +134,7 @@ export const ExportarContatosModal = forwardRef<HTMLDivElement, ExportarContatos
 
   const toggleAll = () => {
     if (allSelected) {
-      setSelectedColumns(new Set([colunas[0].key]))
+      setSelectedColumns(new Set([colunas[0]?.key].filter(Boolean)))
     } else {
       setSelectedColumns(new Set(colunas.map(c => c.key)))
     }
@@ -135,7 +147,7 @@ export const ExportarContatosModal = forwardRef<HTMLDivElement, ExportarContatos
       const csv = await contatosApi.exportarComColunas({
         ...filtros,
         tipo,
-        colunas: colunasExportar.map(c => ({ key: c.dbField, label: c.label })),
+        colunas: colunasExportar.map(c => ({ key: c.key, label: c.label, isCustom: c.isCustom })),
         ids: selectedIds,
       })
 
@@ -212,22 +224,32 @@ export const ExportarContatosModal = forwardRef<HTMLDivElement, ExportarContatos
                   {allSelected ? 'Desmarcar todas' : 'Selecionar todas'}
                 </button>
               </div>
-              <div className="space-y-1 max-h-[240px] overflow-y-auto border border-border rounded-md p-2">
-                {colunas.map(col => (
-                  <label
-                    key={col.key}
-                    className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-accent/50 cursor-pointer transition-colors"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedColumns.has(col.key)}
-                      onChange={() => toggleColumn(col.key)}
-                      className="rounded border-input"
-                    />
-                    <span className="text-sm text-foreground">{col.label}</span>
-                  </label>
-                ))}
-              </div>
+
+              {camposLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <span className="text-sm text-muted-foreground">Carregando campos...</span>
+                </div>
+              ) : (
+                <div className="space-y-1 max-h-[240px] overflow-y-auto border border-border rounded-md p-2">
+                  {colunas.map(col => (
+                    <label
+                      key={col.key}
+                      className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-accent/50 cursor-pointer transition-colors"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedColumns.has(col.key)}
+                        onChange={() => toggleColumn(col.key)}
+                        className="rounded border-input"
+                      />
+                      <span className="text-sm text-foreground">{col.label}</span>
+                      {col.isCustom && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent text-muted-foreground">Custom</span>
+                      )}
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -242,7 +264,7 @@ export const ExportarContatosModal = forwardRef<HTMLDivElement, ExportarContatos
               </button>
               <button
                 onClick={handleExportar}
-                disabled={loading || selectedColumns.size === 0}
+                disabled={loading || selectedColumns.size === 0 || camposLoading}
                 className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-200 disabled:opacity-50"
               >
                 <Download className="w-4 h-4" />
