@@ -1471,13 +1471,56 @@ export const negociosApi = {
   },
 
   // Mover oportunidades em massa para outra pipeline (funil + etapa)
+  // AIDEV-NOTE: Ao trocar de pipeline, aplica configurações da pipeline destino:
+  // 1. Tarefas automáticas da etapa destino
+  // 2. Reavaliação de qualificação MQL com regras do novo funil
   moverOportunidadesParaOutraPipeline: async (ids: string[], funilDestinoId: string, etapaDestinoId: string): Promise<void> => {
+    // Buscar dados das oportunidades antes de mover (para tarefas automáticas)
+    const { data: opsData } = await supabase
+      .from('oportunidades')
+      .select('id, contato_id, organizacao_id, usuario_responsavel_id, criado_por')
+      .in('id', ids)
+
+    // Atualizar funil + etapa + limpar fechamento (reabrir se estava fechada)
     const { error } = await supabase
       .from('oportunidades')
-      .update({ funil_id: funilDestinoId, etapa_id: etapaDestinoId } as any)
+      .update({
+        funil_id: funilDestinoId,
+        etapa_id: etapaDestinoId,
+        fechado_em: null,
+        motivo_resultado_id: null,
+      } as any)
       .in('id', ids)
 
     if (error) throw new Error(error.message)
+
+    // Aplicar configurações da pipeline destino para cada oportunidade
+    if (opsData && opsData.length > 0) {
+      const userId = await getUsuarioId()
+
+      for (const op of opsData) {
+        // 1. Criar tarefas automáticas da etapa destino
+        try {
+          await negociosApi.criarTarefasAutomaticas(
+            op.id,
+            etapaDestinoId,
+            op.contato_id,
+            op.organizacao_id,
+            op.usuario_responsavel_id || userId,
+            userId,
+          )
+        } catch (err) {
+          console.error(`Erro ao criar tarefas automáticas para op ${op.id}:`, err)
+        }
+
+        // 2. Reavaliar qualificação MQL com regras do novo funil
+        try {
+          await negociosApi.avaliarQualificacaoMQL(op.id)
+        } catch (err) {
+          console.error(`Erro ao reavaliar MQL para op ${op.id}:`, err)
+        }
+      }
+    }
   },
 
   // Contar oportunidades ativas de um funil
