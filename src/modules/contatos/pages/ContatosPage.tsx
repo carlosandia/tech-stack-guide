@@ -474,7 +474,9 @@ const ContatosPage = forwardRef<HTMLDivElement>(function ContatosPage(_props, _r
             if (segmentoIds) {
               try { await contatosApi.vincularSegmentos(editingContato.id, segmentoIds) } catch {}
             }
-            // Refetch APÓS tudo salvo para garantir dados completos na UI
+            // AIDEV-NOTE: Cancelar refetch em andamento (pode ter sido disparado pelo Realtime
+            // antes dos campos custom serem salvos) e forçar novo refetch com dados completos
+            await queryClient.cancelQueries({ queryKey: ['contatos'] })
             await queryClient.refetchQueries({ queryKey: ['contatos'] })
             queryClient.invalidateQueries({ queryKey: ['valores-custom-contato-view'] })
             setFormModalOpen(false)
@@ -501,15 +503,17 @@ const ContatosPage = forwardRef<HTMLDivElement>(function ContatosPage(_props, _r
           if (segmentoIds && segmentoIds.length > 0) {
             try { await contatosApi.vincularSegmentos(contato.id, segmentoIds) } catch {}
           }
-          // Refetch APÓS tudo salvo para garantir dados completos na UI
-          await queryClient.refetchQueries({ queryKey: ['contatos'] })
-          queryClient.invalidateQueries({ queryKey: ['valores-custom-contato-view'] })
-          setFormModalOpen(false)
-          setEditingContato(null)
-        }
-      })
-    }
-  }
+           // AIDEV-NOTE: Cancelar refetch em andamento (pode ter sido disparado pelo Realtime
+           // antes dos campos custom serem salvos) e forçar novo refetch com dados completos
+           await queryClient.cancelQueries({ queryKey: ['contatos'] })
+           await queryClient.refetchQueries({ queryKey: ['contatos'] })
+           queryClient.invalidateQueries({ queryKey: ['valores-custom-contato-view'] })
+           setFormModalOpen(false)
+           setEditingContato(null)
+         }
+       })
+     }
+   }
 
   const handleBackToView = useCallback(() => {
     setFormModalOpen(false)
