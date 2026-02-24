@@ -1,14 +1,16 @@
 /**
  * AIDEV-NOTE: Modal de Criar/Editar Motivo de Resultado
  * Migrado para usar ModalBase (Design System 10.5)
+ * Protege exclusão de motivos vinculados a pipelines
  */
 
 import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Loader2, Trash2 } from 'lucide-react'
+import { Loader2, Trash2, Link2 } from 'lucide-react'
 import { criarMotivoSchema, type CriarMotivoFormData } from '../../schemas/motivos.schema'
 import { useCriarMotivo, useAtualizarMotivo, useExcluirMotivo } from '../../hooks/useMotivos'
+import { useVinculosPipelines } from '../../hooks/useVinculosPipelines'
 import type { MotivoResultado, TipoMotivo } from '../../services/configuracoes.api'
 import { ModalBase } from '../ui/ModalBase'
 
@@ -28,6 +30,10 @@ export function MotivoFormModal({ tipo, motivo, onClose }: Props) {
   const criarMutation = useCriarMotivo()
   const atualizarMutation = useAtualizarMotivo()
   const excluirMutation = useExcluirMotivo()
+
+  // AIDEV-NOTE: Buscar vínculos com pipelines para bloquear exclusão
+  const { data: vinculos = [] } = useVinculosPipelines('motivo', motivo?.id)
+  const temVinculos = vinculos.length > 0
 
   const coresPaleta = tipo === 'ganho' ? coresGanho : coresPerda
 
@@ -63,7 +69,12 @@ export function MotivoFormModal({ tipo, motivo, onClose }: Props) {
     <div className="flex items-center justify-between w-full">
       <div>
         {isEditing && !motivo?.padrao && (
-          showDeleteConfirm ? (
+          temVinculos ? (
+            <div className="flex items-center gap-1.5 px-3 h-9 text-sm text-muted-foreground">
+              <Link2 className="w-4 h-4" />
+              <span>Vinculado a {vinculos.length} pipeline(s)</span>
+            </div>
+          ) : showDeleteConfirm ? (
             <div className="flex items-center gap-2">
               <span className="text-sm text-destructive">Confirmar?</span>
               <button type="button" onClick={handleDelete} disabled={excluirMutation.isPending} className="px-3 h-9 rounded-md bg-destructive text-destructive-foreground text-sm font-medium hover:bg-destructive/90 transition-all duration-200">{excluirMutation.isPending ? 'Excluindo...' : 'Sim'}</button>
@@ -87,6 +98,19 @@ export function MotivoFormModal({ tipo, motivo, onClose }: Props) {
   return (
     <ModalBase onClose={onClose} title={isEditing ? 'Editar Motivo' : 'Novo Motivo'} description={tipo === 'ganho' ? 'Motivo de Ganho' : 'Motivo de Perda'} variant={isEditing ? 'edit' : 'create'} size="sm" footer={footerContent}>
       <form id="motivo-form" onSubmit={handleSubmit(onSubmit)} className="px-4 sm:px-6 py-4 space-y-4">
+        {/* Badge de vínculos */}
+        {isEditing && temVinculos && (
+          <div className="p-3 rounded-md bg-primary/5 border border-primary/20">
+            <div className="flex items-center gap-2 mb-1">
+              <Link2 className="w-4 h-4 text-primary" />
+              <span className="text-sm font-medium text-primary">Vinculado a {vinculos.length} pipeline(s)</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {vinculos.map(v => v.funil_nome).join(', ')}. Desvincule de todas as pipelines antes de excluir.
+            </p>
+          </div>
+        )}
+
         <div>
           <label htmlFor="mot-nome" className="block text-sm font-medium text-foreground mb-1">Nome <span className="text-destructive">*</span></label>
           <input id="mot-nome" {...register('nome')} className="w-full h-10 px-3 rounded-md border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-ring focus:border-ring transition-all duration-200" placeholder={tipo === 'ganho' ? 'Ex: Preço competitivo' : 'Ex: Preço muito alto'} aria-invalid={!!errors.nome} />
