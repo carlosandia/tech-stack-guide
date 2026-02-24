@@ -111,10 +111,13 @@ export function AbaEmail({ oportunidadeId, emailContato }: AbaEmailProps) {
 
           {/* Info de conexão + ações */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-            <div className="text-[10px] text-muted-foreground">
+            <div className="text-xs text-muted-foreground">
               {smtpConectado ? (
-                <span className="flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3 text-success" />
+                <span className="flex items-center gap-1.5">
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                  </span>
                   Remetente: {emailRemetente}
                 </span>
               ) : (
@@ -138,7 +141,7 @@ export function AbaEmail({ oportunidadeId, emailContato }: AbaEmailProps) {
                 disabled={!destinatario.trim() || !assunto.trim() || criarEmail.isPending}
                 className="inline-flex items-center gap-1 text-xs px-3 py-1.5 border border-border text-foreground rounded-md hover:bg-accent disabled:opacity-50 transition-colors"
               >
-                <Save className="w-3 h-3" />
+                <Save className="w-3.5 h-3.5" />
                 Rascunho
               </button>
               {smtpConectado && (
@@ -149,9 +152,9 @@ export function AbaEmail({ oportunidadeId, emailContato }: AbaEmailProps) {
                   className="inline-flex items-center gap-1 text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors"
                 >
                   {criarEmail.isPending ? (
-                    <Loader2 className="w-3 h-3 animate-spin" />
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   ) : (
-                    <Send className="w-3 h-3" />
+                    <Send className="w-3.5 h-3.5" />
                   )}
                   Enviar
                 </button>
