@@ -164,17 +164,37 @@ export const pipelineConfigApi = {
   }): Promise<EtapaFunil> => {
     const organizacaoId = await getOrganizacaoId()
 
-    // Obter próxima ordem
-    const { data: ultimaEtapa } = await supabase
+    // AIDEV-NOTE: Buscar maior ordem apenas de etapas normais/entrada (excluindo ganho/perda)
+    const { data: etapasNormais } = await supabase
       .from('etapas_funil')
       .select('ordem')
       .eq('funil_id', funilId)
       .is('deletado_em', null)
+      .in('tipo', ['entrada', 'normal'])
       .order('ordem', { ascending: false })
       .limit(1)
       .maybeSingle()
 
-    const novaOrdem = payload.ordem ?? ((ultimaEtapa?.ordem ?? 0) + 1)
+    const novaOrdem = payload.ordem ?? ((etapasNormais?.ordem ?? 0) + 1)
+
+    // Empurrar etapas de ganho/perda para depois da nova etapa
+    const { data: etapasFinais } = await supabase
+      .from('etapas_funil')
+      .select('id, tipo, ordem')
+      .eq('funil_id', funilId)
+      .is('deletado_em', null)
+      .in('tipo', ['ganho', 'perda'])
+
+    if (etapasFinais && etapasFinais.length > 0) {
+      const updates = etapasFinais.map(e => {
+        const novaOrdemFinal = e.tipo === 'ganho' ? novaOrdem + 1 : novaOrdem + 2
+        return supabase
+          .from('etapas_funil')
+          .update({ ordem: novaOrdemFinal, atualizado_em: new Date().toISOString() } as any)
+          .eq('id', e.id)
+      })
+      await Promise.all(updates)
+    }
 
     const { data, error } = await supabase
       .from('etapas_funil')
