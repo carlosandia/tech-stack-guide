@@ -77,7 +77,7 @@ function getCampoIcon(tipo: string) {
 }
 
 // AIDEV-NOTE: Componente de Tags/Segmentos individual para o modal de detalhes
-function TagsSection({ contatoId }: { contatoId: string }) {
+function TagsSection({ contatoId, oportunidadeId }: { contatoId: string; oportunidadeId: string }) {
   const [showDropdown, setShowDropdown] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const queryClient = useQueryClient()
@@ -133,7 +133,11 @@ function TagsSection({ contatoId }: { contatoId: string }) {
           // Rollback em caso de erro
           queryClient.setQueryData(['contato_segmentos', contatoId], previousIds)
         },
-        onSettled: () => refetch(),
+        onSettled: () => {
+          refetch()
+          // Invalidar histórico da oportunidade para mostrar tag adicionada/removida
+          queryClient.invalidateQueries({ queryKey: ['historico', oportunidadeId] })
+        },
       }
     )
   }
@@ -153,7 +157,10 @@ function TagsSection({ contatoId }: { contatoId: string }) {
         onError: () => {
           queryClient.setQueryData(['contato_segmentos', contatoId], previousIds)
         },
-        onSettled: () => refetch(),
+        onSettled: () => {
+          refetch()
+          queryClient.invalidateQueries({ queryKey: ['historico', oportunidadeId] })
+        },
       }
     )
   }
@@ -746,7 +753,7 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
 
       {/* Seção Tags/Segmentos */}
       {oportunidade.contato?.id && (
-        <TagsSection contatoId={oportunidade.contato.id} />
+        <TagsSection contatoId={oportunidade.contato.id} oportunidadeId={oportunidade.id} />
       )}
 
       {/* Divider */}

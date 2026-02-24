@@ -4,7 +4,7 @@
  * Exibe labels ricos com detalhes contextuais e nome do usuário
  */
 
-import { Loader2, History, ArrowRight, FileText, MessageSquare, CheckCircle, Plus, Trash2, Mail, Calendar, XCircle, Award, User, Edit } from 'lucide-react'
+import { Loader2, History, ArrowRight, FileText, MessageSquare, CheckCircle, Plus, Trash2, Mail, Calendar, XCircle, Award, User, Edit, Tag, TagIcon } from 'lucide-react'
 import { format, isToday, isYesterday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useHistorico } from '../../hooks/useOportunidadeDetalhes'
@@ -72,6 +72,10 @@ function getEventIcon(acao: string) {
       return <XCircle className={iconClass} />
     case 'contato_atualizado':
       return <User className={iconClass} />
+    case 'tag_adicionada':
+      return <Tag className={iconClass} />
+    case 'tag_removida':
+      return <TagIcon className={iconClass} />
     default:
       return <History className={iconClass} />
   }
@@ -94,9 +98,12 @@ function getEventIconBg(acao: string): string {
     case 'reuniao_cancelada':
     case 'reuniao_noshow':
     case 'reuniao_excluida':
+    case 'tag_removida':
       return 'bg-destructive/10 text-destructive'
     case 'qualificacao':
       return 'bg-warning-muted text-warning-foreground'
+    case 'tag_adicionada':
+      return 'bg-success-muted text-success-foreground'
     default:
       return 'bg-muted text-muted-foreground'
   }
@@ -195,6 +202,12 @@ function getEventLabel(evento: HistoricoEvento): string {
       return 'Contato atualizado'
     }
 
+    // Tags/Segmentos
+    case 'tag_adicionada':
+      return `Tag adicionada: ${d.segmento_nome || 'Desconhecido'}`
+    case 'tag_removida':
+      return `Tag removida: ${d.segmento_nome || 'Desconhecido'}`
+
     default:
       return evento.acao.replace(/_/g, ' ')
   }
@@ -209,6 +222,24 @@ function getEventSublabel(evento: HistoricoEvento): string | null {
 
   if (evento.acao === 'alteracao_campo' && d.campo === 'valor' && d.de != null) {
     return `${formatCurrency(d.de as number)} → ${formatCurrency(d.para as number)}`
+  }
+
+  // Responsável: mostrar nomes (de → para)
+  if (evento.acao === 'alteracao_campo' && d.campo === 'responsavel') {
+    const deNome = d.de_nome as string | undefined
+    const paraNome = d.para_nome as string | undefined
+    if (deNome || paraNome) {
+      return `${deNome || '(nenhum)'} → ${paraNome || '(nenhum)'}`
+    }
+  }
+
+  // Previsão de fechamento: mostrar datas formatadas
+  if (evento.acao === 'alteracao_campo' && d.campo === 'previsao_fechamento') {
+    const formatDate = (v: unknown) => {
+      if (!v) return '(nenhuma)'
+      try { return format(new Date(v as string), 'dd/MM/yyyy', { locale: ptBR }) } catch { return String(v) }
+    }
+    return `${formatDate(d.de)} → ${formatDate(d.para)}`
   }
 
   return null
