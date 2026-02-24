@@ -199,6 +199,11 @@ export const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(functi
   const bottomRef = useRef<HTMLDivElement>(null)
   const prevLengthRef = useRef(0)
   const isGroup = conversaTipo === 'grupo' || conversaTipo === 'canal'
+
+  // AIDEV-NOTE: Resetar ref ao trocar de conversa para forcar scroll ao final
+  useEffect(() => {
+    prevLengthRef.current = 0
+  }, [conversaId])
   const { contactMap } = useMentionResolver(mensagens)
 
   useEffect(() => {
