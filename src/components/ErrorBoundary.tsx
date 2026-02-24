@@ -28,10 +28,26 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    // AIDEV-NOTE: Não fazer auto-reload aqui para chunk errors.
-    // O lazyWithRetry já cuida do retry. Se o erro chegou aqui,
-    // significa que o retry já falhou — exibir o fallback.
     console.error('[ErrorBoundary] Erro capturado:', error, errorInfo)
+
+    // AIDEV-NOTE: Auto-reload silencioso para chunk errors (2a tentativa).
+    // O lazyWithRetry já fez a 1a tentativa. Se chegou aqui, tentamos
+    // mais uma vez antes de exibir o fallback visual.
+    const msg = error?.message?.toLowerCase() || ''
+    const isChunk =
+      msg.includes('failed to fetch dynamically imported module') ||
+      msg.includes('loading chunk') ||
+      msg.includes('loading css chunk')
+
+    if (isChunk && !sessionStorage.getItem('eb-chunk-reload')) {
+      sessionStorage.setItem('eb-chunk-reload', '1')
+      // Limpar flags do lazyWithRetry para evitar conflito
+      Object.keys(sessionStorage).forEach(key => {
+        if (key.startsWith('chunk-reload-')) sessionStorage.removeItem(key)
+      })
+      window.location.reload()
+      return
+    }
   }
 
   handleReload = () => {
@@ -44,6 +60,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     })
     window.location.href = window.location.origin + window.location.pathname
   }
+
 
   private isChunkError(): boolean {
     const msg = this.state.error?.message?.toLowerCase() || ''
