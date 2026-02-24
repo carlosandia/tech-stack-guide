@@ -6,6 +6,7 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { Trash2, Download, ArrowRightLeft, Tag, Plus, Minus, AlertTriangle, X, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import type { EtapaFunil } from '../../services/negocios.api'
 import { useSegmentos, useSegmentarLote } from '@/modules/contatos/hooks/useSegmentos'
 import { useFunis, useFunilComEtapas } from '../../hooks/useFunis'
@@ -82,17 +83,28 @@ export const OportunidadeBulkActions = React.forwardRef<HTMLDivElement, Oportuni
 
   if (selectedCount === 0) return null
 
+  const queryClient = useQueryClient()
+
   const handleAdicionar = (segmentoId: string) => {
     segmentarLote.mutate(
       { ids: contatoIds, adicionar: [segmentoId], remover: [] },
-      { onSuccess: () => { setShowTags(false); onClearSelection() } }
+      { onSuccess: () => {
+        // AIDEV-NOTE: Invalidar kanban para refletir tags nos cards imediatamente
+        queryClient.invalidateQueries({ queryKey: ['kanban'] })
+        setShowTags(false)
+        onClearSelection()
+      }}
     )
   }
 
   const handleRemover = (segmentoId: string) => {
     segmentarLote.mutate(
       { ids: contatoIds, adicionar: [], remover: [segmentoId] },
-      { onSuccess: () => { setShowTags(false); onClearSelection() } }
+      { onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['kanban'] })
+        setShowTags(false)
+        onClearSelection()
+      }}
     )
   }
 
