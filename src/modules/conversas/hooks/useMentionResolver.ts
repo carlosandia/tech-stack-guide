@@ -284,14 +284,10 @@ export function useMentionResolver(mensagens: Mensagem[], _conversaId?: string):
   })
 
   // AIDEV-NOTE: Detectar LIDs não resolvidos pelas fontes 1 e 2
-  // LIDs tipicamente têm mais de 15 dígitos e não são telefones reais
   const unresolvedLids = useMemo(() => {
     return mentionedNumbers.filter(num => {
-      // Já resolvido pelo DB de contatos?
       if (dbContactMap?.has(num)) return false
-      // Já resolvido pelo pushName dos participantes?
       if (participantNames.has(num)) return false
-      // LIDs do GOWS têm tipicamente 15+ dígitos
       return num.length >= 15
     })
   }, [mentionedNumbers, dbContactMap, participantNames])
@@ -308,20 +304,29 @@ export function useMentionResolver(mensagens: Mensagem[], _conversaId?: string):
   // Merge: DB contacts > LID resolved > participantNames (pushNames)
   const contactMap = useMemo(() => {
     const merged = new Map(participantNames)
-    // LID resolved sobrescreve pushNames locais
     if (lidResolvedMap) {
       for (const [k, v] of lidResolvedMap) {
         merged.set(k, v)
       }
     }
-    // DB contacts sobrescreve tudo
     if (dbContactMap) {
       for (const [k, v] of dbContactMap) {
         merged.set(k, v)
       }
     }
+
+    // AIDEV-TODO: Remover logs após debug
+    if (mentionedNumbers.length > 0) {
+      console.log('[MENTION-RESOLVER] mentionedNumbers:', mentionedNumbers)
+      console.log('[MENTION-RESOLVER] participantNames:', Array.from(participantNames.entries()))
+      console.log('[MENTION-RESOLVER] unresolvedLids:', unresolvedLids)
+      console.log('[MENTION-RESOLVER] lidResolvedMap:', lidResolvedMap ? Array.from(lidResolvedMap.entries()) : 'null/undefined')
+      console.log('[MENTION-RESOLVER] dbContactMap:', dbContactMap ? Array.from(dbContactMap.entries()) : 'null/undefined')
+      console.log('[MENTION-RESOLVER] FINAL contactMap:', Array.from(merged.entries()))
+    }
+
     return merged
-  }, [dbContactMap, participantNames, lidResolvedMap])
+  }, [dbContactMap, participantNames, lidResolvedMap, mentionedNumbers, unresolvedLids])
 
   return { contactMap, isLoading: isLoading || isLoadingLids }
 }

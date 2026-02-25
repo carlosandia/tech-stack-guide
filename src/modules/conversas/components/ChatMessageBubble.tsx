@@ -119,12 +119,22 @@ function TextContent({ body, rawData, contactMap }: { body: string; rawData?: Re
       ]
     }
 
-    // AIDEV-NOTE: FALLBACK - detectar padrões @numero no body (sempre, não só quando contactMap vazio)
-    if (mentionedJid.length === 0) {
-      const bodyMatches = body.match(/@(\d{8,})/g)
-      if (bodyMatches) {
-        mentionedJid = bodyMatches.map(m => m.slice(1))
+    // AIDEV-NOTE: SEMPRE detectar @numero no body e adicionar aos JIDs (cobre edge cases)
+    const bodyMatches = body.match(/@(\d{8,})/g)
+    if (bodyMatches) {
+      for (const match of bodyMatches) {
+        const num = match.slice(1)
+        if (!mentionedJid.some(j => j.includes(num))) {
+          mentionedJid.push(num)
+        }
       }
+    }
+
+    // AIDEV-TODO: Remover logs após debug
+    if (body.match(/@\d{8,}/)) {
+      console.log('[MENTION-DEBUG] body:', body)
+      console.log('[MENTION-DEBUG] contactMap size:', contactMap?.size, 'entries:', contactMap ? Array.from(contactMap.entries()) : 'null')
+      console.log('[MENTION-DEBUG] mentionedJid:', mentionedJid)
     }
 
     if (mentionedJid.length === 0) return body
