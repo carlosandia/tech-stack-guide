@@ -104,11 +104,12 @@ Deno.serve(async (req) => {
     }));
 
     // Permissões necessárias para Lead Ads, CAPI e Audiences
+    // AIDEV-NOTE: pages_manage_metadata obrigatório para subscrever webhooks de página (leadgen)
     const scopes = [
       "pages_show_list",
       "pages_read_engagement",
       "leads_retrieval",
-      "pages_manage_ads",
+      "pages_manage_metadata",
       "ads_management",
       "ads_read",
       "business_management",
