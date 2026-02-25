@@ -1,44 +1,75 @@
 
-# Atualizar versao da Graph API de v21.0 para v24.0
+# Correção de Texto e Migração de Oportunidades na Exclusão de Pipeline
 
-## Problema identificado
-O Meta Developer Portal do app Renove CRM (ID: 1550529759333099) esta configurado na **v24.0**, porem todo o codigo das Edge Functions e do backend utiliza **v21.0** (e um arquivo usa v18.0). Essa incompatibilidade pode causar falhas silenciosas nas chamadas da Graph API, especialmente no `subscribed_apps` para leadgen e na busca de dados do lead.
+## Problema Identificado
+1. **Bug de texto**: O código atual concatena `será` + `ão` resultando em "seráão" (incorreto). Deve ser "serão".
+2. **UX incompleta**: Ao excluir uma pipeline com oportunidades, o sistema apenas avisa e exclui tudo. Grandes SaaS oferecem a opção de migrar as oportunidades para outra pipeline.
 
-## Resumo das alteracoes
+## Solução Proposta
 
-Atualizar a constante de versao da Graph API de `v21.0` para `v24.0` em todos os 9 arquivos que referenciam a URL da Graph API.
+### 1. Corrigir o texto (PipelineSelector.tsx, linha 151)
+Alterar de:
+```
+que será{count > 1 ? 'ão' : ''} excluída{count > 1 ? 's' : ''}
+```
+Para:
+```
+que {count > 1 ? 'serão' : 'será'} excluída{count > 1 ? 's' : ''}
+```
 
-## Arquivos a alterar
+### 2. Novo modal de exclusão com opção de migração
 
-### 1. supabase/functions/meta-leadgen-webhook/index.ts
-- Linha 15: `const GRAPH_API_VERSION = "v21.0"` -> `"v24.0"`
+Quando a pipeline contém oportunidades, o modal de confirmação passa a oferecer **duas opções**:
 
-### 2. supabase/functions/meta-sync/index.ts
-- Linha 14: `const GRAPH_API = "https://graph.facebook.com/v21.0"` -> `"v24.0"`
+```text
++------------------------------------------+
+|  [!] Excluir pipeline                    |
+|                                          |
+|  Tem certeza que deseja excluir          |
+|  "TesteMilion2"?                         |
+|                                          |
+|  Esta pipeline contém 2 oportunidades.   |
+|                                          |
+|  O que fazer com as oportunidades?       |
+|                                          |
+|  (o) Migrar para outra pipeline          |
+|      [ Selecione uma pipeline   v ]      |
+|                                          |
+|  ( ) Excluir todas as oportunidades      |
+|      Esta ação não pode ser desfeita.    |
+|                                          |
+|  [Cancelar]  [Confirmar]                 |
++------------------------------------------+
+```
 
-### 3. supabase/functions/meta-callback/index.ts
-- Todas as URLs hardcoded `graph.facebook.com/v21.0` -> `v24.0`
+- **Migrar**: Dropdown lista as demais pipelines ativas. Ao confirmar, move as oportunidades para a etapa de entrada da pipeline destino e depois exclui a pipeline original.
+- **Excluir tudo**: Comportamento atual (exclusão destrutiva).
+- Se a pipeline **não tem oportunidades**, mantém o modal simples atual (apenas corrigido).
 
-### 4. supabase/functions/meta-audiences/index.ts
-- Todas as URLs hardcoded `graph.facebook.com/v21.0` -> `v24.0`
+### Detalhes Tecnicoss
 
-### 5. supabase/functions/send-capi-event/index.ts
-- URL `graph.facebook.com/v21.0` -> `v24.0`
+**Arquivo**: `src/modules/negocios/components/toolbar/PipelineSelector.tsx`
+- Expandir o state `confirmDelete` para incluir `acao: 'migrar' | 'excluir'` e `pipelineDestinoId`
+- Adicionar radio buttons e dropdown de pipeline destino no modal
+- Usar a lista de `funis` (prop existente) para popular o dropdown, filtrando a pipeline sendo excluída
 
-### 6. supabase/functions/test-capi-event/index.ts
-- URL `graph.facebook.com/v21.0` -> `v24.0`
+**Arquivo**: `src/modules/negocios/services/negocios.api.ts`
+- Criar função `migrarOportunidadesParaPipeline(funilOrigemId, funilDestinoId)` que:
+  1. Busca a etapa de entrada do funil destino
+  2. Move todas as oportunidades do funil origem para essa etapa
+  3. Exclui o funil origem
 
-### 7. supabase/functions/sync-audience-capi/index.ts
-- URLs `graph.facebook.com/v21.0` -> `v24.0`
+**Arquivo**: `src/modules/negocios/hooks/useFunis.ts`
+- Criar hook `useMigrarEExcluirFunil()` que chama a nova API e invalida as queries
 
-### 8. backend/src/services/meta.service.ts
-- Linha 32: `const META_GRAPH_URL = 'https://graph.facebook.com/v21.0'` -> `'v24.0'`
+**Arquivo**: `src/modules/negocios/pages/NegociosPage.tsx`
+- Atualizar o handler `onExcluir` para aceitar opcionalmente o `pipelineDestinoId`
+- Se informado, chamar migração antes da exclusão
 
-### 9. backend/src/services/config-global.service.ts
-- URL `graph.facebook.com/v18.0` -> `v24.0` (esta ainda mais desatualizada)
-
-## Observacoes adicionais
-
-- **Nivel de acesso "Development"**: O app esta em nivel Development para a API de Anuncios. Isso nao impede o recebimento de webhooks de Lead Ads, pois o teste ocorre no contexto do desenvolvedor. Porem, para producao com usuarios externos, sera necessario solicitar **Standard Access** via App Review.
-- **Campo "Autorizar URL de retorno de chamada"**: Esta vazio nas configuracoes avancadas. Recomendado preencher com `https://crm.renovedigital.com.br/configuracoes/conexoes` para seguranca adicional.
-- Apos a atualizacao, sera necessario **reconectar o Meta Ads** e testar novamente com a Lead Ads Testing Tool.
+### Fluxo de Migração
+1. Usuario clica em excluir pipeline com oportunidades
+2. Modal exibe as duas opções (migrar ou excluir)
+3. Se "Migrar" selecionado, mostra dropdown com pipelines ativas
+4. Ao confirmar, sistema reutiliza a lógica existente de `moverOportunidadesParaOutraPipeline` (que já faz reset de campos, criação de tarefas automáticas e re-qualificação MQL)
+5. Após migração bem-sucedida, exclui a pipeline original
+6. Toast de sucesso: "Pipeline excluída. X oportunidades migradas para [nome]."
