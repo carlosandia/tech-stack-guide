@@ -102,20 +102,34 @@ function sanitizeFormattedHtml(text: string): string {
 
 function TextContent({ body, rawData, contactMap }: { body: string; rawData?: Record<string, unknown> | null; contactMap?: Map<string, string> }) {
   const resolvedBody = useMemo(() => {
-    if (!contactMap || contactMap.size === 0 || !rawData) return body
+    if (!contactMap || contactMap.size === 0) return body
 
-    // Extrair mentionedJid do raw_data
-    const _data = rawData._data as Record<string, unknown> | undefined
-    const message = (_data?.message || _data?.Message) as Record<string, unknown> | undefined
-    const extText = message?.extendedTextMessage as Record<string, unknown> | undefined
-    const contextInfo = extText?.contextInfo as Record<string, unknown> | undefined
-    const mentionedJid = (
-      contextInfo?.mentionedJid || contextInfo?.mentionedJID ||
-      _data?.MentionedJID ||
-      rawData.mentionedIds
-    ) as string[] | undefined
+    let mentionedJid: string[] = []
 
-    if (!mentionedJid || mentionedJid.length === 0) return body
+    if (rawData) {
+      // AIDEV-NOTE: Extrair mentionedJid de TODOS os caminhos (NOWEB e GOWS)
+      const _data = rawData._data as Record<string, unknown> | undefined
+      const message = (_data?.message || _data?.Message) as Record<string, unknown> | undefined
+      const extText = message?.extendedTextMessage as Record<string, unknown> | undefined
+      const contextInfo = extText?.contextInfo as Record<string, unknown> | undefined
+
+      // Coletar de TODOS os caminhos (alinhado com useMentionResolver)
+      mentionedJid = [
+        ...((contextInfo?.mentionedJid || contextInfo?.mentionedJID || []) as string[]),
+        ...((_data?.MentionedJID || []) as string[]),
+        ...((rawData.mentionedIds || []) as string[]),
+      ]
+    }
+
+    // AIDEV-NOTE: FALLBACK - detectar padrões @numero no body quando raw_data não tem mentionedJid
+    if (mentionedJid.length === 0 && contactMap.size > 0) {
+      const bodyMatches = body.match(/@(\d{8,})/g)
+      if (bodyMatches) {
+        mentionedJid = bodyMatches.map(m => m.slice(1))
+      }
+    }
+
+    if (mentionedJid.length === 0) return body
 
     let resolved = body
     for (const jid of mentionedJid) {
