@@ -6,7 +6,7 @@
  * Se todas as métricas forem desmarcadas, o painel desaparece completamente
  */
 
-import { useMemo, useState, forwardRef } from 'react'
+import { useMemo, useState, useRef, useCallback, forwardRef } from 'react'
 import {
   TrendingUp, TrendingDown, DollarSign, Target, Clock,
   AlertTriangle, CheckCircle, XCircle, BarChart3, ChevronDown, ChevronUp,
@@ -47,14 +47,43 @@ const ICON_COR_CLASSES: Record<string, string> = {
   primary: 'text-primary',
 }
 
-// Tooltip inline via CSS (group/group-hover)
+// AIDEV-NOTE: Tooltip com posicionamento fixed + cálculo dinâmico para nunca ultrapassar o viewport
 function MetricTooltip({ text }: { text: string }) {
+  const iconRef = useRef<HTMLSpanElement>(null)
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
+
+  const show = useCallback(() => {
+    if (!iconRef.current) return
+    const rect = iconRef.current.getBoundingClientRect()
+    const tooltipW = 300
+    const margin = 8
+    // Centralizar horizontalmente abaixo do ícone
+    let left = rect.left + rect.width / 2 - tooltipW / 2
+    // Clamp para não sair do viewport
+    if (left < margin) left = margin
+    if (left + tooltipW > window.innerWidth - margin) left = window.innerWidth - margin - tooltipW
+    setPos({ top: rect.bottom + 6, left })
+  }, [])
+
+  const hide = useCallback(() => setPos(null), [])
+
   return (
-    <span className="relative inline-flex group/tip">
+    <span
+      ref={iconRef}
+      className="inline-flex"
+      onMouseEnter={show}
+      onMouseLeave={hide}
+      onClick={show}
+    >
       <Info className="w-3 h-3 text-muted-foreground cursor-help" />
-      <span className="invisible group-hover/tip:visible absolute left-1/2 -translate-x-1/2 top-full mt-1.5 z-[999] bg-popover text-popover-foreground text-xs rounded-md shadow-lg border px-3 py-2 min-w-[280px] max-w-[320px] whitespace-pre-line pointer-events-none">
-        {text}
-      </span>
+      {pos && (
+        <span
+          className="fixed z-[999] bg-popover text-popover-foreground text-xs rounded-md shadow-lg border px-3 py-2 whitespace-pre-line pointer-events-none"
+          style={{ top: pos.top, left: pos.left, width: 300 }}
+        >
+          {text}
+        </span>
+      )}
     </span>
   )
 }
