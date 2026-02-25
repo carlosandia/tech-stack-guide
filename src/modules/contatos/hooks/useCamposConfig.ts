@@ -21,19 +21,16 @@ import type { TipoContato } from '../services/contatos.api'
 
 /** Slugs que diferem do field key no contato */
 const SLUG_TO_FIELD_KEY: Record<string, string> = {
-  linkedin: 'linkedin_url',
   segmento_de_mercado: 'segmento',
 }
 
 /** Field keys com múltiplos slugs possíveis */
 const FIELD_KEY_TO_SLUGS: Record<string, string[]> = {
-  linkedin_url: ['linkedin', 'linkedin_url'],
   segmento: ['segmento', 'segmento_de_mercado'],
 }
 
 /** Column keys (ContatoColumnsToggle) com múltiplos slugs possíveis */
 const COLUMN_KEY_TO_SLUGS: Record<string, string[]> = {
-  linkedin: ['linkedin', 'linkedin_url'],
   segmento_mercado: ['segmento', 'segmento_de_mercado'],
   nome_empresa: ['nome_fantasia'],
 }
@@ -48,7 +45,6 @@ const FALLBACK_PESSOA: Record<string, { label: string; obrigatorio: boolean }> =
   email: { label: 'Email', obrigatorio: false },
   telefone: { label: 'Telefone', obrigatorio: false },
   cargo: { label: 'Cargo', obrigatorio: false },
-  linkedin_url: { label: 'LinkedIn', obrigatorio: false },
   endereco_cidade: { label: 'Cidade', obrigatorio: false },
   endereco_estado: { label: 'Estado', obrigatorio: false },
   endereco_cep: { label: 'CEP', obrigatorio: false },

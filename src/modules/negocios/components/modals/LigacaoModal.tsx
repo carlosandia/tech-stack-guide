@@ -520,7 +520,7 @@ function ProdutosEditaveis({ oportunidadeId }: { oportunidadeId: string }) {
 
 const SLUG_ICON_MAP: Record<string, React.ElementType> = {
   nome: User, sobrenome: User, email: Mail, telefone: Phone,
-  cargo: Briefcase, linkedin: Globe, website: Globe,
+  cargo: Briefcase, website: Globe,
   nome_fantasia: Building2, razao_social: Building2, cnpj: Briefcase,
   segmento: Briefcase, segmento_de_mercado: Briefcase, porte: Briefcase,
 }
@@ -531,7 +531,7 @@ const SLUG_MASK_MAP: Record<string, MaskType> = {
 
 const SLUG_TO_CONTATO_COL: Record<string, string> = {
   nome: 'nome', sobrenome: 'sobrenome', email: 'email', telefone: 'telefone',
-  cargo: 'cargo', linkedin: 'linkedin_url',
+  cargo: 'cargo',
 }
 
 const SLUG_TO_EMPRESA_COL: Record<string, string> = {

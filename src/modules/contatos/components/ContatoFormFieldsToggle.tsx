@@ -17,7 +17,7 @@ export interface FormFieldVisibility {
 const STORAGE_KEY = 'contatos_form_fields_visibility'
 
 // Keys dos campos do sistema por tipo (ordem de exibição)
-const CAMPO_KEYS_PESSOA = ['nome', 'sobrenome', 'email', 'telefone', 'cargo', 'linkedin_url']
+const CAMPO_KEYS_PESSOA = ['nome', 'sobrenome', 'email', 'telefone', 'cargo']
 const CAMPO_KEYS_EMPRESA = ['razao_social', 'nome_fantasia', 'cnpj', 'email', 'telefone', 'website', 'segmento', 'porte']
 
 // Campos meta (não são campos configuráveis, são fixos do sistema)

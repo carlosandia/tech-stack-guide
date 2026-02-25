@@ -279,7 +279,6 @@ export const ContatoViewModal = forwardRef<HTMLDivElement, ContatoViewModalProps
                       {isVisible('email') && <Field label={getLabel('email', 'Email')} value={contato.email} />}
                       {isVisible('telefone') && <Field label={getLabel('telefone', 'Telefone')} value={contato.telefone} />}
                       {isVisible('cargo') && <Field label={getLabel('cargo', 'Cargo')} value={contato.cargo} />}
-                      {isVisible('linkedin_url') && <Field label={getLabel('linkedin_url', 'LinkedIn')} value={contato.linkedin_url} isLink />}
                       {isVisible('empresa') && <Field label="Empresa" value={contato.empresa?.nome_fantasia || contato.empresa?.razao_social} />}
                       {isVisible('responsavel') && <Field label="Responsável" value={contato.owner ? `${contato.owner.nome} ${contato.owner.sobrenome || ''}`.trim() : undefined} />}
                     </>

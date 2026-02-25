@@ -31,7 +31,6 @@ const COLUNAS_SISTEMA_PESSOA: ColumnConfig[] = [
   { key: 'email', label: 'Email', fixed: false, visible: true, group: 'system' },
   { key: 'telefone', label: 'Telefone', fixed: false, visible: false, group: 'system' },
   { key: 'cargo', label: 'Cargo', fixed: false, visible: false, group: 'system' },
-  { key: 'linkedin', label: 'LinkedIn', fixed: false, visible: false, group: 'system' },
   { key: 'origem', label: 'Origem', fixed: false, visible: false, group: 'system' },
   { key: 'criado_em', label: 'Data de Criação', fixed: false, visible: false, group: 'system' },
 ]

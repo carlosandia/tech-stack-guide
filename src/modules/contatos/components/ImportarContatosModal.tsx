@@ -31,7 +31,6 @@ const CAMPOS_PESSOA = [
   { value: 'email', label: 'Email' },
   { value: 'telefone', label: 'Telefone' },
   { value: 'cargo', label: 'Cargo' },
-  { value: 'linkedin_url', label: 'LinkedIn' },
   { value: 'observacoes', label: 'Observações' },
 ]
 
