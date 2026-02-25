@@ -118,9 +118,10 @@ Deno.serve(async (req) => {
     }
 
     // 4. Buscar dados do contato
+    // AIDEV-NOTE: Campos expandidos para melhorar qualidade de correspondencia Meta CAPI
     const { data: contato, error: contatoErr } = await supabase
       .from("contatos")
-      .select("email, telefone, nome, sobrenome")
+      .select("email, telefone, nome, sobrenome, endereco_cidade, endereco_estado, endereco_cep")
       .eq("id", contato_id)
       .single();
 
@@ -130,9 +131,10 @@ Deno.serve(async (req) => {
     }
 
     // 5. Montar user_data com hashes SHA-256
+    // AIDEV-NOTE: Removidos client_ip_address e client_user_agent (nao aplicaveis para action_source=system_generated)
     const userData: Record<string, unknown> = {
-      client_ip_address: "127.0.0.1",
-      client_user_agent: "CRM-Server/1.0",
+      external_id: [await sha256(contato_id)],
+      country: [await sha256("br")],
     };
 
     if (contato.email) {
@@ -150,6 +152,18 @@ Deno.serve(async (req) => {
     if (contato.sobrenome) {
       userData.ln = [await sha256(contato.sobrenome)];
     }
+    if (contato.endereco_cidade) {
+      userData.ct = [await sha256(contato.endereco_cidade)];
+    }
+    if (contato.endereco_estado) {
+      userData.st = [await sha256(contato.endereco_estado)];
+    }
+    if (contato.endereco_cep) {
+      const cepNormalizado = contato.endereco_cep.replace(/[^\d]/g, "");
+      if (cepNormalizado) {
+        userData.zp = [await sha256(cepNormalizado)];
+      }
+    }
 
     // 6. Montar evento CAPI
     const eventTime = Math.floor(Date.now() / 1000);
@@ -159,7 +173,7 @@ Deno.serve(async (req) => {
       event_name,
       event_time: eventTime,
       event_id: eventId,
-      action_source: "website",
+      action_source: "system_generated",
       event_source_url: event_source_url || "https://crm.renovedigital.com.br",
       user_data: userData,
     };
