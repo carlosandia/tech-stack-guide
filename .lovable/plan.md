@@ -1,49 +1,60 @@
 
 
-## Plano: Adicionar botao de editar reuniao com sincronizacao Google Calendar
+## Plano: Melhorar UX do painel Conversions API (CAPI)
 
-### O que sera feito
+### Problemas identificados
 
-Adicionar um icone de lapis (editar) ao lado do icone de lixeira no card de reuniao. Ao clicar, o formulario de reuniao abre preenchido com os dados atuais. Ao salvar, atualiza no banco e sincroniza com o Google Calendar.
+1. **Botao "Salvar" sempre parece ativo** -- deveria mostrar estado "salvo" quando nao ha alteracoes pendentes, e so destacar quando o Pixel ID foi editado
+2. **Fluxo confuso para novos usuarios** -- precisa primeiro inserir o Pixel ID e salvar antes de poder testar, mas isso nao esta claro visualmente
+3. **Codigo do evento de teste aparece no toast** -- deveria aparecer inline no painel para facilitar copia
 
-### Alteracoes
+### Solucao
 
-**Arquivo 1: `src/modules/negocios/services/detalhes.api.ts`**
+#### 1. Deteccao de alteracoes pendentes (dirty state)
 
-Adicionar metodo `editarReuniao` que:
-- Recebe `reuniaoId` e payload com campos editaveis (titulo, descricao, tipo, local, data_inicio, data_fim, participantes, notificacao_minutos)
-- Faz UPDATE na tabela `reunioes_oportunidades`
-- Se a reuniao tem `google_event_id`, chama a edge function `google-auth` com action `update-event` para sincronizar as alteracoes no Google Calendar
+Comparar o valor atual do `pixelId` com o valor salvo no banco (`config.pixel_id`). O botao "Salvar" so fica com estilo primario (destaque) quando ha diferencas. Quando nao ha alteracoes, o botao fica em estilo secundario/outline com texto "Salvo" e icone de check.
 
-**Arquivo 2: `src/modules/negocios/hooks/useDetalhes.ts`**
+#### 2. Fluxo guiado por etapas
 
-Adicionar hook `useEditarReuniao` seguindo o mesmo padrao dos outros hooks (useMutation, invalidate queries de reunioes e historico).
+Quando nao ha Pixel ID salvo ainda:
+- Mostrar os eventos de conversao e estatisticas com `opacity-50 pointer-events-none` (desabilitados visualmente)
+- Mostrar um texto helper acima dos eventos: "Insira e salve o Pixel ID para configurar os eventos"
+- Botao "Enviar Evento Teste" fica desabilitado com tooltip explicativo
 
-**Arquivo 3: `src/modules/negocios/components/detalhes/AbaAgenda.tsx`**
+Quando ja tem Pixel ID salvo:
+- Tudo habilitado normalmente
+- Botao "Salvar" so destaca se Pixel ID foi alterado
 
-1. Importar `Pencil` do lucide-react
-2. Adicionar estado `editandoReuniao` (Reuniao | null) no componente principal
-3. No `ReuniaoItem`, adicionar prop `onEditar` e renderizar icone de lapis ao lado da lixeira (mesmo estilo opacity-0 group-hover:opacity-100)
-4. Ao clicar no lapis:
-   - Preencher `formData` com os dados atuais da reuniao (parseando data_inicio/data_fim para extrair data e hora)
-   - Setar `editandoReuniao` com a reuniao
-   - Abrir o formulario
-5. No submit, se `editandoReuniao` esta setado, chamar `useEditarReuniao` ao inves de `useCriarReuniao`
-6. Reutilizar o mesmo componente `ReuniaoForm`, apenas mudando o label do botao para "Salvar"
+#### 3. Codigo do evento de teste inline com botao de copiar
 
-### Detalhes tecnicos do update no Google Calendar
+Apos o teste bem-sucedido, exibir o `test_event_code` retornado pela API em uma area inline no painel (abaixo do botao de teste), com:
+- Badge com o codigo (ex: `TEST_EVENT_1771985260`)
+- Botao de copiar (icone Copy) que copia para o clipboard
+- Texto helper: "Use este codigo no Gerenciador de Eventos do Meta para verificar"
+- Substituir a exibicao no toast -- o toast so mostra "Evento de teste enviado com sucesso!" sem o codigo
 
-O metodo `editarReuniao` vai:
-1. Buscar `google_event_id` da reuniao antes de atualizar
-2. Fazer o UPDATE no Supabase
-3. Se existe `google_event_id`, chamar `google-auth` com action `update-event` passando os novos dados (titulo, descricao, data_inicio, data_fim, local)
-4. A edge function ja tem logica para `update-event` que faz PATCH no evento do Google Calendar
+#### 4. Recomendacoes de UX adicionais
+
+- Agrupar acoes (Salvar e Testar) de forma mais clara com separador visual
+- Mover botao "Salvar" junto ao campo Pixel ID (contexto mais proximo)
+- Mostrar estado de sucesso do ultimo teste de forma mais proeminente
+
+### Alteracoes tecnicas
+
+**Arquivo: `src/modules/configuracoes/components/integracoes/meta/CapiConfigPanel.tsx`**
+
+1. Adicionar estado `testEventCode` (string | null) para armazenar o codigo do ultimo teste
+2. Criar variavel `temAlteracoes` que compara `pixelId !== (config?.pixel_id || '')`
+3. Condicionar estilo do botao "Salvar":
+   - Com alteracoes: `bg-primary text-primary-foreground` + texto "Salvar Configuracao"
+   - Sem alteracoes: `bg-secondary text-secondary-foreground` + texto "Salvo" + icone CheckCircle2
+4. Desabilitar secao de eventos quando `!configSalva` com overlay visual
+5. No `onSuccess` do `testar`, extrair `test_event_code` e setar no estado; toast mostra apenas mensagem curta
+6. Renderizar bloco inline do codigo de teste com botao de copiar (usando `navigator.clipboard.writeText`)
 
 ### Arquivos modificados
 
 | Arquivo | Acao |
 |---------|------|
-| `src/modules/negocios/services/detalhes.api.ts` | Adicionar metodo `editarReuniao` |
-| `src/modules/negocios/hooks/useDetalhes.ts` | Adicionar hook `useEditarReuniao` |
-| `src/modules/negocios/components/detalhes/AbaAgenda.tsx` | Adicionar botao editar e logica de edicao |
+| `src/modules/configuracoes/components/integracoes/meta/CapiConfigPanel.tsx` | Refatorar UX: dirty state, fluxo guiado, codigo inline |
 
