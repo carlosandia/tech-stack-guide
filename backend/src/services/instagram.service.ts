@@ -38,7 +38,7 @@ interface ListarMensagensServiceResponse {
 // Constantes
 // =====================================================
 
-const META_GRAPH_URL = 'https://graph.facebook.com/v18.0'
+const META_GRAPH_URL = 'https://graph.facebook.com/v24.0'
 
 // =====================================================
 // Service

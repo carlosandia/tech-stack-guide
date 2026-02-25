@@ -110,7 +110,7 @@ Deno.serve(async (req) => {
       },
     };
 
-    const metaUrl = `https://graph.facebook.com/v21.0/${audience_id}/users`;
+    const metaUrl = `https://graph.facebook.com/v24.0/${audience_id}/users`;
     const metaRes = await fetch(metaUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -136,7 +136,7 @@ Deno.serve(async (req) => {
 
     if (accountId) {
       try {
-        const countUrl = `https://graph.facebook.com/v21.0/${audience_id}?fields=approximate_count_lower_bound&access_token=${encodeURIComponent(accessToken)}`;
+        const countUrl = `https://graph.facebook.com/v24.0/${audience_id}?fields=approximate_count_lower_bound&access_token=${encodeURIComponent(accessToken)}`;
         const countRes = await fetch(countUrl);
         if (countRes.ok) {
           const countData = await countRes.json();
