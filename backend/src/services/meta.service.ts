@@ -237,6 +237,36 @@ class MetaService {
       conexao = data
     }
 
+    // AIDEV-NOTE: Verificar escopos do token pós-OAuth para detectar permissões pendentes
+    // Tokens gerados antes de uma permissão ser aprovada no App Review não a incluem
+    try {
+      const permissionsData = await this.graphRequest<{ data: Array<{ permission: string; status: string }> }>(
+        'GET', '/me/permissions', accessToken
+      )
+      const granted = (permissionsData.data || [])
+        .filter((p) => p.status === 'granted')
+        .map((p) => p.permission)
+
+      const REQUIRED = ['leads_retrieval', 'pages_manage_metadata', 'pages_show_list']
+      const missing = REQUIRED.filter((s) => !granted.includes(s))
+
+      if (missing.length > 0) {
+        console.warn('[meta] Token sem escopos obrigatórios:', missing)
+        await supabase
+          .from('conexoes_meta')
+          .update({ ultimo_erro: `Permissões pendentes no token: ${missing.join(', ')}. Reconecte o Meta após aprovação do App Review.` })
+          .eq('id', conexao.id)
+      } else {
+        // Limpa erro anterior se todos os escopos estão presentes
+        await supabase
+          .from('conexoes_meta')
+          .update({ ultimo_erro: null })
+          .eq('id', conexao.id)
+      }
+    } catch (e) {
+      console.warn('[meta] Não foi possível verificar escopos do token:', e)
+    }
+
     return conexao as ConexaoMeta
   }
 
