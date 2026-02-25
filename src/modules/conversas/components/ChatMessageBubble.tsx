@@ -25,6 +25,7 @@ import {
   Reply,
   Copy,
   Smile,
+  Forward,
 } from 'lucide-react'
 import type { Mensagem } from '../services/conversas.api'
 import { conversasApi } from '../services/conversas.api'
@@ -1151,6 +1152,31 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
             >
               {participantName}
             </p>
+          )}
+
+          {/* AIDEV-NOTE: Indicador visual de mensagem encaminhada (forwarded) */}
+          {(() => {
+            const raw = mensagem.raw_data as Record<string, unknown> | null
+            if (!raw) return null
+            // Check multiple locations where isForwarded can appear
+            if (raw.isForwarded === true) return true
+            const _d = raw._data as Record<string, unknown> | undefined
+            if (_d?.isForwarded === true) return true
+            // Check contextInfo inside message objects
+            const msgObj = (_d?.Message || _d?.message) as Record<string, unknown> | undefined
+            if (msgObj) {
+              for (const k of Object.keys(msgObj)) {
+                const inner = msgObj[k] as Record<string, unknown> | undefined
+                const ci = inner?.contextInfo as Record<string, unknown> | undefined
+                if (ci?.isForwarded === true || (typeof ci?.forwardingScore === 'number' && ci.forwardingScore > 0)) return true
+              }
+            }
+            return null
+          })() && (
+            <div className="flex items-center gap-1 pb-0.5">
+              <Forward className="w-3 h-3 text-muted-foreground" />
+              <span className="text-[11px] text-muted-foreground italic">Encaminhada</span>
+            </div>
           )}
 
           {quotedMessage && (

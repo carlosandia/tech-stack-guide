@@ -2618,6 +2618,28 @@ Deno.serve(async (req) => {
       console.log(`[waha-webhook] Media type inferred from mimetype (${mime}): ${wahaType}`);
     }
 
+    // AIDEV-NOTE: Fallback para mensagens encaminhadas (forwarded) do GOWS
+    // O GOWS pode enviar type="chat" com hasMedia=false mas incluir imageMessage/videoMessage
+    // dentro de _data.Message ou _data.message. Detectamos e corrigimos o tipo aqui.
+    if (wahaType === "text" || wahaType === "chat") {
+      const fwdMsgData = payload._data?.Message || payload._data?.message;
+      if (fwdMsgData && typeof fwdMsgData === 'object') {
+        if (fwdMsgData.imageMessage) {
+          wahaType = "image";
+          console.log(`[waha-webhook] Forwarded image detected from _data.Message.imageMessage`);
+        } else if (fwdMsgData.videoMessage) {
+          wahaType = "video";
+          console.log(`[waha-webhook] Forwarded video detected from _data.Message.videoMessage`);
+        } else if (fwdMsgData.audioMessage) {
+          wahaType = fwdMsgData.audioMessage.ptt ? "ptt" : "audio";
+          console.log(`[waha-webhook] Forwarded audio detected from _data.Message.audioMessage`);
+        } else if (fwdMsgData.documentMessage) {
+          wahaType = "document";
+          console.log(`[waha-webhook] Forwarded document detected from _data.Message.documentMessage`);
+        }
+      }
+    }
+
     const messageInsert: Record<string, unknown> = {
       organizacao_id: sessao.organizacao_id,
       conversa_id: conversaId,
@@ -2710,7 +2732,63 @@ Deno.serve(async (req) => {
     // Extract media data from WAHA payload
     // Download from WAHA and re-upload to Supabase Storage
     // =====================================================
-    if (payload.hasMedia && payload.media?.url) {
+    // AIDEV-NOTE: Fallback para mídia de mensagens encaminhadas (forwarded) GOWS
+    // Quando payload.hasMedia=false ou payload.media.url ausente, tentamos via WAHA API
+    let forwardedMediaHandled = false;
+    if ((!payload.hasMedia || !payload.media?.url) && (wahaType === "image" || wahaType === "video" || wahaType === "audio" || wahaType === "ptt" || wahaType === "document")) {
+      const fwdMsgData3 = payload._data?.Message || payload._data?.message;
+      const mediaTypeKey = wahaType === "ptt" ? "audioMessage" : `${wahaType}Message`;
+      const fwdMediaObj = (fwdMsgData3 as Record<string, any>)?.[mediaTypeKey];
+      if (fwdMediaObj) {
+        const fwdMimetype = fwdMediaObj.mimetype || null;
+        const fwdFilename = fwdMediaObj.fileName || null;
+        const fwdSize = fwdMediaObj.fileLength || fwdMediaObj.FileLength || null;
+        const fwdDuration = fwdMediaObj.seconds || null;
+
+        messageInsert.media_mimetype = fwdMimetype;
+        messageInsert.media_filename = fwdFilename;
+        messageInsert.media_size = fwdSize;
+        messageInsert.media_duration = fwdDuration;
+        messageInsert.has_media = true;
+
+        // Tentar download via WAHA API endpoint /api/{session}/messages/{messageId}/download
+        if (wahaApiUrl && wahaApiKey && messageId) {
+          try {
+            const downloadUrl = `${wahaApiUrl}/api/${sessao.waha_session_name}/messages/${encodeURIComponent(messageId)}/download`;
+            console.log(`[waha-webhook] Forwarded media: attempting download via WAHA API: ${downloadUrl}`);
+            const dlResp = await fetch(downloadUrl, { headers: { "X-Api-Key": wahaApiKey } });
+            if (dlResp.ok) {
+              const dlBlob = await dlResp.arrayBuffer();
+              const dlBytes = new Uint8Array(dlBlob);
+              const extMap2: Record<string, string> = {
+                "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif",
+                "video/mp4": "mp4", "video/3gpp": "3gp", "audio/ogg": "ogg", "audio/mpeg": "mp3",
+                "audio/mp4": "m4a", "application/pdf": "pdf",
+              };
+              const ext2 = fwdMimetype ? (extMap2[fwdMimetype.toLowerCase()] || fwdMimetype.split("/")[1] || "bin") : "bin";
+              const storagePath2 = `conversas/${conversaId}/${messageId.replace(/[^a-zA-Z0-9._-]/g, "_")}.${ext2}`;
+              const { error: upErr2 } = await supabaseAdmin.storage.from("chat-media").upload(storagePath2, dlBytes, { contentType: fwdMimetype || "application/octet-stream", upsert: true });
+              if (!upErr2) {
+                const { data: pubUrl2 } = supabaseAdmin.storage.from("chat-media").getPublicUrl(storagePath2);
+                if (pubUrl2?.publicUrl) {
+                  messageInsert.media_url = pubUrl2.publicUrl;
+                  forwardedMediaHandled = true;
+                  console.log(`[waha-webhook] ✅ Forwarded media uploaded: ${pubUrl2.publicUrl}`);
+                }
+              } else {
+                console.error(`[waha-webhook] Forwarded media upload error: ${upErr2.message}`);
+              }
+            } else {
+              console.warn(`[waha-webhook] Forwarded media download failed (${dlResp.status})`);
+            }
+          } catch (fwdDlErr) {
+            console.error(`[waha-webhook] Forwarded media download/upload error:`, fwdDlErr);
+          }
+        }
+      }
+    }
+
+    if (!forwardedMediaHandled && payload.hasMedia && payload.media?.url) {
       const wahaMediaUrl = payload.media.url as string;
       const mediaMimetype = (payload.media.mimetype as string) || null;
       const mediaFilename = (payload.media.filename as string) || (payload._data?.filename as string) || null;
@@ -2787,9 +2865,17 @@ Deno.serve(async (req) => {
       messageInsert.media_url = finalMediaUrl;
     }
 
-    // Extract caption for media messages
-    if (payload.caption) {
-      messageInsert.caption = payload.caption;
+    // AIDEV-NOTE: Extract caption for media messages with fallback for forwarded messages
+    // Em mensagens encaminhadas GOWS, o caption pode estar dentro de imageMessage.caption
+    {
+      const fwdMsgData2 = payload._data?.Message || payload._data?.message;
+      const fwdCaption = payload.caption
+        || (fwdMsgData2 as Record<string, any>)?.imageMessage?.caption
+        || (fwdMsgData2 as Record<string, any>)?.videoMessage?.caption
+        || null;
+      if (fwdCaption) {
+        messageInsert.caption = fwdCaption;
+      }
     }
 
     // Extract location data
