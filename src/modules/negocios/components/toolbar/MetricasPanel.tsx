@@ -10,6 +10,7 @@ import { useMemo, useState, forwardRef } from 'react'
 import {
   TrendingUp, TrendingDown, DollarSign, Target, Clock,
   AlertTriangle, CheckCircle, XCircle, BarChart3, ChevronDown, ChevronUp,
+  Info,
 } from 'lucide-react'
 import type { KanbanData } from '../../services/negocios.api'
 import { type MetricasVisiveis, isMetricaVisivel } from './FiltrarMetricasPopover'
@@ -27,6 +28,7 @@ interface Metrica {
   valor: string
   icon: React.ElementType
   cor: 'default' | 'success' | 'warning' | 'destructive' | 'primary'
+  tooltip: string
 }
 
 const COR_CLASSES: Record<string, string> = {
@@ -43,6 +45,18 @@ const ICON_COR_CLASSES: Record<string, string> = {
   warning: 'text-warning',
   destructive: 'text-destructive',
   primary: 'text-primary',
+}
+
+// Tooltip inline via CSS (group/group-hover)
+function MetricTooltip({ text }: { text: string }) {
+  return (
+    <span className="relative inline-flex group/tip">
+      <Info className="w-3 h-3 text-muted-foreground cursor-help" />
+      <span className="invisible group-hover/tip:visible absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 z-50 bg-popover text-popover-foreground text-xs rounded-md shadow-md border px-3 py-2 max-w-[220px] whitespace-pre-line pointer-events-none">
+        {text}
+      </span>
+    </span>
+  )
 }
 
 function formatCurrency(valor: number): string {
@@ -122,19 +136,19 @@ function calcularMetricas(data: KanbanData): Metrica[] {
   }).length
 
   return [
-    { id: 'total', label: 'Total', valor: String(total), icon: BarChart3, cor: 'default' },
-    { id: 'abertas', label: 'Abertas', valor: String(abertas.length), icon: Target, cor: 'default' },
-    { id: 'ganhas', label: 'Ganhas', valor: String(ganhas.length), icon: CheckCircle, cor: 'default' },
-    { id: 'perdidas', label: 'Perdidas', valor: String(perdidas.length), icon: XCircle, cor: 'default' },
-    { id: 'valor_pipeline', label: 'Valor Pipeline', valor: formatCurrency(valorTotal), icon: DollarSign, cor: 'default' },
-    { id: 'valor_ganho', label: 'Valor Ganho', valor: formatCurrency(valorGanho), icon: TrendingUp, cor: 'default' },
-    { id: 'ticket_medio', label: 'Ticket Médio', valor: formatCurrency(ticketMedio), icon: DollarSign, cor: 'default' },
-    { id: 'conversao', label: 'Conversão', valor: `${taxaConversao}%`, icon: TrendingUp, cor: 'default' },
-    { id: 'forecast', label: 'Forecast', valor: formatCurrency(forecast), icon: Target, cor: 'default' },
-    { id: 'tempo_medio', label: 'Tempo Médio', valor: tempoMedioLabel, icon: Clock, cor: 'default' },
-    { id: 'stagnadas', label: 'Estagnadas', valor: String(stagnadas), icon: AlertTriangle, cor: 'default' },
-    { id: 'vencendo', label: 'Vencendo 7d', valor: String(vencendo), icon: Clock, cor: 'default' },
-    { id: 'atrasadas', label: 'Atrasadas', valor: String(atrasadas), icon: TrendingDown, cor: 'default' },
+    { id: 'total', label: 'Total', valor: String(total), icon: BarChart3, cor: 'default', tooltip: 'Número total de oportunidades em todas as etapas do funil, incluindo ganhas e perdidas.' },
+    { id: 'abertas', label: 'Abertas', valor: String(abertas.length), icon: Target, cor: 'default', tooltip: 'Oportunidades que ainda estão em andamento no funil (não ganhas nem perdidas).' },
+    { id: 'ganhas', label: 'Ganhas', valor: String(ganhas.length), icon: CheckCircle, cor: 'default', tooltip: 'Oportunidades que foram movidas para a etapa de ganho (fechadas com sucesso).' },
+    { id: 'perdidas', label: 'Perdidas', valor: String(perdidas.length), icon: XCircle, cor: 'default', tooltip: 'Oportunidades que foram movidas para a etapa de perda (não convertidas).' },
+    { id: 'valor_pipeline', label: 'Valor Pipeline', valor: formatCurrency(valorTotal), icon: DollarSign, cor: 'default', tooltip: 'Soma dos valores de todas as oportunidades abertas (em andamento no funil).' },
+    { id: 'valor_ganho', label: 'Valor Ganho', valor: formatCurrency(valorGanho), icon: TrendingUp, cor: 'default', tooltip: 'Soma dos valores de todas as oportunidades ganhas (receita confirmada).' },
+    { id: 'ticket_medio', label: 'Ticket Médio', valor: formatCurrency(ticketMedio), icon: DollarSign, cor: 'default', tooltip: 'Valor médio por oportunidade ganha.\nCálculo: Valor Ganho ÷ Número de Ganhas.' },
+    { id: 'conversao', label: 'Conversão', valor: `${taxaConversao}%`, icon: TrendingUp, cor: 'default', tooltip: 'Percentual de oportunidades ganhas sobre o total.\nCálculo: (Ganhas ÷ Total) × 100.' },
+    { id: 'forecast', label: 'Forecast', valor: formatCurrency(forecast), icon: Target, cor: 'default', tooltip: 'Previsão de receita ponderada pela probabilidade de cada etapa. Considera apenas oportunidades abertas.' },
+    { id: 'tempo_medio', label: 'Tempo Médio', valor: tempoMedioLabel, icon: Clock, cor: 'default', tooltip: 'Ciclo médio de venda das oportunidades ganhas, da criação até o fechamento.' },
+    { id: 'stagnadas', label: 'Estagnadas', valor: String(stagnadas), icon: AlertTriangle, cor: 'default', tooltip: 'Oportunidades abertas sem nenhuma atualização há mais de 7 dias.' },
+    { id: 'vencendo', label: 'Vencendo 7d', valor: String(vencendo), icon: Clock, cor: 'default', tooltip: 'Oportunidades abertas com previsão de fechamento nos próximos 7 dias.' },
+    { id: 'atrasadas', label: 'Atrasadas', valor: String(atrasadas), icon: TrendingDown, cor: 'default', tooltip: 'Oportunidades abertas cuja previsão de fechamento já passou.' },
   ]
 }
 
@@ -170,9 +184,12 @@ export const MetricasPanel = forwardRef<HTMLDivElement, MetricasPanelProps>(func
           >
             <m.icon className={`w-3.5 h-3.5 flex-shrink-0 ${ICON_COR_CLASSES[m.cor]}`} />
             <div className="min-w-0">
-              <p className="text-[10px] text-muted-foreground leading-none truncate">
-                {m.label}
-              </p>
+              <div className="flex items-center gap-1">
+                <p className="text-[10px] text-muted-foreground leading-none truncate">
+                  {m.label}
+                </p>
+                <MetricTooltip text={m.tooltip} />
+              </div>
               <p className="text-sm font-semibold leading-tight mt-0.5 truncate">
                 {m.valor}
               </p>
@@ -194,9 +211,12 @@ export const MetricasPanel = forwardRef<HTMLDivElement, MetricasPanelProps>(func
               `}
             >
               <m.icon className={`w-3.5 h-3.5 ${ICON_COR_CLASSES[m.cor]}`} />
-              <p className="text-[9px] text-muted-foreground leading-none truncate w-full">
-                {m.label}
-              </p>
+              <div className="flex items-center gap-0.5 justify-center">
+                <p className="text-[9px] text-muted-foreground leading-none truncate">
+                  {m.label}
+                </p>
+                <MetricTooltip text={m.tooltip} />
+              </div>
               <p className="text-xs font-semibold leading-tight truncate w-full">
                 {m.valor}
               </p>
