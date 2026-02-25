@@ -102,8 +102,6 @@ function sanitizeFormattedHtml(text: string): string {
 
 function TextContent({ body, rawData, contactMap }: { body: string; rawData?: Record<string, unknown> | null; contactMap?: Map<string, string> }) {
   const resolvedBody = useMemo(() => {
-    if (!contactMap || contactMap.size === 0) return body
-
     let mentionedJid: string[] = []
 
     if (rawData) {
@@ -121,8 +119,8 @@ function TextContent({ body, rawData, contactMap }: { body: string; rawData?: Re
       ]
     }
 
-    // AIDEV-NOTE: FALLBACK - detectar padrões @numero no body quando raw_data não tem mentionedJid
-    if (mentionedJid.length === 0 && contactMap.size > 0) {
+    // AIDEV-NOTE: FALLBACK - detectar padrões @numero no body (sempre, não só quando contactMap vazio)
+    if (mentionedJid.length === 0) {
       const bodyMatches = body.match(/@(\d{8,})/g)
       if (bodyMatches) {
         mentionedJid = bodyMatches.map(m => m.slice(1))
@@ -137,7 +135,7 @@ function TextContent({ body, rawData, contactMap }: { body: string; rawData?: Re
         .replace('@s.whatsapp.net', '')
         .replace('@c.us', '')
         .replace('@lid', '')
-      const name = contactMap.get(number)
+      const name = contactMap?.get(number)
       if (name) {
         // Substituir @numero por marcador que será renderizado como menção
         resolved = resolved.replace(`@${number}`, `@@mention:${name}@@`)
