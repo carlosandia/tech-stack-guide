@@ -1,49 +1,54 @@
 
-# Formatacao WhatsApp no Chat Input
+# Correcao: Mensagens com Link Preview sem Body (WAHA GOWS)
 
-## Resumo
+## Problema Identificado
 
-Adicionar botoes de formatacao de texto no estilo WhatsApp (Negrito, Italico, Riscado, Monoespaco) na barra de input de mensagens. Os botoes envolvem o texto selecionado com os caracteres de formatacao do WhatsApp. Funcionalidade disponivel apenas para conversas WhatsApp (desabilitada para Instagram).
+Mensagens recebidas com link preview (como a do Mercado Pago) chegam com `body` vazio no CRM, embora o texto esteja visivel no WhatsApp do dispositivo. Isso causa:
+- **No chat**: "Mensagem indisponivel" (ChatMessageBubble.tsx exibe fallback quando body e null)
+- **Na lista**: "Nenhuma mensagem" (ConversaItem.tsx mostra fallback quando ultima_mensagem e null, e o filtro de busca exclui mensagens text com body null)
 
-## Formatacoes WhatsApp suportadas
+## Causa Raiz
 
-| Formato | Sintaxe | Botao |
-|---------|---------|-------|
-| **Negrito** | `*texto*` | **B** |
-| *Italico* | `_texto_` | *I* |
-| ~~Riscado~~ | `~texto~` | ~~S~~ |
-| `Monoespaco` | `` ```texto``` `` | `<>` |
+No webhook (`waha-webhook/index.ts`, linha 1327), o body da mensagem e extraido com:
 
-## Alteracoes
+```text
+messageBody = payload.body || payload.text || ""
+```
 
-### 1. `src/modules/conversas/components/ChatInput.tsx`
+Para mensagens com link preview, o WAHA GOWS envia o tipo como `chat` mas o texto real esta dentro de `_data.Message.extendedTextMessage.text` (ou `_data.message.extendedTextMessage.text`). Como `payload.body` vem vazio, o webhook salva `body: null` no banco.
 
-**Adicionar prop `canal`** na interface `ChatInputProps`:
-- `canal?: 'whatsapp' | 'instagram'`
+## Solucao
 
-**Criar barra de formatacao** entre o `SugestaoCorrecao` e o textarea:
-- Exibida apenas quando `canal === 'whatsapp'` e tab === 'responder'
-- 4 botoes pequenos inline: **B**, *I*, ~~S~~, `<>`
-- Cada botao envolve o texto selecionado no textarea com os caracteres correspondentes
-- Se nao houver selecao, insere os caracteres e posiciona o cursor entre eles
-- Estilo: botoes `text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded px-1.5 py-0.5` alinhados a esquerda
-- Barra com `border-b border-border/30 px-2 py-1 flex gap-1`
+### Alteracao 1: `supabase/functions/waha-webhook/index.ts`
 
-**Logica de formatacao** (funcao `wrapSelection`):
-1. Pega `selectionStart` e `selectionEnd` do textarea
-2. Se ha selecao: envolve o trecho com o marcador (ex: `*selecao*`)
-3. Se nao ha selecao: insere `**` e posiciona cursor entre eles
-4. Atualiza o state (`setTexto`) e reposiciona o cursor
+Adicionar fallback para extrair o body de `extendedTextMessage.text` quando `payload.body` e `payload.text` estao vazios.
 
-### 2. `src/modules/conversas/components/ChatWindow.tsx`
+**Apos a linha 1327** (`const messageBody = payload.body || payload.text || ""`), adicionar logica de fallback:
 
-**Passar prop `canal`** para o `ChatInput`:
-- Adicionar `canal={conversa.canal}` na linha ~665
+```text
+// Fallback: extendedTextMessage (link previews)
+let messageBody = payload.body || payload.text || "";
+if (!messageBody) {
+  const msgObj = payload._data?.Message || payload._data?.message;
+  if (msgObj) {
+    messageBody = msgObj.extendedTextMessage?.text
+      || msgObj.ExtendedTextMessage?.Text
+      || "";
+  }
+}
+```
+
+Isso cobre tanto o formato camelCase (WAHA padrao) quanto PascalCase (GOWS).
+
+### Alteracao 2 (opcional): Script de correcao retroativa
+
+Como a mensagem do Mercado Pago ja esta no banco com body null, ela nao sera corrigida automaticamente. Sera necessario:
+- Ou reprocessar manualmente via SQL olhando o `raw_data` das mensagens com `body IS NULL AND tipo = 'text'`
+- Ou simplesmente aceitar que mensagens passadas continuarao como "indisponivel"
 
 ## Detalhes Tecnicos
 
+- Apenas 1 arquivo alterado: `supabase/functions/waha-webhook/index.ts`
+- A mudanca e na extracao do `messageBody` (linha 1327), transformando de `const` para `let` e adicionando o fallback
 - Nenhuma dependencia nova
-- A barra de formatacao usa apenas HTML/CSS simples com classes Tailwind
-- Posicionamento: logo acima do textarea, dentro do container do input
-- Os botoes nao sao focaveis via Tab para nao interferir no fluxo de digitacao (`tabIndex={-1}`)
-- `mouseDown` com `preventDefault` para manter o foco/selecao no textarea
+- Nenhuma alteracao no frontend (o frontend ja renderiza corretamente quando body esta preenchido)
