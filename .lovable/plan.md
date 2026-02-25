@@ -1,117 +1,60 @@
 
+# Tooltips informativos nas Métricas + Remover cor do cifrão no card
 
-# Localização: Corrigir Funcionamento + Melhorar UX/UI
+## Resumo
 
-## Problema Principal
+Duas alterações:
+1. **Métricas do Kanban**: Adicionar ícone `(i)` ao lado de cada label com tooltip explicando o cálculo de cada métrica de forma clara
+2. **Card do Kanban**: Remover a cor verde do ícone `$` de valor, deixando igual aos demais ícones (`text-muted-foreground`)
 
-As configuracoes de **Moeda**, **Fuso Horario** e **Formato de Data** sao salvas no banco mas **nao sao consumidas por nenhum componente do sistema**. Todos os 37+ arquivos que formatam moeda, data ou timezone estao hardcoded para `pt-BR` / `BRL` / timezone do navegador.
+## Alterações
 
-Alem disso, a secao nao explica **para que serve** cada campo nem **onde ele vai impactar**.
+### Arquivo 1: `src/modules/negocios/components/toolbar/MetricasPanel.tsx`
 
-## O que muda
+**Adicionar campo `tooltip` na interface `Metrica`** com textos explicativos para cada métrica:
 
-### 1. Hook global `useLocalizacao` (novo arquivo)
+| Métrica | Tooltip |
+|---------|---------|
+| Total | Número total de oportunidades em todas as etapas do funil, incluindo ganhas e perdidas |
+| Abertas | Oportunidades que ainda estão em andamento no funil (não ganhas nem perdidas) |
+| Ganhas | Oportunidades que foram movidas para a etapa de ganho (fechadas com sucesso) |
+| Perdidas | Oportunidades que foram movidas para a etapa de perda (não convertidas) |
+| Valor Pipeline | Soma dos valores de todas as oportunidades abertas (em andamento no funil) |
+| Valor Ganho | Soma dos valores de todas as oportunidades ganhas (receita confirmada) |
+| Ticket Médio | Valor médio por oportunidade ganha. Cálculo: Valor Ganho / Número de Ganhas |
+| Conversão | Percentual de oportunidades ganhas sobre o total. Cálculo: (Ganhas / Total) x 100 |
+| Forecast | Previsão de receita ponderada pela probabilidade de cada etapa. Considera apenas oportunidades abertas |
+| Tempo Médio | Ciclo médio de venda das oportunidades ganhas, da criação até o fechamento |
+| Estagnadas | Oportunidades abertas sem nenhuma atualização há mais de 7 dias |
+| Vencendo 7d | Oportunidades abertas com previsão de fechamento nos próximos 7 dias |
+| Atrasadas | Oportunidades abertas cuja previsão de fechamento já passou |
 
-Cria um hook centralizado que le as configs do tenant e expoe funcoes de formatacao:
-- `formatarMoeda(valor)` -- usa a moeda configurada (BRL/USD/EUR)
-- `formatarData(data)` -- usa o formato configurado (DD/MM/YYYY, etc.)
-- `getTimezone()` -- retorna o timezone do tenant
+**Implementação**:
+- Adicionar ícone `Info` do lucide-react (tamanho `w-3 h-3`, cor `text-muted-foreground`)
+- Criar um componente `Tooltip` simples inline usando CSS (`group` + `group-hover:visible`) — sem dependência externa
+- O ícone `(i)` fica ao lado do label, e ao passar o mouse (desktop) ou clicar (mobile) aparece o tooltip com fundo escuro e texto claro
+- No desktop: tooltip aparece ao lado do label com `position: absolute`
+- No mobile: funciona via `title` nativo como fallback
 
-O hook usa React Query com cache longo (as configs raramente mudam).
-
-**Arquivo:** `src/hooks/useLocalizacao.ts`
-
-### 2. Atualizar `src/lib/formatters.ts`
-
-A funcao `formatCurrency` ganha um parametro opcional `moeda` (default `BRL`). Assim, componentes que usam o hook passam a moeda configurada, e componentes legados continuam funcionando sem quebrar.
-
-### 3. Substituir hardcodes nos modulos principais
-
-Os arquivos mais criticos que serao atualizados para usar `useLocalizacao`:
-
-- `src/modules/negocios/components/detalhes/DetalhesCampos.tsx` -- valores de oportunidade
-- `src/modules/negocios/components/detalhes/ProdutosOportunidade.tsx` -- precos de produtos
-- `src/modules/negocios/components/kanban/` -- valores nos cards do Kanban
-- `src/modules/admin/pages/DashboardPage.tsx` -- MRR e metricas financeiras
-- `src/modules/tarefas/components/TarefaItem.tsx` -- datas de vencimento
-- `src/modules/conversas/components/ChatMessages.tsx` -- separadores de data
-
-Componentes que nao usam React (funcoes puras) receberao os parametros de locale como argumento.
-
-### 4. Melhorar UX/UI da secao Localizacao
-
-Alteracoes na `ConfigGeralPage.tsx`:
-
-**a) Descricao da secao:**
-Adicionar texto explicativo: "Estas configuracoes afetam como valores monetarios, datas e horarios sao exibidos em todo o CRM para todos os usuarios da organizacao."
-
-**b) Preview em tempo real:**
-Abaixo dos 3 selects, adicionar um bloco de preview discreto mostrando:
-
+**Visual (desktop)**:
 ```text
-Preview: R$ 1.234,56 | 25/02/2026 | Brasilia (GMT-3)
+[icon] Total (i)
+       13
+               ┌──────────────────────────────┐
+               │ Número total de oportunidades │
+               │ em todas as etapas do funil,  │
+               │ incluindo ganhas e perdidas.  │
+               └──────────────────────────────┘
 ```
 
-Que muda dinamicamente conforme o usuario seleciona as opcoes. Assim ele ve o impacto antes de salvar.
+### Arquivo 2: `src/modules/negocios/components/kanban/KanbanCard.tsx`
 
-**c) Descricoes por campo:**
-- Moeda: "Simbolo e formato usados nos valores de oportunidades, produtos e relatorios"
-- Fuso Horario: "Horario de referencia para agendamentos, notificacoes e logs de atividade"
-- Formato de Data: "Como datas sao exibidas em todo o sistema"
+**Linha 186**: Remover `style={{ color: 'hsl(var(--success))' }}` do ícone `DollarSign`, substituindo por `className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground"` para ficar consistente com os demais ícones do card (contato, responsável, etc.).
 
-**d) Badge Admin:**
-Adicionar o mesmo badge `Somente Administradores` usado nas outras secoes.
+## Detalhes Técnicos
 
-## Detalhes Tecnicos
-
-### Hook `useLocalizacao`
-
-```text
-useLocalizacao() retorna:
-  - moeda: string (BRL/USD/EUR)
-  - timezone: string (America/Sao_Paulo)
-  - formatoData: string (DD/MM/YYYY)
-  - formatarMoeda(valor: number): string
-  - formatarData(data: string | Date): string
-  - formatarDataHora(data: string | Date): string
-```
-
-Internamente faz `useQuery` na tabela `config_tenant` com `staleTime: 5min`.
-
-### Mapeamento moeda para Intl
-
-```text
-BRL -> { locale: 'pt-BR', currency: 'BRL' }
-USD -> { locale: 'en-US', currency: 'USD' }
-EUR -> { locale: 'de-DE', currency: 'EUR' }
-```
-
-### Mapeamento formato data
-
-```text
-DD/MM/YYYY -> dia/mes/ano
-MM/DD/YYYY -> mes/dia/ano
-YYYY-MM-DD -> ano-mes-dia
-```
-
-Usa `Intl.DateTimeFormat` com as opcoes corretas em vez de hardcoded `pt-BR`.
-
-### Preview na UI
-
-Componente `LocalizacaoPreview` que recebe os valores atuais do form e renderiza exemplos formatados. Usa `bg-muted/30 rounded-md border p-3` seguindo o design system.
-
-### Arquivos que serao criados ou editados
-
-| Arquivo | Acao |
-|---------|------|
-| `src/hooks/useLocalizacao.ts` | Criar (hook global) |
-| `src/lib/formatters.ts` | Editar (parametro moeda) |
-| `src/modules/configuracoes/pages/ConfigGeralPage.tsx` | Editar (UI melhorada) |
-| `src/modules/negocios/components/detalhes/DetalhesCampos.tsx` | Editar (usar hook) |
-| `src/modules/negocios/components/detalhes/ProdutosOportunidade.tsx` | Editar (usar hook) |
-| `src/modules/admin/pages/DashboardPage.tsx` | Editar (usar hook) |
-| `src/modules/tarefas/components/TarefaItem.tsx` | Editar (usar hook) |
-| `src/modules/conversas/components/ChatMessages.tsx` | Editar (usar hook) |
-
-Demais arquivos com hardcode serao atualizados progressivamente -- os listados acima sao os de maior impacto visual para o usuario.
-
+- Nenhuma dependência nova será adicionada
+- O tooltip será implementado via CSS puro usando classes Tailwind (`group`, `invisible`, `group-hover:visible`, `absolute`)
+- Componente `MetricTooltip` interno ao arquivo, recebendo `text: string` como prop
+- Z-index do tooltip: `z-50` para ficar acima de outros elementos
+- Estilo do tooltip: `bg-popover text-popover-foreground text-xs rounded-md shadow-md border px-3 py-2 max-w-[220px]`
