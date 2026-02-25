@@ -1917,10 +1917,12 @@ export const metaAdsApi = {
     if (error) throw error
     return data
   },
-  testarCapi: async () => {
+  testarCapi: async (testEventCode: string) => {
     // AIDEV-NOTE: Envia evento de teste real para Meta CAPI via Edge Function
+    // O test_event_code vem do Gerenciador de Eventos do Meta (copiado pelo usuario)
     const { data, error } = await supabase.functions.invoke('test-capi-event', {
       method: 'POST',
+      body: { test_event_code: testEventCode },
     })
     if (error) {
       // AIDEV-NOTE: Extrair mensagem do body JSON quando SDK captura como FunctionsHttpError
