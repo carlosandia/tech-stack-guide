@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect } from 'react'
-import { Save, Loader2, Settings, AlertTriangle, ArrowRight } from 'lucide-react'
+import { Save, Loader2, Settings, AlertTriangle, ArrowRight, Shield } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -17,6 +17,8 @@ import { RichTextEditor } from '../components/editor/RichTextEditor'
 import { WidgetWhatsAppConfig } from '../components/whatsapp-widget/WidgetWhatsAppConfig'
 import { DEFAULT_WIDGET_CONFIG, type WidgetWhatsAppConfig as WidgetConfig } from '../components/whatsapp-widget/types'
 import { supabase } from '@/lib/supabase'
+import { Switch } from '@/components/ui/switch'
+import { Badge } from '@/components/ui/badge'
 
 // =====================================================
 // Constantes
@@ -92,31 +94,39 @@ function BannerEmailDesconectado() {
   )
 }
 
-interface ToggleItemProps {
+interface NotificationToggleProps {
   label: string
   desc: string
   checked: boolean
-  onChange: () => void
+  onChange: (checked: boolean) => void
+  children?: React.ReactNode
 }
 
-function ToggleItem({ label, desc, checked, onChange }: ToggleItemProps) {
+function NotificationToggle({ label, desc, checked, onChange, children }: NotificationToggleProps) {
   return (
-    <div className="flex items-center justify-between gap-3 py-2">
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-foreground">{label}</p>
-        <p className="text-xs text-muted-foreground">{desc}</p>
+    <div className="py-3 space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-foreground">{label}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{desc}</p>
+        </div>
+        <Switch checked={checked} onCheckedChange={onChange} />
       </div>
-      <button
-        onClick={onChange}
-        className={`relative w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${
-          checked ? 'bg-primary' : 'bg-muted'
-        }`}
-      >
-        <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${
-          checked ? 'translate-x-5' : 'translate-x-0'
-        }`} />
-      </button>
+      {checked && children && (
+        <div className="pl-0 mt-1">
+          {children}
+        </div>
+      )}
     </div>
+  )
+}
+
+function AdminBadge() {
+  return (
+    <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 gap-1 font-medium text-xs">
+      <Shield className="w-3 h-3" />
+      Somente Administradores
+    </Badge>
   )
 }
 
@@ -164,6 +174,7 @@ export function ConfigGeralPage() {
     notificar_mudanca_etapa: false,
     criar_tarefa_automatica: true,
     dias_alerta_inatividade: 7,
+    notificar_inatividade: true,
     assinatura_mensagem: '',
     horario_inicio_envio: '08:00',
     horario_fim_envio: '18:00',
@@ -183,6 +194,7 @@ export function ConfigGeralPage() {
         notificar_mudanca_etapa: config.notificar_mudanca_etapa ?? false,
         criar_tarefa_automatica: config.criar_tarefa_automatica ?? true,
         dias_alerta_inatividade: config.dias_alerta_inatividade ?? 7,
+        notificar_inatividade: (config.dias_alerta_inatividade ?? 7) > 0,
         assinatura_mensagem: config.assinatura_mensagem || '',
         horario_inicio_envio: config.horario_inicio_envio || '08:00',
         horario_fim_envio: config.horario_fim_envio || '18:00',
@@ -219,11 +231,16 @@ export function ConfigGeralPage() {
       return
     }
     try {
-      await atualizarConfig.mutateAsync({
+      // Derivar dias_alerta_inatividade do toggle
+      const payload = {
         ...form,
+        dias_alerta_inatividade: form.notificar_inatividade ? form.dias_alerta_inatividade : 0,
         widget_whatsapp_ativo: widgetConfig.ativo,
         widget_whatsapp_config: widgetConfig,
-      })
+      }
+      // Remover campo local do form antes de enviar
+      const { notificar_inatividade, ...rest } = payload
+      await atualizarConfig.mutateAsync(rest)
       setTemAlteracoes(false)
     } catch (err) {
       console.error('Erro ao salvar configurações:', err)
@@ -260,47 +277,104 @@ export function ConfigGeralPage() {
         </div>
       </section>
 
-      {/* Notificações */}
-      <section className="bg-card rounded-lg border border-border p-6 space-y-4">
-        <h2 className="text-base font-semibold text-foreground">Notificações</h2>
-        {!loadingEmail && !temEmailConectado && <BannerEmailDesconectado />}
-        <ToggleItem label="Nova Oportunidade" desc="Enviar email ao criar oportunidade" checked={form.notificar_nova_oportunidade} onChange={() => updateField('notificar_nova_oportunidade', !form.notificar_nova_oportunidade)} />
-        <ToggleItem label="Tarefa Vencida" desc="Enviar email quando tarefa vencer" checked={form.notificar_tarefa_vencida} onChange={() => updateField('notificar_tarefa_vencida', !form.notificar_tarefa_vencida)} />
-        <ToggleItem label="Mudança de Etapa" desc="Enviar email ao mover etapa no funil" checked={form.notificar_mudanca_etapa} onChange={() => updateField('notificar_mudanca_etapa', !form.notificar_mudanca_etapa)} />
-      </section>
-
-      {/* Automação */}
-      <section className="bg-card rounded-lg border border-border p-6 space-y-4">
-        <h2 className="text-base font-semibold text-foreground">Automação</h2>
-        <ToggleItem label="Criar Tarefa Automática" desc="Criar tarefas da etapa automaticamente ao mover oportunidade" checked={form.criar_tarefa_automatica} onChange={() => updateField('criar_tarefa_automatica', !form.criar_tarefa_automatica)} />
+      {/* Notificações por Email */}
+      <section className="bg-card rounded-lg border border-border p-6 space-y-5">
         <div>
-          <label className="text-sm font-medium text-foreground mb-1.5 block">Dias para Alerta de Inatividade</label>
-          <input
-            type="number"
-            min={1}
-            max={90}
-            value={form.dias_alerta_inatividade}
-            onChange={e => updateField('dias_alerta_inatividade', parseInt(e.target.value) || 7)}
-            className="w-32 h-10 px-3 rounded-md border border-input bg-background text-sm text-foreground"
+          <div className="flex items-center gap-3 flex-wrap">
+            <h2 className="text-base font-semibold text-foreground">Notificações por Email</h2>
+            <AdminBadge />
+          </div>
+          <p className="text-sm text-muted-foreground mt-1">
+            Controle quais eventos enviam email automático para os membros da equipe.
+          </p>
+        </div>
+
+        {!loadingEmail && !temEmailConectado && <BannerEmailDesconectado />}
+
+        {/* Janela de envio */}
+        <div className="rounded-md border border-border bg-muted/30 p-4 space-y-3">
+          <div>
+            <p className="text-sm font-medium text-foreground">Janela de envio</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Emails serão enviados apenas dentro deste horário.</p>
+          </div>
+          <div className="grid grid-cols-2 gap-4 max-w-xs">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Início</label>
+              <input type="time" value={form.horario_inicio_envio} onChange={e => updateField('horario_inicio_envio', e.target.value)} className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm text-foreground" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Fim</label>
+              <input type="time" value={form.horario_fim_envio} onChange={e => updateField('horario_fim_envio', e.target.value)} className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm text-foreground" />
+            </div>
+          </div>
+        </div>
+
+        {/* Eventos */}
+        <div className="space-y-1 divide-y divide-border">
+          <NotificationToggle
+            label="Oportunidade criada"
+            desc="Envia email ao responsável quando uma nova oportunidade for criada no pipeline."
+            checked={form.notificar_nova_oportunidade}
+            onChange={v => updateField('notificar_nova_oportunidade', v)}
           />
-          <p className="text-xs text-muted-foreground mt-1">Alertar após X dias sem atividade na oportunidade</p>
+          <NotificationToggle
+            label="Tarefa vencida"
+            desc="Envia email ao responsável quando uma tarefa ultrapassar a data de vencimento."
+            checked={form.notificar_tarefa_vencida}
+            onChange={v => updateField('notificar_tarefa_vencida', v)}
+          />
+          <NotificationToggle
+            label="Oportunidade movida de etapa"
+            desc="Envia email ao responsável quando a oportunidade mudar de etapa no funil."
+            checked={form.notificar_mudanca_etapa}
+            onChange={v => updateField('notificar_mudanca_etapa', v)}
+          />
+          <NotificationToggle
+            label="Oportunidade inativa"
+            desc="Envia email ao responsável quando a oportunidade ficar sem atividade. Também destaca o card no Kanban com badge visual de inatividade."
+            checked={form.notificar_inatividade}
+            onChange={v => {
+              updateField('notificar_inatividade', v)
+              if (!v) updateField('dias_alerta_inatividade', 0)
+              else if (form.dias_alerta_inatividade === 0) updateField('dias_alerta_inatividade', 7)
+            }}
+          >
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span>Alertar após</span>
+              <input
+                type="number"
+                min={1}
+                max={90}
+                value={form.dias_alerta_inatividade}
+                onChange={e => updateField('dias_alerta_inatividade', parseInt(e.target.value) || 7)}
+                className="w-16 h-8 px-2 rounded-md border border-input bg-background text-sm text-foreground text-center"
+              />
+              <span>dias sem atividade</span>
+            </div>
+          </NotificationToggle>
         </div>
       </section>
 
-      {/* Horário Comercial */}
-      <section className="bg-card rounded-lg border border-border p-6 space-y-4">
-        <h2 className="text-base font-semibold text-foreground">Horário Comercial</h2>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="text-sm font-medium text-foreground mb-1.5 block">Início</label>
-            <input type="time" value={form.horario_inicio_envio} onChange={e => updateField('horario_inicio_envio', e.target.value)} className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm text-foreground" />
+      {/* Automações do Pipeline */}
+      <section className="bg-card rounded-lg border border-border p-6 space-y-5">
+        <div>
+          <div className="flex items-center gap-3 flex-wrap">
+            <h2 className="text-base font-semibold text-foreground">Automações do Pipeline</h2>
+            <AdminBadge />
           </div>
-          <div>
-            <label className="text-sm font-medium text-foreground mb-1.5 block">Fim</label>
-            <input type="time" value={form.horario_fim_envio} onChange={e => updateField('horario_fim_envio', e.target.value)} className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm text-foreground" />
-          </div>
+          <p className="text-sm text-muted-foreground mt-1">
+            Configure ações automáticas que acontecem ao movimentar oportunidades entre etapas.
+          </p>
         </div>
-        <p className="text-xs text-muted-foreground">Mensagens programadas serão enviadas dentro deste horário</p>
+
+        <div className="space-y-1">
+          <NotificationToggle
+            label="Criar tarefas automaticamente"
+            desc="Ao mover uma oportunidade para uma nova etapa, as tarefas configuradas naquela etapa serão criadas automaticamente."
+            checked={form.criar_tarefa_automatica}
+            onChange={v => updateField('criar_tarefa_automatica', v)}
+          />
+        </div>
       </section>
 
       {/* Assinatura - Editor Rico */}
