@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Loader2, Activity, TestTube, CheckCircle2, XCircle, BarChart } from 'lucide-react'
+import { Loader2, Activity, TestTube, CheckCircle2, XCircle, BarChart, Copy, Check } from 'lucide-react'
 import { toast } from 'sonner'
 import { metaAdsApi } from '../../../services/configuracoes.api'
 
@@ -29,6 +29,8 @@ export function CapiConfigPanel() {
   const [pixelId, setPixelId] = useState('')
   const [eventosHabilitados, setEventosHabilitados] = useState<Record<string, boolean>>({})
   const [enviarValorWon, setEnviarValorWon] = useState(true)
+  const [testEventCode, setTestEventCode] = useState<string | null>(null)
+  const [copiado, setCopiado] = useState(false)
 
   const { data: config, isLoading } = useQuery({
     queryKey: ['meta-ads', 'capi-config'],
@@ -45,6 +47,7 @@ export function CapiConfigPanel() {
 
   // AIDEV-NOTE: Derivado do config do banco - botão teste só habilita após salvar
   const configSalva = !!config?.pixel_id
+  const temAlteracoes = pixelId !== (config?.pixel_id || '')
 
   const salvar = useMutation({
     mutationFn: () =>
@@ -65,7 +68,14 @@ export function CapiConfigPanel() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['meta-ads', 'capi-config'] })
       if (data.sucesso) {
-        toast.success('mensagem' in data && data.mensagem ? data.mensagem : 'Evento de teste enviado com sucesso!')
+        toast.success('Evento de teste enviado com sucesso!')
+        // AIDEV-NOTE: Extrair test_event_code para exibição inline
+        const code = ('test_event_code' in data && data.test_event_code)
+          ? String(data.test_event_code)
+          : ('event_id' in data && data.event_id)
+            ? String(data.event_id)
+            : null
+        if (code) setTestEventCode(code)
       } else {
         toast.error('erro' in data && data.erro ? data.erro : 'Falha no envio do evento de teste')
       }
@@ -80,6 +90,13 @@ export function CapiConfigPanel() {
     setEventosHabilitados((prev) => ({ ...prev, [key]: !prev[key] }))
   }
 
+  const copiarCodigo = async () => {
+    if (!testEventCode) return
+    await navigator.clipboard.writeText(testEventCode)
+    setCopiado(true)
+    setTimeout(() => setCopiado(false), 2000)
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -90,23 +107,50 @@ export function CapiConfigPanel() {
 
   return (
     <div className="space-y-6">
-      {/* Pixel ID */}
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium text-foreground">Pixel ID</label>
-        <input
-          type="text"
-          value={pixelId}
-          onChange={(e) => setPixelId(e.target.value)}
-          placeholder="Ex: 123456789012345"
-          className="w-full px-3 py-2 text-sm rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-        />
-        <p className="text-xs text-muted-foreground">
-          Encontre o Pixel ID no Gerenciador de Eventos do Meta Business Suite
-        </p>
+      {/* Pixel ID + Salvar agrupados */}
+      <div className="space-y-3">
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-foreground">Pixel ID</label>
+          <input
+            type="text"
+            value={pixelId}
+            onChange={(e) => setPixelId(e.target.value)}
+            placeholder="Ex: 123456789012345"
+            className="w-full px-3 py-2 text-sm rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+          <p className="text-xs text-muted-foreground">
+            Encontre o Pixel ID no Gerenciador de Eventos do Meta Business Suite
+          </p>
+        </div>
+
+        {/* Botão Salvar junto ao Pixel ID */}
+        <button
+          onClick={() => salvar.mutate()}
+          disabled={salvar.isPending || !pixelId || (!temAlteracoes && configSalva)}
+          className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+            temAlteracoes
+              ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+              : 'bg-secondary text-secondary-foreground'
+          }`}
+        >
+          {salvar.isPending ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : !temAlteracoes && configSalva ? (
+            <CheckCircle2 className="w-3.5 h-3.5" />
+          ) : (
+            <Activity className="w-3.5 h-3.5" />
+          )}
+          {!temAlteracoes && configSalva ? 'Salvo' : 'Salvar Configuração'}
+        </button>
       </div>
 
-      {/* Eventos */}
-      <div className="space-y-3">
+      {/* Eventos - desabilitados visualmente se não tem config salva */}
+      <div className={`space-y-3 ${!configSalva ? 'opacity-50 pointer-events-none' : ''}`}>
+        {!configSalva && (
+          <p className="text-xs text-muted-foreground italic">
+            Insira e salve o Pixel ID acima para configurar os eventos
+          </p>
+        )}
         <h4 className="text-sm font-semibold text-foreground">Eventos de Conversão</h4>
         <div className="space-y-2">
           {EVENTOS.map((evento) => (
@@ -149,7 +193,7 @@ export function CapiConfigPanel() {
       </div>
 
       {/* Estatísticas */}
-      {config && (
+      {config && configSalva && (
         <div className="bg-muted/50 rounded-lg p-4 space-y-2">
           <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
             <BarChart className="w-4 h-4" />
@@ -196,33 +240,48 @@ export function CapiConfigPanel() {
         </div>
       )}
 
-      {/* Ações */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => testar.mutate()}
-          disabled={testar.isPending || !configSalva}
-          title={!configSalva ? 'Salve a configuração primeiro' : undefined}
-          className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-md bg-secondary text-secondary-foreground hover:bg-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {testar.isPending ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          ) : (
-            <TestTube className="w-3.5 h-3.5" />
-          )}
-          Enviar Evento Teste
-        </button>
-        <button
-          onClick={() => salvar.mutate()}
-          disabled={salvar.isPending || !pixelId}
-          className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
-        >
-          {salvar.isPending ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          ) : (
-            <Activity className="w-3.5 h-3.5" />
-          )}
-          Salvar Configuração
-        </button>
+      {/* Teste CAPI */}
+      <div className={`space-y-3 ${!configSalva ? 'opacity-50 pointer-events-none' : ''}`}>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => testar.mutate()}
+            disabled={testar.isPending || !configSalva}
+            title={!configSalva ? 'Salve a configuração primeiro' : undefined}
+            className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-md bg-secondary text-secondary-foreground hover:bg-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {testar.isPending ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <TestTube className="w-3.5 h-3.5" />
+            )}
+            Enviar Evento Teste
+          </button>
+        </div>
+
+        {/* Código do evento de teste inline */}
+        {testEventCode && (
+          <div className="flex items-center gap-2 p-3 border border-border rounded-lg bg-muted/30">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-muted-foreground mb-1">
+                Use este código no Gerenciador de Eventos do Meta para verificar
+              </p>
+              <code className="text-xs font-mono px-2 py-1 rounded bg-muted text-foreground select-all">
+                {testEventCode}
+              </code>
+            </div>
+            <button
+              onClick={copiarCodigo}
+              className="inline-flex items-center gap-1 text-xs px-2 py-1.5 rounded-md bg-secondary text-secondary-foreground hover:bg-accent transition-colors shrink-0"
+            >
+              {copiado ? (
+                <Check className="w-3.5 h-3.5" />
+              ) : (
+                <Copy className="w-3.5 h-3.5" />
+              )}
+              {copiado ? 'Copiado' : 'Copiar'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
