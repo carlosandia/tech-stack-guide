@@ -1,86 +1,70 @@
 
-## Plano: Inverter fluxo de teste CAPI - Aceitar codigo do Meta como input
 
-### Problema
+## Corrigir payload do evento de teste CAPI para aparecer no Meta Events Manager
 
-O fluxo atual gera um `test_event_code` no servidor e pede ao usuario para cola-lo no Meta. Porem, o Meta **gera seu proprio codigo** (ex: `TEST26342`) e espera que esse codigo seja enviado junto com o evento via API. O campo no Meta e somente leitura (copiar), nao aceita colar.
+### Problema identificado
 
-### Fluxo correto
+Os logs do servidor mostram que o Meta aceita o evento (`events_received: 1`), mas ele nao aparece na aba "Eventos de teste" do Gerenciador de Eventos. A causa raiz esta no payload enviado:
 
-1. Usuario abre o Gerenciador de Eventos do Meta > aba "Testar eventos"
-2. Meta exibe um codigo unico (ex: `TEST26342`) com botao "Copiar"
-3. Usuario cola esse codigo no CRM
-4. CRM envia o evento para a CAPI usando esse codigo no campo `test_event_code`
-5. O evento aparece na tela do Meta em tempo real
+- `action_source: 'system_generated'` faz o Meta nao exibir na interface de teste
+- `user_data` contendo apenas `client_ip_address: '0.0.0.0'` e considerado dado invalido
+- Ausencia do campo `event_source_url`, obrigatorio para `action_source: 'website'`
+
+### Solucao
+
+Alterar o payload do evento de teste na Edge Function para usar valores que o Meta reconhece e exibe na interface.
 
 ### Alteracoes
 
-#### 1. `src/modules/configuracoes/components/integracoes/meta/CapiConfigPanel.tsx`
+#### Arquivo: `supabase/functions/test-capi-event/index.ts`
 
-- Remover o bloco de exibicao inline do `testEventCode` gerado pelo servidor
-- Adicionar um campo de input para o usuario colar o codigo do Meta
-- Estado `testEventCode` passa de output para input (o usuario digita/cola)
-- Instrucoes claras: "Cole aqui o codigo de teste do Gerenciador de Eventos do Meta"
-- Link direto para o Events Manager
-- Botao "Enviar Evento Teste" so habilita quando ha codigo preenchido
-- Apos envio com sucesso, toast simples de confirmacao
+Modificar o objeto `capiPayload` (linhas 118-128):
 
-#### 2. `src/modules/configuracoes/services/configuracoes.api.ts`
-
-- Alterar `testarCapi()` para aceitar parametro `testEventCode: string`
-- Passar o codigo no body da chamada da Edge Function
-
-#### 3. `supabase/functions/test-capi-event/index.ts`
-
-- Ler `test_event_code` do body da requisicao (enviado pelo frontend)
-- Remover a geracao automatica `TEST_EVENT_${eventTime}`
-- Usar o codigo recebido no payload enviado ao Meta
-
-### Detalhes tecnicos
-
-**CapiConfigPanel.tsx** - Secao de teste:
-
-```text
-+---------------------------------------------+
-| Testar Conversions API                       |
-|                                              |
-| 1. Abra o Gerenciador de Eventos do Meta     |
-|    [Link: Abrir Events Manager]              |
-|                                              |
-| 2. Copie o codigo de teste exibido la        |
-|                                              |
-| 3. Cole aqui:                                |
-|    [_________________________] (input)       |
-|                                              |
-| [Enviar Evento Teste] (habilitado se input)  |
-+---------------------------------------------+
-```
-
-**Edge Function** - Mudanca no payload:
-
+**Antes:**
 ```typescript
-// Antes: const testEventCode = `TEST_EVENT_${eventTime}`
-// Depois: ler do body
-const body = await req.json()
-const testEventCode = body?.test_event_code
-```
-
-**API service** - Parametro:
-
-```typescript
-testarCapi: async (testEventCode: string) => {
-  const { data, error } = await supabase.functions.invoke('test-capi-event', {
-    method: 'POST',
-    body: { test_event_code: testEventCode },
-  })
-  // ...
+const capiPayload = {
+  data: [
+    {
+      event_name: 'Lead',
+      event_time: eventTime,
+      action_source: 'system_generated',
+      user_data: { client_ip_address: '0.0.0.0' },
+    },
+  ],
+  test_event_code: testEventCode,
 }
 ```
 
-### Arquivos modificados
+**Depois:**
+```typescript
+const capiPayload = {
+  data: [
+    {
+      event_name: 'Lead',
+      event_time: eventTime,
+      action_source: 'website',
+      event_source_url: 'https://crm.renovedigital.com.br',
+      user_data: {
+        em: ['309a0a5c3e211326ae75571f882866e0b8de3131acf14c3f89044e1d868e2c2c'],
+        client_ip_address: '127.0.0.1',
+        client_user_agent: 'CRM-Test/1.0',
+      },
+    },
+  ],
+  test_event_code: testEventCode,
+}
+```
+
+Mudancas:
+- `action_source` de `'system_generated'` para `'website'`
+- Adicionado `event_source_url` com a URL real do CRM
+- `user_data.em` com hash SHA-256 de um email de teste (formato que o Meta espera)
+- `client_ip_address` de `'0.0.0.0'` para `'127.0.0.1'`
+- Adicionado `client_user_agent`
+
+### Arquivo modificado
 
 | Arquivo | Acao |
 |---------|------|
-| `src/modules/configuracoes/components/integracoes/meta/CapiConfigPanel.tsx` | Input para codigo do Meta, instrucoes, link |
-| `src/modules/configuracoes/services/configuracoes.api.ts` | Passar `test_event_code` como parametro |
-| `supabase/functions/test-capi-event/index.ts` | Ler codigo do body em vez de gerar |
+| `supabase/functions/test-capi-event/index.ts` | Corrigir payload do evento de teste |
+
