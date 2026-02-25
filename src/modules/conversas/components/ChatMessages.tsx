@@ -201,6 +201,7 @@ export const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(functi
   const isGroup = conversaTipo === 'grupo' || conversaTipo === 'canal'
 
   const prevConversaRef = useRef<string | undefined>(undefined)
+  const shouldAutoScrollRef = useRef(false)
   const { contactMap } = useMentionResolver(mensagens)
 
   // AIDEV-NOTE: Efeito unificado para scroll - resolve race condition entre troca de conversa e cache
@@ -231,6 +232,25 @@ export const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(functi
       prevLengthRef.current = mensagens.length
     }, 80)
   }, [conversaId, mensagens.length])
+
+  // AIDEV-NOTE: ResizeObserver para re-scroll quando mídia carrega e altera altura do container
+  useEffect(() => {
+    shouldAutoScrollRef.current = true
+    const timer = setTimeout(() => { shouldAutoScrollRef.current = false }, 2000)
+    return () => clearTimeout(timer)
+  }, [conversaId])
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    const observer = new ResizeObserver(() => {
+      if (shouldAutoScrollRef.current) {
+        bottomRef.current?.scrollIntoView({ behavior: 'instant' })
+      }
+    })
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [])
 
   useEffect(() => {
     const container = containerRef.current
