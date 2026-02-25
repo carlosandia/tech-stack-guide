@@ -1,5 +1,14 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+
+// AIDEV-NOTE: Safety net para erros de WebSocket do Vite HMR no preview
+// Previne tela branca causada por unhandled promise rejection
+window.addEventListener('unhandledrejection', (event) => {
+  if (event.reason?.message?.includes('WebSocket')) {
+    event.preventDefault()
+    console.warn('[HMR] WebSocket error suprimido:', event.reason.message)
+  }
+})
 import { BrowserRouter } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import { QueryProvider } from '@/providers/QueryProvider'
