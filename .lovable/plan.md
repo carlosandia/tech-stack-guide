@@ -1,60 +1,86 @@
 
+## Plano: Inverter fluxo de teste CAPI - Aceitar codigo do Meta como input
 
-## Plano: Melhorar UX do painel Conversions API (CAPI)
+### Problema
 
-### Problemas identificados
+O fluxo atual gera um `test_event_code` no servidor e pede ao usuario para cola-lo no Meta. Porem, o Meta **gera seu proprio codigo** (ex: `TEST26342`) e espera que esse codigo seja enviado junto com o evento via API. O campo no Meta e somente leitura (copiar), nao aceita colar.
 
-1. **Botao "Salvar" sempre parece ativo** -- deveria mostrar estado "salvo" quando nao ha alteracoes pendentes, e so destacar quando o Pixel ID foi editado
-2. **Fluxo confuso para novos usuarios** -- precisa primeiro inserir o Pixel ID e salvar antes de poder testar, mas isso nao esta claro visualmente
-3. **Codigo do evento de teste aparece no toast** -- deveria aparecer inline no painel para facilitar copia
+### Fluxo correto
 
-### Solucao
+1. Usuario abre o Gerenciador de Eventos do Meta > aba "Testar eventos"
+2. Meta exibe um codigo unico (ex: `TEST26342`) com botao "Copiar"
+3. Usuario cola esse codigo no CRM
+4. CRM envia o evento para a CAPI usando esse codigo no campo `test_event_code`
+5. O evento aparece na tela do Meta em tempo real
 
-#### 1. Deteccao de alteracoes pendentes (dirty state)
+### Alteracoes
 
-Comparar o valor atual do `pixelId` com o valor salvo no banco (`config.pixel_id`). O botao "Salvar" so fica com estilo primario (destaque) quando ha diferencas. Quando nao ha alteracoes, o botao fica em estilo secundario/outline com texto "Salvo" e icone de check.
+#### 1. `src/modules/configuracoes/components/integracoes/meta/CapiConfigPanel.tsx`
 
-#### 2. Fluxo guiado por etapas
+- Remover o bloco de exibicao inline do `testEventCode` gerado pelo servidor
+- Adicionar um campo de input para o usuario colar o codigo do Meta
+- Estado `testEventCode` passa de output para input (o usuario digita/cola)
+- Instrucoes claras: "Cole aqui o codigo de teste do Gerenciador de Eventos do Meta"
+- Link direto para o Events Manager
+- Botao "Enviar Evento Teste" so habilita quando ha codigo preenchido
+- Apos envio com sucesso, toast simples de confirmacao
 
-Quando nao ha Pixel ID salvo ainda:
-- Mostrar os eventos de conversao e estatisticas com `opacity-50 pointer-events-none` (desabilitados visualmente)
-- Mostrar um texto helper acima dos eventos: "Insira e salve o Pixel ID para configurar os eventos"
-- Botao "Enviar Evento Teste" fica desabilitado com tooltip explicativo
+#### 2. `src/modules/configuracoes/services/configuracoes.api.ts`
 
-Quando ja tem Pixel ID salvo:
-- Tudo habilitado normalmente
-- Botao "Salvar" so destaca se Pixel ID foi alterado
+- Alterar `testarCapi()` para aceitar parametro `testEventCode: string`
+- Passar o codigo no body da chamada da Edge Function
 
-#### 3. Codigo do evento de teste inline com botao de copiar
+#### 3. `supabase/functions/test-capi-event/index.ts`
 
-Apos o teste bem-sucedido, exibir o `test_event_code` retornado pela API em uma area inline no painel (abaixo do botao de teste), com:
-- Badge com o codigo (ex: `TEST_EVENT_1771985260`)
-- Botao de copiar (icone Copy) que copia para o clipboard
-- Texto helper: "Use este codigo no Gerenciador de Eventos do Meta para verificar"
-- Substituir a exibicao no toast -- o toast so mostra "Evento de teste enviado com sucesso!" sem o codigo
+- Ler `test_event_code` do body da requisicao (enviado pelo frontend)
+- Remover a geracao automatica `TEST_EVENT_${eventTime}`
+- Usar o codigo recebido no payload enviado ao Meta
 
-#### 4. Recomendacoes de UX adicionais
+### Detalhes tecnicos
 
-- Agrupar acoes (Salvar e Testar) de forma mais clara com separador visual
-- Mover botao "Salvar" junto ao campo Pixel ID (contexto mais proximo)
-- Mostrar estado de sucesso do ultimo teste de forma mais proeminente
+**CapiConfigPanel.tsx** - Secao de teste:
 
-### Alteracoes tecnicas
+```text
++---------------------------------------------+
+| Testar Conversions API                       |
+|                                              |
+| 1. Abra o Gerenciador de Eventos do Meta     |
+|    [Link: Abrir Events Manager]              |
+|                                              |
+| 2. Copie o codigo de teste exibido la        |
+|                                              |
+| 3. Cole aqui:                                |
+|    [_________________________] (input)       |
+|                                              |
+| [Enviar Evento Teste] (habilitado se input)  |
++---------------------------------------------+
+```
 
-**Arquivo: `src/modules/configuracoes/components/integracoes/meta/CapiConfigPanel.tsx`**
+**Edge Function** - Mudanca no payload:
 
-1. Adicionar estado `testEventCode` (string | null) para armazenar o codigo do ultimo teste
-2. Criar variavel `temAlteracoes` que compara `pixelId !== (config?.pixel_id || '')`
-3. Condicionar estilo do botao "Salvar":
-   - Com alteracoes: `bg-primary text-primary-foreground` + texto "Salvar Configuracao"
-   - Sem alteracoes: `bg-secondary text-secondary-foreground` + texto "Salvo" + icone CheckCircle2
-4. Desabilitar secao de eventos quando `!configSalva` com overlay visual
-5. No `onSuccess` do `testar`, extrair `test_event_code` e setar no estado; toast mostra apenas mensagem curta
-6. Renderizar bloco inline do codigo de teste com botao de copiar (usando `navigator.clipboard.writeText`)
+```typescript
+// Antes: const testEventCode = `TEST_EVENT_${eventTime}`
+// Depois: ler do body
+const body = await req.json()
+const testEventCode = body?.test_event_code
+```
+
+**API service** - Parametro:
+
+```typescript
+testarCapi: async (testEventCode: string) => {
+  const { data, error } = await supabase.functions.invoke('test-capi-event', {
+    method: 'POST',
+    body: { test_event_code: testEventCode },
+  })
+  // ...
+}
+```
 
 ### Arquivos modificados
 
 | Arquivo | Acao |
 |---------|------|
-| `src/modules/configuracoes/components/integracoes/meta/CapiConfigPanel.tsx` | Refatorar UX: dirty state, fluxo guiado, codigo inline |
-
+| `src/modules/configuracoes/components/integracoes/meta/CapiConfigPanel.tsx` | Input para codigo do Meta, instrucoes, link |
+| `src/modules/configuracoes/services/configuracoes.api.ts` | Passar `test_event_code` como parametro |
+| `supabase/functions/test-capi-event/index.ts` | Ler codigo do body em vez de gerar |
