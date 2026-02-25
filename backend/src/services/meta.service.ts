@@ -34,7 +34,7 @@ const META_GRAPH_URL = 'https://graph.facebook.com/v21.0'
 const META_SCOPES = [
   'pages_show_list',
   'pages_read_engagement',
-  'pages_manage_metadata',
+  'pages_manage_ads',
   'leads_retrieval',
   'ads_management',
   'ads_read',
@@ -247,7 +247,7 @@ class MetaService {
         .filter((p) => p.status === 'granted')
         .map((p) => p.permission)
 
-      const REQUIRED = ['leads_retrieval', 'pages_manage_metadata', 'pages_show_list']
+      const REQUIRED = ['leads_retrieval', 'pages_show_list']
       const missing = REQUIRED.filter((s) => !granted.includes(s))
 
       if (missing.length > 0) {

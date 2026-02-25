@@ -109,7 +109,7 @@ Deno.serve(async (req) => {
       "pages_show_list",
       "pages_read_engagement",
       "leads_retrieval",
-      "pages_manage_metadata",
+      "pages_manage_ads",
       "ads_management",
       "ads_read",
       "business_management",
