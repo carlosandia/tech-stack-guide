@@ -13,6 +13,15 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { format, parseISO, addHours } from 'date-fns'
+
+// AIDEV-NOTE: Helper para obter offset de timezone do navegador (ex: "-03:00")
+function getTimezoneOffset(): string {
+  const offset = new Date().getTimezoneOffset()
+  const sign = offset > 0 ? '-' : '+'
+  const hours = Math.floor(Math.abs(offset) / 60)
+  const minutes = Math.abs(offset) % 60
+  return `${sign}${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+}
 import { ptBR } from 'date-fns/locale'
 import {
   Popover,
@@ -86,7 +95,8 @@ function AgendaContent({
       toast.error('Informe data e hora')
       return
     }
-    const dataInicio = `${form.data_inicio}T${form.hora_inicio}:00`
+    const tzOffset = getTimezoneOffset()
+    const dataInicio = `${form.data_inicio}T${form.hora_inicio}:00${tzOffset}`
     const dataFim = addHours(new Date(dataInicio), 1).toISOString()
     try {
       await criarReuniao.mutateAsync({
@@ -97,7 +107,8 @@ function AgendaContent({
           data_inicio: dataInicio,
           data_fim: dataFim,
           google_meet: form.google_meet,
-          sincronizar_google: form.google_meet && !!conexaoGoogle?.conectado,
+          // AIDEV-NOTE: Sincronizar com Google Calendar sempre que conectado
+          sincronizar_google: !!conexaoGoogle?.conectado,
         },
       })
       toast.success('Reunião agendada!')
