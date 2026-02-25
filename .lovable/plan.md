@@ -1,75 +1,101 @@
 
-# Correção de Texto e Migração de Oportunidades na Exclusão de Pipeline
 
-## Problema Identificado
-1. **Bug de texto**: O código atual concatena `será` + `ão` resultando em "seráão" (incorreto). Deve ser "serão".
-2. **UX incompleta**: Ao excluir uma pipeline com oportunidades, o sistema apenas avisa e exclui tudo. Grandes SaaS oferecem a opção de migrar as oportunidades para outra pipeline.
+# Redesign da Config Geral - UX/UI Melhorada
 
-## Solução Proposta
+## Problemas Atuais
+1. **3 secoes separadas** (Notificacoes, Automacao, Horario Comercial) sem contexto claro de como se relacionam
+2. **Nomenclaturas vagas** - "Nova Oportunidade", "Tarefa Vencida" nao explicam QUEM recebe e ONDE aparece o alerta
+3. **Alerta de inatividade** nao deixa claro onde o usuario vai ver esse alerta
+4. **Restricao de admin** nao esta visivel - o usuario nao sabe que so admin pode alterar
+5. **Horario Comercial** separado das notificacoes sendo que ambos controlam envio de email
 
-### 1. Corrigir o texto (PipelineSelector.tsx, linha 151)
-Alterar de:
-```
-que será{count > 1 ? 'ão' : ''} excluída{count > 1 ? 's' : ''}
-```
-Para:
-```
-que {count > 1 ? 'serão' : 'será'} excluída{count > 1 ? 's' : ''}
-```
+## Solucao Recomendada
 
-### 2. Novo modal de exclusão com opção de migração
+Reorganizar em **2 secoes claras** com descricoes explicitas:
 
-Quando a pipeline contém oportunidades, o modal de confirmação passa a oferecer **duas opções**:
+### Estrutura Nova
 
 ```text
-+------------------------------------------+
-|  [!] Excluir pipeline                    |
-|                                          |
-|  Tem certeza que deseja excluir          |
-|  "TesteMilion2"?                         |
-|                                          |
-|  Esta pipeline contém 2 oportunidades.   |
-|                                          |
-|  O que fazer com as oportunidades?       |
-|                                          |
-|  (o) Migrar para outra pipeline          |
-|      [ Selecione uma pipeline   v ]      |
-|                                          |
-|  ( ) Excluir todas as oportunidades      |
-|      Esta ação não pode ser desfeita.    |
-|                                          |
-|  [Cancelar]  [Confirmar]                 |
-+------------------------------------------+
++--------------------------------------------------+
+| Notificacoes por Email                            |
+| Controle quais eventos enviam email automatico    |
+| para os membros da equipe.                        |
+| [Badge: Somente Administradores]                  |
+|                                                   |
+| [!] Banner email desconectado (se aplicavel)      |
+|                                                   |
+| -- Janela de envio --                             |
+| Emails serao enviados apenas neste horario.       |
+| Inicio: [08:00]   Fim: [18:00]                   |
+|                                                   |
+| -- Eventos --                                     |
+| [x] Oportunidade criada                           |
+|     Envia email ao responsavel quando uma nova    |
+|     oportunidade for criada no pipeline.          |
+|                                                   |
+| [x] Tarefa vencida                                |
+|     Envia email ao responsavel quando uma tarefa  |
+|     ultrapassar a data de vencimento.             |
+|                                                   |
+| [ ] Oportunidade movida de etapa                  |
+|     Envia email ao responsavel quando a           |
+|     oportunidade mudar de etapa no funil.         |
+|                                                   |
+| [x] Oportunidade inativa                          |
+|     Envia email ao responsavel quando a           |
+|     oportunidade ficar sem atividade por:         |
+|     [7] dias                                      |
+|     Tambem destaca o card no Kanban com badge     |
+|     visual de inatividade.                        |
++--------------------------------------------------+
+
++--------------------------------------------------+
+| Automacoes do Pipeline                            |
+| Configure acoes automaticas que acontecem ao      |
+| movimentar oportunidades entre etapas.            |
+| [Badge: Somente Administradores]                  |
+|                                                   |
+| [x] Criar tarefas automaticamente                 |
+|     Ao mover uma oportunidade para uma nova       |
+|     etapa, as tarefas configuradas naquela etapa  |
+|     serao criadas automaticamente.                |
++--------------------------------------------------+
 ```
 
-- **Migrar**: Dropdown lista as demais pipelines ativas. Ao confirmar, move as oportunidades para a etapa de entrada da pipeline destino e depois exclui a pipeline original.
-- **Excluir tudo**: Comportamento atual (exclusão destrutiva).
-- Se a pipeline **não tem oportunidades**, mantém o modal simples atual (apenas corrigido).
+### Mudancas Especificas
 
-### Detalhes Tecnicoss
+**Arquivo**: `src/modules/configuracoes/pages/ConfigGeralPage.tsx`
 
-**Arquivo**: `src/modules/negocios/components/toolbar/PipelineSelector.tsx`
-- Expandir o state `confirmDelete` para incluir `acao: 'migrar' | 'excluir'` e `pipelineDestinoId`
-- Adicionar radio buttons e dropdown de pipeline destino no modal
-- Usar a lista de `funis` (prop existente) para popular o dropdown, filtrando a pipeline sendo excluída
+1. **Unificar Notificacoes + Horario Comercial + Alerta de Inatividade** em uma unica secao "Notificacoes por Email"
+   - Horario de envio fica no topo da secao como contexto
+   - Alerta de inatividade vira um toggle igual aos outros (com input de dias inline quando ativo)
+   - Cada toggle ganha descricao expandida explicando QUEM recebe e QUANDO dispara
 
-**Arquivo**: `src/modules/negocios/services/negocios.api.ts`
-- Criar função `migrarOportunidadesParaPipeline(funilOrigemId, funilDestinoId)` que:
-  1. Busca a etapa de entrada do funil destino
-  2. Move todas as oportunidades do funil origem para essa etapa
-  3. Exclui o funil origem
+2. **Renomear Automacao** para "Automacoes do Pipeline" com descricao clara
 
-**Arquivo**: `src/modules/negocios/hooks/useFunis.ts`
-- Criar hook `useMigrarEExcluirFunil()` que chama a nova API e invalida as queries
+3. **Adicionar badge "Somente Administradores"** em cada secao, usando um badge discreto (bg-amber-50, text-amber-700) ao lado do titulo
 
-**Arquivo**: `src/modules/negocios/pages/NegociosPage.tsx`
-- Atualizar o handler `onExcluir` para aceitar opcionalmente o `pipelineDestinoId`
-- Se informado, chamar migração antes da exclusão
+4. **Melhorar nomenclaturas**:
+   - "Nova Oportunidade" → "Oportunidade criada"
+   - "Tarefa Vencida" → "Tarefa vencida"
+   - "Mudanca de Etapa" → "Oportunidade movida de etapa"
+   - Novo: "Oportunidade inativa" (move o campo de dias para dentro deste toggle)
+   - "Criar Tarefa Automatica" → "Criar tarefas automaticamente"
 
-### Fluxo de Migração
-1. Usuario clica em excluir pipeline com oportunidades
-2. Modal exibe as duas opções (migrar ou excluir)
-3. Se "Migrar" selecionado, mostra dropdown com pipelines ativas
-4. Ao confirmar, sistema reutiliza a lógica existente de `moverOportunidadesParaOutraPipeline` (que já faz reset de campos, criação de tarefas automáticas e re-qualificação MQL)
-5. Após migração bem-sucedida, exclui a pipeline original
-6. Toast de sucesso: "Pipeline excluída. X oportunidades migradas para [nome]."
+5. **Descricoes expandidas** em cada toggle:
+   - Ao inves de "Enviar email ao criar oportunidade" → "Envia email ao responsavel quando uma nova oportunidade for criada no pipeline"
+   - Padroes: sempre dizer QUEM recebe + QUANDO dispara
+
+6. **Usar o componente Switch do shadcn** (`@/components/ui/switch`) ao inves do toggle customizado, seguindo o design system
+
+7. **Secoes restantes** (Localizacao, Assinatura, Widget WhatsApp) permanecem inalteradas
+
+### Detalhes Tecnicos
+
+- Remover a secao `Horario Comercial` como card separado
+- Remover a secao `Automacao` como card separado com o campo de dias
+- Mover inputs de horario para dentro da secao de Notificacoes
+- Mover input de dias para inline dentro do toggle de "Oportunidade inativa"
+- Adicionar novo campo boolean `notificar_inatividade` ao form state (derivado de `dias_alerta_inatividade > 0`)
+- Importar e usar `Switch` de `@/components/ui/switch` e `Badge` se disponivel
+- Adicionar icone `Shield` ou `Lock` do lucide para o badge de admin
