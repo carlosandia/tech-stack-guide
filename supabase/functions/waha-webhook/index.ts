@@ -1324,7 +1324,16 @@ Deno.serve(async (req) => {
 
     // Extract message data
     const rawFrom = payload.from || "";
-    const messageBody = payload.body || payload.text || "";
+    // AIDEV-NOTE: Fallback para extendedTextMessage (link previews no WAHA GOWS)
+    let messageBody = payload.body || payload.text || "";
+    if (!messageBody) {
+      const msgObj = payload._data?.Message || payload._data?.message;
+      if (msgObj) {
+        messageBody = msgObj.extendedTextMessage?.text
+          || msgObj.ExtendedTextMessage?.Text
+          || "";
+      }
+    }
     const messageType = payload.type || "chat";
     const messageId = payload.id?._serialized || payload.id?.id || payload.id || `waha_${Date.now()}`;
     const timestamp = payload.timestamp || Math.floor(Date.now() / 1000);
