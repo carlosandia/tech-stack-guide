@@ -13,6 +13,7 @@ import { AnexosMenu } from './AnexosMenu'
 import { AudioRecorder } from './AudioRecorder'
 import { EmojiPicker } from './EmojiPicker'
 import { SugestaoCorrecao } from './SugestaoCorrecao'
+import { WhatsAppFormattedOverlay } from './WhatsAppFormattedOverlay'
 import { ConfiguracaoTeclado } from './ConfiguracaoTeclado'
 import { useAutoCorrect } from '../hooks/useAutoCorrect'
 import { useBlockedWords } from '../hooks/useBlockedWords'
@@ -410,33 +411,47 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
                     </div>
                   )}
 
-                  {/* Textarea */}
-                  <textarea
-                    ref={textareaRef}
-                    value={currentText}
-                    onChange={(e) => {
-                      handleInputChange(e.target.value)
-                      autoResize(e.target)
-                      setCursorPos(e.target.selectionStart)
-                    }}
-                    onKeyDown={handleKeyDown}
-                    onKeyUp={(e) => setCursorPos((e.target as HTMLTextAreaElement).selectionStart)}
-                    onClick={(e) => setCursorPos((e.target as HTMLTextAreaElement).selectionStart)}
-                    onPaste={!isNota ? handlePaste : undefined}
-                    placeholder={isNota ? 'Escreva uma nota privada...' : 'Digite uma mensagem...'}
-                    disabled={disabled}
-                    spellCheck
-                    lang="pt-BR"
-                    rows={1}
-                    className="
-                      flex-1 w-full resize-none bg-transparent px-2 py-2.5 text-sm
-                      focus:outline-none
-                      placeholder:text-muted-foreground/60
-                      disabled:opacity-50
-                      overflow-hidden
-                    "
-                    style={{ maxHeight: '150px' }}
-                  />
+                  {/* AIDEV-NOTE: Container relativo para sobrepor overlay de formatação */}
+                  <div className="relative flex-1">
+                    {/* Overlay de pré-visualização WhatsApp */}
+                    {canal === 'whatsapp' && !isNota && (
+                      <WhatsAppFormattedOverlay
+                        text={currentText}
+                        className="absolute inset-0 px-2 py-2.5 text-sm pointer-events-none whitespace-pre-wrap break-words overflow-hidden text-foreground"
+                      />
+                    )}
+
+                    {/* Textarea */}
+                    <textarea
+                      ref={textareaRef}
+                      value={currentText}
+                      onChange={(e) => {
+                        handleInputChange(e.target.value)
+                        autoResize(e.target)
+                        setCursorPos(e.target.selectionStart)
+                      }}
+                      onKeyDown={handleKeyDown}
+                      onKeyUp={(e) => setCursorPos((e.target as HTMLTextAreaElement).selectionStart)}
+                      onClick={(e) => setCursorPos((e.target as HTMLTextAreaElement).selectionStart)}
+                      onPaste={!isNota ? handlePaste : undefined}
+                      placeholder={isNota ? 'Escreva uma nota privada...' : 'Digite uma mensagem...'}
+                      disabled={disabled}
+                      spellCheck
+                      lang="pt-BR"
+                      rows={1}
+                      className={`
+                        w-full resize-none bg-transparent px-2 py-2.5 text-sm
+                        focus:outline-none
+                        placeholder:text-muted-foreground/60
+                        disabled:opacity-50
+                        overflow-hidden
+                        relative z-10
+                        ${canal === 'whatsapp' && !isNota && /\`\`\`[\s\S]+?\`\`\`|\*.+?\*|_.+?_|~.+?~/.test(currentText) ? 'text-transparent caret-foreground' : ''}
+                      `}
+                      style={{ maxHeight: '150px' }}
+                    />
+                  </div>
+
 
                   {/* Right icons inside input */}
                   {!isNota && (
