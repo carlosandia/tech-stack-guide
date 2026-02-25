@@ -34,100 +34,95 @@ import {
   X,
   ChevronDown,
   Lock,
+  Wrench,
 } from 'lucide-react'
 
 
 /**
  * AIDEV-NOTE: Layout principal do CRM para Admin e Member
- * Conforme Design System Seção 11 - Navegação Horizontal
+ * Conforme Design System Seção 11 - Navegação Horizontal com Hubs
  * Header fixo (56px) + Toolbar sticky (48px)
  * Glass Effect: bg-white/80 backdrop-blur-md
+ *
+ * Navegação agrupada por Hubs (Comercial, Atendimento, Ferramentas)
+ * para escalar com novos módulos futuros.
  */
 
-const menuItems = [
+// ─── Tipos e dados de navegação por Hub ────────────────────────────────
+
+interface NavHubItem {
+  label: string
+  path: string
+  icon: React.ElementType
+  slug: string
+}
+
+interface NavHub {
+  label: string
+  icon: React.ElementType
+  path?: string
+  exact?: boolean
+  slug?: string
+  children?: NavHubItem[]
+}
+
+const navHubs: NavHub[] = [
   {
     label: 'Dashboard',
-    path: '/dashboard',
     icon: LayoutDashboard,
+    path: '/dashboard',
     exact: true,
     slug: 'dashboard',
   },
   {
-    label: 'Contatos',
-    path: '/contatos',
-    icon: Users,
-    slug: 'contatos',
-  },
-  {
-    label: 'Negócios',
-    path: '/negocios',
+    label: 'Comercial',
     icon: Briefcase,
-    slug: 'negocios',
+    children: [
+      { label: 'Negócios', path: '/negocios', icon: Briefcase, slug: 'negocios' },
+      { label: 'Contatos', path: '/contatos', icon: Users, slug: 'contatos' },
+    ],
   },
   {
-    label: 'Conversas',
-    path: '/conversas',
+    label: 'Atendimento',
     icon: MessageSquare,
-    slug: 'conversas',
+    children: [
+      { label: 'Conversas', path: '/conversas', icon: MessageSquare, slug: 'conversas' },
+      { label: 'Emails', path: '/emails', icon: Mail, slug: 'caixa-entrada-email' },
+    ],
   },
   {
-    label: 'Emails',
-    path: '/emails',
-    icon: Mail,
-    slug: 'caixa-entrada-email',
-  },
-  {
-    label: 'Tarefas',
-    path: '/tarefas',
-    icon: CheckSquare,
-    slug: 'atividades',
-  },
-  {
-    label: 'Formulários',
-    path: '/formularios',
-    icon: FileText,
-    slug: 'formularios',
-  },
-  {
-    label: 'Automações',
-    path: '/automacoes',
-    icon: Zap,
-    slug: 'automacoes',
+    label: 'Ferramentas',
+    icon: Wrench,
+    children: [
+      { label: 'Tarefas', path: '/tarefas', icon: CheckSquare, slug: 'atividades' },
+      { label: 'Formulários', path: '/formularios', icon: FileText, slug: 'formularios' },
+      { label: 'Automações', path: '/automacoes', icon: Zap, slug: 'automacoes' },
+    ],
   },
 ]
 
-const NavItem = forwardRef<HTMLAnchorElement, {
-  to: string
-  exact?: boolean
-  children: React.ReactNode
-  icon: React.ElementType
-  onClick?: () => void
-  locked?: boolean
-}>(function NavItem({ to, exact, children, icon: Icon, onClick, locked }, ref) {
+// ─── Componentes de navegação ──────────────────────────────────────────
+
+/** Link direto (Dashboard) - sem dropdown */
+function NavDirectLink({ hub, locked }: { hub: NavHub; locked: boolean }) {
+  const Icon = hub.icon
   if (locked) {
     return (
       <button
         type="button"
-        onClick={(e) => {
-          e.preventDefault()
-          // Could show a toast/tooltip in the future
-        }}
-        className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 border border-transparent text-muted-foreground/50 cursor-not-allowed opacity-60 relative group"
+        className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 border border-transparent text-muted-foreground/50 cursor-not-allowed opacity-60"
         title="Módulo não disponível no seu plano"
       >
         <Icon className="w-4 h-4" />
-        <span>{children}</span>
-        <Lock className="w-3 h-3 ml-auto text-muted-foreground/40 group-hover:text-muted-foreground/60" />
+        <span>{hub.label}</span>
+        <Lock className="w-3 h-3 text-muted-foreground/40" />
       </button>
     )
   }
-
   return (
     <NavLink
-      ref={ref}
-      to={to}
-      end={exact}
-      onClick={onClick}
+      to={hub.path!}
+      end={hub.exact}
       className={({ isActive }) =>
         `flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
           isActive
@@ -137,10 +132,89 @@ const NavItem = forwardRef<HTMLAnchorElement, {
       }
     >
       <Icon className="w-4 h-4" />
-      <span>{children}</span>
+      <span>{hub.label}</span>
     </NavLink>
   )
-})
+}
+
+/** Hub com dropdown de subitens */
+function NavHubDropdown({
+  hub,
+  modulosAtivos,
+  pathname,
+}: {
+  hub: NavHub
+  modulosAtivos: string[] | null | undefined
+  pathname: string
+}) {
+  const Icon = hub.icon
+  const children = hub.children || []
+
+  // Hub ativo se qualquer filho corresponde ao pathname atual
+  const isHubActive = children.some((child) => pathname.startsWith(child.path))
+
+  // Todos os filhos bloqueados = hub inteiro bloqueado
+  const allLocked = modulosAtivos
+    ? children.every((c) => !modulosAtivos.includes(c.slug))
+    : false
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 outline-none ${
+            isHubActive
+              ? 'border border-primary/40 bg-primary/5 text-primary'
+              : allLocked
+                ? 'border border-transparent text-muted-foreground/50 opacity-60 cursor-not-allowed'
+                : 'border border-transparent text-muted-foreground hover:text-foreground hover:bg-accent'
+          }`}
+        >
+          <Icon className="w-4 h-4" />
+          <span>{hub.label}</span>
+          <ChevronDown className="w-3.5 h-3.5 opacity-60" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-48 z-[150] bg-popover">
+        {children.map((child) => {
+          const ChildIcon = child.icon
+          const isLocked = modulosAtivos ? !modulosAtivos.includes(child.slug) : false
+          const isActive = pathname.startsWith(child.path)
+
+          if (isLocked) {
+            return (
+              <DropdownMenuItem
+                key={child.path}
+                disabled
+                className="flex items-center gap-2.5 opacity-50 cursor-not-allowed"
+              >
+                <ChildIcon className="w-4 h-4" />
+                <span>{child.label}</span>
+                <Lock className="w-3 h-3 ml-auto text-muted-foreground/40" />
+              </DropdownMenuItem>
+            )
+          }
+
+          return (
+            <DropdownMenuItem key={child.path} asChild className="cursor-pointer">
+              <NavLink
+                to={child.path}
+                className={`flex items-center gap-2.5 w-full ${
+                  isActive ? 'text-primary font-medium' : ''
+                }`}
+              >
+                <ChildIcon className="w-4 h-4" />
+                <span>{child.label}</span>
+              </NavLink>
+            </DropdownMenuItem>
+          )
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+// ─── Utilitários ───────────────────────────────────────────────────────
 
 function getPageTitle(pathname: string): string {
   if (pathname === '/dashboard') return 'Dashboard'
@@ -163,6 +237,8 @@ function isPipelineConfigRoute(pathname: string): boolean {
   return /^\/negocios\/pipeline\/[^/]+$/.test(pathname)
 }
 
+// ─── Layout principal ──────────────────────────────────────────────────
+
 const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props, ref) {
   const navigate = useNavigate()
   const location = useLocation()
@@ -176,26 +252,19 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
   }, [location.pathname])
 
   // AIDEV-NOTE: Precarregar rotas comuns em background apos render inicial
-  // PRD: melhorias-performance.md - PARTE 5, Fase 3
   useEffect(() => {
     preloadCommonRoutes()
   }, [])
 
   useBlockedRedirect()
 
-  const isAdmin = role === 'admin' // used for settings gear visibility
+  const isAdmin = role === 'admin'
   const pageTitle = getPageTitle(location.pathname)
   const isEditorRoute = isFormularioEditorRoute(location.pathname)
   const isPipelineConfig = isPipelineConfigRoute(location.pathname)
   const isPerfilRoute = location.pathname === '/perfil'
   const hideToolbar = isEditorRoute || isPipelineConfig || isPerfilRoute
   const hideHeader = isEditorRoute
-
-  // AIDEV-NOTE: Mostrar todos os módulos, mas marcar como bloqueados os que não estão no plano
-  const itemsComStatus = menuItems.map(item => ({
-    ...item,
-    locked: modulosAtivos ? !modulosAtivos.includes(item.slug) : false,
-  }))
 
   const handleLogout = async () => {
     try {
@@ -210,6 +279,7 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
     <div ref={ref} className="h-screen flex flex-col bg-background overflow-hidden">
       {/* Banner de impersonação */}
       <ImpersonationBanner />
+
       {/* Mobile drawer backdrop */}
       {drawerOpen && (
         <div
@@ -218,7 +288,7 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
         />
       )}
 
-      {/* Mobile drawer */}
+      {/* Mobile drawer — agrupado por Hub */}
       <div
         className={`
           fixed inset-y-0 left-0 z-[300] w-64 bg-white/95 backdrop-blur-md border-r border-gray-200/60
@@ -238,39 +308,92 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
           </button>
         </div>
 
-        <nav className="p-4 space-y-1">
-          {itemsComStatus.map((item) => (
-            item.locked ? (
-              <button
-                key={item.path}
-                type="button"
-                className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200 border border-transparent text-muted-foreground/50 cursor-not-allowed opacity-60 w-full relative"
-                title="Módulo não disponível no seu plano"
-              >
-                <item.icon className="w-5 h-5" />
-                {item.label}
-                <Lock className="w-3.5 h-3.5 ml-auto text-muted-foreground/40" />
-              </button>
-            ) : (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                end={item.exact}
-                onClick={() => setDrawerOpen(false)}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200 ${
-                    isActive
-                      ? 'border border-primary/40 bg-primary/5 text-primary'
-                      : 'border border-transparent text-muted-foreground hover:text-foreground hover:bg-accent'
-                  }`
-                }
-              >
-                <item.icon className="w-5 h-5" />
-                {item.label}
-              </NavLink>
+        <nav className="p-4 space-y-4 overflow-y-auto max-h-[calc(100vh-56px-64px)]">
+          {navHubs.map((hub) => {
+            // Item direto (Dashboard)
+            if (hub.path) {
+              const isLocked = modulosAtivos && hub.slug ? !modulosAtivos.includes(hub.slug) : false
+              if (isLocked) {
+                return (
+                  <button
+                    key={hub.label}
+                    type="button"
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-muted-foreground/50 cursor-not-allowed opacity-60 w-full"
+                    title="Módulo não disponível no seu plano"
+                  >
+                    <hub.icon className="w-5 h-5" />
+                    {hub.label}
+                    <Lock className="w-3.5 h-3.5 ml-auto text-muted-foreground/40" />
+                  </button>
+                )
+              }
+              return (
+                <NavLink
+                  key={hub.label}
+                  to={hub.path}
+                  end={hub.exact}
+                  onClick={() => setDrawerOpen(false)}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200 ${
+                      isActive
+                        ? 'border border-primary/40 bg-primary/5 text-primary'
+                        : 'border border-transparent text-muted-foreground hover:text-foreground hover:bg-accent'
+                    }`
+                  }
+                >
+                  <hub.icon className="w-5 h-5" />
+                  {hub.label}
+                </NavLink>
+              )
+            }
+
+            // Grupo com label + subitens
+            return (
+              <div key={hub.label}>
+                <p className="px-3 mb-1 text-xs font-semibold text-muted-foreground/70 uppercase tracking-wider">
+                  {hub.label}
+                </p>
+                <div className="space-y-0.5">
+                  {hub.children?.map((child) => {
+                    const isLocked = modulosAtivos ? !modulosAtivos.includes(child.slug) : false
+                    if (isLocked) {
+                      return (
+                        <button
+                          key={child.path}
+                          type="button"
+                          className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-muted-foreground/50 cursor-not-allowed opacity-60 w-full"
+                          title="Módulo não disponível no seu plano"
+                        >
+                          <child.icon className="w-5 h-5" />
+                          {child.label}
+                          <Lock className="w-3.5 h-3.5 ml-auto text-muted-foreground/40" />
+                        </button>
+                      )
+                    }
+                    return (
+                      <NavLink
+                        key={child.path}
+                        to={child.path}
+                        onClick={() => setDrawerOpen(false)}
+                        className={({ isActive }) =>
+                          `flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200 ${
+                            isActive
+                              ? 'border border-primary/40 bg-primary/5 text-primary'
+                              : 'border border-transparent text-muted-foreground hover:text-foreground hover:bg-accent'
+                          }`
+                        }
+                      >
+                        <child.icon className="w-5 h-5" />
+                        {child.label}
+                      </NavLink>
+                    )
+                  })}
+                </div>
+              </div>
             )
-          ))}
-          {/* Configurações link — admin only in mobile drawer */}
+          })}
+
+          {/* Configurações — admin only */}
           {isAdmin && (
             <NavLink
               to="/configuracoes"
@@ -300,12 +423,12 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
         </div>
       </div>
 
-      {/* Header fixo - 56px - Glass Effect - hidden on formulario editor */}
+      {/* Header fixo - 56px - Glass Effect */}
       {!hideHeader && (
         <header className="flex-shrink-0 z-[100] h-14 bg-white/80 backdrop-blur-md border-b border-gray-200/60">
           <div className="flex items-center justify-between h-full px-4 lg:px-6">
             {/* Left: Logo + Navigation */}
-            <div className="flex items-center gap-8">
+            <div className="flex items-center gap-6">
               {/* Mobile menu button */}
               <button
                 className="md:hidden p-2 -ml-2 hover:bg-accent rounded-md"
@@ -320,28 +443,31 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
                 <img src={renoveLogo} alt="Renove" className="sm:hidden h-6" />
               </div>
 
-              {/* Desktop Navigation */}
+              {/* Desktop Navigation — Hubs */}
               <nav className="hidden md:flex items-center gap-1">
-                {itemsComStatus.map((item) => (
-                  <NavItem
-                    key={item.path}
-                    to={item.path}
-                    exact={item.exact}
-                    icon={item.icon}
-                    locked={item.locked}
-                  >
-                    {item.label}
-                  </NavItem>
-                ))}
+                {navHubs.map((hub) => {
+                  if (hub.path) {
+                    const isLocked = modulosAtivos && hub.slug ? !modulosAtivos.includes(hub.slug) : false
+                    return (
+                      <NavDirectLink key={hub.label} hub={hub} locked={isLocked} />
+                    )
+                  }
+                  return (
+                    <NavHubDropdown
+                      key={hub.label}
+                      hub={hub}
+                      modulosAtivos={modulosAtivos}
+                      pathname={location.pathname}
+                    />
+                  )
+                })}
               </nav>
             </div>
 
             {/* Right: Settings gear + Notificacoes + User Menu */}
             <div className="flex items-center gap-0.5">
-              {/* Feedback (Lampada) — admin/member */}
               <FeedbackButton />
 
-              {/* Settings gear icon — admin only */}
               {isAdmin && (
                 <NavLink
                   to="/configuracoes"
@@ -358,7 +484,6 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
                 </NavLink>
               )}
 
-              {/* Sino de Notificacoes */}
               <NotificacoesSino />
 
               {/* User Menu */}
@@ -403,21 +528,20 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              </div>
             </div>
+          </div>
         </header>
       )}
 
-      {/* Toolbar sticky - 48px (hidden on formulario editor) */}
+      {/* Toolbar sticky - 48px */}
       {!hideToolbar && <ToolbarWithActions pageTitle={pageTitle} />}
 
-      {/* Main content - flex-1 preenche altura restante, overflow-hidden para scroll interno das páginas */}
+      {/* Main content */}
       <main className="flex-1 overflow-hidden" style={{ backgroundColor: 'hsl(var(--content-bg))' }}>
         <ModuloGuard>
           <Outlet />
         </ModuloGuard>
       </main>
-
     </div>
   )
 })
@@ -428,22 +552,17 @@ const ToolbarWithActions = forwardRef<HTMLDivElement, { pageTitle: string }>(fun
   return (
     <div ref={ref} className="flex-shrink-0 z-50 bg-gray-50/50 backdrop-blur-sm border-b border-gray-200/60">
       <div className={`flex items-center justify-between min-h-[48px] px-3 sm:px-4 lg:px-6 py-1.5 gap-1.5 ${centerContent ? 'flex-wrap' : ''}`}>
-        {/* Left: Título + Subtitle */}
         <div className="flex items-center gap-1.5 min-w-0 flex-shrink-0">
           <h1 className="text-sm sm:text-base font-semibold text-foreground whitespace-nowrap hidden sm:block">
             {pageTitle}
           </h1>
           {subtitle && subtitle}
         </div>
-
-        {/* Center: Optional content */}
         {centerContent && (
           <div className="flex items-center gap-2 flex-1 justify-center sm:justify-start min-w-0 sm:mx-4">
             {centerContent}
           </div>
         )}
-
-        {/* Right: Actions - full width on mobile when center content exists */}
         <div className={`flex items-center gap-1 sm:gap-1.5 justify-center sm:justify-end ${centerContent ? 'w-full sm:w-auto' : ''}`}>
           {actions}
         </div>
