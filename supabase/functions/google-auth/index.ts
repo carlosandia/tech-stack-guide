@@ -34,6 +34,16 @@ const GMAIL_SCOPES = [
   "https://www.googleapis.com/auth/userinfo.email",
 ];
 
+// AIDEV-NOTE: Escopos unificados - Gmail e Calendar compartilham mesmo registro em conexoes_google
+const ALL_SCOPES = [
+  "https://www.googleapis.com/auth/calendar",
+  "https://www.googleapis.com/auth/calendar.events",
+  "https://mail.google.com/",
+  "https://www.googleapis.com/auth/gmail.send",
+  "https://www.googleapis.com/auth/userinfo.email",
+  "https://www.googleapis.com/auth/userinfo.profile",
+];
+
 // Simple AES encryption compatible with CryptoJS
 // For edge functions we use a simpler approach
 function simpleEncrypt(text: string, key: string): string {
@@ -135,7 +145,7 @@ serve(async (req) => {
       };
       const stateEncoded = btoa(JSON.stringify(stateData));
 
-      const scopes = tipo === "calendar" ? CALENDAR_SCOPES : GMAIL_SCOPES;
+      const scopes = ALL_SCOPES;
 
       // AIDEV-NOTE: redirect_uri DEVE ser o mesmo configurado no Google Console
       // Prioriza o redirect_uri da config global (Super Admin), pois é o autorizado no Google
