@@ -1,78 +1,65 @@
 
-# Correção: Menções em grupos não resolvendo nomes (WAHA GOWS)
 
-## Problema
+# Correção: Debug e fix das menções em grupo
 
-Em mensagens de grupo, menções como `@162826672971943` aparecem como números brutos ao invés de mostrar o nome do contato/participante. Isso ocorre por duas falhas:
+## Diagnóstico
 
-1. **Caminhos de extração incompletos no componente `TextContent`**: O componente só busca `mentionedJid` dentro de `extendedTextMessage.contextInfo`, mas mensagens GOWS podem ter os JIDs mencionados em `_data.MentionedJID` (top-level) ou `rawData.mentionedIds`. Esses caminhos já são cobertos no hook `useMentionResolver`, mas NÃO no componente de renderização.
+Após análise exaustiva, a lógica de extração e resolução está teoricamente correta. Os dados no banco confirmam:
+- `raw_data._data.Message.extendedTextMessage.contextInfo.mentionedJID` contém `["162826672971943@lid"]`
+- Existem mensagens com `participant: 162826672971943@lid` e `PushName: Carlos Andia`
+- O hook `useMentionResolver` deveria resolver via LID fallback
 
-2. **Sem fallback para detecção no texto**: Quando o `mentionedJid` não é encontrado em nenhum caminho do raw_data, o código desiste imediatamente (linha 118). Deveria tentar detectar padrões `@numero` diretamente no body e cruzar com o `contactMap`.
+Para identificar o ponto exato de falha em runtime, a estratégia é:
 
-## Solução
+## Plano
 
-### Alteração: `src/modules/conversas/components/ChatMessageBubble.tsx`
+### 1. Adicionar console.log temporário de debug no `TextContent`
 
-Na função `TextContent` (linhas 103-154), corrigir a extração de `mentionedJid` para cobrir todos os caminhos do GOWS, e adicionar fallback por regex no body:
+Adicionar logs no componente `TextContent` em `ChatMessageBubble.tsx` para rastrear:
+- O conteúdo do `contactMap` (tamanho e entries relevantes)
+- Os `mentionedJid` extraídos do raw_data
+- Se o replace está ocorrendo
 
-```text
-function TextContent({ body, rawData, contactMap }) {
-  const resolvedBody = useMemo(() => {
-    if (!contactMap || contactMap.size === 0) return body
-
-    let mentionedJid: string[] = []
-
-    if (rawData) {
-      const _data = rawData._data
-      const message = _data?.message || _data?.Message
-      const extText = message?.extendedTextMessage
-      const contextInfo = extText?.contextInfo
-
-      // Coletar de TODOS os caminhos (igual ao useMentionResolver)
-      mentionedJid = [
-        ...(contextInfo?.mentionedJid || contextInfo?.mentionedJID || []),
-        ...(_data?.MentionedJID || []),
-        ...(rawData.mentionedIds || []),
-      ]
-    }
-
-    // FALLBACK: se nao encontrou mentionedJid no raw_data,
-    // detectar padroes @numero diretamente no body
-    if (mentionedJid.length === 0 && contactMap.size > 0) {
-      const bodyMatches = body.match(/@(\d{8,})/g)
-      if (bodyMatches) {
-        mentionedJid = bodyMatches.map(m => m.slice(1)) // remove o @
-      }
-    }
-
-    if (mentionedJid.length === 0) return body
-
-    let resolved = body
-    for (const jid of mentionedJid) {
-      const number = jid
-        .replace('@s.whatsapp.net', '')
-        .replace('@c.us', '')
-        .replace('@lid', '')
-      const name = contactMap.get(number)
-      if (name) {
-        resolved = resolved.replace(`@${number}`, `@@mention:${name}@@`)
-      } else if (/^\d{8,}$/.test(number)) {
-        const formatted = number.length > 10
-          ? `+${number.slice(0, 2)} ${number.slice(2, 4)} ${number.slice(4)}`
-          : `+${number}`
-        resolved = resolved.replace(`@${number}`, `@@mention:${formatted}@@`)
-      }
-    }
-    return resolved
-  }, [body, rawData, contactMap])
-
-  // ... resto igual
+```typescript
+// Temporário - remover após debug
+if (body.includes('@162826672971943')) {
+  console.log('[MENTION-DEBUG] body:', body)
+  console.log('[MENTION-DEBUG] contactMap size:', contactMap?.size, 'entries:', contactMap ? Array.from(contactMap.entries()) : 'null')
+  console.log('[MENTION-DEBUG] mentionedJid:', mentionedJid)
+  console.log('[MENTION-DEBUG] rawData keys:', rawData ? Object.keys(rawData) : 'null')
 }
 ```
 
-### Resumo das mudanças
+### 2. Adicionar console.log no `useMentionResolver`
 
-- **1 arquivo alterado**: `src/modules/conversas/components/ChatMessageBubble.tsx`
-- Expandir os caminhos de extração de `mentionedJid` no `TextContent` para cobrir `_data.MentionedJID` e `rawData.mentionedIds` (alinhando com o hook)
-- Adicionar fallback por regex: se nenhum `mentionedJid` for encontrado no raw_data, detectar `@numero` no body e cruzar com o `contactMap`
-- Remover a condição `if (!rawData) return body` para permitir o fallback funcionar mesmo sem raw_data
+Logs no hook para verificar:
+- `mentionedNumbers` extraídos
+- `participantNames` extraídos
+- `unresolvedLids` detectados
+- Resultado do `lidResolvedMap`
+- `contactMap` final
+
+### 3. Simplificar fallback - SEMPRE aplicar regex no body
+
+Independente do debug, garantir que o fallback regex SEMPRE rode, mesmo quando `mentionedJid` foi extraído do raw_data. Isso cobre casos onde a extração funciona mas o número no body é ligeiramente diferente do JID extraído:
+
+```typescript
+// Além dos JIDs do raw_data, TAMBÉM detectar @numero no body
+const bodyMatches = body.match(/@(\d{8,})/g)
+if (bodyMatches) {
+  for (const match of bodyMatches) {
+    const num = match.slice(1)
+    if (!mentionedJid.some(j => j.includes(num))) {
+      mentionedJid.push(num)
+    }
+  }
+}
+```
+
+### Arquivos alterados
+- `src/modules/conversas/components/ChatMessageBubble.tsx` - debug logs + fallback regex aprimorado
+- `src/modules/conversas/hooks/useMentionResolver.ts` - debug logs
+
+### Resultado esperado
+Com os logs, conseguiremos ver no console do browser exatamente onde o fluxo falha (se o contactMap está vazio, se os JIDs não são extraídos, ou se o replace não acontece). E o fallback regex aprimorado garante cobertura mesmo em edge cases.
+
