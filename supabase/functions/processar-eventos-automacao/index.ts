@@ -103,6 +103,13 @@ Deno.serve(async (req) => {
         console.warn(`[automacao] Erro ao sincronizar audiences para evento ${evento.id}:`, err);
       }
 
+      // AIDEV-NOTE: Hook Conversions API - enviar eventos reais para Meta CAPI
+      try {
+        await enviarEventoConversionsApi(supabase, evento);
+      } catch (err) {
+        console.warn(`[automacao] Erro ao enviar evento CAPI para evento ${evento.id}:`, err);
+      }
+
       // Marcar evento como processado independente do resultado
       await supabase
         .from("eventos_automacao")
@@ -1097,6 +1104,95 @@ async function sincronizarCustomAudiences(
     } catch (err) {
       console.warn(`[audiences] Erro ao chamar sync-audience-capi:`, err);
     }
+  }
+}
+
+// =====================================================
+// AIDEV-NOTE: Hook Conversions API - Mapeia eventos CRM para Meta CAPI
+// e envia via send-capi-event Edge Function
+// =====================================================
+
+const EVENTO_CAPI_MAP: Record<string, { event_name: string; key: string }> = {
+  oportunidade_criada: { event_name: "Lead", key: "lead" },
+  reuniao_agendada: { event_name: "Schedule", key: "schedule" },
+  oportunidade_qualificada: { event_name: "CompleteRegistration", key: "mql" },
+  oportunidade_ganha: { event_name: "Purchase", key: "won" },
+  oportunidade_perdida: { event_name: "Other", key: "lost" },
+};
+
+async function enviarEventoConversionsApi(
+  supabase: ReturnType<typeof createClient>,
+  evento: Evento
+): Promise<void> {
+  const capiMapping = EVENTO_CAPI_MAP[evento.tipo];
+  if (!capiMapping) return;
+
+  // Para oportunidade_qualificada, só MQL dispara CAPI
+  if (evento.tipo === "oportunidade_qualificada") {
+    const tipoQual = (evento.dados as Record<string, unknown>)?.tipo_qualificacao;
+    if (tipoQual !== "MQL") return;
+  }
+
+  // Resolver contato_id
+  let contatoId: string | null = null;
+  const dados = evento.dados as Record<string, unknown>;
+
+  if (evento.entidade_tipo === "contato") {
+    contatoId = evento.entidade_id;
+  } else if (dados?.contato_id) {
+    contatoId = dados.contato_id as string;
+  } else if (evento.entidade_tipo === "oportunidade") {
+    const { data: op } = await supabase
+      .from("oportunidades")
+      .select("contato_id")
+      .eq("id", evento.entidade_id)
+      .single();
+    contatoId = op?.contato_id || null;
+  }
+
+  if (!contatoId) {
+    console.warn(`[capi] Sem contato_id para evento ${evento.id}`);
+    return;
+  }
+
+  // Montar payload para send-capi-event
+  const payload: Record<string, unknown> = {
+    organizacao_id: evento.organizacao_id,
+    event_name: capiMapping.event_name,
+    contato_id: contatoId,
+    oportunidade_id: evento.entidade_tipo === "oportunidade" ? evento.entidade_id : undefined,
+    titulo_oportunidade: dados?.titulo as string | undefined,
+  };
+
+  // Para Purchase, incluir valor
+  if (capiMapping.event_name === "Purchase" && dados?.valor !== undefined) {
+    payload.valor = dados.valor;
+  }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+  try {
+    const res = await fetch(`${supabaseUrl}/functions/v1/send-capi-event`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${serviceRoleKey}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const result = await res.json();
+
+    if (result.success) {
+      console.log(`[capi] Evento ${capiMapping.event_name} enviado para org ${evento.organizacao_id}`);
+    } else if (result.skipped) {
+      console.log(`[capi] Evento ${capiMapping.event_name} pulado: ${result.reason}`);
+    } else {
+      console.warn(`[capi] Erro ao enviar ${capiMapping.event_name}:`, result.error);
+    }
+  } catch (err) {
+    console.warn(`[capi] Erro ao chamar send-capi-event:`, err);
   }
 }
 
