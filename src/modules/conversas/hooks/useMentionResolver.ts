@@ -160,25 +160,24 @@ async function fetchContactNames(numbers: string[]): Promise<Map<string, string>
 /**
  * AIDEV-NOTE: Resolve LIDs do GOWS buscando na tabela mensagens.
  * LIDs são identificadores internos do WhatsApp que não correspondem a telefones reais.
- * Busca mensagens onde participant = LID@lid para extrair from_number e pushName.
+ * Busca mensagens onde participant = LID@lid em QUALQUER conversa (cross-grupo)
+ * para extrair from_number e pushName.
  * Com o from_number, busca o nome do contato no DB.
  */
 async function resolveLids(
-  lids: string[],
-  conversaId: string
+  lids: string[]
 ): Promise<Map<string, string>> {
   const result = new Map<string, string>()
-  if (lids.length === 0 || !conversaId) return result
+  if (lids.length === 0) return result
 
-  // Buscar mensagens onde participant contém o LID
+  // AIDEV-NOTE: Busca cross-conversa - o LID pode ter enviado msgs em outro grupo
   const participantFilters = lids.map(lid => `${lid}@lid`)
 
   const { data: mensagensData } = await supabase
     .from('mensagens')
     .select('from_number, participant, raw_data')
-    .eq('conversa_id', conversaId)
     .in('participant', participantFilters)
-    .limit(lids.length * 3) // algumas mensagens por LID
+    .limit(lids.length * 5) // algumas mensagens por LID, cross-grupo
 
   if (!mensagensData || mensagensData.length === 0) return result
 
@@ -192,31 +191,35 @@ async function resolveLids(
 
     if (!lids.includes(lidClean)) continue
 
-    // Extrair from_number (numero real)
-    const fromNumber = ((msg.from_number || '') as string)
+    // Extrair from_number (numero real) - tentar from_number e SenderAlt do GOWS
+    const rawData = msg.raw_data as Record<string, unknown> | null
+    const _data = rawData?._data as Record<string, unknown> | undefined
+    const info = _data?.Info as Record<string, unknown> | undefined
+    // AIDEV-NOTE: SenderAlt contém o número real no formato 5511999999999:NN@s.whatsapp.net
+    const senderAlt = ((info?.SenderAlt || '') as string)
+      .replace(/:.*$/, '') // remove :NN@s.whatsapp.net
+    const fromNumberRaw = ((msg.from_number || '') as string)
       .replace('@s.whatsapp.net', '')
       .replace('@c.us', '')
       .replace('@lid', '')
-    if (fromNumber && /^\d+$/.test(fromNumber) && !lidToFromNumber.has(lidClean)) {
+      .replace('@g.us', '')
+    // Preferir SenderAlt (número real) sobre from_number (pode ser grupo @g.us)
+    const fromNumber = (senderAlt && /^\d+$/.test(senderAlt)) ? senderAlt : fromNumberRaw
+    if (fromNumber && /^\d+$/.test(fromNumber) && fromNumber.length <= 15 && !lidToFromNumber.has(lidClean)) {
       lidToFromNumber.set(lidClean, fromNumber)
     }
 
-    // Extrair pushName do raw_data como fallback
+    // Extrair pushName do raw_data como fallback (reutiliza rawData/_data/info já extraídos)
     if (!lidToPushName.has(lidClean)) {
-      const rawData = msg.raw_data as Record<string, unknown> | null
-      if (rawData) {
-        const _data = rawData._data as Record<string, unknown> | undefined
-        const info = _data?.Info as Record<string, unknown> | undefined
-        const pushName = (
-          info?.PushName ||
-          _data?.pushName ||
-          _data?.PushName ||
-          rawData.pushName ||
-          rawData.notifyName
-        ) as string | undefined
-        if (pushName) {
-          lidToPushName.set(lidClean, pushName)
-        }
+      const pushName = (
+        info?.PushName ||
+        _data?.pushName ||
+        _data?.PushName ||
+        rawData?.pushName ||
+        rawData?.notifyName
+      ) as string | undefined
+      if (pushName) {
+        lidToPushName.set(lidClean, pushName)
       }
     }
   }
@@ -255,7 +258,7 @@ export interface MentionResolverResult {
  * Hook principal: recebe mensagens, extrai menções, busca nomes
  * Prioridade: contatos do DB > pushNames dos participantes > LID resolve (DB mensagens) > numero formatado
  */
-export function useMentionResolver(mensagens: Mensagem[], conversaId?: string): MentionResolverResult {
+export function useMentionResolver(mensagens: Mensagem[], _conversaId?: string): MentionResolverResult {
   const mentionedNumbers = useMemo(
     () => extractMentionedNumbers(mensagens),
     [mensagens]
@@ -293,11 +296,11 @@ export function useMentionResolver(mensagens: Mensagem[], conversaId?: string): 
     })
   }, [mentionedNumbers, dbContactMap, participantNames])
 
-  // AIDEV-NOTE: Segunda query para resolver LIDs via tabela mensagens
+  // AIDEV-NOTE: Segunda query para resolver LIDs via tabela mensagens (cross-conversa)
   const { data: lidResolvedMap, isLoading: isLoadingLids } = useQuery({
-    queryKey: ['mention-lid-resolver', conversaId, ...unresolvedLids.sort()],
-    queryFn: () => resolveLids(unresolvedLids, conversaId!),
-    enabled: unresolvedLids.length > 0 && !!conversaId,
+    queryKey: ['mention-lid-resolver', ...unresolvedLids.sort()],
+    queryFn: () => resolveLids(unresolvedLids),
+    enabled: unresolvedLids.length > 0,
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 10,
   })
