@@ -100,8 +100,18 @@ Deno.serve(async (req) => {
       return jsonResponse({ skipped: true, reason: `Evento ${eventKey} não habilitado` });
     }
 
-    // 3. Obter access_token - usar o da config_conversions_api
-    const accessToken = config.access_token_encrypted;
+    // 3. Obter access_token - prioridade: config_conversions_api, fallback: conexoes_meta
+    let accessToken = config.access_token_encrypted;
+    if (!accessToken) {
+      // AIDEV-NOTE: Fallback ao token da conexao Meta global da org
+      const { data: conexaoMeta } = await supabase
+        .from("conexoes_meta")
+        .select("access_token_encrypted")
+        .eq("organizacao_id", organizacao_id)
+        .in("status", ["active", "conectado"])
+        .single();
+      accessToken = conexaoMeta?.access_token_encrypted || null;
+    }
     if (!accessToken) {
       console.error(`[send-capi] Sem access_token para org ${organizacao_id}`);
       return jsonResponse({ error: "Sem access_token configurado" }, 400);
