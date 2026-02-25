@@ -34,6 +34,7 @@ interface ChatInputProps {
   onCancelReply?: () => void
   audioSending?: boolean
   conversaId?: string
+  canal?: 'whatsapp' | 'instagram'
 }
 
 type InputTab = 'responder' | 'nota' | 'teclado'
@@ -45,7 +46,7 @@ export interface ChatInputHandle {
 export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput({
   onSendMessage, onSendNote, onOpenQuickReplies, onFileSelected,
   onAudioSend, onOpenCamera, onOpenContato, onOpenEnquete,
-  isSending, disabled, replyingTo, onCancelReply, audioSending, conversaId
+  isSending, disabled, replyingTo, onCancelReply, audioSending, conversaId, canal
 }, ref) {
   const [tab, setTab] = useState<InputTab>('responder')
   const [texto, setTexto] = useState('')
@@ -69,6 +70,38 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
     el.style.height = 'auto'
     el.style.height = `${Math.min(el.scrollHeight, 150)}px`
   }, [])
+
+  // AIDEV-NOTE: Formata texto selecionado com marcadores WhatsApp (*bold*, _italic_, ~strike~, ```mono```)
+  const wrapSelection = useCallback((marker: string) => {
+    const el = textareaRef.current
+    if (!el) return
+    const start = el.selectionStart
+    const end = el.selectionEnd
+    const txt = tab === 'responder' ? texto : notaTexto
+    const setter = tab === 'responder' ? setTexto : setNotaTexto
+
+    if (start !== end) {
+      // Envolve seleção
+      const selected = txt.slice(start, end)
+      const newText = txt.slice(0, start) + marker + selected + marker + txt.slice(end)
+      setter(newText)
+      const newEnd = start + marker.length + selected.length + marker.length
+      requestAnimationFrame(() => {
+        el.selectionStart = start + marker.length
+        el.selectionEnd = newEnd - marker.length
+        el.focus()
+      })
+    } else {
+      // Insere marcadores vazios e posiciona cursor entre eles
+      const newText = txt.slice(0, start) + marker + marker + txt.slice(start)
+      setter(newText)
+      const curPos = start + marker.length
+      requestAnimationFrame(() => {
+        el.selectionStart = el.selectionEnd = curPos
+        el.focus()
+      })
+    }
+  }, [tab, texto, notaTexto])
 
   // AIDEV-NOTE: Auto-correct — detecta palavra atual e sugere correção
   const autoCorrect = useAutoCorrect(
@@ -293,6 +326,20 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
                       sugestoes={autoCorrect!.sugestoes}
                       onSelect={handleAutoCorrectSelect}
                     />
+                  )}
+
+                  {/* AIDEV-NOTE: Barra de formatação WhatsApp — só para canal whatsapp e tab responder */}
+                  {canal === 'whatsapp' && !isNota && (
+                    <div className="flex items-center gap-1 px-2 py-1 border-b border-border/30">
+                      <button type="button" tabIndex={-1} onMouseDown={(e) => { e.preventDefault(); wrapSelection('*') }}
+                        className="text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-accent rounded px-1.5 py-0.5 transition-colors" title="Negrito *texto*">B</button>
+                      <button type="button" tabIndex={-1} onMouseDown={(e) => { e.preventDefault(); wrapSelection('_') }}
+                        className="text-xs italic text-muted-foreground hover:text-foreground hover:bg-accent rounded px-1.5 py-0.5 transition-colors" title="Itálico _texto_">I</button>
+                      <button type="button" tabIndex={-1} onMouseDown={(e) => { e.preventDefault(); wrapSelection('~') }}
+                        className="text-xs line-through text-muted-foreground hover:text-foreground hover:bg-accent rounded px-1.5 py-0.5 transition-colors" title="Riscado ~texto~">S</button>
+                      <button type="button" tabIndex={-1} onMouseDown={(e) => { e.preventDefault(); wrapSelection('```') }}
+                        className="text-xs font-mono text-muted-foreground hover:text-foreground hover:bg-accent rounded px-1.5 py-0.5 transition-colors" title="Monoespaço ```texto```">{'<>'}</button>
+                    </div>
                   )}
 
                   <div className="flex items-end">

@@ -663,6 +663,7 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
           onCancelReply={() => setReplyingTo(null)}
           audioSending={audioSending}
           conversaId={conversa.id}
+          canal={conversa.canal as 'whatsapp' | 'instagram'}
         />
       </div>
 
