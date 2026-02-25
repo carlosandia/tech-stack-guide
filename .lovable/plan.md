@@ -1,62 +1,39 @@
 
 
-## Adicionar Campos de Endereco (Cidade, Estado, CEP) como Campos do Sistema para Pessoa
+## Remover Campo LinkedIn de Pessoas
 
-### Contexto
+### Resumo
 
-Atualmente, os campos `endereco_cidade`, `endereco_estado` e `endereco_cep` ja existem na tabela `contatos` no banco de dados, mas **nao estao registrados como campos do sistema** para a entidade "pessoa" na tabela `campos_customizados`. Isso significa que eles nao aparecem no formulario de pessoa nem na pagina de configuracoes/campos.
+Remover completamente o campo "LinkedIn" (slug `linkedin`) como campo do sistema para a entidade "pessoa". Isso envolve:
+- Deletar o campo de todos os tenants existentes no banco
+- Remover da funcao `criar_campos_sistema` para novos tenants
+- Limpar todas as referencias no frontend
 
-Esses campos ja sao usados pela integracao Meta CAPI para melhorar a qualidade de correspondencia (parametros `ct`, `st`, `zp`), mas atualmente dependem de dados preenchidos apenas em empresas.
+### Alteracoes
 
-### O que sera feito
+#### 1. Migracao SQL
 
-#### 1. Migracao SQL - Adicionar campos do sistema para tenants existentes
+- `DELETE FROM campos_customizados WHERE slug = 'linkedin' AND entidade = 'pessoa' AND sistema = true`
+- Atualizar a funcao `criar_campos_sistema` removendo a linha do LinkedIn
+- Reajustar a ordem dos campos seguintes (Cidade: 6, Estado: 7, CEP: 8)
 
-Uma migracao que insere os 3 campos como `sistema = true` na tabela `campos_customizados` para **todas as organizacoes existentes** que ainda nao possuem esses campos:
+#### 2. Frontend - Remover referencias ao LinkedIn
 
-| Campo | Slug | Tipo | Ordem |
-|---|---|---|---|
-| Cidade | endereco_cidade | texto | 7 |
-| Estado | endereco_estado | texto | 8 |
-| CEP | endereco_cep | texto | 9 |
-
-#### 2. Migracao SQL - Atualizar funcao `criar_campos_sistema`
-
-Alterar a funcao para que novos tenants criados no futuro tambem recebam esses 3 campos automaticamente.
-
-#### 3. Frontend - Mapeamentos no `useCamposConfig.ts`
-
-Adicionar os novos slugs nos fallbacks e mapeamentos:
-- `SLUG_TO_FIELD_KEY`: sem necessidade (slug = field key: `endereco_cidade`, `endereco_estado`, `endereco_cep`)
-- `FALLBACK_PESSOA`: adicionar os 3 campos com labels adequados
-
-#### 4. Frontend - Schema `PessoaFormSchema`
-
-Adicionar `endereco_cidade`, `endereco_estado` e `endereco_cep` como campos opcionais no schema de formulario de pessoa.
-
-#### 5. Frontend - Mapeamento `SLUG_TO_CONTATO_COLUMN` (Detalhes da Oportunidade)
-
-Adicionar o mapeamento no hook `useCamposDetalhes.ts` para que os campos aparecam corretamente nos detalhes da oportunidade:
-
-```text
-endereco_cidade -> endereco_cidade
-endereco_estado -> endereco_estado
-endereco_cep    -> endereco_cep
-```
-
-### Arquivos alterados
-
-| Arquivo | Alteracao |
+| Arquivo | O que remover/alterar |
 |---|---|
-| Nova migracao SQL | INSERT campos sistema para orgs existentes + ALTER funcao `criar_campos_sistema` |
-| `src/modules/contatos/hooks/useCamposConfig.ts` | Adicionar fallbacks para os 3 campos |
-| `src/modules/contatos/schemas/contatos.schema.ts` | Adicionar campos no `PessoaFormSchema` |
-| `src/modules/negocios/hooks/useCamposDetalhes.ts` | Adicionar mapeamento `SLUG_TO_CONTATO_COLUMN` |
+| `src/modules/contatos/hooks/useCamposConfig.ts` | Remover `linkedin` de `SLUG_TO_FIELD_KEY`, `FIELD_KEY_TO_SLUGS`, `COLUMN_KEY_TO_SLUGS` e `FALLBACK_PESSOA` |
+| `src/modules/contatos/schemas/contatos.schema.ts` | Remover `linkedin_url` do `PessoaFormSchema` |
+| `src/modules/contatos/components/ContatoFormFieldsToggle.tsx` | Remover `linkedin_url` de `CAMPO_KEYS_PESSOA` |
+| `src/modules/contatos/components/ContatoViewFieldsToggle.tsx` | Remover `linkedin_url` de `CAMPO_KEYS_PESSOA` |
+| `src/modules/contatos/components/ContatoViewModal.tsx` | Remover linha de exibicao do `linkedin_url` |
+| `src/modules/contatos/components/ContatoFormModal.tsx` | Remover inicializacao de `linkedin_url` nos defaults |
+| `src/modules/contatos/components/ContatoColumnsToggle.tsx` | Remover entrada `linkedin` das colunas |
+| `src/modules/contatos/components/ImportarContatosModal.tsx` | Remover `linkedin_url` das opcoes de mapeamento |
+| `src/modules/negocios/hooks/useCamposDetalhes.ts` | Remover `linkedin: 'linkedin_url'` do `SLUG_TO_CONTATO_COLUMN` |
+| `src/modules/negocios/components/modals/LigacaoModal.tsx` | Remover `linkedin` de `SLUG_ICON_MAP` e `SLUG_TO_CONTATO_COL` |
+| `src/modules/formularios/components/campos/CampoConfigPanel.tsx` | Remover `pessoa.linkedin_url` das opcoes de mapeamento |
 
-### Resultado esperado
+### Nota
 
-- Os campos Cidade, Estado e CEP aparecerao automaticamente nos formularios de Pessoa (como campos do sistema, nao editaveis/removiveis pelo admin)
-- Tenants existentes receberao os campos via migracao
-- Novos tenants receberao automaticamente via `criar_campos_sistema`
-- Quando preenchidos, os dados serao enviados automaticamente ao Meta CAPI (ja implementado no `send-capi-event`)
+A coluna `linkedin_url` continuara existindo na tabela `contatos` no banco de dados (nao sera dropada), pois pode conter dados historicos. Apenas o campo do sistema e as referencias no frontend serao removidos.
 
