@@ -7,7 +7,7 @@
 import { useState, useCallback, useEffect, useMemo, forwardRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/providers/AuthProvider'
-import { useFunis, useCriarFunil, useArquivarFunil, useDesarquivarFunil, useExcluirFunil } from '../hooks/useFunis'
+import { useFunis, useCriarFunil, useArquivarFunil, useDesarquivarFunil, useExcluirFunil, useMigrarEExcluirFunil } from '../hooks/useFunis'
 import { useKanban } from '../hooks/useKanban'
 import { KanbanBoard } from '../components/kanban/KanbanBoard'
 import { KanbanEmptyState } from '../components/kanban/KanbanEmptyState'
@@ -72,6 +72,7 @@ const NegociosPage = forwardRef<HTMLDivElement>(function NegociosPage(_props, re
   const arquivarFunil = useArquivarFunil()
   const desarquivarFunil = useDesarquivarFunil()
   const excluirFunil = useExcluirFunil()
+  const migrarEExcluir = useMigrarEExcluirFunil()
 
   // Auto-selecionar primeiro funil
   useEffect(() => {
@@ -226,9 +227,16 @@ const NegociosPage = forwardRef<HTMLDivElement>(function NegociosPage(_props, re
     }
   }, [desarquivarFunil])
 
-  const handleExcluir = useCallback(async (funilId: string) => {
+  const handleExcluir = useCallback(async (funilId: string, pipelineDestinoId?: string) => {
     try {
-      await excluirFunil.mutateAsync(funilId)
+      if (pipelineDestinoId) {
+        const result = await migrarEExcluir.mutateAsync({ funilOrigemId: funilId, funilDestinoId: pipelineDestinoId })
+        const nomeDest = funis?.find(f => f.id === pipelineDestinoId)?.nome || 'outra pipeline'
+        toast.success(`Pipeline excluída. ${result.migradas} oportunidade${result.migradas > 1 ? 's' : ''} migrada${result.migradas > 1 ? 's' : ''} para "${nomeDest}".`)
+      } else {
+        await excluirFunil.mutateAsync(funilId)
+        toast.success('Pipeline excluída')
+      }
       if (funilId === funilAtivoId) {
         const restantes = (funis || []).filter(f => f.id !== funilId && !f.deletado_em)
         if (restantes.length > 0) {
@@ -239,11 +247,10 @@ const NegociosPage = forwardRef<HTMLDivElement>(function NegociosPage(_props, re
           localStorage.removeItem(STORAGE_KEY)
         }
       }
-      toast.success('Pipeline excluída')
     } catch (err: any) {
       toast.error(err.message || 'Erro ao excluir')
     }
-  }, [excluirFunil, funilAtivoId, funis])
+  }, [excluirFunil, migrarEExcluir, funilAtivoId, funis])
 
   const handleDropGanhoPerda = useCallback((oportunidade: Oportunidade, etapaId: string, tipo: 'ganho' | 'perda') => {
     setFecharOp({ oportunidade, etapaId, tipo })

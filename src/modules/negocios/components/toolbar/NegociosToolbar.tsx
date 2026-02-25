@@ -23,7 +23,7 @@ interface NegociosToolbarProps {
   onNovaOportunidade: () => void
   onArquivar?: (funilId: string) => void
   onDesarquivar?: (funilId: string) => void
-  onExcluir?: (funilId: string) => void
+  onExcluir?: (funilId: string, pipelineDestinoId?: string) => void
   busca: string
   onBuscaChange: (value: string) => void
   filtros: FiltrosKanban

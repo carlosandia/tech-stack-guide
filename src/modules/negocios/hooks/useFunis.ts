@@ -80,3 +80,17 @@ export function useExcluirFunil() {
     },
   })
 }
+
+// AIDEV-NOTE: Hook para migrar oportunidades para outro funil e excluir o original
+export function useMigrarEExcluirFunil() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ funilOrigemId, funilDestinoId }: { funilOrigemId: string; funilDestinoId: string }) =>
+      negociosApi.migrarEExcluirPipeline(funilOrigemId, funilDestinoId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['funis'] })
+      queryClient.invalidateQueries({ queryKey: ['kanban'] })
+    },
+  })
+}

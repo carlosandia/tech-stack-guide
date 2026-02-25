@@ -1542,4 +1542,42 @@ export const negociosApi = {
     if (error) throw new Error(error.message)
     return count || 0
   },
+
+  // AIDEV-NOTE: Migrar todas oportunidades de um funil para outro e depois excluir o funil origem
+  // Reutiliza moverOportunidadesParaOutraPipeline para manter consistência (tarefas, MQL, reset)
+  migrarEExcluirPipeline: async (funilOrigemId: string, funilDestinoId: string): Promise<{ migradas: number }> => {
+    // 1. Buscar etapa de entrada do funil destino
+    const { data: etapaEntrada, error: etapaError } = await supabase
+      .from('etapas_funil')
+      .select('id')
+      .eq('funil_id', funilDestinoId)
+      .eq('tipo', 'entrada')
+      .is('deletado_em', null)
+      .eq('ativo', true)
+      .maybeSingle()
+
+    if (etapaError) throw new Error(etapaError.message)
+    if (!etapaEntrada) throw new Error('Pipeline destino não possui etapa de entrada')
+
+    // 2. Buscar IDs das oportunidades ativas do funil origem
+    const { data: ops, error: opsError } = await supabase
+      .from('oportunidades')
+      .select('id')
+      .eq('funil_id', funilOrigemId)
+      .is('deletado_em', null)
+
+    if (opsError) throw new Error(opsError.message)
+
+    const ids = (ops || []).map(o => o.id)
+
+    // 3. Migrar oportunidades (se houver)
+    if (ids.length > 0) {
+      await negociosApi.moverOportunidadesParaOutraPipeline(ids, funilDestinoId, etapaEntrada.id)
+    }
+
+    // 4. Excluir pipeline origem (soft delete)
+    await negociosApi.excluirFunil(funilOrigemId)
+
+    return { migradas: ids.length }
+  },
 }
