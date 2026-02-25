@@ -1,57 +1,49 @@
 
 
-## Plano: Unificar escopos Google OAuth (Calendar + Gmail)
+## Plano: Adicionar botao de editar reuniao com sincronizacao Google Calendar
 
-### Problema
+### O que sera feito
 
-As conexoes Gmail e Google Calendar compartilham o mesmo registro na tabela `conexoes_google` e o mesmo token OAuth. Porem, os escopos sao definidos separadamente:
+Adicionar um icone de lapis (editar) ao lado do icone de lixeira no card de reuniao. Ao clicar, o formulario de reuniao abre preenchido com os dados atuais. Ao salvar, atualiza no banco e sincroniza com o Google Calendar.
 
-- `tipo=calendar` -> so pede escopos de Calendar
-- `tipo=gmail` -> so pede escopos de Gmail
+### Alteracoes
 
-Quando o usuario conecta por um tipo, o token nao funciona para o outro.
+**Arquivo 1: `src/modules/negocios/services/detalhes.api.ts`**
 
-### Solucao
+Adicionar metodo `editarReuniao` que:
+- Recebe `reuniaoId` e payload com campos editaveis (titulo, descricao, tipo, local, data_inicio, data_fim, participantes, notificacao_minutos)
+- Faz UPDATE na tabela `reunioes_oportunidades`
+- Se a reuniao tem `google_event_id`, chama a edge function `google-auth` com action `update-event` para sincronizar as alteracoes no Google Calendar
 
-Unificar todos os escopos em uma unica lista. Independentemente de o usuario conectar via "Gmail" ou "Google Calendar", o token tera permissoes para ambos. Isso e correto porque ambos compartilham o mesmo registro no banco.
+**Arquivo 2: `src/modules/negocios/hooks/useDetalhes.ts`**
 
-### Alteracao
+Adicionar hook `useEditarReuniao` seguindo o mesmo padrao dos outros hooks (useMutation, invalidate queries de reunioes e historico).
 
-**Arquivo**: `supabase/functions/google-auth/index.ts`
+**Arquivo 3: `src/modules/negocios/components/detalhes/AbaAgenda.tsx`**
 
-1. Criar uma lista `ALL_SCOPES` combinando Calendar + Gmail:
+1. Importar `Pencil` do lucide-react
+2. Adicionar estado `editandoReuniao` (Reuniao | null) no componente principal
+3. No `ReuniaoItem`, adicionar prop `onEditar` e renderizar icone de lapis ao lado da lixeira (mesmo estilo opacity-0 group-hover:opacity-100)
+4. Ao clicar no lapis:
+   - Preencher `formData` com os dados atuais da reuniao (parseando data_inicio/data_fim para extrair data e hora)
+   - Setar `editandoReuniao` com a reuniao
+   - Abrir o formulario
+5. No submit, se `editandoReuniao` esta setado, chamar `useEditarReuniao` ao inves de `useCriarReuniao`
+6. Reutilizar o mesmo componente `ReuniaoForm`, apenas mudando o label do botao para "Salvar"
 
-```typescript
-const ALL_SCOPES = [
-  "https://www.googleapis.com/auth/calendar",
-  "https://www.googleapis.com/auth/calendar.events",
-  "https://mail.google.com/",
-  "https://www.googleapis.com/auth/gmail.send",
-  "https://www.googleapis.com/auth/userinfo.email",
-  "https://www.googleapis.com/auth/userinfo.profile",
-];
-```
+### Detalhes tecnicos do update no Google Calendar
 
-2. Na action `auth-url` (linha 138), usar sempre `ALL_SCOPES`:
+O metodo `editarReuniao` vai:
+1. Buscar `google_event_id` da reuniao antes de atualizar
+2. Fazer o UPDATE no Supabase
+3. Se existe `google_event_id`, chamar `google-auth` com action `update-event` passando os novos dados (titulo, descricao, data_inicio, data_fim, local)
+4. A edge function ja tem logica para `update-event` que faz PATCH no evento do Google Calendar
 
-```typescript
-// Antes:
-const scopes = tipo === "calendar" ? CALENDAR_SCOPES : GMAIL_SCOPES;
-
-// Depois:
-const scopes = ALL_SCOPES;
-```
-
-3. Manter `CALENDAR_SCOPES` e `GMAIL_SCOPES` como constantes para referencia futura, mas nao usa-los na geracao da URL.
-
-### Apos o deploy
-
-O usuario precisa **reconectar** o Google (desconectar e conectar novamente) para obter um token com todos os escopos. Pode reconectar por qualquer um dos cards (Gmail ou Calendar) -- o resultado sera o mesmo.
-
-### Arquivos
+### Arquivos modificados
 
 | Arquivo | Acao |
 |---------|------|
-| `supabase/functions/google-auth/index.ts` | Editar -- unificar escopos OAuth |
+| `src/modules/negocios/services/detalhes.api.ts` | Adicionar metodo `editarReuniao` |
+| `src/modules/negocios/hooks/useDetalhes.ts` | Adicionar hook `useEditarReuniao` |
+| `src/modules/negocios/components/detalhes/AbaAgenda.tsx` | Adicionar botao editar e logica de edicao |
 
-Nenhuma migracao de banco necessaria.
