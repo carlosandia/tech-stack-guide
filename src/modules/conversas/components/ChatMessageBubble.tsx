@@ -130,12 +130,6 @@ function TextContent({ body, rawData, contactMap }: { body: string; rawData?: Re
       }
     }
 
-    // AIDEV-TODO: Remover logs após debug
-    if (body.match(/@\d{8,}/)) {
-      console.log('[MENTION-DEBUG] body:', body)
-      console.log('[MENTION-DEBUG] contactMap size:', contactMap?.size, 'entries:', contactMap ? Array.from(contactMap.entries()) : 'null')
-      console.log('[MENTION-DEBUG] mentionedJid:', mentionedJid)
-    }
 
     if (mentionedJid.length === 0) return body
 
@@ -1006,11 +1000,59 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({
   const isReaction = mensagem.tipo === 'reaction'
   const isTextType = mensagem.tipo === 'text'
 
-  // Pre-format body for inline text rendering
+  // AIDEV-NOTE: Pre-format body com resolução de menções para o caminho principal de renderização
   const formattedBody = useMemo(() => {
     if (!mensagem.body) return DOMPurify.sanitize('<span class="italic text-muted-foreground">Mensagem indisponível</span>', DOMPURIFY_CONFIG)
-    return sanitizeFormattedHtml(mensagem.body)
-  }, [mensagem.body])
+
+    let bodyWithMentions = mensagem.body
+
+    // Extrair mentionedJid do raw_data
+    let mentionedJid: string[] = []
+    if (mensagem.raw_data) {
+      const rawData = mensagem.raw_data as Record<string, unknown>
+      const _data = rawData._data as Record<string, unknown> | undefined
+      const message = (_data?.message || _data?.Message) as Record<string, unknown> | undefined
+      const extText = message?.extendedTextMessage as Record<string, unknown> | undefined
+      const contextInfo = extText?.contextInfo as Record<string, unknown> | undefined
+      mentionedJid = [
+        ...((contextInfo?.mentionedJid || contextInfo?.mentionedJID || []) as string[]),
+        ...((_data?.MentionedJID || []) as string[]),
+        ...((rawData.mentionedIds || []) as string[]),
+      ]
+    }
+
+    // Fallback: detectar @numero no body
+    const bodyMatches = bodyWithMentions.match(/@(\d{8,})/g)
+    if (bodyMatches) {
+      for (const match of bodyMatches) {
+        const num = match.slice(1)
+        if (!mentionedJid.some(j => j.includes(num))) {
+          mentionedJid.push(num)
+        }
+      }
+    }
+
+    // Substituir @numero por nome ou telefone formatado
+    for (const jid of mentionedJid) {
+      const number = jid.replace('@s.whatsapp.net', '').replace('@c.us', '').replace('@lid', '')
+      const name = contactMap?.get(number)
+      if (name) {
+        bodyWithMentions = bodyWithMentions.replace(`@${number}`, `@@mention:${name}@@`)
+      } else if (/^\d{8,}$/.test(number)) {
+        const fmt = number.length > 10
+          ? `+${number.slice(0, 2)} ${number.slice(2, 4)} ${number.slice(4)}`
+          : `+${number}`
+        bodyWithMentions = bodyWithMentions.replace(`@${number}`, `@@mention:${fmt}@@`)
+      }
+    }
+
+    // Sanitizar e converter marcadores @@mention:...@@ em spans estilizados
+    const sanitized = sanitizeFormattedHtml(bodyWithMentions)
+    return sanitized.replace(
+      /@@mention:(.*?)@@/g,
+      '<span class="mention-highlight">@$1</span>'
+    )
+  }, [mensagem.body, mensagem.raw_data, contactMap])
 
   const handleViewMedia = (url: string, tipo: 'image' | 'video', extra?: { caption?: string; senderName?: string }) => {
     setViewerMedia({ url, tipo, caption: extra?.caption, senderName: extra?.senderName })
