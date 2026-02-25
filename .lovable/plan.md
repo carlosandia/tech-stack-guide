@@ -1,98 +1,171 @@
 
-# Correção: Menções não resolvidas em mensagens de grupo
 
-## Causa Raiz
+# Reorganizacao do Menu Header - Agrupamento por Hub
 
-O `ChatMessageBubble` tem DOIS caminhos de renderização para mensagens de texto:
+## Contexto e Problema
 
-1. **Linha 1211** (caminho REAL usado): `formattedBody` via `sanitizeFormattedHtml(mensagem.body)` -- NAO usa contactMap
-2. **Linha 647** via `renderContent` -> `TextContent`: USA contactMap, mas so e chamado para tipos nao-texto (stickers, reactions, etc.)
+Hoje o header do CRM exibe 8 modulos lado a lado (Dashboard, Contatos, Negocios, Conversas, Emails, Tarefas, Formularios, Automacoes), ocupando quase 100% do width. Com modulos futuros (ex: Relatorios, Campanhas, Base de Conhecimento), nao ha espaco.
 
-O bloco condicional na linha 1211 (`isTextType`) renderiza mensagens de texto com `formattedBody`, que e um `useMemo` que depende APENAS de `mensagem.body` e nunca consulta o `contactMap`. Por isso a resolucao de mencoes nunca acontece.
+## Como os grandes CRMs resolvem isso
 
-## Plano de Correção
+### HubSpot (2024+)
+Migrou de top navigation para **sidebar lateral** com modulos agrupados por "hub": CRM, Marketing, Content, Commerce, Automations, Reporting, etc. Cada grupo abre submenus.
 
-### 1. Substituir `formattedBody` por lógica com menções (ChatMessageBubble.tsx)
+### Pipedrive (2024+)
+Usa **sidebar esquerda** com itens agrupados: Deals, Leads, Contacts, Activities, Campaigns, Projects, Insights. Permite customizar quais itens aparecem.
 
-Alterar o `useMemo` de `formattedBody` (linhas 1010-1013) para incluir a lógica de resolução de menções que hoje existe no `TextContent`:
+### RD Station
+Usa **top bar** com poucos itens agrupados + dropdowns com subitens por area.
 
-```text
-Antes:
-  const formattedBody = useMemo(() => {
-    if (!mensagem.body) return '...'
-    return sanitizeFormattedHtml(mensagem.body)
-  }, [mensagem.body])
+## Proposta para o CRM Renove
 
-Depois:
-  const formattedBody = useMemo(() => {
-    if (!mensagem.body) return '...'
+**Estrategia: Header horizontal com agrupamento por "Hub" usando Dropdowns**
 
-    // Resolver mencoes antes de formatar
-    let bodyWithMentions = mensagem.body
+Manter a arquitetura horizontal (conforme Design System secao 11 - decisao IMUTAVEL), mas **agrupar modulos em 3-4 categorias** com dropdown menus, reduzindo de 8 itens individuais para ~5 itens no header.
 
-    // Extrair mentionedJid do raw_data
-    let mentionedJid: string[] = []
-    if (mensagem.raw_data) {
-      const rawData = mensagem.raw_data as Record<string, unknown>
-      const _data = rawData._data as Record<string, unknown> | undefined
-      const message = (_data?.message || _data?.Message) as Record<string, unknown> | undefined
-      const extText = message?.extendedTextMessage as Record<string, unknown> | undefined
-      const contextInfo = extText?.contextInfo as Record<string, unknown> | undefined
-      mentionedJid = [
-        ...((contextInfo?.mentionedJid || contextInfo?.mentionedJID || []) as string[]),
-        ...((_data?.MentionedJID || []) as string[]),
-        ...((rawData.mentionedIds || []) as string[]),
-      ]
-    }
-
-    // Fallback: detectar @numero no body
-    const bodyMatches = bodyWithMentions.match(/@(\d{8,})/g)
-    if (bodyMatches) {
-      for (const match of bodyMatches) {
-        const num = match.slice(1)
-        if (!mentionedJid.some(j => j.includes(num))) {
-          mentionedJid.push(num)
-        }
-      }
-    }
-
-    // Substituir @numero por nome ou telefone formatado
-    for (const jid of mentionedJid) {
-      const number = jid.replace('@s.whatsapp.net','').replace('@c.us','').replace('@lid','')
-      const name = contactMap?.get(number)
-      if (name) {
-        bodyWithMentions = bodyWithMentions.replace(`@${number}`, `@@mention:${name}@@`)
-      } else if (/^\d{8,}$/.test(number)) {
-        const fmt = number.length > 10
-          ? `+${number.slice(0,2)} ${number.slice(2,4)} ${number.slice(4)}`
-          : `+${number}`
-        bodyWithMentions = bodyWithMentions.replace(`@${number}`, `@@mention:${fmt}@@`)
-      }
-    }
-
-    return sanitizeFormattedHtml(bodyWithMentions)
-  }, [mensagem.body, mensagem.raw_data, contactMap])
-```
-
-### 2. Atualizar o HTML na linha 1213
-
-Adicionar substituicao de marcadores `@@mention:...@@` por spans estilizados, similar ao que o `TextContent` faz:
+### Agrupamento Proposto
 
 ```text
-const formattedBodyHtml = formattedBody.replace(
-  /@@mention:(.*?)@@/g,
-  '<span class="mention-highlight">@$1</span>'
-)
+Header:
+[Logo RENOVE]   Dashboard | Comercial v | Atendimento v | Ferramentas v   [?] [gear] [bell] [Avatar v]
 ```
 
-Usar `formattedBodyHtml` no `dangerouslySetInnerHTML`.
+| Hub | Modulos incluidos | Icone do Hub |
+|-----|-------------------|--------------|
+| **Dashboard** | Acesso direto (sem dropdown) | LayoutDashboard |
+| **Comercial** | Negocios, Contatos | Briefcase |
+| **Atendimento** | Conversas, Emails | MessageSquare |
+| **Ferramentas** | Tarefas, Formularios, Automacoes | Wrench |
 
-### 3. Limpar código de debug
+**Futuramente**, novos modulos entram nos hubs existentes ou criam um novo:
+- Relatorios -> pode virar item direto ou entrar em "Ferramentas"
+- Campanhas/Marketing -> novo hub "Marketing"
+- Base de Conhecimento -> "Atendimento"
 
-Remover todos os `console.log` temporários de `[MENTION-DEBUG]` e `[MENTION-RESOLVER]` de ambos os arquivos.
+### Comportamento dos Dropdowns
 
-### Arquivos alterados
-- `src/modules/conversas/components/ChatMessageBubble.tsx` - integrar resolucao de mencoes no `formattedBody` + limpar logs
+- Hover ou click abre um **popover/dropdown** com os subitens
+- Cada subitem tem icone + label
+- Item ativo: o hub pai fica destacado (border-primary/40 + bg-primary/5)
+- Modulos bloqueados: exibidos com opacity-60 + cadeado (padrao existente)
+- Mobile: no drawer, os hubs viram grupos colapsaveis
 
-### Resultado esperado
-Mencoes como `@162826672971943` serao substituidas por nomes (ex: "Carlos Andia") ou telefones formatados (ex: "+16 28...") no caminho de renderizacao real das mensagens de texto.
+### Anatomia Visual Desktop
+
+```text
++--------------------------------------------------------------------------------+
+| [Logo]   Dashboard  | Comercial v  | Atendimento v  | Ferramentas v  [?][gear][bell][Av]
++--------------------------------------------------------------------------------+
+                        +------------------+
+                        | Briefcase Negocios   |
+                        | Users     Contatos   |
+                        +------------------+
+```
+
+### Mobile (Drawer)
+
+```text
++---------------------------+
+| [Logo]            [X]     |
++---------------------------+
+| Dashboard                 |
+|                           |
+| COMERCIAL                 |
+|   Negocios                |
+|   Contatos                |
+|                           |
+| ATENDIMENTO               |
+|   Conversas               |
+|   Emails                  |
+|                           |
+| FERRAMENTAS               |
+|   Tarefas                 |
+|   Formularios             |
+|   Automacoes              |
++---------------------------+
+```
+
+## Implementacao Tecnica
+
+### Arquivos a alterar
+
+1. **`src/modules/app/layouts/AppLayout.tsx`** - Reestruturar `menuItems` de array flat para array de hubs com subitens. Substituir NavItems individuais por componentes de dropdown (usar Radix `DropdownMenu` ou `Popover`).
+
+2. **`docs/designsystem.md`** - Atualizar secao 11 com novo padrao de "Hub Dropdown Navigation", mantendo a regra de navegacao horizontal.
+
+### Estrutura de dados proposta
+
+```typescript
+interface NavHub {
+  label: string
+  icon: React.ElementType
+  // Se path definido, acesso direto (sem dropdown)
+  path?: string
+  exact?: boolean
+  slug?: string
+  // Se children definido, abre dropdown
+  children?: NavHubItem[]
+}
+
+interface NavHubItem {
+  label: string
+  path: string
+  icon: React.ElementType
+  slug: string
+}
+
+const navHubs: NavHub[] = [
+  {
+    label: 'Dashboard',
+    icon: LayoutDashboard,
+    path: '/dashboard',
+    exact: true,
+    slug: 'dashboard',
+  },
+  {
+    label: 'Comercial',
+    icon: Briefcase,
+    children: [
+      { label: 'Negocios', path: '/negocios', icon: Briefcase, slug: 'negocios' },
+      { label: 'Contatos', path: '/contatos', icon: Users, slug: 'contatos' },
+    ],
+  },
+  {
+    label: 'Atendimento',
+    icon: MessageSquare,
+    children: [
+      { label: 'Conversas', path: '/conversas', icon: MessageSquare, slug: 'conversas' },
+      { label: 'Emails', path: '/emails', icon: Mail, slug: 'caixa-entrada-email' },
+    ],
+  },
+  {
+    label: 'Ferramentas',
+    icon: Wrench,
+    children: [
+      { label: 'Tarefas', path: '/tarefas', icon: CheckSquare, slug: 'atividades' },
+      { label: 'Formularios', path: '/formularios', icon: FileText, slug: 'formularios' },
+      { label: 'Automacoes', path: '/automacoes', icon: Zap, slug: 'automacoes' },
+    ],
+  },
+]
+```
+
+### Componente NavHubDropdown
+
+Usar `DropdownMenu` do Radix (ja instalado) para cada hub com children. O trigger mostra o label + ChevronDown. O content mostra os subitens como `DropdownMenuItem` com NavLink interno.
+
+### Destaque do hub ativo
+
+Verificar se algum filho do hub tem path que corresponde ao `location.pathname`. Se sim, o trigger do hub recebe o estilo ativo (`border-primary/40 bg-primary/5 text-primary`).
+
+### Modulos bloqueados
+
+Manter logica existente: verificar `modulosAtivos` para cada subitem. Items bloqueados exibidos com `opacity-60 cursor-not-allowed Lock icon`.
+
+## Escopo
+
+- Alterar apenas `AppLayout.tsx` (layout principal do CRM)
+- Atualizar drawer mobile para usar grupos
+- Manter compatibilidade com `ModuloGuard` e sistema de bloqueio
+- Nao alterar rotas, apenas a navegacao visual
+
