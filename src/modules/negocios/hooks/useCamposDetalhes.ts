@@ -95,6 +95,9 @@ export const SLUG_TO_CONTATO_COLUMN: Record<string, string> = {
   telefone: 'telefone',
   cargo: 'cargo',
   linkedin: 'linkedin_url',
+  endereco_cidade: 'endereco_cidade',
+  endereco_estado: 'endereco_estado',
+  endereco_cep: 'endereco_cep',
 }
 
 /**

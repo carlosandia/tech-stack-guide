@@ -45,6 +45,9 @@ export const PessoaFormSchema = z.object({
   status: z.enum(['novo', 'lead', 'mql', 'sql', 'cliente', 'perdido']).default('novo'),
   origem: z.enum(['manual', 'importacao', 'formulario', 'whatsapp', 'instagram', 'meta_ads', 'indicacao', 'outro']).default('manual'),
   owner_id: z.string().uuid().optional().or(z.literal('')),
+  endereco_cidade: z.string().max(100).optional(),
+  endereco_estado: z.string().max(2).optional(),
+  endereco_cep: z.string().max(10).optional(),
   observacoes: z.string().optional(),
 })
 
