@@ -119,3 +119,6 @@ verify_jwt = false
 
 [functions.compress-pdf]
 verify_jwt = false
+
+[functions.send-capi-event]
+verify_jwt = false
