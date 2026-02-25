@@ -19,7 +19,7 @@ interface PipelineSelectorProps {
   onNovaPipeline: () => void
   onArquivar?: (funilId: string) => void
   onDesarquivar?: (funilId: string) => void
-  onExcluir?: (funilId: string) => void
+  onExcluir?: (funilId: string, pipelineDestinoId?: string) => void
   isAdmin: boolean
 }
 
@@ -37,7 +37,7 @@ export const PipelineSelector = forwardRef<HTMLDivElement, PipelineSelectorProps
   const [open, setOpen] = useState(false)
   const [busca, setBusca] = useState('')
   const [showArquivadas, setShowArquivadas] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState<{ funilId: string; nome: string; count: number | null } | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<{ funilId: string; nome: string; count: number | null; acao: 'migrar' | 'excluir'; pipelineDestinoId: string } | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
@@ -88,25 +88,33 @@ export const PipelineSelector = forwardRef<HTMLDivElement, PipelineSelectorProps
 
   const handleExcluirClick = async (e: React.MouseEvent, funilId: string, nome: string) => {
     e.stopPropagation()
-    // Buscar contagem de oportunidades antes de confirmar
-    setConfirmDelete({ funilId, nome, count: null })
+    setConfirmDelete({ funilId, nome, count: null, acao: 'migrar', pipelineDestinoId: '' })
     try {
       const count = await negociosApi.contarOportunidadesFunil(funilId)
-      setConfirmDelete({ funilId, nome, count })
+      setConfirmDelete({ funilId, nome, count, acao: count > 0 ? 'migrar' : 'excluir', pipelineDestinoId: '' })
     } catch {
-      setConfirmDelete({ funilId, nome, count: 0 })
+      setConfirmDelete({ funilId, nome, count: 0, acao: 'excluir', pipelineDestinoId: '' })
     }
   }
 
   const handleConfirmExcluir = () => {
     if (!confirmDelete) return
-    const funilId = confirmDelete.funilId
-    // Chamar onExcluir ANTES de limpar estado para garantir que execute
-    onExcluir?.(funilId)
+    const { funilId, acao, pipelineDestinoId } = confirmDelete
+    if (acao === 'migrar' && pipelineDestinoId) {
+      onExcluir?.(funilId, pipelineDestinoId)
+    } else {
+      onExcluir?.(funilId)
+    }
     setConfirmDelete(null)
     setOpen(false)
     setBusca('')
   }
+
+  // Pipelines disponíveis para migração (exclui a que está sendo excluída)
+  const pipelinesDestino = useMemo(() => {
+    if (!confirmDelete) return []
+    return funis.filter(f => f.id !== confirmDelete.funilId && f.ativo !== false && !f.arquivado && !f.deletado_em)
+  }, [funis, confirmDelete])
 
   return (
     <div className="relative" ref={containerRef}>
@@ -139,7 +147,7 @@ export const PipelineSelector = forwardRef<HTMLDivElement, PipelineSelectorProps
                     <div className="p-2 bg-destructive/10 rounded-lg flex-shrink-0">
                       <AlertTriangle className="w-5 h-5 text-destructive" />
                     </div>
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <h3 className="text-sm font-semibold text-foreground">Excluir pipeline</h3>
                       <p className="text-sm text-muted-foreground mt-1">
                         Tem certeza que deseja excluir <strong>"{confirmDelete.nome}"</strong>?
@@ -147,13 +155,59 @@ export const PipelineSelector = forwardRef<HTMLDivElement, PipelineSelectorProps
                       {confirmDelete.count === null ? (
                         <p className="text-xs text-muted-foreground mt-2">Verificando oportunidades...</p>
                       ) : confirmDelete.count > 0 ? (
-                        <p className="text-xs text-destructive mt-2 font-medium">
-                          ⚠ Esta pipeline contém {confirmDelete.count} oportunidade{confirmDelete.count > 1 ? 's' : ''} que será{confirmDelete.count > 1 ? 'ão' : ''} excluída{confirmDelete.count > 1 ? 's' : ''}.
-                        </p>
+                        <>
+                          <p className="text-xs text-muted-foreground mt-2">
+                            Esta pipeline contém <strong>{confirmDelete.count}</strong> oportunidade{confirmDelete.count > 1 ? 's' : ''}.
+                          </p>
+                          <p className="text-xs font-medium text-foreground mt-3 mb-2">O que fazer com as oportunidades?</p>
+                          
+                          {/* Opção: Migrar */}
+                          <label className={`flex items-start gap-2 p-2.5 rounded-md border cursor-pointer transition-colors ${confirmDelete.acao === 'migrar' ? 'border-primary bg-primary/5' : 'border-border hover:bg-accent'}`}>
+                            <input
+                              type="radio"
+                              name="acao-exclusao"
+                              checked={confirmDelete.acao === 'migrar'}
+                              onChange={() => setConfirmDelete(prev => prev ? { ...prev, acao: 'migrar' } : null)}
+                              className="mt-0.5 accent-primary"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <span className="text-xs font-medium text-foreground">Migrar para outra pipeline</span>
+                              {confirmDelete.acao === 'migrar' && (
+                                <select
+                                  value={confirmDelete.pipelineDestinoId}
+                                  onChange={(e) => setConfirmDelete(prev => prev ? { ...prev, pipelineDestinoId: e.target.value } : null)}
+                                  className="mt-1.5 w-full h-8 px-2 text-xs bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30"
+                                >
+                                  <option value="">Selecione uma pipeline</option>
+                                  {pipelinesDestino.map(f => (
+                                    <option key={f.id} value={f.id}>{f.nome}</option>
+                                  ))}
+                                </select>
+                              )}
+                            </div>
+                          </label>
+
+                          {/* Opção: Excluir tudo */}
+                          <label className={`flex items-start gap-2 p-2.5 rounded-md border cursor-pointer transition-colors mt-2 ${confirmDelete.acao === 'excluir' ? 'border-destructive bg-destructive/5' : 'border-border hover:bg-accent'}`}>
+                            <input
+                              type="radio"
+                              name="acao-exclusao"
+                              checked={confirmDelete.acao === 'excluir'}
+                              onChange={() => setConfirmDelete(prev => prev ? { ...prev, acao: 'excluir' } : null)}
+                              className="mt-0.5 accent-destructive"
+                            />
+                            <div>
+                              <span className="text-xs font-medium text-foreground">Excluir todas as oportunidades</span>
+                              <p className="text-[11px] text-destructive mt-0.5">Esta ação não pode ser desfeita.</p>
+                            </div>
+                          </label>
+                        </>
                       ) : (
                         <p className="text-xs text-muted-foreground mt-2">Esta pipeline não possui oportunidades.</p>
                       )}
-                      <p className="text-xs text-muted-foreground mt-1">Esta ação não pode ser desfeita.</p>
+                      {(confirmDelete.count === 0 || confirmDelete.count === null) && (
+                        <p className="text-xs text-muted-foreground mt-1">Esta ação não pode ser desfeita.</p>
+                      )}
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -165,10 +219,10 @@ export const PipelineSelector = forwardRef<HTMLDivElement, PipelineSelectorProps
                     </button>
                     <button
                       onClick={handleConfirmExcluir}
-                      disabled={confirmDelete.count === null}
+                      disabled={confirmDelete.count === null || (confirmDelete.acao === 'migrar' && confirmDelete.count > 0 && !confirmDelete.pipelineDestinoId)}
                       className="flex-1 px-3 py-2 text-sm font-medium rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors disabled:opacity-50"
                     >
-                      Excluir
+                      Confirmar
                     </button>
                   </div>
                 </div>
