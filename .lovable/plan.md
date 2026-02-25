@@ -1,60 +1,49 @@
 
-# Tooltips informativos nas Métricas + Remover cor do cifrão no card
+# Formatacao WhatsApp no Chat Input
 
 ## Resumo
 
-Duas alterações:
-1. **Métricas do Kanban**: Adicionar ícone `(i)` ao lado de cada label com tooltip explicando o cálculo de cada métrica de forma clara
-2. **Card do Kanban**: Remover a cor verde do ícone `$` de valor, deixando igual aos demais ícones (`text-muted-foreground`)
+Adicionar botoes de formatacao de texto no estilo WhatsApp (Negrito, Italico, Riscado, Monoespaco) na barra de input de mensagens. Os botoes envolvem o texto selecionado com os caracteres de formatacao do WhatsApp. Funcionalidade disponivel apenas para conversas WhatsApp (desabilitada para Instagram).
 
-## Alterações
+## Formatacoes WhatsApp suportadas
 
-### Arquivo 1: `src/modules/negocios/components/toolbar/MetricasPanel.tsx`
+| Formato | Sintaxe | Botao |
+|---------|---------|-------|
+| **Negrito** | `*texto*` | **B** |
+| *Italico* | `_texto_` | *I* |
+| ~~Riscado~~ | `~texto~` | ~~S~~ |
+| `Monoespaco` | `` ```texto``` `` | `<>` |
 
-**Adicionar campo `tooltip` na interface `Metrica`** com textos explicativos para cada métrica:
+## Alteracoes
 
-| Métrica | Tooltip |
-|---------|---------|
-| Total | Número total de oportunidades em todas as etapas do funil, incluindo ganhas e perdidas |
-| Abertas | Oportunidades que ainda estão em andamento no funil (não ganhas nem perdidas) |
-| Ganhas | Oportunidades que foram movidas para a etapa de ganho (fechadas com sucesso) |
-| Perdidas | Oportunidades que foram movidas para a etapa de perda (não convertidas) |
-| Valor Pipeline | Soma dos valores de todas as oportunidades abertas (em andamento no funil) |
-| Valor Ganho | Soma dos valores de todas as oportunidades ganhas (receita confirmada) |
-| Ticket Médio | Valor médio por oportunidade ganha. Cálculo: Valor Ganho / Número de Ganhas |
-| Conversão | Percentual de oportunidades ganhas sobre o total. Cálculo: (Ganhas / Total) x 100 |
-| Forecast | Previsão de receita ponderada pela probabilidade de cada etapa. Considera apenas oportunidades abertas |
-| Tempo Médio | Ciclo médio de venda das oportunidades ganhas, da criação até o fechamento |
-| Estagnadas | Oportunidades abertas sem nenhuma atualização há mais de 7 dias |
-| Vencendo 7d | Oportunidades abertas com previsão de fechamento nos próximos 7 dias |
-| Atrasadas | Oportunidades abertas cuja previsão de fechamento já passou |
+### 1. `src/modules/conversas/components/ChatInput.tsx`
 
-**Implementação**:
-- Adicionar ícone `Info` do lucide-react (tamanho `w-3 h-3`, cor `text-muted-foreground`)
-- Criar um componente `Tooltip` simples inline usando CSS (`group` + `group-hover:visible`) — sem dependência externa
-- O ícone `(i)` fica ao lado do label, e ao passar o mouse (desktop) ou clicar (mobile) aparece o tooltip com fundo escuro e texto claro
-- No desktop: tooltip aparece ao lado do label com `position: absolute`
-- No mobile: funciona via `title` nativo como fallback
+**Adicionar prop `canal`** na interface `ChatInputProps`:
+- `canal?: 'whatsapp' | 'instagram'`
 
-**Visual (desktop)**:
-```text
-[icon] Total (i)
-       13
-               ┌──────────────────────────────┐
-               │ Número total de oportunidades │
-               │ em todas as etapas do funil,  │
-               │ incluindo ganhas e perdidas.  │
-               └──────────────────────────────┘
-```
+**Criar barra de formatacao** entre o `SugestaoCorrecao` e o textarea:
+- Exibida apenas quando `canal === 'whatsapp'` e tab === 'responder'
+- 4 botoes pequenos inline: **B**, *I*, ~~S~~, `<>`
+- Cada botao envolve o texto selecionado no textarea com os caracteres correspondentes
+- Se nao houver selecao, insere os caracteres e posiciona o cursor entre eles
+- Estilo: botoes `text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded px-1.5 py-0.5` alinhados a esquerda
+- Barra com `border-b border-border/30 px-2 py-1 flex gap-1`
 
-### Arquivo 2: `src/modules/negocios/components/kanban/KanbanCard.tsx`
+**Logica de formatacao** (funcao `wrapSelection`):
+1. Pega `selectionStart` e `selectionEnd` do textarea
+2. Se ha selecao: envolve o trecho com o marcador (ex: `*selecao*`)
+3. Se nao ha selecao: insere `**` e posiciona cursor entre eles
+4. Atualiza o state (`setTexto`) e reposiciona o cursor
 
-**Linha 186**: Remover `style={{ color: 'hsl(var(--success))' }}` do ícone `DollarSign`, substituindo por `className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground"` para ficar consistente com os demais ícones do card (contato, responsável, etc.).
+### 2. `src/modules/conversas/components/ChatWindow.tsx`
 
-## Detalhes Técnicos
+**Passar prop `canal`** para o `ChatInput`:
+- Adicionar `canal={conversa.canal}` na linha ~665
 
-- Nenhuma dependência nova será adicionada
-- O tooltip será implementado via CSS puro usando classes Tailwind (`group`, `invisible`, `group-hover:visible`, `absolute`)
-- Componente `MetricTooltip` interno ao arquivo, recebendo `text: string` como prop
-- Z-index do tooltip: `z-50` para ficar acima de outros elementos
-- Estilo do tooltip: `bg-popover text-popover-foreground text-xs rounded-md shadow-md border px-3 py-2 max-w-[220px]`
+## Detalhes Tecnicos
+
+- Nenhuma dependencia nova
+- A barra de formatacao usa apenas HTML/CSS simples com classes Tailwind
+- Posicionamento: logo acima do textarea, dentro do container do input
+- Os botoes nao sao focaveis via Tab para nao interferir no fluxo de digitacao (`tabIndex={-1}`)
+- `mouseDown` com `preventDefault` para manter o foco/selecao no textarea
