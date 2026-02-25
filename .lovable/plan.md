@@ -1,55 +1,40 @@
 
+## Melhorar Qualidade de Correspondencia do Meta CAPI
 
-## Criar trigger de reuniao_agendada para o motor de automacao + CAPI
+### Contexto
 
-### Situacao atual
+A qualidade de correspondencia atual esta em 3.0/10. A tabela `contatos` ja possui campos de endereco (`endereco_cidade`, `endereco_estado`, `endereco_cep`) que nao estao sendo enviados. Alem disso, o `contato_id` pode ser usado como `external_id` e o `action_source` pode ser ajustado para `system_generated` (mais adequado para eventos server-side de CRM).
 
-- A tabela `reunioes_oportunidades` tem apenas a trigger `audit_reunioes_trigger` (grava no `audit_log`)
-- A funcao `emitir_evento_automacao` nao esta vinculada a essa tabela
-- O motor de automacao e o `send-capi-event` ja mapeiam `reuniao_agendada` para o evento Meta `Schedule`, mas o evento nunca e emitido no banco
+### Parametros que serao adicionados
 
-### Sobre a migracao de ativacao dos eventos
+| Parametro Meta | Campo no CRM | Impacto estimado |
+|---|---|---|
+| `external_id` | `contato_id` (SHA-256) | Alto (~51% melhoria) |
+| `ct` (city) | `contatos.endereco_cidade` | Medio |
+| `st` (state) | `contatos.endereco_estado` | Medio |
+| `zp` (zip code) | `contatos.endereco_cep` | Medio |
+| `country` | `"br"` (fixo, todos os contatos sao BR) | Baixo |
+| `action_source` | Mudar de `"website"` para `"system_generated"` | Melhor precisao |
+| `client_user_agent` | Removido (nao aplicavel para server-side) | Evita penalizacao |
+| `client_ip_address` | Removido (nao aplicavel para server-side) | Evita penalizacao |
 
-A migracao que habilitou `eventos_habilitados` com `lead`, `schedule`, `mql`, `won`, `lost` como `true` **nao deve ser revertida** — esses flags sao necessarios para o funcionamento real do CAPI em producao. O teste validou que tudo funciona corretamente.
+### O que NAO precisa mudar
 
-### Alteracao necessaria
+- Nenhuma migracao SQL necessaria (campos ja existem na tabela `contatos`)
+- Nenhuma alteracao no frontend
+- Nenhuma alteracao nas triggers
 
-#### Arquivo: Nova migracao SQL
+### Alteracoes tecnicas
 
-Criar uma trigger na tabela `reunioes_oportunidades` que chama `emitir_evento_automacao` no INSERT, emitindo o evento `reuniao_agendada` para a fila `eventos_automacao`.
+#### Arquivo: `supabase/functions/send-capi-event/index.ts`
 
-Como a funcao `emitir_evento_automacao` usa `TG_ARGV[0]` para determinar o tipo de entidade, e ela so trata `oportunidade`, `contato` e `tarefa` no INSERT, sera necessario:
+1. Expandir o SELECT do contato para incluir `endereco_cidade`, `endereco_estado`, `endereco_cep`
+2. Adicionar `external_id` com hash SHA-256 do `contato_id`
+3. Adicionar `ct`, `st`, `zp` com hash SHA-256 quando disponveis
+4. Adicionar `country` fixo como hash de `"br"`
+5. Mudar `action_source` de `"website"` para `"system_generated"`
+6. Remover `client_ip_address` e `client_user_agent` placeholder (nao aplicaveis para `system_generated`)
 
-1. Criar uma funcao dedicada `emitir_evento_reuniao_agendada()` que insere diretamente na tabela `eventos_automacao` com tipo `reuniao_agendada`
-2. Vincular essa funcao como trigger AFTER INSERT na tabela `reunioes_oportunidades`
+### Resultado esperado
 
-A funcao buscara o `contato_id` a partir da oportunidade vinculada para que o motor de automacao tenha os dados necessarios para enviar ao CAPI.
-
-### Detalhes tecnicos
-
-```text
-Funcao: emitir_evento_reuniao_agendada()
-  - Trigger: AFTER INSERT ON reunioes_oportunidades
-  - Insere em eventos_automacao:
-    - tipo: 'reuniao_agendada'
-    - entidade_tipo: 'reuniao'
-    - entidade_id: NEW.id
-    - dados: {
-        titulo: NEW.titulo,
-        oportunidade_id: NEW.oportunidade_id,
-        contato_id: <buscado da oportunidade>,
-        tipo: NEW.tipo,
-        data_inicio: NEW.data_inicio
-      }
-```
-
-### Arquivos
-
-| Arquivo | Acao |
-|---------|------|
-| Nova migracao SQL | Criar funcao + trigger para emitir evento reuniao_agendada |
-
-### O que NAO sera feito
-
-- Reverter a ativacao dos eventos CAPI (necessarios para producao)
-- Alterar a funcao `emitir_evento_automacao` existente (evitar risco de regressao nos outros eventos)
+O score de qualidade de correspondencia deve subir significativamente (estimativa: de 3.0 para 6.0-8.0) com o envio de `external_id`, dados de localizacao e o `action_source` correto.
