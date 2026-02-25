@@ -111,7 +111,7 @@ Deno.serve(async (req) => {
       }
 
       // Verificar permissões do token antes de criar
-      const permUrl = `https://graph.facebook.com/v21.0/me/permissions?access_token=${encodeURIComponent(accessToken)}`;
+      const permUrl = `https://graph.facebook.com/v24.0/me/permissions?access_token=${encodeURIComponent(accessToken)}`;
       const permRes = await fetch(permUrl);
       const permData = await permRes.json();
       const perms = (permData.data || []) as Array<{ permission: string; status: string }>;
@@ -133,7 +133,7 @@ Deno.serve(async (req) => {
 
       console.log(`[meta-audiences] Criando audience "${audience_name}" na conta act_${accountId}, org ${organizacaoId}`);
 
-      const createUrl = `https://graph.facebook.com/v21.0/act_${accountId}/customaudiences`;
+      const createUrl = `https://graph.facebook.com/v24.0/act_${accountId}/customaudiences`;
       const createResponse = await fetch(createUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -177,7 +177,7 @@ Deno.serve(async (req) => {
 
       console.log(`[meta-audiences] Deletando audience ${audience_id}, org ${organizacaoId}`);
 
-      const deleteUrl = `https://graph.facebook.com/v21.0/${audience_id}?access_token=${encodeURIComponent(accessToken)}`;
+      const deleteUrl = `https://graph.facebook.com/v24.0/${audience_id}?access_token=${encodeURIComponent(accessToken)}`;
       const deleteResponse = await fetch(deleteUrl, { method: "DELETE" });
       const deleteData = await deleteResponse.json();
 
@@ -203,7 +203,7 @@ Deno.serve(async (req) => {
     }
 
     // === ACTION: LIST ===
-    const metaUrl = `https://graph.facebook.com/v21.0/act_${accountId}/customaudiences?fields=id,name,approximate_count_lower_bound,approximate_count_upper_bound&limit=100&access_token=${encodeURIComponent(accessToken)}`;
+    const metaUrl = `https://graph.facebook.com/v24.0/act_${accountId}/customaudiences?fields=id,name,approximate_count_lower_bound,approximate_count_upper_bound&limit=100&access_token=${encodeURIComponent(accessToken)}`;
 
     console.log(`[meta-audiences] Buscando audiences para conta act_${accountId}, org ${organizacaoId}`);
 

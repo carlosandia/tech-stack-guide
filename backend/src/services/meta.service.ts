@@ -29,7 +29,7 @@ import type {
 // Constantes
 // =====================================================
 
-const META_GRAPH_URL = 'https://graph.facebook.com/v21.0'
+const META_GRAPH_URL = 'https://graph.facebook.com/v24.0'
 
 const META_SCOPES = [
   'pages_show_list',

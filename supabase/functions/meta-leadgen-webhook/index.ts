@@ -12,7 +12,7 @@ const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 const VERIFY_TOKEN = "crm_renove_leadgen_webhook";
-const GRAPH_API_VERSION = "v21.0";
+const GRAPH_API_VERSION = "v24.0";
 
 Deno.serve(async (req: Request) => {
   // =====================================================

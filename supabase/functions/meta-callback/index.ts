@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
 
     // Trocar code por access_token
     const tokenUrl =
-      `https://graph.facebook.com/v21.0/oauth/access_token?` +
+      `https://graph.facebook.com/v24.0/oauth/access_token?` +
       `client_id=${encodeURIComponent(appId)}` +
       `&redirect_uri=${encodeURIComponent(redirect_uri)}` +
       `&client_secret=${encodeURIComponent(appSecret)}` +
@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
     let businessName = "";
     try {
       const meRes = await fetch(
-        `https://graph.facebook.com/v21.0/me?fields=id,name,email&access_token=${accessToken}`
+        `https://graph.facebook.com/v24.0/me?fields=id,name,email&access_token=${accessToken}`
       );
       metaUser = await meRes.json();
     } catch (e) {
@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
     // Buscar Business Portfolio (Portfólio Empresarial) vinculado
     try {
       const bizRes = await fetch(
-        `https://graph.facebook.com/v21.0/me/businesses?fields=id,name&access_token=${accessToken}`
+        `https://graph.facebook.com/v24.0/me/businesses?fields=id,name&access_token=${accessToken}`
       );
       const bizData = await bizRes.json();
       if (bizData.data && bizData.data.length > 0) {
