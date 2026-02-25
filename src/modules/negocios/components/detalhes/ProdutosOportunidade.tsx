@@ -7,6 +7,7 @@
 import { useState, useRef, useCallback } from 'react'
 import { Search, Loader2, X, Package, Minus, Plus } from 'lucide-react'
 import { toast } from 'sonner'
+import { useLocalizacao } from '@/hooks/useLocalizacao'
 import {
   useProdutosOportunidade,
   useAdicionarProdutoOp,
@@ -19,15 +20,10 @@ interface ProdutosOportunidadeProps {
   oportunidadeId: string
 }
 
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    minimumFractionDigits: 2,
-  }).format(value)
-}
+// AIDEV-NOTE: formatCurrency removida - usa useLocalizacao().formatarMoeda
 
 export function ProdutosOportunidade({ oportunidadeId }: ProdutosOportunidadeProps) {
+  const { formatarMoeda: formatCurrency } = useLocalizacao()
   const { data: produtos = [], isLoading } = useProdutosOportunidade(oportunidadeId)
   const adicionarProduto = useAdicionarProdutoOp()
   const atualizarProduto = useAtualizarProdutoOp()

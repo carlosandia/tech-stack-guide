@@ -90,6 +90,7 @@ import {
     )
   }
 
+  // AIDEV-NOTE: Super Admin dashboard - moeda fixa BRL (receita da plataforma, não do tenant)
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat('pt-BR', {
       style: 'currency',

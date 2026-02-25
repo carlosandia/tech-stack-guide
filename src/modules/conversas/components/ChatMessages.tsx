@@ -4,12 +4,12 @@
  */
 
 import { useRef, useEffect, useMemo, forwardRef } from 'react'
-import { format, isToday, isYesterday, isSameDay } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
+import { isToday as _isToday, isYesterday as _isYesterday, isSameDay } from 'date-fns'
 import { Loader2 } from 'lucide-react'
 import { ChatMessageBubble, type ReactionBadge } from './ChatMessageBubble'
 import type { Mensagem } from '../services/conversas.api'
 import { useMentionResolver } from '../hooks/useMentionResolver'
+import { useLocalizacao } from '@/hooks/useLocalizacao'
 
 interface ChatMessagesProps {
   mensagens: Mensagem[]
@@ -31,12 +31,7 @@ interface ChatMessagesProps {
   onStartConversation?: (telefone: string) => void
 }
 
-function formatDateSeparator(dateStr: string): string {
-  const date = new Date(dateStr)
-  if (isToday(date)) return 'Hoje'
-  if (isYesterday(date)) return 'Ontem'
-  return format(date, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
-}
+// AIDEV-NOTE: formatDateSeparator movido para dentro do componente (usa useLocalizacao)
 
 const participantColors = [
   '#e17055', '#00b894', '#0984e3', '#6c5ce7',
@@ -195,6 +190,14 @@ export const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(functi
   highlightIds, focusedId, conversaTipo, conversaId, fotoUrl, myAvatarUrl,
   onDeleteMessage, onReplyMessage, onReactMessage, onForwardMessage, onPinMessage, onStartConversation,
 }, _ref) {
+  const { formatarData } = useLocalizacao()
+  const formatDateSeparator = (dateStr: string): string => {
+    const date = new Date(dateStr)
+    if (_isToday(date)) return 'Hoje'
+    if (_isYesterday(date)) return 'Ontem'
+    return formatarData(date)
+  }
+
   const containerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const prevLengthRef = useRef(0)

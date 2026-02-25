@@ -130,17 +130,73 @@ function AdminBadge() {
   )
 }
 
+// AIDEV-NOTE: Preview de localização em tempo real para o admin visualizar o impacto das configs
+function LocalizacaoPreview({ moeda, timezone, formatoData }: { moeda: string; timezone: string; formatoData: string }) {
+  const moedaLocales: Record<string, { locale: string; currency: string }> = {
+    BRL: { locale: 'pt-BR', currency: 'BRL' },
+    USD: { locale: 'en-US', currency: 'USD' },
+    EUR: { locale: 'de-DE', currency: 'EUR' },
+  }
+  const formatoLocales: Record<string, string> = {
+    'DD/MM/YYYY': 'pt-BR',
+    'MM/DD/YYYY': 'en-US',
+    'YYYY-MM-DD': 'sv-SE',
+  }
+
+  const cfg = moedaLocales[moeda] || moedaLocales.BRL
+  const dateLocale = formatoLocales[formatoData] || 'pt-BR'
+  const now = new Date()
+
+  const exemploMoeda = new Intl.NumberFormat(cfg.locale, {
+    style: 'currency',
+    currency: cfg.currency,
+    minimumFractionDigits: 2,
+  }).format(1234.56)
+
+  const exemploData = new Intl.DateTimeFormat(dateLocale, {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    timeZone: timezone,
+  }).format(now)
+
+  const exemploHora = new Intl.DateTimeFormat(dateLocale, {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: timezone,
+  }).format(now)
+
+  const tzLabel = TIMEZONES.find(t => t.value === timezone)?.label || timezone
+
+  return (
+    <div className="rounded-md border border-border bg-muted/30 px-4 py-3">
+      <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Preview</p>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-foreground">
+        <span className="font-medium">{exemploMoeda}</span>
+        <span className="text-muted-foreground">·</span>
+        <span>{exemploData}</span>
+        <span className="text-muted-foreground">·</span>
+        <span>{exemploHora}</span>
+        <span className="text-muted-foreground">·</span>
+        <span className="text-muted-foreground text-xs">{tzLabel}</span>
+      </div>
+    </div>
+  )
+}
+
 interface SelectFieldProps {
   label: string
+  description?: string
   value: string
   onChange: (v: string) => void
   options: Array<{ value: string; label: string }>
 }
 
-function SelectField({ label, value, onChange, options }: SelectFieldProps) {
+function SelectField({ label, description, value, onChange, options }: SelectFieldProps) {
   return (
     <div>
-      <label className="text-sm font-medium text-foreground mb-1.5 block">{label}</label>
+      <label className="text-sm font-medium text-foreground mb-1 block">{label}</label>
+      {description && <p className="text-xs text-muted-foreground mb-1.5">{description}</p>}
       <select
         value={value}
         onChange={e => onChange(e.target.value)}
@@ -269,12 +325,21 @@ export function ConfigGeralPage() {
     <div className="space-y-8">
       {/* Localização */}
       <section className="bg-card rounded-lg border border-border p-6 space-y-4">
-        <h2 className="text-base font-semibold text-foreground">Localização</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <SelectField label="Moeda Padrão" value={form.moeda_padrao} onChange={v => updateField('moeda_padrao', v)} options={MOEDAS} />
-          <SelectField label="Fuso Horário" value={form.timezone} onChange={v => updateField('timezone', v)} options={TIMEZONES} />
-          <SelectField label="Formato de Data" value={form.formato_data} onChange={v => updateField('formato_data', v)} options={FORMATOS_DATA} />
+        <div>
+          <div className="flex items-center gap-3 flex-wrap">
+            <h2 className="text-base font-semibold text-foreground">Localização</h2>
+            <AdminBadge />
+          </div>
+          <p className="text-sm text-muted-foreground mt-1">
+            Estas configurações afetam como valores monetários, datas e horários são exibidos em todo o CRM para todos os usuários da organização.
+          </p>
         </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <SelectField label="Moeda Padrão" description="Símbolo e formato usados nos valores de oportunidades, produtos e relatórios" value={form.moeda_padrao} onChange={v => updateField('moeda_padrao', v)} options={MOEDAS} />
+          <SelectField label="Fuso Horário" description="Horário de referência para agendamentos, notificações e logs de atividade" value={form.timezone} onChange={v => updateField('timezone', v)} options={TIMEZONES} />
+          <SelectField label="Formato de Data" description="Como datas são exibidas em todo o sistema" value={form.formato_data} onChange={v => updateField('formato_data', v)} options={FORMATOS_DATA} />
+        </div>
+        <LocalizacaoPreview moeda={form.moeda_padrao} timezone={form.timezone} formatoData={form.formato_data} />
       </section>
 
       {/* Notificações por Email */}

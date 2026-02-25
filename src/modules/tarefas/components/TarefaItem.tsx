@@ -18,8 +18,8 @@ import {
   CheckCircle,
 } from 'lucide-react'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
-import { format, isPast, isToday, isTomorrow, parseISO } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
+import { isPast, isToday, isTomorrow, parseISO } from 'date-fns'
+import { useLocalizacao } from '@/hooks/useLocalizacao'
 import type { TarefaComDetalhes, TipoTarefa, PrioridadeTarefa } from '../services/tarefas.api'
 
 const TIPO_ICONS: Record<TipoTarefa, React.ElementType> = {
@@ -53,7 +53,7 @@ interface TarefaItemProps {
   onClickOportunidade: (oportunidadeId: string) => void
 }
 
-function formatarDataVencimento(data: string | null): { texto: string; atrasada: boolean; className: string } {
+function formatarDataVencimento(data: string | null, formatarData: (d: string | Date) => string): { texto: string; atrasada: boolean; className: string } {
   if (!data) return { texto: 'Sem prazo', atrasada: false, className: 'text-muted-foreground' }
 
   const date = parseISO(data)
@@ -65,7 +65,7 @@ function formatarDataVencimento(data: string | null): { texto: string; atrasada:
   } else if (isTomorrow(date)) {
     texto = 'Amanhã'
   } else {
-    texto = format(date, "dd/MM/yyyy", { locale: ptBR })
+    texto = formatarData(date)
   }
 
   const className = atrasada ? 'text-destructive font-medium' : isToday(date) ? 'text-[hsl(var(--warning-foreground))] font-medium' : 'text-muted-foreground'
@@ -74,13 +74,14 @@ function formatarDataVencimento(data: string | null): { texto: string; atrasada:
 }
 
 export const TarefaItem = forwardRef<HTMLDivElement, TarefaItemProps>(function TarefaItem({ tarefa, onConcluir, onClickOportunidade }: TarefaItemProps, _ref) {
+  const { formatarData } = useLocalizacao()
   const Icon = TIPO_ICONS[tarefa.tipo] || ClipboardList
   const tipoColor = TIPO_COLORS[tarefa.tipo] || TIPO_COLORS.outro
   const isConcluida = tarefa.status === 'concluida'
   const isCancelada = tarefa.status === 'cancelada'
   const isDisabled = isConcluida || isCancelada
 
-  const dataInfo = formatarDataVencimento(tarefa.data_vencimento)
+  const dataInfo = formatarDataVencimento(tarefa.data_vencimento, formatarData)
   const isAtrasada = !isConcluida && !isCancelada && tarefa.status === 'pendente' && dataInfo.atrasada
 
   const oportunidade = tarefa.oportunidades

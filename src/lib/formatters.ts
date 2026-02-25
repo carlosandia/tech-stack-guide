@@ -72,13 +72,17 @@ export function normalizeSegmento(value: string): string {
 }
 
 /**
- * Formata valor monetário em BRL: R$ 1.234,56
+ * Formata valor monetário: R$ 1.234,56
  * Aceita número ou string numérica
+ * @param moeda - Código da moeda (BRL, USD, EUR). Default: BRL
  */
-export function formatCurrency(value: string | number): string {
+export function formatCurrency(value: string | number, moeda: string = 'BRL'): string {
+  const localeMap: Record<string, string> = { BRL: 'pt-BR', USD: 'en-US', EUR: 'de-DE' }
+  const locale = localeMap[moeda] || 'pt-BR'
+
   // Se for número, converte direto
   if (typeof value === 'number') {
-    return value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    return value.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   }
 
   // Remove tudo que não é dígito
@@ -89,7 +93,7 @@ export function formatCurrency(value: string | number): string {
   const cents = parseInt(numbers, 10)
   const reais = cents / 100
 
-  return reais.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return reais.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 /**
