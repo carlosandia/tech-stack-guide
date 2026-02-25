@@ -43,7 +43,6 @@ const MAPEAMENTOS_PADRAO: MapeamentoItem[] = [
   { value: 'pessoa.email', label: 'Email', grupo: 'Pessoa' },
   { value: 'pessoa.telefone', label: 'Telefone', grupo: 'Pessoa' },
   { value: 'pessoa.cargo', label: 'Cargo', grupo: 'Pessoa' },
-  { value: 'pessoa.linkedin_url', label: 'LinkedIn', grupo: 'Pessoa' },
   { value: 'pessoa.observacoes', label: 'Observações', grupo: 'Pessoa' },
   // Empresa
   { value: 'empresa.nome_fantasia', label: 'Nome Fantasia', grupo: 'Empresa' },

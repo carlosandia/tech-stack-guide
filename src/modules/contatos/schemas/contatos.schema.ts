@@ -41,7 +41,6 @@ export const PessoaFormSchema = z.object({
   telefone: z.string().max(50).optional(),
   cargo: z.string().max(100).optional(),
   empresa_id: z.string().uuid().optional().or(z.literal('')),
-  linkedin_url: z.string().url('URL inválida').max(500).optional().or(z.literal('')),
   status: z.enum(['novo', 'lead', 'mql', 'sql', 'cliente', 'perdido']).default('novo'),
   origem: z.enum(['manual', 'importacao', 'formulario', 'whatsapp', 'instagram', 'meta_ads', 'indicacao', 'outro']).default('manual'),
   owner_id: z.string().uuid().optional().or(z.literal('')),

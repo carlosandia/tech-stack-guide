@@ -208,7 +208,6 @@ export function ContatoFormModal({
         defaults.telefone = contato.telefone || ''
         defaults.cargo = contato.cargo || ''
         defaults.empresa_id = contato.empresa_id || ''
-        defaults.linkedin_url = contato.linkedin_url || ''
       } else {
         defaults.razao_social = contato.razao_social || ''
         defaults.nome_fantasia = contato.nome_fantasia || ''
@@ -242,7 +241,6 @@ export function ContatoFormModal({
         defaults.telefone = ''
         defaults.cargo = ''
         defaults.empresa_id = ''
-        defaults.linkedin_url = ''
       } else {
         defaults.razao_social = ''
         defaults.nome_fantasia = ''
@@ -318,9 +316,6 @@ export function ContatoFormModal({
     }
     if (isVisible('cargo', isCampoRequired('cargo'))) {
       optionalRows.push(<InputField key="cargo" label={labelWithReq('cargo', 'Cargo')} error={form.formState.errors.cargo?.message as string} {...form.register('cargo', regOpts('cargo', 'Cargo'))} />)
-    }
-    if (isVisible('linkedin_url', isCampoRequired('linkedin_url'))) {
-      optionalRows.push(<InputField key="linkedin" label={labelWithReq('linkedin_url', 'LinkedIn')} placeholder={getCampoPlaceholder('linkedin_url', 'https://linkedin.com/in/...')} error={form.formState.errors.linkedin_url?.message as string} {...form.register('linkedin_url', regOpts('linkedin_url', 'LinkedIn'))} />)
     }
     if (isVisible('empresa_id', false)) {
       optionalRows.push(
