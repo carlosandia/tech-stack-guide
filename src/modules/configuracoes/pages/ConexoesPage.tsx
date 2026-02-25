@@ -36,6 +36,7 @@ export function ConexoesPage() {
   const [modalAberto, setModalAberto] = useState<PlataformaIntegracao | null>(null)
   const [configAberto, setConfigAberto] = useState<PlataformaIntegracao | null>(null)
   const callbackProcessado = useRef(false)
+  const successProcessado = useRef(false)
 
   useEffect(() => {
     setSubtitle('Gerencie conexões com plataformas externas')
@@ -50,7 +51,8 @@ export function ConexoesPage() {
     const code = searchParams.get('code')
     const state = searchParams.get('state')
 
-    if (success) {
+    if (success && !successProcessado.current) {
+      successProcessado.current = true
       toast.success(`${success.charAt(0).toUpperCase() + success.slice(1)} conectado com sucesso!`)
       refetch()
       setSearchParams({}, { replace: true })
