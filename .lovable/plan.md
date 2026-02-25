@@ -1,40 +1,62 @@
 
-## Melhorar Qualidade de Correspondencia do Meta CAPI
+
+## Adicionar Campos de Endereco (Cidade, Estado, CEP) como Campos do Sistema para Pessoa
 
 ### Contexto
 
-A qualidade de correspondencia atual esta em 3.0/10. A tabela `contatos` ja possui campos de endereco (`endereco_cidade`, `endereco_estado`, `endereco_cep`) que nao estao sendo enviados. Alem disso, o `contato_id` pode ser usado como `external_id` e o `action_source` pode ser ajustado para `system_generated` (mais adequado para eventos server-side de CRM).
+Atualmente, os campos `endereco_cidade`, `endereco_estado` e `endereco_cep` ja existem na tabela `contatos` no banco de dados, mas **nao estao registrados como campos do sistema** para a entidade "pessoa" na tabela `campos_customizados`. Isso significa que eles nao aparecem no formulario de pessoa nem na pagina de configuracoes/campos.
 
-### Parametros que serao adicionados
+Esses campos ja sao usados pela integracao Meta CAPI para melhorar a qualidade de correspondencia (parametros `ct`, `st`, `zp`), mas atualmente dependem de dados preenchidos apenas em empresas.
 
-| Parametro Meta | Campo no CRM | Impacto estimado |
-|---|---|---|
-| `external_id` | `contato_id` (SHA-256) | Alto (~51% melhoria) |
-| `ct` (city) | `contatos.endereco_cidade` | Medio |
-| `st` (state) | `contatos.endereco_estado` | Medio |
-| `zp` (zip code) | `contatos.endereco_cep` | Medio |
-| `country` | `"br"` (fixo, todos os contatos sao BR) | Baixo |
-| `action_source` | Mudar de `"website"` para `"system_generated"` | Melhor precisao |
-| `client_user_agent` | Removido (nao aplicavel para server-side) | Evita penalizacao |
-| `client_ip_address` | Removido (nao aplicavel para server-side) | Evita penalizacao |
+### O que sera feito
 
-### O que NAO precisa mudar
+#### 1. Migracao SQL - Adicionar campos do sistema para tenants existentes
 
-- Nenhuma migracao SQL necessaria (campos ja existem na tabela `contatos`)
-- Nenhuma alteracao no frontend
-- Nenhuma alteracao nas triggers
+Uma migracao que insere os 3 campos como `sistema = true` na tabela `campos_customizados` para **todas as organizacoes existentes** que ainda nao possuem esses campos:
 
-### Alteracoes tecnicas
+| Campo | Slug | Tipo | Ordem |
+|---|---|---|---|
+| Cidade | endereco_cidade | texto | 7 |
+| Estado | endereco_estado | texto | 8 |
+| CEP | endereco_cep | texto | 9 |
 
-#### Arquivo: `supabase/functions/send-capi-event/index.ts`
+#### 2. Migracao SQL - Atualizar funcao `criar_campos_sistema`
 
-1. Expandir o SELECT do contato para incluir `endereco_cidade`, `endereco_estado`, `endereco_cep`
-2. Adicionar `external_id` com hash SHA-256 do `contato_id`
-3. Adicionar `ct`, `st`, `zp` com hash SHA-256 quando disponveis
-4. Adicionar `country` fixo como hash de `"br"`
-5. Mudar `action_source` de `"website"` para `"system_generated"`
-6. Remover `client_ip_address` e `client_user_agent` placeholder (nao aplicaveis para `system_generated`)
+Alterar a funcao para que novos tenants criados no futuro tambem recebam esses 3 campos automaticamente.
+
+#### 3. Frontend - Mapeamentos no `useCamposConfig.ts`
+
+Adicionar os novos slugs nos fallbacks e mapeamentos:
+- `SLUG_TO_FIELD_KEY`: sem necessidade (slug = field key: `endereco_cidade`, `endereco_estado`, `endereco_cep`)
+- `FALLBACK_PESSOA`: adicionar os 3 campos com labels adequados
+
+#### 4. Frontend - Schema `PessoaFormSchema`
+
+Adicionar `endereco_cidade`, `endereco_estado` e `endereco_cep` como campos opcionais no schema de formulario de pessoa.
+
+#### 5. Frontend - Mapeamento `SLUG_TO_CONTATO_COLUMN` (Detalhes da Oportunidade)
+
+Adicionar o mapeamento no hook `useCamposDetalhes.ts` para que os campos aparecam corretamente nos detalhes da oportunidade:
+
+```text
+endereco_cidade -> endereco_cidade
+endereco_estado -> endereco_estado
+endereco_cep    -> endereco_cep
+```
+
+### Arquivos alterados
+
+| Arquivo | Alteracao |
+|---|---|
+| Nova migracao SQL | INSERT campos sistema para orgs existentes + ALTER funcao `criar_campos_sistema` |
+| `src/modules/contatos/hooks/useCamposConfig.ts` | Adicionar fallbacks para os 3 campos |
+| `src/modules/contatos/schemas/contatos.schema.ts` | Adicionar campos no `PessoaFormSchema` |
+| `src/modules/negocios/hooks/useCamposDetalhes.ts` | Adicionar mapeamento `SLUG_TO_CONTATO_COLUMN` |
 
 ### Resultado esperado
 
-O score de qualidade de correspondencia deve subir significativamente (estimativa: de 3.0 para 6.0-8.0) com o envio de `external_id`, dados de localizacao e o `action_source` correto.
+- Os campos Cidade, Estado e CEP aparecerao automaticamente nos formularios de Pessoa (como campos do sistema, nao editaveis/removiveis pelo admin)
+- Tenants existentes receberao os campos via migracao
+- Novos tenants receberao automaticamente via `criar_campos_sistema`
+- Quando preenchidos, os dados serao enviados automaticamente ao Meta CAPI (ja implementado no `send-capi-event`)
+
