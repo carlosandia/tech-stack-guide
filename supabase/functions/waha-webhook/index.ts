@@ -1338,6 +1338,8 @@ Deno.serve(async (req) => {
           || "";
       }
     }
+    // AIDEV-NOTE: Remove caracteres U+FFFD corrompidos (emojis perdidos no WAHA GOWS)
+    messageBody = messageBody.replace(/\uFFFD/g, '');
     const messageType = payload.type || "chat";
     const messageId = payload.id?._serialized || payload.id?.id || payload.id || `waha_${Date.now()}`;
     const timestamp = payload.timestamp || Math.floor(Date.now() / 1000);
