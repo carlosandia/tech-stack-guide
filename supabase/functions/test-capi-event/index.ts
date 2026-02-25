@@ -120,8 +120,13 @@ Deno.serve(async (req) => {
         {
           event_name: 'Lead',
           event_time: eventTime,
-          action_source: 'system_generated',
-          user_data: { client_ip_address: '0.0.0.0' },
+          action_source: 'website',
+          event_source_url: 'https://crm.renovedigital.com.br',
+          user_data: {
+            em: ['309a0a5c3e211326ae75571f882866e0b8de3131acf14c3f89044e1d868e2c2c'],
+            client_ip_address: '127.0.0.1',
+            client_user_agent: 'CRM-Test/1.0',
+          },
         },
       ],
       test_event_code: testEventCode,
