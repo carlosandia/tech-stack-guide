@@ -8,7 +8,7 @@ import { useState, useCallback, useEffect } from 'react'
 import {
   Calendar, Plus, MapPin, Clock, CheckCircle2, XCircle,
   AlertTriangle, RotateCcw, Trash2, Loader2, Video, Phone,
-  Users, Link as LinkIcon, Bell, ExternalLink,
+  Users, Link as LinkIcon, Bell, ExternalLink, Pencil,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { format, parseISO, addHours } from 'date-fns'
@@ -30,6 +30,7 @@ import {
   useMotivosNoShow,
   useConexaoGoogle,
   useReagendarReuniao,
+  useEditarReuniao,
 } from '../../hooks/useDetalhes'
 import type { Reuniao } from '../../services/detalhes.api'
 
@@ -83,6 +84,7 @@ const DEFAULT_FORM: ReuniaoFormData = {
 export function AbaAgenda({ oportunidadeId }: AbaAgendaProps) {
   const { data: reunioes, isLoading } = useReunioesOportunidade(oportunidadeId)
   const criarReuniao = useCriarReuniao()
+  const editarReuniao = useEditarReuniao()
   const excluirReuniao = useExcluirReuniao()
   const reagendar = useReagendarReuniao()
   const { data: conexaoGoogle } = useConexaoGoogle()
@@ -92,6 +94,7 @@ export function AbaAgenda({ oportunidadeId }: AbaAgendaProps) {
   const [showCancelarModal, setShowCancelarModal] = useState<string | null>(null)
   const [showRealizadaModal, setShowRealizadaModal] = useState<string | null>(null)
   const [reagendandoReuniao, setReagendandoReuniao] = useState<Reuniao | null>(null)
+  const [editandoReuniao, setEditandoReuniao] = useState<Reuniao | null>(null)
   const [formData, setFormData] = useState<ReuniaoFormData>(DEFAULT_FORM)
 
   // Preencher data fim automática
@@ -152,8 +155,70 @@ export function AbaAgenda({ oportunidadeId }: AbaAgendaProps) {
     }
   }, [formData, oportunidadeId, criarReuniao, conexaoGoogle])
 
+  const handleEditar = useCallback((reuniao: Reuniao) => {
+    setEditandoReuniao(reuniao)
+    setReagendandoReuniao(null)
+    const inicio = parseISO(reuniao.data_inicio)
+    const fim = reuniao.data_fim ? parseISO(reuniao.data_fim) : null
+    setFormData({
+      titulo: reuniao.titulo,
+      descricao: reuniao.descricao || '',
+      tipo: reuniao.tipo || 'video',
+      local: reuniao.local || '',
+      data_inicio: format(inicio, 'yyyy-MM-dd'),
+      hora_inicio: format(inicio, 'HH:mm'),
+      data_fim: fim ? format(fim, 'yyyy-MM-dd') : '',
+      hora_fim: fim ? format(fim, 'HH:mm') : '',
+      participantes: (reuniao.participantes || []).map((p: any) => p.email).join(', '),
+      google_meet: !!reuniao.google_meet_link,
+      notificacao_minutos: reuniao.notificacao_minutos || 30,
+    })
+    setShowForm(true)
+  }, [])
+
+  const handleSalvarEdicao = useCallback(async () => {
+    if (!editandoReuniao) return
+    if (!formData.titulo.trim() || !formData.data_inicio || !formData.hora_inicio) {
+      toast.error('Preencha título, data e hora')
+      return
+    }
+    try {
+      const tzOffset = getTimezoneOffset()
+      const dataInicio = `${formData.data_inicio}T${formData.hora_inicio}:00${tzOffset}`
+      const dataFim = formData.data_fim && formData.hora_fim
+        ? `${formData.data_fim}T${formData.hora_fim}:00${tzOffset}`
+        : addHours(new Date(dataInicio), 1).toISOString()
+
+      const participantes = formData.participantes
+        .split(',').map(e => e.trim()).filter(e => e.length > 0).map(email => ({ email }))
+
+      await editarReuniao.mutateAsync({
+        reuniaoId: editandoReuniao.id,
+        payload: {
+          titulo: formData.titulo.trim(),
+          descricao: formData.descricao || undefined,
+          tipo: formData.tipo,
+          local: formData.local || undefined,
+          data_inicio: dataInicio,
+          data_fim: dataFim,
+          participantes,
+          google_meet: formData.google_meet,
+          notificacao_minutos: formData.notificacao_minutos,
+          sincronizar_google: !!conexaoGoogle?.conectado,
+        },
+      })
+      setFormData(DEFAULT_FORM)
+      setShowForm(false)
+      setEditandoReuniao(null)
+      toast.success('Reunião atualizada')
+    } catch {
+      toast.error('Erro ao atualizar reunião')
+    }
+  }, [editandoReuniao, formData, editarReuniao, conexaoGoogle])
+
   const handleReagendar = useCallback((reuniao: Reuniao) => {
     setReagendandoReuniao(reuniao)
+    setEditandoReuniao(null)
     setFormData({
       titulo: reuniao.titulo,
       descricao: reuniao.descricao || '',
@@ -246,7 +311,7 @@ export function AbaAgenda({ oportunidadeId }: AbaAgendaProps) {
         </p>
         <button
           type="button"
-          onClick={() => { setShowForm(!showForm); setReagendandoReuniao(null); setFormData(DEFAULT_FORM) }}
+          onClick={() => { setShowForm(!showForm); setReagendandoReuniao(null); setEditandoReuniao(null); setFormData(DEFAULT_FORM) }}
           className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
         >
           <Plus className="w-3.5 h-3.5" />
@@ -259,10 +324,11 @@ export function AbaAgenda({ oportunidadeId }: AbaAgendaProps) {
         <ReuniaoForm
           formData={formData}
           setFormData={setFormData}
-          onSubmit={reagendandoReuniao ? handleCriarReagendamento : handleCriar}
-          onCancel={() => { setShowForm(false); setReagendandoReuniao(null); setFormData(DEFAULT_FORM) }}
-          isPending={criarReuniao.isPending || reagendar.isPending}
+          onSubmit={editandoReuniao ? handleSalvarEdicao : reagendandoReuniao ? handleCriarReagendamento : handleCriar}
+          onCancel={() => { setShowForm(false); setReagendandoReuniao(null); setEditandoReuniao(null); setFormData(DEFAULT_FORM) }}
+          isPending={criarReuniao.isPending || reagendar.isPending || editarReuniao.isPending}
           isReagendamento={!!reagendandoReuniao}
+          isEdicao={!!editandoReuniao}
           googleConectado={!!conexaoGoogle?.conectado}
         />
       )}
@@ -282,6 +348,7 @@ export function AbaAgenda({ oportunidadeId }: AbaAgendaProps) {
               onMudarStatus={handleMudarStatus}
               onExcluir={handleExcluir}
               onReagendar={handleReagendar}
+              onEditar={handleEditar}
             />
           ))}
         </div>
@@ -305,13 +372,14 @@ export function AbaAgenda({ oportunidadeId }: AbaAgendaProps) {
 // Formulário de Reunião (Estilo Google Calendar)
 // =====================================================
 
-function ReuniaoForm({ formData, setFormData, onSubmit, onCancel, isPending, isReagendamento, googleConectado }: {
+function ReuniaoForm({ formData, setFormData, onSubmit, onCancel, isPending, isReagendamento, isEdicao, googleConectado }: {
   formData: ReuniaoFormData
   setFormData: React.Dispatch<React.SetStateAction<ReuniaoFormData>>
   onSubmit: () => void
   onCancel: () => void
   isPending: boolean
   isReagendamento: boolean
+  isEdicao?: boolean
   googleConectado: boolean
 }) {
   const update = (field: keyof ReuniaoFormData, value: any) =>
@@ -322,6 +390,11 @@ function ReuniaoForm({ formData, setFormData, onSubmit, onCancel, isPending, isR
       {isReagendamento && (
         <div className="text-xs font-medium text-purple-600 bg-purple-50 px-2.5 py-1.5 rounded-md">
           ↻ Reagendando reunião — selecione nova data/hora
+        </div>
+      )}
+      {isEdicao && (
+        <div className="text-xs font-medium text-blue-600 bg-blue-50 px-2.5 py-1.5 rounded-md">
+          ✏ Editando reunião
         </div>
       )}
 
@@ -468,7 +541,7 @@ function ReuniaoForm({ formData, setFormData, onSubmit, onCancel, isPending, isR
           className="text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center gap-1.5"
         >
           {isPending && <Loader2 className="w-3 h-3 animate-spin" />}
-          {isReagendamento ? 'Reagendar' : 'Agendar'}
+          {isEdicao ? 'Salvar' : isReagendamento ? 'Reagendar' : 'Agendar'}
         </button>
       </div>
     </div>
@@ -479,11 +552,12 @@ function ReuniaoForm({ formData, setFormData, onSubmit, onCancel, isPending, isR
 // Card de Reunião
 // =====================================================
 
-function ReuniaoItem({ reuniao, onMudarStatus, onExcluir, onReagendar }: {
+function ReuniaoItem({ reuniao, onMudarStatus, onExcluir, onReagendar, onEditar }: {
   reuniao: Reuniao
   onMudarStatus: (id: string, status: string) => void
   onExcluir: (id: string) => void
   onReagendar: (reuniao: Reuniao) => void
+  onEditar: (reuniao: Reuniao) => void
 }) {
   const config = STATUS_CONFIG[reuniao.status] || STATUS_CONFIG.agendada
   const StatusIcon = config.icon
@@ -544,13 +618,24 @@ function ReuniaoItem({ reuniao, onMudarStatus, onExcluir, onReagendar }: {
             </a>
           )}
         </div>
-        <button
-          type="button"
-          onClick={() => onExcluir(reuniao.id)}
-          className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-destructive transition-all"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </button>
+        <div className="flex items-center gap-0.5">
+          {reuniao.status === 'agendada' && (
+            <button
+              type="button"
+              onClick={() => onEditar(reuniao)}
+              className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-primary transition-all"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => onExcluir(reuniao.id)}
+            className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-destructive transition-all"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
 
       {/* Descrição */}

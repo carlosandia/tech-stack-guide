@@ -618,6 +618,61 @@ export const detalhesApi = {
     }))
   },
 
+  editarReuniao: async (reuniaoId: string, payload: {
+    titulo: string
+    descricao?: string
+    tipo?: string
+    local?: string
+    data_inicio: string
+    data_fim?: string
+    participantes?: Array<{ email: string }>
+    google_meet?: boolean
+    notificacao_minutos?: number
+    sincronizar_google?: boolean
+  }): Promise<void> => {
+    // Buscar google_event_id antes de atualizar
+    const { data: reuniaoAtual } = await supabase
+      .from('reunioes_oportunidades')
+      .select('google_event_id')
+      .eq('id', reuniaoId)
+      .single()
+
+    const updateData: Record<string, unknown> = {
+      titulo: payload.titulo,
+      descricao: payload.descricao || null,
+      tipo: payload.tipo || 'video',
+      local: payload.local || null,
+      data_inicio: payload.data_inicio,
+      data_fim: payload.data_fim || null,
+      participantes: payload.participantes || [],
+      notificacao_minutos: payload.notificacao_minutos ?? 30,
+      atualizado_em: new Date().toISOString(),
+    }
+
+    const { error } = await supabase
+      .from('reunioes_oportunidades')
+      .update(updateData as any)
+      .eq('id', reuniaoId)
+
+    if (error) throw new Error(error.message)
+
+    // Sincronizar com Google Calendar se tem evento vinculado
+    if ((reuniaoAtual as any)?.google_event_id) {
+      supabase.functions.invoke('google-auth', {
+        body: {
+          action: 'update-event',
+          event_id: (reuniaoAtual as any).google_event_id,
+          titulo: payload.titulo,
+          descricao: payload.descricao,
+          local: payload.local,
+          data_inicio: payload.data_inicio,
+          data_fim: payload.data_fim || payload.data_inicio,
+          participantes: payload.participantes,
+        },
+      }).catch((e: unknown) => console.warn('[agenda] Sync Google update falhou:', e))
+    }
+  },
+
   criarReuniao: async (oportunidadeId: string, payload: {
     titulo: string
     descricao?: string

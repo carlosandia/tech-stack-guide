@@ -209,6 +209,31 @@ export function useExcluirReuniao() {
   })
 }
 
+export function useEditarReuniao() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ reuniaoId, payload }: {
+      reuniaoId: string
+      payload: {
+        titulo: string
+        descricao?: string
+        tipo?: string
+        local?: string
+        data_inicio: string
+        data_fim?: string
+        participantes?: Array<{ email: string }>
+        google_meet?: boolean
+        notificacao_minutos?: number
+        sincronizar_google?: boolean
+      }
+    }) => detalhesApi.editarReuniao(reuniaoId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reunioes_oportunidade'] })
+      queryClient.invalidateQueries({ queryKey: ['historico'] })
+    },
+  })
+}
+
 export function useMotivosNoShow() {
   return useQuery({
     queryKey: ['motivos_noshow'],
