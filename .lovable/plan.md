@@ -1,70 +1,61 @@
 
 
-## Plano: Corrigir scroll inconsistente ao abrir conversas
+## Plano: Corrigir scroll definitivo com MutationObserver
 
-### Causa raiz
+### Causa raiz real
 
-No efeito unificado atual, quando a conversa muda:
-1. `prevLengthRef = 0` (correto)
-2. `setTimeout(scroll, 50)` (correto)
-3. `prevLengthRef = mensagens.length` -- roda **imediatamente**, antes do scroll
+O `setTimeout(80ms)` executa o `scrollIntoView` antes que imagens, vídeos e áudios terminem de carregar. Esses elementos de mídia alteram a altura do container DEPOIS do scroll, fazendo com que a posicao final fique "no meio" ao inves do final.
 
-Se React re-renderizar o componente antes dos 50ms (o que depende do cache do React Query e da quantidade de dados), o scroll agendado pode falhar ou o segundo disparo do efeito nao reconhece que precisa scrollar.
+Conversas somente com texto funcionam bem. Conversas com mídia (audio, imagem, video) ficam com scroll errado.
 
 ### Solucao
 
-Mover a logica de scroll e atualizacao do `prevLengthRef` para **dentro** do `setTimeout`, garantindo que:
-1. O DOM ja esteja atualizado
-2. O `prevLengthRef` so seja atualizado **apos** o scroll executar
-3. Quando `conversaMudou`, o scroll e **incondicional** (nao depende de comparacao de length)
+Usar um **MutationObserver** no container de mensagens para detectar mudancas no DOM (novas mensagens, midia carregando) e re-scrollar automaticamente durante um curto periodo apos a troca de conversa. Combinado com um **ResizeObserver** para detectar quando imagens/audios terminam de carregar e alteram a altura.
 
 ### Alteracao
 
 **Arquivo**: `src/modules/conversas/components/ChatMessages.tsx`
 
-Substituir o efeito atual (linhas 206-233) por:
+1. Manter o `useEffect` unificado existente (funciona para o disparo inicial)
 
-```typescript
-// AIDEV-NOTE: Efeito unificado para scroll - resolve race condition entre troca de conversa e cache
-useEffect(() => {
-  const conversaMudou = prevConversaRef.current !== conversaId
-  prevConversaRef.current = conversaId
+2. Adicionar um novo `useEffect` com **ResizeObserver** no container:
+   - Quando a conversa muda, ativar um flag `shouldAutoScroll` por 2 segundos
+   - Durante esse periodo, qualquer mudanca de tamanho no container (causada por midia carregando) forca scroll para o final
+   - Apos 2 segundos, desativar o auto-scroll para nao interferir na navegacao normal
 
-  if (conversaMudou) {
-    prevLengthRef.current = 0
-  }
+```text
+Logica simplificada:
 
-  // Colocar scroll + atualizacao do ref dentro do setTimeout
-  // para garantir que o DOM ja renderizou as mensagens
-  setTimeout(() => {
-    if (conversaMudou || prevLengthRef.current === 0) {
-      // Conversa trocou ou primeira carga: scroll incondicional
-      bottomRef.current?.scrollIntoView({ behavior: 'instant' })
-    } else if (mensagens.length > prevLengthRef.current) {
-      // Novas mensagens na mesma conversa
-      const container = containerRef.current
-      if (container) {
-        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150
-        if (isNearBottom) {
-          bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-        }
-      }
-    }
-    prevLengthRef.current = mensagens.length
-  }, 80)
-}, [conversaId, mensagens.length])
+[Clica na conversa]
+      |
+      v
+[useEffect detecta conversaMudou]
+      |
+      v
+[Ativa shouldAutoScroll = true por 2s]
+      |
+      v
+[ResizeObserver monitora o container]
+      |
+      +--> [Altura mudou?] --> [shouldAutoScroll?] --> scrollIntoView
+      |
+      v (apos 2s)
+[Desativa shouldAutoScroll]
 ```
 
-### O que muda
+### Detalhes tecnicos
 
-1. `prevLengthRef.current = mensagens.length` agora roda **dentro** do timeout, apos o scroll
-2. Quando `conversaMudou`, o scroll e **incondicional** (sem `if mensagens.length > ...`)
-3. Timeout aumentado para 80ms para cobrir conversas com mais conteudo/midia
-4. Condicao `prevLengthRef.current === 0` tambem forca scroll (cobre a primeira carga)
+- `shouldAutoScrollRef` (useRef boolean): flag que indica se deve auto-scrollar
+- `ResizeObserver` no container: detecta mudancas de altura (midia carregando)
+- Timer de 2 segundos: periodo de "protecao" apos trocar de conversa
+- Nao usa MutationObserver (ResizeObserver e suficiente e mais performatico)
+- O efeito existente continua fazendo o scroll inicial
 
-### Nenhum outro arquivo precisa mudar
+### Arquivo
 
 | Arquivo | Acao |
 |---------|------|
-| `src/modules/conversas/components/ChatMessages.tsx` | Editar linhas 206-233 |
+| `src/modules/conversas/components/ChatMessages.tsx` | Editar -- adicionar ResizeObserver para re-scroll apos midia carregar |
+
+Nenhum outro arquivo precisa ser alterado.
 
