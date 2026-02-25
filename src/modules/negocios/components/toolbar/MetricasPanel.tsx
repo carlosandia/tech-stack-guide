@@ -52,7 +52,7 @@ function MetricTooltip({ text }: { text: string }) {
   return (
     <span className="relative inline-flex group/tip">
       <Info className="w-3 h-3 text-muted-foreground cursor-help" />
-      <span className="invisible group-hover/tip:visible absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 z-50 bg-popover text-popover-foreground text-xs rounded-md shadow-md border px-3 py-2 max-w-[220px] whitespace-pre-line pointer-events-none">
+      <span className="invisible group-hover/tip:visible absolute left-1/2 -translate-x-1/2 top-full mt-1.5 z-[999] bg-popover text-popover-foreground text-xs rounded-md shadow-lg border px-3 py-2 max-w-[220px] whitespace-pre-line pointer-events-none">
         {text}
       </span>
     </span>
