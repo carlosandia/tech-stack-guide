@@ -12,6 +12,15 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { format, parseISO, addHours } from 'date-fns'
+
+// AIDEV-NOTE: Helper para obter offset de timezone do navegador (ex: "-03:00")
+function getTimezoneOffset(): string {
+  const offset = new Date().getTimezoneOffset()
+  const sign = offset > 0 ? '-' : '+'
+  const hours = Math.floor(Math.abs(offset) / 60)
+  const minutes = Math.abs(offset) % 60
+  return `${sign}${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+}
 import { ptBR } from 'date-fns/locale'
 import {
   useReunioesOportunidade,
@@ -105,10 +114,11 @@ export function AbaAgenda({ oportunidadeId }: AbaAgendaProps) {
     }
 
     try {
-      const dataInicio = `${formData.data_inicio}T${formData.hora_inicio}:00`
+      const tzOffset = getTimezoneOffset()
+      const dataInicio = `${formData.data_inicio}T${formData.hora_inicio}:00${tzOffset}`
       const dataFim = formData.data_fim && formData.hora_fim
-        ? `${formData.data_fim}T${formData.hora_fim}:00`
-        : undefined
+        ? `${formData.data_fim}T${formData.hora_fim}:00${tzOffset}`
+        : addHours(new Date(dataInicio), 1).toISOString()
 
       // Parse participantes
       const participantes = formData.participantes
@@ -129,7 +139,8 @@ export function AbaAgenda({ oportunidadeId }: AbaAgendaProps) {
           participantes,
           google_meet: formData.google_meet,
           notificacao_minutos: formData.notificacao_minutos,
-          sincronizar_google: formData.google_meet && !!conexaoGoogle?.conectado,
+          // AIDEV-NOTE: Sincronizar com Google Calendar sempre que conectado, independente do Meet
+          sincronizar_google: !!conexaoGoogle?.conectado,
         },
       })
       setFormData(DEFAULT_FORM)
@@ -166,10 +177,11 @@ export function AbaAgenda({ oportunidadeId }: AbaAgendaProps) {
     }
 
     try {
-      const dataInicio = `${formData.data_inicio}T${formData.hora_inicio}:00`
+      const tzOffset = getTimezoneOffset()
+      const dataInicio = `${formData.data_inicio}T${formData.hora_inicio}:00${tzOffset}`
       const dataFim = formData.data_fim && formData.hora_fim
-        ? `${formData.data_fim}T${formData.hora_fim}:00`
-        : undefined
+        ? `${formData.data_fim}T${formData.hora_fim}:00${tzOffset}`
+        : addHours(new Date(dataInicio), 1).toISOString()
 
       const participantes = formData.participantes
         .split(',')
@@ -190,7 +202,7 @@ export function AbaAgenda({ oportunidadeId }: AbaAgendaProps) {
           participantes,
           google_meet: formData.google_meet,
           notificacao_minutos: formData.notificacao_minutos,
-          sincronizar_google: false,
+          sincronizar_google: !!conexaoGoogle?.conectado,
         },
       })
       setFormData(DEFAULT_FORM)

@@ -622,10 +622,20 @@ serve(async (req) => {
       const calendarId = conexao.calendar_id || "primary";
       const useMeet = body.google_meet ?? conexao.criar_google_meet ?? false;
 
-      // Default data_fim para +1h se não informado ou igual a data_inicio (evita evento de 0 minutos)
-      const endDateTime = body.data_fim && body.data_fim !== body.data_inicio
-        ? body.data_fim
-        : new Date(new Date(body.data_inicio).getTime() + 60 * 60 * 1000).toISOString();
+      // AIDEV-NOTE: Default data_fim para +1h preservando timezone offset do frontend
+      let endDateTime = body.data_fim;
+      if (!endDateTime || endDateTime === body.data_inicio) {
+        const dt = new Date(body.data_inicio);
+        dt.setTime(dt.getTime() + 60 * 60 * 1000);
+        // Preservar offset se presente no data_inicio, senao usar ISO
+        const offsetMatch = body.data_inicio.match(/([+-]\d{2}:\d{2})$/);
+        if (offsetMatch) {
+          const pad = (n: number) => String(n).padStart(2, '0');
+          endDateTime = `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}:${pad(dt.getSeconds())}${offsetMatch[1]}`;
+        } else {
+          endDateTime = dt.toISOString();
+        }
+      }
 
       // Build Google Calendar event
       const eventBody: Record<string, unknown> = {
