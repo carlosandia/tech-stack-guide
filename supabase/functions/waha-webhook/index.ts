@@ -1324,13 +1324,17 @@ Deno.serve(async (req) => {
 
     // Extract message data
     const rawFrom = payload.from || "";
-    // AIDEV-NOTE: Fallback para extendedTextMessage (link previews no WAHA GOWS)
+    // AIDEV-NOTE: Fallback para extendedTextMessage e templateMessage (link previews / mensagens interativas no WAHA GOWS)
     let messageBody = payload.body || payload.text || "";
     if (!messageBody) {
       const msgObj = payload._data?.Message || payload._data?.message;
       if (msgObj) {
         messageBody = msgObj.extendedTextMessage?.text
           || msgObj.ExtendedTextMessage?.Text
+          || msgObj.templateMessage?.Format?.InteractiveMessageTemplate?.InteractiveMessage?.body?.text
+          || msgObj.templateMessage?.Format?.InteractiveMessageTemplate?.body?.text
+          || msgObj.templateMessage?.hydratedTemplate?.hydratedContentText
+          || msgObj.templateMessage?.hydratedFourRowTemplate?.hydratedContentText
           || "";
       }
     }
