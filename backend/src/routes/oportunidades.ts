@@ -9,6 +9,7 @@
 import { Router, Request, Response, NextFunction } from 'express'
 import { z } from 'zod'
 import oportunidadesService from '../services/oportunidades.service'
+import metaService from '../services/meta.service'
 import distribuicaoService from '../services/distribuicao.service'
 import {
   CriarOportunidadeSchema,
@@ -476,6 +477,54 @@ router.delete('/:id/produtos/:produtoId', async (req: Request, res: Response) =>
   } catch (error) {
     console.error('Erro ao remover produto:', error)
     res.status(500).json({ error: 'Erro ao remover produto' })
+  }
+})
+
+// POST /v1/oportunidades/:id/capi/schedule - Disparar evento Schedule no Meta CAPI
+// AIDEV-NOTE: Chamado pelo frontend após criar reunião — fire-and-forget, não bloqueia UX
+router.post('/:id/capi/schedule', async (req: Request, res: Response) => {
+  try {
+    const organizacaoId = getOrganizacaoId(req)
+    const { id } = req.params
+    const { supabaseAdmin } = await import('../config/supabase')
+
+    const { data: oportunidade } = await supabaseAdmin
+      .from('oportunidades')
+      .select('id, titulo, contato_id, valor')
+      .eq('id', id)
+      .eq('organizacao_id', organizacaoId)
+      .single()
+
+    if (!oportunidade) {
+      return res.status(404).json({ error: 'Oportunidade não encontrada' })
+    }
+
+    const { data: contato } = await supabaseAdmin
+      .from('contatos')
+      .select('id, nome, email, telefone')
+      .eq('id', oportunidade.contato_id)
+      .eq('organizacao_id', organizacaoId)
+      .maybeSingle()
+
+    metaService.dispararEventoSeHabilitado(organizacaoId, 'schedule', {
+      user_data: {
+        email: contato?.email || undefined,
+        phone: contato?.telefone || undefined,
+        first_name: contato?.nome?.split(' ')[0] || undefined,
+        last_name: contato?.nome?.split(' ').slice(1).join(' ') || undefined,
+        external_id: oportunidade.contato_id,
+      },
+      custom_data: {
+        content_name: oportunidade.titulo,
+        content_type: 'product',
+        order_id: oportunidade.id,
+      },
+    })
+
+    res.status(200).json({ success: true })
+  } catch (error) {
+    console.error('[CAPI] Erro ao disparar Schedule:', error)
+    res.status(500).json({ error: 'Erro interno' })
   }
 })
 

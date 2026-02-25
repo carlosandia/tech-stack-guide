@@ -29,7 +29,7 @@ import type {
 // Constantes
 // =====================================================
 
-const META_GRAPH_URL = 'https://graph.facebook.com/v18.0'
+const META_GRAPH_URL = 'https://graph.facebook.com/v21.0'
 
 const META_SCOPES = [
   'pages_show_list',
@@ -595,7 +595,6 @@ class MetaService {
       .select('*')
       .eq('organizacao_id', organizacaoId)
       .eq('ativo', true)
-      .is('deletado_em', null)
       .single()
 
     if (!config) {
@@ -648,7 +647,7 @@ class MetaService {
     const eventPayload = {
       event_name: evento.event_name,
       event_time: evento.event_time || Math.floor(Date.now() / 1000),
-      action_source: evento.action_source || 'website',
+      action_source: evento.action_source || 'system_generated',
       event_id: evento.event_id || generateIdempotencyKey(),
       event_source_url: evento.event_source_url,
       user_data: userData,
@@ -657,26 +656,45 @@ class MetaService {
 
     const payload = {
       data: [eventPayload],
-      test_event_code: config.test_event_code, // Remove em producao
+      ...(config.test_event_code ? { test_event_code: config.test_event_code } : {}),
     }
 
-    const response = await withCircuitBreakerAndRetry('meta_capi', 'meta_capi_send', async () => {
-      return this.graphRequest<any>(
-        'POST',
-        `/${config.pixel_id}/events`,
-        accessToken,
-        payload
-      )
-    })
+    let response: any
+    try {
+      response = await withCircuitBreakerAndRetry('meta_capi', 'meta_capi_send', async () => {
+        return this.graphRequest<any>(
+          'POST',
+          `/${config.pixel_id}/events`,
+          accessToken,
+          payload
+        )
+      })
+    } catch (error) {
+      const erroMsg = error instanceof Error ? error.message : 'Unknown error'
+
+      await supabase.from('log_conversions_api').insert({
+        config_id: config.id,
+        organizacao_id: organizacaoId,
+        fbrq_event_id: eventPayload.event_id,
+        event_name: evento.event_name,
+        event_time: new Date().toISOString(),
+        payload_resumo: eventPayload,
+        response_body: JSON.stringify({ error: erroMsg }),
+        status: 'error',
+      })
+
+      throw error
+    }
 
     // Log do evento
     await supabase.from('log_conversions_api').insert({
       config_id: config.id,
       organizacao_id: organizacaoId,
-      event_id: eventPayload.event_id,
+      fbrq_event_id: eventPayload.event_id,
       event_name: evento.event_name,
-      payload: eventPayload,
-      response: response,
+      event_time: new Date().toISOString(),
+      payload_resumo: eventPayload,
+      response_body: JSON.stringify(response),
       status: 'success',
     })
 
@@ -685,7 +703,8 @@ class MetaService {
       .from('config_conversions_api')
       .update({
         total_eventos_enviados: (config.total_eventos_enviados || 0) + 1,
-        ultimo_evento_em: new Date().toISOString(),
+        total_eventos_sucesso: (config.total_eventos_sucesso || 0) + 1,
+        ultimo_evento_enviado: new Date().toISOString(),
       })
       .eq('id', config.id)
 
@@ -693,6 +712,48 @@ class MetaService {
       event_id: eventPayload.event_id,
       events_received: response.events_received,
       fbtrace_id: response.fbtrace_id,
+    }
+  }
+
+  // =====================================================
+  // CAPI Fire-and-Forget Helper
+  // =====================================================
+
+  /**
+   * AIDEV-NOTE: Fire-and-forget — falha de CAPI nunca bloqueia operações de negócio.
+   * Verifica se o evento está habilitado na config do tenant antes de disparar.
+   */
+  async dispararEventoSeHabilitado(
+    organizacaoId: string,
+    tipoEvento: 'lead' | 'schedule' | 'mql' | 'won' | 'lost',
+    evento: Partial<EventoCapiPayload>
+  ): Promise<void> {
+    try {
+      const { data: config } = await supabase
+        .from('config_conversions_api')
+        .select('eventos_habilitados, ativo')
+        .eq('organizacao_id', organizacaoId)
+        .eq('ativo', true)
+        .single()
+
+      if (!config) return
+      if (!config.eventos_habilitados?.[tipoEvento]) return
+
+      const eventNames: Record<string, string> = {
+        lead: 'Lead',
+        schedule: 'Schedule',
+        mql: 'CompleteRegistration',
+        won: 'Purchase',
+        lost: 'Other',
+      }
+
+      await this.enviarEventoCapi(organizacaoId, {
+        event_name: eventNames[tipoEvento],
+        action_source: 'system_generated',
+        ...evento,
+      } as EventoCapiPayload)
+    } catch (error) {
+      console.error(`[CAPI] Falha ao disparar evento '${tipoEvento}':`, error instanceof Error ? error.message : error)
     }
   }
 

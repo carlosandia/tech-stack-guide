@@ -20,8 +20,27 @@ import type {
   KanbanResponse,
 } from '../schemas/oportunidades'
 import * as etapasFunilService from './etapas-funil.service'
+import metaService from './meta.service'
 
 const supabase = supabaseAdmin
+
+// AIDEV-NOTE: Calcula value e predicted_ltv para Meta CAPI considerando recorrência MRR
+// mensal×12, trimestral×4, semestral×2, anual×1 — sem recorrência retorna apenas value
+function calcularValorCapi(
+  valor: number,
+  recorrente?: boolean,
+  periodo?: string | null
+): { value: number; predicted_ltv?: number } {
+  if (!recorrente || !valor) return { value: valor || 0 }
+  const multiplicadores: Record<string, number> = {
+    mensal: 12,
+    trimestral: 4,
+    semestral: 2,
+    anual: 1,
+  }
+  const multiplicador = multiplicadores[periodo ?? ''] ?? 12
+  return { value: valor, predicted_ltv: valor * multiplicador }
+}
 
 // =====================================================
 // Listar Oportunidades
@@ -338,6 +357,8 @@ export async function criarOportunidade(
       utm_term: payload.utm_term,
       utm_content: payload.utm_content,
       criado_por: criadoPor,
+      recorrente: payload.recorrente ?? false,
+      periodo_recorrencia: payload.periodo_recorrencia ?? null,
     })
     .select()
     .single()
@@ -372,6 +393,30 @@ export async function criarOportunidade(
 
     await supabase.from('valores_campos_customizados').insert(camposInsert)
   }
+
+  // Fire-and-forget: Evento Lead no Meta CAPI
+  const { value: leadValue, predicted_ltv: leadLtv } = calcularValorCapi(
+    oportunidade.valor,
+    (oportunidade as any).recorrente,
+    (oportunidade as any).periodo_recorrencia
+  )
+  metaService.dispararEventoSeHabilitado(organizacaoId, 'lead', {
+    user_data: {
+      email: payload.contato?.email || undefined,
+      phone: payload.contato?.telefone || undefined,
+      first_name: payload.contato?.nome?.split(' ')[0] || undefined,
+      last_name: payload.contato?.nome?.split(' ').slice(1).join(' ') || undefined,
+      external_id: contatoId,
+    },
+    custom_data: {
+      content_name: oportunidade.titulo,
+      content_type: 'product',
+      order_id: oportunidade.id,
+      value: leadValue,
+      currency: (oportunidade as any).moeda || 'BRL',
+      ...(leadLtv ? { predicted_ltv: leadLtv } : {}),
+    },
+  })
 
   return oportunidade as Oportunidade
 }
@@ -570,6 +615,28 @@ export async function fecharOportunidade(
     throw new Error(`Erro ao fechar oportunidade: ${error.message}`)
   }
 
+  // Fire-and-forget: Evento Won/Lost no Meta CAPI
+  const tipoEventoCapi = payload.tipo === 'ganho' ? 'won' : 'lost'
+  const valorFinal = payload.valor_final ?? oportunidade.valor
+  const { value: wonValue, predicted_ltv: wonLtv } = calcularValorCapi(
+    valorFinal,
+    (oportunidade as any).recorrente,
+    (oportunidade as any).periodo_recorrencia
+  )
+  metaService.dispararEventoSeHabilitado(organizacaoId, tipoEventoCapi, {
+    user_data: {
+      external_id: oportunidade.contato_id,
+    },
+    custom_data: {
+      value: wonValue,
+      currency: (oportunidade as any).moeda || 'BRL',
+      content_name: oportunidade.titulo,
+      content_type: 'product',
+      order_id: oportunidade.id,
+      ...(wonLtv ? { predicted_ltv: wonLtv } : {}),
+    },
+  })
+
   return data as Oportunidade
 }
 
@@ -629,6 +696,18 @@ export async function qualificar(
 
   if (error) {
     throw new Error(`Erro ao qualificar oportunidade: ${error.message}`)
+  }
+
+  // Fire-and-forget: Evento MQL no Meta CAPI (apenas quando qualificando, não desqualificando)
+  if (tipo === 'mql' && qualificado) {
+    metaService.dispararEventoSeHabilitado(organizacaoId, 'mql', {
+      user_data: {
+        external_id: data.contato_id,
+      },
+      custom_data: {
+        content_name: data.titulo,
+      },
+    })
   }
 
   return data as Oportunidade

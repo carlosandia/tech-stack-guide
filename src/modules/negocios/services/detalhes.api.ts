@@ -6,6 +6,7 @@
 
 import { supabase } from '@/lib/supabase'
 import { getOrganizacaoId, getUsuarioId, getUserRole } from '@/shared/services/auth-context'
+import api from '@/lib/api'
 
 // Compressão de imagens — usa utilitário compartilhado
 import { compressImage } from '@/shared/utils/compressMedia'
@@ -679,6 +680,10 @@ export const detalhesApi = {
       .insert(insertData as any)
 
     if (error) throw new Error(error.message)
+
+    // Fire-and-forget: disparar evento Schedule no Meta CAPI
+    api.post(`/v1/oportunidades/${oportunidadeId}/capi/schedule`)
+      .catch((e: unknown) => console.warn('[CAPI] Schedule falhou:', e))
   },
 
   atualizarStatusReuniao: async (reuniaoId: string, status: string, extras?: {
@@ -712,21 +717,65 @@ export const detalhesApi = {
       if (extras?.motivo_cancelamento) updateData.motivo_cancelamento = extras.motivo_cancelamento
     }
 
+    // Buscar google_event_id antes de atualizar para sincronizar cancelamento com Google Calendar
+    const { data: reuniao } = await supabase
+      .from('reunioes_oportunidades')
+      .select('google_event_id')
+      .eq('id', reuniaoId)
+      .single()
+
     const { error } = await supabase
       .from('reunioes_oportunidades')
       .update(updateData as any)
       .eq('id', reuniaoId)
 
     if (error) throw new Error(error.message)
+
+    // Fire-and-forget: sincronizar cancelamento com Google Calendar
+    if (['cancelada', 'nao_compareceu'].includes(statusDb) && (reuniao as any)?.google_event_id) {
+      supabase.functions.invoke('google-auth', {
+        body: {
+          action: 'update-event',
+          event_id: (reuniao as any).google_event_id,
+          status: 'cancelado',
+        },
+      }).catch((e: unknown) => console.warn('[agenda] Sync Google cancel falhou:', e))
+    }
+
+    // Fire-and-forget: anotar no Google Calendar que reunião foi realizada
+    if (status === 'realizada' && (reuniao as any)?.google_event_id) {
+      const dataFormatada = new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+      supabase.functions.invoke('google-auth', {
+        body: {
+          action: 'update-event',
+          event_id: (reuniao as any).google_event_id,
+          descricao_sufixo: `\n\n[✓ Reunião realizada em ${dataFormatada}]`,
+        },
+      }).catch((e: unknown) => console.warn('[agenda] Sync Google realizada falhou:', e))
+    }
   },
 
   excluirReuniao: async (reuniaoId: string): Promise<void> => {
+    // Buscar google_event_id antes do soft delete para sincronizar com Google Calendar
+    const { data: reuniao } = await supabase
+      .from('reunioes_oportunidades')
+      .select('google_event_id')
+      .eq('id', reuniaoId)
+      .single()
+
     const { error } = await supabase
       .from('reunioes_oportunidades')
       .update({ deletado_em: new Date().toISOString() } as any)
       .eq('id', reuniaoId)
 
     if (error) throw new Error(error.message)
+
+    // Fire-and-forget: deletar evento do Google Calendar
+    if ((reuniao as any)?.google_event_id) {
+      supabase.functions.invoke('google-auth', {
+        body: { action: 'delete-event', event_id: (reuniao as any).google_event_id },
+      }).catch((e: unknown) => console.warn('[agenda] Sync Google delete falhou:', e))
+    }
   },
 
   verificarConexaoGoogle: async (): Promise<{ conectado: boolean; calendar_id?: string }> => {
@@ -759,13 +808,44 @@ export const detalhesApi = {
     notificacao_minutos?: number
     sincronizar_google?: boolean
   }): Promise<void> => {
+    // AIDEV-NOTE: Buscar google_event_id E google_meet_link — ao reagendar usamos UPDATE no
+    // mesmo evento Google (não cancela + cria novo). Assim participantes recebem 1 email de
+    // atualização, o Google Meet link permanece o mesmo, e o event ID é preservado.
+    const { data: original } = await supabase
+      .from('reunioes_oportunidades')
+      .select('google_event_id, google_meet_link, participantes, notificacao_minutos')
+      .eq('id', reuniaoOriginalId)
+      .single()
+
     // Marcar reunião original como reagendada
     await supabase
       .from('reunioes_oportunidades')
       .update({ status: 'reagendada' } as any)
       .eq('id', reuniaoOriginalId)
 
-    // Criar nova reunião vinculada
+    // Reutilizar o mesmo google_event_id e meet link (evento será atualizado, não recriado)
+    const participantes = payload.participantes || (original as any)?.participantes || []
+    const shouldSyncGoogle = payload.sincronizar_google ?? true
+    const googleEventId: string | null = (original as any)?.google_event_id ?? null
+    const googleMeetLink: string | null = (original as any)?.google_meet_link ?? null
+
+    // Fire-and-forget: PATCH o evento Google existente com nova data/hora/título/participantes
+    if (shouldSyncGoogle && googleEventId) {
+      supabase.functions.invoke('google-auth', {
+        body: {
+          action: 'update-event',
+          event_id: googleEventId,
+          titulo: payload.titulo,
+          descricao: payload.descricao,
+          data_inicio: payload.data_inicio,
+          data_fim: payload.data_fim,
+          participantes,
+          local: payload.local,
+        },
+      }).catch((e: unknown) => console.warn('[agenda] Sync Google reagendar update falhou:', e))
+    }
+
+    // Criar nova CRM row com o MESMO google_event_id — o evento foi atualizado, não recriado
     const organizacaoId = await getOrganizacaoId()
     const userId = await getUsuarioId()
 
@@ -782,9 +862,11 @@ export const detalhesApi = {
         data_inicio: payload.data_inicio,
         data_fim: payload.data_fim || null,
         status: 'agendada',
-        participantes: payload.participantes || [],
-        notificacao_minutos: payload.notificacao_minutos ?? 30,
+        participantes,
+        notificacao_minutos: payload.notificacao_minutos ?? (original as any)?.notificacao_minutos ?? 30,
         reuniao_reagendada_id: reuniaoOriginalId,
+        google_event_id: googleEventId,    // mesmo evento Google (apenas atualizado)
+        google_meet_link: googleMeetLink,  // mesmo link (não muda com PATCH)
       } as any)
 
     if (error) throw new Error(error.message)

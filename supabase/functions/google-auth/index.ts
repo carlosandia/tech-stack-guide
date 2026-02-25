@@ -622,6 +622,11 @@ serve(async (req) => {
       const calendarId = conexao.calendar_id || "primary";
       const useMeet = body.google_meet ?? conexao.criar_google_meet ?? false;
 
+      // Default data_fim para +1h se não informado ou igual a data_inicio (evita evento de 0 minutos)
+      const endDateTime = body.data_fim && body.data_fim !== body.data_inicio
+        ? body.data_fim
+        : new Date(new Date(body.data_inicio).getTime() + 60 * 60 * 1000).toISOString();
+
       // Build Google Calendar event
       const eventBody: Record<string, unknown> = {
         summary: body.titulo || "Reunião CRM",
@@ -632,7 +637,7 @@ serve(async (req) => {
           timeZone: body.timezone || "America/Sao_Paulo",
         },
         end: {
-          dateTime: body.data_fim || body.data_inicio,
+          dateTime: endDateTime,
           timeZone: body.timezone || "America/Sao_Paulo",
         },
       };
@@ -690,12 +695,234 @@ serve(async (req) => {
         if (videoEntry) meetLink = videoEntry.uri;
       }
 
+      // Atualizar ultimo_sync para refletir na UI de Conexões
+      await supabaseAdmin
+        .from("conexoes_google")
+        .update({ ultimo_sync: new Date().toISOString(), atualizado_em: new Date().toISOString() })
+        .eq("organizacao_id", organizacaoId)
+        .eq("usuario_id", userId)
+        .is("deletado_em", null);
+
       return new Response(JSON.stringify({
         success: true,
         google_event_id: calData.id,
         google_meet_link: meetLink,
         html_link: calData.htmlLink,
       }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ==========================================
+    // POST { action: "update-event" } - Update or cancel Google Calendar event
+    // AIDEV-NOTE: Chamado ao cancelar/reagendar reunião no CRM para manter Google Calendar em sincronia
+    // ==========================================
+    if (action === "update-event") {
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader) {
+        return new Response(JSON.stringify({ error: "Não autorizado" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { userId, organizacaoId } = await getUserFromToken(supabaseAdmin, authHeader);
+      const eventId = body.event_id;
+
+      if (!eventId) {
+        return new Response(JSON.stringify({ error: "event_id é obrigatório" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: conexao } = await supabaseAdmin
+        .from("conexoes_google")
+        .select("access_token_encrypted, refresh_token_encrypted, token_expires_at, calendar_id")
+        .eq("organizacao_id", organizacaoId)
+        .eq("usuario_id", userId)
+        .in("status", ["active", "conectado"])
+        .is("deletado_em", null)
+        .single();
+
+      if (!conexao) {
+        return new Response(JSON.stringify({ error: "Google não conectado" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      let accessToken = simpleDecrypt(conexao.access_token_encrypted, "");
+
+      // Refresh token if expired
+      if (conexao.token_expires_at && new Date(conexao.token_expires_at) < new Date()) {
+        if (conexao.refresh_token_encrypted) {
+          const googleConfig = await getGoogleConfig(supabaseAdmin);
+          const refreshToken = simpleDecrypt(conexao.refresh_token_encrypted, "");
+          const tokenResponse = await fetch(GOOGLE_TOKEN_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+              client_id: googleConfig.clientId,
+              client_secret: googleConfig.clientSecret,
+              refresh_token: refreshToken,
+              grant_type: "refresh_token",
+            }),
+          });
+          const tokens = await tokenResponse.json();
+          if (tokens.access_token) {
+            accessToken = tokens.access_token;
+            await supabaseAdmin
+              .from("conexoes_google")
+              .update({
+                access_token_encrypted: simpleEncrypt(tokens.access_token, ""),
+                token_expires_at: new Date(Date.now() + (tokens.expires_in || 3600) * 1000).toISOString(),
+                atualizado_em: new Date().toISOString(),
+              })
+              .eq("organizacao_id", organizacaoId)
+              .eq("usuario_id", userId)
+              .is("deletado_em", null);
+          }
+        }
+      }
+
+      const calendarId = conexao.calendar_id || "primary";
+
+      if (body.status === "cancelado") {
+        // Marcar evento como cancelado no Google Calendar — sendUpdates=all para notificar participantes
+        await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}?sendUpdates=all`,
+          {
+            method: "PATCH",
+            headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ status: "cancelled" }),
+          }
+        );
+      } else {
+        // Atualizar campos do evento (reagendamento / nota de realização)
+        const updateBody: Record<string, unknown> = {};
+        if (body.titulo) updateBody.summary = body.titulo;
+        if (body.descricao !== undefined) updateBody.description = body.descricao;
+        if (body.local !== undefined) updateBody.location = body.local;
+        if (body.data_inicio) updateBody.start = { dateTime: body.data_inicio, timeZone: "America/Sao_Paulo" };
+        if (body.data_fim) updateBody.end = { dateTime: body.data_fim, timeZone: "America/Sao_Paulo" };
+        if (body.participantes) {
+          updateBody.attendees = body.participantes.map((p: { email: string }) => ({ email: p.email }));
+        }
+
+        // AIDEV-NOTE: descricao_sufixo — usado ao marcar reunião como realizada para anotar no Google
+        if (body.descricao_sufixo) {
+          const getResp = await fetch(
+            `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
+            { headers: { Authorization: `Bearer ${accessToken}` } }
+          );
+          const existing = await getResp.json();
+          updateBody.description = (existing.description || "") + body.descricao_sufixo;
+        }
+
+        const patchResponse = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}?sendUpdates=all`,
+          {
+            method: "PATCH",
+            headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+            body: JSON.stringify(updateBody),
+          }
+        );
+
+        if (!patchResponse.ok) {
+          const err = await patchResponse.json();
+          console.error("[google-auth] update-event error:", err);
+          return new Response(JSON.stringify({ error: "Erro ao atualizar evento no Google Calendar" }), {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ==========================================
+    // POST { action: "delete-event" } - Delete Google Calendar event
+    // AIDEV-NOTE: Chamado ao excluir reunião do CRM para remover evento do Google Calendar
+    // ==========================================
+    if (action === "delete-event") {
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader) {
+        return new Response(JSON.stringify({ error: "Não autorizado" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { userId, organizacaoId } = await getUserFromToken(supabaseAdmin, authHeader);
+      const eventId = body.event_id;
+
+      if (!eventId) {
+        return new Response(JSON.stringify({ error: "event_id é obrigatório" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: conexao } = await supabaseAdmin
+        .from("conexoes_google")
+        .select("access_token_encrypted, refresh_token_encrypted, token_expires_at, calendar_id")
+        .eq("organizacao_id", organizacaoId)
+        .eq("usuario_id", userId)
+        .in("status", ["active", "conectado"])
+        .is("deletado_em", null)
+        .single();
+
+      if (!conexao) {
+        return new Response(JSON.stringify({ error: "Google não conectado" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      let accessToken = simpleDecrypt(conexao.access_token_encrypted, "");
+
+      if (conexao.token_expires_at && new Date(conexao.token_expires_at) < new Date()) {
+        if (conexao.refresh_token_encrypted) {
+          const googleConfig = await getGoogleConfig(supabaseAdmin);
+          const refreshToken = simpleDecrypt(conexao.refresh_token_encrypted, "");
+          const tokenResponse = await fetch(GOOGLE_TOKEN_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+              client_id: googleConfig.clientId,
+              client_secret: googleConfig.clientSecret,
+              refresh_token: refreshToken,
+              grant_type: "refresh_token",
+            }),
+          });
+          const tokens = await tokenResponse.json();
+          if (tokens.access_token) {
+            accessToken = tokens.access_token;
+            await supabaseAdmin
+              .from("conexoes_google")
+              .update({
+                access_token_encrypted: simpleEncrypt(tokens.access_token, ""),
+                token_expires_at: new Date(Date.now() + (tokens.expires_in || 3600) * 1000).toISOString(),
+                atualizado_em: new Date().toISOString(),
+              })
+              .eq("organizacao_id", organizacaoId)
+              .eq("usuario_id", userId)
+              .is("deletado_em", null);
+          }
+        }
+      }
+
+      const calendarId = conexao.calendar_id || "primary";
+      await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}?sendUpdates=all`,
+        { method: "DELETE", headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+
+      return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
