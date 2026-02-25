@@ -14,6 +14,7 @@ import {
 import type { KanbanData } from '../../services/negocios.api'
 import { type MetricasVisiveis, isMetricaVisivel } from './FiltrarMetricasPopover'
 import { differenceInDays, differenceInHours } from 'date-fns'
+import { formatarMoedaCompacta } from '@/hooks/useLocalizacao'
 
 interface MetricasPanelProps {
   data: KanbanData
@@ -45,14 +46,7 @@ const ICON_COR_CLASSES: Record<string, string> = {
 }
 
 function formatCurrency(valor: number): string {
-  if (valor >= 1_000_000) return `R$ ${(valor / 1_000_000).toFixed(1)}M`
-  if (valor >= 1_000) return `R$ ${(valor / 1_000).toFixed(1)}K`
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(valor)
+  return formatarMoedaCompacta(valor)
 }
 
 function calcularMetricas(data: KanbanData): Metrica[] {

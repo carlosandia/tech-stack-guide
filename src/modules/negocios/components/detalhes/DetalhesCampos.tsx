@@ -8,6 +8,7 @@
 
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useLocalizacao } from '@/hooks/useLocalizacao'
 import { DollarSign, User, Calendar, Mail, Phone, Settings2, Check, Building2, RefreshCw, Link2, X, Search, Loader2, ChevronDown, Hash, Type, ToggleLeft, Globe, FileText, Package, Tag, Plus } from 'lucide-react'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 import { WhatsAppConversaModal } from '../kanban/WhatsAppConversaModal'
@@ -44,14 +45,7 @@ function getCamposVisiveis(): Record<string, boolean> {
   } catch { return {} }
 }
 
-function formatCurrency(value: number | null | undefined): string {
-  if (!value) return ''
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    minimumFractionDigits: 2,
-  }).format(value)
-}
+// AIDEV-NOTE: formatCurrency movido para dentro do componente via useLocalizacao
 
 const PERIODOS_MRR = [
   { value: 'mensal', label: 'Mensal' },
@@ -245,6 +239,11 @@ function TagsSection({ contatoId, oportunidadeId }: { contatoId: string; oportun
 }
 
 export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
+  const { formatarMoeda } = useLocalizacao()
+  const formatCurrency = (value: number | null | undefined): string => {
+    if (!value) return ''
+    return formatarMoeda(value)
+  }
   const atualizarOp = useAtualizarOportunidade()
   const atualizarContato = useAtualizarContato()
   const avaliarQualificacao = useAvaliarQualificacao()
