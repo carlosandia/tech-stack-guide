@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Loader2, Activity, TestTube, CheckCircle2, XCircle, BarChart, Copy, Check } from 'lucide-react'
+import { Loader2, Activity, TestTube, CheckCircle2, XCircle, BarChart, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import { metaAdsApi } from '../../../services/configuracoes.api'
 
@@ -29,8 +29,7 @@ export function CapiConfigPanel() {
   const [pixelId, setPixelId] = useState('')
   const [eventosHabilitados, setEventosHabilitados] = useState<Record<string, boolean>>({})
   const [enviarValorWon, setEnviarValorWon] = useState(true)
-  const [testEventCode, setTestEventCode] = useState<string | null>(null)
-  const [copiado, setCopiado] = useState(false)
+  const [testEventCode, setTestEventCode] = useState('')
 
   const { data: config, isLoading } = useQuery({
     queryKey: ['meta-ads', 'capi-config'],
@@ -64,18 +63,11 @@ export function CapiConfigPanel() {
   })
 
   const testar = useMutation({
-    mutationFn: () => metaAdsApi.testarCapi(),
+    mutationFn: () => metaAdsApi.testarCapi(testEventCode),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['meta-ads', 'capi-config'] })
       if (data.sucesso) {
-        toast.success('Evento de teste enviado com sucesso!')
-        // AIDEV-NOTE: Extrair test_event_code para exibição inline
-        const code = ('test_event_code' in data && data.test_event_code)
-          ? String(data.test_event_code)
-          : ('event_id' in data && data.event_id)
-            ? String(data.event_id)
-            : null
-        if (code) setTestEventCode(code)
+        toast.success('Evento de teste enviado com sucesso! Verifique no Gerenciador de Eventos do Meta.')
       } else {
         toast.error('erro' in data && data.erro ? data.erro : 'Falha no envio do evento de teste')
       }
@@ -88,13 +80,6 @@ export function CapiConfigPanel() {
 
   const toggleEvento = (key: string) => {
     setEventosHabilitados((prev) => ({ ...prev, [key]: !prev[key] }))
-  }
-
-  const copiarCodigo = async () => {
-    if (!testEventCode) return
-    await navigator.clipboard.writeText(testEventCode)
-    setCopiado(true)
-    setTimeout(() => setCopiado(false), 2000)
   }
 
   if (isLoading) {
@@ -240,13 +225,30 @@ export function CapiConfigPanel() {
         </div>
       )}
 
-      {/* Teste CAPI */}
+      {/* Teste CAPI - AIDEV-NOTE: Fluxo invertido - usuario cola codigo do Meta */}
       <div className={`space-y-3 ${!configSalva ? 'opacity-50 pointer-events-none' : ''}`}>
-        <div className="flex items-center gap-3">
+        <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <TestTube className="w-4 h-4" />
+          Testar Conversions API
+        </h4>
+
+        <div className="space-y-2 text-xs text-muted-foreground">
+          <p>1. Abra o <a href="https://business.facebook.com/events_manager" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">Gerenciador de Eventos do Meta <ExternalLink className="w-3 h-3" /></a></p>
+          <p>2. Vá na aba <strong className="text-foreground">"Eventos de teste"</strong> e copie o código exibido</p>
+          <p>3. Cole o código abaixo e clique em "Enviar Evento Teste"</p>
+        </div>
+
+        <div className="space-y-2">
+          <input
+            type="text"
+            value={testEventCode}
+            onChange={(e) => setTestEventCode(e.target.value.trim())}
+            placeholder="Ex: TEST26342"
+            className="w-full px-3 py-2 text-sm rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
           <button
             onClick={() => testar.mutate()}
-            disabled={testar.isPending || !configSalva}
-            title={!configSalva ? 'Salve a configuração primeiro' : undefined}
+            disabled={testar.isPending || !configSalva || !testEventCode}
             className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-md bg-secondary text-secondary-foreground hover:bg-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {testar.isPending ? (
@@ -257,31 +259,6 @@ export function CapiConfigPanel() {
             Enviar Evento Teste
           </button>
         </div>
-
-        {/* Código do evento de teste inline */}
-        {testEventCode && (
-          <div className="flex items-center gap-2 p-3 border border-border rounded-lg bg-muted/30">
-            <div className="flex-1 min-w-0">
-              <p className="text-xs text-muted-foreground mb-1">
-                Use este código no Gerenciador de Eventos do Meta para verificar
-              </p>
-              <code className="text-xs font-mono px-2 py-1 rounded bg-muted text-foreground select-all">
-                {testEventCode}
-              </code>
-            </div>
-            <button
-              onClick={copiarCodigo}
-              className="inline-flex items-center gap-1 text-xs px-2 py-1.5 rounded-md bg-secondary text-secondary-foreground hover:bg-accent transition-colors shrink-0"
-            >
-              {copiado ? (
-                <Check className="w-3.5 h-3.5" />
-              ) : (
-                <Copy className="w-3.5 h-3.5" />
-              )}
-              {copiado ? 'Copiado' : 'Copiar'}
-            </button>
-          </div>
-        )}
       </div>
     </div>
   )

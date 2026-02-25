@@ -96,10 +96,23 @@ Deno.serve(async (req) => {
       })
     }
 
+    // AIDEV-NOTE: Ler test_event_code do body (enviado pelo frontend, copiado do Meta Events Manager)
+    let bodyPayload: { test_event_code?: string } = {}
+    try {
+      bodyPayload = await req.json()
+    } catch (_) { /* body vazio */ }
+
+    const testEventCode = bodyPayload?.test_event_code
+    if (!testEventCode) {
+      return new Response(JSON.stringify({ error: 'Código de teste não informado. Copie o código do Gerenciador de Eventos do Meta.' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     const accessToken = conexaoMeta.access_token_encrypted
     const pixelId = capiConfig.pixel_id
     const eventTime = Math.floor(Date.now() / 1000)
-    const testEventCode = `TEST_EVENT_${eventTime}`
 
     // Enviar evento de teste para Meta CAPI
     const capiPayload = {
