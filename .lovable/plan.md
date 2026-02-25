@@ -1,102 +1,117 @@
 
-# Corrigir Renderização de Mensagens Encaminhadas (Forwarded)
 
-## Problemas Identificados
+# Localização: Corrigir Funcionamento + Melhorar UX/UI
 
-### 1. Imagem não carrega ("Imagem indisponível")
-O webhook (`waha-webhook/index.ts`) só faz download da mídia quando `payload.hasMedia && payload.media?.url` (linha 2713). Em mensagens **encaminhadas** (forwarded), o WAHA GOWS pode enviar a estrutura de mídia de forma diferente:
-- `hasMedia` pode estar como `false` mesmo tendo imagem
-- A URL da mídia pode estar em `_data.Message.imageMessage.url` ou `_data.Message.imageMessage.directPath` em vez de `payload.media.url`
-- O tipo da mensagem pode vir como `"chat"` em vez de `"image"`
+## Problema Principal
 
-**Solução**: Adicionar fallback no webhook para detectar mídia em mensagens encaminhadas verificando `_data.Message.imageMessage`, `_data.message.imageMessage`, etc. quando `payload.hasMedia` é false ou `payload.media?.url` está ausente.
+As configuracoes de **Moeda**, **Fuso Horario** e **Formato de Data** sao salvas no banco mas **nao sao consumidas por nenhum componente do sistema**. Todos os 37+ arquivos que formatam moeda, data ou timezone estao hardcoded para `pt-BR` / `BRL` / timezone do navegador.
 
-### 2. Falta indicador "Encaminhada"
-O frontend (`ChatMessageBubble.tsx`) não verifica o campo `isForwarded` ou `forwardingScore` no `raw_data` da mensagem. O WhatsApp exibe "Encaminhada" no topo de mensagens forwarded.
+Alem disso, a secao nao explica **para que serve** cada campo nem **onde ele vai impactar**.
 
-**Solução**: Extrair o status de encaminhamento do `raw_data` e exibir um badge discreto.
+## O que muda
 
-## Alteracoes
+### 1. Hook global `useLocalizacao` (novo arquivo)
 
-### Arquivo 1: `supabase/functions/waha-webhook/index.ts`
+Cria um hook centralizado que le as configs do tenant e expoe funcoes de formatacao:
+- `formatarMoeda(valor)` -- usa a moeda configurada (BRL/USD/EUR)
+- `formatarData(data)` -- usa o formato configurado (DD/MM/YYYY, etc.)
+- `getTimezone()` -- retorna o timezone do tenant
 
-**Onde**: Apos a detecao de tipo de mensagem (apos linha ~2618) e antes do insert (linha ~2621)
+O hook usa React Query com cache longo (as configs raramente mudam).
 
-1. **Detectar mensagem encaminhada e inferir tipo de midia**:
-   - Verificar se `_data.Message` ou `_data.message` contém `imageMessage`, `videoMessage`, `audioMessage`, `documentMessage`
-   - Se o tipo atual for "text"/"chat" mas houver um `imageMessage` dentro, corrigir `wahaType` para "image"
-   - Isso cobre o caso onde GOWS envia forwarded messages com tipo "chat" mas payload contém a estrutura de imagem
+**Arquivo:** `src/hooks/useLocalizacao.ts`
 
-2. **Fallback para download de midia** (apos linha ~2713):
-   - Se `payload.hasMedia` é false OU `payload.media?.url` está ausente, mas o `_data.Message` contém uma mensagem de midia com `directPath` ou `url`:
-     - Tentar construir a URL de download via API WAHA (`/api/files/{session}/{messageId}`)
-     - Ou extrair `payload.mediaUrl` / `payload._data.MediaURL` que o GOWS pode usar
-   - Definir `media_mimetype` a partir do `imageMessage.mimetype` se disponivel
+### 2. Atualizar `src/lib/formatters.ts`
 
-3. **Extrair caption de mensagens encaminhadas**:
-   - Para imagens forwarded, o caption pode estar em `_data.Message.imageMessage.caption` em vez de `payload.caption`
-   - Adicionar fallback: `payload.caption || msgData.imageMessage?.caption || msgData.videoMessage?.caption`
+A funcao `formatCurrency` ganha um parametro opcional `moeda` (default `BRL`). Assim, componentes que usam o hook passam a moeda configurada, e componentes legados continuam funcionando sem quebrar.
 
-### Arquivo 2: `src/modules/conversas/components/ChatMessageBubble.tsx`
+### 3. Substituir hardcodes nos modulos principais
 
-**Adicionar indicador visual "Encaminhada"**:
+Os arquivos mais criticos que serao atualizados para usar `useLocalizacao`:
 
-1. Criar funcao `isForwardedMessage(rawData)` que verifica:
-   - `rawData.isForwarded === true`
-   - `rawData._data?.isForwarded === true`
-   - `rawData._data?.Message?.*.contextInfo?.isForwarded === true`
-   - `rawData._data?.message?.*.contextInfo?.isForwarded === true`
-   - `forwardingScore > 0` em qualquer contextInfo
+- `src/modules/negocios/components/detalhes/DetalhesCampos.tsx` -- valores de oportunidade
+- `src/modules/negocios/components/detalhes/ProdutosOportunidade.tsx` -- precos de produtos
+- `src/modules/negocios/components/kanban/` -- valores nos cards do Kanban
+- `src/modules/admin/pages/DashboardPage.tsx` -- MRR e metricas financeiras
+- `src/modules/tarefas/components/TarefaItem.tsx` -- datas de vencimento
+- `src/modules/conversas/components/ChatMessages.tsx` -- separadores de data
 
-2. Dentro da bolha principal (apos linha ~1153, antes do quotedMessage), renderizar:
-```text
-+----------------------------------+
-| > Encaminhada                    |  <-- novo badge
-| [imagem]                         |
-| Texto da mensagem...             |
-|                          12:26 ✓ |
-+----------------------------------+
-```
-   - Estilo: icone `Forward` (ou seta) + texto "Encaminhada" em `text-[11px] text-muted-foreground italic` com padding inferior de 1px
-   - Seguir o mesmo padrao visual do WhatsApp (discreto, acima do conteudo)
+Componentes que nao usam React (funcoes puras) receberao os parametros de locale como argumento.
 
-### Arquivo 3: `src/modules/conversas/services/conversas.api.ts`
-- Nenhuma alteracao na interface `Mensagem` necessaria - o `raw_data` ja contem toda a informacao
+### 4. Melhorar UX/UI da secao Localizacao
 
-## Resumo do Fluxo Corrigido
+Alteracoes na `ConfigGeralPage.tsx`:
 
-1. Mensagem encaminhada chega no webhook WAHA
-2. Webhook detecta que e uma imagem forwarded (via `_data.Message.imageMessage`) mesmo com `type: "chat"`
-3. Webhook corrige o tipo para "image" e faz download da midia
-4. Caption e extraido do `imageMessage.caption`
-5. Frontend detecta `isForwarded` no `raw_data` e exibe badge "Encaminhada"
-6. Imagem + texto + badge renderizam corretamente como no WhatsApp
+**a) Descricao da secao:**
+Adicionar texto explicativo: "Estas configuracoes afetam como valores monetarios, datas e horarios sao exibidos em todo o CRM para todos os usuarios da organizacao."
 
-## Detalhes Tecnicos - Estrutura GOWS para Forwarded
-
-O WAHA GOWS envia mensagens encaminhadas com esta estrutura tipica:
+**b) Preview em tempo real:**
+Abaixo dos 3 selects, adicionar um bloco de preview discreto mostrando:
 
 ```text
-payload = {
-  type: "chat",          // <-- incorreto, deveria ser "image"
-  hasMedia: true/false,  // <-- pode ser false para forwards
-  body: "texto...",
-  isForwarded: true,
-  _data: {
-    Message: {
-      imageMessage: {
-        url: "...",
-        directPath: "...",
-        mimetype: "image/jpeg",
-        caption: "texto junto da imagem",
-        contextInfo: {
-          isForwarded: true,
-          forwardingScore: 1
-        }
-      }
-    }
-  }
-}
+Preview: R$ 1.234,56 | 25/02/2026 | Brasilia (GMT-3)
 ```
 
-A correcao no webhook deve lidar com todas as variantes de casing (camelCase do NOWEB e PascalCase do GOWS).
+Que muda dinamicamente conforme o usuario seleciona as opcoes. Assim ele ve o impacto antes de salvar.
+
+**c) Descricoes por campo:**
+- Moeda: "Simbolo e formato usados nos valores de oportunidades, produtos e relatorios"
+- Fuso Horario: "Horario de referencia para agendamentos, notificacoes e logs de atividade"
+- Formato de Data: "Como datas sao exibidas em todo o sistema"
+
+**d) Badge Admin:**
+Adicionar o mesmo badge `Somente Administradores` usado nas outras secoes.
+
+## Detalhes Tecnicos
+
+### Hook `useLocalizacao`
+
+```text
+useLocalizacao() retorna:
+  - moeda: string (BRL/USD/EUR)
+  - timezone: string (America/Sao_Paulo)
+  - formatoData: string (DD/MM/YYYY)
+  - formatarMoeda(valor: number): string
+  - formatarData(data: string | Date): string
+  - formatarDataHora(data: string | Date): string
+```
+
+Internamente faz `useQuery` na tabela `config_tenant` com `staleTime: 5min`.
+
+### Mapeamento moeda para Intl
+
+```text
+BRL -> { locale: 'pt-BR', currency: 'BRL' }
+USD -> { locale: 'en-US', currency: 'USD' }
+EUR -> { locale: 'de-DE', currency: 'EUR' }
+```
+
+### Mapeamento formato data
+
+```text
+DD/MM/YYYY -> dia/mes/ano
+MM/DD/YYYY -> mes/dia/ano
+YYYY-MM-DD -> ano-mes-dia
+```
+
+Usa `Intl.DateTimeFormat` com as opcoes corretas em vez de hardcoded `pt-BR`.
+
+### Preview na UI
+
+Componente `LocalizacaoPreview` que recebe os valores atuais do form e renderiza exemplos formatados. Usa `bg-muted/30 rounded-md border p-3` seguindo o design system.
+
+### Arquivos que serao criados ou editados
+
+| Arquivo | Acao |
+|---------|------|
+| `src/hooks/useLocalizacao.ts` | Criar (hook global) |
+| `src/lib/formatters.ts` | Editar (parametro moeda) |
+| `src/modules/configuracoes/pages/ConfigGeralPage.tsx` | Editar (UI melhorada) |
+| `src/modules/negocios/components/detalhes/DetalhesCampos.tsx` | Editar (usar hook) |
+| `src/modules/negocios/components/detalhes/ProdutosOportunidade.tsx` | Editar (usar hook) |
+| `src/modules/admin/pages/DashboardPage.tsx` | Editar (usar hook) |
+| `src/modules/tarefas/components/TarefaItem.tsx` | Editar (usar hook) |
+| `src/modules/conversas/components/ChatMessages.tsx` | Editar (usar hook) |
+
+Demais arquivos com hardcode serao atualizados progressivamente -- os listados acima sao os de maior impacto visual para o usuario.
+
