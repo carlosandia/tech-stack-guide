@@ -202,7 +202,7 @@ export const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(functi
 
   const prevConversaRef = useRef<string | undefined>(undefined)
   const shouldAutoScrollRef = useRef(false)
-  const { contactMap } = useMentionResolver(mensagens)
+  const { contactMap } = useMentionResolver(mensagens, conversaId)
 
   // AIDEV-NOTE: Efeito unificado para scroll - resolve race condition entre troca de conversa e cache
   useEffect(() => {
