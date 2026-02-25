@@ -315,15 +315,6 @@ export function useMentionResolver(mensagens: Mensagem[], _conversaId?: string):
       }
     }
 
-    // AIDEV-TODO: Remover logs após debug
-    if (mentionedNumbers.length > 0) {
-      console.log('[MENTION-RESOLVER] mentionedNumbers:', mentionedNumbers)
-      console.log('[MENTION-RESOLVER] participantNames:', Array.from(participantNames.entries()))
-      console.log('[MENTION-RESOLVER] unresolvedLids:', unresolvedLids)
-      console.log('[MENTION-RESOLVER] lidResolvedMap:', lidResolvedMap ? Array.from(lidResolvedMap.entries()) : 'null/undefined')
-      console.log('[MENTION-RESOLVER] dbContactMap:', dbContactMap ? Array.from(dbContactMap.entries()) : 'null/undefined')
-      console.log('[MENTION-RESOLVER] FINAL contactMap:', Array.from(merged.entries()))
-    }
 
     return merged
   }, [dbContactMap, participantNames, lidResolvedMap, mentionedNumbers, unresolvedLids])
