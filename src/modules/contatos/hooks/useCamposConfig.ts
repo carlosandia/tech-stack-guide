@@ -49,6 +49,9 @@ const FALLBACK_PESSOA: Record<string, { label: string; obrigatorio: boolean }> =
   telefone: { label: 'Telefone', obrigatorio: false },
   cargo: { label: 'Cargo', obrigatorio: false },
   linkedin_url: { label: 'LinkedIn', obrigatorio: false },
+  endereco_cidade: { label: 'Cidade', obrigatorio: false },
+  endereco_estado: { label: 'Estado', obrigatorio: false },
+  endereco_cep: { label: 'CEP', obrigatorio: false },
 }
 
 const FALLBACK_EMPRESA: Record<string, { label: string; obrigatorio: boolean }> = {
