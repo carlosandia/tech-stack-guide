@@ -88,7 +88,9 @@ const DOMPURIFY_CONFIG = {
 const URL_REGEX = /(https?:\/\/[^\s<>"']+)/g
 
 function sanitizeFormattedHtml(text: string): string {
-  const formatted = text
+  // AIDEV-NOTE: Remove caracteres U+FFFD (replacement character) que chegam corrompidos do WAHA GOWS
+  const cleaned = text.replace(/\uFFFD/g, '')
+  const formatted = cleaned
     .replace(/\*(.*?)\*/g, '<strong>$1</strong>')
     .replace(/_(.*?)_/g, '<em>$1</em>')
     .replace(/~(.*?)~/g, '<del>$1</del>')
