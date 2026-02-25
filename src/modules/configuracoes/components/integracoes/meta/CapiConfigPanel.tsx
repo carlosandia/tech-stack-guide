@@ -17,9 +17,9 @@ interface EventoConfig {
 }
 
 const EVENTOS: EventoConfig[] = [
-  { key: 'lead', label: 'Lead', descricao: 'Quando um novo contato é criado no CRM', metaEvent: 'Lead' },
+  { key: 'lead', label: 'Lead', descricao: 'Quando uma oportunidade é criada no CRM', metaEvent: 'Lead' },
   { key: 'schedule', label: 'Agendamento', descricao: 'Quando uma reunião é agendada', metaEvent: 'Schedule' },
-  { key: 'mql', label: 'Lead Qualificado (MQL)', descricao: 'Quando contato recebe badge MQL', metaEvent: 'CompleteRegistration' },
+  { key: 'mql', label: 'Lead Qualificado (MQL)', descricao: 'Quando uma oportunidade é marcada como MQL', metaEvent: 'CompleteRegistration' },
   { key: 'won', label: 'Oportunidade Ganha', descricao: 'Oportunidade marcada como ganha', metaEvent: 'Purchase' },
   { key: 'lost', label: 'Oportunidade Perdida', descricao: 'Oportunidade marcada como perdida', metaEvent: 'Other' },
 ]
