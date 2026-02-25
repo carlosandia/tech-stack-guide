@@ -1,54 +1,48 @@
 
-# Correcao: Mensagens com Link Preview sem Body (WAHA GOWS)
+# Limpeza de caracteres corrompidos (U+FFFD) nas mensagens
 
-## Problema Identificado
+## Problema
 
-Mensagens recebidas com link preview (como a do Mercado Pago) chegam com `body` vazio no CRM, embora o texto esteja visivel no WhatsApp do dispositivo. Isso causa:
-- **No chat**: "Mensagem indisponivel" (ChatMessageBubble.tsx exibe fallback quando body e null)
-- **Na lista**: "Nenhuma mensagem" (ConversaItem.tsx mostra fallback quando ultima_mensagem e null, e o filtro de busca exclui mensagens text com body null)
-
-## Causa Raiz
-
-No webhook (`waha-webhook/index.ts`, linha 1327), o body da mensagem e extraido com:
-
-```text
-messageBody = payload.body || payload.text || ""
-```
-
-Para mensagens com link preview, o WAHA GOWS envia o tipo como `chat` mas o texto real esta dentro de `_data.Message.extendedTextMessage.text` (ou `_data.message.extendedTextMessage.text`). Como `payload.body` vem vazio, o webhook salva `body: null` no banco.
+Mensagens vindas do WAHA GOWS (como templateMessage do Mercado Pago) chegam com caracteres `U+FFFD` (simbolo de substituicao Unicode `�`) onde deveriam estar emojis. Esses caracteres ja vem corrompidos na origem e ficam armazenados assim no banco, resultando em texto com `�` visivel no chat.
 
 ## Solucao
 
-### Alteracao 1: `supabase/functions/waha-webhook/index.ts`
+Limpar os caracteres `U+FFFD` em 3 camadas:
 
-Adicionar fallback para extrair o body de `extendedTextMessage.text` quando `payload.body` e `payload.text` estao vazios.
+### 1. Frontend - `ChatMessageBubble.tsx`
 
-**Apos a linha 1327** (`const messageBody = payload.body || payload.text || ""`), adicionar logica de fallback:
+Na funcao `sanitizeFormattedHtml`, adicionar uma etapa inicial para remover caracteres `\uFFFD` do texto antes de formatar:
 
 ```text
-// Fallback: extendedTextMessage (link previews)
-let messageBody = payload.body || payload.text || "";
-if (!messageBody) {
-  const msgObj = payload._data?.Message || payload._data?.message;
-  if (msgObj) {
-    messageBody = msgObj.extendedTextMessage?.text
-      || msgObj.ExtendedTextMessage?.Text
-      || "";
-  }
-}
+text.replace(/\uFFFD/g, '')
 ```
 
-Isso cobre tanto o formato camelCase (WAHA padrao) quanto PascalCase (GOWS).
+Isso afeta tanto `TextContent` quanto o `formattedBody` usado na renderizacao inline, cobrindo todos os casos de exibicao.
 
-### Alteracao 2 (opcional): Script de correcao retroativa
+### 2. Webhook - `waha-webhook/index.ts`
 
-Como a mensagem do Mercado Pago ja esta no banco com body null, ela nao sera corrigida automaticamente. Sera necessario:
-- Ou reprocessar manualmente via SQL olhando o `raw_data` das mensagens com `body IS NULL AND tipo = 'text'`
-- Ou simplesmente aceitar que mensagens passadas continuarao como "indisponivel"
+Apos a extracao do `messageBody` (onde ja temos os fallbacks para `extendedTextMessage` e `templateMessage`), adicionar limpeza:
 
-## Detalhes Tecnicos
+```text
+messageBody = messageBody.replace(/\uFFFD/g, '');
+```
 
-- Apenas 1 arquivo alterado: `supabase/functions/waha-webhook/index.ts`
-- A mudanca e na extracao do `messageBody` (linha 1327), transformando de `const` para `let` e adicionando o fallback
-- Nenhuma dependencia nova
-- Nenhuma alteracao no frontend (o frontend ja renderiza corretamente quando body esta preenchido)
+Isso garante que mensagens futuras sejam salvas no banco ja sem os caracteres corrompidos.
+
+### 3. Migration SQL retroativa
+
+Criar migration para limpar mensagens ja existentes no banco:
+
+```text
+UPDATE mensagens
+SET body = regexp_replace(body, E'\uFFFD', '', 'g'),
+    atualizado_em = now()
+WHERE body LIKE '%' || E'\uFFFD' || '%'
+  AND deletado_em IS NULL;
+```
+
+## Arquivos alterados
+
+- `src/modules/conversas/components/ChatMessageBubble.tsx` (1 linha na funcao `sanitizeFormattedHtml`)
+- `supabase/functions/waha-webhook/index.ts` (1 linha apos extracao do messageBody)
+- Nova migration SQL para limpeza retroativa
