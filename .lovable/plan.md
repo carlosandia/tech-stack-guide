@@ -1,101 +1,102 @@
 
+# Corrigir Renderização de Mensagens Encaminhadas (Forwarded)
 
-# Redesign da Config Geral - UX/UI Melhorada
+## Problemas Identificados
 
-## Problemas Atuais
-1. **3 secoes separadas** (Notificacoes, Automacao, Horario Comercial) sem contexto claro de como se relacionam
-2. **Nomenclaturas vagas** - "Nova Oportunidade", "Tarefa Vencida" nao explicam QUEM recebe e ONDE aparece o alerta
-3. **Alerta de inatividade** nao deixa claro onde o usuario vai ver esse alerta
-4. **Restricao de admin** nao esta visivel - o usuario nao sabe que so admin pode alterar
-5. **Horario Comercial** separado das notificacoes sendo que ambos controlam envio de email
+### 1. Imagem não carrega ("Imagem indisponível")
+O webhook (`waha-webhook/index.ts`) só faz download da mídia quando `payload.hasMedia && payload.media?.url` (linha 2713). Em mensagens **encaminhadas** (forwarded), o WAHA GOWS pode enviar a estrutura de mídia de forma diferente:
+- `hasMedia` pode estar como `false` mesmo tendo imagem
+- A URL da mídia pode estar em `_data.Message.imageMessage.url` ou `_data.Message.imageMessage.directPath` em vez de `payload.media.url`
+- O tipo da mensagem pode vir como `"chat"` em vez de `"image"`
 
-## Solucao Recomendada
+**Solução**: Adicionar fallback no webhook para detectar mídia em mensagens encaminhadas verificando `_data.Message.imageMessage`, `_data.message.imageMessage`, etc. quando `payload.hasMedia` é false ou `payload.media?.url` está ausente.
 
-Reorganizar em **2 secoes claras** com descricoes explicitas:
+### 2. Falta indicador "Encaminhada"
+O frontend (`ChatMessageBubble.tsx`) não verifica o campo `isForwarded` ou `forwardingScore` no `raw_data` da mensagem. O WhatsApp exibe "Encaminhada" no topo de mensagens forwarded.
 
-### Estrutura Nova
+**Solução**: Extrair o status de encaminhamento do `raw_data` e exibir um badge discreto.
+
+## Alteracoes
+
+### Arquivo 1: `supabase/functions/waha-webhook/index.ts`
+
+**Onde**: Apos a detecao de tipo de mensagem (apos linha ~2618) e antes do insert (linha ~2621)
+
+1. **Detectar mensagem encaminhada e inferir tipo de midia**:
+   - Verificar se `_data.Message` ou `_data.message` contém `imageMessage`, `videoMessage`, `audioMessage`, `documentMessage`
+   - Se o tipo atual for "text"/"chat" mas houver um `imageMessage` dentro, corrigir `wahaType` para "image"
+   - Isso cobre o caso onde GOWS envia forwarded messages com tipo "chat" mas payload contém a estrutura de imagem
+
+2. **Fallback para download de midia** (apos linha ~2713):
+   - Se `payload.hasMedia` é false OU `payload.media?.url` está ausente, mas o `_data.Message` contém uma mensagem de midia com `directPath` ou `url`:
+     - Tentar construir a URL de download via API WAHA (`/api/files/{session}/{messageId}`)
+     - Ou extrair `payload.mediaUrl` / `payload._data.MediaURL` que o GOWS pode usar
+   - Definir `media_mimetype` a partir do `imageMessage.mimetype` se disponivel
+
+3. **Extrair caption de mensagens encaminhadas**:
+   - Para imagens forwarded, o caption pode estar em `_data.Message.imageMessage.caption` em vez de `payload.caption`
+   - Adicionar fallback: `payload.caption || msgData.imageMessage?.caption || msgData.videoMessage?.caption`
+
+### Arquivo 2: `src/modules/conversas/components/ChatMessageBubble.tsx`
+
+**Adicionar indicador visual "Encaminhada"**:
+
+1. Criar funcao `isForwardedMessage(rawData)` que verifica:
+   - `rawData.isForwarded === true`
+   - `rawData._data?.isForwarded === true`
+   - `rawData._data?.Message?.*.contextInfo?.isForwarded === true`
+   - `rawData._data?.message?.*.contextInfo?.isForwarded === true`
+   - `forwardingScore > 0` em qualquer contextInfo
+
+2. Dentro da bolha principal (apos linha ~1153, antes do quotedMessage), renderizar:
+```text
++----------------------------------+
+| > Encaminhada                    |  <-- novo badge
+| [imagem]                         |
+| Texto da mensagem...             |
+|                          12:26 ✓ |
++----------------------------------+
+```
+   - Estilo: icone `Forward` (ou seta) + texto "Encaminhada" em `text-[11px] text-muted-foreground italic` com padding inferior de 1px
+   - Seguir o mesmo padrao visual do WhatsApp (discreto, acima do conteudo)
+
+### Arquivo 3: `src/modules/conversas/services/conversas.api.ts`
+- Nenhuma alteracao na interface `Mensagem` necessaria - o `raw_data` ja contem toda a informacao
+
+## Resumo do Fluxo Corrigido
+
+1. Mensagem encaminhada chega no webhook WAHA
+2. Webhook detecta que e uma imagem forwarded (via `_data.Message.imageMessage`) mesmo com `type: "chat"`
+3. Webhook corrige o tipo para "image" e faz download da midia
+4. Caption e extraido do `imageMessage.caption`
+5. Frontend detecta `isForwarded` no `raw_data` e exibe badge "Encaminhada"
+6. Imagem + texto + badge renderizam corretamente como no WhatsApp
+
+## Detalhes Tecnicos - Estrutura GOWS para Forwarded
+
+O WAHA GOWS envia mensagens encaminhadas com esta estrutura tipica:
 
 ```text
-+--------------------------------------------------+
-| Notificacoes por Email                            |
-| Controle quais eventos enviam email automatico    |
-| para os membros da equipe.                        |
-| [Badge: Somente Administradores]                  |
-|                                                   |
-| [!] Banner email desconectado (se aplicavel)      |
-|                                                   |
-| -- Janela de envio --                             |
-| Emails serao enviados apenas neste horario.       |
-| Inicio: [08:00]   Fim: [18:00]                   |
-|                                                   |
-| -- Eventos --                                     |
-| [x] Oportunidade criada                           |
-|     Envia email ao responsavel quando uma nova    |
-|     oportunidade for criada no pipeline.          |
-|                                                   |
-| [x] Tarefa vencida                                |
-|     Envia email ao responsavel quando uma tarefa  |
-|     ultrapassar a data de vencimento.             |
-|                                                   |
-| [ ] Oportunidade movida de etapa                  |
-|     Envia email ao responsavel quando a           |
-|     oportunidade mudar de etapa no funil.         |
-|                                                   |
-| [x] Oportunidade inativa                          |
-|     Envia email ao responsavel quando a           |
-|     oportunidade ficar sem atividade por:         |
-|     [7] dias                                      |
-|     Tambem destaca o card no Kanban com badge     |
-|     visual de inatividade.                        |
-+--------------------------------------------------+
-
-+--------------------------------------------------+
-| Automacoes do Pipeline                            |
-| Configure acoes automaticas que acontecem ao      |
-| movimentar oportunidades entre etapas.            |
-| [Badge: Somente Administradores]                  |
-|                                                   |
-| [x] Criar tarefas automaticamente                 |
-|     Ao mover uma oportunidade para uma nova       |
-|     etapa, as tarefas configuradas naquela etapa  |
-|     serao criadas automaticamente.                |
-+--------------------------------------------------+
+payload = {
+  type: "chat",          // <-- incorreto, deveria ser "image"
+  hasMedia: true/false,  // <-- pode ser false para forwards
+  body: "texto...",
+  isForwarded: true,
+  _data: {
+    Message: {
+      imageMessage: {
+        url: "...",
+        directPath: "...",
+        mimetype: "image/jpeg",
+        caption: "texto junto da imagem",
+        contextInfo: {
+          isForwarded: true,
+          forwardingScore: 1
+        }
+      }
+    }
+  }
+}
 ```
 
-### Mudancas Especificas
-
-**Arquivo**: `src/modules/configuracoes/pages/ConfigGeralPage.tsx`
-
-1. **Unificar Notificacoes + Horario Comercial + Alerta de Inatividade** em uma unica secao "Notificacoes por Email"
-   - Horario de envio fica no topo da secao como contexto
-   - Alerta de inatividade vira um toggle igual aos outros (com input de dias inline quando ativo)
-   - Cada toggle ganha descricao expandida explicando QUEM recebe e QUANDO dispara
-
-2. **Renomear Automacao** para "Automacoes do Pipeline" com descricao clara
-
-3. **Adicionar badge "Somente Administradores"** em cada secao, usando um badge discreto (bg-amber-50, text-amber-700) ao lado do titulo
-
-4. **Melhorar nomenclaturas**:
-   - "Nova Oportunidade" → "Oportunidade criada"
-   - "Tarefa Vencida" → "Tarefa vencida"
-   - "Mudanca de Etapa" → "Oportunidade movida de etapa"
-   - Novo: "Oportunidade inativa" (move o campo de dias para dentro deste toggle)
-   - "Criar Tarefa Automatica" → "Criar tarefas automaticamente"
-
-5. **Descricoes expandidas** em cada toggle:
-   - Ao inves de "Enviar email ao criar oportunidade" → "Envia email ao responsavel quando uma nova oportunidade for criada no pipeline"
-   - Padroes: sempre dizer QUEM recebe + QUANDO dispara
-
-6. **Usar o componente Switch do shadcn** (`@/components/ui/switch`) ao inves do toggle customizado, seguindo o design system
-
-7. **Secoes restantes** (Localizacao, Assinatura, Widget WhatsApp) permanecem inalteradas
-
-### Detalhes Tecnicos
-
-- Remover a secao `Horario Comercial` como card separado
-- Remover a secao `Automacao` como card separado com o campo de dias
-- Mover inputs de horario para dentro da secao de Notificacoes
-- Mover input de dias para inline dentro do toggle de "Oportunidade inativa"
-- Adicionar novo campo boolean `notificar_inatividade` ao form state (derivado de `dias_alerta_inatividade > 0`)
-- Importar e usar `Switch` de `@/components/ui/switch` e `Badge` se disponivel
-- Adicionar icone `Shield` ou `Lock` do lucide para o badge de admin
+A correcao no webhook deve lidar com todas as variantes de casing (camelCase do NOWEB e PascalCase do GOWS).
