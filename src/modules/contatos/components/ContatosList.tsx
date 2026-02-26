@@ -16,7 +16,8 @@ import { InlineResponsavelPopover } from './InlineResponsavelPopover'
 import { InlinePessoaPopover } from './InlinePessoaPopover'
 import type { Contato, TipoContato } from '../services/contatos.api'
 import type { ColumnConfig } from './ContatoColumnsToggle'
-import { StatusContatoOptions, OrigemContatoOptions } from '../schemas/contatos.schema'
+import { StatusContatoOptions } from '../schemas/contatos.schema'
+import { useOrigensAtivas, getOrigemLabel } from '@/modules/configuracoes/hooks/useOrigens'
 import { format } from 'date-fns'
 
 // Mapeamento de coluna UI → coluna DB para ordenação
@@ -298,8 +299,9 @@ const CellTelefone = memo(function CellTelefone({ value }: { value: string | nul
 })
 
 const CellOrigem = memo(function CellOrigem({ contato }: { contato: Contato }) {
-  const origemLabel = OrigemContatoOptions.find(o => o.value === contato.origem)?.label || contato.origem
-  return <span className="text-sm text-foreground">{origemLabel}</span>
+  const { data: origens } = useOrigensAtivas()
+  const label = getOrigemLabel(origens, contato.origem)
+  return <span className="text-sm text-foreground">{label}</span>
 })
 
 const CellCriadoEm = memo(function CellCriadoEm({ contato }: { contato: Contato }) {

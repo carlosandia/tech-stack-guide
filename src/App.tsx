@@ -85,6 +85,7 @@ const EquipesPage = lazyWithRetry(() => import('@/modules/configuracoes/pages/Eq
 const PerfisPermissaoPage = lazyWithRetry(() => import('@/modules/configuracoes/pages/PerfisPermissaoPage'), 'PerfisPermissao')
 const MetasPage = lazyWithRetry(() => import('@/modules/configuracoes/pages/MetasPage'), 'Metas')
 const ConfigGeralPage = lazyWithRetry(() => import('@/modules/configuracoes/pages/ConfigGeralPage'), 'ConfigGeral')
+const OrigensPage = lazyWithRetry(() => import('@/modules/configuracoes/pages/OrigensPage'), 'Origens')
 
 // Feature Modules
 // AIDEV-NOTE: Todos arquivos normalizados para export default - removido .then() patterns
@@ -194,6 +195,7 @@ const App = forwardRef<HTMLDivElement>(function App(_props, _ref) {
         <Route path="campos" element={<Suspense fallback={<SuspenseFallback />}><CamposPage /></Suspense>} />
         <Route path="produtos" element={<Suspense fallback={<SuspenseFallback />}><ProdutosPage /></Suspense>} />
         <Route path="motivos" element={<Suspense fallback={<SuspenseFallback />}><MotivosPage /></Suspense>} />
+        <Route path="origens" element={<Suspense fallback={<SuspenseFallback />}><OrigensPage /></Suspense>} />
         <Route path="tarefas-templates" element={<Suspense fallback={<SuspenseFallback />}><TarefasTemplatesPage /></Suspense>} />
         <Route path="tarefas" element={<Suspense fallback={<SuspenseFallback />}><TarefasTemplatesPage /></Suspense>} />
         <Route path="etapas-templates" element={<Suspense fallback={<SuspenseFallback />}><EtapasTemplatesPage /></Suspense>} />

@@ -13,7 +13,8 @@
 import { useEffect, useMemo, useState, forwardRef, useRef, useId } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { X, User, Building2, Search, Check, ChevronDown, FileText, Settings2 } from 'lucide-react'
-import { StatusContatoOptions, OrigemContatoOptions, PorteOptions } from '../schemas/contatos.schema'
+import { StatusContatoOptions, PorteOptions } from '../schemas/contatos.schema'
+import { OrigemCombobox } from '@/shared/components/OrigemCombobox'
 import type { Contato, TipoContato } from '../services/contatos.api'
 import { useCamposConfig } from '../hooks/useCamposConfig'
 import type { CampoCustomizado } from '@/modules/configuracoes/services/configuracoes.api'
@@ -648,9 +649,13 @@ export function ContatoFormModal({
                     {StatusContatoOptions.map((s) => (<option key={s.value} value={s.value}>{s.label}</option>))}
                   </SelectField>
                   {isEditing && (
-                    <SelectField label="Origem" {...form.register('origem')}>
-                      {OrigemContatoOptions.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
-                    </SelectField>
+                    <Controller
+                      name="origem"
+                      control={form.control}
+                      render={({ field }) => (
+                        <OrigemCombobox value={field.value || 'manual'} onChange={field.onChange} showTooltip={false} />
+                      )}
+                    />
                   )}
                 </div>
 
