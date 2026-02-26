@@ -1,59 +1,72 @@
 
-# Correção: LID de 14 dígitos não é detectado como LID
 
-## Problema Raiz
+# Unificar Assinatura de Email com Assinatura Global (Config Geral)
 
-O número `64188537950415` tem **exatamente 14 dígitos**. A função `isLikelyLid()` usa `clean.length > 14` (estritamente maior), então retorna `false` para este número. Isso causa:
-1. Card mostra "64188537950415" em vez de "Eletrikus Pós Venda"
-2. Modal WhatsApp não encontra a conversa (mesmo bug de threshold)
+## Problema
 
-O RPC `resolve_lid_conversa` funciona corretamente — retorna `conversa_id: b5ab9a7e-...` que aponta para "Eletrikus Pós Venda" (telefone real: 5513978014584).
+Existem dois sistemas de assinatura duplicados:
+- **Configuracoes > Config Geral**: campo `assinatura_mensagem` na tabela `configuracoes_tenant` (editor rico com imagens, tabelas, etc.)
+- **Modulo Emails**: tabela separada `emails_assinaturas` com `AssinaturaModal` proprio
 
-## Solução
+O correto e usar apenas a assinatura global de Configuracoes, eliminando a duplicidade.
 
-### 1. Corrigir threshold da heurística LID
+## Alteracoes
 
-**Arquivo:** `src/modules/negocios/services/pre-oportunidades.api.ts`
+### 1. Remover botao "Assinatura" da toolbar do modulo Emails
 
-Alterar a função `isLikelyLid`:
+**Arquivo:** `src/modules/emails/pages/EmailsPage.tsx`
+
+- Remover o estado `assinaturaOpen`
+- Remover o botao "Assinatura" da toolbar superior
+- Remover o componente `<AssinaturaModal>`
+- Remover import do `AssinaturaModal`
+
+### 2. Alterar `ComposeEmailModal` para usar assinatura global
+
+**Arquivo:** `src/modules/emails/components/ComposeEmailModal.tsx`
+
+- Remover import de `useAssinatura` do hook de emails
+- Adicionar query direta a `configuracoes_tenant.assinatura_mensagem`
+- Adaptar `buildInitialContent()` para usar o HTML da assinatura global (sempre incluir em novos e respostas, ja que a config global nao tem esses toggles separados)
+
+### 3. Manter `AssinaturaModal.tsx` e hooks no codigo (sem uso)
+
+Nao e necessario deletar os arquivos agora — apenas desconectar. Podem ser removidos em cleanup futuro.
+
+## Detalhes Tecnicos
+
+### ComposeEmailModal - Nova query de assinatura
+
 ```typescript
-// ANTES: clean.length > 14 (exclui LIDs de 14 dígitos)
-// DEPOIS: clean.length >= 14 (inclui LIDs de 14+ dígitos)
-function isLikelyLid(phone: string): boolean {
-  const clean = phone.replace(/\D/g, '')
-  return clean.length >= 14
-}
+// Substitui useAssinatura() por query direta ao configuracoes_tenant
+const { data: configTenant } = useQuery({
+  queryKey: ['config-tenant-localizacao'],  // reutiliza cache existente
+  queryFn: async () => {
+    const { data } = await supabase
+      .from('configuracoes_tenant')
+      .select('assinatura_mensagem')
+      .maybeSingle()
+    return data
+  },
+  staleTime: 5 * 60 * 1000,
+})
+
+// No buildInitialContent:
+const signatureHtml = configTenant?.assinatura_mensagem
+  ? `<br/><div class="email-signature" style="margin-top:16px;padding-top:12px;border-top:1px solid #e5e7eb;">${configTenant.assinatura_mensagem}</div>`
+  : ''
 ```
 
-Telefones brasileiros válidos têm no máximo 13 dígitos (55 + DDD + 9 dígitos). Qualquer número com 14 ou mais dígitos não é um telefone real.
+### EmailsPage - Itens removidos
 
-### 2. Corrigir threshold no WhatsAppConversaModal
-
-**Arquivo:** `src/modules/negocios/components/kanban/WhatsAppConversaModal.tsx`
-
-Alterar a condição do Fallback 2 (RPC resolve_lid):
-```typescript
-// ANTES: phoneClean.length > 14
-// DEPOIS: phoneClean.length >= 14
-if (phoneClean.length >= 14) {
-```
-
-### 3. Corrigir dados existentes no banco (SQL one-time)
-
-Atualizar o registro existente da pré-oportunidade para exibir corretamente sem esperar nova mensagem:
-
-```sql
-UPDATE pre_oportunidades
-SET phone_number = '5513978014584',
-    phone_name = 'Eletrikus Pós Venda'
-WHERE id = 'a0e4ce36-5f1e-4a68-bc0a-4a98c44eae7b'
-  AND phone_number = '64188537950415';
-```
+- Estado: `assinaturaOpen` / `setAssinaturaOpen`
+- Botao: `<button onClick={() => setAssinaturaOpen(true)}>Assinatura</button>`
+- Componente: `<AssinaturaModal isOpen={assinaturaOpen} onClose={...} />`
 
 ## Arquivos alterados
 
-| Arquivo | Alteração |
+| Arquivo | Alteracao |
 |---------|-----------|
-| `src/modules/negocios/services/pre-oportunidades.api.ts` | `isLikelyLid`: `> 14` para `>= 14` |
-| `src/modules/negocios/components/kanban/WhatsAppConversaModal.tsx` | Fallback 2: `> 14` para `>= 14` |
-| Migration SQL | Corrigir registro existente no banco |
+| `src/modules/emails/pages/EmailsPage.tsx` | Remove botao e modal de assinatura |
+| `src/modules/emails/components/ComposeEmailModal.tsx` | Usa `configuracoes_tenant.assinatura_mensagem` em vez de `emails_assinaturas` |
+
