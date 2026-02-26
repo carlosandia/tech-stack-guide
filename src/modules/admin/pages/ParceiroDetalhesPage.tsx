@@ -28,7 +28,7 @@ import {
   useAplicarGratuidade,
   useMarcarComissaoPaga,
 } from '../hooks/useParceiros'
-import { AtualizarParceiroSchema, type AtualizarParceiroData } from '../schemas/parceiro.schema'
+import { AtualizarParceiroSchema, type AtualizarParceiroData, type NivelParceiro } from '../schemas/parceiro.schema'
 import { formatCurrency } from '@/lib/formatters'
 import { ComissaoMesModal } from '../components/ComissaoMesModal'
 
@@ -101,8 +101,16 @@ function ParceiroDetalhesPage() {
     resolver: zodResolver(AtualizarParceiroSchema),
     values: {
       percentual_comissao: parceiro?.percentual_comissao ?? undefined,
+      nivel_override: parceiro?.nivel_override ?? undefined,
     },
   })
+
+  // AIDEV-NOTE: Lista de níveis do programa para o select de override
+  const niveisPrograma: NivelParceiro[] = (() => {
+    const regras = configPrograma?.regras_gratuidade
+    if (!regras?.ativo || !regras.niveis) return []
+    return [...regras.niveis].sort((a, b) => a.meta_indicados - b.meta_indicados)
+  })()
 
   const formatDate = (dateString: string) =>
     new Date(dateString).toLocaleDateString('pt-BR', {
@@ -532,6 +540,31 @@ function ParceiroDetalhesPage() {
                 Deixe em branco para usar o padrão configurado no programa.
               </p>
             </div>
+
+            {/* AIDEV-NOTE: Select de nível manual (override) */}
+            {niveisPrograma.length > 0 && (
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-foreground">
+                  Nível de Parceria
+                </label>
+                <select
+                  {...configForm.register('nivel_override', {
+                    setValueAs: (v) => (v === '' ? null : v),
+                  })}
+                  className="w-full max-w-xs px-3 py-2 border border-border rounded-md text-sm bg-background outline-none focus:ring-2 focus:ring-primary/20"
+                >
+                  <option value="">Automático (baseado em indicados)</option>
+                  {niveisPrograma.map((nivel) => (
+                    <option key={nivel.nome} value={nivel.nome}>
+                      {nivel.nome} — {nivel.percentual_comissao}% comissão · Meta: {nivel.meta_indicados} indicados
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  Quando definido manualmente, o nível não será recalculado automaticamente.
+                </p>
+              </div>
+            )}
 
             <button
               type="submit"

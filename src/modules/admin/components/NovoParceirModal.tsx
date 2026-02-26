@@ -5,8 +5,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { X, Loader2, Search, Users2 } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { supabase } from '@/lib/supabase'
-import { CriarParceiroSchema, type CriarParceiroData } from '../schemas/parceiro.schema'
-import { useCreateParceiro } from '../hooks/useParceiros'
+import { CriarParceiroSchema, type CriarParceiroData, type NivelParceiro } from '../schemas/parceiro.schema'
+import { useCreateParceiro, useConfigPrograma } from '../hooks/useParceiros'
 import { listarOrganizacoesDisponiveis } from '../services/parceiros.api'
 
 
@@ -37,6 +37,14 @@ export function NovoParceirModal({ isOpen, onClose }: Props) {
   const [mostrarLista, setMostrarLista] = useState(false)
 
   const createParceiro = useCreateParceiro()
+  const { data: configPrograma } = useConfigPrograma()
+
+  // AIDEV-NOTE: Lista de níveis do programa para seleção inicial
+  const niveisPrograma: NivelParceiro[] = (() => {
+    const regras = configPrograma?.regras_gratuidade
+    if (!regras?.ativo || !regras.niveis) return []
+    return [...regras.niveis].sort((a, b) => a.meta_indicados - b.meta_indicados)
+  })()
 
   const {
     register,
@@ -269,6 +277,32 @@ export function NovoParceirModal({ isOpen, onClose }: Props) {
                 Deixe em branco para usar o percentual padrão configurado no programa.
               </p>
             </div>
+
+            {/* Campo: Nível Inicial (opcional) */}
+            {niveisPrograma.length > 0 && (
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-foreground">
+                  Nível de Parceria{' '}
+                  <span className="text-muted-foreground font-normal">(opcional)</span>
+                </label>
+                <select
+                  {...register('nivel_override', {
+                    setValueAs: (v) => (v === '' ? null : v),
+                  })}
+                  className="w-full px-3 py-2 border border-border rounded-md text-sm bg-background outline-none focus:ring-2 focus:ring-primary/20"
+                >
+                  <option value="">Sem nível (progressão automática)</option>
+                  {niveisPrograma.map((nivel) => (
+                    <option key={nivel.nome} value={nivel.nome}>
+                      {nivel.nome} — {nivel.percentual_comissao}% comissão
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  Deixe em branco para o parceiro progredir automaticamente por indicações.
+                </p>
+              </div>
+            )}
 
             {/* Campo oculto usuario_id */}
             <input type="hidden" {...register('usuario_id')} />

@@ -186,6 +186,7 @@ export async function criarParceiro(payload: CriarParceiroData): Promise<Parceir
       usuario_id: payload.usuario_id,
       codigo_indicacao: codigoIndicacao,
       percentual_comissao: payload.percentual_comissao ?? null,
+      nivel_override: payload.nivel_override ?? null,
       status: 'ativo',
     })
     .select(
