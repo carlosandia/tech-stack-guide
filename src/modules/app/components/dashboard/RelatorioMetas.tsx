@@ -63,14 +63,12 @@ export default function RelatorioMetas({ data }: RelatorioMetasProps) {
   const { resumo, metas_empresa, vendedores, ranking_vendedores, ranking_equipes } = data
 
   return (
-    <div className="space-y-4">
-      {/* Título da seção */}
-      <div className="flex items-center gap-2">
-        <Target className="w-5 h-5 text-primary" />
-        <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
-          Indicadores de Metas
-        </h3>
-      </div>
+    <div className="bg-card border border-border rounded-xl p-6 space-y-5">
+      {/* Título da seção - mesmo padrão dos outros indicadores */}
+      <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+        <Target className="w-4 h-4 text-muted-foreground" />
+        Indicadores de Metas
+      </h3>
 
       {/* Cards resumo */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -164,7 +162,7 @@ export default function RelatorioMetas({ data }: RelatorioMetasProps) {
                         style={{ backgroundColor: re.cor || 'hsl(var(--primary))' }}
                       />
                       <span className="text-sm text-foreground truncate flex-1">{re.nome}</span>
-                      <span className="text-xs text-muted-foreground">{re.total_membros}m</span>
+                      <span className="text-xs text-muted-foreground">{re.total_membros} {re.total_membros === 1 ? 'membro' : 'membros'}</span>
                       <span className="text-xs font-semibold text-foreground">{re.percentual_medio}%</span>
                     </div>
                   ))}
