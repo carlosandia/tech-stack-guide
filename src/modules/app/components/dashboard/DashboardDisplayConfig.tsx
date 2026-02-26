@@ -10,14 +10,14 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { Switch } from '@/components/ui/switch'
-import type { DashboardDisplayConfig, SectionId } from '../../hooks/useDashboardDisplay'
+import type { DashboardDisplayConfig, ToggleableSectionId } from '../../hooks/useDashboardDisplay'
 
 interface Props {
   config: DashboardDisplayConfig
-  onToggle: (id: SectionId) => void
+  onToggle: (id: ToggleableSectionId) => void
 }
 
-const SECTIONS: { id: SectionId; label: string }[] = [
+const SECTIONS: { id: ToggleableSectionId; label: string }[] = [
   { id: 'metas', label: 'Indicadores de metas' },
   { id: 'funil', label: 'Funil de conversão' },
   { id: 'reunioes', label: 'Indicadores de reuniões' },
