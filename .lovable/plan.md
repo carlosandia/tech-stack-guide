@@ -1,158 +1,49 @@
 
+# Correcao de Matching de Canal: Case-Sensitive e Normalizacao
 
-# Investimento Dinamico por Canal + Atribuicao de Leads
+## Problema Raiz
 
-## Problema Atual
+Quando voce filtra por "Panfleto" ou "Meta Ads" no funil, o sistema nao encontra leads porque:
 
-O sistema de investimento tem 3 canais fixos (Meta Ads, Google Ads, Outros). Se o usuario investe em "Panfleto", "Evento" ou "Radio", tudo cai no balde generico "Outros" — impossivel medir eficiencia individual. Alem disso, nao fica claro para o usuario como os leads sao atribuidos a cada canal.
+1. **A funcao SQL `fn_canal_match` faz comparacao case-sensitive no branch ELSE** — o canal de investimento salvo como `panfleto` e comparado com `o.origem` que pode estar como `Panfleto`, `PANFLETO` ou `panfleto`. Se nao bater exatamente, retorna zero.
 
-## Como a Atribuicao de Canal Funciona (e vai funcionar)
+2. **A geracao de slug no widget de investimento e diferente da geracao de slug nas origens** — O `InvestModeWidget` faz `toLowerCase().replace(/[^a-z0-9]+/g, '_')` mas o `generateSlug` das origens faz `toLowerCase().normalize('NFD').replace(acentos)...`. Sem a normalizacao NFD, acentos podem gerar slugs diferentes.
 
-A logica de vinculacao lead-canal ja existe e funciona assim:
+3. **O campo `origem` na oportunidade armazena o slug da tabela `origens`** — entao o matching deve comparar slug (investimento) com slug (origem da oportunidade), ambos em lowercase.
 
-```text
-Prioridade de Atribuicao:
-1. UTM Source (automatico) — Meta Ads, Google Ads preenchem automaticamente
-2. Origem da oportunidade — campo "Origem" no card do negocio (manual, whatsapp, formulario, etc.)
-3. Fallback — "direto" quando nenhum dos dois existe
+## Solucao
 
-Exemplos:
-- Lead do Meta Ads → utm_source = "facebook" → canal = Meta Ads (automatico)
-- Lead do Google Ads → utm_source = "google" → canal = Google Ads (automatico)
-- Lead criado manualmente com origem "Panfleto" → canal = Panfleto
-- Lead do WhatsApp → origem = "whatsapp" → canal = WhatsApp
-```
+### 1. Corrigir `fn_canal_match` — branch ELSE case-insensitive
 
-O ponto-chave: **para canais offline (Panfleto, Evento, Radio), o usuario deve selecionar a Origem correta ao criar a oportunidade**. O sistema ja suporta origens dinamicas — basta o admin criar "Panfleto" em Configuracoes > Origens.
+Alterar a funcao SQL para usar `LOWER()` em ambos os lados da comparacao:
 
-## Solucao Proposta
-
-### 1. Investimento com canais dinamicos
-
-Trocar os 3 campos fixos por uma lista dinamica de canais com valores:
-
-```text
-Formulario de investimento (novo):
-┌──────────────────────────────────────┐
-│  $ Informar investimento             │
-│  Ultimos 30 dias                     │
-│                                      │
-│  [+ Adicionar canal]                 │
-│                                      │
-│  Meta Ads          R$ [500,00]   [x] │
-│  Google Ads        R$ [300,00]   [x] │
-│  Panfleto          R$ [200,00]   [x] │
-│                                      │
-│  Total: R$ 1.000,00                  │
-│  [Salvar]                            │
-└──────────────────────────────────────┘
-```
-
-- O usuario clica em "+ Adicionar canal" e escolhe de uma lista que inclui:
-  - Canais pre-definidos: Meta Ads, Google Ads
-  - Origens cadastradas na tabela `origens` (Panfleto, Evento, WhatsApp, etc.)
-  - Opcao de digitar nome livre
-- Cada canal recebe seu valor de investimento
-- Tudo salvo na tabela `investimentos_marketing` (que ja suporta canal como varchar)
-
-### 2. Filtro do funil por canal dinamico
-
-Os chips de filtro no funil passam a listar todos os canais com investimento > 0:
-
-```text
-Canal: [Todos] [Meta Ads: R$500] [Google Ads: R$300] [Panfleto: R$200]
-```
-
-Ao selecionar "Panfleto", o funil filtra oportunidades cuja origem = "panfleto" e calcula CPL/CAC/ROMI usando os R$ 200 investidos.
-
-### 3. fn_canal_match — adicionar else generico (ja existe!)
-
-A funcao SQL `fn_canal_match` ja tem o caso `ELSE` que faz match exato:
 ```sql
-ELSE COALESCE(NULLIF(TRIM(p_utm_source), ''), p_origem, 'direto') = p_canal
-```
-Isso significa que se o usuario salvar investimento com canal = "panfleto", ao filtrar o funil por "panfleto", ele vai buscar oportunidades com `origem = 'panfleto'`. **Nenhuma alteracao SQL necessaria.**
-
-### 4. Tooltip informativo no Funil de Conversao
-
-Adicionar um icone `(?)` ao lado do titulo "FUNIL DE CONVERSAO" com um tooltip/popover explicativo:
-
-```text
-Como funciona o Funil de Conversao?
-
-O funil mostra a jornada dos seus leads desde a entrada ate o fechamento.
-
-COMO OS LEADS SAO ATRIBUIDOS A UM CANAL:
-- Canais digitais (Meta Ads, Google Ads): a atribuicao e automatica via parametros UTM 
-  capturados nos formularios e integraccoes.
-- Canais offline (Panfleto, Evento, Indicacao): ao criar uma oportunidade,
-  selecione a Origem correta no card do negocio. Isso vincula o lead ao canal.
-
-COMO FUNCIONA O INVESTIMENTO:
-- Registre quanto investiu em cada canal no botao "Investimento"
-- O sistema calcula automaticamente CPL, CAC e ROMI por canal
-- Filtre por canal para ver a eficiencia individual de cada investimento
-
-METRICAS:
-- CPL: Custo por Lead (investido / leads)
-- CAC: Custo de Aquisicao de Cliente (investido / ganhos)
-- ROMI: Retorno sobre Investimento em Marketing ((receita - investido) / investido)
+ELSE
+  LOWER(COALESCE(NULLIF(TRIM(p_utm_source), ''), p_origem, 'direto')) = LOWER(p_canal)
 ```
 
-## Alteracoes Tecnicas
+Isso garante que `panfleto` = `Panfleto` = `PANFLETO`.
 
-### Arquivos Modificados
+**Arquivo**: Nova migration SQL
 
-| Arquivo | Acao |
-|---------|------|
-| `src/modules/app/types/relatorio.types.ts` | Editar — InvestMode e SalvarInvestimentoPayload para canais dinamicos |
-| `src/modules/app/components/dashboard/InvestModeWidget.tsx` | Editar — Formulario dinamico com lista de canais |
-| `src/modules/app/components/dashboard/FunilConversao.tsx` | Editar — Chips dinamicos + tooltip informativo |
-| `src/modules/app/services/relatorio.service.ts` | Editar — buscarInvestimentoPeriodo e construirInvestMode para canais dinamicos |
+### 2. Normalizar slug no InvestModeWidget
 
-### Mudancas no Banco
+Alinhar a funcao de slug do widget de investimento com a funcao `generateSlug` das origens (adicionar `.normalize('NFD').replace(/[\u0300-\u036f]/g, '')`). Assim, "Indicacao" gera `indicacao` em ambos os lugares.
 
-**Nenhuma migration necessaria.** A tabela `investimentos_marketing` ja tem `canal varchar` e a funcao `fn_canal_match` ja suporta match exato para canais nao mapeados.
+**Arquivo**: `src/modules/app/components/dashboard/InvestModeWidget.tsx` — funcao `handleAdicionarCanalLivre`
 
-### Tipo InvestMode (novo)
+### 3. Nao permitir caracteres especiais na criacao livre de canal
 
-```typescript
-type InvestMode =
-  | { ativo: false }
-  | {
-      ativo: true
-      total_investido: number
-      canais: Record<string, number>  // { meta_ads: 500, google_ads: 300, panfleto: 200 }
-      cpl: number | null
-      cpmql: number | null
-      // ... demais metricas
-    }
-```
+A funcao de slug ja remove caracteres especiais (`replace(/[^a-z0-9]+/g, '_')`). Basta adicionar a normalizacao de acentos para ficar identica a `generateSlug`.
 
-### SalvarInvestimentoPayload (novo)
+## Sobre a pergunta "tem que usar o mesmo nome?"
 
-```typescript
-interface SalvarInvestimentoPayload {
-  periodo_inicio: string
-  periodo_fim: string
-  canais: Array<{ canal: string; valor: number }>  // dinamico
-}
-```
+**Sim, mas o sistema cuida disso automaticamente.** Quando o usuario seleciona uma origem da lista (ex: "Panfleto" com slug `panfleto`) e registra investimento selecionando da mesma lista, o slug e identico. O LOWER no SQL e uma protecao extra para casos edge.
 
-### Logica de Salvamento
+A lista de canais no widget de investimento ja puxa as origens cadastradas do banco, entao o usuario nao precisa digitar — basta selecionar da lista e o slug sera o mesmo.
 
-O `salvarInvestimento` recebe array de canais e salva cada um + calcula total:
-```typescript
-const canais = payload.canais
-const total = canais.reduce((s, c) => s + c.valor, 0)
-// Salvar cada canal + 'total' na tabela investimentos_marketing
-```
+## Resultado Esperado
 
-## Resultado
-
-- Usuario pode registrar investimento em qualquer canal (Panfleto, Evento, Radio, etc.)
-- O funil filtra corretamente por cada canal individual
-- CPL, CAC e ROMI sao calculados por canal
-- Tooltip explicativo orienta o usuario sobre como usar o sistema corretamente
-- Para canais offline, basta o usuario selecionar a Origem correta na oportunidade (sistema ja existente)
-
+- Filtrar por "Panfleto" mostra leads cuja origem = `panfleto` (case-insensitive)
+- Filtrar por "Meta Ads" continua funcionando via mapeamento UTM existente
+- Slugs normalizados: acentos, maiusculas e caracteres especiais tratados de forma identica em todo o sistema
