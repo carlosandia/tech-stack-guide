@@ -485,10 +485,10 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
         <header className="flex-shrink-0 z-[100] h-14 bg-white/80 backdrop-blur-md border-b border-gray-200/60">
           <div className="flex items-center justify-between h-full px-4 lg:px-6">
             {/* Left: Logo + Navigation */}
-            <div className="flex items-center gap-6">
-              {/* Mobile menu button */}
+            <div className="flex items-center gap-4 lg:gap-6">
+              {/* Mobile/Tablet menu button */}
               <button
-                className="md:hidden p-2 -ml-2 hover:bg-accent rounded-md"
+                className="lg:hidden p-2 -ml-2 hover:bg-accent rounded-md"
                 onClick={() => setDrawerOpen(true)}
               >
                 <Menu className="w-5 h-5 text-foreground" />
@@ -496,12 +496,11 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
 
               {/* Logo */}
               <div className="flex items-center gap-2">
-                <img src={renoveLogo} alt="Renove" className="hidden sm:block h-7" />
-                <img src={renoveLogo} alt="Renove" className="sm:hidden h-6" />
+                <img src={renoveLogo} alt="Renove" className="h-7" />
               </div>
 
-              {/* Desktop Navigation — Hubs */}
-              <nav className="hidden md:flex items-center gap-1">
+              {/* Desktop Navigation — Hubs (lg+) */}
+              <nav className="hidden lg:flex items-center gap-1">
                 {navHubs.map((hub) => {
                   if (hub.path) {
                     const isLocked = modulosAtivos && hub.slug ? !modulosAtivos.includes(hub.slug) : false
@@ -556,10 +555,10 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
                         </span>
                       )}
                     </div>
-                    <span className="hidden sm:block text-sm font-medium text-foreground max-w-[150px] truncate">
+                    <span className="hidden lg:block text-sm font-medium text-foreground max-w-[150px] truncate">
                       {user?.nome || 'Usuário'}
                     </span>
-                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                    <ChevronDown className="hidden lg:block w-4 h-4 text-muted-foreground" />
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
