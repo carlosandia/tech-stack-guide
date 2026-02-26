@@ -266,8 +266,8 @@ function AdminLayoutInner() {
                   <p className="text-xs text-muted-foreground truncate">
                     {user?.email}
                   </p>
-                  <span className="inline-flex items-center mt-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
-                    Super Admin
+                  <span className="inline-flex items-center mt-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground">
+                    Super
                   </span>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
