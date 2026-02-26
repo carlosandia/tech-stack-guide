@@ -706,22 +706,22 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
             />
           )}
 
-          {/* Origem / Canal (read-only) */}
+          {/* Origem / Canal (read-only, unificado em utm_source) */}
           {isCampoVisivel('origem') && (
             <div className="flex items-start gap-2">
               <Globe className="w-3.5 h-3.5 text-muted-foreground mt-1 flex-shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-[11px] text-muted-foreground mb-0.5">Origem</p>
                 <p className="text-sm text-foreground">
-                  {oportunidade.origem
-                    ? oportunidade.origem.charAt(0).toUpperCase() + oportunidade.origem.slice(1).replace(/_/g, ' ')
+                  {oportunidade.utm_source
+                    ? oportunidade.utm_source.charAt(0).toUpperCase() + oportunidade.utm_source.slice(1).replace(/_/g, ' ')
                     : '—'}
                 </p>
-                {oportunidade.utm_source && (
+                {(oportunidade.utm_medium || oportunidade.utm_campaign) && (
                   <p className="text-[10px] text-muted-foreground mt-0.5">
-                    UTM: {oportunidade.utm_source}
-                    {oportunidade.utm_medium ? ` / ${oportunidade.utm_medium}` : ''}
-                    {oportunidade.utm_campaign ? ` / ${oportunidade.utm_campaign}` : ''}
+                    {oportunidade.utm_medium ? `Mídia: ${oportunidade.utm_medium}` : ''}
+                    {oportunidade.utm_medium && oportunidade.utm_campaign ? ' · ' : ''}
+                    {oportunidade.utm_campaign ? `Campanha: ${oportunidade.utm_campaign}` : ''}
                   </p>
                 )}
               </div>

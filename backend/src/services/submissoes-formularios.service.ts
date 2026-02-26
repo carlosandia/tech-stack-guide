@@ -455,7 +455,6 @@ async function criarLeadDaSubmissao(
         etapa_id: etapaId,
         contato_id: contatoId,
         titulo: tituloAuto,
-        origem: 'formulario',
         valor: dadosOportunidade.valor || 0,
         utm_source: payload.utm_source,
         utm_medium: payload.utm_medium,

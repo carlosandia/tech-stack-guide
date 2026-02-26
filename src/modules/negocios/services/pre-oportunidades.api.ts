@@ -221,8 +221,8 @@ export const preOportunidadesApi = {
         valor: payload.valor || null,
         usuario_responsavel_id: payload.usuario_responsavel_id || userId,
         criado_por: userId,
-        // AIDEV-NOTE: origem 'whatsapp' para pré-oportunidades aceitas do WhatsApp
-        origem: 'whatsapp',
+        // AIDEV-NOTE: utm_source 'whatsapp' para pré-oportunidades aceitas do WhatsApp
+        utm_source: 'whatsapp',
       } as any)
       .select('id')
       .single()
