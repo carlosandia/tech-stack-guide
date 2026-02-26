@@ -43,6 +43,7 @@ const SECTION_LABELS: Record<string, string> = {
   'kpis-principais': 'KPIs',
   canal: 'Canal',
   motivos: 'Motivos',
+  'pico-atendimento': 'Pico',
 }
 
 function getResumoConfig(

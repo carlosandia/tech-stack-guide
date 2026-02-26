@@ -18,6 +18,7 @@ export interface DashboardDisplayConfig {
   motivos: boolean
   produtos: boolean
   atendimento: boolean
+  'pico-atendimento': boolean
 }
 
 export type ToggleableSectionId = keyof DashboardDisplayConfig
@@ -38,6 +39,7 @@ const DEFAULT_CONFIG: DashboardDisplayConfig = {
   motivos: true,
   produtos: true,
   atendimento: true,
+  'pico-atendimento': true,
 }
 
 export const DEFAULT_ORDER: SectionId[] = [
@@ -50,6 +52,7 @@ export const DEFAULT_ORDER: SectionId[] = [
   'motivos',
   'produtos',
   'atendimento',
+  'pico-atendimento',
 ]
 
 function loadLocalConfig(): DashboardDisplayConfig {

@@ -8367,6 +8367,19 @@ export type Database = {
         }
         Returns: Json
       }
+      fn_heatmap_atendimento: {
+        Args: {
+          p_canal?: string
+          p_organizacao_id: string
+          p_periodo_fim: string
+          p_periodo_inicio: string
+        }
+        Returns: {
+          dia_semana: number
+          hora: number
+          total: number
+        }[]
+      }
       fn_metricas_atendimento: {
         Args: {
           p_canal?: string

@@ -148,6 +148,16 @@ export interface FunilOption {
 }
 
 // ─────────────────────────────────────────────────────
+// Heatmap de Atendimento (fn_heatmap_atendimento)
+// ─────────────────────────────────────────────────────
+
+export interface HeatmapAtendimentoItem {
+  dia_semana: number // 0=Dom, 1=Seg...6=Sab
+  hora: number       // 0-23
+  total: number
+}
+
+// ─────────────────────────────────────────────────────
 // Métricas Gerais do Dashboard (fn_dashboard_metricas_gerais)
 // ─────────────────────────────────────────────────────
 
