@@ -1,34 +1,64 @@
 
-# Correção do overflow horizontal no mobile - Toolbar do Dashboard
+# Correção: Investimento não persiste valores no formulário
 
-## Problema
-No mobile, os 5 botões (Investimento, Exibição, Visualizações, Exportar, Fullscreen) ficam todos na mesma linha, ultrapassando 100% da largura da tela.
+## Problema Identificado
+
+Ao analisar o código e os requests de rede, confirmei que os dados **são salvos corretamente** no banco (a tabela `investimentos_marketing` retorna os valores por canal). Porém, o formulário do InvestModeWidget **não pré-preenche** os campos com os valores salvos ao reabrir ou editar. Isso dá a impressão de que nada foi salvo.
+
+**Causa raiz:** A função `buscarInvestimentoPeriodo` retorna apenas o valor total somado, descartando os valores individuais por canal (meta_ads, google_ads, outros). O widget de edição não tem acesso a esses valores para pré-preencher os campos.
 
 ## Solução
-Reorganizar o container dos botões de ação (linha 236 do `DashboardPage.tsx`) para que no mobile:
-- **Investimento** e **Exibição** ocupem a linha inteira (flex-wrap com cada um tomando ~50%)
-- **Visualizações**, **Exportar** e **Fullscreen** vão para uma segunda linha
 
-## Alteração Técnica
+### 1. Retornar valores por canal no invest_mode (relatorio.service.ts)
 
-**Arquivo:** `src/modules/app/pages/DashboardPage.tsx` (linhas 236-257)
+Modificar `buscarInvestimentoPeriodo` para retornar os valores individuais por canal alem do total:
 
-Substituir o `div` wrapper dos botões de ação por um layout com `flex-wrap` no mobile:
-
-```tsx
-<div className="flex items-center gap-2 flex-wrap">
-  {/* Primeira linha no mobile: Investimento + Exibição ocupam 100% */}
-  <div className="flex items-center gap-2 w-full sm:w-auto">
-    <InvestModeWidget data={relatorio} />
-    <DashboardDisplayConfig config={displayConfig} onToggle={toggleSection} />
-  </div>
-  {/* Segunda linha no mobile: 3 ícones */}
-  <div className="flex items-center gap-2">
-    <DashboardVisualizacoes ... />
-    <ExportarRelatorioPDF ... />
-    <FullscreenToggle ... />
-  </div>
-</div>
+```typescript
+// Antes: retorna apenas number | null
+// Depois: retorna { total, meta_ads, google_ads, outros } | null
 ```
 
-Isso garante que no mobile os botões quebrem em duas linhas, e no desktop (`sm:w-auto`) tudo fique na mesma linha como antes.
+### 2. Incluir breakdown por canal no tipo InvestMode (relatorio.types.ts)
+
+Adicionar campos opcionais `meta_ads`, `google_ads`, `outros` ao tipo `InvestMode` quando ativo:
+
+```typescript
+export type InvestMode =
+  | { ativo: false }
+  | {
+      ativo: true
+      total_investido: number
+      meta_ads: number    // NOVO
+      google_ads: number  // NOVO
+      outros: number      // NOVO
+      cpl: number | null
+      // ... demais campos
+    }
+```
+
+### 3. Pré-preencher formulário no InvestModeWidget
+
+No `handleEditar`, carregar os valores salvos do `investMode`:
+
+```typescript
+const handleEditar = () => {
+  setModoEdicao(true)
+  if (investMode.ativo) {
+    setMetaAds(String(investMode.meta_ads || ''))
+    setGoogleAds(String(investMode.google_ads || ''))
+    setOutros(String(investMode.outros || ''))
+  }
+}
+```
+
+## Arquivos Modificados
+
+| Arquivo | Alteracao |
+|---|---|
+| `src/modules/app/types/relatorio.types.ts` | Adicionar `meta_ads`, `google_ads`, `outros` ao InvestMode ativo |
+| `src/modules/app/services/relatorio.service.ts` | `buscarInvestimentoPeriodo` retorna valores por canal; `construirInvestMode` repassa os valores |
+| `src/modules/app/components/dashboard/InvestModeWidget.tsx` | `handleEditar` pré-preenche campos com valores salvos |
+
+## Impacto no Funil de Conversão
+
+O FunilConversao.tsx ja consome `data.invest_mode` corretamente. Como o problema era o investimento nao persistir visualmente (formulario vazio ao reabrir), uma vez que os valores estejam corretos no invest_mode e pre-preenchidos no formulario, o funil tambem refletira os dados corretamente.
