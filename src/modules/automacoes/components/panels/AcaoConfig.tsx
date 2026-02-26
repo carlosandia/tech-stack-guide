@@ -39,7 +39,7 @@ function VariavelInserter({ onInsert }: { onInsert: (v: string) => void }) {
         {aberto ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
       </button>
       {aberto && (
-        <div className="mt-1 border border-border rounded-md bg-white max-h-40 overflow-y-auto">
+        <div className="mt-1 border border-border rounded-md bg-popover max-h-40 overflow-y-auto">
           {categorias.map(cat => (
             <div key={cat}>
               <p className="text-[10px] font-semibold text-muted-foreground uppercase px-2 pt-1.5 pb-0.5">{cat}</p>
@@ -531,11 +531,11 @@ function CamposContextuais({ tipo, data, onUpdate }: { tipo: string; data: Recor
           />
           <div>
             <label className="text-xs font-medium text-muted-foreground">Número de destino</label>
-            <input type="text" value={config.destino || ''} onChange={e => updateConfig({ destino: e.target.value })} placeholder="{{contato.telefone}}" className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
+            <input type="text" value={config.destino || ''} onChange={e => updateConfig({ destino: e.target.value })} placeholder="{{contato.telefone}}" className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground">Tipo de conteúdo</label>
-            <select value={config.midia_tipo || 'texto'} onChange={e => updateConfig({ midia_tipo: e.target.value, midia_url: '' })} className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary">
+            <select value={config.midia_tipo || 'texto'} onChange={e => updateConfig({ midia_tipo: e.target.value, midia_url: '' })} className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary">
               <option value="texto">Texto</option>
               <option value="imagem">Imagem</option>
               <option value="audio">Áudio</option>
@@ -551,7 +551,7 @@ function CamposContextuais({ tipo, data, onUpdate }: { tipo: string; data: Recor
           )}
           <div>
             <label className="text-xs font-medium text-muted-foreground">{config.midia_tipo && config.midia_tipo !== 'texto' ? 'Legenda' : 'Mensagem'}</label>
-            <textarea value={config.mensagem || ''} onChange={e => updateConfig({ mensagem: e.target.value })} placeholder="Olá {{contato.nome}}, ..." rows={4} className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground resize-none" />
+            <textarea value={config.mensagem || ''} onChange={e => updateConfig({ mensagem: e.target.value })} placeholder="Olá {{contato.nome}}, ..." rows={4} className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground resize-none" />
             <VariavelInserter onInsert={v => appendToConfig('mensagem', v)} />
           </div>
         </div>
@@ -567,15 +567,15 @@ function CamposContextuais({ tipo, data, onUpdate }: { tipo: string; data: Recor
           />
           <div>
             <label className="text-xs font-medium text-muted-foreground">Para</label>
-            <input type="text" value={config.para || ''} onChange={e => updateConfig({ para: e.target.value })} placeholder="{{contato.email}}" className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
+            <input type="text" value={config.para || ''} onChange={e => updateConfig({ para: e.target.value })} placeholder="{{contato.email}}" className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground">Assunto</label>
-            <input type="text" value={config.assunto || ''} onChange={e => updateConfig({ assunto: e.target.value })} placeholder="Assunto do email" className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
+            <input type="text" value={config.assunto || ''} onChange={e => updateConfig({ assunto: e.target.value })} placeholder="Assunto do email" className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground">Corpo</label>
-            <textarea value={config.corpo || ''} onChange={e => updateConfig({ corpo: e.target.value })} rows={4} placeholder="Conteúdo do email..." className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground resize-none" />
+            <textarea value={config.corpo || ''} onChange={e => updateConfig({ corpo: e.target.value })} rows={4} placeholder="Conteúdo do email..." className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground resize-none" />
             <VariavelInserter onInsert={v => appendToConfig('corpo', v)} />
           </div>
           <label className="flex items-center gap-2 text-xs text-foreground cursor-pointer">
@@ -590,11 +590,11 @@ function CamposContextuais({ tipo, data, onUpdate }: { tipo: string; data: Recor
         <div className="space-y-3">
           <div>
             <label className="text-xs font-medium text-muted-foreground">Título</label>
-            <input type="text" value={config.titulo || ''} onChange={e => updateConfig({ titulo: e.target.value })} placeholder="Nova notificação" className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
+            <input type="text" value={config.titulo || ''} onChange={e => updateConfig({ titulo: e.target.value })} placeholder="Nova notificação" className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground">Mensagem</label>
-            <textarea value={config.mensagem || ''} onChange={e => updateConfig({ mensagem: e.target.value })} rows={3} placeholder="Conteúdo da notificação..." className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground resize-none" />
+            <textarea value={config.mensagem || ''} onChange={e => updateConfig({ mensagem: e.target.value })} rows={3} placeholder="Conteúdo da notificação..." className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground resize-none" />
             <VariavelInserter onInsert={v => appendToConfig('mensagem', v)} />
           </div>
         </div>
@@ -618,16 +618,16 @@ function CamposContextuais({ tipo, data, onUpdate }: { tipo: string; data: Recor
         <div className="space-y-3">
           <div>
             <label className="text-xs font-medium text-muted-foreground">Título da tarefa</label>
-            <input type="text" value={config.titulo || ''} onChange={e => updateConfig({ titulo: e.target.value })} placeholder="Follow-up com {{contato.nome}}" className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
+            <input type="text" value={config.titulo || ''} onChange={e => updateConfig({ titulo: e.target.value })} placeholder="Follow-up com {{contato.nome}}" className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
             <VariavelInserter onInsert={v => appendToConfig('titulo', v)} />
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground">Prazo (dias)</label>
-            <input type="number" min={1} value={config.prazo_dias || ''} onChange={e => updateConfig({ prazo_dias: e.target.value })} placeholder="3" className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
+            <input type="number" min={1} value={config.prazo_dias || ''} onChange={e => updateConfig({ prazo_dias: e.target.value })} placeholder="3" className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground">Descrição</label>
-            <textarea value={config.descricao || ''} onChange={e => updateConfig({ descricao: e.target.value })} rows={2} placeholder="Detalhes da tarefa..." className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground resize-none" />
+            <textarea value={config.descricao || ''} onChange={e => updateConfig({ descricao: e.target.value })} rows={2} placeholder="Detalhes da tarefa..." className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground resize-none" />
           </div>
         </div>
       )
@@ -637,7 +637,7 @@ function CamposContextuais({ tipo, data, onUpdate }: { tipo: string; data: Recor
         <div className="space-y-3">
           <div>
             <label className="text-xs font-medium text-muted-foreground">Título</label>
-            <input type="text" value={config.titulo || ''} onChange={e => updateConfig({ titulo: e.target.value })} placeholder="Oportunidade de {{contato.nome}}" className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
+            <input type="text" value={config.titulo || ''} onChange={e => updateConfig({ titulo: e.target.value })} placeholder="Oportunidade de {{contato.nome}}" className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
             <VariavelInserter onInsert={v => appendToConfig('titulo', v)} />
           </div>
           <FunilEtapaSelect
@@ -649,7 +649,7 @@ function CamposContextuais({ tipo, data, onUpdate }: { tipo: string; data: Recor
           />
           <div>
             <label className="text-xs font-medium text-muted-foreground">Valor (R$)</label>
-            <input type="number" min={0} value={config.valor || ''} onChange={e => updateConfig({ valor: e.target.value })} placeholder="0" className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
+            <input type="number" min={0} value={config.valor || ''} onChange={e => updateConfig({ valor: e.target.value })} placeholder="0" className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
           </div>
         </div>
       )
@@ -659,7 +659,7 @@ function CamposContextuais({ tipo, data, onUpdate }: { tipo: string; data: Recor
         <div className="space-y-3">
           <div>
             <label className="text-xs font-medium text-muted-foreground">Resultado</label>
-            <select value={config.resultado || ''} onChange={e => updateConfig({ resultado: e.target.value })} className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary">
+            <select value={config.resultado || ''} onChange={e => updateConfig({ resultado: e.target.value })} className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary">
               <option value="">Selecione...</option>
               <option value="ganho">Ganho</option>
               <option value="perda">Perda</option>
@@ -667,7 +667,7 @@ function CamposContextuais({ tipo, data, onUpdate }: { tipo: string; data: Recor
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground">Motivo (opcional)</label>
-            <input type="text" value={config.motivo || ''} onChange={e => updateConfig({ motivo: e.target.value })} placeholder="Motivo do resultado" className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
+            <input type="text" value={config.motivo || ''} onChange={e => updateConfig({ motivo: e.target.value })} placeholder="Motivo do resultado" className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground" />
           </div>
         </div>
       )
@@ -870,7 +870,7 @@ export function AcaoConfig({ data, onUpdate }: AcaoConfigProps) {
                     className={`
                       w-full text-left px-3 py-2 rounded-md text-sm transition-colors
                       ${currentTipo === a.tipo
-                        ? 'bg-green-50 text-green-700 border border-green-300'
+                        ? 'bg-green-500/10 text-green-500 border border-green-500/30'
                         : 'hover:bg-accent text-foreground border border-transparent'
                       }
                     `}

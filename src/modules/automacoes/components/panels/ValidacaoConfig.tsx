@@ -92,7 +92,7 @@ export function ValidacaoConfig({ data, onUpdate }: ValidacaoConfigProps) {
             <select
               value={cond.operador}
               onChange={e => updateCondicao(index, { operador: e.target.value })}
-              className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+              className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary"
             >
               <option value="">Selecione...</option>
               {VALIDACAO_OPERADORES.map(o => (
@@ -107,7 +107,7 @@ export function ValidacaoConfig({ data, onUpdate }: ValidacaoConfigProps) {
             <select
               value={cond.tipo_conteudo}
               onChange={e => updateCondicao(index, { tipo_conteudo: e.target.value })}
-              className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+              className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary"
             >
               <option value="">Qualquer</option>
               {VALIDACAO_TIPOS_CONTEUDO.map(t => (
@@ -132,7 +132,7 @@ export function ValidacaoConfig({ data, onUpdate }: ValidacaoConfigProps) {
                   updateCondicao(index, { valor: e.target.value })
                 }}
                 placeholder={cond.operador === 'expressao_regular' ? 'Ex: ^[0-9]+$' : 'Digite o valor...'}
-                className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
+                className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
               />
             </div>
           )}
@@ -147,7 +147,7 @@ export function ValidacaoConfig({ data, onUpdate }: ValidacaoConfigProps) {
                   value={cond.valor_min ?? ''}
                   onChange={e => updateCondicao(index, { valor_min: parseInt(e.target.value) || 0 })}
                   placeholder="1"
-                  className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
               <div className="flex-1">
@@ -157,7 +157,7 @@ export function ValidacaoConfig({ data, onUpdate }: ValidacaoConfigProps) {
                   value={cond.valor_max ?? ''}
                   onChange={e => updateCondicao(index, { valor_max: parseInt(e.target.value) || 0 })}
                   placeholder="10"
-                  className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
             </div>

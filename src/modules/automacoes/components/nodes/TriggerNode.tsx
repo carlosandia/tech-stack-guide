@@ -30,7 +30,7 @@ export const TriggerNode = memo(({ id, data, selected }: NodeProps) => {
     <div className="flex items-center group/node">
       <div
         className={`
-          relative bg-white rounded-lg border-2 shadow-sm min-w-[220px] max-w-[280px]
+          relative bg-card rounded-lg border-2 shadow-sm min-w-[220px] max-w-[280px]
           transition-all duration-200 cursor-pointer
           ${selected ? 'ring-2 ring-primary shadow-md border-primary' : 'border-primary/60 hover:shadow-md hover:border-primary'}
         `}
@@ -38,7 +38,7 @@ export const TriggerNode = memo(({ id, data, selected }: NodeProps) => {
         {/* Botão excluir */}
         <button
           onClick={handleDelete}
-          className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-white border border-border shadow-sm flex items-center justify-center opacity-0 group-hover/node:opacity-100 hover:bg-destructive hover:border-destructive hover:text-white text-muted-foreground transition-all duration-200 z-10"
+          className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-card border border-border shadow-sm flex items-center justify-center opacity-0 group-hover/node:opacity-100 hover:bg-destructive hover:border-destructive hover:text-white text-muted-foreground transition-all duration-200 z-10"
           title="Excluir nó"
         >
           <Trash2 className="w-3 h-3" />

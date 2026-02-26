@@ -107,7 +107,7 @@ export function CondicaoConfig({ data, onUpdate }: CondicaoConfigProps) {
             {index > 0 && (
               <div className="flex items-center gap-2 py-1">
                 <div className="flex-1 h-px bg-border" />
-                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider bg-white px-2">E (AND)</span>
+                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider bg-card px-2">E (AND)</span>
                 <div className="flex-1 h-px bg-border" />
               </div>
             )}
@@ -128,7 +128,7 @@ export function CondicaoConfig({ data, onUpdate }: CondicaoConfigProps) {
                 <select
                   value={regra.campo}
                   onChange={e => updateRegra(index, { campo: e.target.value })}
-                  className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary"
                 >
                   <option value="">Selecione...</option>
                   {Object.entries(gruposCampos).map(([grupo, campos]) => (
@@ -146,7 +146,7 @@ export function CondicaoConfig({ data, onUpdate }: CondicaoConfigProps) {
                 <select
                   value={regra.operador}
                   onChange={e => updateRegra(index, { operador: e.target.value })}
-                  className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary"
                 >
                   <option value="">Selecione...</option>
                   {OPERADORES.map(o => (
@@ -163,7 +163,7 @@ export function CondicaoConfig({ data, onUpdate }: CondicaoConfigProps) {
                     value={regra.valor}
                     onChange={e => updateRegra(index, { valor: e.target.value })}
                     placeholder="Digite o valor..."
-                    className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
+                    className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
                   />
                 </div>
               )}

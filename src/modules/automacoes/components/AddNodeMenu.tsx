@@ -11,10 +11,10 @@ interface AddNodeMenuProps {
 }
 
 const options = [
-  { type: 'acao' as const, label: 'Ação', icon: Play, color: 'text-green-600', bg: 'bg-green-50 hover:bg-green-100' },
-  { type: 'condicao' as const, label: 'Condição', icon: GitBranch, color: 'text-yellow-600', bg: 'bg-yellow-50 hover:bg-yellow-100' },
-  { type: 'validacao' as const, label: 'Validação', icon: ShieldCheck, color: 'text-violet-600', bg: 'bg-violet-50 hover:bg-violet-100' },
-  { type: 'delay' as const, label: 'Delay', icon: Timer, color: 'text-blue-500', bg: 'bg-blue-50 hover:bg-blue-100' },
+  { type: 'acao' as const, label: 'Ação', icon: Play, color: 'text-green-500', bg: 'bg-green-500/10 hover:bg-green-500/20' },
+  { type: 'condicao' as const, label: 'Condição', icon: GitBranch, color: 'text-yellow-500', bg: 'bg-yellow-500/10 hover:bg-yellow-500/20' },
+  { type: 'validacao' as const, label: 'Validação', icon: ShieldCheck, color: 'text-violet-500', bg: 'bg-violet-500/10 hover:bg-violet-500/20' },
+  { type: 'delay' as const, label: 'Delay', icon: Timer, color: 'text-blue-500', bg: 'bg-blue-500/10 hover:bg-blue-500/20' },
 ]
 
 export function AddNodeMenu({ position, onAdd, onClose }: AddNodeMenuProps) {
@@ -22,7 +22,7 @@ export function AddNodeMenu({ position, onAdd, onClose }: AddNodeMenuProps) {
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
       <div
-        className="absolute z-[9999] bg-white rounded-lg shadow-lg border border-border p-1.5 min-w-[160px]"
+        className="absolute z-[9999] bg-popover rounded-lg shadow-lg border border-border p-1.5 min-w-[160px]"
         style={{ left: position.x, top: position.y }}
       >
         <p className="text-xs font-medium text-muted-foreground px-2.5 py-1.5 uppercase tracking-wide">
