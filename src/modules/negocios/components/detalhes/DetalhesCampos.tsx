@@ -34,6 +34,7 @@ const CAMPOS_NATIVOS_OP = [
   { id: 'valor', label: 'Valor' },
   { id: 'responsavel', label: 'Responsável' },
   { id: 'previsao', label: 'Previsão de fechamento' },
+  { id: 'origem', label: 'Origem' },
 ]
 
 const STORAGE_KEY_CAMPOS = 'negocios_campos_visiveis'
@@ -703,6 +704,28 @@ export function DetalhesCampos({ oportunidade, membros }: DetalhesCamposProps) {
               onCancel={() => setEditingField(null)}
               inputType="date"
             />
+          )}
+
+          {/* Origem / Canal (read-only) */}
+          {isCampoVisivel('origem') && (
+            <div className="flex items-start gap-2">
+              <Globe className="w-3.5 h-3.5 text-muted-foreground mt-1 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] text-muted-foreground mb-0.5">Origem</p>
+                <p className="text-sm text-foreground">
+                  {oportunidade.origem
+                    ? oportunidade.origem.charAt(0).toUpperCase() + oportunidade.origem.slice(1).replace(/_/g, ' ')
+                    : '—'}
+                </p>
+                {oportunidade.utm_source && (
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    UTM: {oportunidade.utm_source}
+                    {oportunidade.utm_medium ? ` / ${oportunidade.utm_medium}` : ''}
+                    {oportunidade.utm_campaign ? ` / ${oportunidade.utm_campaign}` : ''}
+                  </p>
+                )}
+              </div>
+            </div>
           )}
 
           {/* Campos custom de oportunidade */}

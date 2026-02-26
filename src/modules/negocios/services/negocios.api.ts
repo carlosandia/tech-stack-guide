@@ -69,6 +69,10 @@ export interface Oportunidade {
   criado_em: string
   atualizado_em: string
   deletado_em?: string | null
+  origem?: string | null
+  utm_source?: string | null
+  utm_medium?: string | null
+  utm_campaign?: string | null
   // Campos enriquecidos
   contato?: {
     id: string
