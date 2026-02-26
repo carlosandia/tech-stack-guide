@@ -8358,6 +8358,10 @@ export type Database = {
         }
         Returns: Json
       }
+      fn_canal_match: {
+        Args: { p_canal: string; p_origem: string; p_utm_source: string }
+        Returns: boolean
+      }
       fn_dashboard_metricas_gerais: {
         Args: {
           p_funil_id?: string
