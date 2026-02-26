@@ -128,7 +128,7 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
       custo: custos.cac,
       custoLabel: 'CAC',
       extraInfo: custos.romi !== null ? `ROMI: ${custos.romi}%` : undefined,
-      tooltip: 'Negócios fechados com sucesso. Oportunidades que passaram por todo o funil e foram convertidas em vendas.',
+      tooltip: 'Negócios fechados com sucesso. Oportunidades que passaram por todo o funil e foram convertidas em vendas.\n\n• CAC (Custo de Aquisição de Cliente): quanto você investiu em média para conquistar cada cliente.\n• ROMI (Retorno sobre Investimento em Marketing): percentual de retorno financeiro sobre o valor investido em marketing. Positivo = lucro, negativo = prejuízo.',
     },
   ]
 
