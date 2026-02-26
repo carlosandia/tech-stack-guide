@@ -10,6 +10,8 @@ import { Mail, Send, ChevronDown, ChevronUp, Loader2, AlertCircle, CheckCircle2,
 import { toast } from 'sonner'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { useQuery } from '@tanstack/react-query'
+import { supabase } from '@/lib/supabase'
 import { useEmailsOportunidade, useCriarEmail, useConexaoEmail } from '../../hooks/useDetalhes'
 import { RichTextEditor } from '@/modules/configuracoes/components/editor/RichTextEditor'
 import type { EmailOportunidade } from '../../services/detalhes.api'
@@ -31,10 +33,38 @@ export function AbaEmail({ oportunidadeId, emailContato }: AbaEmailProps) {
   const criarEmail = useCriarEmail()
   const { data: conexaoEmail } = useConexaoEmail()
 
+  // AIDEV-NOTE: Buscar assinatura global de configuracoes_tenant
+  const { data: configAssinatura } = useQuery({
+    queryKey: ['config-tenant-assinatura'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('configuracoes_tenant')
+        .select('assinatura_mensagem, assinatura_incluir_novos')
+        .maybeSingle()
+      return data
+    },
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const buildSignatureHtml = useCallback(() => {
+    if (configAssinatura?.assinatura_mensagem && configAssinatura.assinatura_incluir_novos !== false) {
+      return `<br/><div class="email-signature" style="margin-top: 16px; padding-top: 12px; border-top: 1px solid #e5e7eb;">${configAssinatura.assinatura_mensagem}</div>`
+    }
+    return ''
+  }, [configAssinatura])
+
   const [showForm, setShowForm] = useState(false)
   const [destinatario, setDestinatario] = useState(emailContato || '')
   const [assunto, setAssunto] = useState('')
   const [corpo, setCorpo] = useState('')
+
+  // Injetar assinatura ao abrir o form
+  const handleToggleForm = useCallback(() => {
+    if (!showForm) {
+      setCorpo(buildSignatureHtml())
+    }
+    setShowForm(!showForm)
+  }, [showForm, buildSignatureHtml])
 
   const smtpConectado = conexaoEmail?.conectado === true
   const emailRemetente = conexaoEmail?.email
@@ -78,7 +108,7 @@ export function AbaEmail({ oportunidadeId, emailContato }: AbaEmailProps) {
       {/* Botão compor */}
       <button
         type="button"
-        onClick={() => setShowForm(!showForm)}
+        onClick={handleToggleForm}
         className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
       >
         <Send className="w-3.5 h-3.5" />
