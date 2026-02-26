@@ -372,7 +372,7 @@ export function ContatoDrawer({ conversa, isOpen, onClose, onInsertQuickReply, o
 
       {/* Drawer - mobile fullscreen (GAP 5) */}
       <div className={`
-        fixed right-0 top-0 bottom-0 z-[301] w-full sm:w-[320px] bg-white border-l border-border
+        fixed right-0 top-0 bottom-0 z-[301] w-full sm:w-[320px] bg-background border-l border-border
         transform transition-transform duration-300 ease-in-out
         lg:relative lg:z-auto lg:transform-none
         ${isOpen ? 'translate-x-0' : 'translate-x-full'}

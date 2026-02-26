@@ -98,7 +98,7 @@ export const AnexosMenu = forwardRef<HTMLDivElement, AnexosMenuProps>(function A
       <div className="fixed inset-0 z-[300]" onClick={onClose} />
 
       {/* Menu popup — fundo sólido, sem transparência */}
-      <div className="absolute bottom-full left-0 mb-1 z-[301] bg-white border border-border rounded-lg shadow-xl w-56">
+      <div className="absolute bottom-full left-0 mb-1 z-[301] bg-popover border border-border rounded-lg shadow-xl w-56">
         {/* Header */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-border/50">
           <span className="text-xs font-medium text-foreground">Anexar</span>

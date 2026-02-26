@@ -77,7 +77,7 @@ export const MensagensProntasPopover = forwardRef<HTMLDivElement, MensagensPront
   return (
     <>
       <div className="fixed inset-0 z-[300]" onClick={onClose} />
-      <div className="absolute bottom-full left-2 right-2 mb-1 z-[301] bg-white border border-border rounded-lg shadow-xl max-h-[70vh] sm:max-h-[360px] flex flex-col">
+      <div className="absolute bottom-full left-2 right-2 mb-1 z-[301] bg-popover border border-border rounded-lg shadow-xl max-h-[70vh] sm:max-h-[360px] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-border/50">
           <div className="flex items-center gap-1.5 text-xs font-medium text-foreground">
