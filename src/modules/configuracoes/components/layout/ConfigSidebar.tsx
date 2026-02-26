@@ -108,7 +108,7 @@ export function ConfigSidebar({ isAdmin }: ConfigSidebarProps) {
   const visibleGroups = sidebarGroups.filter(g => !g.adminOnly || isAdmin)
 
   return (
-    <aside className="hidden lg:flex flex-col w-60 fixed left-0 top-14 bottom-0 bg-white border-r border-gray-200/60 overflow-y-auto z-40">
+    <aside className="hidden lg:flex flex-col w-60 fixed left-0 top-14 bottom-0 bg-background border-r border-border/60 overflow-y-auto z-40">
       {/* Grupos de navegação */}
       <nav className="flex-1 px-3 pt-5 pb-4 space-y-5">
         {visibleGroups.map(group => (
