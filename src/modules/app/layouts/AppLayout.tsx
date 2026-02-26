@@ -1,5 +1,6 @@
 import { useState, useEffect, forwardRef } from 'react'
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
+import { useTheme } from '@/providers/ThemeProvider'
 import { useAuth } from '@/providers/AuthProvider'
 import { useModulosTenant } from '@/hooks/useModulosTenant'
 import { useBlockedRedirect } from '@/hooks/useBlockedRedirect'
@@ -11,6 +12,7 @@ import { NotificacoesSino } from '@/modules/feedback/components/NotificacoesSino
 import { ImpersonationBanner } from '@/components/ImpersonationBanner'
 import { useParceiroStatus } from '@/hooks/useParceiroStatus'
 import { EmblemaParceiroNivel } from '@/modules/admin/components/EmblemaParceiroNivel'
+import { Switch } from '@/components/ui/switch'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -40,6 +42,8 @@ import {
   Wrench,
   Megaphone,
   Send,
+  Moon,
+  Sun,
 } from 'lucide-react'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 
@@ -288,6 +292,8 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
   const [drawerOpen, setDrawerOpen] = useState(false)
   const { data: modulosAtivos } = useModulosTenant()
   const parceiroStatus = useParceiroStatus()
+  const { resolvedTheme, setTheme } = useTheme()
+  const isDark = resolvedTheme === 'dark'
 
   // Salvar última rota do CRM para o botão "Voltar" das Configurações
   useEffect(() => {
@@ -334,12 +340,12 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
       {/* Mobile drawer — agrupado por Hub */}
       <div
         className={`
-          fixed inset-y-0 left-0 z-[300] w-64 bg-white/95 backdrop-blur-md border-r border-gray-200/60
+          fixed inset-y-0 left-0 z-[300] w-64 bg-background/95 backdrop-blur-md border-r border-border/60
           transform transition-transform duration-200 ease-in-out md:hidden
           ${drawerOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
       >
-        <div className="flex h-14 items-center justify-between px-4 border-b border-gray-200/60">
+        <div className="flex h-14 items-center justify-between px-4 border-b border-border/60">
           <div className="flex items-center gap-2">
             <img src={renoveLogo} alt="Renove" className="h-7" />
           </div>
@@ -471,7 +477,17 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
           )}
         </nav>
 
-        <div className="absolute bottom-0 left-0 right-0 px-4 pt-3 pb-3">
+        <div className="absolute bottom-0 left-0 right-0 px-4 pt-3 pb-3 space-y-2 border-t border-border/60">
+          <div
+            className="flex items-center justify-between px-3 py-2.5 rounded-md text-sm font-medium text-muted-foreground cursor-pointer hover:bg-accent transition-all duration-200"
+            onClick={() => setTheme(isDark ? 'light' : 'dark')}
+          >
+            <div className="flex items-center gap-3">
+              {isDark ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+              Tema Escuro
+            </div>
+            <Switch checked={isDark} onCheckedChange={(v) => setTheme(v ? 'dark' : 'light')} />
+          </div>
           <button
             onClick={handleLogout}
             className="flex items-center gap-3 w-full px-3 py-2.5 rounded-md text-sm font-medium text-destructive/80 bg-destructive/5 hover:bg-destructive/10 hover:text-destructive transition-all duration-200"
@@ -484,7 +500,7 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
 
       {/* Header fixo - 56px - Glass Effect */}
       {!hideHeader && (
-        <header className="flex-shrink-0 z-[100] h-14 bg-white/80 backdrop-blur-md border-b border-gray-200/60">
+        <header className="flex-shrink-0 z-[100] h-14 bg-background/80 backdrop-blur-md border-b border-border/60">
           <div className="flex items-center justify-between h-full px-4 lg:px-6">
             {/* Left: Logo + Navigation */}
             <div className="flex items-center gap-4 lg:gap-6">
@@ -588,6 +604,21 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
                     <User className="w-4 h-4 mr-2" />
                     Meu Perfil
                   </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="cursor-pointer"
+                    onSelect={(e) => {
+                      e.preventDefault()
+                      setTheme(isDark ? 'light' : 'dark')
+                    }}
+                  >
+                    {isDark ? <Moon className="w-4 h-4 mr-2" /> : <Sun className="w-4 h-4 mr-2" />}
+                    Tema Escuro
+                    <Switch
+                      checked={isDark}
+                      className="ml-auto"
+                      onCheckedChange={(v) => setTheme(v ? 'dark' : 'light')}
+                    />
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
                     <LogOut className="w-4 h-4 mr-2" />
                     Sair
@@ -616,7 +647,7 @@ const ToolbarWithActions = forwardRef<HTMLDivElement, { pageTitle: string }>(fun
   const { actions, subtitle, centerContent } = useAppToolbar()
 
   return (
-    <div ref={ref} className="flex-shrink-0 z-50 bg-gray-50/50 backdrop-blur-sm border-b border-gray-200/60">
+    <div ref={ref} className="flex-shrink-0 z-50 bg-muted/50 backdrop-blur-sm border-b border-border/60">
       <div className={`flex items-center justify-between min-h-[48px] px-3 sm:px-4 lg:px-6 py-1.5 gap-1.5 ${centerContent ? 'flex-wrap' : ''}`}>
         <div className="flex items-center gap-1.5 min-w-0 flex-shrink-0">
           <h1 className="text-sm sm:text-base font-semibold text-foreground whitespace-nowrap hidden sm:block">

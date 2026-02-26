@@ -6,6 +6,7 @@ import { BrowserRouter } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import { QueryProvider } from '@/providers/QueryProvider'
 import { AuthProvider } from '@/providers/AuthProvider'
+import { ThemeProvider } from '@/providers/ThemeProvider'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import App from './App'
 import './index.css'
@@ -20,22 +21,24 @@ import './index.css'
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      <QueryProvider>
-        <ErrorBoundary>
-          <AuthProvider>
-            <App />
-            <Toaster
-              position="top-right"
-              richColors
-              closeButton
-              toastOptions={{
-                duration: 4000,
-                className: 'text-sm',
-              }}
-            />
-          </AuthProvider>
-        </ErrorBoundary>
-      </QueryProvider>
+      <ThemeProvider>
+        <QueryProvider>
+          <ErrorBoundary>
+            <AuthProvider>
+              <App />
+              <Toaster
+                position="top-right"
+                richColors
+                closeButton
+                toastOptions={{
+                  duration: 4000,
+                  className: 'text-sm',
+                }}
+              />
+            </AuthProvider>
+          </ErrorBoundary>
+        </QueryProvider>
+      </ThemeProvider>
     </BrowserRouter>
   </StrictMode>,
 )

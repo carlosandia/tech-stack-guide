@@ -43,7 +43,7 @@ export function ConfigHeader({ onMenuClick }: ConfigHeaderProps) {
   }
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-[100] h-14 bg-white/80 backdrop-blur-md border-b border-gray-200/60">
+    <header className="fixed top-0 left-0 right-0 z-[100] h-14 bg-background/80 backdrop-blur-md border-b border-border/60">
       <div className="flex items-center justify-between h-full px-4 lg:px-6 max-w-[1920px] mx-auto">
         {/* Left: Mobile menu + Back + Title */}
         <div className="flex items-center gap-4">

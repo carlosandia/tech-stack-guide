@@ -30,12 +30,12 @@ export function ConfigMobileDrawer({ open, onClose, isAdmin, onLogout }: ConfigM
       {/* Drawer */}
       <div
         className={`
-          fixed inset-y-0 left-0 z-[300] w-64 bg-white/95 backdrop-blur-md border-r border-gray-200/60
+          fixed inset-y-0 left-0 z-[300] w-64 bg-background/95 backdrop-blur-md border-r border-border/60
           transform transition-transform duration-200 ease-in-out lg:hidden
           ${open ? 'translate-x-0' : '-translate-x-full'}
         `}
       >
-        <div className="flex h-14 items-center justify-between px-4 border-b border-gray-200/60">
+        <div className="flex h-14 items-center justify-between px-4 border-b border-border/60">
           <span className="font-semibold text-foreground">Configurações</span>
           <button onClick={onClose} className="p-1 hover:bg-accent rounded-md">
             <X className="w-5 h-5 text-muted-foreground" />
@@ -78,7 +78,7 @@ export function ConfigMobileDrawer({ open, onClose, isAdmin, onLogout }: ConfigM
           </nav>
         </div>
 
-        <div className="shrink-0 p-4 border-t border-gray-200/60">
+        <div className="shrink-0 p-4 border-t border-border/60">
           <button
             onClick={onLogout}
             className="flex items-center gap-3 w-full px-3 py-2.5 rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-all duration-200"
