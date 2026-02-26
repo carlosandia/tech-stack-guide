@@ -1,36 +1,66 @@
 
-
-# Linha Visual de Horario Comercial no Heatmap
+# Filtro de Tipo de Conversa no Heatmap de Pico de Atendimento
 
 ## Objetivo
 
-Adicionar uma indicacao visual sutil no heatmap de Pico de Atendimento que diferencie **horario comercial** de **fora do expediente**, com base nas configuracoes do tenant (`horario_comercial_inicio`, `horario_comercial_fim` e `dias_uteis`).
+Permitir que o usuario filtre o heatmap por tipo de conversa: **Individual**, **Grupo** ou **Todos** (ambos). Isso exclui ou inclui conversas de grupo do WhatsApp na analise de pico.
 
-## Abordagem Visual
+## Como funciona no banco
 
-- **Celulas fora do horario comercial**: recebem `opacity-40` (reduzidas visualmente) e um fundo levemente diferente quando vazias (`bg-muted/10` ao inves de `bg-muted/30`)
-- **Celulas dentro do horario comercial**: permanecem como estao (100% opacidade)
-- **Linha divisoria vertical sutil**: bordas `border-l` com cor `border-border` nas colunas correspondentes ao inicio e fim do horario comercial, criando uma "faixa" visual
-- **Dias nao uteis** (ex: Sab/Dom se nao configurados): linha inteira com opacidade reduzida
-- **Legenda no footer**: pequeno indicador "Horario comercial: 08h-18h" ao lado da legenda de cores existente
+A tabela `conversas` possui a coluna `tipo` com valores: `'individual'`, `'grupo'` e `'canal'`. A funcao SQL `fn_heatmap_atendimento` ja faz JOIN com `conversas` mas nao filtra por `tipo`.
 
-## Dados Utilizados
+## Alteracoes
 
-O hook `useConfigTenant` (ja existente) retorna `horario_comercial_inicio` (ex: "08:00"), `horario_comercial_fim` (ex: "18:00") e `dias_uteis` (ex: `[1,2,3,4,5]`). Defaults: 08:00-18:00, Seg-Sex.
+### 1. Alterar a funcao SQL `fn_heatmap_atendimento`
 
-## Arquivo Modificado
+Adicionar parametro `p_tipo text DEFAULT NULL` e filtro `AND (p_tipo IS NULL OR c.tipo = p_tipo)`. Manter exclusao de `tipo = 'canal'` (newsletters) quando `p_tipo` for NULL.
 
-**`src/modules/app/components/dashboard/HeatmapAtendimento.tsx`**
+Nova migration:
 
-Alteracoes:
-1. Importar `useConfigTenant` do modulo de configuracoes
-2. Extrair `horaInicio` e `horaFim` (parse do "HH:MM" para numero inteiro da hora)
-3. Extrair `diasUteis` (array de numeros 0-6)
-4. Na renderizacao de cada celula, verificar se `hora >= horaInicio && hora < horaFim && diasUteis.includes(dia)` — se **fora**, aplicar `opacity-40`
-5. Nas colunas de hora do header, adicionar `border-l-2 border-primary/20` na hora de inicio e `border-r-2 border-primary/20` na hora de fim para criar a faixa visual
-6. No footer, adicionar texto indicativo: "Horario comercial: 08h–18h · Seg a Sex"
+```sql
+CREATE OR REPLACE FUNCTION public.fn_heatmap_atendimento(
+  p_organizacao_id uuid,
+  p_periodo_inicio timestamptz,
+  p_periodo_fim timestamptz,
+  p_canal text DEFAULT NULL,
+  p_tipo text DEFAULT NULL
+)
+RETURNS TABLE(dia_semana int, hora int, total bigint)
+...
+WHERE ...
+  AND c.tipo != 'canal'
+  AND (p_tipo IS NULL OR c.tipo = p_tipo)
+```
 
-## Resultado Esperado
+### 2. Atualizar `relatorio.service.ts`
 
-O usuario visualiza claramente que as conversas fora do expediente aparecem "esmaecidas", enquanto o horario comercial fica em destaque natural — sem poluir a interface, apenas reduzindo a enfase visual do que esta fora do horario configurado.
+Adicionar parametro `tipo?: string` em `fetchHeatmapAtendimento` e passar como `p_tipo` no RPC.
 
+### 3. Atualizar hook `useHeatmapAtendimento`
+
+Adicionar parametro `tipo` na queryKey e na chamada do service.
+
+### 4. Atualizar `HeatmapAtendimento.tsx`
+
+Adicionar um segundo grupo de botoes (pills) para filtrar por tipo:
+- **Todos** (default) - mostra individual + grupo
+- **Individual** - apenas conversas individuais
+- **Grupo** - apenas conversas de grupo
+
+Layout: os botoes de tipo ficam ao lado dos botoes de canal existentes (Todos/WhatsApp/Instagram), separados por um divisor sutil.
+
+### 5. Atualizar tipos Supabase
+
+Adicionar `p_tipo` nos Args de `fn_heatmap_atendimento` em `types.ts`.
+
+## Arquivos Modificados
+
+1. **Nova migration SQL** - adiciona `p_tipo` a funcao
+2. **`src/modules/app/services/relatorio.service.ts`** - parametro `tipo`
+3. **`src/modules/app/hooks/useRelatorioFunil.ts`** - parametro `tipo` no hook
+4. **`src/modules/app/components/dashboard/HeatmapAtendimento.tsx`** - filtro de pills
+5. **`src/integrations/supabase/types.ts`** - tipo atualizado
+
+## Resultado
+
+O usuario tera controle granular para analisar picos de atendimento separando conversas individuais de grupos, mantendo a interface limpa com pills de filtro consistentes com o design atual.
