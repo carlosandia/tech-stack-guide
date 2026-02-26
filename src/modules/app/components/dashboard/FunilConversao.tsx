@@ -1,10 +1,10 @@
 /**
  * AIDEV-NOTE: Funil de Conversão visual (PRD-18)
- * 5 blocos: Leads → MQLs → SQLs → Reuniões → Ganhos
+ * 6 blocos: Leads → MQLs → SQLs → Reuniões Agendadas → Reuniões Realizadas → Ganhos
  * Com taxas de conversão e custos de investimento integrados
  */
 
-import { ArrowRight, Users, Target, UserCheck, Calendar, Trophy, Info, DollarSign } from 'lucide-react'
+import { ArrowRight, Users, Target, UserCheck, CalendarPlus, CalendarCheck, Trophy, Info, DollarSign } from 'lucide-react'
 import type { RelatorioFunilResponse, InvestMode } from '../../types/relatorio.types'
 
 interface FunilConversaoProps {
@@ -22,7 +22,7 @@ interface EtapaFunil {
   dica: string
   custo: number | null
   custoLabel: string
-  extraInfo?: string // ROMI para Ganhos
+  extraInfo?: string
 }
 
 function formatarMoeda(valor: number): string {
@@ -31,13 +31,14 @@ function formatarMoeda(valor: number): string {
 
 function getCustos(investMode: InvestMode) {
   if (!investMode.ativo) {
-    return { cpl: null, cpmql: null, custoSql: null, custoReuniao: null, cac: null, romi: null }
+    return { cpl: null, cpmql: null, custoSql: null, custoReuniaoAgendada: null, custoReuniaoRealizada: null, cac: null, romi: null }
   }
   return {
     cpl: investMode.cpl,
     cpmql: investMode.cpmql,
     custoSql: investMode.custo_por_sql,
-    custoReuniao: investMode.custo_por_reuniao,
+    custoReuniaoAgendada: investMode.custo_por_reuniao_agendada,
+    custoReuniaoRealizada: investMode.custo_por_reuniao_realizada,
     cac: investMode.cac,
     romi: investMode.romi,
   }
@@ -85,16 +86,28 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
       custoLabel: 'Custo/SQL',
     },
     {
-      label: 'Reuniões',
-      value: data.funil.reunioes,
-      icon: Calendar,
+      label: 'R. Agendadas',
+      value: data.funil.reunioes_agendadas,
+      icon: CalendarPlus,
       color: 'text-amber-500',
       bgColor: 'bg-amber-500/10 border-amber-500/20',
-      taxa: data.conversoes.sql_para_reuniao,
-      taxaLabel: data.conversoes.sql_para_reuniao ? `${data.conversoes.sql_para_reuniao}%` : '—',
-      dica: 'Reuniões concluídas no período',
-      custo: custos.custoReuniao,
-      custoLabel: 'Custo/Reunião',
+      taxa: data.conversoes.sql_para_reuniao_agendada,
+      taxaLabel: data.conversoes.sql_para_reuniao_agendada ? `${data.conversoes.sql_para_reuniao_agendada}%` : '—',
+      dica: 'Reuniões agendadas no período',
+      custo: custos.custoReuniaoAgendada,
+      custoLabel: 'Custo/Agendada',
+    },
+    {
+      label: 'R. Realizadas',
+      value: data.funil.reunioes_realizadas,
+      icon: CalendarCheck,
+      color: 'text-orange-500',
+      bgColor: 'bg-orange-500/10 border-orange-500/20',
+      taxa: data.conversoes.reuniao_agendada_para_realizada,
+      taxaLabel: data.conversoes.reuniao_agendada_para_realizada ? `${data.conversoes.reuniao_agendada_para_realizada}%` : '—',
+      dica: 'Reuniões realizadas no período',
+      custo: custos.custoReuniaoRealizada,
+      custoLabel: 'Custo/Realizada',
     },
     {
       label: 'Ganhos',
@@ -102,8 +115,8 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
       icon: Trophy,
       color: 'text-emerald-500',
       bgColor: 'bg-emerald-500/10 border-emerald-500/20',
-      taxa: data.conversoes.reuniao_para_fechado,
-      taxaLabel: data.conversoes.reuniao_para_fechado ? `${data.conversoes.reuniao_para_fechado}%` : '—',
+      taxa: data.conversoes.reuniao_realizada_para_fechado,
+      taxaLabel: data.conversoes.reuniao_realizada_para_fechado ? `${data.conversoes.reuniao_realizada_para_fechado}%` : '—',
       dica: 'Negócios fechados como ganhos',
       custo: custos.cac,
       custoLabel: 'CAC',
@@ -117,11 +130,9 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
   return (
     <div className="bg-card border border-border rounded-xl p-6">
       <div className="flex items-center justify-between mb-6">
-        <div>
-          <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
-            Funil de Conversão
-          </h3>
-        </div>
+        <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+          Funil de Conversão
+        </h3>
         <div className="flex items-center gap-2">
           {totalInvestido !== null && (
             <div className="flex items-center gap-1.5 px-3 py-1 bg-primary/10 rounded-full">
@@ -142,25 +153,25 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
       </div>
 
       {/* Desktop: horizontal */}
-      <div className="hidden md:flex items-stretch gap-2">
+      <div className="hidden lg:flex items-stretch gap-1.5">
         {etapas.map((etapa, index) => {
           const Icon = etapa.icon
           return (
-            <div key={etapa.label} className="flex items-center gap-2 flex-1">
-              <div className={`flex-1 border rounded-xl p-4 ${etapa.bgColor} transition-all hover:shadow-md`}>
-                <div className="flex items-center gap-2 mb-3">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${etapa.bgColor}`}>
-                    <Icon className={`w-4 h-4 ${etapa.color}`} />
+            <div key={etapa.label} className="flex items-center gap-1.5 flex-1">
+              <div className={`flex-1 border rounded-xl p-3 ${etapa.bgColor} transition-all hover:shadow-md`}>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${etapa.bgColor}`}>
+                    <Icon className={`w-3.5 h-3.5 ${etapa.color}`} />
                   </div>
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
                     {etapa.label}
                   </span>
                 </div>
-                <p className={`text-2xl font-bold ${etapa.color}`}>
+                <p className={`text-xl font-bold ${etapa.color}`}>
                   {etapa.value.toLocaleString('pt-BR')}
                 </p>
                 {index > 0 && (
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
                     {etapa.taxaLabel} conversão
                   </p>
                 )}
@@ -169,14 +180,14 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
                 {investAtivo && (
                   <div className="mt-2 pt-2 border-t border-border/50">
                     <div className="flex items-center gap-1">
-                      <DollarSign className="w-3 h-3 text-muted-foreground" />
-                      <span className="text-[10px] text-muted-foreground uppercase tracking-wide">{etapa.custoLabel}</span>
+                      <DollarSign className="w-2.5 h-2.5 text-muted-foreground" />
+                      <span className="text-[9px] text-muted-foreground uppercase tracking-wide">{etapa.custoLabel}</span>
                     </div>
-                    <p className="text-xs font-semibold text-foreground mt-0.5">
+                    <p className="text-[11px] font-semibold text-foreground mt-0.5">
                       {etapa.custo !== null ? formatarMoeda(etapa.custo) : '—'}
                     </p>
                     {etapa.extraInfo && (
-                      <p className={`text-xs font-bold mt-1 ${custos.romi !== null && custos.romi > 0 ? 'text-emerald-500' : 'text-destructive'}`}>
+                      <p className={`text-[11px] font-bold mt-0.5 ${custos.romi !== null && custos.romi > 0 ? 'text-emerald-500' : 'text-destructive'}`}>
                         {etapa.extraInfo}
                       </p>
                     )}
@@ -184,19 +195,19 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
                 )}
 
                 {etapa.value === 0 && !investAtivo && (
-                  <div className="flex items-start gap-1 mt-2 p-2 bg-background/50 rounded-md">
+                  <div className="flex items-start gap-1 mt-2 p-1.5 bg-background/50 rounded-md">
                     <Info className="w-3 h-3 text-muted-foreground mt-0.5 shrink-0" />
-                    <span className="text-[10px] text-muted-foreground leading-tight">
+                    <span className="text-[9px] text-muted-foreground leading-tight">
                       {etapa.dica}
                     </span>
                   </div>
                 )}
               </div>
               {index < etapas.length - 1 && (
-                <div className="flex flex-col items-center justify-center">
-                  <ArrowRight className="w-4 h-4 text-muted-foreground/50" />
+                <div className="flex flex-col items-center justify-center shrink-0">
+                  <ArrowRight className="w-3.5 h-3.5 text-muted-foreground/50" />
                   {etapas[index + 1].taxa !== null && (
-                    <span className="text-[10px] font-semibold text-muted-foreground mt-0.5">
+                    <span className="text-[9px] font-semibold text-muted-foreground mt-0.5">
                       {etapas[index + 1].taxaLabel}
                     </span>
                   )}
@@ -208,7 +219,7 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
       </div>
 
       {/* Mobile: vertical cards */}
-      <div className="md:hidden space-y-3">
+      <div className="lg:hidden space-y-3">
         {etapas.map((etapa, index) => {
           const Icon = etapa.icon
           return (

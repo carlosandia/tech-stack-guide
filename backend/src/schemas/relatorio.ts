@@ -27,6 +27,8 @@ export const MetricasBrutasSchema = z.object({
   total_leads: z.number(),
   mqls: z.number(),
   sqls: z.number(),
+  reunioes_agendadas: z.number(),
+  reunioes_realizadas: z.number(),
   reunioes: z.number(),
   fechados: z.number(),
   valor_gerado: z.number(),
@@ -63,15 +65,17 @@ export const RelatorioFunilResponseSchema = z.object({
     total_leads: z.number(),
     mqls: z.number(),
     sqls: z.number(),
-    reunioes: z.number(),
+    reunioes_agendadas: z.number(),
+    reunioes_realizadas: z.number(),
     fechados: z.number(),
   }),
   conversoes: z.object({
-    lead_para_mql: z.number().nullable(),        // %
-    mql_para_sql: z.number().nullable(),         // %
-    sql_para_reuniao: z.number().nullable(),     // %
-    reuniao_para_fechado: z.number().nullable(), // %
-    lead_para_fechado: z.number().nullable(),    // %
+    lead_para_mql: z.number().nullable(),
+    mql_para_sql: z.number().nullable(),
+    sql_para_reuniao_agendada: z.number().nullable(),
+    reuniao_agendada_para_realizada: z.number().nullable(),
+    reuniao_realizada_para_fechado: z.number().nullable(),
+    lead_para_fechado: z.number().nullable(),
   }),
   kpis: z.object({
     ticket_medio: z.number(),
@@ -95,7 +99,8 @@ export const RelatorioFunilResponseSchema = z.object({
     cpl: z.number().nullable(),
     cpmql: z.number().nullable(),
     custo_por_sql: z.number().nullable(),
-    custo_por_reuniao: z.number().nullable(),
+    custo_por_reuniao_agendada: z.number().nullable(),
+    custo_por_reuniao_realizada: z.number().nullable(),
     cac: z.number().nullable(),
     romi: z.number().nullable(),
   })),

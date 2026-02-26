@@ -25,7 +25,9 @@ export interface MetricasBrutas {
   total_leads: number
   mqls: number
   sqls: number
-  reunioes: number
+  reunioes_agendadas: number
+  reunioes_realizadas: number
+  reunioes: number // compatibilidade (= realizadas)
   fechados: number
   valor_gerado: number
   ticket_medio: number
@@ -58,7 +60,8 @@ export type InvestMode =
       cpl: number | null
       cpmql: number | null
       custo_por_sql: number | null
-      custo_por_reuniao: number | null
+      custo_por_reuniao_agendada: number | null
+      custo_por_reuniao_realizada: number | null
       cac: number | null
       romi: number | null
     }
@@ -78,14 +81,16 @@ export interface RelatorioFunilResponse {
     total_leads: number
     mqls: number
     sqls: number
-    reunioes: number
+    reunioes_agendadas: number
+    reunioes_realizadas: number
     fechados: number
   }
   conversoes: {
     lead_para_mql: number | null
     mql_para_sql: number | null
-    sql_para_reuniao: number | null
-    reuniao_para_fechado: number | null
+    sql_para_reuniao_agendada: number | null
+    reuniao_agendada_para_realizada: number | null
+    reuniao_realizada_para_fechado: number | null
     lead_para_fechado: number | null
   }
   kpis: {
