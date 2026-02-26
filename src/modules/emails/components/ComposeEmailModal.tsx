@@ -101,7 +101,7 @@ export const ComposeEmailModal = React.forwardRef<HTMLDivElement, ComposeEmailMo
     queryFn: async () => {
       const { data } = await supabase
         .from('configuracoes_tenant')
-        .select('assinatura_mensagem')
+        .select('assinatura_mensagem, assinatura_incluir_novos, assinatura_incluir_respostas')
         .maybeSingle()
       return data
     },
@@ -155,11 +155,20 @@ export const ComposeEmailModal = React.forwardRef<HTMLDivElement, ComposeEmailMo
     const defaultBody = defaults?.corpo_html || ''
     let signatureHtml = ''
 
+    const isNewEmail = mode === 'novo'
+    const isReplyOrForward = mode === 'responder' || mode === 'responder_todos' || mode === 'encaminhar'
+
     if (configTenantAssinatura?.assinatura_mensagem) {
-      signatureHtml = `<br/><div class="email-signature" style="margin-top: 16px; padding-top: 12px; border-top: 1px solid #e5e7eb;">${configTenantAssinatura.assinatura_mensagem}</div>`
+      const shouldInclude =
+        (isNewEmail && configTenantAssinatura.assinatura_incluir_novos !== false) ||
+        (isReplyOrForward && configTenantAssinatura.assinatura_incluir_respostas !== false)
+
+      if (shouldInclude) {
+        signatureHtml = `<br/><div class="email-signature" style="margin-top: 16px; padding-top: 12px; border-top: 1px solid #e5e7eb;">${configTenantAssinatura.assinatura_mensagem}</div>`
+      }
     }
 
-    if (mode === 'novo') return signatureHtml
+    if (isNewEmail) return signatureHtml
     return signatureHtml + defaultBody
   }
 
