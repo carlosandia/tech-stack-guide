@@ -4,7 +4,8 @@
  * Com taxas de conversão e custos de investimento integrados
  */
 
-import { ArrowRight, Users, Target, UserCheck, CalendarPlus, CalendarCheck, Trophy, Info, DollarSign } from 'lucide-react'
+import { ArrowRight, Users, Target, UserCheck, CalendarPlus, CalendarCheck, Trophy, Info, DollarSign, HelpCircle } from 'lucide-react'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import type { RelatorioFunilResponse, InvestMode } from '../../types/relatorio.types'
 
 interface FunilConversaoProps {
@@ -23,6 +24,7 @@ interface EtapaFunil {
   custo: number | null
   custoLabel: string
   extraInfo?: string
+  tooltip: string
 }
 
 function formatarMoeda(valor: number): string {
@@ -60,6 +62,7 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
       dica: 'Oportunidades criadas no período e funil selecionado',
       custo: custos.cpl,
       custoLabel: 'CPL',
+      tooltip: 'Total de oportunidades criadas no período e funil selecionado. Representa o topo do funil.',
     },
     {
       label: 'MQLs',
@@ -72,6 +75,7 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
       dica: 'Leads qualificados como Marketing Qualified Lead',
       custo: custos.cpmql,
       custoLabel: 'Custo/MQL',
+      tooltip: 'Marketing Qualified Leads. Oportunidades que atenderam os critérios de qualificação configurados e se tornaram leads qualificados para marketing.',
     },
     {
       label: 'SQLs',
@@ -84,6 +88,7 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
       dica: 'Leads qualificados como Sales Qualified Lead',
       custo: custos.custoSql,
       custoLabel: 'Custo/SQL',
+      tooltip: 'Sales Qualified Leads. Leads que foram validados pela equipe comercial como prontos para abordagem de vendas.',
     },
     {
       label: 'R. Agendadas',
@@ -96,6 +101,7 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
       dica: 'Reuniões agendadas no período',
       custo: custos.custoReuniaoAgendada,
       custoLabel: 'Custo/Agendada',
+      tooltip: 'Reuniões agendadas com os leads qualificados. Indica o volume de conversas comerciais marcadas no período.',
     },
     {
       label: 'R. Realizadas',
@@ -108,6 +114,7 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
       dica: 'Reuniões realizadas no período',
       custo: custos.custoReuniaoRealizada,
       custoLabel: 'Custo/Realizada',
+      tooltip: 'Reuniões que foram efetivamente realizadas. Diferença entre agendadas e realizadas indica taxa de no-show.',
     },
     {
       label: 'Ganhos',
@@ -121,6 +128,7 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
       custo: custos.cac,
       custoLabel: 'CAC',
       extraInfo: custos.romi !== null ? `ROMI: ${custos.romi}%` : undefined,
+      tooltip: 'Negócios fechados com sucesso. Oportunidades que passaram por todo o funil e foram convertidas em vendas.',
     },
   ]
 
@@ -128,6 +136,7 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
   const totalInvestido = investAtivo ? (data.invest_mode as { total_investido: number }).total_investido : null
 
   return (
+    <TooltipProvider delayDuration={200}>
     <div className="bg-card border border-border rounded-xl p-6">
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
@@ -157,19 +166,32 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
         {etapas.map((etapa, index) => {
           const Icon = etapa.icon
           return (
-            <div key={etapa.label} className="flex items-center gap-1.5 flex-1">
-              <div className={`flex-1 border rounded-xl p-3 ${etapa.bgColor} transition-all hover:shadow-md`}>
-                <div className="flex items-center gap-1.5 mb-2">
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${etapa.bgColor}`}>
-                    <Icon className={`w-3.5 h-3.5 ${etapa.color}`} />
+            <div key={etapa.label} className="flex items-center gap-1 flex-1 min-w-0">
+              <div className={`flex-1 min-w-0 border rounded-xl p-2.5 ${etapa.bgColor} transition-all hover:shadow-md`}>
+                <div className="flex items-center gap-1 mb-2">
+                  <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${etapa.bgColor}`}>
+                    <Icon className={`w-3 h-3 ${etapa.color}`} />
                   </div>
-                  <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+                  <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide truncate">
                     {etapa.label}
                   </span>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpCircle className="w-3 h-3 text-muted-foreground/40 hover:text-muted-foreground cursor-help shrink-0" />
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-[220px] bg-popover text-popover-foreground border border-border shadow-md">
+                      <p className="text-xs leading-relaxed">{etapa.tooltip}</p>
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
                 <p className={`text-xl font-bold ${etapa.color}`}>
                   {etapa.value.toLocaleString('pt-BR')}
                 </p>
+                {index > 0 && (
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    {etapa.taxaLabel} conversão
+                  </p>
+                )}
                 {index > 0 && (
                   <p className="text-[10px] text-muted-foreground mt-0.5">
                     {etapa.taxaLabel} conversão
@@ -231,9 +253,19 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
                       <Icon className={`w-5 h-5 ${etapa.color}`} />
                     </div>
                     <div>
-                      <span className="text-xs font-medium text-muted-foreground uppercase">
-                        {etapa.label}
-                      </span>
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs font-medium text-muted-foreground uppercase">
+                          {etapa.label}
+                        </span>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <HelpCircle className="w-3 h-3 text-muted-foreground/40 hover:text-muted-foreground cursor-help shrink-0" />
+                          </TooltipTrigger>
+                          <TooltipContent side="right" className="max-w-[220px] bg-popover text-popover-foreground border border-border shadow-md">
+                            <p className="text-xs leading-relaxed">{etapa.tooltip}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
                       <p className={`text-xl font-bold ${etapa.color}`}>
                         {etapa.value.toLocaleString('pt-BR')}
                       </p>
@@ -268,5 +300,6 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
         })}
       </div>
     </div>
+    </TooltipProvider>
   )
 }
