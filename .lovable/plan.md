@@ -1,71 +1,65 @@
 
 
-## Correção do Funil de Conversão + Tooltips Explicativos
+## Corrigir KPI "Histórico de Oportunidades" para contar Eventos/Atividades
 
-### 1. Corrigir contagem de reuniões (SQL)
+### Problema
 
-**Arquivo:** Nova migration SQL para `fn_metricas_funil`
+O KPI atualmente conta **oportunidades (cards)** no banco, mostrando "9". O usuário quer que conte **eventos de atividade** (audit_log) -- movimentações, tarefas criadas, reuniões, anotações, etc. Apenas 2 oportunidades já somam 41 eventos no timeline.
 
-- `reunioes_agendadas`: trocar `COUNT(DISTINCT r.id)` por `COUNT(DISTINCT r.oportunidade_id)` -- 1 por oportunidade
-- `reunioes_realizadas`: idem
+### Solução
 
-### 2. Corrigir cadeia de conversão no backend
+Trocar a métrica para contar registros na tabela `audit_log` no período selecionado, vinculados a oportunidades não-deletadas do tenant/funil.
 
-**Arquivo:** `backend/src/services/relatorio.service.ts`
+### Alterações
 
-- Renomear `sql_para_reuniao_agendada` para `lead_para_reuniao_agendada`
-- Calcular como: `reunioes_agendadas / total_leads`
+**1. Migration SQL -- Atualizar `fn_dashboard_metricas_gerais`**
 
-**Arquivo:** `backend/src/schemas/relatorio.ts`
+Substituir a query de `v_total_historico` (que conta oportunidades) por uma contagem de `audit_log`:
 
-- Renomear campo no schema Zod
+```sql
+-- ANTES: conta oportunidades
+SELECT COUNT(*) INTO v_total_historico
+FROM oportunidades WHERE ...
 
-### 3. Atualizar tipo no frontend
+-- DEPOIS: conta eventos de atividade no período
+SELECT COUNT(*) INTO v_total_historico
+FROM audit_log al
+WHERE al.organizacao_id = p_organizacao_id
+  AND al.criado_em >= p_periodo_inicio
+  AND al.criado_em <= p_periodo_fim
+  AND al.entidade = 'oportunidades'
+  AND EXISTS (
+    SELECT 1 FROM oportunidades o
+    WHERE o.id = al.entidade_id
+      AND o.deletado_em IS NULL
+      AND (p_funil_id IS NULL OR o.funil_id = p_funil_id)
+  );
+```
 
-**Arquivo:** `src/modules/app/types/relatorio.types.ts`
+Fazer o mesmo para `v_total_periodo` (período anterior para variação) -- na verdade `v_total_historico` passa a ser o total do período atual, e `v_total_periodo` pode manter a mesma lógica ou ser removido (pois agora são a mesma coisa).
 
-- `sql_para_reuniao_agendada` vira `lead_para_reuniao_agendada` na interface `Conversoes`
+Simplificação: como agora ambos medem o mesmo conceito (atividades no período), unificar:
+- `total_oportunidades_historico` = contagem de audit_log no período atual
+- `total_oportunidades_periodo` = mesma contagem (manter para compatibilidade com variação)
 
-### 4. Atualizar FunilConversao.tsx -- referências + tooltips
+**2. Frontend -- `KPIsSecundarios.tsx`**
 
-**Arquivo:** `src/modules/app/components/dashboard/FunilConversao.tsx`
+- Renomear label: "Histórico de Oportunidades" → "Atividades no Período"
+- Trocar ícone para `History` (mais semântico)
+- Atualizar tooltip: "Total de eventos registrados nas oportunidades no período selecionado (movimentações, tarefas, reuniões, anotações, etc.). A variação compara com o período anterior."
 
-Alterações na etapa R. Agendadas (linha ~127):
-- `taxa: dadosEfetivos.conversoes.lead_para_reuniao_agendada` (era `sql_para_reuniao_agendada`)
+**3. Tipo frontend -- `relatorio.types.ts`**
 
-Tooltips atualizados com explicação do cálculo:
-
-| Etapa | Tooltip atual | Tooltip novo |
-|-------|--------------|--------------|
-| **Leads** | "Total de oportunidades criadas..." | "Total de oportunidades criadas no período e funil selecionado. Base de cálculo (100%) para todas as taxas de conversão do funil." |
-| **MQLs** | "Marketing Qualified Leads..." | "Marketing Qualified Leads -- leads que atenderam critérios de qualificação de marketing. Cálculo: MQLs / Leads x 100." |
-| **SQLs** | "Sales Qualified Leads..." | "Sales Qualified Leads -- leads validados pela equipe comercial para abordagem de vendas. Cálculo: SQLs / Leads x 100." |
-| **R. Agendadas** | "Reuniões agendadas com leads qualificados..." | "Oportunidades distintas com pelo menos 1 reunião agendada (múltiplas reuniões no mesmo card contam como 1). Cálculo: Oportunidades com reunião agendada / Leads x 100." |
-| **R. Realizadas** | "Reuniões que foram efetivamente realizadas..." | "Oportunidades distintas com pelo menos 1 reunião realizada (múltiplas reuniões no mesmo card contam como 1). Cálculo: Oportunidades com reunião realizada / Leads x 100." |
-| **Ganhos** | "Negócios fechados com sucesso..." (mantém CAC/ROMI) | "Negócios fechados com sucesso. Cálculo: Ganhos / Leads x 100. CAC: Investido / Ganhos. ROMI: (Receita - Investido) / Investido x 100." |
-
-### 5. Setas entre etapas
-
-As setas já mostram a taxa etapa-a-etapa (ex: MQLs->SQLs). Será adicionado no tooltip da seta (se existir) ou mantido como está, pois o recálculo dinâmico já cuida disso.
-
-### Resultado esperado
-
-Com 9 leads, 1 MQL, 1 oportunidade com 3 reuniões agendadas e 1 realizada:
-- **Leads**: 9 (100%)
-- **MQLs**: 1 (11.1%)
-- **R. Agendadas**: 1 (11.1%) -- antes mostrava 3
-- **R. Realizadas**: 1 (11.1%) -- antes mostrava inconsistente
-- **Ganhos**: depende dos fechamentos
-
-Cada tooltip com `(?)` explica exatamente como o número é calculado.
+Nenhuma alteração necessária no tipo -- os campos `total_oportunidades_historico` e `total_oportunidades_periodo` continuam existindo, apenas mudam o que representam.
 
 ### Arquivos modificados
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `supabase/migrations/` | Nova migration: fn_metricas_funil com COUNT(DISTINCT oportunidade_id) |
-| `backend/src/services/relatorio.service.ts` | lead_para_reuniao_agendada |
-| `backend/src/schemas/relatorio.ts` | Renomear campo no schema |
-| `src/modules/app/types/relatorio.types.ts` | Renomear no tipo Conversoes |
-| `src/modules/app/components/dashboard/FunilConversao.tsx` | Referência + tooltips explicativos |
+| `supabase/migrations/` | Nova migration atualizando `fn_dashboard_metricas_gerais` |
+| `src/modules/app/components/dashboard/KPIsSecundarios.tsx` | Label, ícone e tooltip |
+
+### Observação sobre audit_log
+
+A tabela `audit_log` registra eventos de diversas entidades (oportunidades, anotações, tarefas, reuniões, documentos, emails, contatos). A coluna `entidade_id` para registros de anotações, tarefas, reuniões e documentos aponta para o `oportunidade_id` (não para o ID da própria entidade). Isso significa que a query `WHERE entidade_id IN (oportunidades não-deletadas)` captura corretamente todos os eventos vinculados a oportunidades ativas, incluindo sub-entidades.
 
