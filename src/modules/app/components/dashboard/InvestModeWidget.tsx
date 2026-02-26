@@ -43,13 +43,16 @@ export default function InvestModeWidget({ data }: InvestModeWidgetProps) {
   // Quando invest_mode ativo: exibir métricas de custo
   if (investMode.ativo) {
     const metricas = [
-      { label: 'Total Investido', valor: formatarMoeda(investMode.total_investido) },
-      { label: 'CPL', valor: investMode.cpl ? formatarMoeda(investMode.cpl) : '—' },
-      { label: 'CAC', valor: investMode.cac ? formatarMoeda(investMode.cac) : '—' },
+      { label: 'Total Investido', valor: formatarMoeda(investMode.total_investido), dica: 'Soma de todos os canais no período' },
+      { label: 'CPL', valor: investMode.cpl ? formatarMoeda(investMode.cpl) : '—', dica: 'Custo por Lead (Investido ÷ Leads)' },
+      { label: 'Custo/MQL', valor: investMode.cpmql ? formatarMoeda(investMode.cpmql) : '—', dica: 'Custo por MQL (Investido ÷ MQLs)' },
+      { label: 'Custo/Reunião', valor: investMode.custo_por_reuniao ? formatarMoeda(investMode.custo_por_reuniao) : '—', dica: 'Custo por reunião realizada' },
+      { label: 'CAC', valor: investMode.cac ? formatarMoeda(investMode.cac) : '—', dica: 'Custo de Aquisição de Cliente (Investido ÷ Ganhos)' },
       {
         label: 'ROMI',
         valor: investMode.romi !== null ? `${investMode.romi}%` : '—',
         color: investMode.romi !== null && investMode.romi > 0 ? 'text-emerald-500' : 'text-red-500',
+        dica: 'Retorno sobre investimento em marketing',
       },
     ]
 
@@ -67,7 +70,7 @@ export default function InvestModeWidget({ data }: InvestModeWidgetProps) {
             Editar investimento
           </button>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
           {metricas.map((m) => (
             <div key={m.label}>
               <p className="text-xs text-muted-foreground uppercase tracking-wide">{m.label}</p>
