@@ -65,7 +65,8 @@ function periodoAnterior(periodo: Periodo): Periodo {
 
 function calcularTaxa(numerador: number, denominador: number): number | null {
   if (!denominador || denominador === 0) return null
-  return Math.round((numerador / denominador) * 1000) / 10 // 1 casa decimal
+  // AIDEV-NOTE: Cap em 100% — conversão nunca ultrapassa 100% (padrão HubSpot/Salesforce)
+  return Math.min(Math.round((numerador / denominador) * 1000) / 10, 100)
 }
 
 function calcularVariacao(atual: number, anterior: number): number | null {
