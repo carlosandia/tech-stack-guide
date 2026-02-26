@@ -1,171 +1,166 @@
 
 
-# Reorganizacao do Menu Header - Agrupamento por Hub
+# PRD-18: Implementacao Frontend do Dashboard de Relatorio de Funil
 
-## Contexto e Problema
+## Resumo
 
-Hoje o header do CRM exibe 8 modulos lado a lado (Dashboard, Contatos, Negocios, Conversas, Emails, Tarefas, Formularios, Automacoes), ocupando quase 100% do width. Com modulos futuros (ex: Relatorios, Campanhas, Base de Conhecimento), nao ha espaco.
+Transformar o `/dashboard` placeholder (com valores "---") em um centro analitico completo com graficos modernos, conectado ao backend ja implementado (`GET /api/v1/relatorio/funil` e `POST /api/v1/relatorio/investimento`).
 
-## Como os grandes CRMs resolvem isso
+## Biblioteca Escolhida: Tremor
 
-### HubSpot (2024+)
-Migrou de top navigation para **sidebar lateral** com modulos agrupados por "hub": CRM, Marketing, Content, Commerce, Automations, Reporting, etc. Cada grupo abre submenus.
+Apos pesquisa, a biblioteca recomendada e **Tremor** (`@tremor/react`):
 
-### Pipedrive (2024+)
-Usa **sidebar esquerda** com itens agrupados: Deals, Leads, Contacts, Activities, Campaigns, Projects, Insights. Permite customizar quais itens aparecem.
+- **Visual moderno**: graficos com animacoes suaves, tooltips interativos, cores bonitas por padrao
+- **Stack compativel**: construido sobre Recharts + Tailwind CSS + Radix UI (tudo ja na stack)
+- **Feito para dashboards**: componentes como BarChart, DonutChart, AreaChart, Tracker, BarList, SparkChart - todos pensados para analise de dados
+- **Facil de usar**: props simples, dados em array de objetos, sem configuracao complexa
+- **Responsivo**: suporta todos os viewports nativamente
+- **Open-source**: 35+ componentes gratuitos
 
-### RD Station
-Usa **top bar** com poucos itens agrupados + dropdowns com subitens por area.
+Alternativas descartadas:
+- **Recharts puro**: funcional mas exige muito CSS manual para ficar bonito
+- **Nivo**: visual excelente mas API complexa e bundle pesado
+- **Chart.js / react-chartjs-2**: imperative, menos React-friendly
+- **ApexCharts**: bom visual mas nao usa Tailwind CSS nativamente
 
-## Proposta para o CRM Renove
+## Erro de Build Pre-existente
 
-**Estrategia: Header horizontal com agrupamento por "Hub" usando Dropdowns**
+O erro `Could not find a matching package for 'npm:stripe@14.14.0'` e da edge function `supabase/functions/create-checkout-session/index.ts` e **nao e relacionado** a esta implementacao. E um problema de ambiente Deno. Sera corrigido adicionando um `deno.json` com a dependencia.
 
-Manter a arquitetura horizontal (conforme Design System secao 11 - decisao IMUTAVEL), mas **agrupar modulos em 3-4 categorias** com dropdown menus, reduzindo de 8 itens individuais para ~5 itens no header.
+## Plano de Implementacao
 
-### Agrupamento Proposto
+### Fase 0: Correcoes pre-existentes
+
+**Arquivo:** `supabase/functions/create-checkout-session/deno.json`
+- Criar arquivo com `"nodeModulesDir": "auto"` para resolver o erro de build do Stripe
+
+### Fase 1: Instalacao e Service Layer
+
+**Dependencia nova:** `@tremor/react` (instalar via package.json)
+
+**Arquivo novo:** `src/modules/app/services/relatorio.service.ts`
+- Funcao `fetchRelatorioFunil(params)` que chama `GET /v1/relatorio/funil` via `api` (axios)
+- Funcao `salvarInvestimento(payload)` que chama `POST /v1/relatorio/investimento`
+- Types importados do schema existente em `backend/src/schemas/relatorio.ts` (criar espelho no frontend)
+
+**Arquivo novo:** `src/modules/app/types/relatorio.types.ts`
+- Espelho dos types do backend: `RelatorioFunilResponse`, `FunilQuery`, `SalvarInvestimentoPayload`
+
+### Fase 2: Hook de dados
+
+**Arquivo novo:** `src/modules/app/hooks/useRelatorioFunil.ts`
+- Hook com TanStack Query (`useQuery`) para buscar dados do funil
+- Params: `periodo`, `funil_id`, `canal`
+- Stale time: 5 minutos (alinhado com cache do backend)
+- Hook auxiliar `useFunis()` para popular o select de funis
+
+### Fase 3: Componentes do Dashboard (6 arquivos)
+
+Todos em `src/modules/app/components/dashboard/`:
+
+1. **`DashboardFilters.tsx`**
+   - Select de periodo: 7d, 30d, 90d, personalizado
+   - Select de funil (populado via `useFunis`)
+   - DatePicker para periodo personalizado (usar react-day-picker ja instalado)
+
+2. **`FunilConversao.tsx`** (componente principal do funil)
+   - 5 blocos horizontais: Leads -> MQLs -> SQLs -> Reunioes -> Ganhos
+   - Cada bloco: volume absoluto + taxa de conversao vs etapa anterior
+   - Setas entre blocos com % de conversao
+   - Em mobile (<768px): colapsa para cards verticais
+   - Usa Tremor `BarChart` ou cards customizados com animacao
+   - Estados vazios inteligentes com dicas contextuais
+
+3. **`KPIsEstrategicos.tsx`**
+   - 4 cards: Ticket Medio, Valor Gerado, Ciclo Medio, Forecast
+   - Cada card com variacao vs periodo anterior (seta verde/vermelha + %)
+   - Usa Tremor `Card` + `BadgeDelta` para variacoes
+   - Tooltips explicativos com formula de calculo
+
+4. **`BreakdownCanal.tsx`**
+   - Tabela/lista com canais de origem (utm_source)
+   - Colunas: Canal, Leads, % do Total, Fechados, Taxa de Fechamento
+   - Usa Tremor `BarList` ou `DonutChart` para visualizacao
+   - Barras horizontais coloridas por canal
+
+5. **`InvestModeWidget.tsx`** (Fase 2 do PRD, mas UI preparada)
+   - Banner "Desbloqueie metricas de custo" quando invest_mode.ativo = false
+   - Formulario inline: Meta Ads, Google Ads, Outros (campos R$)
+   - Quando ativo: exibe CPL, CAC, ROMI como cards adicionais
+   - Usa `useMutation` do TanStack Query para salvar
+
+6. **`DashboardSkeleton.tsx`**
+   - Skeleton loader completo para todo o dashboard
+   - Nenhum "---" aparece durante carregamento
+
+### Fase 4: Pagina principal
+
+**Arquivo editado:** `src/modules/app/pages/DashboardPage.tsx`
+- Substituir completamente o conteudo placeholder
+- Montar: Filtros -> Funil -> InvestMode -> KPIs -> Breakdown
+- Gerenciar estado dos filtros (periodo, funil_id)
+- Passar dados do hook para cada componente
+
+### Estrutura Visual Proposta
 
 ```text
-Header:
-[Logo RENOVE]   Dashboard | Comercial v | Atendimento v | Ferramentas v   [?] [gear] [bell] [Avatar v]
++------------------------------------------------------------------+
+| Dashboard          [Ultimos 30 dias v] [Todos os funis v]        |
++------------------------------------------------------------------+
+|                                                                   |
+|  FUNIL DE CONVERSAO                                               |
+|  [Leads 312] --> [MQL 56 (18%)] --> [SQL 18 (32%)] -->           |
+|  [Reunioes 11 (61%)] --> [Ganhos 8 (73%)]                        |
+|                                                                   |
++------------------------------------------------------------------+
+|  [Desbloqueie metricas de custo - Informar investimento ->]      |
++------------------------------------------------------------------+
+|  METRICAS                                                         |
+|  +-------------+ +-------------+ +-----------+ +----------+      |
+|  | Ticket Medio| | Valor Gerado| | Ciclo     | | Forecast |      |
+|  | R$ 3.200    | | R$ 25.600   | | 22 dias   | | R$ 48.7k |      |
+|  | +12%        | | +8%         | | -3d       | | 15 ops   |      |
+|  +-------------+ +-------------+ +-----------+ +----------+      |
++------------------------------------------------------------------+
+|  POR CANAL DE ORIGEM                                              |
+|  [DonutChart]    meta_ads   45%  312 leads  8 fechados (2.5%)    |
+|                  organico   30%  210 leads  12 fechados (5.7%)   |
+|                  google     15%  105 leads  4 fechados (3.8%)    |
+|                  indicacao  10%  70 leads   6 fechados (8.6%)    |
++------------------------------------------------------------------+
 ```
 
-| Hub | Modulos incluidos | Icone do Hub |
-|-----|-------------------|--------------|
-| **Dashboard** | Acesso direto (sem dropdown) | LayoutDashboard |
-| **Comercial** | Negocios, Contatos | Briefcase |
-| **Atendimento** | Conversas, Emails | MessageSquare |
-| **Ferramentas** | Tarefas, Formularios, Automacoes | Wrench |
+### Componentes Tremor utilizados
 
-**Futuramente**, novos modulos entram nos hubs existentes ou criam um novo:
-- Relatorios -> pode virar item direto ou entrar em "Ferramentas"
-- Campanhas/Marketing -> novo hub "Marketing"
-- Base de Conhecimento -> "Atendimento"
+| Componente Tremor | Uso no Dashboard |
+|---|---|
+| `BarChart` | Funil de conversao (barras decrescentes) |
+| `DonutChart` | Breakdown por canal (rosquinha colorida) |
+| `BarList` | Lista de canais com barras proporcionais |
+| `BadgeDelta` | Variacoes % nos KPIs (verde/vermelho) |
+| `SparkAreaChart` | Mini grafico de tendencia nos KPIs |
+| `Card` | Container dos KPIs |
+| `Tracker` | Possivel uso futuro para atividades |
 
-### Comportamento dos Dropdowns
+### Responsividade
 
-- Hover ou click abre um **popover/dropdown** com os subitens
-- Cada subitem tem icone + label
-- Item ativo: o hub pai fica destacado (border-primary/40 + bg-primary/5)
-- Modulos bloqueados: exibidos com opacity-60 + cadeado (padrao existente)
-- Mobile: no drawer, os hubs viram grupos colapsaveis
+- **Desktop (1024px+)**: Layout completo lado a lado
+- **Tablet (768-1023px)**: KPIs em 2 colunas, funil horizontal
+- **Mobile (<768px)**: Funil em cards verticais, KPIs em 1 coluna, DonutChart empilhado
 
-### Anatomia Visual Desktop
+### Arquivos criados/editados (resumo)
 
-```text
-+--------------------------------------------------------------------------------+
-| [Logo]   Dashboard  | Comercial v  | Atendimento v  | Ferramentas v  [?][gear][bell][Av]
-+--------------------------------------------------------------------------------+
-                        +------------------+
-                        | Briefcase Negocios   |
-                        | Users     Contatos   |
-                        +------------------+
-```
-
-### Mobile (Drawer)
-
-```text
-+---------------------------+
-| [Logo]            [X]     |
-+---------------------------+
-| Dashboard                 |
-|                           |
-| COMERCIAL                 |
-|   Negocios                |
-|   Contatos                |
-|                           |
-| ATENDIMENTO               |
-|   Conversas               |
-|   Emails                  |
-|                           |
-| FERRAMENTAS               |
-|   Tarefas                 |
-|   Formularios             |
-|   Automacoes              |
-+---------------------------+
-```
-
-## Implementacao Tecnica
-
-### Arquivos a alterar
-
-1. **`src/modules/app/layouts/AppLayout.tsx`** - Reestruturar `menuItems` de array flat para array de hubs com subitens. Substituir NavItems individuais por componentes de dropdown (usar Radix `DropdownMenu` ou `Popover`).
-
-2. **`docs/designsystem.md`** - Atualizar secao 11 com novo padrao de "Hub Dropdown Navigation", mantendo a regra de navegacao horizontal.
-
-### Estrutura de dados proposta
-
-```typescript
-interface NavHub {
-  label: string
-  icon: React.ElementType
-  // Se path definido, acesso direto (sem dropdown)
-  path?: string
-  exact?: boolean
-  slug?: string
-  // Se children definido, abre dropdown
-  children?: NavHubItem[]
-}
-
-interface NavHubItem {
-  label: string
-  path: string
-  icon: React.ElementType
-  slug: string
-}
-
-const navHubs: NavHub[] = [
-  {
-    label: 'Dashboard',
-    icon: LayoutDashboard,
-    path: '/dashboard',
-    exact: true,
-    slug: 'dashboard',
-  },
-  {
-    label: 'Comercial',
-    icon: Briefcase,
-    children: [
-      { label: 'Negocios', path: '/negocios', icon: Briefcase, slug: 'negocios' },
-      { label: 'Contatos', path: '/contatos', icon: Users, slug: 'contatos' },
-    ],
-  },
-  {
-    label: 'Atendimento',
-    icon: MessageSquare,
-    children: [
-      { label: 'Conversas', path: '/conversas', icon: MessageSquare, slug: 'conversas' },
-      { label: 'Emails', path: '/emails', icon: Mail, slug: 'caixa-entrada-email' },
-    ],
-  },
-  {
-    label: 'Ferramentas',
-    icon: Wrench,
-    children: [
-      { label: 'Tarefas', path: '/tarefas', icon: CheckSquare, slug: 'atividades' },
-      { label: 'Formularios', path: '/formularios', icon: FileText, slug: 'formularios' },
-      { label: 'Automacoes', path: '/automacoes', icon: Zap, slug: 'automacoes' },
-    ],
-  },
-]
-```
-
-### Componente NavHubDropdown
-
-Usar `DropdownMenu` do Radix (ja instalado) para cada hub com children. O trigger mostra o label + ChevronDown. O content mostra os subitens como `DropdownMenuItem` com NavLink interno.
-
-### Destaque do hub ativo
-
-Verificar se algum filho do hub tem path que corresponde ao `location.pathname`. Se sim, o trigger do hub recebe o estilo ativo (`border-primary/40 bg-primary/5 text-primary`).
-
-### Modulos bloqueados
-
-Manter logica existente: verificar `modulosAtivos` para cada subitem. Items bloqueados exibidos com `opacity-60 cursor-not-allowed Lock icon`.
-
-## Escopo
-
-- Alterar apenas `AppLayout.tsx` (layout principal do CRM)
-- Atualizar drawer mobile para usar grupos
-- Manter compatibilidade com `ModuloGuard` e sistema de bloqueio
-- Nao alterar rotas, apenas a navegacao visual
+| Arquivo | Acao |
+|---|---|
+| `supabase/functions/create-checkout-session/deno.json` | Criar (fix build error) |
+| `src/modules/app/types/relatorio.types.ts` | Criar |
+| `src/modules/app/services/relatorio.service.ts` | Criar |
+| `src/modules/app/hooks/useRelatorioFunil.ts` | Criar |
+| `src/modules/app/components/dashboard/DashboardFilters.tsx` | Criar |
+| `src/modules/app/components/dashboard/FunilConversao.tsx` | Criar |
+| `src/modules/app/components/dashboard/KPIsEstrategicos.tsx` | Criar |
+| `src/modules/app/components/dashboard/BreakdownCanal.tsx` | Criar |
+| `src/modules/app/components/dashboard/InvestModeWidget.tsx` | Criar |
+| `src/modules/app/components/dashboard/DashboardSkeleton.tsx` | Criar |
+| `src/modules/app/pages/DashboardPage.tsx` | Reescrever |
 
