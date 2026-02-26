@@ -97,11 +97,11 @@ const navHubs: NavHub[] = [
     ],
   },
   {
-    label: 'Campanhas',
+    label: 'Marketing',
     icon: Megaphone,
     children: [
-      { label: 'Email Marketing', path: '/campanhas/email', icon: Send, slug: 'email-marketing', comingSoon: true },
-      { label: 'WhatsApp Marketing', path: '/campanhas/whatsapp', icon: WhatsAppIcon, slug: 'whatsapp-marketing', comingSoon: true },
+      { label: 'Email Marketing', path: '/marketing/email', icon: Send, slug: 'email-marketing', comingSoon: true },
+      { label: 'WhatsApp Marketing', path: '/marketing/whatsapp', icon: WhatsAppIcon, slug: 'whatsapp-marketing', comingSoon: true },
     ],
   },
   {
