@@ -4359,6 +4359,57 @@ export type Database = {
           },
         ]
       }
+      investimentos_marketing: {
+        Row: {
+          atualizado_em: string
+          canal: string
+          criado_em: string
+          criado_por_id: string | null
+          id: string
+          organizacao_id: string
+          periodo_fim: string
+          periodo_inicio: string
+          valor: number
+        }
+        Insert: {
+          atualizado_em?: string
+          canal: string
+          criado_em?: string
+          criado_por_id?: string | null
+          id?: string
+          organizacao_id: string
+          periodo_fim: string
+          periodo_inicio: string
+          valor?: number
+        }
+        Update: {
+          atualizado_em?: string
+          canal?: string
+          criado_em?: string
+          criado_por_id?: string | null
+          id?: string
+          organizacao_id?: string
+          periodo_fim?: string
+          periodo_inicio?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "investimentos_marketing_criado_por_id_fkey"
+            columns: ["criado_por_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "investimentos_marketing_organizacao_id_fkey"
+            columns: ["organizacao_id"]
+            isOneToOne: false
+            referencedRelation: "organizacoes_saas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ligacoes: {
         Row: {
           contato_id: string | null
@@ -8143,6 +8194,25 @@ export type Database = {
       }
       distribuir_meta: {
         Args: { p_meta_id: string; p_modo?: string }
+        Returns: Json
+      }
+      fn_breakdown_canal_funil: {
+        Args: {
+          p_funil_id?: string
+          p_organizacao_id: string
+          p_periodo_fim: string
+          p_periodo_inicio: string
+        }
+        Returns: Json
+      }
+      fn_metricas_funil: {
+        Args: {
+          p_canal?: string
+          p_funil_id?: string
+          p_organizacao_id: string
+          p_periodo_fim: string
+          p_periodo_inicio: string
+        }
         Returns: Json
       }
       formulario_pertence_ao_tenant: {
