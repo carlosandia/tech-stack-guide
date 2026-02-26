@@ -191,7 +191,11 @@ export const MetaToolbarIndicator = forwardRef<HTMLDivElement>(function MetaTool
   const handleToggle = () => {
     if (!open && btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect()
-      setCoords({ top: rect.bottom + 6, right: window.innerWidth - rect.right })
+      const popoverWidth = 380
+      const rightEdge = window.innerWidth - rect.right
+      // Clampar para não estourar a direita nem a esquerda
+      const clampedRight = Math.max(8, Math.min(rightEdge, window.innerWidth - popoverWidth - 8))
+      setCoords({ top: rect.bottom + 6, right: clampedRight })
     }
     setOpen(!open)
   }
@@ -248,7 +252,7 @@ export const MetaToolbarIndicator = forwardRef<HTMLDivElement>(function MetaTool
             className="fixed left-1/2 -translate-x-1/2 top-14 w-[calc(100vw-2rem)] max-w-[380px] z-[200]
                         sm:left-auto sm:translate-x-0 sm:top-auto sm:w-[380px]
                         bg-card border border-border rounded-lg shadow-lg animate-enter"
-            style={{ ...(window.innerWidth >= 640 ? { top: coords.top, right: coords.right, left: 'auto', transform: 'none' } : {}) }}
+            style={{ ...(window.innerWidth >= 640 ? { top: coords.top, right: Math.max(8, coords.right), left: 'auto', transform: 'none' } : {}) }}
           >
             {/* Tabs */}
             <div className="flex border-b border-border">
