@@ -2,7 +2,7 @@ import { forwardRef, useState, useRef, useCallback, type DragEvent, type ReactNo
 
 import { useRelatorioFunil, useFunis, useDashboardMetricasGerais, useRelatorioMetas } from '../hooks/useRelatorioFunil'
 import { useDashboardDisplay, type SectionId, type ToggleableSectionId } from '../hooks/useDashboardDisplay'
-import DashboardFilters from '../components/dashboard/DashboardFilters'
+import { DashboardToolbar } from '../components/dashboard/DashboardToolbar'
 import FunilConversao from '../components/dashboard/FunilConversao'
 import KPIsPrincipais from '../components/dashboard/KPIsPrincipais'
 import KPIsSecundarios from '../components/dashboard/KPIsSecundarios'
@@ -10,16 +10,11 @@ import MotivosPerda from '../components/dashboard/MotivosPerda'
 import MotivosGanho from '../components/dashboard/MotivosGanho'
 import ProdutosRanking from '../components/dashboard/ProdutosRanking'
 import BreakdownCanal from '../components/dashboard/BreakdownCanal'
-import InvestModeWidget from '../components/dashboard/InvestModeWidget'
-import DashboardDisplayConfig from '../components/dashboard/DashboardDisplayConfig'
 import SectionHideButton from '../components/dashboard/SectionHideButton'
 import MetricasAtendimento from '../components/dashboard/MetricasAtendimento'
 import IndicadoresReunioes from '../components/dashboard/IndicadoresReunioes'
 import RelatorioMetas from '../components/dashboard/RelatorioMetas'
 import DashboardSkeleton from '../components/dashboard/DashboardSkeleton'
-import DashboardVisualizacoes from '../components/dashboard/DashboardVisualizacoes'
-import ExportarRelatorioPDF from '../components/dashboard/ExportarRelatorioPDF'
-import FullscreenToggle from '../components/dashboard/FullscreenToggle'
 import DashboardSectionDraggable from '../components/dashboard/DashboardSectionDraggable'
 import { AlertCircle } from 'lucide-react'
 import type { Periodo } from '../types/relatorio.types'
@@ -28,6 +23,7 @@ import type { DashboardDisplayConfig as DisplayConfigType } from '../hooks/useDa
 
 /**
  * AIDEV-NOTE: Dashboard analítico do CRM (PRD-18)
+ * Toolbar injetado via AppToolbar context (mesmo padrão de NegociosToolbar)
  * Inclui: Visualizações salvas, Export PDF, Fullscreen, Drag & Drop de blocos
  */
 
@@ -69,8 +65,6 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
     isLoading: isLoadingMetricas,
   } = useDashboardMetricasGerais(query)
 
-  // AIDEV-NOTE: MetricasAtendimento agora gerencia seu próprio estado e fetch internamente
-
   const {
     data: relatorioMetas,
   } = useRelatorioMetas(query)
@@ -90,7 +84,10 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
 
     const cfg = v.config_exibicao as Partial<DisplayConfigType>
     if (cfg) {
-      const sections: ToggleableSectionId[] = ['metas', 'funil', 'reunioes', 'kpis-principais', 'canal', 'motivos']
+      const sections: ToggleableSectionId[] = [
+        'metas', 'funil', 'reunioes', 'kpis-principais', 'kpis-secundarios',
+        'canal', 'motivos', 'produtos', 'atendimento'
+      ]
       sections.forEach((key) => {
         if (cfg[key] !== undefined && cfg[key] !== displayConfig[key]) {
           toggleSection(key)
@@ -155,8 +152,8 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
 
   if (!relatorio) return null
 
-  // AIDEV-NOTE: Mapa de seções com visibilidade e componente
-  const sectionMap: Record<SectionId, { visible: boolean; toggleId?: ToggleableSectionId; render: () => ReactNode }> = {
+  // AIDEV-NOTE: Mapa de seções com visibilidade e componente — todas são toggleáveis
+  const sectionMap: Record<SectionId, { visible: boolean; toggleId: ToggleableSectionId; render: () => ReactNode }> = {
     metas: {
       visible: displayConfig.metas && !!relatorioMetas,
       toggleId: 'metas',
@@ -178,7 +175,8 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
       render: () => <KPIsPrincipais relatorio={relatorio} metricas={metricasGerais!} />,
     },
     'kpis-secundarios': {
-      visible: !!metricasGerais,
+      visible: displayConfig['kpis-secundarios'] && !!metricasGerais,
+      toggleId: 'kpis-secundarios',
       render: () => <KPIsSecundarios relatorio={relatorio} metricas={metricasGerais!} />,
     },
     canal: {
@@ -197,11 +195,13 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
       ),
     },
     produtos: {
-      visible: !!metricasGerais,
+      visible: displayConfig.produtos && !!metricasGerais,
+      toggleId: 'produtos',
       render: () => <ProdutosRanking data={metricasGerais!.produtos_ranking} />,
     },
     atendimento: {
-      visible: true,
+      visible: displayConfig.atendimento,
+      toggleId: 'atendimento',
       render: () => <MetricasAtendimento query={query} />,
     },
   }
@@ -216,52 +216,25 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
         ;(ref as { current: HTMLDivElement | null }).current = node
       }
     }} className="h-full overflow-y-auto">
-      <div ref={contentRef} data-dashboard-content className="space-y-6 px-4 sm:px-6 lg:px-8 py-5 max-w-full">
-        {/* Header */}
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-          <h2 className="text-lg font-semibold text-foreground leading-tight whitespace-nowrap">
-            Relatório de Desempenho
-          </h2>
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
-            <DashboardFilters
-              periodo={periodo}
-              onPeriodoChange={setPeriodo}
-              funilId={funilId}
-              onFunilChange={setFunilId}
-              funis={funis}
-              dataInicio={dataInicio}
-              dataFim={dataFim}
-              onDatasChange={handleDatasChange}
-            />
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                <InvestModeWidget data={relatorio} />
-                <DashboardDisplayConfig config={displayConfig} onToggle={toggleSection} />
-              </div>
-              <div className="flex items-center gap-2">
-                <DashboardVisualizacoes
-                  filtrosAtuais={{
-                    periodo,
-                    funil_id: funilId || null,
-                    data_inicio: dataInicio || null,
-                    data_fim: dataFim || null,
-                  }}
-                  configExibicaoAtual={displayConfig}
-                  onAplicar={handleAplicarVisualizacao}
-                  funis={funis}
-                />
-                <ExportarRelatorioPDF
-                  containerRef={contentRef}
-                  dashboardPeriodo={periodo}
-                  dashboardDataInicio={dataInicio}
-                  dashboardDataFim={dataFim}
-                />
-                <FullscreenToggle containerRef={scrollContainerRef} />
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* AIDEV-NOTE: Toolbar injetado via context no AppLayout toolbar sticky */}
+      <DashboardToolbar
+        periodo={periodo}
+        onPeriodoChange={setPeriodo}
+        funilId={funilId}
+        onFunilChange={setFunilId}
+        funis={funis}
+        dataInicio={dataInicio}
+        dataFim={dataFim}
+        onDatasChange={handleDatasChange}
+        relatorio={relatorio}
+        displayConfig={displayConfig}
+        onToggleSection={toggleSection}
+        onAplicarVisualizacao={handleAplicarVisualizacao}
+        contentRef={contentRef}
+        scrollContainerRef={scrollContainerRef}
+      />
 
+      <div ref={contentRef} data-dashboard-content className="space-y-6 px-4 sm:px-6 lg:px-8 py-5 max-w-full">
         {/* Blocos com Drag & Drop */}
         {visibleSections.map((sectionId, index) => {
           const section = sectionMap[sectionId]
@@ -279,11 +252,9 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
               onDrop={handleDrop}
             >
               <div className="relative group">
-                {section.toggleId && (
-                  <div className="absolute -top-3 right-3 z-10">
-                    <SectionHideButton sectionId={section.toggleId} onHide={toggleSection} />
-                  </div>
-                )}
+                <div className="absolute -top-3 right-3 z-10">
+                  <SectionHideButton sectionId={section.toggleId} onHide={toggleSection} />
+                </div>
                 {section.render()}
               </div>
             </DashboardSectionDraggable>
