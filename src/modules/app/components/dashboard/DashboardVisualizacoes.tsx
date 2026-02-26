@@ -5,7 +5,7 @@
  */
 
 import { useState } from 'react'
-import { Bookmark, Trash2, Check, Plus, Pencil } from 'lucide-react'
+import { Bookmark, Trash2, Check, Plus, Pencil, X } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -223,32 +223,33 @@ export default function DashboardVisualizacoes({
                     config={updateConfig ? configExibicaoAtual : v.config_exibicao}
                     funis={funis}
                   />
-                  <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={updateConfig}
-                      onChange={(e) => setUpdateConfig(e.target.checked)}
-                      className="rounded border-border accent-primary w-3.5 h-3.5"
-                    />
-                    Usar configurações atuais do dashboard
-                  </label>
-                  <div className="flex items-center gap-1.5 pt-1">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 px-2 text-xs"
-                      onClick={handleCancelEdit}
-                    >
-                      Cancelar
-                    </Button>
-                    <Button
-                      size="sm"
-                      className="h-7 px-3 text-xs"
-                      onClick={handleSaveEdit}
-                      disabled={isEditing || !editNome.trim()}
-                    >
-                      Salvar
-                    </Button>
+                  <div className="flex items-center justify-between gap-2 pt-1">
+                    <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer select-none min-w-0">
+                      <input
+                        type="checkbox"
+                        checked={updateConfig}
+                        onChange={(e) => setUpdateConfig(e.target.checked)}
+                        className="rounded border-border accent-primary w-3.5 h-3.5 shrink-0"
+                      />
+                      <span className="truncate">Usar config. atuais</span>
+                    </label>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        className="h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                        onClick={handleCancelEdit}
+                        title="Cancelar"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        className="h-6 w-6 flex items-center justify-center rounded-md text-primary hover:text-primary-foreground hover:bg-primary transition-colors disabled:opacity-40"
+                        onClick={handleSaveEdit}
+                        disabled={isEditing || !editNome.trim()}
+                        title="Salvar"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               ) : (
