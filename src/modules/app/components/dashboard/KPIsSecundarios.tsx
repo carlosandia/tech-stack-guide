@@ -3,7 +3,7 @@
  * 4 cards: Ciclo Médio, Tarefas Abertas, Histórico Oportunidades, Conversão Geral
  */
 
-import { Clock, CheckSquare, BarChart3, Percent, HelpCircle, TrendingUp, TrendingDown } from 'lucide-react'
+import { Clock, CheckSquare, BarChart3, Percent, HelpCircle, TrendingUp, TrendingDown, History } from 'lucide-react'
 import type { RelatorioFunilResponse, DashboardMetricasGeraisComVariacao } from '../../types/relatorio.types'
 import {
   Popover,
@@ -66,12 +66,12 @@ export default function KPIsSecundarios({ relatorio, metricas }: KPIsSecundarios
       tooltip: 'Total de tarefas pendentes ou em andamento da sua equipe neste momento.',
     },
     {
-      label: 'Histórico de Oportunidades',
+      label: 'Atividades no Período',
       value: metricas.total_oportunidades_historico.toLocaleString('pt-BR'),
-      icon: BarChart3,
+      icon: History,
       color: 'text-blue-500',
       bgColor: 'bg-blue-500/10',
-      tooltip: 'Total acumulado de todas as oportunidades já criadas. A variação compara a quantidade criada no período atual vs. o período anterior.',
+      tooltip: 'Total de eventos registrados nas oportunidades no período selecionado (movimentações, tarefas, reuniões, anotações, etc.). A variação compara com o período anterior.',
       variacao: variacaoOps,
       periodValue: metricas.total_oportunidades_periodo,
     },
