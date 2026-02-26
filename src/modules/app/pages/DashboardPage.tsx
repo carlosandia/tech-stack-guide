@@ -242,7 +242,12 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
               />
               <InvestModeWidget data={relatorio} />
               <DashboardDisplayConfig config={displayConfig} onToggle={toggleSection} />
-              <ExportarRelatorioPDF containerRef={contentRef} />
+              <ExportarRelatorioPDF
+                containerRef={contentRef}
+                dashboardPeriodo={periodo}
+                dashboardDataInicio={dataInicio}
+                dashboardDataFim={dataFim}
+              />
               <FullscreenToggle containerRef={contentRef} />
             </div>
           </div>
