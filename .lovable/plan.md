@@ -1,74 +1,62 @@
 
-# Ajustes no Dashboard: Remover Toolbar, Corrigir Scroll e Responsividade
+# Correção: LEADS deve contar Oportunidades, não Contatos
 
-## Problema
+## Problema identificado
 
-1. **Toolbar desnecessaria**: A barra "Dashboard - Relatorio de funil" ocupa 48px de altura sem utilidade nessa tela
-2. **Scroll quebrado**: O `main` do layout usa `overflow-hidden` e o Dashboard nao tem scroll proprio
-3. **Responsividade**: Filtros e componentes podem estourar 100% em mobile
+A função `fn_metricas_funil` no Supabase conta **contatos criados** como "Leads". Isso e incorreto para um funil de vendas porque:
+
+- Contatos existem independentemente de pipelines
+- Um contato pode nunca ter entrado em nenhum funil
+- Infla o numero real do topo do funil (ex: 251 leads vs 1 ganho = taxa irreal)
+
+## Como CRMs profissionais funcionam
+
+| CRM | "Lead" no funil = |
+|---|---|
+| HubSpot | Deals created in pipeline |
+| Pipedrive | Deals added in period |
+| RD Station CRM | Oportunidades criadas no funil |
+| Salesforce | Opportunities entering stage |
+
+**Consenso**: Lead no funil de vendas = **oportunidade criada no periodo, dentro da pipeline filtrada**.
 
 ## Solucao
 
-### 1. Remover toolbar do Dashboard
+### 1. Alterar a funcao `fn_metricas_funil` no Supabase
 
-No `DashboardPage.tsx`, remover o `useAppToolbar` e o `setSubtitle('Relatorio de funil')`. No `AppLayout.tsx`, ocultar o toolbar quando a rota for `/dashboard` (adicionando na lista de `hideToolbar`).
+Substituir a subquery de `total_leads` para contar **oportunidades** em vez de contatos:
 
-### 2. Header inline compacto
-
-Substituir o header atual (com emoji) por uma versao profissional e compacta:
-
-```text
-Relatorio de funil                    [7d] [30d] [90d] [Personalizado] [Funil v]
-Ola, Carlos · Ultimos 30 dias
+```sql
+'total_leads', (
+  SELECT COUNT(DISTINCT o.id)
+  FROM oportunidades o
+  WHERE o.organizacao_id = p_organizacao_id
+    AND o.criado_em >= p_periodo_inicio
+    AND o.criado_em <= p_periodo_fim
+    AND o.deletado_em IS NULL
+    AND (p_funil_id IS NULL OR o.funil_id = p_funil_id)
+    AND (p_canal IS NULL OR o.utm_source = p_canal)
+)
 ```
 
-- Titulo: "Relatorio de funil" em `text-lg font-semibold`
-- Subtitulo: "Ola, {nome} · {periodo label}" em `text-sm text-muted-foreground`, sem emoji
-- Filtros ao lado direito no desktop, abaixo no mobile
+Isso garante:
+- Filtra pela pipeline selecionada (p_funil_id)
+- Filtra pelo canal se aplicavel
+- Respeita soft delete
+- Conta oportunidades unicas criadas no periodo
 
-### 3. Corrigir scroll
+### 2. Verificar o erro visivel na screenshot
 
-No `AppLayout.tsx`, trocar `overflow-hidden` do `main` para `overflow-y-auto` para permitir scroll do conteudo. Ou, alternativamente, adicionar `overflow-y-auto h-full` no container do Dashboard.
-
-A abordagem mais segura: manter `overflow-hidden` no main e adicionar scroll individual no DashboardPage com `overflow-y-auto` e altura calculada.
-
-### 4. Responsividade mobile
-
-- Filtros: em mobile (`<640px`), empilhar verticalmente com `flex-col`
-- Botoes de periodo: fazer scroll horizontal ou quebrar em 2x2
-- Cards KPI: ja usam grid responsivo
-- Funil: ja tem versao vertical mobile
-- Donut chart: ja tem `flex-col` em mobile
+A screenshot mostra um erro de runtime ("The app encountered an error"). Sera investigado nos logs do console para identificar se esta relacionado ao componente de breakdown canal ou outro componente.
 
 ## Arquivos alterados
 
 | Arquivo | Alteracao |
 |---|---|
-| `src/modules/app/pages/DashboardPage.tsx` | Remover useAppToolbar, ajustar header inline, adicionar scroll container |
-| `src/modules/app/layouts/AppLayout.tsx` | Adicionar `/dashboard` ao hideToolbar |
-| `src/modules/app/components/dashboard/DashboardFilters.tsx` | Ajustar responsividade mobile dos filtros |
+| Supabase function `fn_metricas_funil` | Alterar subquery `total_leads` de contatos para oportunidades |
 
-## Detalhes tecnicos
+## Impacto
 
-**AppLayout.tsx** - linha 266:
-```typescript
-const hideToolbar = isEditorRoute || isPipelineConfig || isPerfilRoute || location.pathname === '/dashboard'
-```
-
-**DashboardPage.tsx** - remover imports de `useAppToolbar` e useEffect do subtitle. Envolver conteudo em container com `overflow-y-auto h-full`. Header compacto:
-```tsx
-<div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-  <div>
-    <h2 className="text-lg font-semibold text-foreground">Relatorio de funil</h2>
-    <p className="text-sm text-muted-foreground">
-      Ola, {user?.nome || 'Usuario'} · {relatorio.periodo.label}
-    </p>
-  </div>
-  <DashboardFilters ... />
-</div>
-```
-
-**DashboardFilters.tsx** - botoes de periodo com scroll horizontal em mobile:
-```tsx
-<div className="flex items-center gap-1 bg-card border border-border rounded-lg p-1 overflow-x-auto max-w-full">
-```
+- Os numeros de "Leads" passarao a refletir oportunidades reais no funil
+- As taxas de conversao (Lead para MQL, Lead para Fechado) ficarao mais realistas
+- Compativel com a logica ja usada em MQL, SQL, Reunioes e Fechados (todos baseados em oportunidades)
