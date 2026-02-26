@@ -1,142 +1,117 @@
 
-# Dashboard Completo com Metricas Gerais e Graficos
+# Metricas de Atendimento no Dashboard
 
-## Visao Geral
+## Objetivo
 
-Expandir o dashboard atual para incluir metricas gerais operacionais, graficos de motivos de perda, ranking de produtos mais vendidos e historico de oportunidades com variacoes percentuais. Tudo com tooltips informativos em linguagem acessivel.
+Adicionar uma secao compacta de metricas de atendimento baseada no modulo `/conversas` (tabelas `conversas` e `mensagens`), respeitando os filtros de periodo e funil ja existentes. Inclui configuracao de horario comercial para calcular metricas de tempo de resposta com precisao.
 
-## Estrutura Final do Dashboard (ordem)
+## Horario Comercial
+
+A tabela `configuracoes_tenant` ja possui os campos `horario_inicio_envio` (time) e `horario_fim_envio` (time). Vamos reutilizar esses campos como referencia de horario comercial. Na tela de Configuracoes do tenant, basta garantir que esses campos estejam editaveis (ja devem estar, mas sera validado). Se nao estiverem, adicionaremos um campo simples na tela de configuracoes.
+
+## Metricas de Atendimento (compactas)
+
+### Linha 1 - Cards de alerta (3 cards com fundo de destaque)
+
+| Metrica | Calculo | Tooltip |
+|---------|---------|---------|
+| **1a Resposta** | Tempo medio entre a primeira mensagem recebida (from_me=false) e a primeira resposta (from_me=true) em cada conversa criada no periodo | "Tempo medio que sua equipe leva para dar a primeira resposta ao cliente" |
+| **Tempo Medio Resposta** | Media do tempo entre cada mensagem recebida e a proxima resposta enviada, SOMENTE dentro do horario comercial configurado | "Tempo medio para responder durante o horario comercial da empresa" |
+| **Sem Resposta** | Conversas que possuem pelo menos 1 mensagem recebida (from_me=false) mas 0 mensagens enviadas (from_me=true), no periodo | "Conversas onde o cliente enviou mensagem e ainda nao recebeu nenhuma resposta" |
+
+### Linha 2 - Cards secundarios (5 cards compactos)
+
+| Metrica | Calculo | Tooltip |
+|---------|---------|---------|
+| **Total Conversas** | COUNT de conversas criadas no periodo | "Total de conversas iniciadas no periodo" |
+| **Recebidas** | COUNT de mensagens com from_me=false no periodo | "Total de mensagens recebidas dos clientes" |
+| **Enviadas** | COUNT de mensagens com from_me=true no periodo | "Total de mensagens enviadas pela equipe" |
+| **WhatsApp** | COUNT de conversas com canal='whatsapp' no periodo | "Conversas via WhatsApp no periodo" |
+| **Instagram** | COUNT de conversas com canal='instagram' no periodo | "Conversas via Instagram no periodo" |
+
+## Layout Visual
+
+O bloco de atendimento fica como uma secao propria entre os KPIs Secundarios e os graficos de Motivos de Perda. Titulo: **"Atendimento"** com tooltip explicativo.
 
 ```text
-1. Header + Filtros (ja existe)
-2. Funil de Conversao (ja existe)
-3. Invest Mode (ja existe)
-4. Cards KPIs Principais (REFORMULADO - 6 cards)
-   - Novos Leads | Vendas (qtd) | Receita Total | Perdas | Ticket Medio | Forecast
-5. Cards Secundarios (NOVO - 4 cards)
-   - Ciclo Medio | Tarefas em Aberto | Total Oportunidades | Conversao Geral
-6. Grafico: Motivos de Perda (NOVO - Recharts horizontal bar chart)
-7. Ranking: Produto Mais Vendido (NOVO - lista ranqueada)
-8. Breakdown por Canal (ja existe)
+┌─────────────────────────────────────────────────────────┐
+│  ATENDIMENTO                                            │
+│                                                         │
+│  ┌─────────────┐ ┌──────────────────┐ ┌──────────────┐  │
+│  │ 1a Resposta │ │ Tempo Medio Resp │ │ Sem Resposta │  │
+│  │   5h 1m     │ │     4h 30m       │ │     37       │  │
+│  │ (bg-amber)  │ │ (bg-amber)       │ │ (bg-red)     │  │
+│  └─────────────┘ └──────────────────┘ └──────────────┘  │
+│                                                         │
+│  ┌────────┐┌──────────┐┌──────────┐┌─────────┐┌───────┐│
+│  │ Total  ││ Recebidas││ Enviadas ││WhatsApp ││ Insta ││
+│  │  72    ││  1426    ││  1392    ││   72    ││   0   ││
+│  └────────┘└──────────┘└──────────┘└─────────┘└───────┘│
+└─────────────────────────────────────────────────────────┘
 ```
 
-## Novas Metricas Necessarias
-
-### Dados que serao buscados diretamente via Supabase queries (sem RPC):
-
-| Metrica | Tabela | Query |
-|---------|--------|-------|
-| Perdas (qtd) | oportunidades + etapas_funil (tipo='perda') | COUNT com fechado_em no periodo |
-| Receita de perdas | oportunidades | SUM(valor) das perdas |
-| Tarefas em aberto | tarefas | COUNT(status IN pendente, em_andamento) |
-| Motivos de perda | oportunidades + motivos_resultado | GROUP BY motivo_resultado_id com JOIN |
-| Produto mais vendido | oportunidades_produtos + produtos | GROUP BY produto_id, SUM(quantidade) |
-| Total de oportunidades no historico | oportunidades | COUNT total (sem filtro de periodo) |
-
-### Variacoes (crescimento vs periodo anterior):
-
-Cada card com variacao mostrara:
-- Seta verde para cima com "+X%" quando positivo
-- Seta vermelha para baixo com "-X%" quando negativo  
-- "s/d" (sem dados) quando nao ha periodo anterior
+Os 3 cards de alerta usam fundo com tom quente (amber/red) para destacar visualmente os gargalos, conforme a screenshot de referencia do usuario.
 
 ## Detalhamento Tecnico
 
-### 1. Nova funcao RPC `fn_dashboard_metricas_gerais`
+### 1. Nova RPC `fn_metricas_atendimento`
 
-Criar migration com funcao PostgreSQL que retorna em uma unica chamada:
-- `perdas` (count de oportunidades em etapa tipo='perda' fechadas no periodo)
-- `valor_perdas` (soma dos valores das perdas)
-- `tarefas_abertas` (count de tarefas com status pendente/em_andamento)
-- `total_oportunidades_historico` (count total sem filtro de periodo)
-- `motivos_perda` (array JSON com nome, cor, quantidade, percentual)
-- `produtos_ranking` (array JSON com nome_produto, quantidade_vendida, receita_gerada)
+Parametros: `p_organizacao_id`, `p_periodo_inicio`, `p_periodo_fim`, `p_horario_inicio` (time), `p_horario_fim` (time)
 
-Parametros: `p_organizacao_id`, `p_periodo_inicio`, `p_periodo_fim`, `p_funil_id`
+Retorna JSON com:
+- `primeira_resposta_media_segundos` (avg do tempo da 1a resposta)
+- `tempo_medio_resposta_segundos` (avg do tempo entre msgs recebidas e respostas, filtrado por horario comercial)
+- `sem_resposta` (count)
+- `total_conversas` (count)
+- `mensagens_recebidas` (count)
+- `mensagens_enviadas` (count)
+- `conversas_whatsapp` (count)
+- `conversas_instagram` (count)
 
-### 2. Atualizar Types (`relatorio.types.ts`)
+A funcao busca o horario comercial de `configuracoes_tenant` automaticamente se nao fornecido.
 
-Adicionar interface `DashboardMetricasGerais`:
+### 2. Novos Types
+
 ```typescript
-interface DashboardMetricasGerais {
-  perdas: number
-  valor_perdas: number
-  tarefas_abertas: number
-  total_oportunidades_historico: number
-  motivos_perda: Array<{ nome: string; cor: string; quantidade: number; percentual: number }>
-  produtos_ranking: Array<{ nome: string; quantidade: number; receita: number }>
+interface MetricasAtendimento {
+  primeira_resposta_media_segundos: number | null
+  tempo_medio_resposta_segundos: number | null
+  sem_resposta: number
+  total_conversas: number
+  mensagens_recebidas: number
+  mensagens_enviadas: number
+  conversas_whatsapp: number
+  conversas_instagram: number
 }
 ```
 
-### 3. Atualizar Service (`relatorio.service.ts`)
+### 3. Service + Hook
 
-- Adicionar `fetchDashboardMetricasGerais()` que chama a nova RPC
-- Adicionar chamada para metricas do periodo anterior (para variacao de perdas)
+- `fetchMetricasAtendimento(query)` em `relatorio.service.ts`
+- `useMetricasAtendimento(query)` em `useRelatorioFunil.ts`
 
-### 4. Atualizar Hook (`useRelatorioFunil.ts`)
+### 4. Novo Componente `MetricasAtendimento.tsx`
 
-- Novo hook `useDashboardMetricasGerais(query)` com TanStack Query
+Componente autonomo que renderiza as 2 linhas de cards. Formata tempos em "Xh Xm" ou "Xm Xs" conforme magnitude. Cards de alerta com cores quentes. Cards secundarios com estilo neutro.
 
-### 5. Novos Componentes
+### 5. DashboardPage
 
-| Componente | Descricao |
-|-----------|-----------|
-| `KPIsPrincipais.tsx` | Grid 6 cards: Novos Leads, Vendas, Receita, Perdas, Ticket Medio, Forecast - todos com variacao e tooltip |
-| `KPIsSecundarios.tsx` | Grid 4 cards: Ciclo Medio, Tarefas Abertas, Total Historico, Conversao Geral |
-| `MotivosPerda.tsx` | Grafico de barras horizontal (Recharts) com motivos de perda ranqueados |
-| `ProdutosRanking.tsx` | Lista visual ranqueada com barras proporcionais e medalhas (1o, 2o, 3o) |
+Adicionar `<MetricasAtendimento>` apos `KPIsSecundarios` e antes dos graficos.
 
-### 6. Atualizar `KPIsEstrategicos.tsx`
+## Filtros Respeitados
 
-Remover o componente antigo e substituir pelos novos `KPIsPrincipais` e `KPIsSecundarios`.
+Todas as metricas filtram por:
+- `organizacao_id` (tenant)
+- `periodo` (data de criacao da conversa / data de criacao da mensagem dentro do periodo)
+- O filtro de `funil_id` NAO se aplica diretamente a conversas (sao modulos separados), mas sera ignorado graciosamente
 
-### 7. Atualizar `DashboardPage.tsx`
-
-Adicionar os novos componentes na ordem correta.
-
-## Tooltips (linguagem acessivel)
-
-| Metrica | Tooltip |
-|---------|---------|
-| Novos Leads | "Quantidade de oportunidades criadas no periodo selecionado" |
-| Vendas | "Quantidade de negocios fechados como ganhos no periodo" |
-| Receita Total | "Soma dos valores de todos os negocios ganhos" |
-| Perdas | "Quantidade de negocios perdidos no periodo" |
-| Ticket Medio | "Valor medio dos negocios ganhos. Formula: receita total dividida pelo numero de vendas" |
-| Forecast | "Previsao de receita baseada no valor e probabilidade de cada etapa do funil" |
-| Ciclo Medio | "Tempo medio entre a criacao e o fechamento de um negocio" |
-| Tarefas Abertas | "Total de tarefas pendentes ou em andamento da sua equipe" |
-| Total Historico | "Todas as oportunidades ja criadas, independente do periodo" |
-| Conversao Geral | "Percentual de leads que se tornaram vendas no periodo" |
-
-## Grafico de Motivos de Perda
-
-- Recharts `BarChart` horizontal
-- Cada barra com a cor do motivo (`motivos_resultado.cor`)
-- Label: nome do motivo + quantidade + percentual
-- Titulo: "Principais Motivos de Perda"
-- Tooltip do titulo: "Razoes mais comuns pelas quais negocios foram perdidos no periodo"
-
-## Ranking de Produtos
-
-- Lista ordenada por quantidade vendida (desc)
-- Top 5 produtos
-- Cada item mostra: posicao (medalha ouro/prata/bronze para top 3), nome, quantidade, receita
-- Barra proporcional ao mais vendido
-- Titulo: "Produtos Mais Vendidos"
-- Tooltip: "Ranking dos produtos com maior volume de vendas no periodo"
-
-## Arquivos Alterados/Criados
+## Arquivos
 
 | Arquivo | Acao |
 |---------|------|
-| Supabase migration (fn_dashboard_metricas_gerais) | Criar |
-| `src/modules/app/types/relatorio.types.ts` | Editar - adicionar tipos |
+| Migration SQL (fn_metricas_atendimento) | Criar |
+| `src/modules/app/types/relatorio.types.ts` | Editar - novo tipo |
 | `src/modules/app/services/relatorio.service.ts` | Editar - nova funcao |
 | `src/modules/app/hooks/useRelatorioFunil.ts` | Editar - novo hook |
-| `src/modules/app/components/dashboard/KPIsPrincipais.tsx` | Criar |
-| `src/modules/app/components/dashboard/KPIsSecundarios.tsx` | Criar |
-| `src/modules/app/components/dashboard/MotivosPerda.tsx` | Criar |
-| `src/modules/app/components/dashboard/ProdutosRanking.tsx` | Criar |
-| `src/modules/app/components/dashboard/KPIsEstrategicos.tsx` | Remover (substituido) |
-| `src/modules/app/pages/DashboardPage.tsx` | Editar - nova composicao |
+| `src/modules/app/components/dashboard/MetricasAtendimento.tsx` | Criar |
+| `src/modules/app/pages/DashboardPage.tsx` | Editar - adicionar componente |
