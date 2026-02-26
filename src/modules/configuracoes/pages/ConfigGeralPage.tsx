@@ -232,6 +232,8 @@ export function ConfigGeralPage() {
     dias_alerta_inatividade: 7,
     notificar_inatividade: true,
     assinatura_mensagem: '',
+    assinatura_incluir_novos: true,
+    assinatura_incluir_respostas: true,
     horario_inicio_envio: '08:00',
     horario_fim_envio: '18:00',
     horario_comercial_inicio: '08:00',
@@ -256,6 +258,8 @@ export function ConfigGeralPage() {
         dias_alerta_inatividade: config.dias_alerta_inatividade ?? 7,
         notificar_inatividade: (config.dias_alerta_inatividade ?? 7) > 0,
         assinatura_mensagem: config.assinatura_mensagem || '',
+        assinatura_incluir_novos: (configAny.assinatura_incluir_novos as boolean) ?? true,
+        assinatura_incluir_respostas: (configAny.assinatura_incluir_respostas as boolean) ?? true,
         horario_inicio_envio: config.horario_inicio_envio || '08:00',
         horario_fim_envio: config.horario_fim_envio || '18:00',
         horario_comercial_inicio: (configAny.horario_comercial_inicio as string) || '08:00',
@@ -551,6 +555,26 @@ export function ConfigGeralPage() {
           <p className="text-xs text-muted-foreground mt-1">Crie uma assinatura com formatação, imagens e tabelas para seus emails e mensagens.</p>
         </div>
         <RichTextEditor value={form.assinatura_mensagem} onChange={html => updateField('assinatura_mensagem', html)} placeholder="Crie sua assinatura profissional..." />
+        <div className="space-y-2 pt-2">
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.assinatura_incluir_novos}
+              onChange={(e) => updateField('assinatura_incluir_novos', e.target.checked)}
+              className="rounded border-border text-primary focus:ring-primary/20"
+            />
+            <span className="text-foreground">Incluir em novos emails</span>
+          </label>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.assinatura_incluir_respostas}
+              onChange={(e) => updateField('assinatura_incluir_respostas', e.target.checked)}
+              className="rounded border-border text-primary focus:ring-primary/20"
+            />
+            <span className="text-foreground">Incluir em respostas e encaminhamentos</span>
+          </label>
+        </div>
       </section>
 
       {/* Widget WhatsApp */}

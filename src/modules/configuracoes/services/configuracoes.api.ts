@@ -471,6 +471,8 @@ export interface ConfiguracaoTenant {
   criar_tarefa_automatica: boolean
   dias_alerta_inatividade: number
   assinatura_mensagem?: string | null
+  assinatura_incluir_novos?: boolean
+  assinatura_incluir_respostas?: boolean
   horario_inicio_envio: string
   horario_fim_envio: string
   horario_comercial_inicio?: string | null
@@ -3277,6 +3279,8 @@ const ConfiguracaoTenantInputSchema = z.object({
   criar_tarefa_automatica: z.boolean().optional(),
   dias_alerta_inatividade: z.number().int().min(1).max(90).optional(),
   assinatura_mensagem: z.string().max(50000).optional(),
+  assinatura_incluir_novos: z.boolean().optional(),
+  assinatura_incluir_respostas: z.boolean().optional(),
   horario_inicio_envio: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, 'Formato inválido HH:MM').optional(),
   horario_fim_envio: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, 'Formato inválido HH:MM').optional(),
   widget_whatsapp_ativo: z.boolean().optional(),

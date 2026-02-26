@@ -1566,6 +1566,8 @@ export type Database = {
       }
       configuracoes_tenant: {
         Row: {
+          assinatura_incluir_novos: boolean
+          assinatura_incluir_respostas: boolean
           assinatura_mensagem: string | null
           atualizado_em: string
           criado_em: string
@@ -1588,6 +1590,8 @@ export type Database = {
           widget_whatsapp_config: Json | null
         }
         Insert: {
+          assinatura_incluir_novos?: boolean
+          assinatura_incluir_respostas?: boolean
           assinatura_mensagem?: string | null
           atualizado_em?: string
           criado_em?: string
@@ -1610,6 +1614,8 @@ export type Database = {
           widget_whatsapp_config?: Json | null
         }
         Update: {
+          assinatura_incluir_novos?: boolean
+          assinatura_incluir_respostas?: boolean
           assinatura_mensagem?: string | null
           atualizado_em?: string
           criado_em?: string
