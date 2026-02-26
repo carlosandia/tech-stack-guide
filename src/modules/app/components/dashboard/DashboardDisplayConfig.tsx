@@ -21,9 +21,12 @@ const SECTIONS: { id: ToggleableSectionId; label: string }[] = [
   { id: 'metas', label: 'Indicadores de metas' },
   { id: 'funil', label: 'Funil de conversão' },
   { id: 'reunioes', label: 'Indicadores de reuniões' },
-  { id: 'kpis-principais', label: 'Principais' },
+  { id: 'kpis-principais', label: 'Indicadores principais' },
+  { id: 'kpis-secundarios', label: 'Indicadores operacionais' },
   { id: 'canal', label: 'Por canal de origem' },
   { id: 'motivos', label: 'Motivos de ganho e perda' },
+  { id: 'produtos', label: 'Produtos mais vendidos' },
+  { id: 'atendimento', label: 'Indicadores de atendimento' },
 ]
 
 export default function DashboardDisplayConfig({ config, onToggle }: Props) {

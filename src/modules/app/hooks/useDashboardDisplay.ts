@@ -13,18 +13,17 @@ export interface DashboardDisplayConfig {
   funil: boolean
   reunioes: boolean
   'kpis-principais': boolean
+  'kpis-secundarios': boolean
   canal: boolean
   motivos: boolean
+  produtos: boolean
+  atendimento: boolean
 }
 
 export type ToggleableSectionId = keyof DashboardDisplayConfig
 
-// AIDEV-NOTE: SectionId inclui todas as seções renderizáveis (toggle + fixas)
-export type SectionId =
-  | ToggleableSectionId
-  | 'kpis-secundarios'
-  | 'produtos'
-  | 'atendimento'
+// AIDEV-NOTE: SectionId é agora igual a ToggleableSectionId (todas são toggleáveis)
+export type SectionId = ToggleableSectionId
 
 const STORAGE_KEY = 'dashboard_display_config'
 const ORDER_STORAGE_KEY = 'dashboard_section_order'
@@ -34,8 +33,11 @@ const DEFAULT_CONFIG: DashboardDisplayConfig = {
   funil: true,
   reunioes: true,
   'kpis-principais': true,
+  'kpis-secundarios': true,
   canal: true,
   motivos: true,
+  produtos: true,
+  atendimento: true,
 }
 
 export const DEFAULT_ORDER: SectionId[] = [
