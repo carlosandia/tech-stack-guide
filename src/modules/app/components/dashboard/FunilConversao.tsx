@@ -7,7 +7,7 @@
  */
 
 import { useState } from 'react'
-import { ArrowRight, Users, Target, UserCheck, CalendarPlus, CalendarCheck, Trophy, DollarSign, HelpCircle, SlidersHorizontal } from 'lucide-react'
+import { ArrowRight, Users, Target, UserCheck, CalendarPlus, CalendarCheck, Trophy, DollarSign, HelpCircle, SlidersHorizontal, Info } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Switch } from '@/components/ui/switch'
@@ -308,6 +308,21 @@ export default function FunilConversao({ data, query }: FunilConversaoProps) {
           {isLoadingCanal && canalFiltro && (
             <span className="text-[10px] text-muted-foreground animate-pulse ml-1">Carregando...</span>
           )}
+        </div>
+      )}
+
+      {/* AIDEV-NOTE: Mensagem orientativa quando canal filtrado não tem leads */}
+      {canalFiltro !== null && dadosEfetivos.funil.total_leads === 0 && !isLoadingCanal && (
+        <div className="flex items-start gap-3 mb-4 p-4 bg-muted/30 border border-border rounded-lg">
+          <Info className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+          <div className="text-xs text-muted-foreground leading-relaxed">
+            <p className="font-medium text-foreground mb-1">
+              Nenhuma oportunidade vinculada a este canal no período.
+            </p>
+            <p>
+              Para que os dados apareçam aqui, defina a <strong>Origem</strong> como "<strong>{canalToLabel(canalFiltro)}</strong>" no card da oportunidade em <strong>Negócios</strong>.
+            </p>
+          </div>
         </div>
       )}
 
