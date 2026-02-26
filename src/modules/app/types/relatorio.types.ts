@@ -61,9 +61,7 @@ export type InvestMode =
   | {
       ativo: true
       total_investido: number
-      meta_ads: number
-      google_ads: number
-      outros: number
+      canais: Record<string, number> // { meta_ads: 500, google_ads: 300, panfleto: 200 }
       cpl: number | null
       cpmql: number | null
       custo_por_sql: number | null
@@ -133,9 +131,7 @@ export interface RelatorioFunilResponse {
 export interface SalvarInvestimentoPayload {
   periodo_inicio: string
   periodo_fim: string
-  meta_ads: number
-  google_ads: number
-  outros: number
+  canais: Array<{ canal: string; valor: number }>
 }
 
 // ─────────────────────────────────────────────────────

@@ -57,11 +57,11 @@ function getCustos(investMode: InvestMode) {
   }
 }
 
-// AIDEV-NOTE: Mapeamento de canal de investimento para canal derivado do funil
-const CANAL_MAP: Record<string, { label: string; canalQuery: string }> = {
-  meta_ads: { label: 'Meta Ads', canalQuery: 'meta_ads' },
-  google_ads: { label: 'Google Ads', canalQuery: 'google_ads' },
-  outros: { label: 'Outros', canalQuery: 'outros' },
+// AIDEV-NOTE: Canais de investimento agora são dinâmicos via invest_mode.canais
+function canalToLabel(canal: string): string {
+  if (canal === 'meta_ads') return 'Meta Ads'
+  if (canal === 'google_ads') return 'Google Ads'
+  return canal.charAt(0).toUpperCase() + canal.slice(1).replace(/_/g, ' ')
 }
 
 const ETAPAS_CONFIGURAVEIS = [
@@ -75,8 +75,7 @@ export default function FunilConversao({ data, query }: FunilConversaoProps) {
   const [canalFiltro, setCanalFiltro] = useState<string | null>(null)
   const { config, toggleEtapa, hiddenCount } = useFunilEtapasConfig()
 
-  // AIDEV-NOTE: Quando canal selecionado, buscar dados filtrados via query separada
-  const queryCanal = canalFiltro && query ? { ...query, canal: CANAL_MAP[canalFiltro]?.canalQuery ?? canalFiltro } : { periodo: '30d' as const }
+  const queryCanal = canalFiltro && query ? { ...query, canal: canalFiltro } : { periodo: '30d' as const }
   const canalQueryEnabled = !!canalFiltro && !!query
   const { data: dataCanal, isLoading: isLoadingCanal } = useRelatorioFunil(queryCanal, { enabled: canalQueryEnabled })
 
@@ -86,12 +85,9 @@ export default function FunilConversao({ data, query }: FunilConversaoProps) {
   const custos = getCustos(dadosEfetivos.invest_mode)
   const investAtivo = data.invest_mode.ativo // usar data original para saber se invest mode existe
 
-  // Canais com investimento > 0
-  const canaisDisponiveis = investAtivo
-    ? Object.entries(CANAL_MAP).filter(([key]) => {
-        const im = data.invest_mode as { meta_ads: number; google_ads: number; outros: number }
-        return (im[key as keyof typeof im] ?? 0) > 0
-      })
+  // Canais com investimento > 0 (dinâmico)
+  const canaisDisponiveis: Array<[string, number]> = investAtivo && data.invest_mode.ativo
+    ? Object.entries(data.invest_mode.canais).filter(([_, valor]) => valor > 0)
     : []
 
   const todasEtapas: EtapaFunil[] = [
@@ -187,6 +183,40 @@ export default function FunilConversao({ data, query }: FunilConversaoProps) {
           <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
             Funil de Conversão
           </h3>
+          {/* Tooltip informativo sobre o funil */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                className="p-1 rounded-md text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/30 transition-colors"
+                title="Como funciona o funil?"
+              >
+                <HelpCircle className="w-3.5 h-3.5" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80 sm:w-96 p-4 text-xs leading-relaxed" align="start" side="bottom">
+              <p className="font-semibold text-foreground mb-2">Como funciona o Funil de Conversão?</p>
+              <p className="text-muted-foreground mb-3">
+                O funil mostra a jornada dos seus leads desde a entrada até o fechamento.
+              </p>
+              <p className="font-semibold text-foreground mb-1">Como os leads são atribuídos a um canal:</p>
+              <ul className="text-muted-foreground mb-3 space-y-1 list-disc pl-4">
+                <li><strong>Canais digitais</strong> (Meta Ads, Google Ads): a atribuição é automática via parâmetros UTM capturados nos formulários e integrações.</li>
+                <li><strong>Canais offline</strong> (Panfleto, Evento, Indicação): ao criar uma oportunidade, selecione a <strong>Origem</strong> correta no card do negócio. Isso vincula o lead ao canal.</li>
+              </ul>
+              <p className="font-semibold text-foreground mb-1">Como funciona o investimento:</p>
+              <ul className="text-muted-foreground mb-3 space-y-1 list-disc pl-4">
+                <li>Registre quanto investiu em cada canal no botão "Investimento"</li>
+                <li>O sistema calcula automaticamente CPL, CAC e ROMI por canal</li>
+                <li>Filtre por canal para ver a eficiência individual de cada investimento</li>
+              </ul>
+              <p className="font-semibold text-foreground mb-1">Métricas:</p>
+              <ul className="text-muted-foreground space-y-1 list-disc pl-4">
+                <li><strong>CPL</strong>: Custo por Lead (investido ÷ leads)</li>
+                <li><strong>CAC</strong>: Custo de Aquisição de Cliente (investido ÷ ganhos)</li>
+                <li><strong>ROMI</strong>: Retorno sobre Investimento em Marketing ((receita - investido) ÷ investido)</li>
+              </ul>
+            </PopoverContent>
+          </Popover>
           {/* Popover de configuração de etapas */}
           <Popover>
             <PopoverTrigger asChild>
@@ -246,7 +276,7 @@ export default function FunilConversao({ data, query }: FunilConversaoProps) {
         </div>
       </div>
 
-      {/* AIDEV-NOTE: Chips de filtro por canal — só aparecem com invest_mode ativo e canais com valor > 0 */}
+      {/* AIDEV-NOTE: Chips de filtro por canal dinâmico */}
       {investAtivo && canaisDisponiveis.length > 0 && (
         <div className="flex items-center gap-2 mb-4 flex-wrap">
           <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mr-1">
@@ -262,23 +292,19 @@ export default function FunilConversao({ data, query }: FunilConversaoProps) {
           >
             Todos
           </button>
-          {canaisDisponiveis.map(([key, { label }]) => {
-            const im = data.invest_mode as { meta_ads: number; google_ads: number; outros: number }
-            const valor = im[key as keyof typeof im] ?? 0
-            return (
-              <button
-                key={key}
-                onClick={() => setCanalFiltro(canalFiltro === key ? null : key)}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
-                  canalFiltro === key
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'bg-muted/50 text-muted-foreground hover:bg-muted'
-                }`}
-              >
-                {label}: {formatarMoeda(valor)}
-              </button>
-            )
-          })}
+          {canaisDisponiveis.map(([canal, valor]) => (
+            <button
+              key={canal}
+              onClick={() => setCanalFiltro(canalFiltro === canal ? null : canal)}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                canalFiltro === canal
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              {canalToLabel(canal)}: {formatarMoeda(valor as number)}
+            </button>
+          ))}
           {isLoadingCanal && canalFiltro && (
             <span className="text-[10px] text-muted-foreground animate-pulse ml-1">Carregando...</span>
           )}

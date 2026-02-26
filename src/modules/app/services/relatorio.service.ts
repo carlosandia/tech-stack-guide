@@ -149,11 +149,10 @@ async function buscarBreakdownCanal(
   }))
 }
 
+// AIDEV-NOTE: InvestimentoDetalhado agora usa canais dinâmicos (Record<string, number>)
 interface InvestimentoDetalhado {
   total: number
-  meta_ads: number
-  google_ads: number
-  outros: number
+  canais: Record<string, number> // { meta_ads: 500, google_ads: 300, panfleto: 200 }
 }
 
 async function buscarInvestimentoPeriodo(
@@ -171,18 +170,19 @@ async function buscarInvestimentoPeriodo(
   if (error || !data || data.length === 0) return null
 
   const rows = data as Array<{ canal: string; valor: number }>
-  const resultado: InvestimentoDetalhado = { total: 0, meta_ads: 0, google_ads: 0, outros: 0 }
+  const resultado: InvestimentoDetalhado = { total: 0, canais: {} }
 
   for (const row of rows) {
     const valor = Number(row.valor)
-    if (row.canal === 'meta_ads') resultado.meta_ads = valor
-    else if (row.canal === 'google_ads') resultado.google_ads = valor
-    else if (row.canal === 'outros') resultado.outros = valor
-    else if (row.canal === 'total') resultado.total = valor
+    if (row.canal === 'total') {
+      resultado.total = valor
+    } else {
+      resultado.canais[row.canal] = valor
+    }
   }
 
   if (resultado.total === 0) {
-    resultado.total = resultado.meta_ads + resultado.google_ads + resultado.outros
+    resultado.total = Object.values(resultado.canais).reduce((s, v) => s + v, 0)
   }
 
   return resultado.total > 0 ? resultado : null
@@ -198,10 +198,7 @@ function construirInvestMode(
 
   // Se canal específico, usar apenas o investimento daquele canal
   const t = canalFiltro
-    ? (canalFiltro === 'meta_ads' ? investimento.meta_ads
-      : canalFiltro === 'google_ads' ? investimento.google_ads
-      : canalFiltro === 'outros' ? investimento.outros
-      : investimento.total)
+    ? (investimento.canais[canalFiltro] ?? 0)
     : investimento.total
 
   if (t <= 0) return { ativo: false }
@@ -209,9 +206,7 @@ function construirInvestMode(
   return {
     ativo: true,
     total_investido: t,
-    meta_ads: investimento.meta_ads,
-    google_ads: investimento.google_ads,
-    outros: investimento.outros,
+    canais: investimento.canais,
     cpl: metricas.total_leads > 0 ? Math.round((t / metricas.total_leads) * 100) / 100 : null,
     cpmql: metricas.mqls > 0 ? Math.round((t / metricas.mqls) * 100) / 100 : null,
     custo_por_sql: metricas.sqls > 0 ? Math.round((t / metricas.sqls) * 100) / 100 : null,
@@ -297,14 +292,24 @@ export async function salvarInvestimento(payload: SalvarInvestimentoPayload): Pr
   const organizacaoId = await getOrganizacaoId()
   const usuarioId = await getUsuarioId()
 
-  const canais = [
-    { canal: 'meta_ads', valor: payload.meta_ads },
-    { canal: 'google_ads', valor: payload.google_ads },
-    { canal: 'outros', valor: payload.outros },
-    { canal: 'total', valor: payload.meta_ads + payload.google_ads + payload.outros },
+  // AIDEV-NOTE: Primeiro remover canais antigos deste período para evitar fantasmas
+  await supabase
+    .from('investimentos_marketing' as never)
+    .delete()
+    .eq('organizacao_id', organizacaoId)
+    .eq('periodo_inicio', payload.periodo_inicio)
+    .eq('periodo_fim', payload.periodo_fim)
+
+  // Calcular total
+  const total = payload.canais.reduce((s, c) => s + c.valor, 0)
+
+  // Inserir cada canal + total
+  const registros = [
+    ...payload.canais.map(c => ({ canal: c.canal, valor: c.valor })),
+    { canal: 'total', valor: total },
   ]
 
-  for (const { canal, valor } of canais) {
+  for (const { canal, valor } of registros) {
     const { error } = await supabase
       .from('investimentos_marketing' as never)
       .upsert(

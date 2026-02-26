@@ -115,9 +115,10 @@ export type RelatorioFunilResponse = z.infer<typeof RelatorioFunilResponseSchema
 export const SalvarInvestimentoSchema = z.object({
   periodo_inicio: z.string().date(),
   periodo_fim: z.string().date(),
-  meta_ads: z.number().nonnegative().default(0),
-  google_ads: z.number().nonnegative().default(0),
-  outros: z.number().nonnegative().default(0),
+  canais: z.array(z.object({
+    canal: z.string().min(1).max(100),
+    valor: z.number().nonnegative(),
+  })).min(1),
 })
 
 export type SalvarInvestimentoPayload = z.infer<typeof SalvarInvestimentoSchema>
