@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
+import { compressImage } from '@/shared/utils/compressMedia'
 
 interface EmailRichEditorProps {
   content?: string
@@ -82,13 +83,34 @@ export function EmailRichEditor({
         return
       }
 
+      // Validar tamanho (max 2MB)
+      if (file.size > 2 * 1024 * 1024) {
+        toast.error('Imagem deve ter no máximo 2MB')
+        return
+      }
+
+      // AIDEV-NOTE: Buscar organizacao_id para path RLS-compatível
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { toast.error('Usuário não autenticado'); return }
+      const { data: orgData } = await supabase
+        .from('usuarios')
+        .select('organizacao_id')
+        .eq('auth_id', user.id)
+        .maybeSingle()
+      const orgId = orgData?.organizacao_id
+      if (!orgId) { toast.error('Organização não encontrada'); return }
+
+      // AIDEV-NOTE: Comprimir imagem antes do upload
+      const compressed = await compressImage(file, file.name)
+
       // Upload to Supabase storage
       const safeExt = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp', 'image/bmp': 'bmp' }[file.type] || 'bin'
-      const path = `email-images/${Date.now()}-${Math.random().toString(36).slice(2)}.${safeExt}`
+      // AIDEV-NOTE: Path com organizacao_id como primeiro segmento para cumprir RLS do bucket
+      const path = `${orgId}/email-images/${Date.now()}-${Math.random().toString(36).slice(2)}.${safeExt}`
 
       const { data, error } = await supabase.storage
         .from('assinaturas')
-        .upload(path, file, { contentType: file.type })
+        .upload(path, compressed, { contentType: compressed instanceof File ? compressed.type : file.type })
 
       if (error) {
         // Fallback to base64 if storage fails
