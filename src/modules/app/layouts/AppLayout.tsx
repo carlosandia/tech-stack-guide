@@ -341,11 +341,12 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
       <div
         className={`
           fixed inset-y-0 left-0 z-[300] w-64 bg-background/95 backdrop-blur-md border-r border-border/60
-          transform transition-transform duration-200 ease-in-out md:hidden
+          transform transition-transform duration-200 ease-in-out md:hidden flex flex-col
           ${drawerOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
       >
-        <div className="flex h-14 items-center justify-between px-4 border-b border-border/60">
+        {/* Header fixo */}
+        <div className="flex h-14 items-center justify-between px-4 border-b border-border/60 shrink-0">
           <div className="flex items-center gap-2">
             <LogoRenove className="h-7" />
           </div>
@@ -357,7 +358,8 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
           </button>
         </div>
 
-        <nav className="p-4 space-y-4 overflow-y-auto max-h-[calc(100vh-56px-64px)]">
+        {/* Conteúdo com scroll */}
+        <nav className="flex-1 overflow-y-auto p-4 space-y-4">
           {navHubs.map((hub) => {
             // Item direto (Dashboard)
             if (hub.path) {
@@ -477,7 +479,8 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
           )}
         </nav>
 
-        <div className="absolute bottom-0 left-0 right-0 px-4 pt-3 pb-3 space-y-2 border-t border-border/60">
+        {/* Footer fixo */}
+        <div className="shrink-0 px-4 pt-3 pb-3 space-y-2 border-t border-border/60">
           <div
             className="flex items-center justify-between px-3 py-2.5 rounded-md text-sm font-medium text-muted-foreground cursor-pointer hover:bg-accent transition-all duration-200"
             onClick={() => setTheme(isDark ? 'light' : 'dark')}
