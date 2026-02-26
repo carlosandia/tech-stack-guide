@@ -70,9 +70,9 @@ export default function DashboardFilters({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
+    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
       {/* Período */}
-      <div className="flex items-center gap-1 bg-card border border-border rounded-lg p-1">
+      <div className="flex items-center gap-1 bg-card border border-border rounded-lg p-1 overflow-x-auto max-w-full scrollbar-none">
         {PERIODOS.map((p) => (
           <button
             key={p.value}
