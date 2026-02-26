@@ -1,100 +1,36 @@
 
-# Heatmap de Pico de Atendimento por Horario e Dia da Semana
+
+# Linha Visual de Horario Comercial no Heatmap
 
 ## Objetivo
 
-Criar um grafico visual no dashboard que mostre o volume de conversas/atendimentos por **hora do dia** e **dia da semana**, permitindo ao usuario identificar rapidamente os horarios de pico para tomada de decisao (escala de equipe, campanhas, etc).
+Adicionar uma indicacao visual sutil no heatmap de Pico de Atendimento que diferencie **horario comercial** de **fora do expediente**, com base nas configuracoes do tenant (`horario_comercial_inicio`, `horario_comercial_fim` e `dias_uteis`).
 
-## Tipo de Grafico
+## Abordagem Visual
 
-**Heatmap (mapa de calor)** — e o formato mais adequado para cruzar duas dimensoes (dia x hora). Cada celula representa a quantidade de conversas naquele horario/dia, com cores variando de frio (pouco volume) a quente (alto volume). Alternativa complementar: um **BarChart** empilhado por dia mostrando distribuicao por hora.
+- **Celulas fora do horario comercial**: recebem `opacity-40` (reduzidas visualmente) e um fundo levemente diferente quando vazias (`bg-muted/10` ao inves de `bg-muted/30`)
+- **Celulas dentro do horario comercial**: permanecem como estao (100% opacidade)
+- **Linha divisoria vertical sutil**: bordas `border-l` com cor `border-border` nas colunas correspondentes ao inicio e fim do horario comercial, criando uma "faixa" visual
+- **Dias nao uteis** (ex: Sab/Dom se nao configurados): linha inteira com opacidade reduzida
+- **Legenda no footer**: pequeno indicador "Horario comercial: 08h-18h" ao lado da legenda de cores existente
 
-A implementacao usara um **heatmap customizado com grid CSS** (sem dependencia extra) + um **BarChart do Recharts** (ja instalado) mostrando o total por hora do dia como visao secundaria.
+## Dados Utilizados
 
-## Dados Necessarios
+O hook `useConfigTenant` (ja existente) retorna `horario_comercial_inicio` (ex: "08:00"), `horario_comercial_fim` (ex: "18:00") e `dias_uteis` (ex: `[1,2,3,4,5]`). Defaults: 08:00-18:00, Seg-Sex.
 
-### Nova RPC SQL: `fn_heatmap_atendimento`
+## Arquivo Modificado
 
-Parametros:
-- `p_organizacao_id` (uuid)
-- `p_periodo_inicio` (timestamptz)
-- `p_periodo_fim` (timestamptz)
-- `p_canal` (text, opcional)
+**`src/modules/app/components/dashboard/HeatmapAtendimento.tsx`**
 
-Retorno: array de objetos `{ dia_semana: 0-6, hora: 0-23, total: number }`
+Alteracoes:
+1. Importar `useConfigTenant` do modulo de configuracoes
+2. Extrair `horaInicio` e `horaFim` (parse do "HH:MM" para numero inteiro da hora)
+3. Extrair `diasUteis` (array de numeros 0-6)
+4. Na renderizacao de cada celula, verificar se `hora >= horaInicio && hora < horaFim && diasUteis.includes(dia)` — se **fora**, aplicar `opacity-40`
+5. Nas colunas de hora do header, adicionar `border-l-2 border-primary/20` na hora de inicio e `border-r-2 border-primary/20` na hora de fim para criar a faixa visual
+6. No footer, adicionar texto indicativo: "Horario comercial: 08h–18h · Seg a Sex"
 
-```sql
-CREATE OR REPLACE FUNCTION fn_heatmap_atendimento(
-  p_organizacao_id uuid,
-  p_periodo_inicio timestamptz,
-  p_periodo_fim timestamptz,
-  p_canal text DEFAULT NULL
-)
-RETURNS TABLE(dia_semana int, hora int, total bigint)
-LANGUAGE sql STABLE SECURITY DEFINER
-AS $$
-  SELECT
-    EXTRACT(DOW FROM m.criado_em)::int AS dia_semana,
-    EXTRACT(HOUR FROM m.criado_em)::int AS hora,
-    COUNT(*)::bigint AS total
-  FROM mensagens m
-  JOIN conversas c ON c.id = m.conversa_id
-  WHERE c.organizacao_id = p_organizacao_id
-    AND m.criado_em BETWEEN p_periodo_inicio AND p_periodo_fim
-    AND c.deletado_em IS NULL
-    AND m.direcao = 'inbound'
-    AND (p_canal IS NULL OR c.canal = p_canal)
-  GROUP BY 1, 2
-  ORDER BY 1, 2;
-$$;
-```
+## Resultado Esperado
 
-## Interface Visual
+O usuario visualiza claramente que as conversas fora do expediente aparecem "esmaecidas", enquanto o horario comercial fica em destaque natural — sem poluir a interface, apenas reduzindo a enfase visual do que esta fora do horario configurado.
 
-```text
-+----------------------------------------------------------+
-| Pico de Atendimento                [Todos] [WA] [IG]     |
-| Volume de conversas recebidas por horario e dia da semana |
-|                                                          |
-|        06  07  08  09  10  11  12  13  14  15  16  17  18|
-| Seg    .   .   ##  ### ### ##  .   ##  ### ### ##  .   .  |
-| Ter    .   .   ##  ### ##  ##  .   ##  ##  ### ##  .   .  |
-| Qua    .   .   #   ##  ### ##  .   ##  ### ##  #   .   .  |
-| Qui    .   .   ##  ### ### ### .   ### ### ### ##  .   .  |
-| Sex    .   .   #   ##  ##  #   .   #   ##  ##  #   .   .  |
-| Sab    .   .   .   .   .   .   .   .   .   .   .   .   .  |
-| Dom    .   .   .   .   .   .   .   .   .   .   .   .   .  |
-|                                                          |
-| Legenda: [ branco ] [ azul claro ] [ azul ] [ azul forte]|
-|                                                          |
-| Horario com maior volume: Qui 10h (34 conversas)         |
-+----------------------------------------------------------+
-```
-
-Cores do heatmap: escala de `bg-primary/5` (zero) ate `bg-primary` (maximo), com 5 niveis intermediarios.
-
-## Arquivos a Criar/Modificar
-
-| Arquivo | Acao |
-|---|---|
-| `supabase/migrations/...heatmap_atendimento.sql` | Nova RPC `fn_heatmap_atendimento` |
-| `src/modules/app/types/relatorio.types.ts` | Adicionar tipo `HeatmapAtendimentoItem` |
-| `src/modules/app/services/relatorio.service.ts` | Adicionar `fetchHeatmapAtendimento()` |
-| `src/modules/app/hooks/useRelatorioFunil.ts` | Adicionar `useHeatmapAtendimento()` |
-| `src/modules/app/components/dashboard/HeatmapAtendimento.tsx` | **Novo** — Componente do heatmap |
-| `src/modules/app/pages/DashboardPage.tsx` | Registrar nova secao `pico-atendimento` |
-| `src/modules/app/hooks/useDashboardDisplay.ts` | Adicionar `'pico-atendimento'` ao config |
-
-## Detalhes do Componente `HeatmapAtendimento`
-
-- Grid CSS 8 linhas x 19 colunas (header + 7 dias, label + 18 horas 06h-23h)
-- Celulas quadradas com `rounded-sm`, tooltip nativo mostrando "Seg 10h — 34 conversas"
-- Legenda de cores na parte inferior
-- Destaque automatico do horario de pico com label "Maior volume: Qui 10h (34 conversas)"
-- Filtro por canal (badges iguais ao `MetricasAtendimento`)
-- Responsivo: no mobile, scroll horizontal com `overflow-x-auto`
-- Horarios fora do expediente configurado ficam com opacidade reduzida (usa `useConfigTenant`)
-
-## Posicao no Dashboard
-
-Sera adicionado logo **abaixo** do bloco "Indicadores de Atendimento" na ordem padrao, como secao toggleavel `pico-atendimento`.
