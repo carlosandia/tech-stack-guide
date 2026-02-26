@@ -1,66 +1,97 @@
 
-# Filtro de Tipo de Conversa no Heatmap de Pico de Atendimento
+# Dark Mode - Toggle de Tema no Menu do Usuario
 
 ## Objetivo
 
-Permitir que o usuario filtre o heatmap por tipo de conversa: **Individual**, **Grupo** ou **Todos** (ambos). Isso exclui ou inclui conversas de grupo do WhatsApp na analise de pico.
+Adicionar alternancia entre tema claro (atual) e escuro no dropdown do usuario (canto superior direito), com persistencia em `localStorage` e transicao suave.
 
-## Como funciona no banco
+## Analise do Estado Atual
 
-A tabela `conversas` possui a coluna `tipo` com valores: `'individual'`, `'grupo'` e `'canal'`. A funcao SQL `fn_heatmap_atendimento` ja faz JOIN com `conversas` mas nao filtra por `tipo`.
+- `tailwind.config.ts` ja possui `darkMode: ['class']` -- pronto para dark mode via classe CSS
+- `index.css` ja possui bloco `.dark { ... }` com variaveis, porem com valores genericos do shadcn que precisam refinamento para harmonia visual com a identidade do Renove
+- Existem cores **hardcoded** no layout (`bg-white/80`, `bg-gray-50/50`, `border-gray-200/60`) que nao respondem ao dark mode e precisam ser convertidas para tokens semanticos
+- O design system (`docs/designsystem.md`) documenta variaveis dark porem nenhuma implementacao existe
 
 ## Alteracoes
 
-### 1. Alterar a funcao SQL `fn_heatmap_atendimento`
+### 1. Criar hook `useTheme` com persistencia
 
-Adicionar parametro `p_tipo text DEFAULT NULL` e filtro `AND (p_tipo IS NULL OR c.tipo = p_tipo)`. Manter exclusao de `tipo = 'canal'` (newsletters) quando `p_tipo` for NULL.
+Novo arquivo `src/hooks/useTheme.ts`:
+- Le preferencia de `localStorage` (chave `theme`)
+- Fallback para `system` (respeita `prefers-color-scheme`)
+- Aplica/remove classe `dark` no `<html>`
+- Opcoes: `light`, `dark`, `system`
 
-Nova migration:
+### 2. Criar `ThemeProvider` no root
 
-```sql
-CREATE OR REPLACE FUNCTION public.fn_heatmap_atendimento(
-  p_organizacao_id uuid,
-  p_periodo_inicio timestamptz,
-  p_periodo_fim timestamptz,
-  p_canal text DEFAULT NULL,
-  p_tipo text DEFAULT NULL
-)
-RETURNS TABLE(dia_semana int, hora int, total bigint)
-...
-WHERE ...
-  AND c.tipo != 'canal'
-  AND (p_tipo IS NULL OR c.tipo = p_tipo)
+Novo arquivo `src/providers/ThemeProvider.tsx`:
+- Context provider que inicializa o tema antes do primeiro render (evita flash)
+- Exporta `useTheme()` para consumo em qualquer componente
+
+### 3. Refinar variaveis CSS do dark mode
+
+Atualizar `src/index.css` bloco `.dark`:
+- Ajustar `--primary` para manter o azul Renove visivel no fundo escuro (nao inverter para branco)
+- Adicionar `--content-bg` para o dark
+- Ajustar `--success`, `--warning` e `--success-muted`, `--warning-muted` para dark
+- Garantir contraste WCAG AA em todos os pares foreground/background
+
+Paleta dark proposta (harmonizada com identidade Renove):
+
+```text
+--background:          222 47% 11%    (fundo principal escuro)
+--foreground:          210 40% 98%    (texto claro)
+--card:                223 47% 13%    (cards levemente elevados)
+--card-foreground:     210 40% 98%
+--popover:             223 47% 13%
+--muted:               217 33% 17%   (backgrounds neutros)
+--muted-foreground:    215 20% 65%   (texto secundario)
+--primary:             220 72% 58%   (MESMO azul do light!)
+--primary-foreground:  0 0% 100%
+--border:              217 33% 20%
+--input:               217 33% 20%
+--content-bg:          222 47% 9%    (area de conteudo)
+--destructive:         0 63% 31%
+--success:             142 71% 35%
+--success-muted:       142 40% 18%
+--warning:             38 92% 40%
+--warning-muted:       38 40% 18%
 ```
 
-### 2. Atualizar `relatorio.service.ts`
+### 4. Corrigir cores hardcoded no AppLayout
 
-Adicionar parametro `tipo?: string` em `fetchHeatmapAtendimento` e passar como `p_tipo` no RPC.
+Em `src/modules/app/layouts/AppLayout.tsx`:
+- `bg-white/80` → `bg-background/80`
+- `border-gray-200/60` → `border-border/60`
+- `bg-gray-50/50` → `bg-muted/50`
 
-### 3. Atualizar hook `useHeatmapAtendimento`
+Isso garante que header e toolbar respondam ao tema.
 
-Adicionar parametro `tipo` na queryKey e na chamada do service.
+### 5. Adicionar toggle no User Dropdown Menu
 
-### 4. Atualizar `HeatmapAtendimento.tsx`
+No dropdown do usuario (AppLayout, linha ~586-594), adicionar item com icone `Sun`/`Moon`:
+- Exibe "Tema Escuro" com um `Switch` toggle inline
+- Posicionado entre "Meu Perfil" e "Sair"
+- Ao clicar, alterna entre light e dark
 
-Adicionar um segundo grupo de botoes (pills) para filtrar por tipo:
-- **Todos** (default) - mostra individual + grupo
-- **Individual** - apenas conversas individuais
-- **Grupo** - apenas conversas de grupo
+### 6. Adicionar toggle no menu mobile (drawer)
 
-Layout: os botoes de tipo ficam ao lado dos botoes de canal existentes (Todos/WhatsApp/Instagram), separados por um divisor sutil.
+No drawer mobile, adicionar o mesmo toggle proximo ao botao "Sair" na parte inferior.
 
-### 5. Atualizar tipos Supabase
+### 7. Registrar no main.tsx
 
-Adicionar `p_tipo` nos Args de `fn_heatmap_atendimento` em `types.ts`.
+Envolver a app com `ThemeProvider` logo apos `BrowserRouter` para garantir que o tema seja aplicado antes de qualquer render visual.
 
-## Arquivos Modificados
+## Arquivos
 
-1. **Nova migration SQL** - adiciona `p_tipo` a funcao
-2. **`src/modules/app/services/relatorio.service.ts`** - parametro `tipo`
-3. **`src/modules/app/hooks/useRelatorioFunil.ts`** - parametro `tipo` no hook
-4. **`src/modules/app/components/dashboard/HeatmapAtendimento.tsx`** - filtro de pills
-5. **`src/integrations/supabase/types.ts`** - tipo atualizado
+| Arquivo | Acao |
+|---------|------|
+| `src/hooks/useTheme.ts` | Criar |
+| `src/providers/ThemeProvider.tsx` | Criar |
+| `src/index.css` | Editar (refinar `.dark`) |
+| `src/modules/app/layouts/AppLayout.tsx` | Editar (toggle + fix hardcoded) |
+| `src/main.tsx` | Editar (adicionar ThemeProvider) |
 
 ## Resultado
 
-O usuario tera controle granular para analisar picos de atendimento separando conversas individuais de grupos, mantendo a interface limpa com pills de filtro consistentes com o design atual.
+O usuario podera alternar entre tema claro e escuro pelo menu do avatar. A preferencia persiste entre sessoes. O dark mode mantem a identidade visual do Renove (azul primario preservado) com contraste adequado em todos os componentes.
