@@ -81,7 +81,7 @@ export default function InvestModeWidget({ data }: InvestModeWidgetProps) {
 
   const handleAdicionarCanalLivre = () => {
     if (!buscaCanal.trim()) return
-    const slug = buscaCanal.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
+    const slug = buscaCanal.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
     if (canais.find(c => c.canal === slug)) return
     handleAdicionarCanal(slug, buscaCanal.trim())
   }
