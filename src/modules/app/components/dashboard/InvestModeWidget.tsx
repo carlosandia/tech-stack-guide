@@ -12,7 +12,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { useSalvarInvestimento, useRemoverInvestimento } from '../../hooks/useRelatorioFunil'
-import { useOrigensAtivas } from '@/modules/configuracoes/hooks/useOrigens'
+import { useOrigensAtivas, useCriarOrigem } from '@/modules/configuracoes/hooks/useOrigens'
 import type { RelatorioFunilResponse, SalvarInvestimentoPayload } from '../../types/relatorio.types'
 
 interface InvestModeWidgetProps {
@@ -51,6 +51,7 @@ export default function InvestModeWidget({ data }: InvestModeWidgetProps) {
   const mutation = useSalvarInvestimento()
   const removerMutation = useRemoverInvestimento()
   const { data: origens } = useOrigensAtivas()
+  const criarOrigemMutation = useCriarOrigem()
 
   const investMode = data.invest_mode
   const isAtivo = investMode.ativo
@@ -79,11 +80,18 @@ export default function InvestModeWidget({ data }: InvestModeWidgetProps) {
     setBuscaCanal('')
   }
 
-  const handleAdicionarCanalLivre = () => {
+  const handleAdicionarCanalLivre = async () => {
     if (!buscaCanal.trim()) return
-    const slug = buscaCanal.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
+    const nome = buscaCanal.trim()
+    const slug = nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
     if (canais.find(c => c.canal === slug)) return
-    handleAdicionarCanal(slug, buscaCanal.trim())
+    // AIDEV-NOTE: Salvar na tabela origens para persistir o canal criado inline
+    try {
+      await criarOrigemMutation.mutateAsync({ nome, slug })
+    } catch {
+      // Se já existe (duplicate), tudo bem — continua adicionando
+    }
+    handleAdicionarCanal(slug, nome)
   }
 
   const handleRemoverCanal = (index: number) => {
