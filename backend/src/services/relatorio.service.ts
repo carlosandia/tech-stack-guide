@@ -277,15 +277,23 @@ export async function salvarInvestimento(
   usuarioId: string,
   payload: SalvarInvestimentoPayload
 ): Promise<void> {
-  const canais: Array<{ canal: string; valor: number }> = [
-    { canal: 'meta_ads', valor: payload.meta_ads },
-    { canal: 'google_ads', valor: payload.google_ads },
-    { canal: 'outros', valor: payload.outros },
-    { canal: 'total', valor: payload.meta_ads + payload.google_ads + payload.outros },
+  // AIDEV-NOTE: Remover canais antigos deste período para evitar fantasmas
+  await supabaseAdmin
+    .from('investimentos_marketing')
+    .delete()
+    .eq('organizacao_id', organizacaoId)
+    .eq('periodo_inicio', payload.periodo_inicio)
+    .eq('periodo_fim', payload.periodo_fim)
+
+  // Calcular total
+  const total = payload.canais.reduce((s, c) => s + c.valor, 0)
+
+  const registros = [
+    ...payload.canais,
+    { canal: 'total', valor: total },
   ]
 
-  // Upsert por canal (INSERT ... ON CONFLICT DO UPDATE)
-  for (const { canal, valor } of canais) {
+  for (const { canal, valor } of registros) {
     const { error } = await supabaseAdmin
       .from('investimentos_marketing')
       .upsert(
