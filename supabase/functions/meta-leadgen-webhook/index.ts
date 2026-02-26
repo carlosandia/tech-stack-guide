@@ -167,7 +167,17 @@ async function processarLead(pageId: string, formId: string, leadgenId: string) 
     if (configForm.funil_id && etapaId) {
       const nomeContato = dadosContato.nome || dadosContato.email || "Lead Meta";
       
-      // AIDEV-NOTE: origem 'meta_ads' + utm_source para garantir que o breakdown de canal funcione
+      // AIDEV-NOTE: Enriquecer UTMs com dados reais de campanha da Graph API
+      // utm_source: plataforma do anuncio (ex: "fb" ou "ig") ou fallback "meta_ads"
+      // utm_medium: sempre "lead_ads" para identificar o canal
+      // utm_campaign: nome da campanha no Meta Ads Manager
+      // utm_content: nome do anuncio especifico
+      // utm_term: nome do conjunto de anuncios (adset)
+      const utmSource = leadData?.platform === "ig" ? "instagram" : leadData?.platform === "fb" ? "facebook" : "meta_ads";
+      const utmCampaign = leadData?.campaign_name || null;
+      const utmContent = leadData?.ad_name || null;
+      const utmTerm = leadData?.adset_name || null;
+
       const { error: errOp } = await supabase.from("oportunidades").insert({
         organizacao_id: orgId,
         contato_id: contatoId,
@@ -175,7 +185,11 @@ async function processarLead(pageId: string, formId: string, leadgenId: string) 
         etapa_id: etapaId,
         titulo: `Lead Meta - ${nomeContato}`,
         origem: "meta_ads",
-        utm_source: "meta_ads",
+        utm_source: utmSource,
+        utm_medium: "lead_ads",
+        utm_campaign: utmCampaign,
+        utm_content: utmContent,
+        utm_term: utmTerm,
         usuario_responsavel_id: configForm.owner_id || null,
         valor: 0,
         posicao: 0,
@@ -218,7 +232,8 @@ async function processarLead(pageId: string, formId: string, leadgenId: string) 
 // =====================================================
 async function buscarDadosLead(leadgenId: string, pageToken: string) {
   try {
-    const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${leadgenId}?access_token=${pageToken}`;
+    // AIDEV-NOTE: Incluir ad_name, campaign_name, adset_name para enriquecer UTMs no breakdown de canal
+    const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${leadgenId}?fields=field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,platform&access_token=${pageToken}`;
     const response = await fetch(url);
 
     if (!response.ok) {
