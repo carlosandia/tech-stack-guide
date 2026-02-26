@@ -171,8 +171,6 @@ export const MetaToolbarIndicator = forwardRef<HTMLDivElement>(function MetaTool
   }, [empresaData, individuaisData, isAdmin, user?.id])
 
   const pctPrincipal = metaPrincipal?.progresso?.percentual_atingido || 0
-  const valorAtualPrincipal = metaPrincipal?.progresso?.valor_atual || 0
-  const unidadePrincipal = metaPrincipal ? getMetricaUnidade(metaPrincipal.metrica) : 'R$'
 
   // Metas individuais do member
   const minhasMetas = useMemo(() => {
@@ -222,20 +220,20 @@ export const MetaToolbarIndicator = forwardRef<HTMLDivElement>(function MetaTool
       <button
         ref={btnRef}
         onClick={handleToggle}
-        className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-lg bg-muted border border-border hover:bg-accent transition-colors group"
+        className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors group"
         title="Meta de vendas"
       >
         <Target className="w-4 h-4 text-primary flex-shrink-0" />
         {metaPrincipal && (
           <div className="flex items-center gap-1.5 sm:gap-2">
-            <div className="w-12 sm:w-20 h-1.5 bg-muted rounded-full overflow-hidden">
+            <div className="w-12 sm:w-20 h-1.5 bg-background rounded-full overflow-hidden">
               <div
                 className={`h-full rounded-full transition-all duration-500 ${getProgressColor(pctPrincipal)}`}
                 style={{ width: `${Math.min(pctPrincipal, 100)}%` }}
               />
             </div>
             <span className="text-xs font-medium text-foreground whitespace-nowrap hidden sm:inline">
-              {formatValorMeta(valorAtualPrincipal, unidadePrincipal)}
+              {Math.round(pctPrincipal)}%
             </span>
           </div>
         )}
