@@ -263,7 +263,8 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
   const isEditorRoute = isFormularioEditorRoute(location.pathname)
   const isPipelineConfig = isPipelineConfigRoute(location.pathname)
   const isPerfilRoute = location.pathname === '/perfil'
-  const hideToolbar = isEditorRoute || isPipelineConfig || isPerfilRoute
+  const isDashboard = location.pathname === '/dashboard'
+  const hideToolbar = isEditorRoute || isPipelineConfig || isPerfilRoute || isDashboard
   const hideHeader = isEditorRoute
 
   const handleLogout = async () => {
