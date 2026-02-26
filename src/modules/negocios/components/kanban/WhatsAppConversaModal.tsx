@@ -50,12 +50,35 @@ export function WhatsAppConversaModal({ isOpen, onClose, contatoId, contatoNome,
           query = query.eq('contato_id', contatoId).is('deletado_em', null)
         } else if (telefone) {
           // For pre-opportunities, search by chat_id format (phone@c.us)
-          // Don't filter by deletado_em since the conversation may have been soft-deleted
           const phoneClean = telefone.replace(/\D/g, '')
           query = query.eq('chat_id', `${phoneClean}@c.us`)
         }
 
-        const { data, error } = await query.maybeSingle()
+        let { data, error } = await query.maybeSingle()
+
+        // AIDEV-NOTE: Fallback - se não encontrou por chat_id exato (pode ser LID),
+        // tentar busca por sufixo dos últimos 8 dígitos do telefone
+        if (!data && !contatoId && telefone) {
+          const phoneClean = telefone.replace(/\D/g, '')
+          const suffix = phoneClean.slice(-8)
+          if (suffix.length === 8) {
+            const { data: fallbackData, error: fallbackError } = await supabase
+              .from('conversas')
+              .select(`
+                *,
+                contato:contatos!conversas_contato_id_fkey(id, nome, nome_fantasia, email, telefone)
+              `)
+              .eq('canal', 'whatsapp')
+              .ilike('chat_id', `%${suffix}@c.us`)
+              .order('ultima_mensagem_em', { ascending: false })
+              .limit(1)
+              .maybeSingle()
+            if (fallbackData && !fallbackError) {
+              data = fallbackData
+              error = null
+            }
+          }
+        }
 
         if (error) throw error
 
