@@ -4,7 +4,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { fetchRelatorioFunil, salvarInvestimento, fetchFunis, fetchDashboardMetricasGerais, fetchMetricasAtendimento, fetchRelatorioMetas } from '../services/relatorio.service'
+import { fetchRelatorioFunil, salvarInvestimento, removerInvestimento, fetchFunis, fetchDashboardMetricasGerais, fetchMetricasAtendimento, fetchRelatorioMetas } from '../services/relatorio.service'
 import type { FunilQuery, SalvarInvestimentoPayload } from '../types/relatorio.types'
 import { toast } from 'sonner'
 
@@ -65,6 +65,22 @@ export function useSalvarInvestimento() {
     },
     onError: (error: Error) => {
       toast.error(`Erro ao salvar investimento: ${error.message}`)
+    },
+  })
+}
+
+export function useRemoverInvestimento() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (params: { periodo_inicio: string; periodo_fim: string }) =>
+      removerInvestimento(params.periodo_inicio, params.periodo_fim),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['relatorio-funil'] })
+      toast.success('Investimento removido com sucesso!')
+    },
+    onError: (error: Error) => {
+      toast.error(`Erro ao remover investimento: ${error.message}`)
     },
   })
 }

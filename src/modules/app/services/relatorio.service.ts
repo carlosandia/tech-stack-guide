@@ -108,6 +108,8 @@ async function buscarMetricasBrutas(
     total_leads: Number(m?.total_leads ?? 0),
     mqls: Number(m?.mqls ?? 0),
     sqls: Number(m?.sqls ?? 0),
+    reunioes_agendadas: Number((m as any)?.reunioes_agendadas ?? 0),
+    reunioes_realizadas: Number((m as any)?.reunioes_realizadas ?? 0),
     reunioes: Number(m?.reunioes ?? 0),
     fechados: Number(m?.fechados ?? 0),
     valor_gerado: Number(m?.valor_gerado ?? 0),
@@ -171,7 +173,8 @@ function construirInvestMode(
     cpl: metricas.total_leads > 0 ? Math.round((totalInvestido / metricas.total_leads) * 100) / 100 : null,
     cpmql: metricas.mqls > 0 ? Math.round((totalInvestido / metricas.mqls) * 100) / 100 : null,
     custo_por_sql: metricas.sqls > 0 ? Math.round((totalInvestido / metricas.sqls) * 100) / 100 : null,
-    custo_por_reuniao: metricas.reunioes > 0 ? Math.round((totalInvestido / metricas.reunioes) * 100) / 100 : null,
+    custo_por_reuniao_agendada: metricas.reunioes_agendadas > 0 ? Math.round((totalInvestido / metricas.reunioes_agendadas) * 100) / 100 : null,
+    custo_por_reuniao_realizada: metricas.reunioes_realizadas > 0 ? Math.round((totalInvestido / metricas.reunioes_realizadas) * 100) / 100 : null,
     cac: metricas.fechados > 0 ? Math.round((totalInvestido / metricas.fechados) * 100) / 100 : null,
     romi: metricas.valor_gerado > 0 && totalInvestido > 0
       ? Math.round(((metricas.valor_gerado - totalInvestido) / totalInvestido) * 1000) / 10
@@ -206,14 +209,16 @@ export async function fetchRelatorioFunil(query: FunilQuery): Promise<RelatorioF
       total_leads: metricas.total_leads,
       mqls: metricas.mqls,
       sqls: metricas.sqls,
-      reunioes: metricas.reunioes,
+      reunioes_agendadas: metricas.reunioes_agendadas,
+      reunioes_realizadas: metricas.reunioes_realizadas,
       fechados: metricas.fechados,
     },
     conversoes: {
       lead_para_mql: calcularTaxa(metricas.mqls, metricas.total_leads),
       mql_para_sql: calcularTaxa(metricas.sqls, metricas.mqls),
-      sql_para_reuniao: calcularTaxa(metricas.reunioes, metricas.sqls),
-      reuniao_para_fechado: calcularTaxa(metricas.fechados, metricas.reunioes),
+      sql_para_reuniao_agendada: calcularTaxa(metricas.reunioes_agendadas, metricas.sqls),
+      reuniao_agendada_para_realizada: calcularTaxa(metricas.reunioes_realizadas, metricas.reunioes_agendadas),
+      reuniao_realizada_para_fechado: calcularTaxa(metricas.fechados, metricas.reunioes_realizadas),
       lead_para_fechado: calcularTaxa(metricas.fechados, metricas.total_leads),
     },
     kpis: {
@@ -265,6 +270,23 @@ export async function salvarInvestimento(payload: SalvarInvestimentoPayload): Pr
 
     if (error) throw new Error(`Erro ao salvar investimento (${canal}): ${error.message}`)
   }
+}
+
+// ─────────────────────────────────────────────────────
+// Remover investimento (Invest Mode)
+// ─────────────────────────────────────────────────────
+
+export async function removerInvestimento(periodoInicio: string, periodoFim: string): Promise<void> {
+  const organizacaoId = await getOrganizacaoId()
+
+  const { error } = await supabase
+    .from('investimentos_marketing' as never)
+    .delete()
+    .eq('organizacao_id', organizacaoId)
+    .eq('periodo_inicio', periodoInicio)
+    .eq('periodo_fim', periodoFim)
+
+  if (error) throw new Error(`Erro ao remover investimento: ${error.message}`)
 }
 
 // ─────────────────────────────────────────────────────

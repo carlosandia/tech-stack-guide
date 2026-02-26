@@ -1,10 +1,11 @@
 /**
  * AIDEV-NOTE: Widget de Invest Mode (PRD-18 Fase 2)
  * Ícone compacto nos filtros → abre Popover com formulário ou métricas
+ * Inclui editar e remover investimento
  */
 
 import { useState } from 'react'
-import { DollarSign, TrendingUp, Loader2 } from 'lucide-react'
+import { DollarSign, TrendingUp, Loader2, Pencil, Trash2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -12,7 +13,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import { useSalvarInvestimento } from '../../hooks/useRelatorioFunil'
+import { useSalvarInvestimento, useRemoverInvestimento } from '../../hooks/useRelatorioFunil'
 import type { RelatorioFunilResponse, SalvarInvestimentoPayload } from '../../types/relatorio.types'
 
 interface InvestModeWidgetProps {
@@ -28,7 +29,9 @@ export default function InvestModeWidget({ data }: InvestModeWidgetProps) {
   const [googleAds, setGoogleAds] = useState('')
   const [outros, setOutros] = useState('')
   const [open, setOpen] = useState(false)
+  const [modoEdicao, setModoEdicao] = useState(false)
   const mutation = useSalvarInvestimento()
+  const removerMutation = useRemoverInvestimento()
 
   const investMode = data.invest_mode
 
@@ -41,14 +44,37 @@ export default function InvestModeWidget({ data }: InvestModeWidgetProps) {
       outros: parseFloat(outros) || 0,
     }
     mutation.mutate(payload, {
-      onSuccess: () => setOpen(false),
+      onSuccess: () => {
+        setOpen(false)
+        setModoEdicao(false)
+      },
     })
   }
 
+  const handleRemover = () => {
+    removerMutation.mutate({
+      periodo_inicio: data.periodo.inicio.slice(0, 10),
+      periodo_fim: data.periodo.fim.slice(0, 10),
+    }, {
+      onSuccess: () => {
+        setOpen(false)
+        setModoEdicao(false)
+      },
+    })
+  }
+
+  const handleEditar = () => {
+    setModoEdicao(true)
+    setMetaAds('')
+    setGoogleAds('')
+    setOutros('')
+  }
+
   const isAtivo = investMode.ativo
+  const mostrarFormulario = !isAtivo || modoEdicao
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={(v) => { setOpen(v); if (!v) setModoEdicao(false) }}>
       <PopoverTrigger asChild>
         <button
           className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border transition-all duration-200 ${
@@ -63,49 +89,13 @@ export default function InvestModeWidget({ data }: InvestModeWidgetProps) {
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-80 sm:w-96 p-4" align="end" side="bottom">
-        {isAtivo ? (
-          /* Métricas de investimento ativas */
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <DollarSign className="w-4 h-4 text-emerald-500" />
-                <span className="text-sm font-semibold text-foreground">Métricas de Investimento</span>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              {[
-                { label: 'Total Investido', valor: formatarMoeda(investMode.total_investido) },
-                { label: 'CPL', valor: investMode.cpl ? formatarMoeda(investMode.cpl) : '—' },
-                { label: 'Custo/MQL', valor: investMode.cpmql ? formatarMoeda(investMode.cpmql) : '—' },
-                { label: 'Custo/SQL', valor: investMode.custo_por_sql ? formatarMoeda(investMode.custo_por_sql) : '—' },
-                { label: 'Custo/Reunião', valor: investMode.custo_por_reuniao ? formatarMoeda(investMode.custo_por_reuniao) : '—' },
-                { label: 'CAC', valor: investMode.cac ? formatarMoeda(investMode.cac) : '—' },
-                {
-                  label: 'ROMI',
-                  valor: investMode.romi !== null ? `${investMode.romi}%` : '—',
-                  color: investMode.romi !== null && investMode.romi > 0 ? 'text-emerald-500' : 'text-destructive',
-                },
-              ].map((m) => (
-                <div key={m.label} className="p-2 bg-muted/30 rounded-lg">
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{m.label}</p>
-                  <p className={`text-sm font-bold ${'color' in m && m.color ? m.color : 'text-foreground'}`}>{m.valor}</p>
-                </div>
-              ))}
-            </div>
-            <button
-              onClick={() => {}}
-              className="w-full text-xs text-muted-foreground hover:text-foreground text-center py-1 transition-colors"
-            >
-              Editar investimento
-            </button>
-          </div>
-        ) : (
-          /* Formulário para informar investimento */
+        {mostrarFormulario ? (
+          /* Formulário para informar/editar investimento */
           <div className="space-y-3">
             <div className="flex items-center gap-2 mb-1">
               <DollarSign className="w-4 h-4 text-primary" />
               <span className="text-sm font-semibold text-foreground">
-                Informar investimento
+                {modoEdicao ? 'Editar investimento' : 'Informar investimento'}
               </span>
             </div>
             <p className="text-xs text-muted-foreground">
@@ -149,18 +139,80 @@ export default function InvestModeWidget({ data }: InvestModeWidgetProps) {
                 />
               </div>
             </div>
-            <button
-              onClick={handleSalvar}
-              disabled={mutation.isPending}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
-            >
-              {mutation.isPending ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <TrendingUp className="w-4 h-4" />
+            <div className="flex gap-2">
+              <button
+                onClick={handleSalvar}
+                disabled={mutation.isPending}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+              >
+                {mutation.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <TrendingUp className="w-4 h-4" />
+                )}
+                Salvar
+              </button>
+              {modoEdicao && (
+                <button
+                  onClick={() => setModoEdicao(false)}
+                  className="px-3 py-2 text-sm text-muted-foreground hover:text-foreground border border-border rounded-lg transition-colors"
+                >
+                  Cancelar
+                </button>
               )}
-              Salvar e calcular
-            </button>
+            </div>
+          </div>
+        ) : (
+          /* Métricas de investimento ativas */
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <DollarSign className="w-4 h-4 text-emerald-500" />
+                <span className="text-sm font-semibold text-foreground">Métricas de Investimento</span>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { label: 'Total Investido', valor: formatarMoeda(investMode.total_investido) },
+                { label: 'CPL', valor: investMode.cpl ? formatarMoeda(investMode.cpl) : '—' },
+                { label: 'Custo/MQL', valor: investMode.cpmql ? formatarMoeda(investMode.cpmql) : '—' },
+                { label: 'Custo/SQL', valor: investMode.custo_por_sql ? formatarMoeda(investMode.custo_por_sql) : '—' },
+                { label: 'Custo/R. Agendada', valor: investMode.custo_por_reuniao_agendada ? formatarMoeda(investMode.custo_por_reuniao_agendada) : '—' },
+                { label: 'Custo/R. Realizada', valor: investMode.custo_por_reuniao_realizada ? formatarMoeda(investMode.custo_por_reuniao_realizada) : '—' },
+                { label: 'CAC', valor: investMode.cac ? formatarMoeda(investMode.cac) : '—' },
+                {
+                  label: 'ROMI',
+                  valor: investMode.romi !== null ? `${investMode.romi}%` : '—',
+                  color: investMode.romi !== null && investMode.romi > 0 ? 'text-emerald-500' : 'text-destructive',
+                },
+              ].map((m) => (
+                <div key={m.label} className="p-2 bg-muted/30 rounded-lg">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{m.label}</p>
+                  <p className={`text-sm font-bold ${'color' in m && m.color ? m.color : 'text-foreground'}`}>{m.valor}</p>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={handleEditar}
+                className="flex-1 flex items-center justify-center gap-1.5 text-xs text-muted-foreground hover:text-foreground py-1.5 border border-border rounded-lg transition-colors"
+              >
+                <Pencil className="w-3 h-3" />
+                Editar investimento
+              </button>
+              <button
+                onClick={handleRemover}
+                disabled={removerMutation.isPending}
+                className="flex-1 flex items-center justify-center gap-1.5 text-xs text-destructive hover:text-destructive/80 py-1.5 border border-destructive/30 rounded-lg transition-colors disabled:opacity-50"
+              >
+                {removerMutation.isPending ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Trash2 className="w-3 h-3" />
+                )}
+                Remover
+              </button>
+            </div>
           </div>
         )}
       </PopoverContent>

@@ -99,6 +99,8 @@ async function buscarMetricasBrutas(
     total_leads: Number(m.total_leads ?? 0),
     mqls: Number(m.mqls ?? 0),
     sqls: Number(m.sqls ?? 0),
+    reunioes_agendadas: Number((m as any).reunioes_agendadas ?? 0),
+    reunioes_realizadas: Number((m as any).reunioes_realizadas ?? 0),
     reunioes: Number(m.reunioes ?? 0),
     fechados: Number(m.fechados ?? 0),
     valor_gerado: Number(m.valor_gerado ?? 0),
@@ -179,8 +181,9 @@ export async function calcularRelatorioFunil(
   const conversoes = {
     lead_para_mql: calcularTaxa(metricas.mqls, metricas.total_leads),
     mql_para_sql: calcularTaxa(metricas.sqls, metricas.mqls),
-    sql_para_reuniao: calcularTaxa(metricas.reunioes, metricas.sqls),
-    reuniao_para_fechado: calcularTaxa(metricas.fechados, metricas.reunioes),
+    sql_para_reuniao_agendada: calcularTaxa(metricas.reunioes_agendadas, metricas.sqls),
+    reuniao_agendada_para_realizada: calcularTaxa(metricas.reunioes_realizadas, metricas.reunioes_agendadas),
+    reuniao_realizada_para_fechado: calcularTaxa(metricas.fechados, metricas.reunioes_realizadas),
     lead_para_fechado: calcularTaxa(metricas.fechados, metricas.total_leads),
   }
 
@@ -206,7 +209,8 @@ export async function calcularRelatorioFunil(
       total_leads: metricas.total_leads,
       mqls: metricas.mqls,
       sqls: metricas.sqls,
-      reunioes: metricas.reunioes,
+      reunioes_agendadas: metricas.reunioes_agendadas,
+      reunioes_realizadas: metricas.reunioes_realizadas,
       fechados: metricas.fechados,
     },
     conversoes,
@@ -234,8 +238,14 @@ function construirInvestMode(
   const cpmql = metricas.mqls > 0
     ? Math.round((totalInvestido / metricas.mqls) * 100) / 100
     : null
-  const custoPorReuniao = metricas.reunioes > 0
-    ? Math.round((totalInvestido / metricas.reunioes) * 100) / 100
+  const custoPorSql = metricas.sqls > 0
+    ? Math.round((totalInvestido / metricas.sqls) * 100) / 100
+    : null
+  const custoPorReuniaoAgendada = metricas.reunioes_agendadas > 0
+    ? Math.round((totalInvestido / metricas.reunioes_agendadas) * 100) / 100
+    : null
+  const custoPorReuniaoRealizada = metricas.reunioes_realizadas > 0
+    ? Math.round((totalInvestido / metricas.reunioes_realizadas) * 100) / 100
     : null
   const cac = metricas.fechados > 0
     ? Math.round((totalInvestido / metricas.fechados) * 100) / 100
@@ -244,17 +254,14 @@ function construirInvestMode(
     ? Math.round(((metricas.valor_gerado - totalInvestido) / totalInvestido) * 1000) / 10
     : null
 
-  const custoPorSql = metricas.sqls > 0
-    ? Math.round((totalInvestido / metricas.sqls) * 100) / 100
-    : null
-
   return {
     ativo: true,
     total_investido: totalInvestido,
     cpl,
     cpmql,
     custo_por_sql: custoPorSql,
-    custo_por_reuniao: custoPorReuniao,
+    custo_por_reuniao_agendada: custoPorReuniaoAgendada,
+    custo_por_reuniao_realizada: custoPorReuniaoRealizada,
     cac,
     romi,
   }
