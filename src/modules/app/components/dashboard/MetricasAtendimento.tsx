@@ -82,7 +82,7 @@ export default function MetricasAtendimento({ data }: Props) {
         title="Métricas de atendimento via WhatsApp e Instagram no período selecionado"
       >
         <MessageSquare className="w-4 h-4 text-muted-foreground" />
-        Atendimento
+        Indicadores de Atendimento
       </h3>
 
       {/* Linha 1: Cards de alerta */}
