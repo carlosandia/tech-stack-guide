@@ -116,13 +116,18 @@ export default function MetricasAtendimento({ query }: Props) {
     <div className="space-y-3">
       {/* Título + Badges de canal */}
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h3
-          className="text-sm font-semibold text-foreground cursor-help flex items-center gap-1.5"
-          title="Métricas de atendimento via WhatsApp e Instagram no período selecionado"
-        >
-          <MessageSquare className="w-4 h-4 text-muted-foreground" />
-          Indicadores de Atendimento
-        </h3>
+        <div>
+          <h3
+            className="text-sm font-semibold text-foreground cursor-help flex items-center gap-1.5"
+            title="Métricas de atendimento via WhatsApp e Instagram no período selecionado"
+          >
+            <MessageSquare className="w-4 h-4 text-muted-foreground" />
+            Indicadores de Atendimento
+          </h3>
+          <p className="text-[11px] text-muted-foreground mt-0.5 ml-5.5">
+            Calculado com base no horário comercial e dias úteis · <a href="/configuracoes" className="underline hover:text-foreground transition-colors">Configurações</a>
+          </p>
+        </div>
 
         <div className="flex items-center gap-1">
           {CANAL_OPTIONS.map(opt => (
@@ -146,14 +151,14 @@ export default function MetricasAtendimento({ query }: Props) {
         <CardAlerta
           label="1ª Resposta"
           valor={formatarTempo(data.primeira_resposta_media_segundos)}
-          tooltip="Tempo médio que sua equipe leva para dar a primeira resposta ao cliente"
+          tooltip="Tempo médio da 1ª resposta ao cliente. Considera apenas mensagens em dias úteis (seg-sex) dentro do horário comercial configurado em Configurações."
           icon={Clock}
           variant="amber"
         />
         <CardAlerta
           label="Tempo Médio Resposta"
           valor={formatarTempo(data.tempo_medio_resposta_segundos)}
-          tooltip="Tempo médio para responder durante o horário comercial da empresa"
+          tooltip="Tempo médio de resposta da equipe. Considera apenas mensagens em dias úteis (seg-sex) dentro do horário comercial configurado em Configurações."
           icon={Clock}
           variant="amber"
         />
