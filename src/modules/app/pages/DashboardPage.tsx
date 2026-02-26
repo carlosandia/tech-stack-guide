@@ -1,4 +1,4 @@
-import { forwardRef, useState } from 'react'
+import { forwardRef, useState, useRef, useCallback } from 'react'
 
 import { useRelatorioFunil, useFunis, useDashboardMetricasGerais, useMetricasAtendimento, useRelatorioMetas } from '../hooks/useRelatorioFunil'
 import { useDashboardDisplay } from '../hooks/useDashboardDisplay'
@@ -17,15 +17,21 @@ import MetricasAtendimento from '../components/dashboard/MetricasAtendimento'
 import IndicadoresReunioes from '../components/dashboard/IndicadoresReunioes'
 import RelatorioMetas from '../components/dashboard/RelatorioMetas'
 import DashboardSkeleton from '../components/dashboard/DashboardSkeleton'
+import DashboardVisualizacoes from '../components/dashboard/DashboardVisualizacoes'
+import ExportarRelatorioPDF from '../components/dashboard/ExportarRelatorioPDF'
+import FullscreenToggle from '../components/dashboard/FullscreenToggle'
 import { AlertCircle } from 'lucide-react'
 import type { Periodo } from '../types/relatorio.types'
+import type { VisualizacaoDashboard } from '../hooks/useDashboardVisualizacoes'
+import type { DashboardDisplayConfig as DisplayConfigType, SectionId } from '../hooks/useDashboardDisplay'
 
 /**
  * AIDEV-NOTE: Dashboard analítico do CRM (PRD-18)
- * Substituiu o placeholder anterior com dados reais via Supabase RPC
+ * Inclui: Visualizações salvas, Export PDF, Fullscreen
  */
 
 const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, ref) {
+  const contentRef = useRef<HTMLDivElement>(null)
 
   // Estado dos filtros
   const [periodo, setPeriodo] = useState<Periodo>('30d')
@@ -71,6 +77,26 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
     setDataFim(fim)
   }
 
+  // Aplicar visualização salva
+  const handleAplicarVisualizacao = useCallback((v: VisualizacaoDashboard) => {
+    const f = v.filtros
+    if (f.periodo) setPeriodo(f.periodo)
+    if (f.funil_id !== undefined) setFunilId(f.funil_id || undefined)
+    if (f.data_inicio) setDataInicio(f.data_inicio)
+    if (f.data_fim) setDataFim(f.data_fim)
+
+    // Aplicar config de exibição via toggleSection para cada seção diferente
+    const cfg = v.config_exibicao as Partial<DisplayConfigType>
+    if (cfg) {
+      const sections: SectionId[] = ['metas', 'funil', 'reunioes', 'kpis-principais', 'canal', 'motivos']
+      sections.forEach((key) => {
+        if (cfg[key] !== undefined && cfg[key] !== displayConfig[key]) {
+          toggleSection(key)
+        }
+      })
+    }
+  }, [displayConfig, toggleSection])
+
   const isLoading = isLoadingRelatorio || isLoadingMetricas || isLoadingAtendimento
 
   // Loading
@@ -103,7 +129,7 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
 
   return (
     <div ref={ref} className="h-full overflow-y-auto">
-      <div className="space-y-6 px-4 sm:px-6 lg:px-8 py-5 max-w-full">
+      <div ref={contentRef} className="space-y-6 px-4 sm:px-6 lg:px-8 py-5 max-w-full">
         {/* Header: tudo em uma linha no desktop, empilhado no mobile */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
           <h2 className="text-lg font-semibold text-foreground leading-tight whitespace-nowrap">
@@ -121,8 +147,20 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
               onDatasChange={handleDatasChange}
             />
             <div className="flex items-center gap-2">
+              <DashboardVisualizacoes
+                filtrosAtuais={{
+                  periodo,
+                  funil_id: funilId || null,
+                  data_inicio: dataInicio || null,
+                  data_fim: dataFim || null,
+                }}
+                configExibicaoAtual={displayConfig}
+                onAplicar={handleAplicarVisualizacao}
+              />
               <InvestModeWidget data={relatorio} />
               <DashboardDisplayConfig config={displayConfig} onToggle={toggleSection} />
+              <ExportarRelatorioPDF containerRef={contentRef} />
+              <FullscreenToggle containerRef={contentRef} />
             </div>
           </div>
         </div>
