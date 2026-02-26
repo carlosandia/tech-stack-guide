@@ -5860,6 +5860,47 @@ export type Database = {
         }
         Relationships: []
       }
+      origens: {
+        Row: {
+          ativo: boolean
+          cor: string | null
+          criado_em: string
+          id: string
+          nome: string
+          organizacao_id: string
+          padrao_sistema: boolean
+          slug: string
+        }
+        Insert: {
+          ativo?: boolean
+          cor?: string | null
+          criado_em?: string
+          id?: string
+          nome: string
+          organizacao_id: string
+          padrao_sistema?: boolean
+          slug: string
+        }
+        Update: {
+          ativo?: boolean
+          cor?: string | null
+          criado_em?: string
+          id?: string
+          nome?: string
+          organizacao_id?: string
+          padrao_sistema?: boolean
+          slug?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "origens_organizacao_id_fkey"
+            columns: ["organizacao_id"]
+            isOneToOne: false
+            referencedRelation: "organizacoes_saas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       paginas_meta: {
         Row: {
           ativo: boolean | null
@@ -8286,6 +8327,10 @@ export type Database = {
       }
       criar_motivos_etapas_padrao: {
         Args: { p_criado_por: string; p_organizacao_id: string }
+        Returns: undefined
+      }
+      criar_origens_padrao: {
+        Args: { p_organizacao_id: string }
         Returns: undefined
       }
       distribuir_meta: {

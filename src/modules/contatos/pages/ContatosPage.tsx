@@ -35,7 +35,8 @@ import { useFunis } from '@/modules/negocios/hooks/useFunis'
 import { NovaOportunidadeModal } from '@/modules/negocios/components/modals/NovaOportunidadeModal'
 import { negociosApi } from '@/modules/negocios/services/negocios.api'
 
-import { StatusContatoOptions, OrigemContatoOptions } from '../schemas/contatos.schema'
+import { StatusContatoOptions } from '../schemas/contatos.schema'
+import { useOrigensAtivas } from '@/modules/configuracoes/hooks/useOrigens'
 import { contatosApi } from '../services/contatos.api'
 
 // AIDEV-NOTE: Usar apenas export default para evitar erro de inicialização circular no bundler
@@ -648,16 +649,7 @@ const ContatosPage = forwardRef<HTMLDivElement>(function ContatosPage(_props, _r
             ))}
           </select>
 
-          <select
-            value={origemFilter}
-            onChange={(e) => { setOrigemFilter(e.target.value); setPage(1) }}
-            className="text-sm rounded-md border border-input bg-background px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring"
-          >
-            <option value="">Todas as origens</option>
-            {OrigemContatoOptions.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
+          <OrigemFilterSelectInline value={origemFilter} onChange={(v: string) => { setOrigemFilter(v); setPage(1) }} />
 
           {tipo === 'pessoa' && segmentos.length > 0 && (
             <select
@@ -949,5 +941,22 @@ const ContatosPage = forwardRef<HTMLDivElement>(function ContatosPage(_props, _r
   )
 })
 ContatosPage.displayName = 'ContatosPage'
+
+// AIDEV-NOTE: Select dinâmico de origens para filtro
+function OrigemFilterSelectInline({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const { data: origens } = useOrigensAtivas()
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="text-sm rounded-md border border-input bg-background px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring"
+    >
+      <option value="">Todas as origens</option>
+      {(origens || []).filter(o => o.ativo).map((o) => (
+        <option key={o.id} value={o.slug}>{o.nome}</option>
+      ))}
+    </select>
+  )
+}
 
 export default ContatosPage

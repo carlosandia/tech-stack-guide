@@ -13,6 +13,7 @@ import {
   Layers,
   Scale,
   LayoutGrid,
+  Globe,
 } from 'lucide-react'
 
 /**
@@ -72,6 +73,7 @@ export const sidebarGroups: SidebarGroup[] = [
     items: [
       { label: 'Campos', path: '/configuracoes/campos', icon: Settings2 },
       { label: 'Produtos', path: '/configuracoes/produtos', icon: Package },
+      { label: 'Origens', path: '/configuracoes/origens', icon: Globe },
       { label: 'Motivos', path: '/configuracoes/motivos', icon: Flag },
       { label: 'Tarefas', path: '/configuracoes/tarefas', icon: ListChecks },
       { label: 'Etapas', path: '/configuracoes/etapas', icon: Layers },

@@ -14,16 +14,8 @@ export const StatusContatoOptions = [
   { value: 'perdido', label: 'Perdido' },
 ] as const
 
-export const OrigemContatoOptions = [
-  { value: 'manual', label: 'Manual' },
-  { value: 'importacao', label: 'Importação' },
-  { value: 'formulario', label: 'Formulário' },
-  { value: 'whatsapp', label: 'WhatsApp' },
-  { value: 'instagram', label: 'Instagram' },
-  { value: 'meta_ads', label: 'Meta Ads' },
-  { value: 'indicacao', label: 'Indicação' },
-  { value: 'outro', label: 'Outro' },
-] as const
+// AIDEV-NOTE: OrigemContatoOptions removido — agora usa useOrigens do banco
+// Mantido como referência legada para compatibilidade de slugs existentes
 
 export const PorteOptions = [
   { value: 'mei', label: 'MEI' },
@@ -42,7 +34,7 @@ export const PessoaFormSchema = z.object({
   cargo: z.string().max(100).optional(),
   empresa_id: z.string().uuid().optional().or(z.literal('')),
   status: z.enum(['novo', 'lead', 'mql', 'sql', 'cliente', 'perdido']).default('novo'),
-  origem: z.enum(['manual', 'importacao', 'formulario', 'whatsapp', 'instagram', 'meta_ads', 'indicacao', 'outro']).default('manual'),
+  origem: z.string().default('manual'),
   owner_id: z.string().uuid().optional().or(z.literal('')),
   endereco_cidade: z.string().max(100).optional(),
   endereco_estado: z.string().max(2).optional(),
@@ -70,7 +62,7 @@ export const EmpresaFormSchema = z.object({
   endereco_cidade: z.string().max(100).optional(),
   endereco_estado: z.string().max(2).optional(),
   status: z.enum(['novo', 'lead', 'mql', 'sql', 'cliente', 'perdido']).default('novo'),
-  origem: z.enum(['manual', 'importacao', 'formulario', 'whatsapp', 'instagram', 'meta_ads', 'indicacao', 'outro']).default('manual'),
+  origem: z.string().default('manual'),
   owner_id: z.string().uuid().optional().or(z.literal('')),
   observacoes: z.string().optional(),
 })

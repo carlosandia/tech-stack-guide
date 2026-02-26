@@ -5,12 +5,13 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { Loader2, Target, Search, X, User, Building2, Plus, Trash2, ChevronDown, RefreshCw, Link2, Pencil, Info } from 'lucide-react'
+import { Loader2, Target, Search, X, User, Building2, Plus, Trash2, ChevronDown, RefreshCw, Link2, Pencil } from 'lucide-react'
 import { ModalBase } from '@/modules/configuracoes/components/ui/ModalBase'
 import { negociosApi } from '../../services/negocios.api'
 import { formatCurrency, unformatCurrency } from '@/lib/formatters'
 import { ContatoInlineForm, validarContatoInline } from './ContatoInlineForm'
 import { useCamposConfig } from '@/modules/contatos/hooks/useCamposConfig'
+import { OrigemCombobox } from '@/shared/components/OrigemCombobox'
 import { supabase } from '@/lib/supabase'
 
 // =====================================================
@@ -77,16 +78,7 @@ interface NovaOportunidadeModalProps {
   onSuccess: () => void
 }
 
-// AIDEV-NOTE: Opções de origem para o select — valores reconhecidos pela fn_breakdown_canal_funil
-const ORIGENS_OPTIONS = [
-  { value: 'manual', label: 'Manual' },
-  { value: 'whatsapp_conversas', label: 'WhatsApp Conversas' },
-  { value: 'instagram', label: 'Instagram' },
-  { value: 'indicacao', label: 'Indicação' },
-  { value: 'site', label: 'Site / Landing Page' },
-  { value: 'evento', label: 'Evento' },
-  { value: 'outro', label: 'Outro' },
-]
+// AIDEV-NOTE: ORIGENS_OPTIONS removido — agora usa OrigemCombobox dinâmico do banco
 
 // =====================================================
 // Component
@@ -1145,29 +1137,7 @@ export function NovaOportunidadeModal({
         </section>
 
         {/* ===== CAMPO ORIGEM ===== */}
-        <div>
-          <label className="flex items-center gap-1.5 text-xs font-medium text-foreground mb-1">
-            Origem
-            <span className="relative group">
-              <Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />
-              <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2.5 py-1.5 text-[10px] leading-snug text-popover-foreground bg-popover border border-border rounded-md shadow-md whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-200 z-50">
-                Define o canal de aquisição deste lead.<br />Aparece no relatório "Por Canal de Origem" do Dashboard.
-              </span>
-            </span>
-          </label>
-          <div className="relative">
-            <select
-              value={origem}
-              onChange={(e) => setOrigem(e.target.value)}
-              className="w-full h-10 px-3 pr-8 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30 appearance-none"
-            >
-              {ORIGENS_OPTIONS.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-          </div>
-        </div>
+        <OrigemCombobox value={origem} onChange={setOrigem} />
       </div>
     </ModalBase>
   )

@@ -14,6 +14,7 @@ export { useUsuarios } from './hooks/useEquipe'
 export { useCampos, useTodosCampos, useCriarCampo } from './hooks/useCampos'
 export { useConfigCard } from './hooks/useRegras'
 export { useMetasEmpresa, useMetasIndividuais, useRanking } from './hooks/useMetas'
+export { useOrigens, useOrigensAtivas, getOrigemLabel } from './hooks/useOrigens'
 
 // Types compartilhados
 export type {

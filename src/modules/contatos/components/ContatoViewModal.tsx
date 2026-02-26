@@ -13,7 +13,8 @@ import { X, Pencil, Trash2, Building2, User, Briefcase, DollarSign, Calendar, Lo
 import { SegmentoBadge } from './SegmentoBadge'
 import { ContatoViewFieldsToggle, isViewFieldVisible } from './ContatoViewFieldsToggle'
 import type { Contato } from '../services/contatos.api'
-import { StatusContatoOptions, OrigemContatoOptions } from '../schemas/contatos.schema'
+import { StatusContatoOptions } from '../schemas/contatos.schema'
+import { useOrigensAtivas, getOrigemLabel } from '@/modules/configuracoes/hooks/useOrigens'
 import { useCamposConfig } from '../hooks/useCamposConfig'
 import { useCampos } from '@/modules/configuracoes/hooks/useCampos'
 import { useQuery } from '@tanstack/react-query'
@@ -165,7 +166,8 @@ export const ContatoViewModal = forwardRef<HTMLDivElement, ContatoViewModalProps
     : contato.nome_fantasia || contato.razao_social || 'Sem nome'
 
   const statusLabel = StatusContatoOptions.find(s => s.value === contato.status)?.label || contato.status
-  const origemLabel = OrigemContatoOptions.find(o => o.value === contato.origem)?.label || contato.origem
+  const { data: origensData } = useOrigensAtivas()
+  const origemLabel = getOrigemLabel(origensData, contato.origem)
 
   const isVisible = (key: string, obrigatorio = false) => isViewFieldVisible(tipo, key, obrigatorio)
 
