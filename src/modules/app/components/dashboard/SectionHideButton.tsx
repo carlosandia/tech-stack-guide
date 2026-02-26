@@ -5,11 +5,11 @@
  */
 
 import { EyeOff } from 'lucide-react'
-import type { SectionId } from '../../hooks/useDashboardDisplay'
+import type { ToggleableSectionId } from '../../hooks/useDashboardDisplay'
 
 interface Props {
-  sectionId: SectionId
-  onHide: (id: SectionId) => void
+  sectionId: ToggleableSectionId
+  onHide: (id: ToggleableSectionId) => void
 }
 
 export default function SectionHideButton({ sectionId, onHide }: Props) {

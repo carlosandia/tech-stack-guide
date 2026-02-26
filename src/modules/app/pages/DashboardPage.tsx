@@ -1,7 +1,7 @@
-import { forwardRef, useState, useRef, useCallback } from 'react'
+import { forwardRef, useState, useRef, useCallback, type DragEvent, type ReactNode } from 'react'
 
 import { useRelatorioFunil, useFunis, useDashboardMetricasGerais, useMetricasAtendimento, useRelatorioMetas } from '../hooks/useRelatorioFunil'
-import { useDashboardDisplay } from '../hooks/useDashboardDisplay'
+import { useDashboardDisplay, type SectionId, type ToggleableSectionId } from '../hooks/useDashboardDisplay'
 import DashboardFilters from '../components/dashboard/DashboardFilters'
 import FunilConversao from '../components/dashboard/FunilConversao'
 import KPIsPrincipais from '../components/dashboard/KPIsPrincipais'
@@ -20,14 +20,15 @@ import DashboardSkeleton from '../components/dashboard/DashboardSkeleton'
 import DashboardVisualizacoes from '../components/dashboard/DashboardVisualizacoes'
 import ExportarRelatorioPDF from '../components/dashboard/ExportarRelatorioPDF'
 import FullscreenToggle from '../components/dashboard/FullscreenToggle'
+import DashboardSectionDraggable from '../components/dashboard/DashboardSectionDraggable'
 import { AlertCircle } from 'lucide-react'
 import type { Periodo } from '../types/relatorio.types'
 import type { VisualizacaoDashboard } from '../hooks/useDashboardVisualizacoes'
-import type { DashboardDisplayConfig as DisplayConfigType, SectionId } from '../hooks/useDashboardDisplay'
+import type { DashboardDisplayConfig as DisplayConfigType } from '../hooks/useDashboardDisplay'
 
 /**
  * AIDEV-NOTE: Dashboard analítico do CRM (PRD-18)
- * Inclui: Visualizações salvas, Export PDF, Fullscreen
+ * Inclui: Visualizações salvas, Export PDF, Fullscreen, Drag & Drop de blocos
  */
 
 const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, ref) {
@@ -46,8 +47,12 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
     data_fim: periodo === 'personalizado' ? dataFim : undefined,
   }
 
-  // Display config
-  const { config: displayConfig, toggleSection } = useDashboardDisplay()
+  // Display config + order
+  const { config: displayConfig, toggleSection, sectionOrder, reorderSection } = useDashboardDisplay()
+
+  // Drag state
+  const [draggingId, setDraggingId] = useState<string | null>(null)
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
 
   // Queries
   const { data: funis = [] } = useFunis()
@@ -85,10 +90,9 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
     if (f.data_inicio) setDataInicio(f.data_inicio)
     if (f.data_fim) setDataFim(f.data_fim)
 
-    // Aplicar config de exibição via toggleSection para cada seção diferente
     const cfg = v.config_exibicao as Partial<DisplayConfigType>
     if (cfg) {
-      const sections: SectionId[] = ['metas', 'funil', 'reunioes', 'kpis-principais', 'canal', 'motivos']
+      const sections: ToggleableSectionId[] = ['metas', 'funil', 'reunioes', 'kpis-principais', 'canal', 'motivos']
       sections.forEach((key) => {
         if (cfg[key] !== undefined && cfg[key] !== displayConfig[key]) {
           toggleSection(key)
@@ -96,6 +100,32 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
       })
     }
   }, [displayConfig, toggleSection])
+
+  // Drag handlers
+  const handleDragStart = useCallback((sectionId: string) => {
+    setDraggingId(sectionId)
+  }, [])
+
+  const handleDragEnd = useCallback(() => {
+    setDraggingId(null)
+    setDragOverIndex(null)
+  }, [])
+
+  const handleDragOver = useCallback((_e: DragEvent, index: number) => {
+    setDragOverIndex(index)
+  }, [])
+
+  const handleDragLeave = useCallback(() => {
+    setDragOverIndex(null)
+  }, [])
+
+  const handleDrop = useCallback((_e: DragEvent, targetIndex: number) => {
+    if (draggingId) {
+      reorderSection(draggingId as SectionId, targetIndex)
+    }
+    setDraggingId(null)
+    setDragOverIndex(null)
+  }, [draggingId, reorderSection])
 
   const isLoading = isLoadingRelatorio || isLoadingMetricas || isLoadingAtendimento
 
@@ -127,10 +157,63 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
 
   if (!relatorio) return null
 
+  // AIDEV-NOTE: Mapa de seções com visibilidade e componente
+  const sectionMap: Record<SectionId, { visible: boolean; toggleId?: ToggleableSectionId; render: () => ReactNode }> = {
+    metas: {
+      visible: displayConfig.metas && !!relatorioMetas,
+      toggleId: 'metas',
+      render: () => <RelatorioMetas data={relatorioMetas!} />,
+    },
+    funil: {
+      visible: displayConfig.funil,
+      toggleId: 'funil',
+      render: () => <FunilConversao data={relatorio} />,
+    },
+    reunioes: {
+      visible: displayConfig.reunioes,
+      toggleId: 'reunioes',
+      render: () => <IndicadoresReunioes data={relatorio} />,
+    },
+    'kpis-principais': {
+      visible: displayConfig['kpis-principais'] && !!metricasGerais,
+      toggleId: 'kpis-principais',
+      render: () => <KPIsPrincipais relatorio={relatorio} metricas={metricasGerais!} />,
+    },
+    'kpis-secundarios': {
+      visible: !!metricasGerais,
+      render: () => <KPIsSecundarios relatorio={relatorio} metricas={metricasGerais!} />,
+    },
+    canal: {
+      visible: displayConfig.canal,
+      toggleId: 'canal',
+      render: () => <BreakdownCanal data={relatorio.breakdown_canal} />,
+    },
+    motivos: {
+      visible: displayConfig.motivos && !!metricasGerais,
+      toggleId: 'motivos',
+      render: () => (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <MotivosGanho data={metricasGerais!.motivos_ganho} />
+          <MotivosPerda data={metricasGerais!.motivos_perda} />
+        </div>
+      ),
+    },
+    produtos: {
+      visible: !!metricasGerais,
+      render: () => <ProdutosRanking data={metricasGerais!.produtos_ranking} />,
+    },
+    atendimento: {
+      visible: !!metricasAtendimento,
+      render: () => <MetricasAtendimento data={metricasAtendimento!} />,
+    },
+  }
+
+  const visibleSections = sectionOrder.filter(id => sectionMap[id]?.visible)
+
   return (
     <div ref={ref} className="h-full overflow-y-auto">
       <div ref={contentRef} className="space-y-6 px-4 sm:px-6 lg:px-8 py-5 max-w-full">
-        {/* Header: tudo em uma linha no desktop, empilhado no mobile */}
+        {/* Header */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
           <h2 className="text-lg font-semibold text-foreground leading-tight whitespace-nowrap">
             Relatório de Desempenho
@@ -165,82 +248,52 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
           </div>
         </div>
 
-        {/* Indicadores de Metas */}
-        {displayConfig.metas && relatorioMetas && (
-          <div className="relative">
-            <div className="absolute top-1 right-2 z-10">
-              <SectionHideButton sectionId="metas" onHide={toggleSection} />
-            </div>
-            <RelatorioMetas data={relatorioMetas} />
-          </div>
-        )}
+        {/* Blocos com Drag & Drop */}
+        {visibleSections.map((sectionId, index) => {
+          const section = sectionMap[sectionId]
+          return (
+            <DashboardSectionDraggable
+              key={sectionId}
+              sectionId={sectionId}
+              index={index}
+              draggingId={draggingId}
+              dragOverIndex={dragOverIndex}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              <div className="relative">
+                {section.toggleId && (
+                  <div className="absolute top-1 right-2 z-10">
+                    <SectionHideButton sectionId={section.toggleId} onHide={toggleSection} />
+                  </div>
+                )}
+                {section.render()}
+              </div>
+            </DashboardSectionDraggable>
+          )
+        })}
 
-        {/* Funil de Conversão */}
-        {displayConfig.funil && (
-          <div className="relative">
-            <div className="absolute top-1 right-2 z-10">
-              <SectionHideButton sectionId="funil" onHide={toggleSection} />
-            </div>
-            <FunilConversao data={relatorio} />
-          </div>
-        )}
-
-        {/* Indicadores de Reuniões */}
-        {displayConfig.reunioes && (
-          <div className="relative">
-            <div className="absolute top-1 right-2 z-10">
-              <SectionHideButton sectionId="reunioes" onHide={toggleSection} />
-            </div>
-            <IndicadoresReunioes data={relatorio} />
-          </div>
-        )}
-
-        {/* KPIs Principais (6 cards) */}
-        {displayConfig['kpis-principais'] && metricasGerais && (
-          <div className="relative">
-            <div className="absolute top-1 right-2 z-10">
-              <SectionHideButton sectionId="kpis-principais" onHide={toggleSection} />
-            </div>
-            <KPIsPrincipais relatorio={relatorio} metricas={metricasGerais} />
-          </div>
-        )}
-
-        {/* KPIs Secundários (4 cards) */}
-        {metricasGerais && (
-          <KPIsSecundarios relatorio={relatorio} metricas={metricasGerais} />
-        )}
-
-        {/* Breakdown por Canal */}
-        {displayConfig.canal && (
-          <div className="relative">
-            <div className="absolute top-1 right-2 z-10">
-              <SectionHideButton sectionId="canal" onHide={toggleSection} />
-            </div>
-            <BreakdownCanal data={relatorio.breakdown_canal} />
-          </div>
-        )}
-
-        {/* Motivos de Ganho + Perda */}
-        {displayConfig.motivos && metricasGerais && (
-          <div className="relative">
-            <div className="absolute top-1 right-2 z-10">
-              <SectionHideButton sectionId="motivos" onHide={toggleSection} />
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <MotivosGanho data={metricasGerais.motivos_ganho} />
-              <MotivosPerda data={metricasGerais.motivos_perda} />
-            </div>
-          </div>
-        )}
-
-        {/* Produtos Mais Vendidos */}
-        {metricasGerais && (
-          <ProdutosRanking data={metricasGerais.produtos_ranking} />
-        )}
-
-        {/* Métricas de Atendimento */}
-        {metricasAtendimento && (
-          <MetricasAtendimento data={metricasAtendimento} />
+        {/* Drop zone final (para arrastar para o fim) */}
+        {draggingId && (
+          <div
+            onDragOver={(e) => {
+              e.preventDefault()
+              setDragOverIndex(visibleSections.length)
+            }}
+            onDragLeave={() => setDragOverIndex(null)}
+            onDrop={(e) => {
+              e.preventDefault()
+              handleDrop(e, visibleSections.length)
+            }}
+            className={`transition-all duration-150 rounded ${
+              dragOverIndex === visibleSections.length
+                ? 'h-[6px] bg-primary/5 border-2 border-dashed border-primary/30'
+                : 'h-4'
+            }`}
+          />
         )}
       </div>
     </div>
