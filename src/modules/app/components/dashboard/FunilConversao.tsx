@@ -118,12 +118,9 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
     <div className="bg-card border border-border rounded-xl p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+          <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
             Funil de Conversão
           </h3>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {data.periodo.label}
-          </p>
         </div>
         <div className="flex items-center gap-2">
           {totalInvestido !== null && (

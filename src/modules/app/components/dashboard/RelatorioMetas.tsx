@@ -64,9 +64,7 @@ export default function RelatorioMetas({ data }: RelatorioMetasProps) {
 
   return (
     <div className="bg-card border border-border rounded-xl p-6 space-y-5">
-      {/* Título da seção - mesmo padrão dos outros indicadores */}
-      <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
-        <Target className="w-4 h-4 text-muted-foreground" />
+      <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
         Indicadores de Metas
       </h3>
 
