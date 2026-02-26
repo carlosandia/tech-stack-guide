@@ -5,7 +5,7 @@
  */
 
 import { useState } from 'react'
-import { Bookmark, Trash2, Check, Plus, Pencil, RefreshCw } from 'lucide-react'
+import { Bookmark, Trash2, Check, Plus, Pencil } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -88,17 +88,17 @@ function ConfigResumo({
   return (
     <div className="space-y-1.5 text-[11px] text-muted-foreground bg-muted/40 rounded-md px-2.5 py-2 border border-border/50">
       <div className="flex items-center gap-1.5">
-        <span className="font-medium text-foreground/70">Período:</span>
+        <span className="font-semibold text-foreground">Período:</span>
         <span>{periodo}</span>
         {periodoDetalhe && <span className="text-[10px]">({periodoDetalhe})</span>}
       </div>
       <div className="flex items-center gap-1.5">
-        <span className="font-medium text-foreground/70">Funil:</span>
+        <span className="font-semibold text-foreground">Funil:</span>
         <span>{funilNome}</span>
       </div>
       {secoesAtivas.length > 0 && (
         <div className="flex items-start gap-1.5">
-          <span className="font-medium text-foreground/70 shrink-0">Seções:</span>
+          <span className="font-semibold text-foreground shrink-0">Seções:</span>
           <span className="leading-tight">{secoesAtivas.join(', ')}</span>
         </div>
       )}
@@ -127,6 +127,7 @@ export default function DashboardVisualizacoes({
   // Edição
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editNome, setEditNome] = useState('')
+  const [updateConfig, setUpdateConfig] = useState(false)
 
   const handleSalvar = () => {
     if (!nome.trim()) return
@@ -154,39 +155,32 @@ export default function DashboardVisualizacoes({
   const handleStartEdit = (v: VisualizacaoDashboard) => {
     setEditingId(v.id)
     setEditNome(v.nome)
+    setUpdateConfig(false)
   }
 
   const handleCancelEdit = () => {
     setEditingId(null)
     setEditNome('')
+    setUpdateConfig(false)
   }
 
   const handleSaveEdit = () => {
     if (!editingId || !editNome.trim()) return
-    editar(
-      { id: editingId, nome: editNome.trim() },
-      {
-        onSuccess: () => {
-          setEditingId(null)
-          setEditNome('')
-        },
-      }
-    )
-  }
-
-  const handleUpdateConfig = (id: string) => {
-    editar(
-      {
-        id,
-        filtros: filtrosAtuais,
-        config_exibicao: configExibicaoAtual,
+    const payload: { id: string; nome: string; filtros?: typeof filtrosAtuais; config_exibicao?: typeof configExibicaoAtual } = {
+      id: editingId,
+      nome: editNome.trim(),
+    }
+    if (updateConfig) {
+      payload.filtros = filtrosAtuais
+      payload.config_exibicao = configExibicaoAtual
+    }
+    editar(payload, {
+      onSuccess: () => {
+        setEditingId(null)
+        setEditNome('')
+        setUpdateConfig(false)
       },
-      {
-        onSuccess: () => {
-          setEditingId(null)
-        },
-      }
-    )
+    })
   }
 
   return (
@@ -225,18 +219,19 @@ export default function DashboardVisualizacoes({
                     onKeyDown={(e) => e.key === 'Enter' && handleSaveEdit()}
                   />
                   <ConfigResumo
-                    filtros={v.filtros}
-                    config={v.config_exibicao}
+                    filtros={updateConfig ? filtrosAtuais : v.filtros}
+                    config={updateConfig ? configExibicaoAtual : v.config_exibicao}
                     funis={funis}
                   />
-                  <button
-                    className="flex items-center gap-1 text-[11px] text-primary hover:text-primary/80 transition-colors"
-                    onClick={() => handleUpdateConfig(v.id)}
-                    disabled={isEditing}
-                  >
-                    <RefreshCw className="w-3 h-3" />
-                    Atualizar com configurações atuais
-                  </button>
+                  <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={updateConfig}
+                      onChange={(e) => setUpdateConfig(e.target.checked)}
+                      className="rounded border-border accent-primary w-3.5 h-3.5"
+                    />
+                    Usar configurações atuais do dashboard
+                  </label>
                   <div className="flex items-center gap-1.5 pt-1">
                     <Button
                       size="sm"
