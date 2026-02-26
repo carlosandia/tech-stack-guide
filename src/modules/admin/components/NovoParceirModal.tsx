@@ -190,7 +190,7 @@ export function NovoParceirModal({ isOpen, onClose }: Props) {
                   </button>
                 </PopoverTrigger>
                 <PopoverContent
-                  className="w-[var(--radix-popover-trigger-width)] p-0"
+                  className="w-[var(--radix-popover-trigger-width)] p-0 z-[500] bg-popover border border-border shadow-lg"
                   align="start"
                   sideOffset={4}
                 >
