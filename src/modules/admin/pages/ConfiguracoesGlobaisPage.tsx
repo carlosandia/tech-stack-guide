@@ -786,32 +786,7 @@ function ConfigProgramaParceiroForm() {
         )}
       </div>
 
-      {/* URL base */}
-      <div className="space-y-1">
-        <label className="text-sm font-medium text-foreground">URL base de indicação</label>
-        <input
-          type="url"
-          value={baseUrl}
-          onChange={(e) => setBaseUrl(e.target.value)}
-          placeholder="https://crm.renovedigital.com.br/cadastro"
-          className="w-full px-3 py-2 border border-border rounded-md text-sm bg-background outline-none focus:ring-2 focus:ring-ring"
-        />
-        <p className="text-xs text-muted-foreground">
-          URL base para links de indicação (V2).
-        </p>
-      </div>
 
-      {/* Observações */}
-      <div className="space-y-1">
-        <label className="text-sm font-medium text-foreground">Observações internas</label>
-        <textarea
-          value={observacoes}
-          onChange={(e) => setObservacoes(e.target.value)}
-          rows={3}
-          placeholder="Notas internas sobre o programa..."
-          className="w-full px-3 py-2 border border-border rounded-md text-sm bg-background outline-none focus:ring-2 focus:ring-ring resize-none"
-        />
-      </div>
 
       <button
         type="button"
