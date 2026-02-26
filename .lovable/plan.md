@@ -1,68 +1,32 @@
 
+# Plano: Titulo + Seletor de Periodo Responsivo
 
-# Plano: Ajustes no InvestModeWidget + Painel de Configuracao de Exibicao do Dashboard
-
-## 1. Corrigir nomenclatura do botao de Investimento
-
-**Arquivo:** `src/modules/app/components/dashboard/InvestModeWidget.tsx`
-
-O botao atualmente muda o texto de "Investimento" para "ROI" quando o invest mode esta ativo. A correcao e simples: manter sempre o texto "Investimento", apenas alterando o estilo visual (fundo verde) quando ativo.
-
-**Alteracao:** Linha 88, trocar `{isAtivo ? 'ROI' : 'Investimento'}` por `Investimento` (texto fixo).
-
----
-
-## 2. Remover CollapsibleSection individual e criar Painel de Configuracao de Exibicao
-
-Substituir o mecanismo atual de hover em cada bloco por um unico botao/icone de configuracao no header do dashboard, ao lado do botao de Investimento. Ao clicar, abre um Popover com toggles (switches) para cada bloco.
-
-**Arquivo novo:** `src/modules/app/components/dashboard/DashboardDisplayConfig.tsx`
-
-### Comportamento:
-- Icone de engrenagem (Settings2 do lucide) no header, ao lado do botao de Investimento
-- Ao clicar, abre um Popover com lista de blocos, cada um com um Switch (on/off)
-- Estado persistido no localStorage (chave `dashboard_display_config`)
-- Todos iniciam como visivel por padrao
-
-### Blocos configuráveis (labels sincronizados com o dashboard):
-
-| ID | Label no Painel |
-|----|-----------------|
-| `metas` | Indicadores de metas |
-| `funil` | Funil de conversao |
-| `reunioes` | Indicadores de reunioes |
-| `kpis-principais` | Principais |
-| `canal` | Por canal de origem |
-| `motivos` | Motivos de ganho e perda |
-
-**Nota:** Os blocos KPIs Secundarios, Produtos Ranking e Metricas de Atendimento continuam visiveis sem toggle (nao foram solicitados pelo usuario).
-
-### UI do Popover:
-- Header: icone Settings2 + "Exibicao"
-- Lista vertical com cada bloco: label a esquerda, Switch a direita
-- Estilo seguindo o design system: `text-sm`, `rounded-lg`, cores semanticas
-
----
-
-## 3. Alterar DashboardPage
+## 1. Alterar titulo do Dashboard
 
 **Arquivo:** `src/modules/app/pages/DashboardPage.tsx`
 
-- Importar o novo `DashboardDisplayConfig` e renderiza-lo no header ao lado do `InvestModeWidget`
-- Remover o `CollapsibleSection` wrapper dos blocos configuráveis
-- Usar renderizacao condicional simples: `{visivel.metas && relatorioMetas && <RelatorioMetas ... />}`
-- O estado de visibilidade vem do hook/estado do `DashboardDisplayConfig` (via estado local ou hook compartilhado)
-
-### Abordagem tecnica:
-- Criar um hook `useDashboardDisplay` que gerencia o estado de visibilidade com localStorage
-- O hook retorna `{ config, toggleSection }` onde `config` e um objeto `Record<string, boolean>`
-- Tanto o `DashboardDisplayConfig` (popover) quanto o `DashboardPage` (renderizacao) usam o mesmo hook
+Trocar o texto do h2 de "Relatório de funil" para **"Relatório de Desempenho"**.
 
 ---
 
-## 4. Remover CollapsibleSection
+## 2. Substituir botoes de periodo por Select/Dropdown no mobile
 
-O componente `CollapsibleSection` pode ser removido pois sera substituido pelo painel centralizado.
+**Arquivo:** `src/modules/app/components/dashboard/DashboardFilters.tsx`
+
+Substituir os botoes inline de periodo por um componente `Select` (Radix) que funciona como dropdown compacto. Elimina completamente o scroll horizontal.
+
+### Comportamento:
+- Dropdown com as opcoes: "Ultimos 7 dias", "Ultimos 30 dias", "Ultimos 90 dias", "Personalizado"
+- Quando "Personalizado" for selecionado, exibe o botao de date picker ao lado (ou abaixo no mobile)
+- O select de funil permanece como esta
+- Layout: todos os selects empilham verticalmente no mobile (`flex-col`) e ficam em linha no desktop (`sm:flex-row`)
+- Background opaco (`bg-popover`) e `z-50` no dropdown para evitar transparencia
+
+### Detalhes tecnicos:
+- Usar os componentes `Select`, `SelectTrigger`, `SelectContent`, `SelectItem` ja existentes em `src/components/ui/select.tsx`
+- Remover os botoes de periodo e o container com `overflow-x-auto`
+- Manter a mesma interface de props (sem mudancas no DashboardPage)
+- SelectTrigger com classes: `h-9 text-xs w-full sm:w-[180px]`
 
 ---
 
@@ -70,8 +34,5 @@ O componente `CollapsibleSection` pode ser removido pois sera substituido pelo p
 
 | Arquivo | Acao |
 |---------|------|
-| `src/modules/app/components/dashboard/InvestModeWidget.tsx` | Fixar texto "Investimento" |
-| `src/modules/app/hooks/useDashboardDisplay.ts` | Criar hook de visibilidade |
-| `src/modules/app/components/dashboard/DashboardDisplayConfig.tsx` | Criar componente do painel |
-| `src/modules/app/pages/DashboardPage.tsx` | Integrar painel + renderizacao condicional |
-| `src/modules/app/components/dashboard/CollapsibleSection.tsx` | Remover |
+| `src/modules/app/pages/DashboardPage.tsx` | Trocar titulo para "Relatorio de Desempenho" |
+| `src/modules/app/components/dashboard/DashboardFilters.tsx` | Trocar botoes de periodo por Select dropdown |
