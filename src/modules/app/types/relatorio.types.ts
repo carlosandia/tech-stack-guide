@@ -166,6 +166,7 @@ export interface DashboardMetricasGerais {
   tarefas_abertas: number
   total_oportunidades_historico: number
   motivos_perda: MotivosPerdaItem[]
+  motivos_ganho: MotivosPerdaItem[]
   produtos_ranking: ProdutoRankingItem[]
 }
 
