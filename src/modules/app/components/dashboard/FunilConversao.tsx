@@ -133,12 +133,22 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
     e.configKey === null || config[e.configKey as keyof typeof config]
   )
 
+  // AIDEV-NOTE: Conversão relativa ao topo do funil (Leads) — padrão HubSpot/Salesforce
+  // Taxa no bloco = etapa / leads (cap 100%)
+  // Taxa na seta = etapa / anterior (cap 100%, para gargalos)
+  const primeiraEtapa = etapasVisiveis[0]
   const etapas = etapasVisiveis.map((etapa, index) => {
-    if (index === 0) return { ...etapa, taxa: null, taxaLabel: '100%' }
+    if (index === 0) return { ...etapa, taxa: null, taxaLabel: '100%', taxaEntreEtapas: null }
     const anterior = etapasVisiveis[index - 1]
-    if (anterior.value === 0) return { ...etapa, taxa: 0, taxaLabel: '0%' }
-    const taxa = Math.round((etapa.value / anterior.value) * 1000) / 10
-    return { ...etapa, taxa, taxaLabel: `${taxa}%` }
+    // Taxa relativa ao topo do funil
+    const taxaDoTopo = primeiraEtapa.value > 0
+      ? Math.min(Math.round((etapa.value / primeiraEtapa.value) * 1000) / 10, 100)
+      : 0
+    // Taxa etapa-a-etapa (para seta entre blocos)
+    const taxaEntreEtapas = anterior.value > 0
+      ? Math.min(Math.round((etapa.value / anterior.value) * 1000) / 10, 100)
+      : 0
+    return { ...etapa, taxa: taxaDoTopo, taxaLabel: `${taxaDoTopo}%`, taxaEntreEtapas }
   })
 
   const taxaGeral = data.conversoes.lead_para_fechado
@@ -264,9 +274,9 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
               {index < etapas.length - 1 && (
                 <div className="flex flex-col items-center justify-center shrink-0">
                   <ArrowRight className="w-3.5 h-3.5 text-muted-foreground/50" />
-                  {etapas[index + 1].taxa !== null && (
+                  {etapas[index + 1].taxaEntreEtapas !== null && etapas[index + 1].taxaEntreEtapas !== undefined && (
                     <span className="text-[9px] font-semibold text-muted-foreground mt-0.5">
-                      {etapas[index + 1].taxaLabel}
+                      {etapas[index + 1].taxaEntreEtapas}%
                     </span>
                   )}
                 </div>
