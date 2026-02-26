@@ -57,12 +57,25 @@ export const origensApi = {
   async criar(payload: CriarOrigemPayload): Promise<Origem> {
     const slug = payload.slug || generateSlug(payload.nome)
 
+    // AIDEV-NOTE: Buscar organizacao_id do usuário autenticado para satisfazer RLS
+    const { data: userData } = await supabase.auth.getUser()
+    if (!userData.user) throw new Error('Usuário não autenticado')
+
+    const { data: usuario } = await supabase
+      .from('usuarios')
+      .select('organizacao_id')
+      .eq('auth_id', userData.user.id)
+      .maybeSingle()
+
+    if (!usuario?.organizacao_id) throw new Error('Organização não encontrada')
+
     const { data, error } = await supabase
       .from('origens')
       .insert({
         nome: payload.nome,
         slug,
         cor: payload.cor || null,
+        organizacao_id: usuario.organizacao_id,
       } as any)
       .select()
       .single()
