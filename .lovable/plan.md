@@ -1,82 +1,57 @@
 
-# Plano de Unificacao: Remover `origem` e usar `utm_source` como campo unico
+# Correcao: Pre-oportunidades mostrando LID em vez de nome/telefone real
 
-## Problema Atual
+## Problema
 
-Existem dois campos na tabela `oportunidades` que servem o mesmo proposito:
-- `origem` — preenchido manualmente pelo usuario no modal
-- `utm_source` — preenchido automaticamente por formularios e integracoes (Meta Ads, etc.)
+Quando o WhatsApp GOWS nao consegue resolver um identificador `@lid` para `@c.us`, o webhook armazena o numero LID (ex: `64188537950415`) como `phone_number` na tabela `pre_oportunidades`. Isso causa dois problemas:
 
-A funcao SQL `fn_canal_match` usa `COALESCE(NULLIF(TRIM(utm_source), ''), origem, 'direto')` para tentar unificar, mas isso gera confusao: o usuario preenche "Panfleto" no campo `origem`, mas o relatorio filtra por `utm_source` primeiro.
+1. **Card de Solicitacao mostra o LID** em vez do nome do contato (ex: "64188537950415" em vez de "Eletrikus Pos Venda")
+2. **Modal WhatsApp nao encontra a conversa** porque busca `chat_id = 64188537950415@c.us`, mas a conversa real tem outro `chat_id`
 
-## Estrategia
+## Causa Raiz
 
-Unificar tudo em `utm_source`. O label na UI continua sendo "Origem". A coluna `origem` da tabela `oportunidades` sera removida.
+No webhook (`waha-webhook/index.ts`), o STEP 4 (criacao de pre-oportunidade, linha ~3001) usa a variavel `phoneNumber` diretamente. Porem, nesse ponto do fluxo, o webhook ja encontrou o contato real via fuzzy match ou RPC resolve_lid e ja tem:
+- `existingContato.telefone` = telefone real
+- `existingContato.nome` = nome real
+- `chatId` = chat_id resolvido
 
-**Nota:** a coluna `origem` da tabela `contatos` NAO sera alterada — ela tem outro proposito (rastrear de onde o contato veio: whatsapp, instagram, formulario, manual). Contatos e oportunidades sao contextos diferentes.
+Mas esses dados nao sao usados na pre-oportunidade.
 
----
+## Solucao
 
-## Alteracoes
+### 1. Webhook: Usar dados resolvidos na pre-oportunidade
 
-### 1. Migration SQL
+**Arquivo:** `supabase/functions/waha-webhook/index.ts` (STEP 4, linhas ~3001-3050)
 
-- **Backfill**: copiar `origem` para `utm_source` onde `utm_source IS NULL` e `origem IS NOT NULL`
-- **Drop column**: remover `oportunidades.origem`
-- **Atualizar trigger**: `herdar_origem_contato_oportunidade` passa a escrever em `utm_source` (herdando de `contatos.origem`)
-- **Simplificar RPCs**: `fn_metricas_funil` e `fn_breakdown_canal_funil` usam `COALESCE(NULLIF(TRIM(utm_source), ''), 'direto')` sem mencionar `origem`
-
-### 2. Frontend — Criar oportunidade (`NovaOportunidadeModal.tsx`)
-
-- O campo `OrigemCombobox` continua igual (label "Origem")
-- No submit, salvar o valor selecionado em `utm_source` em vez de `origem`
-
-### 3. Frontend — API (`negocios.api.ts`)
-
-- `criarOportunidade`: payload usa `utm_source` em vez de `origem`
-- Interface `Oportunidade`: remover campo `origem`
-
-### 4. Frontend — Modal detalhes (`DetalhesCampos.tsx`)
-
-- Exibir `oportunidade.utm_source` como "Origem" (campo principal)
-- Exibir `utm_medium` e `utm_campaign` como subtexto quando presentes
-- Remover referencia a `oportunidade.origem`
-
-### 5. Frontend — Filtros Kanban (`FiltrosPopover.tsx` + `NegociosPage.tsx`)
-
-- O filtro de "Origem" no Kanban atualmente filtra por `contato.origem` — manter assim (faz sentido para o Kanban)
-- Nenhuma alteracao necessaria aqui
-
-### 6. Frontend — Tooltip do Funil (`FunilConversao.tsx`)
-
-- Atualizar texto do popover informativo: onde diz "selecione a Origem correta no card do negocio", manter igual (o label continua "Origem")
-- O alerta de canal sem leads ja esta correto
-
-### 7. Backend — Services que criam oportunidades
-
-- `submissoes-formularios.service.ts`: ja seta `utm_source` + `origem: 'formulario'` — remover o `origem`
-- `pre-oportunidades.api.ts` (frontend): seta `origem: 'whatsapp'` — mudar para `utm_source: 'whatsapp'`
-
-## Detalhes Tecnicos
-
-### Migration SQL (resumo)
+Antes de criar/atualizar a pre-oportunidade, usar o telefone real do contato encontrado:
 
 ```text
-1. UPDATE oportunidades SET utm_source = origem WHERE utm_source IS NULL AND origem IS NOT NULL AND origem != 'manual'
-2. ALTER TABLE oportunidades DROP COLUMN origem
-3. CREATE OR REPLACE FUNCTION herdar_origem_contato_oportunidade() — escreve em utm_source
-4. CREATE OR REPLACE FUNCTION fn_metricas_funil() — COALESCE(NULLIF(TRIM(utm_source), ''), 'direto')
-5. CREATE OR REPLACE FUNCTION fn_breakdown_canal_funil() — idem
+// Determinar phone real para pre-op (preferir contato existente sobre phoneNumber bruto)
+const preOpPhone = existingContato?.telefone || phoneNumber;
+const preOpName = phoneName || existingContato?.nome || null;
 ```
 
-### Arquivos alterados
+Substituir `phoneNumber` por `preOpPhone` e `phoneName` por `preOpName` nas queries de busca e insert/update da pre-oportunidade.
+
+### 2. WhatsAppConversaModal: Busca mais robusta
+
+**Arquivo:** `src/modules/negocios/components/kanban/WhatsAppConversaModal.tsx`
+
+Quando `contatoId` esta vazio (caso de pre-oportunidades), alem de buscar por `chat_id` exato, adicionar fallback por sufixo dos ultimos 8 digitos do telefone usando `ilike` no `chat_id`. Isso cobre o caso onde o phone_number ainda e um LID nao resolvido.
+
+### 3. SolicitacoesColumn: Tentar nome do contato
+
+**Arquivo:** `src/modules/negocios/services/pre-oportunidades.api.ts`
+
+Na query de `listarPendentes`, fazer join com `contatos` via telefone para buscar o nome real quando `phone_name` esta null. Alternativa mais simples: apenas garantir que o webhook salve os dados corretos (item 1), que resolve o problema na raiz.
+
+## Arquivos alterados
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `supabase/migrations/new.sql` | Backfill + drop column + RPCs |
-| `src/modules/negocios/services/negocios.api.ts` | `criarOportunidade` usa `utm_source`; remove `origem` da interface |
-| `src/modules/negocios/components/modals/NovaOportunidadeModal.tsx` | Submit salva em `utm_source` |
-| `src/modules/negocios/components/detalhes/DetalhesCampos.tsx` | Exibe `utm_source` como "Origem" |
-| `src/modules/negocios/services/pre-oportunidades.api.ts` | `origem` -> `utm_source` |
-| `backend/src/services/submissoes-formularios.service.ts` | Remove `origem` do insert de oportunidades |
-| `backend/src/services/relatorio.service.ts` | Nenhuma alteracao (usa RPCs) |
+| `supabase/functions/waha-webhook/index.ts` | STEP 4: usar telefone/nome do contato resolvido |
+| `src/modules/negocios/components/kanban/WhatsAppConversaModal.tsx` | Busca de conversa com fallback por sufixo |
+
+## Observacao
+
+Os registros existentes de pre-oportunidades que ja tem LID como `phone_number` nao serao corrigidos automaticamente. A proxima mensagem recebida desse contato atualizara o `phone_name` e `phone_number` corretamente. Para dados historicos, pode-se rodar um UPDATE manual cruzando com a tabela `contatos`.
