@@ -69,7 +69,6 @@ export interface Oportunidade {
   criado_em: string
   atualizado_em: string
   deletado_em?: string | null
-  origem?: string | null
   utm_source?: string | null
   utm_medium?: string | null
   utm_campaign?: string | null
@@ -546,7 +545,7 @@ export const negociosApi = {
     usuario_responsavel_id?: string
     previsao_fechamento?: string
     observacoes?: string
-    origem?: string
+    utm_source?: string
   }): Promise<Oportunidade> => {
     const organizacaoId = await getOrganizacaoId()
     const userId = await getUsuarioId()
@@ -568,8 +567,8 @@ export const negociosApi = {
       previsao_fechamento: payload.previsao_fechamento || null,
       observacoes: payload.observacoes || null,
       criado_por: userId,
-      // AIDEV-NOTE: origem dinâmica — default 'manual' para criação via modal
-      origem: payload.origem || 'manual',
+      // AIDEV-NOTE: utm_source unificado — label "Origem" na UI, coluna utm_source no banco
+      utm_source: payload.utm_source || null,
     }
 
     const { data, error } = await supabase

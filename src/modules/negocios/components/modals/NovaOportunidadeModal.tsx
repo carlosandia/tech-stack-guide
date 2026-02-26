@@ -448,7 +448,7 @@ export function NovaOportunidadeModal({
         periodo_recorrencia: recorrente ? periodoRecorrencia : undefined,
         usuario_responsavel_id: responsavelId || undefined,
         previsao_fechamento: previsaoFechamento || undefined,
-        origem: origem,
+        utm_source: origem,
       })
 
       // 5. Add produtos if any
