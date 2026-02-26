@@ -11,7 +11,7 @@ import { getOrganizacaoId, getUsuarioId } from '@/shared/services/auth-context'
 // LIDs são tipicamente > 14 dígitos e não começam com prefixos de país comuns
 function isLikelyLid(phone: string): boolean {
   const clean = phone.replace(/\D/g, '')
-  return clean.length > 14
+  return clean.length >= 14
 }
 
 // =====================================================
