@@ -131,6 +131,67 @@ function looksLikeHtml(str: string): boolean {
   return /^<!DOCTYPE|^<html|^<head|^<body|^<table|^<div/i.test(t)
 }
 
+// AIDEV-NOTE: Decodifica corpo de uma parte MIME (quoted-printable ou base64)
+function decodeMimePartBody(body: string, headers: string): string {
+  if (headers.includes('base64')) {
+    try {
+      const clean = body.replace(/\s/g, '')
+      const bin = atob(clean)
+      const bytes = Uint8Array.from(bin, c => c.charCodeAt(0))
+      return new TextDecoder('utf-8', { fatal: false }).decode(bytes)
+    } catch { return body }
+  }
+  if (headers.includes('quoted-printable')) {
+    return decodeQuotedPrintableString(body)
+  }
+  return body
+}
+
+// AIDEV-NOTE: Parser MIME frontend — extrai HTML de corpo MIME bruto quando backend falha
+function extractHtmlFromMime(raw: string): string | null {
+  const boundaryMatch = raw.match(/boundary="?([^"\s;]+)"?/i)
+  if (!boundaryMatch) return null
+
+  const boundary = boundaryMatch[1]
+  const parts = raw.split('--' + boundary)
+
+  let htmlPart: string | null = null
+  let textPart: string | null = null
+
+  for (const part of parts) {
+    const headerEnd = part.indexOf('\r\n\r\n') !== -1
+      ? part.indexOf('\r\n\r\n')
+      : part.indexOf('\n\n')
+    if (headerEnd === -1) continue
+
+    const headers = part.substring(0, headerEnd).toLowerCase()
+    const body = part.substring(headerEnd).trim()
+
+    // Remove trailing boundary marker (--boundary--)
+    const cleanBody = body.replace(/--$/, '').trim()
+
+    if (headers.includes('text/html')) {
+      // Recursivamente checa por nested multipart
+      if (headers.includes('multipart/')) {
+        const nested = extractHtmlFromMime(part)
+        if (nested) htmlPart = nested
+      } else {
+        htmlPart = decodeMimePartBody(cleanBody, headers)
+      }
+    } else if (headers.includes('text/plain') && !textPart) {
+      textPart = decodeMimePartBody(cleanBody, headers)
+    } else if (headers.includes('multipart/')) {
+      // Nested multipart (ex: multipart/alternative dentro de multipart/mixed)
+      const nested = extractHtmlFromMime(part)
+      if (nested) htmlPart = nested
+    }
+  }
+
+  if (htmlPart) return htmlPart
+  if (textPart) return `<pre style="white-space:pre-wrap;font-family:sans-serif;">${textPart}</pre>`
+  return null
+}
+
 // AIDEV-NOTE: Detecta e decodifica strings base64 brutas (fallback para MIME parser)
 function tryDecodeBase64(str: string): string | null {
   if (!str || str.length < 100) return null
@@ -254,8 +315,20 @@ export function EmailViewer({
         const decoded = tryDecodeBase64(text)
         if (decoded && looksLikeHtml(decoded)) {
           html = decoded
+        } else {
+          // AIDEV-NOTE: Fallback MIME — tenta extrair HTML de estrutura MIME bruta
+          const mimeExtracted = extractHtmlFromMime(text)
+          if (mimeExtracted) {
+            html = mimeExtracted
+          }
         }
       }
+    }
+
+    // AIDEV-NOTE: Última tentativa — corpo_html pode conter MIME bruto
+    if (!html && email?.corpo_html) {
+      const mimeFromHtml = extractHtmlFromMime(email.corpo_html)
+      if (mimeFromHtml) html = mimeFromHtml
     }
 
     if (!html) return ''
@@ -550,7 +623,7 @@ a { word-break: break-all; color: #1a73e8; }
           <iframe
             ref={iframeRef}
             srcDoc={cleanHtml}
-            sandbox="allow-popups"
+            sandbox="allow-popups allow-same-origin"
             className="w-full border-0"
             style={{ minHeight: '200px' }}
             onLoad={adjustIframeHeight}
