@@ -140,7 +140,7 @@ function NavDirectLink({ hub, locked }: { hub: NavHub; locked: boolean }) {
       className={({ isActive }) =>
         `flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-all duration-200 ${
           isActive
-            ? 'bg-accent text-foreground font-semibold'
+            ? 'bg-muted text-foreground font-semibold'
             : 'text-muted-foreground font-medium hover:text-foreground hover:bg-accent'
         }`
       }
@@ -181,7 +181,7 @@ function NavHubDropdown({
         <button
           className={`flex items-center gap-1.5 px-3 py-2 rounded-md text-sm transition-all duration-200 outline-none ${
             isHubActive
-              ? 'bg-accent text-foreground font-semibold'
+              ? 'bg-muted text-foreground font-semibold'
               : allLocked
                 ? 'text-muted-foreground/50 opacity-60 cursor-not-allowed font-medium'
                 : 'text-muted-foreground font-medium hover:text-foreground hover:bg-accent'
