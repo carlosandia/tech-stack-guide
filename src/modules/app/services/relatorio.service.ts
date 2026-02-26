@@ -16,6 +16,7 @@ import type {
   DashboardMetricasGerais,
   DashboardMetricasGeraisComVariacao,
   MetricasAtendimento,
+  RelatorioMetasDashboard,
 } from '../types/relatorio.types'
 
 // ─────────────────────────────────────────────────────
@@ -358,4 +359,26 @@ export async function fetchMetricasAtendimento(query: FunilQuery): Promise<Metri
     conversas_whatsapp: Number(m?.conversas_whatsapp ?? 0),
     conversas_instagram: Number(m?.conversas_instagram ?? 0),
   }
+}
+
+// ─────────────────────────────────────────────────────
+// Relatório de Metas e Performance (fn_relatorio_metas_dashboard)
+// ─────────────────────────────────────────────────────
+
+export async function fetchRelatorioMetas(query: FunilQuery): Promise<RelatorioMetasDashboard | null> {
+  const organizacaoId = await getOrganizacaoId()
+  const periodo = resolverPeriodo(query)
+
+  const { data, error } = await supabase.rpc('fn_relatorio_metas_dashboard' as never, {
+    p_organizacao_id: organizacaoId,
+    p_periodo_inicio: periodo.inicio.toISOString(),
+    p_periodo_fim: periodo.fim.toISOString(),
+  } as never)
+
+  if (error) throw new Error(`Erro ao calcular relatório de metas: ${error.message}`)
+
+  const result = data as unknown as RelatorioMetasDashboard
+  if (!result || result.resumo.total_metas === 0) return null
+
+  return result
 }

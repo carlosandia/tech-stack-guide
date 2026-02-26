@@ -168,3 +168,62 @@ export interface MetricasAtendimento {
   conversas_whatsapp: number
   conversas_instagram: number
 }
+
+// ─────────────────────────────────────────────────────
+// Relatório de Metas e Performance (fn_relatorio_metas_dashboard)
+// ─────────────────────────────────────────────────────
+
+export interface MetaEmpresaDashboard {
+  nome: string
+  metrica: string
+  valor_meta: number
+  valor_atual: number
+  percentual: number
+  periodo: string
+}
+
+export interface VendedorPerformance {
+  usuario_id: string
+  nome: string
+  avatar_url: string | null
+  equipe_nome: string | null
+  percentual_medio: number
+  total_vendas: number
+  receita_gerada: number
+  metas: Array<{
+    metrica: string
+    valor_meta: number
+    valor_atual: number
+    percentual: number
+  }>
+}
+
+export interface RankingVendedor {
+  posicao: number
+  nome: string
+  avatar_url: string | null
+  percentual_medio: number
+  receita: number
+}
+
+export interface RankingEquipe {
+  posicao: number
+  nome: string
+  cor: string | null
+  total_membros: number
+  percentual_medio: number
+  receita: number
+}
+
+export interface RelatorioMetasDashboard {
+  resumo: {
+    total_metas: number
+    metas_atingidas: number
+    media_atingimento: number
+    em_risco: number
+  }
+  metas_empresa: MetaEmpresaDashboard[]
+  vendedores: VendedorPerformance[]
+  ranking_vendedores: RankingVendedor[]
+  ranking_equipes: RankingEquipe[]
+}

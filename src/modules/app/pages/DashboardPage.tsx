@@ -1,6 +1,6 @@
 import { forwardRef, useState } from 'react'
 
-import { useRelatorioFunil, useFunis, useDashboardMetricasGerais, useMetricasAtendimento } from '../hooks/useRelatorioFunil'
+import { useRelatorioFunil, useFunis, useDashboardMetricasGerais, useMetricasAtendimento, useRelatorioMetas } from '../hooks/useRelatorioFunil'
 import DashboardFilters from '../components/dashboard/DashboardFilters'
 import FunilConversao from '../components/dashboard/FunilConversao'
 import KPIsPrincipais from '../components/dashboard/KPIsPrincipais'
@@ -10,6 +10,7 @@ import ProdutosRanking from '../components/dashboard/ProdutosRanking'
 import BreakdownCanal from '../components/dashboard/BreakdownCanal'
 import InvestModeWidget from '../components/dashboard/InvestModeWidget'
 import MetricasAtendimento from '../components/dashboard/MetricasAtendimento'
+import RelatorioMetas from '../components/dashboard/RelatorioMetas'
 import DashboardSkeleton from '../components/dashboard/DashboardSkeleton'
 import { AlertCircle } from 'lucide-react'
 import type { Periodo } from '../types/relatorio.types'
@@ -52,6 +53,10 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
     data: metricasAtendimento,
     isLoading: isLoadingAtendimento,
   } = useMetricasAtendimento(query)
+
+  const {
+    data: relatorioMetas,
+  } = useRelatorioMetas(query)
 
   const handleDatasChange = (inicio: string, fim: string) => {
     setDataInicio(inicio)
@@ -116,6 +121,11 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
             </div>
           </div>
         </div>
+
+        {/* Indicadores de Metas */}
+        {relatorioMetas && (
+          <RelatorioMetas data={relatorioMetas} />
+        )}
 
         {/* Funil de Conversão */}
         <FunilConversao data={relatorio} />
