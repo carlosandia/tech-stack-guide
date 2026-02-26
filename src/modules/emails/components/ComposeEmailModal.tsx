@@ -164,7 +164,7 @@ export const ComposeEmailModal = React.forwardRef<HTMLDivElement, ComposeEmailMo
         (isReplyOrForward && configTenantAssinatura.assinatura_incluir_respostas !== false)
 
       if (shouldInclude) {
-        signatureHtml = `<br/><div class="email-signature" style="margin-top: 16px; padding-top: 12px; border-top: 1px solid #e5e7eb;">${configTenantAssinatura.assinatura_mensagem}</div>`
+        signatureHtml = `<br/><p style="margin: 16px 0 4px 0; color: #9ca3af;">--</p><div class="email-signature">${configTenantAssinatura.assinatura_mensagem}</div>`
       }
     }
 
