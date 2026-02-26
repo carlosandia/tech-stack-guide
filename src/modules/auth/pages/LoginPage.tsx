@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { LoginForm } from '../components/LoginForm'
 import { useAuth } from '@/providers/AuthProvider'
 import { useLoginBanner } from '../hooks/useLoginBanner'
+import { useTheme } from '@/providers/ThemeProvider'
 
 /**
  * AIDEV-NOTE: Pagina de Login - Layout Split-Screen (estilo Pipefy)
@@ -27,6 +28,12 @@ export function LoginPage() {
   const [searchParams] = useSearchParams()
   const { isAuthenticated, role, loading: authLoading, signIn } = useAuth()
   const { data: bannerConfig } = useLoginBanner()
+  const { setTheme } = useTheme()
+
+  // AIDEV-NOTE: Login sempre em light mode - respeita config de cor de fundo do super admin
+  useEffect(() => {
+    setTheme('light')
+  }, [setTheme])
 
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
