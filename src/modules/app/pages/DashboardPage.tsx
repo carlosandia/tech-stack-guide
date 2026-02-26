@@ -212,7 +212,7 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
 
   return (
     <div ref={ref} className="h-full overflow-y-auto">
-      <div ref={contentRef} className="space-y-6 px-4 sm:px-6 lg:px-8 py-5 max-w-full">
+      <div ref={contentRef} data-dashboard-content className="space-y-6 px-4 sm:px-6 lg:px-8 py-5 max-w-full">
         {/* Header */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
           <h2 className="text-lg font-semibold text-foreground leading-tight whitespace-nowrap">
