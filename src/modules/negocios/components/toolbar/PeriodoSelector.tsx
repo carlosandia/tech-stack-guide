@@ -6,7 +6,7 @@
 
 import { useState, useRef, useEffect, forwardRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Calendar, ChevronDown } from 'lucide-react'
+import { Calendar } from 'lucide-react'
 import { startOfDay, subDays, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 
 export interface PeriodoFiltro {
@@ -128,19 +128,18 @@ export const PeriodoSelector = forwardRef<HTMLDivElement, PeriodoSelectorProps>(
         ref={btnRef}
         onClick={handleToggle}
         className={`
-          flex items-center gap-1.5 px-2 py-1.5 rounded-md text-sm transition-all duration-200
+          relative p-2 rounded-md transition-all duration-200
           ${isActive
-            ? 'bg-primary/10 text-primary'
+            ? 'text-primary hover:bg-primary/10'
             : 'text-muted-foreground hover:bg-accent hover:text-foreground'
           }
         `}
-        title="Período"
+        title={`Período: ${getPresetLabel(periodo.preset)}`}
       >
-        <Calendar className="w-3.5 h-3.5" />
-        <span className="hidden sm:inline text-xs font-medium">
-          {getPresetLabel(periodo.preset)}
-        </span>
-        <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+        <Calendar className="w-4 h-4" />
+        {isActive && (
+          <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-primary" />
+        )}
       </button>
 
       {open && createPortal(
