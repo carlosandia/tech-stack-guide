@@ -11,14 +11,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command'
 import { useSalvarInvestimento, useRemoverInvestimento } from '../../hooks/useRelatorioFunil'
 import { useOrigensAtivas } from '@/modules/configuracoes/hooks/useOrigens'
 import type { RelatorioFunilResponse, SalvarInvestimentoPayload } from '../../types/relatorio.types'
@@ -218,43 +210,38 @@ export default function InvestModeWidget({ data }: InvestModeWidgetProps) {
                   Adicionar canal
                 </button>
               </PopoverTrigger>
-              <PopoverContent className="w-64 p-0" align="start" side="bottom">
-                <Command>
-                  <CommandInput
+              <PopoverContent className="w-64 p-2" align="start" side="bottom">
+                <div className="space-y-2">
+                  <Input
                     placeholder="Buscar ou digitar canal..."
                     value={buscaCanal}
-                    onValueChange={setBuscaCanal}
+                    onChange={(e) => setBuscaCanal(e.target.value)}
+                    className="h-8 text-xs"
+                    autoFocus
                   />
-                  <CommandList>
-                    <CommandEmpty>
-                      {buscaCanal.trim() ? (
+                  <div className="max-h-40 overflow-y-auto space-y-0.5">
+                    {canaisDisponiveis
+                      .filter(c => !buscaCanal || c.label.toLowerCase().includes(buscaCanal.toLowerCase()))
+                      .map(c => (
                         <button
-                          onClick={handleAdicionarCanalLivre}
-                          className="flex items-center gap-2 w-full px-3 py-2 text-xs text-primary hover:bg-muted/50 transition-colors"
+                          key={c.canal}
+                          onClick={() => handleAdicionarCanal(c.canal, c.label)}
+                          className="flex items-center w-full px-2 py-1.5 text-xs text-foreground hover:bg-muted/50 rounded transition-colors"
                         >
-                          <Plus className="w-3 h-3" />
-                          Criar "{buscaCanal.trim()}"
+                          {c.label}
                         </button>
-                      ) : (
-                        <p className="text-xs text-muted-foreground p-2">Nenhum canal encontrado</p>
-                      )}
-                    </CommandEmpty>
-                    {canaisDisponiveis.length > 0 && (
-                      <CommandGroup>
-                        {canaisDisponiveis.map(c => (
-                          <CommandItem
-                            key={c.canal}
-                            value={c.label}
-                            onSelect={() => handleAdicionarCanal(c.canal, c.label)}
-                            className="text-xs"
-                          >
-                            {c.label}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    )}
-                  </CommandList>
-                </Command>
+                      ))}
+                  </div>
+                  {buscaCanal.trim() && !canaisDisponiveis.find(c => c.label.toLowerCase() === buscaCanal.toLowerCase()) && (
+                    <button
+                      onClick={handleAdicionarCanalLivre}
+                      className="flex items-center gap-2 w-full px-2 py-1.5 text-xs text-primary hover:bg-muted/50 rounded transition-colors"
+                    >
+                      <Plus className="w-3 h-3" />
+                      Criar &ldquo;{buscaCanal.trim()}&rdquo;
+                    </button>
+                  )}
+                </div>
               </PopoverContent>
             </Popover>
 
