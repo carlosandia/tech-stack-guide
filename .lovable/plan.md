@@ -1,117 +1,190 @@
 
-# Metricas de Atendimento no Dashboard
+# Relatorio de Metas e Performance de Vendas no Dashboard
 
 ## Objetivo
 
-Adicionar uma secao compacta de metricas de atendimento baseada no modulo `/conversas` (tabelas `conversas` e `mensagens`), respeitando os filtros de periodo e funil ja existentes. Inclui configuracao de horario comercial para calcular metricas de tempo de resposta com precisao.
+Adicionar uma secao completa de **Indicadores de Metas** acima do funil de conversao no dashboard, trazendo:
+- Saude geral da empresa (metas configuradas vs atingidas)
+- Performance individual dos vendedores com graficos
+- Ranking de vendedores e equipes
+- Tudo compacto, organizado e respeitando os filtros de periodo
 
-## Horario Comercial
+## Nova RPC: `fn_relatorio_metas_dashboard`
 
-A tabela `configuracoes_tenant` ja possui os campos `horario_inicio_envio` (time) e `horario_fim_envio` (time). Vamos reutilizar esses campos como referencia de horario comercial. Na tela de Configuracoes do tenant, basta garantir que esses campos estejam editaveis (ja devem estar, mas sera validado). Se nao estiverem, adicionaremos um campo simples na tela de configuracoes.
+Criar uma funcao PostgreSQL que retorna todos os dados de metas em uma unica chamada:
 
-## Metricas de Atendimento (compactas)
+**Parametros:** `p_organizacao_id`, `p_periodo_inicio`, `p_periodo_fim`
 
-### Linha 1 - Cards de alerta (3 cards com fundo de destaque)
-
-| Metrica | Calculo | Tooltip |
-|---------|---------|---------|
-| **1a Resposta** | Tempo medio entre a primeira mensagem recebida (from_me=false) e a primeira resposta (from_me=true) em cada conversa criada no periodo | "Tempo medio que sua equipe leva para dar a primeira resposta ao cliente" |
-| **Tempo Medio Resposta** | Media do tempo entre cada mensagem recebida e a proxima resposta enviada, SOMENTE dentro do horario comercial configurado | "Tempo medio para responder durante o horario comercial da empresa" |
-| **Sem Resposta** | Conversas que possuem pelo menos 1 mensagem recebida (from_me=false) mas 0 mensagens enviadas (from_me=true), no periodo | "Conversas onde o cliente enviou mensagem e ainda nao recebeu nenhuma resposta" |
-
-### Linha 2 - Cards secundarios (5 cards compactos)
-
-| Metrica | Calculo | Tooltip |
-|---------|---------|---------|
-| **Total Conversas** | COUNT de conversas criadas no periodo | "Total de conversas iniciadas no periodo" |
-| **Recebidas** | COUNT de mensagens com from_me=false no periodo | "Total de mensagens recebidas dos clientes" |
-| **Enviadas** | COUNT de mensagens com from_me=true no periodo | "Total de mensagens enviadas pela equipe" |
-| **WhatsApp** | COUNT de conversas com canal='whatsapp' no periodo | "Conversas via WhatsApp no periodo" |
-| **Instagram** | COUNT de conversas com canal='instagram' no periodo | "Conversas via Instagram no periodo" |
-
-## Layout Visual
-
-O bloco de atendimento fica como uma secao propria entre os KPIs Secundarios e os graficos de Motivos de Perda. Titulo: **"Atendimento"** com tooltip explicativo.
-
+**Retorno JSON:**
 ```text
-┌─────────────────────────────────────────────────────────┐
-│  ATENDIMENTO                                            │
-│                                                         │
-│  ┌─────────────┐ ┌──────────────────┐ ┌──────────────┐  │
-│  │ 1a Resposta │ │ Tempo Medio Resp │ │ Sem Resposta │  │
-│  │   5h 1m     │ │     4h 30m       │ │     37       │  │
-│  │ (bg-amber)  │ │ (bg-amber)       │ │ (bg-red)     │  │
-│  └─────────────┘ └──────────────────┘ └──────────────┘  │
-│                                                         │
-│  ┌────────┐┌──────────┐┌──────────┐┌─────────┐┌───────┐│
-│  │ Total  ││ Recebidas││ Enviadas ││WhatsApp ││ Insta ││
-│  │  72    ││  1426    ││  1392    ││   72    ││   0   ││
-│  └────────┘└──────────┘└──────────┘└─────────┘└───────┘│
-└─────────────────────────────────────────────────────────┘
-```
-
-Os 3 cards de alerta usam fundo com tom quente (amber/red) para destacar visualmente os gargalos, conforme a screenshot de referencia do usuario.
-
-## Detalhamento Tecnico
-
-### 1. Nova RPC `fn_metricas_atendimento`
-
-Parametros: `p_organizacao_id`, `p_periodo_inicio`, `p_periodo_fim`, `p_horario_inicio` (time), `p_horario_fim` (time)
-
-Retorna JSON com:
-- `primeira_resposta_media_segundos` (avg do tempo da 1a resposta)
-- `tempo_medio_resposta_segundos` (avg do tempo entre msgs recebidas e respostas, filtrado por horario comercial)
-- `sem_resposta` (count)
-- `total_conversas` (count)
-- `mensagens_recebidas` (count)
-- `mensagens_enviadas` (count)
-- `conversas_whatsapp` (count)
-- `conversas_instagram` (count)
-
-A funcao busca o horario comercial de `configuracoes_tenant` automaticamente se nao fornecido.
-
-### 2. Novos Types
-
-```typescript
-interface MetricasAtendimento {
-  primeira_resposta_media_segundos: number | null
-  tempo_medio_resposta_segundos: number | null
-  sem_resposta: number
-  total_conversas: number
-  mensagens_recebidas: number
-  mensagens_enviadas: number
-  conversas_whatsapp: number
-  conversas_instagram: number
+{
+  resumo: { total_metas, metas_atingidas, media_atingimento, em_risco },
+  metas_empresa: [{ nome, metrica, valor_meta, valor_atual, percentual, periodo }],
+  vendedores: [{ usuario_id, nome, avatar_url, equipe_nome, metas: [{ metrica, valor_meta, valor_atual, percentual }], total_vendas, receita_gerada }],
+  ranking_vendedores: [{ posicao, nome, avatar_url, percentual_medio, receita }],
+  ranking_equipes: [{ posicao, nome, cor, total_membros, percentual_medio, receita }]
 }
 ```
 
-### 3. Service + Hook
+A funcao:
+- Busca metas ativas cujo periodo (data_inicio/data_fim) intersecta o periodo do filtro
+- Cruza com `metas_progresso` para valores atuais
+- Agrega vendedores com suas metas individuais e dados de oportunidades ganhas (via `oportunidades` + `etapas_funil` tipo='ganho')
+- Calcula ranking por percentual medio de atingimento de metas
+- Agrupa equipes via `equipes_membros` para ranking de equipes
 
-- `fetchMetricasAtendimento(query)` em `relatorio.service.ts`
-- `useMetricasAtendimento(query)` em `useRelatorioFunil.ts`
+## Layout Visual
 
-### 4. Novo Componente `MetricasAtendimento.tsx`
+A nova secao fica **acima do funil de conversao**, logo apos o header/filtros:
 
-Componente autonomo que renderiza as 2 linhas de cards. Formata tempos em "Xh Xm" ou "Xm Xs" conforme magnitude. Cards de alerta com cores quentes. Cards secundarios com estilo neutro.
+```text
+┌─────────────────────────────────────────────────────────────┐
+│  INDICADORES DE METAS                                       │
+│                                                             │
+│  ┌─────────┐ ┌──────────┐ ┌───────────┐ ┌──────────┐       │
+│  │ Total   │ │ Atingidas│ │ Media %   │ │ Em Risco │       │
+│  │   5     │ │    2     │ │   67%     │ │    1     │       │
+│  └─────────┘ └──────────┘ └───────────┘ └──────────┘       │
+│                                                             │
+│  ┌─ Metas da Empresa ─────────────────┐ ┌─ Ranking ───────┐│
+│  │ Receita Total  ████████░░  R$150k  │ │ 1. Joao   92%  ││
+│  │    67% · R$100k / R$150k           │ │ 2. Maria  85%  ││
+│  │ Vendas         ██████░░░░  30      │ │ 3. Pedro  72%  ││
+│  │    60% · 18 / 30                   │ │ Equipes:       ││
+│  └────────────────────────────────────┘ │ 1. Inside 88%  ││
+│                                         │ 2. Field  75%  ││
+│  ┌─ Performance Vendedores ───────────────────────────────┐│
+│  │ ┌─ Joao ──────────────┐ ┌─ Maria ─────────────┐      ││
+│  │ │ Meta: R$50k → 92%   │ │ Meta: R$40k → 85%   │      ││
+│  │ │ ████████████░░       │ │ ██████████░░░        │      ││
+│  │ │ 12 vendas · R$46k   │ │ 8 vendas · R$34k     │      ││
+│  │ └─────────────────────┘ └──────────────────────┘      ││
+│  └────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────┘
+```
 
-### 5. DashboardPage
+## Componentes
 
-Adicionar `<MetricasAtendimento>` apos `KPIsSecundarios` e antes dos graficos.
+### 1. `RelatorioMetas.tsx` (componente principal)
+Componente wrapper que organiza as subsecoes:
+- Titulo "Indicadores de Metas" com icone Target
+- 4 cards resumo (Total, Atingidas, Media, Em Risco)
+- Grid 2 colunas: Metas da Empresa (esquerda) + Rankings (direita)
+- Performance dos vendedores (abaixo, full width)
 
-## Filtros Respeitados
+### 2. Cards Resumo (inline no componente)
+4 cards compactos identicos ao estilo dos KPIs existentes, com cores semanticas:
+- Total de Metas (azul)
+- Metas Atingidas (verde)
+- Media de Atingimento com barra radial simplificada (amarelo/verde)
+- Em Risco (vermelho)
 
-Todas as metricas filtram por:
-- `organizacao_id` (tenant)
-- `periodo` (data de criacao da conversa / data de criacao da mensagem dentro do periodo)
-- O filtro de `funil_id` NAO se aplica diretamente a conversas (sao modulos separados), mas sera ignorado graciosamente
+### 3. Metas da Empresa (inline)
+Lista compacta das metas tipo `empresa` ativas, cada uma com:
+- Nome da metrica + barra de progresso horizontal colorida
+- Valor atual / valor meta
+- Percentual
 
-## Arquivos
+### 4. Rankings (inline)
+Duas listas compactas empilhadas:
+- **Top Vendedores**: Top 5 por percentual medio de atingimento com avatar, nome, percentual
+- **Top Equipes**: Top 3 por percentual medio, com cor da equipe, nome, membros, percentual
+
+### 5. Performance Vendedores (inline)
+Grid de cards compactos por vendedor mostrando:
+- Avatar + nome + equipe
+- Barra de progresso da meta principal (ou media de todas)
+- Numero de vendas e receita gerada no periodo
+- Badge de status (atingiu / em risco / no caminho)
+
+## Detalhamento Tecnico
+
+### Arquivos a criar/editar:
 
 | Arquivo | Acao |
 |---------|------|
-| Migration SQL (fn_metricas_atendimento) | Criar |
-| `src/modules/app/types/relatorio.types.ts` | Editar - novo tipo |
-| `src/modules/app/services/relatorio.service.ts` | Editar - nova funcao |
-| `src/modules/app/hooks/useRelatorioFunil.ts` | Editar - novo hook |
-| `src/modules/app/components/dashboard/MetricasAtendimento.tsx` | Criar |
-| `src/modules/app/pages/DashboardPage.tsx` | Editar - adicionar componente |
+| `supabase/migrations/[timestamp]_fn_relatorio_metas_dashboard.sql` | Criar RPC |
+| `src/modules/app/types/relatorio.types.ts` | Adicionar tipos de metas dashboard |
+| `src/modules/app/services/relatorio.service.ts` | Adicionar `fetchRelatorioMetas` |
+| `src/modules/app/hooks/useRelatorioFunil.ts` | Adicionar `useRelatorioMetas` hook |
+| `src/modules/app/components/dashboard/RelatorioMetas.tsx` | Criar componente completo |
+| `src/modules/app/pages/DashboardPage.tsx` | Inserir `RelatorioMetas` acima do `FunilConversao` |
+
+### Tipos novos:
+
+```typescript
+interface MetaEmpresaDashboard {
+  nome: string
+  metrica: string
+  valor_meta: number
+  valor_atual: number
+  percentual: number
+  periodo: string
+}
+
+interface VendedorPerformance {
+  usuario_id: string
+  nome: string
+  avatar_url: string | null
+  equipe_nome: string | null
+  percentual_medio: number
+  total_vendas: number
+  receita_gerada: number
+  metas: Array<{
+    metrica: string
+    valor_meta: number
+    valor_atual: number
+    percentual: number
+  }>
+}
+
+interface RankingVendedor {
+  posicao: number
+  nome: string
+  avatar_url: string | null
+  percentual_medio: number
+  receita: number
+}
+
+interface RankingEquipe {
+  posicao: number
+  nome: string
+  cor: string | null
+  total_membros: number
+  percentual_medio: number
+  receita: number
+}
+
+interface RelatorioMetasDashboard {
+  resumo: {
+    total_metas: number
+    metas_atingidas: number
+    media_atingimento: number
+    em_risco: number
+  }
+  metas_empresa: MetaEmpresaDashboard[]
+  vendedores: VendedorPerformance[]
+  ranking_vendedores: RankingVendedor[]
+  ranking_equipes: RankingEquipe[]
+}
+```
+
+### RPC SQL:
+
+A funcao busca:
+1. Metas ativas cuja vigencia intersecta o periodo filtrado
+2. Progresso de `metas_progresso`
+3. Vendas reais de `oportunidades` WHERE `etapa_id` em etapas tipo `ganho` AND `fechado_em` no periodo
+4. Agrupa por usuario para performance individual
+5. Agrupa por equipe via `equipes_membros` para ranking de equipes
+
+### Filtros respeitados:
+- **Periodo**: filtra metas cuja vigencia intersecta o range, e vendas/oportunidades fechadas no periodo
+- **Funil**: filtra oportunidades ganhas por funil (para receita/vendas), metas com `funil_id` correspondente quando aplicavel
+- Se nao houver metas configuradas, a secao inteira fica oculta (sem mostrar estado vazio no dashboard)
+
+### Estilo visual:
+- Segue design system: cards com `bg-card border border-border rounded-xl`
+- Barras de progresso com cores semanticas (verde >= 100%, azul >= 70%, amarelo >= 40%, vermelho < 40%)
+- Rankings com medalhas (top 3) e avatares
+- Responsivo: grid colapsa em mobile
