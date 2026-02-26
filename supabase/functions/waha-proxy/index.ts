@@ -1952,6 +1952,122 @@ Deno.serve(async (req) => {
         break;
       }
 
+      // =====================================================
+      // FETCH MEDIA ON-DEMAND (for group messages not persisted)
+      // AIDEV-NOTE: Busca mídia de grupo sob demanda via WAHA API
+      // O frontend envia message_id e chat_id, e este endpoint faz proxy
+      // para GET /api/{session}/chats/{chatId}/messages/{messageId}?downloadMedia=true
+      // =====================================================
+      case "fetch_media_ondemand": {
+        const { message_id, chat_id } = body as { message_id?: string; chat_id?: string };
+        if (!message_id || !chat_id) {
+          return new Response(
+            JSON.stringify({ error: "message_id e chat_id são obrigatórios" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        console.log(`[waha-proxy] Fetching on-demand media: session=${sessionId}, chat=${chat_id}, msg=${message_id}`);
+
+        // First check session status
+        const statusCheck = await fetch(`${baseUrl}/api/sessions/${sessionId}`, {
+          headers: { "X-Api-Key": apiKey },
+        });
+
+        if (!statusCheck.ok) {
+          return new Response(
+            JSON.stringify({ disponivel: false, motivo: "sessao_desconectada" }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const statusData2 = await statusCheck.json();
+        if (statusData2.status !== "WORKING") {
+          return new Response(
+            JSON.stringify({ disponivel: false, motivo: "sessao_desconectada" }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Fetch message with downloadMedia=true
+        const mediaFetchUrl = `${baseUrl}/api/${sessionId}/chats/${encodeURIComponent(chat_id)}/messages/${encodeURIComponent(message_id)}?downloadMedia=true&limit=1`;
+        console.log(`[waha-proxy] Fetching: ${mediaFetchUrl}`);
+
+        const mediaFetchResp = await fetch(mediaFetchUrl, {
+          headers: { "X-Api-Key": apiKey },
+        });
+
+        if (!mediaFetchResp.ok) {
+          const errBody2 = await mediaFetchResp.text().catch(() => "");
+          console.log(`[waha-proxy] Media fetch failed (${mediaFetchResp.status}): ${errBody2.substring(0, 300)}`);
+          
+          if (isEngineLimitation(mediaFetchResp.status, {})) {
+            return new Response(
+              JSON.stringify({ disponivel: false, motivo: "nao_suportado" }),
+              { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+
+          return new Response(
+            JSON.stringify({ disponivel: false, motivo: "midia_expirada" }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const mediaResult = await mediaFetchResp.json().catch(() => null);
+        
+        // WAHA returns array of messages or single message
+        const msgData = Array.isArray(mediaResult) ? mediaResult[0] : mediaResult;
+        const mediaData = msgData?.media;
+        const mediaUrl2 = mediaData?.url || mediaData?.data || null;
+        const mediaMimetype2 = mediaData?.mimetype || null;
+        
+        if (!mediaUrl2) {
+          console.log(`[waha-proxy] No media URL in response`);
+          return new Response(
+            JSON.stringify({ disponivel: false, motivo: "midia_expirada" }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // If mediaUrl2 is a base64 data URI, return directly
+        if (mediaUrl2.startsWith("data:")) {
+          console.log(`[waha-proxy] ✅ On-demand media returned as data URI`);
+          return new Response(
+            JSON.stringify({ disponivel: true, media_url: mediaUrl2, mimetype: mediaMimetype2 }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // If it's a URL, proxy-download and return as base64
+        try {
+          const proxyHeaders: Record<string, string> = {};
+          if (mediaUrl2.includes(baseUrl)) {
+            proxyHeaders["X-Api-Key"] = apiKey;
+          }
+          const proxyResp = await fetch(mediaUrl2, { headers: proxyHeaders });
+          if (proxyResp.ok) {
+            const proxyBuf = await proxyResp.arrayBuffer();
+            const proxyBytes = new Uint8Array(proxyBuf);
+            const base64 = btoa(String.fromCharCode(...proxyBytes));
+            const contentType = mediaMimetype2 || proxyResp.headers.get("content-type") || "application/octet-stream";
+            const dataUri = `data:${contentType};base64,${base64}`;
+            console.log(`[waha-proxy] ✅ On-demand media proxied (${proxyBytes.length} bytes)`);
+            return new Response(
+              JSON.stringify({ disponivel: true, media_url: dataUri, mimetype: contentType }),
+              { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+        } catch (proxyErr) {
+          console.error(`[waha-proxy] Proxy download error:`, proxyErr);
+        }
+
+        return new Response(
+          JSON.stringify({ disponivel: false, motivo: "midia_expirada" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       default:
         return new Response(
           JSON.stringify({ error: `Action '${action}' não reconhecida` }),

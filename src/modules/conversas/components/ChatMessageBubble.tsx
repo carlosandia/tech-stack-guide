@@ -7,6 +7,7 @@
  */
 
 import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react'
+import { GroupMediaPlaceholder } from './GroupMediaPlaceholder'
 import { createPortal } from 'react-dom'
 import DOMPurify from 'dompurify'
 import { format } from 'date-fns'
@@ -637,6 +638,20 @@ function renderContent(
   audioAckIndicator?: React.ReactNode,
   onStartConversation?: (telefone: string) => void,
 ) {
+  // AIDEV-NOTE: Detectar mídia de grupo on-demand (não persistida no storage)
+  // Flag _media_ondemand é setada pelo webhook quando mídia de grupo é pulada
+  const isOnDemandMedia = mensagem.has_media
+    && !mensagem.media_url
+    && ['image', 'video', 'document', 'sticker'].includes(mensagem.tipo)
+    && (mensagem.raw_data as Record<string, unknown> | null)?._media_ondemand === true
+
+  if (isOnDemandMedia && conversaId) {
+    // Extrair chatId do raw_data (from = chatId do grupo)
+    const rawPayload = mensagem.raw_data as Record<string, unknown> | null
+    const chatIdFromRaw = (rawPayload?.from as string) || ''
+    return <GroupMediaPlaceholder mensagem={mensagem} conversaId={conversaId} chatId={chatIdFromRaw} />
+  }
+
   switch (mensagem.tipo) {
     case 'text': return <TextContent body={mensagem.body || ''} rawData={mensagem.raw_data} contactMap={contactMap} />
     case 'image': return <ImageContent mensagem={mensagem} onViewMedia={onViewMedia} />

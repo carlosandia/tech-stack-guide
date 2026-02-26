@@ -2766,6 +2766,20 @@ Deno.serve(async (req) => {
         messageInsert.media_duration = fwdDuration;
         messageInsert.has_media = true;
 
+        // AIDEV-NOTE: Otimização de mídia para GRUPOS (forwarded media)
+        // Mesmo skip que na mídia normal: não salvar imagem/video/documento/sticker de grupo
+        const isFwdGroupMediaSkip = isGroup
+          && !["audio", "ptt"].includes(wahaType)
+          && ["image", "video", "document", "sticker"].includes(wahaType);
+
+        if (isFwdGroupMediaSkip) {
+          messageInsert.media_url = null;
+          const existingRaw = (messageInsert.raw_data || {}) as Record<string, unknown>;
+          existingRaw._media_ondemand = true;
+          messageInsert.raw_data = existingRaw;
+          forwardedMediaHandled = true;
+          console.log(`[waha-webhook] ⚡ Forwarded group media SKIPPED (on-demand): type=${wahaType}`);
+        } else {
         // Tentar download via WAHA API endpoint /api/{session}/messages/{messageId}/download
         if (wahaApiUrl && wahaApiKey && messageId) {
           try {
@@ -2800,6 +2814,7 @@ Deno.serve(async (req) => {
             console.error(`[waha-webhook] Forwarded media download/upload error:`, fwdDlErr);
           }
         }
+        } // end else (not group media skip)
       }
     }
 
@@ -2817,7 +2832,27 @@ Deno.serve(async (req) => {
 
       console.log(`[waha-webhook] Media detected: wahaUrl=${wahaMediaUrl}, mime=${mediaMimetype}, filename=${mediaFilename}`);
 
-      // Try to download from WAHA and upload to Supabase Storage for public access
+      // AIDEV-NOTE: Otimização de mídia para GRUPOS
+      // Para grupos (@g.us), NÃO salvar imagem/video/documento/sticker no storage.
+      // Apenas áudio/ptt é salvo normalmente. As demais mídias ficam disponíveis
+      // para busca on-demand via API WAHA enquanto a sessão estiver ativa.
+      // Isso reduz drasticamente o uso de storage em grupos com alto volume de mídia.
+      const isGroupMediaSkip = isGroup
+        && !["audio", "ptt"].includes(wahaType)
+        && ["image", "video", "document", "sticker"].includes(wahaType);
+
+      if (isGroupMediaSkip) {
+        // Salvar apenas metadados, sem download/upload da mídia
+        messageInsert.media_url = null;
+        messageInsert.has_media = true;
+        // Marcar nos raw_data que esta mídia é on-demand (não foi persistida)
+        const existingRaw = (messageInsert.raw_data || {}) as Record<string, unknown>;
+        existingRaw._media_ondemand = true;
+        existingRaw._waha_media_url = wahaMediaUrl; // URL original do WAHA (temporária)
+        messageInsert.raw_data = existingRaw;
+        console.log(`[waha-webhook] ⚡ Group media SKIPPED (on-demand): type=${wahaType}, mime=${mediaMimetype}, size=${mediaSize}`);
+      } else {
+        // Comportamento padrão: download + upload para Supabase Storage
       let finalMediaUrl = wahaMediaUrl;
       try {
         // Download from WAHA (may require API key)
@@ -2878,6 +2913,7 @@ Deno.serve(async (req) => {
       }
 
       messageInsert.media_url = finalMediaUrl;
+      } // end else (not group media skip)
     }
 
     // AIDEV-NOTE: Extract caption for media messages with fallback for forwarded messages
