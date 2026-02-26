@@ -1,131 +1,77 @@
 
-# Plano: Diferenciar WhatsApp Conversas vs WhatsApp Widget + UTM no Widget
 
-## Problema Atual
+# Plano: Ajustes no InvestModeWidget + Painel de Configuracao de Exibicao do Dashboard
 
-1. O widget WhatsApp cria oportunidades **sem `origem`** e **sem `utm_source`**, fazendo com que apareçam como "direto" ou se misturem com as oportunidades vindas de conversas WhatsApp (waha-webhook que usa `origem: 'whatsapp'`).
-2. O widget não captura parâmetros UTM da URL do visitante, então não há rastreabilidade de campanha para leads do widget.
+## 1. Corrigir nomenclatura do botao de Investimento
 
-## Solucao
+**Arquivo:** `src/modules/app/components/dashboard/InvestModeWidget.tsx`
 
-### Fase 1: Diferenciar a origem no backend
+O botao atualmente muda o texto de "Investimento" para "ROI" quando o invest mode esta ativo. A correcao e simples: manter sempre o texto "Investimento", apenas alterando o estilo visual (fundo verde) quando ativo.
 
-**Edge Function `widget-whatsapp-config/index.ts`** (no bloco de criacao de oportunidade, ~linha 295):
-- Adicionar `origem: 'whatsapp_widget'` ao insert da oportunidade
-- Capturar UTM params enviados pelo widget loader e salvar como `utm_source`, `utm_medium`, `utm_campaign` na oportunidade
-- Logica de prioridade: se veio UTM do visitante, `utm_source` recebe o valor da UTM. Se nao, a coluna `origem` ja resolve como `whatsapp_widget` no breakdown via `COALESCE(utm_source, origem, 'direto')`
-
-### Fase 2: Capturar UTMs no widget loader (frontend do visitante)
-
-**Edge Function `widget-whatsapp-loader/index.ts`**:
-- No script JS injetado, capturar `window.location.search` para extrair `utm_source`, `utm_medium`, `utm_campaign`
-- Enviar esses valores no POST body junto com os dados do formulario: `{dados, config, utm: {utm_source, utm_medium, utm_campaign}}`
-
-### Fase 3: Processar UTMs na edge function de config
-
-**Edge Function `widget-whatsapp-config/index.ts`** (handler POST):
-- Extrair `utm_source`, `utm_medium`, `utm_campaign` do body
-- Ao criar a oportunidade, incluir esses campos se presentes
-- A oportunidade fica com `origem: 'whatsapp_widget'` sempre, e `utm_source` so se o visitante veio com UTM na URL
-
-### Fase 4: Atualizar nomenclatura no frontend
-
-**`src/modules/app/components/dashboard/BreakdownCanal.tsx`**:
-- Renomear `whatsapp` para `WhatsApp Conversas` no mapa de nomes
-- Adicionar `whatsapp_widget` como `WhatsApp Widget` com cor diferenciada (ex: `#128C7E` - verde escuro do WhatsApp Business)
-
-### Fase 5: Backfill (migracao SQL)
-
-- Atualizar oportunidades existentes que vieram do widget: identificar pela ausencia de origem e pelo contato ter sido criado com `origem = 'whatsapp'` mas sem `pre_oportunidade` associada. Porem, essa distincao e imprecisa, entao o backfill sera **opcional** e conservador — aplicar `origem = 'whatsapp_widget'` apenas para oportunidades que possuam contato criado pela edge function do widget (contatos com `origem = 'whatsapp'` e sem correspondencia na tabela `pre_oportunidades`).
+**Alteracao:** Linha 88, trocar `{isAtivo ? 'ROI' : 'Investimento'}` por `Investimento` (texto fixo).
 
 ---
 
-## Detalhes Tecnicos
+## 2. Remover CollapsibleSection individual e criar Painel de Configuracao de Exibicao
 
-### Alteracao 1 — `widget-whatsapp-loader/index.ts`
+Substituir o mecanismo atual de hover em cada bloco por um unico botao/icone de configuracao no header do dashboard, ao lado do botao de Investimento. Ao clicar, abre um Popover com toggles (switches) para cada bloco.
 
-Adicionar captura de UTM no script JS:
+**Arquivo novo:** `src/modules/app/components/dashboard/DashboardDisplayConfig.tsx`
 
-```text
-// Antes do fetch POST, capturar UTMs da URL do visitante
-var urlParams = new URLSearchParams(window.location.search);
-var utmData = {
-  utm_source: urlParams.get('utm_source') || '',
-  utm_medium: urlParams.get('utm_medium') || '',
-  utm_campaign: urlParams.get('utm_campaign') || ''
-};
+### Comportamento:
+- Icone de engrenagem (Settings2 do lucide) no header, ao lado do botao de Investimento
+- Ao clicar, abre um Popover com lista de blocos, cada um com um Switch (on/off)
+- Estado persistido no localStorage (chave `dashboard_display_config`)
+- Todos iniciam como visivel por padrao
 
-// No fetch POST, enviar junto:
-fetch(API, {
-  method: 'POST',
-  headers: {'Content-Type':'application/json'},
-  body: JSON.stringify({dados: dadosObj, config: cfg, utm: utmData})
-})
-```
+### Blocos configuráveis (labels sincronizados com o dashboard):
 
-### Alteracao 2 — `widget-whatsapp-config/index.ts`
+| ID | Label no Painel |
+|----|-----------------|
+| `metas` | Indicadores de metas |
+| `funil` | Funil de conversao |
+| `reunioes` | Indicadores de reunioes |
+| `kpis-principais` | Principais |
+| `canal` | Por canal de origem |
+| `motivos` | Motivos de ganho e perda |
 
-No handler POST (~linha 295), extrair UTMs e inserir na oportunidade:
+**Nota:** Os blocos KPIs Secundarios, Produtos Ranking e Metricas de Atendimento continuam visiveis sem toggle (nao foram solicitados pelo usuario).
 
-```text
-// Extrair UTMs do body
-const utmData = body.utm || {};
-const utmSource = utmData.utm_source || null;
-const utmMedium = utmData.utm_medium || null;
-const utmCampaign = utmData.utm_campaign || null;
+### UI do Popover:
+- Header: icone Settings2 + "Exibicao"
+- Lista vertical com cada bloco: label a esquerda, Switch a direita
+- Estilo seguindo o design system: `text-sm`, `rounded-lg`, cores semanticas
 
-// Insert da oportunidade com origem e UTMs
-.insert({
-  organizacao_id: orgId,
-  funil_id: funilId,
-  etapa_id: etapaId,
-  contato_id: contatoId,
-  titulo: tituloAuto,
-  valor: 0,
-  origem: 'whatsapp_widget',
-  utm_source: utmSource,
-  utm_medium: utmMedium,
-  utm_campaign: utmCampaign,
-})
-```
+---
 
-### Alteracao 3 — `BreakdownCanal.tsx`
+## 3. Alterar DashboardPage
 
-```text
-// Mapa de cores
-whatsapp: '#22C55E',           // Verde claro - Conversas
-whatsapp_widget: '#128C7E',    // Verde escuro - Widget
+**Arquivo:** `src/modules/app/pages/DashboardPage.tsx`
 
-// Mapa de nomes
-whatsapp: 'WhatsApp Conversas',
-whatsapp_widget: 'WhatsApp Widget',
-```
+- Importar o novo `DashboardDisplayConfig` e renderiza-lo no header ao lado do `InvestModeWidget`
+- Remover o `CollapsibleSection` wrapper dos blocos configuráveis
+- Usar renderizacao condicional simples: `{visivel.metas && relatorioMetas && <RelatorioMetas ... />}`
+- O estado de visibilidade vem do hook/estado do `DashboardDisplayConfig` (via estado local ou hook compartilhado)
 
-### Alteracao 4 — Migracao SQL (backfill conservador)
+### Abordagem tecnica:
+- Criar um hook `useDashboardDisplay` que gerencia o estado de visibilidade com localStorage
+- O hook retorna `{ config, toggleSection }` onde `config` e um objeto `Record<string, boolean>`
+- Tanto o `DashboardDisplayConfig` (popover) quanto o `DashboardPage` (renderizacao) usam o mesmo hook
 
-Atualizar oportunidades sem origem que tenham contato com `origem = 'whatsapp'` e que **nao** tenham pre-oportunidade associada (indicando que vieram do widget e nao da conversa direta):
+---
 
-```text
-UPDATE oportunidades o
-SET origem = 'whatsapp_widget'
-WHERE o.origem IS NULL
-  AND o.deletado_em IS NULL
-  AND EXISTS (
-    SELECT 1 FROM contatos c
-    WHERE c.id = o.contato_id
-    AND c.origem = 'whatsapp'
-  )
-  AND NOT EXISTS (
-    SELECT 1 FROM pre_oportunidades po
-    WHERE po.oportunidade_id = o.id
-  );
-```
+## 4. Remover CollapsibleSection
 
-## Resumo de Arquivos Alterados
+O componente `CollapsibleSection` pode ser removido pois sera substituido pelo painel centralizado.
 
-| Arquivo | Tipo |
+---
+
+## Resumo de arquivos
+
+| Arquivo | Acao |
 |---------|------|
-| `supabase/functions/widget-whatsapp-loader/index.ts` | Captura UTM da URL do visitante |
-| `supabase/functions/widget-whatsapp-config/index.ts` | Salva origem + UTMs na oportunidade |
-| `src/modules/app/components/dashboard/BreakdownCanal.tsx` | Nomenclatura e cores |
-| `supabase/migrations/xxx.sql` | Backfill conservador |
+| `src/modules/app/components/dashboard/InvestModeWidget.tsx` | Fixar texto "Investimento" |
+| `src/modules/app/hooks/useDashboardDisplay.ts` | Criar hook de visibilidade |
+| `src/modules/app/components/dashboard/DashboardDisplayConfig.tsx` | Criar componente do painel |
+| `src/modules/app/pages/DashboardPage.tsx` | Integrar painel + renderizacao condicional |
+| `src/modules/app/components/dashboard/CollapsibleSection.tsx` | Remover |
