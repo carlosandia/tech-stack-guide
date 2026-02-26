@@ -32,7 +32,7 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
       bgColor: 'bg-blue-500/10 border-blue-500/20',
       taxa: null,
       taxaLabel: '100%',
-      dica: 'Contatos criados no período selecionado',
+      dica: 'Oportunidades criadas no período e funil selecionado',
     },
     {
       label: 'MQLs',
