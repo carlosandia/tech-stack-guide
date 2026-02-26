@@ -282,25 +282,7 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
           )
         })}
 
-        {/* Drop zone final (para arrastar para o fim) */}
-        {draggingId && (
-          <div
-            onDragOver={(e) => {
-              e.preventDefault()
-              setDragOverIndex(visibleSections.length)
-            }}
-            onDragLeave={() => setDragOverIndex(null)}
-            onDrop={(e) => {
-              e.preventDefault()
-              handleDrop(e, visibleSections.length)
-            }}
-            className={`transition-all duration-150 rounded ${
-              dragOverIndex === visibleSections.length
-                ? 'h-[6px] bg-primary/5 border-2 border-dashed border-primary/30'
-                : 'h-4'
-            }`}
-          />
-        )}
+        {/* Drop zone final removida — o último bloco já lida com drop abaixo via midpoint */}
       </div>
     </div>
   )
