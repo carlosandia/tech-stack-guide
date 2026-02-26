@@ -135,7 +135,31 @@ export default function RelatorioMetas({ data }: RelatorioMetasProps) {
           icon={<AlertTriangle className="w-4 h-4" />}
           color="text-destructive"
           bg="bg-destructive/10"
-          helpContent={<p className="text-xs text-muted-foreground">Metas com atingimento entre 1% e 39% no período. Indicam que estão longe de serem alcançadas e precisam de atenção.</p>}
+          helpContent={
+            (() => {
+              const emRisco = metasNomes.filter(m => m.percentual >= 1 && m.percentual < 40)
+              if (emRisco.length === 0) {
+                return <p className="text-xs text-muted-foreground">Nenhuma meta em risco no período. Metas com atingimento entre 1% e 39% aparecem aqui.</p>
+              }
+              return (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-foreground">Metas em risco ({emRisco.length}):</p>
+                  <div className="space-y-1.5">
+                    {emRisco.map((m, i) => (
+                      <div key={i} className="flex items-center justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-foreground truncate">{m.nome}</p>
+                          <p className="text-[10px] text-muted-foreground">{formatMetricLabel(m.metrica)}</p>
+                        </div>
+                        <span className="text-xs font-semibold text-destructive shrink-0">{m.percentual}%</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground border-t border-border pt-1.5">Atingimento entre 1% e 39% — precisam de atenção.</p>
+                </div>
+              )
+            })()
+          }
         />
       </div>
 
