@@ -300,11 +300,11 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
           {editor.isActive('link') ? <Unlink size={iconSize} /> : <Link size={iconSize} />}
         </ToolbarButton>
 
-        {/* Imagem (upload) */}
+        {/* Imagem (upload — max 2MB) */}
         <ToolbarButton
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading}
-          title="Fazer upload de imagem"
+          title="Fazer upload de imagem (máx. 2MB)"
         >
           {uploading ? <Loader2 size={iconSize} className="animate-spin" /> : <Image size={iconSize} />}
         </ToolbarButton>
