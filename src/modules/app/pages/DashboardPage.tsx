@@ -15,6 +15,7 @@ import IndicadoresReunioes from '../components/dashboard/IndicadoresReunioes'
 import RelatorioMetas from '../components/dashboard/RelatorioMetas'
 import DashboardSkeleton from '../components/dashboard/DashboardSkeleton'
 import { AlertCircle } from 'lucide-react'
+import CollapsibleSection from '../components/dashboard/CollapsibleSection'
 import type { Periodo } from '../types/relatorio.types'
 
 /**
@@ -126,44 +127,62 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
 
         {/* Indicadores de Metas */}
         {relatorioMetas && (
-          <RelatorioMetas data={relatorioMetas} />
+          <CollapsibleSection id="metas">
+            <RelatorioMetas data={relatorioMetas} />
+          </CollapsibleSection>
         )}
 
         {/* Funil de Conversão */}
-        <FunilConversao data={relatorio} />
+        <CollapsibleSection id="funil">
+          <FunilConversao data={relatorio} />
+        </CollapsibleSection>
 
         {/* Indicadores de Reuniões */}
-        <IndicadoresReunioes data={relatorio} />
+        <CollapsibleSection id="reunioes">
+          <IndicadoresReunioes data={relatorio} />
+        </CollapsibleSection>
 
         {/* KPIs Principais (6 cards) */}
         {metricasGerais && (
-          <KPIsPrincipais relatorio={relatorio} metricas={metricasGerais} />
+          <CollapsibleSection id="kpis-principais">
+            <KPIsPrincipais relatorio={relatorio} metricas={metricasGerais} />
+          </CollapsibleSection>
         )}
 
         {/* KPIs Secundários (4 cards) */}
         {metricasGerais && (
-          <KPIsSecundarios relatorio={relatorio} metricas={metricasGerais} />
+          <CollapsibleSection id="kpis-secundarios">
+            <KPIsSecundarios relatorio={relatorio} metricas={metricasGerais} />
+          </CollapsibleSection>
         )}
 
         {/* Breakdown por Canal (estratégico — após KPIs) */}
-        <BreakdownCanal data={relatorio.breakdown_canal} />
+        <CollapsibleSection id="canal">
+          <BreakdownCanal data={relatorio.breakdown_canal} />
+        </CollapsibleSection>
 
         {/* Gráficos lado a lado: Motivos de Ganho + Perda */}
         {metricasGerais && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <MotivosGanho data={metricasGerais.motivos_ganho} />
-            <MotivosPerda data={metricasGerais.motivos_perda} />
-          </div>
+          <CollapsibleSection id="motivos">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <MotivosGanho data={metricasGerais.motivos_ganho} />
+              <MotivosPerda data={metricasGerais.motivos_perda} />
+            </div>
+          </CollapsibleSection>
         )}
 
         {/* Produtos Mais Vendidos */}
         {metricasGerais && (
-          <ProdutosRanking data={metricasGerais.produtos_ranking} />
+          <CollapsibleSection id="produtos">
+            <ProdutosRanking data={metricasGerais.produtos_ranking} />
+          </CollapsibleSection>
         )}
 
         {/* Métricas de Atendimento */}
         {metricasAtendimento && (
-          <MetricasAtendimento data={metricasAtendimento} />
+          <CollapsibleSection id="atendimento">
+            <MetricasAtendimento data={metricasAtendimento} />
+          </CollapsibleSection>
         )}
       </div>
     </div>
