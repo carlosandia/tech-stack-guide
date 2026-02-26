@@ -167,13 +167,15 @@ async function processarLead(pageId: string, formId: string, leadgenId: string) 
     if (configForm.funil_id && etapaId) {
       const nomeContato = dadosContato.nome || dadosContato.email || "Lead Meta";
       
+      // AIDEV-NOTE: origem 'meta_ads' + utm_source para garantir que o breakdown de canal funcione
       const { error: errOp } = await supabase.from("oportunidades").insert({
         organizacao_id: orgId,
         contato_id: contatoId,
         funil_id: configForm.funil_id,
         etapa_id: etapaId,
         titulo: `Lead Meta - ${nomeContato}`,
-        origem: "meta_lead_ads",
+        origem: "meta_ads",
+        utm_source: "meta_ads",
         usuario_responsavel_id: configForm.owner_id || null,
         valor: 0,
         posicao: 0,

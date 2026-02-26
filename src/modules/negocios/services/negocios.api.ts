@@ -568,6 +568,8 @@ export const negociosApi = {
       previsao_fechamento: payload.previsao_fechamento || null,
       observacoes: payload.observacoes || null,
       criado_por: userId,
+      // AIDEV-NOTE: origem sempre preenchida — 'manual' como default para criação via modal
+      origem: 'manual',
     }
 
     // Adicionar UTMs se presentes

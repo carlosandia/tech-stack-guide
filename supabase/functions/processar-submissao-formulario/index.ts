@@ -628,6 +628,8 @@ Deno.serve(async (req) => {
           utm_source: submissao.utm_source,
           utm_medium: submissao.utm_medium,
           utm_campaign: submissao.utm_campaign,
+          // AIDEV-NOTE: origem 'formulario' para oportunidades criadas via submissão de formulário
+          origem: 'formulario',
         })
         .select('id')
         .single()
