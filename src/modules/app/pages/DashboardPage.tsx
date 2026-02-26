@@ -163,7 +163,7 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
     funil: {
       visible: displayConfig.funil,
       toggleId: 'funil',
-      render: () => <FunilConversao data={relatorio} />,
+      render: () => <FunilConversao data={relatorio} query={query} />,
     },
     reunioes: {
       visible: displayConfig.reunioes,

@@ -10,12 +10,13 @@ import { toast } from 'sonner'
 
 const STALE_TIME = 5 * 60 * 1000 // 5 minutos
 
-export function useRelatorioFunil(query: FunilQuery) {
+export function useRelatorioFunil(query: FunilQuery, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['relatorio-funil', query],
     queryFn: () => fetchRelatorioFunil(query),
     staleTime: STALE_TIME,
     retry: 1,
+    enabled: options?.enabled ?? true,
   })
 }
 
