@@ -168,7 +168,7 @@ const App = forwardRef<HTMLDivElement>(function App(_props, _ref) {
       >
         <Route path="/dashboard" element={<Suspense fallback={<SuspenseFallback />}><AppDashboardPage /></Suspense>} />
         <Route path="/perfil" element={<Suspense fallback={<SuspenseFallback />}><PerfilPage /></Suspense>} />
-        <Route path="/contatos" element={<Suspense fallback={<SuspenseFallback />}><ContatosPage /></Suspense>} />
+        <Route path="/contatos" element={<Navigate to="/contatos/pessoas" replace />} />
         <Route path="/contatos/:tipo" element={<Suspense fallback={<SuspenseFallback />}><ContatosPage /></Suspense>} />
         <Route path="/negocios" element={<Suspense fallback={<SuspenseFallback />}><NegociosPage /></Suspense>} />
         <Route path="/negocios/pipeline/:id" element={<Suspense fallback={<SuspenseFallback />}><PipelineConfigPage /></Suspense>} />
