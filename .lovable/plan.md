@@ -1,86 +1,94 @@
 
 
-## Correcoes de Dark Mode no Modulo de Emails
+## Correcao: Renderizacao MIME e Altura do Iframe no EmailViewer
 
-### Problemas identificados
+### Problema 1: Email nao renderizado (MIME bruto)
 
-1. **Corpo do email (iframe) com texto preto invisivel no dark mode**: O iframe que renderiza o HTML do email nao define `background: white` nem `color: black` explicitamente. Emails sao projetados para fundo branco -- sem forccar isso, o browser pode herdar o fundo escuro do tema, tornando texto preto invisivel.
+O corpo do email esta chegando como texto MIME bruto (com boundaries, Content-Type headers, etc.) em vez do HTML extraido. O backend nao parseou corretamente, e o frontend nao tem fallback para extrair o HTML de dentro da estrutura MIME.
 
-2. **Altura do iframe nao preenche 100%**: O iframe usa `minHeight: '400px'` fixo e depende de timeouts para ajustar. O `adjustIframeHeight` nao e confiavel para todos os emails, gerando scroll excessivo ou espaco insuficiente.
+**Solucao**: Adicionar uma funcao `extractHtmlFromMime(raw)` no frontend que:
+- Detecta se o texto contem boundary MIME (`--boundary`)
+- Localiza a parte com `Content-Type: text/html`
+- Extrai o corpo HTML dessa parte
+- Decodifica quoted-printable ou base64 se necessario
+- Fallback: se nao encontrar HTML, extrai `text/plain` e converte para HTML basico
 
-3. **Cores do avatar nao adaptam ao dark mode**: A funcao `getInitialColor` no `EmailViewer.tsx` usa classes como `bg-red-100 text-red-700` que ficam lavadas/ilegíveis no modo escuro.
+Essa funcao sera chamada no `useMemo` do `cleanHtml`, entre o fallback de `corpo_texto` e o `looksLikeHtml`.
 
-### Solucao
+### Problema 2: Altura do iframe travada em 200px
 
-**Arquivo 1: `src/modules/emails/components/EmailViewer.tsx`**
+O atributo `sandbox="allow-popups"` nao inclui `allow-same-origin`, o que impede o JavaScript do CRM de acessar `iframe.contentDocument`. Resultado: `adjustIframeHeight()`, `ResizeObserver` e `MutationObserver` **nunca funcionam** — todos caem no `catch`.
 
-- **iframe containment CSS** (linhas 270-277): Adicionar `background: #ffffff !important; color: #1a1a1a !important;` ao `html, body` do CSS injetado no iframe. Isso garante que o conteudo do email sempre renderize em fundo branco com texto escuro, independente do tema do CRM. Emails com estilizacao propria (backgrounds coloridos, newsletters) continuam funcionando porque seus estilos inline tem prioridade. Esta e a mesma abordagem do Gmail.
+**Solucao**: Adicionar `allow-same-origin` ao sandbox do iframe:
+```
+sandbox="allow-popups allow-same-origin"
+```
 
-- **Avatar colors** (linhas 90-103): Trocar de `bg-red-100 text-red-700` para cores com opacidade que funcionam em ambos os temas: `bg-red-500/15 text-red-400`, `bg-blue-500/15 text-blue-400`, etc.
+Isso e seguro porque:
+- `allow-scripts` NAO esta presente — scripts continuam bloqueados
+- O CSP meta tag (`script-src 'none'`) e uma segunda camada de defesa
+- DOMPurify remove scripts e event handlers antes de injetar no srcDoc
+- Sem `allow-scripts`, `allow-same-origin` sozinho nao permite execucao de codigo
 
-- **Altura do iframe** (linhas 518-526): Trocar de `minHeight: '400px'` fixo para uma abordagem que use `height: 100%` quando o conteudo nao for auto-dimensionavel, e melhorar o `adjustIframeHeight` para considerar o container pai. Adicionar `ResizeObserver` no iframe document para reagir a mudancas de conteudo (imagens carregando, etc.) em vez de depender de timeouts arbitrarios.
+Com essa mudanca, `adjustIframeHeight()` conseguira acessar `doc.body.scrollHeight` e o iframe se dimensionara corretamente.
 
-**Arquivo 2: `src/modules/emails/components/EmailHistoricoPopover.tsx`**
+### Alteracoes no arquivo
 
-- Os avatares usam `text-white` que funciona, mas as cores de fundo (`bg-blue-500`, etc.) sao aceitaveis -- nenhuma correcao necessaria aqui.
+**`src/modules/emails/components/EmailViewer.tsx`**
 
-### Detalhes tecnicos
+1. **Nova funcao `extractHtmlFromMime(raw: string)`** (antes do componente):
+   - Extrai boundary do header Content-Type
+   - Separa as partes pelo boundary
+   - Procura a parte `text/html`, decodifica e retorna
+   - Fallback para `text/plain` convertido em `<pre>`
 
-**CSS do iframe (principal correcao de dark mode):**
-```css
-html, body {
-  overflow-x: hidden !important;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-  margin: 0;
-  padding: 8px 16px;
-  background: #ffffff !important;
-  color: #1a1a1a !important;
+2. **Atualizar `useMemo` do `cleanHtml`** (linha ~248-259):
+   - Apos verificar `looksLikeHtml` e `tryDecodeBase64`, adicionar chamada a `extractHtmlFromMime`
+   - Ordem de tentativa: corpo_html → corpo_texto como HTML → base64 → MIME parse → texto puro
+
+3. **Atualizar sandbox do iframe** (linha 553):
+   - De: `sandbox="allow-popups"`
+   - Para: `sandbox="allow-popups allow-same-origin"`
+
+### Logica do parser MIME (simplificado)
+
+```typescript
+function extractHtmlFromMime(raw: string): string | null {
+  // Encontra boundary
+  const boundaryMatch = raw.match(/boundary="?([^"\s;]+)"?/i)
+  if (!boundaryMatch) return null
+
+  const boundary = boundaryMatch[1]
+  const parts = raw.split('--' + boundary)
+
+  let htmlPart: string | null = null
+  let textPart: string | null = null
+
+  for (const part of parts) {
+    const headerEnd = part.indexOf('\r\n\r\n') !== -1 
+      ? part.indexOf('\r\n\r\n') 
+      : part.indexOf('\n\n')
+    if (headerEnd === -1) continue
+
+    const headers = part.substring(0, headerEnd).toLowerCase()
+    const body = part.substring(headerEnd).trim()
+
+    if (headers.includes('text/html')) {
+      htmlPart = decodePartBody(body, headers)
+    } else if (headers.includes('text/plain') && !textPart) {
+      textPart = decodePartBody(body, headers)
+    }
+  }
+
+  if (htmlPart) return htmlPart
+  if (textPart) return `<pre>${textPart}</pre>`
+  return null
 }
 ```
-
-**Avatar colors (dark-mode safe):**
-```typescript
-const colors = [
-  'bg-red-500/15 text-red-400',
-  'bg-blue-500/15 text-blue-400',
-  'bg-green-500/15 text-green-400',
-  'bg-purple-500/15 text-purple-400',
-  'bg-amber-500/15 text-amber-400',
-  'bg-teal-500/15 text-teal-400',
-  'bg-pink-500/15 text-pink-400',
-  'bg-indigo-500/15 text-indigo-400',
-]
-```
-
-**Iframe height -- ResizeObserver:**
-Substituir os timeouts por um `ResizeObserver` que reage automaticamente ao redimensionamento do conteudo do iframe:
-```typescript
-const adjustIframeHeight = useCallback(() => {
-  const iframe = iframeRef.current
-  if (!iframe) return
-  try {
-    const doc = iframe.contentDocument || iframe.contentWindow?.document
-    if (doc?.body) {
-      const h = Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight, 200)
-      iframe.style.height = h + 'px'
-    }
-  } catch { /* sandbox */ }
-}, [])
-```
-Manter os timeouts como fallback, mas adicionar um `MutationObserver` no `onLoad` do iframe para detectar quando imagens terminam de carregar.
 
 ### Arquivos modificados
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `src/modules/emails/components/EmailViewer.tsx` | CSS do iframe (bg branco forcado), avatar colors, height melhorado |
-
-### Recomendacao sobre dark mode no corpo do email
-
-A abordagem correta (usada pelo Gmail, Outlook web, etc.) e **sempre renderizar o corpo do email em fundo branco com texto escuro**, pois:
-- Emails HTML sao projetados para fundo branco
-- Newsletters com backgrounds proprios continuam intactas (estilos inline prevalecem)
-- Evita problemas de contraste com qualquer combinacao de cores do remetente
-- O iframe esta isolado (sandbox), entao o estilo do CRM nao precisa vazar para dentro
+| `src/modules/emails/components/EmailViewer.tsx` | Parser MIME, sandbox allow-same-origin |
 
