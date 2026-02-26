@@ -170,6 +170,7 @@ function construirInvestMode(
     total_investido: totalInvestido,
     cpl: metricas.total_leads > 0 ? Math.round((totalInvestido / metricas.total_leads) * 100) / 100 : null,
     cpmql: metricas.mqls > 0 ? Math.round((totalInvestido / metricas.mqls) * 100) / 100 : null,
+    custo_por_sql: metricas.sqls > 0 ? Math.round((totalInvestido / metricas.sqls) * 100) / 100 : null,
     custo_por_reuniao: metricas.reunioes > 0 ? Math.round((totalInvestido / metricas.reunioes) * 100) / 100 : null,
     cac: metricas.fechados > 0 ? Math.round((totalInvestido / metricas.fechados) * 100) / 100 : null,
     romi: metricas.valor_gerado > 0 && totalInvestido > 0

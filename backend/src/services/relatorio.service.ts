@@ -244,11 +244,16 @@ function construirInvestMode(
     ? Math.round(((metricas.valor_gerado - totalInvestido) / totalInvestido) * 1000) / 10
     : null
 
+  const custoPorSql = metricas.sqls > 0
+    ? Math.round((totalInvestido / metricas.sqls) * 100) / 100
+    : null
+
   return {
     ativo: true,
     total_investido: totalInvestido,
     cpl,
     cpmql,
+    custo_por_sql: custoPorSql,
     custo_por_reuniao: custoPorReuniao,
     cac,
     romi,
