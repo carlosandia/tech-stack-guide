@@ -1,90 +1,61 @@
 
 
-# Plano: Correcao dos Indicadores de Metas no Dashboard
+# Plano: Adicionar tooltips explicativos no Funil de Conversao
 
-## Problemas Identificados
+## O que sera feito
 
-### 1. Total de Metas nao inclui metas do tipo "equipe"
-A funcao SQL `fn_relatorio_metas_dashboard` conta apenas metas do tipo `empresa` e `individual`, ignorando completamente as do tipo `equipe`. No banco existem 3 metas (empresa, equipe, individual), mas o dashboard mostra apenas 2.
+Adicionar um icone (?) sutil ao lado de cada titulo de etapa do funil (Leads, MQLs, SQLs, R. Agendadas, R. Realizadas, Ganhos) com Tooltip explicativo claro sobre o que cada metrica representa.
 
-### 2. Bug de double-counting no SQL
-O bloco "individual" sobrescreve as variaveis `v_metas_atingidas` e `v_em_risco`, e depois o codigo re-consulta as metas empresa para somar de volta. Alem de ineficiente, o calculo da media tambem fica fragil.
+## Alteracoes
 
-### 3. Cards sem contexto
-- **Total de Metas**: nao mostra quais sao as metas. O usuario ve um numero sem saber o que representa.
-- **Em Risco**: criterio nao explicado (percentual < 40%). Nao ha tooltip.
-- **Media Ating.**: sem explicacao de como e calculada.
+### Arquivo: `src/modules/app/components/dashboard/FunilConversao.tsx`
 
-### 4. Dados reais vs calculo
-As 3 metas no banco tem `valor_atual = 600` e metas de 200k, 100k e 20k. Os percentuais (0.3%, 0.6%, 3%) parecem corretos com base no que foi vendido. A media atingimento de 1.7% esta incorreta pois exclui a meta de equipe do calculo.
+**1. Adicionar campo `tooltip` na interface `EtapaFunil` e nos dados de cada etapa:**
 
----
+| Etapa | Tooltip |
+|-------|---------|
+| Leads | "Total de oportunidades criadas no periodo e funil selecionado. Representa o topo do funil." |
+| MQLs | "Marketing Qualified Leads. Oportunidades que atenderam os criterios de qualificacao configurados e se tornaram leads qualificados para marketing." |
+| SQLs | "Sales Qualified Leads. Leads que foram validados pela equipe comercial como prontos para abordagem de vendas." |
+| R. Agendadas | "Reunioes agendadas com os leads qualificados. Indica o volume de conversas comerciais marcadas no periodo." |
+| R. Realizadas | "Reunioes que foram efetivamente realizadas. Diferenca entre agendadas e realizadas indica taxa de no-show." |
+| Ganhos | "Negocios fechados com sucesso. Oportunidades que passaram por todo o funil e foram convertidas em vendas." |
 
-## Solucao
-
-### Alteracao 1: Corrigir funcao SQL `fn_relatorio_metas_dashboard`
-
-Reescrever o bloco de calculo do resumo para:
-- Contar TODAS as metas ativas (empresa + equipe + individual) de uma unica vez, eliminando o bug de double-counting
-- Calcular media, atingidas e em_risco de forma unificada
-- Adicionar campo `metas_nomes` (array com nome + metrica + percentual de cada meta) para exibir no tooltip
-
-### Alteracao 2: Atualizar tipo TypeScript
-
-Adicionar campo `metas_nomes` ao tipo `RelatorioMetasDashboard.resumo`:
-```
-metas_nomes: Array<{ nome: string; metrica: string; percentual: number }>
+**2. Importar componentes de Tooltip do design system:**
+```tsx
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { HelpCircle } from 'lucide-react'
 ```
 
-### Alteracao 3: Melhorar UI do `RelatorioMetas.tsx`
-
-- **Total de Metas**: adicionar icone (?) com Popover listando nome e percentual de cada meta configurada
-- **Em Risco**: adicionar icone (?) com tooltip explicando: "Metas com menos de 40% de atingimento no periodo"
-- **Media Ating.**: adicionar (?) explicando: "Media do percentual de atingimento de todas as metas ativas"
-
----
-
-## Detalhes Tecnicos
-
-### SQL - Nova logica unificada (migration)
-
-```sql
--- Substituir os 3 blocos (empresa, individual, recalcular) por um unico:
-SELECT
-  COUNT(*)::int,
-  COUNT(*) FILTER (WHERE sub.percentual >= 100)::int,
-  ROUND(COALESCE(AVG(sub.percentual), 0), 1),
-  COUNT(*) FILTER (WHERE sub.percentual < 40 AND sub.percentual > 0)::int,
-  COALESCE(json_agg(json_build_object('nome', sub.nome, 'metrica', sub.metrica, 'percentual', sub.percentual) ORDER BY sub.percentual DESC), '[]')
-INTO v_total_metas, v_metas_atingidas, v_media_atingimento, v_em_risco, v_metas_nomes
-FROM (
-  SELECT m.nome, m.metrica,
-    CASE WHEN m.valor_meta > 0
-      THEN ROUND((COALESCE(mp.valor_atual, 0) / m.valor_meta) * 100, 1)
-      ELSE 0
-    END AS percentual
-  FROM metas m
-  LEFT JOIN LATERAL (
-    SELECT valor_atual FROM metas_progresso WHERE meta_id = m.id ORDER BY calculado_em DESC LIMIT 1
-  ) mp ON true
-  WHERE m.organizacao_id = p_organizacao_id
-    AND m.ativo = true AND m.deletado_em IS NULL
-    AND m.data_inicio <= p_periodo_fim::date
-    AND m.data_fim >= p_periodo_inicio::date
-) sub;
+**3. No header de cada card (desktop), adicionar o (?) ao lado do label:**
+```tsx
+<div className="flex items-center gap-1 mb-2">
+  <div className={`w-7 h-7 rounded-lg ...`}>
+    <Icon ... />
+  </div>
+  <span className="text-[10px] ...">{etapa.label}</span>
+  <Tooltip>
+    <TooltipTrigger asChild>
+      <HelpCircle className="w-3 h-3 text-muted-foreground/40 hover:text-muted-foreground cursor-help shrink-0" />
+    </TooltipTrigger>
+    <TooltipContent side="top" className="max-w-[200px]">
+      <p className="text-xs">{etapa.tooltip}</p>
+    </TooltipContent>
+  </Tooltip>
+</div>
 ```
 
-E incluir `metas_nomes` no `v_resumo` JSON.
+**4. Mesmo padrao no layout mobile (vertical cards).**
 
-### Frontend - RelatorioMetas.tsx
+**5. Envolver todo o componente com `<TooltipProvider>`.**
 
-Adicionar Popover com (?) nos cards "Total de Metas", "Em Risco" e "Media Ating.":
-- Total de Metas: lista com nome e percentual de cada meta
-- Em Risco: texto explicativo do criterio
-- Media Ating.: texto explicativo do calculo
+**6. Ajuste de largura dos cards para evitar "estourar":**
+- Reduzir padding dos cards de `p-3` para `p-2.5`
+- Usar `min-w-0` nos flex items para permitir encolhimento
+- Labels "R. Agendadas" e "R. Realizadas" ja estao abreviados, mantendo compactos
 
-### Arquivos afetados
-- `supabase/migrations/` - nova migration para recriar `fn_relatorio_metas_dashboard`
-- `src/modules/app/types/relatorio.types.ts` - adicionar `metas_nomes`
-- `src/modules/app/components/dashboard/RelatorioMetas.tsx` - tooltips e popover
+### Nao serao alterados
+- Logica de calculo (ja esta correta)
+- Layout geral (horizontal desktop / vertical mobile)
+- Cores e icones existentes
 
