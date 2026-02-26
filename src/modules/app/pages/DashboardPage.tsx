@@ -33,6 +33,7 @@ import type { DashboardDisplayConfig as DisplayConfigType } from '../hooks/useDa
 
 const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, ref) {
   const contentRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
 
   // Estado dos filtros
   const [periodo, setPeriodo] = useState<Periodo>('30d')
@@ -211,7 +212,13 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
   const visibleSections = sectionOrder.filter(id => sectionMap[id]?.visible)
 
   return (
-    <div ref={ref} className="h-full overflow-y-auto">
+    <div ref={(node) => {
+      scrollContainerRef.current = node
+      if (typeof ref === 'function') ref(node)
+      else if (ref && typeof ref === 'object') {
+        ;(ref as { current: HTMLDivElement | null }).current = node
+      }
+    }} className="h-full overflow-y-auto">
       <div ref={contentRef} data-dashboard-content className="space-y-6 px-4 sm:px-6 lg:px-8 py-5 max-w-full">
         {/* Header */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
@@ -249,7 +256,7 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
                 dashboardDataInicio={dataInicio}
                 dashboardDataFim={dataFim}
               />
-              <FullscreenToggle containerRef={contentRef} />
+              <FullscreenToggle containerRef={scrollContainerRef} />
             </div>
           </div>
         </div>
