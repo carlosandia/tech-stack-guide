@@ -1,5 +1,5 @@
 import { forwardRef, useState } from 'react'
-import { useAuth } from '@/providers/AuthProvider'
+
 import { useRelatorioFunil, useFunis, useDashboardMetricasGerais, useMetricasAtendimento } from '../hooks/useRelatorioFunil'
 import DashboardFilters from '../components/dashboard/DashboardFilters'
 import FunilConversao from '../components/dashboard/FunilConversao'
@@ -20,7 +20,6 @@ import type { Periodo } from '../types/relatorio.types'
  */
 
 const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, ref) {
-  const { user } = useAuth()
 
   // Estado dos filtros
   const [periodo, setPeriodo] = useState<Periodo>('30d')
@@ -89,7 +88,7 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
 
   if (!relatorio) return null
 
-  const periodoLabel = relatorio.periodo.label
+  
 
   return (
     <div ref={ref} className="h-full overflow-y-auto">
@@ -101,9 +100,6 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
               <h2 className="text-lg font-semibold text-foreground leading-tight">
                 Relatório de funil
               </h2>
-              <p className="text-sm text-muted-foreground mt-0.5">
-                Olá, {user?.nome || 'Usuário'} · {periodoLabel}
-              </p>
             </div>
             <div className="shrink-0 flex items-center gap-2">
               <DashboardFilters
