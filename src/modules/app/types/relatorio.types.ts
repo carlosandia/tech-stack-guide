@@ -61,6 +61,9 @@ export type InvestMode =
   | {
       ativo: true
       total_investido: number
+      meta_ads: number
+      google_ads: number
+      outros: number
       cpl: number | null
       cpmql: number | null
       custo_por_sql: number | null
