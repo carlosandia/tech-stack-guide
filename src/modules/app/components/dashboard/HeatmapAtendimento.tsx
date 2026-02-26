@@ -148,13 +148,13 @@ export default function HeatmapAtendimento({ query }: Props) {
                   <div /> {/* Célula vazia - canto */}
                   {HORAS.map(h => {
                     const isStart = h === horaInicio
-                    const isEnd = h === horaFim - 1
+                    const isEndBorder = h === horaFim
                     return (
                       <div
                         key={h}
                         className={`text-[10px] text-muted-foreground text-center font-medium py-1
                           ${isStart ? 'border-l-2 border-primary/20 rounded-tl-sm' : ''}
-                          ${isEnd ? 'border-r-2 border-primary/20 rounded-tr-sm' : ''}
+                          ${isEndBorder ? 'border-l-2 border-primary/20 rounded-tl-sm' : ''}
                         `}
                       >
                         {String(h).padStart(2, '0')}
@@ -180,7 +180,7 @@ export default function HeatmapAtendimento({ query }: Props) {
                       const isPico = pico && pico.dia === dia && pico.hora === hora
                       const dentro = isDentroHorario(dia, hora)
                       const isStart = hora === horaInicio
-                      const isEnd = hora === horaFim - 1
+                      const isEndBorder = hora === horaFim
                       return (
                         <div
                           key={hora}
@@ -192,7 +192,7 @@ export default function HeatmapAtendimento({ query }: Props) {
                             ${isPico ? 'ring-2 ring-primary ring-offset-1 ring-offset-background' : ''}
                             ${!dentro && diaUtil ? 'opacity-40' : ''}
                             ${isStart ? 'border-l-2 border-primary/20' : ''}
-                            ${isEnd ? 'border-r-2 border-primary/20' : ''}
+                            ${isEndBorder ? 'border-l-2 border-primary/20' : ''}
                           `}
                           title={`${DIAS_SEMANA[dia]} ${String(hora).padStart(2, '0')}h — ${val} conversa${val !== 1 ? 's' : ''}${!dentro ? ' (fora do expediente)' : ''}`}
                         >
