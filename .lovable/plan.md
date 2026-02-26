@@ -1,160 +1,116 @@
 
-# Plano: Visualizacoes Salvas + Exportar PDF + Tela Cheia
+# Plano: Drag and Drop Vertical entre Blocos do Dashboard
 
-## Visao Geral
+## Objetivo
 
-Tres novas funcionalidades no header do Dashboard:
-
-1. **Visualizacoes Salvas** — usuario cria/salva/carrega combinacoes de filtros com nome personalizado
-2. **Exportar PDF** — gera PDF completo do relatorio visivel na tela
-3. **Tela Cheia (Fullscreen)** — expande o dashboard para modo TV/apresentacao
+Permitir reordenar os blocos/seções do dashboard via drag and drop vertical, com zona de drop visual (igual ao Kanban), atualização otimista na UI e persistência no backend via coluna `ordem_blocos` que já existe na tabela `preferencias_dashboard`.
 
 ---
 
-## 1. Visualizacoes Salvas
+## Abordagem
 
-### Banco de Dados
+Usar **HTML5 Drag and Drop nativo** (mesmo padrão do Kanban e FormPreview), sem biblioteca externa. Cada bloco visível do dashboard será `draggable` e terá drop zones entre eles com indicador visual (barra azul tracejada).
 
-Criar tabela `visualizacoes_dashboard` no Supabase:
+---
 
+## 1. Expandir o hook `useDashboardDisplay`
+
+**Arquivo:** `src/modules/app/hooks/useDashboardDisplay.ts`
+
+Adicionar:
+- Estado `sectionOrder: SectionId[]` — array com a ordem dos blocos
+- Ordem padrão: `['metas', 'funil', 'reunioes', 'kpis-principais', 'kpis-secundarios', 'canal', 'motivos', 'produtos', 'atendimento']`
+- Novo tipo `SectionId` expandido com as seções que não tinham toggle (`kpis-secundarios`, `produtos`, `atendimento`)
+- Função `reorderSection(dragId, targetIndex)` — move o bloco para a nova posição, salva imediatamente no state/localStorage e com debounce no Supabase (coluna `ordem_blocos`)
+- Carregamento da ordem do banco na montagem (mesmo fluxo do `config_exibicao`)
+
+---
+
+## 2. Criar componente `DashboardSectionDraggable`
+
+**Arquivo:** `src/modules/app/components/dashboard/DashboardSectionDraggable.tsx`
+
+Wrapper que envolve cada bloco do dashboard, fornecendo:
+
+- `draggable={true}` no container inteiro (clicar em qualquer lugar do bloco para arrastar)
+- `onDragStart` — seta o `sectionId` no `dataTransfer`
+- Visual durante drag: opacity reduzida no bloco sendo arrastado
+- Drop zone acima de cada bloco:
+  - Barra horizontal tracejada (`h-2 border-2 border-dashed border-primary/30 bg-primary/5 rounded`)
+  - Visível apenas quando há item sendo arrastado sobre aquela posição
+  - Calcula índice de drop baseado na posição Y do cursor (mesmo padrão do `KanbanColumn`)
+
+**Props:**
 ```text
-visualizacoes_dashboard
-├── id (uuid PK)
-├── usuario_id (uuid FK → usuarios)
-├── organizacao_id (uuid FK → organizacoes)
-├── nome (varchar, NOT NULL) — ex: "Mensal - Funil Principal"
-├── filtros (jsonb) — { periodo, funil_id, data_inicio, data_fim }
-├── config_exibicao (jsonb) — { metas: true, funil: false, ... }
-├── criado_em (timestamptz)
-└── atualizado_em (timestamptz)
+sectionId: string
+index: number
+isDragging: boolean
+dragOverIndex: number | null
+onDragStart(sectionId)
+onDragOver(e, index)
+onDragLeave()
+onDrop(e, targetIndex)
+children: ReactNode
 ```
 
-RLS: usuario so acessa suas proprias visualizacoes dentro da organizacao.
+---
 
-### Frontend
+## 3. Atualizar `DashboardPage`
 
-**Novo componente `DashboardVisualizacoes.tsx`:**
-- Botao no header (icone `Bookmark` ou `LayoutList`) com label "Visualizacoes"
-- Abre um **Popover** com:
-  - Lista de visualizacoes salvas (nome + clique para aplicar)
-  - Botao "Salvar visualizacao atual" que abre um mini formulario (input nome + botao salvar)
-  - Cada item tem botao de excluir (icone lixeira)
-- Ao clicar numa visualizacao salva, aplica automaticamente: periodo, funil, exibicao
-- Se nenhum filtro especifico estiver setado na visualizacao, mantém o valor dinamico (aberto)
+**Arquivo:** `src/modules/app/pages/DashboardPage.tsx`
 
-**Hook `useDashboardVisualizacoes.ts`:**
-- CRUD via Supabase direto na tabela `visualizacoes_dashboard`
-- `listar()`, `salvar(nome, filtros, configExibicao)`, `excluir(id)`, `aplicar(id)`
-- Cache com TanStack Query
-
-### Integracao com DashboardPage
-
-- O `DashboardPage` recebe callback `onAplicarVisualizacao` que seta todos os estados (periodo, funilId, displayConfig) de uma vez
-- O componente `DashboardVisualizacoes` fica ao lado dos botoes Investimento e Exibicao no header
+- Importar a nova `sectionOrder` e `reorderSection` do hook
+- Estado local para controle de drag: `draggingId`, `dropIndex`
+- Definir um mapa de seções com seus `SectionId`, condição de visibilidade e componente a renderizar
+- Renderizar os blocos em loop baseado na `sectionOrder`, filtrando os visíveis
+- Cada bloco envolto em `DashboardSectionDraggable`
+- Handlers de drag no nível da page que delegam para `reorderSection`
 
 ---
 
-## 2. Exportar PDF
+## 4. Persistência
 
-### Abordagem
+Mesma estratégia otimista do `config_exibicao`:
+1. UI atualiza imediatamente (setState)
+2. Salva no localStorage como fallback
+3. Debounce de 500ms para persistir na coluna `ordem_blocos` (jsonb) da tabela `preferencias_dashboard`
 
-Usar **html2canvas** + **jsPDF** (bibliotecas client-side) para capturar o dashboard renderizado e gerar PDF.
-
-### Dependencias Novas
-
-- `html2canvas` — captura DOM como canvas
-- `jspdf` — gera PDF a partir de canvas/imagens
-
-### Componente `ExportarRelatorioPDF.tsx`
-
-- Botao no header com icone `Download` e label "Exportar"
-- Ao clicar:
-  1. Mostra toast "Gerando relatorio..."
-  2. Captura o container do dashboard via `html2canvas`
-  3. Converte para PDF (A4, landscape para melhor visualizacao)
-  4. Adiciona header com titulo "Relatorio de Desempenho" + periodo + data de geracao
-  5. Se o conteudo for maior que 1 pagina, faz paginacao automatica
-  6. Download automatico: `relatorio-desempenho-YYYY-MM-DD.pdf`
-
-### Integracao
-
-- O `DashboardPage` passa um `ref` do container principal para o componente de export
-- Botao fica no header, ao lado de Visualizacoes
-
----
-
-## 3. Tela Cheia (Fullscreen)
-
-### Componente `FullscreenToggle.tsx`
-
-- Botao com icone `Maximize2` / `Minimize2`
-- Usa a **Fullscreen API** nativa do browser (`element.requestFullscreen()`)
-- Aplica fullscreen no container do dashboard (nao no document inteiro, para esconder sidebar/navbar)
-- Listener `fullscreenchange` para atualizar estado do icone
-- No modo fullscreen, adiciona padding extra e fundo `bg-background` para visual limpo
-
-### Integracao
-
-- Botao fica no header do dashboard, ultimo item a direita
-- O `DashboardPage` passa a `ref` do container para o `FullscreenToggle`
-
----
-
-## Layout do Header (Desktop - uma linha)
-
-```text
-[Relatorio de Desempenho]  [Periodo ▼] [Funil ▼] [Visualizacoes] [Investimento] [Exibicao] [Exportar] [⛶]
+Formato do `ordem_blocos`:
+```json
+["metas", "funil", "reunioes", "kpis-principais", "kpis-secundarios", "canal", "motivos", "produtos", "atendimento"]
 ```
 
-No mobile, empilha verticalmente mantendo o padrao atual.
-
 ---
 
-## Arquivos a Criar/Editar
+## Resumo de arquivos
 
 | Arquivo | Acao |
 |---------|------|
-| `supabase/migrations/xxx_visualizacoes_dashboard.sql` | Criar tabela + RLS |
-| `src/modules/app/hooks/useDashboardVisualizacoes.ts` | Hook CRUD visualizacoes |
-| `src/modules/app/components/dashboard/DashboardVisualizacoes.tsx` | Componente de visualizacoes salvas |
-| `src/modules/app/components/dashboard/ExportarRelatorioPDF.tsx` | Botao + logica de export PDF |
-| `src/modules/app/components/dashboard/FullscreenToggle.tsx` | Botao tela cheia |
-| `src/modules/app/pages/DashboardPage.tsx` | Integrar os 3 novos componentes no header |
-| `src/integrations/supabase/types.ts` | Atualizar types com nova tabela |
+| `src/modules/app/hooks/useDashboardDisplay.ts` | Adicionar `sectionOrder` + `reorderSection` + persistência |
+| `src/modules/app/components/dashboard/DashboardSectionDraggable.tsx` | Criar wrapper draggable com drop zones |
+| `src/modules/app/pages/DashboardPage.tsx` | Refatorar para renderizar blocos por ordem + drag handlers |
 
-### Dependencias a instalar
-
-- `html2canvas`
-- `jspdf`
+Nenhuma migration necessária — a coluna `ordem_blocos` já existe na tabela.
 
 ---
 
 ## Secao Tecnica
 
-### Estrutura do JSONB `filtros` na tabela visualizacoes:
+### Drop Zone Visual
 
-```json
-{
-  "periodo": "30d",
-  "funil_id": "uuid-ou-null",
-  "data_inicio": "2026-01-01",
-  "data_fim": "2026-01-31"
-}
+Mesma estilização do Kanban:
+```text
+h-[6px] bg-primary/5 rounded border-2 border-dashed border-primary/30 transition-all duration-150
 ```
 
-Campos com valor `null` significam "aberto/dinamico" — o usuario pode mudar livremente apos aplicar.
+Exibida apenas quando `dragOverIndex === index` do bloco.
 
-### Fullscreen API
+### Calculo de posicao de drop
 
-```typescript
-// Entrar
-containerRef.current?.requestFullscreen()
-// Sair
-document.exitFullscreen()
-// Listener
-document.addEventListener('fullscreenchange', handler)
-```
+Itera sobre os blocos visíveis, compara `mouseY` com o `midY` de cada bloco para determinar o índice de inserção — mesmo algoritmo do `KanbanColumn.handleCardAreaDragOver`.
 
-### PDF — Paginacao
+### Cursor e feedback visual
 
-O html2canvas captura a altura total do container. O jsPDF divide em paginas A4 (landscape: 297mm x 210mm) iterando sobre fatias do canvas.
+- Bloco sendo arrastado: `opacity-40`
+- Demais blocos: `cursor-grab` no hover, `cursor-grabbing` durante drag
+- Drop zone animada com `transition-all duration-150`
