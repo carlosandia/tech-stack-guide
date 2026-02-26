@@ -157,6 +157,9 @@ export const ContatoViewModal = forwardRef<HTMLDivElement, ContatoViewModalProps
     }
   }, [open, onClose])
 
+  // AIDEV-NOTE: Hook DEVE ficar antes de qualquer return condicional (regra de hooks React)
+  const { data: origensData } = useOrigensAtivas()
+
   if (!open || !contato) return null
 
   const isPessoa = contato.tipo === 'pessoa'
@@ -166,7 +169,6 @@ export const ContatoViewModal = forwardRef<HTMLDivElement, ContatoViewModalProps
     : contato.nome_fantasia || contato.razao_social || 'Sem nome'
 
   const statusLabel = StatusContatoOptions.find(s => s.value === contato.status)?.label || contato.status
-  const { data: origensData } = useOrigensAtivas()
   const origemLabel = getOrigemLabel(origensData, contato.origem)
 
   const isVisible = (key: string, obrigatorio = false) => isViewFieldVisible(tipo, key, obrigatorio)
