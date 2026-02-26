@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase'
 import { ChatWindow } from '@/modules/conversas/components/ChatWindow'
 import { useCriarConversa } from '@/modules/conversas/hooks/useConversas'
 import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
+import { getOrganizacaoId } from '@/shared/services/auth-context'
 import type { Conversa } from '@/modules/conversas/services/conversas.api'
 
 interface WhatsAppConversaModalProps {
@@ -76,6 +77,40 @@ export function WhatsAppConversaModal({ isOpen, onClose, contatoId, contatoNome,
             if (fallbackData && !fallbackError) {
               data = fallbackData
               error = null
+            }
+          }
+        }
+
+        // AIDEV-NOTE: Fallback 2 - usar RPC resolve_lid_conversa para LIDs (números > 14 dígitos)
+        if (!data && !contatoId && telefone) {
+          const phoneClean = telefone.replace(/\D/g, '')
+          if (phoneClean.length > 14) {
+            try {
+              const organizacaoId = await getOrganizacaoId()
+              const { data: rpcResult } = await supabase
+                .rpc('resolve_lid_conversa', {
+                  p_org_id: organizacaoId,
+                  p_lid_number: phoneClean,
+                })
+
+              if (rpcResult && rpcResult.length > 0) {
+                const conversaId = rpcResult[0].conversa_id
+                const { data: convData, error: convError } = await supabase
+                  .from('conversas')
+                  .select(`
+                    *,
+                    contato:contatos!conversas_contato_id_fkey(id, nome, nome_fantasia, email, telefone)
+                  `)
+                  .eq('id', conversaId)
+                  .maybeSingle()
+
+                if (convData && !convError) {
+                  data = convData
+                  error = null
+                }
+              }
+            } catch (rpcErr) {
+              console.error('[WhatsAppConversaModal] RPC resolve_lid error:', rpcErr)
             }
           }
         }

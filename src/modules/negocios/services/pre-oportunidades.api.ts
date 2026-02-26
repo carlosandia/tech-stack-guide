@@ -7,6 +7,13 @@
 import { supabase } from '@/lib/supabase'
 import { getOrganizacaoId, getUsuarioId } from '@/shared/services/auth-context'
 
+// AIDEV-NOTE: Heurística para detectar LIDs do WhatsApp (não são telefones reais)
+// LIDs são tipicamente > 14 dígitos e não começam com prefixos de país comuns
+function isLikelyLid(phone: string): boolean {
+  const clean = phone.replace(/\D/g, '')
+  return clean.length > 14
+}
+
 // =====================================================
 // Types
 // =====================================================
@@ -92,6 +99,48 @@ export const preOportunidadesApi = {
             item.profile_picture_url = fotoMap.get(item.phone_number) || null
           }
         }
+      }
+    }
+
+    // AIDEV-NOTE: Para pré-ops sem phone_name (possivelmente LIDs), resolver nome via RPC + contatos
+    const semNome = items.filter(i => !i.phone_name && isLikelyLid(i.phone_number))
+    if (semNome.length > 0) {
+      try {
+        const organizacaoId = await getOrganizacaoId()
+        for (const item of semNome) {
+          // Usar RPC resolve_lid_conversa para encontrar a conversa real
+          const { data: rpcResult } = await supabase
+            .rpc('resolve_lid_conversa', {
+              p_org_id: organizacaoId,
+              p_lid_number: item.phone_number,
+            })
+
+          if (rpcResult && rpcResult.length > 0) {
+            const conversaId = rpcResult[0].conversa_id
+            // Buscar conversa com contato para pegar nome e foto
+            const { data: conv } = await supabase
+              .from('conversas')
+              .select('contato_id, foto_url, contato:contatos!conversas_contato_id_fkey(id, nome, nome_fantasia, telefone)')
+              .eq('id', conversaId)
+              .maybeSingle()
+
+            if (conv) {
+              const contato = conv.contato as any
+              if (contato?.nome) {
+                item.phone_name = contato.nome
+              }
+              if (contato?.telefone) {
+                // Corrigir phone_number no objeto local para exibição
+                item.phone_number = contato.telefone
+              }
+              if (!item.profile_picture_url && conv.foto_url) {
+                item.profile_picture_url = conv.foto_url
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[pre-oportunidades] Erro ao resolver LIDs:', err)
       }
     }
 
