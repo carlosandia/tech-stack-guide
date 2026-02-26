@@ -84,7 +84,7 @@ export function StatusConexao({ tipo, conexaoTipo, onConexaoTipoChange }: Status
           <select
             value={conexaoTipo || (tipo === 'whatsapp' ? 'waha' : 'smtp')}
             onChange={e => onConexaoTipoChange(e.target.value)}
-            className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary"
           >
             {tipo === 'whatsapp' ? (
               <>

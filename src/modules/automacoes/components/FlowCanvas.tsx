@@ -85,7 +85,7 @@ function DeletableEdge({
           <button
             onClick={() => onDeleteClick?.(id)}
             style={{ opacity: hovered ? 1 : 0, transition: 'opacity 200ms, background-color 200ms, border-color 200ms, color 200ms' }}
-            className="w-5 h-5 rounded-full bg-white border border-border shadow-sm flex items-center justify-center hover:bg-destructive hover:border-destructive hover:text-white text-muted-foreground"
+            className="w-5 h-5 rounded-full bg-card border border-border shadow-sm flex items-center justify-center hover:bg-destructive hover:border-destructive hover:text-white text-muted-foreground"
             title="Desconectar"
           >
             <X className="w-3 h-3" />
@@ -192,10 +192,10 @@ export function FlowCanvas({
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="hsl(var(--border))" />
         <Controls
           showInteractive={false}
-          className="!bg-white !border-border !shadow-sm !rounded-lg sm:!bottom-auto sm:!left-auto !bottom-4 !right-3 !left-auto"
+          className="!bg-card !border-border !shadow-sm !rounded-lg sm:!bottom-auto sm:!left-auto !bottom-4 !right-3 !left-auto [&>button]:!bg-card [&>button]:!border-border [&>button]:!fill-foreground"
         />
         <MiniMap
-          className="!bg-white !border-border !shadow-sm !rounded-lg hidden sm:block"
+          className="!bg-card !border-border !shadow-sm !rounded-lg hidden sm:block"
           nodeColor={(n) => {
             if (n.type === 'trigger') return 'hsl(221.2 83.2% 53.3%)'
             if (n.type === 'condicao') return '#eab308'
@@ -214,7 +214,7 @@ export function FlowCanvas({
               const rect = e.currentTarget.getBoundingClientRect()
               setAddMenu({ x: rect.left - 260, y: rect.bottom + 8 - 80 })
             }}
-            className="flex items-center gap-1.5 px-3 py-2 bg-white border border-border rounded-lg shadow-sm text-sm font-medium text-foreground hover:bg-accent transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 bg-card border border-border rounded-lg shadow-sm text-sm font-medium text-foreground hover:bg-accent transition-colors"
           >
             <Plus className="w-4 h-4" />
             Adicionar

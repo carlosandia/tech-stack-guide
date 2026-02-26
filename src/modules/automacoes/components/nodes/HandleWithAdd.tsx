@@ -25,10 +25,10 @@ interface HandleWithAddProps {
 }
 
 const options = [
-  { type: 'acao' as const, label: 'Ação', icon: Play, color: 'text-green-600', bg: 'hover:bg-green-50' },
-  { type: 'condicao' as const, label: 'Condição', icon: GitBranch, color: 'text-yellow-600', bg: 'hover:bg-yellow-50' },
-  { type: 'validacao' as const, label: 'Validação', icon: ShieldCheck, color: 'text-violet-600', bg: 'hover:bg-violet-50' },
-  { type: 'delay' as const, label: 'Delay', icon: Timer, color: 'text-blue-500', bg: 'hover:bg-blue-50' },
+  { type: 'acao' as const, label: 'Ação', icon: Play, color: 'text-green-500', bg: 'hover:bg-green-500/10' },
+  { type: 'condicao' as const, label: 'Condição', icon: GitBranch, color: 'text-yellow-500', bg: 'hover:bg-yellow-500/10' },
+  { type: 'validacao' as const, label: 'Validação', icon: ShieldCheck, color: 'text-violet-500', bg: 'hover:bg-violet-500/10' },
+  { type: 'delay' as const, label: 'Delay', icon: Timer, color: 'text-blue-500', bg: 'hover:bg-blue-500/10' },
 ]
 
 const colorMap: Record<string, string> = {
@@ -148,7 +148,7 @@ export function HandleWithAdd({ nodeId, handleId, color, icon, top, onAddNode }:
       {open && (
         <div
           ref={menuRef}
-          className="absolute z-[9999] bg-white rounded-lg shadow-lg border border-border p-1 min-w-[150px]"
+          className="absolute z-[9999] bg-popover rounded-lg shadow-lg border border-border p-1 min-w-[150px]"
           style={{
             right: -170,
             top: top || '50%',

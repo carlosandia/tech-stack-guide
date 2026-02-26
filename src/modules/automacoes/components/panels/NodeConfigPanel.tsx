@@ -33,7 +33,7 @@ export function NodeConfigPanel({ node, onClose, onUpdate, onDelete }: NodeConfi
   }, [])
 
   return (
-    <aside className="w-80 flex-shrink-0 bg-white border-l border-border flex flex-col h-full">
+    <aside className="w-80 flex-shrink-0 bg-card border-l border-border flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <h3 className="text-sm font-semibold text-foreground capitalize">

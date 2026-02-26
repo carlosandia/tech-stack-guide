@@ -37,7 +37,7 @@ export const CondicaoNode = memo(({ id, data, selected }: NodeProps) => {
     <div className="flex items-center group/node">
       <div
         className={`
-          relative bg-white rounded-lg border-2 shadow-sm min-w-[220px] max-w-[280px]
+          relative bg-card rounded-lg border-2 shadow-sm min-w-[220px] max-w-[280px]
           transition-all duration-200 cursor-pointer
           ${selected ? 'ring-2 ring-yellow-500 shadow-md border-yellow-500' : 'border-yellow-400/60 hover:shadow-md hover:border-yellow-500'}
         `}
@@ -45,7 +45,7 @@ export const CondicaoNode = memo(({ id, data, selected }: NodeProps) => {
         {/* Botão excluir */}
         <button
           onClick={handleDelete}
-          className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-white border border-border shadow-sm flex items-center justify-center opacity-0 group-hover/node:opacity-100 hover:bg-destructive hover:border-destructive hover:text-white text-muted-foreground transition-all duration-200 z-10"
+          className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-card border border-border shadow-sm flex items-center justify-center opacity-0 group-hover/node:opacity-100 hover:bg-destructive hover:border-destructive hover:text-white text-muted-foreground transition-all duration-200 z-10"
           title="Excluir nó"
         >
           <Trash2 className="w-3 h-3" />
@@ -59,11 +59,11 @@ export const CondicaoNode = memo(({ id, data, selected }: NodeProps) => {
         />
 
         {/* Header */}
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-border/50 bg-yellow-50 rounded-t-lg">
-          <div className="w-7 h-7 rounded-md bg-yellow-100 flex items-center justify-center">
-            <GitBranch className="w-4 h-4 text-yellow-600" />
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-border/50 bg-yellow-500/10 rounded-t-lg">
+          <div className="w-7 h-7 rounded-md bg-yellow-500/20 flex items-center justify-center">
+            <GitBranch className="w-4 h-4 text-yellow-500" />
           </div>
-          <p className="text-xs font-medium text-yellow-700 uppercase tracking-wide">Condição</p>
+          <p className="text-xs font-medium text-yellow-500 uppercase tracking-wide">Condição</p>
         </div>
 
         {/* Body */}

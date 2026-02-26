@@ -29,7 +29,7 @@ export const AcaoNode = memo(({ id, data, selected }: NodeProps) => {
     <div className="flex items-center group/node">
       <div
         className={`
-          relative bg-white rounded-lg border-2 shadow-sm min-w-[220px] max-w-[280px]
+          relative bg-card rounded-lg border-2 shadow-sm min-w-[220px] max-w-[280px]
           transition-all duration-200 cursor-pointer
           ${selected ? 'ring-2 ring-green-500 shadow-md border-green-500' : 'border-green-400/60 hover:shadow-md hover:border-green-500'}
         `}
@@ -37,7 +37,7 @@ export const AcaoNode = memo(({ id, data, selected }: NodeProps) => {
         {/* Botão excluir */}
         <button
           onClick={handleDelete}
-          className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-white border border-border shadow-sm flex items-center justify-center opacity-0 group-hover/node:opacity-100 hover:bg-destructive hover:border-destructive hover:text-white text-muted-foreground transition-all duration-200 z-10"
+          className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-card border border-border shadow-sm flex items-center justify-center opacity-0 group-hover/node:opacity-100 hover:bg-destructive hover:border-destructive hover:text-white text-muted-foreground transition-all duration-200 z-10"
           title="Excluir nó"
         >
           <Trash2 className="w-3 h-3" />
@@ -51,11 +51,11 @@ export const AcaoNode = memo(({ id, data, selected }: NodeProps) => {
         />
 
         {/* Header */}
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-border/50 bg-green-50 rounded-t-lg">
-          <div className="w-7 h-7 rounded-md bg-green-100 flex items-center justify-center">
-            <Play className="w-4 h-4 text-green-600" />
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-border/50 bg-green-500/10 rounded-t-lg">
+          <div className="w-7 h-7 rounded-md bg-green-500/20 flex items-center justify-center">
+            <Play className="w-4 h-4 text-green-500" />
           </div>
-          <p className="text-xs font-medium text-green-700 uppercase tracking-wide">Ação</p>
+          <p className="text-xs font-medium text-green-500 uppercase tracking-wide">Ação</p>
         </div>
 
         {/* Body */}

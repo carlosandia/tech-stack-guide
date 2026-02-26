@@ -163,7 +163,7 @@ export function AutomacaoSidebar({
                       if (e.key === 'Escape') setEditingId(null)
                     }}
                     onClick={e => e.stopPropagation()}
-                    className="font-medium truncate flex-1 bg-white border border-primary rounded px-1.5 py-0.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="font-medium truncate flex-1 bg-background border border-primary rounded px-1.5 py-0.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 ) : (
                   <span
@@ -203,7 +203,7 @@ export function AutomacaoSidebar({
                 <p className="text-xs text-muted-foreground mt-0.5 truncate">{a.descricao}</p>
               )}
               <div className="flex items-center gap-2 mt-1">
-                <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${a.ativo ? 'bg-green-100 text-green-700' : 'bg-muted text-muted-foreground'}`}>
+                <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${a.ativo ? 'bg-green-500/10 text-green-500' : 'bg-muted text-muted-foreground'}`}>
                   {a.ativo ? 'Ativa' : 'Inativa'}
                 </span>
                 <span className="text-[10px] text-muted-foreground">{a.total_execucoes} exec.</span>
@@ -218,7 +218,7 @@ export function AutomacaoSidebar({
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="hidden sm:flex w-60 flex-shrink-0 bg-white border-r border-border flex-col h-full">
+      <aside className="hidden sm:flex w-60 flex-shrink-0 bg-card border-r border-border flex-col h-full">
         {sidebarContent}
       </aside>
 
@@ -229,7 +229,7 @@ export function AutomacaoSidebar({
             className="fixed inset-0 bg-black/40 z-[300] sm:hidden"
             onClick={onMobileClose}
           />
-          <aside className="fixed inset-y-0 left-0 w-72 bg-white z-[301] flex flex-col sm:hidden shadow-xl">
+          <aside className="fixed inset-y-0 left-0 w-72 bg-card z-[301] flex flex-col sm:hidden shadow-xl">
             {sidebarContent}
           </aside>
         </>

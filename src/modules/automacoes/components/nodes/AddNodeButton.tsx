@@ -15,10 +15,10 @@ interface AddNodeButtonProps {
 }
 
 const options = [
-  { type: 'acao' as const, label: 'Ação', icon: Play, color: 'text-green-600', bg: 'hover:bg-green-50' },
-  { type: 'condicao' as const, label: 'Condição', icon: GitBranch, color: 'text-yellow-600', bg: 'hover:bg-yellow-50' },
-  { type: 'validacao' as const, label: 'Validação', icon: ShieldCheck, color: 'text-violet-600', bg: 'hover:bg-violet-50' },
-  { type: 'delay' as const, label: 'Delay', icon: Timer, color: 'text-blue-500', bg: 'hover:bg-blue-50' },
+  { type: 'acao' as const, label: 'Ação', icon: Play, color: 'text-green-500', bg: 'hover:bg-green-500/10' },
+  { type: 'condicao' as const, label: 'Condição', icon: GitBranch, color: 'text-yellow-500', bg: 'hover:bg-yellow-500/10' },
+  { type: 'validacao' as const, label: 'Validação', icon: ShieldCheck, color: 'text-violet-500', bg: 'hover:bg-violet-500/10' },
+  { type: 'delay' as const, label: 'Delay', icon: Timer, color: 'text-blue-500', bg: 'hover:bg-blue-500/10' },
 ]
 
 export function AddNodeButton({ nodeId, sourceHandle, onAddNode }: AddNodeButtonProps) {
@@ -44,7 +44,7 @@ export function AddNodeButton({ nodeId, sourceHandle, onAddNode }: AddNodeButton
         onClick={handleClick}
         className={`
           w-6 h-6 rounded-full flex items-center justify-center
-          border-2 border-border bg-white shadow-sm
+          border-2 border-border bg-card shadow-sm
           hover:border-primary hover:bg-primary/5 hover:scale-110
           transition-all duration-150 z-10
           ${open ? 'border-primary bg-primary/5 scale-110' : ''}
@@ -57,7 +57,7 @@ export function AddNodeButton({ nodeId, sourceHandle, onAddNode }: AddNodeButton
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setOpen(false) }} />
-          <div className="absolute left-full ml-1 z-[9999] bg-white rounded-lg shadow-lg border border-border p-1 min-w-[150px]">
+          <div className="absolute left-full ml-1 z-[9999] bg-popover rounded-lg shadow-lg border border-border p-1 min-w-[150px]">
             <p className="text-[10px] font-semibold text-muted-foreground px-2.5 py-1 uppercase tracking-wider">
               Adicionar
             </p>
