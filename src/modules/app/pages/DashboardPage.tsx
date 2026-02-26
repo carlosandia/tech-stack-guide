@@ -112,7 +112,7 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
   }, [])
 
   const handleDragOver = useCallback((_e: DragEvent, index: number) => {
-    setDragOverIndex(index)
+    setDragOverIndex(prev => prev === index ? prev : index)
   }, [])
 
   const handleDragLeave = useCallback(() => {
@@ -282,7 +282,31 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
           )
         })}
 
-        {/* Drop zone final removida — o último bloco já lida com drop abaixo via midpoint */}
+        {/* Drop zone final — última posição */}
+        {draggingId && (
+          <div
+            onDragOver={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              setDragOverIndex(visibleSections.length)
+            }}
+            onDrop={(e) => {
+              e.preventDefault()
+              handleDrop(e, visibleSections.length)
+            }}
+            className={`transition-all duration-200 ease-in-out rounded-lg overflow-hidden ${
+              dragOverIndex === visibleSections.length
+                ? 'h-14 bg-primary/5 border-2 border-dashed border-primary/30 flex items-center justify-center'
+                : 'h-8'
+            }`}
+          >
+            {dragOverIndex === visibleSections.length && (
+              <span className="text-xs text-primary/50 font-medium select-none">
+                Soltar aqui
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

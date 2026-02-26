@@ -35,36 +35,35 @@ export default function DashboardSectionDraggable({
   const isDragging = draggingId === sectionId
   const isOtherDragging = draggingId !== null && draggingId !== sectionId
 
-  // Drop zone acima deste bloco
+  // Drop zone única: apenas ACIMA deste bloco
   const showDropAbove = isOtherDragging && dragOverIndex === index
-  // Drop zone abaixo deste bloco (index + 1)
-  const showDropBelow = isOtherDragging && dragOverIndex === index + 1
 
   const handleDragOver = (e: DragEvent) => {
     e.preventDefault()
+    e.stopPropagation()
     e.dataTransfer.dropEffect = 'move'
 
     if (!containerRef.current || isDragging) return
 
-    // Cálculo de midpoint — determina se cursor está na metade superior ou inferior
     const rect = containerRef.current.getBoundingClientRect()
     const midY = rect.top + rect.height / 2
 
     if (e.clientY < midY) {
-      onDragOver(e, index) // dropar ACIMA
+      onDragOver(e, index)
     } else {
-      onDragOver(e, index + 1) // dropar ABAIXO
+      onDragOver(e, index + 1)
     }
   }
 
   const handleDragLeave = (e: DragEvent) => {
-    // Anti-flickering: ignora se o mouse foi para um elemento filho
+    e.stopPropagation()
     if (e.currentTarget.contains(e.relatedTarget as Node)) return
     onDragLeave()
   }
 
   const handleDrop = (e: DragEvent) => {
     e.preventDefault()
+    e.stopPropagation()
     if (!containerRef.current || isDragging) return
 
     const rect = containerRef.current.getBoundingClientRect()
@@ -80,11 +79,11 @@ export default function DashboardSectionDraggable({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {/* Drop zone ACIMA do bloco */}
+      {/* Drop zone única — ACIMA do bloco */}
       <div
         className={`transition-all duration-200 ease-in-out rounded-lg overflow-hidden ${
           showDropAbove
-            ? 'h-16 mb-3 bg-primary/5 border-2 border-dashed border-primary/30 flex items-center justify-center'
+            ? 'h-14 mb-2 bg-primary/5 border-2 border-dashed border-primary/30 flex items-center justify-center'
             : 'h-0'
         }`}
       >
@@ -109,21 +108,6 @@ export default function DashboardSectionDraggable({
         }`}
       >
         {children}
-      </div>
-
-      {/* Drop zone ABAIXO do bloco */}
-      <div
-        className={`transition-all duration-200 ease-in-out rounded-lg overflow-hidden ${
-          showDropBelow
-            ? 'h-16 mt-3 bg-primary/5 border-2 border-dashed border-primary/30 flex items-center justify-center'
-            : 'h-0'
-        }`}
-      >
-        {showDropBelow && (
-          <span className="text-xs text-primary/50 font-medium select-none">
-            Soltar aqui
-          </span>
-        )}
       </div>
     </div>
   )
