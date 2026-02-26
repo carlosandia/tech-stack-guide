@@ -1571,7 +1571,10 @@ export type Database = {
           criado_em: string
           criar_tarefa_automatica: boolean | null
           dias_alerta_inatividade: number | null
+          dias_uteis: number[] | null
           formato_data: string | null
+          horario_comercial_fim: string | null
+          horario_comercial_inicio: string | null
           horario_fim_envio: string | null
           horario_inicio_envio: string | null
           id: string
@@ -1590,7 +1593,10 @@ export type Database = {
           criado_em?: string
           criar_tarefa_automatica?: boolean | null
           dias_alerta_inatividade?: number | null
+          dias_uteis?: number[] | null
           formato_data?: string | null
+          horario_comercial_fim?: string | null
+          horario_comercial_inicio?: string | null
           horario_fim_envio?: string | null
           horario_inicio_envio?: string | null
           id?: string
@@ -1609,7 +1615,10 @@ export type Database = {
           criado_em?: string
           criar_tarefa_automatica?: boolean | null
           dias_alerta_inatividade?: number | null
+          dias_uteis?: number[] | null
           formato_data?: string | null
+          horario_comercial_fim?: string | null
+          horario_comercial_inicio?: string | null
           horario_fim_envio?: string | null
           horario_inicio_envio?: string | null
           id?: string

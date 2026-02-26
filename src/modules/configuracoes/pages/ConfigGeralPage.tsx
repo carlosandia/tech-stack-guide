@@ -234,6 +234,9 @@ export function ConfigGeralPage() {
     assinatura_mensagem: '',
     horario_inicio_envio: '08:00',
     horario_fim_envio: '18:00',
+    horario_comercial_inicio: '08:00',
+    horario_comercial_fim: '18:00',
+    dias_uteis: [1, 2, 3, 4, 5] as number[],
   })
 
   const [widgetConfig, setWidgetConfig] = useState<WidgetConfig>(DEFAULT_WIDGET_CONFIG)
@@ -241,6 +244,7 @@ export function ConfigGeralPage() {
 
   useEffect(() => {
     if (config) {
+      const configAny = config as unknown as Record<string, unknown>
       setForm({
         moeda_padrao: config.moeda_padrao || 'BRL',
         timezone: config.timezone || 'America/Sao_Paulo',
@@ -254,6 +258,9 @@ export function ConfigGeralPage() {
         assinatura_mensagem: config.assinatura_mensagem || '',
         horario_inicio_envio: config.horario_inicio_envio || '08:00',
         horario_fim_envio: config.horario_fim_envio || '18:00',
+        horario_comercial_inicio: (configAny.horario_comercial_inicio as string) || '08:00',
+        horario_comercial_fim: (configAny.horario_comercial_fim as string) || '18:00',
+        dias_uteis: (configAny.dias_uteis as number[]) || [1, 2, 3, 4, 5],
       })
       // AIDEV-NOTE: Seg — cast seguro sem 'as any'; validação da estrutura garante spread seguro
       const raw = (config as { widget_whatsapp_config?: unknown })?.widget_whatsapp_config
@@ -281,9 +288,17 @@ export function ConfigGeralPage() {
   }
 
   const handleSave = async () => {
-    // AIDEV-NOTE: Seg — validar que horario_fim é após horario_inicio
+    // AIDEV-NOTE: Seg — validar horários
     if (form.horario_inicio_envio >= form.horario_fim_envio) {
-      toast.error('Horário de fim deve ser posterior ao horário de início')
+      toast.error('Horário de fim de envio deve ser posterior ao horário de início')
+      return
+    }
+    if (form.horario_comercial_inicio >= form.horario_comercial_fim) {
+      toast.error('Horário comercial: fim deve ser posterior ao início')
+      return
+    }
+    if (form.dias_uteis.length === 0) {
+      toast.error('Selecione ao menos um dia útil')
       return
     }
     try {
@@ -340,6 +355,66 @@ export function ConfigGeralPage() {
           <SelectField label="Formato de Data" description="Como datas são exibidas em todo o sistema" value={form.formato_data} onChange={v => updateField('formato_data', v)} options={FORMATOS_DATA} />
         </div>
         <LocalizacaoPreview moeda={form.moeda_padrao} timezone={form.timezone} formatoData={form.formato_data} />
+      </section>
+
+      {/* Horário Comercial */}
+      <section className="bg-card rounded-lg border border-border p-6 space-y-4">
+        <div>
+          <div className="flex items-center gap-3 flex-wrap">
+            <h2 className="text-base font-semibold text-foreground">Horário Comercial</h2>
+            <AdminBadge />
+          </div>
+          <p className="text-sm text-muted-foreground mt-1">
+            Define o expediente da sua organização. Usado para calcular métricas de atendimento (1ª Resposta, TMA), SLA e alertas de inatividade.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 max-w-xs">
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Início</label>
+            <input type="time" value={form.horario_comercial_inicio} onChange={e => updateField('horario_comercial_inicio', e.target.value)} className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm text-foreground" />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Fim</label>
+            <input type="time" value={form.horario_comercial_fim} onChange={e => updateField('horario_comercial_fim', e.target.value)} className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm text-foreground" />
+          </div>
+        </div>
+
+        <div>
+          <p className="text-xs font-medium text-muted-foreground mb-2">Dias úteis</p>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { value: 0, label: 'Dom' },
+              { value: 1, label: 'Seg' },
+              { value: 2, label: 'Ter' },
+              { value: 3, label: 'Qua' },
+              { value: 4, label: 'Qui' },
+              { value: 5, label: 'Sex' },
+              { value: 6, label: 'Sáb' },
+            ].map(dia => {
+              const ativo = form.dias_uteis.includes(dia.value)
+              return (
+                <button
+                  key={dia.value}
+                  type="button"
+                  onClick={() => {
+                    const novos = ativo
+                      ? form.dias_uteis.filter(d => d !== dia.value)
+                      : [...form.dias_uteis, dia.value].sort((a, b) => a - b)
+                    updateField('dias_uteis', novos)
+                  }}
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                    ativo
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                  }`}
+                >
+                  {dia.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
       </section>
 
       {/* Notificações por Email */}
