@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef, type RefObject } from 'react'
+import { createPortal } from 'react-dom'
 import { Maximize2, Minimize2, ZoomIn, ZoomOut, ChevronUp, ChevronDown } from 'lucide-react'
 
 interface FullscreenToggleProps {
@@ -153,56 +154,30 @@ export default function FullscreenToggle({ containerRef }: FullscreenToggleProps
         )}
       </button>
 
-      {/* Barra flutuante — só aparece em fullscreen */}
-      {isFullscreen && (
+      {/* Barra flutuante — renderizada via portal para escapar do transform: scale() */}
+      {isFullscreen && createPortal(
         <div className="fixed bottom-6 right-6 z-[9999] flex flex-col items-center gap-1 bg-card/90 backdrop-blur-md border border-border rounded-xl shadow-lg p-1.5">
-          {/* Scroll Up */}
           <button onClick={scrollUp} className={btnClass} title="Rolar acima">
             <ChevronUp className="w-4 h-4" />
           </button>
-
-          {/* Zoom In */}
-          <button
-            onClick={zoomIn}
-            className={btnClass}
-            title="Aumentar zoom"
-            disabled={zoomLevel >= ZOOM_MAX}
-          >
+          <button onClick={zoomIn} className={btnClass} title="Aumentar zoom" disabled={zoomLevel >= ZOOM_MAX}>
             <ZoomIn className="w-4 h-4" />
           </button>
-
-          {/* Indicador de zoom (clique = reset) */}
-          <button
-            onClick={resetZoom}
-            className="h-7 px-2 flex items-center justify-center rounded-md text-[11px] font-semibold text-foreground hover:bg-muted/80 transition-colors tabular-nums"
-            title="Resetar zoom para 100%"
-          >
+          <button onClick={resetZoom} className="h-7 px-2 flex items-center justify-center rounded-md text-[11px] font-semibold text-foreground hover:bg-muted/80 transition-colors tabular-nums" title="Resetar zoom para 100%">
             {zoomPercent}
           </button>
-
-          {/* Zoom Out */}
-          <button
-            onClick={zoomOut}
-            className={btnClass}
-            title="Diminuir zoom"
-            disabled={zoomLevel <= ZOOM_MIN}
-          >
+          <button onClick={zoomOut} className={btnClass} title="Diminuir zoom" disabled={zoomLevel <= ZOOM_MIN}>
             <ZoomOut className="w-4 h-4" />
           </button>
-
-          {/* Scroll Down */}
           <button onClick={scrollDown} className={btnClass} title="Rolar abaixo">
             <ChevronDown className="w-4 h-4" />
           </button>
-
-          {/* Separador */}
           <div className="w-6 h-px bg-border my-0.5" />
-
-          {/* Sair */}
           <button onClick={exitFullscreen} className={btnClass} title="Sair da tela cheia">
             <Minimize2 className="w-4 h-4" />
           </button>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   )
