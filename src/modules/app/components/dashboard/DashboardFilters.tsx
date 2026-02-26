@@ -4,7 +4,7 @@
  */
 
 import { useState } from 'react'
-import { Calendar as CalendarIcon, ChevronDown } from 'lucide-react'
+import { Calendar as CalendarIcon } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Calendar } from '@/components/ui/calendar'
@@ -13,6 +13,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import type { Periodo, FunilOption } from '../../types/relatorio.types'
 
 interface DashboardFiltersProps {
@@ -70,23 +77,20 @@ export default function DashboardFilters({
   }
 
   return (
-    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto overflow-hidden">
+    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
       {/* Período */}
-      <div className="flex items-center gap-1 bg-card border border-border rounded-lg p-1 overflow-x-auto max-w-full scrollbar-none">
-        {PERIODOS.map((p) => (
-          <button
-            key={p.value}
-            onClick={() => handlePeriodoClick(p.value)}
-            className={`px-3 py-1.5 text-xs font-medium rounded-md whitespace-nowrap transition-all duration-200 ${
-              periodo === p.value
-                ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-            }`}
-          >
-            {p.label}
-          </button>
-        ))}
-      </div>
+      <Select value={periodo} onValueChange={(v) => handlePeriodoClick(v as Periodo)}>
+        <SelectTrigger className="h-9 text-xs w-full sm:w-[180px]">
+          <SelectValue placeholder="Selecione o período" />
+        </SelectTrigger>
+        <SelectContent className="bg-popover z-50">
+          {PERIODOS.map((p) => (
+            <SelectItem key={p.value} value={p.value} className="text-xs">
+              {p.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
 
       {/* DatePicker para personalizado */}
       {(periodo === 'personalizado' || showDatePicker) && (
@@ -112,21 +116,19 @@ export default function DashboardFilters({
       )}
 
       {/* Funil */}
-      <div className="relative w-full sm:w-auto">
-        <select
-          value={funilId || ''}
-          onChange={(e) => onFunilChange(e.target.value || undefined)}
-          className="appearance-none w-full sm:w-auto pl-3 pr-8 py-2 text-xs font-medium bg-card border border-border rounded-lg text-foreground cursor-pointer hover:bg-muted/30 transition-colors focus:outline-none focus:ring-2 focus:ring-ring"
-        >
-          <option value="">Todos os funis</option>
+      <Select value={funilId || 'todos'} onValueChange={(v) => onFunilChange(v === 'todos' ? undefined : v)}>
+        <SelectTrigger className="h-9 text-xs w-full sm:w-[180px]">
+          <SelectValue placeholder="Todos os funis" />
+        </SelectTrigger>
+        <SelectContent className="bg-popover z-50">
+          <SelectItem value="todos" className="text-xs">Todos os funis</SelectItem>
           {funis.map((f) => (
-            <option key={f.id} value={f.id}>
+            <SelectItem key={f.id} value={f.id} className="text-xs">
               {f.nome}
-            </option>
+            </SelectItem>
           ))}
-        </select>
-        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-      </div>
+        </SelectContent>
+      </Select>
     </div>
   )
 }

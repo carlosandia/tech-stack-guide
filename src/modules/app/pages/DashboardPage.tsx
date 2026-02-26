@@ -108,7 +108,7 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-foreground leading-tight">
-              Relatório de funil
+              Relatório de Desempenho
             </h2>
             {/* Investimento + Exibição — sempre visíveis no header */}
             <div className="flex items-center gap-2">
