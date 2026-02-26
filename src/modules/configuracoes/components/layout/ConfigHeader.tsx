@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/providers/AuthProvider'
+import { useTheme } from '@/providers/ThemeProvider'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -8,11 +9,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu'
+import { Switch } from '@/components/ui/switch'
 import {
   ArrowLeft,
   ChevronDown,
   LogOut,
   Menu,
+  Moon,
+  Sun,
   User,
 } from 'lucide-react'
 import { useParceiroStatus } from '@/hooks/useParceiroStatus'
@@ -32,6 +36,8 @@ export function ConfigHeader({ onMenuClick }: ConfigHeaderProps) {
   const navigate = useNavigate()
   const { user, role, signOut } = useAuth()
   const parceiroStatus = useParceiroStatus()
+  const { resolvedTheme, setTheme } = useTheme()
+  const isDark = resolvedTheme === 'dark'
 
   const handleLogout = async () => {
     try {
@@ -111,6 +117,21 @@ export function ConfigHeader({ onMenuClick }: ConfigHeaderProps) {
             <DropdownMenuItem onClick={() => navigate('/perfil')} className="cursor-pointer">
               <User className="w-4 h-4 mr-2" />
               Meu Perfil
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="cursor-pointer"
+              onSelect={(e) => {
+                e.preventDefault()
+                setTheme(isDark ? 'light' : 'dark')
+              }}
+            >
+              {isDark ? <Moon className="w-4 h-4 mr-2" /> : <Sun className="w-4 h-4 mr-2" />}
+              Tema Escuro
+              <Switch
+                checked={isDark}
+                className="ml-auto"
+                onCheckedChange={(v) => setTheme(v ? 'dark' : 'light')}
+              />
             </DropdownMenuItem>
             <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
               <LogOut className="w-4 h-4 mr-2" />
