@@ -1,72 +1,79 @@
 
 
-# Unificar Assinatura de Email com Assinatura Global (Config Geral)
+# Correção: Upload de imagem na assinatura + compressão
 
-## Problema
+## Problema Raiz
 
-Existem dois sistemas de assinatura duplicados:
-- **Configuracoes > Config Geral**: campo `assinatura_mensagem` na tabela `configuracoes_tenant` (editor rico com imagens, tabelas, etc.)
-- **Modulo Emails**: tabela separada `emails_assinaturas` com `AssinaturaModal` proprio
+A política RLS do bucket `assinaturas` valida:
+```
+(storage.foldername(name))[1] IN (SELECT organizacao_id::text FROM usuarios WHERE auth_id = auth.uid())
+```
 
-O correto e usar apenas a assinatura global de Configuracoes, eliminando a duplicidade.
+O código atual faz upload com path `assinaturas/{fileName}` — o primeiro segmento é `assinaturas`, não o `organizacao_id`. Por isso o RLS bloqueia com "new row violates row-level security policy".
 
-## Alteracoes
+## Solucao
 
-### 1. Remover botao "Assinatura" da toolbar do modulo Emails
+### 1. Corrigir path de upload no EditorToolbar (assinatura de mensagem)
 
-**Arquivo:** `src/modules/emails/pages/EmailsPage.tsx`
+**Arquivo:** `src/modules/configuracoes/components/editor/EditorToolbar.tsx`
 
-- Remover o estado `assinaturaOpen`
-- Remover o botao "Assinatura" da toolbar superior
-- Remover o componente `<AssinaturaModal>`
-- Remover import do `AssinaturaModal`
+- Importar `compressImage` de `@/shared/utils/compressMedia` (já existe no projeto)
+- Buscar `organizacao_id` do usuário logado via Supabase Auth
+- Alterar o path de upload de `assinaturas/{fileName}` para `{organizacao_id}/assinaturas/{fileName}`
+- Comprimir a imagem antes do upload usando `compressImage()`
+- Aumentar limite visual para 2MB (mantido), mas comprimir antes de enviar
 
-### 2. Alterar `ComposeEmailModal` para usar assinatura global
+### 2. Corrigir path de upload no EmailRichEditor (composicao de emails)
 
-**Arquivo:** `src/modules/emails/components/ComposeEmailModal.tsx`
+**Arquivo:** `src/modules/emails/components/EmailRichEditor.tsx`
 
-- Remover import de `useAssinatura` do hook de emails
-- Adicionar query direta a `configuracoes_tenant.assinatura_mensagem`
-- Adaptar `buildInitialContent()` para usar o HTML da assinatura global (sempre incluir em novos e respostas, ja que a config global nao tem esses toggles separados)
-
-### 3. Manter `AssinaturaModal.tsx` e hooks no codigo (sem uso)
-
-Nao e necessario deletar os arquivos agora — apenas desconectar. Podem ser removidos em cleanup futuro.
+- Mesmo problema: path `email-images/{fileName}` nao comeca com `organizacao_id`
+- Importar `compressImage` de `@/shared/utils/compressMedia`
+- Buscar `organizacao_id` do usuario logado
+- Alterar path para `{organizacao_id}/email-images/{fileName}`
+- Comprimir imagem antes do upload
 
 ## Detalhes Tecnicos
 
-### ComposeEmailModal - Nova query de assinatura
+### EditorToolbar - Alteracoes
 
 ```typescript
-// Substitui useAssinatura() por query direta ao configuracoes_tenant
-const { data: configTenant } = useQuery({
-  queryKey: ['config-tenant-localizacao'],  // reutiliza cache existente
-  queryFn: async () => {
-    const { data } = await supabase
-      .from('configuracoes_tenant')
-      .select('assinatura_mensagem')
-      .maybeSingle()
-    return data
-  },
-  staleTime: 5 * 60 * 1000,
-})
+import { compressImage } from '@/shared/utils/compressMedia'
 
-// No buildInitialContent:
-const signatureHtml = configTenant?.assinatura_mensagem
-  ? `<br/><div class="email-signature" style="margin-top:16px;padding-top:12px;border-top:1px solid #e5e7eb;">${configTenant.assinatura_mensagem}</div>`
-  : ''
+// Dentro de handleImageUpload, antes do upload:
+// 1. Buscar organizacao_id
+const { data: { user } } = await supabase.auth.getUser()
+const orgRes = await supabase
+  .from('usuarios')
+  .select('organizacao_id')
+  .eq('auth_id', user?.id)
+  .maybeSingle()
+const orgId = orgRes.data?.organizacao_id
+if (!orgId) { toast.error('Organização não encontrada'); return }
+
+// 2. Comprimir imagem
+const compressed = await compressImage(file, file.name)
+
+// 3. Path correto com organizacao_id como primeiro segmento
+const filePath = `${orgId}/assinaturas/${fileName}`
+
+// 4. Upload com arquivo comprimido
+await supabase.storage.from('assinaturas').upload(filePath, compressed, { contentType: 'image/jpeg' })
 ```
 
-### EmailsPage - Itens removidos
+### EmailRichEditor - Alteracoes
 
-- Estado: `assinaturaOpen` / `setAssinaturaOpen`
-- Botao: `<button onClick={() => setAssinaturaOpen(true)}>Assinatura</button>`
-- Componente: `<AssinaturaModal isOpen={assinaturaOpen} onClose={...} />`
+```typescript
+import { compressImage } from '@/shared/utils/compressMedia'
+
+// Mesmo padrao: buscar orgId, comprimir, path com orgId
+const path = `${orgId}/email-images/${timestamp}.jpg`
+```
 
 ## Arquivos alterados
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `src/modules/emails/pages/EmailsPage.tsx` | Remove botao e modal de assinatura |
-| `src/modules/emails/components/ComposeEmailModal.tsx` | Usa `configuracoes_tenant.assinatura_mensagem` em vez de `emails_assinaturas` |
+| `src/modules/configuracoes/components/editor/EditorToolbar.tsx` | Path com orgId + compressao de imagem |
+| `src/modules/emails/components/EmailRichEditor.tsx` | Path com orgId + compressao de imagem |
 
