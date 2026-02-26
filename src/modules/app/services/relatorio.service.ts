@@ -28,24 +28,29 @@ interface PeriodoResolvido {
 
 function resolverPeriodo(query: FunilQuery): PeriodoResolvido {
   const agora = new Date()
-  const fimDia = new Date(agora)
-  fimDia.setHours(23, 59, 59, 999)
 
   if (query.periodo === 'personalizado') {
     if (!query.data_inicio || !query.data_fim) {
       throw new Error('data_inicio e data_fim são obrigatórios para período personalizado')
     }
-    const inicio = new Date(`${query.data_inicio}T00:00:00.000Z`)
-    const fim = new Date(`${query.data_fim}T23:59:59.999Z`)
+    // Interpretar datas como local (meia-noite local → fim do dia local)
+    const inicio = new Date(query.data_inicio + 'T00:00:00')
+    const fim = new Date(query.data_fim + 'T23:59:59.999')
     const dias = Math.ceil((fim.getTime() - inicio.getTime()) / 86400000)
     return { inicio, fim, dias, label: `${query.data_inicio} → ${query.data_fim}` }
   }
 
   const diasMap = { '7d': 7, '30d': 30, '90d': 90 } as const
   const dias = diasMap[query.periodo]
+
+  // Início: X dias atrás à meia-noite local
   const inicio = new Date(agora)
   inicio.setDate(inicio.getDate() - dias)
   inicio.setHours(0, 0, 0, 0)
+
+  // Fim: final do dia atual (local)
+  const fimDia = new Date(agora)
+  fimDia.setHours(23, 59, 59, 999)
 
   const labelMap = { '7d': 'Últimos 7 dias', '30d': 'Últimos 30 dias', '90d': 'Últimos 90 dias' }
   return { inicio, fim: fimDia, dias, label: labelMap[query.periodo] }
@@ -268,8 +273,9 @@ export async function fetchFunis(): Promise<FunilOption[]> {
     .from('funis')
     .select('id, nome')
     .eq('organizacao_id', organizacaoId)
+    .eq('ativo', true)
     .is('deletado_em', null)
-    .order('ordem', { ascending: true })
+    .order('nome', { ascending: true })
 
   if (error) throw new Error(`Erro ao buscar funis: ${error.message}`)
   return (data ?? []) as FunilOption[]
