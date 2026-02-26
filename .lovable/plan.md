@@ -1,116 +1,114 @@
 
-# Plano: Drag and Drop Vertical entre Blocos do Dashboard
 
-## Objetivo
+# Plano: Modal de Exportacao PDF com Periodo + Paginacao Inteligente
 
-Permitir reordenar os blocos/seções do dashboard via drag and drop vertical, com zona de drop visual (igual ao Kanban), atualização otimista na UI e persistência no backend via coluna `ordem_blocos` que já existe na tabela `preferencias_dashboard`.
+## Problema Atual
 
----
-
-## Abordagem
-
-Usar **HTML5 Drag and Drop nativo** (mesmo padrão do Kanban e FormPreview), sem biblioteca externa. Cada bloco visível do dashboard será `draggable` e terá drop zones entre eles com indicador visual (barra azul tracejada).
+1. **Sem escolha de periodo**: O botao "Exportar" captura o dashboard como esta, sem permitir escolher datas especificas para o relatorio
+2. **Blocos cortados**: A paginacao atual fatia o canvas em alturas fixas, cortando blocos no meio entre paginas
+3. **Sem limite de seguranca**: Nenhum rate limit para exportacoes
 
 ---
 
-## 1. Expandir o hook `useDashboardDisplay`
+## 1. Modal de Exportacao com Selecao de Periodo
 
-**Arquivo:** `src/modules/app/hooks/useDashboardDisplay.ts`
+### Comportamento
 
-Adicionar:
-- Estado `sectionOrder: SectionId[]` — array com a ordem dos blocos
-- Ordem padrão: `['metas', 'funil', 'reunioes', 'kpis-principais', 'kpis-secundarios', 'canal', 'motivos', 'produtos', 'atendimento']`
-- Novo tipo `SectionId` expandido com as seções que não tinham toggle (`kpis-secundarios`, `produtos`, `atendimento`)
-- Função `reorderSection(dragId, targetIndex)` — move o bloco para a nova posição, salva imediatamente no state/localStorage e com debounce no Supabase (coluna `ordem_blocos`)
-- Carregamento da ordem do banco na montagem (mesmo fluxo do `config_exibicao`)
+Ao clicar em "Exportar", abre um **Dialog** (nao gera o PDF direto) com:
+
+- **Titulo**: "Exportar Relatorio"
+- **Opcoes de periodo** (Select igual ao filtro do dashboard):
+  - Ultimos 7 dias
+  - Ultimos 30 dias
+  - Ultimos 90 dias
+  - Personalizado (abre date picker com `from` e `to`)
+- **Checkbox**: "Usar periodo atual do dashboard" (pre-marcado, desabilita os selects acima)
+- **Botao**: "Gerar PDF" / "Gerando..."
+- **Rate limit visual**: Texto discreto "X exportacoes restantes hoje" no rodape do modal
+
+### Rate Limit (client-side)
+
+- Maximo **10 exportacoes por hora** por sessao
+- Controle via `localStorage` com timestamp de cada exportacao
+- Ao atingir o limite, botao desabilitado com mensagem "Limite atingido. Tente novamente em X min"
 
 ---
 
-## 2. Criar componente `DashboardSectionDraggable`
+## 2. Paginacao Inteligente (sem cortar blocos)
 
-**Arquivo:** `src/modules/app/components/dashboard/DashboardSectionDraggable.tsx`
+### Abordagem
 
-Wrapper que envolve cada bloco do dashboard, fornecendo:
+Em vez de capturar o container inteiro como um unico canvas e fatiar, a nova logica:
 
-- `draggable={true}` no container inteiro (clicar em qualquer lugar do bloco para arrastar)
-- `onDragStart` — seta o `sectionId` no `dataTransfer`
-- Visual durante drag: opacity reduzida no bloco sendo arrastado
-- Drop zone acima de cada bloco:
-  - Barra horizontal tracejada (`h-2 border-2 border-dashed border-primary/30 bg-primary/5 rounded`)
-  - Visível apenas quando há item sendo arrastado sobre aquela posição
-  - Calcula índice de drop baseado na posição Y do cursor (mesmo padrão do `KanbanColumn`)
+1. Identifica cada bloco filho (section) do container via `querySelectorAll`
+2. Para cada bloco, calcula sua posicao Y e altura em pixels
+3. Converte para mm proporcionalmente
+4. Agrupa blocos por pagina: se adicionar o proximo bloco ultrapassa a altura disponivel, inicia nova pagina
+5. Renderiza cada bloco individualmente no canvas (um `html2canvas` por bloco) e posiciona no PDF
 
-**Props:**
+### Algoritmo simplificado
+
 ```text
-sectionId: string
-index: number
-isDragging: boolean
-dragOverIndex: number | null
-onDragStart(sectionId)
-onDragOver(e, index)
-onDragLeave()
-onDrop(e, targetIndex)
-children: ReactNode
+paginas = [[]]
+alturaUsada = headerOffset (primeira pagina)
+
+para cada bloco visivel:
+  alturaBlocoMM = converter(bloco.offsetHeight)
+  se alturaUsada + alturaBlocoMM > alturaDisponivelMM:
+    paginas.push([])  // nova pagina
+    alturaUsada = 0
+  paginas[ultimo].push(bloco)
+  alturaUsada += alturaBlocoMM + gap
 ```
 
----
+### Beneficios
 
-## 3. Atualizar `DashboardPage`
-
-**Arquivo:** `src/modules/app/pages/DashboardPage.tsx`
-
-- Importar a nova `sectionOrder` e `reorderSection` do hook
-- Estado local para controle de drag: `draggingId`, `dropIndex`
-- Definir um mapa de seções com seus `SectionId`, condição de visibilidade e componente a renderizar
-- Renderizar os blocos em loop baseado na `sectionOrder`, filtrando os visíveis
-- Cada bloco envolto em `DashboardSectionDraggable`
-- Handlers de drag no nível da page que delegam para `reorderSection`
+- Nenhum bloco e cortado entre paginas
+- Cada bloco renderizado com qualidade independente
+- Header do PDF apenas na primeira pagina
+- Rodape com numero da pagina em todas
 
 ---
 
-## 4. Persistência
+## 3. Melhorias no PDF Gerado
 
-Mesma estratégia otimista do `config_exibicao`:
-1. UI atualiza imediatamente (setState)
-2. Salva no localStorage como fallback
-3. Debounce de 500ms para persistir na coluna `ordem_blocos` (jsonb) da tabela `preferencias_dashboard`
-
-Formato do `ordem_blocos`:
-```json
-["metas", "funil", "reunioes", "kpis-principais", "kpis-secundarios", "canal", "motivos", "produtos", "atendimento"]
-```
+- **Header**: "Relatorio de Desempenho" + periodo selecionado + data de geracao
+- **Rodape**: "Pagina X de Y" centralizado em cada pagina
+- **Fundo branco** garantido em cada bloco para evitar transparencia
+- **Nome do arquivo**: `relatorio-desempenho-{periodo}-{data}.pdf`
 
 ---
 
-## Resumo de arquivos
+## Arquivos a Editar
 
 | Arquivo | Acao |
 |---------|------|
-| `src/modules/app/hooks/useDashboardDisplay.ts` | Adicionar `sectionOrder` + `reorderSection` + persistência |
-| `src/modules/app/components/dashboard/DashboardSectionDraggable.tsx` | Criar wrapper draggable com drop zones |
-| `src/modules/app/pages/DashboardPage.tsx` | Refatorar para renderizar blocos por ordem + drag handlers |
+| `src/modules/app/components/dashboard/ExportarRelatorioPDF.tsx` | Reescrever: adicionar Dialog com selecao de periodo, rate limit, paginacao inteligente por blocos |
 
-Nenhuma migration necessária — a coluna `ordem_blocos` já existe na tabela.
+Nenhum arquivo novo necessario. Toda a logica fica no componente existente.
 
 ---
 
 ## Secao Tecnica
 
-### Drop Zone Visual
+### Estrutura do Dialog
 
-Mesma estilização do Kanban:
+Usa `@radix-ui/react-dialog` (ja instalado) com:
+- Select de periodo (reutiliza os mesmos valores do `DashboardFilters`)
+- Calendar range picker para personalizado
+- Estado local para periodo/datas do export (independente do dashboard)
+
+### Rate Limit - localStorage
+
 ```text
-h-[6px] bg-primary/5 rounded border-2 border-dashed border-primary/30 transition-all duration-150
+Chave: "pdf_export_timestamps"
+Valor: JSON array de timestamps (number[])
+Logica: filtra timestamps > 1h atras, conta restantes
 ```
 
-Exibida apenas quando `dragOverIndex === index` do bloco.
+### Paginacao por blocos
 
-### Calculo de posicao de drop
+O `contentRef` aponta para o container `space-y-6`. Os filhos diretos sao os blocos (DashboardSectionDraggable + header). A logica itera sobre `contentRef.current.children`, pula o header (index 0), e agrupa os demais respeitando a altura maxima da pagina A4 landscape (190mm de conteudo util).
 
-Itera sobre os blocos visíveis, compara `mouseY` com o `midY` de cada bloco para determinar o índice de inserção — mesmo algoritmo do `KanbanColumn.handleCardAreaDragOver`.
+Cada bloco e capturado individualmente com `html2canvas(bloco, { scale: 2 })` e posicionado verticalmente na pagina do PDF.
 
-### Cursor e feedback visual
-
-- Bloco sendo arrastado: `opacity-40`
-- Demais blocos: `cursor-grab` no hover, `cursor-grabbing` durante drag
-- Drop zone animada com `transition-all duration-150`
