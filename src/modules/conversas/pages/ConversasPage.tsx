@@ -332,6 +332,7 @@ const ConversasPage = forwardRef<HTMLDivElement>(function ConversasPage(_props, 
             email: conversaAtiva.contato.email,
             telefone: conversaAtiva.contato.telefone,
           }}
+          origemDefault={conversaAtiva.canal}
           onClose={() => {
             setOportunidadeModalOpen(false)
             setFunilData(null)

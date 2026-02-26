@@ -5,7 +5,7 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { Loader2, Target, Search, X, User, Building2, Plus, Trash2, ChevronDown, ChevronRight, RefreshCw, Link2, Pencil } from 'lucide-react'
+import { Loader2, Target, Search, X, User, Building2, Plus, Trash2, ChevronDown, RefreshCw, Link2, Pencil, Info } from 'lucide-react'
 import { ModalBase } from '@/modules/configuracoes/components/ui/ModalBase'
 import { negociosApi } from '../../services/negocios.api'
 import { formatCurrency, unformatCurrency } from '@/lib/formatters'
@@ -72,9 +72,21 @@ interface NovaOportunidadeModalProps {
   funilId: string
   etapaEntradaId: string
   contatoPreSelecionado?: ContatoPreSelecionado
+  origemDefault?: string
   onClose: () => void
   onSuccess: () => void
 }
+
+// AIDEV-NOTE: Opções de origem para o select — valores reconhecidos pela fn_breakdown_canal_funil
+const ORIGENS_OPTIONS = [
+  { value: 'manual', label: 'Manual' },
+  { value: 'whatsapp_conversas', label: 'WhatsApp Conversas' },
+  { value: 'instagram', label: 'Instagram' },
+  { value: 'indicacao', label: 'Indicação' },
+  { value: 'site', label: 'Site / Landing Page' },
+  { value: 'evento', label: 'Evento' },
+  { value: 'outro', label: 'Outro' },
+]
 
 // =====================================================
 // Component
@@ -84,6 +96,7 @@ export function NovaOportunidadeModal({
   funilId,
   etapaEntradaId,
   contatoPreSelecionado,
+  origemDefault,
   onClose,
   onSuccess,
 }: NovaOportunidadeModalProps) {
@@ -121,13 +134,8 @@ export function NovaOportunidadeModal({
   const [recorrente, setRecorrente] = useState(false)
   const [periodoRecorrencia, setPeriodoRecorrencia] = useState<string>('mensal')
 
-  // UTM state
-  const [showUtm, setShowUtm] = useState(false)
-  const [utmSource, setUtmSource] = useState('')
-  const [utmCampaign, setUtmCampaign] = useState('')
-  const [utmMedium, setUtmMedium] = useState('')
-  const [utmTerm, setUtmTerm] = useState('')
-  const [utmContent, setUtmContent] = useState('')
+  // Origem state — substitui UTM para criação manual
+  const [origem, setOrigem] = useState(origemDefault || 'manual')
 
   // Products state
   const [produtosSelecionados, setProdutosSelecionados] = useState<ProdutoSelecionado[]>([])
@@ -448,11 +456,7 @@ export function NovaOportunidadeModal({
         periodo_recorrencia: recorrente ? periodoRecorrencia : undefined,
         usuario_responsavel_id: responsavelId || undefined,
         previsao_fechamento: previsaoFechamento || undefined,
-        utm_source: utmSource.trim() || undefined,
-        utm_campaign: utmCampaign.trim() || undefined,
-        utm_medium: utmMedium.trim() || undefined,
-        utm_term: utmTerm.trim() || undefined,
-        utm_content: utmContent.trim() || undefined,
+        origem: origem,
       })
 
       // 5. Add produtos if any
@@ -1140,48 +1144,30 @@ export function NovaOportunidadeModal({
           </div>
         </section>
 
-        {/* ===== SEÇÃO UTM (Colapsável) ===== */}
-        <div className="border-t border-border" />
-        <section>
-          <button
-            type="button"
-            onClick={() => setShowUtm(!showUtm)}
-            className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-all duration-200"
-          >
-            <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-200 ${showUtm ? 'rotate-90' : ''}`} />
-            <span className="font-medium">Rastreamento UTM (opcional)</span>
-          </button>
-
-          {showUtm && (
-            <div className="mt-3 grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-foreground mb-1">Source</label>
-                <input type="text" value={utmSource} onChange={(e) => setUtmSource(e.target.value)} placeholder="google, facebook..."
-                  className="w-full h-9 px-3 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-foreground mb-1">Campaign</label>
-                <input type="text" value={utmCampaign} onChange={(e) => setUtmCampaign(e.target.value)} placeholder="Nome da campanha"
-                  className="w-full h-9 px-3 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-foreground mb-1">Medium</label>
-                <input type="text" value={utmMedium} onChange={(e) => setUtmMedium(e.target.value)} placeholder="cpc, email, social..."
-                  className="w-full h-9 px-3 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-foreground mb-1">Term</label>
-                <input type="text" value={utmTerm} onChange={(e) => setUtmTerm(e.target.value)} placeholder="Palavra-chave"
-                  className="w-full h-9 px-3 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground" />
-              </div>
-              <div className="col-span-2">
-                <label className="block text-xs font-medium text-foreground mb-1">Content</label>
-                <input type="text" value={utmContent} onChange={(e) => setUtmContent(e.target.value)} placeholder="Variação do anúncio"
-                  className="w-full h-9 px-3 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-muted-foreground" />
-              </div>
-            </div>
-          )}
-        </section>
+        {/* ===== CAMPO ORIGEM ===== */}
+        <div>
+          <label className="flex items-center gap-1.5 text-xs font-medium text-foreground mb-1">
+            Origem
+            <span className="relative group">
+              <Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />
+              <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2.5 py-1.5 text-[10px] leading-snug text-popover-foreground bg-popover border border-border rounded-md shadow-md whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-200 z-50">
+                Define o canal de aquisição deste lead.<br />Aparece no relatório "Por Canal de Origem" do Dashboard.
+              </span>
+            </span>
+          </label>
+          <div className="relative">
+            <select
+              value={origem}
+              onChange={(e) => setOrigem(e.target.value)}
+              className="w-full h-10 px-3 pr-8 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring/30 appearance-none"
+            >
+              {ORIGENS_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+          </div>
+        </div>
       </div>
     </ModalBase>
   )

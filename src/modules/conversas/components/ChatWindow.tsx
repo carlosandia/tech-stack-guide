@@ -702,6 +702,7 @@ export const ChatWindow = forwardRef<HTMLDivElement, ChatWindowProps>(function C
           funilId={funilData.funilId}
           etapaEntradaId={funilData.etapaId}
           contatoPreSelecionado={contatoPreSelecionado}
+          origemDefault={conversa.canal}
           onClose={() => {
             setOportunidadeModalOpen(false)
             setFunilData(null)
