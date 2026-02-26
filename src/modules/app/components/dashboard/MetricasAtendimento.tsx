@@ -1,13 +1,18 @@
 /**
  * AIDEV-NOTE: Métricas de Atendimento no Dashboard (PRD-18)
  * Dados vindos da RPC fn_metricas_atendimento (conversas + mensagens)
+ * Com filtro por canal (WhatsApp / Instagram / Todos)
  */
 
+import { useState } from 'react'
 import { MessageSquare, Send, Inbox, Clock, AlertTriangle, MessageCircle } from 'lucide-react'
-import type { MetricasAtendimento as MetricasAtendimentoType } from '../../types/relatorio.types'
+import type { FunilQuery } from '../../types/relatorio.types'
+import { useMetricasAtendimento } from '../../hooks/useRelatorioFunil'
+
+type CanalFiltro = 'todos' | 'whatsapp' | 'instagram'
 
 interface Props {
-  data: MetricasAtendimentoType
+  query: FunilQuery
 }
 
 function formatarTempo(segundos: number | null): string {
@@ -73,17 +78,68 @@ function CardCompacto({
   )
 }
 
-export default function MetricasAtendimento({ data }: Props) {
+const CANAL_OPTIONS: { value: CanalFiltro; label: string }[] = [
+  { value: 'todos', label: 'Todos' },
+  { value: 'whatsapp', label: 'WhatsApp' },
+  { value: 'instagram', label: 'Instagram' },
+]
+
+export default function MetricasAtendimento({ query }: Props) {
+  const [canal, setCanal] = useState<CanalFiltro>('todos')
+
+  const canalParam = canal === 'todos' ? undefined : canal
+  const { data, isLoading } = useMetricasAtendimento(query, canalParam)
+
+  if (isLoading || !data) {
+    return (
+      <div className="space-y-3">
+        <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+          <MessageSquare className="w-4 h-4 text-muted-foreground" />
+          Indicadores de Atendimento
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="rounded-lg border border-border p-4 animate-pulse bg-muted/30 h-20" />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  const showWhatsApp = canal === 'todos' || canal === 'whatsapp'
+  const showInstagram = canal === 'todos' || canal === 'instagram'
+  const canalCardsCount = (showWhatsApp ? 1 : 0) + (showInstagram ? 1 : 0)
+  // 3 base cards + canal cards
+  const gridCols = 3 + canalCardsCount
+
   return (
     <div className="space-y-3">
-      {/* Título da seção */}
-      <h3
-        className="text-sm font-semibold text-foreground cursor-help flex items-center gap-1.5"
-        title="Métricas de atendimento via WhatsApp e Instagram no período selecionado"
-      >
-        <MessageSquare className="w-4 h-4 text-muted-foreground" />
-        Indicadores de Atendimento
-      </h3>
+      {/* Título + Badges de canal */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h3
+          className="text-sm font-semibold text-foreground cursor-help flex items-center gap-1.5"
+          title="Métricas de atendimento via WhatsApp e Instagram no período selecionado"
+        >
+          <MessageSquare className="w-4 h-4 text-muted-foreground" />
+          Indicadores de Atendimento
+        </h3>
+
+        <div className="flex items-center gap-1">
+          {CANAL_OPTIONS.map(opt => (
+            <button
+              key={opt.value}
+              onClick={() => setCanal(opt.value)}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                canal === opt.value
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* Linha 1: Cards de alerta */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -111,7 +167,9 @@ export default function MetricasAtendimento({ data }: Props) {
       </div>
 
       {/* Linha 2: Cards secundários */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className={`grid grid-cols-2 gap-3 ${
+        gridCols === 5 ? 'sm:grid-cols-5' : gridCols === 4 ? 'sm:grid-cols-4' : 'sm:grid-cols-3'
+      }`}>
         <CardCompacto
           label="Total Conversas"
           valor={data.total_conversas.toLocaleString('pt-BR')}
@@ -130,18 +188,22 @@ export default function MetricasAtendimento({ data }: Props) {
           tooltip="Total de mensagens enviadas pela equipe"
           icon={Send}
         />
-        <CardCompacto
-          label="WhatsApp"
-          valor={data.conversas_whatsapp.toLocaleString('pt-BR')}
-          tooltip="Conversas via WhatsApp no período"
-          icon={MessageCircle}
-        />
-        <CardCompacto
-          label="Instagram"
-          valor={data.conversas_instagram.toLocaleString('pt-BR')}
-          tooltip="Conversas via Instagram no período"
-          icon={MessageCircle}
-        />
+        {showWhatsApp && (
+          <CardCompacto
+            label="WhatsApp"
+            valor={data.conversas_whatsapp.toLocaleString('pt-BR')}
+            tooltip="Conversas via WhatsApp no período"
+            icon={MessageCircle}
+          />
+        )}
+        {showInstagram && (
+          <CardCompacto
+            label="Instagram"
+            valor={data.conversas_instagram.toLocaleString('pt-BR')}
+            tooltip="Conversas via Instagram no período"
+            icon={MessageCircle}
+          />
+        )}
       </div>
     </div>
   )

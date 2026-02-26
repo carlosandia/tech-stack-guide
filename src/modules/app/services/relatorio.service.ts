@@ -375,15 +375,20 @@ export async function fetchDashboardMetricasGerais(
 // Métricas de Atendimento (fn_metricas_atendimento)
 // ─────────────────────────────────────────────────────
 
-export async function fetchMetricasAtendimento(query: FunilQuery): Promise<MetricasAtendimento> {
+export async function fetchMetricasAtendimento(query: FunilQuery, canal?: string): Promise<MetricasAtendimento> {
   const organizacaoId = await getOrganizacaoId()
   const periodo = resolverPeriodo(query)
 
-  const { data, error } = await supabase.rpc('fn_metricas_atendimento' as never, {
+  const rpcParams: Record<string, unknown> = {
     p_organizacao_id: organizacaoId,
     p_periodo_inicio: periodo.inicio.toISOString(),
     p_periodo_fim: periodo.fim.toISOString(),
-  } as never)
+  }
+  if (canal) {
+    rpcParams.p_canal = canal
+  }
+
+  const { data, error } = await supabase.rpc('fn_metricas_atendimento' as never, rpcParams as never)
 
   if (error) throw new Error(`Erro ao calcular métricas de atendimento: ${error.message}`)
 

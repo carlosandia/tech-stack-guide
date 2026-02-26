@@ -1,6 +1,6 @@
 import { forwardRef, useState, useRef, useCallback, type DragEvent, type ReactNode } from 'react'
 
-import { useRelatorioFunil, useFunis, useDashboardMetricasGerais, useMetricasAtendimento, useRelatorioMetas } from '../hooks/useRelatorioFunil'
+import { useRelatorioFunil, useFunis, useDashboardMetricasGerais, useRelatorioMetas } from '../hooks/useRelatorioFunil'
 import { useDashboardDisplay, type SectionId, type ToggleableSectionId } from '../hooks/useDashboardDisplay'
 import DashboardFilters from '../components/dashboard/DashboardFilters'
 import FunilConversao from '../components/dashboard/FunilConversao'
@@ -69,10 +69,7 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
     isLoading: isLoadingMetricas,
   } = useDashboardMetricasGerais(query)
 
-  const {
-    data: metricasAtendimento,
-    isLoading: isLoadingAtendimento,
-  } = useMetricasAtendimento(query)
+  // AIDEV-NOTE: MetricasAtendimento agora gerencia seu próprio estado e fetch internamente
 
   const {
     data: relatorioMetas,
@@ -128,7 +125,7 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
     setDragOverIndex(null)
   }, [draggingId, reorderSection])
 
-  const isLoading = isLoadingRelatorio || isLoadingMetricas || isLoadingAtendimento
+  const isLoading = isLoadingRelatorio || isLoadingMetricas
 
   // Loading
   if (isLoading) {
@@ -204,8 +201,8 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
       render: () => <ProdutosRanking data={metricasGerais!.produtos_ranking} />,
     },
     atendimento: {
-      visible: !!metricasAtendimento,
-      render: () => <MetricasAtendimento data={metricasAtendimento!} />,
+      visible: true,
+      render: () => <MetricasAtendimento query={query} />,
     },
   }
 
