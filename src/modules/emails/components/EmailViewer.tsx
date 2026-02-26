@@ -149,54 +149,62 @@ function decodeMimePartBody(body: string, headers: string): string {
 
 // AIDEV-NOTE: Detecta se o texto parece ser MIME bruto (contém boundaries e headers MIME)
 function looksLikeMime(str: string): boolean {
-  return /This is a multi-part message|boundary=|^--[A-Za-z0-9_=?+/.-]+\s*$/m.test(str)
+  return /This is a multi-part message|boundary=|^--[\S]{8,}\s*$/m.test(str)
 }
+
+
 
 // AIDEV-NOTE: Parser MIME frontend — extrai HTML de corpo MIME bruto quando backend falha
 function extractHtmlFromMime(raw: string): string | null {
   // Tenta encontrar boundary via header Content-Type
   let boundary: string | null = null
-  const boundaryMatch = raw.match(/boundary="?([^"\s;]+)"?/i)
+  const boundaryMatch = raw.match(/boundary="?([^"\r\n;]+)"?/i)
   if (boundaryMatch) {
-    boundary = boundaryMatch[1]
+    boundary = boundaryMatch[1].trim()
   } else {
-    // Fallback: detecta boundary pelo padrão "--<algo>" que aparece no corpo MIME
-    const lineMatch = raw.match(/^--([A-Za-z0-9_=?+/.-]{8,})\s*$/m)
+    // Fallback: detecta boundary pelo padrão "--<algo>" após preamble MIME
+    // Aceita qualquer caractere não-whitespace (boundaries podem ter :, =, ?, etc.)
+    const lineMatch = raw.match(/^--([\S]{8,})\s*$/m)
     if (lineMatch) {
       boundary = lineMatch[1]
+      // Remove trailing : ou -- se presente (closing boundary artifact)
+      boundary = boundary.replace(/:$/, '').replace(/--$/, '')
     }
   }
   if (!boundary) return null
 
-  const parts = raw.split('--' + boundary)
+  // Usa string split com boundary literal (não regex)
+  const separator = '--' + boundary
+  const parts = raw.split(separator)
 
   let htmlPart: string | null = null
   let textPart: string | null = null
 
   for (const part of parts) {
+    // Pula preamble e closing
+    if (part.trim() === '' || part.trim() === '--') continue
+
     const headerEnd = part.indexOf('\r\n\r\n') !== -1
       ? part.indexOf('\r\n\r\n')
       : part.indexOf('\n\n')
     if (headerEnd === -1) continue
 
     const headers = part.substring(0, headerEnd).toLowerCase()
-    const body = part.substring(headerEnd).trim()
+    let body = part.substring(headerEnd).trim()
 
-    // Remove trailing boundary marker (--boundary--)
-    const cleanBody = body.replace(/--$/, '').trim()
+    // Remove trailing boundary closer (--) se presente no final do body
+    body = body.replace(/\r?\n--\s*$/, '').trim()
 
-    if (headers.includes('text/html')) {
+    if (headers.includes('content-type')) {
       if (headers.includes('multipart/')) {
+        // Nested multipart — recursivamente parseia
         const nested = extractHtmlFromMime(part)
         if (nested) htmlPart = nested
-      } else {
-        htmlPart = decodeMimePartBody(cleanBody, headers)
+      } else if (headers.includes('text/html')) {
+        htmlPart = decodeMimePartBody(body, headers)
+      } else if (headers.includes('text/plain') && !textPart) {
+        textPart = decodeMimePartBody(body, headers)
       }
-    } else if (headers.includes('text/plain') && !textPart) {
-      textPart = decodeMimePartBody(cleanBody, headers)
-    } else if (headers.includes('multipart/')) {
-      const nested = extractHtmlFromMime(part)
-      if (nested) htmlPart = nested
     }
   }
 
