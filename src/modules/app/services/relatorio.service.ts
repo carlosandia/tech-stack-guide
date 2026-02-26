@@ -345,6 +345,7 @@ async function buscarMetricasGerais(
     tarefas_abertas: Number(m?.tarefas_abertas ?? 0),
     total_oportunidades_historico: Number(m?.total_oportunidades_historico ?? 0),
     motivos_perda: Array.isArray(m?.motivos_perda) ? m.motivos_perda : [],
+    motivos_ganho: Array.isArray((m as any)?.motivos_ganho) ? (m as any).motivos_ganho : [],
     produtos_ranking: Array.isArray(m?.produtos_ranking) ? m.produtos_ranking : [],
   }
 }

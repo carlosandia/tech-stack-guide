@@ -6,6 +6,7 @@ import FunilConversao from '../components/dashboard/FunilConversao'
 import KPIsPrincipais from '../components/dashboard/KPIsPrincipais'
 import KPIsSecundarios from '../components/dashboard/KPIsSecundarios'
 import MotivosPerda from '../components/dashboard/MotivosPerda'
+import MotivosGanho from '../components/dashboard/MotivosGanho'
 import ProdutosRanking from '../components/dashboard/ProdutosRanking'
 import BreakdownCanal from '../components/dashboard/BreakdownCanal'
 import InvestModeWidget from '../components/dashboard/InvestModeWidget'
@@ -144,21 +145,26 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
           <KPIsSecundarios relatorio={relatorio} metricas={metricasGerais} />
         )}
 
+        {/* Breakdown por Canal (estratégico — após KPIs) */}
+        <BreakdownCanal data={relatorio.breakdown_canal} />
+
+        {/* Gráficos lado a lado: Motivos de Ganho + Perda */}
+        {metricasGerais && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <MotivosGanho data={metricasGerais.motivos_ganho} />
+            <MotivosPerda data={metricasGerais.motivos_perda} />
+          </div>
+        )}
+
+        {/* Produtos Mais Vendidos */}
+        {metricasGerais && (
+          <ProdutosRanking data={metricasGerais.produtos_ranking} />
+        )}
+
         {/* Métricas de Atendimento */}
         {metricasAtendimento && (
           <MetricasAtendimento data={metricasAtendimento} />
         )}
-
-        {/* Gráficos lado a lado */}
-        {metricasGerais && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <MotivosPerda data={metricasGerais.motivos_perda} />
-            <ProdutosRanking data={metricasGerais.produtos_ranking} />
-          </div>
-        )}
-
-        {/* Breakdown por Canal */}
-        <BreakdownCanal data={relatorio.breakdown_canal} />
       </div>
     </div>
   )
