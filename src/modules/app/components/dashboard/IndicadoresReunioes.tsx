@@ -3,7 +3,7 @@
  * Explica o gap entre Agendadas e Realizadas no funil
  */
 
-import { AlertTriangle, XCircle, RefreshCw, UserX, CheckCircle, HelpCircle, CalendarClock } from 'lucide-react'
+import { AlertTriangle, XCircle, RefreshCw, UserX, CheckCircle, HelpCircle, CalendarClock, CalendarCheck } from 'lucide-react'
 import type { RelatorioFunilResponse } from '../../types/relatorio.types'
 import {
   Popover,
@@ -38,6 +38,14 @@ export default function IndicadoresReunioes({ data }: IndicadoresReunioesProps) 
   if (totalReunioes === 0) return null
 
   const cards = [
+    {
+      label: 'Agendadas',
+      value: funil.reunioes_agendadas.toString(),
+      icon: CalendarCheck,
+      color: 'text-primary',
+      bgColor: 'bg-primary/10',
+      tooltip: 'Total de reuniões agendadas no período selecionado.',
+    },
     {
       label: 'No-Shows',
       value: funil.reunioes_noshow.toString(),
@@ -98,7 +106,7 @@ export default function IndicadoresReunioes({ data }: IndicadoresReunioesProps) 
         <CalendarClock className="w-4 h-4 text-muted-foreground" />
         Indicadores de Reuniões
       </h3>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         {cards.map((card) => {
           const Icon = card.icon
           return (
