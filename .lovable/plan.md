@@ -1,97 +1,79 @@
 
-# Dark Mode - Toggle de Tema no Menu do Usuario
+# Correcao da Logica de Conversao do Funil
 
-## Objetivo
+## Problema Atual
 
-Adicionar alternancia entre tema claro (atual) e escuro no dropdown do usuario (canto superior direito), com persistencia em `localStorage` e transicao suave.
+A conversao entre etapas esta sendo calculada como **etapa atual / etapa anterior**, o que gera valores como 300% (ex: 3 reunioes agendadas / 1 MQL = 300%). Isso nao faz sentido estrategico — um funil de conversao nunca deveria ultrapassar 100% pois representa "filtragem" de volume.
 
-## Analise do Estado Atual
+## Como os Grandes CRMs Fazem
 
-- `tailwind.config.ts` ja possui `darkMode: ['class']` -- pronto para dark mode via classe CSS
-- `index.css` ja possui bloco `.dark { ... }` com variaveis, porem com valores genericos do shadcn que precisam refinamento para harmonia visual com a identidade do Renove
-- Existem cores **hardcoded** no layout (`bg-white/80`, `bg-gray-50/50`, `border-gray-200/60`) que nao respondem ao dark mode e precisam ser convertidas para tokens semanticos
-- O design system (`docs/designsystem.md`) documenta variaveis dark porem nenhuma implementacao existe
-
-## Alteracoes
-
-### 1. Criar hook `useTheme` com persistencia
-
-Novo arquivo `src/hooks/useTheme.ts`:
-- Le preferencia de `localStorage` (chave `theme`)
-- Fallback para `system` (respeita `prefers-color-scheme`)
-- Aplica/remove classe `dark` no `<html>`
-- Opcoes: `light`, `dark`, `system`
-
-### 2. Criar `ThemeProvider` no root
-
-Novo arquivo `src/providers/ThemeProvider.tsx`:
-- Context provider que inicializa o tema antes do primeiro render (evita flash)
-- Exporta `useTheme()` para consumo em qualquer componente
-
-### 3. Refinar variaveis CSS do dark mode
-
-Atualizar `src/index.css` bloco `.dark`:
-- Ajustar `--primary` para manter o azul Renove visivel no fundo escuro (nao inverter para branco)
-- Adicionar `--content-bg` para o dark
-- Ajustar `--success`, `--warning` e `--success-muted`, `--warning-muted` para dark
-- Garantir contraste WCAG AA em todos os pares foreground/background
-
-Paleta dark proposta (harmonizada com identidade Renove):
+HubSpot, Salesforce e RD Station usam o padrao de **conversao acumulada a partir do topo do funil (Leads)**:
 
 ```text
---background:          222 47% 11%    (fundo principal escuro)
---foreground:          210 40% 98%    (texto claro)
---card:                223 47% 13%    (cards levemente elevados)
---card-foreground:     210 40% 98%
---popover:             223 47% 13%
---muted:               217 33% 17%   (backgrounds neutros)
---muted-foreground:    215 20% 65%   (texto secundario)
---primary:             220 72% 58%   (MESMO azul do light!)
---primary-foreground:  0 0% 100%
---border:              217 33% 20%
---input:               217 33% 20%
---content-bg:          222 47% 9%    (area de conteudo)
---destructive:         0 63% 31%
---success:             142 71% 35%
---success-muted:       142 40% 18%
---warning:             38 92% 40%
---warning-muted:       38 40% 18%
+Leads:              7  (100%)
+MQLs:               1  (14.3% dos Leads)
+R. Agendadas:       3  (42.9% dos Leads)
+R. Realizadas:      1  (14.3% dos Leads)
+Ganhos:             2  (28.6% dos Leads)
 ```
 
-### 4. Corrigir cores hardcoded no AppLayout
+Isso mostra a **taxa de filtragem real** do funil. Valores nunca ultrapassam 100%. Quando uma etapa intermediaria tem mais volume que a anterior (como o caso de 3 agendadas vs 1 MQL), isso indica que leads pularam etapas — o que e normal em operacoes comerciais (nem todo lead precisa ser classificado como MQL antes de agendar reuniao).
 
-Em `src/modules/app/layouts/AppLayout.tsx`:
-- `bg-white/80` → `bg-background/80`
-- `border-gray-200/60` → `border-border/60`
-- `bg-gray-50/50` → `bg-muted/50`
+**Adicionalmente**, entre etapas adjacentes, a seta mostra a taxa etapa-a-etapa para identificar gargalos especificos, mas limitada a 100% (cap).
 
-Isso garante que header e toolbar respondam ao tema.
+## Solucao Proposta
 
-### 5. Adicionar toggle no User Dropdown Menu
+### Regra de calculo
 
-No dropdown do usuario (AppLayout, linha ~586-594), adicionar item com icone `Sun`/`Moon`:
-- Exibe "Tema Escuro" com um `Switch` toggle inline
-- Posicionado entre "Meu Perfil" e "Sair"
-- Ao clicar, alterna entre light e dark
+1. **Percentual exibido no bloco**: Conversao em relacao ao **total de Leads** (topo do funil) — nunca ultrapassa 100%
+2. **Seta entre etapas**: Taxa etapa-a-etapa, com **cap em 100%** — se o valor da etapa posterior for maior que a anterior, exibe 100% (indica que nao ha perda nesse ponto)
+3. **Conversao geral**: Mantida como `fechados / leads` (ja existe)
 
-### 6. Adicionar toggle no menu mobile (drawer)
+### Alteracao no Frontend
 
-No drawer mobile, adicionar o mesmo toggle proximo ao botao "Sair" na parte inferior.
+Arquivo `src/modules/app/components/dashboard/FunilConversao.tsx`, linhas 136-142:
 
-### 7. Registrar no main.tsx
+De:
+```typescript
+const taxa = Math.round((etapa.value / anterior.value) * 1000) / 10
+```
 
-Envolver a app com `ThemeProvider` logo apos `BrowserRouter` para garantir que o tema seja aplicado antes de qualquer render visual.
+Para:
+```typescript
+// Taxa relativa ao topo do funil (Leads)
+const primeiraEtapa = etapasVisiveis[0]
+const taxaDoTopo = primeiraEtapa.value > 0
+  ? Math.round((etapa.value / primeiraEtapa.value) * 1000) / 10
+  : 0
+const taxaFinal = Math.min(taxaDoTopo, 100)
+```
 
-## Arquivos
+A seta entre etapas mostrara a taxa etapa-a-etapa (com cap em 100%):
+```typescript
+const taxaEntreEtapas = anterior.value > 0
+  ? Math.min(Math.round((etapa.value / anterior.value) * 1000) / 10, 100)
+  : 0
+```
 
-| Arquivo | Acao |
-|---------|------|
-| `src/hooks/useTheme.ts` | Criar |
-| `src/providers/ThemeProvider.tsx` | Criar |
-| `src/index.css` | Editar (refinar `.dark`) |
-| `src/modules/app/layouts/AppLayout.tsx` | Editar (toggle + fix hardcoded) |
-| `src/main.tsx` | Editar (adicionar ThemeProvider) |
+### Alteracao no Backend
+
+Arquivo `backend/src/services/relatorio.service.ts` — As taxas `lead_para_mql`, `mql_para_sql`, etc. ja sao calculadas corretamente como etapa-a-etapa. Porem, adicionar cap de 100% no `calcularTaxa`:
+
+```typescript
+function calcularTaxa(num: number, den: number): number | null {
+  if (!den || den === 0) return null
+  return Math.min(Math.round((num / den) * 1000) / 10, 100)
+}
+```
+
+## Arquivos Modificados
+
+1. **`src/modules/app/components/dashboard/FunilConversao.tsx`** — Alterar calculo para usar topo do funil + cap 100%
+2. **`backend/src/services/relatorio.service.ts`** — Adicionar cap de 100% na funcao `calcularTaxa`
 
 ## Resultado
 
-O usuario podera alternar entre tema claro e escuro pelo menu do avatar. A preferencia persiste entre sessoes. O dark mode mantem a identidade visual do Renove (azul primario preservado) com contraste adequado em todos os componentes.
+- Percentuais nunca ultrapassam 100%
+- Analise estrategica real: mostra onde o funil "perde" volume
+- Gargalos ficam claros (ex: se MQL→SQL tem 20%, o problema esta na qualificacao comercial)
+- Padrao alinhado com HubSpot / Salesforce / RD Station
