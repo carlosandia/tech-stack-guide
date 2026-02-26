@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useState, useRef, forwardRef } from 'react'
-import { Search, Plus, X, BarChart3 } from 'lucide-react'
+import { Search, Plus, X } from 'lucide-react'
 import { useAppToolbar } from '@/modules/app/contexts/AppToolbarContext'
 import { PipelineSelector } from './PipelineSelector'
 import { FiltrosPopover, type FiltrosKanban } from './FiltrosPopover'
@@ -121,29 +121,14 @@ export const NegociosToolbar = forwardRef<HTMLDivElement, NegociosToolbarProps>(
           onChange={onPeriodoChange}
         />
 
-        {/* Métricas toggle + filtro */}
-        <div className="flex items-center">
-          <button
-            onClick={onToggleMetricas}
-            className={`
-              p-2 rounded-md transition-all duration-200
-              ${metricasVisivel
-                ? 'text-primary hover:bg-primary/10'
-                : 'text-muted-foreground hover:bg-accent'
-              }
-            `}
-            title={metricasVisivel ? 'Ocultar métricas' : 'Exibir métricas'}
-          >
-            <BarChart3 className="w-4 h-4" />
-          </button>
-          {metricasVisivel && (
-            <FiltrarMetricasPopover
-              funilId={funilAtivoId}
-              visiveis={metricasVisiveis}
-              onChange={onMetricasVisiveisChange}
-            />
-          )}
-        </div>
+        {/* Métricas (single icon + popover) */}
+        <FiltrarMetricasPopover
+          funilId={funilAtivoId}
+          visiveis={metricasVisiveis}
+          onChange={onMetricasVisiveisChange}
+          metricasVisivel={metricasVisivel}
+          onToggleMetricas={onToggleMetricas}
+        />
 
         {/* Busca (popover) */}
         <div className="relative" ref={searchContainerRef}>
