@@ -2,8 +2,10 @@ import { useState } from 'react'
 import { LogoRenove } from '@/components/LogoRenove'
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/providers/AuthProvider'
+import { useTheme } from '@/providers/ThemeProvider'
 import { ToolbarProvider, useToolbar } from '../contexts/ToolbarContext'
 import { NotificacoesSino } from '@/modules/feedback/components/NotificacoesSino'
+import { Switch } from '@/components/ui/switch'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -21,6 +23,8 @@ import {
   Lightbulb,
   LogOut,
   Menu,
+  Moon,
+  Sun,
   X,
   ChevronDown,
   Users2,
@@ -124,8 +128,9 @@ function AdminLayoutInner() {
   const navigate = useNavigate()
   const location = useLocation()
   const { user, signOut } = useAuth()
+  const { resolvedTheme, setTheme } = useTheme()
+  const isDark = resolvedTheme === 'dark'
   const [drawerOpen, setDrawerOpen] = useState(false)
-  
 
   const handleLogout = async () => {
     try {
@@ -151,22 +156,22 @@ function AdminLayoutInner() {
       {/* Mobile drawer */}
       <div
         className={`
-          fixed inset-y-0 left-0 z-[300] w-64 bg-white/95 backdrop-blur-md border-r border-gray-200/60
+          fixed inset-y-0 left-0 z-[300] w-64 bg-background/95 backdrop-blur-md border-r border-border/60
           transform transition-transform duration-200 ease-in-out
           md:hidden
           ${drawerOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
       >
         {/* Drawer header */}
-        <div className="flex h-14 items-center justify-between px-4 border-b border-gray-200/60">
+        <div className="flex h-14 items-center justify-between px-4 border-b border-border/60">
           <div className="flex items-center gap-2">
             <LogoRenove className="h-7" />
           </div>
           <button
-            className="p-1 hover:bg-gray-100/70 rounded-md"
+            className="p-1 hover:bg-muted/70 rounded-md"
             onClick={() => setDrawerOpen(false)}
           >
-            <X className="w-5 h-5 text-gray-500" />
+            <X className="w-5 h-5 text-muted-foreground" />
           </button>
         </div>
 
@@ -193,10 +198,10 @@ function AdminLayoutInner() {
         </nav>
 
         {/* Drawer footer */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200/60">
+        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-border/60">
           <button
             onClick={handleLogout}
-            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-md text-sm font-medium text-gray-500 hover:bg-gray-100/50 hover:text-gray-700 transition-all duration-200"
+            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-md text-sm font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-all duration-200"
           >
             <LogOut className="w-5 h-5" />
             Sair
@@ -205,16 +210,16 @@ function AdminLayoutInner() {
       </div>
 
       {/* Header fixo - 56px - Glass Effect */}
-      <header className="fixed top-0 left-0 right-0 z-[100] h-14 bg-white/80 backdrop-blur-md border-b border-gray-200/60">
+      <header className="fixed top-0 left-0 right-0 z-[100] h-14 bg-background/80 backdrop-blur-md border-b border-border/60">
         <div className="flex items-center justify-between h-full px-4 lg:px-6 max-w-[1920px] mx-auto">
           {/* Left: Logo + Navigation */}
           <div className="flex items-center gap-8">
             {/* Mobile menu button */}
             <button
-              className="md:hidden p-2 -ml-2 hover:bg-gray-100/70 rounded-md"
+              className="md:hidden p-2 -ml-2 hover:bg-muted/70 rounded-md"
               onClick={() => setDrawerOpen(true)}
             >
-              <Menu className="w-5 h-5 text-gray-700" />
+              <Menu className="w-5 h-5 text-foreground" />
             </button>
 
             {/* Logo */}
@@ -271,6 +276,21 @@ function AdminLayoutInner() {
                   </span>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="cursor-pointer"
+                  onSelect={(e) => {
+                    e.preventDefault()
+                    setTheme(isDark ? 'light' : 'dark')
+                  }}
+                >
+                  {isDark ? <Moon className="w-4 h-4 mr-2" /> : <Sun className="w-4 h-4 mr-2" />}
+                  Tema Escuro
+                  <Switch
+                    checked={isDark}
+                    className="ml-auto"
+                    onCheckedChange={(v) => setTheme(v ? 'dark' : 'light')}
+                  />
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
                   <LogOut className="w-4 h-4 mr-2" />
                   Sair
@@ -297,17 +317,17 @@ function ToolbarWithActions({ pageTitle }: { pageTitle: string }) {
   const { actions, subtitle } = useToolbar()
 
   return (
-    <div className="sticky top-14 z-50 h-12 bg-gray-50/50 backdrop-blur-sm border-b border-gray-200/60">
+    <div className="sticky top-14 z-50 h-12 bg-muted/50 backdrop-blur-sm border-b border-border/60">
       <div className="flex items-center justify-between h-full px-4 lg:px-6 max-w-[1920px] mx-auto">
         {/* Left: Título + Descrição */}
         <div className="flex items-center gap-2 min-w-0">
-          <h1 className="text-base font-semibold text-gray-800 whitespace-nowrap">
+          <h1 className="text-base font-semibold text-foreground whitespace-nowrap">
             {pageTitle}
           </h1>
           {subtitle && (
             <>
-              <span className="text-gray-400 hidden sm:inline">·</span>
-              <span className="text-sm text-gray-500 hidden sm:inline truncate max-w-[300px]">
+              <span className="text-muted-foreground hidden sm:inline">·</span>
+              <span className="text-sm text-muted-foreground hidden sm:inline truncate max-w-[300px]">
                 {subtitle}
               </span>
             </>
