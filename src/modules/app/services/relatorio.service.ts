@@ -345,6 +345,7 @@ async function buscarMetricasGerais(
     valor_perdas: Number(m?.valor_perdas ?? 0),
     tarefas_abertas: Number(m?.tarefas_abertas ?? 0),
     total_oportunidades_historico: Number(m?.total_oportunidades_historico ?? 0),
+    total_oportunidades_periodo: Number((m as any)?.total_oportunidades_periodo ?? 0),
     motivos_perda: Array.isArray(m?.motivos_perda) ? m.motivos_perda : [],
     motivos_ganho: Array.isArray((m as any)?.motivos_ganho) ? (m as any).motivos_ganho : [],
     produtos_ranking: Array.isArray(m?.produtos_ranking) ? m.produtos_ranking : [],
@@ -366,6 +367,7 @@ export async function fetchDashboardMetricasGerais(
   return {
     ...atual,
     variacao_perdas: calcularVariacao(atual.perdas, ant.perdas),
+    variacao_oportunidades: calcularVariacao(atual.total_oportunidades_periodo, ant.total_oportunidades_periodo),
   }
 }
 

@@ -166,6 +166,7 @@ export interface DashboardMetricasGerais {
   valor_perdas: number
   tarefas_abertas: number
   total_oportunidades_historico: number
+  total_oportunidades_periodo: number
   motivos_perda: MotivosPerdaItem[]
   motivos_ganho: MotivosPerdaItem[]
   produtos_ranking: ProdutoRankingItem[]
@@ -173,6 +174,7 @@ export interface DashboardMetricasGerais {
 
 export interface DashboardMetricasGeraisComVariacao extends DashboardMetricasGerais {
   variacao_perdas: number | null
+  variacao_oportunidades: number | null
 }
 
 // ─────────────────────────────────────────────────────

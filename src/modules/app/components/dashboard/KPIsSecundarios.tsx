@@ -1,9 +1,9 @@
 /**
  * AIDEV-NOTE: KPIs Secundários do Dashboard (PRD-18)
- * 4 cards: Ciclo Médio, Tarefas Abertas, Total Histórico, Conversão Geral
+ * 4 cards: Ciclo Médio, Tarefas Abertas, Histórico Oportunidades, Conversão Geral
  */
 
-import { Clock, CheckSquare, BarChart3, Percent, HelpCircle } from 'lucide-react'
+import { Clock, CheckSquare, BarChart3, Percent, HelpCircle, TrendingUp, TrendingDown } from 'lucide-react'
 import type { RelatorioFunilResponse, DashboardMetricasGeraisComVariacao } from '../../types/relatorio.types'
 import {
   Popover,
@@ -31,10 +31,22 @@ function TooltipInfo({ children }: { children: React.ReactNode }) {
   )
 }
 
+interface CardDef {
+  label: string
+  value: string
+  icon: typeof Clock
+  color: string
+  bgColor: string
+  tooltip: string
+  variacao?: number | null
+  periodValue?: number
+}
+
 export default function KPIsSecundarios({ relatorio, metricas }: KPIsSecundariosProps) {
   const conversaoGeral = relatorio.conversoes.lead_para_fechado
+  const variacaoOps = metricas.variacao_oportunidades
 
-  const cards = [
+  const cards: CardDef[] = [
     {
       label: 'Ciclo Médio',
       value: relatorio.kpis.ciclo_medio_dias !== null
@@ -54,12 +66,14 @@ export default function KPIsSecundarios({ relatorio, metricas }: KPIsSecundarios
       tooltip: 'Total de tarefas pendentes ou em andamento da sua equipe neste momento.',
     },
     {
-      label: 'Total de Oportunidades',
+      label: 'Histórico de Oportunidades',
       value: metricas.total_oportunidades_historico.toLocaleString('pt-BR'),
       icon: BarChart3,
       color: 'text-blue-500',
       bgColor: 'bg-blue-500/10',
-      tooltip: 'Total geral de oportunidades (abertas, ganhas e perdidas) criadas no período selecionado.',
+      tooltip: 'Total acumulado de todas as oportunidades já criadas. A variação compara a quantidade criada no período atual vs. o período anterior.',
+      variacao: variacaoOps,
+      periodValue: metricas.total_oportunidades_periodo,
     },
     {
       label: 'Conversão Geral',
@@ -97,6 +111,23 @@ export default function KPIsSecundarios({ relatorio, metricas }: KPIsSecundarios
               {card.label}
             </p>
             <p className="text-xl font-bold text-foreground">{card.value}</p>
+            {card.variacao !== undefined && card.variacao !== null && (
+              <div className="flex items-center gap-1 mt-1.5">
+                {card.variacao >= 0 ? (
+                  <TrendingUp className="w-3 h-3 text-emerald-500" />
+                ) : (
+                  <TrendingDown className="w-3 h-3 text-destructive" />
+                )}
+                <span className={`text-[11px] font-semibold ${card.variacao >= 0 ? 'text-emerald-500' : 'text-destructive'}`}>
+                  {card.variacao > 0 ? '+' : ''}{card.variacao}%
+                </span>
+                {card.periodValue !== undefined && (
+                  <span className="text-[10px] text-muted-foreground ml-1">
+                    ({card.periodValue} no período)
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         )
       })}
