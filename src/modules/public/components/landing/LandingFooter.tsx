@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import renoveLogo from '@/assets/logotipo-renove.svg'
+import { LogoRenove } from '@/components/LogoRenove'
 
 /**
  * AIDEV-NOTE: Footer da landing page com links institucionais
@@ -11,7 +11,7 @@ export function LandingFooter() {
         <div className="flex flex-col md:flex-row items-center justify-between gap-6">
           {/* Logo */}
           <div className="flex items-center gap-2">
-            <img src={renoveLogo} alt="CRM Renove" className="h-7 [filter:brightness(0)_invert(1)]" />
+            <LogoRenove className="h-7" forceWhite />
           </div>
 
           {/* Links */}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import renoveLogo from '@/assets/logotipo-renove.svg'
+import { LogoRenove } from '@/components/LogoRenove'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { LoginForm } from '../components/LoginForm'
 import { useAuth } from '@/providers/AuthProvider'
@@ -133,7 +133,7 @@ export function LoginPage() {
         <div className="w-full max-w-[400px] space-y-8">
           {/* Logo */}
           <div className="flex flex-col items-center">
-            <img src={renoveLogo} alt="Renove" className="h-10" />
+            <LogoRenove className="h-10" />
           </div>
 
           {/* Card */}

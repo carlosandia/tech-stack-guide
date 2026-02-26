@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import renoveLogo from '@/assets/logotipo-renove.svg'
+import { LogoRenove } from '@/components/LogoRenove'
 import { PrivacidadeConteudo } from '../components/PrivacidadeConteudo'
 
 /**
@@ -17,7 +17,7 @@ export function PoliticaPrivacidadePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <Link to="/planos" className="flex items-center gap-2">
-              <img src={renoveLogo} alt="CRM Renove" className="h-8" />
+              <LogoRenove className="h-8" />
             </Link>
             <Link
               to="/login"
@@ -44,7 +44,7 @@ export function PoliticaPrivacidadePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2">
-              <img src={renoveLogo} alt="CRM Renove" className="h-6" />
+              <LogoRenove className="h-6" />
             </div>
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
               <Link to="/termos" className="hover:text-foreground transition-colors">

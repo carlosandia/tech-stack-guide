@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { Loader2, AlertCircle, Check, ShieldCheck, Users, HardDrive, Briefcase } from 'lucide-react'
-import renoveLogo from '@/assets/logotipo-renove.svg'
+import { LogoRenove } from '@/components/LogoRenove'
 import { supabase } from '@/lib/supabase'
 import { PreCadastroModal } from '../components/PreCadastroModal'
 
@@ -168,7 +168,7 @@ export function ParceiroPage() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 py-3 sm:py-0 sm:h-16">
             <div className="flex items-center justify-between sm:justify-start gap-3">
               <div className="flex items-center gap-3">
-                <img src={renoveLogo} alt="CRM Renove" className="h-7 sm:h-8 brightness-0 invert opacity-90" />
+                <LogoRenove className="h-7 sm:h-8" forceWhite />
                 <div className="hidden sm:block h-4 w-px bg-white/20" />
                 <span className="hidden sm:inline text-sm font-medium text-slate-400 tracking-wide">Programa de Parceiros</span>
               </div>

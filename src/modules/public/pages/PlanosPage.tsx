@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { Check, Loader2, Star, RefreshCw, AlertTriangle } from 'lucide-react'
-import renoveLogo from '@/assets/logotipo-renove.svg'
+import { LogoRenove } from '@/components/LogoRenove'
 import { supabase } from '@/lib/supabase'
 import { env } from '@/config/env'
 import { PreCadastroModal } from '../components/PreCadastroModal'
@@ -251,7 +251,7 @@ interface PlanoDb {
          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
            <div className="flex items-center justify-between h-16">
               <div className="flex items-center gap-2">
-                <img src={renoveLogo} alt="CRM Renove" className="h-8" />
+                <LogoRenove className="h-8" />
               </div>
              <Link
                to="/login"
