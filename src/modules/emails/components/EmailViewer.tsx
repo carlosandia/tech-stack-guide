@@ -147,12 +147,27 @@ function decodeMimePartBody(body: string, headers: string): string {
   return body
 }
 
+// AIDEV-NOTE: Detecta se o texto parece ser MIME bruto (contém boundaries e headers MIME)
+function looksLikeMime(str: string): boolean {
+  return /This is a multi-part message|boundary=|^--[A-Za-z0-9_=?+/.-]+\s*$/m.test(str)
+}
+
 // AIDEV-NOTE: Parser MIME frontend — extrai HTML de corpo MIME bruto quando backend falha
 function extractHtmlFromMime(raw: string): string | null {
+  // Tenta encontrar boundary via header Content-Type
+  let boundary: string | null = null
   const boundaryMatch = raw.match(/boundary="?([^"\s;]+)"?/i)
-  if (!boundaryMatch) return null
+  if (boundaryMatch) {
+    boundary = boundaryMatch[1]
+  } else {
+    // Fallback: detecta boundary pelo padrão "--<algo>" que aparece no corpo MIME
+    const lineMatch = raw.match(/^--([A-Za-z0-9_=?+/.-]{8,})\s*$/m)
+    if (lineMatch) {
+      boundary = lineMatch[1]
+    }
+  }
+  if (!boundary) return null
 
-  const boundary = boundaryMatch[1]
   const parts = raw.split('--' + boundary)
 
   let htmlPart: string | null = null
@@ -171,7 +186,6 @@ function extractHtmlFromMime(raw: string): string | null {
     const cleanBody = body.replace(/--$/, '').trim()
 
     if (headers.includes('text/html')) {
-      // Recursivamente checa por nested multipart
       if (headers.includes('multipart/')) {
         const nested = extractHtmlFromMime(part)
         if (nested) htmlPart = nested
@@ -181,7 +195,6 @@ function extractHtmlFromMime(raw: string): string | null {
     } else if (headers.includes('text/plain') && !textPart) {
       textPart = decodeMimePartBody(cleanBody, headers)
     } else if (headers.includes('multipart/')) {
-      // Nested multipart (ex: multipart/alternative dentro de multipart/mixed)
       const nested = extractHtmlFromMime(part)
       if (nested) htmlPart = nested
     }
@@ -305,30 +318,40 @@ export function EmailViewer({
   const cleanHtml = useMemo(() => {
     let html = email?.corpo_html || ''
 
-    // Fallback: detect HTML stored in corpo_texto (MIME parser edge case)
-    if (!html && email?.corpo_texto) {
-      const text = email.corpo_texto.trim()
-      if (looksLikeHtml(text) || text.includes('=3D"') || text.includes("=3D'")) {
-        html = text
+    // AIDEV-NOTE: Se corpo_html contém MIME bruto, extrair HTML dele primeiro
+    if (html && looksLikeMime(html)) {
+      const extracted = extractHtmlFromMime(html)
+      if (extracted) {
+        html = extracted
       } else {
-        // AIDEV-NOTE: Fallback base64 — corpo pode estar codificado em base64 bruto
-        const decoded = tryDecodeBase64(text)
-        if (decoded && looksLikeHtml(decoded)) {
-          html = decoded
-        } else {
-          // AIDEV-NOTE: Fallback MIME — tenta extrair HTML de estrutura MIME bruta
-          const mimeExtracted = extractHtmlFromMime(text)
-          if (mimeExtracted) {
-            html = mimeExtracted
-          }
-        }
+        // MIME detectado mas sem parte HTML — limpar para tentar corpo_texto
+        html = ''
       }
     }
 
-    // AIDEV-NOTE: Última tentativa — corpo_html pode conter MIME bruto
-    if (!html && email?.corpo_html) {
-      const mimeFromHtml = extractHtmlFromMime(email.corpo_html)
-      if (mimeFromHtml) html = mimeFromHtml
+    // Fallback: detect HTML stored in corpo_texto (MIME parser edge case)
+    if (!html && email?.corpo_texto) {
+      const text = email.corpo_texto.trim()
+
+      // Primeiro tenta MIME parse (mais específico)
+      if (looksLikeMime(text)) {
+        const mimeExtracted = extractHtmlFromMime(text)
+        if (mimeExtracted) {
+          html = mimeExtracted
+        }
+      }
+
+      if (!html) {
+        if (looksLikeHtml(text) || text.includes('=3D"') || text.includes("=3D'")) {
+          html = text
+        } else {
+          // AIDEV-NOTE: Fallback base64 — corpo pode estar codificado em base64 bruto
+          const decoded = tryDecodeBase64(text)
+          if (decoded && looksLikeHtml(decoded)) {
+            html = decoded
+          }
+        }
+      }
     }
 
     if (!html) return ''
