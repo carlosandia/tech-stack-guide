@@ -177,7 +177,7 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
                   </span>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <HelpCircle className="w-3 h-3 text-muted-foreground/40 hover:text-muted-foreground cursor-help shrink-0" />
+                      <HelpCircle className="w-3.5 h-3.5 text-muted-foreground/40 hover:text-muted-foreground cursor-help shrink-0" />
                     </TooltipTrigger>
                     <TooltipContent side="top" className="max-w-[220px] bg-popover text-popover-foreground border border-border shadow-md">
                       <p className="text-xs leading-relaxed">{etapa.tooltip}</p>
@@ -245,7 +245,7 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
                         </span>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <HelpCircle className="w-3 h-3 text-muted-foreground/40 hover:text-muted-foreground cursor-help shrink-0" />
+                            <HelpCircle className="w-3.5 h-3.5 text-muted-foreground/40 hover:text-muted-foreground cursor-help shrink-0" />
                           </TooltipTrigger>
                           <TooltipContent side="right" className="max-w-[220px] bg-popover text-popover-foreground border border-border shadow-md">
                             <p className="text-xs leading-relaxed">{etapa.tooltip}</p>
