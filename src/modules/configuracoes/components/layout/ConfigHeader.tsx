@@ -100,9 +100,9 @@ export function ConfigHeader({ onMenuClick }: ConfigHeaderProps) {
                   {role === 'super_admin' ? 'Super' : role === 'admin' ? 'Admin' : 'Membro'}
                 </span>
                 {parceiroStatus.isParceiro && (
-                  <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700" title={parceiroStatus.nivelNome ? `Parceiro ${parceiroStatus.nivelNome}` : 'Parceiro'}>
-                    {parceiroStatus.nivelCor && <EmblemaParceiroNivel cor={parceiroStatus.nivelCor} size={14} />}
-                    Partner
+                  <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400" title={parceiroStatus.nivelNome ? `Parceiro ${parceiroStatus.nivelNome}` : 'Parceiro'}>
+                    {parceiroStatus.nivelCor && <EmblemaParceiroNivel cor={parceiroStatus.nivelCor} size={16} />}
+                    {parceiroStatus.nivelNome ? `Partner · ${parceiroStatus.nivelNome}` : 'Partner'}
                   </div>
                 )}
               </div>
