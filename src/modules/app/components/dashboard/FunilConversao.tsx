@@ -98,7 +98,7 @@ export default function FunilConversao({ data, query }: FunilConversaoProps) {
       taxa: null, taxaLabel: '100%',
       dica: 'Oportunidades criadas no período e funil selecionado',
       custo: custos.cpl, custoLabel: 'CPL',
-      tooltip: 'Total de oportunidades criadas no período e funil selecionado. Representa o topo do funil.',
+      tooltip: 'Total de oportunidades criadas no período e funil selecionado. Base de cálculo (100%) para todas as taxas de conversão do funil.',
     },
     {
       label: 'MQLs', configKey: 'mqls',
@@ -108,7 +108,7 @@ export default function FunilConversao({ data, query }: FunilConversaoProps) {
       taxaLabel: dadosEfetivos.conversoes.lead_para_mql !== null ? `${dadosEfetivos.conversoes.lead_para_mql}%` : '—',
       dica: 'Leads qualificados como Marketing Qualified Lead',
       custo: custos.cpmql, custoLabel: 'Custo/MQL',
-      tooltip: 'Marketing Qualified Leads. Oportunidades que atenderam os critérios de qualificação configurados e se tornaram leads qualificados para marketing.',
+      tooltip: 'Marketing Qualified Leads — leads que atenderam critérios de qualificação de marketing. Cálculo: MQLs / Leads × 100.',
     },
     {
       label: 'SQLs', configKey: 'sqls',
@@ -118,17 +118,17 @@ export default function FunilConversao({ data, query }: FunilConversaoProps) {
       taxaLabel: dadosEfetivos.conversoes.mql_para_sql !== null ? `${dadosEfetivos.conversoes.mql_para_sql}%` : '—',
       dica: 'Leads qualificados como Sales Qualified Lead',
       custo: custos.custoSql, custoLabel: 'Custo/SQL',
-      tooltip: 'Sales Qualified Leads. Leads que foram validados pela equipe comercial como prontos para abordagem de vendas.',
+      tooltip: 'Sales Qualified Leads — leads validados pela equipe comercial para abordagem de vendas. Cálculo: SQLs / Leads × 100.',
     },
     {
       label: 'R. Agendadas', configKey: 'reunioes_agendadas',
       value: dadosEfetivos.funil.reunioes_agendadas, icon: CalendarPlus,
       color: 'text-amber-500', bgColor: 'bg-amber-500/10 border-amber-500/20',
-      taxa: dadosEfetivos.conversoes.sql_para_reuniao_agendada,
-      taxaLabel: dadosEfetivos.conversoes.sql_para_reuniao_agendada !== null ? `${dadosEfetivos.conversoes.sql_para_reuniao_agendada}%` : '—',
-      dica: 'Reuniões agendadas no período',
+      taxa: dadosEfetivos.conversoes.lead_para_reuniao_agendada,
+      taxaLabel: dadosEfetivos.conversoes.lead_para_reuniao_agendada !== null ? `${dadosEfetivos.conversoes.lead_para_reuniao_agendada}%` : '—',
+      dica: 'Oportunidades com reunião agendada',
       custo: custos.custoReuniaoAgendada, custoLabel: 'Custo/Agendada',
-      tooltip: 'Reuniões agendadas com os leads qualificados. Indica o volume de conversas comerciais marcadas no período.',
+      tooltip: 'Oportunidades distintas com pelo menos 1 reunião agendada (múltiplas reuniões no mesmo card contam como 1). Cálculo: Oportunidades com reunião agendada / Leads × 100.',
     },
     {
       label: 'R. Realizadas', configKey: 'reunioes_realizadas',
@@ -136,9 +136,9 @@ export default function FunilConversao({ data, query }: FunilConversaoProps) {
       color: 'text-orange-500', bgColor: 'bg-orange-500/10 border-orange-500/20',
       taxa: dadosEfetivos.conversoes.reuniao_agendada_para_realizada,
       taxaLabel: dadosEfetivos.conversoes.reuniao_agendada_para_realizada !== null ? `${dadosEfetivos.conversoes.reuniao_agendada_para_realizada}%` : '—',
-      dica: 'Reuniões realizadas no período',
+      dica: 'Oportunidades com reunião realizada',
       custo: custos.custoReuniaoRealizada, custoLabel: 'Custo/Realizada',
-      tooltip: 'Reuniões que foram efetivamente realizadas. Diferença entre agendadas e realizadas indica taxa de no-show.',
+      tooltip: 'Oportunidades distintas com pelo menos 1 reunião realizada (múltiplas reuniões no mesmo card contam como 1). Cálculo: Oportunidades com reunião realizada / Leads × 100.',
     },
     {
       label: 'Ganhos', configKey: null,
@@ -149,7 +149,7 @@ export default function FunilConversao({ data, query }: FunilConversaoProps) {
       dica: 'Negócios fechados como ganhos',
       custo: custos.cac, custoLabel: 'CAC',
       extraInfo: custos.romi !== null ? `ROMI: ${custos.romi}%` : undefined,
-      tooltip: 'Negócios fechados com sucesso. Oportunidades que passaram por todo o funil e foram convertidas em vendas.\n\n• CAC (Custo de Aquisição de Cliente): quanto você investiu em média para conquistar cada cliente.\n• ROMI (Retorno sobre Investimento em Marketing): percentual de retorno financeiro sobre o valor investido em marketing. Positivo = lucro, negativo = prejuízo.',
+      tooltip: 'Negócios fechados com sucesso. Cálculo: Ganhos / Leads × 100.\n\n• CAC: Investido / Ganhos.\n• ROMI: (Receita − Investido) / Investido × 100.',
     },
   ]
 

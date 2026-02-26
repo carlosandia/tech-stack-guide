@@ -72,7 +72,7 @@ export const RelatorioFunilResponseSchema = z.object({
   conversoes: z.object({
     lead_para_mql: z.number().nullable(),
     mql_para_sql: z.number().nullable(),
-    sql_para_reuniao_agendada: z.number().nullable(),
+    lead_para_reuniao_agendada: z.number().nullable(),
     reuniao_agendada_para_realizada: z.number().nullable(),
     reuniao_realizada_para_fechado: z.number().nullable(),
     lead_para_fechado: z.number().nullable(),
