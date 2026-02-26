@@ -5490,6 +5490,7 @@ export type Database = {
           motivo_resultado_id: string | null
           observacoes: string | null
           organizacao_id: string
+          origem: string | null
           periodo_recorrencia: string | null
           posicao: number
           previsao_fechamento: string | null
@@ -5523,6 +5524,7 @@ export type Database = {
           motivo_resultado_id?: string | null
           observacoes?: string | null
           organizacao_id: string
+          origem?: string | null
           periodo_recorrencia?: string | null
           posicao?: number
           previsao_fechamento?: string | null
@@ -5556,6 +5558,7 @@ export type Database = {
           motivo_resultado_id?: string | null
           observacoes?: string | null
           organizacao_id?: string
+          origem?: string | null
           periodo_recorrencia?: string | null
           posicao?: number
           previsao_fechamento?: string | null
