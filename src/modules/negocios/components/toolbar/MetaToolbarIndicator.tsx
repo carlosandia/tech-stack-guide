@@ -220,7 +220,8 @@ export const MetaToolbarIndicator = forwardRef<HTMLDivElement>(function MetaTool
       <button
         ref={btnRef}
         onClick={handleToggle}
-        className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors group"
+        className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-lg hover:opacity-80 transition-colors group"
+        style={{ backgroundColor: 'hsl(var(--content-bg))' }}
         title="Meta de vendas"
       >
         <Target className="w-4 h-4 text-primary flex-shrink-0" />
