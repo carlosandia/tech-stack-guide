@@ -238,12 +238,19 @@ export interface RankingEquipe {
   receita: number
 }
 
+export interface MetaNomeItem {
+  nome: string
+  metrica: string
+  percentual: number
+}
+
 export interface RelatorioMetasDashboard {
   resumo: {
     total_metas: number
     metas_atingidas: number
     media_atingimento: number
     em_risco: number
+    metas_nomes: MetaNomeItem[]
   }
   metas_empresa: MetaEmpresaDashboard[]
   vendedores: VendedorPerformance[]
