@@ -193,7 +193,7 @@ export const ChatHeader = forwardRef<HTMLDivElement, ChatHeaderProps>(function C
 
   return (
     <>
-      <div className="flex-shrink-0 h-14 bg-white/80 backdrop-blur-md border-b border-border/60 flex items-center justify-between px-2 sm:px-3 gap-1 sm:gap-2">
+      <div className="flex-shrink-0 h-14 bg-background/80 backdrop-blur-md border-b border-border/60 flex items-center justify-between px-2 sm:px-3 gap-1 sm:gap-2">
         {/* Left: Back + Avatar + Info */}
         <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
           <button

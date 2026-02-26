@@ -221,7 +221,7 @@ const ConversasPage = forwardRef<HTMLDivElement>(function ConversasPage(_props, 
 
       <div className="flex-1 flex overflow-hidden">
         <div className={`
-          flex flex-col border-r border-border/60 bg-white/80 backdrop-blur-md
+          flex flex-col border-r border-border/60 bg-background/80 backdrop-blur-md
           w-full md:w-[400px] lg:w-[440px] xl:w-[480px] 2xl:w-[540px] flex-shrink-0
           ${conversaAtivaId ? 'hidden md:flex' : 'flex'}
         `}>
