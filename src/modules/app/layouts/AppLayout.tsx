@@ -9,6 +9,8 @@ import { AppToolbarProvider, useAppToolbar } from '../contexts/AppToolbarContext
 import { FeedbackButton } from '@/modules/feedback/components/FeedbackButton'
 import { NotificacoesSino } from '@/modules/feedback/components/NotificacoesSino'
 import { ImpersonationBanner } from '@/components/ImpersonationBanner'
+import { useParceiroStatus } from '@/hooks/useParceiroStatus'
+import { EmblemaParceiroNivel } from '@/modules/admin/components/EmblemaParceiroNivel'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -285,6 +287,7 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
   const { user, role, signOut } = useAuth()
   const [drawerOpen, setDrawerOpen] = useState(false)
   const { data: modulosAtivos } = useModulosTenant()
+  const parceiroStatus = useParceiroStatus()
 
   // Salvar última rota do CRM para o botão "Voltar" das Configurações
   useEffect(() => {
@@ -569,9 +572,17 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
                     <p className="text-xs text-muted-foreground truncate">
                       {user?.email}
                     </p>
-                    <span className="inline-flex items-center mt-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
-                      {role === 'admin' ? 'Admin' : 'Membro'}
-                    </span>
+                    <div className="flex items-center gap-1.5 mt-1.5">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
+                        {role === 'admin' ? 'Admin' : 'Membro'}
+                      </span>
+                      {parceiroStatus.isParceiro && (
+                        <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700" title={parceiroStatus.nivelNome ? `Parceiro ${parceiroStatus.nivelNome}` : 'Parceiro'}>
+                          {parceiroStatus.nivelCor && <EmblemaParceiroNivel cor={parceiroStatus.nivelCor} size={14} />}
+                          Partner
+                        </div>
+                      )}
+                    </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => navigate('/perfil')} className="cursor-pointer">

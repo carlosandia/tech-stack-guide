@@ -15,6 +15,8 @@ import {
   Menu,
   User,
 } from 'lucide-react'
+import { useParceiroStatus } from '@/hooks/useParceiroStatus'
+import { EmblemaParceiroNivel } from '@/modules/admin/components/EmblemaParceiroNivel'
 
 /**
  * AIDEV-NOTE: Header fixo do módulo Configurações
@@ -29,6 +31,7 @@ interface ConfigHeaderProps {
 export function ConfigHeader({ onMenuClick }: ConfigHeaderProps) {
   const navigate = useNavigate()
   const { user, role, signOut } = useAuth()
+  const parceiroStatus = useParceiroStatus()
 
   const handleLogout = async () => {
     try {
@@ -92,9 +95,17 @@ export function ConfigHeader({ onMenuClick }: ConfigHeaderProps) {
             <DropdownMenuLabel className="font-normal">
               <p className="text-sm font-medium text-foreground">{user?.nome || 'Usuário'}</p>
               <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
-              <span className="inline-flex items-center mt-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
-                {role === 'admin' ? 'Admin' : 'Membro'}
-              </span>
+              <div className="flex items-center gap-1.5 mt-1.5">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
+                  {role === 'admin' ? 'Admin' : 'Membro'}
+                </span>
+                {parceiroStatus.isParceiro && (
+                  <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700" title={parceiroStatus.nivelNome ? `Parceiro ${parceiroStatus.nivelNome}` : 'Parceiro'}>
+                    {parceiroStatus.nivelCor && <EmblemaParceiroNivel cor={parceiroStatus.nivelCor} size={14} />}
+                    Partner
+                  </div>
+                )}
+              </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => navigate('/perfil')} className="cursor-pointer">

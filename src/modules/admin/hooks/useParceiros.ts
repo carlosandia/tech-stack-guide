@@ -234,6 +234,35 @@ export function useStatusMetaParceiro(parceiroId: string): StatusNivelParceiro {
 
   const indicadosAtuais = parceiro.total_indicados_ativos ?? 0
 
+  // AIDEV-NOTE: Se tem nivel_override, usar diretamente em vez de calcular
+  if (parceiro.nivel_override) {
+    const nivelOverride = niveis.find((n: NivelParceiro) => n.nome === parceiro.nivel_override)
+    if (nivelOverride) {
+      const idxOverride = niveis.indexOf(nivelOverride)
+      const proxOverride = niveis[idxOverride + 1] ?? null
+      const faltamOverride = proxOverride ? Math.max(0, proxOverride.meta_indicados - indicadosAtuais) : 0
+      let percOverride = 0
+      if (proxOverride) {
+        const baseO = nivelOverride.meta_indicados
+        const rangeO = proxOverride.meta_indicados - baseO
+        if (rangeO > 0) percOverride = Math.min(100, ((indicadosAtuais - baseO) / rangeO) * 100)
+      } else {
+        percOverride = 100
+      }
+      return {
+        programaAtivo: true,
+        nivelAtual: nivelOverride,
+        proximoNivel: proxOverride,
+        indicadosAtuais,
+        indicadosFaltam: faltamOverride,
+        percentualProgresso: percOverride,
+        descricao: `${nivelOverride.nome} (definido manualmente)${proxOverride ? ` · Próximo: ${proxOverride.nome}` : ' · Nível máximo'}`,
+        cumpriuMeta: true,
+        indicadosNecessarios: proxOverride?.meta_indicados ?? nivelOverride.meta_indicados,
+      }
+    }
+  }
+
   // Encontrar o maior nível onde meta_indicados <= indicadosAtuais
   let nivelAtual: NivelParceiro | null = null
   let proximoNivel: NivelParceiro | null = null

@@ -14,6 +14,7 @@ export const ParceiroSchema = z.object({
   codigo_indicacao: z.string(),
   status: z.enum(['ativo', 'suspenso', 'inativo']),
   percentual_comissao: z.number().min(0).max(100).nullable(),
+  nivel_override: z.string().nullable().optional(), // AIDEV-NOTE: Override manual do nível pelo Super Admin
   aderiu_em: z.string().datetime(),
   suspenso_em: z.string().datetime().nullable(),
   motivo_suspensao: z.string().nullable(),
@@ -133,6 +134,7 @@ export const CriarParceiroSchema = z.object({
   organizacao_id: z.string().uuid('Selecione uma organização'),
   usuario_id: z.string().uuid('Admin da organização não encontrado'),
   percentual_comissao: z.number().min(0).max(100).nullable().optional(),
+  nivel_override: z.string().nullable().optional(), // AIDEV-NOTE: Nível inicial (null = progressão automática)
 })
 
 // AIDEV-NOTE: AtualizarParceiroSchema — tipo derivado via z.infer, nao editar manualmente
@@ -140,6 +142,7 @@ export const AtualizarParceiroSchema = z.object({
   status: z.enum(['ativo', 'suspenso', 'inativo']).optional(),
   percentual_comissao: z.number().min(0).max(100).nullable().optional(),
   motivo_suspensao: z.string().optional(),
+  nivel_override: z.string().nullable().optional(), // AIDEV-NOTE: Override manual do nível
 })
 
 // AIDEV-NOTE: AtualizarConfigProgramaSchema — tipo derivado via z.infer, nao editar manualmente

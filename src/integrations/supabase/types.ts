@@ -5992,6 +5992,7 @@ export type Database = {
           gratuidade_valida_ate: string | null
           id: string
           motivo_suspensao: string | null
+          nivel_override: string | null
           organizacao_id: string
           percentual_comissao: number | null
           status: string
@@ -6007,6 +6008,7 @@ export type Database = {
           gratuidade_valida_ate?: string | null
           id?: string
           motivo_suspensao?: string | null
+          nivel_override?: string | null
           organizacao_id: string
           percentual_comissao?: number | null
           status?: string
@@ -6022,6 +6024,7 @@ export type Database = {
           gratuidade_valida_ate?: string | null
           id?: string
           motivo_suspensao?: string | null
+          nivel_override?: string | null
           organizacao_id?: string
           percentual_comissao?: number | null
           status?: string
