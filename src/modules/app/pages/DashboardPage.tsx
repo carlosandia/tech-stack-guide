@@ -1,9 +1,12 @@
 import { forwardRef, useState } from 'react'
 import { useAuth } from '@/providers/AuthProvider'
-import { useRelatorioFunil, useFunis } from '../hooks/useRelatorioFunil'
+import { useRelatorioFunil, useFunis, useDashboardMetricasGerais } from '../hooks/useRelatorioFunil'
 import DashboardFilters from '../components/dashboard/DashboardFilters'
 import FunilConversao from '../components/dashboard/FunilConversao'
-import KPIsEstrategicos from '../components/dashboard/KPIsEstrategicos'
+import KPIsPrincipais from '../components/dashboard/KPIsPrincipais'
+import KPIsSecundarios from '../components/dashboard/KPIsSecundarios'
+import MotivosPerda from '../components/dashboard/MotivosPerda'
+import ProdutosRanking from '../components/dashboard/ProdutosRanking'
 import BreakdownCanal from '../components/dashboard/BreakdownCanal'
 import InvestModeWidget from '../components/dashboard/InvestModeWidget'
 import DashboardSkeleton from '../components/dashboard/DashboardSkeleton'
@@ -24,24 +27,33 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
   const [dataInicio, setDataInicio] = useState<string>()
   const [dataFim, setDataFim] = useState<string>()
 
-  // Queries
-  const { data: funis = [] } = useFunis()
-  const {
-    data: relatorio,
-    isLoading,
-    isError,
-    error,
-  } = useRelatorioFunil({
+  const query = {
     periodo,
     funil_id: funilId,
     data_inicio: periodo === 'personalizado' ? dataInicio : undefined,
     data_fim: periodo === 'personalizado' ? dataFim : undefined,
-  })
+  }
+
+  // Queries
+  const { data: funis = [] } = useFunis()
+  const {
+    data: relatorio,
+    isLoading: isLoadingRelatorio,
+    isError: isErrorRelatorio,
+    error: errorRelatorio,
+  } = useRelatorioFunil(query)
+
+  const {
+    data: metricasGerais,
+    isLoading: isLoadingMetricas,
+  } = useDashboardMetricasGerais(query)
 
   const handleDatasChange = (inicio: string, fim: string) => {
     setDataInicio(inicio)
     setDataFim(fim)
   }
+
+  const isLoading = isLoadingRelatorio || isLoadingMetricas
 
   // Loading
   if (isLoading) {
@@ -53,7 +65,7 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
   }
 
   // Error
-  if (isError) {
+  if (isErrorRelatorio) {
     return (
       <div ref={ref} className="h-full overflow-y-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="bg-destructive/5 border border-destructive/20 rounded-xl p-6 text-center">
@@ -62,7 +74,7 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
             Erro ao carregar relatório
           </h3>
           <p className="text-sm text-muted-foreground max-w-md mx-auto">
-            {error?.message || 'Ocorreu um erro inesperado. Tente novamente.'}
+            {errorRelatorio?.message || 'Ocorreu um erro inesperado. Tente novamente.'}
           </p>
         </div>
       </div>
@@ -108,8 +120,23 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
         {/* Invest Mode */}
         <InvestModeWidget data={relatorio} />
 
-        {/* KPIs Estratégicos */}
-        <KPIsEstrategicos data={relatorio} />
+        {/* KPIs Principais (6 cards) */}
+        {metricasGerais && (
+          <KPIsPrincipais relatorio={relatorio} metricas={metricasGerais} />
+        )}
+
+        {/* KPIs Secundários (4 cards) */}
+        {metricasGerais && (
+          <KPIsSecundarios relatorio={relatorio} metricas={metricasGerais} />
+        )}
+
+        {/* Gráficos lado a lado */}
+        {metricasGerais && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <MotivosPerda data={metricasGerais.motivos_perda} />
+            <ProdutosRanking data={metricasGerais.produtos_ranking} />
+          </div>
+        )}
 
         {/* Breakdown por Canal */}
         <BreakdownCanal data={relatorio.breakdown_canal} />

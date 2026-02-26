@@ -123,3 +123,33 @@ export interface FunilOption {
   id: string
   nome: string
 }
+
+// ─────────────────────────────────────────────────────
+// Métricas Gerais do Dashboard (fn_dashboard_metricas_gerais)
+// ─────────────────────────────────────────────────────
+
+export interface MotivosPerdaItem {
+  nome: string
+  cor: string
+  quantidade: number
+  percentual: number
+}
+
+export interface ProdutoRankingItem {
+  nome: string
+  quantidade: number
+  receita: number
+}
+
+export interface DashboardMetricasGerais {
+  perdas: number
+  valor_perdas: number
+  tarefas_abertas: number
+  total_oportunidades_historico: number
+  motivos_perda: MotivosPerdaItem[]
+  produtos_ranking: ProdutoRankingItem[]
+}
+
+export interface DashboardMetricasGeraisComVariacao extends DashboardMetricasGerais {
+  variacao_perdas: number | null
+}

@@ -8205,6 +8205,15 @@ export type Database = {
         }
         Returns: Json
       }
+      fn_dashboard_metricas_gerais: {
+        Args: {
+          p_funil_id?: string
+          p_organizacao_id: string
+          p_periodo_fim: string
+          p_periodo_inicio: string
+        }
+        Returns: Json
+      }
       fn_metricas_funil: {
         Args: {
           p_canal?: string
