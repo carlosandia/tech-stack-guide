@@ -50,18 +50,23 @@ export default function DashboardFilters({
   dataFim,
   onDatasChange,
 }: DashboardFiltersProps) {
-  const [showDatePicker, setShowDatePicker] = useState(false)
+  const [showDatePicker, setShowDatePicker] = useState(periodo === 'personalizado')
+  const [periodoLocal, setPeriodoLocal] = useState<Periodo>(periodo)
   const [dateRange, setDateRange] = useState<{ from?: Date; to?: Date }>({
     from: dataInicio ? new Date(dataInicio) : undefined,
     to: dataFim ? new Date(dataFim) : undefined,
   })
 
   const handlePeriodoClick = (p: Periodo) => {
-    onPeriodoChange(p)
+    setPeriodoLocal(p)
     if (p === 'personalizado') {
       setShowDatePicker(true)
+      if (dateRange.from && dateRange.to) {
+        onPeriodoChange(p)
+      }
     } else {
       setShowDatePicker(false)
+      onPeriodoChange(p)
     }
   }
 
@@ -69,6 +74,7 @@ export default function DashboardFilters({
     if (!range) return
     setDateRange(range)
     if (range.from && range.to) {
+      onPeriodoChange('personalizado')
       onDatasChange(
         format(range.from, 'yyyy-MM-dd'),
         format(range.to, 'yyyy-MM-dd')
@@ -79,7 +85,7 @@ export default function DashboardFilters({
   return (
     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
       {/* Período */}
-      <Select value={periodo} onValueChange={(v) => handlePeriodoClick(v as Periodo)}>
+      <Select value={periodoLocal} onValueChange={(v) => handlePeriodoClick(v as Periodo)}>
         <SelectTrigger className="h-9 text-xs w-full sm:w-[180px]">
           <SelectValue placeholder="Selecione o período" />
         </SelectTrigger>
@@ -93,7 +99,7 @@ export default function DashboardFilters({
       </Select>
 
       {/* DatePicker para personalizado */}
-      {(periodo === 'personalizado' || showDatePicker) && (
+      {(periodoLocal === 'personalizado' || showDatePicker) && (
         <Popover>
           <PopoverTrigger asChild>
             <button className="flex items-center gap-2 px-3 py-2 text-xs font-medium bg-card border border-border rounded-lg text-muted-foreground hover:text-foreground transition-colors">
