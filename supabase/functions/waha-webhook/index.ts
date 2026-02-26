@@ -2999,23 +2999,27 @@ Deno.serve(async (req) => {
     // STEP 4: Pre-opportunity (if enabled, only for individual)
     // =====================================================
     if (!isFromMe && !isGroup && !isChannel && sessao.auto_criar_pre_oportunidade && sessao.funil_destino_id) {
+      // AIDEV-NOTE: Preferir telefone/nome real do contato resolvido sobre phoneNumber bruto (pode ser LID)
+      const preOpPhone = existingContato?.telefone || phoneNumber;
+      const preOpName = phoneName || existingContato?.nome || null;
+
       // AIDEV-NOTE: Checar se telefone está bloqueado antes de criar pré-oportunidade
       const { data: bloqueado } = await supabaseAdmin
         .from("contatos_bloqueados_pre_op")
         .select("id")
         .eq("organizacao_id", sessao.organizacao_id)
-        .eq("phone_number", phoneNumber)
+        .eq("phone_number", preOpPhone)
         .maybeSingle();
 
       if (bloqueado) {
-        console.log(`[waha-webhook] Phone ${phoneNumber} blocked for pre-op, skipping`);
+        console.log(`[waha-webhook] Phone ${preOpPhone} blocked for pre-op, skipping`);
       } else {
 
       const { data: existingPreOp } = await supabaseAdmin
         .from("pre_oportunidades")
         .select("id, total_mensagens")
         .eq("organizacao_id", sessao.organizacao_id)
-        .eq("phone_number", phoneNumber)
+        .eq("phone_number", preOpPhone)
         .eq("status", "pendente")
         .is("deletado_em", null)
         .maybeSingle();
@@ -3027,7 +3031,7 @@ Deno.serve(async (req) => {
             ultima_mensagem: messageBody.substring(0, 500),
             ultima_mensagem_em: now,
             total_mensagens: (existingPreOp.total_mensagens || 0) + 1,
-            phone_name: phoneName || undefined,
+            phone_name: preOpName || undefined,
             atualizado_em: now,
           })
           .eq("id", existingPreOp.id);
@@ -3036,8 +3040,8 @@ Deno.serve(async (req) => {
           .from("pre_oportunidades")
           .insert({
             organizacao_id: sessao.organizacao_id,
-            phone_number: phoneNumber,
-            phone_name: phoneName,
+            phone_number: preOpPhone,
+            phone_name: preOpName,
             funil_destino_id: sessao.funil_destino_id,
             status: "pendente",
             primeira_mensagem: messageBody.substring(0, 500),
