@@ -189,16 +189,17 @@ export const NegociosToolbar = forwardRef<HTMLDivElement, NegociosToolbarProps>(
         {/* CTA: Nova Oportunidade */}
         <button
           onClick={onNovaOportunidade}
-          className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-all duration-200"
+          className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-all duration-200"
         >
           <Plus className="w-4 h-4" />
-          <span>Nova Oportunidade</span>
+          <span className="hidden lg:inline">Nova Oportunidade</span>
+          <span className="lg:hidden">Nova</span>
         </button>
 
         {/* Mobile: Icon-only CTA */}
         <button
           onClick={onNovaOportunidade}
-          className="sm:hidden p-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-all duration-200"
+          className="md:hidden p-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-all duration-200"
           title="Nova Oportunidade"
         >
           <Plus className="w-4 h-4" />
