@@ -12,6 +12,7 @@ import ProdutosRanking from '../components/dashboard/ProdutosRanking'
 import BreakdownCanal from '../components/dashboard/BreakdownCanal'
 import SectionHideButton from '../components/dashboard/SectionHideButton'
 import MetricasAtendimento from '../components/dashboard/MetricasAtendimento'
+import HeatmapAtendimento from '../components/dashboard/HeatmapAtendimento'
 import IndicadoresReunioes from '../components/dashboard/IndicadoresReunioes'
 import RelatorioMetas from '../components/dashboard/RelatorioMetas'
 import DashboardSkeleton from '../components/dashboard/DashboardSkeleton'
@@ -86,7 +87,7 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
     if (cfg) {
       const sections: ToggleableSectionId[] = [
         'metas', 'funil', 'reunioes', 'kpis-principais', 'kpis-secundarios',
-        'canal', 'motivos', 'produtos', 'atendimento'
+        'canal', 'motivos', 'produtos', 'atendimento', 'pico-atendimento'
       ]
       sections.forEach((key) => {
         if (cfg[key] !== undefined && cfg[key] !== displayConfig[key]) {
@@ -203,6 +204,11 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
       visible: displayConfig.atendimento,
       toggleId: 'atendimento',
       render: () => <MetricasAtendimento query={query} />,
+    },
+    'pico-atendimento': {
+      visible: displayConfig['pico-atendimento'],
+      toggleId: 'pico-atendimento',
+      render: () => <HeatmapAtendimento query={query} />,
     },
   }
 

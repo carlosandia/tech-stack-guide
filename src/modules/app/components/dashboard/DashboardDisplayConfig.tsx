@@ -27,6 +27,7 @@ const SECTIONS: { id: ToggleableSectionId; label: string }[] = [
   { id: 'motivos', label: 'Motivos de ganho e perda' },
   { id: 'produtos', label: 'Produtos mais vendidos' },
   { id: 'atendimento', label: 'Indicadores de atendimento' },
+  { id: 'pico-atendimento', label: 'Pico de atendimento' },
 ]
 
 export default function DashboardDisplayConfig({ config, onToggle }: Props) {

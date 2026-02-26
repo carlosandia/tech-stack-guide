@@ -17,6 +17,7 @@ import type {
   DashboardMetricasGeraisComVariacao,
   MetricasAtendimento,
   RelatorioMetasDashboard,
+  HeatmapAtendimentoItem,
 } from '../types/relatorio.types'
 
 // ─────────────────────────────────────────────────────
@@ -451,4 +452,34 @@ export async function fetchRelatorioMetas(query: FunilQuery): Promise<RelatorioM
   if (!result || result.resumo.total_metas === 0) return null
 
   return result
+}
+
+// ─────────────────────────────────────────────────────
+// Heatmap de Atendimento (fn_heatmap_atendimento)
+// ─────────────────────────────────────────────────────
+
+export async function fetchHeatmapAtendimento(query: FunilQuery, canal?: string): Promise<HeatmapAtendimentoItem[]> {
+  const organizacaoId = await getOrganizacaoId()
+  const periodo = resolverPeriodo(query)
+
+  const rpcParams: Record<string, unknown> = {
+    p_organizacao_id: organizacaoId,
+    p_periodo_inicio: periodo.inicio.toISOString(),
+    p_periodo_fim: periodo.fim.toISOString(),
+  }
+  if (canal) {
+    rpcParams.p_canal = canal
+  }
+
+  const { data, error } = await supabase.rpc('fn_heatmap_atendimento' as never, rpcParams as never)
+
+  if (error) throw new Error(`Erro ao calcular heatmap de atendimento: ${error.message}`)
+
+  if (!data || !Array.isArray(data)) return []
+
+  return (data as unknown as HeatmapAtendimentoItem[]).map(item => ({
+    dia_semana: Number(item.dia_semana),
+    hora: Number(item.hora),
+    total: Number(item.total),
+  }))
 }

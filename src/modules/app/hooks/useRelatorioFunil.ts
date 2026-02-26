@@ -4,7 +4,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { fetchRelatorioFunil, salvarInvestimento, removerInvestimento, fetchFunis, fetchDashboardMetricasGerais, fetchMetricasAtendimento, fetchRelatorioMetas } from '../services/relatorio.service'
+import { fetchRelatorioFunil, salvarInvestimento, removerInvestimento, fetchFunis, fetchDashboardMetricasGerais, fetchMetricasAtendimento, fetchRelatorioMetas, fetchHeatmapAtendimento } from '../services/relatorio.service'
 import type { FunilQuery, SalvarInvestimentoPayload } from '../types/relatorio.types'
 import { toast } from 'sonner'
 
@@ -82,5 +82,14 @@ export function useRemoverInvestimento() {
     onError: (error: Error) => {
       toast.error(`Erro ao remover investimento: ${error.message}`)
     },
+  })
+}
+
+export function useHeatmapAtendimento(query: FunilQuery, canal?: string) {
+  return useQuery({
+    queryKey: ['heatmap-atendimento', query, canal],
+    queryFn: () => fetchHeatmapAtendimento(query, canal),
+    staleTime: STALE_TIME,
+    retry: 1,
   })
 }
