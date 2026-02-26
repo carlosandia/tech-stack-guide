@@ -5,7 +5,7 @@
  */
 
 import { useState, useRef, useEffect, useCallback, forwardRef } from 'react'
-import { SlidersHorizontal, Check } from 'lucide-react'
+import { BarChart3, Check } from 'lucide-react'
 import { useSalvarPreferenciasMetricas } from '../../hooks/usePreOportunidades'
 
 export interface MetricasVisiveis {
@@ -64,9 +64,11 @@ interface FiltrarMetricasPopoverProps {
   funilId: string | null
   visiveis: MetricasVisiveis
   onChange: (visiveis: MetricasVisiveis) => void
+  metricasVisivel: boolean
+  onToggleMetricas: () => void
 }
 
-export const FiltrarMetricasPopover = forwardRef<HTMLDivElement, FiltrarMetricasPopoverProps>(function FiltrarMetricasPopover({ funilId, visiveis, onChange }, _ref) {
+export const FiltrarMetricasPopover = forwardRef<HTMLDivElement, FiltrarMetricasPopoverProps>(function FiltrarMetricasPopover({ funilId, visiveis, onChange, metricasVisivel, onToggleMetricas }, _ref) {
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const salvarPreferencias = useSalvarPreferenciasMetricas()
@@ -120,19 +122,36 @@ export const FiltrarMetricasPopover = forwardRef<HTMLDivElement, FiltrarMetricas
       <button
         onClick={() => setOpen(!open)}
         className={`
-          p-1 rounded transition-all duration-200
-          ${temFiltro
+          p-2 rounded-md transition-all duration-200
+          ${metricasVisivel
             ? 'text-primary hover:bg-primary/10'
             : 'text-muted-foreground hover:bg-accent'
           }
         `}
-        title="Filtrar métricas"
+        title="Métricas"
       >
-        <SlidersHorizontal className="w-3.5 h-3.5" />
+        <BarChart3 className="w-4 h-4" />
       </button>
 
       {open && (
         <div className="absolute right-0 top-full mt-1 w-56 bg-card border border-border rounded-lg shadow-lg z-[60] animate-enter">
+          {/* Toggle painel */}
+          <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+            <span className="text-xs font-medium text-foreground">Exibir painel</span>
+            <button
+              onClick={onToggleMetricas}
+              className={`
+                w-8 h-[18px] rounded-full transition-colors duration-200 relative
+                ${metricasVisivel ? 'bg-primary' : 'bg-input'}
+              `}
+            >
+              <span className={`
+                absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white shadow-sm transition-transform duration-200
+                ${metricasVisivel ? 'left-[16px]' : 'left-[2px]'}
+              `} />
+            </button>
+          </div>
+
           {/* Header */}
           <div className="flex items-center justify-between px-3 py-2 border-b border-border">
             <span className="text-xs font-semibold text-foreground">
