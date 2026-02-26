@@ -103,7 +103,7 @@ export interface RelatorioFunilResponse {
   conversoes: {
     lead_para_mql: number | null
     mql_para_sql: number | null
-    sql_para_reuniao_agendada: number | null
+    lead_para_reuniao_agendada: number | null
     reuniao_agendada_para_realizada: number | null
     reuniao_realizada_para_fechado: number | null
     lead_para_fechado: number | null

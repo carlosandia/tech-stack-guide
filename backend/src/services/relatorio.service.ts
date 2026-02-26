@@ -182,7 +182,7 @@ export async function calcularRelatorioFunil(
   const conversoes = {
     lead_para_mql: calcularTaxa(metricas.mqls, metricas.total_leads),
     mql_para_sql: calcularTaxa(metricas.sqls, metricas.mqls),
-    sql_para_reuniao_agendada: calcularTaxa(metricas.reunioes_agendadas, metricas.sqls),
+    lead_para_reuniao_agendada: calcularTaxa(metricas.reunioes_agendadas, metricas.total_leads),
     reuniao_agendada_para_realizada: calcularTaxa(metricas.reunioes_realizadas, metricas.reunioes_agendadas),
     reuniao_realizada_para_fechado: calcularTaxa(metricas.fechados, metricas.reunioes_realizadas),
     lead_para_fechado: calcularTaxa(metricas.fechados, metricas.total_leads),
