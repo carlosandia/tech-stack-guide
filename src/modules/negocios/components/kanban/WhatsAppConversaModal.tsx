@@ -84,7 +84,7 @@ export function WhatsAppConversaModal({ isOpen, onClose, contatoId, contatoNome,
         // AIDEV-NOTE: Fallback 2 - usar RPC resolve_lid_conversa para LIDs (números > 14 dígitos)
         if (!data && !contatoId && telefone) {
           const phoneClean = telefone.replace(/\D/g, '')
-          if (phoneClean.length > 14) {
+          if (phoneClean.length >= 14) {
             try {
               const organizacaoId = await getOrganizacaoId()
               const { data: rpcResult } = await supabase
