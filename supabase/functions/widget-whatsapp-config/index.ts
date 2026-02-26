@@ -178,7 +178,11 @@ Deno.serve(async (req) => {
     // =====================================================
     if (req.method === "POST") {
       const body = await req.json();
-      const { dados, config: widgetCfg } = body;
+      const { dados, config: widgetCfg, utm: utmData } = body;
+      // AIDEV-NOTE: Extrair UTMs enviados pelo widget loader para rastreabilidade de campanha
+      const utmSource = utmData?.utm_source || null;
+      const utmMedium = utmData?.utm_medium || null;
+      const utmCampaign = utmData?.utm_campaign || null;
 
       if (!dados || !widgetCfg) {
         return new Response(
@@ -234,7 +238,7 @@ Deno.serve(async (req) => {
             nome: nomeContato,
             telefone: telefoneContato || null,
             email: emailContato || null,
-            origem: "whatsapp",
+            origem: "whatsapp_widget",
             status: "novo",
           })
           .select("id")
@@ -299,6 +303,10 @@ Deno.serve(async (req) => {
             contato_id: contatoId,
             titulo: tituloAuto,
             valor: 0,
+            origem: "whatsapp_widget",
+            ...(utmSource ? { utm_source: utmSource } : {}),
+            ...(utmMedium ? { utm_medium: utmMedium } : {}),
+            ...(utmCampaign ? { utm_campaign: utmCampaign } : {}),
           })
           .select("id")
           .single();

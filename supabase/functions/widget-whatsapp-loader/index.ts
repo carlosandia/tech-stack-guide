@@ -183,8 +183,9 @@ function getWidgetScript(): string {
         if(fld.value)dadosObj[label]=fld.value;
         if(fld.value&&fld.type!=='hidden')partsFormatted.push('*'+label+':*\\n'+fld.value);
       }
+      var utmParams={};try{var sp=new URLSearchParams(window.location.search);var us=sp.get('utm_source');var um=sp.get('utm_medium');var uc=sp.get('utm_campaign');if(us)utmParams.utm_source=us;if(um)utmParams.utm_medium=um;if(uc)utmParams.utm_campaign=uc}catch(ue){}
       try{
-        fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dados:dadosObj,config:cfg})}).catch(function(){});
+        fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dados:dadosObj,config:cfg,utm:utmParams})}).catch(function(){});
       }catch(ex){}
       var text=partsFormatted.length?encodeURIComponent(partsFormatted.join('\\n\\n')):'';
       window.open('https://wa.me/'+numero+(text?'?text='+text:''),'_blank');
