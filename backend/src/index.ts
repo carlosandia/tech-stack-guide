@@ -60,6 +60,9 @@ import segmentosRoutes from './routes/segmentos.js'
 import feedbacksRoutes from './routes/feedbacks.js'
 import notificacoesRoutes from './routes/notificacoes.js'
 
+// Rotas PRD-18 - Relatório de Funil
+import relatorioRoutes from './routes/relatorio.js'
+
 /**
  * AIDEV-NOTE: Ponto de entrada do backend
  * Configuracao de middlewares globais e rotas
@@ -198,6 +201,9 @@ app.use('/api/v1/tarefas', tarefasRoutes)
 // AIDEV-NOTE: Auth e requireTenant ja estao nos routers
 app.use('/api/v1/feedbacks', feedbacksRoutes)
 app.use('/api/v1/notificacoes', notificacoesRoutes)
+
+// Rotas PRD-18 - Relatório de Funil (requer autenticacao + tenant)
+app.use('/api/v1/relatorio', authMiddleware, requireTenant, relatorioRoutes)
 
 // Webhooks PRD-08 - Conexoes (publico - nao requer autenticacao)
 app.post('/webhooks/waha/:organizacao_id', wahaWebhookHandler)
