@@ -31,6 +31,7 @@ import { useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
+import { compressImage } from '@/shared/utils/compressMedia'
 
 interface EditorToolbarProps {
   editor: Editor | null
@@ -134,14 +135,29 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
 
     setUploading(true)
     try {
+      // AIDEV-NOTE: Buscar organizacao_id para path RLS-compatível
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { toast.error('Usuário não autenticado'); return }
+      const { data: orgData } = await supabase
+        .from('usuarios')
+        .select('organizacao_id')
+        .eq('auth_id', user.id)
+        .maybeSingle()
+      const orgId = orgData?.organizacao_id
+      if (!orgId) { toast.error('Organização não encontrada'); return }
+
+      // AIDEV-NOTE: Comprimir imagem antes do upload (reutiliza compressImage do módulo /conversas)
+      const compressed = await compressImage(file, file.name)
+
       // AIDEV-NOTE: Seg — extensão derivada do MIME (não do filename — previne path traversal)
       const ext = MIME_TO_EXT[file.type] || 'jpg'
       const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
-      const filePath = `assinaturas/${fileName}`
+      // AIDEV-NOTE: Path com organizacao_id como primeiro segmento para cumprir RLS do bucket
+      const filePath = `${orgId}/assinaturas/${fileName}`
 
       const { error: uploadError } = await supabase.storage
         .from('assinaturas')
-        .upload(filePath, file, { contentType: file.type })
+        .upload(filePath, compressed, { contentType: compressed instanceof File ? compressed.type : file.type })
 
       if (uploadError) throw uploadError
 
