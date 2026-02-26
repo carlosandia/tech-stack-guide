@@ -148,11 +148,18 @@ async function buscarBreakdownCanal(
   }))
 }
 
+interface InvestimentoDetalhado {
+  total: number
+  meta_ads: number
+  google_ads: number
+  outros: number
+}
+
 async function buscarInvestimentoPeriodo(
   organizacaoId: string,
   inicio: Date,
   fim: Date
-): Promise<number | null> {
+): Promise<InvestimentoDetalhado | null> {
   const { data, error } = await supabase
     .from('investimentos_marketing' as never)
     .select('canal, valor')
@@ -161,27 +168,46 @@ async function buscarInvestimentoPeriodo(
     .lte('periodo_fim', fim.toISOString().slice(0, 10))
 
   if (error || !data || data.length === 0) return null
-  const total = (data as Array<{ valor: number }>).reduce((soma, inv) => soma + Number(inv.valor), 0)
-  return total > 0 ? total : null
+
+  const rows = data as Array<{ canal: string; valor: number }>
+  const resultado: InvestimentoDetalhado = { total: 0, meta_ads: 0, google_ads: 0, outros: 0 }
+
+  for (const row of rows) {
+    const valor = Number(row.valor)
+    if (row.canal === 'meta_ads') resultado.meta_ads = valor
+    else if (row.canal === 'google_ads') resultado.google_ads = valor
+    else if (row.canal === 'outros') resultado.outros = valor
+    else if (row.canal === 'total') resultado.total = valor
+  }
+
+  if (resultado.total === 0) {
+    resultado.total = resultado.meta_ads + resultado.google_ads + resultado.outros
+  }
+
+  return resultado.total > 0 ? resultado : null
 }
 
 function construirInvestMode(
-  totalInvestido: number | null,
+  investimento: InvestimentoDetalhado | null,
   metricas: MetricasBrutas
 ): RelatorioFunilResponse['invest_mode'] {
-  if (!totalInvestido) return { ativo: false }
+  if (!investimento) return { ativo: false }
 
+  const t = investimento.total
   return {
     ativo: true,
-    total_investido: totalInvestido,
-    cpl: metricas.total_leads > 0 ? Math.round((totalInvestido / metricas.total_leads) * 100) / 100 : null,
-    cpmql: metricas.mqls > 0 ? Math.round((totalInvestido / metricas.mqls) * 100) / 100 : null,
-    custo_por_sql: metricas.sqls > 0 ? Math.round((totalInvestido / metricas.sqls) * 100) / 100 : null,
-    custo_por_reuniao_agendada: metricas.reunioes_agendadas > 0 ? Math.round((totalInvestido / metricas.reunioes_agendadas) * 100) / 100 : null,
-    custo_por_reuniao_realizada: metricas.reunioes_realizadas > 0 ? Math.round((totalInvestido / metricas.reunioes_realizadas) * 100) / 100 : null,
-    cac: metricas.fechados > 0 ? Math.round((totalInvestido / metricas.fechados) * 100) / 100 : null,
-    romi: metricas.valor_gerado > 0 && totalInvestido > 0
-      ? Math.round(((metricas.valor_gerado - totalInvestido) / totalInvestido) * 1000) / 10
+    total_investido: t,
+    meta_ads: investimento.meta_ads,
+    google_ads: investimento.google_ads,
+    outros: investimento.outros,
+    cpl: metricas.total_leads > 0 ? Math.round((t / metricas.total_leads) * 100) / 100 : null,
+    cpmql: metricas.mqls > 0 ? Math.round((t / metricas.mqls) * 100) / 100 : null,
+    custo_por_sql: metricas.sqls > 0 ? Math.round((t / metricas.sqls) * 100) / 100 : null,
+    custo_por_reuniao_agendada: metricas.reunioes_agendadas > 0 ? Math.round((t / metricas.reunioes_agendadas) * 100) / 100 : null,
+    custo_por_reuniao_realizada: metricas.reunioes_realizadas > 0 ? Math.round((t / metricas.reunioes_realizadas) * 100) / 100 : null,
+    cac: metricas.fechados > 0 ? Math.round((t / metricas.fechados) * 100) / 100 : null,
+    romi: metricas.valor_gerado > 0 && t > 0
+      ? Math.round(((metricas.valor_gerado - t) / t) * 1000) / 10
       : null,
   }
 }

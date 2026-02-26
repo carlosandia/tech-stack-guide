@@ -65,9 +65,11 @@ export default function InvestModeWidget({ data }: InvestModeWidgetProps) {
 
   const handleEditar = () => {
     setModoEdicao(true)
-    setMetaAds('')
-    setGoogleAds('')
-    setOutros('')
+    if (investMode.ativo) {
+      setMetaAds(investMode.meta_ads ? String(investMode.meta_ads) : '')
+      setGoogleAds(investMode.google_ads ? String(investMode.google_ads) : '')
+      setOutros(investMode.outros ? String(investMode.outros) : '')
+    }
   }
 
   const isAtivo = investMode.ativo
