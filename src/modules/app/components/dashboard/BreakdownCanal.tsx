@@ -112,11 +112,13 @@ export default function BreakdownCanal({ data }: BreakdownCanalProps) {
                 <HelpCircle className="w-3.5 h-3.5" />
               </button>
             </PopoverTrigger>
-            <PopoverContent className="w-72 text-xs" side="top">
-              <p className="mb-1.5">Distribuição de oportunidades por canal de aquisição.</p>
-              <p className="text-muted-foreground">
-                <strong>Prioridade:</strong> Se a oportunidade possui UTM (utm_source), esse valor é usado. Caso contrário, usa a origem do fluxo de criação (WhatsApp, formulário, etc.). Se nenhum estiver definido, aparece como "Direto".
-              </p>
+            <PopoverContent className="w-80 text-xs space-y-2" side="top">
+              <p className="font-semibold text-foreground">Como o canal é definido?</p>
+              <div className="space-y-1.5 text-muted-foreground">
+                <p><strong className="text-foreground">1. UTM (utm_source)</strong> — Sempre prioridade. Se o lead chegou com parâmetro UTM (ex: Meta Ads, Google Ads), esse valor é usado independente do canal de entrada.</p>
+                <p><strong className="text-foreground">2. Origem do fluxo</strong> — Se não tem UTM, usa a origem automática: WhatsApp, Formulário, Widget, Webhook, etc.</p>
+                <p><strong className="text-foreground">3. Direto / Manual</strong> — Quando nenhuma das anteriores existe. Ex: oportunidade criada manualmente sem origem definida.</p>
+              </div>
             </PopoverContent>
           </Popover>
         </div>
@@ -149,12 +151,14 @@ export default function BreakdownCanal({ data }: BreakdownCanalProps) {
               <HelpCircle className="w-3.5 h-3.5" />
             </button>
           </PopoverTrigger>
-          <PopoverContent className="w-72 text-xs" side="top">
-            <p className="mb-1.5">Distribuição de oportunidades por canal de aquisição.</p>
-            <p className="text-muted-foreground">
-              <strong>Prioridade:</strong> Se a oportunidade possui UTM (utm_source), esse valor é usado. Caso contrário, usa a origem do fluxo de criação (WhatsApp, formulário, etc.). Se nenhum estiver definido, aparece como "Direto".
-            </p>
-          </PopoverContent>
+          <PopoverContent className="w-80 text-xs space-y-2" side="top">
+              <p className="font-semibold text-foreground">Como o canal é definido?</p>
+              <div className="space-y-1.5 text-muted-foreground">
+                <p><strong className="text-foreground">1. UTM (utm_source)</strong> — Sempre prioridade. Se o lead chegou com parâmetro UTM (ex: Meta Ads, Google Ads), esse valor é usado independente do canal de entrada.</p>
+                <p><strong className="text-foreground">2. Origem do fluxo</strong> — Se não tem UTM, usa a origem automática: WhatsApp, Formulário, Widget, Webhook, etc.</p>
+                <p><strong className="text-foreground">3. Direto / Manual</strong> — Quando nenhuma das anteriores existe. Ex: oportunidade criada manualmente sem origem definida.</p>
+              </div>
+            </PopoverContent>
         </Popover>
       </div>
 
