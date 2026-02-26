@@ -7,6 +7,22 @@
     <title>Renove CRM - Ecossistema Marketing</title>
   </head>
   <body>
+    <script>
+      // AIDEV-NOTE: Handler global executado ANTES de qualquer bundle
+      // Captura erros de WebSocket do Vite HMR que ocorrem antes do React carregar
+      window.addEventListener('unhandledrejection', function(e) {
+        var msg = (e.reason && e.reason.message) || String(e.reason || '');
+        if (msg.indexOf('WebSocket') !== -1 || msg.indexOf('closed without opened') !== -1) {
+          e.preventDefault();
+        }
+      });
+      window.addEventListener('error', function(e) {
+        var msg = (e.message || '');
+        if (msg.indexOf('WebSocket') !== -1 || msg.indexOf('closed without opened') !== -1) {
+          e.preventDefault();
+        }
+      });
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
