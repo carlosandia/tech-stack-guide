@@ -542,11 +542,7 @@ export const negociosApi = {
     usuario_responsavel_id?: string
     previsao_fechamento?: string
     observacoes?: string
-    utm_source?: string
-    utm_campaign?: string
-    utm_medium?: string
-    utm_term?: string
-    utm_content?: string
+    origem?: string
   }): Promise<Oportunidade> => {
     const organizacaoId = await getOrganizacaoId()
     const userId = await getUsuarioId()
@@ -568,16 +564,9 @@ export const negociosApi = {
       previsao_fechamento: payload.previsao_fechamento || null,
       observacoes: payload.observacoes || null,
       criado_por: userId,
-      // AIDEV-NOTE: origem sempre preenchida — 'manual' como default para criação via modal
-      origem: 'manual',
+      // AIDEV-NOTE: origem dinâmica — default 'manual' para criação via modal
+      origem: payload.origem || 'manual',
     }
-
-    // Adicionar UTMs se presentes
-    if (payload.utm_source) insertData.utm_source = payload.utm_source
-    if (payload.utm_campaign) insertData.utm_campaign = payload.utm_campaign
-    if (payload.utm_medium) insertData.utm_medium = payload.utm_medium
-    if (payload.utm_term) insertData.utm_term = payload.utm_term
-    if (payload.utm_content) insertData.utm_content = payload.utm_content
 
     const { data, error } = await supabase
       .from('oportunidades')
