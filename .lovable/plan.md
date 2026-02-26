@@ -1,22 +1,20 @@
 
-# Plano: Corrigir Canal de Origem — CONCLUÍDO ✅
 
-## O que foi feito
+# Plano: Adicionar card "Agendadas" nos Indicadores de Reuniões
 
-### 1. Migration: coluna `origem` em oportunidades
-- Coluna `origem VARCHAR(50) DEFAULT 'manual'` adicionada
-- Backfill executado: oportunidades existentes herdaram `origem` do contato vinculado
-- RPC `fn_breakdown_canal_funil` atualizado para usar `COALESCE(NULLIF(TRIM(utm_source), ''), origem, 'direto')`
+## O que falta
 
-### 2. Fluxos de criação atualizados
-- **Modal manual** (`negocios.api.ts`): `origem: 'manual'`
-- **Pré-oportunidade WhatsApp** (`pre-oportunidades.api.ts`): `origem: 'whatsapp'`
-- **Meta Lead Ads** (`meta-leadgen-webhook`): `origem: 'meta_ads'` + `utm_source: 'meta_ads'`
-- **Formulário** (`processar-submissao-formulario`): `origem: 'formulario'`
+O componente `IndicadoresReunioes.tsx` já recebe `funil.reunioes_agendadas` nos dados, mas não exibe um card com essa quantidade. Precisa adicionar como primeiro card da seção para contextualizar todos os demais indicadores.
 
-### 3. Trigger de herança automática
-- `trg_herdar_origem_contato` (BEFORE INSERT): se a oportunidade não tem origem explícita, herda do contato
-- Cobre automações e triggers que criam oportunidades sem setar origem
+## Alteração
 
-### Prioridade de canal no gráfico
-`utm_source` > `origem` > `'direto'`
+**Arquivo:** `src/modules/app/components/dashboard/IndicadoresReunioes.tsx`
+
+- Adicionar um card "Agendadas" como primeiro item do array `cards`, com:
+  - Icone: `CalendarCheck` (lucide)
+  - Cor: azul (`text-primary` / `bg-primary/10`)
+  - Valor: `funil.reunioes_agendadas`
+  - Tooltip: "Total de reuniões agendadas no período selecionado."
+- Ajustar o grid para 6 colunas em telas grandes (`lg:grid-cols-6`) para acomodar o novo card
+
+Nenhuma alteração em banco, types ou services — o dado já está disponível.
