@@ -1,61 +1,51 @@
 
+# Plano: Corrigir Reunioes no Funil de Conversao
 
-# Plano: Adicionar tooltips explicativos no Funil de Conversao
+## Problemas Identificados
 
-## O que sera feito
+### 1. SQL conta reunioes "reagendadas" como agendadas (double-counting)
+A query de `reunioes_agendadas` na funcao `fn_metricas_funil` filtra apenas por `cancelada_em IS NULL`, mas nao exclui reunioes com status `reagendada`. Quando um usuario reagenda uma reuniao, o sistema cria um NOVO registro e marca o antigo como "reagendada". Contar ambos infla o numero.
 
-Adicionar um icone (?) sutil ao lado de cada titulo de etapa do funil (Leads, MQLs, SQLs, R. Agendadas, R. Realizadas, Ganhos) com Tooltip explicativo claro sobre o que cada metrica representa.
+Dados reais confirmam: oportunidade `22624ad2` tem 2 registros — um com status "reagendada" (antigo) e outro "agendada" (novo). Ambos sao contados.
 
-## Alteracoes
+### 2. Taxa de conversao "—" no card R. Agendadas
+A conversao `sql_para_reuniao_agendada` usa `calcularTaxa(reunioes_agendadas, sqls)`. Quando SQLs = 0 (como no cenario atual), retorna null e exibe "—". Porem, existem 3 reunioes agendadas, entao a taxa deveria usar um fallback (total_leads como denominador).
 
-### Arquivo: `src/modules/app/components/dashboard/FunilConversao.tsx`
+### 3. Texto "conversao" duplicado no desktop
+Linhas 190-198 do FunilConversao.tsx repetem o bloco `{etapa.taxaLabel} conversão` duas vezes dentro do card desktop.
 
-**1. Adicionar campo `tooltip` na interface `EtapaFunil` e nos dados de cada etapa:**
+---
 
-| Etapa | Tooltip |
-|-------|---------|
-| Leads | "Total de oportunidades criadas no periodo e funil selecionado. Representa o topo do funil." |
-| MQLs | "Marketing Qualified Leads. Oportunidades que atenderam os criterios de qualificacao configurados e se tornaram leads qualificados para marketing." |
-| SQLs | "Sales Qualified Leads. Leads que foram validados pela equipe comercial como prontos para abordagem de vendas." |
-| R. Agendadas | "Reunioes agendadas com os leads qualificados. Indica o volume de conversas comerciais marcadas no periodo." |
-| R. Realizadas | "Reunioes que foram efetivamente realizadas. Diferenca entre agendadas e realizadas indica taxa de no-show." |
-| Ganhos | "Negocios fechados com sucesso. Oportunidades que passaram por todo o funil e foram convertidas em vendas." |
+## Solucao
 
-**2. Importar componentes de Tooltip do design system:**
-```tsx
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { HelpCircle } from 'lucide-react'
+### Alteracao 1: Migration SQL — excluir "reagendada" de agendadas
+
+Recriar `fn_metricas_funil` com filtro adicional `AND r.status != 'reagendada'` no bloco de `reunioes_agendadas`. Reunioes reagendadas ja sao contadas separadamente no campo `reunioes_reagendadas`.
+
+```sql
+-- Bloco reunioes_agendadas: adicionar
+AND r.status NOT IN ('reagendada')
 ```
 
-**3. No header de cada card (desktop), adicionar o (?) ao lado do label:**
-```tsx
-<div className="flex items-center gap-1 mb-2">
-  <div className={`w-7 h-7 rounded-lg ...`}>
-    <Icon ... />
-  </div>
-  <span className="text-[10px] ...">{etapa.label}</span>
-  <Tooltip>
-    <TooltipTrigger asChild>
-      <HelpCircle className="w-3 h-3 text-muted-foreground/40 hover:text-muted-foreground cursor-help shrink-0" />
-    </TooltipTrigger>
-    <TooltipContent side="top" className="max-w-[200px]">
-      <p className="text-xs">{etapa.tooltip}</p>
-    </TooltipContent>
-  </Tooltip>
-</div>
+### Alteracao 2: Service — fallback de conversao para R. Agendadas
+
+No `relatorio.service.ts`, ao calcular `sql_para_reuniao_agendada`: se `sqls` = 0, usar `total_leads` como denominador. Isso garante que a taxa de conversao sempre apareca quando existem reunioes.
+
+```typescript
+sql_para_reuniao_agendada: calcularTaxa(
+  metricas.reunioes_agendadas,
+  metricas.sqls > 0 ? metricas.sqls : metricas.total_leads
+),
 ```
 
-**4. Mesmo padrao no layout mobile (vertical cards).**
+### Alteracao 3: FunilConversao.tsx — remover linha duplicada
 
-**5. Envolver todo o componente com `<TooltipProvider>`.**
+Remover o bloco duplicado nas linhas 195-198 (segunda ocorrencia de `{etapa.taxaLabel} conversão`).
 
-**6. Ajuste de largura dos cards para evitar "estourar":**
-- Reduzir padding dos cards de `p-3` para `p-2.5`
-- Usar `min-w-0` nos flex items para permitir encolhimento
-- Labels "R. Agendadas" e "R. Realizadas" ja estao abreviados, mantendo compactos
+---
 
-### Nao serao alterados
-- Logica de calculo (ja esta correta)
-- Layout geral (horizontal desktop / vertical mobile)
-- Cores e icones existentes
+## Arquivos Afetados
 
+1. `supabase/migrations/` — nova migration para recriar `fn_metricas_funil`
+2. `src/modules/app/services/relatorio.service.ts` — fallback de conversao (linha 232)
+3. `src/modules/app/components/dashboard/FunilConversao.tsx` — remover duplicata (linhas 195-198)
