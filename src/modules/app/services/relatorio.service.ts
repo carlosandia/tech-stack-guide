@@ -188,13 +188,24 @@ async function buscarInvestimentoPeriodo(
   return resultado.total > 0 ? resultado : null
 }
 
+// AIDEV-NOTE: construirInvestMode aceita canal opcional para calcular custos por canal específico
 function construirInvestMode(
   investimento: InvestimentoDetalhado | null,
-  metricas: MetricasBrutas
+  metricas: MetricasBrutas,
+  canalFiltro?: string | null
 ): RelatorioFunilResponse['invest_mode'] {
   if (!investimento) return { ativo: false }
 
-  const t = investimento.total
+  // Se canal específico, usar apenas o investimento daquele canal
+  const t = canalFiltro
+    ? (canalFiltro === 'meta_ads' ? investimento.meta_ads
+      : canalFiltro === 'google_ads' ? investimento.google_ads
+      : canalFiltro === 'outros' ? investimento.outros
+      : investimento.total)
+    : investimento.total
+
+  if (t <= 0) return { ativo: false }
+
   return {
     ativo: true,
     total_investido: t,
@@ -274,7 +285,7 @@ export async function fetchRelatorioFunil(query: FunilQuery): Promise<RelatorioF
       ticket_medio: calcularVariacao(metricas.ticket_medio, metricasAnteriores.ticket_medio),
     },
     breakdown_canal: breakdownCanal,
-    invest_mode: construirInvestMode(totalInvestido, metricas),
+    invest_mode: construirInvestMode(totalInvestido, metricas, query.canal),
   }
 }
 

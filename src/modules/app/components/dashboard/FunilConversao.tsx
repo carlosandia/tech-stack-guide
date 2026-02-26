@@ -3,18 +3,22 @@
  * 6 blocos: Leads → MQLs → SQLs → Reuniões Agendadas → Reuniões Realizadas → Ganhos
  * Com taxas de conversão e custos de investimento integrados
  * Suporta configuração de etapas visíveis com recálculo inteligente
+ * Suporta filtro por canal de investimento (Meta Ads, Google Ads, Outros)
  */
 
+import { useState } from 'react'
 import { ArrowRight, Users, Target, UserCheck, CalendarPlus, CalendarCheck, Trophy, DollarSign, HelpCircle, SlidersHorizontal } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { useFunilEtapasConfig } from '../../hooks/useFunilEtapasConfig'
-import type { RelatorioFunilResponse, InvestMode } from '../../types/relatorio.types'
+import { useRelatorioFunil } from '../../hooks/useRelatorioFunil'
+import type { RelatorioFunilResponse, InvestMode, FunilQuery } from '../../types/relatorio.types'
 
 interface FunilConversaoProps {
   data: RelatorioFunilResponse
+  query?: FunilQuery
 }
 
 // AIDEV-NOTE: configKey null = etapa fixa (Leads/Ganhos), string = etapa configurável
@@ -53,6 +57,13 @@ function getCustos(investMode: InvestMode) {
   }
 }
 
+// AIDEV-NOTE: Mapeamento de canal de investimento para canal derivado do funil
+const CANAL_MAP: Record<string, { label: string; canalQuery: string }> = {
+  meta_ads: { label: 'Meta Ads', canalQuery: 'meta_ads' },
+  google_ads: { label: 'Google Ads', canalQuery: 'google_ads' },
+  outros: { label: 'Outros', canalQuery: 'outros' },
+}
+
 const ETAPAS_CONFIGURAVEIS = [
   { id: 'mqls' as const, label: 'MQLs' },
   { id: 'sqls' as const, label: 'SQLs' },
@@ -60,15 +71,33 @@ const ETAPAS_CONFIGURAVEIS = [
   { id: 'reunioes_realizadas' as const, label: 'R. Realizadas' },
 ]
 
-export default function FunilConversao({ data }: FunilConversaoProps) {
-  const custos = getCustos(data.invest_mode)
-  const investAtivo = data.invest_mode.ativo
+export default function FunilConversao({ data, query }: FunilConversaoProps) {
+  const [canalFiltro, setCanalFiltro] = useState<string | null>(null)
   const { config, toggleEtapa, hiddenCount } = useFunilEtapasConfig()
+
+  // AIDEV-NOTE: Quando canal selecionado, buscar dados filtrados via query separada
+  const queryCanal = canalFiltro && query ? { ...query, canal: CANAL_MAP[canalFiltro]?.canalQuery ?? canalFiltro } : { periodo: '30d' as const }
+  const canalQueryEnabled = !!canalFiltro && !!query
+  const { data: dataCanal, isLoading: isLoadingCanal } = useRelatorioFunil(queryCanal, { enabled: canalQueryEnabled })
+
+  // Dados efetivos: canal filtrado ou dados gerais
+  const dadosEfetivos = canalQueryEnabled && dataCanal ? dataCanal : data
+
+  const custos = getCustos(dadosEfetivos.invest_mode)
+  const investAtivo = data.invest_mode.ativo // usar data original para saber se invest mode existe
+
+  // Canais com investimento > 0
+  const canaisDisponiveis = investAtivo
+    ? Object.entries(CANAL_MAP).filter(([key]) => {
+        const im = data.invest_mode as { meta_ads: number; google_ads: number; outros: number }
+        return (im[key as keyof typeof im] ?? 0) > 0
+      })
+    : []
 
   const todasEtapas: EtapaFunil[] = [
     {
       label: 'Leads', configKey: null,
-      value: data.funil.total_leads, icon: Users,
+      value: dadosEfetivos.funil.total_leads, icon: Users,
       color: 'text-blue-500', bgColor: 'bg-blue-500/10 border-blue-500/20',
       taxa: null, taxaLabel: '100%',
       dica: 'Oportunidades criadas no período e funil selecionado',
@@ -77,50 +106,50 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
     },
     {
       label: 'MQLs', configKey: 'mqls',
-      value: data.funil.mqls, icon: Target,
+      value: dadosEfetivos.funil.mqls, icon: Target,
       color: 'text-cyan-500', bgColor: 'bg-cyan-500/10 border-cyan-500/20',
-      taxa: data.conversoes.lead_para_mql,
-      taxaLabel: data.conversoes.lead_para_mql !== null ? `${data.conversoes.lead_para_mql}%` : '—',
+      taxa: dadosEfetivos.conversoes.lead_para_mql,
+      taxaLabel: dadosEfetivos.conversoes.lead_para_mql !== null ? `${dadosEfetivos.conversoes.lead_para_mql}%` : '—',
       dica: 'Leads qualificados como Marketing Qualified Lead',
       custo: custos.cpmql, custoLabel: 'Custo/MQL',
       tooltip: 'Marketing Qualified Leads. Oportunidades que atenderam os critérios de qualificação configurados e se tornaram leads qualificados para marketing.',
     },
     {
       label: 'SQLs', configKey: 'sqls',
-      value: data.funil.sqls, icon: UserCheck,
+      value: dadosEfetivos.funil.sqls, icon: UserCheck,
       color: 'text-violet-500', bgColor: 'bg-violet-500/10 border-violet-500/20',
-      taxa: data.conversoes.mql_para_sql,
-      taxaLabel: data.conversoes.mql_para_sql !== null ? `${data.conversoes.mql_para_sql}%` : '—',
+      taxa: dadosEfetivos.conversoes.mql_para_sql,
+      taxaLabel: dadosEfetivos.conversoes.mql_para_sql !== null ? `${dadosEfetivos.conversoes.mql_para_sql}%` : '—',
       dica: 'Leads qualificados como Sales Qualified Lead',
       custo: custos.custoSql, custoLabel: 'Custo/SQL',
       tooltip: 'Sales Qualified Leads. Leads que foram validados pela equipe comercial como prontos para abordagem de vendas.',
     },
     {
       label: 'R. Agendadas', configKey: 'reunioes_agendadas',
-      value: data.funil.reunioes_agendadas, icon: CalendarPlus,
+      value: dadosEfetivos.funil.reunioes_agendadas, icon: CalendarPlus,
       color: 'text-amber-500', bgColor: 'bg-amber-500/10 border-amber-500/20',
-      taxa: data.conversoes.sql_para_reuniao_agendada,
-      taxaLabel: data.conversoes.sql_para_reuniao_agendada !== null ? `${data.conversoes.sql_para_reuniao_agendada}%` : '—',
+      taxa: dadosEfetivos.conversoes.sql_para_reuniao_agendada,
+      taxaLabel: dadosEfetivos.conversoes.sql_para_reuniao_agendada !== null ? `${dadosEfetivos.conversoes.sql_para_reuniao_agendada}%` : '—',
       dica: 'Reuniões agendadas no período',
       custo: custos.custoReuniaoAgendada, custoLabel: 'Custo/Agendada',
       tooltip: 'Reuniões agendadas com os leads qualificados. Indica o volume de conversas comerciais marcadas no período.',
     },
     {
       label: 'R. Realizadas', configKey: 'reunioes_realizadas',
-      value: data.funil.reunioes_realizadas, icon: CalendarCheck,
+      value: dadosEfetivos.funil.reunioes_realizadas, icon: CalendarCheck,
       color: 'text-orange-500', bgColor: 'bg-orange-500/10 border-orange-500/20',
-      taxa: data.conversoes.reuniao_agendada_para_realizada,
-      taxaLabel: data.conversoes.reuniao_agendada_para_realizada !== null ? `${data.conversoes.reuniao_agendada_para_realizada}%` : '—',
+      taxa: dadosEfetivos.conversoes.reuniao_agendada_para_realizada,
+      taxaLabel: dadosEfetivos.conversoes.reuniao_agendada_para_realizada !== null ? `${dadosEfetivos.conversoes.reuniao_agendada_para_realizada}%` : '—',
       dica: 'Reuniões realizadas no período',
       custo: custos.custoReuniaoRealizada, custoLabel: 'Custo/Realizada',
       tooltip: 'Reuniões que foram efetivamente realizadas. Diferença entre agendadas e realizadas indica taxa de no-show.',
     },
     {
       label: 'Ganhos', configKey: null,
-      value: data.funil.fechados, icon: Trophy,
+      value: dadosEfetivos.funil.fechados, icon: Trophy,
       color: 'text-emerald-500', bgColor: 'bg-emerald-500/10 border-emerald-500/20',
-      taxa: data.conversoes.reuniao_realizada_para_fechado,
-      taxaLabel: data.conversoes.reuniao_realizada_para_fechado !== null ? `${data.conversoes.reuniao_realizada_para_fechado}%` : '—',
+      taxa: dadosEfetivos.conversoes.reuniao_realizada_para_fechado,
+      taxaLabel: dadosEfetivos.conversoes.reuniao_realizada_para_fechado !== null ? `${dadosEfetivos.conversoes.reuniao_realizada_para_fechado}%` : '—',
       dica: 'Negócios fechados como ganhos',
       custo: custos.cac, custoLabel: 'CAC',
       extraInfo: custos.romi !== null ? `ROMI: ${custos.romi}%` : undefined,
@@ -134,30 +163,26 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
   )
 
   // AIDEV-NOTE: Conversão relativa ao topo do funil (Leads) — padrão HubSpot/Salesforce
-  // Taxa no bloco = etapa / leads (cap 100%)
-  // Taxa na seta = etapa / anterior (cap 100%, para gargalos)
   const primeiraEtapa = etapasVisiveis[0]
   const etapas = etapasVisiveis.map((etapa, index) => {
     if (index === 0) return { ...etapa, taxa: null, taxaLabel: '100%', taxaEntreEtapas: null }
     const anterior = etapasVisiveis[index - 1]
-    // Taxa relativa ao topo do funil
     const taxaDoTopo = primeiraEtapa.value > 0
       ? Math.min(Math.round((etapa.value / primeiraEtapa.value) * 1000) / 10, 100)
       : 0
-    // Taxa etapa-a-etapa (para seta entre blocos)
     const taxaEntreEtapas = anterior.value > 0
       ? Math.min(Math.round((etapa.value / anterior.value) * 1000) / 10, 100)
       : 0
     return { ...etapa, taxa: taxaDoTopo, taxaLabel: `${taxaDoTopo}%`, taxaEntreEtapas }
   })
 
-  const taxaGeral = data.conversoes.lead_para_fechado
-  const totalInvestido = investAtivo ? (data.invest_mode as { total_investido: number }).total_investido : null
+  const taxaGeral = dadosEfetivos.conversoes.lead_para_fechado
+  const totalInvestido = dadosEfetivos.invest_mode.ativo ? (dadosEfetivos.invest_mode as { total_investido: number }).total_investido : null
 
   return (
     <TooltipProvider delayDuration={200}>
     <div className="bg-card border border-border rounded-xl p-6">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
             Funil de Conversão
@@ -221,6 +246,45 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
         </div>
       </div>
 
+      {/* AIDEV-NOTE: Chips de filtro por canal — só aparecem com invest_mode ativo e canais com valor > 0 */}
+      {investAtivo && canaisDisponiveis.length > 0 && (
+        <div className="flex items-center gap-2 mb-4 flex-wrap">
+          <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mr-1">
+            Canal:
+          </span>
+          <button
+            onClick={() => setCanalFiltro(null)}
+            className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+              canalFiltro === null
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+            }`}
+          >
+            Todos
+          </button>
+          {canaisDisponiveis.map(([key, { label }]) => {
+            const im = data.invest_mode as { meta_ads: number; google_ads: number; outros: number }
+            const valor = im[key as keyof typeof im] ?? 0
+            return (
+              <button
+                key={key}
+                onClick={() => setCanalFiltro(canalFiltro === key ? null : key)}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                  canalFiltro === key
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                {label}: {formatarMoeda(valor)}
+              </button>
+            )
+          })}
+          {isLoadingCanal && canalFiltro && (
+            <span className="text-[10px] text-muted-foreground animate-pulse ml-1">Carregando...</span>
+          )}
+        </div>
+      )}
+
       {/* Desktop: horizontal */}
       <div className="hidden lg:flex items-stretch gap-1.5">
         {etapas.map((etapa, index) => {
@@ -254,7 +318,7 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
                 )}
 
                 {/* Custo de investimento integrado */}
-                {investAtivo && (
+                {(dadosEfetivos.invest_mode.ativo) && (
                   <div className="mt-2 pt-2 border-t border-border/50">
                     <div className="flex items-center gap-1">
                       <DollarSign className="w-2.5 h-2.5 text-muted-foreground" />
@@ -323,7 +387,7 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
                         {etapa.taxaLabel}
                       </span>
                     )}
-                    {investAtivo && etapa.custo !== null && (
+                    {(dadosEfetivos.invest_mode.ativo) && etapa.custo !== null && (
                       <p className="text-[10px] text-muted-foreground mt-0.5">
                         {etapa.custoLabel}: {formatarMoeda(etapa.custo)}
                       </p>
