@@ -1,70 +1,49 @@
 
-# Adicionar Hub "Campanhas" com Badge "Em Breve"
 
-## Objetivo
-Criar um quarto hub de navegacao chamado **Campanhas** com dois sub-itens (Email Marketing e WhatsApp Marketing), ambos com badge "Em breve" e desabilitados. Tambem registrar os modulos no banco para o Super Admin.
+# Navegacao Ativa - Estilo Pill Cinza Arredondado
 
-## Mudancas
+## Proposta
 
-### 1. Navegacao - `src/modules/app/layouts/AppLayout.tsx`
-
-Adicionar novo hub no array `navHubs` (entre Atendimento e Ferramentas):
+Substituir o indicador de underline azul por um **pill arredondado com fundo cinza** (`bg-accent`) no item ativo, similar ao estilo usado por GitHub, Figma e Slack. Texto escuro com `font-semibold`, sem bordas, sem underline.
 
 ```text
-Campanhas
-  - Email Marketing (slug: email-marketing)
-  - WhatsApp Marketing (slug: whatsapp-marketing)
+Antes:   Dashboard      Comercial v
+              ___           ___          <- underline azul
+
+Depois: [ Dashboard ]   Comercial v     <- pill cinza arredondado no ativo
 ```
-
-Importar icone `Megaphone` do lucide-react para o hub e `Send`/`MessageCircle` para os sub-itens.
-
-Adicionar propriedade `comingSoon?: boolean` na interface `NavHubItem` para marcar itens como "em breve".
-
-No componente `NavHubDropdown`, itens com `comingSoon: true` serao renderizados como desabilitados (similar ao locked) mas com badge "Em breve" ao inves do cadeado.
-
-### 2. Badge "Em Breve" no Dropdown
-
-Dentro do `NavHubDropdown`, antes do check de `isLocked`, adicionar tratamento para `comingSoon`:
-
-```tsx
-if (child.comingSoon) {
-  return (
-    <DropdownMenuItem disabled className="flex items-center gap-2.5 opacity-50 cursor-not-allowed">
-      <ChildIcon className="w-4 h-4" />
-      <span>{child.label}</span>
-      <span className="ml-auto text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full font-medium">
-        Em breve
-      </span>
-    </DropdownMenuItem>
-  )
-}
-```
-
-### 3. Badge no Hub Trigger
-
-Quando **todos** os filhos de um hub sao `comingSoon`, exibir badge "Em breve" no proprio botao do hub (ao lado do chevron), com estilo sutil.
-
-### 4. Modulos no Banco (Super Admin)
-
-Inserir via SQL dois novos registros na tabela `modulos`:
-
-```sql
-INSERT INTO modulos (nome, slug, descricao, obrigatorio)
-VALUES
-  ('Email Marketing', 'email-marketing', 'Envio de campanhas de email marketing em massa', false),
-  ('WhatsApp Marketing', 'whatsapp-marketing', 'Envio de campanhas de WhatsApp marketing em massa', false);
-```
-
-Isso fara com que eles aparecam automaticamente na pagina de Modulos do Super Admin (`/admin/modulos`).
 
 ## Detalhes Tecnicos
 
-### Arquivos impactados
+### Arquivo: `src/modules/app/layouts/AppLayout.tsx`
+
+**NavDirectLink** (linha ~141-144) - Estado ativo:
+
+De:
+```
+text-foreground font-semibold after:absolute after:bottom-0 after:left-1/2 after:-translate-x-1/2 after:w-5 after:h-0.5 after:bg-primary after:rounded-full
+```
+Para:
+```
+bg-accent text-foreground font-semibold
+```
+
+**NavHubDropdown** (linha ~183-184) - Estado ativo:
+
+De:
+```
+text-foreground font-semibold after:absolute after:bottom-0 after:left-1/2 after:-translate-x-1/2 after:w-5 after:h-0.5 after:bg-primary after:rounded-full
+```
+Para:
+```
+bg-accent text-foreground font-semibold
+```
+
+Remover `relative` do className base ja que nao precisa mais do pseudo-element `after:`.
+
+O hover dos itens inativos ja usa `hover:bg-accent`, entao a transicao entre hover e ativo fica natural e coesa.
 
 | Arquivo | Mudanca |
 |---------|---------|
-| `src/modules/app/layouts/AppLayout.tsx` | Adicionar hub Campanhas, propriedade `comingSoon`, logica de renderizacao |
+| `src/modules/app/layouts/AppLayout.tsx` | Trocar active state classes em NavDirectLink e NavHubDropdown |
 
-### SQL a executar no Supabase
-
-1 migration para inserir os 2 modulos na tabela `modulos`
