@@ -1,22 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
-// AIDEV-NOTE: Safety net para erros de WebSocket do Vite HMR no preview
-// Previne tela branca causada por unhandled promise rejection
-window.addEventListener('unhandledrejection', (event) => {
-  const reason = event.reason
-  const msg = reason?.message || String(reason || '')
-  if (
-    msg.includes('WebSocket') ||
-    msg.includes('WebSocket closed') ||
-    msg.includes('closed without opened') ||
-    msg.includes('Failed to fetch dynamically imported module') ||
-    msg.includes('error loading dynamically imported module')
-  ) {
-    event.preventDefault()
-    console.warn('[HMR] Erro suprimido:', msg)
-  }
-})
+// AIDEV-NOTE: Handler de WebSocket/HMR movido para index.html (executa antes do bundle)
 import { BrowserRouter } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import { QueryProvider } from '@/providers/QueryProvider'
