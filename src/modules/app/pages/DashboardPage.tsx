@@ -270,9 +270,9 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
             >
-              <div className="relative">
+              <div className="relative group">
                 {section.toggleId && (
-                  <div className="absolute top-1 right-2 z-10">
+                  <div className="absolute -top-3 right-3 z-10">
                     <SectionHideButton sectionId={section.toggleId} onHide={toggleSection} />
                   </div>
                 )}
