@@ -125,7 +125,7 @@ export default function MetricasAtendimento({ query }: Props) {
             Indicadores de Atendimento
           </h3>
           <p className="text-[11px] text-muted-foreground mt-0.5 ml-5.5">
-            Calculado com base no horário comercial e dias úteis · <a href="/configuracoes" className="underline hover:text-foreground transition-colors">Configurações</a>
+            Calculado com base no horário comercial e dias úteis configurados · <a href="/configuracoes/config-geral" className="underline hover:text-foreground transition-colors">Configurações</a>
           </p>
         </div>
 
@@ -151,14 +151,14 @@ export default function MetricasAtendimento({ query }: Props) {
         <CardAlerta
           label="1ª Resposta"
           valor={formatarTempo(data.primeira_resposta_media_segundos)}
-          tooltip="Tempo médio da 1ª resposta ao cliente. Considera apenas mensagens em dias úteis (seg-sex) dentro do horário comercial configurado em Configurações."
+          tooltip="Tempo médio da 1ª resposta ao cliente. Considera apenas mensagens dentro do horário comercial e dias úteis configurados em Configurações > Config Geral."
           icon={Clock}
           variant="amber"
         />
         <CardAlerta
           label="Tempo Médio Resposta"
           valor={formatarTempo(data.tempo_medio_resposta_segundos)}
-          tooltip="Tempo médio de resposta da equipe. Considera apenas mensagens em dias úteis (seg-sex) dentro do horário comercial configurado em Configurações."
+          tooltip="Tempo médio de resposta da equipe. Considera apenas mensagens dentro do horário comercial e dias úteis configurados em Configurações > Config Geral."
           icon={Clock}
           variant="amber"
         />
