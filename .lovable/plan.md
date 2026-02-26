@@ -1,94 +1,91 @@
 
 
-## Correcao: Renderizacao MIME e Altura do Iframe no EmailViewer
+## Otimizacao de Midia em Grupos WhatsApp
 
-### Problema 1: Email nao renderizado (MIME bruto)
+### Contexto e Pesquisa
 
-O corpo do email esta chegando como texto MIME bruto (com boundaries, Content-Type headers, etc.) em vez do HTML extraido. O backend nao parseou corretamente, e o frontend nao tem fallback para extrair o HTML de dentro da estrutura MIME.
+Apos pesquisa na documentacao do WAHA e WhatsApp:
 
-**Solucao**: Adicionar uma funcao `extractHtmlFromMime(raw)` no frontend que:
-- Detecta se o texto contem boundary MIME (`--boundary`)
-- Localiza a parte com `Content-Type: text/html`
-- Extrai o corpo HTML dessa parte
-- Decodifica quoted-printable ou base64 se necessario
-- Fallback: se nao encontrar HTML, extrai `text/plain` e converte para HTML basico
+- **Disponibilidade de midia no WhatsApp**: Midias nao expiram em 24h como se acreditava. O WhatsApp mantem midias disponiveis por **dias a semanas** para sessoes ativas. O tempo exato varia e nao e documentado oficialmente, mas enquanto a sessao WAHA estiver conectada, a API `GET /api/{session}/chats/{chatId}/messages/{messageId}?downloadMedia=true` consegue baixar a midia sob demanda.
 
-Essa funcao sera chamada no `useMemo` do `cleanHtml`, entre o fallback de `corpo_texto` e o `looksLikeHtml`.
+- **WAHA GOWS**: O parametro `WHATSAPP_FILES_LIFETIME=180` (padrao 3 minutos) controla quanto tempo o arquivo fica no disco do WAHA apos download. Mas as configuracoes `WHATSAPP_FILES_MIMETYPES` e `WHATSAPP_DOWNLOAD_MEDIA` sao **globais por sessao** -- nao diferenciam grupo de individual.
 
-### Problema 2: Altura do iframe travada em 200px
+- **Conclusao**: A filtragem grupo vs individual precisa ser feita no **nosso webhook handler** (backend), nao no WAHA.
 
-O atributo `sandbox="allow-popups"` nao inclui `allow-same-origin`, o que impede o JavaScript do CRM de acessar `iframe.contentDocument`. Resultado: `adjustIframeHeight()`, `ResizeObserver` e `MutationObserver` **nunca funcionam** — todos caem no `catch`.
+### Estrategia proposta
 
-**Solucao**: Adicionar `allow-same-origin` ao sandbox do iframe:
+Para grupos (`@g.us`), ao receber mensagem com midia:
+- **Texto**: salvar normalmente (ja funciona)
+- **Audio/PTT**: salvar normalmente no storage (conforme sua escolha)
+- **Imagem, Video, Documento, Sticker**: **NAO salvar** no banco/storage. Salvar apenas os metadados (tipo, mimetype, filename, tamanho) e o `message_id` para consulta futura via API WAHA
+
+No frontend, ao renderizar midia de grupo:
+- Se `media_url` existe: exibir normalmente (audio salvo, ou midia individual)
+- Se `media_url` e null e `has_media` e true e conversa e grupo: exibir placeholder com botao "Visualizar" que tenta buscar via API on-demand
+- Se a busca falhar (midia expirada): exibir "Midia nao disponivel"
+
+### Alteracoes
+
+**Arquivo 1: `backend/src/services/waha.service.ts`** (webhook handler)
+
+Na funcao que processa mensagens recebidas (~linha 634-663), adicionar logica condicional:
+
+```text
+SE chatId contem "@g.us" (grupo)
+  E tipo da midia e image, video, document ou sticker (NAO audio/ptt)
+ENTAO
+  - Salvar mensagem com has_media=true mas media_url=null
+  - Manter metadados (mimetype, filename, size, duration)
+  - Adicionar campo "media_origem" = "waha_ondemand" nos metadados
+SENAO
+  - Comportamento atual (salvar tudo)
 ```
-sandbox="allow-popups allow-same-origin"
+
+**Arquivo 2: `backend/src/services/waha.service.ts`** (novo metodo)
+
+Adicionar metodo `buscarMidiaOnDemand(sessionName, chatId, messageId)` que:
+1. Chama `GET /api/{session}/chats/{chatId}/messages/{messageId}?downloadMedia=true`
+2. Se `media.url` retornar, faz proxy da URL do WAHA e retorna ao frontend
+3. Se falhar, retorna `{ disponivel: false }`
+
+**Arquivo 3: Nova rota `backend/src/routes/conexoes/whatsapp.ts`**
+
+Adicionar endpoint:
 ```
-
-Isso e seguro porque:
-- `allow-scripts` NAO esta presente — scripts continuam bloqueados
-- O CSP meta tag (`script-src 'none'`) e uma segunda camada de defesa
-- DOMPurify remove scripts e event handlers antes de injetar no srcDoc
-- Sem `allow-scripts`, `allow-same-origin` sozinho nao permite execucao de codigo
-
-Com essa mudanca, `adjustIframeHeight()` conseguira acessar `doc.body.scrollHeight` e o iframe se dimensionara corretamente.
-
-### Alteracoes no arquivo
-
-**`src/modules/emails/components/EmailViewer.tsx`**
-
-1. **Nova funcao `extractHtmlFromMime(raw: string)`** (antes do componente):
-   - Extrai boundary do header Content-Type
-   - Separa as partes pelo boundary
-   - Procura a parte `text/html`, decodifica e retorna
-   - Fallback para `text/plain` convertido em `<pre>`
-
-2. **Atualizar `useMemo` do `cleanHtml`** (linha ~248-259):
-   - Apos verificar `looksLikeHtml` e `tryDecodeBase64`, adicionar chamada a `extractHtmlFromMime`
-   - Ordem de tentativa: corpo_html → corpo_texto como HTML → base64 → MIME parse → texto puro
-
-3. **Atualizar sandbox do iframe** (linha 553):
-   - De: `sandbox="allow-popups"`
-   - Para: `sandbox="allow-popups allow-same-origin"`
-
-### Logica do parser MIME (simplificado)
-
-```typescript
-function extractHtmlFromMime(raw: string): string | null {
-  // Encontra boundary
-  const boundaryMatch = raw.match(/boundary="?([^"\s;]+)"?/i)
-  if (!boundaryMatch) return null
-
-  const boundary = boundaryMatch[1]
-  const parts = raw.split('--' + boundary)
-
-  let htmlPart: string | null = null
-  let textPart: string | null = null
-
-  for (const part of parts) {
-    const headerEnd = part.indexOf('\r\n\r\n') !== -1 
-      ? part.indexOf('\r\n\r\n') 
-      : part.indexOf('\n\n')
-    if (headerEnd === -1) continue
-
-    const headers = part.substring(0, headerEnd).toLowerCase()
-    const body = part.substring(headerEnd).trim()
-
-    if (headers.includes('text/html')) {
-      htmlPart = decodePartBody(body, headers)
-    } else if (headers.includes('text/plain') && !textPart) {
-      textPart = decodePartBody(body, headers)
-    }
-  }
-
-  if (htmlPart) return htmlPart
-  if (textPart) return `<pre>${textPart}</pre>`
-  return null
-}
+GET /api/v1/conexoes/whatsapp/media/:messageId?chatId=xxx
 ```
+Que chama o `buscarMidiaOnDemand` e retorna a midia proxied ou erro.
+
+**Arquivo 4: Edge Function ou proxy existente**
+
+Reaproveitar o `waha-proxy` existente (que ja faz proxy de midias WAHA) para suportar o novo fluxo de busca on-demand.
+
+**Arquivo 5: Frontend - Componente de midia no chat**
+
+Nos componentes de renderizacao de mensagens (`ChatMessages.tsx` ou similar), detectar quando `has_media=true` e `media_url=null`:
+- Exibir placeholder visual (icone de imagem/video/documento com texto "Midia de grupo")
+- Botao "Visualizar" que dispara a busca on-demand
+- Estados: "Carregando...", "Midia nao disponivel" (se expirou)
+
+### Impacto no armazenamento
+
+**Economia estimada**: Em grupos ativos com dezenas de fotos/videos/documentos por dia, essa abordagem elimina o armazenamento dessas midias no Supabase Storage. Apenas audio (que voce escolheu manter) e salvo. Para uma organizacao com 5-10 grupos ativos, isso pode representar economia de **500MB-2GB/dia** de storage.
+
+### Riscos e mitigacoes
+
+| Risco | Mitigacao |
+|-------|-----------|
+| Midia expira antes do usuario visualizar | Placeholder claro "Midia nao disponivel" com data da mensagem |
+| Sessao WAHA desconectada impede busca | Verificar status da sessao antes de tentar, mostrar "Sessao desconectada" |
+| Latencia na busca on-demand | Skeleton/loading state no frontend; a busca via WAHA e rapida (~1-3s) |
+| Audio grande em grupos sobrecarrega storage | Audio ja tem compressao OGG/Opus a 64kbps no pipeline existente |
 
 ### Arquivos modificados
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `src/modules/emails/components/EmailViewer.tsx` | Parser MIME, sandbox allow-same-origin |
+| `backend/src/services/waha.service.ts` | Filtro de midia para grupos + metodo buscarMidiaOnDemand |
+| `backend/src/routes/conexoes/whatsapp.ts` | Nova rota GET /media/:messageId |
+| `supabase/functions/waha-proxy/index.ts` | Suporte a busca on-demand |
+| `src/modules/conversas/components/` | Placeholder de midia + botao visualizar on-demand |
 
