@@ -48,7 +48,7 @@ export function AbaEmail({ oportunidadeId, emailContato }: AbaEmailProps) {
 
   const buildSignatureHtml = useCallback(() => {
     if (configAssinatura?.assinatura_mensagem && configAssinatura.assinatura_incluir_novos !== false) {
-      return `<br/><div class="email-signature" style="margin-top: 16px; padding-top: 12px; border-top: 1px solid #e5e7eb;">${configAssinatura.assinatura_mensagem}</div>`
+      return `<br/><p style="margin: 16px 0 4px 0; color: #9ca3af;">--</p><div class="email-signature">${configAssinatura.assinatura_mensagem}</div>`
     }
     return ''
   }, [configAssinatura])
