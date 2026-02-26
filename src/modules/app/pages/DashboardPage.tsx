@@ -106,27 +106,27 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
       <div className="space-y-6 px-4 sm:px-6 lg:px-8 py-5 max-w-full">
         {/* Header compacto + Filtros */}
         <div className="flex flex-col gap-3">
-          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-            <div className="min-w-0">
-              <h2 className="text-lg font-semibold text-foreground leading-tight">
-                Relatório de funil
-              </h2>
-            </div>
-            <div className="shrink-0 flex items-center gap-2">
-              <DashboardFilters
-                periodo={periodo}
-                onPeriodoChange={setPeriodo}
-                funilId={funilId}
-                onFunilChange={setFunilId}
-                funis={funis}
-                dataInicio={dataInicio}
-                dataFim={dataFim}
-                onDatasChange={handleDatasChange}
-              />
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-foreground leading-tight">
+              Relatório de funil
+            </h2>
+            {/* Investimento + Exibição — sempre visíveis no header */}
+            <div className="flex items-center gap-2">
               <InvestModeWidget data={relatorio} />
               <DashboardDisplayConfig config={displayConfig} onToggle={toggleSection} />
             </div>
           </div>
+          {/* Filtros abaixo do título em mobile */}
+          <DashboardFilters
+            periodo={periodo}
+            onPeriodoChange={setPeriodo}
+            funilId={funilId}
+            onFunilChange={setFunilId}
+            funis={funis}
+            dataInicio={dataInicio}
+            dataFim={dataFim}
+            onDatasChange={handleDatasChange}
+          />
         </div>
 
         {/* Indicadores de Metas */}

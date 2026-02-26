@@ -70,14 +70,14 @@ export default function DashboardFilters({
   }
 
   return (
-    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
+    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto overflow-hidden">
       {/* Período */}
       <div className="flex items-center gap-1 bg-card border border-border rounded-lg p-1 overflow-x-auto max-w-full scrollbar-none">
         {PERIODOS.map((p) => (
           <button
             key={p.value}
             onClick={() => handlePeriodoClick(p.value)}
-            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-200 ${
+            className={`px-3 py-1.5 text-xs font-medium rounded-md whitespace-nowrap transition-all duration-200 ${
               periodo === p.value
                 ? 'bg-primary text-primary-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
@@ -112,11 +112,11 @@ export default function DashboardFilters({
       )}
 
       {/* Funil */}
-      <div className="relative">
+      <div className="relative w-full sm:w-auto">
         <select
           value={funilId || ''}
           onChange={(e) => onFunilChange(e.target.value || undefined)}
-          className="appearance-none pl-3 pr-8 py-2 text-xs font-medium bg-card border border-border rounded-lg text-foreground cursor-pointer hover:bg-muted/30 transition-colors focus:outline-none focus:ring-2 focus:ring-ring"
+          className="appearance-none w-full sm:w-auto pl-3 pr-8 py-2 text-xs font-medium bg-card border border-border rounded-lg text-foreground cursor-pointer hover:bg-muted/30 transition-colors focus:outline-none focus:ring-2 focus:ring-ring"
         >
           <option value="">Todos os funis</option>
           {funis.map((f) => (
