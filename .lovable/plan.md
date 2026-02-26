@@ -1,26 +1,35 @@
 
+# Correcao: Drop Zone Unica + Drag and Drop Fluido
 
-# Plano: Corrigir Drop Zone do Drag and Drop no Dashboard
+## Problema Raiz
 
-## Problema
+Cada `DashboardSectionDraggable` renderiza duas drop zones: uma ACIMA e uma ABAIXO do bloco. Quando `dragOverIndex = N+1`:
+- Bloco N mostra "drop below" (porque `N + 1 === dragOverIndex`)
+- Bloco N+1 mostra "drop above" (porque `index === dragOverIndex`)
 
-A drop zone atual tem apenas 6px de altura e nao "empurra" visualmente os blocos adjacentes para abrir espaco. Alem disso, o calculo de posicao nao considera o ponto medio do bloco (se o cursor esta na metade superior ou inferior), causando posicionamento impreciso. O `onDragLeave` tambem causa flickering ao mover entre elementos filhos.
+Resultado: **duas zonas visuais** para a mesma posicao, causando conflito visual e flickering ao arrastar.
 
 ---
 
-## Correcoes
+## Solucao
 
-### 1. DashboardSectionDraggable.tsx
+### 1. DashboardSectionDraggable.tsx — Drop zone unica
 
-- **Drop zone maior**: Aumentar de `h-[6px]` para `h-16` (64px) com transicao suave, simulando o espaco do bloco sendo inserido — isso "empurra" os blocos visivelmente
-- **Calculo de metade superior/inferior**: Usar `e.clientY` comparado ao `getBoundingClientRect().top + height/2` do bloco para determinar se o drop deve ser acima (index) ou abaixo (index + 1)
-- **Prevenir flickering no dragLeave**: Usar `e.currentTarget.contains(e.relatedTarget)` para ignorar dragLeave entre elementos internos do mesmo wrapper
-- **Transicao suave**: `transition-all duration-200 ease-in-out` na drop zone para efeito de abertura/fechamento fluido
+- **Remover** a drop zone "abaixo" (`showDropBelow`) completamente
+- Manter apenas a drop zone **acima** de cada bloco
+- Adicionar `e.stopPropagation()` em todos os handlers de drag para evitar bubbling entre blocos adjacentes
+- Isso elimina a duplicacao: cada posicao entre blocos tem exatamente UMA zona visual
 
-### 2. DashboardPage.tsx — handleDragOver
+### 2. DashboardPage.tsx — Drop zone final (apos ultimo bloco)
 
-- Atualizar para receber o indice ja calculado pelo componente filho (com logica de metade superior/inferior)
-- Remover `handleDragLeave` separado — o controle fica no componente draggable
+- Adicionar um `div` simples apos o `.map()` que funciona como zona de drop para a ultima posicao
+- Ele so aparece quando `dragOverIndex === visibleSections.length` (ou seja, apos o ultimo bloco)
+- Isso garante que o usuario consiga mover um bloco para o final da lista
+
+### 3. Suavizar a experiencia
+
+- Usar `requestAnimationFrame`-style throttle no `handleDragOver` para evitar re-renders excessivos: so atualizar `dragOverIndex` se o valor realmente mudou
+- No `handleDragOver` do DashboardPage, comparar com o valor atual antes de setar estado
 
 ---
 
@@ -28,47 +37,45 @@ A drop zone atual tem apenas 6px de altura e nao "empurra" visualmente os blocos
 
 | Arquivo | Acao |
 |---------|------|
-| `src/modules/app/components/dashboard/DashboardSectionDraggable.tsx` | Reescrever: drop zone maior, calculo de midpoint, anti-flickering |
-| `src/modules/app/pages/DashboardPage.tsx` | Ajustar handleDragOver para novo calculo |
+| `src/modules/app/components/dashboard/DashboardSectionDraggable.tsx` | Remover drop zone "abaixo", adicionar stopPropagation |
+| `src/modules/app/pages/DashboardPage.tsx` | Adicionar drop zone final apos o map, throttle no handleDragOver |
 
 ---
 
 ## Secao Tecnica
 
-### Novo calculo de posicao (midpoint)
+### DashboardSectionDraggable - Estrutura simplificada
 
 ```text
-onDragOver(e):
-  rect = elemento.getBoundingClientRect()
-  midY = rect.top + rect.height / 2
-  se e.clientY < midY:
-    onDragOver(e, index)      // dropar ACIMA deste bloco
-  senao:
-    onDragOver(e, index + 1)  // dropar ABAIXO deste bloco
+<div ref={containerRef} onDragOver onDragLeave onDrop>
+  <!-- Drop zone ACIMA (unica) -->
+  <div class="h-16 ou h-0 transition-all">Soltar aqui</div>
+
+  <!-- Bloco arrastavel -->
+  <div draggable>children</div>
+
+  <!-- SEM drop zone abaixo -->
+</div>
 ```
 
-### Drop zone visual expandida
+Logica de midpoint mantida: metade superior = `index`, metade inferior = `index + 1`. A diferenca e que agora `index + 1` ativa a drop zone do **proximo** bloco (acima dele), nao uma segunda zona no bloco atual.
 
-```text
-Quando ativa:
-  h-16 (64px) — espaco visual significativo
-  mb-3 — margem inferior para separar do bloco
-  bg-primary/5 border-2 border-dashed border-primary/30 rounded-lg
-  transition-all duration-200 ease-in-out
-
-Quando inativa:
-  h-0 overflow-hidden
-```
-
-### Anti-flickering no dragLeave
+### handleDragOver com throttle
 
 ```typescript
-onDragLeave={(e) => {
-  // Ignora se o mouse foi para um elemento filho
-  if (e.currentTarget.contains(e.relatedTarget as Node)) return
-  onDragLeave()
-}}
+const handleDragOver = useCallback((_e: DragEvent, index: number) => {
+  setDragOverIndex(prev => prev === index ? prev : index)
+}, [])
 ```
 
-Isso resolve o problema de a drop zone piscar quando o cursor passa sobre elementos internos do bloco.
+Retornar o mesmo valor evita re-render desnecessario (React ignora setState com mesmo valor).
 
+### Drop zone final no DashboardPage
+
+```text
+{draggingId && dragOverIndex === visibleSections.length && (
+  <div class="h-16 bg-primary/5 border-dashed ...">
+    Soltar aqui
+  </div>
+)}
+```
