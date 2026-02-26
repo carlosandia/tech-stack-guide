@@ -1,79 +1,113 @@
 
-# Correcao da Logica de Conversao do Funil
+# Funil de Conversao por Canal de Investimento
+
+## Objetivo
+
+Permitir que o usuario visualize o funil de conversao filtrado por canal de investimento (Todos, Meta Ads, Google Ads, Outros), mostrando metricas e custos especificos de cada canal para analisar eficiencia individual.
 
 ## Problema Atual
 
-A conversao entre etapas esta sendo calculada como **etapa atual / etapa anterior**, o que gera valores como 300% (ex: 3 reunioes agendadas / 1 MQL = 300%). Isso nao faz sentido estrategico — um funil de conversao nunca deveria ultrapassar 100% pois representa "filtragem" de volume.
+O funil mostra apenas dados agregados de todos os canais. O usuario investe em Meta Ads e Google Ads separadamente mas nao consegue ver qual canal traz melhor retorno no funil completo. Sem essa visao, nao ha como decidir onde alocar mais orcamento.
 
-## Como os Grandes CRMs Fazem
+## Como Funciona
 
-HubSpot, Salesforce e RD Station usam o padrao de **conversao acumulada a partir do topo do funil (Leads)**:
+Ao ter investimento cadastrado, aparecerao abas/chips no cabecalho do funil: **Todos** | **Meta Ads** | **Google Ads** | **Outros** (somente canais com investimento > 0 serao exibidos). Ao clicar em um canal:
 
 ```text
-Leads:              7  (100%)
-MQLs:               1  (14.3% dos Leads)
-R. Agendadas:       3  (42.9% dos Leads)
-R. Realizadas:      1  (14.3% dos Leads)
-Ganhos:             2  (28.6% dos Leads)
+Exemplo: Usuario seleciona "Meta Ads"
+
+Funil mostra APENAS leads vindos do canal meta_ads:
+  Leads: 5 (100%)  →  MQLs: 2 (40%)  →  Ganhos: 1 (20%)
+
+Custos calculados com investimento de Meta Ads somente:
+  Investido: R$ 500,00 (somente Meta Ads)
+  CPL: R$ 100,00  |  CAC: R$ 500,00  |  ROMI: 120%
 ```
 
-Isso mostra a **taxa de filtragem real** do funil. Valores nunca ultrapassam 100%. Quando uma etapa intermediaria tem mais volume que a anterior (como o caso de 3 agendadas vs 1 MQL), isso indica que leads pularam etapas — o que e normal em operacoes comerciais (nem todo lead precisa ser classificado como MQL antes de agendar reuniao).
+## Alteracoes Tecnicas
 
-**Adicionalmente**, entre etapas adjacentes, a seta mostra a taxa etapa-a-etapa para identificar gargalos especificos, mas limitada a 100% (cap).
+### 1. Corrigir SQL `fn_metricas_funil` — Matching de canal
 
-## Solucao Proposta
+**Problema**: Atualmente filtra por `o.utm_source = p_canal`, mas o breakdown usa `COALESCE(NULLIF(TRIM(utm_source), ''), origem, 'direto')`. Oportunidades sem utm_source mas com `origem = 'whatsapp'` nao seriam encontradas.
 
-### Regra de calculo
+**Solucao**: Alterar o filtro para usar a mesma logica derivada:
 
-1. **Percentual exibido no bloco**: Conversao em relacao ao **total de Leads** (topo do funil) — nunca ultrapassa 100%
-2. **Seta entre etapas**: Taxa etapa-a-etapa, com **cap em 100%** — se o valor da etapa posterior for maior que a anterior, exibe 100% (indica que nao ha perda nesse ponto)
-3. **Conversao geral**: Mantida como `fechados / leads` (ja existe)
-
-### Alteracao no Frontend
-
-Arquivo `src/modules/app/components/dashboard/FunilConversao.tsx`, linhas 136-142:
-
-De:
-```typescript
-const taxa = Math.round((etapa.value / anterior.value) * 1000) / 10
+```sql
+AND (p_canal IS NULL OR COALESCE(NULLIF(TRIM(o.utm_source), ''), o.origem, 'direto') = p_canal)
 ```
 
-Para:
-```typescript
-// Taxa relativa ao topo do funil (Leads)
-const primeiraEtapa = etapasVisiveis[0]
-const taxaDoTopo = primeiraEtapa.value > 0
-  ? Math.round((etapa.value / primeiraEtapa.value) * 1000) / 10
-  : 0
-const taxaFinal = Math.min(taxaDoTopo, 100)
-```
+Aplicar em TODAS as subqueries da funcao (leads, mqls, sqls, reunioes, fechados, etc).
 
-A seta entre etapas mostrara a taxa etapa-a-etapa (com cap em 100%):
-```typescript
-const taxaEntreEtapas = anterior.value > 0
-  ? Math.min(Math.round((etapa.value / anterior.value) * 1000) / 10, 100)
-  : 0
-```
+**Arquivo**: Nova migration SQL
 
-### Alteracao no Backend
+### 2. Adicionar hook de funil por canal
 
-Arquivo `backend/src/services/relatorio.service.ts` — As taxas `lead_para_mql`, `mql_para_sql`, etc. ja sao calculadas corretamente como etapa-a-etapa. Porem, adicionar cap de 100% no `calcularTaxa`:
+**Novo hook** em `useRelatorioFunil.ts`:
 
 ```typescript
-function calcularTaxa(num: number, den: number): number | null {
-  if (!den || den === 0) return null
-  return Math.min(Math.round((num / den) * 1000) / 10, 100)
+export function useRelatorioFunilPorCanal(query: FunilQuery, canal: string | null) {
+  const queryComCanal = canal ? { ...query, canal } : query
+  return useQuery({
+    queryKey: ['relatorio-funil', queryComCanal],
+    queryFn: () => fetchRelatorioFunil(queryComCanal),
+    enabled: !!canal,  // so busca quando um canal especifico e selecionado
+    staleTime: STALE_TIME,
+  })
 }
+```
+
+### 3. Atualizar `construirInvestMode` para canal especifico
+
+No frontend service, quando `query.canal` esta presente, usar somente o investimento daquele canal:
+
+```typescript
+// Se canal = 'meta_ads', usar investimento.meta_ads como total
+// Se canal = 'google_ads', usar investimento.google_ads
+// Se canal = 'outros', usar investimento.outros
+```
+
+**Arquivo**: `src/modules/app/services/relatorio.service.ts`
+
+### 4. Adicionar filtro de canal no FunilConversao
+
+**Props adicionais**: Receber `query` do DashboardPage.
+
+**Estado local**: `canalFiltro: string | null` (null = Todos)
+
+**UI**: Chips/abas inline no cabecalho do funil, ao lado do badge de investimento:
+
+```text
+[Todos]  [Meta Ads: R$500]  [Google Ads: R$300]
+```
+
+- So aparecem quando `invest_mode.ativo === true`
+- So aparecem canais com valor > 0
+- Canal selecionado fica destacado (bg-primary)
+- Ao selecionar canal, usa dados do `useRelatorioFunilPorCanal`
+- Quando "Todos", usa os dados ja recebidos via prop (sem query adicional)
+
+**Arquivo**: `src/modules/app/components/dashboard/FunilConversao.tsx`
+
+### 5. Passar query ao FunilConversao
+
+**Arquivo**: `src/modules/app/pages/DashboardPage.tsx`
+
+Passar `query` como prop para que o componente possa fazer queries filtradas:
+
+```typescript
+<FunilConversao data={relatorio} query={query} />
 ```
 
 ## Arquivos Modificados
 
-1. **`src/modules/app/components/dashboard/FunilConversao.tsx`** — Alterar calculo para usar topo do funil + cap 100%
-2. **`backend/src/services/relatorio.service.ts`** — Adicionar cap de 100% na funcao `calcularTaxa`
+| Arquivo | Acao |
+|---------|------|
+| `supabase/migrations/new_fix_canal_filter.sql` | Criar — Corrigir matching de canal no SQL |
+| `src/modules/app/components/dashboard/FunilConversao.tsx` | Editar — Adicionar filtro por canal + query separada |
+| `src/modules/app/hooks/useRelatorioFunil.ts` | Editar — Adicionar hook por canal |
+| `src/modules/app/services/relatorio.service.ts` | Editar — Invest mode por canal especifico |
+| `src/modules/app/pages/DashboardPage.tsx` | Editar — Passar query ao FunilConversao |
 
 ## Resultado
 
-- Percentuais nunca ultrapassam 100%
-- Analise estrategica real: mostra onde o funil "perde" volume
-- Gargalos ficam claros (ex: se MQL→SQL tem 20%, o problema esta na qualificacao comercial)
-- Padrao alinhado com HubSpot / Salesforce / RD Station
+O usuario consegue ver a eficiencia de cada canal de investimento de forma isolada, identificando qual traz melhor CPL, CAC e ROMI. Isso permite decisoes de alocacao de orcamento baseadas em dados reais do funil.
