@@ -85,10 +85,10 @@ export function useRemoverInvestimento() {
   })
 }
 
-export function useHeatmapAtendimento(query: FunilQuery, canal?: string) {
+export function useHeatmapAtendimento(query: FunilQuery, canal?: string, tipo?: string) {
   return useQuery({
-    queryKey: ['heatmap-atendimento', query, canal],
-    queryFn: () => fetchHeatmapAtendimento(query, canal),
+    queryKey: ['heatmap-atendimento', query, canal, tipo],
+    queryFn: () => fetchHeatmapAtendimento(query, canal, tipo),
     staleTime: STALE_TIME,
     retry: 1,
   })
