@@ -4,7 +4,7 @@
  * Com taxas de conversão e custos de investimento integrados
  */
 
-import { ArrowRight, Users, Target, UserCheck, CalendarPlus, CalendarCheck, Trophy, Info, DollarSign, HelpCircle } from 'lucide-react'
+import { ArrowRight, Users, Target, UserCheck, CalendarPlus, CalendarCheck, Trophy, DollarSign, HelpCircle } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import type { RelatorioFunilResponse, InvestMode } from '../../types/relatorio.types'
 
@@ -192,11 +192,6 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
                     {etapa.taxaLabel} conversão
                   </p>
                 )}
-                {index > 0 && (
-                  <p className="text-[10px] text-muted-foreground mt-0.5">
-                    {etapa.taxaLabel} conversão
-                  </p>
-                )}
 
                 {/* Custo de investimento integrado */}
                 {investAtivo && (
@@ -213,15 +208,6 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
                         {etapa.extraInfo}
                       </p>
                     )}
-                  </div>
-                )}
-
-                {etapa.value === 0 && !investAtivo && (
-                  <div className="flex items-start gap-1 mt-2 p-1.5 bg-background/50 rounded-md">
-                    <Info className="w-3 h-3 text-muted-foreground mt-0.5 shrink-0" />
-                    <span className="text-[9px] text-muted-foreground leading-tight">
-                      {etapa.dica}
-                    </span>
                   </div>
                 )}
               </div>
