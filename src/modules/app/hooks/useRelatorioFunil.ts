@@ -4,7 +4,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { fetchRelatorioFunil, salvarInvestimento, fetchFunis, fetchDashboardMetricasGerais } from '../services/relatorio.service'
+import { fetchRelatorioFunil, salvarInvestimento, fetchFunis, fetchDashboardMetricasGerais, fetchMetricasAtendimento } from '../services/relatorio.service'
 import type { FunilQuery, SalvarInvestimentoPayload } from '../types/relatorio.types'
 import { toast } from 'sonner'
 
@@ -31,6 +31,15 @@ export function useDashboardMetricasGerais(query: FunilQuery) {
   return useQuery({
     queryKey: ['dashboard-metricas-gerais', query],
     queryFn: () => fetchDashboardMetricasGerais(query),
+    staleTime: STALE_TIME,
+    retry: 1,
+  })
+}
+
+export function useMetricasAtendimento(query: FunilQuery) {
+  return useQuery({
+    queryKey: ['metricas-atendimento', query],
+    queryFn: () => fetchMetricasAtendimento(query),
     staleTime: STALE_TIME,
     retry: 1,
   })

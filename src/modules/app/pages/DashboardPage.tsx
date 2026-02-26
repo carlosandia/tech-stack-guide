@@ -1,6 +1,6 @@
 import { forwardRef, useState } from 'react'
 import { useAuth } from '@/providers/AuthProvider'
-import { useRelatorioFunil, useFunis, useDashboardMetricasGerais } from '../hooks/useRelatorioFunil'
+import { useRelatorioFunil, useFunis, useDashboardMetricasGerais, useMetricasAtendimento } from '../hooks/useRelatorioFunil'
 import DashboardFilters from '../components/dashboard/DashboardFilters'
 import FunilConversao from '../components/dashboard/FunilConversao'
 import KPIsPrincipais from '../components/dashboard/KPIsPrincipais'
@@ -9,6 +9,7 @@ import MotivosPerda from '../components/dashboard/MotivosPerda'
 import ProdutosRanking from '../components/dashboard/ProdutosRanking'
 import BreakdownCanal from '../components/dashboard/BreakdownCanal'
 import InvestModeWidget from '../components/dashboard/InvestModeWidget'
+import MetricasAtendimento from '../components/dashboard/MetricasAtendimento'
 import DashboardSkeleton from '../components/dashboard/DashboardSkeleton'
 import { AlertCircle } from 'lucide-react'
 import type { Periodo } from '../types/relatorio.types'
@@ -48,12 +49,17 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
     isLoading: isLoadingMetricas,
   } = useDashboardMetricasGerais(query)
 
+  const {
+    data: metricasAtendimento,
+    isLoading: isLoadingAtendimento,
+  } = useMetricasAtendimento(query)
+
   const handleDatasChange = (inicio: string, fim: string) => {
     setDataInicio(inicio)
     setDataFim(fim)
   }
 
-  const isLoading = isLoadingRelatorio || isLoadingMetricas
+  const isLoading = isLoadingRelatorio || isLoadingMetricas || isLoadingAtendimento
 
   // Loading
   if (isLoading) {
@@ -128,6 +134,11 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
         {/* KPIs Secundários (4 cards) */}
         {metricasGerais && (
           <KPIsSecundarios relatorio={relatorio} metricas={metricasGerais} />
+        )}
+
+        {/* Métricas de Atendimento */}
+        {metricasAtendimento && (
+          <MetricasAtendimento data={metricasAtendimento} />
         )}
 
         {/* Gráficos lado a lado */}
