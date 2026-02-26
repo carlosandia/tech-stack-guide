@@ -1,65 +1,86 @@
 
 
-## Corrigir KPI "Histórico de Oportunidades" para contar Eventos/Atividades
+## Correcoes de Dark Mode no Modulo de Emails
 
-### Problema
+### Problemas identificados
 
-O KPI atualmente conta **oportunidades (cards)** no banco, mostrando "9". O usuário quer que conte **eventos de atividade** (audit_log) -- movimentações, tarefas criadas, reuniões, anotações, etc. Apenas 2 oportunidades já somam 41 eventos no timeline.
+1. **Corpo do email (iframe) com texto preto invisivel no dark mode**: O iframe que renderiza o HTML do email nao define `background: white` nem `color: black` explicitamente. Emails sao projetados para fundo branco -- sem forccar isso, o browser pode herdar o fundo escuro do tema, tornando texto preto invisivel.
 
-### Solução
+2. **Altura do iframe nao preenche 100%**: O iframe usa `minHeight: '400px'` fixo e depende de timeouts para ajustar. O `adjustIframeHeight` nao e confiavel para todos os emails, gerando scroll excessivo ou espaco insuficiente.
 
-Trocar a métrica para contar registros na tabela `audit_log` no período selecionado, vinculados a oportunidades não-deletadas do tenant/funil.
+3. **Cores do avatar nao adaptam ao dark mode**: A funcao `getInitialColor` no `EmailViewer.tsx` usa classes como `bg-red-100 text-red-700` que ficam lavadas/ilegíveis no modo escuro.
 
-### Alterações
+### Solucao
 
-**1. Migration SQL -- Atualizar `fn_dashboard_metricas_gerais`**
+**Arquivo 1: `src/modules/emails/components/EmailViewer.tsx`**
 
-Substituir a query de `v_total_historico` (que conta oportunidades) por uma contagem de `audit_log`:
+- **iframe containment CSS** (linhas 270-277): Adicionar `background: #ffffff !important; color: #1a1a1a !important;` ao `html, body` do CSS injetado no iframe. Isso garante que o conteudo do email sempre renderize em fundo branco com texto escuro, independente do tema do CRM. Emails com estilizacao propria (backgrounds coloridos, newsletters) continuam funcionando porque seus estilos inline tem prioridade. Esta e a mesma abordagem do Gmail.
 
-```sql
--- ANTES: conta oportunidades
-SELECT COUNT(*) INTO v_total_historico
-FROM oportunidades WHERE ...
+- **Avatar colors** (linhas 90-103): Trocar de `bg-red-100 text-red-700` para cores com opacidade que funcionam em ambos os temas: `bg-red-500/15 text-red-400`, `bg-blue-500/15 text-blue-400`, etc.
 
--- DEPOIS: conta eventos de atividade no período
-SELECT COUNT(*) INTO v_total_historico
-FROM audit_log al
-WHERE al.organizacao_id = p_organizacao_id
-  AND al.criado_em >= p_periodo_inicio
-  AND al.criado_em <= p_periodo_fim
-  AND al.entidade = 'oportunidades'
-  AND EXISTS (
-    SELECT 1 FROM oportunidades o
-    WHERE o.id = al.entidade_id
-      AND o.deletado_em IS NULL
-      AND (p_funil_id IS NULL OR o.funil_id = p_funil_id)
-  );
+- **Altura do iframe** (linhas 518-526): Trocar de `minHeight: '400px'` fixo para uma abordagem que use `height: 100%` quando o conteudo nao for auto-dimensionavel, e melhorar o `adjustIframeHeight` para considerar o container pai. Adicionar `ResizeObserver` no iframe document para reagir a mudancas de conteudo (imagens carregando, etc.) em vez de depender de timeouts arbitrarios.
+
+**Arquivo 2: `src/modules/emails/components/EmailHistoricoPopover.tsx`**
+
+- Os avatares usam `text-white` que funciona, mas as cores de fundo (`bg-blue-500`, etc.) sao aceitaveis -- nenhuma correcao necessaria aqui.
+
+### Detalhes tecnicos
+
+**CSS do iframe (principal correcao de dark mode):**
+```css
+html, body {
+  overflow-x: hidden !important;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  margin: 0;
+  padding: 8px 16px;
+  background: #ffffff !important;
+  color: #1a1a1a !important;
+}
 ```
 
-Fazer o mesmo para `v_total_periodo` (período anterior para variação) -- na verdade `v_total_historico` passa a ser o total do período atual, e `v_total_periodo` pode manter a mesma lógica ou ser removido (pois agora são a mesma coisa).
+**Avatar colors (dark-mode safe):**
+```typescript
+const colors = [
+  'bg-red-500/15 text-red-400',
+  'bg-blue-500/15 text-blue-400',
+  'bg-green-500/15 text-green-400',
+  'bg-purple-500/15 text-purple-400',
+  'bg-amber-500/15 text-amber-400',
+  'bg-teal-500/15 text-teal-400',
+  'bg-pink-500/15 text-pink-400',
+  'bg-indigo-500/15 text-indigo-400',
+]
+```
 
-Simplificação: como agora ambos medem o mesmo conceito (atividades no período), unificar:
-- `total_oportunidades_historico` = contagem de audit_log no período atual
-- `total_oportunidades_periodo` = mesma contagem (manter para compatibilidade com variação)
-
-**2. Frontend -- `KPIsSecundarios.tsx`**
-
-- Renomear label: "Histórico de Oportunidades" → "Atividades no Período"
-- Trocar ícone para `History` (mais semântico)
-- Atualizar tooltip: "Total de eventos registrados nas oportunidades no período selecionado (movimentações, tarefas, reuniões, anotações, etc.). A variação compara com o período anterior."
-
-**3. Tipo frontend -- `relatorio.types.ts`**
-
-Nenhuma alteração necessária no tipo -- os campos `total_oportunidades_historico` e `total_oportunidades_periodo` continuam existindo, apenas mudam o que representam.
+**Iframe height -- ResizeObserver:**
+Substituir os timeouts por um `ResizeObserver` que reage automaticamente ao redimensionamento do conteudo do iframe:
+```typescript
+const adjustIframeHeight = useCallback(() => {
+  const iframe = iframeRef.current
+  if (!iframe) return
+  try {
+    const doc = iframe.contentDocument || iframe.contentWindow?.document
+    if (doc?.body) {
+      const h = Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight, 200)
+      iframe.style.height = h + 'px'
+    }
+  } catch { /* sandbox */ }
+}, [])
+```
+Manter os timeouts como fallback, mas adicionar um `MutationObserver` no `onLoad` do iframe para detectar quando imagens terminam de carregar.
 
 ### Arquivos modificados
 
-| Arquivo | Alteração |
+| Arquivo | Alteracao |
 |---------|-----------|
-| `supabase/migrations/` | Nova migration atualizando `fn_dashboard_metricas_gerais` |
-| `src/modules/app/components/dashboard/KPIsSecundarios.tsx` | Label, ícone e tooltip |
+| `src/modules/emails/components/EmailViewer.tsx` | CSS do iframe (bg branco forcado), avatar colors, height melhorado |
 
-### Observação sobre audit_log
+### Recomendacao sobre dark mode no corpo do email
 
-A tabela `audit_log` registra eventos de diversas entidades (oportunidades, anotações, tarefas, reuniões, documentos, emails, contatos). A coluna `entidade_id` para registros de anotações, tarefas, reuniões e documentos aponta para o `oportunidade_id` (não para o ID da própria entidade). Isso significa que a query `WHERE entidade_id IN (oportunidades não-deletadas)` captura corretamente todos os eventos vinculados a oportunidades ativas, incluindo sub-entidades.
+A abordagem correta (usada pelo Gmail, Outlook web, etc.) e **sempre renderizar o corpo do email em fundo branco com texto escuro**, pois:
+- Emails HTML sao projetados para fundo branco
+- Newsletters com backgrounds proprios continuam intactas (estilos inline prevalecem)
+- Evita problemas de contraste com qualquer combinacao de cores do remetente
+- O iframe esta isolado (sandbox), entao o estilo do CRM nao precisa vazar para dentro
 
