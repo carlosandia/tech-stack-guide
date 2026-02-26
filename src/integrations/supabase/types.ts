@@ -6374,6 +6374,51 @@ export type Database = {
           },
         ]
       }
+      preferencias_dashboard: {
+        Row: {
+          atualizado_em: string
+          config_exibicao: Json
+          criado_em: string
+          id: string
+          ordem_blocos: Json | null
+          organizacao_id: string
+          usuario_id: string
+        }
+        Insert: {
+          atualizado_em?: string
+          config_exibicao?: Json
+          criado_em?: string
+          id?: string
+          ordem_blocos?: Json | null
+          organizacao_id: string
+          usuario_id: string
+        }
+        Update: {
+          atualizado_em?: string
+          config_exibicao?: Json
+          criado_em?: string
+          id?: string
+          ordem_blocos?: Json | null
+          organizacao_id?: string
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "preferencias_dashboard_organizacao_id_fkey"
+            columns: ["organizacao_id"]
+            isOneToOne: false
+            referencedRelation: "organizacoes_saas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "preferencias_dashboard_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       preferencias_filtros_kanban: {
         Row: {
           atualizado_em: string

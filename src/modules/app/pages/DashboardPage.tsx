@@ -12,6 +12,7 @@ import ProdutosRanking from '../components/dashboard/ProdutosRanking'
 import BreakdownCanal from '../components/dashboard/BreakdownCanal'
 import InvestModeWidget from '../components/dashboard/InvestModeWidget'
 import DashboardDisplayConfig from '../components/dashboard/DashboardDisplayConfig'
+import SectionHideButton from '../components/dashboard/SectionHideButton'
 import MetricasAtendimento from '../components/dashboard/MetricasAtendimento'
 import IndicadoresReunioes from '../components/dashboard/IndicadoresReunioes'
 import RelatorioMetas from '../components/dashboard/RelatorioMetas'
@@ -130,22 +131,42 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
 
         {/* Indicadores de Metas */}
         {displayConfig.metas && relatorioMetas && (
-          <RelatorioMetas data={relatorioMetas} />
+          <div className="relative">
+            <div className="absolute top-1 right-2 z-10">
+              <SectionHideButton sectionId="metas" onHide={toggleSection} />
+            </div>
+            <RelatorioMetas data={relatorioMetas} />
+          </div>
         )}
 
         {/* Funil de Conversão */}
         {displayConfig.funil && (
-          <FunilConversao data={relatorio} />
+          <div className="relative">
+            <div className="absolute top-1 right-2 z-10">
+              <SectionHideButton sectionId="funil" onHide={toggleSection} />
+            </div>
+            <FunilConversao data={relatorio} />
+          </div>
         )}
 
         {/* Indicadores de Reuniões */}
         {displayConfig.reunioes && (
-          <IndicadoresReunioes data={relatorio} />
+          <div className="relative">
+            <div className="absolute top-1 right-2 z-10">
+              <SectionHideButton sectionId="reunioes" onHide={toggleSection} />
+            </div>
+            <IndicadoresReunioes data={relatorio} />
+          </div>
         )}
 
         {/* KPIs Principais (6 cards) */}
         {displayConfig['kpis-principais'] && metricasGerais && (
-          <KPIsPrincipais relatorio={relatorio} metricas={metricasGerais} />
+          <div className="relative">
+            <div className="absolute top-1 right-2 z-10">
+              <SectionHideButton sectionId="kpis-principais" onHide={toggleSection} />
+            </div>
+            <KPIsPrincipais relatorio={relatorio} metricas={metricasGerais} />
+          </div>
         )}
 
         {/* KPIs Secundários (4 cards) */}
@@ -155,14 +176,24 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
 
         {/* Breakdown por Canal */}
         {displayConfig.canal && (
-          <BreakdownCanal data={relatorio.breakdown_canal} />
+          <div className="relative">
+            <div className="absolute top-1 right-2 z-10">
+              <SectionHideButton sectionId="canal" onHide={toggleSection} />
+            </div>
+            <BreakdownCanal data={relatorio.breakdown_canal} />
+          </div>
         )}
 
         {/* Motivos de Ganho + Perda */}
         {displayConfig.motivos && metricasGerais && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <MotivosGanho data={metricasGerais.motivos_ganho} />
-            <MotivosPerda data={metricasGerais.motivos_perda} />
+          <div className="relative">
+            <div className="absolute top-1 right-2 z-10">
+              <SectionHideButton sectionId="motivos" onHide={toggleSection} />
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <MotivosGanho data={metricasGerais.motivos_ganho} />
+              <MotivosPerda data={metricasGerais.motivos_perda} />
+            </div>
           </div>
         )}
 
