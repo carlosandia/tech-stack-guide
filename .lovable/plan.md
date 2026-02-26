@@ -1,113 +1,60 @@
 
-# Funil de Conversao por Canal de Investimento
 
-## Objetivo
+# Correcao do Logo RENOVE no Dark Mode
 
-Permitir que o usuario visualize o funil de conversao filtrado por canal de investimento (Todos, Meta Ads, Google Ads, Outros), mostrando metricas e custos especificos de cada canal para analisar eficiencia individual.
+## Problema
 
-## Problema Atual
+O SVG `logotipo-renove.svg` tem cores hardcoded — o texto "RENOVE" usa cor escura (provavelmente preta/cinza) e o icone usa amarelo. Como o logo e renderizado via `<img src={...}>`, CSS nao consegue alterar as cores internas do SVG. No dark mode, o texto fica invisivel (preto sobre fundo escuro).
 
-O funil mostra apenas dados agregados de todos os canais. O usuario investe em Meta Ads e Google Ads separadamente mas nao consegue ver qual canal traz melhor retorno no funil completo. Sem essa visao, nao ha como decidir onde alocar mais orcamento.
+## Solucao
 
-## Como Funciona
+Criar um componente `LogoRenove` que renderiza o SVG **inline** (como JSX), substituindo a cor do texto de hardcoded para `currentColor`. Como `currentColor` herda a cor do texto do contexto CSS, no light mode sera escuro e no dark mode sera claro — automaticamente.
 
-Ao ter investimento cadastrado, aparecerao abas/chips no cabecalho do funil: **Todos** | **Meta Ads** | **Google Ads** | **Outros** (somente canais com investimento > 0 serao exibidos). Ao clicar em um canal:
+O icone amarelo (cerebro) mantem sua cor fixa `#FFD700` ou equivalente.
 
-```text
-Exemplo: Usuario seleciona "Meta Ads"
+### Passo 1: Criar componente `LogoRenove`
 
-Funil mostra APENAS leads vindos do canal meta_ads:
-  Leads: 5 (100%)  →  MQLs: 2 (40%)  →  Ganhos: 1 (20%)
+**Novo arquivo**: `src/components/LogoRenove.tsx`
 
-Custos calculados com investimento de Meta Ads somente:
-  Investido: R$ 500,00 (somente Meta Ads)
-  CPL: R$ 100,00  |  CAC: R$ 500,00  |  ROMI: 120%
+- Converter o SVG para JSX inline
+- Substituir os `fill` das paths do texto "RENOVE" por `currentColor`
+- Manter o `fill` amarelo do icone (cerebro) inalterado
+- Aceitar props `className` e `height` para flexibilidade
+
+### Passo 2: Substituir `<img src={renoveLogo}>` pelo componente
+
+Nos arquivos que usam o logo, trocar:
+```tsx
+// Antes
+<img src={renoveLogo} alt="Renove" className="h-7" />
+
+// Depois
+<LogoRenove className="h-7" />
 ```
 
-## Alteracoes Tecnicas
+**Arquivos afetados** (11 arquivos):
+- `src/modules/app/layouts/AppLayout.tsx` (2 ocorrencias)
+- `src/modules/admin/layouts/AdminLayout.tsx`
+- `src/modules/auth/pages/LoginPage.tsx`
+- `src/modules/auth/pages/ForgotPasswordPage.tsx`
+- `src/modules/auth/pages/ResetPasswordPage.tsx`
+- `src/modules/public/components/landing/LandingHeader.tsx`
+- `src/modules/public/components/landing/LandingFooter.tsx`
+- `src/modules/public/pages/PlanosPage.tsx`
+- `src/modules/public/pages/ParceiroPage.tsx`
+- `src/modules/public/pages/TermosServicoPage.tsx`
+- `src/modules/public/pages/PoliticaPrivacidadePage.tsx`
 
-### 1. Corrigir SQL `fn_metricas_funil` — Matching de canal
+## Detalhes tecnicos
 
-**Problema**: Atualmente filtra por `o.utm_source = p_canal`, mas o breakdown usa `COALESCE(NULLIF(TRIM(utm_source), ''), origem, 'direto')`. Oportunidades sem utm_source mas com `origem = 'whatsapp'` nao seriam encontradas.
-
-**Solucao**: Alterar o filtro para usar a mesma logica derivada:
-
-```sql
-AND (p_canal IS NULL OR COALESCE(NULLIF(TRIM(o.utm_source), ''), o.origem, 'direto') = p_canal)
-```
-
-Aplicar em TODAS as subqueries da funcao (leads, mqls, sqls, reunioes, fechados, etc).
-
-**Arquivo**: Nova migration SQL
-
-### 2. Adicionar hook de funil por canal
-
-**Novo hook** em `useRelatorioFunil.ts`:
-
-```typescript
-export function useRelatorioFunilPorCanal(query: FunilQuery, canal: string | null) {
-  const queryComCanal = canal ? { ...query, canal } : query
-  return useQuery({
-    queryKey: ['relatorio-funil', queryComCanal],
-    queryFn: () => fetchRelatorioFunil(queryComCanal),
-    enabled: !!canal,  // so busca quando um canal especifico e selecionado
-    staleTime: STALE_TIME,
-  })
-}
-```
-
-### 3. Atualizar `construirInvestMode` para canal especifico
-
-No frontend service, quando `query.canal` esta presente, usar somente o investimento daquele canal:
-
-```typescript
-// Se canal = 'meta_ads', usar investimento.meta_ads como total
-// Se canal = 'google_ads', usar investimento.google_ads
-// Se canal = 'outros', usar investimento.outros
-```
-
-**Arquivo**: `src/modules/app/services/relatorio.service.ts`
-
-### 4. Adicionar filtro de canal no FunilConversao
-
-**Props adicionais**: Receber `query` do DashboardPage.
-
-**Estado local**: `canalFiltro: string | null` (null = Todos)
-
-**UI**: Chips/abas inline no cabecalho do funil, ao lado do badge de investimento:
-
-```text
-[Todos]  [Meta Ads: R$500]  [Google Ads: R$300]
-```
-
-- So aparecem quando `invest_mode.ativo === true`
-- So aparecem canais com valor > 0
-- Canal selecionado fica destacado (bg-primary)
-- Ao selecionar canal, usa dados do `useRelatorioFunilPorCanal`
-- Quando "Todos", usa os dados ja recebidos via prop (sem query adicional)
-
-**Arquivo**: `src/modules/app/components/dashboard/FunilConversao.tsx`
-
-### 5. Passar query ao FunilConversao
-
-**Arquivo**: `src/modules/app/pages/DashboardPage.tsx`
-
-Passar `query` como prop para que o componente possa fazer queries filtradas:
-
-```typescript
-<FunilConversao data={relatorio} query={query} />
-```
-
-## Arquivos Modificados
-
-| Arquivo | Acao |
-|---------|------|
-| `supabase/migrations/new_fix_canal_filter.sql` | Criar — Corrigir matching de canal no SQL |
-| `src/modules/app/components/dashboard/FunilConversao.tsx` | Editar — Adicionar filtro por canal + query separada |
-| `src/modules/app/hooks/useRelatorioFunil.ts` | Editar — Adicionar hook por canal |
-| `src/modules/app/services/relatorio.service.ts` | Editar — Invest mode por canal especifico |
-| `src/modules/app/pages/DashboardPage.tsx` | Editar — Passar query ao FunilConversao |
+- O componente usa `currentColor` que automaticamente herda `text-foreground` do contexto (claro no light, branco no dark)
+- Zero mudanca no design system — apenas semantica correta de cores
+- O icone amarelo permanece fixo pois tem fill explicito
+- Preciso ler o SVG completo para converter os paths corretamente para JSX
 
 ## Resultado
 
-O usuario consegue ver a eficiencia de cada canal de investimento de forma isolada, identificando qual traz melhor CPL, CAC e ROMI. Isso permite decisoes de alocacao de orcamento baseadas em dados reais do funil.
+- Light mode: icone amarelo + texto escuro (como hoje)
+- Dark mode: icone amarelo + texto branco (corrigido)
+- Automatico em todos os 11 arquivos que usam o logo
+
