@@ -113,11 +113,11 @@ export default function FullscreenToggle({ containerRef }: FullscreenToggleProps
     if (!containerRef.current) return
     try {
       if (!document.fullscreenElement) {
-        containerRef.current.classList.add('bg-background', 'p-6')
+        containerRef.current.classList.add('bg-background', 'p-6', 'overflow-y-auto')
         await containerRef.current.requestFullscreen()
       } else {
         await document.exitFullscreen()
-        containerRef.current.classList.remove('bg-background', 'p-6')
+        containerRef.current.classList.remove('bg-background', 'p-6', 'overflow-y-auto')
       }
     } catch (err) {
       console.warn('[Fullscreen] Não suportado:', err)
