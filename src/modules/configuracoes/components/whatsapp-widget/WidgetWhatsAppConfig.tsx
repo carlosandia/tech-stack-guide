@@ -63,14 +63,28 @@ export function WidgetWhatsAppConfig({ value, onChange, organizacaoId }: Props) 
   }, [campos])
 
   const handleUploadFoto = async (file: File) => {
+    // AIDEV-NOTE: Validar MIME type seguro
+    const SAFE_MIMES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
+    if (!SAFE_MIMES.has(file.type)) {
+      toast.error('Apenas imagens JPEG, PNG, GIF ou WebP são permitidas')
+      return
+    }
+
+    // Validar tamanho (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Imagem deve ter no máximo 2MB')
+      return
+    }
+
     try {
       setUploading(true)
       const compressed = await compressImage(file)
-      const ext = file.name.split('.').pop() || 'jpg'
+      const MIME_EXT: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp' }
+      const ext = MIME_EXT[file.type] || 'jpg'
       const path = `${organizacaoId}/widget-atendente/${Date.now()}.${ext}`
 
       const { error } = await supabase.storage.from('assinaturas').upload(path, compressed, {
-        contentType: compressed.type,
+        contentType: compressed instanceof File ? compressed.type : file.type,
         upsert: true,
       })
       if (error) throw error
@@ -261,6 +275,7 @@ export function WidgetWhatsAppConfig({ value, onChange, organizacaoId }: Props) 
                   {uploading ? 'Enviando...' : 'Enviar foto'}
                 </button>
               </div>
+              <p className="text-xs text-muted-foreground mt-1">Máximo 2MB · JPEG, PNG, GIF ou WebP</p>
             </div>
 
             {/* Mensagem de Boas-Vindas */}
