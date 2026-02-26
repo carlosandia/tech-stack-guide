@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import renoveLogo from '@/assets/logotipo-renove.svg'
+import { LogoRenove } from '@/components/LogoRenove'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -85,7 +85,7 @@ export function ForgotPasswordPage() {
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-background to-muted px-4">
       {/* Logo */}
       <div className="mb-8 text-center">
-        <img src={renoveLogo} alt="Renove" className="h-12 mx-auto" />
+        <LogoRenove className="h-12" />
       </div>
 
       {/* Card */}

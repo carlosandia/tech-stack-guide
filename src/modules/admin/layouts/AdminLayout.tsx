@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import renoveLogo from '@/assets/logotipo-renove.svg'
+import { LogoRenove } from '@/components/LogoRenove'
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/providers/AuthProvider'
 import { ToolbarProvider, useToolbar } from '../contexts/ToolbarContext'
@@ -160,7 +160,7 @@ function AdminLayoutInner() {
         {/* Drawer header */}
         <div className="flex h-14 items-center justify-between px-4 border-b border-gray-200/60">
           <div className="flex items-center gap-2">
-            <img src={renoveLogo} alt="Renove" className="h-7" />
+            <LogoRenove className="h-7" />
           </div>
           <button
             className="p-1 hover:bg-gray-100/70 rounded-md"
@@ -219,8 +219,8 @@ function AdminLayoutInner() {
 
             {/* Logo */}
             <div className="flex items-center gap-2">
-              <img src={renoveLogo} alt="Renove" className="hidden sm:block h-7" />
-              <img src={renoveLogo} alt="Renove" className="sm:hidden h-6" />
+              <LogoRenove className="hidden sm:block h-7" />
+              <LogoRenove className="sm:hidden h-6" />
             </div>
 
             {/* Desktop Navigation */}

@@ -21,7 +21,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu'
-import renoveLogo from '@/assets/logotipo-renove.svg'
+import { LogoRenove } from '@/components/LogoRenove'
 import {
   LayoutDashboard,
   Users,
@@ -347,7 +347,7 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
       >
         <div className="flex h-14 items-center justify-between px-4 border-b border-border/60">
           <div className="flex items-center gap-2">
-            <img src={renoveLogo} alt="Renove" className="h-7" />
+            <LogoRenove className="h-7" />
           </div>
           <button
             className="p-1 hover:bg-accent rounded-md"
@@ -514,7 +514,7 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
 
               {/* Logo */}
               <div className="flex items-center gap-2">
-                <img src={renoveLogo} alt="Renove" className="h-7" />
+                <LogoRenove className="h-7" />
               </div>
 
               {/* Desktop Navigation — Hubs (lg+) */}
