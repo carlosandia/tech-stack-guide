@@ -8232,6 +8232,14 @@ export type Database = {
         }
         Returns: Json
       }
+      fn_relatorio_metas_dashboard: {
+        Args: {
+          p_organizacao_id: string
+          p_periodo_fim: string
+          p_periodo_inicio: string
+        }
+        Returns: Json
+      }
       formulario_pertence_ao_tenant: {
         Args: { _formulario_id: string }
         Returns: boolean
