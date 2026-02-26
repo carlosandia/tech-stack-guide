@@ -7817,6 +7817,54 @@ export type Database = {
           },
         ]
       }
+      visualizacoes_dashboard: {
+        Row: {
+          atualizado_em: string
+          config_exibicao: Json
+          criado_em: string
+          filtros: Json
+          id: string
+          nome: string
+          organizacao_id: string
+          usuario_id: string
+        }
+        Insert: {
+          atualizado_em?: string
+          config_exibicao?: Json
+          criado_em?: string
+          filtros?: Json
+          id?: string
+          nome: string
+          organizacao_id: string
+          usuario_id: string
+        }
+        Update: {
+          atualizado_em?: string
+          config_exibicao?: Json
+          criado_em?: string
+          filtros?: Json
+          id?: string
+          nome?: string
+          organizacao_id?: string
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visualizacoes_dashboard_organizacao_id_fkey"
+            columns: ["organizacao_id"]
+            isOneToOne: false
+            referencedRelation: "organizacoes_saas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visualizacoes_dashboard_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       webhooks_entrada: {
         Row: {
           api_key: string | null
