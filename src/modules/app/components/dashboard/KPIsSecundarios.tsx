@@ -72,7 +72,12 @@ export default function KPIsSecundarios({ relatorio, metricas }: KPIsSecundarios
   ]
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="space-y-3">
+      <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+        <BarChart3 className="w-4 h-4 text-muted-foreground" />
+        Indicadores Operacionais
+      </h3>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
       {cards.map((card) => {
         const Icon = card.icon
         return (
@@ -95,6 +100,7 @@ export default function KPIsSecundarios({ relatorio, metricas }: KPIsSecundarios
           </div>
         )
       })}
+      </div>
     </div>
   )
 }

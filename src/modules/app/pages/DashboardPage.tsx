@@ -105,7 +105,7 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
                 Olá, {user?.nome || 'Usuário'} · {periodoLabel}
               </p>
             </div>
-            <div className="shrink-0">
+            <div className="shrink-0 flex items-center gap-2">
               <DashboardFilters
                 periodo={periodo}
                 onPeriodoChange={setPeriodo}
@@ -116,15 +116,13 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
                 dataFim={dataFim}
                 onDatasChange={handleDatasChange}
               />
+              <InvestModeWidget data={relatorio} />
             </div>
           </div>
         </div>
 
         {/* Funil de Conversão */}
         <FunilConversao data={relatorio} />
-
-        {/* Invest Mode */}
-        <InvestModeWidget data={relatorio} />
 
         {/* KPIs Principais (6 cards) */}
         {metricasGerais && (

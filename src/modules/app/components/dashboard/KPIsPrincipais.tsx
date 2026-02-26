@@ -137,7 +137,12 @@ export default function KPIsPrincipais({ relatorio, metricas }: KPIsPrincipaisPr
   ]
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+    <div className="space-y-3">
+      <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+        <TrendingUp className="w-4 h-4 text-muted-foreground" />
+        Indicadores Principais
+      </h3>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
       {kpis.map((kpi) => {
         const Icon = kpi.icon
         return (
@@ -165,6 +170,7 @@ export default function KPIsPrincipais({ relatorio, metricas }: KPIsPrincipaisPr
           </div>
         )
       })}
+      </div>
     </div>
   )
 }
