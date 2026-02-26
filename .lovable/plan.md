@@ -1,51 +1,39 @@
 
-# Plano: Corrigir Reunioes no Funil de Conversao
+# Plano: Corrigir dados fantasma nos Indicadores de Atendimento
 
-## Problemas Identificados
+## Problema Identificado
 
-### 1. SQL conta reunioes "reagendadas" como agendadas (double-counting)
-A query de `reunioes_agendadas` na funcao `fn_metricas_funil` filtra apenas por `cancelada_em IS NULL`, mas nao exclui reunioes com status `reagendada`. Quando um usuario reagenda uma reuniao, o sistema cria um NOVO registro e marca o antigo como "reagendada". Contar ambos infla o numero.
+Quando o usuario seleciona "Instagram", o dashboard mostra "Tempo Medio Resposta: 30m 0s", "Recebidas: 1" e "Enviadas: 1", mesmo sem nenhuma conversa de Instagram ativa. 
 
-Dados reais confirmam: oportunidade `22624ad2` tem 2 registros — um com status "reagendada" (antigo) e outro "agendada" (novo). Ambos sao contados.
+**Causa raiz:** A funcao SQL `fn_metricas_atendimento` faz JOIN entre `mensagens` e `conversas`, mas nao filtra `c.deletado_em IS NULL` nas queries de mensagens e tempo de resposta. Existe uma conversa de Instagram que foi deletada (soft-delete) em 16/02, mas suas 2 mensagens continuam sendo contadas.
 
-### 2. Taxa de conversao "—" no card R. Agendadas
-A conversao `sql_para_reuniao_agendada` usa `calcularTaxa(reunioes_agendadas, sqls)`. Quando SQLs = 0 (como no cenario atual), retorna null e exibe "—". Porem, existem 3 reunioes agendadas, entao a taxa deveria usar um fallback (total_leads como denominador).
+## Isolamento por Organizacao (Tenant)
 
-### 3. Texto "conversao" duplicado no desktop
-Linhas 190-198 do FunilConversao.tsx repetem o bloco `{etapa.taxaLabel} conversão` duas vezes dentro do card desktop.
+Analisei todas as 5 funcoes RPC do dashboard:
 
----
+| Funcao | Filtra organizacao_id | Status |
+|--------|----------------------|--------|
+| `fn_metricas_funil` | Sim, em todas as queries | OK |
+| `fn_breakdown_canal_funil` | Sim | OK |
+| `fn_dashboard_metricas_gerais` | Sim, em todas as queries | OK |
+| `fn_metricas_atendimento` | Sim, MAS com bug no JOIN | **Bug** |
+| `fn_relatorio_metas_dashboard` | Sim, em todas as queries | OK |
+
+O isolamento por tenant esta correto em todos os relatorios. O problema e exclusivamente a falta do filtro `c.deletado_em IS NULL` nos JOINs da funcao de atendimento.
 
 ## Solucao
 
-### Alteracao 1: Migration SQL — excluir "reagendada" de agendadas
+### Migration SQL: Adicionar `c.deletado_em IS NULL` em 4 queries
 
-Recriar `fn_metricas_funil` com filtro adicional `AND r.status != 'reagendada'` no bloco de `reunioes_agendadas`. Reunioes reagendadas ja sao contadas separadamente no campo `reunioes_reagendadas`.
+Na funcao `fn_metricas_atendimento`, adicionar o filtro `AND c.deletado_em IS NULL` nas seguintes queries que fazem JOIN com `conversas`:
 
-```sql
--- Bloco reunioes_agendadas: adicionar
-AND r.status NOT IN ('reagendada')
-```
+1. **Mensagens recebidas** (JOIN mensagens + conversas) - adicionar `AND c.deletado_em IS NULL`
+2. **Mensagens enviadas** (JOIN mensagens + conversas) - adicionar `AND c.deletado_em IS NULL`
+3. **Primeira resposta media** (subquery com conversas) - ja filtra `c.deletado_em IS NULL` na query principal, mas as subqueries internas de mensagens precisam garantir consistencia
+4. **Tempo medio de resposta** (JOIN mensagens + conversas) - adicionar `AND c.deletado_em IS NULL`
 
-### Alteracao 2: Service — fallback de conversao para R. Agendadas
+### Arquivo afetado
+- `supabase/migrations/` - nova migration recriando `fn_metricas_atendimento` com os filtros corrigidos
 
-No `relatorio.service.ts`, ao calcular `sql_para_reuniao_agendada`: se `sqls` = 0, usar `total_leads` como denominador. Isso garante que a taxa de conversao sempre apareca quando existem reunioes.
-
-```typescript
-sql_para_reuniao_agendada: calcularTaxa(
-  metricas.reunioes_agendadas,
-  metricas.sqls > 0 ? metricas.sqls : metricas.total_leads
-),
-```
-
-### Alteracao 3: FunilConversao.tsx — remover linha duplicada
-
-Remover o bloco duplicado nas linhas 195-198 (segunda ocorrencia de `{etapa.taxaLabel} conversão`).
-
----
-
-## Arquivos Afetados
-
-1. `supabase/migrations/` — nova migration para recriar `fn_metricas_funil`
-2. `src/modules/app/services/relatorio.service.ts` — fallback de conversao (linha 232)
-3. `src/modules/app/components/dashboard/FunilConversao.tsx` — remover duplicata (linhas 195-198)
+### Nenhuma alteracao no frontend
+O componente `MetricasAtendimento.tsx` e o service estao corretos. O problema e exclusivamente no SQL.
