@@ -28,6 +28,9 @@ export interface MetricasBrutas {
   reunioes_agendadas: number
   reunioes_realizadas: number
   reunioes: number // compatibilidade (= realizadas)
+  reunioes_noshow: number
+  reunioes_canceladas: number
+  reunioes_reagendadas: number
   fechados: number
   valor_gerado: number
   ticket_medio: number
@@ -83,7 +86,17 @@ export interface RelatorioFunilResponse {
     sqls: number
     reunioes_agendadas: number
     reunioes_realizadas: number
+    reunioes_noshow: number
+    reunioes_canceladas: number
+    reunioes_reagendadas: number
     fechados: number
+  }
+  // Taxas derivadas de reuniões
+  taxas_reunioes: {
+    taxa_noshow: number | null
+    taxa_comparecimento: number | null
+    taxa_cancelamento: number | null
+    taxa_reagendamento: number | null
   }
   conversoes: {
     lead_para_mql: number | null

@@ -10,6 +10,7 @@ import ProdutosRanking from '../components/dashboard/ProdutosRanking'
 import BreakdownCanal from '../components/dashboard/BreakdownCanal'
 import InvestModeWidget from '../components/dashboard/InvestModeWidget'
 import MetricasAtendimento from '../components/dashboard/MetricasAtendimento'
+import IndicadoresReunioes from '../components/dashboard/IndicadoresReunioes'
 import RelatorioMetas from '../components/dashboard/RelatorioMetas'
 import DashboardSkeleton from '../components/dashboard/DashboardSkeleton'
 import { AlertCircle } from 'lucide-react'
@@ -129,6 +130,9 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
 
         {/* Funil de Conversão */}
         <FunilConversao data={relatorio} />
+
+        {/* Indicadores de Reuniões */}
+        <IndicadoresReunioes data={relatorio} />
 
         {/* KPIs Principais (6 cards) */}
         {metricasGerais && (
