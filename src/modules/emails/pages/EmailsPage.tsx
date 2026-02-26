@@ -6,13 +6,13 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Settings2, BarChart3 } from 'lucide-react'
+import { BarChart3 } from 'lucide-react'
 import { useAppToolbar } from '@/modules/app/contexts/AppToolbarContext'
 import { EmailSidebar } from '../components/EmailSidebar'
 import { EmailList } from '../components/EmailList'
 import { EmailViewer } from '../components/EmailViewer'
 import { ComposeEmailModal, type ComposerMode } from '../components/ComposeEmailModal'
-import { AssinaturaModal } from '../components/AssinaturaModal'
+
 import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog'
 import { EmailsMetricasPanel } from '../components/EmailsMetricasPanel'
 import { EmailHistoricoPopover } from '../components/EmailHistoricoPopover'
@@ -59,7 +59,6 @@ function EmailsPage() {
   }>()
 
   // Modais
-  const [assinaturaOpen, setAssinaturaOpen] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<{ ids: string[] } | null>(null)
   const [metricasVisiveis, setMetricasVisiveis] = useState(() => {
     try { return localStorage.getItem('emails_metricas_visiveis') === 'true' } catch { return false }
@@ -228,14 +227,6 @@ function EmailsPage() {
         >
           <BarChart3 className="w-4 h-4" />
           <span className="hidden sm:inline">Métricas</span>
-        </button>
-        <button
-          onClick={() => setAssinaturaOpen(true)}
-          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-border text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-          title="Assinatura"
-        >
-          <Settings2 className="w-4 h-4" />
-          <span className="hidden sm:inline">Assinatura</span>
         </button>
       </div>
     )
@@ -441,8 +432,6 @@ function EmailsPage() {
         resetKey={composerResetKey}
       />
 
-      {/* Assinatura Modal */}
-      <AssinaturaModal isOpen={assinaturaOpen} onClose={() => setAssinaturaOpen(false)} />
 
       {/* Confirmação de exclusão */}
       <ConfirmDeleteDialog

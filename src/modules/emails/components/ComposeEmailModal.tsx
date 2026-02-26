@@ -9,7 +9,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { X, Send, Loader2, FileText, Paperclip, Trash2, User, Search, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { EmailRichEditor } from './EmailRichEditor'
-import { useAssinatura } from '../hooks/useEmails'
 import { compressImage } from '@/shared/utils/compressMedia'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
@@ -96,8 +95,18 @@ export const ComposeEmailModal = React.forwardRef<HTMLDivElement, ComposeEmailMo
   const [contatoSearch, setContatoSearch] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const contatoRef = useRef<HTMLDivElement>(null)
-
-  const { data: assinatura } = useAssinatura()
+  // AIDEV-NOTE: Usa assinatura global de configuracoes_tenant em vez de emails_assinaturas
+  const { data: configTenantAssinatura } = useQuery({
+    queryKey: ['config-tenant-assinatura'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('configuracoes_tenant')
+        .select('assinatura_mensagem')
+        .maybeSingle()
+      return data
+    },
+    staleTime: 5 * 60 * 1000,
+  })
 
   // Busca contatos para inserir no campo "Para"
   const { data: contatosBusca, isFetching: buscandoContatos } = useQuery({
@@ -146,20 +155,11 @@ export const ComposeEmailModal = React.forwardRef<HTMLDivElement, ComposeEmailMo
     const defaultBody = defaults?.corpo_html || ''
     let signatureHtml = ''
 
-    const isNewEmail = mode === 'novo'
-    const isReplyOrForward = mode === 'responder' || mode === 'responder_todos' || mode === 'encaminhar'
-
-    if (assinatura?.assinatura_html) {
-      const shouldInclude =
-        (isNewEmail && assinatura.incluir_em_novos !== false) ||
-        (isReplyOrForward && assinatura.incluir_em_respostas !== false)
-
-      if (shouldInclude) {
-        signatureHtml = `<br/><div class="email-signature" style="margin-top: 16px; padding-top: 12px; border-top: 1px solid #e5e7eb;">${assinatura.assinatura_html}</div>`
-      }
+    if (configTenantAssinatura?.assinatura_mensagem) {
+      signatureHtml = `<br/><div class="email-signature" style="margin-top: 16px; padding-top: 12px; border-top: 1px solid #e5e7eb;">${configTenantAssinatura.assinatura_mensagem}</div>`
     }
 
-    if (isNewEmail) return signatureHtml
+    if (mode === 'novo') return signatureHtml
     return signatureHtml + defaultBody
   }
 
@@ -173,7 +173,7 @@ export const ComposeEmailModal = React.forwardRef<HTMLDivElement, ComposeEmailMo
     setShowBcc(false)
     setEditorKey((k) => k + 1)
     setAnexos([])
-  }, [resetKey, assinatura]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [resetKey, configTenantAssinatura]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleAddFiles = useCallback(async (files: FileList | null) => {
     if (!files || files.length === 0) return
