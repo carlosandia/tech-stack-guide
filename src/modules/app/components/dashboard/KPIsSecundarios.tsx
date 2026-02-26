@@ -54,12 +54,12 @@ export default function KPIsSecundarios({ relatorio, metricas }: KPIsSecundarios
       tooltip: 'Total de tarefas pendentes ou em andamento da sua equipe neste momento.',
     },
     {
-      label: 'Total Histórico',
+      label: 'Total de Oportunidades',
       value: metricas.total_oportunidades_historico.toLocaleString('pt-BR'),
       icon: BarChart3,
       color: 'text-blue-500',
       bgColor: 'bg-blue-500/10',
-      tooltip: 'Todas as oportunidades já criadas, independente do período selecionado.',
+      tooltip: 'Total geral de oportunidades (abertas, ganhas e perdidas) criadas no período selecionado.',
     },
     {
       label: 'Conversão Geral',
