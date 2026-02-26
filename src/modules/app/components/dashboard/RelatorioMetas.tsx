@@ -252,7 +252,7 @@ function ResumoCard({
             <Popover>
               <PopoverTrigger asChild>
                 <button className="text-muted-foreground/50 hover:text-muted-foreground transition-colors">
-                  <HelpCircle className="w-3 h-3" />
+                  <HelpCircle className="w-3.5 h-3.5" />
                 </button>
               </PopoverTrigger>
               <PopoverContent side="top" className="w-64 p-3">
