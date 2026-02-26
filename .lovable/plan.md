@@ -1,91 +1,100 @@
 
+# Heatmap de Pico de Atendimento por Horario e Dia da Semana
 
-# Horário Comercial e Dias Úteis — Configuração Dedicada
+## Objetivo
 
-## Problema
+Criar um grafico visual no dashboard que mostre o volume de conversas/atendimentos por **hora do dia** e **dia da semana**, permitindo ao usuario identificar rapidamente os horarios de pico para tomada de decisao (escala de equipe, campanhas, etc).
 
-Atualmente o sistema confunde dois conceitos distintos:
-- **Janela de envio de emails** (quando notificacoes sao enviadas)
-- **Horario comercial** (expediente real da empresa, usado para calcular metricas de atendimento como 1a Resposta e TMA)
+## Tipo de Grafico
 
-A tabela `configuracoes_tenant` nao possui campos para horario comercial nem dias uteis. Os Indicadores de Atendimento mencionam "horario comercial e dias uteis" nos tooltips, mas esses dados estao hardcoded. O admin nao tem como configurar.
+**Heatmap (mapa de calor)** — e o formato mais adequado para cruzar duas dimensoes (dia x hora). Cada celula representa a quantidade de conversas naquele horario/dia, com cores variando de frio (pouco volume) a quente (alto volume). Alternativa complementar: um **BarChart** empilhado por dia mostrando distribuicao por hora.
 
-## Solucao
+A implementacao usara um **heatmap customizado com grid CSS** (sem dependencia extra) + um **BarChart do Recharts** (ja instalado) mostrando o total por hora do dia como visao secundaria.
 
-Criar uma secao dedicada **"Horario Comercial"** na pagina Config Geral, separada da "Janela de envio de emails", com:
+## Dados Necessarios
 
-1. **Horario de inicio e fim do expediente** (ex: 08:00 - 18:00)
-2. **Dias da semana uteis** — botoes toggle para cada dia (Seg a Dom), igual ao padrao ja usado em `ConfigDistribuicao.tsx`
-3. **Persistencia no banco** via novos campos na tabela `configuracoes_tenant`
-4. **Consumo pela RPC** `fn_metricas_atendimento` para calcular tempos corretamente
+### Nova RPC SQL: `fn_heatmap_atendimento`
 
-## Interface
+Parametros:
+- `p_organizacao_id` (uuid)
+- `p_periodo_inicio` (timestamptz)
+- `p_periodo_fim` (timestamptz)
+- `p_canal` (text, opcional)
 
-A nova secao ficara **acima** de "Notificacoes por Email" na Config Geral:
-
-```text
-+--------------------------------------------------+
-| Horario Comercial         [Somente Administradores] |
-| Define o expediente da sua organizacao.           |
-| Usado para calcular metricas de atendimento,      |
-| SLA e alertas de inatividade.                      |
-|                                                    |
-| Inicio: [08:00]    Fim: [18:00]                   |
-|                                                    |
-| Dias uteis:                                        |
-| [Seg] [Ter] [Qua] [Qui] [Sex] [ Sab ] [ Dom ]   |
-|  (azul = ativo, cinza = inativo)                  |
-+--------------------------------------------------+
-```
-
-## Alteracoes no Banco de Dados
-
-Adicionar 2 novos campos a tabela `configuracoes_tenant`:
-
-| Campo | Tipo | Default | Descricao |
-|---|---|---|---|
-| `horario_comercial_inicio` | `text` | `'08:00'` | Inicio do expediente (HH:mm) |
-| `horario_comercial_fim` | `text` | `'18:00'` | Fim do expediente (HH:mm) |
-| `dias_uteis` | `smallint[]` | `{1,2,3,4,5}` | Dias da semana (0=Dom, 1=Seg...6=Sab) |
-
-Migration SQL:
+Retorno: array de objetos `{ dia_semana: 0-6, hora: 0-23, total: number }`
 
 ```sql
-ALTER TABLE configuracoes_tenant
-  ADD COLUMN IF NOT EXISTS horario_comercial_inicio text DEFAULT '08:00',
-  ADD COLUMN IF NOT EXISTS horario_comercial_fim text DEFAULT '18:00',
-  ADD COLUMN IF NOT EXISTS dias_uteis smallint[] DEFAULT '{1,2,3,4,5}';
+CREATE OR REPLACE FUNCTION fn_heatmap_atendimento(
+  p_organizacao_id uuid,
+  p_periodo_inicio timestamptz,
+  p_periodo_fim timestamptz,
+  p_canal text DEFAULT NULL
+)
+RETURNS TABLE(dia_semana int, hora int, total bigint)
+LANGUAGE sql STABLE SECURITY DEFINER
+AS $$
+  SELECT
+    EXTRACT(DOW FROM m.criado_em)::int AS dia_semana,
+    EXTRACT(HOUR FROM m.criado_em)::int AS hora,
+    COUNT(*)::bigint AS total
+  FROM mensagens m
+  JOIN conversas c ON c.id = m.conversa_id
+  WHERE c.organizacao_id = p_organizacao_id
+    AND m.criado_em BETWEEN p_periodo_inicio AND p_periodo_fim
+    AND c.deletado_em IS NULL
+    AND m.direcao = 'inbound'
+    AND (p_canal IS NULL OR c.canal = p_canal)
+  GROUP BY 1, 2
+  ORDER BY 1, 2;
+$$;
 ```
 
-## Alteracoes no Frontend
+## Interface Visual
 
-### 1. `ConfigGeralPage.tsx`
-- Adicionar campos `horario_comercial_inicio`, `horario_comercial_fim` e `dias_uteis` ao state do form
-- Criar nova secao visual "Horario Comercial" com inputs de time e botoes de dias (reutilizando o padrao visual de `ConfigDistribuicao.tsx`)
-- Incluir no payload de save
+```text
++----------------------------------------------------------+
+| Pico de Atendimento                [Todos] [WA] [IG]     |
+| Volume de conversas recebidas por horario e dia da semana |
+|                                                          |
+|        06  07  08  09  10  11  12  13  14  15  16  17  18|
+| Seg    .   .   ##  ### ### ##  .   ##  ### ### ##  .   .  |
+| Ter    .   .   ##  ### ##  ##  .   ##  ##  ### ##  .   .  |
+| Qua    .   .   #   ##  ### ##  .   ##  ### ##  #   .   .  |
+| Qui    .   .   ##  ### ### ### .   ### ### ### ##  .   .  |
+| Sex    .   .   #   ##  ##  #   .   #   ##  ##  #   .   .  |
+| Sab    .   .   .   .   .   .   .   .   .   .   .   .   .  |
+| Dom    .   .   .   .   .   .   .   .   .   .   .   .   .  |
+|                                                          |
+| Legenda: [ branco ] [ azul claro ] [ azul ] [ azul forte]|
+|                                                          |
+| Horario com maior volume: Qui 10h (34 conversas)         |
++----------------------------------------------------------+
+```
 
-### 2. `MetricasAtendimento.tsx`
-- Atualizar o link "Configuracoes" de `/configuracoes` para `/configuracoes/config-geral` (rota correta)
-- Atualizar tooltips para referenciar a configuracao real em vez de valores hardcoded
+Cores do heatmap: escala de `bg-primary/5` (zero) ate `bg-primary` (maximo), com 5 niveis intermediarios.
 
-### 3. `useConfigTenant.ts`
-- Nenhuma alteracao necessaria (ja e generico com `Record<string, unknown>`)
+## Arquivos a Criar/Modificar
 
-### 4. `src/integrations/supabase/types.ts`
-- Sera regenerado automaticamente apos a migration para incluir os novos campos
+| Arquivo | Acao |
+|---|---|
+| `supabase/migrations/...heatmap_atendimento.sql` | Nova RPC `fn_heatmap_atendimento` |
+| `src/modules/app/types/relatorio.types.ts` | Adicionar tipo `HeatmapAtendimentoItem` |
+| `src/modules/app/services/relatorio.service.ts` | Adicionar `fetchHeatmapAtendimento()` |
+| `src/modules/app/hooks/useRelatorioFunil.ts` | Adicionar `useHeatmapAtendimento()` |
+| `src/modules/app/components/dashboard/HeatmapAtendimento.tsx` | **Novo** — Componente do heatmap |
+| `src/modules/app/pages/DashboardPage.tsx` | Registrar nova secao `pico-atendimento` |
+| `src/modules/app/hooks/useDashboardDisplay.ts` | Adicionar `'pico-atendimento'` ao config |
 
-## Atualizacao da RPC `fn_metricas_atendimento`
+## Detalhes do Componente `HeatmapAtendimento`
 
-A funcao RPC no Supabase devera ser atualizada para:
-1. Ler `horario_comercial_inicio`, `horario_comercial_fim` e `dias_uteis` da tabela `configuracoes_tenant`
-2. Usar esses valores ao calcular `primeira_resposta_media_segundos` e `tempo_medio_resposta_segundos`
-3. Excluir mensagens fora do expediente e em dias nao-uteis do calculo de tempo
+- Grid CSS 8 linhas x 19 colunas (header + 7 dias, label + 18 horas 06h-23h)
+- Celulas quadradas com `rounded-sm`, tooltip nativo mostrando "Seg 10h — 34 conversas"
+- Legenda de cores na parte inferior
+- Destaque automatico do horario de pico com label "Maior volume: Qui 10h (34 conversas)"
+- Filtro por canal (badges iguais ao `MetricasAtendimento`)
+- Responsivo: no mobile, scroll horizontal com `overflow-x-auto`
+- Horarios fora do expediente configurado ficam com opacidade reduzida (usa `useConfigTenant`)
 
-## Sequencia de Implementacao
+## Posicao no Dashboard
 
-1. Executar migration SQL para adicionar os 3 campos
-2. Regenerar types do Supabase
-3. Adicionar secao "Horario Comercial" em `ConfigGeralPage.tsx`
-4. Corrigir link em `MetricasAtendimento.tsx`
-5. Atualizar a RPC `fn_metricas_atendimento` (se existir como Edge Function ou SQL function)
-
+Sera adicionado logo **abaixo** do bloco "Indicadores de Atendimento" na ordem padrao, como secao toggleavel `pico-atendimento`.
