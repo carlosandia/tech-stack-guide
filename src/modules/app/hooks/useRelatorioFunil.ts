@@ -36,10 +36,10 @@ export function useDashboardMetricasGerais(query: FunilQuery) {
   })
 }
 
-export function useMetricasAtendimento(query: FunilQuery) {
+export function useMetricasAtendimento(query: FunilQuery, canal?: string) {
   return useQuery({
-    queryKey: ['metricas-atendimento', query],
-    queryFn: () => fetchMetricasAtendimento(query),
+    queryKey: ['metricas-atendimento', query, canal],
+    queryFn: () => fetchMetricasAtendimento(query, canal),
     staleTime: STALE_TIME,
     retry: 1,
   })

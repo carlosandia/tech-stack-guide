@@ -8355,14 +8355,24 @@ export type Database = {
         }
         Returns: Json
       }
-      fn_metricas_atendimento: {
-        Args: {
-          p_organizacao_id: string
-          p_periodo_fim: string
-          p_periodo_inicio: string
-        }
-        Returns: Json
-      }
+      fn_metricas_atendimento:
+        | {
+            Args: {
+              p_organizacao_id: string
+              p_periodo_fim: string
+              p_periodo_inicio: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_canal?: string
+              p_organizacao_id: string
+              p_periodo_fim: string
+              p_periodo_inicio: string
+            }
+            Returns: Json
+          }
       fn_metricas_funil: {
         Args: {
           p_canal?: string
