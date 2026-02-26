@@ -1,49 +1,40 @@
 
-# Correcao de Matching de Canal: Case-Sensitive e Normalizacao
 
-## Problema Raiz
+# Mensagem Orientativa para Canal sem Leads
 
-Quando voce filtra por "Panfleto" ou "Meta Ads" no funil, o sistema nao encontra leads porque:
+## Comportamento Atual (Correto)
 
-1. **A funcao SQL `fn_canal_match` faz comparacao case-sensitive no branch ELSE** — o canal de investimento salvo como `panfleto` e comparado com `o.origem` que pode estar como `Panfleto`, `PANFLETO` ou `panfleto`. Se nao bater exatamente, retorna zero.
+- **"Todos"**: mostra TODAS as oportunidades do periodo + investimento total (R$ 5.000). Isso esta correto -- e a visao geral de eficiencia do marketing total.
+- **"Panfleto"**: mostra 0 leads porque nenhuma oportunidade tem `origem = panfleto`. O sistema filtra corretamente, mas nao existem dados.
+- **"Meta Ads"**: tambem mostraria 0 se nenhuma oportunidade tiver utm_source = facebook/instagram.
 
-2. **A geracao de slug no widget de investimento e diferente da geracao de slug nas origens** — O `InvestModeWidget` faz `toLowerCase().replace(/[^a-z0-9]+/g, '_')` mas o `generateSlug` das origens faz `toLowerCase().normalize('NFD').replace(acentos)...`. Sem a normalizacao NFD, acentos podem gerar slugs diferentes.
+O investimento de R$ 5.000 em "Todos" e a soma de Panfleto (R$ 2.000) + Meta Ads (R$ 3.000). Isso e correto e util: mostra a eficiencia do marketing total.
 
-3. **O campo `origem` na oportunidade armazena o slug da tabela `origens`** — entao o matching deve comparar slug (investimento) com slug (origem da oportunidade), ambos em lowercase.
+## O que Precisa Mudar
 
-## Solucao
+Quando um canal retorna 0 leads, exibir uma mensagem orientativa em vez de apenas numeros zerados. Isso evita confusao.
 
-### 1. Corrigir `fn_canal_match` — branch ELSE case-insensitive
+## Alteracao
 
-Alterar a funcao SQL para usar `LOWER()` em ambos os lados da comparacao:
+### Arquivo: `src/modules/app/components/dashboard/FunilConversao.tsx`
 
-```sql
-ELSE
-  LOWER(COALESCE(NULLIF(TRIM(p_utm_source), ''), p_origem, 'direto')) = LOWER(p_canal)
+Adicionar um alerta informativo entre os chips de canal e os cards do funil, visivel apenas quando:
+1. Um canal especifico esta selecionado (nao "Todos")
+2. O total de leads retornado e 0
+
+Mensagem:
+
+```text
+Nenhuma oportunidade vinculada a este canal no periodo.
+Para que os dados aparecam aqui, defina a Origem como "Panfleto" 
+no card da oportunidade em Negocios.
 ```
 
-Isso garante que `panfleto` = `Panfleto` = `PANFLETO`.
+Isso orienta o usuario sobre como vincular leads ao canal de investimento.
 
-**Arquivo**: Nova migration SQL
+## Detalhes Tecnicos
 
-### 2. Normalizar slug no InvestModeWidget
-
-Alinhar a funcao de slug do widget de investimento com a funcao `generateSlug` das origens (adicionar `.normalize('NFD').replace(/[\u0300-\u036f]/g, '')`). Assim, "Indicacao" gera `indicacao` em ambos os lugares.
-
-**Arquivo**: `src/modules/app/components/dashboard/InvestModeWidget.tsx` — funcao `handleAdicionarCanalLivre`
-
-### 3. Nao permitir caracteres especiais na criacao livre de canal
-
-A funcao de slug ja remove caracteres especiais (`replace(/[^a-z0-9]+/g, '_')`). Basta adicionar a normalizacao de acentos para ficar identica a `generateSlug`.
-
-## Sobre a pergunta "tem que usar o mesmo nome?"
-
-**Sim, mas o sistema cuida disso automaticamente.** Quando o usuario seleciona uma origem da lista (ex: "Panfleto" com slug `panfleto`) e registra investimento selecionando da mesma lista, o slug e identico. O LOWER no SQL e uma protecao extra para casos edge.
-
-A lista de canais no widget de investimento ja puxa as origens cadastradas do banco, entao o usuario nao precisa digitar — basta selecionar da lista e o slug sera o mesmo.
-
-## Resultado Esperado
-
-- Filtrar por "Panfleto" mostra leads cuja origem = `panfleto` (case-insensitive)
-- Filtrar por "Meta Ads" continua funcionando via mapeamento UTM existente
-- Slugs normalizados: acentos, maiusculas e caracteres especiais tratados de forma identica em todo o sistema
+- Condicao: `canalFiltro !== null && dadosEfetivos.funil.total_leads === 0`
+- Componente: um `div` com icone de info e texto explicativo, estilizado com `bg-muted/30 border border-border rounded-lg`
+- O nome do canal vem de `canalToLabel(canalFiltro)` para exibir o nome formatado
+- Nenhuma alteracao de logica ou backend necessaria
