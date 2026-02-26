@@ -1160,6 +1160,37 @@ export const conversasApi = {
     }
   },
 
+  /**
+   * AIDEV-NOTE: Busca mídia de grupo sob demanda via WAHA API
+   * Para mensagens de grupo onde a mídia não foi persistida no storage.
+   * Retorna data URI (base64) da mídia ou null se expirada/indisponível.
+   */
+  async fetchGroupMediaOnDemand(conversaId: string, messageId: string, chatId: string): Promise<{ disponivel: boolean; media_url?: string; mimetype?: string; motivo?: string }> {
+    const session = await getConversaWahaSession(conversaId)
+    if (!session) return { disponivel: false, motivo: 'sessao_nao_encontrada' }
+
+    try {
+      const { data, error } = await supabase.functions.invoke('waha-proxy', {
+        body: {
+          action: 'fetch_media_ondemand',
+          session_name: session.sessionName,
+          message_id: messageId,
+          chat_id: chatId,
+        },
+      })
+
+      if (error) {
+        console.warn('[conversasApi] Erro ao buscar mídia on-demand:', error)
+        return { disponivel: false, motivo: 'erro_requisicao' }
+      }
+
+      return data || { disponivel: false, motivo: 'sem_resposta' }
+    } catch (err) {
+      console.warn('[conversasApi] Erro ao buscar mídia on-demand:', err)
+      return { disponivel: false, motivo: 'erro_inesperado' }
+    }
+  },
+
   // --- Mensagens Prontas ---
 
   async listarProntas(params?: { busca?: string }): Promise<{ mensagens_prontas: MensagemPronta[]; total: number }> {
