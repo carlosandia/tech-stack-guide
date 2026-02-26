@@ -1,54 +1,61 @@
 
-# Correção do Fullscreen - Zoom, Scroll e Estrutura
+# Substituir UTM por Origem Inteligente na Criacao Manual
 
-## Problemas Identificados
+## Contexto
 
-1. **Zoom não funciona**: O `applyZoom` busca `[data-dashboard-content]` como filho do `containerRef`, mas o `containerRef` (contentRef) JÁ É esse elemento. O querySelector nunca encontra nada.
+Atualmente o modal "Nova Oportunidade" exibe 5 campos UTM (source, campaign, medium, term, content) que nao fazem sentido para criacao manual. O relatorio "Por Canal de Origem" usa a logica `COALESCE(utm_source, origem, 'direto')` na funcao `fn_breakdown_canal_funil`, entao o campo `origem` da tabela `oportunidades` ja e o fallback principal.
 
-2. **Scroll não funciona**: O `scrollBy` é chamado no `contentRef` (div interno), mas quem tem `overflow-y-auto` é o div pai. Em modo normal o scroll é do pai; em fullscreen, o `contentRef` vira fullscreen mas sem overflow, então nada rola.
+A API `criarOportunidade` hardcoda `origem: 'manual'` independente de onde a oportunidade e criada (Kanban, Contatos ou Conversas).
 
-3. **Fullscreen sem overflow**: Quando o `contentRef` entra em fullscreen, ele não tem `overflow-y-auto`, então conteúdo longo fica cortado.
+## O que muda
 
-## Solução
+### 1. Modal "Nova Oportunidade" - Substituir UTM por campo "Origem"
 
-### Arquivo: `src/modules/app/pages/DashboardPage.tsx`
+Remover a secao colapsavel "Rastreamento UTM" com 5 inputs e substituir por um unico select "Origem" com opcoes pre-definidas:
 
-- Passar o `FullscreenToggle` o ref do container EXTERNO (o div com `overflow-y-auto`), não o `contentRef`
-- Mover o `data-dashboard-content` para o div interno que deve receber o zoom (manter como está)
-- O fullscreen será aplicado no container externo que já tem scroll
+- Manual (default para criacao via Kanban/Contatos)
+- WhatsApp Conversas (default quando vindo de /conversas com canal whatsapp)
+- Instagram (default quando vindo de /conversas com canal instagram)
+- Indicacao
+- Site / Landing Page
+- Evento
+- Outro
 
-Mudanças:
-- Criar um `scrollContainerRef` separado para o div externo (`h-full overflow-y-auto`)
-- Passar `scrollContainerRef` ao `FullscreenToggle` como `containerRef`
+Ao lado do label "Origem", incluir um icone (i) com tooltip:
+> "Define o canal de aquisicao deste lead. Aparece no relatorio 'Por Canal de Origem' do Dashboard."
 
-### Arquivo: `src/modules/app/components/dashboard/FullscreenToggle.tsx`
+### 2. Prop `origemDefault` no modal
 
-- Corrigir `applyZoom`: buscar `[data-dashboard-content]` corretamente dentro do container externo (agora funcionará pois o container é o pai e o content é o filho)
-- Scroll já funcionará pois o `containerRef` agora é o div com `overflow-y-auto`
-- Adicionar `overflow-y-auto` ao container quando entrar em fullscreen (garantia)
+Adicionar prop opcional `origemDefault?: string` ao `NovaOportunidadeModal` para que cada modulo passe a origem correta automaticamente:
+
+- **Kanban** (`NegociosPage`): nao passa nada, default = `manual`
+- **Contatos** (`ContatosPage`): nao passa nada, default = `manual`
+- **Conversas** (`ConversasPage` e `ChatWindow`): passa o canal da conversa ativa (`whatsapp_conversas` ou `instagram`)
+
+### 3. API `criarOportunidade` - aceitar `origem` dinamico
+
+Alterar de `origem: 'manual'` hardcoded para `origem: payload.origem || 'manual'`.
 
 ## Secao Tecnica
 
-### DashboardPage.tsx
+### Arquivos e mudancas
 
-```typescript
-// Adicionar ref para o container scrollável
-const scrollContainerRef = useRef<HTMLDivElement>(null)
+| Arquivo | Acao |
+|---------|------|
+| `NovaOportunidadeModal.tsx` | Remover 5 states UTM + secao UTM. Adicionar state `origem` + select com tooltip. Aceitar prop `origemDefault`. Passar `origem` ao `criarOportunidade`. |
+| `negocios.api.ts` | Adicionar `origem?: string` ao payload de `criarOportunidade`. Usar `payload.origem \|\| 'manual'` no insert. Remover UTMs do payload (manter no insert apenas se presentes). |
+| `ConversasPage.tsx` | Passar `origemDefault={conversaAtiva.canal}` ao `NovaOportunidadeModal` (ex: `whatsapp_conversas`) |
+| `ChatWindow.tsx` | Passar `origemDefault={conversa.canal}` ao `NovaOportunidadeModal` |
 
-// No JSX, o div externo recebe o ref:
-<div ref={(node) => {
-  scrollContainerRef.current = node
-  // manter o forwarded ref também
-  if (typeof ref === 'function') ref(node)
-  else if (ref) ref.current = node
-}} className="h-full overflow-y-auto">
+### Interface do campo Origem no modal
 
-// FullscreenToggle usa o scrollContainerRef
-<FullscreenToggle containerRef={scrollContainerRef} />
+```text
+Origem (i)              [tooltip ao hover no (i)]
+[  Manual           v]  -- select com opcoes pre-definidas
 ```
 
-### FullscreenToggle.tsx
+Posicao: abaixo de Responsavel/Previsao, no lugar da secao UTM colapsavel.
 
-- `applyZoom`: mantém `containerRef.current.querySelector('[data-dashboard-content]')` — agora funciona pois container é o pai
-- `scrollUp/Down`: `containerRef.current.scrollBy(...)` — agora funciona pois container tem overflow
-- `toggleFullscreen`: adicionar `overflow-y-auto` ao container em fullscreen
+### Mapeamento de valores
+
+O valor salvo em `oportunidades.origem` sera exatamente o value do select, que ja e reconhecido pela funcao SQL `fn_breakdown_canal_funil` como fallback quando `utm_source` esta vazio. Nenhuma mudanca no banco e necessaria.
