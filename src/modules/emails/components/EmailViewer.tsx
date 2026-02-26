@@ -88,15 +88,16 @@ function AnexoItem({ anexo, emailId }: { anexo: AnexoInfo; emailId: string }) {
 }
 
 function getInitialColor(name: string): string {
+  // AIDEV-NOTE: Cores com opacidade para funcionar em light e dark mode
   const colors = [
-    'bg-red-100 text-red-700',
-    'bg-blue-100 text-blue-700',
-    'bg-green-100 text-green-700',
-    'bg-purple-100 text-purple-700',
-    'bg-amber-100 text-amber-700',
-    'bg-teal-100 text-teal-700',
-    'bg-pink-100 text-pink-700',
-    'bg-indigo-100 text-indigo-700',
+    'bg-red-500/15 text-red-400',
+    'bg-blue-500/15 text-blue-400',
+    'bg-green-500/15 text-green-400',
+    'bg-purple-500/15 text-purple-400',
+    'bg-amber-500/15 text-amber-400',
+    'bg-teal-500/15 text-teal-400',
+    'bg-pink-500/15 text-pink-400',
+    'bg-indigo-500/15 text-indigo-400',
   ]
   const hash = name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)
   return colors[hash % colors.length]
@@ -183,13 +184,43 @@ export function EmailViewer({
     } catch { /* sandbox */ }
   }, [])
 
-  // AIDEV-NOTE: Re-ajustar altura periodicamente para imagens que carregam assincronamente
+  // AIDEV-NOTE: ResizeObserver + MutationObserver para altura dinâmica do iframe
   useEffect(() => {
     if (!email?.corpo_html && !email?.corpo_texto) return
-    const timers = [500, 1000, 2000, 3500].map(ms =>
-      setTimeout(adjustIframeHeight, ms)
+    const iframe = iframeRef.current
+    if (!iframe) return
+
+    let resizeObserver: ResizeObserver | null = null
+    let mutationObserver: MutationObserver | null = null
+
+    const setupObservers = () => {
+      try {
+        const doc = iframe.contentDocument || iframe.contentWindow?.document
+        if (!doc?.body) return
+
+        // ResizeObserver reage a mudanças de tamanho do conteúdo
+        resizeObserver = new ResizeObserver(() => adjustIframeHeight())
+        resizeObserver.observe(doc.body)
+
+        // MutationObserver detecta imagens carregando, DOM changes
+        mutationObserver = new MutationObserver(() => adjustIframeHeight())
+        mutationObserver.observe(doc.body, { childList: true, subtree: true, attributes: true })
+      } catch { /* sandbox restriction */ }
+    }
+
+    // Fallback: timeouts para garantir que altura seja ajustada
+    const timers = [300, 800, 1500, 3000].map(ms =>
+      setTimeout(() => {
+        adjustIframeHeight()
+        if (!resizeObserver) setupObservers()
+      }, ms)
     )
-    return () => timers.forEach(clearTimeout)
+
+    return () => {
+      timers.forEach(clearTimeout)
+      resizeObserver?.disconnect()
+      mutationObserver?.disconnect()
+    }
   }, [email?.id, adjustIframeHeight])
 
   // Reset translation when email changes
@@ -267,13 +298,14 @@ export function EmailViewer({
     const cspMeta = '<meta http-equiv="Content-Security-Policy" content="script-src \'none\'">'
 
     // AIDEV-NOTE: CSS de contenção - regras seguras que não quebram layout de tabelas de email
+    // AIDEV-NOTE: CSS de contenção — fundo branco forçado (abordagem Gmail) para dark mode
     const containmentCss = `<style>
-html, body { overflow-x: hidden !important; word-wrap: break-word; overflow-wrap: break-word; margin: 0; padding: 0; }
+html, body { overflow-x: hidden !important; word-wrap: break-word; overflow-wrap: break-word; margin: 0; padding: 8px 16px; background: #ffffff !important; color: #1a1a1a !important; }
 * { box-sizing: border-box; }
 table { border-collapse: collapse; }
 img { max-width: 100% !important; height: auto !important; }
 pre, code { white-space: pre-wrap !important; word-break: break-all; }
-a { word-break: break-all; }
+a { word-break: break-all; color: #1a73e8; }
 </style>`
 
     const charsetMeta = '<meta charset="utf-8">'
@@ -520,7 +552,7 @@ a { word-break: break-all; }
             srcDoc={cleanHtml}
             sandbox="allow-popups"
             className="w-full border-0"
-            style={{ minHeight: '400px' }}
+            style={{ minHeight: '200px' }}
             onLoad={adjustIframeHeight}
             title="Conteúdo do email"
           />
