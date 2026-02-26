@@ -8,20 +8,29 @@
   </head>
   <body>
     <script>
-      // AIDEV-NOTE: Handler global executado ANTES de qualquer bundle
-      // Captura erros de WebSocket do Vite HMR que ocorrem antes do React carregar
-      window.addEventListener('unhandledrejection', function(e) {
-        var msg = (e.reason && e.reason.message) || String(e.reason || '');
-        if (msg.indexOf('WebSocket') !== -1 || msg.indexOf('closed without opened') !== -1) {
-          e.preventDefault();
+      // AIDEV-NOTE: Suprime erros de WebSocket do Vite HMR no preview do Lovable
+      // O overlay de erro do Lovable detecta unhandled rejections - precisamos capturar ANTES
+      ;(function() {
+        function isWsError(msg) {
+          return msg && (msg.indexOf('WebSocket') !== -1 || msg.indexOf('closed without opened') !== -1);
         }
-      });
-      window.addEventListener('error', function(e) {
-        var msg = (e.message || '');
-        if (msg.indexOf('WebSocket') !== -1 || msg.indexOf('closed without opened') !== -1) {
-          e.preventDefault();
-        }
-      });
+        // Captura na fase de capture (antes do bubble) para garantir prioridade
+        window.addEventListener('unhandledrejection', function(e) {
+          var msg = (e.reason && e.reason.message) || String(e.reason || '');
+          if (isWsError(msg)) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            return false;
+          }
+        }, true);
+        window.addEventListener('error', function(e) {
+          if (isWsError(e.message || '')) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            return false;
+          }
+        }, true);
+      })();
     </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
