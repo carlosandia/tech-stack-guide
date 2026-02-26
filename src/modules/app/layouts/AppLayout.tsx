@@ -259,7 +259,7 @@ function NavHubDropdown({
 // ─── Utilitários ───────────────────────────────────────────────────────
 
 function getPageTitle(pathname: string): string {
-  if (pathname === '/dashboard') return 'Dashboard'
+  if (pathname === '/dashboard') return 'Relatório de Desempenho'
   if (pathname.startsWith('/contatos')) return 'Contatos'
   if (pathname.startsWith('/negocios')) return 'Negócios'
   if (pathname.startsWith('/conversas')) return 'Conversas'
@@ -306,8 +306,7 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
   const isEditorRoute = isFormularioEditorRoute(location.pathname)
   const isPipelineConfig = isPipelineConfigRoute(location.pathname)
   const isPerfilRoute = location.pathname === '/perfil'
-  const isDashboard = location.pathname === '/dashboard'
-  const hideToolbar = isEditorRoute || isPipelineConfig || isPerfilRoute || isDashboard
+  const hideToolbar = isEditorRoute || isPipelineConfig || isPerfilRoute
   const hideHeader = isEditorRoute
 
   const handleLogout = async () => {
