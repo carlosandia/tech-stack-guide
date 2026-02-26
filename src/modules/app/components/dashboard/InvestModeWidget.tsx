@@ -77,6 +77,7 @@ export default function InvestModeWidget({ data }: InvestModeWidgetProps) {
                 { label: 'Total Investido', valor: formatarMoeda(investMode.total_investido) },
                 { label: 'CPL', valor: investMode.cpl ? formatarMoeda(investMode.cpl) : '—' },
                 { label: 'Custo/MQL', valor: investMode.cpmql ? formatarMoeda(investMode.cpmql) : '—' },
+                { label: 'Custo/SQL', valor: investMode.custo_por_sql ? formatarMoeda(investMode.custo_por_sql) : '—' },
                 { label: 'Custo/Reunião', valor: investMode.custo_por_reuniao ? formatarMoeda(investMode.custo_por_reuniao) : '—' },
                 { label: 'CAC', valor: investMode.cac ? formatarMoeda(investMode.cac) : '—' },
                 {

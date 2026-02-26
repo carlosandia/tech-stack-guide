@@ -1,11 +1,11 @@
 /**
  * AIDEV-NOTE: Funil de Conversão visual (PRD-18)
  * 5 blocos: Leads → MQLs → SQLs → Reuniões → Ganhos
- * Com taxas de conversão entre etapas
+ * Com taxas de conversão e custos de investimento integrados
  */
 
-import { ArrowRight, Users, Target, UserCheck, Calendar, Trophy, Info } from 'lucide-react'
-import type { RelatorioFunilResponse } from '../../types/relatorio.types'
+import { ArrowRight, Users, Target, UserCheck, Calendar, Trophy, Info, DollarSign } from 'lucide-react'
+import type { RelatorioFunilResponse, InvestMode } from '../../types/relatorio.types'
 
 interface FunilConversaoProps {
   data: RelatorioFunilResponse
@@ -20,9 +20,33 @@ interface EtapaFunil {
   taxa: number | null
   taxaLabel: string
   dica: string
+  custo: number | null
+  custoLabel: string
+  extraInfo?: string // ROMI para Ganhos
+}
+
+function formatarMoeda(valor: number): string {
+  return `R$ ${valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+function getCustos(investMode: InvestMode) {
+  if (!investMode.ativo) {
+    return { cpl: null, cpmql: null, custoSql: null, custoReuniao: null, cac: null, romi: null }
+  }
+  return {
+    cpl: investMode.cpl,
+    cpmql: investMode.cpmql,
+    custoSql: investMode.custo_por_sql,
+    custoReuniao: investMode.custo_por_reuniao,
+    cac: investMode.cac,
+    romi: investMode.romi,
+  }
 }
 
 export default function FunilConversao({ data }: FunilConversaoProps) {
+  const custos = getCustos(data.invest_mode)
+  const investAtivo = data.invest_mode.ativo
+
   const etapas: EtapaFunil[] = [
     {
       label: 'Leads',
@@ -33,6 +57,8 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
       taxa: null,
       taxaLabel: '100%',
       dica: 'Oportunidades criadas no período e funil selecionado',
+      custo: custos.cpl,
+      custoLabel: 'CPL',
     },
     {
       label: 'MQLs',
@@ -43,6 +69,8 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
       taxa: data.conversoes.lead_para_mql,
       taxaLabel: data.conversoes.lead_para_mql ? `${data.conversoes.lead_para_mql}%` : '—',
       dica: 'Leads qualificados como Marketing Qualified Lead',
+      custo: custos.cpmql,
+      custoLabel: 'Custo/MQL',
     },
     {
       label: 'SQLs',
@@ -53,6 +81,8 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
       taxa: data.conversoes.mql_para_sql,
       taxaLabel: data.conversoes.mql_para_sql ? `${data.conversoes.mql_para_sql}%` : '—',
       dica: 'Leads qualificados como Sales Qualified Lead',
+      custo: custos.custoSql,
+      custoLabel: 'Custo/SQL',
     },
     {
       label: 'Reuniões',
@@ -63,6 +93,8 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
       taxa: data.conversoes.sql_para_reuniao,
       taxaLabel: data.conversoes.sql_para_reuniao ? `${data.conversoes.sql_para_reuniao}%` : '—',
       dica: 'Reuniões concluídas no período',
+      custo: custos.custoReuniao,
+      custoLabel: 'Custo/Reunião',
     },
     {
       label: 'Ganhos',
@@ -73,29 +105,43 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
       taxa: data.conversoes.reuniao_para_fechado,
       taxaLabel: data.conversoes.reuniao_para_fechado ? `${data.conversoes.reuniao_para_fechado}%` : '—',
       dica: 'Negócios fechados como ganhos',
+      custo: custos.cac,
+      custoLabel: 'CAC',
+      extraInfo: custos.romi !== null ? `ROMI: ${custos.romi}%` : undefined,
     },
   ]
 
   const taxaGeral = data.conversoes.lead_para_fechado
+  const totalInvestido = investAtivo ? (data.invest_mode as { total_investido: number }).total_investido : null
 
   return (
     <div className="bg-card border border-border rounded-xl p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+          <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
             Funil de Conversão
           </h3>
           <p className="text-xs text-muted-foreground mt-0.5">
             {data.periodo.label}
           </p>
         </div>
-        {taxaGeral !== null && (
-          <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 rounded-full">
-            <span className="text-xs font-semibold text-emerald-500">
-              {taxaGeral}% conversão geral
-            </span>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {totalInvestido !== null && (
+            <div className="flex items-center gap-1.5 px-3 py-1 bg-primary/10 rounded-full">
+              <DollarSign className="w-3 h-3 text-primary" />
+              <span className="text-xs font-semibold text-primary">
+                Investido: {formatarMoeda(totalInvestido)}
+              </span>
+            </div>
+          )}
+          {taxaGeral !== null && (
+            <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 rounded-full">
+              <span className="text-xs font-semibold text-emerald-500">
+                {taxaGeral}% conversão geral
+              </span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Desktop: horizontal */}
@@ -121,7 +167,26 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
                     {etapa.taxaLabel} conversão
                   </p>
                 )}
-                {etapa.value === 0 && (
+
+                {/* Custo de investimento integrado */}
+                {investAtivo && (
+                  <div className="mt-2 pt-2 border-t border-border/50">
+                    <div className="flex items-center gap-1">
+                      <DollarSign className="w-3 h-3 text-muted-foreground" />
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wide">{etapa.custoLabel}</span>
+                    </div>
+                    <p className="text-xs font-semibold text-foreground mt-0.5">
+                      {etapa.custo !== null ? formatarMoeda(etapa.custo) : '—'}
+                    </p>
+                    {etapa.extraInfo && (
+                      <p className={`text-xs font-bold mt-1 ${custos.romi !== null && custos.romi > 0 ? 'text-emerald-500' : 'text-destructive'}`}>
+                        {etapa.extraInfo}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {etapa.value === 0 && !investAtivo && (
                   <div className="flex items-start gap-1 mt-2 p-2 bg-background/50 rounded-md">
                     <Info className="w-3 h-3 text-muted-foreground mt-0.5 shrink-0" />
                     <span className="text-[10px] text-muted-foreground leading-tight">
@@ -166,11 +231,23 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
                       </p>
                     </div>
                   </div>
-                  {index > 0 && (
-                    <span className={`text-sm font-semibold ${etapa.color}`}>
-                      {etapa.taxaLabel}
-                    </span>
-                  )}
+                  <div className="text-right">
+                    {index > 0 && (
+                      <span className={`text-sm font-semibold ${etapa.color}`}>
+                        {etapa.taxaLabel}
+                      </span>
+                    )}
+                    {investAtivo && etapa.custo !== null && (
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        {etapa.custoLabel}: {formatarMoeda(etapa.custo)}
+                      </p>
+                    )}
+                    {etapa.extraInfo && (
+                      <p className={`text-[10px] font-bold ${custos.romi !== null && custos.romi > 0 ? 'text-emerald-500' : 'text-destructive'}`}>
+                        {etapa.extraInfo}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
               {index < etapas.length - 1 && (

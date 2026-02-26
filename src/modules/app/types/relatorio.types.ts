@@ -57,6 +57,7 @@ export type InvestMode =
       total_investido: number
       cpl: number | null
       cpmql: number | null
+      custo_por_sql: number | null
       custo_por_reuniao: number | null
       cac: number | null
       romi: number | null

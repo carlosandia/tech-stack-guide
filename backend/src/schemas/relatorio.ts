@@ -94,6 +94,7 @@ export const RelatorioFunilResponseSchema = z.object({
     total_investido: z.number(),
     cpl: z.number().nullable(),
     cpmql: z.number().nullable(),
+    custo_por_sql: z.number().nullable(),
     custo_por_reuniao: z.number().nullable(),
     cac: z.number().nullable(),
     romi: z.number().nullable(),
