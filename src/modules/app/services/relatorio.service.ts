@@ -13,6 +13,8 @@ import type {
   RelatorioFunilResponse,
   SalvarInvestimentoPayload,
   FunilOption,
+  DashboardMetricasGerais,
+  DashboardMetricasGeraisComVariacao,
 } from '../types/relatorio.types'
 
 // ─────────────────────────────────────────────────────
@@ -279,4 +281,51 @@ export async function fetchFunis(): Promise<FunilOption[]> {
 
   if (error) throw new Error(`Erro ao buscar funis: ${error.message}`)
   return (data ?? []) as FunilOption[]
+}
+
+// ─────────────────────────────────────────────────────
+// Métricas gerais do dashboard (fn_dashboard_metricas_gerais)
+// ─────────────────────────────────────────────────────
+
+async function buscarMetricasGerais(
+  organizacaoId: string,
+  periodo: PeriodoResolvido,
+  funil_id?: string
+): Promise<DashboardMetricasGerais> {
+  const { data, error } = await supabase.rpc('fn_dashboard_metricas_gerais' as never, {
+    p_organizacao_id: organizacaoId,
+    p_periodo_inicio: periodo.inicio.toISOString(),
+    p_periodo_fim: periodo.fim.toISOString(),
+    p_funil_id: funil_id ?? undefined,
+  } as never)
+
+  if (error) throw new Error(`Erro ao calcular métricas gerais: ${error.message}`)
+
+  const m = data as unknown as DashboardMetricasGerais
+  return {
+    perdas: Number(m?.perdas ?? 0),
+    valor_perdas: Number(m?.valor_perdas ?? 0),
+    tarefas_abertas: Number(m?.tarefas_abertas ?? 0),
+    total_oportunidades_historico: Number(m?.total_oportunidades_historico ?? 0),
+    motivos_perda: Array.isArray(m?.motivos_perda) ? m.motivos_perda : [],
+    produtos_ranking: Array.isArray(m?.produtos_ranking) ? m.produtos_ranking : [],
+  }
+}
+
+export async function fetchDashboardMetricasGerais(
+  query: FunilQuery
+): Promise<DashboardMetricasGeraisComVariacao> {
+  const organizacaoId = await getOrganizacaoId()
+  const periodo = resolverPeriodo(query)
+  const anterior = periodoAnterior(periodo)
+
+  const [atual, ant] = await Promise.all([
+    buscarMetricasGerais(organizacaoId, periodo, query.funil_id),
+    buscarMetricasGerais(organizacaoId, anterior, query.funil_id),
+  ])
+
+  return {
+    ...atual,
+    variacao_perdas: calcularVariacao(atual.perdas, ant.perdas),
+  }
 }
