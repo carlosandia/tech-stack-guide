@@ -222,7 +222,7 @@ export const MetaToolbarIndicator = forwardRef<HTMLDivElement>(function MetaTool
       <button
         ref={btnRef}
         onClick={handleToggle}
-        className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-2.5 py-1.5 rounded-lg bg-muted/60 hover:bg-muted transition-colors group"
+        className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-lg bg-muted border border-border hover:bg-accent transition-colors group"
         title="Meta de vendas"
       >
         <Target className="w-4 h-4 text-primary flex-shrink-0" />
