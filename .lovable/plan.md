@@ -1,79 +1,71 @@
 
 
-# Correção: Upload de imagem na assinatura + compressão
+## Correção do Funil de Conversão + Tooltips Explicativos
 
-## Problema Raiz
+### 1. Corrigir contagem de reuniões (SQL)
 
-A política RLS do bucket `assinaturas` valida:
-```
-(storage.foldername(name))[1] IN (SELECT organizacao_id::text FROM usuarios WHERE auth_id = auth.uid())
-```
+**Arquivo:** Nova migration SQL para `fn_metricas_funil`
 
-O código atual faz upload com path `assinaturas/{fileName}` — o primeiro segmento é `assinaturas`, não o `organizacao_id`. Por isso o RLS bloqueia com "new row violates row-level security policy".
+- `reunioes_agendadas`: trocar `COUNT(DISTINCT r.id)` por `COUNT(DISTINCT r.oportunidade_id)` -- 1 por oportunidade
+- `reunioes_realizadas`: idem
 
-## Solucao
+### 2. Corrigir cadeia de conversão no backend
 
-### 1. Corrigir path de upload no EditorToolbar (assinatura de mensagem)
+**Arquivo:** `backend/src/services/relatorio.service.ts`
 
-**Arquivo:** `src/modules/configuracoes/components/editor/EditorToolbar.tsx`
+- Renomear `sql_para_reuniao_agendada` para `lead_para_reuniao_agendada`
+- Calcular como: `reunioes_agendadas / total_leads`
 
-- Importar `compressImage` de `@/shared/utils/compressMedia` (já existe no projeto)
-- Buscar `organizacao_id` do usuário logado via Supabase Auth
-- Alterar o path de upload de `assinaturas/{fileName}` para `{organizacao_id}/assinaturas/{fileName}`
-- Comprimir a imagem antes do upload usando `compressImage()`
-- Aumentar limite visual para 2MB (mantido), mas comprimir antes de enviar
+**Arquivo:** `backend/src/schemas/relatorio.ts`
 
-### 2. Corrigir path de upload no EmailRichEditor (composicao de emails)
+- Renomear campo no schema Zod
 
-**Arquivo:** `src/modules/emails/components/EmailRichEditor.tsx`
+### 3. Atualizar tipo no frontend
 
-- Mesmo problema: path `email-images/{fileName}` nao comeca com `organizacao_id`
-- Importar `compressImage` de `@/shared/utils/compressMedia`
-- Buscar `organizacao_id` do usuario logado
-- Alterar path para `{organizacao_id}/email-images/{fileName}`
-- Comprimir imagem antes do upload
+**Arquivo:** `src/modules/app/types/relatorio.types.ts`
 
-## Detalhes Tecnicos
+- `sql_para_reuniao_agendada` vira `lead_para_reuniao_agendada` na interface `Conversoes`
 
-### EditorToolbar - Alteracoes
+### 4. Atualizar FunilConversao.tsx -- referências + tooltips
 
-```typescript
-import { compressImage } from '@/shared/utils/compressMedia'
+**Arquivo:** `src/modules/app/components/dashboard/FunilConversao.tsx`
 
-// Dentro de handleImageUpload, antes do upload:
-// 1. Buscar organizacao_id
-const { data: { user } } = await supabase.auth.getUser()
-const orgRes = await supabase
-  .from('usuarios')
-  .select('organizacao_id')
-  .eq('auth_id', user?.id)
-  .maybeSingle()
-const orgId = orgRes.data?.organizacao_id
-if (!orgId) { toast.error('Organização não encontrada'); return }
+Alterações na etapa R. Agendadas (linha ~127):
+- `taxa: dadosEfetivos.conversoes.lead_para_reuniao_agendada` (era `sql_para_reuniao_agendada`)
 
-// 2. Comprimir imagem
-const compressed = await compressImage(file, file.name)
+Tooltips atualizados com explicação do cálculo:
 
-// 3. Path correto com organizacao_id como primeiro segmento
-const filePath = `${orgId}/assinaturas/${fileName}`
+| Etapa | Tooltip atual | Tooltip novo |
+|-------|--------------|--------------|
+| **Leads** | "Total de oportunidades criadas..." | "Total de oportunidades criadas no período e funil selecionado. Base de cálculo (100%) para todas as taxas de conversão do funil." |
+| **MQLs** | "Marketing Qualified Leads..." | "Marketing Qualified Leads -- leads que atenderam critérios de qualificação de marketing. Cálculo: MQLs / Leads x 100." |
+| **SQLs** | "Sales Qualified Leads..." | "Sales Qualified Leads -- leads validados pela equipe comercial para abordagem de vendas. Cálculo: SQLs / Leads x 100." |
+| **R. Agendadas** | "Reuniões agendadas com leads qualificados..." | "Oportunidades distintas com pelo menos 1 reunião agendada (múltiplas reuniões no mesmo card contam como 1). Cálculo: Oportunidades com reunião agendada / Leads x 100." |
+| **R. Realizadas** | "Reuniões que foram efetivamente realizadas..." | "Oportunidades distintas com pelo menos 1 reunião realizada (múltiplas reuniões no mesmo card contam como 1). Cálculo: Oportunidades com reunião realizada / Leads x 100." |
+| **Ganhos** | "Negócios fechados com sucesso..." (mantém CAC/ROMI) | "Negócios fechados com sucesso. Cálculo: Ganhos / Leads x 100. CAC: Investido / Ganhos. ROMI: (Receita - Investido) / Investido x 100." |
 
-// 4. Upload com arquivo comprimido
-await supabase.storage.from('assinaturas').upload(filePath, compressed, { contentType: 'image/jpeg' })
-```
+### 5. Setas entre etapas
 
-### EmailRichEditor - Alteracoes
+As setas já mostram a taxa etapa-a-etapa (ex: MQLs->SQLs). Será adicionado no tooltip da seta (se existir) ou mantido como está, pois o recálculo dinâmico já cuida disso.
 
-```typescript
-import { compressImage } from '@/shared/utils/compressMedia'
+### Resultado esperado
 
-// Mesmo padrao: buscar orgId, comprimir, path com orgId
-const path = `${orgId}/email-images/${timestamp}.jpg`
-```
+Com 9 leads, 1 MQL, 1 oportunidade com 3 reuniões agendadas e 1 realizada:
+- **Leads**: 9 (100%)
+- **MQLs**: 1 (11.1%)
+- **R. Agendadas**: 1 (11.1%) -- antes mostrava 3
+- **R. Realizadas**: 1 (11.1%) -- antes mostrava inconsistente
+- **Ganhos**: depende dos fechamentos
 
-## Arquivos alterados
+Cada tooltip com `(?)` explica exatamente como o número é calculado.
 
-| Arquivo | Alteracao |
+### Arquivos modificados
+
+| Arquivo | Alteração |
 |---------|-----------|
-| `src/modules/configuracoes/components/editor/EditorToolbar.tsx` | Path com orgId + compressao de imagem |
-| `src/modules/emails/components/EmailRichEditor.tsx` | Path com orgId + compressao de imagem |
+| `supabase/migrations/` | Nova migration: fn_metricas_funil com COUNT(DISTINCT oportunidade_id) |
+| `backend/src/services/relatorio.service.ts` | lead_para_reuniao_agendada |
+| `backend/src/schemas/relatorio.ts` | Renomear campo no schema |
+| `src/modules/app/types/relatorio.types.ts` | Renomear no tipo Conversoes |
+| `src/modules/app/components/dashboard/FunilConversao.tsx` | Referência + tooltips explicativos |
 
