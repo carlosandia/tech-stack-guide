@@ -1,62 +1,142 @@
 
-# Correção: LEADS deve contar Oportunidades, não Contatos
+# Dashboard Completo com Metricas Gerais e Graficos
 
-## Problema identificado
+## Visao Geral
 
-A função `fn_metricas_funil` no Supabase conta **contatos criados** como "Leads". Isso e incorreto para um funil de vendas porque:
+Expandir o dashboard atual para incluir metricas gerais operacionais, graficos de motivos de perda, ranking de produtos mais vendidos e historico de oportunidades com variacoes percentuais. Tudo com tooltips informativos em linguagem acessivel.
 
-- Contatos existem independentemente de pipelines
-- Um contato pode nunca ter entrado em nenhum funil
-- Infla o numero real do topo do funil (ex: 251 leads vs 1 ganho = taxa irreal)
+## Estrutura Final do Dashboard (ordem)
 
-## Como CRMs profissionais funcionam
-
-| CRM | "Lead" no funil = |
-|---|---|
-| HubSpot | Deals created in pipeline |
-| Pipedrive | Deals added in period |
-| RD Station CRM | Oportunidades criadas no funil |
-| Salesforce | Opportunities entering stage |
-
-**Consenso**: Lead no funil de vendas = **oportunidade criada no periodo, dentro da pipeline filtrada**.
-
-## Solucao
-
-### 1. Alterar a funcao `fn_metricas_funil` no Supabase
-
-Substituir a subquery de `total_leads` para contar **oportunidades** em vez de contatos:
-
-```sql
-'total_leads', (
-  SELECT COUNT(DISTINCT o.id)
-  FROM oportunidades o
-  WHERE o.organizacao_id = p_organizacao_id
-    AND o.criado_em >= p_periodo_inicio
-    AND o.criado_em <= p_periodo_fim
-    AND o.deletado_em IS NULL
-    AND (p_funil_id IS NULL OR o.funil_id = p_funil_id)
-    AND (p_canal IS NULL OR o.utm_source = p_canal)
-)
+```text
+1. Header + Filtros (ja existe)
+2. Funil de Conversao (ja existe)
+3. Invest Mode (ja existe)
+4. Cards KPIs Principais (REFORMULADO - 6 cards)
+   - Novos Leads | Vendas (qtd) | Receita Total | Perdas | Ticket Medio | Forecast
+5. Cards Secundarios (NOVO - 4 cards)
+   - Ciclo Medio | Tarefas em Aberto | Total Oportunidades | Conversao Geral
+6. Grafico: Motivos de Perda (NOVO - Recharts horizontal bar chart)
+7. Ranking: Produto Mais Vendido (NOVO - lista ranqueada)
+8. Breakdown por Canal (ja existe)
 ```
 
-Isso garante:
-- Filtra pela pipeline selecionada (p_funil_id)
-- Filtra pelo canal se aplicavel
-- Respeita soft delete
-- Conta oportunidades unicas criadas no periodo
+## Novas Metricas Necessarias
 
-### 2. Verificar o erro visivel na screenshot
+### Dados que serao buscados diretamente via Supabase queries (sem RPC):
 
-A screenshot mostra um erro de runtime ("The app encountered an error"). Sera investigado nos logs do console para identificar se esta relacionado ao componente de breakdown canal ou outro componente.
+| Metrica | Tabela | Query |
+|---------|--------|-------|
+| Perdas (qtd) | oportunidades + etapas_funil (tipo='perda') | COUNT com fechado_em no periodo |
+| Receita de perdas | oportunidades | SUM(valor) das perdas |
+| Tarefas em aberto | tarefas | COUNT(status IN pendente, em_andamento) |
+| Motivos de perda | oportunidades + motivos_resultado | GROUP BY motivo_resultado_id com JOIN |
+| Produto mais vendido | oportunidades_produtos + produtos | GROUP BY produto_id, SUM(quantidade) |
+| Total de oportunidades no historico | oportunidades | COUNT total (sem filtro de periodo) |
 
-## Arquivos alterados
+### Variacoes (crescimento vs periodo anterior):
 
-| Arquivo | Alteracao |
-|---|---|
-| Supabase function `fn_metricas_funil` | Alterar subquery `total_leads` de contatos para oportunidades |
+Cada card com variacao mostrara:
+- Seta verde para cima com "+X%" quando positivo
+- Seta vermelha para baixo com "-X%" quando negativo  
+- "s/d" (sem dados) quando nao ha periodo anterior
 
-## Impacto
+## Detalhamento Tecnico
 
-- Os numeros de "Leads" passarao a refletir oportunidades reais no funil
-- As taxas de conversao (Lead para MQL, Lead para Fechado) ficarao mais realistas
-- Compativel com a logica ja usada em MQL, SQL, Reunioes e Fechados (todos baseados em oportunidades)
+### 1. Nova funcao RPC `fn_dashboard_metricas_gerais`
+
+Criar migration com funcao PostgreSQL que retorna em uma unica chamada:
+- `perdas` (count de oportunidades em etapa tipo='perda' fechadas no periodo)
+- `valor_perdas` (soma dos valores das perdas)
+- `tarefas_abertas` (count de tarefas com status pendente/em_andamento)
+- `total_oportunidades_historico` (count total sem filtro de periodo)
+- `motivos_perda` (array JSON com nome, cor, quantidade, percentual)
+- `produtos_ranking` (array JSON com nome_produto, quantidade_vendida, receita_gerada)
+
+Parametros: `p_organizacao_id`, `p_periodo_inicio`, `p_periodo_fim`, `p_funil_id`
+
+### 2. Atualizar Types (`relatorio.types.ts`)
+
+Adicionar interface `DashboardMetricasGerais`:
+```typescript
+interface DashboardMetricasGerais {
+  perdas: number
+  valor_perdas: number
+  tarefas_abertas: number
+  total_oportunidades_historico: number
+  motivos_perda: Array<{ nome: string; cor: string; quantidade: number; percentual: number }>
+  produtos_ranking: Array<{ nome: string; quantidade: number; receita: number }>
+}
+```
+
+### 3. Atualizar Service (`relatorio.service.ts`)
+
+- Adicionar `fetchDashboardMetricasGerais()` que chama a nova RPC
+- Adicionar chamada para metricas do periodo anterior (para variacao de perdas)
+
+### 4. Atualizar Hook (`useRelatorioFunil.ts`)
+
+- Novo hook `useDashboardMetricasGerais(query)` com TanStack Query
+
+### 5. Novos Componentes
+
+| Componente | Descricao |
+|-----------|-----------|
+| `KPIsPrincipais.tsx` | Grid 6 cards: Novos Leads, Vendas, Receita, Perdas, Ticket Medio, Forecast - todos com variacao e tooltip |
+| `KPIsSecundarios.tsx` | Grid 4 cards: Ciclo Medio, Tarefas Abertas, Total Historico, Conversao Geral |
+| `MotivosPerda.tsx` | Grafico de barras horizontal (Recharts) com motivos de perda ranqueados |
+| `ProdutosRanking.tsx` | Lista visual ranqueada com barras proporcionais e medalhas (1o, 2o, 3o) |
+
+### 6. Atualizar `KPIsEstrategicos.tsx`
+
+Remover o componente antigo e substituir pelos novos `KPIsPrincipais` e `KPIsSecundarios`.
+
+### 7. Atualizar `DashboardPage.tsx`
+
+Adicionar os novos componentes na ordem correta.
+
+## Tooltips (linguagem acessivel)
+
+| Metrica | Tooltip |
+|---------|---------|
+| Novos Leads | "Quantidade de oportunidades criadas no periodo selecionado" |
+| Vendas | "Quantidade de negocios fechados como ganhos no periodo" |
+| Receita Total | "Soma dos valores de todos os negocios ganhos" |
+| Perdas | "Quantidade de negocios perdidos no periodo" |
+| Ticket Medio | "Valor medio dos negocios ganhos. Formula: receita total dividida pelo numero de vendas" |
+| Forecast | "Previsao de receita baseada no valor e probabilidade de cada etapa do funil" |
+| Ciclo Medio | "Tempo medio entre a criacao e o fechamento de um negocio" |
+| Tarefas Abertas | "Total de tarefas pendentes ou em andamento da sua equipe" |
+| Total Historico | "Todas as oportunidades ja criadas, independente do periodo" |
+| Conversao Geral | "Percentual de leads que se tornaram vendas no periodo" |
+
+## Grafico de Motivos de Perda
+
+- Recharts `BarChart` horizontal
+- Cada barra com a cor do motivo (`motivos_resultado.cor`)
+- Label: nome do motivo + quantidade + percentual
+- Titulo: "Principais Motivos de Perda"
+- Tooltip do titulo: "Razoes mais comuns pelas quais negocios foram perdidos no periodo"
+
+## Ranking de Produtos
+
+- Lista ordenada por quantidade vendida (desc)
+- Top 5 produtos
+- Cada item mostra: posicao (medalha ouro/prata/bronze para top 3), nome, quantidade, receita
+- Barra proporcional ao mais vendido
+- Titulo: "Produtos Mais Vendidos"
+- Tooltip: "Ranking dos produtos com maior volume de vendas no periodo"
+
+## Arquivos Alterados/Criados
+
+| Arquivo | Acao |
+|---------|------|
+| Supabase migration (fn_dashboard_metricas_gerais) | Criar |
+| `src/modules/app/types/relatorio.types.ts` | Editar - adicionar tipos |
+| `src/modules/app/services/relatorio.service.ts` | Editar - nova funcao |
+| `src/modules/app/hooks/useRelatorioFunil.ts` | Editar - novo hook |
+| `src/modules/app/components/dashboard/KPIsPrincipais.tsx` | Criar |
+| `src/modules/app/components/dashboard/KPIsSecundarios.tsx` | Criar |
+| `src/modules/app/components/dashboard/MotivosPerda.tsx` | Criar |
+| `src/modules/app/components/dashboard/ProdutosRanking.tsx` | Criar |
+| `src/modules/app/components/dashboard/KPIsEstrategicos.tsx` | Remover (substituido) |
+| `src/modules/app/pages/DashboardPage.tsx` | Editar - nova composicao |
