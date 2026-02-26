@@ -473,6 +473,9 @@ export interface ConfiguracaoTenant {
   assinatura_mensagem?: string | null
   horario_inicio_envio: string
   horario_fim_envio: string
+  horario_comercial_inicio?: string | null
+  horario_comercial_fim?: string | null
+  dias_uteis?: number[] | null
   criado_em: string
   atualizado_em: string
 }

@@ -5,9 +5,10 @@
  */
 
 import { useState, useMemo } from 'react'
-import { Flame, MessageSquare } from 'lucide-react'
+import { Flame, MessageSquare, Clock } from 'lucide-react'
 import type { FunilQuery } from '../../types/relatorio.types'
 import { useHeatmapAtendimento } from '../../hooks/useRelatorioFunil'
+import { useConfigTenant } from '@/modules/configuracoes/hooks/useConfigTenant'
 
 type CanalFiltro = 'todos' | 'whatsapp' | 'instagram'
 
@@ -26,8 +27,8 @@ const CANAL_OPTIONS: { value: CanalFiltro; label: string }[] = [
 ]
 
 // AIDEV-NOTE: 6 níveis de intensidade usando tokens semânticos
-function getHeatColor(value: number, max: number): string {
-  if (max === 0 || value === 0) return 'bg-muted/30'
+function getHeatColor(value: number, max: number, dentroHorario: boolean): string {
+  if (max === 0 || value === 0) return dentroHorario ? 'bg-muted/30' : 'bg-muted/10'
   const ratio = value / max
   if (ratio <= 0.15) return 'bg-primary/10'
   if (ratio <= 0.3) return 'bg-primary/20'
@@ -44,11 +45,29 @@ function getTextColor(value: number, max: number): string {
   return 'text-foreground'
 }
 
+// AIDEV-NOTE: Parse "HH:MM" para número inteiro da hora
+function parseHora(str: string | null | undefined, fallback: number): number {
+  if (!str) return fallback
+  const parts = str.split(':')
+  const h = parseInt(parts[0], 10)
+  return isNaN(h) ? fallback : h
+}
+
+const DIAS_NOMES_CURTOS: Record<number, string> = { 0: 'Dom', 1: 'Seg', 2: 'Ter', 3: 'Qua', 4: 'Qui', 5: 'Sex', 6: 'Sáb' }
+
 export default function HeatmapAtendimento({ query }: Props) {
   const [canal, setCanal] = useState<CanalFiltro>('todos')
   const canalParam = canal === 'todos' ? undefined : canal
   const { data, isLoading } = useHeatmapAtendimento(query, canalParam)
+  const { data: configTenant } = useConfigTenant()
 
+  // AIDEV-NOTE: Extrair horário comercial das configurações do tenant
+  const horaInicio = parseHora(configTenant?.horario_comercial_inicio, 8)
+  const horaFim = parseHora(configTenant?.horario_comercial_fim, 18)
+  const diasUteis: number[] = configTenant?.dias_uteis ?? [1, 2, 3, 4, 5]
+
+  const isDentroHorario = (dia: number, hora: number) =>
+    diasUteis.includes(dia) && hora >= horaInicio && hora < horaFim
   const { grid, maxVal, pico } = useMemo(() => {
     const g: Record<string, number> = {}
     let mx = 0
@@ -127,18 +146,30 @@ export default function HeatmapAtendimento({ query }: Props) {
                 {/* Header das horas */}
                 <div className="grid gap-0.5" style={{ gridTemplateColumns: `48px repeat(${HORAS.length}, 1fr)` }}>
                   <div /> {/* Célula vazia - canto */}
-                  {HORAS.map(h => (
-                    <div key={h} className="text-[10px] text-muted-foreground text-center font-medium py-1">
-                      {String(h).padStart(2, '0')}
-                    </div>
-                  ))}
+                  {HORAS.map(h => {
+                    const isStart = h === horaInicio
+                    const isEnd = h === horaFim - 1
+                    return (
+                      <div
+                        key={h}
+                        className={`text-[10px] text-muted-foreground text-center font-medium py-1
+                          ${isStart ? 'border-l-2 border-primary/20 rounded-tl-sm' : ''}
+                          ${isEnd ? 'border-r-2 border-primary/20 rounded-tr-sm' : ''}
+                        `}
+                      >
+                        {String(h).padStart(2, '0')}
+                      </div>
+                    )
+                  })}
                 </div>
 
                 {/* Linhas dos dias (Seg a Dom reordenado: 1,2,3,4,5,6,0) */}
-                {[1, 2, 3, 4, 5, 6, 0].map(dia => (
+                {[1, 2, 3, 4, 5, 6, 0].map(dia => {
+                  const diaUtil = diasUteis.includes(dia)
+                  return (
                   <div
                     key={dia}
-                    className="grid gap-0.5"
+                    className={`grid gap-0.5 ${!diaUtil ? 'opacity-40' : ''}`}
                     style={{ gridTemplateColumns: `48px repeat(${HORAS.length}, 1fr)` }}
                   >
                     <div className="text-[11px] text-muted-foreground font-medium flex items-center pr-2 py-0.5">
@@ -147,24 +178,31 @@ export default function HeatmapAtendimento({ query }: Props) {
                     {HORAS.map(hora => {
                       const val = grid[`${dia}-${hora}`] ?? 0
                       const isPico = pico && pico.dia === dia && pico.hora === hora
+                      const dentro = isDentroHorario(dia, hora)
+                      const isStart = hora === horaInicio
+                      const isEnd = hora === horaFim - 1
                       return (
                         <div
                           key={hora}
                           className={`
                             aspect-square rounded-sm flex items-center justify-center
                             transition-colors cursor-default text-[9px] font-medium
-                            ${getHeatColor(val, maxVal)}
+                            ${getHeatColor(val, maxVal, dentro)}
                             ${getTextColor(val, maxVal)}
                             ${isPico ? 'ring-2 ring-primary ring-offset-1 ring-offset-background' : ''}
+                            ${!dentro && diaUtil ? 'opacity-40' : ''}
+                            ${isStart ? 'border-l-2 border-primary/20' : ''}
+                            ${isEnd ? 'border-r-2 border-primary/20' : ''}
                           `}
-                          title={`${DIAS_SEMANA[dia]} ${String(hora).padStart(2, '0')}h — ${val} conversa${val !== 1 ? 's' : ''}`}
+                          title={`${DIAS_SEMANA[dia]} ${String(hora).padStart(2, '0')}h — ${val} conversa${val !== 1 ? 's' : ''}${!dentro ? ' (fora do expediente)' : ''}`}
                         >
                           {val > 0 ? val : ''}
                         </div>
                       )
                     })}
                   </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
 
@@ -182,13 +220,19 @@ export default function HeatmapAtendimento({ query }: Props) {
                 <span>Maior</span>
               </div>
 
-              {/* Pico */}
-              {pico && (
-                <p className="text-xs text-muted-foreground">
-                  <span className="font-medium text-foreground">Maior volume:</span>{' '}
-                  {DIAS_SEMANA[pico.dia]} {String(pico.hora).padStart(2, '0')}h ({pico.total} conversa{pico.total !== 1 ? 's' : ''})
+              {/* Pico + Horário comercial */}
+              <div className="flex flex-col items-end gap-1">
+                {pico && (
+                  <p className="text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground">Maior volume:</span>{' '}
+                    {DIAS_SEMANA[pico.dia]} {String(pico.hora).padStart(2, '0')}h ({pico.total} conversa{pico.total !== 1 ? 's' : ''})
+                  </p>
+                )}
+                <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  Horário comercial: {String(horaInicio).padStart(2, '0')}h–{String(horaFim).padStart(2, '0')}h · {diasUteis.map(d => DIAS_NOMES_CURTOS[d]).join(', ')}
                 </p>
-              )}
+              </div>
             </div>
           </>
         )}
