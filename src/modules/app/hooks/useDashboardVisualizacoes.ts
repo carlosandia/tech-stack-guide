@@ -70,6 +70,32 @@ export function useDashboardVisualizacoes() {
     },
   })
 
+  const editarMutation = useMutation({
+    mutationFn: async (params: {
+      id: string
+      nome?: string
+      filtros?: VisualizacaoFiltros
+      config_exibicao?: Partial<DashboardDisplayConfig>
+    }) => {
+      const updates: Record<string, unknown> = {}
+      if (params.nome !== undefined) updates.nome = params.nome
+      if (params.filtros !== undefined) updates.filtros = params.filtros
+      if (params.config_exibicao !== undefined) updates.config_exibicao = params.config_exibicao
+      const { error } = await (supabase
+        .from('visualizacoes_dashboard') as any)
+        .update(updates)
+        .eq('id', params.id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEY })
+      toast.success('Visualização atualizada')
+    },
+    onError: () => {
+      toast.error('Erro ao atualizar visualização')
+    },
+  })
+
   const excluirMutation = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await (supabase
@@ -91,7 +117,9 @@ export function useDashboardVisualizacoes() {
     visualizacoes,
     isLoading,
     salvar: salvarMutation.mutate,
+    editar: editarMutation.mutate,
     excluir: excluirMutation.mutate,
     isSaving: salvarMutation.isPending,
+    isEditing: editarMutation.isPending,
   }
 }

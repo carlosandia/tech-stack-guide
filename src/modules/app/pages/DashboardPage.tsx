@@ -230,6 +230,8 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
               onDatasChange={handleDatasChange}
             />
             <div className="flex items-center gap-2">
+              <InvestModeWidget data={relatorio} />
+              <DashboardDisplayConfig config={displayConfig} onToggle={toggleSection} />
               <DashboardVisualizacoes
                 filtrosAtuais={{
                   periodo,
@@ -239,9 +241,8 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
                 }}
                 configExibicaoAtual={displayConfig}
                 onAplicar={handleAplicarVisualizacao}
+                funis={funis}
               />
-              <InvestModeWidget data={relatorio} />
-              <DashboardDisplayConfig config={displayConfig} onToggle={toggleSection} />
               <ExportarRelatorioPDF
                 containerRef={contentRef}
                 dashboardPeriodo={periodo}
