@@ -3,7 +3,7 @@
  * Explica o gap entre Agendadas e Realizadas no funil
  */
 
-import { AlertTriangle, XCircle, RefreshCw, UserX, CheckCircle, HelpCircle, CalendarClock, CalendarCheck } from 'lucide-react'
+import { XCircle, RefreshCw, UserX, HelpCircle, CalendarClock, CalendarCheck, CheckCheck } from 'lucide-react'
 import type { RelatorioFunilResponse } from '../../types/relatorio.types'
 import {
   Popover,
@@ -37,7 +37,8 @@ export default function IndicadoresReunioes({ data }: IndicadoresReunioesProps) 
   const totalReunioes = funil.reunioes_agendadas + funil.reunioes_noshow + funil.reunioes_canceladas
   if (totalReunioes === 0) return null
 
-  const cards = [
+  // Cards simples (sem taxa embutida)
+  const simpleCards = [
     {
       label: 'Agendadas',
       value: funil.reunioes_agendadas.toString(),
@@ -45,14 +46,6 @@ export default function IndicadoresReunioes({ data }: IndicadoresReunioesProps) 
       color: 'text-primary',
       bgColor: 'bg-primary/10',
       tooltip: 'Total de reuniões agendadas no período selecionado.',
-    },
-    {
-      label: 'No-Shows',
-      value: funil.reunioes_noshow.toString(),
-      icon: UserX,
-      color: 'text-amber-500',
-      bgColor: 'bg-amber-500/10',
-      tooltip: 'Reuniões agendadas em que o prospect não compareceu.',
     },
     {
       label: 'Canceladas',
@@ -70,35 +63,21 @@ export default function IndicadoresReunioes({ data }: IndicadoresReunioesProps) 
       bgColor: 'bg-violet-500/10',
       tooltip: 'Reuniões que foram reagendadas para outra data.',
     },
-    {
-      label: 'Taxa No-Show',
-      value: taxas_reunioes.taxa_noshow !== null ? `${taxas_reunioes.taxa_noshow}%` : '—',
-      icon: AlertTriangle,
-      color: 'text-amber-500',
-      bgColor: 'bg-amber-500/10',
-      tooltip: 'Percentual de reuniões em que o prospect não compareceu. Fórmula: no-shows ÷ total agendadas × 100.',
-      isRate: true,
-      rateColor: taxas_reunioes.taxa_noshow !== null && taxas_reunioes.taxa_noshow > 20
-        ? 'text-destructive'
-        : taxas_reunioes.taxa_noshow !== null && taxas_reunioes.taxa_noshow > 10
-          ? 'text-amber-500'
-          : 'text-emerald-500',
-    },
-    {
-      label: 'Comparecimento',
-      value: taxas_reunioes.taxa_comparecimento !== null ? `${taxas_reunioes.taxa_comparecimento}%` : '—',
-      icon: CheckCircle,
-      color: 'text-emerald-500',
-      bgColor: 'bg-emerald-500/10',
-      tooltip: 'Percentual de reuniões realizadas sobre o total agendado. Fórmula: realizadas ÷ total agendadas × 100.',
-      isRate: true,
-      rateColor: taxas_reunioes.taxa_comparecimento !== null && taxas_reunioes.taxa_comparecimento >= 80
-        ? 'text-emerald-500'
-        : taxas_reunioes.taxa_comparecimento !== null && taxas_reunioes.taxa_comparecimento >= 60
-          ? 'text-amber-500'
-          : 'text-destructive',
-    },
   ]
+
+  // Taxa no-show color
+  const noshowRateColor = taxas_reunioes.taxa_noshow !== null && taxas_reunioes.taxa_noshow > 20
+    ? 'text-destructive'
+    : taxas_reunioes.taxa_noshow !== null && taxas_reunioes.taxa_noshow > 10
+      ? 'text-amber-500'
+      : 'text-emerald-500'
+
+  // Taxa comparecimento color
+  const compRateColor = taxas_reunioes.taxa_comparecimento !== null && taxas_reunioes.taxa_comparecimento >= 80
+    ? 'text-emerald-500'
+    : taxas_reunioes.taxa_comparecimento !== null && taxas_reunioes.taxa_comparecimento >= 60
+      ? 'text-amber-500'
+      : 'text-destructive'
 
   return (
     <div className="space-y-3">
@@ -106,8 +85,9 @@ export default function IndicadoresReunioes({ data }: IndicadoresReunioesProps) 
         <CalendarClock className="w-4 h-4 text-muted-foreground" />
         Indicadores de Reuniões
       </h3>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-        {cards.map((card) => {
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+        {/* Cards simples */}
+        {simpleCards.map((card) => {
           const Icon = card.icon
           return (
             <div
@@ -125,12 +105,58 @@ export default function IndicadoresReunioes({ data }: IndicadoresReunioesProps) 
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-0.5">
                 {card.label}
               </p>
-              <p className={`text-xl font-bold ${'isRate' in card && card.isRate && card.rateColor ? card.rateColor : 'text-foreground'}`}>
+              <p className="text-xl font-bold text-foreground">
                 {card.value}
               </p>
             </div>
           )
         })}
+
+        {/* Card unificado: No-Shows + Taxa */}
+        <div className="bg-card border border-border rounded-xl p-4 hover:shadow-md transition-all duration-200">
+          <div className="flex items-center justify-between mb-2">
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-amber-500/10">
+              <UserX className="w-3.5 h-3.5 text-amber-500" />
+            </div>
+            <TooltipInfo>
+              <p>No-shows: reuniões em que o prospect não compareceu. A taxa é calculada como no-shows ÷ agendadas × 100.</p>
+            </TooltipInfo>
+          </div>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-0.5">
+            No-Shows
+          </p>
+          <div className="flex items-baseline gap-2">
+            <p className="text-xl font-bold text-foreground">
+              {funil.reunioes_noshow}
+            </p>
+            <p className={`text-sm font-semibold ${noshowRateColor}`}>
+              {taxas_reunioes.taxa_noshow !== null ? `${taxas_reunioes.taxa_noshow}%` : '—'}
+            </p>
+          </div>
+        </div>
+
+        {/* Card unificado: Realizadas + Comparecimento */}
+        <div className="bg-card border border-border rounded-xl p-4 hover:shadow-md transition-all duration-200">
+          <div className="flex items-center justify-between mb-2">
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-emerald-500/10">
+              <CheckCheck className="w-3.5 h-3.5 text-emerald-500" />
+            </div>
+            <TooltipInfo>
+              <p>Reuniões efetivamente realizadas. A taxa de comparecimento é calculada como realizadas ÷ agendadas × 100.</p>
+            </TooltipInfo>
+          </div>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-0.5">
+            Realizadas
+          </p>
+          <div className="flex items-baseline gap-2">
+            <p className="text-xl font-bold text-foreground">
+              {funil.reunioes_realizadas}
+            </p>
+            <p className={`text-sm font-semibold ${compRateColor}`}>
+              {taxas_reunioes.taxa_comparecimento !== null ? `${taxas_reunioes.taxa_comparecimento}%` : '—'}
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   )
