@@ -4,7 +4,13 @@
  * Sem dependência de Recharts para evitar conflito de instância React duplicada
  */
 
+import { HelpCircle } from 'lucide-react'
 import type { BreakdownCanalItem } from '../../types/relatorio.types'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 
 interface BreakdownCanalProps {
   data: BreakdownCanalItem[]
@@ -85,15 +91,27 @@ export default function BreakdownCanal({ data }: BreakdownCanalProps) {
   if (!data || data.length === 0) {
     return (
       <div className="bg-card border border-border rounded-xl p-6">
-        <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider mb-4">
-          Por Canal de Origem
-        </h3>
+        <div className="flex items-center gap-2 mb-4">
+          <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+            Por Canal de Origem
+          </h3>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button className="text-muted-foreground/50 hover:text-muted-foreground transition-colors">
+                <HelpCircle className="w-3.5 h-3.5" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-72 text-xs" side="top">
+              <p className="mb-1.5">Distribuição de oportunidades por canal de aquisição.</p>
+              <p className="text-muted-foreground">
+                <strong>Prioridade:</strong> Se a oportunidade possui UTM (utm_source), esse valor é usado. Caso contrário, usa a origem do fluxo de criação (WhatsApp, formulário, etc.). Se nenhum estiver definido, aparece como "Direto".
+              </p>
+            </PopoverContent>
+          </Popover>
+        </div>
         <div className="text-center py-8">
           <p className="text-sm text-muted-foreground">
             Nenhum dado de canal disponível no período.
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Os canais são populados via campo utm_source das oportunidades.
           </p>
         </div>
       </div>
@@ -110,9 +128,24 @@ export default function BreakdownCanal({ data }: BreakdownCanalProps) {
 
   return (
     <div className="bg-card border border-border rounded-xl p-6">
-      <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider mb-6">
-        Por Canal de Origem
-      </h3>
+      <div className="flex items-center gap-2 mb-6">
+        <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+          Por Canal de Origem
+        </h3>
+        <Popover>
+          <PopoverTrigger asChild>
+            <button className="text-muted-foreground/50 hover:text-muted-foreground transition-colors">
+              <HelpCircle className="w-3.5 h-3.5" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-72 text-xs" side="top">
+            <p className="mb-1.5">Distribuição de oportunidades por canal de aquisição.</p>
+            <p className="text-muted-foreground">
+              <strong>Prioridade:</strong> Se a oportunidade possui UTM (utm_source), esse valor é usado. Caso contrário, usa a origem do fluxo de criação (WhatsApp, formulário, etc.). Se nenhum estiver definido, aparece como "Direto".
+            </p>
+          </PopoverContent>
+        </Popover>
+      </div>
 
       <div className="flex flex-col lg:flex-row gap-6 items-start">
         {/* Donut Chart CSS */}
