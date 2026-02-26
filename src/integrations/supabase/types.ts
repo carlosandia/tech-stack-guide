@@ -8432,6 +8432,10 @@ export type Database = {
         }
         Returns: string
       }
+      recalcular_progresso_meta: {
+        Args: { p_meta_id: string }
+        Returns: undefined
+      }
       registrar_abertura_email: {
         Args: { p_tracking_id: string }
         Returns: undefined
