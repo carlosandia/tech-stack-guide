@@ -233,27 +233,31 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
               dataFim={dataFim}
               onDatasChange={handleDatasChange}
             />
-            <div className="flex items-center gap-2">
-              <InvestModeWidget data={relatorio} />
-              <DashboardDisplayConfig config={displayConfig} onToggle={toggleSection} />
-              <DashboardVisualizacoes
-                filtrosAtuais={{
-                  periodo,
-                  funil_id: funilId || null,
-                  data_inicio: dataInicio || null,
-                  data_fim: dataFim || null,
-                }}
-                configExibicaoAtual={displayConfig}
-                onAplicar={handleAplicarVisualizacao}
-                funis={funis}
-              />
-              <ExportarRelatorioPDF
-                containerRef={contentRef}
-                dashboardPeriodo={periodo}
-                dashboardDataInicio={dataInicio}
-                dashboardDataFim={dataFim}
-              />
-              <FullscreenToggle containerRef={scrollContainerRef} />
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <InvestModeWidget data={relatorio} />
+                <DashboardDisplayConfig config={displayConfig} onToggle={toggleSection} />
+              </div>
+              <div className="flex items-center gap-2">
+                <DashboardVisualizacoes
+                  filtrosAtuais={{
+                    periodo,
+                    funil_id: funilId || null,
+                    data_inicio: dataInicio || null,
+                    data_fim: dataFim || null,
+                  }}
+                  configExibicaoAtual={displayConfig}
+                  onAplicar={handleAplicarVisualizacao}
+                  funis={funis}
+                />
+                <ExportarRelatorioPDF
+                  containerRef={contentRef}
+                  dashboardPeriodo={periodo}
+                  dashboardDataInicio={dataInicio}
+                  dashboardDataFim={dataFim}
+                />
+                <FullscreenToggle containerRef={scrollContainerRef} />
+              </div>
             </div>
           </div>
         </div>
