@@ -15,6 +15,7 @@ import type {
   FunilOption,
   DashboardMetricasGerais,
   DashboardMetricasGeraisComVariacao,
+  MetricasAtendimento,
 } from '../types/relatorio.types'
 
 // ─────────────────────────────────────────────────────
@@ -327,5 +328,34 @@ export async function fetchDashboardMetricasGerais(
   return {
     ...atual,
     variacao_perdas: calcularVariacao(atual.perdas, ant.perdas),
+  }
+}
+
+// ─────────────────────────────────────────────────────
+// Métricas de Atendimento (fn_metricas_atendimento)
+// ─────────────────────────────────────────────────────
+
+export async function fetchMetricasAtendimento(query: FunilQuery): Promise<MetricasAtendimento> {
+  const organizacaoId = await getOrganizacaoId()
+  const periodo = resolverPeriodo(query)
+
+  const { data, error } = await supabase.rpc('fn_metricas_atendimento' as never, {
+    p_organizacao_id: organizacaoId,
+    p_periodo_inicio: periodo.inicio.toISOString(),
+    p_periodo_fim: periodo.fim.toISOString(),
+  } as never)
+
+  if (error) throw new Error(`Erro ao calcular métricas de atendimento: ${error.message}`)
+
+  const m = data as unknown as MetricasAtendimento
+  return {
+    primeira_resposta_media_segundos: m?.primeira_resposta_media_segundos ? Number(m.primeira_resposta_media_segundos) : null,
+    tempo_medio_resposta_segundos: m?.tempo_medio_resposta_segundos ? Number(m.tempo_medio_resposta_segundos) : null,
+    sem_resposta: Number(m?.sem_resposta ?? 0),
+    total_conversas: Number(m?.total_conversas ?? 0),
+    mensagens_recebidas: Number(m?.mensagens_recebidas ?? 0),
+    mensagens_enviadas: Number(m?.mensagens_enviadas ?? 0),
+    conversas_whatsapp: Number(m?.conversas_whatsapp ?? 0),
+    conversas_instagram: Number(m?.conversas_instagram ?? 0),
   }
 }

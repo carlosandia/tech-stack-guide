@@ -153,3 +153,18 @@ export interface DashboardMetricasGerais {
 export interface DashboardMetricasGeraisComVariacao extends DashboardMetricasGerais {
   variacao_perdas: number | null
 }
+
+// ─────────────────────────────────────────────────────
+// Métricas de Atendimento (fn_metricas_atendimento)
+// ─────────────────────────────────────────────────────
+
+export interface MetricasAtendimento {
+  primeira_resposta_media_segundos: number | null
+  tempo_medio_resposta_segundos: number | null
+  sem_resposta: number
+  total_conversas: number
+  mensagens_recebidas: number
+  mensagens_enviadas: number
+  conversas_whatsapp: number
+  conversas_instagram: number
+}
