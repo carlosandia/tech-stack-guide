@@ -1,6 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import Stripe from 'npm:stripe@14.14.0'
+import Stripe from 'https://esm.sh/stripe@17?target=deno'
 
 /**
  * AIDEV-NOTE: Edge Function para criar sessao de checkout do Stripe
