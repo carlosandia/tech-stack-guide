@@ -469,7 +469,7 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
           )}
         </nav>
 
-        <div className="absolute bottom-0 left-0 right-0 p-4">
+        <div className="absolute bottom-0 left-0 right-0 px-4 pt-3 pb-3">
           <button
             onClick={handleLogout}
             className="flex items-center gap-3 w-full px-3 py-2.5 rounded-md text-sm font-medium text-destructive/80 bg-destructive/5 hover:bg-destructive/10 hover:text-destructive transition-all duration-200"
