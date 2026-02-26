@@ -2,18 +2,25 @@
  * AIDEV-NOTE: Funil de Conversão visual (PRD-18)
  * 6 blocos: Leads → MQLs → SQLs → Reuniões Agendadas → Reuniões Realizadas → Ganhos
  * Com taxas de conversão e custos de investimento integrados
+ * Suporta configuração de etapas visíveis com recálculo inteligente
  */
 
-import { ArrowRight, Users, Target, UserCheck, CalendarPlus, CalendarCheck, Trophy, DollarSign, HelpCircle } from 'lucide-react'
+import { ArrowRight, Users, Target, UserCheck, CalendarPlus, CalendarCheck, Trophy, DollarSign, HelpCircle, SlidersHorizontal } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Switch } from '@/components/ui/switch'
+import { Badge } from '@/components/ui/badge'
+import { useFunilEtapasConfig } from '../../hooks/useFunilEtapasConfig'
 import type { RelatorioFunilResponse, InvestMode } from '../../types/relatorio.types'
 
 interface FunilConversaoProps {
   data: RelatorioFunilResponse
 }
 
+// AIDEV-NOTE: configKey null = etapa fixa (Leads/Ganhos), string = etapa configurável
 interface EtapaFunil {
   label: string
+  configKey: string | null
   value: number
   icon: React.ElementType
   color: string
@@ -46,91 +53,93 @@ function getCustos(investMode: InvestMode) {
   }
 }
 
+const ETAPAS_CONFIGURAVEIS = [
+  { id: 'mqls' as const, label: 'MQLs' },
+  { id: 'sqls' as const, label: 'SQLs' },
+  { id: 'reunioes_agendadas' as const, label: 'R. Agendadas' },
+  { id: 'reunioes_realizadas' as const, label: 'R. Realizadas' },
+]
+
 export default function FunilConversao({ data }: FunilConversaoProps) {
   const custos = getCustos(data.invest_mode)
   const investAtivo = data.invest_mode.ativo
+  const { config, toggleEtapa, hiddenCount } = useFunilEtapasConfig()
 
-  const etapas: EtapaFunil[] = [
+  const todasEtapas: EtapaFunil[] = [
     {
-      label: 'Leads',
-      value: data.funil.total_leads,
-      icon: Users,
-      color: 'text-blue-500',
-      bgColor: 'bg-blue-500/10 border-blue-500/20',
-      taxa: null,
-      taxaLabel: '100%',
+      label: 'Leads', configKey: null,
+      value: data.funil.total_leads, icon: Users,
+      color: 'text-blue-500', bgColor: 'bg-blue-500/10 border-blue-500/20',
+      taxa: null, taxaLabel: '100%',
       dica: 'Oportunidades criadas no período e funil selecionado',
-      custo: custos.cpl,
-      custoLabel: 'CPL',
+      custo: custos.cpl, custoLabel: 'CPL',
       tooltip: 'Total de oportunidades criadas no período e funil selecionado. Representa o topo do funil.',
     },
     {
-      label: 'MQLs',
-      value: data.funil.mqls,
-      icon: Target,
-      color: 'text-cyan-500',
-      bgColor: 'bg-cyan-500/10 border-cyan-500/20',
+      label: 'MQLs', configKey: 'mqls',
+      value: data.funil.mqls, icon: Target,
+      color: 'text-cyan-500', bgColor: 'bg-cyan-500/10 border-cyan-500/20',
       taxa: data.conversoes.lead_para_mql,
       taxaLabel: data.conversoes.lead_para_mql !== null ? `${data.conversoes.lead_para_mql}%` : '—',
       dica: 'Leads qualificados como Marketing Qualified Lead',
-      custo: custos.cpmql,
-      custoLabel: 'Custo/MQL',
+      custo: custos.cpmql, custoLabel: 'Custo/MQL',
       tooltip: 'Marketing Qualified Leads. Oportunidades que atenderam os critérios de qualificação configurados e se tornaram leads qualificados para marketing.',
     },
     {
-      label: 'SQLs',
-      value: data.funil.sqls,
-      icon: UserCheck,
-      color: 'text-violet-500',
-      bgColor: 'bg-violet-500/10 border-violet-500/20',
+      label: 'SQLs', configKey: 'sqls',
+      value: data.funil.sqls, icon: UserCheck,
+      color: 'text-violet-500', bgColor: 'bg-violet-500/10 border-violet-500/20',
       taxa: data.conversoes.mql_para_sql,
       taxaLabel: data.conversoes.mql_para_sql !== null ? `${data.conversoes.mql_para_sql}%` : '—',
       dica: 'Leads qualificados como Sales Qualified Lead',
-      custo: custos.custoSql,
-      custoLabel: 'Custo/SQL',
+      custo: custos.custoSql, custoLabel: 'Custo/SQL',
       tooltip: 'Sales Qualified Leads. Leads que foram validados pela equipe comercial como prontos para abordagem de vendas.',
     },
     {
-      label: 'R. Agendadas',
-      value: data.funil.reunioes_agendadas,
-      icon: CalendarPlus,
-      color: 'text-amber-500',
-      bgColor: 'bg-amber-500/10 border-amber-500/20',
+      label: 'R. Agendadas', configKey: 'reunioes_agendadas',
+      value: data.funil.reunioes_agendadas, icon: CalendarPlus,
+      color: 'text-amber-500', bgColor: 'bg-amber-500/10 border-amber-500/20',
       taxa: data.conversoes.sql_para_reuniao_agendada,
       taxaLabel: data.conversoes.sql_para_reuniao_agendada !== null ? `${data.conversoes.sql_para_reuniao_agendada}%` : '—',
       dica: 'Reuniões agendadas no período',
-      custo: custos.custoReuniaoAgendada,
-      custoLabel: 'Custo/Agendada',
+      custo: custos.custoReuniaoAgendada, custoLabel: 'Custo/Agendada',
       tooltip: 'Reuniões agendadas com os leads qualificados. Indica o volume de conversas comerciais marcadas no período.',
     },
     {
-      label: 'R. Realizadas',
-      value: data.funil.reunioes_realizadas,
-      icon: CalendarCheck,
-      color: 'text-orange-500',
-      bgColor: 'bg-orange-500/10 border-orange-500/20',
+      label: 'R. Realizadas', configKey: 'reunioes_realizadas',
+      value: data.funil.reunioes_realizadas, icon: CalendarCheck,
+      color: 'text-orange-500', bgColor: 'bg-orange-500/10 border-orange-500/20',
       taxa: data.conversoes.reuniao_agendada_para_realizada,
       taxaLabel: data.conversoes.reuniao_agendada_para_realizada !== null ? `${data.conversoes.reuniao_agendada_para_realizada}%` : '—',
       dica: 'Reuniões realizadas no período',
-      custo: custos.custoReuniaoRealizada,
-      custoLabel: 'Custo/Realizada',
+      custo: custos.custoReuniaoRealizada, custoLabel: 'Custo/Realizada',
       tooltip: 'Reuniões que foram efetivamente realizadas. Diferença entre agendadas e realizadas indica taxa de no-show.',
     },
     {
-      label: 'Ganhos',
-      value: data.funil.fechados,
-      icon: Trophy,
-      color: 'text-emerald-500',
-      bgColor: 'bg-emerald-500/10 border-emerald-500/20',
+      label: 'Ganhos', configKey: null,
+      value: data.funil.fechados, icon: Trophy,
+      color: 'text-emerald-500', bgColor: 'bg-emerald-500/10 border-emerald-500/20',
       taxa: data.conversoes.reuniao_realizada_para_fechado,
       taxaLabel: data.conversoes.reuniao_realizada_para_fechado !== null ? `${data.conversoes.reuniao_realizada_para_fechado}%` : '—',
       dica: 'Negócios fechados como ganhos',
-      custo: custos.cac,
-      custoLabel: 'CAC',
+      custo: custos.cac, custoLabel: 'CAC',
       extraInfo: custos.romi !== null ? `ROMI: ${custos.romi}%` : undefined,
       tooltip: 'Negócios fechados com sucesso. Oportunidades que passaram por todo o funil e foram convertidas em vendas.\n\n• CAC (Custo de Aquisição de Cliente): quanto você investiu em média para conquistar cada cliente.\n• ROMI (Retorno sobre Investimento em Marketing): percentual de retorno financeiro sobre o valor investido em marketing. Positivo = lucro, negativo = prejuízo.',
     },
   ]
+
+  // AIDEV-NOTE: Filtrar etapas visíveis e recalcular taxas entre adjacentes
+  const etapasVisiveis = todasEtapas.filter(e =>
+    e.configKey === null || config[e.configKey as keyof typeof config]
+  )
+
+  const etapas = etapasVisiveis.map((etapa, index) => {
+    if (index === 0) return { ...etapa, taxa: null, taxaLabel: '100%' }
+    const anterior = etapasVisiveis[index - 1]
+    if (anterior.value === 0) return { ...etapa, taxa: 0, taxaLabel: '0%' }
+    const taxa = Math.round((etapa.value / anterior.value) * 1000) / 10
+    return { ...etapa, taxa, taxaLabel: `${taxa}%` }
+  })
 
   const taxaGeral = data.conversoes.lead_para_fechado
   const totalInvestido = investAtivo ? (data.invest_mode as { total_investido: number }).total_investido : null
@@ -139,9 +148,50 @@ export default function FunilConversao({ data }: FunilConversaoProps) {
     <TooltipProvider delayDuration={200}>
     <div className="bg-card border border-border rounded-xl p-6">
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
-          Funil de Conversão
-        </h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+            Funil de Conversão
+          </h3>
+          {/* Popover de configuração de etapas */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                className="flex items-center gap-1 p-1 rounded-md text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/30 transition-colors"
+                title="Configurar etapas visíveis"
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5" />
+                {hiddenCount > 0 && (
+                  <Badge variant="secondary" className="h-4 px-1.5 text-[9px] font-bold">
+                    {hiddenCount}
+                  </Badge>
+                )}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-56 p-3" align="start" side="bottom">
+              <div className="flex items-center gap-2 mb-3">
+                <SlidersHorizontal className="w-3.5 h-3.5 text-primary" />
+                <span className="text-xs font-semibold text-foreground">Etapas do funil</span>
+              </div>
+              <div className="space-y-1">
+                {ETAPAS_CONFIGURAVEIS.map(ec => (
+                  <label
+                    key={ec.id}
+                    className="flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-muted/30 cursor-pointer transition-colors"
+                  >
+                    <span className="text-xs text-foreground">{ec.label}</span>
+                    <Switch
+                      checked={config[ec.id]}
+                      onCheckedChange={() => toggleEtapa(ec.id)}
+                    />
+                  </label>
+                ))}
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-2 px-2">
+                Leads e Ganhos são sempre visíveis
+              </p>
+            </PopoverContent>
+          </Popover>
+        </div>
         <div className="flex items-center gap-2">
           {totalInvestido !== null && (
             <div className="flex items-center gap-1.5 px-3 py-1 bg-primary/10 rounded-full">
