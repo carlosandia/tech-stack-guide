@@ -11,6 +11,7 @@ import { useHeatmapAtendimento } from '../../hooks/useRelatorioFunil'
 import { useConfigTenant } from '@/modules/configuracoes/hooks/useConfigTenant'
 
 type CanalFiltro = 'todos' | 'whatsapp' | 'instagram'
+type TipoFiltro = 'todos' | 'individual' | 'grupo'
 
 interface Props {
   query: FunilQuery
@@ -24,6 +25,12 @@ const CANAL_OPTIONS: { value: CanalFiltro; label: string }[] = [
   { value: 'todos', label: 'Todos' },
   { value: 'whatsapp', label: 'WhatsApp' },
   { value: 'instagram', label: 'Instagram' },
+]
+
+const TIPO_OPTIONS: { value: TipoFiltro; label: string }[] = [
+  { value: 'todos', label: 'Ambos' },
+  { value: 'individual', label: 'Individual' },
+  { value: 'grupo', label: 'Grupo' },
 ]
 
 // AIDEV-NOTE: 6 níveis de intensidade usando tokens semânticos
@@ -57,8 +64,10 @@ const DIAS_NOMES_CURTOS: Record<number, string> = { 0: 'Dom', 1: 'Seg', 2: 'Ter'
 
 export default function HeatmapAtendimento({ query }: Props) {
   const [canal, setCanal] = useState<CanalFiltro>('todos')
+  const [tipo, setTipo] = useState<TipoFiltro>('todos')
   const canalParam = canal === 'todos' ? undefined : canal
-  const { data, isLoading } = useHeatmapAtendimento(query, canalParam)
+  const tipoParam = tipo === 'todos' ? undefined : tipo
+  const { data, isLoading } = useHeatmapAtendimento(query, canalParam, tipoParam)
   const { data: configTenant } = useConfigTenant()
 
   // AIDEV-NOTE: Extrair horário comercial das configurações do tenant
@@ -115,13 +124,29 @@ export default function HeatmapAtendimento({ query }: Props) {
           </p>
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-wrap">
           {CANAL_OPTIONS.map(opt => (
             <button
               key={opt.value}
               onClick={() => setCanal(opt.value)}
               className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
                 canal === opt.value
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+
+          <div className="w-px h-5 bg-border mx-1" />
+
+          {TIPO_OPTIONS.map(opt => (
+            <button
+              key={opt.value}
+              onClick={() => setTipo(opt.value)}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                tipo === opt.value
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-muted text-muted-foreground hover:bg-muted/80'
               }`}

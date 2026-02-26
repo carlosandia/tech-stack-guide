@@ -458,7 +458,7 @@ export async function fetchRelatorioMetas(query: FunilQuery): Promise<RelatorioM
 // Heatmap de Atendimento (fn_heatmap_atendimento)
 // ─────────────────────────────────────────────────────
 
-export async function fetchHeatmapAtendimento(query: FunilQuery, canal?: string): Promise<HeatmapAtendimentoItem[]> {
+export async function fetchHeatmapAtendimento(query: FunilQuery, canal?: string, tipo?: string): Promise<HeatmapAtendimentoItem[]> {
   const organizacaoId = await getOrganizacaoId()
   const periodo = resolverPeriodo(query)
 
@@ -469,6 +469,9 @@ export async function fetchHeatmapAtendimento(query: FunilQuery, canal?: string)
   }
   if (canal) {
     rpcParams.p_canal = canal
+  }
+  if (tipo) {
+    rpcParams.p_tipo = tipo
   }
 
   const { data, error } = await supabase.rpc('fn_heatmap_atendimento' as never, rpcParams as never)
