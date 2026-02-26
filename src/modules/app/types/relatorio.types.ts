@@ -47,6 +47,7 @@ export interface BreakdownCanalItem {
   oportunidades: number
   fechados: number
   valor_gerado: number
+  ticket_medio: number
   taxa_fechamento: number
   percentual_total: number
 }

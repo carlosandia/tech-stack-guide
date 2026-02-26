@@ -142,6 +142,7 @@ async function buscarBreakdownCanal(
     oportunidades: Number(item.oportunidades ?? 0),
     fechados: Number(item.fechados ?? 0),
     valor_gerado: Number(item.valor_gerado ?? 0),
+    ticket_medio: Number(item.ticket_medio ?? 0),
     taxa_fechamento: Number(item.taxa_fechamento ?? 0),
     percentual_total: Number(item.percentual_total ?? 0),
   }))

@@ -27,6 +27,8 @@ const CORES_CANAL: Record<string, string> = {
   instagram: '#EC4899',
   email: '#06B6D4',
   outros: '#94A3B8',
+  manual: '#6B7280',
+  formulario: '#F97316',
 }
 
 function getCorCanal(canal: string): string {
@@ -42,12 +44,19 @@ function formatarNomeCanal(canal: string): string {
     organico: 'Orgânico',
     indicacao: 'Indicação',
     direto: 'Direto',
+    manual: 'Manual',
     whatsapp: 'WhatsApp',
     instagram: 'Instagram',
     email: 'Email',
+    formulario: 'Formulário',
+    webhook: 'Webhook',
     outros: 'Outros',
   }
-  return nomes[canal.toLowerCase()] || canal
+  return nomes[canal.toLowerCase()] || canal.charAt(0).toUpperCase() + canal.slice(1)
+}
+
+function formatarMoeda(valor: number): string {
+  return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
 /**
@@ -152,7 +161,7 @@ export default function BreakdownCanal({ data }: BreakdownCanalProps) {
         <CSSDonutChart data={chartData} />
 
         {/* Lista de canais */}
-        <div className="flex-1 space-y-3 w-full">
+        <div className="flex-1 space-y-4 w-full">
           {data.map((item) => {
             const cor = getCorCanal(item.canal)
             const barWidth = totalOportunidades > 0
@@ -174,16 +183,8 @@ export default function BreakdownCanal({ data }: BreakdownCanalProps) {
                       {item.percentual_total.toFixed(0)}%
                     </span>
                   </div>
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span>
-                      {item.oportunidades.toLocaleString('pt-BR')} leads
-                    </span>
-                    <span className="hidden sm:inline">
-                      {item.fechados} fechados ({item.taxa_fechamento.toFixed(1)}%)
-                    </span>
-                  </div>
                 </div>
-                <div className="h-2 bg-muted/30 rounded-full overflow-hidden">
+                <div className="h-2 bg-muted/30 rounded-full overflow-hidden mb-1.5">
                   <div
                     className="h-full rounded-full transition-all duration-500"
                     style={{
@@ -191,6 +192,12 @@ export default function BreakdownCanal({ data }: BreakdownCanalProps) {
                       backgroundColor: cor,
                     }}
                   />
+                </div>
+                <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+                  <span>{item.oportunidades.toLocaleString('pt-BR')} leads</span>
+                  <span>{item.fechados} ganhos ({item.taxa_fechamento.toFixed(1)}%)</span>
+                  <span>Receita: {formatarMoeda(item.valor_gerado)}</span>
+                  <span>Ticket: {formatarMoeda(item.ticket_medio)}</span>
                 </div>
               </div>
             )
