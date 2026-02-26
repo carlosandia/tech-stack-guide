@@ -21,6 +21,7 @@ import renoveLogo from '@/assets/logotipo-renove.svg'
 import {
   LayoutDashboard,
   Users,
+  Building2,
   Briefcase,
   MessageSquare,
   CheckSquare,
@@ -79,7 +80,8 @@ const navHubs: NavHub[] = [
     icon: Briefcase,
     children: [
       { label: 'Negócios', path: '/negocios', icon: Briefcase, slug: 'negocios' },
-      { label: 'Contatos', path: '/contatos', icon: Users, slug: 'contatos' },
+      { label: 'Pessoas', path: '/contatos/pessoas', icon: Users, slug: 'contatos' },
+      { label: 'Empresas', path: '/contatos/empresas', icon: Building2, slug: 'contatos' },
     ],
   },
   {
