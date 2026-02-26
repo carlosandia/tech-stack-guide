@@ -1,10 +1,9 @@
 /**
  * AIDEV-NOTE: Breakdown por Canal de Origem (PRD-18)
- * Donut chart + lista com barras proporcionais
- * Usa Recharts diretamente (já na stack)
+ * Donut chart CSS puro + lista com barras proporcionais
+ * Sem dependência de Recharts para evitar conflito de instância React duplicada
  */
 
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
 import type { BreakdownCanalItem } from '../../types/relatorio.types'
 
 interface BreakdownCanalProps {
@@ -45,6 +44,43 @@ function formatarNomeCanal(canal: string): string {
   return nomes[canal.toLowerCase()] || canal
 }
 
+/**
+ * Donut chart CSS puro usando conic-gradient
+ */
+function CSSDonutChart({ data }: { data: { name: string; value: number; color: string }[] }) {
+  const total = data.reduce((sum, d) => sum + d.value, 0)
+  if (total === 0) return null
+
+  // Build conic-gradient stops
+  let accumulated = 0
+  const stops = data.flatMap((d) => {
+    const start = accumulated
+    const end = accumulated + (d.value / total) * 100
+    accumulated = end
+    return [`${d.color} ${start}% ${end}%`]
+  })
+
+  const gradient = `conic-gradient(${stops.join(', ')})`
+
+  return (
+    <div className="relative w-44 h-44 mx-auto lg:mx-0 shrink-0">
+      <div
+        className="w-full h-full rounded-full"
+        style={{ background: gradient }}
+      />
+      {/* Inner circle for donut effect */}
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="w-24 h-24 rounded-full bg-card flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-lg font-bold text-foreground">{total.toLocaleString('pt-BR')}</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Total</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function BreakdownCanal({ data }: BreakdownCanalProps) {
   if (!data || data.length === 0) {
     return (
@@ -78,45 +114,12 @@ export default function BreakdownCanal({ data }: BreakdownCanalProps) {
         Por Canal de Origem
       </h3>
 
-      <div className="flex flex-col lg:flex-row gap-6">
-        {/* Donut Chart */}
-        <div className="w-full lg:w-48 h-48 shrink-0">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={chartData}
-                cx="50%"
-                cy="50%"
-                innerRadius={50}
-                outerRadius={80}
-                paddingAngle={3}
-                dataKey="value"
-                stroke="none"
-              >
-                {chartData.map((entry, index) => (
-                  <Cell key={index} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip
-                content={({ active, payload }) => {
-                  if (!active || !payload?.length) return null
-                  const item = payload[0]
-                  return (
-                    <div className="bg-popover border border-border rounded-lg px-3 py-2 shadow-lg">
-                      <p className="text-xs font-medium text-foreground">{item.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {(item.value as number).toLocaleString('pt-BR')} oportunidades
-                      </p>
-                    </div>
-                  )
-                }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
+      <div className="flex flex-col lg:flex-row gap-6 items-start">
+        {/* Donut Chart CSS */}
+        <CSSDonutChart data={chartData} />
 
         {/* Lista de canais */}
-        <div className="flex-1 space-y-3">
+        <div className="flex-1 space-y-3 w-full">
           {data.map((item) => {
             const cor = getCorCanal(item.canal)
             const barWidth = totalOportunidades > 0
