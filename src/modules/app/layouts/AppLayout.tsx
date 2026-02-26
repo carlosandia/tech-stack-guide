@@ -36,7 +36,10 @@ import {
   ChevronDown,
   Lock,
   Wrench,
+  Megaphone,
+  Send,
 } from 'lucide-react'
+import { WhatsAppIcon } from '@/shared/components/WhatsAppIcon'
 
 
 /**
@@ -56,6 +59,7 @@ interface NavHubItem {
   path: string
   icon: React.ElementType
   slug: string
+  comingSoon?: boolean
 }
 
 interface NavHub {
@@ -90,6 +94,14 @@ const navHubs: NavHub[] = [
     children: [
       { label: 'Conversas', path: '/conversas', icon: MessageSquare, slug: 'conversas' },
       { label: 'Emails', path: '/emails', icon: Mail, slug: 'caixa-entrada-email' },
+    ],
+  },
+  {
+    label: 'Campanhas',
+    icon: Megaphone,
+    children: [
+      { label: 'Email Marketing', path: '/campanhas/email', icon: Send, slug: 'email-marketing', comingSoon: true },
+      { label: 'WhatsApp Marketing', path: '/campanhas/whatsapp', icon: WhatsAppIcon, slug: 'whatsapp-marketing', comingSoon: true },
     ],
   },
   {
@@ -157,8 +169,11 @@ function NavHubDropdown({
 
   // Todos os filhos bloqueados = hub inteiro bloqueado
   const allLocked = modulosAtivos
-    ? children.every((c) => !modulosAtivos.includes(c.slug))
+    ? children.every((c) => !c.comingSoon && !modulosAtivos.includes(c.slug))
     : false
+
+  // Todos os filhos são "em breve"
+  const allComingSoon = children.every((c) => c.comingSoon)
 
   return (
     <DropdownMenu>
@@ -174,14 +189,37 @@ function NavHubDropdown({
         >
           <Icon className="w-4 h-4" />
           <span>{hub.label}</span>
+          {allComingSoon && (
+            <span className="text-[9px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full font-medium leading-none">
+              Em breve
+            </span>
+          )}
           <ChevronDown className="w-3.5 h-3.5 opacity-60" />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-48 z-[150] bg-popover">
+      <DropdownMenuContent align="start" className="w-52 z-[150] bg-popover">
         {children.map((child) => {
           const ChildIcon = child.icon
-          const isLocked = modulosAtivos ? !modulosAtivos.includes(child.slug) : false
           const isActive = pathname.startsWith(child.path)
+
+          // Coming soon items
+          if (child.comingSoon) {
+            return (
+              <DropdownMenuItem
+                key={child.path}
+                disabled
+                className="flex items-center gap-2.5 opacity-50 cursor-not-allowed"
+              >
+                <ChildIcon className="w-4 h-4" />
+                <span>{child.label}</span>
+                <span className="ml-auto text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full font-medium">
+                  Em breve
+                </span>
+              </DropdownMenuItem>
+            )
+          }
+
+          const isLocked = modulosAtivos ? !modulosAtivos.includes(child.slug) : false
 
           if (isLocked) {
             return (
@@ -358,6 +396,22 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
                 </p>
                 <div className="space-y-0.5">
                   {hub.children?.map((child) => {
+                    // Coming soon items
+                    if (child.comingSoon) {
+                      return (
+                        <button
+                          key={child.path}
+                          type="button"
+                          className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-muted-foreground/50 cursor-not-allowed opacity-50 w-full"
+                        >
+                          <child.icon className="w-5 h-5" />
+                          {child.label}
+                          <span className="ml-auto text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full font-medium">
+                            Em breve
+                          </span>
+                        </button>
+                      )
+                    }
                     const isLocked = modulosAtivos ? !modulosAtivos.includes(child.slug) : false
                     if (isLocked) {
                       return (
