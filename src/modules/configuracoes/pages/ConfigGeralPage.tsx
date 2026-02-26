@@ -431,11 +431,38 @@ export function ConfigGeralPage() {
 
         {!loadingEmail && !temEmailConectado && <BannerEmailDesconectado />}
 
-        {/* Janela de envio */}
+        {/* Janela de envio — vinculada ao horário comercial por padrão */}
         <div className="rounded-md border border-border bg-muted/30 p-4 space-y-3">
-          <div>
-            <p className="text-sm font-medium text-foreground">Janela de envio</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Emails serão enviados apenas dentro deste horário.</p>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-foreground">Janela de envio</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {form.horario_inicio_envio === form.horario_comercial_inicio && form.horario_fim_envio === form.horario_comercial_fim
+                  ? `Usando horário comercial (${form.horario_comercial_inicio} – ${form.horario_comercial_fim})`
+                  : 'Horário personalizado para envio de emails'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (form.horario_inicio_envio === form.horario_comercial_inicio && form.horario_fim_envio === form.horario_comercial_fim) {
+                  // Já está sincronizado, não faz nada — admin pode editar abaixo
+                } else {
+                  // Sincronizar com horário comercial
+                  updateField('horario_inicio_envio', form.horario_comercial_inicio)
+                  updateField('horario_fim_envio', form.horario_comercial_fim)
+                }
+              }}
+              className={`text-xs font-medium px-2.5 py-1 rounded-md transition-colors ${
+                form.horario_inicio_envio === form.horario_comercial_inicio && form.horario_fim_envio === form.horario_comercial_fim
+                  ? 'bg-primary/10 text-primary cursor-default'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              }`}
+            >
+              {form.horario_inicio_envio === form.horario_comercial_inicio && form.horario_fim_envio === form.horario_comercial_fim
+                ? '✓ Sincronizado'
+                : 'Sincronizar com horário comercial'}
+            </button>
           </div>
           <div className="grid grid-cols-2 gap-4 max-w-xs">
             <div>
