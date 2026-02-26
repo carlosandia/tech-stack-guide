@@ -573,8 +573,8 @@ const AppLayoutInner = forwardRef<HTMLDivElement>(function AppLayoutInner(_props
                       {user?.email}
                     </p>
                     <div className="flex items-center gap-1.5 mt-1.5">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
-                        {role === 'admin' ? 'Admin' : 'Membro'}
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground">
+                        {role === 'super_admin' ? 'Super' : role === 'admin' ? 'Admin' : 'Membro'}
                       </span>
                       {parceiroStatus.isParceiro && (
                         <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700" title={parceiroStatus.nivelNome ? `Parceiro ${parceiroStatus.nivelNome}` : 'Parceiro'}>
