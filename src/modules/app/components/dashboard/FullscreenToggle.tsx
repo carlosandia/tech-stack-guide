@@ -154,8 +154,8 @@ export default function FullscreenToggle({ containerRef }: FullscreenToggleProps
         )}
       </button>
 
-      {/* Barra flutuante — renderizada via portal para escapar do transform: scale() */}
-      {isFullscreen && createPortal(
+      {/* Barra flutuante — portal no container fullscreened (não document.body, senão fica fora do fullscreen) */}
+      {isFullscreen && containerRef.current && createPortal(
         <div className="fixed bottom-6 right-6 z-[9999] flex flex-col items-center gap-1 bg-card/90 backdrop-blur-md border border-border rounded-xl shadow-lg p-1.5">
           <button onClick={scrollUp} className={btnClass} title="Rolar acima">
             <ChevronUp className="w-4 h-4" />
@@ -177,7 +177,7 @@ export default function FullscreenToggle({ containerRef }: FullscreenToggleProps
             <Minimize2 className="w-4 h-4" />
           </button>
         </div>,
-        document.body
+        containerRef.current
       )}
     </>
   )
