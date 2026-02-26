@@ -85,7 +85,7 @@ export default function InvestModeWidget({ data }: InvestModeWidgetProps) {
           title={isAtivo ? 'Métricas de investimento ativas' : 'Configurar investimento (CPL, CAC, ROMI)'}
         >
           <DollarSign className="w-3.5 h-3.5" />
-          {isAtivo ? 'ROI' : 'Investimento'}
+          Investimento
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-80 sm:w-96 p-4" align="end" side="bottom">

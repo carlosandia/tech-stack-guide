@@ -1,6 +1,7 @@
 import { forwardRef, useState } from 'react'
 
 import { useRelatorioFunil, useFunis, useDashboardMetricasGerais, useMetricasAtendimento, useRelatorioMetas } from '../hooks/useRelatorioFunil'
+import { useDashboardDisplay } from '../hooks/useDashboardDisplay'
 import DashboardFilters from '../components/dashboard/DashboardFilters'
 import FunilConversao from '../components/dashboard/FunilConversao'
 import KPIsPrincipais from '../components/dashboard/KPIsPrincipais'
@@ -10,12 +11,12 @@ import MotivosGanho from '../components/dashboard/MotivosGanho'
 import ProdutosRanking from '../components/dashboard/ProdutosRanking'
 import BreakdownCanal from '../components/dashboard/BreakdownCanal'
 import InvestModeWidget from '../components/dashboard/InvestModeWidget'
+import DashboardDisplayConfig from '../components/dashboard/DashboardDisplayConfig'
 import MetricasAtendimento from '../components/dashboard/MetricasAtendimento'
 import IndicadoresReunioes from '../components/dashboard/IndicadoresReunioes'
 import RelatorioMetas from '../components/dashboard/RelatorioMetas'
 import DashboardSkeleton from '../components/dashboard/DashboardSkeleton'
 import { AlertCircle } from 'lucide-react'
-import CollapsibleSection from '../components/dashboard/CollapsibleSection'
 import type { Periodo } from '../types/relatorio.types'
 
 /**
@@ -37,6 +38,9 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
     data_inicio: periodo === 'personalizado' ? dataInicio : undefined,
     data_fim: periodo === 'personalizado' ? dataFim : undefined,
   }
+
+  // Display config
+  const { config: displayConfig, toggleSection } = useDashboardDisplay()
 
   // Queries
   const { data: funis = [] } = useFunis()
@@ -96,8 +100,6 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
 
   if (!relatorio) return null
 
-  
-
   return (
     <div ref={ref} className="h-full overflow-y-auto">
       <div className="space-y-6 px-4 sm:px-6 lg:px-8 py-5 max-w-full">
@@ -121,68 +123,57 @@ const DashboardPage = forwardRef<HTMLDivElement>(function DashboardPage(_props, 
                 onDatasChange={handleDatasChange}
               />
               <InvestModeWidget data={relatorio} />
+              <DashboardDisplayConfig config={displayConfig} onToggle={toggleSection} />
             </div>
           </div>
         </div>
 
         {/* Indicadores de Metas */}
-        {relatorioMetas && (
-          <CollapsibleSection id="metas">
-            <RelatorioMetas data={relatorioMetas} />
-          </CollapsibleSection>
+        {displayConfig.metas && relatorioMetas && (
+          <RelatorioMetas data={relatorioMetas} />
         )}
 
         {/* Funil de Conversão */}
-        <CollapsibleSection id="funil">
+        {displayConfig.funil && (
           <FunilConversao data={relatorio} />
-        </CollapsibleSection>
+        )}
 
         {/* Indicadores de Reuniões */}
-        <CollapsibleSection id="reunioes">
+        {displayConfig.reunioes && (
           <IndicadoresReunioes data={relatorio} />
-        </CollapsibleSection>
+        )}
 
         {/* KPIs Principais (6 cards) */}
-        {metricasGerais && (
-          <CollapsibleSection id="kpis-principais">
-            <KPIsPrincipais relatorio={relatorio} metricas={metricasGerais} />
-          </CollapsibleSection>
+        {displayConfig['kpis-principais'] && metricasGerais && (
+          <KPIsPrincipais relatorio={relatorio} metricas={metricasGerais} />
         )}
 
         {/* KPIs Secundários (4 cards) */}
         {metricasGerais && (
-          <CollapsibleSection id="kpis-secundarios">
-            <KPIsSecundarios relatorio={relatorio} metricas={metricasGerais} />
-          </CollapsibleSection>
+          <KPIsSecundarios relatorio={relatorio} metricas={metricasGerais} />
         )}
 
-        {/* Breakdown por Canal (estratégico — após KPIs) */}
-        <CollapsibleSection id="canal">
+        {/* Breakdown por Canal */}
+        {displayConfig.canal && (
           <BreakdownCanal data={relatorio.breakdown_canal} />
-        </CollapsibleSection>
+        )}
 
-        {/* Gráficos lado a lado: Motivos de Ganho + Perda */}
-        {metricasGerais && (
-          <CollapsibleSection id="motivos">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <MotivosGanho data={metricasGerais.motivos_ganho} />
-              <MotivosPerda data={metricasGerais.motivos_perda} />
-            </div>
-          </CollapsibleSection>
+        {/* Motivos de Ganho + Perda */}
+        {displayConfig.motivos && metricasGerais && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <MotivosGanho data={metricasGerais.motivos_ganho} />
+            <MotivosPerda data={metricasGerais.motivos_perda} />
+          </div>
         )}
 
         {/* Produtos Mais Vendidos */}
         {metricasGerais && (
-          <CollapsibleSection id="produtos">
-            <ProdutosRanking data={metricasGerais.produtos_ranking} />
-          </CollapsibleSection>
+          <ProdutosRanking data={metricasGerais.produtos_ranking} />
         )}
 
         {/* Métricas de Atendimento */}
         {metricasAtendimento && (
-          <CollapsibleSection id="atendimento">
-            <MetricasAtendimento data={metricasAtendimento} />
-          </CollapsibleSection>
+          <MetricasAtendimento data={metricasAtendimento} />
         )}
       </div>
     </div>
